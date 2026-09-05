@@ -18,6 +18,10 @@ export interface OpenDatabaseResult {
 export function openDatabase(options: OpenDatabaseOptions): OpenDatabaseResult {
   const databasePath = path.resolve(options.databasePath);
   fs.mkdirSync(path.dirname(databasePath), { recursive: true });
+  if (process.platform !== 'win32') {
+    fs.closeSync(fs.openSync(databasePath, 'a', 0o600));
+    fs.chmodSync(databasePath, 0o600);
+  }
   const db = new BetterSqlite3(databasePath);
   try {
     db.pragma('journal_mode = WAL');
