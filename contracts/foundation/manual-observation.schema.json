@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/foundation/manual-observation.schema.json",
+  "title": "ManualObservationInput",
+  "description": "Canonical trust-boundary contract for one synthetic/manual Box 1 product observation.",
+  "$defs": {
+    "jsonValue": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "boolean" },
+        { "type": "number" },
+        { "type": "string" },
+        { "type": "array", "items": { "$ref": "#/$defs/jsonValue" } },
+        { "type": "object", "additionalProperties": { "$ref": "#/$defs/jsonValue" } }
+      ]
+    }
+  },
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "source", "ingestion", "product", "observation", "rawPayload"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "sourceType", "displayName"],
+      "properties": {
+        "sourceId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "maxLength": 160,
+          "description": "Namespaced source identity, for example manual:synthetic-fixture."
+        },
+        "sourceType": { "enum": ["manual", "provider_export", "provider_api"] },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "ingestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idempotencyKey", "acquiredAt", "mediaType", "evidenceGrade"],
+      "properties": {
+        "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "acquiredAt": { "type": "string", "format": "date-time" },
+        "mediaType": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "evidenceGrade": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["grade", "basis"],
+          "properties": {
+            "grade": {
+              "enum": ["synthetic", "unverified", "provider_reported", "corroborated", "verified"]
+            },
+            "basis": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000,
+              "description": "Explicit justification supplied by the importer; never inferred from source name."
+            }
+          }
+        }
+      }
+    },
+    "product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["platform", "platformProductId", "productName"],
+      "properties": {
+        "platform": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$", "maxLength": 80 },
+        "platformProductId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "productName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "description": "Display metadata only; it is not part of product identity."
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observedAt", "scope", "period"],
+      "minProperties": 4,
+      "properties": {
+        "observedAt": { "type": "string", "format": "date-time" },
+        "scope": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["start", "end", "grain"],
+          "properties": {
+            "start": { "type": "string", "format": "date-time" },
+            "end": { "type": "string", "format": "date-time" },
+            "grain": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "description": "Provider/user-declared grain such as day, month, rolling_30d, or custom; never forced to week."
+            }
+          }
+        },
+        "periodRevenueVnd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Revenue for exactly the declared period, in integer VND. Absence means missing; zero is observed zero."
+        },
+        "lifetimeRevenueVnd": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991,
+          "description": "Lifetime revenue in integer VND, kept distinct from period revenue."
+        },
+        "unitsSold": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "revenueGrowth": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unit", "scale"],
+          "properties": {
+            "value": { "type": "integer", "minimum": -9007199254740991, "maximum": 9007199254740991 },
+            "unit": { "const": "percent" },
+            "scale": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000000,
+              "description": "Stored value divided by scale gives percentage points; e.g. 1250/100 = 12.50%."
+            }
+          }
+        },
+        "trendsInterestIndex": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["value", "unit"],
+          "properties": {
+            "value": { "type": "integer", "minimum": 0, "maximum": 100 },
+            "unit": { "const": "relative_interest_index_0_100" }
+          },
+          "description": "Relative Trends interest index, explicitly not search volume."
+        }
+      }
+    },
+    "rawPayload": {
+      "description": "Synthetic/manual source payload persisted byte-for-byte after deterministic canonical JSON serialization.",
+      "$ref": "#/$defs/jsonValue"
+    }
+  }
+}
