@@ -1,0 +1,8 @@
+{
+  "name": "tdn-growth-os",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TDN five-box modular monolith — planning scaffold",
+  "type": "module"
+}
+

@@ -1,0 +1,1424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Unified Data Warehouse — Master Handoff</title>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e4e4e7;
+    --muted: #9ca3af;
+    --accent: #6366f1;
+    --accent2: #8b5cf6;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --red: #ef4444;
+    --blue: #3b82f6;
+    --orange: #f97316;
+    --pink: #ec4899;
+    --cyan: #06b6d4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: var(--bg); color: var(--text); line-height: 1.6; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 2rem; }
+  h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
+  h1 span { color: var(--accent); }
+  .subtitle { color: var(--muted); margin-bottom: 2rem; font-size: 0.95rem; }
+  h2 { font-size: 1.4rem; font-weight: 600; margin: 2.5rem 0 1rem; color: var(--accent); border-bottom: 1px solid var(--border); padding-bottom: 0.5rem; }
+  h3 { font-size: 1.1rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+  .grid { display: grid; gap: 1.5rem; }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+  .grid-4 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; }
+  .card-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem; }
+  .card-icon { width: 40px; height: 40px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 1.2rem; flex-shrink: 0; }
+  .card-title { font-weight: 600; font-size: 1.05rem; }
+  .card-desc { color: var(--muted); font-size: 0.85rem; }
+  table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+  th { text-align: left; padding: 0.6rem 0.75rem; background: rgba(99,102,241,0.1); color: var(--accent); font-weight: 600; border-bottom: 1px solid var(--border); white-space: nowrap; }
+  td { padding: 0.5rem 0.75rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+  tr:hover td { background: rgba(99,102,241,0.03); }
+  .tag { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; font-weight: 500; }
+  .tag-blue { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .tag-green { background: rgba(34,197,94,0.15); color: var(--green); }
+  .tag-purple { background: rgba(139,92,246,0.15); color: var(--accent2); }
+  .tag-orange { background: rgba(249,115,22,0.15); color: var(--orange); }
+  .tag-pink { background: rgba(236,72,153,0.15); color: var(--pink); }
+  .tag-cyan { background: rgba(6,182,212,0.15); color: var(--cyan); }
+  .tag-yellow { background: rgba(234,179,8,0.15); color: var(--yellow); }
+  .tag-red { background: rgba(239,68,68,0.15); color: var(--red); }
+  .tag-gray { background: rgba(156,163,175,0.15); color: var(--muted); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-ok { background: var(--green); }
+  .status-warn { background: var(--yellow); }
+  .status-err { background: var(--red); }
+  .status-new { background: var(--cyan); }
+  .metric-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; }
+  .metric-box { background: rgba(99,102,241,0.05); border: 1px solid var(--border); border-radius: 8px; padding: 1rem; text-align: center; }
+  .metric-value { font-size: 1.8rem; font-weight: 700; color: var(--accent); }
+  .metric-label { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+  .er-diagram { background: #0d0f15; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; overflow-x: auto; font-family: 'Courier New', monospace; font-size: 0.75rem; line-height: 1.4; color: var(--muted); white-space: pre; }
+  .phase-bar { display: flex; gap: 2px; margin: 1rem 0; }
+  .phase-segment { flex: 1; padding: 0.75rem; border-radius: 8px; text-align: center; font-size: 0.8rem; font-weight: 600; }
+  .source-card { position: relative; overflow: hidden; }
+  .source-card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; }
+  .source-kalodata::before { background: var(--green); }
+  .source-shopee::before { background: var(--orange); }
+  .source-trends::before { background: var(--blue); }
+  .source-metric::before { background: var(--pink); }
+  .checklist { list-style: none; }
+  .checklist li { padding: 0.4rem 0; display: flex; align-items: flex-start; gap: 0.5rem; }
+  .checklist li::before { content: '✓'; color: var(--green); font-weight: 700; flex-shrink: 0; }
+  .checklist li.missing::before { content: '✗'; color: var(--red); }
+  .checklist li.pending::before { content: '○'; color: var(--yellow); }
+  .divider { height: 1px; background: var(--border); margin: 2rem 0; }
+  .footer { text-align: center; color: var(--muted); font-size: 0.8rem; margin-top: 3rem; padding-top: 1.5rem; border-top: 1px solid var(--border); }
+  @media (max-width: 768px) { .container { padding: 1rem; } h1 { font-size: 1.5rem; } }
+</style>
+</head>
+<body>
+<div class="container">
+
+<h1>📦 Unified Data Warehouse — <span>Master Handoff</span></h1>
+<p class="subtitle">Last Updated: 2026-08-10 · Sources: Kalodata, Shopee Affiliate API, Google Trends, Metric.vn · Architecture: 3-Layer (Staging → Core → Metrics) · Full field inventory for all 4 sources (Sec 3–3C)</p>
+
+<!-- ============================================================ -->
+<h2>1. Overview</h2>
+
+<div class="metric-grid">
+  <div class="metric-box"><div class="metric-value">4</div><div class="metric-label">Data Sources</div></div>
+  <div class="metric-box"><div class="metric-value">9</div><div class="metric-label">Tables (Dim + Fact)</div></div>
+  <div class="metric-box"><div class="metric-value">57</div><div class="metric-label">Tracked Metrics</div></div>
+  <div class="metric-box"><div class="metric-value">5</div><div class="metric-label">Data Packs</div></div>
+  <div class="metric-box"><div class="metric-value">5</div><div class="metric-label">Phases</div></div>
+  <div class="metric-box"><div class="metric-value">6</div><div class="metric-label">Evidence Levels</div></div>
+</div>
+
+<!-- ============================================================ -->
+<h2>2. Data Sources</h2>
+
+<div class="grid grid-2">
+  <!-- Kalodata -->
+  <div class="card source-card source-kalodata">
+    <div class="card-header">
+      <div class="card-icon" style="background:rgba(34,197,94,0.15);color:var(--green)">📊</div>
+      <div><div class="card-title">Kalodata</div><div class="card-desc">TikTok Shop analytics</div></div>
+      <span class="tag tag-green" style="margin-left:auto">E2</span>
+    </div>
+    <table>
+      <tr><th>Access</th><td>Browser automation (Playwright)</td></tr>
+      <tr><th>Coverage</th><td>TikTok Shop — products, videos, livestreams, creators</td></tr>
+      <tr><th>Refresh</th><td>Weekly, Monday 02:00 UTC+7</td></tr>
+      <tr><th>Key Data</th><td>Product revenue, views, items sold, creator handles, video duration, ad flags</td></tr>
+      <tr><th>Limitations</th><td>Scraped data, no official API, rate-limited</td></tr>
+    </table>
+  </div>
+
+  <!-- Shopee -->
+  <div class="card source-card source-shopee">
+    <div class="card-header">
+      <div class="card-icon" style="background:rgba(249,115,22,0.15);color:var(--orange)">🛒</div>
+      <div><div class="card-title">Shopee Affiliate API</div><div class="card-desc">Official Shopee GraphQL API</div></div>
+      <span class="tag tag-green" style="margin-left:auto">E0–E1</span>
+    </div>
+    <table>
+      <tr><th>Access</th><td>GraphQL API (authenticated)</td></tr>
+      <tr><th>Coverage</th><td>Shopee — products, orders, commissions, shop data</td></tr>
+      <tr><th>Refresh</th><td>Weekly, Monday 03:00–04:00 UTC+7</td></tr>
+      <tr><th>Key Data</th><td>Item IDs, shop IDs, prices, ratings, order details, commission breakdown, attribution, fraud status</td></tr>
+      <tr><th>Limitations</th><td>Only Shopee; cursor-based pagination; rate limits</td></tr>
+    </table>
+  </div>
+
+  <!-- Google Trends -->
+  <div class="card source-card source-trends">
+    <div class="card-header">
+      <div class="card-icon" style="background:rgba(59,130,246,0.15);color:var(--blue)">📈</div>
+      <div><div class="card-title">Google Trends</div><div class="card-desc">Via SerpAPI</div></div>
+      <span class="tag tag-blue" style="margin-left:auto">E2</span>
+    </div>
+    <table>
+      <tr><th>Access</th><td>SerpAPI (REST)</td></tr>
+      <tr><th>Coverage</th><td>Search interest by keyword, region, time</td></tr>
+      <tr><th>Refresh</th><td>Weekly, Monday 05:00 UTC+7</td></tr>
+      <tr><th>Key Data</th><td>Interest score (0–100), momentum, rising queries, geo concentration, related queries</td></tr>
+      <tr><th>Limitations</th><td>No search volume (only relative index); keyword-to-product mapping is manual</td></tr>
+    </table>
+  </div>
+
+  <!-- Metric.vn -->
+  <div class="card source-card source-metric">
+    <div class="card-header">
+      <div class="card-icon" style="background:rgba(236,72,153,0.15);color:var(--pink)">🔬</div>
+      <div><div class="card-title">Metric.vn</div><div class="card-desc">Cross-platform market intelligence</div></div>
+      <span class="tag tag-pink" style="margin-left:auto">E2 · NEW</span>
+    </div>
+    <table>
+      <tr><th>Access</th><td>Web UI + Excel export (no API)</td></tr>
+      <tr><th>Coverage</th><td>Shopee, TikTok, Lazada, Tiki — products, shops, brands, categories</td></tr>
+      <tr><th>Refresh</th><td>Weekly, Monday 05:30 UTC+7</td></tr>
+      <tr><th>Key Data</th><td>Cross-platform revenue, market share, brand/shop rankings, price bands, geographic split, product metrics</td></tr>
+      <tr><th>Limitations</th><td>No API; Excel-only export; no keyword search volume, no CPC, no conversion rates, no order-level detail</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>3. Per-Source Field Inventories</h2>
+<p style="color:var(--muted);margin-bottom:1rem;">Detailed field inventory for all four sources. Listed alphabetically: <b>Kalodata (3A)</b>, <b>Shopee Affiliate (3B)</b>, <b>Google Trends (3C)</b>, then <b>Metric.vn</b> below.</p>
+<h3 style="margin-top:1.5rem;color:var(--accent2);">Metric.vn — Full Field Inventory</h3>
+<p style="color:var(--muted);margin-bottom:1rem;">Confirmed from "Báo cáo Phân tích thị trường" report (keyword: xáo tam phân, period: Apr 2024 – Apr 2026)</p>
+
+<div class="grid grid-3">
+  <div class="card">
+    <h3>🔍 Filters & Dimensions</h3>
+    <ul class="checklist">
+      <li>Marketplace (Shopee, TikTok, Lazada, Tiki)</li>
+      <li>Category hierarchy (L1–L3, 30+ categories)</li>
+      <li>Keyword / product URL / shop URL inclusion</li>
+      <li>Keyword / product / shop exclusion</li>
+      <li>Shop type (Mall / Normal)</li>
+      <li>Brand filter (include / exclude)</li>
+      <li>Price range filter</li>
+      <li>Metric comparison filters (ratio-based)</li>
+      <li>Time period (date range + comparison period)</li>
+      <li>Product status toggles (abnormal, gift, deleted, hidden)</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h3>📊 Market Overview KPIs</h3>
+    <table>
+      <tr><td>Doanh số (Revenue)</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Lượt bán (Units sold)</td><td><span class="tag tag-blue">Integer</span></td></tr>
+      <tr><td>Sản phẩm có lượt bán</td><td><span class="tag tag-blue">Integer</span></td></tr>
+      <tr><td>Gian hàng có lượt bán</td><td><span class="tag tag-blue">Integer</span></td></tr>
+      <tr><td>Period-over-period change</td><td><span class="tag tag-purple">%</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>🏪 Product Card Fields</h3>
+    <table>
+      <tr><td>Product title</td><td><span class="tag tag-gray">String</span></td></tr>
+      <tr><td>Product image</td><td><span class="tag tag-gray">URL</span></td></tr>
+      <tr><td>Marketplace icon</td><td><span class="tag tag-cyan">Enum</span></td></tr>
+      <tr><td>Shop name</td><td><span class="tag tag-gray">String</span></td></tr>
+      <tr><td>Price</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Variant price range</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Rating score</td><td><span class="tag tag-yellow">Decimal</span></td></tr>
+      <tr><td>Rating count</td><td><span class="tag tag-blue">Integer</span></td></tr>
+      <tr><td>Period revenue</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Period units sold</td><td><span class="tag tag-blue">Integer</span></td></tr>
+      <tr><td>Sales growth %</td><td><span class="tag tag-purple">%</span></td></tr>
+      <tr><td>Lifetime revenue</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Lifetime units sold</td><td><span class="tag tag-blue">Integer</span></td></tr>
+      <tr><td>Category path</td><td><span class="tag tag-gray">String</span></td></tr>
+      <tr><td>Creation date</td><td><span class="tag tag-cyan">Date</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-top:1rem;">
+  <div class="card">
+    <h3>🏷️ Brand Analysis</h3>
+    <table>
+      <tr><td>Brand name</td><td><span class="tag tag-gray">String</span></td></tr>
+      <tr><td>Brand rank + movement</td><td><span class="tag tag-blue">Int</span></td></tr>
+      <tr><td>Period revenue</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Period units sold</td><td><span class="tag tag-blue">Int</span></td></tr>
+      <tr><td>Lifetime revenue</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Lifetime units sold</td><td><span class="tag tag-blue">Int</span></td></tr>
+      <tr><td>Market share %</td><td><span class="tag tag-purple">%</span></td></tr>
+      <tr><td>Revenue by shop type</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Products with sales</td><td><span class="tag tag-blue">Int</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>🏬 Shop Analysis</h3>
+    <table>
+      <tr><td>Shop name</td><td><span class="tag tag-gray">String</span></td></tr>
+      <tr><td>Shop rank + movement</td><td><span class="tag tag-blue">Int</span></td></tr>
+      <tr><td>Platform</td><td><span class="tag tag-cyan">Enum</span></td></tr>
+      <tr><td>Shop type (Mall/Normal)</td><td><span class="tag tag-cyan">Enum</span></td></tr>
+      <tr><td>Period revenue</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Period units sold</td><td><span class="tag tag-blue">Int</span></td></tr>
+      <tr><td>Lifetime revenue</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td>Lifetime units sold</td><td><span class="tag tag-blue">Int</span></td></tr>
+      <tr><td>Revenue growth %</td><td><span class="tag tag-purple">%</span></td></tr>
+      <tr><td>Market share %</td><td><span class="tag tag-purple">%</span></td></tr>
+      <tr><td>Products with sales</td><td><span class="tag tag-blue">Int</span></td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <h3>📍 Other Dimensions</h3>
+    <table>
+      <tr><td colspan="2" style="font-weight:600;color:var(--accent)">Category Revenue</td></tr>
+      <tr><td>Category name + hierarchy</td><td><span class="tag tag-gray">String</span></td></tr>
+      <tr><td>Revenue by category × platform</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td colspan="2" style="font-weight:600;color:var(--accent);padding-top:0.75rem">Price Band Revenue</td></tr>
+      <tr><td>9 standard bands (10K–5M+ VND)</td><td><span class="tag tag-cyan">Ordered</span></td></tr>
+      <tr><td>Revenue by band × platform</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td colspan="2" style="font-weight:600;color:var(--accent);padding-top:0.75rem">Geography</td></tr>
+      <tr><td>Warehouse province</td><td><span class="tag tag-gray">String</span></td></tr>
+      <tr><td>Revenue by province</td><td><span class="tag tag-green">VND</span></td></tr>
+      <tr><td colspan="2" style="font-weight:600;color:var(--accent);padding-top:0.75rem">Shop Type</td></tr>
+      <tr><td>Mall vs Normal split</td><td><span class="tag tag-purple">%</span></td></tr>
+      <tr><td>Revenue by type × platform</td><td><span class="tag tag-green">VND</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="card" style="margin-top:1rem;">
+  <h3>⚠️ What Metric.vn Does NOT Provide</h3>
+  <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:0.5rem;">
+    <span class="tag tag-red">❌ Keyword search volume</span>
+    <span class="tag tag-red">❌ CPC / CPM / ad spend</span>
+    <span class="tag tag-red">❌ Conversion rate</span>
+    <span class="tag tag-red">❌ Order-level detail</span>
+    <span class="tag tag-red">❌ Commission / fees</span>
+    <span class="tag tag-red">❌ Real-time data</span>
+    <span class="tag tag-red">❌ API access</span>
+    <span class="tag tag-red">❌ Refund / cancellation rate</span>
+    <span class="tag tag-red">❌ Inventory / stock status</span>
+    <span class="tag tag-red">❌ Customer demographics</span>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- ============================================================ -->
+<h2 style="margin-top:3rem;">3A. Kalodata — Full Field Inventory</h2>
+<p style="color:var(--muted);margin-bottom:0.5rem;">TikTok Shop analytics (browser-scraped via Playwright + Cloakbrowser). Tracking period: 06/17 – 07/16 (30-day, configurable).</p>
+<p style="color:var(--muted);margin-bottom:1rem;"><span class="tag tag-green">E2</span> <span class="tag tag-purple">228 fields inventoried</span> Status: <span class="tag tag-green">persisted</span> <span class="tag tag-blue">captured raw</span> <span class="tag tag-yellow">recognized</span> <span class="tag tag-gray">visible only</span></p>
+
+<h3>1. Product (List-Level)</h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th><th>Example</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>product_name</code></td><td>string</td><td>Product name</td><td>"Viên nấm linh chi đỏ Korean"</td></tr>
+<tr><td>2</td><td><code>price_range</code></td><td>string</td><td>Price range in VND</td><td>"₫150.000 - ₫200.000"</td></tr>
+<tr><td>3</td><td><code>revenue</code></td><td>string</td><td>Total revenue in period</td><td>"₫12.5M"</td></tr>
+<tr><td>4</td><td><code>revenue_growth</code></td><td>string</td><td>Revenue growth vs prior period</td><td>"&gt;200%"</td></tr>
+<tr><td>5</td><td><code>items_sold</code></td><td>string</td><td>Total units sold in period</td><td>"8.2K"</td></tr>
+<tr><td>6</td><td><code>rating</code></td><td>string</td><td>Product rating (out of 5)</td><td>"4.8"</td></tr>
+<tr><td>7</td><td><code>avg_unit_price</code></td><td>string</td><td>Average selling price per unit</td><td>"₫185.000"</td></tr>
+<tr><td>8</td><td><code>shipping_fee</code></td><td>string</td><td>Shipping fee</td><td>"₫0"</td></tr>
+<tr><td>9</td><td><code>commission_rate</code></td><td>string</td><td>Affiliate commission rate</td><td>"20%"</td></tr>
+<tr><td>10</td><td><code>creator_count</code></td><td>string</td><td>Creators promoting this product</td><td>"156"</td></tr>
+<tr><td>11</td><td><code>launch_date</code></td><td>string</td><td>First listed date</td><td>"2025-03-15"</td></tr>
+<tr><td>12</td><td><code>creator_conversion_ratio</code></td><td>string</td><td>Creator conversion rate</td><td>"12.5%"</td></tr>
+<tr><td>13</td><td><code>live_revenue</code></td><td>string</td><td>Revenue from livestream sales</td><td>"₫5.2M"</td></tr>
+<tr><td>14</td><td><code>video_revenue</code></td><td>string</td><td>Revenue from short video sales</td><td>"₫6.1M"</td></tr>
+<tr><td>15</td><td><code>product_card_revenue</code></td><td>string</td><td>Revenue from product card clicks</td><td>"₫1.2M"</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">2. Product (Detail-Level)</h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>url</code></td><td>string</td><td>Product detail page URL</td></tr>
+<tr><td>2</td><td><code>product_name_clean</code></td><td>string</td><td>Cleaned product name</td></tr>
+<tr><td>3</td><td><code>shop_name</code></td><td>string</td><td>Seller/shop name</td></tr>
+<tr><td>4</td><td><code>ship_from</code></td><td>string</td><td>"Local" or blank</td></tr>
+<tr><td>5</td><td><code>category</code></td><td>string</td><td>e.g. "Food &amp; Beverages"</td></tr>
+<tr><td>6</td><td><code>brand</code></td><td>string</td><td>Brand name (when available)</td></tr>
+<tr><td>7</td><td><code>price_min</code></td><td>string</td><td>Lower bound of price range</td></tr>
+<tr><td>8</td><td><code>price_max</code></td><td>string</td><td>Upper bound of price range</td></tr>
+<tr><td>9</td><td><code>revenue_per_day</code></td><td>string</td><td>Average daily revenue</td></tr>
+<tr><td>10</td><td><code>items_per_day</code></td><td>string</td><td>Average daily units sold</td></tr>
+<tr><td>11</td><td><code>concentration_rate</code></td><td>string</td><td>Revenue concentration rate (L30D)</td></tr>
+<tr><td>12</td><td><code>period_start</code></td><td>date</td><td>Tracking period start date</td></tr>
+<tr><td>13</td><td><code>period_end</code></td><td>date</td><td>Tracking period end date</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">3. Creator Sub-Table <span class="tag tag-purple">FK: product_name</span></h3>
+<div class="card">
+<p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;">Top creators per product (up to 10)</p>
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>rank</code></td><td>int</td><td>Creator ranking by revenue</td></tr>
+<tr><td>2</td><td><code>creator_handle</code></td><td>string</td><td>Creator @ handle</td></tr>
+<tr><td>3</td><td><code>followers_text</code></td><td>string</td><td>Follower count (raw)</td></tr>
+<tr><td>4</td><td><code>revenue</code></td><td>string</td><td>Revenue generated by this creator</td></tr>
+<tr><td>5</td><td><code>items_sold</code></td><td>string</td><td>Units sold by this creator</td></tr>
+<tr><td>6</td><td><code>video_revenue</code></td><td>string</td><td>Revenue from creator's videos</td></tr>
+<tr><td>7</td><td><code>live_revenue</code></td><td>string</td><td>Revenue from creator's livestreams</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">4. Video Sub-Table <span class="tag tag-purple">FK: product_name</span></h3>
+<div class="card">
+<p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;">Top videos per product (up to 10)</p>
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>rank</code></td><td>int</td><td>Video ranking by revenue</td></tr>
+<tr><td>2</td><td><code>duration</code></td><td>string</td><td>Video length (e.g. "45s", "2m", "1h 15m")</td></tr>
+<tr><td>3</td><td><code>is_ad</code></td><td>string</td><td>"AD" if paid promotion, blank otherwise</td></tr>
+<tr><td>4</td><td><code>content</code></td><td>string</td><td>Video description / caption</td></tr>
+<tr><td>5</td><td><code>revenue</code></td><td>string</td><td>Revenue generated</td></tr>
+<tr><td>6</td><td><code>views</code></td><td>string</td><td>View count</td></tr>
+<tr><td>7</td><td><code>items_sold</code></td><td>string</td><td>Units sold from this video</td></tr>
+<tr><td>8</td><td><code>publish_date</code></td><td>string</td><td>Date video was published</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">5. Livestream Sub-Table <span class="tag tag-purple">FK: product_name</span></h3>
+<div class="card">
+<p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;">Top livestreams per product (up to 10)</p>
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>rank</code></td><td>int</td><td>Livestream ranking by revenue</td></tr>
+<tr><td>2</td><td><code>content</code></td><td>string</td><td>Livestream description / title</td></tr>
+<tr><td>3</td><td><code>live_time</code></td><td>string</td><td>When the livestream occurred</td></tr>
+<tr><td>4</td><td><code>revenue</code></td><td>string</td><td>Revenue generated</td></tr>
+<tr><td>5</td><td><code>items_sold</code></td><td>string</td><td>Units sold during stream</td></tr>
+<tr><td>6</td><td><code>avg_unit_price</code></td><td>string</td><td>Average unit price in this stream</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">6. Entity Relationship</h3>
+<div class="er-diagram">┌─────────────────────────┐
+│ product (main)          │
+│ 15 list + 13 detail flds│
+├─────────────────────────┤
+│ PK: product_name +      │
+│     period_start        │
+└─────────┬───────────────┘
+          │
+ ├──── 1:N ──→ creator (up to 10)
+ ├──── 1:N ──→ video (up to 10)
+ └──── 1:N ──→ livestream (up to 10)
+Composite PK: (product_name, period_start)</div>
+
+<h3 style="margin-top:1.5rem;">7. Recommendation: Warehouse Grain</h3>
+<div class="card">
+<table>
+<thead><tr><th>Grain</th><th>One row per</th></tr></thead>
+<tbody>
+<tr><td><code>dim_product</code></td><td>Kalodata product ID</td></tr>
+<tr><td><code>dim_seller</code></td><td>seller ID</td></tr>
+<tr><td><code>dim_sku</code></td><td>product + SKU ID</td></tr>
+<tr><td><code>fact_product_period</code></td><td>product + selected start/end period</td></tr>
+<tr><td><code>fact_product_daily</code></td><td>product + calendar date</td></tr>
+<tr><td><code>bridge_product_creator_period</code></td><td>product + creator + period</td></tr>
+<tr><td><code>fact_product_video_period</code></td><td>product + video + period</td></tr>
+<tr><td><code>fact_product_live_period</code></td><td>product + live session + period</td></tr>
+<tr><td><code>fact_scrape_run</code> / <code>fact_endpoint_observation</code></td><td>lineage, quality, scraper health</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">8. Metrics</h3>
+<div class="grid grid-3">
+  <div class="card"><h3>💵 Revenue &amp; Sales</h3><ul class="checklist">
+    <li><code>total_revenue</code> = live + video + card</li>
+    <li><code>revenue_growth</code> (scraped)</li>
+    <li><code>revenue_per_day</code></li>
+    <li><code>revenue_per_unit</code></li>
+    <li><code>revenue_per_creator</code></li>
+    <li><code>avg_unit_price</code></li>
+    <li><code>items_sold_per_day</code></li>
+    <li><code>product_age_days</code></li>
+    <li><code>commission_amount</code></li>
+    <li><code>net_revenue</code> = total − commission</li>
+  </ul></div>
+  <div class="card"><h3>📺 Channel Mix</h3><ul class="checklist">
+    <li><code>live_revenue_share</code></li>
+    <li><code>video_revenue_share</code></li>
+    <li><code>card_revenue_share</code></li>
+    <li><code>channel_diversification</code></li>
+    <li><code>live_video_ratio</code></li>
+    <li><code>organic_share</code></li>
+  </ul></div>
+  <div class="card"><h3>🧑‍🚀 Creator</h3><ul class="checklist">
+    <li><code>creator_count</code></li>
+    <li><code>creator_density</code></li>
+    <li><code>creator_conversion_ratio</code></li>
+    <li><code>top3_creator_concentration</code></li>
+    <li><code>top10_creator_coverage</code></li>
+    <li><code>avg_creator_revenue</code></li>
+    <li><code>creator_gini_coefficient</code></li>
+  </ul></div>
+  <div class="card"><h3>🎬 Video</h3><ul class="checklist">
+    <li><code>video_count</code></li>
+    <li><code>video_revenue_per_view</code></li>
+    <li><code>video_conversion_rate</code></li>
+    <li><code>avg_video_duration_sec</code></li>
+    <li><code>video_ad_rate</code></li>
+    <li><code>top1_video_share</code></li>
+    <li><code>video_revenue_share_of_total</code></li>
+  </ul></div>
+  <div class="card"><h3>📡 Livestream</h3><ul class="checklist">
+    <li><code>livestream_count</code></li>
+    <li><code>livestream_revenue_per_hour</code></li>
+    <li><code>livestream_conversion_rate</code></li>
+    <li><code>livestream_avg_order_value</code></li>
+    <li><code>live_vs_video_ratio</code></li>
+    <li><code>top1_live_share</code></li>
+  </ul></div>
+  <div class="card"><h3>🏷️ Product Health &amp; Category</h3><ul class="checklist">
+    <li><code>product_rating</code> · <code>rating_trend</code></li>
+    <li><code>shipping_cost_ratio</code></li>
+    <li><code>price_position</code> · <code>price_range_width</code></li>
+    <li><code>concentration_rate</code></li>
+    <li><code>velocity_score</code></li>
+    <li><code>category_rank</code> · <code>category_revenue_share</code></li>
+    <li><code>category_growth_rate</code></li>
+  </ul></div>
+</div>
+
+<h3 style="margin-top:1.5rem;">9. Dashboard KPIs</h3>
+<div class="card">
+<table>
+<thead><tr><th>KPI</th><th>Source Metrics</th><th>Refresh</th></tr></thead>
+<tbody>
+<tr><td><b>Total Revenue</b></td><td><code>total_revenue</code></td><td>Daily</td></tr>
+<tr><td><b>Revenue Growth</b></td><td><code>revenue_growth</code></td><td>Daily</td></tr>
+<tr><td><b>Top 10 Products</b></td><td>ranked by <code>total_revenue</code></td><td>Daily</td></tr>
+<tr><td><b>Channel Split</b></td><td>live/video/card shares</td><td>Daily</td></tr>
+<tr><td><b>Top Creators</b></td><td>ranked by <code>revenue_per_creator</code></td><td>Weekly</td></tr>
+<tr><td><b>Creator Conversion</b></td><td><code>creator_conversion_ratio</code> avg</td><td>Weekly</td></tr>
+<tr><td><b>Avg Product Rating</b></td><td><code>product_rating</code> avg</td><td>Weekly</td></tr>
+<tr><td><b>New Products Launched</b></td><td>count <code>product_age_days &lt; 30</code></td><td>Weekly</td></tr>
+<tr><td><b>Category Leaderboard</b></td><td><code>category_revenue_share</code></td><td>Weekly</td></tr>
+<tr><td><b>Video Ad vs Organic</b></td><td><code>video_ad_rate</code></td><td>Weekly</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">10. Key Normalization Rules</h3>
+<div class="card">
+<ul class="checklist">
+  <li>Store monetary values twice: raw string + normalized <code>DECIMAL(20,2)</code> VND.</li>
+  <li>Store IDs as strings (exceed JS-safe integer range), not numeric.</li>
+  <li>Normalize compact values (k/m/b) to numeric while preserving raw.</li>
+  <li><code>growth</code> may be % <i>or</i> comma-separated daily trend series → split into <code>growth_pct</code> + child trend table.</li>
+  <li>Creator conversion appears as <code>50.00%</code>, <code>1</code>, or <code>0.5</code> → normalize.</li>
+  <li>Keep <code>source_endpoint</code>, <code>scraped_at</code>, <code>period_start/end</code>, <code>cached</code>, HTTP status, raw-response hash for lineage.</li>
+  <li>Preserve raw JSON in a bronze layer; build typed silver/gold tables from it.</li>
+</ul>
+</div>
+
+<div class="divider"></div>
+<!-- ============================================================ -->
+<h2 style="margin-top:3rem;">3B. Shopee Affiliate — Full Field Inventory</h2>
+<p style="color:var(--muted);margin-bottom:1rem;">Official Shopee Affiliate Open API (REST + GraphQL) + unofficial Addlivetag Product Data API. Sources: github.com/bcat95/shopee-aff.</p>
+<p style="margin-bottom:1rem;"><span class="tag tag-green">E0–E1</span> <span class="tag tag-orange">6 API groups</span> Auth: app_id, secret_key, access_token, signature</p>
+
+<h3>1. API Groups</h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>API Group</th><th>Protocol</th><th>Endpoints</th><th>Data Type</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>Product APIs</td><td>REST</td><td><code>product_item_get</code>, <code>product_search</code>, <code>product_item_recommend_get</code></td><td>Product catalog</td></tr>
+<tr><td>2</td><td>Shop Offer APIs</td><td>GraphQL</td><td><code>shopOfferV2</code></td><td>Shop-level affiliate offers</td></tr>
+<tr><td>3</td><td>Product Offer APIs</td><td>GraphQL</td><td><code>productOfferV2</code></td><td>Product-level affiliate offers</td></tr>
+<tr><td>4</td><td>Affiliate Link APIs</td><td>GraphQL Mut</td><td><code>generateShortLink</code></td><td>Link generation</td></tr>
+<tr><td>5</td><td>Conversion Report APIs</td><td>GraphQL</td><td><code>conversionReport</code></td><td>Order/conversion tracking</td></tr>
+<tr><td>6</td><td>Product Data API (Unofficial)</td><td>REST</td><td><code>product-data.php</code></td><td>Product + commission + price history</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">2. Product (Official REST)</h3>
+<div class="card">
+<p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;"><code>product_item_get</code> / <code>product_search</code> / <code>product_item_recommend_get</code></p>
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>item_id</code></td><td>string</td><td>Product ID</td></tr>
+<tr><td>2</td><td><code>shop_id</code></td><td>integer</td><td>Shop ID</td></tr>
+<tr><td>3</td><td><code>title</code></td><td>string</td><td>Product name</td></tr>
+<tr><td>4</td><td><code>description</code></td><td>string</td><td>Full product description</td></tr>
+<tr><td>5</td><td><code>images</code></td><td>[string]</td><td>Product image URLs</td></tr>
+<tr><td>6</td><td><code>price</code></td><td>number</td><td>Current price (VND)</td></tr>
+<tr><td>7</td><td><code>stock</code></td><td>integer</td><td>Available stock</td></tr>
+<tr><td>8</td><td><code>affiliate_link</code></td><td>string</td><td>Generated affiliate link</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">3. Product Offer — <code>productOfferV2</code></h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>itemId</code></td><td>Int64</td><td>Product ID</td></tr>
+<tr><td>2</td><td><code>productName</code></td><td>String</td><td>Product name</td></tr>
+<tr><td>3</td><td><code>imageUrl</code></td><td>String</td><td>Product image URL</td></tr>
+<tr><td>4</td><td><code>shopId</code></td><td>Int64</td><td>Shop ID</td></tr>
+<tr><td>5</td><td><code>shopName</code></td><td>String</td><td>Shop name</td></tr>
+<tr><td>6</td><td><code>shopType</code></td><td>[Int]</td><td>Shop type</td></tr>
+<tr><td>7</td><td><code>sales</code></td><td>Int32</td><td>Total units sold</td></tr>
+<tr><td>8</td><td><code>priceMin</code> / <code>priceMax</code></td><td>String</td><td>Price range</td></tr>
+<tr><td>9</td><td><code>ratingStar</code></td><td>String</td><td>Product rating</td></tr>
+<tr><td>10</td><td><code>priceDiscountRate</code></td><td>Int</td><td>Discount rate (10 = 10%)</td></tr>
+<tr><td>11</td><td><code>commissionRate</code></td><td>String</td><td>Max commission rate ("0.25" = 25%)</td></tr>
+<tr><td>12</td><td><code>sellerCommissionRate</code></td><td>String</td><td>Seller commission (Xtra)</td></tr>
+<tr><td>13</td><td><code>shopeeCommissionRate</code></td><td>String</td><td>Shopee commission</td></tr>
+<tr><td>14</td><td><code>commission</code></td><td>String</td><td>= price × commissionRate (VND)</td></tr>
+<tr><td>15</td><td><code>productCatIds</code></td><td>[Int]</td><td>Category IDs L1/L2/L3</td></tr>
+<tr><td>16</td><td><code>productLink</code> / <code>offerLink</code></td><td>String</td><td>Product / affiliate offer link</td></tr>
+<tr><td>17</td><td><code>periodStartTime</code> / <code>periodEndTime</code></td><td>Int</td><td>Offer window (Unix)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">4. Shop Offer — <code>shopOfferV2</code></h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>shopId</code></td><td>Int64</td><td>Shop ID</td></tr>
+<tr><td>2</td><td><code>shopName</code></td><td>String</td><td>Shop name</td></tr>
+<tr><td>3</td><td><code>imageUrl</code></td><td>String</td><td>Shop image URL</td></tr>
+<tr><td>4</td><td><code>commissionRate</code></td><td>String</td><td>Commission rate ("0.25" = 25%)</td></tr>
+<tr><td>5</td><td><code>ratingStar</code></td><td>String</td><td>Shop rating</td></tr>
+<tr><td>6</td><td><code>shopType</code></td><td>[Int]</td><td>1=Official, 2=Preferred, 4=Preferred Plus</td></tr>
+<tr><td>7</td><td><code>remainingBudget</code></td><td>Int</td><td>0=Unlimited, 3=Normal, 2=Low, 1=Very Low</td></tr>
+<tr><td>8</td><td><code>offerLink</code> / <code>originalLink</code></td><td>String</td><td>Affiliate / original shop link</td></tr>
+<tr><td>9</td><td><code>periodStartTime</code> / <code>periodEndTime</code></td><td>Int</td><td>Offer window (Unix)</td></tr>
+<tr><td>10</td><td><code>sellerCommCoveRatio</code></td><td>String</td><td>% products with seller commission</td></tr>
+<tr><td>11</td><td><code>bannerInfo</code></td><td>BannerInfo</td><td>Banner information</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">5. Conversion Report — <code>conversionReport</code></h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>conversionId</code></td><td>Int64</td><td>Conversion ID</td></tr>
+<tr><td>2</td><td><code>clickTime</code> / <code>purchaseTime</code></td><td>Int</td><td>Click / purchase timestamp (Unix)</td></tr>
+<tr><td>3</td><td><code>buyerType</code></td><td>String</td><td>"New" or "Existing"</td></tr>
+<tr><td>4</td><td><code>device</code> / <code>referrer</code></td><td>String</td><td>Device / referrer</td></tr>
+<tr><td>5</td><td><code>utmContent</code></td><td>String</td><td>Sub-ID from tracking link</td></tr>
+<tr><td>6</td><td><code>shopeeCommissionCapped</code></td><td>String</td><td>Shopee commission after cap (VND)</td></tr>
+<tr><td>7</td><td><code>sellerCommission</code></td><td>String</td><td>Seller commission (VND)</td></tr>
+<tr><td>8</td><td><code>totalCommission</code></td><td>String</td><td>Before MCN fee (VND)</td></tr>
+<tr><td>9</td><td><code>netCommission</code></td><td>String</td><td>After MCN fee (VND)</td></tr>
+<tr><td>10</td><td><code>linkedMcnName</code> / <code>mcnContractId</code></td><td>String/Int64</td><td>Linked MCN</td></tr>
+<tr><td>11</td><td><code>mcnManagementFeeRate</code> / <code>mcnManagementFee</code></td><td>String</td><td>MCN fee rate / amount</td></tr>
+<tr><td>12</td><td><code>campaignType</code></td><td>String</td><td>Campaign type</td></tr>
+</tbody>
+</table>
+<p style="margin-top:0.75rem;font-size:0.85rem;color:var(--muted);">Nested: <code>Orders[]</code> (orderId, orderStatus, shopType) → <code>Orders[].Items[]</code> (shopId, shopName, itemId, itemName, itemPrice, actualAmount, qty, imageUrl, completeTime, displayItemStatus, itemTotalCommission, itemSellerCommission/Rate, itemShopeeCommissionCapped/Rate, itemNotes, channelType, attributionType, globalCategoryLv1Name).</p>
+</div>
+
+<h3 style="margin-top:1.5rem;">6. Product Data API (Unofficial — Addlivetag)</h3>
+<div class="card">
+<p style="font-size:0.8rem;color:var(--muted);margin-bottom:0.5rem;"><code>product-data.php</code> — base URL: data.addlivetag.com. Input: <code>item_id</code> or <code>url</code>.</p>
+<table>
+<thead><tr><th>Group</th><th>Fields</th></tr></thead>
+<tbody>
+<tr><td><b>productInfo</b></td><td><code>itemId</code>, <code>productName</code>, <code>shopName</code>, <code>price</code>, <code>sales</code>, <code>imageUrl</code>, <code>productLink</code>, <code>rating</code>, <code>commission</code>, <code>sellerComFinal</code>, <code>shopeeComFinal</code>, <code>isXtra</code>, <code>hasSellerCommission</code>, <code>hasShopeeCommission</code>, <code>isCapped</code>, <code>isLimitCap</code>, <code>cap</code>, <code>capRaw</code>, <code>capAfterRate</code>, <code>lastUpdate</code>, <code>dataSource</code> (api/db/fallback)</td></tr>
+<tr><td><b>priceStats</b></td><td><code>currentPrice</code>, <code>minPrice</code>, <code>maxPrice</code>, <code>avgPrice</code>, <code>priceChange7d</code>, <code>priceChange30d</code>, <code>lastPriceUpdate</code>, <code>lowestPriceDate</code>, <code>highestPriceDate</code></td></tr>
+<tr><td><b>latestPriceHistory</b></td><td><code>price</code>, <code>originalPrice</code>, <code>discountPercent</code>, <code>currency</code>, <code>flashSale</code>, <code>promotionId</code>, <code>stockAvailable</code>, <code>recordedDate</code>, <code>recordedTime</code></td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">7. Entity Relationship</h3>
+<div class="er-diagram">┌──────────────────────────────────────────┐
+│ Product (Core)                          │
+│ Official: item_id, title, price, stock  │
+│ Unofficial: commission, priceHistory    │
+├──────────────────────────────────────────┤
+│ PK: item_id                             │
+└──────┬──────────────┬──────────────┬─────┘
+       │ 1:N          │ 1:N          │ 1:N
+       ▼              ▼              ▼
+ ┌─────────────┐ ┌──────────┐ ┌──────────────┐
+ │ Shop Offer  │ │ Product  │ │ Conversion   │
+ │ commission  │ │ Offer    │ │ Report       │
+ │ shopType    │ │ commRate │ │ totalComm    │
+ │ budget      │ │ sales    │ │ netComm      │
+ └─────────────┘ │ rating   │ │ orderStatus  │
+                 └──────────┘ └──────┬───────┘
+                                     │ 1:N
+                                     ▼
+                             ┌──────────────┐
+                             │ Order Items  │
+                             │ itemPrice    │
+                             │ actualAmount │
+                             │ commission   │
+                             └──────────────┘</div>
+
+<h3 style="margin-top:1.5rem;">8. Metrics</h3>
+<div class="grid grid-3">
+  <div class="card"><h3>📦 Product &amp; Catalog</h3><ul class="checklist">
+    <li><code>total_products</code></li>
+    <li><code>avg_product_price</code> · <code>median</code> · <code>price_range</code></li>
+    <li><code>avg_rating</code> · <code>avg_sales</code> · <code>total_stock</code></li>
+  </ul></div>
+  <div class="card"><h3>💸 Commission &amp; Revenue</h3><ul class="checklist">
+    <li><code>total_commission</code> · <code>avg_commission_rate</code></li>
+    <li><code>avg_commission_per_item</code></li>
+    <li><code>seller_commission_share</code></li>
+    <li><code>shopee_commission_share</code></li>
+    <li><code>capped_rate</code> · <code>xtra_rate</code></li>
+    <li><code>net_commission</code> · <code>mcn_fee_total</code></li>
+    <li><code>commission_per_conversion</code></li>
+  </ul></div>
+  <div class="card"><h3>🛒 Conversion &amp; Orders</h3><ul class="checklist">
+    <li><code>total_conversions</code> · <code>total_orders</code></li>
+    <li><code>conversion_rate</code> · <code>avg_order_value</code></li>
+    <li><code>completed_rate</code> · <code>cancelled_rate</code> · <code>pending_rate</code></li>
+    <li><code>new_buyer_rate</code> · <code>existing_buyer_rate</code></li>
+    <li><code>fraud_rate</code> · <code>items_per_order</code></li>
+  </ul></div>
+  <div class="card"><h3>💰 Price Intelligence</h3><ul class="checklist">
+    <li><code>current_vs_avg_price</code></li>
+    <li><code>price_volatility_7d</code> · <code>30d</code></li>
+    <li><code>discount_depth</code> · <code>price_position</code></li>
+    <li><code>flash_sale_active</code> · <code>stock_health</code></li>
+  </ul></div>
+  <div class="card"><h3>🏪 Shop &amp; Offer Quality</h3><ul class="checklist">
+    <li><code>avg_shop_rating</code></li>
+    <li><code>mall_share</code> · <code>preferred_share</code></li>
+    <li><code>key_seller_share</code></li>
+    <li><code>budget_limited_rate</code> · <code>avg_offer_duration</code></li>
+    <li><code>high_commission_rate</code> · <code>seller_commission_coverage</code></li>
+  </ul></div>
+  <div class="card"><h3>🔗 Attribution &amp; Channel</h3><ul class="checklist">
+    <li><code>same_shop_attribution</code> · <code>diff_shop_attribution</code></li>
+    <li><code>app_share</code> · <code>web_share</code></li>
+    <li><code>campaign_conversions</code> · <code>mcp_channel_share</code></li>
+  </ul></div>
+</div>
+
+<h3 style="margin-top:1.5rem;">9. Dashboard KPIs</h3>
+<div class="card">
+<table>
+<thead><tr><th>KPI</th><th>Source Metrics</th><th>Refresh</th></tr></thead>
+<tbody>
+<tr><td><b>Total Revenue (GMV)</b></td><td>sum(<code>actualAmount</code>)</td><td>Daily</td></tr>
+<tr><td><b>Total / Net Commission</b></td><td><code>total_commission</code> · <code>net_commission</code></td><td>Daily</td></tr>
+<tr><td><b>Conversion Rate</b></td><td><code>conversion_rate</code></td><td>Daily</td></tr>
+<tr><td><b>Avg Order Value</b></td><td><code>avg_order_value</code></td><td>Daily</td></tr>
+<tr><td><b>Order Completion</b></td><td><code>completed_rate</code></td><td>Daily</td></tr>
+<tr><td><b>Top Products by Commission</b></td><td>ranked per product</td><td>Daily</td></tr>
+<tr><td><b>Top Shops by Conversion</b></td><td>ranked by conversion count</td><td>Weekly</td></tr>
+<tr><td><b>New vs Returning Mix</b></td><td><code>new_buyer_rate</code> vs <code>existing_buyer_rate</code></td><td>Weekly</td></tr>
+<tr><td><b>Price Alert: Deep Discounts</b></td><td><code>discountPercent &gt; 30%</code></td><td>Daily</td></tr>
+<tr><td><b>Stock Alert: Low Inventory</b></td><td><code>stock_health &lt; 7 days</code></td><td>Daily</td></tr>
+<tr><td><b>Fraud Detection</b></td><td><code>fraud_rate</code></td><td>Daily</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">10. Notes</h3>
+<div class="card">
+<ul class="checklist">
+  <li>Official APIs require Shopee Affiliate account + app_id/secret_key/signature.</li>
+  <li>Unofficial Product Data API free but rate-limited (300 req/min from Shopee, 2000 from cache).</li>
+  <li>Conversion report cursor (<code>scrollId</code>) expires in <b>30 seconds</b> — paginate fast.</li>
+  <li>Commissions in VND before MCN fee; price history cached 24h.</li>
+  <li><code>commission</code> in ProductOfferV2 = price × commissionRate (pre-calculated).</li>
+  <li><code>sellerComFinal</code>/<code>shopeeComFinal</code> reflect user rate &amp; tax deductions.</li>
+</ul>
+</div>
+
+<div class="divider"></div>
+<!-- ============================================================ -->
+<h2 style="margin-top:3rem;">3C. Google Trends (SerpAPI) — Full Field Inventory</h2>
+<p style="color:var(--muted);margin-bottom:1rem;">Via SerpAPI proxy. Endpoint: <code>https://serpapi.com/search?engine=google_trends</code>. Auth: <code>api_key</code>.</p>
+<p style="margin-bottom:1rem;"><span class="tag tag-blue">E2</span> <span class="tag tag-cyan">5 data types</span> Interest scores are <b>relative (0–100)</b>, not absolute volume.</p>
+
+<h3>1. API Overview — 5 Data Types</h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>data_type</th><th>Description</th><th>Max Queries</th><th>Key Use Case</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>TIMESERIES</code></td><td>Interest over time</td><td>5</td><td>Trend direction, seasonality</td></tr>
+<tr><td>2</td><td><code>GEO_MAP</code></td><td>Compared breakdown by region</td><td>5</td><td>Regional demand comparison</td></tr>
+<tr><td>3</td><td><code>GEO_MAP_0</code></td><td>Interest by region (single query)</td><td>1</td><td>Geographic heat map</td></tr>
+<tr><td>4</td><td><code>RELATED_TOPICS</code></td><td>Related topics (rising + top)</td><td>1</td><td>Adjacent categories, discovery</td></tr>
+<tr><td>5</td><td><code>RELATED_QUERIES</code></td><td>Related queries (rising + top)</td><td>1</td><td>Long-tail keyword discovery</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">2. Input Parameters</h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Param</th><th>Type</th><th>Required</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>q</code></td><td>string</td><td>Yes</td><td>Query(s), comma-separated. Max 5, 100 chars each</td></tr>
+<tr><td>2</td><td><code>data_type</code></td><td>string</td><td>No</td><td>TIMESERIES, GEO_MAP, GEO_MAP_0, RELATED_TOPICS, RELATED_QUERIES</td></tr>
+<tr><td>3</td><td><code>hl</code></td><td>string</td><td>No</td><td>Language ("en", "vi", "zh")</td></tr>
+<tr><td>4</td><td><code>geo</code></td><td>string</td><td>No</td><td>Location ("VN", "US", "" worldwide)</td></tr>
+<tr><td>5</td><td><code>region</code></td><td>string</td><td>No</td><td>COUNTRY, REGION, DMA, CITY (geo charts)</td></tr>
+<tr><td>6</td><td><code>date</code></td><td>string</td><td>No</td><td><code>now 1-H/4-H/1-d/7-d</code>, <code>today 1-m/3-m/12-m/5-y</code>, <code>all</code>, or custom <code>yyyy-mm-dd yyyy-mm-dd</code></td></tr>
+<tr><td>7</td><td><code>tz</code></td><td>int</td><td>No</td><td>Timezone offset in minutes (default 420)</td></tr>
+<tr><td>8</td><td><code>cat</code></td><td>int</td><td>No</td><td>Category filter (0 = all)</td></tr>
+<tr><td>9</td><td><code>gprop</code></td><td>string</td><td>No</td><td><code>""</code> (web), images, news, froogle, youtube</td></tr>
+<tr><td>10</td><td><code>csv</code></td><td>bool</td><td>No</td><td>Return CSV format</td></tr>
+<tr><td>11</td><td><code>include_low_search_volume</code></td><td>bool</td><td>No</td><td>Include low-volume regions (GEO_MAP only)</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">3. Response Fields by Data Type</h3>
+<div class="grid grid-2">
+  <div class="card">
+    <h3>📈 TIMESERIES</h3>
+    <ul class="checklist">
+      <li><code>interest_over_time.timeline_data[]</code></li>
+      <li><code>date</code> (range label)</li>
+      <li><code>timestamp</code> (Unix)</li>
+      <li><code>values[].query</code></li>
+      <li><code>values[].value</code> (0–100)</li>
+      <li><code>values[].extracted_value</code> (numeric)</li>
+      <li><code>averages[].query</code> / <code>averages[].value</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>🗺️ GEO_MAP / GEO_MAP_0</h3>
+    <ul class="checklist">
+      <li><code>compared_breakdown_by_region[]</code> / <code>interest_by_region[]</code></li>
+      <li><code>geo</code> (region code)</li>
+      <li><code>location</code> (region name)</li>
+      <li><code>max_value_index</code></li>
+      <li><code>values[].query</code> / <code>values[].value</code></li>
+      <li><code>values[].extracted_value</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>💡 RELATED_TOPICS</h3>
+    <ul class="checklist">
+      <li><code>related_topics.rising[]</code> &amp; <code>.top[]</code></li>
+      <li><code>topic.value</code> (ID) · <code>topic.title</code> · <code>topic.type</code></li>
+      <li><code>value</code> (rising: +%, top: 0–100)</li>
+      <li><code>extracted_value</code> (numeric)</li>
+      <li><code>link</code> · <code>serpapi_link</code></li>
+    </ul>
+  </div>
+  <div class="card">
+    <h3>🔎 RELATED_QUERIES</h3>
+    <ul class="checklist">
+      <li><code>related_queries.rising[]</code> &amp; <code>.top[]</code></li>
+      <li><code>query</code> (text)</li>
+      <li><code>value</code> (rising: +%, top: 0–100)</li>
+      <li><code>extracted_value</code> (numeric)</li>
+      <li><code>link</code> · <code>serpapi_link</code></li>
+    </ul>
+  </div>
+</div>
+
+<h3 style="margin-top:1.5rem;">4. Search Metadata (all types)</h3>
+<div class="card">
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>id</code></td><td>string</td><td>SerpAPI search ID</td></tr>
+<tr><td>2</td><td><code>status</code></td><td>string</td><td>"Success" / "Error"</td></tr>
+<tr><td>3</td><td><code>json_endpoint</code></td><td>string</td><td>Direct JSON result URL</td></tr>
+<tr><td>4</td><td><code>created_at</code> / <code>processed_at</code></td><td>string</td><td>Timestamps</td></tr>
+<tr><td>5</td><td><code>total_time_taken</code></td><td>float</td><td>Response time (sec)</td></tr>
+<tr><td>6</td><td><code>google_trends_url</code></td><td>string</td><td>Direct Google Trends URL</td></tr>
+</tbody>
+</table>
+</div>
+
+<h3 style="margin-top:1.5rem;">5. Entity Relationship</h3>
+<div class="er-diagram">┌─────────────────────────────────────┐
+│ Search Query (q)                    │
+│ + geo + date + category + data_type │
+├─────────────────────────────────────┤
+│ PK: (q, geo, date, data_type)       │
+└──────┬──────────┬──────────┬────────┘
+       │ 1:N      │ 1:N      │ 1:N
+       ▼          ▼          ▼
+ ┌───────────┐ ┌────────┐ ┌──────────────┐
+ │TIMESERIES │ │GEO_MAP │ │RELATED       │
+ │ date      │ │region  │ │_TOPICS/_Q    │
+ │ value0-100│ │share%  │ │topic/query   │
+ │ timestamp │ │geo     │ │growth%       │
+ └───────────┘ └────────┘ └──────────────┘</div>
+
+<h3 style="margin-top:1.5rem;">6. Metrics</h3>
+<div class="grid grid-3">
+  <div class="card"><h3>📈 Trend Strength &amp; Momentum</h3><ul class="checklist">
+    <li><code>avg_interest</code> · <code>peak_interest</code></li>
+    <li><code>trough_interest</code> · <code>interest_range</code></li>
+    <li><code>current_vs_avg</code></li>
+    <li><code>momentum</code></li>
+    <li><code>trend_slope</code></li>
+    <li><code>trend_acceleration</code></li>
+  </ul></div>
+  <div class="card"><h3>🗓️ Seasonality</h3><ul class="checklist">
+    <li><code>seasonal_strength</code></li>
+    <li><code>seasonal_peak_month</code> · <code>trough_month</code></li>
+    <li><code>week_over_week_change</code></li>
+    <li><code>month_over_month_change</code></li>
+    <li><code>year_over_year_change</code></li>
+  </ul></div>
+  <div class="card"><h3>🌍 Geographic</h3><ul class="checklist">
+    <li><code>geo_concentration</code> · <code>geo_diversification</code></li>
+    <li><code>top_region_share</code> · <code>top3_regions_share</code></li>
+    <li><code>region_count</code> · <code>dominant_region</code></li>
+    <li><code>emerging_regions</code></li>
+  </ul></div>
+  <div class="card"><h3>🔑 Keyword Intelligence</h3><ul class="checklist">
+    <li><code>rising_queries_count</code> · <code>top_queries_count</code></li>
+    <li><code>avg_rising_growth</code> · <code>max_rising_growth</code></li>
+    <li><code>query_diversity</code></li>
+    <li><code>commercial_intent_share</code></li>
+    <li><code>rising_topics_count</code> · <code>topic_type_distribution</code></li>
+  </ul></div>
+  <div class="card"><h3>🤝 Competitive Benchmarking</h3><ul class="checklist">
+    <li><code>vs_competitor_ratio</code> · <code>market_share_index</code></li>
+    <li><code>gap_trend</code> · <code>category_dominance</code></li>
+    <li><code>cross_market_presence</code></li>
+    <li><code>emerging_market_potential</code></li>
+  </ul></div>
+  <div class="card"><h3>📊 Dashboard KPIs</h3><ul class="checklist">
+    <li><b>Interest Score (Current)</b> — Daily</li>
+    <li><b>Trend Direction</b> — Daily</li>
+    <li><b>Peak Season</b> — Monthly</li>
+    <li><b>Top Region</b> — Weekly</li>
+    <li><b>Rising Queries</b> — Weekly</li>
+    <li><b>Commercial Intent</b> — Weekly</li>
+    <li><b>Competitor Gap</b> — Weekly</li>
+    <li><b>Seasonal Forecast</b> — Monthly</li>
+  </ul></div>
+</div>
+
+<h3 style="margin-top:1.5rem;">7. Notes</h3>
+<div class="card">
+<ul class="checklist">
+  <li>Interest scores relative (0–100): 100 = peak popularity for query+region+time.</li>
+  <li>Max 5 queries per request (TIMESERIES, GEO_MAP); other types accept 1 query.</li>
+  <li>SerpAPI caches 1 hour — cached requests free (not counted).</li>
+  <li>Custom date ranges support hourly granularity within 7-day window: <code>yyyy-mm-ddThh yyyy-mm-ddThh</code>.</li>
+  <li><code>gprop=youtube</code> → YouTube-specific trends (creator strategy).</li>
+  <li>Rising queries with "+X,000%" indicate <b>breakout</b> trends (near-zero prior volume).</li>
+  <li>Related topics provide entity knowledge-graph data (category expansion).</li>
+  <li><code>include_low_search_volume</code> is critical for Vietnam — many regions default to low volume.</li>
+</ul>
+</div>
+
+<div class="divider"></div>
+
+<h2>4. Warehouse Schema — Tables</h2>
+
+<h3>Dimension Tables</h3>
+<div class="grid grid-3">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">dim_product</div>
+      <span class="tag tag-blue" style="margin-left:auto">18 cols</span>
+    </div>
+    <p class="card-desc">Central entity — every fact table links here</p>
+    <table>
+      <tr><td>product_id</td><td><span class="tag tag-cyan">PK</span> <code>{platform}:{item_id}</code></td></tr>
+      <tr><td>item_id</td><td>Native platform ID</td></tr>
+      <tr><td>product_name</td><td>Kalodata / Shopee / <b>Metric</b></td></tr>
+      <tr><td>category_l1–l3</td><td>Kalodata / Shopee / <b>Metric</b></td></tr>
+      <tr><td>brand</td><td>Kalodata / Shopee / <b>Metric</b></td></tr>
+      <tr><td>price_min / price_max</td><td>Shopee / <b>Metric</b></td></tr>
+      <tr><td>avg_unit_price</td><td>Kalodata</td></tr>
+      <tr><td>rating</td><td>Kalodata / Shopee / <b>Metric</b></td></tr>
+      <tr><td>image_url</td><td>Shopee / <b>Metric</b></td></tr>
+      <tr><td>launch_date</td><td>Kalodata / <b>Metric</b></td></tr>
+      <tr><td>platform</td><td>shopee / tiktok / lazada / tiki</td></tr>
+      <tr><td>shop_id</td><td><span class="tag tag-purple">FK</span> → dim_shop</td></tr>
+      <tr><td>metric_score</td><td><b>Metric</b> product score</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">dim_shop</div>
+      <span class="tag tag-blue" style="margin-left:auto">14 cols</span>
+    </div>
+    <p class="card-desc">Seller/shop dimension</p>
+    <table>
+      <tr><td>shop_id</td><td><span class="tag tag-cyan">PK</span> <code>shopee:{id}</code></td></tr>
+      <tr><td>shop_name</td><td>Kalodata / Shopee / <b>Metric</b></td></tr>
+      <tr><td>shop_type</td><td>official / preferred / regular</td></tr>
+      <tr><td>is_mall</td><td>Shopee / <b>Metric</b></td></tr>
+      <tr><td>is_preferred</td><td>Shopee</td></tr>
+      <tr><td>platform</td><td>shopee / tiktok / lazada / tiki</td></tr>
+      <tr><td>products_with_sales</td><td><b>Metric</b></td></tr>
+      <tr><td>total_revenue</td><td><b>Metric</b> lifetime</td></tr>
+      <tr><td>total_units_sold</td><td><b>Metric</b> lifetime</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">dim_creator</div>
+      <span class="tag tag-blue" style="margin-left:auto">6 cols</span>
+    </div>
+    <p class="card-desc">TikTok creator dimension</p>
+    <table>
+      <tr><td>creator_id</td><td><span class="tag tag-cyan">PK</span> <code>tiktok:{handle}</code></td></tr>
+      <tr><td>handle</td><td>@ handle</td></tr>
+      <tr><td>followers</td><td>Follower count</td></tr>
+      <tr><td>platform</td><td>tiktok</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-top:1rem;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">dim_brand</div>
+      <span class="tag tag-pink" style="margin-left:auto">NEW</span>
+    </div>
+    <p class="card-desc">Cross-platform brand tracking (Metric.vn)</p>
+    <table>
+      <tr><td>brand_id</td><td><span class="tag tag-cyan">PK</span> <code>metric:{name}</code></td></tr>
+      <tr><td>brand_name</td><td>Metric</td></tr>
+      <tr><td>market_share_pct</td><td>Metric</td></tr>
+      <tr><td>total_revenue</td><td>Metric lifetime</td></tr>
+      <tr><td>products_with_sales</td><td>Metric</td></tr>
+      <tr><td>rank / rank_change</td><td>Metric</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">dim_marketplace</div>
+      <span class="tag tag-pink" style="margin-left:auto">NEW</span>
+    </div>
+    <p class="card-desc">Platform-level aggregates (Metric.vn)</p>
+    <table>
+      <tr><td>marketplace_id</td><td><span class="tag tag-cyan">PK</span> shopee / tiktok / lazada / tiki</td></tr>
+      <tr><td>total_revenue</td><td>Metric per period</td></tr>
+      <tr><td>total_units_sold</td><td>Metric per period</td></tr>
+      <tr><td>share_pct</td><td>Metric market share</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">dim_category</div>
+      <span class="tag tag-blue" style="margin-left:auto">8 cols</span>
+    </div>
+    <p class="card-desc">Cross-platform category mapping</p>
+    <table>
+      <tr><td>category_id</td><td><span class="tag tag-cyan">PK</span></td></tr>
+      <tr><td>name_l1 / l2 / l3</td><td>Normalized names</td></tr>
+      <tr><td>shopee_cat_id</td><td>Shopee</td></tr>
+      <tr><td>kalodata_category</td><td>Kalodata</td></tr>
+      <tr><td>google_trend_cat_id</td><td>Google Trends</td></tr>
+      <tr><td>metric_category_path</td><td><b>Metric</b> full path</td></tr>
+    </table>
+  </div>
+</div>
+
+<h3 style="margin-top:2rem;">Fact Tables</h3>
+<div class="grid grid-3">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">fct_product_performance</div>
+    </div>
+    <p class="card-desc">Grain: 1 row per product per week</p>
+    <table>
+      <tr><td>product_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>shop_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>week_start</td><td>Date (Monday)</td></tr>
+      <tr><td>revenue</td><td>VND</td></tr>
+      <tr><td>items_sold</td><td>Integer</td></tr>
+      <tr><td>avg_unit_price</td><td>Decimal</td></tr>
+      <tr><td>rating</td><td>Decimal</td></tr>
+      <tr><td>creator_count</td><td>Integer</td></tr>
+      <tr><td>growth_rate</td><td>%</td></tr>
+      <tr><td>trend_interest_score</td><td>0–100</td></tr>
+      <tr><td>trend_momentum</td><td>+/-</td></tr>
+      <tr><td>commission_rate</td><td>Decimal</td></tr>
+      <tr><td>source / evidence_level</td><td>System</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">fct_order</div>
+    </div>
+    <p class="card-desc">Grain: 1 row per order per week</p>
+    <table>
+      <tr><td>order_id</td><td><span class="tag tag-cyan">PK</span></td></tr>
+      <tr><td>product_id / shop_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>revenue / actual_amount</td><td>VND</td></tr>
+      <tr><td>quantity</td><td>Integer</td></tr>
+      <tr><td>total/seller/shopee/net_commission</td><td>VND</td></tr>
+      <tr><td>order_status</td><td>UNPAID/PENDING/COMPLETED/CANCELLED</td></tr>
+      <tr><td>buyer_type</td><td>NEW / EXISTING</td></tr>
+      <tr><td>device</td><td>APP / WEB</td></tr>
+      <tr><td>attribution_type</td><td>Same Shop / Different Shop</td></tr>
+      <tr><td>fraud_status</td><td>UNVERIFIED/VERIFIED/FRAUD</td></tr>
+      <tr><td>utm_content</td><td>Sub-ID tracking</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">fct_video</div>
+    </div>
+    <p class="card-desc">Grain: 1 row per video per week</p>
+    <table>
+      <tr><td>video_id</td><td><span class="tag tag-cyan">PK</span></td></tr>
+      <tr><td>product_id / creator_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>rank</td><td>By revenue</td></tr>
+      <tr><td>duration</td><td>String</td></tr>
+      <tr><td>is_ad</td><td>Boolean</td></tr>
+      <tr><td>revenue</td><td>VND</td></tr>
+      <tr><td>views / items_sold</td><td>Integer</td></tr>
+      <tr><td>publish_date / content</td><td>Date / String</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="grid grid-3" style="margin-top:1rem;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">fct_livestream</div>
+    </div>
+    <p class="card-desc">Grain: 1 row per livestream per week</p>
+    <table>
+      <tr><td>livestream_id</td><td><span class="tag tag-cyan">PK</span></td></tr>
+      <tr><td>product_id / creator_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>live_time</td><td>Timestamp</td></tr>
+      <tr><td>revenue / items_sold</td><td>VND / Int</td></tr>
+      <tr><td>avg_unit_price</td><td>Decimal</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">fct_trend</div>
+    </div>
+    <p class="card-desc">Grain: 1 row per keyword per week per region</p>
+    <table>
+      <tr><td>trend_id</td><td><span class="tag tag-cyan">PK</span></td></tr>
+      <tr><td>product_id</td><td><span class="tag tag-purple">FK</span> (nullable)</td></tr>
+      <tr><td>query / geo</td><td>String</td></tr>
+      <tr><td>interest_score</td><td>0–100</td></tr>
+      <tr><td>momentum / trend_slope</td><td>Decimal</td></tr>
+      <tr><td>rising_queries</td><td>JSON</td></tr>
+      <tr><td>commercial_intent_share</td><td>%</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">fct_commission</div>
+    </div>
+    <p class="card-desc">Grain: 1 row per product per shop per week</p>
+    <table>
+      <tr><td>commission_id</td><td><span class="tag tag-cyan">PK</span></td></tr>
+      <tr><td>product_id / shop_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>total/seller/shopee/net_commission</td><td>VND</td></tr>
+      <tr><td>commission_rate</td><td>Decimal</td></tr>
+      <tr><td>is_capped / campaign_type</td><td>Bool / String</td></tr>
+      <tr><td>conversions</td><td>Integer</td></tr>
+    </table>
+  </div>
+</div>
+
+<div class="grid grid-2" style="margin-top:1rem;">
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">fct_market_intelligence</div>
+      <span class="tag tag-pink" style="margin-left:auto">NEW · Metric.vn</span>
+    </div>
+    <p class="card-desc">Grain: 1 row per product per period per marketplace</p>
+    <table>
+      <tr><td>intelligence_id</td><td><span class="tag tag-cyan">PK</span></td></tr>
+      <tr><td>product_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>marketplace_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>period_revenue / period_units</td><td>VND / Int</td></tr>
+      <tr><td>lifetime_revenue / lifetime_units</td><td>VND / Int</td></tr>
+      <tr><td>revenue_growth_pct / units_growth_pct</td><td>%</td></tr>
+      <tr><td>product_rank</td><td>Integer</td></tr>
+      <tr><td>marketplace_share_pct</td><td>%</td></tr>
+      <tr><td>category_path / price_band</td><td>String</td></tr>
+      <tr><td>shop_type / warehouse_location</td><td>String</td></tr>
+      <tr><td>rating_score / rating_count</td><td>Decimal / Int</td></tr>
+    </table>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div class="card-title">fct_competitor_benchmark</div>
+      <span class="tag tag-pink" style="margin-left:auto">NEW · Metric.vn</span>
+    </div>
+    <p class="card-desc">Grain: 1 row per brand or shop per period</p>
+    <table>
+      <tr><td>benchmark_id</td><td><span class="tag tag-cyan">PK</span></td></tr>
+      <tr><td>marketplace_id</td><td><span class="tag tag-purple">FK</span></td></tr>
+      <tr><td>entity_type</td><td>"brand" / "shop"</td></tr>
+      <tr><td>entity_name</td><td>String</td></tr>
+      <tr><td>revenue / units_sold</td><td>VND / Int</td></tr>
+      <tr><td>market_share_pct</td><td>%</td></tr>
+      <tr><td>rank / rank_change</td><td>Int / Int</td></tr>
+      <tr><td>shop_type / products_with_sales</td><td>String / Int</td></tr>
+      <tr><td>lifetime_revenue / lifetime_units</td><td>VND / Int</td></tr>
+    </table>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>5. Evidence Level System (E0–E5)</h2>
+
+<div class="card">
+  <table>
+    <tr><th>Level</th><th>Label</th><th>Definition</th><th>Example</th></tr>
+    <tr><td><span class="tag tag-green">E0</span></td><td>Verified Official</td><td>Official API, verified, real-time</td><td>Shopee Conversion Report (direct API)</td></tr>
+    <tr><td><span class="tag tag-green">E1</span></td><td>Official Source, Unverified</td><td>Official API but not cross-checked</td><td>Shopee Product Offer API</td></tr>
+    <tr><td><span class="tag tag-blue">E2</span></td><td>Third-party, Calibrated</td><td>Trusted third-party, benchmarked</td><td>Kalodata, <b>Metric.vn</b></td></tr>
+    <tr><td><span class="tag tag-yellow">E3</span></td><td>Third-party, Uncalibrated</td><td>Third-party without validation</td><td>Addlivetag API</td></tr>
+    <tr><td><span class="tag tag-orange">E4</span></td><td>Derived/Computed</td><td>Calculated from other data</td><td>Growth rate, momentum, ratios</td></tr>
+    <tr><td><span class="tag tag-red">E5</span></td><td>Estimate/Assumption</td><td>Best guess, needs validation</td><td>Market size estimates</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>6. Product Matching Strategy</h2>
+
+<div class="card">
+  <table>
+    <tr><th>Priority</th><th>Method</th><th>Accuracy</th><th>When to Use</th></tr>
+    <tr><td>1</td><td><b>URL extraction</b> — Kalodata URL contains Shopee item_id + shop_id</td><td>99%</td><td>Pattern: <code>shopee.vn/product/{shop_id}/{item_id}</code></td></tr>
+    <tr><td>2</td><td><b>Shop name + Product name fuzzy match</b></td><td>85%</td><td>When URL isn't available</td></tr>
+    <tr><td>3</td><td><b>Shop name + Price match</b></td><td>70%</td><td>Fallback</td></tr>
+    <tr><td>4</td><td><b>Metric cross-platform match</b> — title + shop + platform</td><td>80%</td><td>When Kalodata/Shopee data missing</td></tr>
+    <tr><td>5</td><td><b>Manual queue</b></td><td>100%</td><td>Auto-match confidence &lt; 80%</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>7. Data Pack Mapping</h2>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3>DPK-03: Thị trường TMĐT</h3>
+    <p class="card-desc">Market overview with cross-platform view</p>
+    <div style="margin-top:0.5rem;">
+      <span class="tag tag-blue">dim_product</span>
+      <span class="tag tag-blue">fct_product_performance</span>
+      <span class="tag tag-blue">fct_trend</span>
+      <span class="tag tag-pink">fct_market_intelligence</span>
+      <span class="tag tag-pink">dim_marketplace</span>
+    </div>
+    <p style="margin-top:0.75rem;font-size:0.85rem;">Revenue, growth, creator count, trend interest, avg price, items sold, <b>cross-platform share, marketplace breakdown</b></p>
+  </div>
+
+  <div class="card">
+    <h3>DPK-04: Sản phẩm & Đối thủ</h3>
+    <p class="card-desc">Product & competitor analysis</p>
+    <div style="margin-top:0.5rem;">
+      <span class="tag tag-blue">dim_product</span>
+      <span class="tag tag-blue">fct_product_performance</span>
+      <span class="tag tag-blue">fct_video</span>
+      <span class="tag tag-blue">fct_livestream</span>
+      <span class="tag tag-pink">fct_competitor_benchmark</span>
+      <span class="tag tag-pink">dim_brand</span>
+    </div>
+    <p style="margin-top:0.75rem;font-size:0.85rem;">Rating, price position, video/live revenue, creator density, <b>brand rankings, shop rankings, market share</b></p>
+  </div>
+
+  <div class="card">
+    <h3>DPK-07: Chi phí & Tài chính</h3>
+    <p class="card-desc">Commission & financial tracking</p>
+    <div style="margin-top:0.5rem;">
+      <span class="tag tag-blue">fct_commission</span>
+      <span class="tag tag-blue">fct_order</span>
+    </div>
+    <p style="margin-top:0.75rem;font-size:0.85rem;">Total commission, net commission, AOV, conversion rate</p>
+  </div>
+
+  <div class="card">
+    <h3>DPK-08: Tiếng nói khách hàng</h3>
+    <p class="card-desc">Voice of customer</p>
+    <div style="margin-top:0.5rem;">
+      <span class="tag tag-blue">dim_product</span>
+      <span class="tag tag-blue">fct_order</span>
+    </div>
+    <p style="margin-top:0.75rem;font-size:0.85rem;">Rating, fraud rate, new vs returning buyer</p>
+  </div>
+
+  <div class="card">
+    <h3>DPK-10: Phản hồi thị trường</h3>
+    <p class="card-desc">Market response & cross-platform performance</p>
+    <div style="margin-top:0.5rem;">
+      <span class="tag tag-blue">fct_order</span>
+      <span class="tag tag-blue">fct_video</span>
+      <span class="tag tag-blue">fct_livestream</span>
+      <span class="tag tag-pink">fct_market_intelligence</span>
+    </div>
+    <p style="margin-top:0.75rem;font-size:0.85rem;">Orders, completion/cancellation rate, video conversion, live AOV, <b>cross-platform performance</b></p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>8. Refresh Schedule</h2>
+
+<div class="card">
+  <table>
+    <tr><th>Data Source</th><th>Refresh</th><th>Day</th><th>Time (UTC+7)</th><th>Method</th></tr>
+    <tr><td><span class="status-dot status-ok"></span>Kalodata</td><td>Weekly</td><td>Monday</td><td>02:00</td><td>Browser automation (Playwright)</td></tr>
+    <tr><td><span class="status-dot status-ok"></span>Shopee Product Offers</td><td>Weekly</td><td>Monday</td><td>03:00</td><td>GraphQL API</td></tr>
+    <tr><td><span class="status-dot status-ok"></span>Shopee Conversions</td><td>Weekly</td><td>Monday</td><td>04:00</td><td>GraphQL API (cursor-based)</td></tr>
+    <tr><td><span class="status-dot status-ok"></span>Google Trends</td><td>Weekly</td><td>Monday</td><td>05:00</td><td>SerpAPI</td></tr>
+    <tr><td><span class="status-dot status-new"></span>Metric.vn</td><td>Weekly</td><td>Monday</td><td>05:30</td><td>Browser automation + Excel export</td></tr>
+    <tr><td><span class="status-dot status-ok"></span>dim_product rebuild</td><td>Weekly</td><td>Monday</td><td>06:00</td><td>Rebuild from staging</td></tr>
+    <tr><td><span class="status-dot status-ok"></span>fct_* compute</td><td>Weekly</td><td>Monday</td><td>06:00</td><td>Compute from staging + dims</td></tr>
+    <tr><td><span class="status-dot status-ok"></span>Metrics</td><td>Weekly</td><td>Monday</td><td>07:00</td><td>Compute from fct tables</td></tr>
+  </table>
+  <p style="margin-top:1rem;font-size:0.85rem;color:var(--muted);">Staleness: >2 weeks → flagged stale · >4 weeks → excluded from current metrics · Failed API → open issue, show error badge</p>
+</div>
+
+<!-- ============================================================ -->
+<h2>9. Phased Rollout</h2>
+
+<div class="phase-bar">
+  <div class="phase-segment" style="background:rgba(34,197,94,0.2);color:var(--green)">Phase 1<br><small>Wk 1–3</small></div>
+  <div class="phase-segment" style="background:rgba(249,115,22,0.2);color:var(--orange)">Phase 2<br><small>Wk 4–6</small></div>
+  <div class="phase-segment" style="background:rgba(59,130,246,0.2);color:var(--blue)">Phase 3<br><small>Wk 7–9</small></div>
+  <div class="phase-segment" style="background:rgba(236,72,153,0.2);color:var(--pink)">Phase 4<br><small>Wk 10–11</small></div>
+  <div class="phase-segment" style="background:rgba(139,92,246,0.2);color:var(--accent2)">Phase 5<br><small>Wk 12–14</small></div>
+</div>
+
+<div class="grid grid-2">
+  <div class="card">
+    <h3 style="color:var(--green)">Phase 1: Foundation</h3>
+    <ul class="checklist">
+      <li class="pending">Set up staging tables (Kalodata + Shopee)</li>
+      <li class="pending">Build product matching (URL + fuzzy)</li>
+      <li class="pending">Create dim_product</li>
+      <li class="pending">Create fct_product_performance</li>
+      <li class="pending">Basic dashboard (revenue, growth, top products)</li>
+    </ul>
+    <p style="margin-top:0.5rem;font-size:0.85rem;"><span class="tag tag-green">DPK-03</span> Market data</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--orange)">Phase 2: Transactions</h3>
+    <ul class="checklist">
+      <li class="pending">Add Shopee conversion data</li>
+      <li class="pending">Create fct_order</li>
+      <li class="pending">Create fct_commission</li>
+      <li class="pending">Create dim_shop</li>
+      <li class="pending">Dashboard v2 (conversion, AOV, commission)</li>
+    </ul>
+    <p style="margin-top:0.5rem;font-size:0.85rem;"><span class="tag tag-green">DPK-03</span> <span class="tag tag-orange">DPK-07</span> Market + Finance</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--blue)">Phase 3: Content & Trends</h3>
+    <ul class="checklist">
+      <li class="pending">Add Kalodata video/live data</li>
+      <li class="pending">Add Google Trends</li>
+      <li class="pending">Create fct_video, fct_livestream, fct_trend</li>
+      <li class="pending">Create dim_creator</li>
+      <li class="pending">Dashboard v3 (content + trend correlation)</li>
+    </ul>
+    <p style="margin-top:0.5rem;font-size:0.85rem;"><span class="tag tag-green">DPK-03</span> <span class="tag tag-blue">DPK-04</span> <span class="tag tag-orange">DPK-07</span> <span class="tag tag-cyan">DPK-10</span></p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--pink)">Phase 4: Metric.vn Integration ⚡</h3>
+    <ul class="checklist">
+      <li class="pending">Set up Metric.vn scraping (Playwright)</li>
+      <li class="pending">Create dim_marketplace + dim_brand</li>
+      <li class="pending">Create fct_market_intelligence</li>
+      <li class="pending">Create fct_competitor_benchmark</li>
+      <li class="pending">Enhance product matching (Metric fallback)</li>
+      <li class="pending">Dashboard v4 (marketplace share, brands, price bands, geo)</li>
+    </ul>
+    <p style="margin-top:0.5rem;font-size:0.85rem;"><span class="tag tag-green">DPK-03</span> <span class="tag tag-blue">DPK-04</span> <span class="tag tag-cyan">DPK-10</span> Cross-platform</p>
+  </div>
+
+  <div class="card">
+    <h3 style="color:var(--accent2)">Phase 5: Intelligence</h3>
+    <ul class="checklist">
+      <li class="pending">Metric dictionary (all 57 metrics)</li>
+      <li class="pending">E-level system on every row</li>
+      <li class="pending">Anomaly detection</li>
+      <li class="pending">Competitive benchmarking</li>
+      <li class="pending">Dashboard v5 (full intelligence suite)</li>
+    </ul>
+    <p style="margin-top:0.5rem;font-size:0.85rem;"><span class="tag tag-purple">All Data Packs</span> Complete</p>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<h2>10. What's NOT in This Warehouse</h2>
+
+<div class="card">
+  <table>
+    <tr><th>Excluded</th><th>Why</th></tr>
+    <tr><td>Internal company strategy/budget</td><td>Sensitive, belongs in separate system</td></tr>
+    <tr><td>PESTLE/macro data</td><td>Too unstructured, better in documents</td></tr>
+    <tr><td>Supplier/COA/HS code data</td><td>Different workflow, separate warehouse</td></tr>
+    <tr><td>Creative assets (images, packaging)</td><td>Asset management system, not data warehouse</td></tr>
+    <tr><td>Real-time pricing</td><td>Not needed for weekly analysis</td></tr>
+    <tr><td>Keyword search volume</td><td>Metric doesn't provide; needs separate tool</td></tr>
+    <tr><td>Advertising spend / CPC</td><td>Not available from any current source</td></tr>
+  </table>
+</div>
+
+<!-- ============================================================ -->
+<h2>11. Source Coverage Matrix</h2>
+
+<div class="card" style="overflow-x:auto;">
+  <table>
+    <tr>
+      <th>Data Type</th>
+      <th style="text-align:center">Kalodata</th>
+      <th style="text-align:center">Shopee API</th>
+      <th style="text-align:center">Google Trends</th>
+      <th style="text-align:center">Metric.vn</th>
+    </tr>
+    <tr><td>Product revenue</td><td style="text-align:center">✅ TikTok</td><td style="text-align:center">✅ Shopee</td><td style="text-align:center">—</td><td style="text-align:center">✅ All platforms</td></tr>
+    <tr><td>Product units sold</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">✅</td></tr>
+    <tr><td>Product rating</td><td style="text-align:center">✅</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">✅</td></tr>
+    <tr><td>Product price</td><td style="text-align:center">—</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">✅</td></tr>
+    <tr><td>Category hierarchy</td><td style="text-align:center">✅ Basic</td><td style="text-align:center">✅ Full</td><td style="text-align:center">—</td><td style="text-align:center">✅ Full</td></tr>
+    <tr><td>Brand data</td><td style="text-align:center">—</td><td style="text-align:center">Partial</td><td style="text-align:center">—</td><td style="text-align:center">✅ Top 10 + full</td></tr>
+    <tr><td>Shop data</td><td style="text-align:center">✅ TikTok</td><td style="text-align:center">✅ Shopee</td><td style="text-align:center">—</td><td style="text-align:center">✅ All platforms</td></tr>
+    <tr><td>Order-level detail</td><td style="text-align:center">—</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+    <tr><td>Commission breakdown</td><td style="text-align:center">—</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+    <tr><td>Video performance</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+    <tr><td>Livestream performance</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+    <tr><td>Creator data</td><td style="text-align:center">✅</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+    <tr><td>Search interest</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">✅</td><td style="text-align:center">—</td></tr>
+    <tr><td>Cross-platform comparison</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">✅</td></tr>
+    <tr><td>Market share %</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">✅</td></tr>
+    <tr><td>Price band analysis</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">✅</td></tr>
+    <tr><td>Geographic data</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">✅ Regional</td><td style="text-align:center">✅ Warehouse</td></tr>
+    <tr><td>Keyword search volume</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">Index only</td><td style="text-align:center">—</td></tr>
+    <tr><td>Ad spend / CPC</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td><td style="text-align:center">—</td></tr>
+  </table>
+</div>
+
+<div class="footer">
+  Unified Data Warehouse — Master Handoff · Generated 2026-08-10 · Sources: Kalodata · Shopee Affiliate API · Google Trends (SerpAPI) · Metric.vn
+</div>
+
+</div>
+</body>
+</html>
