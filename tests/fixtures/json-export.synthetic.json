@@ -1,0 +1,45 @@
+{
+  "contractVersion": "1.0.0",
+  "source": {
+    "sourceId": "provider-export:synthetic-metric-product-card",
+    "sourceType": "provider_export",
+    "displayName": "Synthetic Metric.vn Product Card export"
+  },
+  "ingestion": {
+    "idempotencyKey": "synthetic-product-card-2026-08",
+    "acquiredAt": "2026-09-05T10:00:00+07:00",
+    "mediaType": "application/json",
+    "evidenceGrade": {
+      "grade": "synthetic",
+      "basis": "Synthetic Task 003 fixture shaped from the Metric.vn Product Card field inventory; no provider or private data."
+    }
+  },
+  "period": {
+    "start": "2026-08-01T10:00:00+02:00",
+    "end": "2026-08-31T09:30:00+00:00",
+    "grain": "calendar_month",
+    "scope": "product_card_performance"
+  },
+  "rows": [
+    {
+      "platform": "tiktok-shop",
+      "platformProductId": "synthetic-metric-item-001",
+      "productName": "Synthetic Calcium Product Card A",
+      "periodRevenueVnd": 9007199254740991,
+      "periodUnitsSold": 0,
+      "lifetimeRevenueVnd": 0,
+      "revenueGrowth": {
+        "value": 1250,
+        "unit": "percent",
+        "scale": 100
+      }
+    },
+    {
+      "platform": "tiktok-shop",
+      "platformProductId": "synthetic-metric-item-002",
+      "productName": "Synthetic Calcium Product Card B",
+      "periodRevenueVnd": 42000000,
+      "periodUnitsSold": 84
+    }
+  ]
+}

@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 06/09/2026. Scope: Task 001 local SQLite walking path only.
+Updated: 06/09/2026. Scope: Task 001 foundation plus Task 003 synthetic multi-row JSON export ingestion.
 
 ## Inventory and reuse decision
 
@@ -16,7 +16,7 @@ Updated: 06/09/2026. Scope: Task 001 local SQLite walking path only.
 |---|---|---|
 | Source | `source_id`, required namespaced form such as `manual:synthetic-calcium-001` | Origin registration. The name does not determine evidence grade. |
 | Ingestion run | `(source_id, idempotency_key)` | One accepted delivery attempt from a source. It retains that ingestion's own acquisition time, canonical request hash, contract version, status, and artifact digest. Reusing a key with different input is rejected. |
-| Artifact manifest | SHA-256 of canonical raw-payload bytes | Content address, byte size, media type, relative POSIX path, acquisition time, contract version, and retention status. `artifact_manifests.acquired_at` is the acquisition time from the first ingestion that stored the content digest; later ingestions of the same digest retain their own acquisition times on their ingestion rows. Bytes live at `sha256/<2-char-prefix>/<digest>` under the configured artifact root. User filenames never define identity. |
+| Artifact manifest | SHA-256 of stored bytes | Content address, byte size, media type, relative POSIX path, acquisition time, contract version, and retention status. Manual Task 001 input stores canonical raw-payload JSON; Task 003 export input stores exact source-file bytes including whitespace. `artifact_manifests.acquired_at` is the acquisition time from the first ingestion that stored the content digest; later ingestions of the same digest retain their own acquisition times on their ingestion rows. Bytes live at `sha256/<2-char-prefix>/<digest>` under the configured artifact root. User filenames never define identity. |
 | Evidence | `evidence_id`, one per ingestion in this narrow path | Links ingestion to artifact and stores an explicit grade plus its supplied basis. Grades are not inferred from provider/source names. |
 | Product | `(platform, platform_product_id)` | Stable platform identity. `product_name` is mutable display metadata and never part of identity. Reports from different providers for the same platform identity resolve to one product. |
 | Observation | SHA-256 identity over `(platform, platform_product_id, scope, exact period start/end/grain, metric_code)` | One metric at the declared period grain. Provider/source is deliberately excluded, so equivalent cross-provider evidence links to one observation instead of creating additive duplicates. A conflicting value for the same identity is rejected rather than silently summed or overwritten. |
@@ -29,7 +29,10 @@ Updated: 06/09/2026. Scope: Task 001 local SQLite walking path only.
 - A missing metric creates no observation row. An observed zero creates an integer-zero row.
 - Percentage metrics store integer `value`, explicit unit `percent`, and explicit integer `scale`; percentage points equal `value / scale`.
 - Google Trends-like values use unit `relative_interest_index_0_100`. They are not search volume.
-- Evidence grade and basis are required input fields. `synthetic`, `unverified`, `provider_reported`, `corroborated`, and `verified` are labels supplied at the boundary; Task 001 does not calibrate or infer them.
+- Evidence grade and basis are required input fields. `synthetic`, `unverified`, `provider_reported`, `corroborated`, and `verified` are labels supplied at the boundary; the service does not calibrate or infer them.
+- A Task 003 export has one common period/scope and at least one product row. Only product identity/display name, period/lifetime integer VND revenue, period units sold, and scaled revenue growth are consumed from the provider-shaped file.
+- One accepted export file creates one ingestion, one evidence row, and one exact-byte artifact shared by every imported observation. Equal duplicate identities within the file are deduplicated; conflicting values reject the whole import before artifact or authoritative database writes.
+- The existing artifact-before-database caveat remains: a database transaction failure after a newly written content-addressed artifact can leave an unreferenced artifact file for later operational cleanup.
 
 ## Deliberately not included
 
