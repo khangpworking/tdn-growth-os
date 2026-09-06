@@ -34,7 +34,7 @@ Status: implemented on `feature/004-versioned-data-pack`; keep PR #4 draft for r
 - `npm run check`: 21/21 integration tests passed locally, including contract generation and strict TypeScript checking.
 - `git diff --check`: passed locally.
 - Fedora permission probe: live database, WAL, SHM, and frozen manifest artifact were all mode `0600`; disposable output was removed.
-- GitHub Check workflow on PR #4: pending pushed commit.
+- GitHub Check workflow on PR #4: passed for implementation commit `ebcee9495a5f3f9eb159f305624247d4a7642d79` ([run 34013495248](https://github.com/khangpworking/tdn-growth-os/actions/runs/34013495248)).
 
 ## Remaining limitations
 
