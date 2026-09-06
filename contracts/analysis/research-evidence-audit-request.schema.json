@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/research-evidence-audit-request.schema.json",
+  "title": "ResearchEvidenceAuditRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "resultId"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "resultId": { "type": "string", "format": "uuid" }
+  }
+}

@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 11/09/2026. Scope: Tasks 001–009 through deterministic Research Evidence Index Results.
+Updated: 12/09/2026. Scope: Tasks 001–010 through bounded Research Evidence Audit.
 
 ## Inventory and reuse decision
 
@@ -29,6 +29,7 @@ Updated: 11/09/2026. Scope: Tasks 001–009 through deterministic Research Evide
 | Finalized Research Pack | `(pack_key, version)` | Immutable snapshot of explicitly selected research-document UUIDs, with semantic request hash, canonical body-free manifest artifact, optional lower-version same-key predecessor, and finalization time. |
 | Research Pack item | `(pack_id, document_id)` | Immutable explicit membership. Input order is non-semantic; canonical order is document UUID order. |
 | Research Evidence Index Result | `(research_pack_id, calculation_key, calculation_version)` | Immutable Box 2 `research_evidence_index_v1` artifact/row derived only from a verified Research Pack. SQLite stores Result provenance only; exact derived segments exist solely in one canonical Result artifact. |
+| Research Evidence Audit | `(source_result_id, provider_id, model_id, prompt_id, prompt_version, output_schema_version)` | Immutable, non-authoritative audit of claims only against one verified Research Evidence Index. The row stores source/prompt/gateway/schema provenance and optional telemetry; structured claims and citations exist only in the canonical artifact. |
 
 ## Metric semantics
 
@@ -60,6 +61,10 @@ Updated: 11/09/2026. Scope: Tasks 001–009 through deterministic Research Evide
 - Task 009 reads Box 1 only through `FinalizedResearchPackReader`. For each exact verified document Buffer, v1 excludes only an initial UTF-8 BOM and a CR immediately before LF/EOF; LF terminates a physical line, all other bytes/whitespace remain unchanged, and decoded whitespace-only lines are skipped.
 - Retained line segments use sequential per-document indexes and exact original-artifact half-open byte ranges. Each snapshots the fatal-decoded slice, SHA-256 of exactly that slice, and an application-derived `/documents/<document-index>/segments/<segment-index>/text` pointer into deterministic document-ID order.
 - `research_evidence_index_v1` recomputation verifies the complete canonical Result against the immutable row and reread Research Pack. It performs no claim extraction, verdict, scoring, AI, network collection, embedding/search, orchestration, or action.
+- Task 010 reads only through `ResearchEvidenceIndexResultReader` and sends exactly one verified index to the existing injected `AiGateway` with the versioned prompt/output schema, explicit limits and `tools: []`. Request callers cannot select provider, model, prompt, tools or credentials.
+- Audit output is untrusted. AJV bounds every object/string/array, then application validation accepts only exact application-created segment-text pointers that resolve to exact text, rejects duplicates, and enforces supporting/contradicting citation requirements for each assessment.
+- The audit describes support only within the supplied Research Pack. It does not infer global truth, publisher reliability/independence, legal conclusions, recommendations, approval, publication or action. Replay calls no AI and revalidates artifact/source/prompt/gateway/schema metadata and every citation.
+- The static fail-closed Box 2 registry now has exactly two entries: `analysis:market-snapshot-interpretation@1` and `analysis:research-evidence-audit@1`. Both deny tools, shell, arbitrary filesystem, approval and business mutation; network access is only through the injected gateway.
 
 ## Deliberately not included
 

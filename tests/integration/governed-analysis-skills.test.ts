@@ -125,8 +125,8 @@ function count(db: Database.Database, table: string): bigint {
   return (db.prepare(`SELECT count(*) AS count FROM ${table}`).get() as { count: bigint }).count;
 }
 
-test('registry is an explicit closed allowlist with exactly one Box 2 no-authority capability', () => {
-  assert.equal(governedAnalysisSkillRegistry.length, 1);
+test('registry preserves the market skill as the first of exactly two Box 2 no-authority capabilities', () => {
+  assert.equal(governedAnalysisSkillRegistry.length, 2);
   assert.deepEqual(governedAnalysisSkillRegistry[0], {
     skillId: 'analysis:market-snapshot-interpretation',
     skillVersion: 1,
@@ -148,6 +148,10 @@ test('registry is an explicit closed allowlist with exactly one Box 2 no-authori
   assert.ok(Object.isFrozen(governedAnalysisSkillRegistry));
   assert.ok(Object.isFrozen(governedAnalysisSkillRegistry[0]));
   assert.ok(Object.isFrozen(governedAnalysisSkillRegistry[0].authority));
+  assert.equal(governedAnalysisSkillRegistry[1].skillId, 'analysis:research-evidence-audit');
+  assert.equal(governedAnalysisSkillRegistry[1].skillVersion, 1);
+  assert.ok(Object.isFrozen(governedAnalysisSkillRegistry[1]));
+  assert.ok(Object.isFrozen(governedAnalysisSkillRegistry[1].authority));
 });
 
 test('valid request delegates to Task 006 and returns existing immutable interpretation references', async () => {
