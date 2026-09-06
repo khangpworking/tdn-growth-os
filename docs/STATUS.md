@@ -1,19 +1,21 @@
 # Trạng thái hiện tại
 
-Cập nhật: 05/09/2026.
+Cập nhật: 06/09/2026.
 
-- Hoàn thành: cấu trúc thư mục, brief kiến trúc, hướng dẫn agent, kế hoạch, mẫu task/handoff.
-- Chưa triển khai: runtime, database, migration, worker, API, frontend, AI, deployment.
-- Task tiếp theo: `docs/tasks/001-sqlite-foundation.md`.
-- Chưa cài dependencies; chưa có lockfile. Chọn phiên bản sau kiểm tra source có thể tái sử dụng.
-- Chưa có remote GitHub. Việc push và hosting thực hiện sau.
+- Hoàn thành để review: Task 001 — SQLite foundation local cho Box 1.
+- Đã có: dependency/lockfile pin; strict TypeScript check; SQLite WAL + foreign keys + busy timeout; migration checksum/version; artifact SHA-256 atomic store; JSON Schema/AJV boundary; manual synthetic ingestion; product/observation identity; evidence lineage; integration tests.
+- Inventory/reuse và data dictionary: `docs/foundation-data-dictionary.md`.
+- Handoff: `docs/handoffs/001-sqlite-foundation.md`.
+- Chưa triển khai: collectors/provider calls, Data Pack, worker, API, frontend, AI, backup/restore production và deployment.
+- Task tiếp theo: owner review Task 001, sau đó lập task hẹp tiếp theo cho Box 1 raw/manual ingestion hoặc Data Pack theo kế hoạch.
+- Repository GitHub riêng tư: `khangpworking/tdn-growth-os`; Task 001 đang ở branch review `feature/001-sqlite-foundation`.
 - Các thư mục scaffold không chứng minh năng lực sản phẩm.
 
 ## Phần trăm
 
 | Box | Ước tính lịch sử trong hệ thống cũ | Implementation được xác minh trong repo mới |
 |---|---:|---|
-| 1 — Data | 52% | Chưa triển khai |
+| 1 — Data | 52% | Foundation local tối thiểu đã triển khai; chưa có collectors/Data Pack/production operations |
 | 2 — Analysis | 43% | Chưa triển khai |
 | 3 — Orchestrator | 58% | Chưa triển khai |
 | 4 — Flow | 62% | Chưa triển khai |

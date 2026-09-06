@@ -1,0 +1,48 @@
+{
+  "contractVersion": "1.0.0",
+  "source": {
+    "sourceId": "manual:synthetic-calcium-001",
+    "sourceType": "manual",
+    "displayName": "Synthetic calcium fixture"
+  },
+  "ingestion": {
+    "idempotencyKey": "fixture-run-001",
+    "acquiredAt": "2026-09-05T10:00:00.000Z",
+    "mediaType": "application/json",
+    "evidenceGrade": {
+      "grade": "synthetic",
+      "basis": "Task 001 synthetic integration fixture; not business evidence."
+    }
+  },
+  "product": {
+    "platform": "tiktok-shop",
+    "platformProductId": "synthetic-item-001",
+    "productName": "Synthetic Calcium Product A"
+  },
+  "observation": {
+    "observedAt": "2026-09-05T10:00:00.000Z",
+    "scope": "product_performance",
+    "period": {
+      "start": "2026-08-01T00:00:00.000Z",
+      "end": "2026-08-31T23:59:59.999Z",
+      "grain": "calendar_month"
+    },
+    "periodRevenueVnd": 9007199254740991,
+    "lifetimeRevenueVnd": 0,
+    "revenueGrowth": {
+      "value": 1250,
+      "unit": "percent",
+      "scale": 100
+    },
+    "trendsInterestIndex": {
+      "value": 64,
+      "unit": "relative_interest_index_0_100"
+    }
+  },
+  "rawPayload": {
+    "fixture": true,
+    "note": "Synthetic only",
+    "periodRevenueVnd": 9007199254740991,
+    "lifetimeRevenueVnd": 0
+  }
+}

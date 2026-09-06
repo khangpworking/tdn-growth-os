@@ -10,7 +10,7 @@ coverage/
 *.sqlite-*
 *.db
 *.db-*
-artifacts/
+/artifacts/
 runtime/
 data/private/
 observations/inbox/
