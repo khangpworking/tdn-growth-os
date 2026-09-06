@@ -14,6 +14,8 @@ const contracts = [
   ['foundation', 'research-pack-manifest'],
   ['analysis', 'market-snapshot-request'],
   ['analysis', 'market-snapshot-result'],
+  ['analysis', 'research-evidence-index-request'],
+  ['analysis', 'research-evidence-index-result'],
   ['analysis', 'market-snapshot-interpretation-request'],
   ['analysis', 'market-snapshot-interpretation-output'],
   ['analysis', 'market-snapshot-interpretation'],

@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 10/09/2026. Scope: Tasks 001–008 through exact-byte research documents and Research Packs.
+Updated: 11/09/2026. Scope: Tasks 001–009 through deterministic Research Evidence Index Results.
 
 ## Inventory and reuse decision
 
@@ -28,6 +28,7 @@ Updated: 10/09/2026. Scope: Tasks 001–008 through exact-byte research document
 | Research document | UUID with unique existing evidence/ingestion lineage | Immutable metadata for one manually supplied exact-byte UTF-8 `text/plain` document. The body remains only in the content-addressed artifact store; source locator is preserved metadata, not identity or a fetch instruction. |
 | Finalized Research Pack | `(pack_key, version)` | Immutable snapshot of explicitly selected research-document UUIDs, with semantic request hash, canonical body-free manifest artifact, optional lower-version same-key predecessor, and finalization time. |
 | Research Pack item | `(pack_id, document_id)` | Immutable explicit membership. Input order is non-semantic; canonical order is document UUID order. |
+| Research Evidence Index Result | `(research_pack_id, calculation_key, calculation_version)` | Immutable Box 2 `research_evidence_index_v1` artifact/row derived only from a verified Research Pack. SQLite stores Result provenance only; exact derived segments exist solely in one canonical Result artifact. |
 
 ## Metric semantics
 
@@ -56,6 +57,9 @@ Updated: 10/09/2026. Scope: Tasks 001–008 through exact-byte research document
 - A document request hash binds canonical validated metadata to the exact raw-byte digest. Existing `(source_id, idempotency_key)` identity remains authoritative: identical metadata+bytes deduplicate, while any metadata or byte drift conflicts. Rights status and evidence grade are supplied, preserved labels and are never inferred.
 - Research Pack manifests snapshot document metadata, rights, evidence, source, ingestion/acquisition, and raw artifact digest/size/media type in document-ID order without embedding bodies. Verified reading checks canonical manifest bytes and database metadata/membership, then digest/size/media/path/UTF-8 of every raw document artifact and returns exact bytes plus text through a read-only Box 1 interface.
 - All document text—including links and sentence-like instructions—is untrusted inert data. Task 008 does not render, execute, fetch, parse HTML/PDF, call AI, fact-check, or select documents automatically.
+- Task 009 reads Box 1 only through `FinalizedResearchPackReader`. For each exact verified document Buffer, v1 excludes only an initial UTF-8 BOM and a CR immediately before LF/EOF; LF terminates a physical line, all other bytes/whitespace remain unchanged, and decoded whitespace-only lines are skipped.
+- Retained line segments use sequential per-document indexes and exact original-artifact half-open byte ranges. Each snapshots the fatal-decoded slice, SHA-256 of exactly that slice, and an application-derived `/documents/<document-index>/segments/<segment-index>/text` pointer into deterministic document-ID order.
+- `research_evidence_index_v1` recomputation verifies the complete canonical Result against the immutable row and reread Research Pack. It performs no claim extraction, verdict, scoring, AI, network collection, embedding/search, orchestration, or action.
 
 ## Deliberately not included
 
