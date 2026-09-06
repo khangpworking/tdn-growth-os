@@ -24,6 +24,7 @@ Updated: 07/09/2026. Scope: Task 001 foundation, Task 003 ingestion, Task 004 Da
 | Finalized Data Pack | `(pack_key, version)` | Immutable, calculation-ready snapshot created from explicit observation IDs. The row stores semantic request hash, canonical manifest artifact digest, optional lower-version same-key predecessor, and finalization time. Same semantic request is idempotent; corrections use a higher version. |
 | Data Pack item | `(pack_id, observation_id)` | Immutable membership linking the explicit selection to its finalized pack. Replay truth comes from the frozen manifest snapshot, not mutable product display rows. |
 | Analysis Result | `(data_pack_id, calculation_key, calculation_version)` | Immutable Box 2 output row linking one verified finalized Data Pack to one canonical Result artifact. Task 005 supports only `market_snapshot_v1` version 1. |
+| AI interpretation | `(source_result_id, provider_id, model_id, prompt_id, prompt_version, output_schema_version)` | Immutable, unapproved descriptive interpretation of one verified Result. The row records source Result/artifact, configured gateway identity, prompt/schema identity, request hash, canonical output artifact, completion time, and optional provider telemetry. |
 
 ## Metric semantics
 
@@ -43,7 +44,10 @@ Updated: 07/09/2026. Scope: Task 001 foundation, Task 003 ingestion, Task 004 Da
 - `market_snapshot_v1` sums `period_revenue_vnd` and `units_sold` independently with `BigInt`, serializes totals as decimal strings, emits `null` when a supported metric is absent, and preserves observed zero as `"0"` with a positive observed-product count.
 - Coverage records selected observation count, unique platform-product identity count, and per-supported-metric observed-product counts. Unsupported metric codes are unique and sorted; they are not aggregated.
 - Result replay verifies artifact digest, schema, canonical bytes, immutable row metadata, and the referenced verified Data Pack metadata.
+- Task 006 reads a Result only through the declared read-only `MarketSnapshotResultReader`. The injected `AiGateway` receives the verified Result, configured provider/model, exact versioned prompt and digest, output schema/version, explicit timeout/token limits, and an empty tool list.
+- Gateway output is untrusted: AJV rejects shape/extra fields, then application validation rejects recommendation/approval/action language and citations outside existing allowlisted deterministic Result JSON Pointers before any output artifact or interpretation row write.
+- The application owns interpretation IDs, timestamps, prompt/model/Result provenance, and the canonical envelope. Interpretations do not mutate or approve business state.
 
 ## Deliberately not included
 
-Collectors/providers, automatic Data Pack selection, averages, growth aggregation, ROI, scoring, ranking, recommendations, additional calculations, AI interpretation, legacy import/backfill, API/UI, business matching beyond stable platform product IDs, retention execution, artifact reconciliation, backup/restore, and production deployment are later work.
+Collectors/live providers, model routing, tools, retries, automatic Data Pack selection, averages, growth aggregation, ROI, scoring, ranking, recommendations, approval/action AI, additional calculations, legacy import/backfill, API/UI, business matching beyond stable platform product IDs, retention execution, artifact reconciliation, backup/restore, and production deployment are later work.

@@ -11,6 +11,9 @@ const contracts = [
   ['foundation', 'data-pack-manifest'],
   ['analysis', 'market-snapshot-request'],
   ['analysis', 'market-snapshot-result'],
+  ['analysis', 'market-snapshot-interpretation-request'],
+  ['analysis', 'market-snapshot-interpretation-output'],
+  ['analysis', 'market-snapshot-interpretation'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);

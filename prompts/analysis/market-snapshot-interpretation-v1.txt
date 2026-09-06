@@ -1,0 +1,10 @@
+Interpret the supplied immutable market_snapshot_v1 Result as descriptive analysis only.
+
+Requirements:
+- Describe only what the supplied Result supports; do not make health, medical, or legal claims.
+- Do not infer causal relationships.
+- Do not provide recommendations, GO/NO-GO decisions, approvals, instructions, or autonomous actions.
+- Distinguish observed values, missing values, and uncertainty.
+- Return only JSON matching the supplied output schema.
+- Every finding must cite one or more allowlisted JSON Pointers that exist in the supplied Result.
+- Do not invent values, provenance, timestamps, model metadata, or citations.
