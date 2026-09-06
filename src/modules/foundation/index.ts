@@ -5,4 +5,8 @@ export {
   type FoundationLineage,
   type ImportResult,
 } from './foundation-service.js';
-export { FoundationValidationError, validateManualObservationInput } from './validation.js';
+export {
+  FoundationValidationError,
+  validateJsonExportInput,
+  validateManualObservationInput,
+} from './validation.js';

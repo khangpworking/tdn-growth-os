@@ -1,9 +1,10 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
+import type { JsonExportInput } from '../../../contracts/foundation/json-export.generated.js';
 import type { ManualObservationInput } from '../../../contracts/foundation/manual-observation.generated.js';
 import { ContentAddressedArtifactStore } from '../../platform/artifacts/index.js';
 import { canonicalJson } from './canonical-json.js';
-import { validateManualObservationInput } from './validation.js';
+import { FoundationValidationError, validateJsonExportInput, validateManualObservationInput } from './validation.js';
 
 type MetricCode =
   | 'period_revenue_vnd'
@@ -244,6 +245,183 @@ export class FoundationService {
     return transaction();
   }
 
+  async importJsonExport(fileBytes: Uint8Array): Promise<ImportResult> {
+    const exactBytes = Buffer.from(fileBytes);
+    let untrustedInput: unknown;
+    try {
+      const text = new TextDecoder('utf-8', { fatal: true }).decode(exactBytes);
+      untrustedInput = JSON.parse(text) as unknown;
+    } catch (error) {
+      throw new FoundationValidationError(`invalid UTF-8 JSON: ${(error as Error).message}`);
+    }
+    const input = validateJsonExportInput(untrustedInput);
+    const requestSha256 = sha256Bytes(exactBytes);
+    const metrics = exportMetricsFrom(input);
+
+    const deduplicatedMetrics = new Map<string, ExportMetricValue>();
+    for (const metric of metrics) {
+      const duplicate = deduplicatedMetrics.get(metric.identityKey);
+      if (duplicate) assertSameInFileMetric(metric, duplicate);
+      else deduplicatedMetrics.set(metric.identityKey, metric);
+    }
+    const uniqueMetrics = [...deduplicatedMetrics.values()];
+
+    const existingIngestion = this.#db
+      .prepare(
+        `SELECT ingestion_id AS ingestionId, request_sha256 AS requestSha256, artifact_sha256 AS artifactSha256
+           FROM foundation_ingestion_runs
+          WHERE source_id = ? AND idempotency_key = ?`,
+      )
+      .get(input.source.sourceId, input.ingestion.idempotencyKey) as
+      | { ingestionId: string; requestSha256: string; artifactSha256: string | null }
+      | undefined;
+    if (existingIngestion) {
+      if (existingIngestion.requestSha256 !== requestSha256 || !existingIngestion.artifactSha256) {
+        throw new FoundationIdentityConflictError('Ingestion idempotency key was already used for different input bytes');
+      }
+      return {
+        ingestionId: existingIngestion.ingestionId,
+        observationIds: this.#observationIdsForIngestion(existingIngestion.ingestionId),
+        artifactSha256: existingIngestion.artifactSha256,
+        deduplicated: true,
+      };
+    }
+
+    uniqueMetrics.forEach((metric) => {
+      const existing = this.#existingMetric(metric.identityKey);
+      if (existing) assertSameMetric(metric, existing);
+    });
+
+    const stored = await this.#artifacts.put(exactBytes);
+    const now = this.#now().toISOString();
+    const ingestionId = randomUUID();
+    const evidenceId = randomUUID();
+    const transaction = this.#db.transaction((): ImportResult => {
+      this.#db
+        .prepare(
+          `INSERT INTO foundation_sources(source_id, source_type, display_name, created_at)
+           VALUES (?, ?, ?, ?)
+           ON CONFLICT(source_id) DO NOTHING`,
+        )
+        .run(input.source.sourceId, input.source.sourceType, input.source.displayName, now);
+      const source = this.#db
+        .prepare('SELECT source_type AS sourceType, display_name AS displayName FROM foundation_sources WHERE source_id = ?')
+        .get(input.source.sourceId) as { sourceType: string; displayName: string };
+      if (source.sourceType !== input.source.sourceType || source.displayName !== input.source.displayName) {
+        throw new FoundationIdentityConflictError('Source identity already exists with different metadata');
+      }
+
+      this.#db
+        .prepare(
+          `INSERT INTO foundation_ingestion_runs(
+             ingestion_id, source_id, idempotency_key, status, acquired_at, started_at,
+             completed_at, artifact_sha256, request_sha256, contract_version
+           ) VALUES (?, ?, ?, 'processing', ?, ?, NULL, NULL, ?, ?)`,
+        )
+        .run(
+          ingestionId,
+          input.source.sourceId,
+          input.ingestion.idempotencyKey,
+          input.ingestion.acquiredAt,
+          now,
+          requestSha256,
+          input.contractVersion,
+        );
+
+      this.#db
+        .prepare(
+          `INSERT INTO artifact_manifests(
+             sha256, byte_size, media_type, relative_path, acquired_at,
+             contract_version, retention_status, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?, 'active', ?)
+           ON CONFLICT(sha256) DO NOTHING`,
+        )
+        .run(
+          stored.sha256,
+          stored.byteSize,
+          input.ingestion.mediaType,
+          stored.relativePath,
+          input.ingestion.acquiredAt,
+          input.contractVersion,
+          now,
+        );
+      const manifest = this.#db
+        .prepare('SELECT byte_size AS byteSize, relative_path AS relativePath FROM artifact_manifests WHERE sha256 = ?')
+        .get(stored.sha256) as { byteSize: bigint; relativePath: string };
+      if (manifest.byteSize !== BigInt(stored.byteSize) || manifest.relativePath !== stored.relativePath) {
+        throw new FoundationIdentityConflictError('Artifact digest already exists with inconsistent manifest metadata');
+      }
+
+      this.#db
+        .prepare(
+          `INSERT INTO foundation_evidence(
+             evidence_id, ingestion_id, artifact_sha256, evidence_grade, evidence_grade_basis, created_at
+           ) VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(
+          evidenceId,
+          ingestionId,
+          stored.sha256,
+          input.ingestion.evidenceGrade.grade,
+          input.ingestion.evidenceGrade.basis,
+          now,
+        );
+
+      const observationIds = uniqueMetrics.map((metric) => {
+        const product = this.#db
+          .prepare(
+            `INSERT INTO foundation_products(
+               platform, platform_product_id, product_name, created_at, updated_at
+             ) VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(platform, platform_product_id) DO UPDATE SET
+               product_name = excluded.product_name,
+               updated_at = excluded.updated_at
+             RETURNING product_id AS productId`,
+          )
+          .get(metric.platform, metric.platformProductId, metric.productName, now, now) as { productId: bigint };
+        const existing = this.#existingMetric(metric.identityKey);
+        if (existing) assertSameMetric(metric, existing);
+        const observation = existing ??
+          (this.#db
+            .prepare(
+              `INSERT INTO foundation_observations(
+                 identity_key, product_id, metric_code, integer_value, unit, scale, scope,
+                 period_start, period_end, period_grain, observed_at, created_at
+               ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+               RETURNING observation_id AS observationId`,
+            )
+            .get(
+              metric.identityKey,
+              product.productId,
+              metric.code,
+              metric.value,
+              metric.unit,
+              metric.scale,
+              input.period.scope,
+              input.period.start,
+              input.period.end,
+              input.period.grain,
+              input.ingestion.acquiredAt,
+              now,
+            ) as ExistingMetric);
+        this.#db
+          .prepare('INSERT INTO foundation_observation_evidence(observation_id, evidence_id) VALUES (?, ?)')
+          .run(observation.observationId, evidenceId);
+        return observation.observationId;
+      });
+
+      this.#db
+        .prepare(
+          `UPDATE foundation_ingestion_runs
+              SET status = 'completed', completed_at = ?, artifact_sha256 = ?
+            WHERE ingestion_id = ?`,
+        )
+        .run(now, stored.sha256, ingestionId);
+      return { ingestionId, observationIds, artifactSha256: stored.sha256, deduplicated: false };
+    });
+    return transaction();
+  }
+
   getLineage(observationId: bigint | number): FoundationLineage {
     const row = this.getLineageRecords(observationId)[0];
     if (!row) throw new Error(`Observation not found: ${observationId}`);
@@ -317,6 +495,12 @@ export class FoundationService {
   }
 }
 
+interface ExportMetricValue extends MetricValue {
+  readonly platform: string;
+  readonly platformProductId: string;
+  readonly productName: string;
+}
+
 interface ExistingMetric {
   readonly observationId: bigint;
   readonly integerValue: bigint;
@@ -365,6 +549,50 @@ function metricsFrom(input: ManualObservationInput): readonly MetricValue[] {
   }));
 }
 
+function exportMetricsFrom(input: JsonExportInput): readonly ExportMetricValue[] {
+  return input.rows.flatMap((row) => {
+    const metrics: Array<Omit<MetricValue, 'identityKey'>> = [];
+    if (row.periodRevenueVnd !== undefined) {
+      metrics.push({ code: 'period_revenue_vnd', value: row.periodRevenueVnd, unit: 'VND', scale: null });
+    }
+    if (row.periodUnitsSold !== undefined) {
+      metrics.push({ code: 'units_sold', value: row.periodUnitsSold, unit: 'count', scale: null });
+    }
+    if (row.lifetimeRevenueVnd !== undefined) {
+      metrics.push({ code: 'lifetime_revenue_vnd', value: row.lifetimeRevenueVnd, unit: 'VND', scale: null });
+    }
+    if (row.revenueGrowth !== undefined) {
+      metrics.push({
+        code: 'revenue_growth_percent',
+        value: row.revenueGrowth.value,
+        unit: row.revenueGrowth.unit,
+        scale: row.revenueGrowth.scale,
+      });
+    }
+    return metrics.map((metric) => ({
+      ...metric,
+      platform: row.platform,
+      platformProductId: row.platformProductId,
+      productName: row.productName,
+      identityKey: sha256(
+        canonicalJson({
+          platform: row.platform,
+          platformProductId: row.platformProductId,
+          scope: input.period.scope,
+          period: { start: input.period.start, end: input.period.end, grain: input.period.grain },
+          metricCode: metric.code,
+        }),
+      ),
+    }));
+  });
+}
+
+function assertSameInFileMetric(expected: MetricValue, actual: MetricValue): void {
+  if (expected.value !== actual.value || expected.unit !== actual.unit || expected.scale !== actual.scale) {
+    throw new FoundationIdentityConflictError(`Observation identity conflict for metric ${expected.code}`);
+  }
+}
+
 function assertSameMetric(expected: MetricValue, actual: ExistingMetric): void {
   if (
     BigInt(expected.value) !== actual.integerValue ||
@@ -376,5 +604,9 @@ function assertSameMetric(expected: MetricValue, actual: ExistingMetric): void {
 }
 
 function sha256(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
+  return sha256Bytes(Buffer.from(value, 'utf8'));
+}
+
+function sha256Bytes(value: Uint8Array): string {
+  return createHash('sha256').update(value).digest('hex');
 }
