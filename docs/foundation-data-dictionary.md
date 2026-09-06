@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 07/09/2026. Scope: Task 001 foundation, Task 003 ingestion, Task 004 Data Packs, and Task 005 market snapshot Results.
+Updated: 10/09/2026. Scope: Tasks 001–008 through exact-byte research documents and Research Packs.
 
 ## Inventory and reuse decision
 
@@ -25,6 +25,9 @@ Updated: 07/09/2026. Scope: Task 001 foundation, Task 003 ingestion, Task 004 Da
 | Data Pack item | `(pack_id, observation_id)` | Immutable membership linking the explicit selection to its finalized pack. Replay truth comes from the frozen manifest snapshot, not mutable product display rows. |
 | Analysis Result | `(data_pack_id, calculation_key, calculation_version)` | Immutable Box 2 output row linking one verified finalized Data Pack to one canonical Result artifact. Task 005 supports only `market_snapshot_v1` version 1. |
 | AI interpretation | `(source_result_id, provider_id, model_id, prompt_id, prompt_version, output_schema_version)` | Immutable, unapproved descriptive interpretation of one verified Result. The row records source Result/artifact, configured gateway identity, prompt/schema identity, request hash, canonical output artifact, completion time, and optional provider telemetry. |
+| Research document | UUID with unique existing evidence/ingestion lineage | Immutable metadata for one manually supplied exact-byte UTF-8 `text/plain` document. The body remains only in the content-addressed artifact store; source locator is preserved metadata, not identity or a fetch instruction. |
+| Finalized Research Pack | `(pack_key, version)` | Immutable snapshot of explicitly selected research-document UUIDs, with semantic request hash, canonical body-free manifest artifact, optional lower-version same-key predecessor, and finalization time. |
+| Research Pack item | `(pack_id, document_id)` | Immutable explicit membership. Input order is non-semantic; canonical order is document UUID order. |
 
 ## Metric semantics
 
@@ -49,6 +52,10 @@ Updated: 07/09/2026. Scope: Task 001 foundation, Task 003 ingestion, Task 004 Da
 - The application owns interpretation IDs, timestamps, prompt/model/Result provenance, and the canonical envelope. Interpretations do not mutate or approve business state.
 - Task 007 exposes exactly `analysis:market-snapshot-interpretation@1` through a static fail-closed Box 2 registry. Its AJV request accepts only skill identity/version and a Result UUID; the adapter delegates only that Result ID to Task 006 and returns a non-authoritative typed receipt referencing the existing interpretation ID/artifact.
 - The skill boundary adds no persistence, provider/tool/shell/filesystem authority, approval, business mutation, or dynamic code discovery. A child `SKILL.md` is declarative documentation only; the code registry is authoritative.
+- Task 008 accepts metadata separately from manually supplied bytes, requires source type `manual` and media type `text/plain`, copies bytes, fatal-decodes UTF-8, rejects NUL/empty/whitespace-only content, and enforces a 1 MiB inclusive ceiling before artifact or database writes. Accepted bytes retain BOM, newlines, and spacing exactly.
+- A document request hash binds canonical validated metadata to the exact raw-byte digest. Existing `(source_id, idempotency_key)` identity remains authoritative: identical metadata+bytes deduplicate, while any metadata or byte drift conflicts. Rights status and evidence grade are supplied, preserved labels and are never inferred.
+- Research Pack manifests snapshot document metadata, rights, evidence, source, ingestion/acquisition, and raw artifact digest/size/media type in document-ID order without embedding bodies. Verified reading checks canonical manifest bytes and database metadata/membership, then digest/size/media/path/UTF-8 of every raw document artifact and returns exact bytes plus text through a read-only Box 1 interface.
+- All document text—including links and sentence-like instructions—is untrusted inert data. Task 008 does not render, execute, fetch, parse HTML/PDF, call AI, fact-check, or select documents automatically.
 
 ## Deliberately not included
 

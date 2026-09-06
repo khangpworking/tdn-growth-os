@@ -55,11 +55,11 @@ function setup(): {
 
 test('opens a fresh WAL database and a second migration run is idempotent', () => {
   const first = setup();
-  assert.deepEqual(first.migrationApplied, [1, 2, 3, 4]);
+  assert.deepEqual(first.migrationApplied, [1, 2, 3, 4, 5]);
   assert.equal(first.db.pragma('journal_mode', { simple: true }), 'wal');
   assert.equal(first.db.pragma('foreign_keys', { simple: true }), 1n);
   assert.equal(first.db.pragma('busy_timeout', { simple: true }), 5000n);
-  assert.equal(first.db.pragma('user_version', { simple: true }), 4n);
+  assert.equal(first.db.pragma('user_version', { simple: true }), 5n);
   const databasePath = first.db.name;
   if (process.platform !== 'win32') {
     assert.equal(fs.statSync(databasePath).mode & 0o777, 0o600);
@@ -68,12 +68,13 @@ test('opens a fresh WAL database and a second migration run is idempotent', () =
 
   const second = openDatabase({ databasePath });
   assert.deepEqual(second.migration.applied, []);
-  assert.equal(second.migration.currentVersion, 4);
+  assert.equal(second.migration.currentVersion, 5);
   assert.deepEqual(second.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all(), [
     { version: 1n },
     { version: 2n },
     { version: 3n },
     { version: 4n },
+    { version: 5n },
   ]);
   second.db.close();
 });
