@@ -43,7 +43,7 @@ Status: implemented on `feature/005-market-snapshot-result`; keep PR #5 draft fo
 - `npm run check`: 27/27 integration tests passed locally, including six-contract generation and strict TypeScript checking.
 - `git diff --check`: passed locally.
 - Fedora permission probe: live database, WAL, SHM, Data Pack manifest, and Result artifact were all mode `0600`; disposable output was removed.
-- GitHub Check workflow on PR #5: pending pushed commit.
+- GitHub Check workflow on PR #5: passed for implementation commit `c770bbb1e017f9a360a5125a12b7aa4cf7799bf5` ([run 34014620021](https://github.com/khangpworking/tdn-growth-os/actions/runs/34014620021)).
 
 ## Remaining limitations
 
