@@ -1,4 +1,10 @@
 import { createRequire } from 'node:module';
+import auditRequestSchema from '../../../contracts/analysis/research-evidence-audit-request.schema.json' with { type: 'json' };
+import type { ResearchEvidenceAuditRequest } from '../../../contracts/analysis/research-evidence-audit-request.generated.js';
+import auditOutputSchema from '../../../contracts/analysis/research-evidence-audit-output.schema.json' with { type: 'json' };
+import type { ResearchEvidenceAuditOutput } from '../../../contracts/analysis/research-evidence-audit-output.generated.js';
+import auditSchema from '../../../contracts/analysis/research-evidence-audit.schema.json' with { type: 'json' };
+import type { ResearchEvidenceAudit } from '../../../contracts/analysis/research-evidence-audit.generated.js';
 import evidenceIndexRequestSchema from '../../../contracts/analysis/research-evidence-index-request.schema.json' with { type: 'json' };
 import type { ResearchEvidenceIndexRequest } from '../../../contracts/analysis/research-evidence-index-request.generated.js';
 import evidenceIndexResultSchema from '../../../contracts/analysis/research-evidence-index-result.schema.json' with { type: 'json' };
@@ -22,6 +28,7 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
 ajv.addSchema(interpretationOutputSchema);
+ajv.addSchema(auditOutputSchema);
 const validateGovernedSkillRequest = ajv.compile(governedSkillRequestSchema);
 const validateRequest = ajv.compile(requestSchema);
 const validateResult = ajv.compile(resultSchema);
@@ -30,6 +37,9 @@ const validateInterpretationOutput = ajv.getSchema<MarketSnapshotInterpretationO
 const validateInterpretation = ajv.compile(interpretationSchema);
 const validateEvidenceIndexRequest = ajv.compile(evidenceIndexRequestSchema);
 const validateEvidenceIndexResult = ajv.compile(evidenceIndexResultSchema);
+const validateAuditRequest = ajv.compile(auditRequestSchema);
+const validateAuditOutput = ajv.getSchema<ResearchEvidenceAuditOutput>(auditOutputSchema.$id)!;
+const validateAudit = ajv.compile(auditSchema);
 
 export class AnalysisValidationError extends Error {
   readonly details: string;
@@ -99,4 +109,25 @@ export function validateResearchEvidenceIndexResult(value: unknown): ResearchEvi
     throw new AnalysisValidationError(ajv.errorsText(validateEvidenceIndexResult.errors, { separator: '; ' }));
   }
   return value as unknown as ResearchEvidenceIndexResult;
+}
+
+export function validateResearchEvidenceAuditRequest(value: unknown): ResearchEvidenceAuditRequest {
+  if (!validateAuditRequest(value)) {
+    throw new AnalysisValidationError(ajv.errorsText(validateAuditRequest.errors, { separator: '; ' }));
+  }
+  return value as unknown as ResearchEvidenceAuditRequest;
+}
+
+export function validateResearchEvidenceAuditOutput(value: unknown): ResearchEvidenceAuditOutput {
+  if (!validateAuditOutput(value)) {
+    throw new AnalysisValidationError(ajv.errorsText(validateAuditOutput.errors, { separator: '; ' }));
+  }
+  return value as ResearchEvidenceAuditOutput;
+}
+
+export function validateResearchEvidenceAudit(value: unknown): ResearchEvidenceAudit {
+  if (!validateAudit(value)) {
+    throw new AnalysisValidationError(ajv.errorsText(validateAudit.errors, { separator: '; ' }));
+  }
+  return value as unknown as ResearchEvidenceAudit;
 }

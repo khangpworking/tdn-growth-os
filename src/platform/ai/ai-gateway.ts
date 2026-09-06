@@ -1,5 +1,6 @@
 import type { MarketSnapshotInterpretationOutput } from '../../../contracts/analysis/market-snapshot-interpretation-output.generated.js';
 import type { MarketSnapshotResult } from '../../../contracts/analysis/market-snapshot-result.generated.js';
+import type { ResearchEvidenceIndexResult } from '../../../contracts/analysis/research-evidence-index-result.generated.js';
 
 export interface AiGatewayRequest {
   readonly runId: string;
@@ -14,7 +15,7 @@ export interface AiGatewayRequest {
   readonly input: {
     readonly resultId: string;
     readonly resultArtifactSha256: string;
-    readonly result: MarketSnapshotResult;
+    readonly result: MarketSnapshotResult | ResearchEvidenceIndexResult;
   };
   readonly output: {
     readonly schemaVersion: string;

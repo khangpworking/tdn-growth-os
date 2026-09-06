@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/research-evidence-audit.schema.json",
+  "title": "ResearchEvidenceAudit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "auditId", "completedAt", "sourceResult", "gateway", "prompt", "outputSchemaVersion", "output"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "auditId": { "type": "string", "format": "uuid" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "sourceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resultId", "resultArtifactSha256"],
+      "properties": {
+        "resultId": { "type": "string", "format": "uuid" },
+        "resultArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerId", "modelId"],
+      "properties": {
+        "providerId": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "providerRequestId": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "inputTokenCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "outputTokenCount": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+        "latencyMs": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 }
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["promptId", "promptVersion", "promptSha256"],
+      "properties": {
+        "promptId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "promptVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "promptSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "outputSchemaVersion": { "const": "1.0.0" },
+    "output": { "$ref": "research-evidence-audit-output.schema.json" }
+  }
+}

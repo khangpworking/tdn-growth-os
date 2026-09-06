@@ -13,6 +13,9 @@ export {
   validateMarketSnapshotInterpretationRequest,
   validateResearchEvidenceIndexRequest,
   validateResearchEvidenceIndexResult,
+  validateResearchEvidenceAudit,
+  validateResearchEvidenceAuditOutput,
+  validateResearchEvidenceAuditRequest,
 } from './validation.js';
 export {
   AnalysisResultReader,
@@ -29,6 +32,8 @@ export {
   GovernedAnalysisSkillExecutor,
   MARKET_SNAPSHOT_INTERPRETATION_SKILL_ID,
   MARKET_SNAPSHOT_INTERPRETATION_SKILL_VERSION,
+  RESEARCH_EVIDENCE_AUDIT_SKILL_ID,
+  RESEARCH_EVIDENCE_AUDIT_SKILL_VERSION,
   governedAnalysisSkillRegistry,
   type GovernedAnalysisSkillDescriptor,
   type GovernedAnalysisSkillReceipt,
@@ -46,3 +51,15 @@ export {
   type ResearchEvidenceIndexResultReader,
   type VerifiedResearchEvidenceIndexResult,
 } from './research-evidence-index-result-reader.js';
+export {
+  ResearchEvidenceAuditIdentityConflictError,
+  ResearchEvidenceAuditService,
+  validateResearchEvidenceAuditSemantics,
+  type ResearchEvidenceAuditConfiguration,
+  type ResearchEvidenceAuditExecution,
+} from './research-evidence-audit-service.js';
+export {
+  AnalysisResearchEvidenceAuditReader,
+  type ResearchEvidenceAuditReader,
+  type VerifiedResearchEvidenceAudit,
+} from './research-evidence-audit-reader.js';
