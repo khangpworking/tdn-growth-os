@@ -1,4 +1,6 @@
 import { createRequire } from 'node:module';
+import governedSkillRequestSchema from '../../../contracts/analysis/governed-skill-execution-request.schema.json' with { type: 'json' };
+import type { GovernedSkillExecutionRequest } from '../../../contracts/analysis/governed-skill-execution-request.generated.js';
 import interpretationOutputSchema from '../../../contracts/analysis/market-snapshot-interpretation-output.schema.json' with { type: 'json' };
 import type { MarketSnapshotInterpretationOutput } from '../../../contracts/analysis/market-snapshot-interpretation-output.generated.js';
 import interpretationRequestSchema from '../../../contracts/analysis/market-snapshot-interpretation-request.schema.json' with { type: 'json' };
@@ -16,6 +18,7 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
 ajv.addSchema(interpretationOutputSchema);
+const validateGovernedSkillRequest = ajv.compile(governedSkillRequestSchema);
 const validateRequest = ajv.compile(requestSchema);
 const validateResult = ajv.compile(resultSchema);
 const validateInterpretationRequest = ajv.compile(interpretationRequestSchema);
@@ -69,4 +72,11 @@ export function validateMarketSnapshotInterpretation(value: unknown): MarketSnap
     throw new AnalysisValidationError(ajv.errorsText(validateInterpretation.errors, { separator: '; ' }));
   }
   return value as unknown as MarketSnapshotInterpretation;
+}
+
+export function validateGovernedSkillExecutionRequest(value: unknown): GovernedSkillExecutionRequest {
+  if (!validateGovernedSkillRequest(value)) {
+    throw new AnalysisValidationError(ajv.errorsText(validateGovernedSkillRequest.errors, { separator: '; ' }));
+  }
+  return value as unknown as GovernedSkillExecutionRequest;
 }

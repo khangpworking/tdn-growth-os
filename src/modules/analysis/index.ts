@@ -5,6 +5,7 @@ export {
 } from './market-snapshot-service.js';
 export {
   AnalysisValidationError,
+  validateGovernedSkillExecutionRequest,
   validateMarketSnapshotRequest,
   validateMarketSnapshotResult,
   validateMarketSnapshotInterpretation,
@@ -22,3 +23,11 @@ export {
   type InterpretationConfiguration,
   type InterpretationExecution,
 } from './interpretation-service.js';
+export {
+  GovernedAnalysisSkillExecutor,
+  MARKET_SNAPSHOT_INTERPRETATION_SKILL_ID,
+  MARKET_SNAPSHOT_INTERPRETATION_SKILL_VERSION,
+  governedAnalysisSkillRegistry,
+  type GovernedAnalysisSkillDescriptor,
+  type GovernedAnalysisSkillReceipt,
+} from './skills/governed-analysis-skills.js';

@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/governed-skill-execution-request.schema.json",
+  "title": "GovernedSkillExecutionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "skillId", "skillVersion", "input"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "skillId": { "const": "analysis:market-snapshot-interpretation" },
+    "skillVersion": { "const": 1 },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resultId"],
+      "properties": {
+        "resultId": { "type": "string", "format": "uuid" }
+      }
+    }
+  }
+}
