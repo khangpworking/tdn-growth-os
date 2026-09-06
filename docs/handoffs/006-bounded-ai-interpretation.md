@@ -46,7 +46,7 @@ Gateway output is untrusted. AJV rejects missing or additional fields. Applicati
 - `npm run check`: 32/32 integration tests passed locally, including nine-contract generation and strict TypeScript checking.
 - `git diff --check`: passed locally.
 - Fedora permission probe: live database, WAL, SHM, Data Pack manifest, Result artifact, and interpretation artifact were all mode `0600`; disposable output was removed.
-- GitHub Check workflow on PR #6: pending pushed commit.
+- GitHub Check workflow on PR #6: passed for complete implementation commit `545f9a453c00d9f274e51f9995a27bd8c2603b33` ([run 34020471754](https://github.com/khangpworking/tdn-growth-os/actions/runs/34020471754)).
 
 ## Remaining limitations
 
