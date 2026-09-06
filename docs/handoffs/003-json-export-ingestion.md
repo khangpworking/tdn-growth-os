@@ -33,7 +33,7 @@ Status: implemented on `feature/003-json-export-ingestion`; keep PR #3 draft for
 - `git diff --check`: passed locally.
 - New CLI smoke test: exact fixture-byte SHA-256 and byte-for-byte round trip passed; database and artifact files were mode `0600`; disposable output was removed.
 - Existing Task 001 integration coverage continues to verify live WAL/SHM permissions on Fedora.
-- GitHub Check workflow on PR #3: pending pushed commit.
+- GitHub Check workflow on PR #3: passed for implementation commit `53ffc11091379349a16b8a46d94cd6509034357c` ([run 34011336793](https://github.com/khangpworking/tdn-growth-os/actions/runs/34011336793)).
 
 ## Remaining limitations
 
