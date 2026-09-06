@@ -1,4 +1,10 @@
 import { createRequire } from 'node:module';
+import researchDocumentImportSchema from '../../../contracts/foundation/research-document-import.schema.json' with { type: 'json' };
+import type { ResearchDocumentImport } from '../../../contracts/foundation/research-document-import.generated.js';
+import researchPackManifestSchema from '../../../contracts/foundation/research-pack-manifest.schema.json' with { type: 'json' };
+import type { ResearchPackManifest } from '../../../contracts/foundation/research-pack-manifest.generated.js';
+import researchPackRequestSchema from '../../../contracts/foundation/research-pack-request.schema.json' with { type: 'json' };
+import type { ResearchPackRequest } from '../../../contracts/foundation/research-pack-request.generated.js';
 import manifestSchema from '../../../contracts/foundation/data-pack-manifest.schema.json' with { type: 'json' };
 import type { DataPackManifest } from '../../../contracts/foundation/data-pack-manifest.generated.js';
 import requestSchema from '../../../contracts/foundation/data-pack-request.schema.json' with { type: 'json' };
@@ -17,6 +23,9 @@ const validateManual = ajv.compile(manualSchema);
 const validateExport = ajv.compile(exportSchema);
 const validatePackRequest = ajv.compile(requestSchema);
 const validatePackManifest = ajv.compile(manifestSchema);
+const validateResearchDocumentImportContract = ajv.compile(researchDocumentImportSchema);
+const validateResearchPackRequestContract = ajv.compile(researchPackRequestSchema);
+const validateResearchPackManifestContract = ajv.compile(researchPackManifestSchema);
 
 export class FoundationValidationError extends Error {
   readonly details: string;
@@ -69,4 +78,25 @@ function assertPeriodOrder(start: string, end: string, message: string): void {
   if (!Number.isFinite(periodStart) || !Number.isFinite(periodEnd) || periodStart > periodEnd) {
     throw new FoundationValidationError(message);
   }
+}
+
+export function validateResearchDocumentImport(value: unknown): ResearchDocumentImport {
+  if (!validateResearchDocumentImportContract(value)) {
+    throw new FoundationValidationError(ajv.errorsText(validateResearchDocumentImportContract.errors, { separator: '; ' }));
+  }
+  return value as unknown as ResearchDocumentImport;
+}
+
+export function validateResearchPackRequest(value: unknown): ResearchPackRequest {
+  if (!validateResearchPackRequestContract(value)) {
+    throw new FoundationValidationError(ajv.errorsText(validateResearchPackRequestContract.errors, { separator: '; ' }));
+  }
+  return value as unknown as ResearchPackRequest;
+}
+
+export function validateResearchPackManifest(value: unknown): ResearchPackManifest {
+  if (!validateResearchPackManifestContract(value)) {
+    throw new FoundationValidationError(ajv.errorsText(validateResearchPackManifestContract.errors, { separator: '; ' }));
+  }
+  return value as unknown as ResearchPackManifest;
 }

@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/foundation/research-document-import.schema.json",
+  "title": "ResearchDocumentImport",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "source", "ingestion", "document"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceId", "sourceType", "displayName"],
+      "properties": {
+        "sourceId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*:[A-Za-z0-9][A-Za-z0-9._-]*$", "maxLength": 160 },
+        "sourceType": { "const": "manual" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" }
+      }
+    },
+    "ingestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["idempotencyKey", "acquiredAt", "mediaType", "evidenceGrade"],
+      "properties": {
+        "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+        "acquiredAt": { "type": "string", "format": "date-time" },
+        "mediaType": { "const": "text/plain" },
+        "evidenceGrade": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["grade", "basis"],
+          "properties": {
+            "grade": { "enum": ["synthetic", "unverified", "provider_reported", "corroborated", "verified"] },
+            "basis": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" }
+          }
+        }
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["documentType", "title", "sourceLocator", "languageTag", "rightsStatus", "rightsBasis"],
+      "properties": {
+        "documentType": { "enum": ["news_article", "report", "web_page", "transcript", "other"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S" },
+        "sourceLocator": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S" },
+        "languageTag": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[A-Za-z0-9][A-Za-z0-9-]*$" },
+        "publishedAt": { "type": "string", "format": "date-time" },
+        "rightsStatus": { "enum": ["unknown", "permitted", "restricted"] },
+        "rightsBasis": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" }
+      }
+    }
+  }
+}

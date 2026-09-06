@@ -17,4 +17,22 @@ export {
   validateDataPackRequest,
   validateJsonExportInput,
   validateManualObservationInput,
+  validateResearchDocumentImport,
+  validateResearchPackManifest,
+  validateResearchPackRequest,
 } from './validation.js';
+export {
+  RESEARCH_DOCUMENT_MAX_BYTES,
+  ResearchDocumentService,
+  type ResearchDocumentImportResult,
+} from './research-document-service.js';
+export {
+  ResearchPackService,
+  type ResearchPackResult,
+  type VerifiedFinalizedResearchPack,
+  type VerifiedResearchDocument,
+} from './research-pack-service.js';
+export {
+  FoundationResearchPackReader,
+  type FinalizedResearchPackReader,
+} from './research-pack-reader.js';
