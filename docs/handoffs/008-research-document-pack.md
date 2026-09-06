@@ -5,7 +5,7 @@ Status: implemented on `feature/008-research-document-pack`; keep PR #8 draft fo
 ## Identity
 
 - Starting SHA: `c5804cc0eae3113ffbc359096f6111bd3e183d24`.
-- Final SHA: pending final commit.
+- Complete implementation SHA: `c59c5fdcee3fff550dce794e7934d1548f9ddb75`.
 
 ## Migration and contracts
 
@@ -35,7 +35,7 @@ Status: implemented on `feature/008-research-document-pack`; keep PR #8 draft fo
 - `git diff --check`: passed locally.
 - Fedora permission probe: database/WAL/SHM/raw document/Research Pack manifest were `0600`, verified bytes matched exactly, and disposable output was removed.
 - Independent focused review after integrity fixes: no findings; confirmed pre-finalization and idempotent-retry verification ordering.
-- GitHub Check: pending push.
+- GitHub Check: passed for complete implementation commit `c59c5fdcee3fff550dce794e7934d1548f9ddb75` ([run 34035500256](https://github.com/khangpworking/tdn-growth-os/actions/runs/34035500256)).
 
 ## Migration integrity
 
