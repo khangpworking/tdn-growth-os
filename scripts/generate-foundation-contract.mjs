@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { compileFromFile } from 'json-schema-to-typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const contracts = ['manual-observation', 'json-export'];
+const contracts = ['manual-observation', 'json-export', 'data-pack-request', 'data-pack-manifest'];
 for (const contract of contracts) {
   const schemaPath = path.join(root, `contracts/foundation/${contract}.schema.json`);
   const outputPath = path.join(root, `contracts/foundation/${contract}.generated.ts`);

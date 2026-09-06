@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/foundation/data-pack-manifest.schema.json",
+  "title": "DataPackManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "packKey", "version", "purpose", "finalizedAt", "period", "observations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "packKey": { "type": "string", "minLength": 3, "maxLength": 160 },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "purpose": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "finalizedAt": { "type": "string", "format": "date-time" },
+    "supersedesPackId": { "type": "string", "format": "uuid" },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "start", "end", "grain"],
+      "properties": {
+        "scope": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "grain": { "type": "string", "minLength": 1, "maxLength": 80 }
+      }
+    },
+    "observations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["observationId", "identityKey", "platform", "platformProductId", "productName", "metricCode", "integerValue", "unit", "scale", "evidence"],
+        "properties": {
+          "observationId": { "type": "string", "pattern": "^[1-9][0-9]*$" },
+          "identityKey": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+          "platform": { "type": "string", "minLength": 1 },
+          "platformProductId": { "type": "string", "minLength": 1 },
+          "productName": { "type": "string", "minLength": 1 },
+          "metricCode": { "type": "string", "minLength": 1 },
+          "integerValue": { "type": "string", "pattern": "^-?[0-9]+$" },
+          "unit": { "type": "string", "minLength": 1 },
+          "scale": { "type": ["string", "null"], "pattern": "^[1-9][0-9]*$" },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["evidenceId", "grade", "basis", "sourceId", "ingestionId", "rawArtifactSha256"],
+              "properties": {
+                "evidenceId": { "type": "string", "format": "uuid" },
+                "grade": { "type": "string", "minLength": 1 },
+                "basis": { "type": "string", "minLength": 1 },
+                "sourceId": { "type": "string", "minLength": 1 },
+                "ingestionId": { "type": "string", "format": "uuid" },
+                "rawArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

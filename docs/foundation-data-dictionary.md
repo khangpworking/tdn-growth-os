@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 06/09/2026. Scope: Task 001 foundation plus Task 003 synthetic multi-row JSON export ingestion.
+Updated: 06/09/2026. Scope: Task 001 foundation, Task 003 JSON export ingestion, and Task 004 finalized Data Packs.
 
 ## Inventory and reuse decision
 
@@ -21,6 +21,8 @@ Updated: 06/09/2026. Scope: Task 001 foundation plus Task 003 synthetic multi-ro
 | Product | `(platform, platform_product_id)` | Stable platform identity. `product_name` is mutable display metadata and never part of identity. Reports from different providers for the same platform identity resolve to one product. |
 | Observation | SHA-256 identity over `(platform, platform_product_id, scope, exact period start/end/grain, metric_code)` | One metric at the declared period grain. Provider/source is deliberately excluded, so equivalent cross-provider evidence links to one observation instead of creating additive duplicates. A conflicting value for the same identity is rejected rather than silently summed or overwritten. |
 | Observation evidence | `(observation_id, evidence_id)` | Many-to-many lineage from a stable observation to the evidence deliveries supporting it. |
+| Finalized Data Pack | `(pack_key, version)` | Immutable, calculation-ready snapshot created from explicit observation IDs. The row stores semantic request hash, canonical manifest artifact digest, optional lower-version same-key predecessor, and finalization time. Same semantic request is idempotent; corrections use a higher version. |
+| Data Pack item | `(pack_id, observation_id)` | Immutable membership linking the explicit selection to its finalized pack. Replay truth comes from the frozen manifest snapshot, not mutable product display rows. |
 
 ## Metric semantics
 
@@ -33,7 +35,10 @@ Updated: 06/09/2026. Scope: Task 001 foundation plus Task 003 synthetic multi-ro
 - A Task 003 export has one common period/scope and at least one product row. Only product identity/display name, period/lifetime integer VND revenue, period units sold, and scaled revenue growth are consumed from the provider-shaped file.
 - One accepted export file creates one ingestion, one evidence row, and one exact-byte artifact shared by every imported observation. Equal duplicate identities within the file are deduplicated; conflicting values reject the whole import before artifact or authoritative database writes.
 - The existing artifact-before-database caveat remains: a database transaction failure after a newly written content-addressed artifact can leave an unreferenced artifact file for later operational cleanup.
+- A Task 004 request supplies unique positive decimal observation IDs. IDs are sorted before semantic hashing, and all selected observations must share exact scope and supplied period start/end/grain strings.
+- The canonical Data Pack manifest snapshots product identity/name, metric code, lossless decimal-string integer value and scale, plus sorted evidence ID/grade/basis, source, ingestion, and raw-artifact digest references. Replay verifies content SHA-256, canonical JSON, manifest schema, and finalized database metadata.
+- Finalized pack rows and memberships are database-trigger immutable. A superseding pack must use the same stable key, a higher version, and retain the old pack and manifest unchanged.
 
 ## Deliberately not included
 
-Collectors/providers, Data Packs, legacy import/backfill, API/UI, analytical aggregation, business matching beyond stable platform product IDs, retention execution, backup/restore, and production deployment are later work.
+Collectors/providers, automatic Data Pack selection, calculation/Result, legacy import/backfill, API/UI, analytical aggregation, business matching beyond stable platform product IDs, retention execution, artifact reconciliation, backup/restore, and production deployment are later work.
