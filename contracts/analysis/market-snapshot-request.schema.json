@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/market-snapshot-request.schema.json",
+  "title": "MarketSnapshotRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "dataPackId", "calculationKey", "calculationVersion"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "dataPackId": { "type": "string", "format": "uuid" },
+    "calculationKey": { "const": "market_snapshot_v1" },
+    "calculationVersion": { "const": 1 }
+  }
+}

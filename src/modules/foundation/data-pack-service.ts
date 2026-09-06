@@ -162,6 +162,17 @@ export class DataPackService {
     return transaction();
   }
 
+  getFinalizedManifestArtifactSha256(packId: string): string {
+    const row = this.#db
+      .prepare(
+        `SELECT manifest_artifact_sha256 AS manifestArtifactSha256
+           FROM foundation_data_packs WHERE pack_id = ? AND finalized_at IS NOT NULL`,
+      )
+      .get(packId) as { manifestArtifactSha256: string } | undefined;
+    if (!row) throw new FoundationValidationError(`Finalized Data Pack not found: ${packId}`);
+    return row.manifestArtifactSha256;
+  }
+
   async replay(packId: string): Promise<DataPackManifest> {
     const pack = this.#db
       .prepare(

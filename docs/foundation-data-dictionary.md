@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 06/09/2026. Scope: Task 001 foundation, Task 003 JSON export ingestion, and Task 004 finalized Data Packs.
+Updated: 07/09/2026. Scope: Task 001 foundation, Task 003 ingestion, Task 004 Data Packs, and Task 005 market snapshot Results.
 
 ## Inventory and reuse decision
 
@@ -23,6 +23,7 @@ Updated: 06/09/2026. Scope: Task 001 foundation, Task 003 JSON export ingestion,
 | Observation evidence | `(observation_id, evidence_id)` | Many-to-many lineage from a stable observation to the evidence deliveries supporting it. |
 | Finalized Data Pack | `(pack_key, version)` | Immutable, calculation-ready snapshot created from explicit observation IDs. The row stores semantic request hash, canonical manifest artifact digest, optional lower-version same-key predecessor, and finalization time. Same semantic request is idempotent; corrections use a higher version. |
 | Data Pack item | `(pack_id, observation_id)` | Immutable membership linking the explicit selection to its finalized pack. Replay truth comes from the frozen manifest snapshot, not mutable product display rows. |
+| Analysis Result | `(data_pack_id, calculation_key, calculation_version)` | Immutable Box 2 output row linking one verified finalized Data Pack to one canonical Result artifact. Task 005 supports only `market_snapshot_v1` version 1. |
 
 ## Metric semantics
 
@@ -38,7 +39,11 @@ Updated: 06/09/2026. Scope: Task 001 foundation, Task 003 JSON export ingestion,
 - A Task 004 request supplies unique positive decimal observation IDs. IDs are sorted before semantic hashing, and all selected observations must share exact scope and supplied period start/end/grain strings.
 - The canonical Data Pack manifest snapshots product identity/name, metric code, lossless decimal-string integer value and scale, plus sorted evidence ID/grade/basis, source, ingestion, and raw-artifact digest references. Replay verifies content SHA-256, canonical JSON, manifest schema, and finalized database metadata.
 - Finalized pack rows and memberships are database-trigger immutable. A superseding pack must use the same stable key, a higher version, and retain the old pack and manifest unchanged.
+- Box 2 reads only the verified frozen manifest, pack ID, and manifest digest through the declared read-only Box 1 `FinalizedDataPackReader`; it does not calculate from current observation/product tables.
+- `market_snapshot_v1` sums `period_revenue_vnd` and `units_sold` independently with `BigInt`, serializes totals as decimal strings, emits `null` when a supported metric is absent, and preserves observed zero as `"0"` with a positive observed-product count.
+- Coverage records selected observation count, unique platform-product identity count, and per-supported-metric observed-product counts. Unsupported metric codes are unique and sorted; they are not aggregated.
+- Result replay verifies artifact digest, schema, canonical bytes, immutable row metadata, and the referenced verified Data Pack metadata.
 
 ## Deliberately not included
 
-Collectors/providers, automatic Data Pack selection, calculation/Result, legacy import/backfill, API/UI, analytical aggregation, business matching beyond stable platform product IDs, retention execution, artifact reconciliation, backup/restore, and production deployment are later work.
+Collectors/providers, automatic Data Pack selection, averages, growth aggregation, ROI, scoring, ranking, recommendations, additional calculations, AI interpretation, legacy import/backfill, API/UI, business matching beyond stable platform product IDs, retention execution, artifact reconciliation, backup/restore, and production deployment are later work.

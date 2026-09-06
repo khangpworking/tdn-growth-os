@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/market-snapshot-result.schema.json",
+  "title": "MarketSnapshotResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "resultId", "calculationKey", "calculationVersion", "completedAt", "dataPack", "period", "coverage", "totals", "ignoredMetricCodes"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "resultId": { "type": "string", "format": "uuid" },
+    "calculationKey": { "const": "market_snapshot_v1" },
+    "calculationVersion": { "const": 1 },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "dataPack": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["dataPackId", "packKey", "version", "manifestArtifactSha256"],
+      "properties": {
+        "dataPackId": { "type": "string", "format": "uuid" },
+        "packKey": { "type": "string", "minLength": 1 },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "manifestArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "start", "end", "grain"],
+      "properties": {
+        "scope": { "type": "string", "minLength": 1 },
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" },
+        "grain": { "type": "string", "minLength": 1 }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selectedObservationCount", "uniqueProductCount", "periodRevenueObservedProductCount", "periodUnitsSoldObservedProductCount"],
+      "properties": {
+        "selectedObservationCount": { "type": "integer", "minimum": 1 },
+        "uniqueProductCount": { "type": "integer", "minimum": 1 },
+        "periodRevenueObservedProductCount": { "type": "integer", "minimum": 0 },
+        "periodUnitsSoldObservedProductCount": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "totals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["periodRevenueVndTotal", "periodUnitsSoldTotal"],
+      "properties": {
+        "periodRevenueVndTotal": { "type": ["string", "null"], "pattern": "^(0|[1-9][0-9]*)$" },
+        "periodUnitsSoldTotal": { "type": ["string", "null"], "pattern": "^(0|[1-9][0-9]*)$" }
+      }
+    },
+    "ignoredMetricCodes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1 }
+    }
+  }
+}

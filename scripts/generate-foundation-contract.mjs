@@ -4,10 +4,17 @@ import { fileURLToPath } from 'node:url';
 import { compileFromFile } from 'json-schema-to-typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const contracts = ['manual-observation', 'json-export', 'data-pack-request', 'data-pack-manifest'];
-for (const contract of contracts) {
-  const schemaPath = path.join(root, `contracts/foundation/${contract}.schema.json`);
-  const outputPath = path.join(root, `contracts/foundation/${contract}.generated.ts`);
+const contracts = [
+  ['foundation', 'manual-observation'],
+  ['foundation', 'json-export'],
+  ['foundation', 'data-pack-request'],
+  ['foundation', 'data-pack-manifest'],
+  ['analysis', 'market-snapshot-request'],
+  ['analysis', 'market-snapshot-result'],
+];
+for (const [module, contract] of contracts) {
+  const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
+  const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,
     style: { singleQuote: true, semi: true, tabWidth: 2, trailingComma: 'all' },
