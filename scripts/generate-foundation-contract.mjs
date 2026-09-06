@@ -23,6 +23,8 @@ const contracts = [
   ['analysis', 'market-snapshot-interpretation-output'],
   ['analysis', 'market-snapshot-interpretation'],
   ['analysis', 'governed-skill-execution-request'],
+  ['orchestrator', 'analysis-backed-proposal-submission'],
+  ['orchestrator', 'analysis-backed-proposal'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);

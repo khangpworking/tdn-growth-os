@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 12/09/2026. Scope: Tasks 001–010 through bounded Research Evidence Audit.
+Updated: 13/09/2026. Scope: Tasks 001–011 through Box 3 analysis-backed proposal foundation.
 
 ## Inventory and reuse decision
 
@@ -30,6 +30,7 @@ Updated: 12/09/2026. Scope: Tasks 001–010 through bounded Research Evidence Au
 | Research Pack item | `(pack_id, document_id)` | Immutable explicit membership. Input order is non-semantic; canonical order is document UUID order. |
 | Research Evidence Index Result | `(research_pack_id, calculation_key, calculation_version)` | Immutable Box 2 `research_evidence_index_v1` artifact/row derived only from a verified Research Pack. SQLite stores Result provenance only; exact derived segments exist solely in one canonical Result artifact. |
 | Research Evidence Audit | `(source_result_id, provider_id, model_id, prompt_id, prompt_version, output_schema_version)` | Immutable, non-authoritative audit of claims only against one verified Research Evidence Index. The row stores source/prompt/gateway/schema provenance and optional telemetry; structured claims and citations exist only in the canonical artifact. |
+| Analysis-backed proposal | `(proposal_key, proposal_version)` | Immutable Box 3 `research_evidence_review_v1` proposal in application-owned `PROPOSED` state. The row stores source audit/artifact lineage, trusted producer identity, canonical request digest and proposal artifact; proposal details remain only in canonical JSON. |
 
 ## Metric semantics
 
@@ -65,6 +66,9 @@ Updated: 12/09/2026. Scope: Tasks 001–010 through bounded Research Evidence Au
 - Audit output is untrusted. AJV bounds every object/string/array, then application validation accepts only exact application-created segment-text pointers that resolve to exact text, rejects duplicates, and enforces supporting/contradicting citation requirements for each assessment.
 - The audit describes support only within the supplied Research Pack. It does not infer global truth, publisher reliability/independence, legal conclusions, recommendations, approval, publication or action. Replay calls no AI and revalidates artifact/source/prompt/gateway/schema metadata and every citation.
 - The static fail-closed Box 2 registry now has exactly two entries: `analysis:market-snapshot-interpretation@1` and `analysis:research-evidence-audit@1`. Both deny tools, shell, arbitrary filesystem, approval and business mutation; network access is only through the injected gateway.
+- Task 011 reads Box 2 only through `ResearchEvidenceAuditReader`. Its closed submission references unique audit claim codes as `support`, `risk` or `uncertainty`; application validation enforces `supported→support`, `contradicted→risk`, `mixed→support|risk|uncertainty`, and `insufficient_evidence→uncertainty` before writes.
+- Application configuration owns producer ID/version, while the service owns proposal UUID, `PROPOSED` state, timestamp and verified source digest. Canonical identity binds the complete submission, source audit artifact digest and producer identity. Version `N>1` requires `N-1`; versions remain immutable without automatic supersession.
+- Proposal replay rereads the exact verified audit, revalidates evidence links and compares canonical request identity plus all row/artifact/envelope metadata. Task 011 adds no AI, Pi runtime, approval, Box 4 action, network, dynamic plugin, API/UI or worker authority.
 
 ## Deliberately not included
 

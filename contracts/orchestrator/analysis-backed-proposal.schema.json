@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/orchestrator/analysis-backed-proposal.schema.json",
+  "title": "AnalysisBackedProposal",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "proposalId", "proposalKey", "proposalVersion", "proposalType", "state", "createdAt", "sourceAudit", "producer", "objective", "proposal", "requestedNextStep"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "proposalId": { "type": "string", "format": "uuid" },
+    "proposalKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "proposalVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "proposalType": { "const": "research_evidence_review_v1" },
+    "state": { "const": "PROPOSED" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourceAudit": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auditId", "outputArtifactSha256"],
+      "properties": {
+        "auditId": { "type": "string", "format": "uuid" },
+        "outputArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producerId", "producerVersion"],
+      "properties": {
+        "producerId": { "type": "string", "pattern": "^[a-z][a-z0-9:_-]{2,119}$" },
+        "producerVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "objective": { "$ref": "analysis-backed-proposal-submission.schema.json#/properties/objective" },
+    "proposal": { "$ref": "analysis-backed-proposal-submission.schema.json#/properties/proposal" },
+    "requestedNextStep": { "const": "request_human_review" }
+  }
+}
