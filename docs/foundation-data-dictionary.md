@@ -47,6 +47,8 @@ Updated: 07/09/2026. Scope: Task 001 foundation, Task 003 ingestion, Task 004 Da
 - Task 006 reads a Result only through the declared read-only `MarketSnapshotResultReader`. The injected `AiGateway` receives the verified Result, configured provider/model, exact versioned prompt and digest, output schema/version, explicit timeout/token limits, and an empty tool list.
 - Gateway output is untrusted: AJV rejects shape/extra fields, then application validation rejects recommendation/approval/action language and citations outside existing allowlisted deterministic Result JSON Pointers before any output artifact or interpretation row write.
 - The application owns interpretation IDs, timestamps, prompt/model/Result provenance, and the canonical envelope. Interpretations do not mutate or approve business state.
+- Task 007 exposes exactly `analysis:market-snapshot-interpretation@1` through a static fail-closed Box 2 registry. Its AJV request accepts only skill identity/version and a Result UUID; the adapter delegates only that Result ID to Task 006 and returns a non-authoritative typed receipt referencing the existing interpretation ID/artifact.
+- The skill boundary adds no persistence, provider/tool/shell/filesystem authority, approval, business mutation, or dynamic code discovery. A child `SKILL.md` is declarative documentation only; the code registry is authoritative.
 
 ## Deliberately not included
 
