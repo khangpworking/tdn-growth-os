@@ -6,12 +6,14 @@ Cập nhật: 06/09/2026.
 - Đã có: dependency/lockfile pin; strict TypeScript check; SQLite WAL + foreign keys + busy timeout; migration checksum/version; artifact SHA-256 atomic store; JSON Schema/AJV boundary; manual synthetic ingestion; product/observation identity; evidence lineage; 9 integration tests.
 - Hoàn thành: Task 002 — minimal GitHub PR Check workflow.
 - Hoàn thành: Task 003 — multi-row exact-byte JSON export ingestion.
-- Đang thực hiện: Task 004 — finalized versioned Data Pack freeze/replay trên branch `feature/004-versioned-data-pack`.
+- Hoàn thành: Task 004 — finalized versioned Data Pack freeze/replay.
+- Đang thực hiện: Task 005 — deterministic `market_snapshot_v1` Result trên branch `feature/005-market-snapshot-result`.
 - Inventory/reuse và data dictionary: `docs/foundation-data-dictionary.md`.
 - Handoff Task 001: `docs/handoffs/001-sqlite-foundation.md`.
 - Task 003 thêm contract/AJV boundary, exact-byte artifact, một ingestion/evidence dùng chung và nhiều product observations từ fixture tổng hợp dựa trên Metric.vn Product Card inventory.
 - Task 004 thêm explicit selection, canonical lossless snapshot, immutable versioned pack/membership và verified artifact replay.
-- Chưa triển khai: provider calls, automatic selection, calculation/Result, worker, API, frontend, AI, artifact reconciliation, backup/restore production và deployment.
+- Task 005 thêm declared read-only Box 1 Data Pack interface, exact BigInt market totals/coverage, immutable canonical Result artifact/row và verified replay.
+- Chưa triển khai: provider calls, automatic selection, additional calculations, worker, API, frontend, AI, artifact reconciliation, backup/restore production và deployment.
 - Repository GitHub riêng tư: `khangpworking/tdn-growth-os`.
 - Các thư mục scaffold không chứng minh năng lực sản phẩm.
 
@@ -20,7 +22,7 @@ Cập nhật: 06/09/2026.
 | Box | Ước tính lịch sử trong hệ thống cũ | Implementation được xác minh trong repo mới |
 |---|---:|---|
 | 1 — Data | 52% | Foundation, JSON export ingestion và finalized Data Pack freeze/replay đã triển khai; chưa có collectors/automatic selection/production operations |
-| 2 — Analysis | 43% | Chưa triển khai |
+| 2 — Analysis | 43% | `market_snapshot_v1` deterministic Result đã triển khai; chưa có additional calculations/AI/business decisions |
 | 3 — Orchestrator | 58% | Chưa triển khai |
 | 4 — Flow | 62% | Chưa triển khai |
 | 5 — Governance | 68% | Chưa triển khai |
