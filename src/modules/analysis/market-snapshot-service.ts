@@ -131,6 +131,14 @@ export class MarketSnapshotService {
     return transaction();
   }
 
+  getResultArtifactSha256(resultId: string): string {
+    const row = this.#db
+      .prepare('SELECT result_artifact_sha256 AS resultArtifactSha256 FROM analysis_results WHERE result_id = ?')
+      .get(resultId) as { resultArtifactSha256: string } | undefined;
+    if (!row) throw new AnalysisValidationError(`Analysis Result not found: ${resultId}`);
+    return row.resultArtifactSha256;
+  }
+
   async replay(resultId: string): Promise<MarketSnapshotResult> {
     const row = this.#db
       .prepare(
