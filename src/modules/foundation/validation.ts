@@ -1,4 +1,8 @@
 import { createRequire } from 'node:module';
+import manifestSchema from '../../../contracts/foundation/data-pack-manifest.schema.json' with { type: 'json' };
+import type { DataPackManifest } from '../../../contracts/foundation/data-pack-manifest.generated.js';
+import requestSchema from '../../../contracts/foundation/data-pack-request.schema.json' with { type: 'json' };
+import type { DataPackRequest } from '../../../contracts/foundation/data-pack-request.generated.js';
 import exportSchema from '../../../contracts/foundation/json-export.schema.json' with { type: 'json' };
 import type { JsonExportInput } from '../../../contracts/foundation/json-export.generated.js';
 import manualSchema from '../../../contracts/foundation/manual-observation.schema.json' with { type: 'json' };
@@ -11,6 +15,8 @@ const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
 const validateManual = ajv.compile(manualSchema);
 const validateExport = ajv.compile(exportSchema);
+const validatePackRequest = ajv.compile(requestSchema);
+const validatePackManifest = ajv.compile(manifestSchema);
 
 export class FoundationValidationError extends Error {
   readonly details: string;
@@ -32,6 +38,20 @@ export function validateManualObservationInput(value: unknown): ManualObservatio
     'observation.period.start must not be after observation.period.end',
   );
   return input;
+}
+
+export function validateDataPackRequest(value: unknown): DataPackRequest {
+  if (!validatePackRequest(value)) {
+    throw new FoundationValidationError(ajv.errorsText(validatePackRequest.errors, { separator: '; ' }));
+  }
+  return value as unknown as DataPackRequest;
+}
+
+export function validateDataPackManifest(value: unknown): DataPackManifest {
+  if (!validatePackManifest(value)) {
+    throw new FoundationValidationError(ajv.errorsText(validatePackManifest.errors, { separator: '; ' }));
+  }
+  return value as unknown as DataPackManifest;
 }
 
 export function validateJsonExportInput(value: unknown): JsonExportInput {
