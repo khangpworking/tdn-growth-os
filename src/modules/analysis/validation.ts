@@ -1,4 +1,8 @@
 import { createRequire } from 'node:module';
+import evidenceIndexRequestSchema from '../../../contracts/analysis/research-evidence-index-request.schema.json' with { type: 'json' };
+import type { ResearchEvidenceIndexRequest } from '../../../contracts/analysis/research-evidence-index-request.generated.js';
+import evidenceIndexResultSchema from '../../../contracts/analysis/research-evidence-index-result.schema.json' with { type: 'json' };
+import type { ResearchEvidenceIndexResult } from '../../../contracts/analysis/research-evidence-index-result.generated.js';
 import governedSkillRequestSchema from '../../../contracts/analysis/governed-skill-execution-request.schema.json' with { type: 'json' };
 import type { GovernedSkillExecutionRequest } from '../../../contracts/analysis/governed-skill-execution-request.generated.js';
 import interpretationOutputSchema from '../../../contracts/analysis/market-snapshot-interpretation-output.schema.json' with { type: 'json' };
@@ -24,6 +28,8 @@ const validateResult = ajv.compile(resultSchema);
 const validateInterpretationRequest = ajv.compile(interpretationRequestSchema);
 const validateInterpretationOutput = ajv.getSchema<MarketSnapshotInterpretationOutput>(interpretationOutputSchema.$id)!;
 const validateInterpretation = ajv.compile(interpretationSchema);
+const validateEvidenceIndexRequest = ajv.compile(evidenceIndexRequestSchema);
+const validateEvidenceIndexResult = ajv.compile(evidenceIndexResultSchema);
 
 export class AnalysisValidationError extends Error {
   readonly details: string;
@@ -79,4 +85,18 @@ export function validateGovernedSkillExecutionRequest(value: unknown): GovernedS
     throw new AnalysisValidationError(ajv.errorsText(validateGovernedSkillRequest.errors, { separator: '; ' }));
   }
   return value as unknown as GovernedSkillExecutionRequest;
+}
+
+export function validateResearchEvidenceIndexRequest(value: unknown): ResearchEvidenceIndexRequest {
+  if (!validateEvidenceIndexRequest(value)) {
+    throw new AnalysisValidationError(ajv.errorsText(validateEvidenceIndexRequest.errors, { separator: '; ' }));
+  }
+  return value as unknown as ResearchEvidenceIndexRequest;
+}
+
+export function validateResearchEvidenceIndexResult(value: unknown): ResearchEvidenceIndexResult {
+  if (!validateEvidenceIndexResult(value)) {
+    throw new AnalysisValidationError(ajv.errorsText(validateEvidenceIndexResult.errors, { separator: '; ' }));
+  }
+  return value as unknown as ResearchEvidenceIndexResult;
 }

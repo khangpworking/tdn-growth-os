@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/research-evidence-index-request.schema.json",
+  "title": "ResearchEvidenceIndexRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "researchPackId", "calculationKey", "calculationVersion"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "researchPackId": { "type": "string", "format": "uuid" },
+    "calculationKey": { "const": "research_evidence_index_v1" },
+    "calculationVersion": { "const": 1 }
+  }
+}
