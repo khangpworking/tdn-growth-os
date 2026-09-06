@@ -42,7 +42,7 @@
       "properties": {
         "idempotencyKey": { "type": "string", "minLength": 1, "maxLength": 200 },
         "acquiredAt": { "type": "string", "format": "date-time" },
-        "mediaType": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "mediaType": { "const": "application/json" },
         "evidenceGrade": {
           "type": "object",
           "additionalProperties": false,

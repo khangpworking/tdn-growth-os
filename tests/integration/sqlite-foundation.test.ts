@@ -236,3 +236,58 @@ test('same observation identity with a conflicting provider value is rejected be
   assert.equal((db.prepare('SELECT count(*) AS count FROM foundation_ingestion_runs').get() as { count: bigint }).count, 1n);
   db.close();
 });
+
+test('period ordering uses actual instants while preserving supplied timezone-offset strings', async () => {
+  const input = fixture() as any;
+  input.observation.period.start = '2026-08-01T10:00:00+02:00';
+  input.observation.period.end = '2026-08-01T09:30:00+00:00';
+  const { db, service } = setup();
+
+  const imported = await service.importManualObservation(input);
+  const lineage = service.getLineage(imported.observationIds[0]!);
+  assert.equal(lineage.periodStart, input.observation.period.start);
+  assert.equal(lineage.periodEnd, input.observation.period.end);
+  db.close();
+});
+
+test('reversed actual period instants and unparseable database timestamps are rejected', async () => {
+  const input = fixture() as any;
+  input.observation.period.start = '2026-08-01T08:00:00-02:00';
+  input.observation.period.end = '2026-08-01T09:00:00+00:00';
+  const { db, service } = setup();
+
+  await assert.rejects(
+    service.importManualObservation(input),
+    /period\.start must not be after observation\.period\.end/,
+  );
+
+  const valid = await service.importManualObservation(fixture());
+  const productId = service.getLineage(valid.observationIds[0]!).productId;
+  const insertPeriod = db.prepare(
+    `INSERT INTO foundation_observations(
+       identity_key, product_id, metric_code, integer_value, unit, scale, scope,
+       period_start, period_end, period_grain, observed_at, created_at
+     ) VALUES (?, ?, 'units_sold', 1, 'count', NULL, 'constraint_probe', ?, ?, 'custom', ?, ?)`,
+  );
+  const now = '2026-09-05T10:00:00.000Z';
+  assert.throws(
+    () => insertPeriod.run('a'.repeat(64), productId, input.observation.period.start, input.observation.period.end, now, now),
+    /CHECK constraint failed/,
+  );
+  assert.throws(
+    () => insertPeriod.run('b'.repeat(64), productId, 'not-a-timestamp', now, now, now),
+    /CHECK constraint failed/,
+  );
+  db.close();
+});
+
+test('non-JSON artifact media types are rejected at the contract boundary', async () => {
+  const input = fixture() as any;
+  input.ingestion.mediaType = 'text/plain';
+  const { db, service } = setup();
+
+  await assert.rejects(service.importManualObservation(input), FoundationValidationError);
+  assert.equal((db.prepare('SELECT count(*) AS count FROM foundation_ingestion_runs').get() as { count: bigint }).count, 0n);
+  assert.equal((db.prepare('SELECT count(*) AS count FROM artifact_manifests').get() as { count: bigint }).count, 0n);
+  db.close();
+});

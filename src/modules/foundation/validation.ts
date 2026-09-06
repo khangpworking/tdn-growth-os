@@ -24,7 +24,9 @@ export function validateManualObservationInput(value: unknown): ManualObservatio
     throw new FoundationValidationError(details);
   }
   const input = value as unknown as ManualObservationInput;
-  if (input.observation.period.start > input.observation.period.end) {
+  const periodStart = Date.parse(input.observation.period.start);
+  const periodEnd = Date.parse(input.observation.period.end);
+  if (!Number.isFinite(periodStart) || !Number.isFinite(periodEnd) || periodStart > periodEnd) {
     throw new FoundationValidationError('observation.period.start must not be after observation.period.end');
   }
   return input;

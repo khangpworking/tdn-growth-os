@@ -90,7 +90,11 @@ CREATE TABLE foundation_observations (
   period_grain TEXT NOT NULL CHECK (length(trim(period_grain)) BETWEEN 1 AND 80),
   observed_at TEXT NOT NULL CHECK (length(trim(observed_at)) > 0),
   created_at TEXT NOT NULL CHECK (length(trim(created_at)) > 0),
-  CHECK (period_start <= period_end),
+  CHECK (
+    julianday(period_start) IS NOT NULL AND
+    julianday(period_end) IS NOT NULL AND
+    julianday(period_start) <= julianday(period_end)
+  ),
   CHECK (
     (metric_code IN ('period_revenue_vnd', 'lifetime_revenue_vnd') AND unit = 'VND' AND scale IS NULL AND integer_value >= 0) OR
     (metric_code = 'units_sold' AND unit = 'count' AND scale IS NULL AND integer_value >= 0) OR

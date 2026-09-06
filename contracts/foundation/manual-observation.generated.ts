@@ -26,7 +26,7 @@ export interface ManualObservationInput {
   ingestion: {
     idempotencyKey: string;
     acquiredAt: string;
-    mediaType: string;
+    mediaType: 'application/json';
     evidenceGrade: {
       grade: 'synthetic' | 'unverified' | 'provider_reported' | 'corroborated' | 'verified';
       /**
