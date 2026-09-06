@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/market-snapshot-interpretation.schema.json",
+  "title": "MarketSnapshotInterpretation",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "interpretationId", "completedAt", "sourceResult", "gateway", "prompt", "outputSchemaVersion", "output"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "interpretationId": { "type": "string", "format": "uuid" },
+    "completedAt": { "type": "string", "format": "date-time" },
+    "sourceResult": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["resultId", "resultArtifactSha256"],
+      "properties": {
+        "resultId": { "type": "string", "format": "uuid" },
+        "resultArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerId", "modelId"],
+      "properties": {
+        "providerId": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "providerRequestId": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "inputTokenCount": { "type": "integer", "minimum": 0 },
+        "outputTokenCount": { "type": "integer", "minimum": 0 },
+        "latencyMs": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "prompt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["promptId", "promptVersion", "promptSha256"],
+      "properties": {
+        "promptId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "promptVersion": { "type": "integer", "minimum": 1 },
+        "promptSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "outputSchemaVersion": { "const": "1.0.0" },
+    "output": { "$ref": "market-snapshot-interpretation-output.schema.json" }
+  }
+}
