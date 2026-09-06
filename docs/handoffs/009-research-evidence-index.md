@@ -5,7 +5,7 @@ Status: implemented on `feature/009-research-evidence-index`; keep PR #9 draft f
 ## Identity
 
 - Starting SHA: `5caef348f999fc8f4de72d3dc1704fa30b75f28a`.
-- Final SHA: pending final commit.
+- Complete implementation SHA: `23f0a203a117d881f6bdbe581b4edf81268db0d0`.
 
 ## Migration and contracts
 
@@ -48,7 +48,7 @@ Status: implemented on `feature/009-research-evidence-index`; keep PR #9 draft f
 - Independent focused re-review after edge-case fixes: no findings.
 - Fedora permission/replay probe: database/WAL/SHM/raw document/Research Pack manifest/Result artifact were `0600`; verified replay produced two expected segments and disposable output was removed.
 - Residue and forbidden-scope audits: passed locally.
-- GitHub Check: pending push.
+- GitHub Check: passed for complete implementation commit `23f0a203a117d881f6bdbe581b4edf81268db0d0` ([run 34038583462](https://github.com/khangpworking/tdn-growth-os/actions/runs/34038583462)).
 
 ## Migration integrity
 
