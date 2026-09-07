@@ -48,9 +48,9 @@ export class StrictLfJsonlParser {
     while (true) {
       const lf = this.#buffer.indexOf('\n');
       if (lf < 0) return;
-      const line = this.#buffer.slice(0, lf);
+      const framedLine = this.#buffer.slice(0, lf);
       this.#buffer = this.#buffer.slice(lf + 1);
-      if (line.includes('\r')) throw new PiProtocolError('RPC JSONL must use LF framing without carriage returns');
+      const line = framedLine.endsWith('\r') ? framedLine.slice(0, -1) : framedLine;
       if (line.length === 0) throw new PiProtocolError('Empty RPC JSONL record');
       let record: unknown;
       try {

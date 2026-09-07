@@ -54,12 +54,9 @@ function onLine(line) {
   }
 
   const response = { type: 'response', id: command.id, command: 'prompt', success: true };
-  if (scenario === 'fake-crlf') {
-    process.stdout.write(`${JSON.stringify(response)}\r\n`);
-    return;
-  }
-  process.stdout.write(`${JSON.stringify(response)}\n`);
-  if (scenario === 'fake-duplicate') process.stdout.write(`${JSON.stringify(response)}\n`);
+  const eol = scenario === 'fake-crlf' ? '\r\n' : '\n';
+  process.stdout.write(`${JSON.stringify(response)}${eol}`);
+  if (scenario === 'fake-duplicate') process.stdout.write(`${JSON.stringify(response)}${eol}`);
 
   let output;
   if (scenario === 'fake-invalid' || (scenario === 'fake-repair' && turn === 1)) {
@@ -69,8 +66,8 @@ function onLine(line) {
     if (scenario === 'fake-oversized') output.title = 'x'.repeat(70 * 1024);
   }
   const assistant = { role: 'assistant', content: [{ type: 'text', text: JSON.stringify(output) }] };
-  process.stdout.write(`${JSON.stringify({ type: 'agent_end', willRetry: false, messages: [assistant] })}\n`);
-  process.stdout.write(`${JSON.stringify({ type: 'agent_settled' })}\n`);
+  process.stdout.write(`${JSON.stringify({ type: 'agent_end', willRetry: false, messages: [assistant] })}${eol}`);
+  process.stdout.write(`${JSON.stringify({ type: 'agent_settled' })}${eol}`);
 }
 
 function proposalFor(value) {

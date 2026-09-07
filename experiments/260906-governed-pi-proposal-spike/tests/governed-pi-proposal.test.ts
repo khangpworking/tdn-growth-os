@@ -24,6 +24,7 @@ import { openDatabase } from '../../../src/platform/db/index.js';
 import { buildBoundedRequest, runGovernedProposalSpike, SPIKE_LIMITS } from '../prototype/adapter.js';
 import { buildPiRpcLaunch, PI_DENY_FLAGS } from '../prototype/pi-launch.js';
 import { PiRpcProposalRuntime } from '../prototype/pi-rpc-runtime.js';
+import { StrictLfJsonlParser } from '../prototype/strict-jsonl.js';
 import type { BoundedPiProposalRequest, DisposableProposalBoundary, VerifiedFixtureInput } from '../prototype/types.js';
 
 const roots: string[] = [];
@@ -181,11 +182,47 @@ test('timeout aborts and waits for child cleanup before rejecting', async () => 
   assert.equal(fs.existsSync(state.root), false);
 });
 
-test('malformed, partial, CRLF, duplicate, and premature protocol records fail closed', async () => {
+test('CRLF protocol records are accepted end to end', async () => {
+  const state = await harness();
+  const result = await runGovernedProposalSpike({ fixture: state.fixture, promptText, runtime: runtime('fake-crlf'), disposableBoundary: state.boundary });
+  assert.equal(result.measurements.schemaPass, true);
+  assert.equal(result.measurements.evidenceSemanticPass, true);
+  assert.equal(fs.existsSync(state.root), false);
+});
+
+test('LF and CRLF preserve U+2028 and U+2029 inside JSON strings across byte chunks', () => {
+  for (const eol of ['\n', '\r\n']) {
+    const records: unknown[] = [];
+    const parser = new StrictLfJsonlParser(1024, (record) => records.push(record));
+    const expected = { text: 'before\u2028middle\u2029after' };
+    const bytes = Buffer.from(`${JSON.stringify(expected)}${eol}`, 'utf8');
+    for (const byte of bytes) parser.push(Uint8Array.of(byte));
+    parser.end();
+    assert.deepEqual(records, [expected]);
+  }
+});
+
+test('parser still rejects malformed JSON, invalid UTF-8, oversized data, and incomplete frames', () => {
+  const parse = (maxBytes = 1024) => new StrictLfJsonlParser(maxBytes, () => undefined);
+
+  const malformed = parse();
+  assert.throws(() => malformed.push(Buffer.from('not-json\n')), /Malformed RPC JSONL record/);
+
+  const invalidUtf8 = parse();
+  assert.throws(() => invalidUtf8.push(Uint8Array.of(0xc3, 0x28)), /not valid UTF-8/);
+
+  const oversized = parse(4);
+  assert.throws(() => oversized.push(Buffer.from('{}\r\n\n')), /JSONL byte limit/);
+
+  const incomplete = parse();
+  incomplete.push(Buffer.from('{"ok":true}'));
+  assert.throws(() => incomplete.end(), /partial JSONL record/);
+});
+
+test('malformed, partial, duplicate, and premature protocol records fail closed', async () => {
   for (const [scenario, message] of [
     ['fake-malformed', /Malformed RPC JSONL record/],
     ['fake-partial', /partial JSONL record/],
-    ['fake-crlf', /LF framing without carriage returns/],
     ['fake-duplicate', /Duplicate prompt response/],
     ['fake-premature', /exited before a valid settled result/],
   ] as const) {

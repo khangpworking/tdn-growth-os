@@ -15,7 +15,7 @@ The direct baseline deterministically maps supported claims to `support`, contra
 - Exact existing Task 011 schema and semantic validation remain the final gate.
 - Zero invented claim codes and zero forbidden authority fields.
 - One shell-free Pi process, one initial prompt, at most one repair, deterministic cleanup.
-- Strict LF JSONL framing, matching prompt response before `agent_end` and `agent_settled`, and fail-closed malformed/duplicate/premature/oversized behavior.
+- Strict LF- or CRLF-delimited JSONL framing, matching prompt response before `agent_end` and `agent_settled`, and fail-closed malformed/duplicate/premature/oversized behavior.
 - A live result must be materially more useful or easier than the direct baseline at acceptable latency/cost/complexity before `KEEP` is possible.
 
 ## Security boundary and fixed bounds
@@ -33,7 +33,7 @@ The fixed Pi arguments are `--mode rpc --no-session --no-tools --no-extensions -
 
 ## Offline evidence and verdict
 
-The deterministic fake RPC executable is the only child used by this spike. It receives the fixed argument vector through `spawn` with `shell: false`, an allowlisted environment, no provider credentials, and all deny flags. The focused suite verifies: valid output through the existing Task 011 `AnalysisBackedProposalService` submit/replay boundary in a disposable migrated SQLite/artifact root; invalid output with exactly one repair; rejection after a second invalid output; wall-clock timeout and child termination; strict LF JSONL rejection for malformed, partial, and duplicate records; and input, assistant-output, and stdout byte limits. Each persistence path closes the database and recursively removes its disposable root.
+The deterministic fake RPC executable is the only child used by this spike. It receives the fixed argument vector through `spawn` with `shell: false`, an allowlisted environment, no provider credentials, and all deny flags. The focused suite verifies: valid output through the existing Task 011 `AnalysisBackedProposalService` submit/replay boundary in a disposable migrated SQLite/artifact root; invalid output with exactly one repair; rejection after a second invalid output; wall-clock timeout and child termination; LF and CRLF JSONL framing with U+2028/U+2029 preservation; rejection for malformed, partial, duplicate, and premature records; and input, assistant-output, stdout, and stderr byte limits. Each persistence path closes the database and recursively removes its disposable root.
 
 No Pi executable was available in the Fedora login PATH or standard executable locations checked before implementation, and no live Pi/model/provider call was authorized or made. No credentials, global Pi sessions, skills, or private configuration were inspected. Reported live tokens, cost, latency, and comparative usefulness therefore remain unavailable.
 
