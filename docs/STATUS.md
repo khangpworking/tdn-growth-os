@@ -15,6 +15,7 @@ Cập nhật: 13/09/2026.
 - Hoàn thành: Task 010 — bounded Research Evidence Audit và governed Box 2 adapter thứ hai.
 - Hoàn thành: Task 011 — immutable analysis-backed `PROPOSED` foundation cho Box 3.
 - Hoàn thành thử nghiệm: Task 012 — governed Pi proposal adapter spike; verdict `REVISE`. Pi chưa được đưa vào production; đường ứng dụng trực tiếp của Task 011 vẫn là authoritative.
+- Hoàn thành: Task 013 — Box 5 governed human proposal review với lịch sử quyết định immutable `APPROVE` / `REJECT` / `HOLD`; `APPROVED` chỉ cho phép future Box 4 intake xem xét, không thực thi hay xuất bản.
 - Inventory/reuse và data dictionary: `docs/foundation-data-dictionary.md`.
 - Handoff Task 001: `docs/handoffs/001-sqlite-foundation.md`.
 - Task 003 thêm contract/AJV boundary, exact-byte artifact, một ingestion/evidence dùng chung và nhiều product observations từ fixture tổng hợp dựa trên Metric.vn Product Card inventory.
@@ -26,6 +27,7 @@ Cập nhật: 13/09/2026.
 - Task 009 thêm deterministic non-empty physical-line segmentation với exact half-open byte ranges, stable hashes/JSON Pointer citations và immutable verified `research_evidence_index_v1` Result; không claim/verdict/AI/search.
 - Task 010 thêm bounded provider-neutral evidence audit chỉ trong Research Pack, exact segment-citation validation, immutable replay và entry tĩnh `analysis:research-evidence-audit@1`; tests chỉ dùng fake gateway.
 - Task 011 thêm closed Box 3 submission contract, claim/use validation từ verified audit, immutable versioned `PROPOSED` artifact/row và replay/reader; không AI, Pi, approval hay action.
+- Task 013 thêm closed review request, trusted actor capability `governance:proposal-review`, fixed application policy, append-only immutable decision artifact/row và verified effective-decision reader; chỉ đọc proposal qua `AnalysisBackedProposalReader`, không mutate Box 3 hay tạo Box 4 action.
 - Chưa triển khai: live provider calls, automatic selection, additional calculations, worker, API, frontend, approval/action AI, artifact reconciliation, backup/restore production và deployment.
 - Repository GitHub riêng tư: `khangpworking/tdn-growth-os`.
 - Các thư mục scaffold không chứng minh năng lực sản phẩm.
@@ -38,6 +40,6 @@ Cập nhật: 13/09/2026.
 | 2 — Analysis | 43% | `market_snapshot_v1`, Research Evidence Index, bounded in-pack evidence audit, bounded interpretation và hai governed static skill adapters đã triển khai; chưa có global truth/live provider/business decisions |
 | 3 — Orchestrator | 58% | Minimal analysis-backed immutable `PROPOSED` landing zone đã triển khai; Task 012 Pi spike đã hoàn thành với verdict `REVISE` nhưng chưa được adopt, nên Task 011 direct path vẫn authoritative; chưa có production Pi/runtime orchestration, scenario planning, approval hoặc action |
 | 4 — Flow | 62% | Chưa triển khai |
-| 5 — Governance | 68% | Chưa triển khai |
+| 5 — Governance | 68% | Minimal governed human proposal-review decision foundation đã triển khai; chưa có authentication route, staff-specific/multi-party policy, delegation, expiry, UI/API hoặc production approval operations |
 
 Không chuyển nguyên phần trăm cũ sang repo mới. Chỉ cập nhật sau khi code được tái sử dụng, tích hợp và có bằng chứng nghiệm thu. Không tính cài tool hoặc tạo folder là hoàn thành Box.
