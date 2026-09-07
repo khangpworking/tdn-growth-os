@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 14/09/2026. Scope: Tasks 001–013 through Box 5 governed proposal review foundation.
+Updated: 15/09/2026. Scope: Tasks 001–014 through minimal Box 4 approved-proposal intake.
 
 ## Inventory and reuse decision
 
@@ -32,6 +32,7 @@ Updated: 14/09/2026. Scope: Tasks 001–013 through Box 5 governed proposal revi
 | Research Evidence Audit | `(source_result_id, provider_id, model_id, prompt_id, prompt_version, output_schema_version)` | Immutable, non-authoritative audit of claims only against one verified Research Evidence Index. The row stores source/prompt/gateway/schema provenance and optional telemetry; structured claims and citations exist only in the canonical artifact. |
 | Analysis-backed proposal | `(proposal_key, proposal_version)` | Immutable Box 3 `research_evidence_review_v1` proposal in application-owned `PROPOSED` state. The row stores source audit/artifact lineage, trusted producer identity, canonical request digest and proposal artifact; proposal details remain only in canonical JSON. |
 | Governed proposal decision | `(proposal_id, decision_version)` | Append-only immutable Box 5 human-review decision. The row records the exact proposal, one of the five allowed `PROPOSED`/`HOLD` transitions, trusted actor/role snapshot, required capability, fixed policy identity/version, canonical request digest, decision artifact and timestamp. Structured rationale remains only in canonical JSON. |
+| Authorized plan shell | unique `plan_key`; one per approved decision UUID | Immutable Box 4 `approved_proposal_intake_v1` shell in application-owned `AUTHORIZED_PLAN` state. It records exact proposal/decision artifact lineage, approval actor/policy/version/time snapshots, trusted Flow producer, canonical intake request digest and plan artifact, but no proposal prose, tasks, commands, schedules, jobs or action payloads. |
 
 ## Metric semantics
 
@@ -72,6 +73,8 @@ Updated: 14/09/2026. Scope: Tasks 001–013 through Box 5 governed proposal revi
 - Proposal replay rereads the exact verified audit, revalidates evidence links and compares canonical request identity plus all row/artifact/envelope metadata. Task 011 adds no AI, Pi runtime, approval, Box 4 action, network, dynamic plugin, API/UI or worker authority.
 - Task 013 validates a closed untrusted review request separately from trusted application-supplied actor context, requires `governance:proposal-review`, and binds request, verified proposal digest, actor snapshot and fixed `governance:proposal-review-v1` policy into one request digest. Caller-supplied actor/policy/time/result/action-payload fields reject before writes.
 - Box 5 reads the immutable Box 3 proposal only through `AnalysisBackedProposalReader`. Version 1 derives `PROPOSED`; only a verified `HOLD` can precede version 2, with no repeated HOLD or terminal reversal. Replay verifies canonical artifact/manifest/row/proposal/actor/policy/request identity and the prior immutable chain. `APPROVED` grants no execution, publication, spending, legal/health certification or external-action authority; it only permits consideration by a future Box 4 intake boundary.
+- Task 014 reads only the exact current effective Box 5 decision through `GovernedProposalDecisionReader`, requires `APPROVED`, recomputes its canonical artifact digest, and derives proposal, actor, policy and approval-time lineage from that verified envelope. Plan replay rereads the current approval and verifies canonical bytes plus all row/artifact/producer/request metadata.
+- `AUTHORIZED_PLAN` means only eligible for later manual task definition. Task 014 defines no B0–B14 state, task/work item, worker, queue, schedule, retry, command, connector, publication, spending, AI/Pi, or external-action authority.
 
 ## Deliberately not included
 

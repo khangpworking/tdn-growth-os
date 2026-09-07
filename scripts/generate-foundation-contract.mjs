@@ -27,6 +27,8 @@ const contracts = [
   ['orchestrator', 'analysis-backed-proposal'],
   ['governance', 'governed-proposal-review-request'],
   ['governance', 'governed-proposal-decision'],
+  ['flow', 'approved-proposal-intake-request'],
+  ['flow', 'authorized-plan'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);

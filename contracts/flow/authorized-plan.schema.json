@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/authorized-plan.schema.json",
+  "title": "AuthorizedPlan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "planId", "planKey", "planType", "state", "createdAt", "sourceProposal", "authorization", "producer", "requestedNextStep", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "planId": { "type": "string", "format": "uuid" },
+    "planKey": { "$ref": "approved-proposal-intake-request.schema.json#/properties/planKey" },
+    "planType": { "const": "approved_proposal_intake_v1" },
+    "state": { "const": "AUTHORIZED_PLAN" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "sourceProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposalId", "proposalArtifactSha256"],
+      "properties": {
+        "proposalId": { "type": "string", "format": "uuid" },
+        "proposalArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "authorization": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["decisionId", "decisionArtifactSha256", "decisionVersion", "actor", "policy", "approvedAt"],
+      "properties": {
+        "decisionId": { "type": "string", "format": "uuid" },
+        "decisionArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "decisionVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "actor": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["actorId", "roleSnapshot"],
+          "properties": {
+            "actorId": { "type": "string", "pattern": "^[a-z][a-z0-9:_-]{2,119}$" },
+            "roleSnapshot": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$(?![\\s\\S])" }
+          }
+        },
+        "policy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policyId", "policyVersion"],
+          "properties": {
+            "policyId": { "const": "governance:proposal-review-v1" },
+            "policyVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+          }
+        },
+        "approvedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["producerId", "producerVersion"],
+      "properties": {
+        "producerId": { "type": "string", "pattern": "^flow:[a-z][a-z0-9_-]{2,114}$" },
+        "producerVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "requestedNextStep": { "const": "define_manual_tasks" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
