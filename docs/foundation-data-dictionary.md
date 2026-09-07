@@ -1,6 +1,6 @@
 # Box 1 foundation data dictionary
 
-Updated: 13/09/2026. Scope: Tasks 001–011 through Box 3 analysis-backed proposal foundation.
+Updated: 14/09/2026. Scope: Tasks 001–013 through Box 5 governed proposal review foundation.
 
 ## Inventory and reuse decision
 
@@ -31,6 +31,7 @@ Updated: 13/09/2026. Scope: Tasks 001–011 through Box 3 analysis-backed propos
 | Research Evidence Index Result | `(research_pack_id, calculation_key, calculation_version)` | Immutable Box 2 `research_evidence_index_v1` artifact/row derived only from a verified Research Pack. SQLite stores Result provenance only; exact derived segments exist solely in one canonical Result artifact. |
 | Research Evidence Audit | `(source_result_id, provider_id, model_id, prompt_id, prompt_version, output_schema_version)` | Immutable, non-authoritative audit of claims only against one verified Research Evidence Index. The row stores source/prompt/gateway/schema provenance and optional telemetry; structured claims and citations exist only in the canonical artifact. |
 | Analysis-backed proposal | `(proposal_key, proposal_version)` | Immutable Box 3 `research_evidence_review_v1` proposal in application-owned `PROPOSED` state. The row stores source audit/artifact lineage, trusted producer identity, canonical request digest and proposal artifact; proposal details remain only in canonical JSON. |
+| Governed proposal decision | `(proposal_id, decision_version)` | Append-only immutable Box 5 human-review decision. The row records the exact proposal, one of the five allowed `PROPOSED`/`HOLD` transitions, trusted actor/role snapshot, required capability, fixed policy identity/version, canonical request digest, decision artifact and timestamp. Structured rationale remains only in canonical JSON. |
 
 ## Metric semantics
 
@@ -69,6 +70,8 @@ Updated: 13/09/2026. Scope: Tasks 001–011 through Box 3 analysis-backed propos
 - Task 011 reads Box 2 only through `ResearchEvidenceAuditReader`. Its closed submission references unique audit claim codes as `support`, `risk` or `uncertainty`; application validation enforces `supported→support`, `contradicted→risk`, `mixed→support|risk|uncertainty`, and `insufficient_evidence→uncertainty` before writes.
 - Application configuration owns producer ID/version, while the service owns proposal UUID, `PROPOSED` state, timestamp and verified source digest. Canonical identity binds the complete submission, source audit artifact digest and producer identity. Version `N>1` requires `N-1`; versions remain immutable without automatic supersession.
 - Proposal replay rereads the exact verified audit, revalidates evidence links and compares canonical request identity plus all row/artifact/envelope metadata. Task 011 adds no AI, Pi runtime, approval, Box 4 action, network, dynamic plugin, API/UI or worker authority.
+- Task 013 validates a closed untrusted review request separately from trusted application-supplied actor context, requires `governance:proposal-review`, and binds request, verified proposal digest, actor snapshot and fixed `governance:proposal-review-v1` policy into one request digest. Caller-supplied actor/policy/time/result/action-payload fields reject before writes.
+- Box 5 reads the immutable Box 3 proposal only through `AnalysisBackedProposalReader`. Version 1 derives `PROPOSED`; only a verified `HOLD` can precede version 2, with no repeated HOLD or terminal reversal. Replay verifies canonical artifact/manifest/row/proposal/actor/policy/request identity and the prior immutable chain. `APPROVED` grants no execution, publication, spending, legal/health certification or external-action authority; it only permits consideration by a future Box 4 intake boundary.
 
 ## Deliberately not included
 

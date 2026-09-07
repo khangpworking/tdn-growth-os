@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/governance/governed-proposal-review-request.schema.json",
+  "title": "GovernedProposalReviewRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "proposalId", "decisionVersion", "action", "rationale", "expectedPreviousState"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "proposalId": { "type": "string", "format": "uuid" },
+    "decisionVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "action": { "enum": ["APPROVE", "REJECT", "HOLD"] },
+    "rationale": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000,
+      "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$(?![\\s\\S])"
+    },
+    "expectedPreviousState": { "enum": ["PROPOSED", "HOLD"] }
+  }
+}

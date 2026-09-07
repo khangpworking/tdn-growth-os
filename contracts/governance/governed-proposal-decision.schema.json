@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/governance/governed-proposal-decision.schema.json",
+  "title": "GovernedProposalDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "decisionId", "createdAt", "proposal", "decisionVersion", "previousState", "resultState", "action", "rationale", "actor", "requiredCapability", "policy", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "decisionId": { "type": "string", "format": "uuid" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "proposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["proposalId", "proposalArtifactSha256"],
+      "properties": {
+        "proposalId": { "type": "string", "format": "uuid" },
+        "proposalArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      }
+    },
+    "decisionVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "previousState": { "enum": ["PROPOSED", "HOLD"] },
+    "resultState": { "enum": ["APPROVED", "REJECTED", "HOLD"] },
+    "action": { "enum": ["APPROVE", "REJECT", "HOLD"] },
+    "rationale": { "$ref": "governed-proposal-review-request.schema.json#/properties/rationale" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorId", "roleSnapshot"],
+      "properties": {
+        "actorId": { "type": "string", "pattern": "^[a-z][a-z0-9:_-]{2,119}$" },
+        "roleSnapshot": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$(?![\\s\\S])" }
+      }
+    },
+    "requiredCapability": { "const": "governance:proposal-review" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "policyVersion"],
+      "properties": {
+        "policyId": { "const": "governance:proposal-review-v1" },
+        "policyVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
