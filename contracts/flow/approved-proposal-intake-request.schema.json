@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/approved-proposal-intake-request.schema.json",
+  "title": "ApprovedProposalIntakeRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "planKey", "planType", "sourceProposalId", "approvedDecisionId", "requestedNextStep"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "planKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "planType": { "const": "approved_proposal_intake_v1" },
+    "sourceProposalId": { "type": "string", "format": "uuid" },
+    "approvedDecisionId": { "type": "string", "format": "uuid" },
+    "requestedNextStep": { "const": "define_manual_tasks" }
+  }
+}
