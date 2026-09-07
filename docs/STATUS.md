@@ -14,6 +14,7 @@ Cập nhật: 13/09/2026.
 - Hoàn thành: Task 009 — deterministic citation-ready Research Evidence Index.
 - Hoàn thành: Task 010 — bounded Research Evidence Audit và governed Box 2 adapter thứ hai.
 - Hoàn thành: Task 011 — immutable analysis-backed `PROPOSED` foundation cho Box 3.
+- Hoàn thành thử nghiệm: Task 012 — governed Pi proposal adapter spike; verdict `REVISE`. Pi chưa được đưa vào production; đường ứng dụng trực tiếp của Task 011 vẫn là authoritative.
 - Inventory/reuse và data dictionary: `docs/foundation-data-dictionary.md`.
 - Handoff Task 001: `docs/handoffs/001-sqlite-foundation.md`.
 - Task 003 thêm contract/AJV boundary, exact-byte artifact, một ingestion/evidence dùng chung và nhiều product observations từ fixture tổng hợp dựa trên Metric.vn Product Card inventory.
@@ -35,7 +36,7 @@ Cập nhật: 13/09/2026.
 |---|---:|---|
 | 1 — Data | 52% | Foundation, JSON export, finalized numeric Data Packs và exact-byte research document/Research Pack slice đã triển khai; chưa có collectors/automatic selection/production operations |
 | 2 — Analysis | 43% | `market_snapshot_v1`, Research Evidence Index, bounded in-pack evidence audit, bounded interpretation và hai governed static skill adapters đã triển khai; chưa có global truth/live provider/business decisions |
-| 3 — Orchestrator | 58% | Minimal analysis-backed immutable `PROPOSED` landing zone đã triển khai; chưa có Pi/runtime orchestration, scenario planning, approval hoặc action |
+| 3 — Orchestrator | 58% | Minimal analysis-backed immutable `PROPOSED` landing zone đã triển khai; Task 012 Pi spike đã hoàn thành với verdict `REVISE` nhưng chưa được adopt, nên Task 011 direct path vẫn authoritative; chưa có production Pi/runtime orchestration, scenario planning, approval hoặc action |
 | 4 — Flow | 62% | Chưa triển khai |
 | 5 — Governance | 68% | Chưa triển khai |
 
