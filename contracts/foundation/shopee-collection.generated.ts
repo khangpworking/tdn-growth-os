@@ -198,9 +198,9 @@ export interface ShopeeCollection {
   actor: {
     actorId: 'zen-studio/shopee-product-reviews-scraper';
     settings: {
-      maxReviewsPerProduct: 500;
+      maxReviewsPerProduct: number;
       starFilter: 'all';
-      contentFilter: 'with comments';
+      contentFilter: 'all' | 'with comments';
       maxChargeUsd: number | null;
     };
     inputSha256: string;
@@ -210,6 +210,7 @@ export interface ShopeeCollection {
     status: string;
     retrievedAt: string;
     providerTotalRows: number | null;
+    usageTotalUsd: number | null;
     stopReason:
       | 'fixture_complete'
       | 'dataset_exhausted'

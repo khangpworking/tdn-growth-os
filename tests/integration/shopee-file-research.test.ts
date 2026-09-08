@@ -40,7 +40,7 @@ function fixtureActor(status = 'FIXTURE') {
     settings: { maxReviewsPerProduct: 500 as const, starFilter: 'all' as const,
       contentFilter: 'with comments' as const, maxChargeUsd: null },
     runId: null, datasetId: null, buildId: null, status,
-    retrievedAt: '2026-09-15T00:00:00.000Z', providerTotalRows: null,
+    retrievedAt: '2026-09-15T00:00:00.000Z', providerTotalRows: null, usageTotalUsd: null,
     stopReason: status === 'FIXTURE' ? 'fixture_complete' as const : 'actor_terminal_failed' as const,
   };
 }
@@ -173,7 +173,10 @@ test('015 empty and failed-source collections yield flags, not fabricated review
   } finally { db.close(); }
 });
 
-const runResponse = (status = 'SUCCEEDED') => ({ data: { id: 'RUN1', defaultDatasetId: 'DATA1', buildId: 'BUILD1', status } });
+const runResponse = (status = 'SUCCEEDED', usageTotalUsd: number | null = null, maxTotalChargeUsd: number | null = null) => ({
+  data: { id: 'RUN1', defaultDatasetId: 'DATA1', defaultKeyValueStoreId: 'STORE1', buildId: 'BUILD1',
+    status, usageTotalUsd, options: { maxTotalChargeUsd } },
+});
 const respond = (value: unknown, headers?: HeadersInit): Response => new Response(JSON.stringify(value), {
   status: 200, ...(headers ? { headers } : {}),
 });
@@ -428,4 +431,112 @@ test('015 CLI preview and fixture collection run without credentials; changed fi
   const changed = cli(args);
   assert.equal(changed.status, 1);
   assert.match(changed.stderr, /different collection evidence/);
+});
+
+
+test('016 smoke limit is upstream, bounded, persisted, replayed, and does not change production default', async () => {
+  const directory = await root();
+  let posts = 0;
+  let datasetReads = 0;
+  const selected = selectShopeeListings(fixtureRequest()).selected.slice(0, 1);
+  const fake: typeof fetch = async (_url, init) => {
+    if (init?.method === 'POST') {
+      posts++;
+      const body = JSON.parse(String(init.body));
+      assert.equal(body.maxReviewsPerProduct, 20);
+      return respond(runResponse('SUCCEEDED', 0.0838));
+    }
+    datasetReads++;
+    const endpoint = new URL(String(_url));
+    assert.equal(endpoint.searchParams.get('offset'), '0');
+    assert.equal(endpoint.searchParams.get('limit'), '20');
+    return respond(Array.from({ length: 20 }, (_, index) => ({
+      reviewId: index + 1, shopId: 11, itemId: 101, ratingStar: 5,
+      comment: index === 0 ? 'Giao hàng nhanh' : 'Dễ uống hàng ngày ' + index,
+    })), { 'x-apify-pagination-total': '20' });
+  };
+  assert.throws(() => new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 1,
+    maxReviewsPerProduct: 0, journalRoot: directory, fetch: fake }), /integer from 1 through 500/);
+  assert.throws(() => new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 1,
+    maxReviewsPerProduct: 501, journalRoot: directory, fetch: fake }), /integer from 1 through 500/);
+  const collector = new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 1,
+    maxReviewsPerProduct: 20, journalRoot: directory, fetch: fake });
+  const collected = await collector.collect(selected, digest(requestBytes), fixtureRequest().runKey);
+  assert.equal(posts, 1);
+  assert.equal(datasetReads, 1);
+  assert.equal(collected.actor.settings.maxReviewsPerProduct, 20);
+  assert.equal(collected.actor.usageTotalUsd, 0.0838);
+  assert.equal(collected.pages.flatMap(page => JSON.parse(page.bytes.toString())).length, 20);
+  const production = new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 1,
+    journalRoot: path.join(directory, 'production'), fetch: fake });
+  assert.equal(production.options.maxReviewsPerProduct, undefined);
+  assert.equal((await import('../../src/platform/collectors/apify-shopee.js'))
+    .shopeeActorInput(selected).maxReviewsPerProduct, 500);
+
+  const request = fixtureRequest();
+  request.listings = request.listings.slice(0, 2);
+  const requestForOne = jsonBytes(request);
+  const { db } = openDatabase({ databasePath: path.join(directory, 'smoke.sqlite') });
+  try {
+    const artifacts = new ContentAddressedArtifactStore(path.join(directory, 'smoke-artifacts'));
+    const foundation = new ShopeeCollectionService(db, artifacts);
+    const source = await foundation.save(requestForOne, collected);
+    assert.equal((await fs.stat(artifacts.pathForDigest(source.packet.pages[0]!.sha256))).mode & 0o777, 0o600);
+    assert.equal(source.packet.actor.settings.maxReviewsPerProduct, 20);
+    assert.equal(source.packet.actor.usageTotalUsd, 0.0838);
+    const analysis = new ShopeeReviewAnalysisService({ db, artifactStore: artifacts, reader: foundation });
+    const first = await analysis.analyze(source.packet.collectionId);
+    assert.equal((await fs.stat(artifacts.pathForDigest(first.sha256))).mode & 0o777, 0o600);
+    assert.equal(first.result.summary.maxCommentsPerProduct, 20);
+    assert.equal(first.result.summary.fetchedRows, 20);
+    assert.equal(first.result.summary.collected, 20);
+    assert.equal(first.result.summary.kept + first.result.summary.removed, 20);
+    assert.equal(first.result.summary.listings[0]!.status, 'sample_limit');
+    assert.equal((await analysis.analyze(source.packet.collectionId)).deduplicated, true);
+    assert.equal((await foundation.read(source.packet.collectionId)).pages[0]!.bytes.equals(collected.pages[0]!.bytes), true);
+  } finally { db.close(); }
+});
+
+
+test('016 existing-run verification is GET-only and binds run, dataset, cap, content filter and 20-row limit', async () => {
+  const directory = await root();
+  const selected = selectShopeeListings(fixtureRequest()).selected.slice(0, 1);
+  let posts = 0;
+  const endpoints: string[] = [];
+  const fake: typeof fetch = async (url, init) => {
+    if (init?.method === 'POST') posts++;
+    const endpoint = new URL(String(url));
+    endpoints.push(endpoint.pathname);
+    if (endpoint.pathname.includes('/actor-runs/')) return respond(runResponse('SUCCEEDED', 0.0838, 0.1));
+    if (endpoint.pathname.includes('/key-value-stores/')) return respond({
+      startUrls: selected.map(row => ({ url: row.productUrl })), maxReviewsPerProduct: 20,
+      starFilter: 'all', contentFilter: 'all',
+    });
+    assert.equal(endpoint.searchParams.get('limit'), '20');
+    return respond(Array.from({ length: 20 }, (_, index) => ({
+      reviewId: index + 1, shopId: 11, itemId: 101, ratingStar: 5, comment: 'Dễ uống ' + index,
+    })), { 'x-apify-pagination-total': '20' });
+  };
+  const collector = new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 0.1,
+    maxReviewsPerProduct: 20, contentFilter: 'all', journalRoot: directory,
+    existingRun: { runId: 'RUN1', datasetId: 'DATA1' }, fetch: fake });
+  const result = await collector.collect(selected, digest(requestBytes), fixtureRequest().runKey);
+  assert.equal(posts, 0);
+  assert.deepEqual(endpoints, ['/v2/actor-runs/RUN1', '/v2/key-value-stores/STORE1/records/INPUT',
+    '/v2/datasets/DATA1/items']);
+  assert.equal(result.actor.settings.contentFilter, 'all');
+  assert.equal(result.actor.settings.maxChargeUsd, 0.1);
+  assert.equal(result.actor.inputSha256, createHash('sha256').update(jsonBytes({
+    startUrls: selected.map(row => ({ url: row.productUrl })), maxReviewsPerProduct: 20,
+    starFilter: 'all', contentFilter: 'all',
+  })).digest('hex'));
+  const wrongCap = new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 0.2,
+    maxReviewsPerProduct: 20, contentFilter: 'all', journalRoot: directory,
+    existingRun: { runId: 'RUN1', datasetId: 'DATA1' }, fetch: fake });
+  await assert.rejects(() => wrongCap.collect(selected, digest(requestBytes), fixtureRequest().runKey), /charge cap mismatch/);
+  const wrongInput = new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 0.1,
+    maxReviewsPerProduct: 20, contentFilter: 'with comments', journalRoot: directory,
+    existingRun: { runId: 'RUN1', datasetId: 'DATA1' }, fetch: fake });
+  await assert.rejects(() => wrongInput.collect(selected, digest(requestBytes), fixtureRequest().runKey), /input mismatch/);
+  assert.equal(posts, 0);
 });

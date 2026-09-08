@@ -1,5 +1,13 @@
 # Trạng thái hiện tại
 
+## Task 016 — bounded live Shopee smoke đã xác minh
+
+- Đã reuse đúng Apify run `i6T1liAKkm9r2iNZs` / dataset `uGmehqbbdXCqBvjED`; không launch Actor run mới khi hoàn tất verification.
+- Scope smoke được chủ dự án đổi từ 50/USD 0.30 thành 20/USD 0.10; production default/cap vẫn 500 reviews/listing.
+- Application GET-only existing-run path: 20 fetched, 20 normalized, 2 kept, 18 removed, 0 invalid, 0 duplicate; raw artifact, provider lineage và deterministic replay PASS.
+- Finalized provider usage USD 0.084. Metric login vẫn chưa triển khai; một listing văn phòng phẩm không phải bằng chứng thị trường canxi.
+- Chi tiết: `docs/tasks/016-live-shopee-smoke.md` và `docs/handoffs/016-live-shopee-smoke.md`.
+
 ## Task 015 — file-input Shopee research đã hoàn thành Fedora validation
 
 - Đã ghi quyết định phỏng vấn trong `INTENT.md` và chuẩn bị `docs/tasks/015-on-demand-shopee-research.md`.

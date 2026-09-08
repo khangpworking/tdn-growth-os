@@ -85,6 +85,7 @@ function normalize(source: VerifiedShopeeCollection): {
   rawRowsByListing: ReadonlyMap<string, number>;
 } {
   const selected = new Map(source.packet.selected.map(row => [listingKey(row), row]));
+  const perListingLimit = source.packet.actor.settings.maxReviewsPerProduct;
   const rows = new Map<string, FilterInput>();
   const seen = new Map<string, string>();
   const conflicts = new Set<string>();
@@ -106,7 +107,7 @@ function normalize(source: VerifiedShopeeCollection): {
       }
       const used = (consumed.get(key) ?? 0) + 1;
       consumed.set(key, used);
-      if (used > 500) { invalidRows++; warnings.add('per_listing_limit_exceeded'); continue; }
+      if (used > perListingLimit) { invalidRows++; warnings.add('per_listing_limit_exceeded'); continue; }
       const reviewKey = key + ':' + value.reviewId;
       // Preserve actor extras in raw, but only expose needed fields to the filter.
       const identity = jsonBytes(value).toString('utf8');
@@ -136,6 +137,7 @@ function buildSummary(source: VerifiedShopeeCollection, normalized: ReturnType<t
     'review_dates_not_restricted_to_revenue_selection_period',
     'filter_score_is_not_confidence_or_market_sentiment',
     'E0_E5_mapping_not_calibrated'];
+  const perListingLimit = source.packet.actor.settings.maxReviewsPerProduct;
   const listings = source.packet.selected.map(selected => {
     const key = listingKey(selected);
     const records = reviews.filter(row => row.listingKey === key);
@@ -148,12 +150,14 @@ function buildSummary(source: VerifiedShopeeCollection, normalized: ReturnType<t
             : records.length === 0 && source.packet.selected.length === 1 &&
               source.packet.actor.stopReason === 'dataset_exhausted' ? 'empty'
               : records.length === 0 ? 'unavailable'
-                : records.length === 500 ? 'sample_limit' : 'below_limit' };
+                : records.length === perListingLimit ? 'sample_limit' : 'below_limit' };
   }) as ShopeeReviewResult['summary']['listings'];
-  if (listings.some(row => row.collected < 500)) warnings.push('fewer_than_500_valid_unique_rows_some_listings_no_backfill');
+  if (listings.some(row => row.collected < perListingLimit)) {
+    warnings.push('fewer_than_configured_limit_valid_unique_rows_some_listings_no_backfill');
+  }
   if (listings.some(row => row.status === 'empty')) warnings.push('empty_collection_does_not_prove_zero_source_reviews');
   const kept = reviews.filter(row => row.decision === 'kept').length;
-  return { mode: source.packet.mode, requestedProducts: 5, maxCommentsPerProduct: 500,
+  return { mode: source.packet.mode, requestedProducts: 5, maxCommentsPerProduct: perListingLimit,
     fetchedRows: source.pages.reduce((total, page) => total + (parseJsonBytes(page.bytes) as unknown[]).length, 0),
     selectedProducts: listings.length, collected: reviews.length, kept, removed: reviews.length - kept,
     invalidRows: normalized.invalidRows, duplicateRows: normalized.duplicateRows,
