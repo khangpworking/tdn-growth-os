@@ -33,7 +33,7 @@ Tài liệu này ghi ý định nghiệp vụ. `ARCHITECTURE.md` giữ baseline 
 
 | Bước | Tên nghiệp vụ |
 |---|---|
-| B0 | Khóa định hướng chiến lược |
+| B0 | Khóa định hướng chiến lược — để sau, giữ tên tạm |
 | B1 | PESTLE |
 | B2 | Thị trường online Việt Nam |
 | B3 | Rổ cơ hội sản phẩm |
@@ -47,9 +47,11 @@ Tài liệu này ghi ý định nghiệp vụ. `ARCHITECTURE.md` giữ baseline 
 | B11 | Insight & tiếp cận số |
 | B12 | Kiến trúc thông điệp |
 | B13 | Poster & video |
-| B14 | Phản hồi thị trường và học lại |
+| B14 | Phản hồi thị trường và học lại — để sau |
 
 Đã xác nhận cấu trúc này rộng hơn luồng tạo nội dung: gồm khám phá cơ hội, phát triển sản phẩm, thẩm định, phê duyệt và triển khai. Input/output, vai trò, điều kiện chuyển bước và rework của từng bước chưa được chốt đầy đủ.
+
+B0 và B14 chỉ giữ vị trí trong roadmap, không phải yêu cầu triển khai hiện tại. Các cách gọi B0–B7 và B8–B14 dưới đây giữ nhãn giai đoạn gốc, không đưa hai bước đã hoãn trở lại scope.
 
 ## Quyết định đã thống nhất
 
@@ -77,7 +79,7 @@ Không đóng workspace B0–B7 khi có candidate PASS. Người dùng có thể
 
 ### D04 — 60 câu hỏi là nền phân tích; phạm vi ban đầu xét đủ 60
 
-Chủ dự án chọn xét toàn bộ 60 câu hỏi, thay vì tự động chỉ chọn một phần. Điều đó không có nghĩa tất cả câu hỏi phải có câu trả lời chắc chắn ngay từ B0.
+Chủ dự án chọn xét toàn bộ 60 câu hỏi, thay vì tự động chỉ chọn một phần. Điều đó không có nghĩa tất cả câu hỏi phải có câu trả lời chắc chắn ngay khi bắt đầu nghiên cứu.
 
 Thời điểm chạy, cách làm mới câu trả lời và gắn từng câu hỏi vào các bước B0–B14 chưa chốt. Các câu về năng lực công ty, economics và experiment có thể cần dữ liệu xuất hiện ở bước sau.
 
@@ -107,6 +109,14 @@ Chủ dự án yêu cầu dừng đào sâu B14 vì còn sớm. Dashboard, metri
 
 Chủ dự án muốn có khả năng sửa framework trong tương lai, nhưng hoãn thiết kế tính năng cập nhật/versioning. Đề xuất immutable framework versions hoặc tự rerun report cũ chưa được chấp thuận. Không tạo editor/versioning platform trong scope hiện tại.
 
+### D10 — B0 để sau; chưa xác nhận giá trị nghiệp vụ
+
+Ngày 08/09/2026, chủ dự án cho biết chưa rõ B0 có nghĩa gì hoặc có cần thiết hay không, và yêu cầu để tương lai như B14. Giữ tên “Khóa định hướng chiến lược” làm nhãn tạm, không xóa hoặc đánh lại số flow.
+
+Chưa định nghĩa form, input/output, người duyệt, tiêu chí hoàn thành hay gate B0. Không yêu cầu hoàn thành B0 trước khi nghiên cứu các bước còn lại. Các gợi ý trước đây về mục tiêu, thị trường và ràng buộc chỉ là đề xuất chưa được duyệt, không phải yêu cầu bắt buộc.
+
+Quyết định này thay thế điểm tiếp tục phỏng vấn B0 trước đó; chưa kết luận B0 vô ích hoặc bị loại bỏ vĩnh viễn.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -131,6 +141,7 @@ Trạng thái bằng chứng của câu trả lời khác trạng thái workflow
 | Phải biết SKU cụ thể khi tạo workspace | Bắt đầu từ cơ hội rộng; concept hình thành B0–B7 |
 | B14 gửi learning về khám phá theo mặc định | B14 phục vụ B11–B13; thiết kế chi tiết để sau |
 | Cần tiếp tục chốt insight/versioning/B14 ngay | Các phần này đã được chủ dự án hoãn |
+| Cần chốt B0 trước khi tiếp tục phỏng vấn | B0 giữ tên tạm trong roadmap; hoãn cùng B14, không là gate hiện tại |
 
 ## Khoảng cách với implementation hiện tại
 
@@ -144,13 +155,10 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 ## Điểm tiếp tục phỏng vấn
 
-**Câu đang chờ:** Tại B0 “Khóa định hướng chiến lược”, đội ngũ phải thống nhất những gì trước khi bắt đầu nghiên cứu?
-
-Gợi ý đã đưa ra, chưa được người dùng xác nhận: cơ hội cần khám phá, mục tiêu kinh doanh, thị trường mục tiêu và ràng buộc như ngân sách hoặc nhóm sản phẩm loại trừ.
+**Điểm dừng mới:** B0 đã được hoãn theo D10. Không còn câu hỏi B0 đang chờ trả lời. Lần phỏng vấn tiếp theo tập trung vào phần chưa hoãn; câu hỏi cụ thể tiếp theo chưa chốt.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
-- Ai sở hữu và duyệt B0; khi nào được sửa định hướng?
 - Input/output và điều kiện hoàn thành từng bước B1–B7?
 - Ai quyết định B7 và theo tiêu chí nào; HOLD được mở lại ra sao?
 - Chính xác những gì được mang sang workspace mới tại B7?
@@ -158,7 +166,7 @@ Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 - Thiếu dữ liệu trong 60 câu được thể hiện và ảnh hưởng gate như thế nào?
 - Vai trò thẩm định tại B8, khóa STP B9 và phê duyệt B10?
 
-Không quay lại đào sâu insight, framework versioning hoặc B14 khi chủ dự án chưa chủ động mở lại.
+Không quay lại đào sâu B0, insight, framework versioning hoặc B14 khi chủ dự án chưa chủ động mở lại.
 
 ## Cách duy trì
 
