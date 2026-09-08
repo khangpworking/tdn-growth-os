@@ -127,6 +127,19 @@ Khả năng hỏi AI về báo cáo là mong muốn tương lai; chưa triển k
 
 Chủ dự án xác nhận chỉ chạy nghiên cứu khi người dùng yêu cầu. Không tự chạy theo lịch hoặc tự làm mới nghiên cứu trong phạm vi ban đầu. Cách nhập yêu cầu, chọn dữ liệu và xử lý một lần yêu cầu cập nhật chưa chốt; quyết định này không tự định nghĩa lịch thu thập dữ liệu Box 1 hoặc cho phép gọi nhà cung cấp.
 
+### D13 — Hệ thống thu thập dữ liệu mới khi được yêu cầu
+
+Chủ dự án xác nhận hệ thống sẽ thu thập dữ liệu mới cho lần nghiên cứu được yêu cầu, không chỉ dựa vào file nhập thủ công. Chủ dự án dự định kết nối các nguồn sau:
+
+- KaloData và Metric.vn: dữ liệu thương mại điện tử Việt Nam.
+- Apify: thu thập bình luận/đánh giá trên Shopee.
+- Google Trends API: dữ liệu xu hướng tìm kiếm.
+- Google News API: dữ liệu tin tức.
+
+Đây là danh sách nguồn dự kiến do chủ dự án cung cấp, không phải xác nhận connector đã hoàn thành hoặc API chính thức đã khả dụng. Nhà cung cấp/endpoint cụ thể (đặc biệt Trends và News), quyền truy cập, giới hạn, chi phí và phạm vi dữ liệu cần được kiểm tra khi tích hợp. Không lưu credentials trong tài liệu hoặc Git.
+
+Không tự thêm nguồn khác; khi có khoảng trống bằng chứng cụ thể thì đề xuất cho chủ dự án. Thu thập dữ liệu mới không đồng nghĩa mọi nguồn cập nhật tức thời; báo cáo cần phân biệt thời điểm lấy dữ liệu với kỳ dữ liệu nguồn. Cách xử lý nguồn lỗi, dữ liệu thiếu/cũ và ngân sách mỗi lần chạy chưa chốt. Chưa có provider call hoặc thay đổi implementation từ quyết định này.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -165,9 +178,9 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 ## Điểm tiếp tục phỏng vấn
 
-**Điểm dừng mới:** Đã xác nhận hướng báo cáo tổng quan (D11) và nghiên cứu chỉ chạy khi được yêu cầu (D12). Chat AI về báo cáo và layout chi tiết để sau. Không còn câu hỏi B0 đang chờ trả lời.
+**Điểm dừng mới:** Đã xác nhận hướng báo cáo tổng quan (D11), nghiên cứu chỉ chạy khi được yêu cầu (D12), và hệ thống thu thập dữ liệu mới qua các nguồn dự kiến (D13). Chat AI về báo cáo và layout chi tiết để sau. Không còn câu hỏi B0 đang chờ trả lời.
 
-**Câu tiếp theo, chưa trả lời:** Khi yêu cầu nghiên cứu một thị trường, ban đầu người dùng sẽ cung cấp file/dữ liệu hay muốn hệ thống tự thu thập thêm dữ liệu? Chưa mặc định phương án nào được duyệt.
+**Câu tiếp theo, chưa trả lời:** Nếu một nguồn không lấy được dữ liệu, có tiếp tục tạo báo cáo một phần và ghi rõ thiếu nguồn hay dừng lần nghiên cứu? Đề xuất tiếp tục có giới hạn là gợi ý, chưa được duyệt.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
