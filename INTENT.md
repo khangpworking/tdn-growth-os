@@ -231,6 +231,16 @@ Chủ dự án đã đồng ý tiêu chí chọn: listing Shopee có doanh số 
 
 Chưa chốt cách xử lý bằng doanh số hoặc thiếu doanh số cùng kỳ; không tự thay bằng tổng doanh số toàn thời gian. Việc chọn listing không làm review của listing đó đại diện cho toàn bộ sản phẩm trên mọi shop.
 
+### D20 — Giới hạn ban đầu: top 5 sản phẩm, tối đa 500 comments mỗi sản phẩm
+
+Chủ dự án chọn 5 sản phẩm đứng đầu sau khi xử lý listing trùng sản phẩm, mỗi sản phẩm lấy tối đa 500 comments từ một listing Shopee đại diện theo D19. Giới hạn mục tiêu là tối đa 2.500 comments cho một lần nghiên cứu; không cam kết nguồn luôn có đủ số lượng. Không áp dụng đề xuất trước đó của assistant là 10 sản phẩm × 200 reviews.
+
+500 là giới hạn thu thập trước bộ lọc nội dung, không phải số comment phải giữ lại sau lọc; không tự scrape bù vượt giới hạn để đạt 500 comments đã lọc. Ghi rõ số thực lấy và số giữ/loại. Thiếu dữ liệu vẫn theo D14.
+
+Chủ dự án muốn người dùng có thể chỉnh số sản phẩm và số comments thủ công trong tương lai, nhưng chưa xây chức năng đó ở scope hiện tại. Giữ các giá trị trong cấu hình nội bộ rõ ràng để dễ thay đổi khi cần; không tạo UI/editor cấu hình lúc này.
+
+Chưa chốt riêng cách xếp hạng nhóm sản phẩm đa nền tảng khi chọn top 5; không tự cộng doanh số các listing để tạo thứ hạng mới. D19 chỉ xác định cách chọn listing đại diện trong một nhóm sản phẩm. Mức tiền cho live run và chính sách retry vẫn cần giới hạn riêng; 2.500 comments không đồng nghĩa cho phép chi tiêu không giới hạn.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -277,7 +287,7 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Đã trả lời:** Lấy review từ một listing Shopee đại diện cho mỗi sản phẩm (D19).
 
-**Đã trả lời:** Chọn listing Shopee cùng sản phẩm có doanh số trong kỳ nghiên cứu cao nhất (D19). Câu hỏi phỏng vấn tiếp theo chưa chốt; giới hạn số sản phẩm/review mỗi lần chạy còn mở.
+**Đã trả lời:** Chọn listing Shopee cùng sản phẩm có doanh số trong kỳ nghiên cứu cao nhất (D19); top 5 sản phẩm × tối đa 500 comments mỗi sản phẩm (D20). Chỉnh giới hạn thủ công cho người dùng để tương lai. Có thể chuẩn bị implementation task; cần ghi rõ cách chọn top 5 đa nền tảng chưa chốt, không tự gộp doanh số.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
