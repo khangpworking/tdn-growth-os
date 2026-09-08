@@ -140,6 +140,25 @@ Chủ dự án xác nhận hệ thống sẽ thu thập dữ liệu mới cho l�
 
 Không tự thêm nguồn khác; khi có khoảng trống bằng chứng cụ thể thì đề xuất cho chủ dự án. Thu thập dữ liệu mới không đồng nghĩa mọi nguồn cập nhật tức thời; báo cáo cần phân biệt thời điểm lấy dữ liệu với kỳ dữ liệu nguồn. Cách xử lý nguồn lỗi, dữ liệu thiếu/cũ và ngân sách mỗi lần chạy chưa chốt. Chưa có provider call hoặc thay đổi implementation từ quyết định này.
 
+### D14 — Tiếp tục báo cáo thiếu nguồn; tái sử dụng E0–E5
+
+Chủ dự án đồng ý tiếp tục tạo báo cáo một phần khi nguồn không khả dụng, ghi rõ dữ liệu/nguồn thiếu và không đưa ra kết luận phụ thuộc vào bằng chứng chưa có. Chủ dự án yêu cầu dùng lại phân loại E0–E5 đã có.
+
+Đã tìm thấy định nghĩa gốc trong `references/data-warehouse-master-handoff.html`, mục “Evidence Level System (E0–E5)”:
+
+| Mức | Định nghĩa trong tài liệu gốc |
+|---|---|
+| E0 | Nguồn chính thức đã xác minh; tài liệu gốc mô tả API chính thức, đã kiểm chứng, thời gian thực |
+| E1 | Nguồn chính thức, chưa đối chiếu kiểm chứng |
+| E2 | Bên thứ ba đã hiệu chuẩn/đối chuẩn |
+| E3 | Bên thứ ba chưa hiệu chuẩn/kiểm chứng |
+| E4 | Dữ liệu suy ra/tính toán từ dữ liệu khác |
+| E5 | Ước tính/giả định cần xác minh |
+
+Lưu ý thiết kế: bảng này trộn nguồn gốc, mức kiểm chứng và cách tạo dữ liệu; không tự chuyển thành phần trăm tin cậy. E4 không mặc nhiên kém chính xác hơn E3. Thiếu dữ liệu là trạng thái riêng, không tự gán E5 hoặc biến thành số 0. Ví dụ KaloData/Metric được ghi E2 trong tài liệu cũ không tự chứng minh mọi dữ liệu mới của hai nguồn đã được hiệu chuẩn.
+
+Khoảng cách kỹ thuật đã kiểm tra: code hiện lưu `grade` và `basis` với nhãn `synthetic`, `unverified`, `provider_reported`, `corroborated`, `verified`; chưa dùng trực tiếp enum E0–E5. Mapping, tiêu chí kiểm chứng và cách áp dụng cho bằng chứng/kết luận cần chốt khi triển khai, không tự thay schema trong phiên phỏng vấn này. Giữ lý do phân loại và nguồn truy xuất, không gán cấp chỉ theo tên provider.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -180,7 +199,7 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Điểm dừng mới:** Đã xác nhận hướng báo cáo tổng quan (D11), nghiên cứu chỉ chạy khi được yêu cầu (D12), và hệ thống thu thập dữ liệu mới qua các nguồn dự kiến (D13). Chat AI về báo cáo và layout chi tiết để sau. Không còn câu hỏi B0 đang chờ trả lời.
 
-**Câu tiếp theo, chưa trả lời:** Nếu một nguồn không lấy được dữ liệu, có tiếp tục tạo báo cáo một phần và ghi rõ thiếu nguồn hay dừng lần nghiên cứu? Đề xuất tiếp tục có giới hạn là gợi ý, chưa được duyệt.
+**Đã trả lời:** Tiếp tục báo cáo khi thiếu nguồn, flag dữ liệu thiếu và dùng lại E0–E5 theo D14. Câu hỏi tiếp theo chưa chốt; quy tắc mapping vào implementation còn mở.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
