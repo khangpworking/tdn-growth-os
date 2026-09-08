@@ -117,6 +117,16 @@ Chưa định nghĩa form, input/output, người duyệt, tiêu chí hoàn thà
 
 Quyết định này thay thế điểm tiếp tục phỏng vấn B0 trước đó; chưa kết luận B0 vô ích hoặc bị loại bỏ vĩnh viễn.
 
+### D11 — Báo cáo tổng quan; chat AI và layout để sau
+
+Chủ dự án muốn đầu ra nghiên cứu dạng báo cáo/dashboard tổng quan, trực quan, bắt mắt, có dữ liệu, tóm tắt và kết luận. Chưa chốt bố cục chi tiết. Các mục tóm tắt nhanh, thị trường, cạnh tranh, cơ hội, bất định và kết luận do assistant đề xuất vẫn là gợi ý, không phải yêu cầu đã duyệt.
+
+Khả năng hỏi AI về báo cáo là mong muốn tương lai; chưa triển khai trong scope ban đầu. Thiết kế layout và giao diện dashboard chi tiết cũng để sau. Không suy ra phải xây dashboard tương tác ngay để giao phần nghiên cứu.
+
+### D12 — Nghiên cứu chạy theo yêu cầu ban đầu
+
+Chủ dự án xác nhận chỉ chạy nghiên cứu khi người dùng yêu cầu. Không tự chạy theo lịch hoặc tự làm mới nghiên cứu trong phạm vi ban đầu. Cách nhập yêu cầu, chọn dữ liệu và xử lý một lần yêu cầu cập nhật chưa chốt; quyết định này không tự định nghĩa lịch thu thập dữ liệu Box 1 hoặc cho phép gọi nhà cung cấp.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -155,7 +165,9 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 ## Điểm tiếp tục phỏng vấn
 
-**Điểm dừng mới:** B0 đã được hoãn theo D10. Không còn câu hỏi B0 đang chờ trả lời. Lần phỏng vấn tiếp theo tập trung vào phần chưa hoãn; câu hỏi cụ thể tiếp theo chưa chốt.
+**Điểm dừng mới:** Đã xác nhận hướng báo cáo tổng quan (D11) và nghiên cứu chỉ chạy khi được yêu cầu (D12). Chat AI về báo cáo và layout chi tiết để sau. Không còn câu hỏi B0 đang chờ trả lời.
+
+**Câu tiếp theo, chưa trả lời:** Khi yêu cầu nghiên cứu một thị trường, ban đầu người dùng sẽ cung cấp file/dữ liệu hay muốn hệ thống tự thu thập thêm dữ liệu? Chưa mặc định phương án nào được duyệt.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
@@ -166,7 +178,7 @@ Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 - Thiếu dữ liệu trong 60 câu được thể hiện và ảnh hưởng gate như thế nào?
 - Vai trò thẩm định tại B8, khóa STP B9 và phê duyệt B10?
 
-Không quay lại đào sâu B0, insight, framework versioning hoặc B14 khi chủ dự án chưa chủ động mở lại.
+Không quay lại đào sâu B0, insight, framework versioning, B14, chat AI về báo cáo hoặc layout dashboard khi chủ dự án chưa chủ động mở lại.
 
 ## Cách duy trì
 
