@@ -110,6 +110,29 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "actorId": {
+          "const": "zen-studio/shopee-product-reviews-scraper"
+        },
+        "settings": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "maxReviewsPerProduct": { "const": 500 },
+            "starFilter": { "const": "all" },
+            "contentFilter": { "const": "with comments" },
+            "maxChargeUsd": {
+              "anyOf": [
+                { "type": "number", "exclusiveMinimum": 0, "maximum": 10000 },
+                { "type": "null" }
+              ]
+            }
+          },
+          "required": ["maxReviewsPerProduct", "starFilter", "contentFilter", "maxChargeUsd"]
+        },
+        "inputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
         "runId": {
           "anyOf": [
             {
@@ -150,13 +173,41 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 100
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "providerTotalRows": {
+          "anyOf": [
+            { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
+            { "type": "null" }
+          ]
+        },
+        "stopReason": {
+          "enum": [
+            "fixture_complete",
+            "dataset_exhausted",
+            "collection_limit_reached",
+            "dataset_read_failed",
+            "actor_terminal_failed",
+            "actor_terminal_timed-out",
+            "actor_terminal_aborted",
+            "not_started_no_eligible_listings"
+          ]
         }
       },
       "required": [
+        "actorId",
+        "settings",
+        "inputSha256",
         "runId",
         "datasetId",
         "buildId",
-        "status"
+        "status",
+        "retrievedAt",
+        "providerTotalRows",
+        "stopReason"
       ]
     },
     "pages": {

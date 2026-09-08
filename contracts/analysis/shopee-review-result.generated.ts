@@ -32,7 +32,7 @@ export interface ShopeeReviewResult {
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
         ]
       | [
@@ -41,37 +41,14 @@ export interface ShopeeReviewResult {
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
           {
             productKey: string;
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
-          },
-        ]
-      | [
-          {
-            productKey: string;
-            listingKey: string;
-            collected: number;
-            kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
-          },
-          {
-            productKey: string;
-            listingKey: string;
-            collected: number;
-            kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
-          },
-          {
-            productKey: string;
-            listingKey: string;
-            collected: number;
-            kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
         ]
       | [
@@ -80,28 +57,21 @@ export interface ShopeeReviewResult {
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
           {
             productKey: string;
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
           {
             productKey: string;
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
-          },
-          {
-            productKey: string;
-            listingKey: string;
-            collected: number;
-            kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
         ]
       | [
@@ -110,38 +80,69 @@ export interface ShopeeReviewResult {
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
           {
             productKey: string;
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
           {
             productKey: string;
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
           {
             productKey: string;
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
+          },
+        ]
+      | [
+          {
+            productKey: string;
+            listingKey: string;
+            collected: number;
+            kept: number;
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
           {
             productKey: string;
             listingKey: string;
             collected: number;
             kept: number;
-            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'partial';
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
+          },
+          {
+            productKey: string;
+            listingKey: string;
+            collected: number;
+            kept: number;
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
+          },
+          {
+            productKey: string;
+            listingKey: string;
+            collected: number;
+            kept: number;
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
+          },
+          {
+            productKey: string;
+            listingKey: string;
+            collected: number;
+            kept: number;
+            status: 'sample_limit' | 'below_limit' | 'empty' | 'unavailable' | 'failed' | 'partial';
           },
         ];
     fetchedRows: number;
+    providerReportedRows: number | null;
   };
   /**
    * @maxItems 2500

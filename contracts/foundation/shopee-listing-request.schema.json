@@ -79,7 +79,8 @@
               {
                 "type": "string",
                 "minLength": 1,
-                "maxLength": 100
+                "maxLength": 100,
+                "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$"
               },
               {
                 "type": "null"

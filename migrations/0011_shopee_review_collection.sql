@@ -8,7 +8,7 @@ CREATE TABLE foundation_shopee_collections (
 ) STRICT;
 
 CREATE TABLE analysis_shopee_review_results (
-  collection_id TEXT NOT NULL,
+  collection_id TEXT NOT NULL REFERENCES foundation_shopee_collections(collection_id) ON DELETE RESTRICT,
   filter_sha256 TEXT NOT NULL CHECK(length(filter_sha256) = 64),
   artifact_sha256 TEXT NOT NULL REFERENCES artifact_manifests(sha256) ON DELETE RESTRICT,
   created_at TEXT NOT NULL,

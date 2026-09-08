@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { ShopeeCollection } from '../../../contracts/foundation/shopee-collection.generated.js';
-import type { CollectedPages } from '../../platform/collectors/apify-shopee.js';
+import { shopeeActorInputSha256, type CollectedPages } from '../../platform/collectors/apify-shopee.js';
 import { ContentAddressedArtifactStore } from '../../platform/artifacts/index.js';
 import type { StoredArtifact } from '../../platform/artifacts/artifact-store.js';
 import { registerManifest } from '../../platform/artifacts/register-manifest.js';
@@ -32,18 +32,33 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
       pages: collected.pages.map(page => ({ offset: page.offset, bytes: Buffer.from(page.bytes) })) };
     const request = validateListingRequest(parseJsonBytes(requestBytes, 2 * 1024 * 1024));
     const selection = selectShopeeListings(request);
+    assertCollectorMetadata(collected, selection.selected);
     let rows = 0;
+    const perListing = new Map<string, number>();
+    const selectedKeys = new Set(selection.selected.map(row => row.platform + ':' + row.shopId + ':' + row.itemId));
     for (const page of collected.pages) {
       const data = parseJsonBytes(page.bytes);
       if (!Array.isArray(data) || page.offset !== rows) throw new Error('Invalid collection page or offset');
       rows += data.length;
+      for (const value of data) {
+        if (!value || typeof value !== 'object') continue;
+        const record = value as Record<string, unknown>;
+        const key = `shopee:${String(record.shopId)}:${String(record.itemId)}`;
+        if (!selectedKeys.has(key)) continue;
+        const count = (perListing.get(key) ?? 0) + 1;
+        if (count > 500) throw new Error('Collection exceeds per-listing row budget');
+        perListing.set(key, count);
+      }
     }
     if (rows > selection.selected.length * 500) throw new Error('Collection exceeds selected-product row budget');
+    if (collected.actor.providerTotalRows !== null && collected.actor.providerTotalRows < rows) {
+      throw new Error('Provider total is below fetched rows');
+    }
     const prior = await this.existing(requestBytes, collected.mode);
     if (prior) {
       if (!jsonBytes(prior.packet.pages.map(p => ({ sha256: p.sha256, offset: p.offset })))
         .equals(jsonBytes(collected.pages.map(p => ({ sha256: digest(p.bytes), offset: p.offset })))) ||
-          !jsonBytes(prior.packet.actor).equals(jsonBytes(collected.actor)) ||
+          !jsonBytes(actorIdentity(prior.packet.actor)).equals(jsonBytes(actorIdentity(collected.actor))) ||
           !jsonBytes(prior.packet.collectorWarnings).equals(jsonBytes(collected.warnings))) {
         throw new Error('Run key already used for different collection evidence');
       }
@@ -93,6 +108,7 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     if (!row) throw new Error('Collection not found');
     const bytes = await this.#verifiedArtifact(row.artifact_sha256);
     const packet = validateCollection(parseJsonBytes(bytes));
+    assertCollectorMetadata({ mode: packet.mode, actor: packet.actor, warnings: packet.collectorWarnings, pages: [] }, packet.selected);
     if (!jsonBytes(packet).equals(bytes) || packet.collectionId !== row.collection_id ||
         packet.runKey !== row.run_key || packet.createdAt !== row.created_at || packet.requestSha256 !== row.request_sha256) {
       throw new Error('Collection metadata mismatch');
@@ -113,14 +129,28 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
         evidence.evidence_grade !== (packet.mode === 'fixture' ? 'synthetic' : 'unverified')) throw new Error('Collection lineage mismatch');
     const pages = [];
     let offset = 0;
+    const perListing = new Map<string, number>();
+    const selectedKeys = new Set(packet.selected.map(row => row.platform + ':' + row.shopId + ':' + row.itemId));
     for (const page of packet.pages) {
       const raw = await this.#verifiedArtifact(page.sha256);
       const values = parseJsonBytes(raw);
       if (raw.length !== page.byteSize || !Array.isArray(values) || page.offset !== offset) throw new Error('Raw page metadata mismatch');
       offset += values.length;
+      for (const value of values) {
+        if (!value || typeof value !== 'object') continue;
+        const record = value as Record<string, unknown>;
+        const key = `shopee:${String(record.shopId)}:${String(record.itemId)}`;
+        if (!selectedKeys.has(key)) continue;
+        const count = (perListing.get(key) ?? 0) + 1;
+        if (count > 500) throw new Error('Collection per-listing row budget mismatch');
+        perListing.set(key, count);
+      }
       pages.push({ bytes: raw, sha256: page.sha256, offset: page.offset });
     }
     if (offset > packet.selected.length * 500) throw new Error('Collection row budget mismatch');
+    if (packet.actor.providerTotalRows !== null && packet.actor.providerTotalRows < offset) {
+      throw new Error('Collection provider total mismatch');
+    }
     return { packet, sha256: row.artifact_sha256, pages };
   }
 
@@ -133,5 +163,44 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
       throw new Error('Collection artifact manifest mismatch');
     }
     return bytes;
+  }
+}
+
+function actorIdentity(actor: ShopeeCollection['actor']): Omit<ShopeeCollection['actor'], 'retrievedAt'> {
+  const { retrievedAt: _, ...identity } = actor;
+  return identity;
+}
+
+function assertCollectorMetadata(collected: CollectedPages, selected: readonly ShopeeCollection['selected'][number][]): void {
+  const actor = collected.actor;
+  if (actor.actorId !== 'zen-studio/shopee-product-reviews-scraper' ||
+      actor.settings.maxReviewsPerProduct !== 500 || actor.settings.starFilter !== 'all' ||
+      actor.settings.contentFilter !== 'with comments' ||
+      (collected.mode === 'fixture' ? actor.settings.maxChargeUsd !== null
+        : actor.settings.maxChargeUsd === null || !Number.isFinite(actor.settings.maxChargeUsd) ||
+          actor.settings.maxChargeUsd <= 0 || actor.settings.maxChargeUsd > 10_000)) {
+    throw new Error('Invalid fixed collector provenance');
+  }
+  const expectedInputSha256 = selected.length === 0 ? '0'.repeat(64) : shopeeActorInputSha256(selected);
+  if (actor.inputSha256 !== expectedInputSha256) throw new Error('Collector input does not match selected listings');
+  if (collected.mode === 'fixture') {
+    if (actor.runId !== null || actor.datasetId !== null || actor.buildId !== null ||
+        !((actor.status === 'FIXTURE' && actor.stopReason === 'fixture_complete') ||
+          (actor.status === 'FAILED' && actor.stopReason === 'actor_terminal_failed') ||
+          (actor.status === 'NOT_STARTED' && actor.stopReason === 'not_started_no_eligible_listings' &&
+            selected.length === 0 && collected.pages.length === 0))) {
+      throw new Error('Incoherent fixture collector provenance');
+    }
+    return;
+  }
+  if (actor.status === 'NOT_STARTED' && actor.stopReason === 'not_started_no_eligible_listings' &&
+      actor.runId === null && actor.datasetId === null && actor.buildId === null &&
+      selected.length === 0 && collected.pages.length === 0) return;
+  if (actor.runId === null || actor.datasetId === null ||
+      !((actor.status === 'SUCCEEDED' && ['dataset_exhausted', 'collection_limit_reached', 'dataset_read_failed'].includes(actor.stopReason)) ||
+        (actor.status === 'FAILED' && actor.stopReason === 'actor_terminal_failed') ||
+        (actor.status === 'TIMED-OUT' && actor.stopReason === 'actor_terminal_timed-out') ||
+        (actor.status === 'ABORTED' && actor.stopReason === 'actor_terminal_aborted'))) {
+    throw new Error('Incoherent live collector provenance');
   }
 }

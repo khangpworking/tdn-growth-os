@@ -196,10 +196,29 @@ export interface ShopeeCollection {
    */
   collectorWarnings: string[];
   actor: {
+    actorId: 'zen-studio/shopee-product-reviews-scraper';
+    settings: {
+      maxReviewsPerProduct: 500;
+      starFilter: 'all';
+      contentFilter: 'with comments';
+      maxChargeUsd: number | null;
+    };
+    inputSha256: string;
     runId: string | null;
     datasetId: string | null;
     buildId: string | null;
     status: string;
+    retrievedAt: string;
+    providerTotalRows: number | null;
+    stopReason:
+      | 'fixture_complete'
+      | 'dataset_exhausted'
+      | 'collection_limit_reached'
+      | 'dataset_read_failed'
+      | 'actor_terminal_failed'
+      | 'actor_terminal_timed-out'
+      | 'actor_terminal_aborted'
+      | 'not_started_no_eligible_listings';
   };
   /**
    * @maxItems 25

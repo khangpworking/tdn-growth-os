@@ -1,13 +1,14 @@
 # Trạng thái hiện tại
 
-## Task 015 — file-input implementation, chờ Fedora validation
+## Task 015 — file-input Shopee research đã hoàn thành Fedora validation
 
 - Đã ghi quyết định phỏng vấn trong `INTENT.md` và chuẩn bị `docs/tasks/015-on-demand-shopee-research.md`.
 - Scope đầu tiên: Metric Shopee → top 5 sản phẩm → 1 listing đại diện/sản phẩm → tối đa 500 comments/listing → raw + filter + cảnh báo thiếu dữ liệu.
-- Đã implement local file listing → selection → bounded Apify adapter → raw SQLite/artifacts → callable Python filter → collection summary. Chưa coi là DONE.
+- Đã implement và xác minh trên Fedora: file listing → selection → bounded Apify adapter → raw SQLite/artifacts → callable Python filter → collection summary và verified replay.
 - Đã lưu baseline filter ở `references/reuse/shopee_review_filter.v3.py`; adapter đã được so sánh với baseline trên synthetic cases.
-- Chỉ xác minh local: 11 focused tests + 9 foundation tests PASS ở lần chạy cuối; typecheck PASS trước khi trả typecheck launcher về bản Linux gốc. Full suite cuối còn lỗi kỳ vọng migration version 10; đã sửa thành 11 nhưng chưa rerun toàn bộ suite sau đó.
-- Fedora là môi trường chạy/lưu dữ liệu mục tiêu. Chưa Fedora validation, GitHub CI hoặc live calls. Metric login/extraction được hoãn theo yêu cầu; không cần login Metric để tiếp tục file-input task. Paid smoke sau này cần credentials và budget riêng.
+- Fedora validation: Node 24.15.0, npm 11.12.1, Python 3.14.3; 16 focused tests và full suite 97/97 PASS; CLI fixture smoke PASS; migration v10→v11/idempotency và prior-migration hashes PASS.
+- Fedora permissions: database/WAL/SHM, request/raw/collection/result artifacts và local receipt probes đều giữ owner-only `0600` (`0700` cho receipt directories). Không chạy live provider, Metric login, paid API hoặc deployment.
+- Metric login/extraction được hoãn theo yêu cầu; file-input là authoritative scope của Task 015. Live adapter vẫn cần authorization, credential và explicit budget riêng trước khi chạy.
 - Handoff chi tiết: `docs/handoffs/015-on-demand-shopee-research.md`.
 - Phần bên dưới giữ nguyên trạng thái baseline sau Task 014; không tính tài liệu là năng lực đã xây.
 

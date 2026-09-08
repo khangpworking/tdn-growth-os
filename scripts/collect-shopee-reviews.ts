@@ -22,25 +22,40 @@ try {
     const bytes = await readBounded(inputPath!, 2 * 1024 * 1024);
     const request = validateListingRequest(parseJsonBytes(bytes));
     const selection = selectShopeeListings(request);
-    let collector: ShopeeCollector;
+    let collectorMode: 'fixture' | 'live';
+    let collector: ShopeeCollector | undefined;
+    let maxChargeUsd: number | null = null;
     if (flags.length === 2 && flags[0] === '--fixture') {
-      collector = new FixtureShopeeCollector(await readBounded(flags[1]!, 8 * 1024 * 1024));
+      collectorMode = 'fixture';
+      if (selection.selected.length) collector = new FixtureShopeeCollector(await readBounded(flags[1]!, 8 * 1024 * 1024));
     } else if (flags.length === 3 && flags[0] === '--live' && flags[1] === '--max-charge-usd') {
-      collector = new ApifyShopeeCollector({
-        token: process.env.TDN_APIFY_TOKEN ?? '', maxChargeUsd: Number(flags[2]),
-        journalRoot: path.join(path.resolve(artifactRoot!), 'apify-receipts'),
-      });
+      collectorMode = 'live';
+      maxChargeUsd = Number(flags[2]);
+      if (!Number.isFinite(maxChargeUsd) || maxChargeUsd <= 0 || maxChargeUsd > 10_000) {
+        throw new Error('Live collection requires a positive approved charge cap at most 10000 USD');
+      }
     } else throw new Error('Choose --fixture <rows.json> OR --live --max-charge-usd <approved-cap>');
     const { db } = openDatabase({ databasePath: path.resolve(databasePath!) });
     try {
       const artifacts = new ContentAddressedArtifactStore(path.resolve(artifactRoot!));
       const foundation = new ShopeeCollectionService(db, artifacts);
-      let collection = await foundation.existing(bytes, collector.mode);
-      if (!collection || collector.mode === 'fixture') {
+      let collection = await foundation.existing(bytes, collectorMode);
+      if (!collection || collectorMode === 'fixture') {
+        if (selection.selected.length && collectorMode === 'live') collector = new ApifyShopeeCollector({
+          token: process.env.TDN_APIFY_TOKEN ?? '', maxChargeUsd: maxChargeUsd!,
+          journalRoot: path.join(path.resolve(artifactRoot!), 'apify-receipts'),
+        });
         const collected: CollectedPages = selection.selected.length
-          ? await collector.collect(selection.selected, digest(bytes), request.runKey)
-          : { mode: collector.mode, pages: [], warnings: ['no_eligible_listings_no_provider_call'],
-              actor: { runId: null, datasetId: null, buildId: null, status: 'NOT_STARTED' } };
+          ? await collector!.collect(selection.selected, digest(bytes), request.runKey)
+          : { mode: collectorMode, pages: [], warnings: ['no_eligible_listings_no_provider_call'],
+              actor: {
+                actorId: 'zen-studio/shopee-product-reviews-scraper',
+                settings: { maxReviewsPerProduct: 500, starFilter: 'all', contentFilter: 'with comments',
+                  maxChargeUsd },
+                inputSha256: '0'.repeat(64), runId: null, datasetId: null, buildId: null, status: 'NOT_STARTED',
+                retrievedAt: new Date().toISOString(), providerTotalRows: null,
+                stopReason: 'not_started_no_eligible_listings',
+              } };
         collection = await foundation.save(bytes, collected);
       }
       const analysis = new ShopeeReviewAnalysisService({ db, artifactStore: artifacts, reader: foundation,

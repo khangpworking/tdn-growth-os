@@ -82,18 +82,22 @@ export class ShopeeReviewAnalysisService {
 
 function normalize(source: VerifiedShopeeCollection): {
   rows: FilterInput[]; invalidRows: number; duplicateRows: number; warnings: string[];
+  rawRowsByListing: ReadonlyMap<string, number>;
 } {
   const selected = new Map(source.packet.selected.map(row => [listingKey(row), row]));
   const rows = new Map<string, FilterInput>();
   const seen = new Map<string, string>();
   const conflicts = new Set<string>();
   const consumed = new Map<string, number>();
+  const rawRowsByListing = new Map<string, number>();
   let invalidRows = 0;
   let duplicateRows = 0;
   const warnings = new Set<string>();
   for (const page of source.pages) {
     const values = parseJsonBytes(page.bytes) as unknown[];
     for (const [index, value] of values.entries()) {
+      const rawKey = rawListingKey(value);
+      if (rawKey && selected.has(rawKey)) rawRowsByListing.set(rawKey, (rawRowsByListing.get(rawKey) ?? 0) + 1);
       if (!validProviderRow(value)) { invalidRows++; warnings.add('invalid_provider_rows_excluded'); continue; }
       const key = 'shopee:' + value.shopId + ':' + value.itemId;
       const product = selected.get(key);
@@ -121,11 +125,12 @@ function normalize(source: VerifiedShopeeCollection): {
     }
   }
   invalidRows += conflicts.size;
-  return { rows: [...rows.values()], invalidRows, duplicateRows, warnings: [...warnings].sort() };
+  return { rows: [...rows.values()], invalidRows, duplicateRows, warnings: [...warnings].sort(), rawRowsByListing };
 }
 
 function buildSummary(source: VerifiedShopeeCollection, normalized: ReturnType<typeof normalize>, reviews: Review[]): ShopeeReviewResult['summary'] {
-  const incomplete = !['FIXTURE', 'SUCCEEDED'].includes(source.packet.actor.status);
+  const incomplete = !['FIXTURE', 'SUCCEEDED'].includes(source.packet.actor.status) ||
+    source.packet.actor.stopReason === 'dataset_read_failed';
   const warnings = [...source.packet.selectionWarnings, ...source.packet.collectorWarnings, ...normalized.warnings,
     'bestseller_listing_sample_not_market_population',
     'review_dates_not_restricted_to_revenue_selection_period',
@@ -134,10 +139,16 @@ function buildSummary(source: VerifiedShopeeCollection, normalized: ReturnType<t
   const listings = source.packet.selected.map(selected => {
     const key = listingKey(selected);
     const records = reviews.filter(row => row.listingKey === key);
+    const terminalFailure = ['FAILED', 'TIMED-OUT', 'ABORTED'].includes(source.packet.actor.status);
     return { productKey: selected.productKey, listingKey: key, collected: records.length,
       kept: records.filter(row => row.decision === 'kept').length,
-      status: incomplete ? (records.length ? 'partial' : 'unavailable') : records.length === 0 ? 'empty'
-        : records.length === 500 ? 'sample_limit' : 'below_limit' };
+      status: terminalFailure ? (records.length ? 'partial' : 'failed')
+        : incomplete ? (records.length ? 'partial' : 'unavailable')
+          : records.length === 0 && (normalized.rawRowsByListing.get(key) ?? 0) > 0 ? 'partial'
+            : records.length === 0 && source.packet.selected.length === 1 &&
+              source.packet.actor.stopReason === 'dataset_exhausted' ? 'empty'
+              : records.length === 0 ? 'unavailable'
+                : records.length === 500 ? 'sample_limit' : 'below_limit' };
   }) as ShopeeReviewResult['summary']['listings'];
   if (listings.some(row => row.collected < 500)) warnings.push('fewer_than_500_valid_unique_rows_some_listings_no_backfill');
   if (listings.some(row => row.status === 'empty')) warnings.push('empty_collection_does_not_prove_zero_source_reviews');
@@ -146,6 +157,7 @@ function buildSummary(source: VerifiedShopeeCollection, normalized: ReturnType<t
     fetchedRows: source.pages.reduce((total, page) => total + (parseJsonBytes(page.bytes) as unknown[]).length, 0),
     selectedProducts: listings.length, collected: reviews.length, kept, removed: reviews.length - kept,
     invalidRows: normalized.invalidRows, duplicateRows: normalized.duplicateRows,
+    providerReportedRows: source.packet.actor.providerTotalRows,
     warnings: [...new Set(warnings)].sort(), listings };
 }
 
@@ -165,7 +177,13 @@ async function runFilter(rows: FilterInput[], python: string): Promise<unknown> 
   return new Promise((resolve, reject) => {
     const child = spawn(python, ['-B', FILTER_PATH], {
       shell: false, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, PYTHONIOENCODING: 'utf-8' },
+      env: {
+        PATH: process.env.PATH,
+        LANG: process.env.LANG ?? 'C.UTF-8',
+        LC_ALL: process.env.LC_ALL ?? 'C.UTF-8',
+        PYTHONIOENCODING: 'utf-8',
+        PYTHONUTF8: '1',
+      },
     });
     const chunks: Buffer[] = [];
     let bytes = 0;
@@ -185,4 +203,15 @@ async function runFilter(rows: FilterInput[], python: string): Promise<unknown> 
     });
     child.stdin.end(JSON.stringify(rows));
   });
+}
+
+function rawListingKey(value: unknown): string | null {
+  if (!value || typeof value !== 'object') return null;
+  const record = value as Record<string, unknown>;
+  const normalizeId = (id: unknown): string | null =>
+    typeof id === 'string' && /^[1-9][0-9]{0,19}$/.test(id) ? id
+      : typeof id === 'number' && Number.isSafeInteger(id) && id > 0 ? String(id) : null;
+  const shopId = normalizeId(record.shopId);
+  const itemId = normalizeId(record.itemId);
+  return shopId && itemId ? `shopee:${shopId}:${itemId}` : null;
 }
