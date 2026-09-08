@@ -1,5 +1,13 @@
 # Trạng thái hiện tại
 
+## Chuẩn bị Task 015 (nhánh tài liệu local)
+
+- Đã ghi quyết định phỏng vấn trong `INTENT.md` và chuẩn bị `docs/tasks/015-on-demand-shopee-research.md`.
+- Scope đầu tiên: Metric Shopee → top 5 sản phẩm → 1 listing đại diện/sản phẩm → tối đa 500 comments/listing → raw + filter + cảnh báo thiếu dữ liệu.
+- Đã lưu baseline filter do chủ dự án cung cấp ở `references/reuse/shopee_review_filter.v3.py`; chưa chạy hoặc tích hợp.
+- Chưa implementation, dispatch Fedora, push/PR hoặc live calls. Offline verification và live verification được tách rõ; cần setup Metric Fedora và ngân sách trước paid smoke.
+- Phần bên dưới giữ nguyên trạng thái baseline sau Task 014; không tính tài liệu là năng lực đã xây.
+
 Cập nhật: 13/09/2026.
 
 - Hoàn thành và đã merge: Task 001 — SQLite foundation local cho Box 1, merge commit `8f625015db170fb12e7ebf0895c3a2d542273f43`.

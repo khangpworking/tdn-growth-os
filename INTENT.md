@@ -292,6 +292,8 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 ## Điểm tiếp tục phỏng vấn
 
+Đã chuẩn bị brief `docs/tasks/015-on-demand-shopee-research.md` cho lát cắt đầu tiên và lưu baseline script ở `references/reuse/shopee_review_filter.v3.py`. Các xử lý kỹ thuật còn mở trong brief là đề xuất implementation, không phải quyết định nghiệp vụ mới. Chưa dispatch/implementation/live run.
+
 **Điểm dừng mới:** Đã xác nhận hướng báo cáo tổng quan (D11), nghiên cứu chỉ chạy khi được yêu cầu (D12), và hệ thống thu thập dữ liệu mới qua các nguồn dự kiến (D13). Chat AI về báo cáo và layout chi tiết để sau. Không còn câu hỏi B0 đang chờ trả lời.
 
 **Đã trả lời:** Tiếp tục báo cáo khi thiếu nguồn, flag dữ liệu thiếu và dùng lại E0–E5 theo D14. D15 xác định cách truy cập từng nguồn và script có thể tái sử dụng.
