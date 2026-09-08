@@ -217,9 +217,17 @@ Nguyên tắc đề xuất khi triển khai, chưa phải schema hoặc matching
 - Nhóm listing về cùng sản phẩm khi có đủ thuộc tính đối chiếu; tên gần giống không đủ. Khác hàm lượng, quy cách, số viên hoặc combo có thể cần tách variant/offer; quy tắc chưa chốt.
 - Khi không chắc, giữ listing riêng và đánh dấu chưa xác định liên kết; không ép gộp.
 - Báo cáo phân biệt số listing và số sản phẩm đã xác định duy nhất. Chưa tự cộng doanh số hoặc suy ra số người mua duy nhất giữa shop/platform; cần kiểm tra kỳ, đơn vị, phạm vi và trùng bản ghi trước tổng hợp.
-- Chưa chốt lấy review từ mọi listing của một sản phẩm hay chọn listing đại diện theo từng nguồn. Đây là quyết định sampling và ngân sách, không phải dedup kỹ thuật đơn thuần.
+- Phạm vi lấy review đã được chốt tiếp ở D19: một listing Shopee đại diện cho mỗi sản phẩm. Tiêu chí chọn listing còn mở; đây là quyết định sampling và ngân sách, không phải dedup kỹ thuật đơn thuần.
 
 Không thay schema, chạy matching hoặc thu thập dữ liệu trong lần ghi nhận này.
+
+### D19 — Một listing Shopee đại diện cho mỗi sản phẩm
+
+Chủ dự án chọn lấy review từ một listing Shopee đại diện khi cùng sản phẩm xuất hiện ở nhiều shop. Không chạy Actor reviews trên mọi listing trùng sản phẩm trong phạm vi ban đầu.
+
+Quyết định này giới hạn lấy mẫu review, không xóa các listing khác khỏi dữ liệu thị trường. Review và kết luận dựa trên mẫu phải giữ liên kết về listing/shop được chọn, không mặc nhiên đại diện mọi người bán hoặc nền tảng.
+
+Tiêu chí chọn listing đại diện chưa chốt. Gợi ý để thảo luận: ưu tiên listing Shopee có doanh số trong kỳ nghiên cứu cao nhất trong nhóm cùng sản phẩm đã xác định; chưa coi gợi ý này là quy tắc đã duyệt. Không dùng thứ hạng đa nền tảng để gửi listing TikTok vào Actor Shopee.
 
 ## Framework mới — nội dung tham chiếu đã đọc
 
@@ -265,7 +273,9 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Thông tin kết nối:** Actor đã xác định theo D16; nơi lấy danh sách sản phẩm là Metric “Sản phẩm bán chạy” theo D17. D18 ghi nhận trùng sản phẩm giữa seller/platform. Cách trích URL live/export, output Actor thực tế và giới hạn chi phí/số lượng chưa xác minh/chốt; không cần gửi token qua chat. Mapping E0–E5 còn mở.
 
-**Câu tiếp theo, chưa trả lời:** Với một sản phẩm có nhiều listing Shopee, ban đầu sẽ lấy review từ một listing đại diện hay nhiều shop? Đề xuất bắt đầu một listing phù hợp và lưu đầy đủ các listing liên quan chưa được duyệt.
+**Đã trả lời:** Lấy review từ một listing Shopee đại diện cho mỗi sản phẩm (D19).
+
+**Câu tiếp theo, chưa trả lời:** Tiêu chí chọn listing đại diện là gì? Đề xuất ưu tiên doanh số trong kỳ nghiên cứu cao nhất trong các listing Shopee cùng sản phẩm chưa được duyệt.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
