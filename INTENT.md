@@ -159,6 +159,29 @@ Lưu ý thiết kế: bảng này trộn nguồn gốc, mức kiểm chứng và
 
 Khoảng cách kỹ thuật đã kiểm tra: code hiện lưu `grade` và `basis` với nhãn `synthetic`, `unverified`, `provider_reported`, `corroborated`, `verified`; chưa dùng trực tiếp enum E0–E5. Mapping, tiêu chí kiểm chứng và cách áp dụng cho bằng chứng/kết luận cần chốt khi triển khai, không tự thay schema trong phiên phỏng vấn này. Giữ lý do phân loại và nguồn truy xuất, không gán cấp chỉ theo tên provider.
 
+### D15 — Đường kết nối thực tế và tài sản tái sử dụng
+
+Chủ dự án làm rõ:
+
+- KaloData/Metric: truy cập qua đăng nhập Google OAuth trên website theo mô tả của chủ dự án, agent tự đăng nhập với CloakBrowser. Đã làm trên Windows với OpenClaw; chưa thiết lập trên Fedora. Không coi đây là API dữ liệu OAuth đã được xác nhận; cần kiểm tra luồng đăng nhập và xuất dữ liệu thực tế.
+- Apify: chủ dự án có API và số dư; hiện chủ yếu dùng Actor lấy Shopee comments. Actor ID/link, input schema, output mẫu và giới hạn chi phí mỗi lần chạy chưa được cung cấp. Có thể đề xuất scrape khác nếu cần, không coi số dư là ngân sách không giới hạn.
+- SerpApi là nhà cung cấp cụ thể cho Google Trends, News và có thể Shopping. Không gọi các kết nối này là API chính thức do Google cấp. Shopping/engine khác là năng lực khả dụng để cân nhắc, chưa tự thêm vào scope đầu tiên.
+
+Tài liệu đã kiểm tra: [CloakBrowser](https://github.com/CloakHQ/cloakbrowser), [Apify API](https://docs.apify.com/api/v2), [SerpApi engines](https://serpapi.com/search-engine-apis). CloakBrowser có wrapper Python/JavaScript kiểu Playwright; điều này không chứng minh đăng nhập Google/KaloData/Metric trên Fedora đã chạy được. Apify có luồng chạy Actor và lấy dataset; SerpApi liệt kê Trends, News và Shopping.
+
+Đã đọc toàn bộ file `C:/Users/Admin/Desktop/shopee_review_filter.py`, chưa chạy hoặc sửa. Script nhận bảng Markdown rồi xuất JSON kept/removed; không phải Apify connector. Tái sử dụng được chuẩn hóa tiếng Việt, tách guided fields/metadata, phân loại noise/signal, lý do loại và xếp hạng review. Đây là heuristic chuyên canxi, không phải fact-check hoặc thang E0–E5.
+
+Các điểm cần xử lý khi tích hợp, chưa phải thay đổi đã làm:
+
+- Adapter từ output Actor thực tế; kiểm tra input rỗng, star không hợp lệ, UTF-8 output và dùng hàm không tự chạy I/O khi import.
+- Dedup hiện theo nội dung chuẩn hóa trên toàn bộ input, không theo sản phẩm; có thể làm mất phân bổ review giữa sản phẩm. Cần giữ lineage và số lượng nguồn gốc.
+- Score ưu tiên tín hiệu tiêu cực/sao thấp; không dùng phân bố tập đã lọc để kết luận tỷ lệ hài lòng toàn thị trường.
+- Bộ lọc loại/giảm tín hiệu giá, vận chuyển, dịch vụ và tin cậy cửa hàng. Đề xuất giữ raw bất biến, tạo view lọc riêng cho product experience để không mất dữ liệu có ích cho nghiên cứu khác. Chưa tự áp dụng bộ lọc này làm quy tắc loại toàn kho.
+
+Chủ dự án ưu tiên tốc độ, không muốn security quá nặng. Giữ tối thiểu credentials/session ngoài Git và log, không đưa vào prompt; khi cần xác thực bổ sung thì yêu cầu người dùng. Chưa login, truy cập tài khoản, gọi API trả phí hay thiết lập Fedora trong phiên này.
+
+Đề xuất thứ tự triển khai, chưa chốt: Apify Shopee + filter có phạm vi rõ trước; SerpApi Trends/News sau; kiểm tra khả năng tái sử dụng browser flow KaloData/Metric trên Fedora riêng. Không cần thêm nguồn chỉ để mở rộng danh sách.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -199,7 +222,9 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Điểm dừng mới:** Đã xác nhận hướng báo cáo tổng quan (D11), nghiên cứu chỉ chạy khi được yêu cầu (D12), và hệ thống thu thập dữ liệu mới qua các nguồn dự kiến (D13). Chat AI về báo cáo và layout chi tiết để sau. Không còn câu hỏi B0 đang chờ trả lời.
 
-**Đã trả lời:** Tiếp tục báo cáo khi thiếu nguồn, flag dữ liệu thiếu và dùng lại E0–E5 theo D14. Câu hỏi tiếp theo chưa chốt; quy tắc mapping vào implementation còn mở.
+**Đã trả lời:** Tiếp tục báo cáo khi thiếu nguồn, flag dữ liệu thiếu và dùng lại E0–E5 theo D14. D15 xác định cách truy cập từng nguồn và script có thể tái sử dụng.
+
+**Thông tin kết nối đang thiếu:** Link/ID Apify Actor Shopee đang dùng, input JSON đã bỏ thông tin nhạy cảm và một output mẫu đã ẩn thông tin người dùng. Không cần gửi token qua chat. Ngân sách live run và mapping E0–E5 vẫn chưa chốt.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
