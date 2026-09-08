@@ -202,6 +202,25 @@ Giới hạn xác minh: đã kiểm tra HTML tĩnh, chưa thao tác phiên Metri
 
 Luồng dự kiến: Metric danh sách sản phẩm → chọn listing Shopee và lấy URL hợp lệ → Apify reviews → lưu raw → view lọc → bằng chứng cho báo cáo. Số sản phẩm, tiêu chí xếp hạng/lấy mẫu và giới hạn reviews chưa chốt. “Sản phẩm bán chạy” là nguồn lấy mẫu, không tự đại diện mọi phân khúc thị trường.
 
+### D18 — Bestseller là listing, không mặc nhiên là sản phẩm duy nhất
+
+Chủ dự án nêu hai trường hợp phải xử lý trong danh sách Metric:
+
+- Cùng một sản phẩm xuất hiện ở nhiều shop/người bán/nhà phân phối.
+- Cùng một sản phẩm xuất hiện trên nhiều nền tảng, thường Shopee và TikTok Shop.
+
+Vì vậy, thứ hạng khác nhau không tự đồng nghĩa sản phẩm khác nhau. Cần phân biệt sản phẩm nghiệp vụ với listing theo nền tảng và người bán. Giữ riêng nguồn, rank, kỳ dữ liệu, doanh số và review của từng listing; không xóa listing chỉ vì cùng sản phẩm hoặc chuyển review giữa seller/platform.
+
+Nguyên tắc đề xuất khi triển khai, chưa phải schema hoặc matching policy đã duyệt:
+
+- Shopee dùng platform + shopId + itemId để nhận diện listing. TikTok dùng định danh listing riêng; không gửi URL TikTok vào Actor review Shopee.
+- Nhóm listing về cùng sản phẩm khi có đủ thuộc tính đối chiếu; tên gần giống không đủ. Khác hàm lượng, quy cách, số viên hoặc combo có thể cần tách variant/offer; quy tắc chưa chốt.
+- Khi không chắc, giữ listing riêng và đánh dấu chưa xác định liên kết; không ép gộp.
+- Báo cáo phân biệt số listing và số sản phẩm đã xác định duy nhất. Chưa tự cộng doanh số hoặc suy ra số người mua duy nhất giữa shop/platform; cần kiểm tra kỳ, đơn vị, phạm vi và trùng bản ghi trước tổng hợp.
+- Chưa chốt lấy review từ mọi listing của một sản phẩm hay chọn listing đại diện theo từng nguồn. Đây là quyết định sampling và ngân sách, không phải dedup kỹ thuật đơn thuần.
+
+Không thay schema, chạy matching hoặc thu thập dữ liệu trong lần ghi nhận này.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -244,7 +263,9 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Đã trả lời:** Tiếp tục báo cáo khi thiếu nguồn, flag dữ liệu thiếu và dùng lại E0–E5 theo D14. D15 xác định cách truy cập từng nguồn và script có thể tái sử dụng.
 
-**Thông tin kết nối:** Actor đã xác định theo D16; nơi lấy danh sách sản phẩm là Metric “Sản phẩm bán chạy” theo D17. Cách trích URL live/export, output Actor thực tế và giới hạn chi phí/số lượng chưa xác minh/chốt; không cần gửi token qua chat. Mapping E0–E5 còn mở.
+**Thông tin kết nối:** Actor đã xác định theo D16; nơi lấy danh sách sản phẩm là Metric “Sản phẩm bán chạy” theo D17. D18 ghi nhận trùng sản phẩm giữa seller/platform. Cách trích URL live/export, output Actor thực tế và giới hạn chi phí/số lượng chưa xác minh/chốt; không cần gửi token qua chat. Mapping E0–E5 còn mở.
+
+**Câu tiếp theo, chưa trả lời:** Với một sản phẩm có nhiều listing Shopee, ban đầu sẽ lấy review từ một listing đại diện hay nhiều shop? Đề xuất bắt đầu một listing phù hợp và lưu đầy đủ các listing liên quan chưa được duyệt.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
