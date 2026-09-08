@@ -239,7 +239,20 @@ Chủ dự án chọn 5 sản phẩm đứng đầu sau khi xử lý listing tr�
 
 Chủ dự án muốn người dùng có thể chỉnh số sản phẩm và số comments thủ công trong tương lai, nhưng chưa xây chức năng đó ở scope hiện tại. Giữ các giá trị trong cấu hình nội bộ rõ ràng để dễ thay đổi khi cần; không tạo UI/editor cấu hình lúc này.
 
-Chưa chốt riêng cách xếp hạng nhóm sản phẩm đa nền tảng khi chọn top 5; không tự cộng doanh số các listing để tạo thứ hạng mới. D19 chỉ xác định cách chọn listing đại diện trong một nhóm sản phẩm. Mức tiền cho live run và chính sách retry vẫn cần giới hạn riêng; 2.500 comments không đồng nghĩa cho phép chi tiêu không giới hạn.
+Cách chọn top 5 ban đầu được chốt ở D21: lọc Shopee trước rồi đi theo doanh số trong kỳ. Xếp hạng đa nền tảng để tương lai; không tự cộng doanh số các listing để tạo thứ hạng mới. Mức tiền cho live run và chính sách retry vẫn cần giới hạn riêng; 2.500 comments không đồng nghĩa cho phép chi tiêu không giới hạn.
+
+### D21 — Shopee trước; Shopee + TikTok Shop trong tương lai
+
+Chủ dự án đồng ý cách chọn cho phiên bản đầu tiên:
+
+1. Lọc danh sách Metric chỉ còn listing Shopee.
+2. Sắp xếp doanh số trong kỳ nghiên cứu giảm dần.
+3. Đi xuống danh sách, nhóm các listing đã xác định là cùng sản phẩm; lấy đến 5 sản phẩm khác nhau. Listing đầu tiên của mỗi nhóm là đại diện theo D19.
+4. Thu thập tối đa 500 comments cho mỗi listing đại diện theo D20. Nếu thiếu sản phẩm/dữ liệu, ghi rõ phạm vi thực tế thay vì tạo đủ giả định.
+
+Đây không phải xếp hạng theo tổng doanh số cộng gộp của mọi shop. Quy tắc xác định cùng sản phẩm/variant và xử lý bằng doanh số vẫn cần nêu rõ trong spec; chưa tự coi tên giống nhau là trùng sản phẩm.
+
+Chủ dự án yêu cầu tương lai hỗ trợ cả Shopee và TikTok Shop. Không xây connector reviews TikTok, cơ chế chọn đại diện đa nền tảng hoặc xếp hạng gộp trong scope hiện tại. Giữ nhận diện platform rõ ràng để mở rộng sau; chưa quyết định quota chia theo nền tảng, ranking hay chính sách sampling đa nền tảng.
 
 ## Framework mới — nội dung tham chiếu đã đọc
 
@@ -287,7 +300,7 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Đã trả lời:** Lấy review từ một listing Shopee đại diện cho mỗi sản phẩm (D19).
 
-**Đã trả lời:** Chọn listing Shopee cùng sản phẩm có doanh số trong kỳ nghiên cứu cao nhất (D19); top 5 sản phẩm × tối đa 500 comments mỗi sản phẩm (D20). Chỉnh giới hạn thủ công cho người dùng để tương lai. Có thể chuẩn bị implementation task; cần ghi rõ cách chọn top 5 đa nền tảng chưa chốt, không tự gộp doanh số.
+**Đã trả lời:** Chọn listing Shopee cùng sản phẩm có doanh số trong kỳ nghiên cứu cao nhất (D19); top 5 sản phẩm × tối đa 500 comments mỗi sản phẩm (D20); lọc Shopee trước, sắp xếp doanh số trong kỳ rồi lấy 5 sản phẩm khác nhau (D21). Chỉnh giới hạn thủ công và hỗ trợ cả Shopee + TikTok Shop để tương lai. Đủ quyết định chọn mẫu để chuẩn bị spec Task 015; chưa có implementation/live run được thực hiện từ cuộc phỏng vấn.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
