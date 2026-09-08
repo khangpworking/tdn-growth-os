@@ -200,7 +200,7 @@ export interface ShopeeCollection {
     settings: {
       maxReviewsPerProduct: number;
       starFilter: 'all';
-      contentFilter: 'with comments';
+      contentFilter: 'all' | 'with comments';
       maxChargeUsd: number | null;
     };
     inputSha256: string;

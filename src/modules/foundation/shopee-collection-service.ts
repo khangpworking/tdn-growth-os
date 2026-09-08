@@ -180,14 +180,14 @@ function assertCollectorMetadata(collected: CollectedPages, selected: readonly S
       actor.settings.maxReviewsPerProduct > 500 || actor.settings.starFilter !== 'all' ||
       (actor.usageTotalUsd !== null && (!Number.isFinite(actor.usageTotalUsd) || actor.usageTotalUsd < 0 ||
         actor.usageTotalUsd > 10_000)) ||
-      actor.settings.contentFilter !== 'with comments' ||
+      !['all', 'with comments'].includes(actor.settings.contentFilter) ||
       (collected.mode === 'fixture' ? actor.settings.maxChargeUsd !== null
         : actor.settings.maxChargeUsd === null || !Number.isFinite(actor.settings.maxChargeUsd) ||
           actor.settings.maxChargeUsd <= 0 || actor.settings.maxChargeUsd > 10_000)) {
     throw new Error('Invalid fixed collector provenance');
   }
   const expectedInputSha256 = selected.length === 0 ? '0'.repeat(64)
-    : shopeeActorInputSha256(selected, actor.settings.maxReviewsPerProduct);
+    : shopeeActorInputSha256(selected, actor.settings.maxReviewsPerProduct, actor.settings.contentFilter);
   if (actor.inputSha256 !== expectedInputSha256) throw new Error('Collector input does not match selected listings');
   if (collected.mode === 'fixture') {
     if (actor.settings.maxReviewsPerProduct !== 500 || actor.runId !== null || actor.datasetId !== null || actor.buildId !== null ||

@@ -119,7 +119,7 @@
           "properties": {
             "maxReviewsPerProduct": { "type": "integer", "minimum": 1, "maximum": 500 },
             "starFilter": { "const": "all" },
-            "contentFilter": { "const": "with comments" },
+            "contentFilter": { "enum": ["all", "with comments"] },
             "maxChargeUsd": {
               "anyOf": [
                 { "type": "number", "exclusiveMinimum": 0, "maximum": 10000 },
