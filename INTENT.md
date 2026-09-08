@@ -196,7 +196,9 @@ Chủ dự án xác nhận thường lấy URL Shopee từ mục “Sản phẩm
 
 Đã kiểm tra phần này trong `C:/Users/Admin/Downloads/TDN Research Pipeline - canxi calcium - 2026-08-14/metric html version.html`: có tên sản phẩm, gian hàng, giá, rating, số đánh giá, doanh số/sản lượng theo kỳ và tổng; giao diện lưu đang chọn “Tổng doanh số”, “Giảm dần”, 20 sản phẩm/trang. Danh sách có dữ liệu đa nền tảng; cần chọn đúng sản phẩm Shopee trước khi gửi Actor.
 
-Giới hạn bằng chứng: phần đã lưu không có thuộc tính href; không tìm thấy URL Shopee trực tiếp trong HTML qua kiểm tra chuỗi URL. File xác nhận nơi lấy danh sách nhưng chưa chứng minh có thể trích URL bằng parser HTML tĩnh. Cần kiểm tra link trên phiên Metric live hoặc export có URL/ID; không đoán link từ tên sản phẩm.
+Chủ dự án làm rõ: đây là HTML tải xuống, không phải trang live; trên phiên web Metric có thể click vào sản phẩm. Việc không tìm thấy href/URL Shopee trong bản lưu không chứng minh trang live thiếu đường truy cập sản phẩm.
+
+Giới hạn xác minh: đã kiểm tra HTML tĩnh, chưa thao tác phiên Metric live. Tiếp tục theo đường click sản phẩm trên web để lấy URL Shopee; đích click trực tiếp hay qua trang chi tiết và cách thu URL chính xác cần xác minh khi tích hợp. Không đoán link từ tên sản phẩm hoặc thêm search scraper chỉ vì bản HTML lưu không có link.
 
 Luồng dự kiến: Metric danh sách sản phẩm → chọn listing Shopee và lấy URL hợp lệ → Apify reviews → lưu raw → view lọc → bằng chứng cho báo cáo. Số sản phẩm, tiêu chí xếp hạng/lấy mẫu và giới hạn reviews chưa chốt. “Sản phẩm bán chạy” là nguồn lấy mẫu, không tự đại diện mọi phân khúc thị trường.
 
