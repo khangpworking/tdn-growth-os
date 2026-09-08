@@ -182,6 +182,14 @@ Chủ dự án ưu tiên tốc độ, không muốn security quá nặng. Giữ 
 
 Đề xuất thứ tự triển khai, chưa chốt: Apify Shopee + filter có phạm vi rõ trước; SerpApi Trends/News sau; kiểm tra khả năng tái sử dụng browser flow KaloData/Metric trên Fedora riêng. Không cần thêm nguồn chỉ để mở rộng danh sách.
 
+### D16 — Actor Shopee đã được xác định
+
+Chủ dự án cung cấp [zen-studio/shopee-product-reviews-scraper](https://apify.com/zen-studio/shopee-product-reviews-scraper/api/python). Đã đọc API example, Input và README công khai; chưa chạy Actor.
+
+Tài liệu yêu cầu `startUrls`; có `starFilter`, `contentFilter`, `maxReviewsPerProduct` (0 là không giới hạn theo cấu hình). Output mẫu có `reviewId`, `itemId`, `shopId`, `ratingStar`, `comment`, thời gian và `templateTags`. README mô tả summary riêng theo sản phẩm. Đây là mô tả provider, chưa phải output thực tế đã xác minh.
+
+Đề xuất dùng JSON trực tiếp vào logic filter, không vòng qua Markdown. Cần giữ product identity, đối chiếu templateTags thực tế và không tự coi sample documentation là schema đã kiểm thử. Có thể bắt đầu thiết kế offline; kiểm tra live vẫn cần URL sản phẩm và giới hạn lần chạy được duyệt. Actor này nhận URL sản phẩm, không tự giải quyết bước từ chủ đề rộng đến danh sách sản phẩm.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -224,7 +232,7 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Đã trả lời:** Tiếp tục báo cáo khi thiếu nguồn, flag dữ liệu thiếu và dùng lại E0–E5 theo D14. D15 xác định cách truy cập từng nguồn và script có thể tái sử dụng.
 
-**Thông tin kết nối đang thiếu:** Link/ID Apify Actor Shopee đang dùng, input JSON đã bỏ thông tin nhạy cảm và một output mẫu đã ẩn thông tin người dùng. Không cần gửi token qua chat. Ngân sách live run và mapping E0–E5 vẫn chưa chốt.
+**Thông tin kết nối:** Actor đã xác định theo D16; documentation có input/output mẫu đủ để bắt đầu thiết kế offline. Output thực tế chưa xác minh. Lần live cần URL sản phẩm và giới hạn chi phí/số lượng được duyệt; không cần gửi token qua chat. Chưa chốt cách chọn URL sản phẩm từ chủ đề rộng hoặc mapping E0–E5.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
