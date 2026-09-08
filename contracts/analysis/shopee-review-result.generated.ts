@@ -10,7 +10,7 @@ export interface ShopeeReviewResult {
   summary: {
     mode: 'fixture' | 'live';
     requestedProducts: 5;
-    maxCommentsPerProduct: 500;
+    maxCommentsPerProduct: number;
     selectedProducts: number;
     collected: number;
     kept: number;

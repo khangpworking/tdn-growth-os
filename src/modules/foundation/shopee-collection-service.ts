@@ -34,6 +34,7 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     const selection = selectShopeeListings(request);
     assertCollectorMetadata(collected, selection.selected);
     let rows = 0;
+    const perListingLimit = collected.actor.settings.maxReviewsPerProduct;
     const perListing = new Map<string, number>();
     const selectedKeys = new Set(selection.selected.map(row => row.platform + ':' + row.shopId + ':' + row.itemId));
     for (const page of collected.pages) {
@@ -46,11 +47,11 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
         const key = `shopee:${String(record.shopId)}:${String(record.itemId)}`;
         if (!selectedKeys.has(key)) continue;
         const count = (perListing.get(key) ?? 0) + 1;
-        if (count > 500) throw new Error('Collection exceeds per-listing row budget');
+        if (count > perListingLimit) throw new Error('Collection exceeds per-listing row budget');
         perListing.set(key, count);
       }
     }
-    if (rows > selection.selected.length * 500) throw new Error('Collection exceeds selected-product row budget');
+    if (rows > selection.selected.length * perListingLimit) throw new Error('Collection exceeds selected-product row budget');
     if (collected.actor.providerTotalRows !== null && collected.actor.providerTotalRows < rows) {
       throw new Error('Provider total is below fetched rows');
     }
@@ -129,6 +130,7 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
         evidence.evidence_grade !== (packet.mode === 'fixture' ? 'synthetic' : 'unverified')) throw new Error('Collection lineage mismatch');
     const pages = [];
     let offset = 0;
+    const perListingLimit = packet.actor.settings.maxReviewsPerProduct;
     const perListing = new Map<string, number>();
     const selectedKeys = new Set(packet.selected.map(row => row.platform + ':' + row.shopId + ':' + row.itemId));
     for (const page of packet.pages) {
@@ -142,12 +144,12 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
         const key = `shopee:${String(record.shopId)}:${String(record.itemId)}`;
         if (!selectedKeys.has(key)) continue;
         const count = (perListing.get(key) ?? 0) + 1;
-        if (count > 500) throw new Error('Collection per-listing row budget mismatch');
+        if (count > perListingLimit) throw new Error('Collection per-listing row budget mismatch');
         perListing.set(key, count);
       }
       pages.push({ bytes: raw, sha256: page.sha256, offset: page.offset });
     }
-    if (offset > packet.selected.length * 500) throw new Error('Collection row budget mismatch');
+    if (offset > packet.selected.length * perListingLimit) throw new Error('Collection row budget mismatch');
     if (packet.actor.providerTotalRows !== null && packet.actor.providerTotalRows < offset) {
       throw new Error('Collection provider total mismatch');
     }
@@ -174,17 +176,21 @@ function actorIdentity(actor: ShopeeCollection['actor']): Omit<ShopeeCollection[
 function assertCollectorMetadata(collected: CollectedPages, selected: readonly ShopeeCollection['selected'][number][]): void {
   const actor = collected.actor;
   if (actor.actorId !== 'zen-studio/shopee-product-reviews-scraper' ||
-      actor.settings.maxReviewsPerProduct !== 500 || actor.settings.starFilter !== 'all' ||
+      !Number.isSafeInteger(actor.settings.maxReviewsPerProduct) || actor.settings.maxReviewsPerProduct < 1 ||
+      actor.settings.maxReviewsPerProduct > 500 || actor.settings.starFilter !== 'all' ||
+      (actor.usageTotalUsd !== null && (!Number.isFinite(actor.usageTotalUsd) || actor.usageTotalUsd < 0 ||
+        actor.usageTotalUsd > 10_000)) ||
       actor.settings.contentFilter !== 'with comments' ||
       (collected.mode === 'fixture' ? actor.settings.maxChargeUsd !== null
         : actor.settings.maxChargeUsd === null || !Number.isFinite(actor.settings.maxChargeUsd) ||
           actor.settings.maxChargeUsd <= 0 || actor.settings.maxChargeUsd > 10_000)) {
     throw new Error('Invalid fixed collector provenance');
   }
-  const expectedInputSha256 = selected.length === 0 ? '0'.repeat(64) : shopeeActorInputSha256(selected);
+  const expectedInputSha256 = selected.length === 0 ? '0'.repeat(64)
+    : shopeeActorInputSha256(selected, actor.settings.maxReviewsPerProduct);
   if (actor.inputSha256 !== expectedInputSha256) throw new Error('Collector input does not match selected listings');
   if (collected.mode === 'fixture') {
-    if (actor.runId !== null || actor.datasetId !== null || actor.buildId !== null ||
+    if (actor.settings.maxReviewsPerProduct !== 500 || actor.runId !== null || actor.datasetId !== null || actor.buildId !== null ||
         !((actor.status === 'FIXTURE' && actor.stopReason === 'fixture_complete') ||
           (actor.status === 'FAILED' && actor.stopReason === 'actor_terminal_failed') ||
           (actor.status === 'NOT_STARTED' && actor.stopReason === 'not_started_no_eligible_listings' &&

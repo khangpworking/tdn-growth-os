@@ -13,11 +13,19 @@ export interface CollectedPages {
   pages: { bytes: Buffer; offset: number }[];
 }
 
+export const PRODUCTION_MAX_REVIEWS_PER_PRODUCT = 500 as const;
+export const SMOKE_MAX_REVIEWS_PER_PRODUCT = 50 as const;
 export const FIXED_SHOPEE_SETTINGS = Object.freeze({
-  maxReviewsPerProduct: 500 as const,
   starFilter: 'all' as const,
   contentFilter: 'with comments' as const,
 });
+
+function validateMaxReviewsPerProduct(value: number): number {
+  if (!Number.isSafeInteger(value) || value < 1 || value > PRODUCTION_MAX_REVIEWS_PER_PRODUCT) {
+    throw new Error('Reviews per product must be an integer from 1 through 500');
+  }
+  return value;
+}
 export interface ShopeeCollector {
   readonly mode: 'fixture' | 'live';
   collect(selected: SelectedListing[], requestSha256: string, runKey: string): Promise<CollectedPages>;
@@ -28,11 +36,17 @@ export class FixtureShopeeCollector implements ShopeeCollector {
   constructor(readonly bytes: Buffer) {}
   async collect(selected: SelectedListing[]): Promise<CollectedPages> {
     const value = parseJsonBytes(this.bytes);
-    if (!Array.isArray(value) || value.length > 2500) throw new Error('Fixture must be a JSON array of at most 2500 rows');
+    const maximum = selected.length * PRODUCTION_MAX_REVIEWS_PER_PRODUCT;
+    if (!Array.isArray(value) || value.length > maximum) {
+      throw new Error(`Fixture must be a JSON array of at most ${maximum} rows`);
+    }
     return { mode: 'fixture', actor: {
-      actorId: SHOPEE_ACTOR, settings: { ...FIXED_SHOPEE_SETTINGS, maxChargeUsd: null },
-      inputSha256: shopeeActorInputSha256(selected), runId: null, datasetId: null, buildId: null, status: 'FIXTURE',
-      retrievedAt: new Date().toISOString(), providerTotalRows: null, stopReason: 'fixture_complete',
+      actorId: SHOPEE_ACTOR, settings: { maxReviewsPerProduct: PRODUCTION_MAX_REVIEWS_PER_PRODUCT,
+        ...FIXED_SHOPEE_SETTINGS, maxChargeUsd: null },
+      inputSha256: shopeeActorInputSha256(selected, PRODUCTION_MAX_REVIEWS_PER_PRODUCT),
+      runId: null, datasetId: null, buildId: null, status: 'FIXTURE',
+      retrievedAt: new Date().toISOString(), providerTotalRows: null, usageTotalUsd: null,
+      stopReason: 'fixture_complete',
     }, warnings: ['synthetic_fixture_not_live_evidence'], pages: [{ bytes: Buffer.from(this.bytes), offset: 0 }] };
   }
 }
@@ -44,7 +58,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
   readonly #fetch: typeof fetch;
   readonly #sleep: (ms: number) => Promise<unknown>;
   constructor(readonly options: {
-    token: string; maxChargeUsd: number; journalRoot: string;
+    token: string; maxChargeUsd: number; journalRoot: string; maxReviewsPerProduct?: number;
     fetch?: typeof fetch; sleep?: (ms: number) => Promise<unknown>; maxPolls?: number;
   }) {
     if (!options.token.trim() || !Number.isFinite(options.maxChargeUsd) || options.maxChargeUsd <= 0) {
@@ -53,6 +67,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
     if (options.maxChargeUsd > 10_000) {
       throw new Error('Approved charge cap exceeds the bounded maximum');
     }
+    validateMaxReviewsPerProduct(options.maxReviewsPerProduct ?? PRODUCTION_MAX_REVIEWS_PER_PRODUCT);
     this.#fetch = options.fetch ?? fetch;
     this.#sleep = options.sleep ?? delay;
   }
@@ -60,7 +75,10 @@ export class ApifyShopeeCollector implements ShopeeCollector {
   async collect(selected: SelectedListing[], requestSha256: string, runKey: string): Promise<CollectedPages> {
     if (!/^[a-f0-9]{64}$/.test(requestSha256) || !/^[a-z0-9][a-z0-9-]{2,79}$/.test(runKey) || selected.length < 1 || selected.length > 5 ||
         selected.some(row => !shopeeUrlMatches(row))) throw new Error('Invalid bounded Shopee selection');
-    const input = shopeeActorInput(selected);
+    const maxReviewsPerProduct = validateMaxReviewsPerProduct(
+      this.options.maxReviewsPerProduct ?? PRODUCTION_MAX_REVIEWS_PER_PRODUCT,
+    );
+    const input = shopeeActorInput(selected, maxReviewsPerProduct);
     // Stable runKey prevents changed input/formatting from bypassing an uncertain start.
     const journalRoot = path.resolve(this.options.journalRoot);
     await ensureDirectory(journalRoot);
@@ -109,7 +127,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
       const pages: CollectedPages['pages'] = [];
       let offset = 0;
       // Do not request more rows to compensate for filtering, invalid rows or duplicates.
-      const maximum = selected.length * 500;
+      const maximum = selected.length * maxReviewsPerProduct;
       let exhausted = false;
       let readFailed = false;
       let providerTotalRows: number | null = null;
@@ -137,10 +155,11 @@ export class ApifyShopeeCollector implements ShopeeCollector {
         : run.status === 'TIMED-OUT' ? 'actor_terminal_timed-out' as const
         : run.status === 'ABORTED' ? 'actor_terminal_aborted' as const : null;
       return { mode: 'live', actor: {
-        actorId: SHOPEE_ACTOR, settings: { ...FIXED_SHOPEE_SETTINGS, maxChargeUsd: this.options.maxChargeUsd },
+        actorId: SHOPEE_ACTOR, settings: { maxReviewsPerProduct, ...FIXED_SHOPEE_SETTINGS,
+          maxChargeUsd: this.options.maxChargeUsd },
         inputSha256: createHash('sha256').update(jsonBytes(input)).digest('hex'),
         runId: run.id, datasetId: run.defaultDatasetId, buildId: run.buildId, status: run.status,
-        retrievedAt: new Date().toISOString(), providerTotalRows,
+        retrievedAt: new Date().toISOString(), providerTotalRows, usageTotalUsd: run.usageTotalUsd,
         stopReason: terminalReason ?? (readFailed ? 'dataset_read_failed'
           : exhausted ? 'dataset_exhausted' : 'collection_limit_reached'),
       }, warnings: terminalReason ? [terminalReason] : readFailed ? ['dataset_read_failed'] : [], pages };
@@ -187,14 +206,19 @@ export class ApifyShopeeCollector implements ShopeeCollector {
   }
 }
 
-interface Run { id: string; defaultDatasetId: string; buildId: string | null; status: string }
+interface Run {
+  id: string; defaultDatasetId: string; buildId: string | null; status: string; usageTotalUsd: number | null;
+}
 function parseRun(value: unknown): Run {
   const data = (value as { data?: Partial<Run> } | null)?.data;
   const validId = (x: unknown): x is string => typeof x === 'string' && /^[a-zA-Z0-9]{1,100}$/.test(x);
   if (!data || !validId(data.id) || !validId(data.defaultDatasetId) ||
       typeof data.status !== 'string' || !/^[A-Z-]{1,40}$/.test(data.status) ||
-      (data.buildId != null && !validId(data.buildId))) throw new Error('Invalid Actor run metadata');
-  return { id: data.id, defaultDatasetId: data.defaultDatasetId, status: data.status, buildId: data.buildId ?? null };
+      (data.buildId != null && !validId(data.buildId)) ||
+      (data.usageTotalUsd != null && (!Number.isFinite(data.usageTotalUsd) || data.usageTotalUsd < 0 ||
+        data.usageTotalUsd > 10_000))) throw new Error('Invalid Actor run metadata');
+  return { id: data.id, defaultDatasetId: data.defaultDatasetId, status: data.status,
+    buildId: data.buildId ?? null, usageTotalUsd: data.usageTotalUsd ?? null };
 }
 async function readOptional(file: string): Promise<Buffer | null> {
   try { return await fs.readFile(file); }
@@ -228,15 +252,18 @@ async function ensureDirectory(directoryPath: string): Promise<void> {
   await syncDirectory(parent);
 }
 
-export function shopeeActorInput(selected: readonly SelectedListing[]): {
-  startUrls: { url: string }[];
-  maxReviewsPerProduct: 500;
-  starFilter: 'all';
-  contentFilter: 'with comments';
-} {
-  return { startUrls: selected.map(row => ({ url: row.productUrl })), ...FIXED_SHOPEE_SETTINGS };
+export function shopeeActorInput(selected: readonly SelectedListing[],
+  maxReviewsPerProduct: number = PRODUCTION_MAX_REVIEWS_PER_PRODUCT): {
+    startUrls: { url: string }[];
+    maxReviewsPerProduct: number;
+    starFilter: 'all';
+    contentFilter: 'with comments';
+  } {
+  return { startUrls: selected.map(row => ({ url: row.productUrl })),
+    maxReviewsPerProduct: validateMaxReviewsPerProduct(maxReviewsPerProduct), ...FIXED_SHOPEE_SETTINGS };
 }
 
-export function shopeeActorInputSha256(selected: readonly SelectedListing[]): string {
-  return createHash('sha256').update(jsonBytes(shopeeActorInput(selected))).digest('hex');
+export function shopeeActorInputSha256(selected: readonly SelectedListing[],
+  maxReviewsPerProduct: number = PRODUCTION_MAX_REVIEWS_PER_PRODUCT): string {
+  return createHash('sha256').update(jsonBytes(shopeeActorInput(selected, maxReviewsPerProduct))).digest('hex');
 }

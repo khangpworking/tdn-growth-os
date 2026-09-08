@@ -117,7 +117,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "maxReviewsPerProduct": { "const": 500 },
+            "maxReviewsPerProduct": { "type": "integer", "minimum": 1, "maximum": 500 },
             "starFilter": { "const": "all" },
             "contentFilter": { "const": "with comments" },
             "maxChargeUsd": {
@@ -184,6 +184,12 @@
             { "type": "null" }
           ]
         },
+        "usageTotalUsd": {
+          "anyOf": [
+            { "type": "number", "minimum": 0, "maximum": 10000 },
+            { "type": "null" }
+          ]
+        },
         "stopReason": {
           "enum": [
             "fixture_complete",
@@ -207,6 +213,7 @@
         "status",
         "retrievedAt",
         "providerTotalRows",
+        "usageTotalUsd",
         "stopReason"
       ]
     },
