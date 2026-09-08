@@ -190,6 +190,16 @@ Tài liệu yêu cầu `startUrls`; có `starFilter`, `contentFilter`, `maxRevie
 
 Đề xuất dùng JSON trực tiếp vào logic filter, không vòng qua Markdown. Cần giữ product identity, đối chiếu templateTags thực tế và không tự coi sample documentation là schema đã kiểm thử. Có thể bắt đầu thiết kế offline; kiểm tra live vẫn cần URL sản phẩm và giới hạn lần chạy được duyệt. Actor này nhận URL sản phẩm, không tự giải quyết bước từ chủ đề rộng đến danh sách sản phẩm.
 
+### D17 — Nguồn danh sách sản phẩm: Metric “Sản phẩm bán chạy”
+
+Chủ dự án xác nhận thường lấy URL Shopee từ mục “Sản phẩm bán chạy” của Metric. Đây là đường tìm sản phẩm đầu vào cho Actor reviews, không cần mặc định thêm Actor tìm kiếm sản phẩm riêng.
+
+Đã kiểm tra phần này trong `C:/Users/Admin/Downloads/TDN Research Pipeline - canxi calcium - 2026-08-14/metric html version.html`: có tên sản phẩm, gian hàng, giá, rating, số đánh giá, doanh số/sản lượng theo kỳ và tổng; giao diện lưu đang chọn “Tổng doanh số”, “Giảm dần”, 20 sản phẩm/trang. Danh sách có dữ liệu đa nền tảng; cần chọn đúng sản phẩm Shopee trước khi gửi Actor.
+
+Giới hạn bằng chứng: phần đã lưu không có thuộc tính href; không tìm thấy URL Shopee trực tiếp trong HTML qua kiểm tra chuỗi URL. File xác nhận nơi lấy danh sách nhưng chưa chứng minh có thể trích URL bằng parser HTML tĩnh. Cần kiểm tra link trên phiên Metric live hoặc export có URL/ID; không đoán link từ tên sản phẩm.
+
+Luồng dự kiến: Metric danh sách sản phẩm → chọn listing Shopee và lấy URL hợp lệ → Apify reviews → lưu raw → view lọc → bằng chứng cho báo cáo. Số sản phẩm, tiêu chí xếp hạng/lấy mẫu và giới hạn reviews chưa chốt. “Sản phẩm bán chạy” là nguồn lấy mẫu, không tự đại diện mọi phân khúc thị trường.
+
 ## Framework mới — nội dung tham chiếu đã đọc
 
 Nguồn: `Framework_10x6_Canxi_Cong_Thuc_Chi_Tiet_Cap_Nhat.docx`, do chủ dự án cung cấp ngày 08/09/2026.
@@ -232,7 +242,7 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Đã trả lời:** Tiếp tục báo cáo khi thiếu nguồn, flag dữ liệu thiếu và dùng lại E0–E5 theo D14. D15 xác định cách truy cập từng nguồn và script có thể tái sử dụng.
 
-**Thông tin kết nối:** Actor đã xác định theo D16; documentation có input/output mẫu đủ để bắt đầu thiết kế offline. Output thực tế chưa xác minh. Lần live cần URL sản phẩm và giới hạn chi phí/số lượng được duyệt; không cần gửi token qua chat. Chưa chốt cách chọn URL sản phẩm từ chủ đề rộng hoặc mapping E0–E5.
+**Thông tin kết nối:** Actor đã xác định theo D16; nơi lấy danh sách sản phẩm là Metric “Sản phẩm bán chạy” theo D17. Cách trích URL live/export, output Actor thực tế và giới hạn chi phí/số lượng chưa xác minh/chốt; không cần gửi token qua chat. Mapping E0–E5 còn mở.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
