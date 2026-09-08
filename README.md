@@ -8,6 +8,8 @@ Trạng thái: khởi tạo repository, cấu trúc và kế hoạch. Chưa có 
 
 ## Bắt đầu
 
+Bối cảnh thiết kế đang thảo luận: [INTENT.md](INTENT.md) — quyết định đã thống nhất, phần để sau và câu hỏi tiếp tục phỏng vấn.
+
 1. Đọc `AGENTS.md` và `ARCHITECTURE.md`.
 2. Đọc [kế hoạch](docs/PLAN_VI.md), [trạng thái](docs/STATUS.md), [bản đồ repository](docs/REPOSITORY_MAP.md).
 3. Làm [task SQLite đầu tiên](docs/tasks/001-sqlite-foundation.md).
