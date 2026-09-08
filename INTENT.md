@@ -217,7 +217,7 @@ Nguyên tắc đề xuất khi triển khai, chưa phải schema hoặc matching
 - Nhóm listing về cùng sản phẩm khi có đủ thuộc tính đối chiếu; tên gần giống không đủ. Khác hàm lượng, quy cách, số viên hoặc combo có thể cần tách variant/offer; quy tắc chưa chốt.
 - Khi không chắc, giữ listing riêng và đánh dấu chưa xác định liên kết; không ép gộp.
 - Báo cáo phân biệt số listing và số sản phẩm đã xác định duy nhất. Chưa tự cộng doanh số hoặc suy ra số người mua duy nhất giữa shop/platform; cần kiểm tra kỳ, đơn vị, phạm vi và trùng bản ghi trước tổng hợp.
-- Phạm vi lấy review đã được chốt tiếp ở D19: một listing Shopee đại diện cho mỗi sản phẩm. Tiêu chí chọn listing còn mở; đây là quyết định sampling và ngân sách, không phải dedup kỹ thuật đơn thuần.
+- Phạm vi lấy review đã được chốt tiếp ở D19: một listing Shopee đại diện cho mỗi sản phẩm, chọn theo doanh số trong kỳ nghiên cứu cao nhất. Đây là quyết định sampling và ngân sách, không phải dedup kỹ thuật đơn thuần.
 
 Không thay schema, chạy matching hoặc thu thập dữ liệu trong lần ghi nhận này.
 
@@ -227,7 +227,9 @@ Chủ dự án chọn lấy review từ một listing Shopee đại diện khi c
 
 Quyết định này giới hạn lấy mẫu review, không xóa các listing khác khỏi dữ liệu thị trường. Review và kết luận dựa trên mẫu phải giữ liên kết về listing/shop được chọn, không mặc nhiên đại diện mọi người bán hoặc nền tảng.
 
-Tiêu chí chọn listing đại diện chưa chốt. Gợi ý để thảo luận: ưu tiên listing Shopee có doanh số trong kỳ nghiên cứu cao nhất trong nhóm cùng sản phẩm đã xác định; chưa coi gợi ý này là quy tắc đã duyệt. Không dùng thứ hạng đa nền tảng để gửi listing TikTok vào Actor Shopee.
+Chủ dự án đã đồng ý tiêu chí chọn: listing Shopee có doanh số trong kỳ nghiên cứu cao nhất trong nhóm cùng sản phẩm đã xác định. So sánh cùng kỳ, theo doanh số tiền bán hàng, không theo số lượng bán hoặc doanh số tích lũy toàn thời gian. Không dùng thứ hạng đa nền tảng để gửi listing TikTok vào Actor Shopee.
+
+Chưa chốt cách xử lý bằng doanh số hoặc thiếu doanh số cùng kỳ; không tự thay bằng tổng doanh số toàn thời gian. Việc chọn listing không làm review của listing đó đại diện cho toàn bộ sản phẩm trên mọi shop.
 
 ## Framework mới — nội dung tham chiếu đã đọc
 
@@ -275,7 +277,7 @@ Baseline code lúc ghi nhận: `f845c5abab6b37f3c71f4225c6831a5c04a3c24e`, sau m
 
 **Đã trả lời:** Lấy review từ một listing Shopee đại diện cho mỗi sản phẩm (D19).
 
-**Câu tiếp theo, chưa trả lời:** Tiêu chí chọn listing đại diện là gì? Đề xuất ưu tiên doanh số trong kỳ nghiên cứu cao nhất trong các listing Shopee cùng sản phẩm chưa được duyệt.
+**Đã trả lời:** Chọn listing Shopee cùng sản phẩm có doanh số trong kỳ nghiên cứu cao nhất (D19). Câu hỏi phỏng vấn tiếp theo chưa chốt; giới hạn số sản phẩm/review mỗi lần chạy còn mở.
 
 Các câu hỏi tiếp theo chỉ mở khi có đủ ngữ cảnh:
 
