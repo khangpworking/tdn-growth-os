@@ -1,0 +1,74 @@
+[
+  {
+    "reviewId": 1,
+    "shopId": 11,
+    "itemId": 101,
+    "ratingStar": 2,
+    "comment": "Uống bị táo bón, viên to khó nuốt",
+    "region": "VN"
+  },
+  {
+    "reviewId": 2,
+    "shopId": 11,
+    "itemId": 101,
+    "ratingStar": 5,
+    "comment": "Giao hàng nhanh, đóng gói cẩn thận",
+    "region": "VN"
+  },
+  {
+    "reviewId": 3,
+    "shopId": 11,
+    "itemId": 101,
+    "ratingStar": 4,
+    "comment": "Đối tượng sử dụng: Người lớn  Độ dễ uống: dễ uống  Mình uống hàng ngày",
+    "region": "VN"
+  },
+  {
+    "reviewId": 4,
+    "shopId": 21,
+    "itemId": 201,
+    "ratingStar": 3,
+    "comment": "chua thay hieu qua sau khi uong",
+    "region": "VN"
+  },
+  {
+    "reviewId": 5,
+    "shopId": 22,
+    "itemId": 202,
+    "ratingStar": 2,
+    "comment": "Uống bị táo bón, viên to khó nuốt",
+    "region": "VN"
+  },
+  {
+    "reviewId": 6,
+    "shopId": 23,
+    "itemId": 203,
+    "ratingStar": 5,
+    "comment": "Viên nhỏ dễ uống cho mẹ",
+    "region": "VN"
+  },
+  {
+    "reviewId": 7,
+    "shopId": 24,
+    "itemId": 204,
+    "ratingStar": 4,
+    "comment": "Dễ uống, chưa thấy hiệu quả",
+    "region": "VN"
+  },
+  {
+    "reviewId": 8,
+    "shopId": 11,
+    "itemId": 101,
+    "ratingStar": 1,
+    "comment": "Uống bị táo bón, viên to khó nuốt",
+    "region": "VN"
+  },
+  {
+    "reviewId": 9,
+    "shopId": 11,
+    "itemId": 101,
+    "ratingStar": 9,
+    "comment": "Malformed synthetic rating",
+    "region": "VN"
+  }
+]
