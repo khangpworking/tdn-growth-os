@@ -1,0 +1,266 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShopeeReviewResult",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contractVersion": {
+      "const": "1.0.0"
+    },
+    "collectionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "collectionSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "filterVersion": {
+      "const": "shopee-calcium-v3-adapter1"
+    },
+    "filterSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "createdAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "mode": {
+          "enum": [
+            "fixture",
+            "live"
+          ]
+        },
+        "requestedProducts": {
+          "const": 5
+        },
+        "maxCommentsPerProduct": {
+          "const": 500
+        },
+        "selectedProducts": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5
+        },
+        "collected": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "kept": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "removed": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "invalidRows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "duplicateRows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "warnings": {
+          "type": "array",
+          "maxItems": 2200,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        },
+        "listings": {
+          "type": "array",
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "productKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "listingKey": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 100
+              },
+              "collected": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500
+              },
+              "kept": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 500
+              },
+              "status": {
+                "enum": [
+                  "sample_limit",
+                  "below_limit",
+                  "empty",
+                  "unavailable",
+                  "partial"
+                ]
+              }
+            },
+            "required": [
+              "productKey",
+              "listingKey",
+              "collected",
+              "kept",
+              "status"
+            ]
+          }
+        },
+        "fetchedRows": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        }
+      },
+      "required": [
+        "mode",
+        "requestedProducts",
+        "maxCommentsPerProduct",
+        "selectedProducts",
+        "collected",
+        "kept",
+        "removed",
+        "invalidRows",
+        "duplicateRows",
+        "warnings",
+        "listings",
+        "fetchedRows"
+      ]
+    },
+    "reviews": {
+      "type": "array",
+      "maxItems": 2500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "reviewId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "productKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "listingKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "content": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "target": {
+            "type": "string",
+            "maxLength": 20000
+          },
+          "signals": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "noise": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "negative": {
+            "type": "array",
+            "maxItems": 500,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            }
+          },
+          "score": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 10000
+          },
+          "decision": {
+            "enum": [
+              "kept",
+              "removed"
+            ]
+          },
+          "reason": {
+            "type": "string",
+            "maxLength": 1000
+          },
+          "rawPageSha256": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "rawRowIndex": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2499
+          }
+        },
+        "required": [
+          "reviewId",
+          "productKey",
+          "listingKey",
+          "text",
+          "content",
+          "target",
+          "signals",
+          "noise",
+          "negative",
+          "score",
+          "decision",
+          "reason",
+          "rawPageSha256",
+          "rawRowIndex"
+        ]
+      }
+    }
+  },
+  "required": [
+    "contractVersion",
+    "collectionId",
+    "collectionSha256",
+    "filterVersion",
+    "filterSha256",
+    "createdAt",
+    "summary",
+    "reviews"
+  ]
+}

@@ -1,0 +1,103 @@
+{
+  "contractVersion": "1.0.0",
+  "runKey": "synthetic-calcium-001",
+  "topic": "Canxi — synthetic demonstration, not market evidence",
+  "period": {
+    "start": "2026-08-01T00:00:00+07:00",
+    "end": "2026-08-31T23:59:59+07:00"
+  },
+  "source": {
+    "label": "Synthetic Metric-shaped listing file; not a real export",
+    "acquiredAt": "2026-09-01T00:00:00+07:00"
+  },
+  "listings": [
+    {
+      "platform": "shopee",
+      "shopId": "11",
+      "itemId": "101",
+      "productKey": "calcium-a",
+      "groupingBasis": "Operator confirmed brand, formulation and pack size A",
+      "productName": "Canxi tổng hợp A",
+      "productUrl": "https://shopee.vn/synthetic-i.11.101",
+      "periodRevenueVnd": "900000000",
+      "revenuePrecision": "exact"
+    },
+    {
+      "platform": "shopee",
+      "shopId": "12",
+      "itemId": "102",
+      "productKey": "calcium-a",
+      "groupingBasis": "Same confirmed product A, another seller",
+      "productName": "Canxi tổng hợp A shop 2",
+      "productUrl": "https://shopee.vn/synthetic-i.12.102",
+      "periodRevenueVnd": "800000000",
+      "revenuePrecision": "exact"
+    },
+    {
+      "platform": "tiktokshop",
+      "shopId": "91",
+      "itemId": "901",
+      "productKey": "calcium-a",
+      "groupingBasis": "Same confirmed product A, another platform",
+      "productName": "Canxi tổng hợp A TikTok",
+      "productUrl": null,
+      "periodRevenueVnd": "2000000000",
+      "revenuePrecision": "exact"
+    },
+    {
+      "platform": "shopee",
+      "shopId": "21",
+      "itemId": "201",
+      "productKey": "calcium-b",
+      "groupingBasis": "Operator confirmed distinct formulation/pack 2",
+      "productName": "Sản phẩm giả lập 2",
+      "productUrl": "https://shopee.vn/synthetic-i.21.201",
+      "periodRevenueVnd": "700000000",
+      "revenuePrecision": "exact"
+    },
+    {
+      "platform": "shopee",
+      "shopId": "22",
+      "itemId": "202",
+      "productKey": "calcium-c",
+      "groupingBasis": "Operator confirmed distinct formulation/pack 3",
+      "productName": "Sản phẩm giả lập 3",
+      "productUrl": "https://shopee.vn/synthetic-i.22.202",
+      "periodRevenueVnd": "600000000",
+      "revenuePrecision": "exact"
+    },
+    {
+      "platform": "shopee",
+      "shopId": "23",
+      "itemId": "203",
+      "productKey": "calcium-d",
+      "groupingBasis": "Operator confirmed distinct formulation/pack 4",
+      "productName": "Sản phẩm giả lập 4",
+      "productUrl": "https://shopee.vn/synthetic-i.23.203",
+      "periodRevenueVnd": "500000000",
+      "revenuePrecision": "exact"
+    },
+    {
+      "platform": "shopee",
+      "shopId": "24",
+      "itemId": "204",
+      "productKey": "calcium-e",
+      "groupingBasis": "Operator confirmed distinct formulation/pack 5",
+      "productName": "Sản phẩm giả lập 5",
+      "productUrl": "https://shopee.vn/synthetic-i.24.204",
+      "periodRevenueVnd": "400000000",
+      "revenuePrecision": "exact"
+    },
+    {
+      "platform": "shopee",
+      "shopId": "25",
+      "itemId": "205",
+      "productKey": "calcium-f",
+      "groupingBasis": "Operator confirmed distinct formulation/pack 6",
+      "productName": "Sản phẩm giả lập 6",
+      "productUrl": "https://shopee.vn/synthetic-i.25.205",
+      "periodRevenueVnd": "300000000",
+      "revenuePrecision": "exact"
+    }
+  ]
+}

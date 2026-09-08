@@ -1,11 +1,14 @@
 # Trạng thái hiện tại
 
-## Chuẩn bị Task 015 (nhánh tài liệu local)
+## Task 015 — file-input implementation, chờ Fedora validation
 
 - Đã ghi quyết định phỏng vấn trong `INTENT.md` và chuẩn bị `docs/tasks/015-on-demand-shopee-research.md`.
 - Scope đầu tiên: Metric Shopee → top 5 sản phẩm → 1 listing đại diện/sản phẩm → tối đa 500 comments/listing → raw + filter + cảnh báo thiếu dữ liệu.
-- Đã lưu baseline filter do chủ dự án cung cấp ở `references/reuse/shopee_review_filter.v3.py`; chưa chạy hoặc tích hợp.
-- Chưa implementation, dispatch Fedora, push/PR hoặc live calls. Offline verification và live verification được tách rõ; cần setup Metric Fedora và ngân sách trước paid smoke.
+- Đã implement local file listing → selection → bounded Apify adapter → raw SQLite/artifacts → callable Python filter → collection summary. Chưa coi là DONE.
+- Đã lưu baseline filter ở `references/reuse/shopee_review_filter.v3.py`; adapter đã được so sánh với baseline trên synthetic cases.
+- Chỉ xác minh local: 11 focused tests + 9 foundation tests PASS ở lần chạy cuối; typecheck PASS trước khi trả typecheck launcher về bản Linux gốc. Full suite cuối còn lỗi kỳ vọng migration version 10; đã sửa thành 11 nhưng chưa rerun toàn bộ suite sau đó.
+- Fedora là môi trường chạy/lưu dữ liệu mục tiêu. Chưa Fedora validation, GitHub CI hoặc live calls. Metric login/extraction được hoãn theo yêu cầu; không cần login Metric để tiếp tục file-input task. Paid smoke sau này cần credentials và budget riêng.
+- Handoff chi tiết: `docs/handoffs/015-on-demand-shopee-research.md`.
 - Phần bên dưới giữ nguyên trạng thái baseline sau Task 014; không tính tài liệu là năng lực đã xây.
 
 Cập nhật: 13/09/2026.

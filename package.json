@@ -9,6 +9,7 @@
     "node": "24.15.0"
   },
   "scripts": {
+    "research:shopee": "tsx scripts/collect-shopee-reviews.ts",
     "contracts:generate": "node scripts/generate-foundation-contract.mjs",
     "db:migrate": "tsx scripts/migrate.ts",
     "foundation:ingest": "tsx scripts/ingest-manual.ts",

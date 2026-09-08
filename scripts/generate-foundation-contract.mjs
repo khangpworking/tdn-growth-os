@@ -5,6 +5,10 @@ import { compileFromFile } from 'json-schema-to-typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contracts = [
+  ['foundation', 'shopee-listing-request'],
+  ['foundation', 'shopee-collection'],
+  ['foundation', 'apify-shopee-rows'],
+  ['analysis', 'shopee-review-result'],
   ['foundation', 'manual-observation'],
   ['foundation', 'json-export'],
   ['foundation', 'data-pack-request'],

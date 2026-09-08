@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ApifyShopeeRows",
+  "type": "array",
+  "maxItems": 2500,
+  "items": {
+    "type": "object",
+    "additionalProperties": true,
+    "required": [
+      "reviewId",
+      "itemId",
+      "shopId",
+      "ratingStar",
+      "comment"
+    ],
+    "properties": {
+      "reviewId": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        ]
+      },
+      "itemId": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        ]
+      },
+      "shopId": {
+        "anyOf": [
+          {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,19}$"
+          },
+          {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991
+          }
+        ]
+      },
+      "ratingStar": {
+        "type": "integer",
+        "minimum": 1,
+        "maximum": 5
+      },
+      "comment": {
+        "type": "string",
+        "maxLength": 20000
+      },
+      "region": {
+        "type": "string",
+        "maxLength": 8
+      },
+      "createdAt": {
+        "type": "string",
+        "format": "date-time"
+      }
+    }
+  }
+}

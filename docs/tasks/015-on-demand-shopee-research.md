@@ -1,6 +1,10 @@
 # Task 015 — Thu thập review Shopee theo yêu cầu
 
-Status: READY cho implementation/offline verification; live validation chưa được cấp ngân sách.
+Status: RUNNING — file-input slice được chủ dự án duyệt; live validation chưa được cấp ngân sách.
+
+## Điều chỉnh scope đã được chủ dự án duyệt
+
+Implement không cần Metric login: file listing do operator cung cấp → selection → Apify → raw → filter → summary. Synthetic listings/responses dùng cho test; có thể chạy Apify thật sau khi có credentials và ngân sách. Metric browser/login/extraction không thuộc bản giao này và không được tính DONE. Các mục B và yêu cầu live Metric bên dưới giữ làm bối cảnh tương lai, không chặn nghiệm thu file-input slice. Bản giao phải ghi rõ LIVE NOT RUN nếu chưa có provider test.
 Lane: Standard cho code; Controlled chỉ cho login/provider calls thực tế.
 Owner: một implementation agent trong worktree được giao. Chưa dispatch agent từ tài liệu này.
 
