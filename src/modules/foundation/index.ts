@@ -36,3 +36,9 @@ export {
   FoundationResearchPackReader,
   type FinalizedResearchPackReader,
 } from './research-pack-reader.js';
+
+export {
+  ShopeeCollectionService,
+  type ShopeeCollectionReader,
+  type VerifiedShopeeCollection,
+} from './shopee-collection-service.js';
