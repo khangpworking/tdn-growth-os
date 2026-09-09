@@ -37,26 +37,43 @@ FIELD_RE = re.compile(f'({FIELD_ALT})\\s*:\\s*(.*?)(?=(?:{FIELD_ALT})\\s*:|$)',
                       re.IGNORECASE | re.DOTALL)
 
 def split_fields(text):
-    """→ (meta_dict, signal_field_text, remaining_free_text)"""
-    meta, sig_parts = {}, []
-    for m in FIELD_RE.finditer(text):
+    """→ (meta_dict, signal_field_text, remaining_free_text, boundary_status).
+
+    A double-space boundary is explicit. With no explicit boundary after the
+    final guided field, its value and possible free text cannot be separated
+    confidently, so preserve the whole span as review content and mark it.
+    """
+    matches = list(FIELD_RE.finditer(text))
+    meta, sig_parts, ambiguous_parts = {}, [], []
+    boundary_status = 'none'
+    for index, m in enumerate(matches):
         name = m.group(1).lower().strip()
-        val = m.group(2)
-        # The LAST guided field runs into the free text; Shopee separates them
-        # with a double space. Cut there so the field value stays a field value.
-        val = re.split(r'\s{2,}', val)[0]
-        val = re.sub(r'\s+', ' ', val).strip()
+        raw_val = m.group(2)
+        parts = re.split(r'\s{2,}', raw_val, maxsplit=1)
+        val = re.sub(r'\s+', ' ', parts[0]).strip()
+        ambiguous_final = index == len(matches) - 1 and len(parts) == 1 and bool(raw_val.strip())
+        if index == len(matches) - 1:
+            if len(parts) > 1:
+                boundary_status = 'explicit'
+            elif ambiguous_final:
+                boundary_status = 'ambiguous-preserved'
+                if name not in SIGNAL_FIELDS:
+                    ambiguous_parts.append(raw_val.strip())
         if not val:
             continue
         if name in META_FIELDS:
             meta[name] = val
         elif name in SIGNAL_FIELDS:
+            # The signal-field representation already contains the full value;
+            # do not also append an ambiguous final value to free text.
             sig_parts.append(f'{name}: {val}')
     def _tail(m):
         parts = re.split(r'\s{2,}', m.group(2), maxsplit=1)
         return ' ' + parts[1] if len(parts) > 1 else ' '
     free = FIELD_RE.sub(_tail, text)
-    return meta, ' '.join(sig_parts), re.sub(r'\s+', ' ', free).strip()
+    free_parts = [free, *ambiguous_parts]
+    free = re.sub(r'\s+', ' ', ' '.join(free_parts)).strip()
+    return meta, ' '.join(sig_parts), free, boundary_status
 
 # ─────────────────── keyword sets ───────────────────
 NOISE = [
@@ -153,7 +170,7 @@ def filter_reviews(supplied_rows):
 
     for r in rows:
         raw = r['text']
-        meta, sigfields, free = split_fields(raw)
+        meta, sigfields, free, boundary_status = split_fields(raw)
         content = (sigfields + ' ' + free).strip()
         content = strip_emoji(content).strip()
         nc = norm(content)
@@ -166,7 +183,7 @@ def filter_reviews(supplied_rows):
         has_target = len(norm(target)) > 3
 
         r.update({'_sig': sig, '_noi': noi, '_content': content,
-                  '_target': target, '_meta': meta})
+                  '_target': target, '_meta': meta, '_boundary_status': boundary_status})
 
         reason = None
         if len(nc) < 12 and not sig:
@@ -201,6 +218,7 @@ def filter_reviews(supplied_rows):
             'reviewId': row['id'], 'productKey': row['product'],
             'listingKey': row['listingKey'], 'text': row['text'],
             'content': row['_content'], 'target': row['_target'],
+            'guidedFieldBoundary': row['_boundary_status'],
             'signals': row['_sig'], 'noise': row['_noi'],
             'negative': row.get('_neg', []), 'score': row.get('_score', 0),
             'decision': 'removed' if 'reason' in row else 'kept',

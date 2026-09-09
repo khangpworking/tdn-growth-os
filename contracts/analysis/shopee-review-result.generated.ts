@@ -4,7 +4,7 @@ export interface ShopeeReviewResult {
   contractVersion: '1.0.0';
   collectionId: string;
   collectionSha256: string;
-  filterVersion: 'shopee-calcium-v3-adapter1';
+  filterVersion: 'shopee-calcium-v3-adapter2';
   filterSha256: string;
   createdAt: string;
   summary: {
@@ -154,6 +154,7 @@ export interface ShopeeReviewResult {
     text: string;
     content: string;
     target: string;
+    guidedFieldBoundary: 'none' | 'explicit' | 'ambiguous-preserved';
     /**
      * @maxItems 500
      */

@@ -540,3 +540,44 @@ test('016 existing-run verification is GET-only and binds run, dataset, cap, con
   await assert.rejects(() => wrongInput.collect(selected, digest(requestBytes), fixtureRequest().runKey), /input mismatch/);
   assert.equal(posts, 0);
 });
+
+
+test('018 guided-field parsing preserves ambiguous text without changing original reviews', () => {
+  const rows = [
+    { id: 'single', text: 'Công dụng:bổ sung canxi Uống thấy đỡ chuột rút' },
+    { id: 'double', text: 'Công dụng:bổ sung canxi  Uống thấy đỡ chuột rút' },
+    { id: 'multiple', text: 'Công dụng:bổ sung Đối tượng sử dụng:người lớn Uống dễ chịu' },
+    { id: 'signal-final', text: 'Độ dễ uống:vị nhẹ Bé uống hàng ngày' },
+    { id: 'field-only', text: 'Công dụng:bổ sung canxi' },
+    { id: 'free', text: 'Uống thấy đỡ chuột rút' },
+  ].map((row, index) => ({ ...row, product: 'synthetic-calcium', star: 5,
+    listingKey: 'shopee:1:1', rawPageSha256: 'a'.repeat(64), rawRowIndex: index }));
+  const env = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+  const adapted = spawnSync(python, ['-B', 'scripts/filter-shopee-reviews.py'], {
+    env, input: JSON.stringify(rows), encoding: 'utf8',
+  });
+  assert.equal(adapted.status, 0, adapted.stderr);
+  const output = JSON.parse(adapted.stdout) as Array<{
+    reviewId: string; text: string; content: string; target: string;
+    guidedFieldBoundary: string; decision: string; signals: string[];
+  }>;
+  const byId = new Map(output.map(row => [row.reviewId, row]));
+  assert.deepEqual(output.map(row => row.text).sort(), rows.map(row => row.text).sort());
+  assert.deepEqual(byId.get('single'), {
+    ...byId.get('single'), content: 'bổ sung canxi Uống thấy đỡ chuột rút', target: '',
+    guidedFieldBoundary: 'ambiguous-preserved', decision: 'kept',
+  });
+  assert.equal(byId.get('single')!.signals.includes('chuột rút'), true);
+  assert.equal(byId.get('double')!.content, 'Uống thấy đỡ chuột rút');
+  assert.equal(byId.get('double')!.guidedFieldBoundary, 'explicit');
+  assert.equal(byId.get('multiple')!.content, 'người lớn Uống dễ chịu');
+  assert.equal(byId.get('multiple')!.target, 'người lớn Uống dễ chịu');
+  assert.equal(byId.get('multiple')!.guidedFieldBoundary, 'ambiguous-preserved');
+  assert.equal(byId.get('signal-final')!.content, 'độ dễ uống: vị nhẹ Bé uống hàng ngày');
+  assert.equal(byId.get('signal-final')!.guidedFieldBoundary, 'ambiguous-preserved');
+  assert.equal(byId.get('signal-final')!.text, 'Độ dễ uống:vị nhẹ Bé uống hàng ngày');
+  assert.equal(byId.get('field-only')!.content, 'bổ sung canxi');
+  assert.equal(byId.get('field-only')!.guidedFieldBoundary, 'ambiguous-preserved');
+  assert.equal(byId.get('free')!.content, 'Uống thấy đỡ chuột rút');
+  assert.equal(byId.get('free')!.guidedFieldBoundary, 'none');
+});
