@@ -4,7 +4,7 @@ export interface ShopeeReviewResult {
   contractVersion: '1.0.0';
   collectionId: string;
   collectionSha256: string;
-  filterVersion: 'shopee-calcium-v3-adapter2';
+  filterVersion: 'shopee-calcium-v3-adapter3';
   filterSha256: string;
   createdAt: string;
   summary: {

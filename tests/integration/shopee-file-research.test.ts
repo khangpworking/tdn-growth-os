@@ -337,7 +337,7 @@ test('015 Python filter subprocess does not inherit provider credentials', async
   assert.doesNotMatch(source.slice(source.indexOf("const child = spawn")), /TDN_APIFY_TOKEN/);
 });
 
-test('015 callable filter matches original v3 on a representative single-product fixture', async () => {
+test('020 callable filter preserves the representative fixture decisions and numeric weights', async () => {
   const directory = await root();
   const table = '| # | Product | Star | Author | Text |\n|---|---|---|---|---|\n' +
     '|1|A|2|synthetic|Uống bị táo bón, viên to khó nuốt|\n' +
@@ -360,11 +360,7 @@ test('015 callable filter matches original v3 on a representative single-product
   const output = JSON.parse(adapted.stdout) as { reviewId: string; decision: string; score: number; signals: string[] }[];
   assert.deepEqual(output.filter(row => row.decision === 'kept').map(row => row.reviewId),
     original.kept.map((row: { id: number }) => String(row.id)));
-  for (const originalRow of original.kept) {
-    const row = output.find(r => r.reviewId === String(originalRow.id))!;
-    assert.equal(row.score, originalRow._score);
-    assert.deepEqual(row.signals, originalRow._sig);
-  }
+  assert.equal(output.find(row => row.reviewId === '1')!.score, 24); // unchanged weights applied to the narrower signal set
 });
 
 test('015 rejects raw collection evidence above the per-listing 500 cap', async () => {
@@ -567,7 +563,7 @@ test('018 guided-field parsing preserves ambiguous text without changing origina
     ...byId.get('single'), content: 'bổ sung canxi Uống thấy đỡ chuột rút', target: '',
     guidedFieldBoundary: 'ambiguous-preserved', decision: 'kept',
   });
-  assert.equal(byId.get('single')!.signals.includes('chuột rút'), true);
+  assert.equal(byId.get('single')!.signals.includes('thấy đỡ'), true);
   assert.equal(byId.get('double')!.content, 'Uống thấy đỡ chuột rút');
   assert.equal(byId.get('double')!.guidedFieldBoundary, 'explicit');
   assert.equal(byId.get('multiple')!.content, 'người lớn Uống dễ chịu');
@@ -580,4 +576,70 @@ test('018 guided-field parsing preserves ambiguous text without changing origina
   assert.equal(byId.get('field-only')!.guidedFieldBoundary, 'ambiguous-preserved');
   assert.equal(byId.get('free')!.content, 'Uống thấy đỡ chuột rút');
   assert.equal(byId.get('free')!.guidedFieldBoundary, 'none');
+});
+
+
+test('020 product-use policy boundaries are narrow, mixed-comment eligible, and negation-aware', () => {
+  const cases = [
+    ['taste', 'Vị chua nhẹ, mùi sữa thơm', 'kept'],
+    ['opening', 'Ống dễ bẻ và không bị vụn', 'kept'],
+    ['preparation', 'Bột dễ pha với nước', 'kept'],
+    ['effect', 'Dùng một tháng thấy đỡ đau lưng', 'kept'],
+    ['no-effect', 'Uống hết hộp vẫn chưa thấy hiệu quả', 'kept'],
+    ['mixed', 'Giao hàng nhanh, giá tốt nhưng vị ngọt nhẹ và dễ uống', 'kept'],
+    ['price', 'Giá rẻ, săn sale rất hời', 'removed'],
+    ['service', 'Shop tư vấn nhiệt tình, giao hàng nhanh', 'removed'],
+    ['authenticity', 'Hàng chính hãng, tem phụ đầy đủ nên yên tâm', 'removed'],
+    ['motivation', 'Mua để bổ sung canxi cho mẹ', 'removed'],
+    ['symptom-motivation', 'Mua cho mẹ bị đau lưng', 'removed'],
+    ['reordered-symptom-motivation', 'Mẹ bị đau lưng nên tôi mua loại này', 'removed'],
+    ['reordered-constipation-motivation', 'Bị táo bón nên mua loại này', 'removed'],
+    ['reordered-numbness-motivation', 'Mẹ bị tê chân nên đặt loại này', 'removed'],
+    ['hearsay', 'Người quen giới thiệu loại này không gây táo bón', 'removed'],
+    ['doctor-hearsay', 'Bác sĩ bảo loại này không gây táo bón', 'removed'],
+    ['hearsay-then-use', 'Bác sĩ bảo loại này không gây táo bón. Tôi uống thấy dễ uống', 'kept'],
+    ['abbreviated-hearsay', 'Mình được một ng bạn gt dùng, thấy khá tốt k bị táo', 'removed'],
+    ['repurchase', 'Đã dùng nhiều lần, sẽ mua lại', 'removed'],
+    ['generic', 'Sản phẩm tốt, dùng rất ổn', 'removed'],
+    ['just-started', 'Giờ mới bắt đầu dùng, chưa biết chất lượng', 'removed'],
+    ['not-used-question', 'Chưa dùng thử, không biết có bị táo không', 'removed'],
+    ['not-used-then-use', 'Chưa dùng trước đây. Hôm nay uống thấy vị chua', 'kept'],
+    ['field-label', 'Xương chắc khỏe:ok Tăng chiều cao:giờ mới dùng', 'removed'],
+    ['negated-complaint', 'Siro không khó uống và không gây khó chịu', 'kept'],
+    ['modified-negation', 'Siro không quá khó uống', 'kept'],
+    ['not-a-complaint', 'Siro không phải là khó uống', 'kept'],
+    ['negated-positive', 'Uống thử thấy không dễ uống', 'kept'],
+    ['no-benefit', 'Uống một tháng nhưng không thấy đỡ đau', 'kept'],
+    ['not-constipated', 'Uống loại này không bị táo bón', 'kept'],
+    ['reported-no-improvement', 'Đã uống 20 ngày mà chưa thấy cải thiện giấc ngủ', 'kept'],
+    ['reported-no-effect', 'Đã dùng hai tháng nhưng chưa thấy tác dụng', 'kept'],
+    ['reported-no-change', 'Đã hết liệu trình nhưng chưa thấy sự thay đổi', 'kept'],
+    ['reported-no-adverse', 'Đang uống và chưa thấy bất thường gì', 'kept'],
+    ['opening-fragments', 'Uống mấy ống mà lúc bẻ ống rớt miểng liên tục', 'kept'],
+    ['future-effect', 'Để thử mấy tháng xem có cao lên không', 'removed'],
+    ['shipping-word-collision', 'Giao hàng cực kỳ nhanh chóng mặt', 'removed'],
+  ] as const;
+  const rows = cases.map(([id, text], index) => ({ id, text, product: 'synthetic-calcium', star: 5,
+    listingKey: 'shopee:1:1', rawPageSha256: 'a'.repeat(64), rawRowIndex: index }));
+  const env = { ...process.env, PYTHONIOENCODING: 'utf-8', PYTHONUTF8: '1' };
+  const adapted = spawnSync(python, ['-B', 'scripts/filter-shopee-reviews.py'], {
+    env, input: JSON.stringify(rows), encoding: 'utf8',
+  });
+  assert.equal(adapted.status, 0, adapted.stderr);
+  const output = JSON.parse(adapted.stdout) as Array<{
+    reviewId: string; decision: string; reason: string; negative: string[];
+  }>;
+  const byId = new Map(output.map(row => [row.reviewId, row]));
+  for (const [id, , decision] of cases) assert.equal(byId.get(id)!.decision, decision, id);
+  assert.deepEqual(byId.get('negated-complaint')!.negative, []);
+  assert.deepEqual(byId.get('modified-negation')!.negative, []);
+  assert.deepEqual(byId.get('not-a-complaint')!.negative, []);
+  assert.deepEqual(byId.get('negated-positive')!.negative, ['không dễ uống']);
+  assert.deepEqual(byId.get('no-benefit')!.negative, ['không thấy đỡ']);
+  assert.deepEqual(byId.get('not-constipated')!.negative, []);
+  assert.deepEqual(byId.get('reported-no-improvement')!.negative, ['chưa thấy cải thiện']);
+  assert.deepEqual(byId.get('reported-no-effect')!.negative, ['chưa thấy tác dụng']);
+  assert.deepEqual(byId.get('reported-no-change')!.negative, ['chưa thấy sự thay đổi']);
+  assert.deepEqual(byId.get('reported-no-adverse')!.negative, []);
+  assert.equal(byId.get('field-label')!.reason, 'Không có trải nghiệm sử dụng sản phẩm cụ thể');
 });

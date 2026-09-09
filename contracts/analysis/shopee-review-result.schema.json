@@ -16,7 +16,7 @@
       "pattern": "^[a-f0-9]{64}$"
     },
     "filterVersion": {
-      "const": "shopee-calcium-v3-adapter2"
+      "const": "shopee-calcium-v3-adapter3"
     },
     "filterSha256": {
       "type": "string",

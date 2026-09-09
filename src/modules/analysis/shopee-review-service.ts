@@ -18,7 +18,7 @@ addFormats(ajv);
 const validate = ajv.compile(resultSchema);
 const validateReviews = ajv.compile(resultSchema.properties.reviews);
 const FILTER_PATH = fileURLToPath(new URL('../../../scripts/filter-shopee-reviews.py', import.meta.url));
-const FILTER_VERSION = 'shopee-calcium-v3-adapter2' as const;
+const FILTER_VERSION = 'shopee-calcium-v3-adapter3' as const;
 type Review = ShopeeReviewResult['reviews'][number];
 interface FilterInput {
   id: string; product: string; listingKey: string; star: number; text: string;
