@@ -547,6 +547,7 @@ test('018 guided-field parsing preserves ambiguous text without changing origina
     { id: 'single', text: 'Công dụng:bổ sung canxi Uống thấy đỡ chuột rút' },
     { id: 'double', text: 'Công dụng:bổ sung canxi  Uống thấy đỡ chuột rút' },
     { id: 'multiple', text: 'Công dụng:bổ sung Đối tượng sử dụng:người lớn Uống dễ chịu' },
+    { id: 'signal-final', text: 'Độ dễ uống:vị nhẹ Bé uống hàng ngày' },
     { id: 'field-only', text: 'Công dụng:bổ sung canxi' },
     { id: 'free', text: 'Uống thấy đỡ chuột rút' },
   ].map((row, index) => ({ ...row, product: 'synthetic-calcium', star: 5,
@@ -572,6 +573,9 @@ test('018 guided-field parsing preserves ambiguous text without changing origina
   assert.equal(byId.get('multiple')!.content, 'người lớn Uống dễ chịu');
   assert.equal(byId.get('multiple')!.target, 'người lớn Uống dễ chịu');
   assert.equal(byId.get('multiple')!.guidedFieldBoundary, 'ambiguous-preserved');
+  assert.equal(byId.get('signal-final')!.content, 'độ dễ uống: vị nhẹ Bé uống hàng ngày');
+  assert.equal(byId.get('signal-final')!.guidedFieldBoundary, 'ambiguous-preserved');
+  assert.equal(byId.get('signal-final')!.text, 'Độ dễ uống:vị nhẹ Bé uống hàng ngày');
   assert.equal(byId.get('field-only')!.content, 'bổ sung canxi');
   assert.equal(byId.get('field-only')!.guidedFieldBoundary, 'ambiguous-preserved');
   assert.equal(byId.get('free')!.content, 'Uống thấy đỡ chuột rút');

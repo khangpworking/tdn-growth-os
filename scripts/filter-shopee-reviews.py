@@ -51,17 +51,21 @@ def split_fields(text):
         raw_val = m.group(2)
         parts = re.split(r'\s{2,}', raw_val, maxsplit=1)
         val = re.sub(r'\s+', ' ', parts[0]).strip()
+        ambiguous_final = index == len(matches) - 1 and len(parts) == 1 and bool(raw_val.strip())
         if index == len(matches) - 1:
             if len(parts) > 1:
                 boundary_status = 'explicit'
-            elif raw_val.strip():
+            elif ambiguous_final:
                 boundary_status = 'ambiguous-preserved'
-                ambiguous_parts.append(raw_val.strip())
+                if name not in SIGNAL_FIELDS:
+                    ambiguous_parts.append(raw_val.strip())
         if not val:
             continue
         if name in META_FIELDS:
             meta[name] = val
         elif name in SIGNAL_FIELDS:
+            # The signal-field representation already contains the full value;
+            # do not also append an ambiguous final value to free text.
             sig_parts.append(f'{name}: {val}')
     def _tail(m):
         parts = re.split(r'\s{2,}', m.group(2), maxsplit=1)
