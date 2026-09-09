@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Callable adapter of the owner's v3 calcium review filter.
-Keywords/scoring preserved. JSON stdin/stdout; no files or network.
-Dedup is product-scoped; all raw reviews remain in Box 1.
+Product-use experience policy; JSON stdin/stdout; no files or network.
+Numeric scoring weights and product-scoped dedup are preserved; raw stays in Box 1.
 """
 import re
 import unicodedata
@@ -37,14 +37,16 @@ FIELD_RE = re.compile(f'({FIELD_ALT})\\s*:\\s*(.*?)(?=(?:{FIELD_ALT})\\s*:|$)',
                       re.IGNORECASE | re.DOTALL)
 
 def split_fields(text):
-    """→ (meta_dict, signal_field_text, remaining_free_text, boundary_status).
+    """→ metadata, labeled field content, field values, free text, boundary.
 
     A double-space boundary is explicit. With no explicit boundary after the
     final guided field, its value and possible free text cannot be separated
     confidently, so preserve the whole span as review content and mark it.
+    Field labels stay in ``content`` for stable deduplication, but only values
+    and free text are eligible to establish a product-use experience.
     """
     matches = list(FIELD_RE.finditer(text))
-    meta, sig_parts, ambiguous_parts = {}, [], []
+    meta, sig_parts, sig_values, ambiguous_parts = {}, [], [], []
     boundary_status = 'none'
     for index, m in enumerate(matches):
         name = m.group(1).lower().strip()
@@ -64,16 +66,17 @@ def split_fields(text):
         if name in META_FIELDS:
             meta[name] = val
         elif name in SIGNAL_FIELDS:
-            # The signal-field representation already contains the full value;
-            # do not also append an ambiguous final value to free text.
+            # The labeled representation preserves the existing content/dedup
+            # key; the value-only representation prevents labels from voting.
             sig_parts.append(f'{name}: {val}')
+            sig_values.append(val)
     def _tail(m):
         parts = re.split(r'\s{2,}', m.group(2), maxsplit=1)
         return ' ' + parts[1] if len(parts) > 1 else ' '
     free = FIELD_RE.sub(_tail, text)
     free_parts = [free, *ambiguous_parts]
     free = re.sub(r'\s+', ' ', ' '.join(free_parts)).strip()
-    return meta, ' '.join(sig_parts), free, boundary_status
+    return meta, ' '.join(sig_parts), ' '.join(sig_values), free, boundary_status
 
 # ─────────────────── keyword sets ───────────────────
 NOISE = [
@@ -107,38 +110,35 @@ NOISE = [
  'chưa biết chất lượng','mới uống nên',
 ]
 
+# Only concrete reported product-use experiences establish eligibility. Buying,
+# target-user, authority, bare consumption and repurchase terms do not. Hearsay
+# attribution neither establishes nor disqualifies a concrete attribute/effect.
 SIGNAL = [
- # consumption + measurable effect
- 'uống','đã uống','uống được','uống vào','uống hàng ngày','sau khi uống','mỗi ngày','ngày uống',
- 'hiệu quả','tác dụng','công hiệu','cải thiện','sự cải thiện','kết quả tốt',
- 'thấy đỡ','đỡ hẳn','đỡ đau','bớt đau','giảm hẳn','giảm đau','hấp thu','hấp thụ','dễ hấp thu',
- # symptoms / body
- 'chuột rút','đau xương','đau lưng','đau khớp','khớp gối','mỏi gối','nhức mỏi','nhức',
- 'loãng xương','xương khớp','xương chắc khoẻ','xương chắc khỏe','xương',
- 'móng tay','móng','răng','tóc','chiều cao','tăng chiều cao','còi xương','tê tay','tê chân',
- 'co giật','mất ngủ','ngủ ngon','mệt mỏi','thiếu canxi','đề kháng','cứng cáp','chắc khoẻ',
- # side effects / complaints  (highest value)
- 'nóng trong','táo bón','đau bụng','khó tiêu','đầy bụng','buồn nôn','đi ngoài','tiêu chảy',
- 'nổi mụn','lên mụn','dị ứng','tác dụng phụ','không hợp','bị nóng','cặn canxi','sỏi thận',
- 'không hiệu quả','chưa thấy hiệu quả','chưa thấy','không thấy tác dụng','không tác dụng',
- 'chưa hiệu quả','thất vọng','không đáng','phí tiền','không như mong đợi','nguy hiểm',
- # form / taste / usability
- 'khó nuốt','viên to','viên nhỏ','dễ uống','khó uống','dễ nuốt','mùi tanh','vị tanh','tanh',
- 'vị ngọt','ngọt','đắng','chua ngọt','thơm','mùi sữa','khó chịu','viên nén','viên sủi',
- 'dạng bột','dạng nước','dạng ống','viên nang','sủi','pha nước','ống thủy tinh','tách riêng',
- # target user / life stage
- 'bà bầu','bầu','mang thai','thai kỳ','sau sinh','cho con bú','mãn kinh','người già',
- 'người lớn tuổi','cho mẹ','cho bà','cho bố','cho ba','cho vợ','cho chồng','cho con','cho bé',
- 'trẻ em','bé nhà','trên 30','trên 40','trên 50','người lớn','trưởng thành','ông bà','lứa tuổi',
- # authority
- 'bác sĩ','bs kê','đơn thuốc','theo đơn','được giới thiệu','giới thiệu','bệnh viện','dược sĩ',
- 'khuyên dùng','hiệu thuốc','quầy thuốc',
- # comparison / switching
- 'so với','chuyển từ','trước dùng','trước mình','thay thế','đổi sang','từng dùng','đã từng',
- 'loại khác','hãng khác','so sánh','tốt hơn','kém hơn','đỡ hơn','giảm hơn',
- # repeat purchase w/ experience
- 'uống mấy năm','dùng mấy năm','dùng gần','uống từ','đã uống được','uống hết hộp',
- 'mua nhiều lần','uống lâu','dùng lâu năm','uống miết','uống nhiều','dùng được gần',
+ # perceived effects or lack of effects
+ 'hiệu quả rõ','thấy hiệu quả','có hiệu quả','hiệu quả từ',
+ 'không hiệu quả','chưa thấy hiệu quả','chưa thấy rõ hiệu quả','không thấy tác dụng','chưa thấy tác dụng',
+ 'không tác dụng','chưa hiệu quả','chưa thấy cải thiện','chưa thấy sự thay đổi','chưa thấy thay đổi',
+ 'chưa thay đổi','không thay đổi','chưa thấy bất thường','không thấy bất thường',
+ 'không thấy đỡ','không đỡ','chẳng đỡ','thấy đỡ','đỡ hẳn','đỡ đau','bớt đau','giảm hẳn',
+ 'giảm đau','cải thiện rõ','được cải thiện',
+ 'đã cao lên','thấy cao lên','cao hơn được','cao hơn đc','tăng chiều cao khoảng','phát triển chiều cao',
+ 'chắc khoẻ hơn','chắc khỏe hơn','hết nhức','hết đau','người hơi ê ẩm','ăn khỏe hơn',
+ 'ăn khoẻ hơn','dễ chịu hơn','đỡ mệt','không ảnh hưởng gì tới đường tiêu hoá',
+ 'ko ảnh hưởng gì tới đường tiêu hoá',
+ # concrete symptoms and tolerability reported in use
+ 'bị chuột rút','bị đau xương','bị đau lưng','bị đau khớp','bị mỏi gối','bị nhức mỏi',
+ 'bị tê tay','bị tê chân','đỡ chuột rút','đỡ đau xương','đỡ đau lưng','đỡ đau khớp',
+ 'đỡ mỏi gối','đỡ nhức mỏi','đỡ tê tay','đỡ tê chân','không còn chuột rút',
+ 'nóng trong','táo bón','bị táo','bị đau bụng','bị đau bao tử','bị khó tiêu','bị đầy bụng',
+ 'bị buồn nôn','bị đi ngoài','bị tiêu chảy','nổi mụn','lên mụn','dị ứng','tác dụng phụ',
+ 'không hợp','bị nóng','cặn canxi','sỏi thận','bị chóng mặt','thấy chóng mặt','bị ói','bị khó ngủ',
+ # taste, smell, swallowing, opening and preparation
+ 'không dễ uống','chẳng dễ uống','khó nuốt','viên to','viên hơi to','viên nhỏ','dễ uống',
+ 'khó uống','dễ nuốt','nuốt được',
+ 'mùi tanh','vị tanh','tanh','vị ngọt','vị chua','vị hơi chua','chua chua','ngọt','đắng',
+ 'chua ngọt','thơm','mùi sữa','vị bình thường','gắt cổ','khó chịu','dễ nhai','khó nhai',
+ 'dễ bẻ','khó bẻ','bẻ ống','rớt miểng','mảnh vụn','mở nắp','khó mở','dễ mở',
+ 'pha nước','dễ pha','khó pha',
 ]
 
 # deaccented forms that collide with unrelated common words
@@ -162,6 +162,43 @@ def build_re(kws):
 
 NOISE_RE  = build_re(NOISE)
 SIGNAL_RE = build_re(SIGNAL)
+NOT_USED_RE = re.compile(
+    r'(?:chưa dùng|chưa sử dụng|chưa thử|chưa xài)[^.!?]*?(?=\b(?:nhưng|mà)\b|[.!?]|$)',
+    re.IGNORECASE,
+)
+MOTIVATION_RE = re.compile(
+    r'(?:mua|đặt|chọn|tìm)(?![^,.!?]{0,80}\b(?:rồi|sau đó)\s+(?:uống|dùng|sử dụng)\b)'
+    r'(?:\s+(?:về|để|cho))?[^,.!?]{0,80}(?:đau xương|đau lưng|đau khớp|'
+    r'khớp gối|mỏi gối|nhức mỏi|tê tay|tê chân|táo bón|đau bụng|đau bao tử|khó tiêu|'
+    r'đầy bụng|buồn nôn|dị ứng|sỏi thận|khó ngủ)[^,.!?]*|'
+    r'[^,.!?]{0,80}(?:bị\s+)?(?:đau xương|đau lưng|đau khớp|khớp gối|mỏi gối|nhức mỏi|'
+    r'tê tay|tê chân|táo bón|đau bụng|đau bao tử|khó tiêu|đầy bụng|buồn nôn|dị ứng|'
+    r'sỏi thận|khó ngủ)\s+(?:nên|nên mới|nên phải|thì)\s+'
+    r'(?:(?:tôi|mình|em|nhà tôi|gia đình)\s+)?(?:mua|đặt|chọn|tìm)[^,.!?]*',
+    re.IGNORECASE,
+)
+SENTENCE_BOUNDARY_RE = re.compile(r'[.!?;\n]+')
+NEGATOR_RE = re.compile(r'(?:không|khong|ko|k|chẳng|chả)(?:\s+(?:bị|gây|hề|quá|còn|thấy))?\s+$')
+
+
+def negative_signals(text, signals, negative_terms):
+    """Return intrinsically negative signals, respecting local negation."""
+    negatives = []
+    normalized_negatives = {norm(item) for item in negative_terms}
+    deaccented_negatives = {deaccent(item) for item in normalized_negatives}
+    for signal in signals:
+        normalized = norm(signal)
+        if normalized not in normalized_negatives and deaccent(normalized) not in deaccented_negatives:
+            continue
+        matches = list(build_re([signal]).finditer(text))
+        for match in matches:
+            prefix = text[max(0, match.start() - 32):match.start()]
+            denied_assertion = re.search(r'(?:không|khong|ko|k|chẳng|chả)\s+phải(?:\s+là)?\s*$', prefix)
+            intrinsically_negated = normalized.startswith(('không ', 'khong ', 'chưa '))
+            if not denied_assertion and (intrinsically_negated or not NEGATOR_RE.search(prefix)):
+                negatives.append(signal)
+                break
+    return negatives
 
 
 def filter_reviews(supplied_rows):
@@ -170,14 +207,21 @@ def filter_reviews(supplied_rows):
 
     for r in rows:
         raw = r['text']
-        meta, sigfields, free, boundary_status = split_fields(raw)
-        content = (sigfields + ' ' + free).strip()
-        content = strip_emoji(content).strip()
+        meta, sigfields, sigvalues, free, boundary_status = split_fields(raw)
+        content = strip_emoji((sigfields + ' ' + free).strip()).strip()
         nc = norm(content)
 
+        # Keep the established content/dedup key above. Eligibility is narrower:
+        # values + free text only, with buying noise masked first.
+        experience_raw = strip_emoji((sigvalues + ' ' + free).strip())
+        # Keep sentence boundaries while masking exclusions; norm() drops
+        # punctuation and would otherwise consume later first-hand experience.
+        experience_text = ' . '.join(norm(part) for part in SENTENCE_BOUNDARY_RE.split(experience_raw))
         noi = sorted(set(NOISE_RE.findall(nc)))
-        masked = NOISE_RE.sub(lambda m: ' ' * len(m.group(0)), nc)
-        sig = sorted(set(SIGNAL_RE.findall(masked)))
+        experience_text = NOT_USED_RE.sub(lambda m: ' ' * len(m.group(0)), experience_text)
+        experience_text = MOTIVATION_RE.sub(lambda m: ' ' * len(m.group(0)), experience_text)
+        experience_text = NOISE_RE.sub(lambda m: ' ' * len(m.group(0)), experience_text)
+        sig = sorted(set(SIGNAL_RE.findall(experience_text)))
 
         target = meta.get('đối tượng sử dụng', '')
         has_target = len(norm(target)) > 3
@@ -191,9 +235,7 @@ def filter_reviews(supplied_rows):
         elif (r['product'], nc) in seen:
             reason = f"Trùng lặp nội dung (đã có ở #{seen[(r['product'], nc)]})"
         elif len(sig) == 0:
-            reason = 'Chỉ có logistics/khen chung — không có tín hiệu sản phẩm'
-        elif len(sig) == 1 and len(noi) >= 5 and len(nc) < 100:
-            reason = 'Tín hiệu quá yếu so với nội dung vận chuyển/dịch vụ'
+            reason = 'Không có trải nghiệm sử dụng sản phẩm cụ thể'
         else:
             seen[(r['product'], nc)] = r['id']
 
@@ -201,12 +243,17 @@ def filter_reviews(supplied_rows):
             r['reason'] = reason
             removed.append(r)
         else:
-            neg = {'không hiệu quả','chưa thấy hiệu quả','chưa thấy','không tác dụng','chưa hiệu quả',
-                   'nóng trong','táo bón','đau bụng','nổi mụn','lên mụn','dị ứng','tác dụng phụ',
-                   'không hợp','khó nuốt','viên to','khó uống','tanh','đắng','thất vọng',
-                   'không đáng','phí tiền','nguy hiểm','cặn canxi','sỏi thận','không thấy tác dụng',
-                   'không như mong đợi','khó chịu','buồn nôn','tiêu chảy','đi ngoài'}
-            negs = [s for s in sig if s in neg or deaccent(s) in {deaccent(x) for x in neg}]
+            neg = {'không hiệu quả','chưa thấy hiệu quả','chưa thấy rõ hiệu quả','không tác dụng',
+                   'không thấy đỡ','không đỡ','chẳng đỡ','không dễ uống','chẳng dễ uống',
+                   'chưa thấy tác dụng','chưa hiệu quả','chưa thấy cải thiện','chưa thấy sự thay đổi',
+                   'chưa thấy thay đổi','chưa thay đổi','không thay đổi','nóng trong','táo bón',
+                   'bị táo','bị đau bụng','bị đau bao tử','bị đau xương','bị đau lưng',
+                   'bị đau khớp','bị mỏi gối','bị nhức mỏi','bị tê tay','bị tê chân',
+                   'nổi mụn','lên mụn',
+                   'dị ứng','tác dụng phụ','không hợp','khó nuốt','viên to','khó uống','tanh',
+                   'đắng','cặn canxi','sỏi thận','khó chịu','buồn nôn','tiêu chảy','đi ngoài',
+                   'bị chóng mặt','thấy chóng mặt','bị ói','bị khó ngủ','người hơi ê ẩm'}
+            negs = negative_signals(experience_text, sig, neg)
             r['_neg'] = negs
             r['_score'] = len(sig)*2 + (3 if has_target else 0) + (6 if int(r['star']) <= 3 else 0) + len(negs)*4
             kept.append(r)
