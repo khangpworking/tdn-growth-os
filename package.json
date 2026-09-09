@@ -10,6 +10,7 @@
   },
   "scripts": {
     "research:shopee": "tsx scripts/collect-shopee-reviews.ts",
+    "research:shopee:export": "tsx scripts/export-shopee-evidence-report.ts",
     "contracts:generate": "node scripts/generate-foundation-contract.mjs",
     "db:migrate": "tsx scripts/migrate.ts",
     "foundation:ingest": "tsx scripts/ingest-manual.ts",

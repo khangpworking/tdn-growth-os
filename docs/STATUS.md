@@ -1,5 +1,19 @@
 # Trạng thái hiện tại
 
+## Task 021 — offline Vietnamese Shopee evidence export
+
+- Có command `research:shopee:export` chọn duy nhất một persisted Result bằng exact SHA-256; không chọn “latest”.
+- Export mở database read-only/query-only, chỉ đọc artifact/lineage/summary đã xác minh, không gọi `analyze()`, Python/filter, provider, migration hoặc ghi database.
+- V1 fail-closed chỉ hỗ trợ `shopee-calcium-v3-adapter3`; không rewrite artifact lịch sử hoặc thêm compatibility framework.
+- Báo cáo deterministic gồm verified source/time/selection/coverage/counts/warnings, toàn bộ review được giữ theo sản phẩm, rating/signals/ambiguous flag và Result/raw-row references. Review text được quote và escape thành inert text; không xuất author identifier.
+- Output bắt buộc ngoài Git, tạo mới `0600` và từ chối overwrite. Tests dùng persisted synthetic fixtures; private 3.354-row Markdown không được nhập vào collection model.
+
+## Tasks 018 và 020 — filter adapter3 đã merge
+
+- Task 018 merge `9abb426808cae601e142bbbab07f680262ba94db`: bảo toàn ambiguous final guided-field span và original review text; adapter2.
+- Task 020 merge `f4275a40ed5b03b8392720fb1012a4031403ea0b`: thu hẹp eligibility vào concrete product-use attributes/effects, giữ hearsay attribution nhưng không coi là firsthand evidence; adapter3.
+- Các so sánh private của Tasks 017–020, raw reviews và usernames vẫn ngoài Git. Retention/score không phải accuracy, sentiment, confidence, fact validation hoặc causation.
+
 ## Task 016 — bounded live Shopee smoke đã xác minh
 
 - Đã reuse đúng Apify run `i6T1liAKkm9r2iNZs` / dataset `uGmehqbbdXCqBvjED`; không launch Actor run mới khi hoàn tất verification.
@@ -18,7 +32,7 @@
 - Fedora permissions: database/WAL/SHM, request/raw/collection/result artifacts và local receipt probes đều giữ owner-only `0600` (`0700` cho receipt directories). Không chạy live provider, Metric login, paid API hoặc deployment.
 - Metric login/extraction được hoãn theo yêu cầu; file-input là authoritative scope của Task 015. Live adapter vẫn cần authorization, credential và explicit budget riêng trước khi chạy.
 - Handoff chi tiết: `docs/handoffs/015-on-demand-shopee-research.md`.
-- Phần bên dưới giữ nguyên trạng thái baseline sau Task 014; không tính tài liệu là năng lực đã xây.
+- Phần bên dưới giữ nguyên các kết quả lịch sử trước Task 015; không tính tài liệu là năng lực đã xây.
 
 Cập nhật: 13/09/2026.
 
@@ -50,7 +64,7 @@ Cập nhật: 13/09/2026.
 - Task 011 thêm closed Box 3 submission contract, claim/use validation từ verified audit, immutable versioned `PROPOSED` artifact/row và replay/reader; không AI, Pi, approval hay action.
 - Task 013 thêm closed review request, trusted actor capability `governance:proposal-review`, fixed application policy, append-only immutable decision artifact/row và verified effective-decision reader; chỉ đọc proposal qua `AnalysisBackedProposalReader`, không mutate Box 3 hay tạo Box 4 action.
 - Task 014 thêm closed approved-proposal intake, trusted Flow producer, immutable authorization-lineage plan artifact/row và verified reader; chỉ đọc Box 5 qua `GovernedProposalDecisionReader`. `AUTHORIZED_PLAN` chỉ đủ điều kiện cho future manual task definition.
-- Chưa triển khai: live provider calls, automatic selection, additional calculations, worker, API, frontend, approval/action AI, artifact reconciliation, backup/restore production và deployment.
+- Chưa triển khai: production live collection beyond the bounded Task 016 smoke, Metric automatic selection/login, additional calculations, worker, API, frontend, approval/action AI, artifact reconciliation, backup/restore production và deployment.
 - Repository GitHub riêng tư: `khangpworking/tdn-growth-os`.
 - Các thư mục scaffold không chứng minh năng lực sản phẩm.
 

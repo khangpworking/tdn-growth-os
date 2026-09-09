@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { ShopeeCollection } from '../../../contracts/foundation/shopee-collection.generated.js';
+import type { ShopeeListingRequest } from '../../../contracts/foundation/shopee-listing-request.generated.js';
 import { shopeeActorInputSha256, type CollectedPages } from '../../platform/collectors/apify-shopee.js';
 import { ContentAddressedArtifactStore } from '../../platform/artifacts/index.js';
 import type { StoredArtifact } from '../../platform/artifacts/artifact-store.js';
@@ -8,7 +9,10 @@ import { registerManifest } from '../../platform/artifacts/register-manifest.js'
 import { digest, jsonBytes, parseJsonBytes, selectShopeeListings, validateCollection, validateListingRequest } from './shopee-selection.js';
 
 export interface VerifiedShopeeCollection {
-  packet: ShopeeCollection; sha256: string; pages: { bytes: Buffer; sha256: string; offset: number }[];
+  packet: ShopeeCollection;
+  request: ShopeeListingRequest;
+  sha256: string;
+  pages: { bytes: Buffer; sha256: string; offset: number }[];
 }
 export interface ShopeeCollectionReader { read(id: string): Promise<VerifiedShopeeCollection> }
 interface Row { collection_id: string; request_sha256: string; artifact_sha256: string; evidence_id: string; created_at: string; run_key: string }
@@ -153,7 +157,7 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     if (packet.actor.providerTotalRows !== null && packet.actor.providerTotalRows < offset) {
       throw new Error('Collection provider total mismatch');
     }
-    return { packet, sha256: row.artifact_sha256, pages };
+    return { packet, request, sha256: row.artifact_sha256, pages };
   }
 
   async #verifiedArtifact(sha: string): Promise<Buffer> {

@@ -18,7 +18,8 @@ addFormats(ajv);
 const validate = ajv.compile(resultSchema);
 const validateReviews = ajv.compile(resultSchema.properties.reviews);
 const FILTER_PATH = fileURLToPath(new URL('../../../scripts/filter-shopee-reviews.py', import.meta.url));
-const FILTER_VERSION = 'shopee-calcium-v3-adapter3' as const;
+export const SHOPEE_FILTER_VERSION = 'shopee-calcium-v3-adapter3' as const;
+export const SHOPEE_FILTER_SHA256 = 'b2220f923a14f0f41d13360ac280f9b7230cdbb5e2c5543abcd60e8f03a2ad01' as const;
 type Review = ShopeeReviewResult['reviews'][number];
 interface FilterInput {
   id: string; product: string; listingKey: string; star: number; text: string;
@@ -34,39 +35,29 @@ export class ShopeeReviewAnalysisService {
   async analyze(collectionId: string): Promise<{ result: ShopeeReviewResult; sha256: string; deduplicated: boolean }> {
     const source = await this.options.reader.read(collectionId);
     const filterSha256 = digest(await fs.readFile(FILTER_PATH));
-    const normalized = normalize(source);
+    if (filterSha256 !== SHOPEE_FILTER_SHA256) throw new Error('Installed Shopee adapter3 filter digest mismatch');
+    const normalized = normalizeShopeeCollection(source);
     const existing = this.options.db.prepare(
       'SELECT artifact_sha256, created_at FROM analysis_shopee_review_results WHERE collection_id=? AND filter_sha256=?',
     ).get(collectionId, filterSha256) as { artifact_sha256: string; created_at: string } | undefined;
     if (existing) {
-      const bytes = await this.options.artifactStore.read(existing.artifact_sha256);
-      const result = parseJsonBytes(bytes, 128 * 1024 * 1024);
-      if (!validate(result)) throw new Error('Invalid persisted filter result');
-      const typed = result as unknown as ShopeeReviewResult;
-      assertFilterLineage(typed.reviews, normalized.rows);
-      const expectedSummary = buildSummary(source, normalized, typed.reviews);
-      if (!jsonBytes(typed).equals(bytes) || typed.collectionId !== collectionId ||
-          typed.collectionSha256 !== source.sha256 || typed.filterSha256 !== filterSha256 ||
-          typed.createdAt !== existing.created_at || !jsonBytes(typed.summary).equals(jsonBytes(expectedSummary))) {
-        throw new Error('Filter result replay mismatch');
-      }
-      const artifact = this.options.db.prepare('SELECT byte_size, media_type, relative_path, contract_version FROM artifact_manifests WHERE sha256=?')
-        .get(existing.artifact_sha256) as { byte_size: bigint; media_type: string; relative_path: string; contract_version: string } | undefined;
-      if (!artifact || BigInt(artifact.byte_size) !== BigInt(bytes.length) || artifact.media_type !== 'application/json' ||
-          artifact.contract_version !== '1.0.0' ||
-          artifact.relative_path !== 'sha256/' + existing.artifact_sha256.slice(0, 2) + '/' + existing.artifact_sha256) {
-        throw new Error('Filter artifact metadata mismatch');
-      }
-      return { result: typed, sha256: existing.artifact_sha256, deduplicated: true };
+      const verified = await verifyPersistedShopeeReviewResult({
+        db: this.options.db,
+        artifactStore: this.options.artifactStore,
+        source,
+        resultSha256: existing.artifact_sha256,
+        row: { collectionId, filterSha256, createdAt: existing.created_at },
+      });
+      return { result: verified.result, sha256: verified.sha256, deduplicated: true };
     }
     const output = await runFilter(normalized.rows, this.options.pythonExecutable ?? (process.platform === 'win32' ? 'python' : 'python3'));
     if (!validateReviews(output)) throw new Error('Filter output violates result contract');
     const reviews = output as Review[];
-    assertFilterLineage(reviews, normalized.rows);
+    assertShopeeFilterLineage(reviews, normalized.rows);
     const result: ShopeeReviewResult = {
       contractVersion: '1.0.0', collectionId, collectionSha256: source.sha256,
-      filterVersion: FILTER_VERSION, filterSha256, createdAt: new Date().toISOString(),
-      summary: buildSummary(source, normalized, reviews), reviews,
+      filterVersion: SHOPEE_FILTER_VERSION, filterSha256, createdAt: new Date().toISOString(),
+      summary: buildShopeeReviewSummary(source, normalized, reviews), reviews,
     };
     if (!validate(result)) throw new Error('Invalid filter result: ' + ajv.errorsText(validate.errors));
     const stored = await this.options.artifactStore.put(jsonBytes(result));
@@ -80,7 +71,7 @@ export class ShopeeReviewAnalysisService {
   }
 }
 
-function normalize(source: VerifiedShopeeCollection): {
+export function normalizeShopeeCollection(source: VerifiedShopeeCollection): {
   rows: FilterInput[]; invalidRows: number; duplicateRows: number; warnings: string[];
   rawRowsByListing: ReadonlyMap<string, number>;
 } {
@@ -129,7 +120,11 @@ function normalize(source: VerifiedShopeeCollection): {
   return { rows: [...rows.values()], invalidRows, duplicateRows, warnings: [...warnings].sort(), rawRowsByListing };
 }
 
-function buildSummary(source: VerifiedShopeeCollection, normalized: ReturnType<typeof normalize>, reviews: Review[]): ShopeeReviewResult['summary'] {
+export function buildShopeeReviewSummary(
+  source: VerifiedShopeeCollection,
+  normalized: ReturnType<typeof normalizeShopeeCollection>,
+  reviews: Review[],
+): ShopeeReviewResult['summary'] {
   const incomplete = !['FIXTURE', 'SUCCEEDED'].includes(source.packet.actor.status) ||
     source.packet.actor.stopReason === 'dataset_read_failed';
   const warnings = [...source.packet.selectionWarnings, ...source.packet.collectorWarnings, ...normalized.warnings,
@@ -165,7 +160,7 @@ function buildSummary(source: VerifiedShopeeCollection, normalized: ReturnType<t
     warnings: [...new Set(warnings)].sort(), listings };
 }
 
-function assertFilterLineage(reviews: Review[], inputs: FilterInput[]): void {
+export function assertShopeeFilterLineage(reviews: Review[], inputs: FilterInput[]): void {
   const expected = new Map(inputs.map(row => [row.listingKey + ':' + row.id, row]));
   if (reviews.length !== inputs.length) throw new Error('Filter lost input records');
   for (const review of reviews) {
@@ -218,4 +213,48 @@ function rawListingKey(value: unknown): string | null {
   const shopId = normalizeId(record.shopId);
   const itemId = normalizeId(record.itemId);
   return shopId && itemId ? `shopee:${shopId}:${itemId}` : null;
+}
+
+export async function verifyPersistedShopeeReviewResult(options: {
+  db: Database.Database;
+  artifactStore: ContentAddressedArtifactStore;
+  source: VerifiedShopeeCollection;
+  resultSha256: string;
+  row: { collectionId: string; filterSha256: string; createdAt: string };
+}): Promise<{
+  result: ShopeeReviewResult;
+  sha256: string;
+  inputs: ReturnType<typeof normalizeShopeeCollection>['rows'];
+}> {
+  const bytes = await options.artifactStore.read(options.resultSha256);
+  const parsed = parseJsonBytes(bytes, 128 * 1024 * 1024);
+  const filterVersion = parsed && typeof parsed === 'object'
+    ? (parsed as Record<string, unknown>).filterVersion : undefined;
+  if (filterVersion !== SHOPEE_FILTER_VERSION) {
+    throw new Error(`Unsupported Shopee filter version: ${String(filterVersion ?? 'missing')}; supported: ${SHOPEE_FILTER_VERSION}`);
+  }
+  if (!validate(parsed)) throw new Error('Invalid persisted filter result');
+  const result = parsed as unknown as ShopeeReviewResult;
+  if (result.filterSha256 !== SHOPEE_FILTER_SHA256 || options.row.filterSha256 !== SHOPEE_FILTER_SHA256) {
+    throw new Error(`Unsupported Shopee adapter3 filter digest: ${result.filterSha256}`);
+  }
+  const normalized = normalizeShopeeCollection(options.source);
+  assertShopeeFilterLineage(result.reviews, normalized.rows);
+  const expectedSummary = buildShopeeReviewSummary(options.source, normalized, result.reviews);
+  if (!jsonBytes(result).equals(bytes) || result.collectionId !== options.row.collectionId ||
+      result.collectionSha256 !== options.source.sha256 || result.filterSha256 !== options.row.filterSha256 ||
+      result.createdAt !== options.row.createdAt || !jsonBytes(result.summary).equals(jsonBytes(expectedSummary))) {
+    throw new Error('Filter result replay mismatch');
+  }
+  const artifact = options.db.prepare(
+    'SELECT byte_size, media_type, relative_path, contract_version FROM artifact_manifests WHERE sha256=?',
+  ).get(options.resultSha256) as {
+    byte_size: bigint; media_type: string; relative_path: string; contract_version: string;
+  } | undefined;
+  if (!artifact || BigInt(artifact.byte_size) !== BigInt(bytes.length) || artifact.media_type !== 'application/json' ||
+      artifact.contract_version !== '1.0.0' ||
+      artifact.relative_path !== 'sha256/' + options.resultSha256.slice(0, 2) + '/' + options.resultSha256) {
+    throw new Error('Filter artifact metadata mismatch');
+  }
+  return { result, sha256: options.resultSha256, inputs: normalized.rows };
 }

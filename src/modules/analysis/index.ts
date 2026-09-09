@@ -63,3 +63,10 @@ export {
   type ResearchEvidenceAuditReader,
   type VerifiedResearchEvidenceAudit,
 } from './research-evidence-audit-reader.js';
+
+export {
+  AnalysisShopeeReviewResultReader,
+  type ShopeeReviewResultReader,
+  type VerifiedShopeeReviewResult,
+} from './shopee-review-result-reader.js';
+export { renderVietnameseShopeeEvidenceReport } from './shopee-evidence-report.js';
