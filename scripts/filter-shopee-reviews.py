@@ -111,7 +111,8 @@ NOISE = [
 ]
 
 # Only concrete reported product-use experiences establish eligibility. Buying,
-# target-user, authority, hearsay, bare consumption and repurchase terms do not.
+# target-user, authority, bare consumption and repurchase terms do not. Hearsay
+# attribution neither establishes nor disqualifies a concrete attribute/effect.
 SIGNAL = [
  # perceived effects or lack of effects
  'hiệu quả rõ','thấy hiệu quả','có hiệu quả','hiệu quả từ',
@@ -161,16 +162,13 @@ def build_re(kws):
 
 NOISE_RE  = build_re(NOISE)
 SIGNAL_RE = build_re(SIGNAL)
-HEARSAY_RE = re.compile(
-    r'(?:nghe nói|nghe bảo|nghe review|người quen|người bạn|ng bạn|bạn mình|mẹ mình|chị mình|'
-    r'bác sĩ|bs|dược sĩ|nhân viên|shop)\s+(?:.{0,60}\s+)?(?:giới thiệu|\bgt\b|bảo|nói|khuyên|tư vấn)'
-    r'[^,.!?]*?(?=\b(?:nhưng|mà)\b|[,!?]|\.|$)|'
-    r'được\s+(?:.{0,40}\s+)?(?:giới thiệu|khuyên|tư vấn)[^,.!?]*?(?=\b(?:nhưng|mà)\b|[,!?]|\.|$)',
+NOT_USED_RE = re.compile(
+    r'(?:chưa dùng|chưa sử dụng|chưa thử|chưa xài)[^.!?]*?(?=\b(?:nhưng|mà)\b|[.!?]|$)',
     re.IGNORECASE,
 )
-NOT_USED_RE = re.compile(r'(?:chưa dùng|chưa sử dụng|chưa thử|chưa xài)[^.!?]*', re.IGNORECASE)
 MOTIVATION_RE = re.compile(
-    r'(?:mua|đặt|chọn|tìm)(?:\s+(?:về|để|cho))?[^,.!?]{0,80}(?:đau xương|đau lưng|đau khớp|'
+    r'(?:mua|đặt|chọn|tìm)(?![^,.!?]{0,80}\b(?:rồi|sau đó)\s+(?:uống|dùng|sử dụng)\b)'
+    r'(?:\s+(?:về|để|cho))?[^,.!?]{0,80}(?:đau xương|đau lưng|đau khớp|'
     r'khớp gối|mỏi gối|nhức mỏi|tê tay|tê chân|táo bón|đau bụng|đau bao tử|khó tiêu|'
     r'đầy bụng|buồn nôn|dị ứng|sỏi thận|khó ngủ)[^,.!?]*|'
     r'[^,.!?]{0,80}(?:bị\s+)?(?:đau xương|đau lưng|đau khớp|khớp gối|mỏi gối|nhức mỏi|'
@@ -214,14 +212,13 @@ def filter_reviews(supplied_rows):
         nc = norm(content)
 
         # Keep the established content/dedup key above. Eligibility is narrower:
-        # values + free text only, with buying noise and hearsay masked first.
+        # values + free text only, with buying noise masked first.
         experience_raw = strip_emoji((sigvalues + ' ' + free).strip())
         # Keep sentence boundaries while masking exclusions; norm() drops
         # punctuation and would otherwise consume later first-hand experience.
         experience_text = ' . '.join(norm(part) for part in SENTENCE_BOUNDARY_RE.split(experience_raw))
         noi = sorted(set(NOISE_RE.findall(nc)))
         experience_text = NOT_USED_RE.sub(lambda m: ' ' * len(m.group(0)), experience_text)
-        experience_text = HEARSAY_RE.sub(lambda m: ' ' * len(m.group(0)), experience_text)
         experience_text = MOTIVATION_RE.sub(lambda m: ' ' * len(m.group(0)), experience_text)
         experience_text = NOISE_RE.sub(lambda m: ' ' * len(m.group(0)), experience_text)
         sig = sorted(set(SIGNAL_RE.findall(experience_text)))

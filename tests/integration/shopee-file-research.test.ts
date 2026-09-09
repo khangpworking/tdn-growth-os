@@ -595,15 +595,18 @@ test('020 product-use policy boundaries are narrow, mixed-comment eligible, and 
     ['reordered-symptom-motivation', 'Mẹ bị đau lưng nên tôi mua loại này', 'removed'],
     ['reordered-constipation-motivation', 'Bị táo bón nên mua loại này', 'removed'],
     ['reordered-numbness-motivation', 'Mẹ bị tê chân nên đặt loại này', 'removed'],
-    ['hearsay', 'Người quen giới thiệu loại này không gây táo bón', 'removed'],
-    ['doctor-hearsay', 'Bác sĩ bảo loại này không gây táo bón', 'removed'],
+    ['hearsay-attribute', 'Nghe nói loại này dễ uống', 'kept'],
+    ['hearsay-effect', 'Người quen giới thiệu loại này không gây táo bón', 'kept'],
+    ['doctor-hearsay', 'Bác sĩ bảo loại này không gây táo bón', 'kept'],
     ['hearsay-then-use', 'Bác sĩ bảo loại này không gây táo bón. Tôi uống thấy dễ uống', 'kept'],
-    ['abbreviated-hearsay', 'Mình được một ng bạn gt dùng, thấy khá tốt k bị táo', 'removed'],
+    ['abbreviated-hearsay', 'Mình được một ng bạn gt dùng, thấy khá tốt k bị táo', 'kept'],
+    ['generic-hearsay', 'Nghe nói sản phẩm tốt', 'removed'],
     ['repurchase', 'Đã dùng nhiều lần, sẽ mua lại', 'removed'],
     ['generic', 'Sản phẩm tốt, dùng rất ổn', 'removed'],
     ['just-started', 'Giờ mới bắt đầu dùng, chưa biết chất lượng', 'removed'],
     ['not-used-question', 'Chưa dùng thử, không biết có bị táo không', 'removed'],
-    ['not-used-then-use', 'Chưa dùng trước đây. Hôm nay uống thấy vị chua', 'kept'],
+    ['purchase-then-use', 'Mua hộp này rồi uống bị đau bụng', 'kept'],
+    ['not-used-then-use', 'Chưa dùng trước đây nhưng hôm nay uống thấy vị chua', 'kept'],
     ['field-label', 'Xương chắc khỏe:ok Tăng chiều cao:giờ mới dùng', 'removed'],
     ['negated-complaint', 'Siro không khó uống và không gây khó chịu', 'kept'],
     ['modified-negation', 'Siro không quá khó uống', 'kept'],
@@ -627,10 +630,11 @@ test('020 product-use policy boundaries are narrow, mixed-comment eligible, and 
   });
   assert.equal(adapted.status, 0, adapted.stderr);
   const output = JSON.parse(adapted.stdout) as Array<{
-    reviewId: string; decision: string; reason: string; negative: string[];
+    reviewId: string; text: string; decision: string; reason: string; negative: string[];
   }>;
   const byId = new Map(output.map(row => [row.reviewId, row]));
   for (const [id, , decision] of cases) assert.equal(byId.get(id)!.decision, decision, id);
+  assert.equal(byId.get('hearsay-attribute')!.text, 'Nghe nói loại này dễ uống');
   assert.deepEqual(byId.get('negated-complaint')!.negative, []);
   assert.deepEqual(byId.get('modified-negation')!.negative, []);
   assert.deepEqual(byId.get('not-a-complaint')!.negative, []);
