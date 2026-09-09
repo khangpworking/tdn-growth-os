@@ -70,3 +70,4 @@ export {
   type VerifiedShopeeReviewResult,
 } from './shopee-review-result-reader.js';
 export { renderVietnameseShopeeEvidenceReport } from './shopee-evidence-report.js';
+export * from "./combined-market-review-report.js";

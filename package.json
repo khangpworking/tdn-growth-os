@@ -11,12 +11,13 @@
   "scripts": {
     "research:shopee": "tsx scripts/collect-shopee-reviews.ts",
     "research:shopee:export": "tsx scripts/export-shopee-evidence-report.ts",
+    "report:combined:export": "tsx scripts/export-combined-market-review-report.ts",
     "contracts:generate": "node scripts/generate-foundation-contract.mjs",
     "db:migrate": "tsx scripts/migrate.ts",
     "foundation:ingest": "tsx scripts/ingest-manual.ts",
     "foundation:ingest-export": "tsx scripts/ingest-json-export.ts",
     "typecheck": "node scripts/typecheck.mjs",
-    "test": "node --import tsx --test tests/integration/*.test.ts",
+    "test": "node --import tsx --test tests/unit/*.test.ts tests/integration/*.test.ts",
     "check": "npm run contracts:generate && npm run typecheck && npm test"
   },
   "dependencies": {

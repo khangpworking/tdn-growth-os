@@ -32,3 +32,18 @@ npm run research:shopee:export -- \
 ```
 
 V1 chỉ hỗ trợ Result `shopee-calcium-v3-adapter3`. Output phải ở ngoài Git, được tạo mới với quyền owner-only `0600`, và command từ chối ghi đè. Báo cáo giữ nguyên review được retain dưới dạng quoted inert text, không xuất author identifier; điều này không đảm bảo free text tự thân không chứa thông tin cá nhân.
+
+## Combined Vietnamese market and review report
+
+Export an offline report from exact existing Result digests without recomputing analysis or filters:
+
+```bash
+npm run report:combined:export -- \
+  /absolute/path/to/tdn-growth-os.sqlite \
+  /absolute/path/to/artifacts \
+  <market_snapshot_result_sha256> \
+  <adapter3_review_result_sha256> \
+  /absolute/outside-git/combined-report.md
+```
+
+The exporter opens the database read-only, verifies both Results and their frozen sources, preserves missing values separately from zero and keeps integer strings lossless. Market and review scopes remain separate unless existing verified shared identity is available. Output must be outside the repository, is created with owner-only permissions, and is never overwritten.
