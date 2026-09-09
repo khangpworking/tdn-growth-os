@@ -58,8 +58,13 @@ export function renderCombinedMarketReviewReport(input: CombinedMarketReviewRepo
   const reviewReport = renderVietnameseShopeeEvidenceReport(review);
   const missingRevenueProducts = market.coverage.uniqueProductCount - market.coverage.periodRevenueObservedProductCount;
   const missingUnitsProducts = market.coverage.uniqueProductCount - market.coverage.periodUnitsSoldObservedProductCount;
-  const collectionIsPartial = review.result.summary.listings.some(({ status }) =>
-    status === 'partial' || status === 'failed' || status === 'unavailable' || status === 'below_limit' || status === 'empty');
+  const listings = review.result.summary.listings;
+  const collectionCoverage = listings.length === 0
+    ? 'không có listing được chọn nên không thể kết luận listing nào đạt sample limit'
+    : listings.some(({ status }) =>
+      status === 'partial' || status === 'failed' || status === 'unavailable' || status === 'below_limit' || status === 'empty')
+      ? 'có listing không đạt sample limit hoặc có trạng thái thiếu/không khả dụng'
+      : 'đạt sample limit cho mọi listing được chọn';
 
   return `# Báo cáo bằng chứng thị trường và review Shopee\n\n` +
     `> Báo cáo offline này ghép hai Result đã tồn tại, không chạy lại phân tích, collection hay filter. Hai phần được giữ riêng vì không có shared identity đã xác minh giữa sản phẩm thị trường và listing review. Không suy diễn kết luận chung về thị trường.\n\n` +
@@ -67,9 +72,17 @@ export function renderCombinedMarketReviewReport(input: CombinedMarketReviewRepo
     `- **Market Result SHA-256:** \`${input.marketResultSha256}\`\n` +
     `- **Review Result SHA-256:** \`${review.resultSha256}\`\n` +
     `- **Market Data Pack:** ${code(market.dataPack.packKey)} phiên bản ${market.dataPack.version}; manifest ${code(market.dataPack.manifestArtifactSha256)}.\n` +
+    `- **Thời điểm Market Result hoàn tất xử lý:** ${code(market.completedAt)}.\n` +
     `- **Phạm vi market:** ${code(market.period.scope)}; ${code(market.period.start)} đến ${code(market.period.end)} (${code(market.period.grain)}).\n` +
     `- **Phạm vi review:** ${review.result.summary.selectedProducts} listing được chọn, mode ${code(review.result.summary.mode)}.\n` +
-    `- **Kỳ yêu cầu collection review:** ${code(review.collection.request.period.start)} đến ${code(review.collection.request.period.end)}; nguồn được lấy lúc ${code(review.collection.request.source.acquiredAt)}.\n` +
+    `- **Kỳ yêu cầu collection review:** ${code(review.collection.request.period.start)} đến ${code(review.collection.request.period.end)}.\n` +
+    `- **Nhãn nguồn yêu cầu review:** ${code(review.collection.request.source.label)}.\n` +
+    `- **Thời điểm nguồn review được thu nhận:** ${code(review.collection.request.source.acquiredAt)}.\n` +
+    `- **Review collection digest:** ${code(review.result.collectionSha256)}.\n` +
+    `- **Thời điểm collection packet được xử lý và lưu trữ:** ${code(review.collection.packet.createdAt)}.\n` +
+    `- **Thời điểm collector truy xuất dữ liệu:** ${code(review.collection.packet.actor.retrievedAt)}.\n` +
+    `- **Review filter:** ${code(review.result.filterVersion)}; SHA-256 ${code(review.result.filterSha256)}.\n` +
+    `- **Thời điểm Review Result hoàn tất xử lý:** ${code(review.result.createdAt)}.\n` +
     `- **Giới hạn quan trọng:** Kỳ market không giới hạn ngày đăng review. Review không được coi là bao phủ toàn bộ tập số liệu thị trường.\n\n` +
     `## 2. Market snapshot\n\n` +
     `- Tổng doanh thu kỳ (VND): **${metric(market.totals.periodRevenueVndTotal)}**\n` +
@@ -79,7 +92,7 @@ export function renderCombinedMarketReviewReport(input: CombinedMarketReviewRepo
     `- Result market chỉ lưu aggregate và coverage; báo cáo không dựng lại dòng metric theo sản phẩm.\n\n` +
     `## 3. Bằng chứng review\n\n${sectionAfterOverview(reviewReport)}\n\n` +
     `## 4. Khoảng trống dữ liệu và khác biệt phạm vi\n\n` +
-    `- Bộ sưu tập review ${collectionIsPartial ? 'có listing không đạt sample limit hoặc có trạng thái thiếu/không khả dụng' : 'đạt sample limit cho mọi listing được chọn'}; số review giữ lại không mặc nhiên đại diện cho toàn bộ review của listing.\n` +
+    `- Bộ sưu tập review ${collectionCoverage}; số review giữ lại không mặc nhiên đại diện cho toàn bộ review của listing.\n` +
     `- Phạm vi market và review khác nhau và chưa được xác minh là cùng sản phẩm; không nối theo tên tương tự.\n` +
     `- Không tổng hợp filter score thành sentiment, confidence, nhu cầu hay cơ hội thị trường.\n` +
     `- Báo cáo không tạo ra kết luận tổng thể về thị trường.\n`;

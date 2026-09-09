@@ -81,6 +81,14 @@ test('022 selects exact persisted digests deterministically without database sid
     assert.equal(renderCombinedMarketReviewReport(await state.reader.read(state.market.resultArtifactSha256, state.review.sha256)), report);
     assert.ok(report.includes(state.market.resultArtifactSha256));
     assert.ok(report.includes(state.review.sha256));
+    assert.ok(report.includes(`- **Thời điểm Market Result hoàn tất xử lý:** \`${input.marketResult.completedAt}\`.`));
+    assert.ok(report.includes(`- **Nhãn nguồn yêu cầu review:** \`${input.reviewResult.collection.request.source.label}\`.`));
+    assert.ok(report.includes(`- **Thời điểm nguồn review được thu nhận:** \`${input.reviewResult.collection.request.source.acquiredAt}\`.`));
+    assert.ok(report.includes(`- **Review collection digest:** \`${input.reviewResult.result.collectionSha256}\`.`));
+    assert.ok(report.includes(`- **Thời điểm collection packet được xử lý và lưu trữ:** \`${input.reviewResult.collection.packet.createdAt}\`.`));
+    assert.ok(report.includes(`- **Thời điểm collector truy xuất dữ liệu:** \`${input.reviewResult.collection.packet.actor.retrievedAt}\`.`));
+    assert.ok(report.includes(`- **Review filter:** \`${input.reviewResult.result.filterVersion}\`; SHA-256 \`${input.reviewResult.result.filterSha256}\`.`));
+    assert.ok(report.includes(`- **Thời điểm Review Result hoàn tất xử lý:** \`${input.reviewResult.result.createdAt}\`.`));
     assert.deepEqual(counts(state.db), before);
     await assert.rejects(() => state.reader.read('f'.repeat(64), state.review.sha256), /not found/);
     await assert.rejects(() => state.reader.read('latest', state.review.sha256), /Invalid Market Result/);
@@ -129,4 +137,19 @@ test('022 CLI uses read-only persisted inputs, writes 0600, and refuses overwrit
   const second = run();
   assert.equal(second.status, 1);
   assert.match(second.stderr, /Refusing to overwrite/);
+});
+
+test('022 reports zero selected review listings without claiming sample-limit coverage', async () => {
+  const state = await setup();
+  try {
+    const input = await state.reader.read(state.market.resultArtifactSha256, state.review.sha256);
+    const empty = structuredClone(input);
+    empty.reviewResult.result.summary.listings = [];
+    empty.reviewResult.result.summary.selectedProducts = 0;
+    empty.reviewResult.result.reviews = [];
+    empty.reviewResult.collection.packet.selected = [];
+    const report = renderCombinedMarketReviewReport(empty);
+    assert.match(report, /không có listing được chọn nên không thể kết luận listing nào đạt sample limit/);
+    assert.doesNotMatch(report, /đạt sample limit cho mọi listing được chọn/);
+  } finally { state.db.close(); }
 });
