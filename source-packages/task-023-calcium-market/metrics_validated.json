@@ -1,0 +1,353 @@
+{
+  "filters": [
+    {
+      "category": "Kênh bán hàng",
+      "value": "Shopee, Tiktok"
+    },
+    {
+      "category": "Thời gian",
+      "value": "2024-08-10 đến 2026-08-10"
+    },
+    {
+      "category": "Danh mục sản phẩm",
+      "value": "Sức Khoẻ"
+    },
+    {
+      "category": "Từ khóa",
+      "value": "canxi, calcium"
+    },
+    {
+      "category": "Người bán",
+      "value": "Shop Chính hãng (Mall), Shop Thông thường"
+    }
+  ],
+  "marketOverview": [
+    {
+      "metric": "Doanh số (VND)",
+      "value": 497500000000,
+      "growth": 2.72
+    },
+    {
+      "metric": "Lượt bán",
+      "value": 2100000,
+      "growth": 3
+    },
+    {
+      "metric": "Sản phẩm có lượt bán",
+      "value": 7200,
+      "growth": 0.49
+    },
+    {
+      "metric": "Gian hàng có lượt bán",
+      "value": 3600,
+      "growth": 0.33
+    }
+  ],
+  "platformSales": [
+    {
+      "platform": "Shopee",
+      "sales": 159400000000,
+      "share": 0.32
+    },
+    {
+      "platform": "Tiktok",
+      "sales": 338100000000,
+      "share": 0.68
+    }
+  ],
+  "weeklyGrowth": [
+    {
+      "startDate": "2024-08-10",
+      "endDate": "2026-08-10",
+      "tiktok": 338100000000,
+      "shopee": 159400000000,
+      "lazada": 0,
+      "tiki": 0,
+      "total": 497500000000
+    }
+  ],
+  "categorySales": [
+    {
+      "category": "Sức Khoẻ",
+      "shopee": 159400000000,
+      "lazada": 0,
+      "tiki": 0,
+      "tiktok": 338100000000,
+      "total": 497500000000
+    }
+  ],
+  "priceSales": [
+    {
+      "priceRange": "Tất cả mức giá",
+      "shopee": 159400000000,
+      "lazada": 0,
+      "tiki": 0,
+      "tiktok": 338100000000,
+      "total": 497500000000
+    }
+  ],
+  "brandSalesShare": {
+    "top10": 0.4858,
+    "other": 0.5142,
+    "total": 1
+  },
+  "shopSalesShare": {
+    "top10": 0.45,
+    "other": 0.55,
+    "total": 1
+  },
+  "brandByShopType": [
+    {
+      "brand": "Tất cả thương hiệu",
+      "regularSales": 203975000000,
+      "mallSales": 293525000000
+    }
+  ],
+  "shopTypeShare": {
+    "official": 0.59,
+    "regular": 0.41,
+    "total": 1
+  },
+  "locations": [
+    {
+      "location": "Hà Nội",
+      "share": 0.508
+    },
+    {
+      "location": "Tp. Hồ Chí Minh",
+      "share": 0.423
+    },
+    {
+      "location": "Tây Ninh",
+      "share": 0.036
+    },
+    {
+      "location": "Đồng Nai",
+      "share": 0.008
+    },
+    {
+      "location": "Khác",
+      "share": 0.025
+    }
+  ],
+  "topProducts": [
+    {
+      "name": "COMBO vitamin C + D Canxi Viên Nhai Bổ Sung Vitamin Wonderplus 60 viên hộp - Giúp Làn Da Rạng Rỡ - Tăng Cường Đề Kháng - Giúp Xương Chắc Khỏe",
+      "shop": "WONDERPLUSVN",
+      "price": 103343,
+      "createdDate": null,
+      "minVariantPrice": 103343,
+      "maxVariantPrice": 103343,
+      "periodSales": 51700000000,
+      "salesGrowth": null,
+      "periodUnits": 505900,
+      "unitsGrowth": null,
+      "totalSales": 51700000000,
+      "totalUnits": 505900,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "Viên Nhai Bổ Sung Vitamin D + Canxi Wonderplus - Hỗ Trợ Phát Triển Chiều Cao Tuổi Dậy Thì Giúp Xương Chắc Khỏe - Phù Hợp Cho Trẻ Em & Người Lớn Hộp 60 viên",
+      "shop": "WONDERPLUSVN",
+      "price": 103739,
+      "createdDate": null,
+      "minVariantPrice": 103739,
+      "maxVariantPrice": 103739,
+      "periodSales": 12700000000,
+      "salesGrowth": null,
+      "periodUnits": 126500,
+      "unitsGrowth": null,
+      "totalSales": 12700000000,
+      "totalUnits": 126500,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "Viên uống bổ sung Canxi phòng ngừa loãng xương Doppelherz Magnesium + Calcium + D3 Hộp 30 viên",
+      "shop": "Doppelherz Vietnam",
+      "price": 412000,
+      "createdDate": null,
+      "minVariantPrice": 412000,
+      "maxVariantPrice": 412000,
+      "periodSales": 5900000000,
+      "salesGrowth": 2.57,
+      "periodUnits": 15600,
+      "unitsGrowth": 2.05,
+      "totalSales": 7700000000,
+      "totalUnits": 21200,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "COMBO 4 Hộp VTM C+D Canxi Viên Nhai Bổ Sung Vitamin Wonderplus 60 viên hộp - Giúp Làn Da Rạng Rỡ - Tăng Cường Đề Kháng - Giúp Xương Chắc Khỏe",
+      "shop": "WONDERPLUSVN",
+      "price": 198729,
+      "createdDate": null,
+      "minVariantPrice": 198729,
+      "maxVariantPrice": 198729,
+      "periodSales": 7500000000,
+      "salesGrowth": null,
+      "periodUnits": 40200,
+      "unitsGrowth": null,
+      "totalSales": 7500000000,
+      "totalUnits": 40200,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "Bột trắng răng than Ngọc Trai UMIHA 30g - Trắng răng với bột trắng răng thành phần Than hoạt tính Canxi Bột than tre",
+      "shop": "UMIHA - Top 1 Body Care VN",
+      "price": 214821,
+      "createdDate": null,
+      "minVariantPrice": 214821,
+      "maxVariantPrice": 214821,
+      "periodSales": 1300000000,
+      "salesGrowth": -0.49,
+      "periodUnits": 5400,
+      "unitsGrowth": -0.68,
+      "totalSales": 5600000000,
+      "totalUnits": 44400,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "COMBO TRẢI NGHIỆM TPBVSK CANXI TẢO + DHA TRIO Nature's Way - Hỗ trợ bổ sung Canxi và Omega 3 dạng nhai cho các bé",
+      "shop": "DrCung Store",
+      "price": 1188776,
+      "createdDate": null,
+      "minVariantPrice": 1188776,
+      "maxVariantPrice": 1188776,
+      "periodSales": 2000000000,
+      "salesGrowth": -0.42,
+      "periodUnits": 1500,
+      "unitsGrowth": -0.49,
+      "totalSales": 5600000000,
+      "totalUnits": 4300,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "Viên uống Canxi Hữu Cơ Mason Natural Calcium Citrate + D3 Bổ sung Canxi hữu cơ kết hợp vitamin D3 giúp xương chắc khỏe",
+      "shop": "Tiến Sĩ An Shop",
+      "price": 595468,
+      "createdDate": null,
+      "minVariantPrice": 595468,
+      "maxVariantPrice": 595468,
+      "periodSales": 4700000000,
+      "salesGrowth": null,
+      "periodUnits": 6500,
+      "unitsGrowth": null,
+      "totalSales": 4700000000,
+      "totalUnits": 6500,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "COMBO 2 LỌ Nature's Way Kids Smart Bursts Calcium With Magnesium + Zinc Lọ 30 viên",
+      "shop": "DrCung Store",
+      "price": 1439274,
+      "createdDate": null,
+      "minVariantPrice": 1439274,
+      "maxVariantPrice": 1439274,
+      "periodSales": 4600000000,
+      "salesGrowth": null,
+      "periodUnits": 3300,
+      "unitsGrowth": null,
+      "totalSales": 4600000000,
+      "totalUnits": 3300,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "Canxi hữu cơ từ tảo biển",
+      "shop": "Khoẻ Đẹp cùng DS Lan",
+      "price": 168893,
+      "createdDate": null,
+      "minVariantPrice": 168893,
+      "maxVariantPrice": 168893,
+      "periodSales": 3300000000,
+      "salesGrowth": 2.02,
+      "periodUnits": 26700,
+      "unitsGrowth": 2.56,
+      "totalSales": 4500000000,
+      "totalUnits": 34200,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "Green Calcium with vitamin K2/D3 hỗ trợ xương chắc khỏe, phòng ngừa loãng xương",
+      "shop": "Bác Chương Store",
+      "price": 628407,
+      "createdDate": null,
+      "minVariantPrice": 628407,
+      "maxVariantPrice": 628407,
+      "periodSales": 4400000000,
+      "salesGrowth": null,
+      "periodUnits": 7400,
+      "unitsGrowth": null,
+      "totalSales": 4400000000,
+      "totalUnits": 7400,
+      "category": "Sức Khoẻ"
+    },
+    {
+      "name": "Viên uống Vitamin Canxi BioIsland Milk Calcium Bone Care tăng cường canxi cho mẹ bầu 150 viên của Úc",
+      "shop": "Kukids Store",
+      "price": 928192,
+      "createdDate": null,
+      "minVariantPrice": 928192,
+      "maxVariantPrice": 928192,
+      "periodSales": 2800000000,
+      "salesGrowth": 0.92,
+      "periodUnits": 5200,
+      "unitsGrowth": 0.99,
+      "totalSales": 4200000000,
+      "totalUnits": 7800,
+      "category": "Sức Khoẻ"
+    }
+  ],
+  "topShops": [
+    {
+      "newRank": 9,
+      "oldRank": 17,
+      "shop": "Khoẻ Đẹp cùng DS Lan",
+      "platform": "Tiktok",
+      "activeProducts": 15,
+      "periodSales": 3300000000,
+      "salesGrowth": 2.02,
+      "periodUnits": 26700,
+      "unitsGrowth": 2.56,
+      "totalSales": 4500000000,
+      "totalUnits": 34200
+    }
+  ],
+  "topBrands": [
+    {
+      "newRank": 1,
+      "oldRank": 712,
+      "brand": "Wonderplus",
+      "activeProducts": 18,
+      "periodSales": 74800000000,
+      "salesGrowth": null,
+      "periodUnits": 694700,
+      "unitsGrowth": null,
+      "totalSales": 74800000000,
+      "totalUnits": 694700
+    },
+    {
+      "newRank": 3,
+      "oldRank": 6,
+      "brand": "Doppelherz",
+      "activeProducts": 82,
+      "periodSales": 42200000000,
+      "salesGrowth": 8.69,
+      "periodUnits": 83400,
+      "unitsGrowth": 5.49,
+      "totalSales": 42200000000,
+      "totalUnits": 83400
+    },
+    {
+      "newRank": 4,
+      "oldRank": 2,
+      "brand": "Olive Pharma",
+      "activeProducts": 27,
+      "periodSales": 16200000000,
+      "salesGrowth": 1.04,
+      "periodUnits": 23400,
+      "unitsGrowth": 0.44,
+      "totalSales": 16200000000,
+      "totalUnits": 23400
+    }
+  ]
+}
