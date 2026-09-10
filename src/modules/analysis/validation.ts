@@ -1,4 +1,9 @@
 import { createRequire } from 'node:module';
+import fieldAuditRequestSchema from '../../../contracts/analysis/source-package-field-audit-request.schema.json' with { type: 'json' };
+import fieldAuditResultSchema from '../../../contracts/analysis/source-package-field-audit-result.schema.json' with { type: 'json' };
+import type { SourcePackageFieldAuditRequest } from '../../../contracts/analysis/source-package-field-audit-request.generated.js';
+import type { SourcePackageFieldAuditResult } from '../../../contracts/analysis/source-package-field-audit-result.generated.js';
+import { canonicalJson } from '../foundation/canonical-json.js';
 import auditRequestSchema from '../../../contracts/analysis/research-evidence-audit-request.schema.json' with { type: 'json' };
 import type { ResearchEvidenceAuditRequest } from '../../../contracts/analysis/research-evidence-audit-request.generated.js';
 import auditOutputSchema from '../../../contracts/analysis/research-evidence-audit-output.schema.json' with { type: 'json' };
@@ -27,6 +32,9 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
+ajv.addSchema(fieldAuditRequestSchema);
+const validateFieldAuditRequestContract = ajv.getSchema<SourcePackageFieldAuditRequest>(fieldAuditRequestSchema.$id)!;
+const validateFieldAuditResultContract = ajv.compile(fieldAuditResultSchema);
 ajv.addSchema(interpretationOutputSchema);
 ajv.addSchema(auditOutputSchema);
 const validateGovernedSkillRequest = ajv.compile(governedSkillRequestSchema);
@@ -130,4 +138,64 @@ export function validateResearchEvidenceAudit(value: unknown): ResearchEvidenceA
     throw new AnalysisValidationError(ajv.errorsText(validateAudit.errors, { separator: '; ' }));
   }
   return value as unknown as ResearchEvidenceAudit;
+}
+
+export function validateSourcePackageFieldAuditRequest(value: unknown): SourcePackageFieldAuditRequest {
+  if (!validateFieldAuditRequestContract(value)) throw new AnalysisValidationError(ajv.errorsText(validateFieldAuditRequestContract.errors, { separator: '; ' }));
+  const request = value as SourcePackageFieldAuditRequest;
+  validateFieldAuditSemantics(request);
+  return request;
+}
+
+export function validateSourcePackageFieldAuditResult(value: unknown): SourcePackageFieldAuditResult {
+  if (!validateFieldAuditResultContract(value)) throw new AnalysisValidationError(ajv.errorsText(validateFieldAuditResultContract.errors, { separator: '; ' }));
+  const result = value as unknown as SourcePackageFieldAuditResult;
+  validateFieldAuditSemantics(result);
+  const canonical = canonicalizeSourcePackageFieldAuditCollections(result);
+  if (
+    canonicalJson(result.observations) !== canonicalJson(canonical.observations) ||
+    canonicalJson(result.conflicts) !== canonicalJson(canonical.conflicts) ||
+    canonicalJson(result.periodComparisons) !== canonicalJson(canonical.periodComparisons)
+  ) {
+    throw new AnalysisValidationError('Field audit result collections must use canonical sorted order');
+  }
+  return result;
+}
+
+function validateFieldAuditSemantics(value: Pick<SourcePackageFieldAuditRequest, 'observations' | 'conflicts' | 'periodComparisons'>): void {
+  const observations = new Map(value.observations.map((item) => [item.observationKey, item]));
+  if (observations.size !== value.observations.length) throw new AnalysisValidationError('observationKey must be unique');
+  for (const item of value.observations) {
+    if (item.state === 'missing' && (item.value !== null || item.unit !== null)) throw new AnalysisValidationError(`Missing field must have null value/unit: ${item.observationKey}`);
+    if (item.state === 'observed_zero' && item.value !== '0') throw new AnalysisValidationError(`Observed zero must have exact value "0": ${item.observationKey}`);
+    if (item.state === 'observed_value' && (item.value === null || item.value === '0')) throw new AnalysisValidationError(`Observed value must be non-null and not "0": ${item.observationKey}`);
+  }
+  for (const conflict of value.conflicts) {
+    if (conflict.observationKeys.some((key) => !observations.has(key))) throw new AnalysisValidationError('Conflict references unknown observationKey');
+    const families = new Set(conflict.observationKeys.map((key) => observations.get(key)!.evidenceFamily));
+    if (families.size > 1 && conflict.type !== 'scope_mismatch') throw new AnalysisValidationError('Only an explicit unresolved scope_mismatch conflict may cross evidence families');
+  }
+  for (const comparison of value.periodComparisons) {
+    if (!observations.has(comparison.leftObservationKey) || !observations.has(comparison.rightObservationKey)) throw new AnalysisValidationError('Period comparison references unknown observationKey');
+    if (comparison.leftObservationKey === comparison.rightObservationKey) throw new AnalysisValidationError('Period comparison observation keys must be distinct');
+    if (comparison.compatibility === 'incompatible' && comparison.claim !== null) throw new AnalysisValidationError('Incompatible periods cannot have a comparison claim');
+  }
+}
+
+export function canonicalizeSourcePackageFieldAuditCollections<
+  T extends Pick<SourcePackageFieldAuditRequest, 'observations' | 'conflicts' | 'periodComparisons'>,
+>(value: T): T {
+  const compareCanonical = (left: unknown, right: unknown): number => {
+    const a = canonicalJson(left);
+    const b = canonicalJson(right);
+    return a < b ? -1 : a > b ? 1 : 0;
+  };
+  const observations = [...value.observations].sort((a, b) =>
+    a.observationKey < b.observationKey ? -1 : a.observationKey > b.observationKey ? 1 : 0,
+  );
+  const conflicts = value.conflicts
+    .map((conflict) => ({ ...conflict, observationKeys: [...conflict.observationKeys].sort() }))
+    .sort(compareCanonical);
+  const periodComparisons = [...value.periodComparisons].sort(compareCanonical);
+  return { ...value, observations, conflicts, periodComparisons } as T;
 }

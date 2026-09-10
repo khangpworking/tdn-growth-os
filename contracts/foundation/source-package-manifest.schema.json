@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/foundation/source-package-manifest.schema.json",
+  "title": "SourcePackageManifest",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "packageId", "packageKey", "version", "sourceAcquiredAt", "sourceLabel", "finalizedAt", "packageContentSha256", "files"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" }, "packageId": { "type": "string", "format": "uuid" },
+    "packageKey": { "type": "string", "minLength": 3, "maxLength": 160 }, "version": { "type": "integer", "minimum": 1 },
+    "sourceAcquiredAt": { "type": ["string", "null"], "format": "date-time" }, "sourceLabel": { "type": "string", "minLength": 1, "maxLength": 200 },
+    "finalizedAt": { "type": "string", "format": "date-time" },
+    "packageContentSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "files": { "type": "array", "minItems": 1, "items": { "$ref": "./source-package-intake-request.schema.json#/$defs/file" } }
+  }
+}

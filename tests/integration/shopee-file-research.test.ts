@@ -382,7 +382,7 @@ test('015 rejects raw collection evidence above the per-listing 500 cap', async 
   } finally { db.close(); }
 });
 
-test('015 version 10 database upgrades only 0011 and reruns idempotently', async () => {
+test('015 version 10 database upgrades remaining migrations and reruns idempotently', async () => {
   const directory = await root();
   const oldMigrations = path.join(directory, 'migrations-v10');
   await fs.mkdir(oldMigrations);
@@ -394,8 +394,8 @@ test('015 version 10 database upgrades only 0011 and reruns idempotently', async
   assert.equal(old.db.pragma('user_version', { simple: true }), 10n);
   old.db.close();
   const next = openDatabase({ databasePath });
-  assert.deepEqual(next.migration.applied, [11]);
-  assert.equal(next.db.pragma('user_version', { simple: true }), 11n);
+  assert.deepEqual(next.migration.applied, [11, 12]);
+  assert.equal(next.db.pragma('user_version', { simple: true }), 12n);
   assert.throws(() => next.db.prepare(`INSERT INTO analysis_shopee_review_results
     (collection_id, filter_sha256, artifact_sha256, created_at) VALUES (?, ?, ?, ?)`)
     .run('00000000-0000-4000-8000-000000000000', 'a'.repeat(64), 'b'.repeat(64), '2026-09-15T00:00:00.000Z'), /FOREIGN KEY/);

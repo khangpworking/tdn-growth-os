@@ -1,4 +1,8 @@
 import { createRequire } from 'node:module';
+import sourcePackageRequestSchema from '../../../contracts/foundation/source-package-intake-request.schema.json' with { type: 'json' };
+import sourcePackageManifestSchema from '../../../contracts/foundation/source-package-manifest.schema.json' with { type: 'json' };
+import type { SourcePackageIntakeRequest } from '../../../contracts/foundation/source-package-intake-request.generated.js';
+import type { SourcePackageManifest } from '../../../contracts/foundation/source-package-manifest.generated.js';
 import researchDocumentImportSchema from '../../../contracts/foundation/research-document-import.schema.json' with { type: 'json' };
 import type { ResearchDocumentImport } from '../../../contracts/foundation/research-document-import.generated.js';
 import researchPackManifestSchema from '../../../contracts/foundation/research-pack-manifest.schema.json' with { type: 'json' };
@@ -19,6 +23,9 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
+ajv.addSchema(sourcePackageRequestSchema);
+const validateSourcePackageRequestContract = ajv.getSchema<SourcePackageIntakeRequest>(sourcePackageRequestSchema.$id)!;
+const validateSourcePackageManifestContract = ajv.compile(sourcePackageManifestSchema);
 const validateManual = ajv.compile(manualSchema);
 const validateExport = ajv.compile(exportSchema);
 const validatePackRequest = ajv.compile(requestSchema);
@@ -99,4 +106,52 @@ export function validateResearchPackManifest(value: unknown): ResearchPackManife
     throw new FoundationValidationError(ajv.errorsText(validateResearchPackManifestContract.errors, { separator: '; ' }));
   }
   return value as unknown as ResearchPackManifest;
+}
+
+export function validateSourcePackageIntakeRequest(value: unknown): SourcePackageIntakeRequest {
+  if (!validateSourcePackageRequestContract(value)) {
+    throw new FoundationValidationError(
+      ajv.errorsText(validateSourcePackageRequestContract.errors, { separator: '; ' }),
+    );
+  }
+  const input = value as SourcePackageIntakeRequest;
+  validateSourcePackageFiles(input.files);
+  return input;
+}
+
+export function validateSourcePackageManifest(value: unknown): SourcePackageManifest {
+  if (!validateSourcePackageManifestContract(value)) {
+    throw new FoundationValidationError(
+      ajv.errorsText(validateSourcePackageManifestContract.errors, { separator: '; ' }),
+    );
+  }
+  const manifest = value as unknown as SourcePackageManifest;
+  validateSourcePackageFiles(manifest.files);
+  return manifest;
+}
+
+function validateSourcePackageFiles(
+  files: SourcePackageIntakeRequest['files'] | SourcePackageManifest['files'],
+): void {
+  const paths = files.map((file) => file.path);
+  if (new Set(paths).size !== paths.length) {
+    throw new FoundationValidationError('Source package file paths must be unique');
+  }
+  for (const file of files) {
+    if (file.period) {
+      const start = Date.parse(file.period.start);
+      const end = Date.parse(file.period.end);
+      if (!Number.isFinite(start) || !Number.isFinite(end) || start > end) {
+        throw new FoundationValidationError(`Invalid period for ${file.path}`);
+      }
+    }
+    if (
+      (file.representationRole === 'structured' || file.representationRole === 'derived') &&
+      file.independence !== 'non_independent'
+    ) {
+      throw new FoundationValidationError(
+        `Structured/derived representation must be non-independent: ${file.path}`,
+      );
+    }
+  }
 }

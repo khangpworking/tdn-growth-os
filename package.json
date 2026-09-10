@@ -9,6 +9,7 @@
     "node": "24.15.0"
   },
   "scripts": {
+    "source-package:intake": "tsx scripts/intake-source-package.ts",
     "research:shopee": "tsx scripts/collect-shopee-reviews.ts",
     "research:shopee:export": "tsx scripts/export-shopee-evidence-report.ts",
     "report:combined:export": "tsx scripts/export-combined-market-review-report.ts",
