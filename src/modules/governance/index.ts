@@ -31,6 +31,7 @@ export {
 } from './candidate-b7-decision-service.js';
 export {
   GovernanceCandidateB7DecisionReader,
+  type CandidateB7DecisionByIdReader,
   type CandidateB7DecisionReader,
 } from './candidate-b7-decision-reader.js';
 export { validateCandidateB7Decision, validateCandidateB7DecisionRequest } from './validation.js';

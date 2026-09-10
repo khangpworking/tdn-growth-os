@@ -99,3 +99,7 @@ Box 4 can freeze an explicit, deterministic, immutable set of exact historical c
 ## Task 027 — owner-only B7 candidate review
 
 Box 5 implements immutable PASS/HOLD/REJECT decisions for an exact verified frozen basket member. Submission is owner-only with `governance:candidate-b7-review`, stores no rationale/reason, reads Box 4 only through the injected basket reader, and exposes an exact basket/candidate/version effective reader. PASS authorizes only future independent product-workspace creation; this task creates no workspace and approves no B8–B10 matter or external action.
+
+## Task 028 — independent product workspace from exact B7 PASS
+
+Box 4 can create one immutable independent `ACTIVE` product workspace at entry step `B8` from one exact verified Box 5 B7 `PASS` decision selected by decision ID. The closed request accepts only contract version, decision ID, and globally unique workspace key; all source identity, candidate title, OWNER authorization, policy, and digests are copied into a frozen artifact. Exact retries make zero database mutations. `ACTIVE/B8` means readiness for future B8 work only: this task adds no B8 execution, transitions, candidate mutation, funding, supplier, legal, scientific, quality, publication, launch, provider, AI, worker, API, or UI authority.

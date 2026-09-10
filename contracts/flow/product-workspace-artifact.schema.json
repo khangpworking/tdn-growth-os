@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/product-workspace-artifact.schema.json",
+  "title": "ProductWorkspaceArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "productWorkspaceId", "productWorkspaceKey", "state", "entryStep", "title", "createdAt", "requestSha256", "source"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "productWorkspaceId": { "type": "string", "format": "uuid" },
+    "productWorkspaceKey": { "$ref": "product-workspace-create-request.schema.json#/properties/productWorkspaceKey" },
+    "state": { "const": "ACTIVE" },
+    "entryStep": { "const": "B8" },
+    "title": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["discoveryWorkspace", "basket", "candidate", "b7Decision"],
+      "properties": {
+        "discoveryWorkspace": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["workspaceId"],
+          "properties": { "workspaceId": { "type": "string", "format": "uuid" } }
+        },
+        "basket": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["basketId", "basketArtifactSha256", "workspaceId", "basketKey", "basketVersion"],
+          "properties": {
+            "basketId": { "type": "string", "format": "uuid" },
+            "basketArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "workspaceId": { "type": "string", "format": "uuid" },
+            "basketKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+            "basketVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+          }
+        },
+        "candidate": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["candidateId", "candidateVersion", "candidateArtifactSha256", "candidateKey", "label", "state"],
+          "properties": {
+            "candidateId": { "type": "string", "format": "uuid" },
+            "candidateVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+            "candidateArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "candidateKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+            "label": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+            "state": { "const": "EXPLORING" }
+          }
+        },
+        "b7Decision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["contractVersion", "decisionId", "decisionArtifactSha256", "decidedAt", "decision", "actor", "requiredCapability", "policy", "requestSha256"],
+          "properties": {
+            "contractVersion": { "const": "1.0.0" },
+            "decisionId": { "type": "string", "format": "uuid" },
+            "decisionArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "decidedAt": { "type": "string", "format": "date-time" },
+            "decision": { "const": "PASS" },
+            "actor": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["actorId", "roleSnapshot"],
+              "properties": {
+                "actorId": { "type": "string", "pattern": "^[a-z][a-z0-9:_-]{2,119}$" },
+                "roleSnapshot": { "const": "OWNER" }
+              }
+            },
+            "requiredCapability": { "const": "governance:candidate-b7-review" },
+            "policy": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["policyId", "policyVersion"],
+              "properties": {
+                "policyId": { "const": "governance:candidate-b7-review-v1" },
+                "policyVersion": { "const": 1 }
+              }
+            },
+            "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
+        }
+      }
+    }
+  }
+}

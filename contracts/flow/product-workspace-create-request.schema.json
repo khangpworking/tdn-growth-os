@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/product-workspace-create-request.schema.json",
+  "title": "ProductWorkspaceCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "decisionId", "productWorkspaceKey"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "decisionId": { "type": "string", "format": "uuid" },
+    "productWorkspaceKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" }
+  }
+}
