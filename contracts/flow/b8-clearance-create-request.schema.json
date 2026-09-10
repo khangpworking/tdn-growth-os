@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/b8-clearance-create-request.schema.json",
+  "title": "B8ClearanceCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "productWorkspaceId", "decisions"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "productWorkspaceId": { "type": "string", "format": "uuid" },
+    "decisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["LEGAL", "SCIENTIFIC", "QUALITY", "FINANCE"],
+      "properties": {
+        "LEGAL": { "type": "string", "format": "uuid" },
+        "SCIENTIFIC": { "type": "string", "format": "uuid" },
+        "QUALITY": { "type": "string", "format": "uuid" },
+        "FINANCE": { "type": "string", "format": "uuid" }
+      }
+    }
+  }
+}

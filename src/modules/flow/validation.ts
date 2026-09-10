@@ -27,6 +27,13 @@ import type { ProductWorkspaceArtifact } from '../../../contracts/flow/product-w
 import candidateB7DecisionRequestSchema from '../../../contracts/governance/candidate-b7-decision-request.schema.json' with { type: 'json' };
 import candidateB7DecisionSchema from '../../../contracts/governance/candidate-b7-decision.schema.json' with { type: 'json' };
 import type { CandidateB7Decision } from '../../../contracts/governance/candidate-b7-decision.generated.js';
+import productB8DecisionRequestSchema from '../../../contracts/governance/product-b8-lane-decision-request.schema.json' with { type: 'json' };
+import productB8DecisionSchema from '../../../contracts/governance/product-b8-lane-decision.schema.json' with { type: 'json' };
+import type { ProductB8LaneDecision } from '../../../contracts/governance/product-b8-lane-decision.generated.js';
+import b8ClearanceRequestSchema from '../../../contracts/flow/b8-clearance-create-request.schema.json' with { type: 'json' };
+import type { B8ClearanceCreateRequest } from '../../../contracts/flow/b8-clearance-create-request.generated.js';
+import b8ClearanceArtifactSchema from '../../../contracts/flow/b8-clearance-artifact.schema.json' with { type: 'json' };
+import type { B8ClearanceArtifact } from '../../../contracts/flow/b8-clearance-artifact.generated.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -37,6 +44,9 @@ ajv.addSchema(requestSchema);
 ajv.addSchema(decisionRequestSchema);
 ajv.addSchema(candidateB7DecisionRequestSchema);
 ajv.addSchema(productWorkspaceRequestSchema);
+ajv.addSchema(productB8DecisionRequestSchema);
+ajv.addSchema(productWorkspaceArtifactSchema);
+ajv.addSchema(productB8DecisionSchema);
 const validateRequest = ajv.getSchema<ApprovedProposalIntakeRequest>(requestSchema.$id)!;
 const validatePlan = ajv.compile<AuthorizedPlan>(planSchema);
 const validateDecision = ajv.compile<GovernedProposalDecision>(decisionSchema);
@@ -50,6 +60,9 @@ const validateBasketArtifact = ajv.compile<CandidateBasketArtifact>(basketArtifa
 const validateProductWorkspaceRequest = ajv.getSchema<ProductWorkspaceCreateRequest>(productWorkspaceRequestSchema.$id)!;
 const validateProductWorkspaceEnvelope = ajv.compile<ProductWorkspaceArtifact>(productWorkspaceArtifactSchema);
 const validateCandidateB7Source = ajv.compile<CandidateB7Decision>(candidateB7DecisionSchema);
+const validateB8ClearanceRequest = ajv.compile<B8ClearanceCreateRequest>(b8ClearanceRequestSchema);
+const validateB8ClearanceEnvelope = ajv.compile<B8ClearanceArtifact>(b8ClearanceArtifactSchema);
+const validateProductB8Source = ajv.getSchema<ProductB8LaneDecision>(productB8DecisionSchema.$id)!;
 
 export class FlowValidationError extends Error {
   readonly details: string;
@@ -123,4 +136,19 @@ export function validateProductWorkspaceArtifact(value: unknown): ProductWorkspa
 export function validateSourceCandidateB7Decision(value: unknown): CandidateB7Decision {
   if (!validateCandidateB7Source(value)) throw new FlowValidationError(`Malformed verified B7 decision reader result: ${ajv.errorsText(validateCandidateB7Source.errors, { separator: '; ' })}`);
   return value as CandidateB7Decision;
+}
+
+export function validateB8ClearanceCreateRequest(value: unknown): B8ClearanceCreateRequest {
+  if (!validateB8ClearanceRequest(value)) throw new FlowValidationError(ajv.errorsText(validateB8ClearanceRequest.errors, { separator: '; ' }));
+  return value as B8ClearanceCreateRequest;
+}
+
+export function validateB8ClearanceArtifact(value: unknown): B8ClearanceArtifact {
+  if (!validateB8ClearanceEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateB8ClearanceEnvelope.errors, { separator: '; ' }));
+  return value as B8ClearanceArtifact;
+}
+
+export function validateSourceProductB8Decision(value: unknown): ProductB8LaneDecision {
+  if (!validateProductB8Source(value)) throw new FlowValidationError(`Malformed verified B8 decision reader result: ${ajv.errorsText(validateProductB8Source.errors, { separator: '; ' })}`);
+  return value as ProductB8LaneDecision;
 }
