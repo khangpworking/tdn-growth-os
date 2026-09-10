@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/governance/product-b8-lane-decision-request.schema.json",
+  "title": "ProductB8LaneDecisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "productWorkspaceId", "lane", "expectedVersion", "decision"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "productWorkspaceId": { "type": "string", "format": "uuid" },
+    "lane": { "enum": ["LEGAL", "SCIENTIFIC", "QUALITY", "FINANCE"] },
+    "expectedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 },
+    "decision": { "enum": ["PASS", "HOLD", "REJECT"] }
+  }
+}

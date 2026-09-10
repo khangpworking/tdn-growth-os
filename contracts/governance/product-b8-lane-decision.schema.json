@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/governance/product-b8-lane-decision.schema.json",
+  "title": "ProductB8LaneDecision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "decisionId", "decisionVersion", "decidedAt", "lane", "decision", "productWorkspace", "actor", "requiredCapability", "policy", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "decisionId": { "type": "string", "format": "uuid" },
+    "decisionVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "decidedAt": { "type": "string", "format": "date-time" },
+    "lane": { "$ref": "product-b8-lane-decision-request.schema.json#/properties/lane" },
+    "decision": { "$ref": "product-b8-lane-decision-request.schema.json#/properties/decision" },
+    "productWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productWorkspaceId", "productWorkspaceArtifactSha256", "productWorkspaceKey", "state", "entryStep", "title", "source"],
+      "properties": {
+        "productWorkspaceId": { "type": "string", "format": "uuid" },
+        "productWorkspaceArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "productWorkspaceKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+        "state": { "const": "ACTIVE" },
+        "entryStep": { "const": "B8" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "source": { "$ref": "../flow/product-workspace-artifact.schema.json#/properties/source" }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorId", "roleSnapshot"],
+      "properties": {
+        "actorId": { "type": "string", "pattern": "^[a-z][a-z0-9:_-]{2,119}$" },
+        "roleSnapshot": { "const": "OWNER" }
+      }
+    },
+    "requiredCapability": { "const": "governance:product-b8-review" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "policyVersion"],
+      "properties": {
+        "policyId": { "const": "governance:product-b8-review-v1" },
+        "policyVersion": { "const": 1 }
+      }
+    },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

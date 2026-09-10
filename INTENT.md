@@ -73,6 +73,14 @@ AI chuẩn bị candidate, so sánh và bằng chứng. Con người là gate cu
 
 Người/vai trò cụ thể có quyền chọn, tiêu chí chấm và điều kiện xem xét lại chưa được xác định. Không tự coi policy kỹ thuật của Task 013 là policy B7 đầy đủ.
 
+### D25 — B8 v1 gồm bốn lane độc lập, owner vận hành bằng nút
+
+B8 v1 có đúng bốn lane độc lập: **LEGAL**, **SCIENTIFIC**, **QUALITY** và **FINANCE**. `OWNER` là system actor duy nhất được phép quyết định trong v1. Owner tự điều phối mọi thẩm định bên ngoài hoặc offline rồi trực tiếp bấm nút; tài khoản chuyên gia và enforcement vai trò chuyên gia để sau.
+
+Mỗi quyết định chỉ là **PASS**, **HOLD** hoặc **REJECT**. B8 là button-only như B7: không yêu cầu hoặc lưu reason, rationale, notes, explanation, evidence reference, attachment, reviewer name hay văn bản do AI tạo. AI không được submit quyết định B8.
+
+B9 chỉ ở trạng thái sẵn sàng khi effective decision mới nhất của cả bốn lane đều là PASS. Task 029 chỉ ghi lịch sử quyết định append-only và đọc trạng thái sẵn sàng; không bắt đầu B9, không tạo B9 clearance, không đổi `entryStep` hay mutate product workspace, và không tạo task hoặc hành động bên ngoài. Một task tương lai sẽ đóng băng đúng bốn PASS decision ID trước khi vào B9.
+
 ### D03 — Workspace khám phá vẫn mở
 
 Không đóng workspace B0–B7 khi có candidate PASS. Người dùng có thể khám phá thêm hoặc tiếp tục nghiên cứu khi chưa candidate nào PASS. Các workspace sản phẩm đã tách tiếp tục độc lập.
