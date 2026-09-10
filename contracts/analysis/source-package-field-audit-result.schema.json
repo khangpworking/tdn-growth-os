@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/source-package-field-audit-result.schema.json",
+  "title": "SourcePackageFieldAuditResult", "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "resultId", "completedAt", "sourcePackage", "requestSha256", "observations", "conflicts", "periodComparisons"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" }, "resultId": { "type": "string", "format": "uuid" }, "completedAt": { "type": "string", "format": "date-time" },
+    "sourcePackage": { "type": "object", "additionalProperties": false, "required": ["packageId", "packageKey", "version", "manifestSha256"],
+      "properties": { "packageId": { "type": "string", "format": "uuid" }, "packageKey": { "type": "string" }, "version": { "type": "integer" }, "manifestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } } },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "observations": { "type": "array", "minItems": 1, "items": { "$ref": "./source-package-field-audit-request.schema.json#/$defs/observation" } },
+    "conflicts": { "type": "array", "items": { "$ref": "./source-package-field-audit-request.schema.json#/$defs/conflict" } },
+    "periodComparisons": { "type": "array", "items": { "$ref": "./source-package-field-audit-request.schema.json#/$defs/periodComparison" } }
+  }
+}

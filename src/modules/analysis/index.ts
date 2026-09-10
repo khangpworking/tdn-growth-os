@@ -16,6 +16,8 @@ export {
   validateResearchEvidenceAudit,
   validateResearchEvidenceAuditOutput,
   validateResearchEvidenceAuditRequest,
+  validateSourcePackageFieldAuditRequest,
+  validateSourcePackageFieldAuditResult,
 } from './validation.js';
 export {
   AnalysisResultReader,
@@ -71,3 +73,6 @@ export {
 } from './shopee-review-result-reader.js';
 export { renderVietnameseShopeeEvidenceReport } from './shopee-evidence-report.js';
 export * from "./combined-market-review-report.js";
+
+export { SourcePackageFieldAuditService, SourcePackageFieldAuditIdentityConflictError, type SourcePackageFieldAuditExecution, type VerifiedSourcePackageFieldAudit } from './source-package-field-audit-service.js';
+export { AnalysisSourcePackageFieldAuditReader, type SourcePackageFieldAuditReader } from './source-package-field-audit-reader.js';

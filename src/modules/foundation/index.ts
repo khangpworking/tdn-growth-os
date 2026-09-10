@@ -20,6 +20,8 @@ export {
   validateResearchDocumentImport,
   validateResearchPackManifest,
   validateResearchPackRequest,
+  validateSourcePackageIntakeRequest,
+  validateSourcePackageManifest,
 } from './validation.js';
 export {
   RESEARCH_DOCUMENT_MAX_BYTES,
@@ -42,3 +44,6 @@ export {
   type ShopeeCollectionReader,
   type VerifiedShopeeCollection,
 } from './shopee-collection-service.js';
+
+export { SourcePackageService, type SourcePackageIntakeResult, type VerifiedFinalizedSourcePackage, type VerifiedSourcePackageFile } from './source-package-service.js';
+export { FoundationSourcePackageReader, type FinalizedSourcePackageReader } from './source-package-reader.js';
