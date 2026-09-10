@@ -95,3 +95,7 @@ Minimum Box 4 discovery workspace and append-only product-candidate revision fou
 ## Task 026 — versioned discovery candidate basket
 
 Box 4 can freeze an explicit, deterministic, immutable set of exact historical candidate versions from one ACTIVE discovery workspace. Basket membership preserves verified candidate artifact digests and metadata, while adding no scoring, ranking, selection state, B7 decision, governance approval, product workspace, AI/provider behavior, worker, API, or UI.
+
+## Task 027 — owner-only B7 candidate review
+
+Box 5 implements immutable PASS/HOLD/REJECT decisions for an exact verified frozen basket member. Submission is owner-only with `governance:candidate-b7-review`, stores no rationale/reason, reads Box 4 only through the injected basket reader, and exposes an exact basket/candidate/version effective reader. PASS authorizes only future independent product-workspace creation; this task creates no workspace and approves no B8–B10 matter or external action.

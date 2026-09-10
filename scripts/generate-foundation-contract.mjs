@@ -35,6 +35,8 @@ const contracts = [
   ['orchestrator', 'analysis-backed-proposal'],
   ['governance', 'governed-proposal-review-request'],
   ['governance', 'governed-proposal-decision'],
+  ['governance', 'candidate-b7-decision-request'],
+  ['governance', 'candidate-b7-decision'],
   ['flow', 'approved-proposal-intake-request'],
   ['flow', 'authorized-plan'],
   ['flow', 'discovery-workspace-request'],
