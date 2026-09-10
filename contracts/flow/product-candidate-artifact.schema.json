@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/product-candidate-artifact.schema.json",
+  "title": "ProductCandidateArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "candidateId", "workspaceId", "candidateKey", "state", "version", "label", "createdAt", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "candidateId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "candidateKey": { "$ref": "product-candidate-create-request.schema.json#/properties/candidateKey" },
+    "state": { "const": "EXPLORING" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "label": { "$ref": "product-candidate-create-request.schema.json#/properties/label" },
+    "summary": { "$ref": "product-candidate-create-request.schema.json#/properties/summary" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/discovery-workspace-artifact.schema.json",
+  "title": "DiscoveryWorkspaceArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "workspaceId", "workspaceKey", "state", "title", "createdAt", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "workspaceKey": { "$ref": "discovery-workspace-request.schema.json#/properties/workspaceKey" },
+    "state": { "const": "ACTIVE" },
+    "title": { "$ref": "discovery-workspace-request.schema.json#/properties/title" },
+    "description": { "$ref": "discovery-workspace-request.schema.json#/properties/description" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
