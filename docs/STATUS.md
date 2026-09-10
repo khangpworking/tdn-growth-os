@@ -87,3 +87,7 @@ Implemented a bounded offline composition/export path for an explicitly selected
 ## Task 023
 
 Offline exact-byte source-package intake and immutable field-audit Results are implemented, including migration 0012, generated contracts, verified replay, and an owner-only Vietnamese report CLI. Only synthetic test data is tracked.
+
+## Task 025 — Box 4 discovery workspace foundation
+
+Minimum Box 4 discovery workspace and append-only product-candidate revision foundations are implemented without candidate relations, transitions, execution, providers, AI, governance, or UI. Task 024's owner-prepared B2 report methodology and format remain ongoing and are temporarily skipped; Task 025 does not provide a replacement report generator.

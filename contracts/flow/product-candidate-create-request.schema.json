@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/product-candidate-create-request.schema.json",
+  "title": "ProductCandidateCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "workspaceId", "candidateKey", "label"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "candidateKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "label": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" }
+  }
+}

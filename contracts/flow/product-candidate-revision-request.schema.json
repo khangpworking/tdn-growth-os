@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/product-candidate-revision-request.schema.json",
+  "title": "ProductCandidateRevisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "candidateId", "expectedVersion", "label"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "candidateId": { "type": "string", "format": "uuid" },
+    "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+    "label": { "$ref": "product-candidate-create-request.schema.json#/properties/label" },
+    "summary": { "$ref": "product-candidate-create-request.schema.json#/properties/summary" }
+  }
+}
