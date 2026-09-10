@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/governance/candidate-b7-decision-request.schema.json",
+  "title": "CandidateB7DecisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "basketId", "candidateId", "candidateVersion", "decision"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "basketId": { "type": "string", "format": "uuid" },
+    "candidateId": { "type": "string", "format": "uuid" },
+    "candidateVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "decision": { "enum": ["PASS", "HOLD", "REJECT"] }
+  }
+}

@@ -333,3 +333,11 @@ On 09/09/2026 the owner narrowed the Shopee calcium review view to concrete repo
 Qualifying experiences cover taste, smell, swallowing, opening/preparation, tolerability, and perceived effects or lack of effects. Price, shipping/service, authenticity reassurance, purchase motivation, hearsay without a concrete product-use attribute or effect, and repurchase alone do not qualify. Hearsay attribution does not disqualify an otherwise qualifying attribute or effect. Generic praise, repeated use, or merely starting use without a concrete experience are insufficient. Mixed comments remain eligible when they contain a qualifying experience, and guided-field labels alone cannot establish one. Negation must be preserved: for example, “not difficult to drink” is not a complaint.
 
 This is a deterministic filtering policy for a research view, not validation of a health claim or causal relationship. Retention does not imply firsthand experience or truth, and hearsay attribution remains in the original text. Raw review text remains immutable outside the filtered view. Numeric scoring weights, product-scoped deduplication, collection limits, and raw-text preservation remain unchanged.
+
+### D24 — Chính sách quyết định B7 owner-only v1
+
+Chủ dự án xác nhận B7 v1 là gate **chỉ OWNER**: trusted actor phải có `roleSnapshot` chính xác `OWNER` và capability `governance:candidate-b7-review`. AI có thể hỗ trợ chuẩn bị và phân tích ở nơi khác nhưng không được submit quyết định B7. Kết quả duy nhất là **PASS / HOLD / REJECT**; request, artifact và storage không yêu cầu hoặc lưu rationale/reason/notes/explanation.
+
+**PASS** chỉ cho phép một bước tương lai, độc lập, tạo product workspace; Task 027 không tạo workspace ngay. PASS không phê duyệt cấp vốn, pháp lý, tuyên bố khoa học, nhà cung cấp, xuất bản, launch, hay bất kỳ gate B8–B10 nào. **HOLD** chỉ được xem xét lại bằng một basket version tương lai; không sửa hoặc ghi đè quyết định cho basket/member/version hiện tại.
+
+D24 thay thế ngôn ngữ D02 yêu cầu/giữ lý do và phần chưa chắc chắn về ai quyết định hoặc cách reconsideration. D02 vẫn là bối cảnh lịch sử cho ba kết quả, nhưng policy owner-only và semantics không-rationale/reconsideration tại đây là authoritative cho B7 v1.

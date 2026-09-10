@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/governance/candidate-b7-decision.schema.json",
+  "title": "CandidateB7Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "decisionId", "decidedAt", "basket", "candidate", "decision", "actor", "requiredCapability", "policy", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "decisionId": { "type": "string", "format": "uuid" },
+    "decidedAt": { "type": "string", "format": "date-time" },
+    "basket": {
+      "type": "object", "additionalProperties": false,
+      "required": ["basketId", "basketArtifactSha256", "workspaceId", "basketKey", "basketVersion"],
+      "properties": {
+        "basketId": { "type": "string", "format": "uuid" },
+        "basketArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "basketKey": { "type": "string", "minLength": 3, "maxLength": 80, "pattern": "^[a-z][a-z0-9_-]*$" },
+        "basketVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "candidate": {
+      "type": "object", "additionalProperties": false,
+      "required": ["candidateId", "candidateVersion", "candidateArtifactSha256", "candidateKey", "label", "state"],
+      "properties": {
+        "candidateId": { "type": "string", "format": "uuid" },
+        "candidateVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "candidateArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "candidateKey": { "type": "string", "minLength": 3, "maxLength": 80, "pattern": "^[a-z][a-z0-9_-]*$" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$(?![\\s\\S])" },
+        "state": { "const": "EXPLORING" }
+      }
+    },
+    "decision": { "$ref": "candidate-b7-decision-request.schema.json#/properties/decision" },
+    "actor": {
+      "type": "object", "additionalProperties": false, "required": ["actorId", "roleSnapshot"],
+      "properties": {
+        "actorId": { "type": "string", "pattern": "^[a-z][a-z0-9:_-]{2,119}$" },
+        "roleSnapshot": { "const": "OWNER" }
+      }
+    },
+    "requiredCapability": { "const": "governance:candidate-b7-review" },
+    "policy": {
+      "type": "object", "additionalProperties": false, "required": ["policyId", "policyVersion"],
+      "properties": {
+        "policyId": { "const": "governance:candidate-b7-review-v1" },
+        "policyVersion": { "const": 1 }
+      }
+    },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
