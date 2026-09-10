@@ -67,3 +67,19 @@ export {
   validateProductWorkspaceArtifact,
   validateProductWorkspaceCreateRequest,
 } from './validation.js';
+
+export {
+  B8_CLEARANCE_LANES,
+  B8ClearanceIdentityConflictError,
+  B8ClearanceService,
+  type B8ClearanceExecution,
+} from './b8-clearance-service.js';
+export {
+  FlowB8ClearanceReader,
+  type B8ClearanceReader,
+} from './b8-clearance-reader.js';
+export {
+  validateB8ClearanceArtifact,
+  validateB8ClearanceCreateRequest,
+  validateSourceProductB8Decision,
+} from './validation.js';

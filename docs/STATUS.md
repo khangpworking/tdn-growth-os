@@ -107,3 +107,7 @@ Box 4 can create one immutable independent `ACTIVE` product workspace at entry s
 ## Task 029 — owner-operated B8 four-gate decisions
 
 Box 5 supports append-only, immutable, button-only `PASS` / `HOLD` / `REJECT` histories for the independent `LEGAL`, `SCIENTIFIC`, `QUALITY`, and `FINANCE` B8 lanes of one exact verified `ACTIVE/B8` product workspace. Submission is OWNER-only with `governance:product-b8-review`, uses sequential optimistic versions, stores no reasons/evidence/reviewer/AI text, and reads Box 4 only through `ProductWorkspaceReader`. The deterministic status reader reports `readyForB9` only when all four latest verified lane decisions are `PASS`; Task 029 does not mutate the workspace, enter B9, create clearance/tasks/actions, or call providers.
+
+## Task 030 — exact four-PASS B8 clearance
+
+Box 4 can freeze one immutable `READY_FOR_B9` clearance for a product workspace from four explicitly supplied, exact, verified and currently effective B8 PASS decision IDs in deterministic LEGAL, SCIENTIFIC, QUALITY, FINANCE order. Creation reads Box 5 only through `ProductB8DecisionByIdReader` and `ProductB8StatusReader`; exact historical replay re-verifies the frozen decision artifacts without requiring them to remain current. The clearance is readiness evidence only: no product-workspace mutation, B9 implementation, task/action, AI, provider call, API, UI, or external authority is added.

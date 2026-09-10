@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/b8-clearance-artifact.schema.json",
+  "title": "B8ClearanceArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "clearanceId", "state", "clearedAt", "requestSha256", "productWorkspace", "decisions"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "clearanceId": { "type": "string", "format": "uuid" },
+    "state": { "const": "READY_FOR_B9" },
+    "clearedAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "productWorkspace": { "$ref": "../governance/product-b8-lane-decision.schema.json#/properties/productWorkspace" },
+    "decisions": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "prefixItems": [
+        { "$ref": "#/$defs/legalDecision" },
+        { "$ref": "#/$defs/scientificDecision" },
+        { "$ref": "#/$defs/qualityDecision" },
+        { "$ref": "#/$defs/financeDecision" }
+      ],
+      "items": { "$ref": "#/$defs/decisionBase" }
+    }
+  },
+  "$defs": {
+    "decisionBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lane", "decisionId", "decisionVersion", "decisionArtifactSha256", "decidedAt", "decision", "actor", "requiredCapability", "policy"],
+      "properties": {
+        "lane": { "enum": ["LEGAL", "SCIENTIFIC", "QUALITY", "FINANCE"] },
+        "decisionId": { "type": "string", "format": "uuid" },
+        "decisionVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "decisionArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "decision": { "const": "PASS" },
+        "actor": { "$ref": "../governance/product-b8-lane-decision.schema.json#/properties/actor" },
+        "requiredCapability": { "const": "governance:product-b8-review" },
+        "policy": { "$ref": "../governance/product-b8-lane-decision.schema.json#/properties/policy" }
+      }
+    },
+    "legalDecision": { "allOf": [{ "$ref": "#/$defs/decisionBase" }, { "type": "object", "properties": { "lane": { "const": "LEGAL" } } }] },
+    "scientificDecision": { "allOf": [{ "$ref": "#/$defs/decisionBase" }, { "type": "object", "properties": { "lane": { "const": "SCIENTIFIC" } } }] },
+    "qualityDecision": { "allOf": [{ "$ref": "#/$defs/decisionBase" }, { "type": "object", "properties": { "lane": { "const": "QUALITY" } } }] },
+    "financeDecision": { "allOf": [{ "$ref": "#/$defs/decisionBase" }, { "type": "object", "properties": { "lane": { "const": "FINANCE" } } }] }
+  }
+}

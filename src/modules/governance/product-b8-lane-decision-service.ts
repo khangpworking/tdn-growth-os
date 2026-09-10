@@ -6,6 +6,7 @@ import type { ProductWorkspaceArtifact } from '../../../contracts/flow/product-w
 import type { ProductWorkspaceReader } from '../flow/index.js';
 import { canonicalJson } from '../foundation/index.js';
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../platform/artifacts/index.js';
+import { withDatabaseMutationMutex } from '../../platform/db/index.js';
 import { GovernanceValidationError, validateProductB8LaneDecision, validateProductB8LaneDecisionRequest } from './validation.js';
 
 export const PRODUCT_B8_REVIEW_CAPABILITY = 'governance:product-b8-review' as const;
@@ -78,6 +79,10 @@ export class ProductB8LaneDecisionService {
   async decide(untrustedInput: unknown, actorContext: TrustedProductB8DecisionActorContext): Promise<ProductB8DecisionExecution> {
     const input = snapshot(validateProductB8LaneDecisionRequest(untrustedInput));
     const actor = actorSnapshot(actorContext, this.#config.requiredCapability);
+    return withDatabaseMutationMutex(this.#db, async () => this.#decideAuthorized(input, actor));
+  }
+
+  async #decideAuthorized(input: ProductB8LaneDecisionRequest, actor: Actor): Promise<ProductB8DecisionExecution> {
     const workspace = await this.#verifiedWorkspace(input.productWorkspaceId);
     const workspaceArtifactSha256 = digest(workspace);
     const requestSha256 = this.#requestDigest(input, workspaceArtifactSha256, actor);

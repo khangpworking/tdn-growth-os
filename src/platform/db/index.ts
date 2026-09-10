@@ -6,3 +6,4 @@ export {
   type Migration,
   type MigrationResult,
 } from './migrations.js';
+export { withDatabaseMutationMutex } from './database-mutation-mutex.js';
