@@ -39,3 +39,17 @@ export {
   validateProductCandidateCreateRequest,
   validateProductCandidateRevisionRequest,
 } from './validation.js';
+
+export {
+  CandidateBasketIdentityConflictError,
+  CandidateBasketService,
+  type CandidateBasketExecution,
+} from './candidate-basket-service.js';
+export {
+  FlowCandidateBasketReader,
+  type CandidateBasketReader,
+} from './candidate-basket-reader.js';
+export {
+  validateCandidateBasketArtifact,
+  validateCandidateBasketFreezeRequest,
+} from './validation.js';
