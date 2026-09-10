@@ -73,7 +73,7 @@ export class CandidateB7DecisionService {
     const envelope: CandidateB7Decision = {
       contractVersion: '1.0.0', decisionId, decidedAt,
       basket: { basketId: basket.basketId, basketArtifactSha256, workspaceId: basket.workspaceId, basketKey: basket.basketKey, basketVersion: basket.version },
-      candidate: { candidateId: member.candidateId, candidateVersion: member.candidateVersion, candidateArtifactSha256: member.candidateArtifactSha256, candidateKey: member.candidateKey, label: member.label, state: 'EXPLORING' },
+      candidate: { candidateId: member.candidateId, candidateVersion: member.candidateVersion, candidateArtifactSha256: member.candidateArtifactSha256, candidateKey: member.candidateKey, label: member.label, ...(member.summary === undefined ? {} : { summary: member.summary }), state: 'EXPLORING' },
       decision: input.decision,
       actor,
       requiredCapability: this.#config.requiredCapability,
@@ -117,7 +117,7 @@ export class CandidateB7DecisionService {
     const expectedRequest = this.#requestDigest(request, verified.basketArtifactSha256, verified.member, envelope.actor);
     if (envelope.decisionId !== decisionId || envelope.decidedAt !== row.decidedAt ||
         envelope.basket.basketId !== verified.basket.basketId || envelope.basket.basketArtifactSha256 !== verified.basketArtifactSha256 || envelope.basket.workspaceId !== verified.basket.workspaceId || envelope.basket.basketKey !== verified.basket.basketKey || envelope.basket.basketVersion !== verified.basket.version ||
-        envelope.candidate.candidateId !== verified.member.candidateId || envelope.candidate.candidateVersion !== verified.member.candidateVersion || envelope.candidate.candidateArtifactSha256 !== verified.member.candidateArtifactSha256 || envelope.candidate.candidateKey !== verified.member.candidateKey || envelope.candidate.label !== verified.member.label || envelope.candidate.state !== 'EXPLORING' ||
+        envelope.candidate.candidateId !== verified.member.candidateId || envelope.candidate.candidateVersion !== verified.member.candidateVersion || envelope.candidate.candidateArtifactSha256 !== verified.member.candidateArtifactSha256 || envelope.candidate.candidateKey !== verified.member.candidateKey || envelope.candidate.label !== verified.member.label || (envelope.candidate.summary ?? null) !== (verified.member.summary ?? null) || envelope.candidate.state !== 'EXPLORING' ||
         envelope.decision !== row.decision || envelope.actor.actorId !== row.actorId || envelope.actor.roleSnapshot !== row.roleSnapshot || row.roleSnapshot !== 'OWNER' ||
         envelope.requiredCapability !== row.requiredCapability || row.requiredCapability !== CANDIDATE_B7_DECISION_CAPABILITY || envelope.policy.policyId !== row.policyId || row.policyId !== CANDIDATE_B7_DECISION_POLICY_ID || BigInt(envelope.policy.policyVersion) !== row.policyVersion || row.policyVersion !== 1n ||
         envelope.requestSha256 !== row.requestSha256 || expectedRequest !== row.requestSha256) throw new CandidateB7DecisionIdentityConflictError('B7 decision does not match immutable row, artifact, manifest, or verified input identity');

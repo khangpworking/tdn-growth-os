@@ -53,3 +53,17 @@ export {
   validateCandidateBasketArtifact,
   validateCandidateBasketFreezeRequest,
 } from './validation.js';
+
+export {
+  ProductWorkspaceIdentityConflictError,
+  ProductWorkspaceService,
+  type ProductWorkspaceExecution,
+} from './product-workspace-service.js';
+export {
+  FlowProductWorkspaceReader,
+  type ProductWorkspaceReader,
+} from './product-workspace-reader.js';
+export {
+  validateProductWorkspaceArtifact,
+  validateProductWorkspaceCreateRequest,
+} from './validation.js';

@@ -17,6 +17,7 @@ export interface CandidateB7Decision {
     candidateArtifactSha256: string;
     candidateKey: string;
     label: string;
+    summary?: string;
     state: 'EXPLORING';
   };
   decision: 'PASS' | 'HOLD' | 'REJECT';

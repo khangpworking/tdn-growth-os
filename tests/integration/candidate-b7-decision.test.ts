@@ -22,7 +22,7 @@ const actor = { actorId: 'owner:khang', roleSnapshot: 'OWNER', capabilities: new
 const basket: CandidateBasketArtifact = {
   contractVersion: '1.0.0', basketId, workspaceId: '11111111-1111-4111-8111-111111111111', basketKey: 'b7-basket', version: 3,
   frozenAt: '2026-09-26T00:00:00.000Z', requestSha256: 'a'.repeat(64),
-  candidates: [{ candidateId, candidateKey: 'adult-calcium', candidateVersion: 2, candidateArtifactSha256: 'b'.repeat(64), label: 'Adult calcium', state: 'EXPLORING' }],
+  candidates: [{ candidateId, candidateKey: 'adult-calcium', candidateVersion: 2, candidateArtifactSha256: 'b'.repeat(64), label: 'Adult calcium', summary: 'Ý tưởng canxi tổng hợp cho người lớn.', state: 'EXPLORING' }],
 };
 const request = { contractVersion: '1.0.0', basketId, candidateId, candidateVersion: 2, decision: 'PASS' } as const;
 class FakeBasketReader implements CandidateBasketReader {
@@ -46,6 +46,7 @@ for (const decision of ['PASS', 'HOLD', 'REJECT'] as const) test(`OWNER with cap
   const artifact = await state.decisions.replay(result.decisionId);
   assert.equal(artifact.actor.roleSnapshot, 'OWNER'); assert.equal(artifact.requiredCapability, 'governance:candidate-b7-review');
   assert.equal(artifact.candidate.state, 'EXPLORING'); assert.equal(artifact.candidate.candidateArtifactSha256, 'b'.repeat(64));
+  assert.equal(artifact.candidate.summary, 'Ý tưởng canxi tổng hợp cho người lớn.');
   assert.equal('rationale' in artifact, false); state.db.close();
 });
 
@@ -61,8 +62,8 @@ test('missing capability and non-owner are separately rejected before basket cal
   }
 });
 
-test('closed five-field request rejects rationale, reason, notes, explanation, and AI fields', async () => {
-  for (const field of ['rationale', 'reason', 'notes', 'explanation', 'aiSuggestion']) {
+test('closed five-field request rejects rationale, reason, notes, summary, explanation, and AI fields', async () => {
+  for (const field of ['rationale', 'reason', 'notes', 'summary', 'explanation', 'aiSuggestion']) {
     const state = setup(); await assert.rejects(state.decisions.decide({ ...request, [field]: 'forbidden' }, actor), GovernanceValidationError);
     assert.equal(state.reader.calls, 0); assert.equal(count(state.db), 0n); state.db.close();
   }
@@ -127,7 +128,20 @@ test('migration v14 to v15 is idempotent, prior migrations have known hashes, an
 });
 
 test('reused decision artifact preserves first-storage acquired_at', async () => {
-  const state=setup(); const envelope={contractVersion:'1.0.0',decisionId,decidedAt:'2026-09-27T00:00:00.000Z',basket:{basketId,basketArtifactSha256:createHash('sha256').update(Buffer.from(canonicalJson(basket))).digest('hex'),workspaceId:basket.workspaceId,basketKey:basket.basketKey,basketVersion:basket.version},candidate:{candidateId,candidateVersion:2,candidateArtifactSha256:'b'.repeat(64),candidateKey:'adult-calcium',label:'Adult calcium',state:'EXPLORING'},decision:'PASS',actor:{actorId:'owner:khang',roleSnapshot:'OWNER'},requiredCapability:CANDIDATE_B7_DECISION_CAPABILITY,policy:{policyId:CANDIDATE_B7_DECISION_POLICY_ID,policyVersion:1}} as const;
+  const state=setup(); const envelope={contractVersion:'1.0.0',decisionId,decidedAt:'2026-09-27T00:00:00.000Z',basket:{basketId,basketArtifactSha256:createHash('sha256').update(Buffer.from(canonicalJson(basket))).digest('hex'),workspaceId:basket.workspaceId,basketKey:basket.basketKey,basketVersion:basket.version},candidate:{candidateId,candidateVersion:2,candidateArtifactSha256:'b'.repeat(64),candidateKey:'adult-calcium',label:'Adult calcium',summary:'Ý tưởng canxi tổng hợp cho người lớn.',state:'EXPLORING'},decision:'PASS',actor:{actorId:'owner:khang',roleSnapshot:'OWNER'},requiredCapability:CANDIDATE_B7_DECISION_CAPABILITY,policy:{policyId:CANDIDATE_B7_DECISION_POLICY_ID,policyVersion:1}} as const;
   const requestSha256=createHash('sha256').update(Buffer.from(canonicalJson({request,basketArtifactSha256:envelope.basket.basketArtifactSha256,frozenMember:basket.candidates[0],actor:envelope.actor,requiredCapability:CANDIDATE_B7_DECISION_CAPABILITY,policy:envelope.policy}))).digest('hex'); const stored=await state.artifacts.put(Buffer.from(canonicalJson({...envelope,requestSha256}))); state.db.prepare("INSERT INTO artifact_manifests VALUES(?,?,'application/json',?,'2000-01-01T00:00:00.000Z','1.0.0','active','2000-01-01T00:00:00.000Z')").run(stored.sha256,stored.byteSize,stored.relativePath);
   await state.decisions.decide(request,actor); assert.equal((state.db.prepare('SELECT acquired_at value FROM artifact_manifests WHERE sha256=?').get(stored.sha256) as {value:string}).value,'2000-01-01T00:00:00.000Z'); state.db.close();
+});
+
+test('B7 candidate snapshot preserves absence of summary as absence', async () => {
+  const { summary: _summary, ...memberWithoutSummary } = basket.candidates[0]!;
+  const withoutSummary: CandidateBasketArtifact = {
+    ...basket,
+    candidates: [memberWithoutSummary],
+  };
+  const state = setup(new FakeBasketReader(withoutSummary));
+  const result = await state.decisions.decide(request, actor);
+  const artifact = await state.decisions.replay(result.decisionId);
+  assert.equal('summary' in artifact.candidate, false);
+  state.db.close();
 });
