@@ -30,4 +30,3 @@ verified live provider collection.
   evidence.
 - Do not use a finished report as ingestion evidence.
 - Do not commit provider credentials or new runtime artifacts.
-
