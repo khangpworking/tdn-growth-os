@@ -35,3 +35,22 @@ export {
   type CandidateB7DecisionReader,
 } from './candidate-b7-decision-reader.js';
 export { validateCandidateB7Decision, validateCandidateB7DecisionRequest } from './validation.js';
+
+export {
+  PRODUCT_B8_LANES,
+  PRODUCT_B8_REVIEW_CAPABILITY,
+  PRODUCT_B8_REVIEW_POLICY_ID,
+  ProductB8DecisionIdentityConflictError,
+  ProductB8LaneDecisionService,
+  type ProductB8DecisionConfiguration,
+  type ProductB8DecisionExecution,
+  type ProductB8LaneStatus,
+  type ProductB8Status,
+  type TrustedProductB8DecisionActorContext,
+} from './product-b8-lane-decision-service.js';
+export {
+  GovernanceProductB8Reader,
+  type ProductB8DecisionByIdReader,
+  type ProductB8StatusReader,
+} from './product-b8-status-reader.js';
+export { validateProductB8LaneDecision, validateProductB8LaneDecisionRequest } from './validation.js';
