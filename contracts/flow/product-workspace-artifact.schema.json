@@ -47,6 +47,7 @@
             "candidateArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
             "candidateKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
             "label": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+            "summary": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
             "state": { "const": "EXPLORING" }
           }
         },

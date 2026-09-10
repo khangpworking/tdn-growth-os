@@ -6,11 +6,23 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, test } from 'node:test';
 import type { CandidateB7Decision } from '../../contracts/governance/candidate-b7-decision.generated.js';
-import type { CandidateB7DecisionByIdReader } from '../../src/modules/governance/index.js';
+import {
+  CANDIDATE_B7_DECISION_CAPABILITY,
+  CANDIDATE_B7_DECISION_POLICY_ID,
+  CandidateB7DecisionService,
+  GovernanceCandidateB7DecisionReader,
+  type CandidateB7DecisionByIdReader,
+} from '../../src/modules/governance/index.js';
 import { canonicalJson } from '../../src/modules/foundation/index.js';
 import {
+  CandidateBasketService,
+  DiscoveryWorkspaceService,
+  FlowCandidateBasketReader,
+  FlowDiscoveryWorkspaceReader,
+  FlowProductCandidateReader,
   FlowProductWorkspaceReader,
   FlowValidationError,
+  ProductCandidateService,
   ProductWorkspaceIdentityConflictError,
   ProductWorkspaceService,
 } from '../../src/modules/flow/index.js';
@@ -32,7 +44,7 @@ function decision(id = decisionId, value: CandidateB7Decision['decision'] = 'PAS
   return {
     contractVersion: '1.0.0', decisionId: id, decidedAt: '2026-09-27T00:00:00.000Z',
     basket: { basketId, basketArtifactSha256: 'a'.repeat(64), workspaceId, basketKey: 'b7-basket', basketVersion: 3 },
-    candidate: { candidateId, candidateVersion: 2, candidateArtifactSha256: 'b'.repeat(64), candidateKey: 'adult-calcium', label: 'Canxi người lớn tổng hợp', state: 'EXPLORING' },
+    candidate: { candidateId, candidateVersion: 2, candidateArtifactSha256: 'b'.repeat(64), candidateKey: 'adult-calcium', label: 'Canxi người lớn tổng hợp', summary: 'Ý tưởng canxi tổng hợp cho người lớn.', state: 'EXPLORING' },
     decision: value,
     actor: { actorId: 'owner:khang', roleSnapshot: 'OWNER' },
     requiredCapability: 'governance:candidate-b7-review',
@@ -86,7 +98,8 @@ function digest(value: unknown): string { return createHash('sha256').update(Buf
   assert.equal(artifact.source.b7Decision.decision, 'PASS');
   assert.deepEqual(artifact.source.b7Decision.actor, { actorId: 'owner:khang', roleSnapshot: 'OWNER' });
   assert.equal(artifact.source.b7Decision.policy.policyId, 'governance:candidate-b7-review-v1');
-  assert.equal('summary' in artifact, false);
+  assert.equal(artifact.source.candidate.summary, 'Ý tưởng canxi tổng hợp cho người lớn.');
+  assert.equal((state.db.prepare('SELECT source_candidate_summary summary FROM flow_product_workspaces').get() as { summary: string }).summary, 'Ý tưởng canxi tổng hợp cho người lớn.');
   assert.equal(count(state.db), 1n);
   state.db.close();
 });
@@ -166,8 +179,8 @@ test('replay rejects missing, corrupt, manifest-mismatched, row-mismatched, and 
     if (mode === 'missing') fs.rmSync(artifactPath);
     if (mode === 'corrupt') fs.writeFileSync(artifactPath, '{}');
     if (mode === 'manifest') state.db.prepare('UPDATE artifact_manifests SET media_type=? WHERE sha256=?').run('text/plain', result.productWorkspaceArtifactSha256);
-    if (mode === 'row') { state.db.exec('DROP TRIGGER flow_product_workspaces_no_update'); state.db.prepare('UPDATE flow_product_workspaces SET title=?').run('changed'); }
-    if (mode === 'source') reader.values.set(decisionId, { ...decision(), candidate: { ...decision().candidate, label: 'Changed verified label' } });
+    if (mode === 'row') { state.db.exec('DROP TRIGGER flow_product_workspaces_no_update'); state.db.prepare('UPDATE flow_product_workspaces SET source_candidate_summary=?').run('Changed persisted summary'); }
+    if (mode === 'source') reader.values.set(decisionId, { ...decision(), candidate: { ...decision().candidate, summary: 'Changed verified summary' } });
     await assert.rejects(state.service.replay(productWorkspaceId)); state.db.close();
   }
 });
@@ -236,4 +249,71 @@ test('migration v15 to v16 is idempotent, migrations 0001-0015 are unchanged, an
   for (const file of ['migrations/0016_product_workspaces.sql', 'src/modules/flow/product-workspace-service.ts']) {
     const content = fs.readFileSync(file, 'utf8'); assert.doesNotMatch(content, /governance_candidate_b7_decisions/i); assert.doesNotMatch(content, /REFERENCES\s+governance_/i);
   }
+});
+
+test('product workspace preserves absence of candidate summary as absence and persists SQL NULL', async () => {
+  const sourceDecision = decision();
+  delete sourceDecision.candidate.summary;
+  const state = setup(new FakeDecisionReader(sourceDecision));
+  const result = await state.service.createWorkspace(request);
+  const artifact = await state.service.replay(result.productWorkspaceId);
+  assert.equal('summary' in artifact.source.candidate, false);
+  assert.equal((state.db.prepare('SELECT source_candidate_summary summary FROM flow_product_workspaces').get() as { summary: null }).summary, null);
+  state.db.close();
+});
+
+test('summary is frozen candidate version → basket → B7 PASS → product workspace despite a later candidate revision', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-product-workspace-lineage-')); roots.push(root);
+  const { db } = openDatabase({ databasePath: path.join(root, 'db.sqlite') });
+  const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
+  const workspaces = new DiscoveryWorkspaceService({
+    db, artifactStore: artifacts, uuid: () => workspaceId, now: () => new Date('2026-09-25T00:00:00Z'),
+  });
+  const candidates = new ProductCandidateService({
+    db, artifactStore: artifacts, uuid: () => candidateId, now: () => new Date('2026-09-25T01:00:00Z'),
+  });
+  const baskets = new CandidateBasketService({
+    db, artifactStore: artifacts,
+    workspaceReader: new FlowDiscoveryWorkspaceReader(workspaces),
+    candidateReader: new FlowProductCandidateReader(candidates),
+    uuid: () => basketId, now: () => new Date('2026-09-26T00:00:00Z'),
+  });
+  const decisions = new CandidateB7DecisionService({
+    db, artifactStore: artifacts, basketReader: new FlowCandidateBasketReader(baskets),
+    configuration: { policyId: CANDIDATE_B7_DECISION_POLICY_ID, policyVersion: 1, requiredCapability: CANDIDATE_B7_DECISION_CAPABILITY },
+    uuid: () => decisionId, now: () => new Date('2026-09-27T00:00:00Z'),
+  });
+  const productWorkspaces = new ProductWorkspaceService({
+    db, artifactStore: artifacts, decisionReader: new GovernanceCandidateB7DecisionReader(decisions),
+    uuid: () => productWorkspaceId, now: () => new Date('2026-09-28T00:00:00Z'),
+  });
+  const originalSummary = 'Canxi dạng viên cho người lớn cần thông tin sử dụng rõ ràng.';
+  await workspaces.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'synthetic-calcium-market', title: 'Thị trường canxi tổng hợp' });
+  await candidates.createCandidate({
+    contractVersion: '1.0.0', workspaceId, candidateKey: 'adult-calcium',
+    label: 'Canxi người lớn tổng hợp', summary: originalSummary,
+  });
+  await baskets.freezeBasket({
+    contractVersion: '1.0.0', workspaceId, basketKey: 'b7-basket', version: 1,
+    candidates: [{ candidateId, candidateVersion: 1 }],
+  });
+  await decisions.decide(
+    { contractVersion: '1.0.0', basketId, candidateId, candidateVersion: 1, decision: 'PASS' },
+    { actorId: 'owner:khang', roleSnapshot: 'OWNER', capabilities: new Set([CANDIDATE_B7_DECISION_CAPABILITY]) },
+  );
+  await productWorkspaces.createWorkspace(request);
+
+  assert.equal((await baskets.readBasket(basketId)).candidates[0]!.summary, originalSummary);
+  assert.equal((await decisions.replay(decisionId)).candidate.summary, originalSummary);
+  assert.equal((await productWorkspaces.replay(productWorkspaceId)).source.candidate.summary, originalSummary);
+
+  await candidates.reviseCandidate({
+    contractVersion: '1.0.0', candidateId, expectedVersion: 1,
+    label: 'Canxi người lớn tổng hợp', summary: 'Bản sửa đổi sau khi các snapshot đã được đóng băng.',
+  });
+  assert.equal((await candidates.readCandidate(candidateId, 2)).summary, 'Bản sửa đổi sau khi các snapshot đã được đóng băng.');
+  assert.equal((await baskets.readBasket(basketId)).candidates[0]!.summary, originalSummary);
+  assert.equal((await decisions.replay(decisionId)).candidate.summary, originalSummary);
+  assert.equal((await productWorkspaces.replay(productWorkspaceId)).source.candidate.summary, originalSummary);
+  db.close();
 });

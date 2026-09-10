@@ -26,6 +26,7 @@ export interface ProductWorkspaceArtifact {
       candidateArtifactSha256: string;
       candidateKey: string;
       label: string;
+      summary?: string;
       state: 'EXPLORING';
     };
     b7Decision: {

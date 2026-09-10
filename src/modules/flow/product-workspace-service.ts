@@ -41,6 +41,7 @@ type Row = {
   sourceCandidateArtifactSha256: string;
   sourceCandidateKey: string;
   sourceCandidateLabel: string;
+  sourceCandidateSummary: string | null;
   sourceCandidateState: string;
   sourceB7DecisionId: string;
   sourceB7DecisionArtifactSha256: string;
@@ -122,17 +123,17 @@ export class ProductWorkspaceService {
           source_workspace_id, source_basket_id, source_basket_artifact_sha256, source_basket_key,
           source_basket_version, source_candidate_id, source_candidate_version,
           source_candidate_artifact_sha256, source_candidate_key, source_candidate_label,
-          source_candidate_state, source_b7_decision_id, source_b7_decision_artifact_sha256,
+          source_candidate_summary, source_candidate_state, source_b7_decision_id, source_b7_decision_artifact_sha256,
           source_b7_decided_at, source_b7_decision, source_actor_id, source_role_snapshot,
           source_required_capability, source_policy_id, source_policy_version, source_b7_request_sha256,
           request_sha256, product_workspace_artifact_sha256, created_at
-        ) VALUES (?, ?, 'ACTIVE', 'B8', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EXPLORING', ?, ?, ?, 'PASS', ?, 'OWNER', ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, 'ACTIVE', 'B8', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'EXPLORING', ?, ?, ?, 'PASS', ?, 'OWNER', ?, ?, ?, ?, ?, ?, ?)
       `).run(
         productWorkspaceId, input.productWorkspaceKey, verified.decision.candidate.label,
         source.discoveryWorkspace.workspaceId, source.basket.basketId, source.basket.basketArtifactSha256,
         source.basket.basketKey, source.basket.basketVersion, source.candidate.candidateId,
         source.candidate.candidateVersion, source.candidate.candidateArtifactSha256,
-        source.candidate.candidateKey, source.candidate.label, source.b7Decision.decisionId,
+        source.candidate.candidateKey, source.candidate.label, source.candidate.summary ?? null, source.b7Decision.decisionId,
         source.b7Decision.decisionArtifactSha256, source.b7Decision.decidedAt,
         source.b7Decision.actor.actorId, source.b7Decision.requiredCapability,
         source.b7Decision.policy.policyId, source.b7Decision.policy.policyVersion,
@@ -253,7 +254,8 @@ export class ProductWorkspaceService {
         source_candidate_id sourceCandidateId, source_candidate_version sourceCandidateVersion,
         source_candidate_artifact_sha256 sourceCandidateArtifactSha256,
         source_candidate_key sourceCandidateKey, source_candidate_label sourceCandidateLabel,
-        source_candidate_state sourceCandidateState, source_b7_decision_id sourceB7DecisionId,
+        source_candidate_summary sourceCandidateSummary, source_candidate_state sourceCandidateState,
+        source_b7_decision_id sourceB7DecisionId,
         source_b7_decision_artifact_sha256 sourceB7DecisionArtifactSha256,
         source_b7_decided_at sourceB7DecidedAt, source_b7_decision sourceB7Decision,
         source_actor_id sourceActorId, source_role_snapshot sourceRoleSnapshot,
@@ -292,6 +294,7 @@ function rowMatchesSource(row: Row, source: SourceSnapshot): boolean {
     row.sourceCandidateVersion === BigInt(source.candidate.candidateVersion) &&
     row.sourceCandidateArtifactSha256 === source.candidate.candidateArtifactSha256 &&
     row.sourceCandidateKey === source.candidate.candidateKey && row.sourceCandidateLabel === source.candidate.label &&
+    row.sourceCandidateSummary === (source.candidate.summary ?? null) &&
     row.sourceCandidateState === source.candidate.state && row.sourceB7DecisionId === source.b7Decision.decisionId &&
     row.sourceB7DecisionArtifactSha256 === source.b7Decision.decisionArtifactSha256 &&
     row.sourceB7DecidedAt === source.b7Decision.decidedAt && row.sourceB7Decision === source.b7Decision.decision &&

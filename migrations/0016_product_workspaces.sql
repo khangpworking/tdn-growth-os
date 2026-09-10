@@ -14,6 +14,7 @@ CREATE TABLE flow_product_workspaces (
   source_candidate_artifact_sha256 TEXT NOT NULL CHECK(length(source_candidate_artifact_sha256) = 64 AND source_candidate_artifact_sha256 NOT GLOB '*[^0-9a-f]*'),
   source_candidate_key TEXT NOT NULL CHECK(length(source_candidate_key) BETWEEN 3 AND 80 AND source_candidate_key GLOB '[a-z]*' AND source_candidate_key NOT GLOB '*[^a-z0-9_-]*'),
   source_candidate_label TEXT NOT NULL CHECK(length(trim(source_candidate_label)) BETWEEN 1 AND 200 AND source_candidate_label = trim(source_candidate_label)),
+  source_candidate_summary TEXT CHECK(length(trim(source_candidate_summary)) BETWEEN 1 AND 1000 AND source_candidate_summary = trim(source_candidate_summary)),
   source_candidate_state TEXT NOT NULL CHECK(source_candidate_state = 'EXPLORING'),
   source_b7_decision_id TEXT NOT NULL UNIQUE CHECK(length(source_b7_decision_id) = 36),
   source_b7_decision_artifact_sha256 TEXT NOT NULL CHECK(length(source_b7_decision_artifact_sha256) = 64 AND source_b7_decision_artifact_sha256 NOT GLOB '*[^0-9a-f]*'),
