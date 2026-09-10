@@ -42,6 +42,8 @@ const contracts = [
   ['flow', 'product-candidate-create-request'],
   ['flow', 'product-candidate-revision-request'],
   ['flow', 'product-candidate-artifact'],
+  ['flow', 'candidate-basket-freeze-request'],
+  ['flow', 'candidate-basket-artifact'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
