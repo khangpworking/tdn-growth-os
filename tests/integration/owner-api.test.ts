@@ -84,7 +84,11 @@ test('authentication, exact-origin CORS, preflight, method, media type and bound
 });
 
 test('all lanes and decisions produce narrow receipts; exact retries deduplicate and conflicts/concurrency mutate only B8 owner scope', async () => {
-  const state = await fixture(); const beforeTables = new BetterSqlite3(state.databasePath).prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+  const state = await fixture();
+  const beforeDb = new BetterSqlite3(state.databasePath);
+  const beforeTables = beforeDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[];
+  const protectedCounts = Object.fromEntries(beforeTables.filter(({ name }) => !['artifact_manifests', 'governance_product_b8_lane_decisions'].includes(name)).map(({ name }) => [name, (beforeDb.prepare(`SELECT count(*) count FROM \"${name}\"`).get() as { count: number }).count]));
+  beforeDb.close();
   await serve(state, async (base) => {
     const cases = [['LEGAL', 'PASS'], ['SCIENTIFIC', 'HOLD'], ['QUALITY', 'REJECT'], ['FINANCE', 'PASS']] as const;
     for (const [lane, decision] of cases) { const response = await fetch(endpoint(base), { method: 'POST', headers, body: body(lane, 0, decision) }); assert.equal(response.status, 201); const receipt = await response.json() as any; assert.deepEqual(Object.keys(receipt).sort(), ['contractVersion','decision','decisionId','decisionVersion','deduplicated','lane','productWorkspaceId'].sort()); assert.deepEqual([receipt.lane, receipt.decision, receipt.decisionVersion, receipt.deduplicated], [lane, decision, 1, false]); }
@@ -95,5 +99,10 @@ test('all lanes and decisions produce narrow receipts; exact retries deduplicate
   });
   const db = new BetterSqlite3(state.databasePath); const rows = db.prepare('SELECT lane,decision,actor_id actorId,role_snapshot role,required_capability capability,policy_id policy FROM governance_product_b8_lane_decisions ORDER BY lane,decision_version').all() as any[];
   assert.equal(rows.length, 5); assert.ok(rows.every((row) => row.actorId === 'owner:local' && row.role === 'OWNER' && row.capability === 'governance:product-b8-review' && row.policy === 'governance:product-b8-review-v1'));
-  assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all(), beforeTables); assert.equal((db.prepare('SELECT count(*) count FROM flow_product_workspaces').get() as any).count, 1); db.close();
+  assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all(), beforeTables);
+  for (const [table, count] of Object.entries(protectedCounts)) assert.equal((db.prepare(`SELECT count(*) count FROM \"${table}\"`).get() as { count: number }).count, count, `${table} must remain unchanged`);
+  db.close();
+  assert.equal(fs.statSync(state.databasePath).mode & 0o077, 0, 'database must not grant group/other permissions');
+  const artifactFiles = fs.readdirSync(state.artifactRoot, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => path.join(entry.parentPath, entry.name));
+  assert.ok(artifactFiles.length > 0); for (const file of artifactFiles) assert.equal(fs.statSync(file).mode & 0o077, 0, `${file} must be owner-only`);
 });
