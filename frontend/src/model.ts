@@ -33,6 +33,7 @@ export interface B9WorkingStp {
   readonly positioning: string;
   readonly createdAt: string;
   readonly updatedAt: string;
+  readonly workingRevision: string;
 }
 
 export type B9State =
@@ -127,7 +128,7 @@ export function createSeedState(): DemoState {
           { id: 'seed-scientific-pass', lane: 'SCIENTIFIC', state: 'PASS', time: '09:20 · minh họa' },
         ],
         clearance: null,
-        b9: { state: 'LOCKED', working: { id: 'demo-stp-adult', clearanceId: 'demo-clearance-adult', segments: [{ key: 'active-adult', label: 'Người trưởng thành vận động thường xuyên' }, { key: 'office-adult', label: 'Nhân viên văn phòng quan tâm sức khỏe xương' }, { key: 'senior', label: 'Người lớn tuổi cần tư vấn chuyên môn' }], primaryTargetKey: 'active-adult', secondaryTargetKeys: ['office-adult'], positioning: 'Giải pháp canxi tiện dụng cho người trưởng thành chủ động chăm sóc sức khỏe xương.', createdAt: '01/10/2026 09:00 · minh họa', updatedAt: '01/10/2026 10:30 · minh họa' }, locked: { id: 'demo-lock-adult', lockedAt: '01/10/2026 11:00 · minh họa' } },
+        b9: { state: 'LOCKED', working: { id: 'demo-stp-adult', clearanceId: 'demo-clearance-adult', segments: [{ key: 'active-adult', label: 'Người trưởng thành vận động thường xuyên' }, { key: 'office-adult', label: 'Nhân viên văn phòng quan tâm sức khỏe xương' }, { key: 'senior', label: 'Người lớn tuổi cần tư vấn chuyên môn' }], primaryTargetKey: 'active-adult', secondaryTargetKeys: ['office-adult'], positioning: 'Giải pháp canxi tiện dụng cho người trưởng thành chủ động chăm sóc sức khỏe xương.', createdAt: '01/10/2026 09:00 · minh họa', updatedAt: '01/10/2026 10:30 · minh họa', workingRevision: 'demo-working-revision' }, locked: { id: 'demo-lock-adult', lockedAt: '01/10/2026 11:00 · minh họa' } },
         b10: { history: [{ id: 'demo-b10-1', number: 1, previousId: null, decision: 'HOLD', decidedAt: '01/10/2026 13:00 · minh họa' }, { id: 'demo-b10-2', number: 2, previousId: 'demo-b10-1', decision: 'APPROVE', decidedAt: '02/10/2026 09:00 · minh họa' }], effective: { id: 'demo-b10-2', number: 2, previousId: 'demo-b10-1', decision: 'APPROVE', decidedAt: '02/10/2026 09:00 · minh họa' }, readyForB11: true },
       },
       {
