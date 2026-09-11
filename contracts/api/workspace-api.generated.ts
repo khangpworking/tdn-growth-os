@@ -74,6 +74,7 @@ export interface ProductWorkspaceDetailResponse {
 export interface ProductB9Working {
   workingStpId: string;
   b8ClearanceId: string;
+  workingRevision: string;
   content: { segments: { key: string; label: string; description?: string }[]; primaryTargetSegmentKey: string; secondaryTargetSegmentKeys?: string[]; positioningStatement: string };
   createdAt: string;
   updatedAt: string;

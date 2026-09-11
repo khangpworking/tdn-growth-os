@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { validStpDraft } from '../src/B9Editor';
 
 const ids = {
   w1: '11111111-1111-4111-8111-111111111111', w2: '11111111-1111-4111-8111-222222222222',
@@ -69,7 +70,7 @@ test('connection and integrity failures remain distinct without demo fallback', 
 
 test('maps read-only B9 working/locked content and ordered B10 correction history', async () => {
   const responses = validResponses();
-  responses.set(`/api/product-workspaces/${ids.p1}/b9`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, state: 'LOCKED', working: { workingStpId: ids.basket, workingDigest: 'a'.repeat(64), b8ClearanceId: ids.b7, content: { segments: [{ key: 'adult', label: 'Người lớn' }, { key: 'senior', label: 'Người cao tuổi' }], primaryTargetSegmentKey: 'adult', secondaryTargetSegmentKeys: ['senior'], positioningStatement: 'Định vị đã khóa.' }, createdAt: at, updatedAt: at }, locked: { lockId: ids.d1, state: 'LOCKED_STP', lockedAt: at } });
+  responses.set(`/api/product-workspaces/${ids.p1}/b9`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, state: 'LOCKED', working: { workingStpId: ids.basket, workingRevision: `wr1_${'a'.repeat(43)}`, b8ClearanceId: ids.b7, content: { segments: [{ key: 'adult', label: 'Người lớn' }, { key: 'senior', label: 'Người cao tuổi' }], primaryTargetSegmentKey: 'adult', secondaryTargetSegmentKeys: ['senior'], positioningStatement: 'Định vị đã khóa.' }, createdAt: at, updatedAt: at }, locked: { lockId: ids.d1, state: 'LOCKED_STP', lockedAt: at } });
   responses.set(`/api/product-workspaces/${ids.p1}/b10`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, history: [{ decisionId: ids.d2, decisionNumber: 1, previousDecisionId: null, decision: 'HOLD', decidedAt: at, lockedStpId: ids.d1 }, { decisionId: ids.d3, decisionNumber: 2, previousDecisionId: ids.d2, decision: 'APPROVE', decidedAt: at, lockedStpId: ids.d1 }], effective: { decisionId: ids.d3, decisionNumber: 2, previousDecisionId: ids.d2, decision: 'APPROVE', decidedAt: at, lockedStpId: ids.d1 }, readyForB11: true });
   const state = await loadRealWorkspaceState(fetchFrom(responses)); const product = state.products[0]!;
   assert.equal(product.b9.state, 'LOCKED'); assert.deepEqual(product.b9.working?.segments.map((segment) => segment.key), ['adult', 'senior']); assert.equal(product.b10.history.length, 2); assert.equal(product.b10.effective?.decision, 'APPROVE'); assert.equal(product.b10.readyForB11, true);
@@ -135,4 +136,30 @@ test('historical clearance comparison detects any later B8 decision change', asy
   assert.equal(clearanceMatchesCurrent({ ...historical, decisionIds: { ...frozen, LEGAL: ids.c1 } }), false);
   const source = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'));
   assert.match(source, /role="dialog"/); assert.match(source, /Đóng băng bốn quyết định PASS hiện tại/); assert.match(source, /Xem B9/);
+});
+
+test('B9 editor validates targets/order/limits and generates stable internal keys without user input', () => {
+  const valid = { segments: [{ key: 'segment-1', label: 'Người lớn' }, { key: 'segment-2', label: 'Người cao tuổi' }], primary: 'segment-1', secondary: ['segment-2'], positioning: 'Định vị rõ ràng.' };
+  assert.equal(validStpDraft(valid), true); assert.equal(validStpDraft({ ...valid, primary: 'missing' }), false); assert.equal(validStpDraft({ ...valid, secondary: ['segment-1'] }), false); assert.equal(validStpDraft({ ...valid, secondary: ['segment-2', 'segment-2'] }), false); assert.equal(validStpDraft({ ...valid, positioning: '' }), false); assert.equal(validStpDraft({ ...valid, segments: [{ key: 'segment-1', label: 'x'.repeat(201) }] }), false);
+  assert.equal(stableSegmentKey(2, ['segment-1', 'segment-2']), 'segment-3'); assert.deepEqual(valid.segments.map((item) => item.key), ['segment-1', 'segment-2']);
+});
+
+test('B9 controls enforce unlock, pending, dirty, saved revision and post-lock states', () => {
+  const revision = `wr1_${'a'.repeat(43)}`;
+  assert.equal(b9SaveDisabled({ unlocked: false, pending: false, locked: false, valid: true }), true); assert.equal(b9SaveDisabled({ unlocked: true, pending: true, locked: false, valid: true }), true); assert.equal(b9SaveDisabled({ unlocked: true, pending: false, locked: false, valid: true }), false);
+  assert.equal(b9LockDisabled({ unlocked: true, pending: false, locked: false, dirty: false, revision }), false); assert.equal(b9LockDisabled({ unlocked: true, pending: false, locked: false, dirty: true, revision }), true); assert.equal(b9LockDisabled({ unlocked: true, pending: false, locked: true, dirty: false, revision }), true); assert.equal(b9LockDisabled({ unlocked: false, pending: false, locked: false, dirty: false, revision }), true);
+});
+
+test('B9 save and lock send closed exact revisions and success/conflict reload authoritative state', async () => {
+  const revision = `wr1_${'a'.repeat(43)}`; const token = 'x'.repeat(31) + '1'; const calls: { url: string; init?: RequestInit }[] = [];
+  const draft = { b8ClearanceId: ids.w2, expectedWorkingRevision: null, segments: [{ key: 'segment-1', label: 'Người lớn' }], primaryTargetSegmentKey: 'segment-1', positioningStatement: 'Định vị.' };
+  await submitOwnerB9Working(ids.p1, draft, token, (async (url, init) => { calls.push({ url: String(url), init }); return json({ contractVersion: '1.0.0', workingStpId: ids.basket, productWorkspaceId: ids.p1, workingRevision: revision, createdAt: at, updatedAt: at, exactRetry: false }, 201); }) as typeof fetch);
+  await submitOwnerB9Lock(ids.p1, revision, token, (async (url, init) => { calls.push({ url: String(url), init }); return json({ contractVersion: '1.0.0', lockId: ids.d1, state: 'LOCKED_STP', lockedAt: at, exactRetry: false }, 201); }) as typeof fetch);
+  assert.deepEqual(JSON.parse(String(calls[0]!.init?.body)), { contractVersion: '1.0.0', ...draft }); assert.deepEqual(JSON.parse(String(calls[1]!.init?.body)), { contractVersion: '1.0.0', expectedWorkingRevision: revision });
+  let reloads = 0; assert.equal(await submitB9AndReload(async () => true, async () => { reloads++; }), 'success'); assert.equal(await submitB9AndReload(async () => { throw new OwnerWriteError('conflict', 'changed'); }, async () => { reloads++; }), 'conflict'); assert.equal(reloads, 2);
+});
+
+test('real B9 source has explicit save/lock, dirty navigation warning, no autosave and demo isolation', async () => {
+  const [app, editor] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/B9Editor.tsx', import.meta.url), 'utf8'))]);
+  assert.match(editor, /Lưu bản nháp/); assert.match(editor, /product\.name/); assert.match(editor, /Lưu gần nhất/); assert.match(editor, /Khóa STP chính thức/); assert.match(editor, /beforeunload/); assert.match(app, /window\.confirm/); assert.doesNotMatch(editor, /setInterval|autosave/i); assert.match(app, /mode === 'real'.*<B9Editor/); assert.match(editor, /Xem B10/);
 });
