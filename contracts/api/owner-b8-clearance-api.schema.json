@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-b8-clearance-api.schema.json",
+  "title": "OwnerB8ClearanceApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/receipt" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "request": {
+      "title": "OwnerB8ClearanceRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "decisionIds"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "decisionIds": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["LEGAL", "SCIENTIFIC", "QUALITY", "FINANCE"],
+          "properties": {
+            "LEGAL": { "$ref": "#/$defs/uuid" },
+            "SCIENTIFIC": { "$ref": "#/$defs/uuid" },
+            "QUALITY": { "$ref": "#/$defs/uuid" },
+            "FINANCE": { "$ref": "#/$defs/uuid" }
+          }
+        }
+      }
+    },
+    "receipt": {
+      "title": "OwnerB8ClearanceReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "clearanceId", "state", "clearedAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "clearanceId": { "$ref": "#/$defs/uuid" },
+        "state": { "const": "READY_FOR_B9" },
+        "clearedAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    }
+  }
+}

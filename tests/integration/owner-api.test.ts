@@ -48,8 +48,19 @@ async function serve(state: Awaited<ReturnType<typeof fixture>>, run: (base: str
   try { await run(`http://127.0.0.1:${(api.server.address() as AddressInfo).port}`); } finally { await api.close(); }
 }
 const endpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b8-decisions`;
+const clearanceEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b8-clearance`;
 const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json', origin: allowedOrigin };
 const body = (lane = 'LEGAL', expectedVersion = 0, decision = 'PASS') => JSON.stringify({ contractVersion: '1.0.0', lane, expectedVersion, decision });
+async function fourPasses(base: string): Promise<Record<'LEGAL' | 'SCIENTIFIC' | 'QUALITY' | 'FINANCE', string>> {
+  const result = {} as Record<'LEGAL' | 'SCIENTIFIC' | 'QUALITY' | 'FINANCE', string>;
+  for (const lane of ['LEGAL', 'SCIENTIFIC', 'QUALITY', 'FINANCE'] as const) {
+    const response = await fetch(endpoint(base), { method: 'POST', headers, body: body(lane) });
+    assert.equal(response.status, 201);
+    result[lane] = ((await response.json()) as { decisionId: string }).decisionId;
+  }
+  return result;
+}
+const clearanceBody = (decisionIds: Record<string, string>) => JSON.stringify({ contractVersion: '1.0.0', decisionIds });
 
 test('launcher requires explicit opt-in and rejects non-loopback binding before opening storage', () => {
   const script = path.resolve('scripts/serve-owner-api.ts');
@@ -76,6 +87,9 @@ test('authentication, exact-origin CORS, preflight, method, media type and bound
     const preflight = await fetch(endpoint(base), { method: 'OPTIONS', headers: { origin: allowedOrigin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'Authorization, Content-Type' } }); assert.equal(preflight.status, 204); assert.equal(preflight.headers.get('access-control-allow-origin'), allowedOrigin);
     assert.equal((await fetch(endpoint(base), { method: 'OPTIONS', headers: { origin: allowedOrigin, 'access-control-request-method': 'DELETE', 'access-control-request-headers': 'Authorization, Content-Type' } })).status, 403);
     assert.equal((await fetch(endpoint(base), { method: 'GET', headers })).status, 405);
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'GET', headers })).status, 405);
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers: { 'content-type': 'application/json' }, body: clearanceBody({}) })).status, 401);
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers: { ...headers, origin: 'http://evil.local' }, body: clearanceBody({}) })).status, 403);
     assert.equal((await fetch(endpoint(base), { method: 'POST', headers: { ...headers, 'content-type': 'text/plain' }, body: body() })).status, 400);
     for (const invalid of ['', '{', JSON.stringify({ contractVersion: '1.0.0', lane: 'LEGAL', expectedVersion: 0, decision: 'PASS', actorId: 'attacker' }), JSON.stringify({ contractVersion: '1.0.0', productWorkspaceId: product, lane: 'LEGAL', expectedVersion: 0, decision: 'PASS' })]) assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: invalid })).status, 400);
     assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: 'x'.repeat(4097) })).status, 400);
@@ -108,4 +122,99 @@ test('all lanes and decisions produce narrow receipts; exact retries deduplicate
   assert.equal(fs.statSync(state.databasePath).mode & 0o077, 0, 'database must not grant group/other permissions');
   const artifactFiles = fs.readdirSync(state.artifactRoot, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => path.join(entry.parentPath, entry.name));
   assert.ok(artifactFiles.length > 0); for (const file of artifactFiles) assert.equal(fs.statSync(file).mode & 0o077, 0, `${file} must be owner-only`);
+});
+
+
+test('B8 clearance API accepts exactly four current PASS decisions, returns a closed receipt, and exact retry has zero mutation', async () => {
+  const state = await fixture();
+  await serve(state, async (base) => {
+    const decisionIds = await fourPasses(base);
+    const before = new BetterSqlite3(state.databasePath);
+    const productBefore = before.prepare('SELECT * FROM flow_product_workspaces WHERE product_workspace_id=?').get(product);
+    const b8Before = before.prepare('SELECT * FROM governance_product_b8_lane_decisions ORDER BY decision_id').all();
+    const manifestsBefore = (before.prepare('SELECT count(*) count FROM artifact_manifests').get() as { count: number }).count;
+    before.close();
+
+    const created = await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(decisionIds) });
+    assert.equal(created.status, 201);
+    const receipt = await created.json() as any;
+    assert.deepEqual(Object.keys(receipt).sort(), ['clearanceId', 'clearedAt', 'contractVersion', 'exactRetry', 'state']);
+    assert.deepEqual({ ...receipt, clearanceId: '<uuid>' }, { contractVersion: '1.0.0', clearanceId: '<uuid>', state: 'READY_FOR_B9', clearedAt: '2027-01-01T00:00:00.000Z', exactRetry: false });
+    assert.match(receipt.clearanceId, /^[0-9a-f-]{36}$/i);
+
+    const db = new BetterSqlite3(state.databasePath);
+    assert.equal((db.prepare('SELECT count(*) count FROM flow_b8_clearances').get() as { count: number }).count, 1);
+    assert.equal((db.prepare('SELECT count(*) count FROM flow_b8_clearance_decisions').get() as { count: number }).count, 4);
+    assert.equal((db.prepare('SELECT count(*) count FROM artifact_manifests').get() as { count: number }).count, manifestsBefore + 1);
+    assert.deepEqual(db.prepare('SELECT * FROM flow_product_workspaces WHERE product_workspace_id=?').get(product), productBefore);
+    assert.deepEqual(db.prepare('SELECT * FROM governance_product_b8_lane_decisions ORDER BY decision_id').all(), b8Before);
+    const countsBeforeRetry = db.prepare('SELECT (SELECT count(*) FROM flow_b8_clearances) clearances, (SELECT count(*) FROM flow_b8_clearance_decisions) members, (SELECT count(*) FROM artifact_manifests) artifacts').get();
+    db.close();
+
+    const retry = await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(decisionIds) });
+    assert.equal(retry.status, 200);
+    assert.deepEqual(await retry.json(), { ...receipt, exactRetry: true });
+    const afterRetry = new BetterSqlite3(state.databasePath);
+    assert.deepEqual(afterRetry.prepare('SELECT (SELECT count(*) FROM flow_b8_clearances) clearances, (SELECT count(*) FROM flow_b8_clearance_decisions) members, (SELECT count(*) FROM artifact_manifests) artifacts').get(), countsBeforeRetry);
+    afterRetry.close();
+
+    const different = { ...decisionIds, LEGAL: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' };
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(different) })).status, 409);
+  });
+});
+
+test('B8 clearance body and effective-decision failures have exact statuses and no clearance mutation', async () => {
+  const state = await fixture();
+  await serve(state, async (base) => {
+    const ids = await fourPasses(base);
+    const invalid: string[] = [
+      JSON.stringify({ contractVersion: '1.0.0' }),
+      clearanceBody({ LEGAL: ids.LEGAL, SCIENTIFIC: ids.SCIENTIFIC, QUALITY: ids.QUALITY }),
+      clearanceBody({ ...ids, EXTRA: ids.LEGAL }),
+      clearanceBody({ ...ids, LEGAL: 'bad-id' }),
+      clearanceBody({ ...ids, SCIENTIFIC: ids.LEGAL }),
+      JSON.stringify({ contractVersion: '1.0.0', decisionIds: ids, attacker: true }),
+    ];
+    for (const requestBody of invalid) assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: requestBody })).status, 400);
+
+    const hold = await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 1, 'HOLD') });
+    assert.equal(hold.status, 201);
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(ids) })).status, 400, 'stale/mixed PASS and HOLD set');
+    const holdId = ((await hold.json()) as { decisionId: string }).decisionId;
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody({ ...ids, LEGAL: holdId }) })).status, 400, 'HOLD is rejected');
+    const rejected = await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 2, 'REJECT') });
+    const rejectId = ((await rejected.json()) as { decisionId: string }).decisionId;
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody({ ...ids, LEGAL: rejectId }) })).status, 400, 'REJECT is rejected');
+    assert.equal((await fetch(`${base}/owner-api/product-workspaces/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/b8-clearance`, { method: 'POST', headers, body: clearanceBody(ids) })).status, 404);
+
+    const db = new BetterSqlite3(state.databasePath);
+    assert.equal((db.prepare('SELECT count(*) count FROM flow_b8_clearances').get() as { count: number }).count, 0);
+    assert.equal((db.prepare('SELECT count(*) count FROM flow_b8_clearance_decisions').get() as { count: number }).count, 0);
+    db.close();
+  });
+});
+
+test('concurrent identical B8 clearance requests produce one creation and one exact retry', async () => {
+  const state = await fixture();
+  await serve(state, async (base) => {
+    const ids = await fourPasses(base);
+    const responses = await Promise.all([0, 1].map(() => fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(ids) })));
+    assert.deepEqual(responses.map(({ status }) => status).sort(), [200, 201]);
+    const receipts = await Promise.all(responses.map((response) => response.json() as Promise<any>));
+    assert.equal(receipts[0].clearanceId, receipts[1].clearanceId);
+    assert.deepEqual(receipts.map(({ exactRetry }) => exactRetry).sort(), [false, true]);
+  });
+});
+
+
+test('generated B8 clearance API contract is closed and registered', () => {
+  const schema = JSON.parse(fs.readFileSync('contracts/api/owner-b8-clearance-api.schema.json', 'utf8')) as any;
+  assert.deepEqual(schema.oneOf.map((entry: any) => entry.$ref), ['#/$defs/request', '#/$defs/receipt']);
+  assert.equal(schema.$defs.request.additionalProperties, false);
+  assert.deepEqual(schema.$defs.request.required, ['contractVersion', 'decisionIds']);
+  assert.equal(schema.$defs.request.properties.decisionIds.additionalProperties, false);
+  assert.deepEqual(schema.$defs.request.properties.decisionIds.required, ['LEGAL', 'SCIENTIFIC', 'QUALITY', 'FINANCE']);
+  assert.equal(schema.$defs.receipt.additionalProperties, false);
+  assert.deepEqual(schema.$defs.receipt.required, ['contractVersion', 'clearanceId', 'state', 'clearedAt', 'exactRetry']);
+  assert.match(fs.readFileSync('scripts/generate-foundation-contract.mjs', 'utf8'), /\['api', 'owner-b8-clearance-api'\]/);
 });

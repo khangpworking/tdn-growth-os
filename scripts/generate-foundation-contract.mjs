@@ -42,6 +42,7 @@ const contracts = [
   ['governance', 'product-b10-decision-request'],
   ['governance', 'product-b10-decision'],
   ['api', 'owner-b8-decision-api'],
+  ['api', 'owner-b8-clearance-api'],
   ['flow', 'approved-proposal-intake-request'],
   ['flow', 'authorized-plan'],
   ['flow', 'discovery-workspace-request'],
