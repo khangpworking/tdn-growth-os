@@ -115,17 +115,19 @@ async function route(
   } catch (error) {
     if (error instanceof PayloadTooLargeError) return sendError(response, 400, 'bad_request', 'Request body is too large');
     if (error instanceof ProductB8DecisionIdentityConflictError) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
-    if (error instanceof B8ClearanceIdentityConflictError) return sendError(response, 409, 'conflict', 'B8 clearance conflicts with current state');
+    if (error instanceof B8ClearanceIdentityConflictError) return clearanceSemanticConflict(error) ? sendError(response, 409, 'conflict', 'B8 clearance conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof UnknownProductWorkspaceError) return sendError(response, 404, 'not_found', 'Product workspace not found');
     if (error instanceof GovernanceValidationError) {
+      if (matched.operation === 'clearance') return clearanceSemanticConflict(error) ? sendError(response, 409, 'conflict', 'B8 clearance conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
       if (/must change the effective decision/i.test(error.message)) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
       return sendError(response, 400, 'bad_request', 'Invalid B8 decision request');
     }
-    if (error instanceof FlowValidationError) return sendError(response, 400, 'bad_request', 'Invalid B8 clearance request');
+    if (error instanceof FlowValidationError) return clearanceSemanticConflict(error) ? sendError(response, 409, 'conflict', 'B8 clearance conflicts with current state') : /distinct exact decision/i.test(error.message) ? sendError(response, 400, 'bad_request', 'Invalid B8 clearance request') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
   }
 }
 
+function clearanceSemanticConflict(error: Error): boolean { return /not found|must belong to|must be PASS|belongs to another|identical frozen|not currently ready|not the current effective PASS|cannot be assigned|already has a B8 clearance|different exact decision set|wrong .* decision/i.test(error.message); }
 function ownerDecisionBodyShape(value: unknown): value is OwnerB8DecisionRequest {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
   const keys = Object.keys(value).sort();

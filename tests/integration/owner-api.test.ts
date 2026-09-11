@@ -179,12 +179,12 @@ test('B8 clearance body and effective-decision failures have exact statuses and 
 
     const hold = await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 1, 'HOLD') });
     assert.equal(hold.status, 201);
-    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(ids) })).status, 400, 'stale/mixed PASS and HOLD set');
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(ids) })).status, 409, 'stale/mixed PASS and HOLD set');
     const holdId = ((await hold.json()) as { decisionId: string }).decisionId;
-    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody({ ...ids, LEGAL: holdId }) })).status, 400, 'HOLD is rejected');
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody({ ...ids, LEGAL: holdId }) })).status, 409, 'HOLD is rejected');
     const rejected = await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 2, 'REJECT') });
     const rejectId = ((await rejected.json()) as { decisionId: string }).decisionId;
-    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody({ ...ids, LEGAL: rejectId }) })).status, 400, 'REJECT is rejected');
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody({ ...ids, LEGAL: rejectId }) })).status, 409, 'REJECT is rejected');
     assert.equal((await fetch(`${base}/owner-api/product-workspaces/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa/b8-clearance`, { method: 'POST', headers, body: clearanceBody(ids) })).status, 404);
 
     const db = new BetterSqlite3(state.databasePath);
