@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/governance/product-b10-decision.schema.json",
+  "title": "ProductB10Decision",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "decisionId", "decisionNumber", "previousDecisionId", "decision", "decidedAt", "lockedStp", "productWorkspaceId", "actor", "requiredCapability", "policy", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "decisionId": { "type": "string", "format": "uuid" },
+    "decisionNumber": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "previousDecisionId": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "format": "uuid" }
+      ]
+    },
+    "decision": { "$ref": "product-b10-decision-request.schema.json#/properties/decision" },
+    "decidedAt": { "type": "string", "format": "date-time" },
+    "lockedStp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["lockId", "lockArtifactSha256", "artifact"],
+      "properties": {
+        "lockId": { "type": "string", "format": "uuid" },
+        "lockArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "artifact": { "$ref": "../flow/locked-stp-artifact.schema.json" }
+      }
+    },
+    "productWorkspaceId": { "type": "string", "format": "uuid" },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorId", "roleSnapshot"],
+      "properties": {
+        "actorId": { "type": "string", "pattern": "^[a-z][a-z0-9:_-]{2,119}$" },
+        "roleSnapshot": { "const": "OWNER" }
+      }
+    },
+    "requiredCapability": { "const": "governance:product-b10-review" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "policyVersion"],
+      "properties": {
+        "policyId": { "const": "governance:product-b10-review-v1" },
+        "policyVersion": { "const": 1 }
+      }
+    },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

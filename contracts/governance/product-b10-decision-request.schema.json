@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/governance/product-b10-decision-request.schema.json",
+  "title": "ProductB10DecisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "lockedStpId", "previousDecisionId", "decision"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "lockedStpId": { "type": "string", "format": "uuid" },
+    "previousDecisionId": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "format": "uuid" }
+      ]
+    },
+    "decision": { "enum": ["APPROVE", "HOLD", "REJECT"] }
+  }
+}
