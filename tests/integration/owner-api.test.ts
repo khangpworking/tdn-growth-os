@@ -269,11 +269,14 @@ test('B9 working save/update/retry and lock expose closed receipts, opaque revis
     const retry = await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, null) });
     assert.equal(retry.status, 200); assert.deepEqual(await retry.json(), { ...first, exactRetry: true }); assert.deepEqual(tableCounts(state.databasePath), afterCreate);
 
-    const updated = await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, first.workingRevision, 'Canxi minh bạch cho mỗi ngày.') });
+    const updateBody = workingBody(clearanceId, first.workingRevision, 'Canxi minh bạch cho mỗi ngày.');
+    const updated = await fetch(workingEndpoint(base), { method: 'POST', headers, body: updateBody });
     assert.equal(updated.status, 200); const second = await updated.json() as any;
     assert.equal(second.workingStpId, first.workingStpId); assert.notEqual(second.workingRevision, first.workingRevision);
     assert.equal(second.createdAt, first.createdAt); assert.equal(second.updatedAt, '2027-01-01T00:00:00.000Z'); assert.equal(second.exactRetry, false);
     assert.deepEqual(tableCounts(state.databasePath), afterCreate, 'working updates add no row, manifest, lock or B10 mutation');
+    const updateRetry = await fetch(workingEndpoint(base), { method: 'POST', headers, body: updateBody });
+    assert.equal(updateRetry.status, 200); assert.deepEqual(await updateRetry.json(), { ...second, exactRetry: true }); assert.deepEqual(tableCounts(state.databasePath), afterCreate);
     assert.equal((await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, first.workingRevision, 'stale') })).status, 409);
 
     const concurrent = await Promise.all([0, 1].map(() => fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, second.workingRevision, 'Bản cập nhật đồng thời.') })));

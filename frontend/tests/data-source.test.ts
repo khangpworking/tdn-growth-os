@@ -161,5 +161,5 @@ test('B9 save and lock send closed exact revisions and success/conflict reload a
 
 test('real B9 source has explicit save/lock, dirty navigation warning, no autosave and demo isolation', async () => {
   const [app, editor] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/B9Editor.tsx', import.meta.url), 'utf8'))]);
-  assert.match(editor, /Lưu bản nháp/); assert.match(editor, /Khóa STP chính thức/); assert.match(editor, /beforeunload/); assert.match(app, /window\.confirm/); assert.doesNotMatch(editor, /setInterval|autosave/i); assert.match(app, /mode === 'real'.*<B9Editor/); assert.match(editor, /Xem B10/);
+  assert.match(editor, /Lưu bản nháp/); assert.match(editor, /product\.name/); assert.match(editor, /Lưu gần nhất/); assert.match(editor, /Khóa STP chính thức/); assert.match(editor, /beforeunload/); assert.match(app, /window\.confirm/); assert.doesNotMatch(editor, /setInterval|autosave/i); assert.match(app, /mode === 'real'.*<B9Editor/); assert.match(editor, /Xem B10/);
 });

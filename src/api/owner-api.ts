@@ -24,6 +24,7 @@ import { FlowValidationError } from '../modules/flow/validation.js';
 import { FlowB8ClearanceReader } from '../modules/flow/b8-clearance-reader.js';
 import { PRODUCT_B9_LOCK_CAPABILITY, StpIdentityConflictError, StpService } from '../modules/flow/stp-service.js';
 import { b9WorkingRevision, matchesB9WorkingRevision, validB9WorkingRevision } from './b9-working-revision.js';
+import { canonicalJson } from '../modules/foundation/canonical-json.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
@@ -88,15 +89,18 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
       const clearance = clearanceByProduct.get(productWorkspaceId) as { clearanceId: string } | undefined;
       if (!clearance || clearance.clearanceId !== body.b8ClearanceId) throw new StpIdentityConflictError('B9 working requires the product current B8 clearance');
       const existed = !!workingExists.get(productWorkspaceId);
-      let expectedWorkingDigest: string | null = null;
-      if (body.expectedWorkingRevision !== null) {
-        let current;
-        try { current = await stps.readVerifiedWorking(productWorkspaceId); }
-        catch { if (!existed) throw new StpIdentityConflictError('B9 working record is missing'); throw new ExistingStpIntegrityError(); }
-        if (!matchesB9WorkingRevision(body.expectedWorkingRevision, current.workingDigest)) throw new StpIdentityConflictError('STP working revision is stale');
-        expectedWorkingDigest = current.workingDigest;
-      }
       const { expectedWorkingRevision: _, ...content } = body;
+      let expectedWorkingDigest: string | null = null;
+      if (existed) {
+        let current;
+        try { current = await stps.readVerifiedWorking(productWorkspaceId); } catch { throw new ExistingStpIntegrityError(); }
+        const requestedContent = { segments: content.segments, primaryTargetSegmentKey: content.primaryTargetSegmentKey, ...(content.secondaryTargetSegmentKeys === undefined ? {} : { secondaryTargetSegmentKeys: content.secondaryTargetSegmentKeys }), positioningStatement: content.positioningStatement };
+        const unchanged = canonicalJson(requestedContent) === canonicalJson(current.content);
+        if (body.expectedWorkingRevision === null) {
+          if (!unchanged) throw new StpIdentityConflictError('Initial B9 working revision is stale');
+        } else if (matchesB9WorkingRevision(body.expectedWorkingRevision, current.workingDigest)) expectedWorkingDigest = current.workingDigest;
+        else if (!unchanged) throw new StpIdentityConflictError('STP working revision is stale');
+      } else if (body.expectedWorkingRevision !== null) throw new StpIdentityConflictError('B9 working record is missing');
       const result = await stps.saveWorking({ ...content, productWorkspaceId, expectedWorkingDigest });
       let verified;
       try { verified = await stps.readVerifiedWorking(productWorkspaceId); } catch { throw new ExistingStpIntegrityError(); }
