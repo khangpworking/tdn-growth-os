@@ -90,16 +90,18 @@ test('all lanes and decisions produce narrow receipts; exact retries deduplicate
   const protectedCounts = Object.fromEntries(beforeTables.filter(({ name }) => !['artifact_manifests', 'governance_product_b8_lane_decisions'].includes(name)).map(({ name }) => [name, (beforeDb.prepare(`SELECT count(*) count FROM \"${name}\"`).get() as { count: number }).count]));
   beforeDb.close();
   await serve(state, async (base) => {
-    const cases = [['LEGAL', 'PASS'], ['SCIENTIFIC', 'HOLD'], ['QUALITY', 'REJECT'], ['FINANCE', 'PASS']] as const;
-    for (const [lane, decision] of cases) { const response = await fetch(endpoint(base), { method: 'POST', headers, body: body(lane, 0, decision) }); assert.equal(response.status, 201); const receipt = await response.json() as any; assert.deepEqual(Object.keys(receipt).sort(), ['contractVersion','decision','decisionId','decisionVersion','decidedAt','exactRetry','lane'].sort()); assert.deepEqual([receipt.lane, receipt.decision, receipt.decisionVersion, receipt.exactRetry, receipt.decidedAt], [lane, decision, 1, false, '2027-01-01T00:00:00.000Z']); }
+    for (const lane of ['LEGAL', 'SCIENTIFIC', 'QUALITY', 'FINANCE'] as const) for (const [expectedVersion, decision] of ['PASS', 'HOLD', 'REJECT'].entries()) {
+      const response = await fetch(endpoint(base), { method: 'POST', headers, body: body(lane, expectedVersion, decision) }); assert.equal(response.status, 201); const receipt = await response.json() as any;
+      assert.deepEqual(Object.keys(receipt).sort(), ['contractVersion','decision','decisionId','decisionVersion','decidedAt','exactRetry','lane'].sort()); assert.deepEqual([receipt.lane, receipt.decision, receipt.decisionVersion, receipt.exactRetry, receipt.decidedAt], [lane, decision, expectedVersion + 1, false, '2027-01-01T00:00:00.000Z']);
+    }
     const retry = await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 0, 'PASS') }); assert.equal(retry.status, 200); assert.equal((await retry.json() as any).exactRetry, true);
-    assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 1, 'PASS') })).status, 409, 'repeated effective state is a conflict');
+    assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 3, 'REJECT') })).status, 409, 'repeated effective state is a conflict');
     assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 0, 'REJECT') })).status, 409);
-    const concurrent = await Promise.all([0, 1].map(() => fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 1, 'HOLD') })));
+    const concurrent = await Promise.all([0, 1].map(() => fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 3, 'HOLD') })));
     assert.deepEqual(concurrent.map((r) => r.status).sort(), [200, 201]);
   });
   const db = new BetterSqlite3(state.databasePath); const rows = db.prepare('SELECT lane,decision,actor_id actorId,role_snapshot role,required_capability capability,policy_id policy FROM governance_product_b8_lane_decisions ORDER BY lane,decision_version').all() as any[];
-  assert.equal(rows.length, 5); assert.ok(rows.every((row) => row.actorId === 'owner:local' && row.role === 'OWNER' && row.capability === 'governance:product-b8-review' && row.policy === 'governance:product-b8-review-v1'));
+  assert.equal(rows.length, 13); assert.ok(rows.every((row) => row.actorId === 'owner:local' && row.role === 'OWNER' && row.capability === 'governance:product-b8-review' && row.policy === 'governance:product-b8-review-v1'));
   assert.deepEqual(db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all(), beforeTables);
   for (const [table, count] of Object.entries(protectedCounts)) assert.equal((db.prepare(`SELECT count(*) count FROM \"${table}\"`).get() as { count: number }).count, count, `${table} must remain unchanged`);
   db.close();
