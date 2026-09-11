@@ -24,6 +24,7 @@ const MAX_BODY_BYTES = 4096;
 export interface OwnerApiConfiguration {
   readonly databasePath: string;
   readonly artifactRoot: string;
+  readonly writeEnabled: boolean;
   readonly token: string;
   readonly allowedOrigin: string;
   readonly actorId: string;
@@ -52,7 +53,8 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const actor = Object.freeze({ actorId: configuration.actorId, roleSnapshot: 'OWNER' as const, capabilities: new Set<string>([PRODUCT_B8_REVIEW_CAPABILITY]) });
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void route(request, response, configuration, async (productWorkspaceId, body) => {
       const result = await service.decide({ ...body, productWorkspaceId }, actor);
-      return { contractVersion: '1.0.0', productWorkspaceId, decisionId: result.decisionId, decisionVersion: result.decisionVersion, lane: result.lane, decision: result.decision, deduplicated: result.deduplicated };
+      const verified = await service.replay(result.decisionId);
+      return { contractVersion: '1.0.0', decisionId: result.decisionId, decisionVersion: result.decisionVersion, lane: result.lane, decision: result.decision, decidedAt: verified.decidedAt, exactRetry: result.deduplicated };
     }); };
     return { handler, close: () => db.close() };
   } catch (error) { db.close(); throw error; }
@@ -84,12 +86,13 @@ async function route(request: IncomingMessage, response: ServerResponse, configu
     try { body = JSON.parse(raw); } catch { return sendError(response, 400, 'bad_request', 'Request body must be valid JSON'); }
     if (!ownerBodyShape(body)) return sendError(response, 400, 'bad_request', 'Invalid B8 decision request');
     const receipt = await decide(productWorkspaceId, body);
-    return sendJson(response, receipt.deduplicated ? 200 : 201, receipt);
+    return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
     if (error instanceof PayloadTooLargeError) return sendError(response, 413, 'payload_too_large', 'Request body is too large');
     if (error instanceof ProductB8DecisionIdentityConflictError) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
     if (/not found/i.test(error instanceof Error ? error.message : '')) return sendError(response, 404, 'not_found', 'Product workspace not found');
     if (error instanceof GovernanceValidationError) {
+      if (/must change the effective decision/i.test(error.message)) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
       return sendError(response, 400, 'bad_request', 'Invalid B8 decision request');
     }
     return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
@@ -102,6 +105,7 @@ function ownerBodyShape(value: unknown): value is OwnerB8DecisionRequest {
   return keys.length === 4 && keys.join(',') === 'contractVersion,decision,expectedVersion,lane';
 }
 function assertConfiguration(value: OwnerApiConfiguration): void {
+  if (value.writeEnabled !== true) throw new TypeError('OWNER API write mode must be explicitly enabled');
   if (!value.databasePath || !value.artifactRoot) throw new TypeError('Explicit databasePath and artifactRoot are required');
   if (!TOKEN.test(value.token)) throw new TypeError('OWNER API token must be 32-512 printable non-space ASCII characters');
   let origin: URL; try { origin = new URL(value.allowedOrigin); } catch { throw new TypeError('OWNER API allowed origin must be an exact HTTP(S) origin'); }
@@ -121,7 +125,7 @@ function routeId(raw: string | undefined): string | null {
   if (!raw || /%(?:2e|2f|5c)/i.test(raw)) return null;
   let url: URL; try { url = new URL(raw, 'http://owner-api.local'); } catch { return null; }
   if (url.search || url.hash || url.pathname.includes('//')) return null;
-  const match = /^\/api\/owner\/product-workspaces\/([^/]+)\/b8-decisions$/.exec(url.pathname); if (!match) return null;
+  const match = /^\/owner-api\/product-workspaces\/([^/]+)\/b8-decisions$/.exec(url.pathname); if (!match) return null;
   try { const id = decodeURIComponent(match[1]!); return id.includes('/') || id.includes('\\') || id.includes('\0') ? null : id; } catch { return null; }
 }
 class PayloadTooLargeError extends Error {}

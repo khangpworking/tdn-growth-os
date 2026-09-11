@@ -19,7 +19,7 @@
     "foundation:ingest-export": "tsx scripts/ingest-json-export.ts",
     "typecheck": "node scripts/typecheck.mjs",
     "workspace-api:start": "tsx scripts/serve-workspace-api.ts",
-    "owner-api:start": "tsx scripts/serve-owner-api.ts",
+    "workspace-owner-api:start": "tsx scripts/serve-owner-api.ts",
     "frontend:dev": "vite --config frontend/vite.config.ts",
     "frontend:typecheck": "tsc -p frontend/tsconfig.json --noEmit",
     "frontend:build": "vite build --config frontend/vite.config.ts",

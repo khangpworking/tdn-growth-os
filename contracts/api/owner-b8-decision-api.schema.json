@@ -25,15 +25,15 @@
       "title": "OwnerB8DecisionReceipt",
       "type": "object",
       "additionalProperties": false,
-      "required": ["contractVersion", "productWorkspaceId", "decisionId", "decisionVersion", "lane", "decision", "deduplicated"],
+      "required": ["contractVersion", "decisionId", "decisionVersion", "lane", "decision", "decidedAt", "exactRetry"],
       "properties": {
         "contractVersion": { "const": "1.0.0" },
-        "productWorkspaceId": { "$ref": "#/$defs/uuid" },
         "decisionId": { "$ref": "#/$defs/uuid" },
         "decisionVersion": { "type": "integer", "minimum": 1 },
         "lane": { "enum": ["LEGAL", "SCIENTIFIC", "QUALITY", "FINANCE"] },
         "decision": { "enum": ["PASS", "HOLD", "REJECT"] },
-        "deduplicated": { "type": "boolean" }
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
       }
     },
     "error": {

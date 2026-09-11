@@ -11,12 +11,12 @@ export interface OwnerB8DecisionRequest {
 }
 export interface OwnerB8DecisionReceipt {
   contractVersion: '1.0.0';
-  productWorkspaceId: Uuid;
   decisionId: Uuid;
   decisionVersion: number;
   lane: 'LEGAL' | 'SCIENTIFIC' | 'QUALITY' | 'FINANCE';
   decision: 'PASS' | 'HOLD' | 'REJECT';
-  deduplicated: boolean;
+  decidedAt: string;
+  exactRetry: boolean;
 }
 export interface OwnerApiErrorResponse {
   error: {

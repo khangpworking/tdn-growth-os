@@ -43,11 +43,11 @@ async function fixture() {
   db.close(); return { root, databasePath, artifactRoot };
 }
 async function serve(state: Awaited<ReturnType<typeof fixture>>, run: (base: string) => Promise<void>) {
-  let index = 0; const api = createOwnerApiServer({ ...state, token, allowedOrigin, actorId: 'owner:local', now: () => new Date('2027-01-01T00:00:00Z'), uuid: () => `66666666-6666-4666-8666-${String(++index).padStart(12, '0')}` });
+  let index = 0; const api = createOwnerApiServer({ ...state, writeEnabled: true, token, allowedOrigin, actorId: 'owner:local', now: () => new Date('2027-01-01T00:00:00Z'), uuid: () => `66666666-6666-4666-8666-${String(++index).padStart(12, '0')}` });
   api.server.listen(0, '127.0.0.1'); await once(api.server, 'listening');
   try { await run(`http://127.0.0.1:${(api.server.address() as AddressInfo).port}`); } finally { await api.close(); }
 }
-const endpoint = (base: string) => `${base}/api/owner/product-workspaces/${product}/b8-decisions`;
+const endpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b8-decisions`;
 const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json', origin: allowedOrigin };
 const body = (lane = 'LEGAL', expectedVersion = 0, decision = 'PASS') => JSON.stringify({ contractVersion: '1.0.0', lane, expectedVersion, decision });
 
@@ -62,9 +62,9 @@ test('launcher requires explicit opt-in and rejects non-loopback binding before 
 
 test('startup configuration fails closed for weak credentials, origins, actor and missing owner tables', async () => {
   const state = await fixture();
-  for (const patch of [{ token: 'weak' }, { allowedOrigin: '*' }, { allowedOrigin: `${allowedOrigin}/path` }, { actorId: 'OWNER bad' }]) assert.throws(() => openOwnerApi({ ...state, token, allowedOrigin, actorId: 'owner:local', ...patch }));
+  for (const patch of [{ token: 'weak' }, { allowedOrigin: '*' }, { allowedOrigin: `${allowedOrigin}/path` }, { actorId: 'OWNER bad' }]) assert.throws(() => openOwnerApi({ ...state, writeEnabled: true, token, allowedOrigin, actorId: 'owner:local', ...patch }));
   const empty = path.join(state.root, 'empty.sqlite'); new BetterSqlite3(empty).close();
-  assert.throws(() => openOwnerApi({ ...state, databasePath: empty, token, allowedOrigin, actorId: 'owner:local' }), /required owner tables/);
+  assert.throws(() => openOwnerApi({ ...state, databasePath: empty, writeEnabled: true, token, allowedOrigin, actorId: 'owner:local' }), /required owner tables/);
 });
 
 test('authentication, exact-origin CORS, preflight, method, media type and bounded closed body are narrow', async () => {
@@ -79,7 +79,7 @@ test('authentication, exact-origin CORS, preflight, method, media type and bound
     assert.equal((await fetch(endpoint(base), { method: 'POST', headers: { ...headers, 'content-type': 'text/plain' }, body: body() })).status, 415);
     for (const invalid of ['', '{', JSON.stringify({ contractVersion: '1.0.0', lane: 'LEGAL', expectedVersion: 0, decision: 'PASS', actorId: 'attacker' }), JSON.stringify({ contractVersion: '1.0.0', productWorkspaceId: product, lane: 'LEGAL', expectedVersion: 0, decision: 'PASS' })]) assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: invalid })).status, 400);
     assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: 'x'.repeat(4097) })).status, 413);
-    assert.equal((await fetch(`${base}/api/owner/product-workspaces/not-a-uuid/b8-decisions`, { method: 'POST', headers, body: body() })).status, 400);
+    assert.equal((await fetch(`${base}/owner-api/product-workspaces/not-a-uuid/b8-decisions`, { method: 'POST', headers, body: body() })).status, 400);
   });
 });
 
@@ -91,8 +91,9 @@ test('all lanes and decisions produce narrow receipts; exact retries deduplicate
   beforeDb.close();
   await serve(state, async (base) => {
     const cases = [['LEGAL', 'PASS'], ['SCIENTIFIC', 'HOLD'], ['QUALITY', 'REJECT'], ['FINANCE', 'PASS']] as const;
-    for (const [lane, decision] of cases) { const response = await fetch(endpoint(base), { method: 'POST', headers, body: body(lane, 0, decision) }); assert.equal(response.status, 201); const receipt = await response.json() as any; assert.deepEqual(Object.keys(receipt).sort(), ['contractVersion','decision','decisionId','decisionVersion','deduplicated','lane','productWorkspaceId'].sort()); assert.deepEqual([receipt.lane, receipt.decision, receipt.decisionVersion, receipt.deduplicated], [lane, decision, 1, false]); }
-    const retry = await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 0, 'PASS') }); assert.equal(retry.status, 200); assert.equal((await retry.json() as any).deduplicated, true);
+    for (const [lane, decision] of cases) { const response = await fetch(endpoint(base), { method: 'POST', headers, body: body(lane, 0, decision) }); assert.equal(response.status, 201); const receipt = await response.json() as any; assert.deepEqual(Object.keys(receipt).sort(), ['contractVersion','decision','decisionId','decisionVersion','decidedAt','exactRetry','lane'].sort()); assert.deepEqual([receipt.lane, receipt.decision, receipt.decisionVersion, receipt.exactRetry, receipt.decidedAt], [lane, decision, 1, false, '2027-01-01T00:00:00.000Z']); }
+    const retry = await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 0, 'PASS') }); assert.equal(retry.status, 200); assert.equal((await retry.json() as any).exactRetry, true);
+    assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 1, 'PASS') })).status, 409, 'repeated effective state is a conflict');
     assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 0, 'REJECT') })).status, 409);
     const concurrent = await Promise.all([0, 1].map(() => fetch(endpoint(base), { method: 'POST', headers, body: body('LEGAL', 1, 'HOLD') })));
     assert.deepEqual(concurrent.map((r) => r.status).sort(), [200, 201]);
