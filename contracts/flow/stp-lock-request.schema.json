@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/stp-lock-request.schema.json",
+  "title": "StpLockRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "productWorkspaceId", "expectedWorkingDigest"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "productWorkspaceId": { "type": "string", "format": "uuid" },
+    "expectedWorkingDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
