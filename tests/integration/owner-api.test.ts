@@ -57,12 +57,12 @@ test('launcher requires explicit opt-in and rejects non-loopback binding before 
   const disabled = spawnSync(process.execPath, ['--import', 'tsx', script], { env: baseEnv, encoding: 'utf8' });
   assert.notEqual(disabled.status, 0); assert.match(disabled.stderr, /ENABLED must be exactly true/);
   const exposed = spawnSync(process.execPath, ['--import', 'tsx', script], { env: { ...baseEnv, TDN_OWNER_API_ENABLED: 'true', TDN_OWNER_API_HOST: '0.0.0.0' }, encoding: 'utf8' });
-  assert.notEqual(exposed.status, 0); assert.match(exposed.stderr, /must be a loopback host/);
+  assert.notEqual(exposed.status, 0); assert.match(exposed.stderr, /must be exactly 127\.0\.0\.1 or ::1/);
 });
 
 test('startup configuration fails closed for weak credentials, origins, actor and missing owner tables', async () => {
   const state = await fixture();
-  for (const patch of [{ token: 'weak' }, { allowedOrigin: '*' }, { allowedOrigin: `${allowedOrigin}/path` }, { actorId: 'OWNER bad' }]) assert.throws(() => openOwnerApi({ ...state, writeEnabled: true, token, allowedOrigin, actorId: 'owner:local', ...patch }));
+  for (const patch of [{ token: 'weak' }, { token: 'x'.repeat(32) }, { allowedOrigin: '*' }, { allowedOrigin: `${allowedOrigin}/path` }, { actorId: 'OWNER bad' }]) assert.throws(() => openOwnerApi({ ...state, writeEnabled: true, token, allowedOrigin, actorId: 'owner:local', ...patch }));
   const empty = path.join(state.root, 'empty.sqlite'); new BetterSqlite3(empty).close();
   assert.throws(() => openOwnerApi({ ...state, databasePath: empty, writeEnabled: true, token, allowedOrigin, actorId: 'owner:local' }), /required owner tables/);
 });

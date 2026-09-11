@@ -9,7 +9,7 @@ const allowedOrigin = process.env.TDN_OWNER_API_ALLOWED_ORIGIN;
 const actorId = process.env.TDN_OWNER_API_ACTOR_ID;
 const host = process.env.TDN_OWNER_API_HOST ?? '127.0.0.1';
 const port = Number(process.env.TDN_OWNER_API_PORT ?? '8081');
-if (host !== '127.0.0.1' && host !== '::1' && host !== 'localhost') throw new Error('TDN_OWNER_API_HOST must be a loopback host');
+if (host !== '127.0.0.1' && host !== '::1') throw new Error('TDN_OWNER_API_HOST must be exactly 127.0.0.1 or ::1');
 if (!databasePath || !artifactRoot || !token || !allowedOrigin || !actorId) throw new Error('TDN_WORKSPACE_DB, TDN_ARTIFACT_ROOT, TDN_OWNER_API_TOKEN, TDN_OWNER_API_ALLOWED_ORIGIN, and TDN_OWNER_API_ACTOR_ID are required');
 if (!Number.isSafeInteger(port) || port < 1 || port > 65535) throw new Error('TDN_OWNER_API_PORT must be an integer from 1 to 65535');
 const application = createOwnerApiServer({ databasePath, artifactRoot, writeEnabled: true, token, allowedOrigin, actorId });

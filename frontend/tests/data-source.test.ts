@@ -76,14 +76,14 @@ test('maps read-only B9 working/locked content and ordered B10 correction histor
 
 test('OWNER submission sends only closed decision input and token in memory request headers', async () => {
   let observed: RequestInit | undefined;
-  const receipt = await submitOwnerB8Decision({ productWorkspaceId: ids.p1, lane: 'LEGAL', expectedVersion: 1, decision: 'HOLD', token: 'x'.repeat(32) }, (async (_url, init) => { observed = init; return json({ contractVersion: '1.0.0', decisionId: ids.d2, decisionVersion: 2, lane: 'LEGAL', decision: 'HOLD', decidedAt: at, exactRetry: false }, 201); }) as typeof fetch);
-  assert.equal((observed?.headers as Record<string,string>).Authorization, `Bearer ${'x'.repeat(32)}`);
+  const receipt = await submitOwnerB8Decision({ productWorkspaceId: ids.p1, lane: 'LEGAL', expectedVersion: 1, decision: 'HOLD', token: 'x'.repeat(31) + '1' }, (async (_url, init) => { observed = init; return json({ contractVersion: '1.0.0', decisionId: ids.d2, decisionVersion: 2, lane: 'LEGAL', decision: 'HOLD', decidedAt: at, exactRetry: false }, 201); }) as typeof fetch);
+  assert.equal((observed?.headers as Record<string,string>).Authorization, `Bearer ${'x'.repeat(31) + '1'}`);
   assert.deepEqual(JSON.parse(String(observed?.body)), { contractVersion: '1.0.0', lane: 'LEGAL', expectedVersion: 1, decision: 'HOLD' });
   assert.equal(receipt.decisionVersion, 2);
 });
 
 test('OWNER 409 is explicit and never falls back to demo data', async () => {
-  await assert.rejects(submitOwnerB8Decision({ productWorkspaceId: ids.p1, lane: 'LEGAL', expectedVersion: 1, decision: 'HOLD', token: 'x'.repeat(32) }, (async () => json({ error: { code: 'conflict', message: 'conflict' } }, 409)) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'conflict');
+  await assert.rejects(submitOwnerB8Decision({ productWorkspaceId: ids.p1, lane: 'LEGAL', expectedVersion: 1, decision: 'HOLD', token: 'x'.repeat(31) + '1' }, (async () => json({ error: { code: 'conflict', message: 'conflict' } }, 409)) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'conflict');
 });
 
 test('frontend source keeps OWNER token out of persistent browser APIs', async () => {
@@ -99,7 +99,7 @@ test('real OWNER controls stay disabled while locked, pending, or matching effec
 });
 
 test('success and 409 both reload authoritative read data exactly once', async () => {
-  let reloads = 0; const input = { productWorkspaceId: ids.p1, lane: 'LEGAL' as const, expectedVersion: 1, decision: 'HOLD' as const, token: 'x'.repeat(32) };
+  let reloads = 0; const input = { productWorkspaceId: ids.p1, lane: 'LEGAL' as const, expectedVersion: 1, decision: 'HOLD' as const, token: 'x'.repeat(31) + '1' };
   const success = await submitOwnerDecisionAndReload(input, async () => { reloads++; }, (async () => json({ contractVersion: '1.0.0', decisionId: ids.d2, decisionVersion: 2, lane: 'LEGAL', decision: 'HOLD', decidedAt: at, exactRetry: false }, 201)) as typeof fetch);
   assert.equal(success, 'success'); assert.equal(reloads, 1);
   const conflict = await submitOwnerDecisionAndReload(input, async () => { reloads++; }, (async () => json({ error: { code: 'conflict', message: 'conflict' } }, 409)) as typeof fetch);
