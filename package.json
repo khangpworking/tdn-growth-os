@@ -18,20 +18,30 @@
     "foundation:ingest": "tsx scripts/ingest-manual.ts",
     "foundation:ingest-export": "tsx scripts/ingest-json-export.ts",
     "typecheck": "node scripts/typecheck.mjs",
+    "frontend:dev": "vite --config frontend/vite.config.ts",
+    "frontend:typecheck": "tsc -p frontend/tsconfig.json --noEmit",
+    "frontend:build": "vite build --config frontend/vite.config.ts",
+    "frontend:preview": "vite preview --config frontend/vite.config.ts",
+    "frontend:test": "node --import tsx --test frontend/tests/*.test.ts",
     "test": "node --import tsx --test tests/unit/*.test.ts tests/integration/*.test.ts",
-    "check": "npm run contracts:generate && npm run typecheck && npm test"
+    "check": "npm run contracts:generate && npm run typecheck && npm run frontend:typecheck && npm run frontend:build && npm run frontend:test && npm test"
   },
   "dependencies": {
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
-    "better-sqlite3": "12.11.1"
+    "better-sqlite3": "12.11.1",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "7.6.13",
     "@types/node": "24.13.3",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.1",
     "json-schema-to-typescript": "15.0.4",
     "tsx": "4.23.13",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "vite": "8.3.0"
   }
 }
-

@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TDN Growth OS — So sánh 3 hướng giao diện</title>
+  <style>
+    :root { --ink:#172e43; --muted:#667789; --line:#dfe7ed; --paper:#f4f7fa; --white:#fff; --teal:#087e8b; --amber:#b87112; --blue:#2457c5; --red:#c54b54; --green:#287b60; --shadow:0 16px 40px rgba(20,42,60,.12); }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:#dfe8ed; font-family:Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    button { font:inherit; }
+    .topbar { position:sticky; top:0; z-index:10; display:flex; justify-content:space-between; gap:24px; align-items:center; padding:18px 34px; color:#fff; background:#172e43; box-shadow:0 4px 18px rgba(0,0,0,.16); }
+    .brand { display:flex; gap:12px; align-items:center; }
+    .brand-mark { display:grid; place-items:center; width:36px; height:36px; color:#172e43; background:#83d6d0; border-radius:11px; font-weight:900; }
+    .brand small { display:block; margin-top:3px; color:#a9c4d0; font-size:11px; letter-spacing:.08em; text-transform:uppercase; }
+    .topbar .note { color:#d5e1e7; font-size:13px; text-align:right; }
+    .intro { max-width:1240px; margin:0 auto; padding:54px 28px 30px; }
+    .eyebrow { color:var(--teal); font-size:12px; font-weight:800; letter-spacing:.13em; text-transform:uppercase; }
+    h1 { max-width:760px; margin:10px 0 14px; font-size:clamp(32px,5vw,62px); line-height:.98; letter-spacing:-.055em; }
+    .intro p { max-width:720px; margin:0; color:#486173; font-size:17px; line-height:1.6; }
+    .synthetic { display:inline-flex; gap:7px; align-items:center; margin-top:22px; padding:8px 12px; color:#785210; background:#fff4cf; border:1px solid #ecd891; border-radius:99px; font-size:12px; font-weight:750; }
+    .flow-strip { display:flex; flex-wrap:wrap; gap:9px; align-items:center; margin-top:18px; color:#486173; font-size:12px; font-weight:800; }
+    .flow-node { padding:8px 11px; background:#fff; border:1px solid #cfdce3; border-radius:9px; }
+    .flow-node.detail { color:#2457c5; border-color:#b9caf1; background:#f3f6ff; }
+    .flow-arrow { color:#8295a1; font-size:18px; }
+    .switcher { display:flex; flex-wrap:wrap; gap:8px; max-width:1240px; margin:0 auto 18px; padding:0 28px; }
+    .switcher button { cursor:pointer; padding:10px 15px; color:#536777; background:rgba(255,255,255,.67); border:1px solid #cfdce3; border-radius:99px; font-size:13px; font-weight:750; transition:.2s; }
+    .switcher button:hover, .switcher button.active { color:#fff; background:var(--ink); border-color:var(--ink); }
+    .board { max-width:1240px; margin:0 auto; padding:0 28px 70px; }
+    .option { display:none; overflow:hidden; background:var(--white); border:1px solid #d3e0e6; border-radius:24px; box-shadow:var(--shadow); }
+    .option.active { display:block; animation:rise .35s ease both; }
+    @keyframes rise { from { opacity:0; transform:translateY(9px); } to { opacity:1; transform:none; } }
+    .option-head { display:flex; justify-content:space-between; gap:24px; align-items:flex-start; padding:26px 28px 22px; border-bottom:1px solid var(--line); }
+    .option-head h2 { margin:6px 0 6px; font-size:28px; letter-spacing:-.035em; }
+    .option-head p { max-width:680px; margin:0; color:var(--muted); line-height:1.55; }
+    .option-num { display:grid; place-items:center; min-width:48px; height:48px; color:#fff; border-radius:16px; font-size:20px; font-weight:850; }
+    .control .option-num { background:var(--teal); } .dossier .option-num { background:var(--blue); } .canon .option-num { background:#617083; }
+    .screen { min-height:620px; padding:25px; background:var(--paper); }
+    .window { overflow:hidden; min-height:555px; background:#fff; border:1px solid #cfdde5; border-radius:17px; box-shadow:0 12px 28px rgba(25,48,64,.09); }
+    .window-nav { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:13px 17px; color:#fff; background:var(--ink); }
+    .window-nav strong { font-size:13px; letter-spacing:.04em; }
+    .window-nav span { color:#aec2ce; font-size:11px; }
+    .window-main { padding:21px; }
+    .crumb { color:#78909d; font-size:11px; font-weight:750; letter-spacing:.07em; text-transform:uppercase; }
+    .title-row { display:flex; justify-content:space-between; gap:14px; align-items:flex-start; margin:8px 0 18px; }
+    .title-row h3 { margin:0; font-size:24px; letter-spacing:-.035em; }
+    .title-row p { margin:5px 0 0; color:var(--muted); font-size:12px; }
+    .pill { display:inline-flex; align-items:center; gap:6px; padding:7px 10px; border-radius:99px; font-size:11px; font-weight:800; white-space:nowrap; }
+    .pill::before { content:""; width:7px; height:7px; border-radius:50%; background:currentColor; }
+    .pill.warn { color:#9c6915; background:#fff2cf; } .pill.good { color:#297b61; background:#dff4ea; } .pill.neutral { color:#607485; background:#e9f0f4; } .pill.danger { color:#a94450; background:#fde7e9; }
+    .stepper { display:grid; grid-template-columns:repeat(4,1fr); gap:7px; margin-bottom:19px; }
+    .step { position:relative; padding:10px 8px; color:#637686; background:#edf3f6; border-radius:9px; font-size:11px; font-weight:750; }
+    .step.done { color:#176655; background:#dff2eb; } .step.current { color:#fff; background:var(--teal); }
+    .step small { display:block; margin-top:3px; opacity:.75; font-size:9px; font-weight:600; }
+    .control .step.current { background:var(--teal); }
+    .gate-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:12px; }
+    .gate { padding:15px; border:1px solid var(--line); border-radius:13px; background:#fff; }
+    .gate-top { display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:14px; }
+    .gate-top strong { font-size:13px; } .gate-top span { color:#8a9aa4; font-size:10px; font-weight:800; }
+    .gate p { min-height:34px; margin:0 0 15px; color:#6b7d8b; font-size:11px; line-height:1.45; }
+    .gate .bar { height:6px; margin-bottom:13px; overflow:hidden; background:#e8eff2; border-radius:99px; }
+    .gate .bar i { display:block; height:100%; background:var(--teal); border-radius:inherit; } .gate:nth-child(2) .bar i { background:var(--blue); } .gate:nth-child(3) .bar i { background:var(--amber); } .gate:nth-child(4) .bar i { background:#8a62bf; }
+    .mini-actions { display:flex; gap:5px; } .mini-actions button { flex:1; cursor:pointer; padding:6px 4px; color:#536676; background:#f7fafb; border:1px solid #dbe5e9; border-radius:7px; font-size:10px; font-weight:800; }
+    .mini-actions button:first-child { color:#176655; background:#e6f5ef; border-color:#b7e1d1; }
+    .below-grid { display:grid; grid-template-columns:1.1fr .9fr; gap:12px; margin-top:12px; }
+    .panel { padding:16px; border:1px solid var(--line); border-radius:13px; background:#fff; }
+    .panel h4 { margin:0 0 10px; font-size:13px; } .panel p { color:#6c7c88; font-size:11px; line-height:1.5; }
+    .activity { display:grid; gap:10px; } .event { display:flex; gap:9px; align-items:flex-start; color:#617585; font-size:11px; line-height:1.4; } .event b { display:block; color:var(--ink); font-size:11px; } .event em { display:block; color:#93a3ad; font-size:10px; font-style:normal; }
+    .dot { width:8px; height:8px; margin-top:4px; border-radius:50%; background:var(--teal); }
+    /* Dossier */
+    .dossier .screen { background:#eef2f5; }
+    .dossier .window { background:#fbfcfd; }
+    .dossier .window-nav { background:#243445; }
+    .dossier-shell { display:grid; grid-template-columns:220px 1fr 245px; gap:0; min-height:555px; }
+    .dossier-side { padding:20px 15px; background:#f5f7f8; border-right:1px solid var(--line); }
+    .dossier-side .side-label { margin:0 0 11px; color:#8999a4; font-size:10px; font-weight:850; letter-spacing:.1em; text-transform:uppercase; }
+    .candidate-card { padding:14px; background:#fff; border:1px solid #d7e1e5; border-radius:13px; box-shadow:0 5px 13px rgba(30,54,69,.05); }
+    .candidate-card .kicker { color:var(--blue); font-size:10px; font-weight:850; letter-spacing:.1em; text-transform:uppercase; } .candidate-card h4 { margin:8px 0 5px; font-size:16px; } .candidate-card p { margin:0; color:#6d7e8c; font-size:11px; line-height:1.45; }
+    .dossier-side nav { display:grid; gap:3px; margin-top:22px; } .dossier-side nav a { padding:9px 10px; color:#647785; border-radius:8px; font-size:11px; font-weight:700; } .dossier-side nav a.current { color:#1f4ea8; background:#e1ebff; }
+    .dossier-content { padding:24px; background:#fff; }
+    .dossier-content .eyebrow { color:var(--blue); font-size:10px; }
+    .dossier-content h3 { margin:7px 0 5px; font-size:25px; letter-spacing:-.045em; } .dossier-content .sub { margin:0 0 18px; color:#738591; font-size:11px; }
+    .evidence-tabs { display:flex; gap:17px; margin:0 0 16px; padding-bottom:9px; border-bottom:1px solid var(--line); } .evidence-tabs span { color:#80919b; font-size:11px; font-weight:800; } .evidence-tabs span.active { color:var(--blue); }
+    .evidence-block { padding:15px; background:#f8fafb; border:1px solid #e1e8ec; border-radius:12px; } .evidence-block h4 { margin:0 0 9px; font-size:12px; } .evidence-block p { margin:0; color:#617582; font-size:11px; line-height:1.55; }
+    .source-row { display:flex; justify-content:space-between; gap:14px; margin-top:12px; padding-top:12px; border-top:1px solid #e3eaed; color:#738692; font-size:10px; } .source-row b { color:var(--ink); }
+    .decision-panel { padding:20px 16px; background:#f8fafc; border-left:1px solid var(--line); } .decision-panel h4 { margin:0 0 6px; font-size:13px; } .decision-panel .muted { margin:0 0 17px; color:#7c8e99; font-size:11px; line-height:1.45; }
+    .decision-buttons { display:grid; gap:8px; } .decision-buttons button { cursor:pointer; padding:11px; border:1px solid #d4e0e5; border-radius:9px; font-size:11px; font-weight:850; text-align:left; } .decision-buttons .pass { color:#186655; background:#e1f4ed; border-color:#b8e0d2; } .decision-buttons .hold { color:#896013; background:#fff5d8; } .decision-buttons .reject { color:#9f3f4d; background:#fde9eb; }
+    .snapshot { margin-top:20px; padding-top:17px; border-top:1px solid var(--line); } .snapshot h5 { margin:0 0 10px; font-size:11px; } .snapshot-row { display:flex; justify-content:space-between; margin:8px 0; color:#758793; font-size:10px; } .snapshot-row strong { color:var(--ink); }
+    /* Canon */
+    .canon .screen { background:#f3f5f8; } .canon .window-nav { background:#1b2637; }
+    .canon .window-main { padding:19px; }
+    .kpi-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:9px; margin:15px 0; } .kpi { padding:13px; background:#fff; border:1px solid #dce4ea; border-radius:11px; } .kpi span { display:block; color:#82919d; font-size:10px; font-weight:750; } .kpi strong { display:block; margin-top:5px; font-size:22px; letter-spacing:-.04em; } .kpi small { color:#318567; font-size:9px; font-weight:800; }
+    .canon-main { display:grid; grid-template-columns:1fr 1.45fr; gap:12px; } .status-panel { padding:15px; background:#fff; border:1px solid #dce4ea; border-radius:12px; } .status-panel h4 { margin:0 0 12px; font-size:13px; }
+    .status-line { display:flex; align-items:center; gap:9px; margin:12px 0; color:#5d7080; font-size:11px; } .status-line .status-dot { width:9px; height:9px; border-radius:50%; background:#36a176; } .status-line .status-dot.wait { background:#dda642; }
+    .table { overflow:hidden; border:1px solid #dce4ea; border-radius:12px; background:#fff; } .table-head, .table-row { display:grid; grid-template-columns:1.3fr .85fr .7fr; gap:10px; align-items:center; padding:12px 13px; font-size:10px; } .table-head { color:#82909b; background:#f6f8fa; font-weight:850; text-transform:uppercase; letter-spacing:.06em; } .table-row { color:#536877; border-top:1px solid #edf1f3; } .table-row strong { color:var(--ink); font-size:11px; } .table-row .action { justify-self:end; padding:5px 8px; color:#2857bb; background:#edf3ff; border-radius:6px; font-size:10px; font-weight:800; }
+    .legend { display:flex; flex-wrap:wrap; gap:10px; margin-top:15px; color:#6b7c89; font-size:10px; } .legend span { display:inline-flex; gap:5px; align-items:center; } .legend i { width:7px; height:7px; border-radius:50%; background:#36a176; } .legend .yellow { background:#dda642; } .legend .gray { background:#9ba9b2; }
+    .footer-note { max-width:1240px; margin:0 auto; padding:0 28px 42px; color:#607381; font-size:12px; line-height:1.55; }
+    @media (max-width:900px) { .topbar { padding:15px 20px; } .topbar .note { display:none; } .intro { padding:38px 20px 24px; } .board, .switcher { padding-left:20px; padding-right:20px; } .gate-grid { grid-template-columns:repeat(2,1fr); } .dossier-shell { grid-template-columns:180px 1fr; } .decision-panel { grid-column:1 / -1; border-top:1px solid var(--line); border-left:0; } .dossier-side { grid-row:1 / span 2; } }
+    @media (max-width:600px) { .option-head, .title-row { display:block; } .option-num { width:48px; margin-bottom:10px; } .screen { padding:11px; } .window-main { padding:14px; } .stepper { grid-template-columns:repeat(2,1fr); } .gate-grid, .below-grid, .canon-main { grid-template-columns:1fr; } .dossier-shell { display:block; } .dossier-side { border-right:0; border-bottom:1px solid var(--line); } .dossier-side nav { display:flex; overflow:auto; } .dossier-side nav a { white-space:nowrap; } .dossier-content { padding:17px; } .kpi-grid { grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">T</span><div><strong>TDN Growth OS</strong><small>Product workspace / visual exploration</small></div></div>
+    <div class="note">Prototype tĩnh · không có API · không ghi quyết định</div>
+  </header>
+  <main>
+    <section class="intro">
+      <div class="eyebrow">Direction comparison / B8 product workspace</div>
+      <h1>Ba cách để nhìn thấy quyết định tiếp theo.</h1>
+      <p>Cùng một nghiệp vụ B7–B10, ba cách tổ chức thị giác khác nhau. Chọn hướng có thể giúp bạn vận hành nhanh nhất; màu sắc và số liệu dưới đây chỉ là dữ liệu minh họa.</p>
+      <div class="synthetic">● DỮ LIỆU SYNTHETIC — không phải quyết định sản phẩm thật</div>
+      <div class="flow-strip" aria-label="Quan hệ điều hướng đề xuất"><span class="flow-node">03 · Portfolio overview</span><span class="flow-arrow">→</span><span class="flow-node detail">02 · Product workspace detail</span><span class="flow-arrow">→</span><span class="flow-node">01 · B8 quick-operations (tuỳ chọn)</span></div>
+    </section>
+    <div class="switcher" role="tablist" aria-label="Chọn hướng visual">
+      <button class="active" role="tab" aria-selected="true" data-target="control">01 · Bàn điều phối</button>
+      <button role="tab" aria-selected="false" data-target="dossier">02 · Chi tiết workspace</button>
+      <button role="tab" aria-selected="false" data-target="canon">03 · Tổng quan portfolio</button>
+    </div>
+    <section class="board">
+      <article class="option control active" id="control" role="tabpanel">
+        <div class="option-head"><div><div class="eyebrow">Hướng 01 · Operations coordination board</div><h2>Bàn điều phối sản phẩm</h2><p>Ưu tiên tốc độ vận hành: thấy bốn lane B8 cùng lúc, biết lane nào chờ và mở đúng hành động. Phù hợp khi OWNER thường xuyên quay lại để xử lý nhiều workspace.</p></div><div class="option-num">01</div></div>
+        <div class="screen"><div class="window"><div class="window-nav"><strong>TDN / PRODUCT WORKSPACE</strong><span>Owner mode · Synthetic workspace</span></div><div class="window-main"><div class="crumb">Khám phá / Workspace sản phẩm / B8</div><div class="title-row"><div><h3>Canxi cho người lớn</h3><p>Candidate v1 · từ basket B7 `b3-ro-co-hoi-san-pham` · entry B8</p></div><span class="pill warn">Đang duyệt 2/4 lane</span></div><div class="stepper"><div class="step done">B7<small>PASS đã xác minh</small></div><div class="step current">B8<small>4 lane độc lập</small></div><div class="step">B9<small>Chờ clearance</small></div><div class="step">B10<small>Chưa mở</small></div></div><div class="gate-grid"><div class="gate"><div class="gate-top"><strong>LEGAL</strong><span>01</span></div><p>Chưa có quyết định hiệu lực</p><div class="bar"><i style="width:34%"></i></div><div class="mini-actions"><button>PASS</button><button>HOLD</button><button>REJECT</button></div></div><div class="gate"><div class="gate-top"><strong>SCIENTIFIC</strong><span>02</span></div><p>Đã PASS ở bản synthetic</p><div class="bar"><i style="width:100%"></i></div><div class="mini-actions"><button>PASS</button><button>HOLD</button><button>REJECT</button></div></div><div class="gate"><div class="gate-top"><strong>QUALITY</strong><span>03</span></div><p>Đang chờ OWNER xem</p><div class="bar"><i style="width:52%"></i></div><div class="mini-actions"><button>PASS</button><button>HOLD</button><button>REJECT</button></div></div><div class="gate"><div class="gate-top"><strong>FINANCE</strong><span>04</span></div><p>Chưa có quyết định hiệu lực</p><div class="bar"><i style="width:10%"></i></div><div class="mini-actions"><button>PASS</button><button>HOLD</button><button>REJECT</button></div></div></div><div class="below-grid"><div class="panel"><h4>Lane đang chọn · LEGAL</h4><p>Decision button-only. Không nhập rationale. Khi gửi thật, server sẽ kiểm tra OWNER + capability và version trước khi ghi.</p><span class="pill neutral">Chưa đủ điều kiện B9</span></div><div class="panel"><h4>Lịch sử gần đây</h4><div class="activity"><div class="event"><i class="dot"></i><div><b>SCIENTIFIC · PASS</b><em>synthetic · decision #1</em></div></div><div class="event"><i class="dot" style="background:#dda642"></i><div><b>LEGAL · chưa đánh giá</b><em>chưa có bản ghi</em></div></div></div></div></div></div></div></div>
+      </article>
+      <article class="option dossier" id="dossier" role="tabpanel">
+        <div class="option-head"><div><div class="eyebrow">Hướng 02 · Product workspace detail</div><h2>Hồ sơ quyết định trực quan</h2><p>Đây là màn hình chi tiết sau khi OWNER chọn một workspace từ Overview. Bản tóm tắt ứng viên và bằng chứng nằm cạnh các nút gate; phù hợp cho phiên họp cần nhìn lại nguồn trước khi bấm.</p></div><div class="option-num">02</div></div>
+        <div class="screen"><div class="window"><div class="window-nav"><strong>TDN / DECISION DOSSIER</strong><span>Verified lineage · Synthetic preview</span></div><div class="dossier-shell"><aside class="dossier-side"><p class="side-label">Product dossier</p><div class="candidate-card"><div class="kicker">Candidate v1</div><h4>Canxi cho người lớn</h4><p>Snapshot từ B7 PASS. Workspace độc lập, đang ở B8.</p></div><nav><a class="current">Tóm tắt</a><a>B8 · 4 lane</a><a>B9 · STP</a><a>B10 · Quyết định</a></nav></aside><section class="dossier-content"><div class="eyebrow">B8 / bằng chứng và trạng thái</div><h3>Một hồ sơ, bốn câu hỏi cần trả lời</h3><p class="sub">Mỗi lane có lịch sử riêng; clearance chỉ được tạo khi bốn PASS hiện hành được cung cấp chính xác.</p><div class="evidence-tabs"><span class="active">Tóm tắt</span><span>Nguồn</span><span>Lineage</span></div><div class="evidence-block"><h4>Tóm tắt ứng viên</h4><p>Đây là nội dung minh họa. Report, review và market Result chỉ được hiển thị khi API trả về đúng digest và phạm vi; UI không tự nối dữ liệu theo tên “canxi”.</p><div class="source-row"><span>Nguồn B7 <b>PASS · candidate v1</b></span><span>Snapshot <b>đã đóng băng</b></span></div></div><div class="evidence-block" style="margin-top:12px"><h4>Trạng thái bốn lane</h4><div class="status-line"><span class="status-dot wait"></span>LEGAL <b style="margin-left:auto;color:#8d681b">Chưa đánh giá</b></div><div class="status-line"><span class="status-dot"></span>SCIENTIFIC <b style="margin-left:auto;color:#297b61">PASS</b></div><div class="status-line"><span class="status-dot wait"></span>QUALITY <b style="margin-left:auto;color:#8d681b">Chờ OWNER</b></div><div class="status-line"><span class="status-dot wait"></span>FINANCE <b style="margin-left:auto;color:#8d681b">Chưa đánh giá</b></div></div></section><aside class="decision-panel"><h4>Quyết định lane</h4><p class="muted">Đang thao tác: <strong>LEGAL</strong><br>Không cần nhập lý do ở B8 v1.</p><div class="decision-buttons"><button class="pass">✓  PASS</button><button class="hold">◷  HOLD</button><button class="reject">×  REJECT</button></div><div class="snapshot"><h5>Snapshot</h5><div class="snapshot-row"><span>Workspace</span><strong>ACTIVE</strong></div><div class="snapshot-row"><span>Clearance B8</span><strong>Chưa có</strong></div><div class="snapshot-row"><span>Tiếp theo</span><strong>B9 sau 4 PASS</strong></div></div></aside></div></div></div>
+      </article>
+      <article class="option canon" id="canon" role="tabpanel">
+        <div class="option-head"><div><div class="eyebrow">Hướng 03 · Portfolio overview</div><h2>Dashboard tổng quan portfolio</h2><p>Đây là màn hình tổng quan cấp cao: sidebar, KPI có nguồn, bảng workspace và trạng thái. Người dùng bấm “Mở” để đi vào Option 2; không phải một dashboard thay thế cho trang chi tiết.</p></div><div class="option-num">03</div></div>
+        <div class="screen"><div class="window"><div class="window-nav"><strong>TDN GROWTH OS / OVERVIEW</strong><span>Owner · Synthetic data</span></div><div class="window-main"><div class="crumb">Overview / Product workspaces</div><div class="title-row"><div><h3>Portfolio overview</h3><p>Snapshot tổng hợp của các workspace đang mở</p></div><button style="border:0;border-radius:8px;padding:9px 12px;color:#fff;background:#2457c5;font-size:11px;font-weight:800">+ Mở workspace</button></div><div class="kpi-grid"><div class="kpi"><span>Workspace đang mở</span><strong>02</strong><small>synthetic</small></div><div class="kpi"><span>Lane cần xử lý</span><strong>06</strong><small>không phải % tiến độ</small></div><div class="kpi"><span>Đủ điều kiện B9</span><strong>00</strong><small style="color:#9c6915">chưa đủ 4 PASS</small></div></div><div class="canon-main"><div class="status-panel"><h4>Giai đoạn hiện tại</h4><div class="status-line"><span class="status-dot"></span> B7 · 2 candidate PASS</div><div class="status-line"><span class="status-dot wait"></span> B8 · 2/8 lane đã có quyết định</div><div class="status-line"><span class="status-dot wait"></span> B9 · chưa có clearance</div><div class="status-line"><span class="status-dot" style="background:#9ba9b2"></span> B10 · chưa mở</div><div class="legend"><span><i></i>Đã xác minh</span><span><i class="yellow"></i>Đang chờ</span><span><i class="gray"></i>Chưa mở</span></div></div><div class="table"><div class="table-head"><span>Workspace</span><span>Trạng thái</span><span></span></div><div class="table-row"><div><strong>Canxi cho người lớn</strong><br><span>B8 · 2/4 lane</span></div><span class="pill warn">Đang xử lý</span><span class="action">Mở</span></div><div class="table-row"><div><strong>Canxi cho trẻ em</strong><br><span>B8 · chưa đánh giá</span></div><span class="pill neutral">Chờ</span><span class="action">Mở</span></div><div class="table-row"><div><strong>Thị trường canxi</strong><br><span>Discovery workspace</span></div><span class="pill good">Đang mở</span><span class="action">Xem</span></div></div></div></div></div></div>
+      </article>
+    </section>
+    <p class="footer-note">Ghi chú: nút trong prototype chỉ để xem trạng thái, không gửi request. Số liệu, tên workspace và evidence đều synthetic. Các quy tắc thật vẫn thuộc backend; khi triển khai cần API/read model, quyền OWNER và mapping lỗi concurrency.</p>
+  </main>
+  <script>
+    const buttons = [...document.querySelectorAll('.switcher button')];
+    const panels = [...document.querySelectorAll('.option')];
+    buttons.forEach(button => button.addEventListener('click', () => {
+      const target = button.dataset.target;
+      buttons.forEach(item => { const on = item === button; item.classList.toggle('active', on); item.setAttribute('aria-selected', String(on)); });
+      panels.forEach(panel => panel.classList.toggle('active', panel.id === target));
+    }));
+  </script>
+</body>
+</html>

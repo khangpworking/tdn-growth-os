@@ -10,13 +10,15 @@ Trạng thái: modular monolith TypeScript/SQLite đã có các lát cắt found
 
 Bối cảnh thiết kế đang thảo luận: [INTENT.md](INTENT.md) — quyết định đã thống nhất, phần để sau và câu hỏi tiếp tục phỏng vấn.
 
+Frontend mới đã chốt **React + Vite + TypeScript**, thay thế lựa chọn frontend cũ trong brief kiến trúc: xem [ADR 0002](docs/adr/0002-react-vite-typescript-frontend.md), [Product context](PRODUCT.md) và [brief UX B7–B10](docs/frontend/product-workspace-brief.vi.md). Các tài liệu này chưa phải frontend/API đã triển khai.
+
 1. Đọc `AGENTS.md` và `ARCHITECTURE.md`.
 2. Đọc [kế hoạch](docs/PLAN_VI.md), [trạng thái](docs/STATUS.md), [bản đồ repository](docs/REPOSITORY_MAP.md).
 3. Làm [task SQLite đầu tiên](docs/tasks/001-sqlite-foundation.md).
 
 Một repository, một application package, năm module, một SQLite authoritative store. Web và worker chạy riêng từ cùng build artifact. Database mới độc lập với hệ thống Content Studio đang vận hành.
 
-`ARCHITECTURE.md` là bản sao nguyên văn brief do chủ dự án cung cấp ngày 05/09/2026. Các số liệu trong tài liệu lịch sử không phải bằng chứng tiến độ của repository này.
+`ARCHITECTURE.md` giữ nội dung brief gốc do chủ dự án cung cấp ngày 05/09/2026, với chú thích cập nhật frontend ở đầu tài liệu và ADR 0002 làm quyết định thay thế. Các số liệu lịch sử không phải bằng chứng tiến độ của repository này.
 
 
 ## Xuất báo cáo bằng chứng Shopee đã lưu

@@ -1,6 +1,6 @@
 # Ý định sản phẩm và quyết định thiết kế — TDN Growth OS
 
-Cập nhật: 08/09/2026. Trạng thái: đang phỏng vấn thiết kế cho Task 015.
+Cập nhật: 11/09/2026. Trạng thái: ghi nhận quyết định frontend sau baseline Task 032; visual direction đang đề xuất.
 
 ## Mục đích và cách đọc
 
@@ -54,6 +54,34 @@ Tài liệu này ghi ý định nghiệp vụ. `ARCHITECTURE.md` giữ baseline 
 B0 và B14 chỉ giữ vị trí trong roadmap, không phải yêu cầu triển khai hiện tại. Các cách gọi B0–B7 và B8–B14 dưới đây giữ nhãn giai đoạn gốc, không đưa hai bước đã hoãn trở lại scope.
 
 ## Quyết định đã thống nhất
+
+### D27 — Frontend dùng React + Vite + TypeScript
+
+Chủ dự án đã chốt stack này sau khi thảo luận các phương án. Giữ Node.js/TypeScript/SQLite và Fedora; không chuyển sang Bun, FastAPI, Streamlit hoặc Supabase. Lựa chọn mới thay thế frontend vanilla TypeScript/Bootstrap trong baseline cũ, xem `docs/adr/0002-react-vite-typescript-frontend.md`.
+
+Content Studio hiện là HTML/CSS thuần theo xác nhận của chủ dự án; chưa kiểm tra code để cam kết reuse. Chủ dự án muốn giao diện sinh động, dữ liệu diễn giải bằng chart/visual, tránh wall of text. Không sáng tác dữ liệu, insight hoặc methodology để phục vụ bố cục.
+
+`PRODUCT.md` ghi product context; `docs/frontend/product-workspace-brief.vi.md` là brief chức năng đề xuất, chưa phải giao diện đã duyệt hoặc frontend đã triển khai. B0/B14, B2 methodology và insight business logic vẫn giữ trạng thái để sau.
+
+### D28 — Overview và detail là hai tầng của cùng frontend
+
+Option 3 là **Portfolio Overview** để xem toàn bộ workspace và chọn việc tiếp theo. Option 2 là **Product Workspace Detail** để xem evidence, lane và quyết định của một workspace. Hai option có thể triển khai cùng lúc thành flow `Overview → Detail`; Option 1 chỉ giữ như mật độ thao tác B8 nhanh bên trong detail nếu có nhu cầu thực tế. Đây là quyết định về cấu trúc surface, không tạo thêm nghiệp vụ, API hay quyền mới.
+
+### D29 — Giữ phong cách prototype gốc; loại bốn reference thương hiệu
+
+Ngày 11/09/2026, chủ dự án đánh giá mockup bốn design-md kém phù hợp hơn prototype `docs/frontend/direction-options.html` và yêu cầu không tiếp tục theo Coinbase/Meta/Apple/HP. Prototype gốc là nguồn thị giác cho lượt tiếp theo; giữ cặp Overview + Detail theo D28. Chủ dự án đã yêu cầu tiếp tục, không cần hỏi chọn lại giữa hai màn hình này.
+
+Bản nối hai màn hình nằm ở `docs/frontend/workspace-prototype.html`. Tương tác B8 chỉ dùng dữ liệu synthetic trong bộ nhớ; bố cục tinh chỉnh cần chủ dự án xem, không tự coi là đã nghiệm thu production. B9/B10 trong bản này chỉ giải thích điều kiện; form thao tác sẽ làm sau. `DESIGN.md` ghi lại hệ thống thị giác đang sử dụng để agent tiếp tục nhất quán.
+
+### D30 — Nhiều thị trường, điều hướng ba cấp
+
+Chủ dự án xác nhận nhu cầu nghiên cứu nhiều thị trường và yêu cầu cập nhật UI. Điều hướng: **Tất cả thị trường → Workspace khám phá của một thị trường → Hồ sơ sản phẩm**. Trang đầu hiển thị các thị trường; trang thị trường chứa nghiên cứu chung, rổ ứng viên và hồ sơ đã tách sau B7. Thị trường chưa có sản phẩm vẫn có thể tiếp tục khám phá.
+
+Sản phẩm giữ nguồn gốc thị trường để điều hướng, nhưng hồ sơ và quyết định sau B7 độc lập. Không tự đồng bộ quyết định giữa sản phẩm/thị trường. Không suy ra cùng thực thể từ tên. Bản demo dùng liên kết ID riêng; API tạo/list thị trường và read model production vẫn chưa xây. Nút Tạo nghiên cứu mới chỉ tạo workspace demo trống, không tự chạy thu thập hoặc phát sinh phí.
+
+### D31 — Duyệt prototype nhiều thị trường; triển khai frontend demo trên Fedora
+
+Chủ dự án xác nhận hài lòng với `docs/frontend/workspace-prototype.html` sau cập nhật nhiều thị trường và yêu cầu tiến hành bước tiếp theo. Bản này là visual source of truth cho Task 033 React + Vite + TypeScript; không hỏi chọn lại layout hoặc reference. Task đầu tiên chuyển UI sang React bằng synthetic state, sau đó mới xây API/read và hành động OWNER thật. Chủ dự án yêu cầu bỏ qua LSP; không tạo task cài/cấu hình LSP.
 
 ### D01 — Khám phá chung B0–B7; tách workspace tại B7
 

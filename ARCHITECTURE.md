@@ -1,5 +1,7 @@
 # TDN Growth Operating System
 
+> Amendment 2026-09-11: the owner selected React + Vite + TypeScript for the new frontend. [ADR 0002](docs/adr/0002-react-vite-typescript-frontend.md) supersedes this original brief's vanilla TypeScript/Bootstrap frontend choice and exclusion of React from v1. Backend runtime, SQLite, module boundaries and Fedora hosting remain unchanged. Original baseline text below is retained for traceability.
+
 ## Project Architecture and Baseline Technology Stack
 
 | Field | Value |

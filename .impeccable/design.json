@@ -1,0 +1,126 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-09-11T00:00:00+07:00",
+  "title": "Design System: TDN Growth OS",
+  "extensions": {
+    "colorMeta": {
+      "ink": {
+        "role": "neutral",
+        "displayName": "Navy cho chữ và header"
+      },
+      "blue": {
+        "role": "primary",
+        "displayName": "Blue điều hướng"
+      },
+      "teal": {
+        "role": "secondary",
+        "displayName": "Teal bước hiện tại"
+      },
+      "canvas": {
+        "role": "neutral",
+        "displayName": "Nền xanh xám"
+      }
+    },
+    "typographyMeta": {
+      "body": {
+        "displayName": "Nội dung",
+        "purpose": "Stack hệ thống; Inter chỉ khi đã cài trên máy, không tải font ngoài."
+      }
+    },
+    "shadows": [
+      {
+        "name": "dossier-toast",
+        "value": "0 12px 28px rgba(25,48,64,.09)",
+        "purpose": "Khung hồ sơ và toast."
+      }
+    ],
+    "motion": [
+      {
+        "name": "arrive",
+        "value": "transform .22s cubic-bezier(.16,1,.3,1)",
+        "purpose": "View dịch từ translateY(6px) về 0; tắt khi reduced motion."
+      },
+      {
+        "name": "button-background",
+        "value": "background .16s",
+        "purpose": "Đổi nền nút; tắt khi reduced motion."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "wide-min",
+        "value": "1500px"
+      },
+      {
+        "name": "tablet-max",
+        "value": "1100px"
+      },
+      {
+        "name": "mobile-max",
+        "value": "650px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Nút chính",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Thao tác chính; disabled giữ opacity .55. Mẫu chỉ biểu diễn style.",
+      "html": "<button class=\"ds-button\">Xem B9</button>",
+      "css": ".ds-button{font-family:Inter,ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;line-height:1.55;display:inline-flex;align-items:center;justify-content:center;gap:8px;min-height:42px;padding:10px 16px;border:1px solid var(--blue,#2457c5);border-radius:9px;background:var(--blue,#2457c5);color:white;font-size:13px;font-weight:700;cursor:pointer;transition:background .16s}.ds-button:hover:not(:disabled){background:#1d469f}.ds-button:disabled{opacity:.55;cursor:not-allowed}.ds-button:focus-visible,.ds-search:focus-visible,.ds-nav:focus-visible{outline:3px solid var(--teal,#087e8b);outline-offset:4px}@media(prefers-reduced-motion:reduce){.ds-button{transition:none}}"
+    },
+    {
+      "name": "Tìm workspace",
+      "kind": "input",
+      "refersTo": "input-search",
+      "description": "Trường tìm trên bảng hồ sơ; focus teal.",
+      "html": "<input class=\"ds-search\" type=\"search\" aria-label=\"Tìm workspace\" placeholder=\"Tìm workspace…\">",
+      "css": ".ds-search{font-family:Inter,ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;line-height:1.55;width:min(260px,100%);border:1px solid #b8c8d2;border-radius:8px;padding:10px 12px;background:white;color:var(--ink,#172e43);font-size:13px;caret-color:var(--blue,#2457c5)}.ds-search::placeholder{color:#617585}.ds-button:focus-visible,.ds-search:focus-visible,.ds-nav:focus-visible{outline:3px solid var(--teal,#087e8b);outline-offset:4px}"
+    },
+    {
+      "name": "Điều hướng hồ sơ",
+      "kind": "nav",
+      "refersTo": "nav-active",
+      "description": "Item hiện tại có nền blue nhạt; hover và focus lấy từ nguồn.",
+      "html": "<nav aria-label=\"Các phần hồ sơ\"><button class=\"ds-nav ds-active\" aria-current=\"page\">B8 · Thẩm định</button><button class=\"ds-nav\">Bằng chứng</button></nav>",
+      "css": ".ds-nav{font-family:Inter,ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;line-height:1.55;display:block;border:0;text-align:left;padding:12px;background:none;color:var(--muted,#536a7c);border-radius:8px;font-size:13px;font-weight:650;cursor:pointer;margin-bottom:6px}.ds-nav:hover{background:#eaf0f5}.ds-nav.ds-active{color:#1f4ea8;background:#e1ebff}.ds-button:focus-visible,.ds-search:focus-visible,.ds-nav:focus-visible{outline:3px solid var(--teal,#087e8b);outline-offset:4px}"
+    },
+    {
+      "name": "Badge Đạt",
+      "kind": "chip",
+      "refersTo": "badge-pass",
+      "description": "Nhãn trạng thái thụ động; chữ cùng chấm màu, không thêm tương tác giả.",
+      "html": "<span class=\"ds-badge\">Đạt</span>",
+      "css": ".ds-badge{font-family:Inter,ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;line-height:1.55;display:inline-flex;gap:7px;align-items:center;border-radius:99px;padding:5px 10px;font-size:12px;font-weight:650;white-space:nowrap;background:#e1f4ed;color:#186655}.ds-badge:before{content:\"\";width:6px;height:6px;background:currentColor;border-radius:50%}"
+    },
+    {
+      "name": "Card thống kê",
+      "kind": "card",
+      "refersTo": "card-stat",
+      "description": "Số đếm synthetic với nhãn ngữ cảnh; nền trắng, viền mảnh, không shadow.",
+      "html": "<div class=\"ds-stat\"><span>Workspace sản phẩm</span><strong>02</strong><small>Dữ liệu minh họa</small></div>",
+      "css": ".ds-stat{font-family:Inter,ui-sans-serif,system-ui,-apple-system,\"Segoe UI\",sans-serif;line-height:1.55;padding:20px 22px;background:white;border-radius:13px;border:1px solid var(--line,#dfe7ed);color:var(--ink,#172e43)}.ds-stat span,.ds-stat small{display:block;color:var(--muted,#536a7c);font-size:12px}.ds-stat strong{display:block;font-size:32px;font-weight:750;letter-spacing:-.03em;font-variant-numeric:tabular-nums;margin:3px 0}"
+    }
+  ],
+  "narrative": {
+    "overview": "Hệ thị giác hiện có dùng thanh navy, nền xanh xám, bề mặt trắng, blue cho điều hướng và teal cho bước đang xem. Mật độ vừa phải, nhãn rõ và các đường phân cách mảnh giúp đọc trạng thái cùng bằng chứng.",
+    "keyCharacteristics": [
+      "Nền xanh xám, thanh navy và bề mặt trắng.",
+      "Blue điều hướng; teal biểu thị bước hiện tại và focus.",
+      "Trạng thái có cả chữ và màu.",
+      "Không dùng ảnh thương hiệu hoặc font tải ngoài."
+    ],
+    "rules": [],
+    "dos": [
+      "Do Giữ navy, xanh xám, trắng, blue và teal của prototype gốc.",
+      "Do Hiển thị chữ cùng màu trạng thái, nhãn dữ liệu minh họa và focus bàn phím rõ.",
+      "Do Giữ số đếm có ý nghĩa và phân biệt chưa đánh giá với dữ liệu bằng không."
+    ],
+    "donts": [
+      "Don't Coi số liệu synthetic hoặc thao tác trong demo là kết quả nghiệp vụ thật.",
+      "Don't Thay font, thêm ảnh thương hiệu hoặc chọn lại nhận diện chỉ vì chưa có UI production.",
+      "Don't Thay bố cục prototype đã duyệt bằng một template hoặc reference thương hiệu khác."
+    ]
+  }
+}

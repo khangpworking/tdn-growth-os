@@ -1,0 +1,44 @@
+{
+  "title": "TDN Growth OS — Chọn hướng mockup",
+  "question": "Chọn cách trình bày Product Workspace B8. Catalogue tham chiếu đang không truy cập được nên vòng này mô tả hướng bằng chữ; ảnh mockup chi tiết sẽ theo hướng bạn chọn.",
+  "options": [
+    {
+      "id": "control-room",
+      "label": "Bàn điều phối sản phẩm",
+      "kicker": "HƯỚNG KHÁM PHÁ",
+      "lineage": "Bảng điều phối vận hành và biển trạng thái trong phòng họp dự án",
+      "thesis": "Nhìn thấy ngay gate nào đang chờ, rồi mở đúng lane để quyết định.",
+      "palette": ["#F4F7FA", "#172E43", "#087E8B", "#B87112"],
+      "materials": ["nền sáng", "ma trận trạng thái", "chữ sans rõ nét"],
+      "viewport": "Tên sản phẩm và stepper ở trên; bốn lane thành ma trận ở giữa; thao tác lane được chọn và lịch sử nằm bên phải.",
+      "risk": "Dễ quá kỹ thuật nếu dùng nhiều đèn báo; trạng thái luôn cần nhãn chữ rõ ràng."
+    },
+    {
+      "id": "portfolio-dossier",
+      "label": "Hồ sơ quyết định trực quan",
+      "surface": "product-workspace-detail",
+      "relationship": "detail route opened from portfolio overview",
+      "kicker": "IMPECCABLE’S PICK",
+      "lineage": "Hồ sơ sản phẩm và tài liệu họp duyệt danh mục",
+      "thesis": "Đọc tóm tắt ngắn, xem bằng chứng, rồi quyết định ngay trong hồ sơ.",
+      "palette": ["#FFFFFF", "#243445", "#2457C5", "#C47A24"],
+      "materials": ["hồ sơ có tab", "khối dữ liệu gọn", "timeline bên lề"],
+      "viewport": "Tóm tắt ứng viên bên trái; hồ sơ B8 với bốn hàng gate ở giữa; bằng chứng và lịch sử mở theo nhu cầu.",
+      "risk": "Quen thuộc và dễ dùng nhưng ít khác biệt; cần visual rõ để không thành trang văn bản dài."
+    }
+  ],
+  "reroll": {"registers": ["safer", "bolder"]},
+  "buildPath": {"value": "comp", "toggle": true},
+  "canon": true,
+  "canonCard": {
+    "label": "Dashboard quản trị quen thuộc",
+    "surface": "portfolio-overview",
+    "relationship": "overview route linking to product-workspace-detail",
+    "thesis": "Sidebar, tab và bảng theo cách phần mềm quản trị phổ biến thường dùng.",
+    "palette": ["#FFFFFF", "#172033", "#2563EB"],
+    "materials": ["lưới card", "tab ngang", "bảng trạng thái"],
+    "viewport": "Sidebar trái, tiêu đề trên, các card trạng thái và bảng thao tác ở dưới.",
+    "risk": "Dễ làm quen nhưng bản sắc thấp; tránh trang đầy card không giúp ra quyết định."
+  },
+  "steer": true
+}
