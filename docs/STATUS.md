@@ -1,5 +1,17 @@
 # Trạng thái hiện tại
 
+## Frontend — prototype Overview + Detail tương tác
+
+- Chủ dự án đã duyệt prototype nhiều thị trường (D31). Task 033 được chuẩn bị tại `docs/tasks/033-react-workspace-ui.md` để Fedora chuyển sang React/Vite/TS với dữ liệu demo. Implementation React chưa bắt đầu trong gói bàn giao này. Bỏ qua LSP.
+
+- Cập nhật D30: prototype có ba cấp tất cả thị trường → thị trường → sản phẩm, với tìm kiếm, chuyển nhanh, rổ ứng viên và tạo thị trường demo trống. Ba thị trường minh họa; không có provider call hoặc API tạo nghiên cứu thật.
+
+- Chủ dự án chốt React + Vite + TypeScript; Node.js/SQLite/Fedora không đổi. Xem ADR 0002.
+- Đã ghi PRODUCT.md, INTENT D27 và brief UX B7–B10. Đây là tài liệu thiết kế, không phải chức năng UI/API đã triển khai.
+- Chủ dự án chọn tạo mockup ảnh trước code; workflow setting nằm ở `.impeccable/config.json`.
+- Prototype gốc là baseline (INTENT D28–D29). `docs/frontend/workspace-prototype.html` nối Overview + Detail: tìm kiếm, bốn lane B8, lịch sử, clearance và trạng thái empty/loading/error, đều synthetic trong bộ nhớ. B9/B10 chỉ có view giải thích điều kiện; form sẽ làm sau.
+- `DESIGN.md` ghi hệ thống thị giác từ prototype; bản tinh chỉnh đang để chủ dự án xem. Board bốn design-md đã loại. Task 024 vẫn tạm hoãn. Đây chưa phải React frontend hoặc API.
+
 ## Task 021 — offline Vietnamese Shopee evidence export
 
 - Có command `research:shopee:export` chọn duy nhất một persisted Result bằng exact SHA-256; không chọn “latest”.
