@@ -26,8 +26,6 @@ export interface OwnerApiErrorResponse {
       | 'forbidden'
       | 'not_found'
       | 'method_not_allowed'
-      | 'payload_too_large'
-      | 'unsupported_media_type'
       | 'conflict'
       | 'integrity_error';
     message: string;

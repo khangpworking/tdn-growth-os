@@ -76,9 +76,9 @@ test('authentication, exact-origin CORS, preflight, method, media type and bound
     const preflight = await fetch(endpoint(base), { method: 'OPTIONS', headers: { origin: allowedOrigin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'Authorization, Content-Type' } }); assert.equal(preflight.status, 204); assert.equal(preflight.headers.get('access-control-allow-origin'), allowedOrigin);
     assert.equal((await fetch(endpoint(base), { method: 'OPTIONS', headers: { origin: allowedOrigin, 'access-control-request-method': 'DELETE', 'access-control-request-headers': 'Authorization, Content-Type' } })).status, 403);
     assert.equal((await fetch(endpoint(base), { method: 'GET', headers })).status, 405);
-    assert.equal((await fetch(endpoint(base), { method: 'POST', headers: { ...headers, 'content-type': 'text/plain' }, body: body() })).status, 415);
+    assert.equal((await fetch(endpoint(base), { method: 'POST', headers: { ...headers, 'content-type': 'text/plain' }, body: body() })).status, 400);
     for (const invalid of ['', '{', JSON.stringify({ contractVersion: '1.0.0', lane: 'LEGAL', expectedVersion: 0, decision: 'PASS', actorId: 'attacker' }), JSON.stringify({ contractVersion: '1.0.0', productWorkspaceId: product, lane: 'LEGAL', expectedVersion: 0, decision: 'PASS' })]) assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: invalid })).status, 400);
-    assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: 'x'.repeat(4097) })).status, 413);
+    assert.equal((await fetch(endpoint(base), { method: 'POST', headers, body: 'x'.repeat(4097) })).status, 400);
     assert.equal((await fetch(`${base}/owner-api/product-workspaces/not-a-uuid/b8-decisions`, { method: 'POST', headers, body: body() })).status, 400);
   });
 });

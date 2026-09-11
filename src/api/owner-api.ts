@@ -51,7 +51,9 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const products = new ProductWorkspaceService({ db, artifactStore: artifacts, decisionReader: new GovernanceCandidateB7DecisionReader(b7) });
     const service = new ProductB8LaneDecisionService({ db, artifactStore: artifacts, productWorkspaceReader: new FlowProductWorkspaceReader(products), configuration: { policyId: PRODUCT_B8_REVIEW_POLICY_ID, policyVersion: 1, requiredCapability: PRODUCT_B8_REVIEW_CAPABILITY }, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const actor = Object.freeze({ actorId: configuration.actorId, roleSnapshot: 'OWNER' as const, capabilities: new Set<string>([PRODUCT_B8_REVIEW_CAPABILITY]) });
+    const productExists = db.prepare('SELECT 1 FROM flow_product_workspaces WHERE product_workspace_id=?');
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void route(request, response, configuration, async (productWorkspaceId, body) => {
+      if (!productExists.get(productWorkspaceId)) throw new UnknownProductWorkspaceError();
       const result = await service.decide({ ...body, productWorkspaceId }, actor);
       const verified = await service.replay(result.decisionId);
       return { contractVersion: '1.0.0', decisionId: result.decisionId, decisionVersion: result.decisionVersion, lane: result.lane, decision: result.decision, decidedAt: verified.decidedAt, exactRetry: result.deduplicated };
@@ -79,7 +81,7 @@ async function route(request: IncomingMessage, response: ServerResponse, configu
   }
   if (request.method !== 'POST') { response.setHeader('Allow', 'POST, OPTIONS'); return sendError(response, 405, 'method_not_allowed', 'Only POST is supported'); }
   if (!authorized(request, configuration.token)) return sendError(response, 401, 'unauthorized', 'Authentication required', { 'WWW-Authenticate': 'Bearer' });
-  if (singleHeader(request.headers['content-type']) !== 'application/json') return sendError(response, 415, 'unsupported_media_type', 'Content-Type must be application/json');
+  if (singleHeader(request.headers['content-type']) !== 'application/json') return sendError(response, 400, 'bad_request', 'Content-Type must be application/json');
   try {
     const raw = await readBody(request);
     let body: unknown;
@@ -88,9 +90,9 @@ async function route(request: IncomingMessage, response: ServerResponse, configu
     const receipt = await decide(productWorkspaceId, body);
     return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
-    if (error instanceof PayloadTooLargeError) return sendError(response, 413, 'payload_too_large', 'Request body is too large');
+    if (error instanceof PayloadTooLargeError) return sendError(response, 400, 'bad_request', 'Request body is too large');
     if (error instanceof ProductB8DecisionIdentityConflictError) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
-    if (/not found/i.test(error instanceof Error ? error.message : '')) return sendError(response, 404, 'not_found', 'Product workspace not found');
+    if (error instanceof UnknownProductWorkspaceError) return sendError(response, 404, 'not_found', 'Product workspace not found');
     if (error instanceof GovernanceValidationError) {
       if (/must change the effective decision/i.test(error.message)) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
       return sendError(response, 400, 'bad_request', 'Invalid B8 decision request');
@@ -129,6 +131,7 @@ function routeId(raw: string | undefined): string | null {
   try { const id = decodeURIComponent(match[1]!); return id.includes('/') || id.includes('\\') || id.includes('\0') ? null : id; } catch { return null; }
 }
 class PayloadTooLargeError extends Error {}
+class UnknownProductWorkspaceError extends Error {}
 async function readBody(request: IncomingMessage): Promise<string> {
   const declared = request.headers['content-length'];
   if (declared !== undefined && (!/^\d+$/.test(declared) || Number(declared) > MAX_BODY_BYTES)) { request.resume(); throw new PayloadTooLargeError(); }
