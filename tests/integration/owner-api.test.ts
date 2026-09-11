@@ -218,3 +218,17 @@ test('generated B8 clearance API contract is closed and registered', () => {
   assert.deepEqual(schema.$defs.receipt.required, ['contractVersion', 'clearanceId', 'state', 'clearedAt', 'exactRetry']);
   assert.match(fs.readFileSync('scripts/generate-foundation-contract.mjs', 'utf8'), /\['api', 'owner-b8-clearance-api'\]/);
 });
+
+test('stored clearance replay failure is a generic integrity error, not a semantic conflict', async () => {
+  const state = await fixture();
+  await serve(state, async (base) => {
+    const ids = await fourPasses(base);
+    assert.equal((await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(ids) })).status, 201);
+    const db = new BetterSqlite3(state.databasePath);
+    db.exec('DROP TRIGGER governance_product_b8_lane_decisions_no_delete');
+    db.prepare('DELETE FROM governance_product_b8_lane_decisions WHERE decision_id=?').run(ids.LEGAL);
+    db.close();
+    const retry = await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(ids) });
+    assert.equal(retry.status, 500); assert.deepEqual(await retry.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } });
+  });
+});

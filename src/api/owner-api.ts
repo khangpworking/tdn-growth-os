@@ -58,6 +58,7 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const clearances = new B8ClearanceService({ db, artifactStore: artifacts, decisionReader: b8Reader, statusReader: b8Reader, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const actor = Object.freeze({ actorId: configuration.actorId, roleSnapshot: 'OWNER' as const, capabilities: new Set<string>([PRODUCT_B8_REVIEW_CAPABILITY]) });
     const productExists = db.prepare('SELECT 1 FROM flow_product_workspaces WHERE product_workspace_id=?');
+    const clearanceExists = db.prepare('SELECT 1 FROM flow_b8_clearances WHERE product_workspace_id=?');
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void route(request, response, configuration, async (productWorkspaceId, body) => {
       if (!productExists.get(productWorkspaceId)) throw new UnknownProductWorkspaceError();
       const result = await service.decide({ ...body, productWorkspaceId }, actor);
@@ -65,9 +66,15 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
       return { contractVersion: '1.0.0', decisionId: result.decisionId, decisionVersion: result.decisionVersion, lane: result.lane, decision: result.decision, decidedAt: verified.decidedAt, exactRetry: result.deduplicated };
     }, async (productWorkspaceId, body) => {
       if (!productExists.get(productWorkspaceId)) throw new UnknownProductWorkspaceError();
-      const result = await clearances.createClearance({ contractVersion: body.contractVersion, productWorkspaceId, decisions: body.decisionIds });
-      const verified = await clearances.replay(result.clearanceId);
-      return { contractVersion: '1.0.0', clearanceId: result.clearanceId, state: result.state, clearedAt: verified.clearedAt, exactRetry: result.deduplicated };
+      const existing = !!clearanceExists.get(productWorkspaceId);
+      try {
+        const result = await clearances.createClearance({ contractVersion: body.contractVersion, productWorkspaceId, decisions: body.decisionIds });
+        const verified = await clearances.replay(result.clearanceId);
+        return { contractVersion: '1.0.0', clearanceId: result.clearanceId, state: result.state, clearedAt: verified.clearedAt, exactRetry: result.deduplicated };
+      } catch (error) {
+        if (existing && !(error instanceof B8ClearanceIdentityConflictError)) throw new ExistingClearanceIntegrityError();
+        throw error;
+      }
     }); };
     return { handler, close: () => db.close() };
   } catch (error) { db.close(); throw error; }
@@ -113,6 +120,7 @@ async function route(
     const receipt = await clear(productWorkspaceId, body);
     return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
+    if (error instanceof ExistingClearanceIntegrityError) return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof PayloadTooLargeError) return sendError(response, 400, 'bad_request', 'Request body is too large');
     if (error instanceof ProductB8DecisionIdentityConflictError) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
     if (error instanceof B8ClearanceIdentityConflictError) return clearanceSemanticConflict(error) ? sendError(response, 409, 'conflict', 'B8 clearance conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
@@ -164,6 +172,7 @@ function ownerRoute(raw: string | undefined): { productWorkspaceId: string; oper
   const match = /^\/owner-api\/product-workspaces\/([^/]+)\/(b8-decisions|b8-clearance)$/.exec(url.pathname); if (!match) return null;
   try { const id = decodeURIComponent(match[1]!); return id.includes('/') || id.includes('\\') || id.includes('\0') ? null : { productWorkspaceId: id, operation: match[2] === 'b8-decisions' ? 'decision' : 'clearance' }; } catch { return null; }
 }
+class ExistingClearanceIntegrityError extends Error {}
 class PayloadTooLargeError extends Error {}
 class UnknownProductWorkspaceError extends Error {}
 async function readBody(request: IncomingMessage): Promise<string> {
