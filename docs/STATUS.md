@@ -1,16 +1,13 @@
 # Trạng thái hiện tại
 
-## Frontend — prototype Overview + Detail tương tác
+## Frontend — Task 033 React workspace demo
 
-- Chủ dự án đã duyệt prototype nhiều thị trường (D31). Task 033 được chuẩn bị tại `docs/tasks/033-react-workspace-ui.md` để Fedora chuyển sang React/Vite/TS với dữ liệu demo. Implementation React chưa bắt đầu trong gói bàn giao này. Bỏ qua LSP.
-
-- Cập nhật D30: prototype có ba cấp tất cả thị trường → thị trường → sản phẩm, với tìm kiếm, chuyển nhanh, rổ ứng viên và tạo thị trường demo trống. Ba thị trường minh họa; không có provider call hoặc API tạo nghiên cứu thật.
-
-- Chủ dự án chốt React + Vite + TypeScript; Node.js/SQLite/Fedora không đổi. Xem ADR 0002.
-- Đã ghi PRODUCT.md, INTENT D27 và brief UX B7–B10. Đây là tài liệu thiết kế, không phải chức năng UI/API đã triển khai.
-- Chủ dự án chọn tạo mockup ảnh trước code; workflow setting nằm ở `.impeccable/config.json`.
-- Prototype gốc là baseline (INTENT D28–D29). `docs/frontend/workspace-prototype.html` nối Overview + Detail: tìm kiếm, bốn lane B8, lịch sử, clearance và trạng thái empty/loading/error, đều synthetic trong bộ nhớ. B9/B10 chỉ có view giải thích điều kiện; form sẽ làm sau.
-- `DESIGN.md` ghi hệ thống thị giác từ prototype; bản tinh chỉnh đang để chủ dự án xem. Board bốn design-md đã loại. Task 024 vẫn tạm hoãn. Đây chưa phải React frontend hoặc API.
+- Prototype nhiều thị trường đã duyệt ở D31 được triển khai thành React 19 + Vite 8 + TypeScript 5.9 trong `frontend/`; `docs/frontend/workspace-prototype.html` vẫn là nguồn thiết kế đã duyệt. Không dùng các hướng Coinbase, Meta, Apple hoặc HP đã loại.
+- Giữ ba cấp **tất cả thị trường → workspace khám phá thị trường → workspace sản phẩm độc lập**, route hash trực tiếp, back/forward, tìm kiếm, chuyển thị trường và tạo workspace nghiên cứu demo trống. Quan hệ dùng ID, không dùng tên; hai thị trường có thể trùng tên/từ khóa.
+- Workspace thị trường hiển thị context khám phá, rổ ứng viên và danh sách sản phẩm. Workspace sản phẩm có B8 bốn lane độc lập, PASS/HOLD/REJECT không reason, lịch sử append-only trong bộ nhớ và snapshot clearance khi cả bốn lane PASS; snapshot lịch sử vẫn hiện nếu lane đổi sau đó.
+- Có trạng thái normal, search-empty, workspace-empty, loading, error và invalid/malformed route; desktop/mobile responsive, focus rõ và reduced-motion. Nhãn synthetic luôn hiện; reload hoặc reset trở lại seed.
+- B9/B10 chỉ là view thông tin. Không có STP form/lock, B10 execution, API, auth, database, provider, collection, quyết định thật hoặc deployment.
+- Root `npm run check` bao gồm frontend typecheck, production build và focused state/routing tests bên cạnh toàn bộ backend checks hiện có. Handoff, commands, screenshotshots và API gaps: `docs/handoffs/033-react-workspace-ui.md`.
 
 ## Task 021 — offline Vietnamese Shopee evidence export
 
