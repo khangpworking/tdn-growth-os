@@ -49,6 +49,8 @@ async function serve(state: Awaited<ReturnType<typeof fixture>>, run: (base: str
 }
 const endpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b8-decisions`;
 const clearanceEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b8-clearance`;
+const workingEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b9/working`;
+const lockEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b9/lock`;
 const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json', origin: allowedOrigin };
 const body = (lane = 'LEGAL', expectedVersion = 0, decision = 'PASS') => JSON.stringify({ contractVersion: '1.0.0', lane, expectedVersion, decision });
 async function fourPasses(base: string): Promise<Record<'LEGAL' | 'SCIENTIFIC' | 'QUALITY' | 'FINANCE', string>> {
@@ -61,6 +63,24 @@ async function fourPasses(base: string): Promise<Record<'LEGAL' | 'SCIENTIFIC' |
   return result;
 }
 const clearanceBody = (decisionIds: Record<string, string>) => JSON.stringify({ contractVersion: '1.0.0', decisionIds });
+const workingBody = (clearanceId: string, expectedWorkingRevision: string | null, positioningStatement = 'Canxi tiện dùng mỗi ngày.', patch: Record<string, unknown> = {}) => JSON.stringify({
+  contractVersion: '1.0.0', b8ClearanceId: clearanceId, expectedWorkingRevision,
+  segments: [{ key: 'adult', label: 'Người trưởng thành', description: 'Ưu tiên sự tiện lợi.' }, { key: 'senior', label: 'Người cao tuổi' }],
+  primaryTargetSegmentKey: 'adult', secondaryTargetSegmentKeys: ['senior'], positioningStatement, ...patch,
+});
+async function clearanceFixture(base: string): Promise<string> {
+  const response = await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(await fourPasses(base)) });
+  assert.equal(response.status, 201); return ((await response.json()) as { clearanceId: string }).clearanceId;
+}
+function tableCounts(databasePath: string) {
+  const db = new BetterSqlite3(databasePath);
+  const result = db.prepare(`SELECT
+    (SELECT count(*) FROM flow_stp_working_records) working,
+    (SELECT count(*) FROM flow_locked_stps) locks,
+    (SELECT count(*) FROM governance_product_b10_decisions) b10,
+    (SELECT count(*) FROM artifact_manifests) manifests`).get();
+  db.close(); return result;
+}
 
 test('launcher requires explicit opt-in and rejects non-loopback binding before opening storage', () => {
   const script = path.resolve('scripts/serve-owner-api.ts');
@@ -231,4 +251,103 @@ test('stored clearance replay failure is a generic integrity error, not a semant
     const retry = await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(ids) });
     assert.equal(retry.status, 500); assert.deepEqual(await retry.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } });
   });
+});
+
+
+test('B9 working save/update/retry and lock expose closed receipts, opaque revisions and exact zero-mutation retries', async () => {
+  const state = await fixture();
+  await serve(state, async (base) => {
+    const clearanceId = await clearanceFixture(base);
+    const before = tableCounts(state.databasePath);
+    const created = await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, null) });
+    assert.equal(created.status, 201); const first = await created.json() as any;
+    assert.deepEqual(Object.keys(first).sort(), ['contractVersion','workingStpId','productWorkspaceId','workingRevision','createdAt','updatedAt','exactRetry'].sort());
+    assert.equal(first.productWorkspaceId, product); assert.equal(first.createdAt, '2027-01-01T00:00:00.000Z'); assert.equal(first.updatedAt, first.createdAt);
+    assert.match(first.workingRevision, /^wr1_[A-Za-z0-9_-]{43}$/); assert.equal(first.exactRetry, false);
+    const afterCreate = tableCounts(state.databasePath); assert.deepEqual({ ...(afterCreate as any), manifests: (before as any).manifests }, { ...(before as any), working: 1 });
+
+    const retry = await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, null) });
+    assert.equal(retry.status, 200); assert.deepEqual(await retry.json(), { ...first, exactRetry: true }); assert.deepEqual(tableCounts(state.databasePath), afterCreate);
+
+    const updated = await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, first.workingRevision, 'Canxi minh bạch cho mỗi ngày.') });
+    assert.equal(updated.status, 200); const second = await updated.json() as any;
+    assert.equal(second.workingStpId, first.workingStpId); assert.notEqual(second.workingRevision, first.workingRevision);
+    assert.equal(second.createdAt, first.createdAt); assert.equal(second.updatedAt, '2027-01-01T00:00:00.000Z'); assert.equal(second.exactRetry, false);
+    assert.deepEqual(tableCounts(state.databasePath), afterCreate, 'working updates add no row, manifest, lock or B10 mutation');
+    assert.equal((await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, first.workingRevision, 'stale') })).status, 409);
+
+    const concurrent = await Promise.all([0, 1].map(() => fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, second.workingRevision, 'Bản cập nhật đồng thời.') })));
+    assert.deepEqual(concurrent.map((response) => response.status).sort(), [200, 200]);
+    const concurrentReceipts = await Promise.all(concurrent.map((response) => response.json() as Promise<any>));
+    assert.equal(concurrentReceipts[0].workingRevision, concurrentReceipts[1].workingRevision);
+    assert.deepEqual(concurrentReceipts.map((receipt) => receipt.exactRetry).sort(), [false, true]);
+
+    const current = concurrentReceipts[0]; const beforeLock = tableCounts(state.databasePath);
+    const locked = await fetch(lockEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', expectedWorkingRevision: current.workingRevision }) });
+    assert.equal(locked.status, 201); const lock = await locked.json() as any;
+    assert.deepEqual(Object.keys(lock).sort(), ['contractVersion','lockId','state','lockedAt','exactRetry'].sort());
+    assert.deepEqual({ state: lock.state, lockedAt: lock.lockedAt, exactRetry: lock.exactRetry }, { state: 'LOCKED_STP', lockedAt: '2027-01-01T00:00:00.000Z', exactRetry: false });
+    const db = new BetterSqlite3(state.databasePath); const row = db.prepare('SELECT actor_id actor,role_snapshot role,required_capability capability,policy_id policy FROM flow_locked_stps').get() as any; db.close();
+    assert.deepEqual(row, { actor: 'owner:local', role: 'OWNER', capability: 'governance:product-b9-lock', policy: 'governance:product-b9-lock-v1' });
+    const afterLock = tableCounts(state.databasePath); assert.equal((afterLock as any).locks, 1); assert.equal((afterLock as any).manifests, (beforeLock as any).manifests + 1); assert.equal((afterLock as any).b10, 0);
+    const lockRetry = await fetch(lockEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', expectedWorkingRevision: current.workingRevision }) });
+    assert.equal(lockRetry.status, 200); assert.deepEqual(await lockRetry.json(), { ...lock, exactRetry: true }); assert.deepEqual(tableCounts(state.databasePath), afterLock);
+    assert.equal((await fetch(lockEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', expectedWorkingRevision: second.workingRevision }) })).status, 409);
+    assert.equal((await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, current.workingRevision, 'Sau khóa') })).status, 409);
+  });
+});
+
+test('B9 rejects malformed, extra, target, length, clearance and missing-lock inputs without orphan mutations', async () => {
+  const state = await fixture(); await serve(state, async (base) => {
+    const clearanceId = await clearanceFixture(base); const before = tableCounts(state.databasePath);
+    const invalid = [
+      '{', JSON.stringify({}),
+      workingBody(clearanceId, null, 'Valid', { attacker: true }),
+      workingBody(clearanceId, null, 'Valid', { segments: [] }),
+      workingBody(clearanceId, null, 'Valid', { segments: [{ key: 'aa', label: 'x' }] }),
+      workingBody(clearanceId, null, 'Valid', { segments: [{ key: 'adult', label: ' x ' }] }),
+      workingBody(clearanceId, null, 'Valid', { segments: [{ key: 'adult', label: 'x' }, { key: 'adult', label: 'y' }] }),
+      workingBody(clearanceId, null, 'Valid', { primaryTargetSegmentKey: 'missing' }),
+      workingBody(clearanceId, null, 'Valid', { secondaryTargetSegmentKeys: ['adult'] }),
+      workingBody(clearanceId, null, 'Valid', { secondaryTargetSegmentKeys: ['missing'] }),
+      workingBody(clearanceId, null, 'x'.repeat(4001)),
+      workingBody('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', null),
+      workingBody(clearanceId, 'wr1_' + 'a'.repeat(42)),
+    ];
+    for (const payload of invalid) { const response = await fetch(workingEndpoint(base), { method: 'POST', headers, body: payload }); assert.ok([400, 409].includes(response.status), `${response.status}: ${payload.slice(0, 80)}`); }
+    assert.deepEqual(tableCounts(state.databasePath), before);
+    for (const payload of [JSON.stringify({ contractVersion: '1.0.0' }), JSON.stringify({ contractVersion: '1.0.0', expectedWorkingRevision: 'wr1_' + 'a'.repeat(43), extra: true })]) assert.equal((await fetch(lockEndpoint(base), { method: 'POST', headers, body: payload })).status, 400);
+    assert.equal((await fetch(lockEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', expectedWorkingRevision: 'wr1_' + 'a'.repeat(43) }) })).status, 409);
+    assert.deepEqual(tableCounts(state.databasePath), before);
+  });
+});
+
+test('B9 existing persisted reread failures are generic 500 while stale and identity failures remain 409', async () => {
+  for (const corrupt of ['working', 'lock'] as const) {
+    const state = await fixture(); await serve(state, async (base) => {
+      const clearanceId = await clearanceFixture(base);
+      const saved = await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, null) }); const receipt = await saved.json() as any;
+      if (corrupt === 'lock') {
+        const locked = await fetch(lockEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', expectedWorkingRevision: receipt.workingRevision }) }); assert.equal(locked.status, 201);
+        const db = new BetterSqlite3(state.databasePath); db.exec('DROP TRIGGER flow_locked_stps_no_update'); db.prepare("UPDATE flow_locked_stps SET actor_id='owner:tampered'").run(); db.close();
+      } else {
+        const db = new BetterSqlite3(state.databasePath); db.exec('DROP TRIGGER flow_stp_working_records_no_delete'); db.prepare('DELETE FROM flow_stp_working_records').run(); db.close();
+      }
+      const response = corrupt === 'lock'
+        ? await fetch(lockEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', expectedWorkingRevision: receipt.workingRevision }) })
+        : await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, receipt.workingRevision) });
+      assert.equal(response.status, corrupt === 'working' ? 409 : 500);
+      if (response.status === 500) assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } });
+    });
+  }
+});
+
+test('generated B9 owner contract is closed, bounded and registered', () => {
+  const schema = JSON.parse(fs.readFileSync('contracts/api/owner-b9-stp-api.schema.json', 'utf8')) as any;
+  assert.deepEqual(schema.oneOf.map((entry: any) => entry.$ref), ['#/$defs/workingRequest','#/$defs/workingReceipt','#/$defs/lockRequest','#/$defs/lockReceipt']);
+  for (const name of ['workingRequest','workingReceipt','lockRequest','lockReceipt']) assert.equal(schema.$defs[name].additionalProperties, false);
+  assert.equal(schema.$defs.workingRequest.properties.positioningStatement.maxLength, 4000);
+  assert.equal(schema.$defs.workingRequest.properties.segments.maxItems, 100);
+  assert.equal(schema.$defs.workingRevision.pattern, '^wr1_[A-Za-z0-9_-]{43}$');
+  assert.match(fs.readFileSync('scripts/generate-foundation-contract.mjs', 'utf8'), /\['api', 'owner-b9-stp-api'\]/);
 });

@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-b9-stp-api.schema.json",
+  "title": "OwnerB9StpApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/workingRequest" },
+    { "$ref": "#/$defs/workingReceipt" },
+    { "$ref": "#/$defs/lockRequest" },
+    { "$ref": "#/$defs/lockReceipt" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "workingRevision": { "type": "string", "pattern": "^wr1_[A-Za-z0-9_-]{43}$" },
+    "segmentKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "segment": {
+      "type": "object", "additionalProperties": false, "required": ["key", "label"],
+      "properties": {
+        "key": { "$ref": "#/$defs/segmentKey" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" }
+      }
+    },
+    "workingRequest": {
+      "title": "OwnerB9WorkingRequest", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "b8ClearanceId", "expectedWorkingRevision", "segments", "primaryTargetSegmentKey", "positioningStatement"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "b8ClearanceId": { "$ref": "#/$defs/uuid" },
+        "expectedWorkingRevision": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/workingRevision" }] },
+        "segments": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/segment" } },
+        "primaryTargetSegmentKey": { "$ref": "#/$defs/segmentKey" },
+        "secondaryTargetSegmentKeys": { "type": "array", "maxItems": 99, "uniqueItems": true, "items": { "$ref": "#/$defs/segmentKey" } },
+        "positioningStatement": { "type": "string", "minLength": 1, "maxLength": 4000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" }
+      }
+    },
+    "workingReceipt": {
+      "title": "OwnerB9WorkingReceipt", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workingStpId", "productWorkspaceId", "workingRevision", "createdAt", "updatedAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" }, "workingStpId": { "$ref": "#/$defs/uuid" },
+        "productWorkspaceId": { "$ref": "#/$defs/uuid" }, "workingRevision": { "$ref": "#/$defs/workingRevision" },
+        "createdAt": { "type": "string", "format": "date-time" }, "updatedAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "lockRequest": {
+      "title": "OwnerB9LockRequest", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "expectedWorkingRevision"],
+      "properties": { "contractVersion": { "const": "1.0.0" }, "expectedWorkingRevision": { "$ref": "#/$defs/workingRevision" } }
+    },
+    "lockReceipt": {
+      "title": "OwnerB9LockReceipt", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "lockId", "state", "lockedAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" }, "lockId": { "$ref": "#/$defs/uuid" },
+        "state": { "const": "LOCKED_STP" }, "lockedAt": { "type": "string", "format": "date-time" }, "exactRetry": { "type": "boolean" }
+      }
+    }
+  }
+}

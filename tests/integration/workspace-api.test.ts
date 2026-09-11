@@ -112,6 +112,10 @@ test('HTTP reads compose stable ID-based portfolio/detail, preserve ordering and
     const b9 = await (await fetch(`${origin}/api/product-workspaces/${ids.product}/b9`)).json() as any;
     assert.deepEqual([b9.state, b9.working.workingStpId, b9.locked.lockId], ['LOCKED', ids.working, ids.lock]);
     assert.equal(b9.working.content.positioningStatement, 'Canxi tiện dùng mỗi ngày.');
+    assert.match(b9.working.workingRevision, /^wr1_[A-Za-z0-9_-]{43}$/);
+    const sqlite = new (await import('better-sqlite3')).default(state.databasePath, { readonly: true });
+    const digest = (sqlite.prepare('SELECT working_digest digest FROM flow_stp_working_records').get() as { digest: string }).digest; sqlite.close();
+    assert.notEqual(b9.working.workingRevision, digest); assert.doesNotMatch(JSON.stringify(b9), new RegExp(digest));
     const b10 = await (await fetch(`${origin}/api/product-workspaces/${ids.product}/b10`)).json() as any;
     assert.deepEqual(b10.history.map((item: any) => [item.decisionNumber, item.decision]), [[1, 'HOLD'], [2, 'APPROVE']]);
     assert.equal(b10.effective.decisionId, ids.b10[1]); assert.equal(b10.readyForB11, true);
@@ -128,6 +132,8 @@ test('B9 status is deterministic for NOT_STARTED and WORKING and B10 is empty wi
       assert.equal(b9.state, expected);
       assert.equal('working' in b9, expected === 'WORKING');
       assert.equal('locked' in b9, false);
+      if (expected === 'WORKING') assert.match(b9.working.workingRevision, /^wr1_[A-Za-z0-9_-]{43}$/);
+      else assert.equal('workingRevision' in b9, false);
       const b10 = await (await fetch(`${origin}/api/product-workspaces/${ids.product}/b10`)).json() as any;
       assert.deepEqual(b10, { contractVersion: '1.0.0', productWorkspaceId: ids.product, history: [], effective: null, readyForB11: false });
     });
@@ -159,5 +165,35 @@ test('missing or corrupt artifacts return only a generic integrity error', async
       const text = await response.text(); assert.equal(text, '{"error":{"code":"integrity_error","message":"Stored workspace data failed integrity verification"}}');
       assert.doesNotMatch(text, /tmp|actor|deadbeef|sha256|SELECT|stack/i);
     });
+  }
+});
+
+
+test('B9 read schema registers opaque revision only on WORKING/LOCKED variants', () => {
+  const schema = JSON.parse(fs.readFileSync('contracts/api/workspace-api.schema.json', 'utf8')) as any;
+  const definition = schema.$defs.productB9;
+  assert.ok(definition); const serialized = JSON.stringify(schema.$defs.b9Working);
+  assert.match(serialized, /workingRevision/); assert.match(serialized, /wr1_/);
+  assert.deepEqual(definition.required, ['contractVersion', 'productWorkspaceId', 'state']);
+  assert.match(fs.readFileSync('contracts/api/workspace-api.generated.ts', 'utf8'), /workingRevision: string/);
+});
+
+test('B9 missing lock artifact/manifest and orphan lock catalog rows fail as generic integrity errors without changing database bytes', async () => {
+  for (const mode of ['missing-artifact', 'missing-manifest', 'orphan-lock'] as const) {
+    const state = await fixture();
+    const db = new (await import('better-sqlite3')).default(state.databasePath);
+    const row = db.prepare('SELECT lock_artifact_sha256 digest FROM flow_locked_stps').get() as { digest: string };
+    if (mode === 'missing-artifact') fs.rmSync(path.join(state.artifactRoot, 'sha256', row.digest.slice(0, 2), row.digest));
+    else if (mode === 'missing-manifest') {
+      db.pragma('foreign_keys = OFF'); db.prepare('DELETE FROM artifact_manifests WHERE sha256=?').run(row.digest);
+    } else {
+      db.exec('DROP TRIGGER flow_stp_working_records_no_delete'); db.pragma('foreign_keys = OFF'); db.prepare('DELETE FROM flow_stp_working_records').run();
+    }
+    db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); const before = hash(state.databasePath);
+    await serve(state, async (origin) => {
+      const response = await fetch(`${origin}/api/product-workspaces/${ids.product}/b9`); assert.equal(response.status, 500);
+      assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } });
+    });
+    assert.equal(hash(state.databasePath), before);
   }
 });

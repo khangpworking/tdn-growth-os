@@ -39,6 +39,7 @@ import { StpService } from '../modules/flow/stp-service.js';
 import { FlowLockedStpReader } from '../modules/flow/locked-stp-reader.js';
 import { ProductB10DecisionService } from '../modules/governance/product-b10-decision-service.js';
 import { GovernanceProductB10Reader } from '../modules/governance/product-b10-decision-reader.js';
+import { b9WorkingRevision } from './b9-working-revision.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -201,7 +202,7 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       }
       const status = await stpReader.readStatusByProductWorkspace(id);
       if (status.state === 'NOT_STARTED' || status.working.workingStpId !== catalogWorking.workingStpId) throw new Error('B9 catalog identity mismatch');
-      const working = { workingStpId: status.working.workingStpId, b8ClearanceId: status.working.b8ClearanceId, content: status.working.content, createdAt: status.working.createdAt, updatedAt: status.working.updatedAt };
+      const working = { workingStpId: status.working.workingStpId, b8ClearanceId: status.working.b8ClearanceId, workingRevision: b9WorkingRevision(status.working.workingDigest), content: status.working.content, createdAt: status.working.createdAt, updatedAt: status.working.updatedAt };
       if (status.state === 'WORKING') {
         if (catalogLock) throw new Error('B9 lock catalog mismatch');
         return { contractVersion: '1.0.0', productWorkspaceId: id, state: 'WORKING', working };
