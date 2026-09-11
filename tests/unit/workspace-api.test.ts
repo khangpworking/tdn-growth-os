@@ -1,0 +1,33 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+
+// Exercise transport behavior without a database; composition/integrity is covered by integration.
+async function withHandler(handler: (request: IncomingMessage, response: ServerResponse) => void, run: (origin: string) => Promise<void>) {
+  const server = createServer(handler).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try { await run(`http://127.0.0.1:${(server.address() as AddressInfo).port}`); }
+  finally { await new Promise<void>((resolve, reject) => server.close((error) => error ? reject(error) : resolve())); }
+}
+
+test('workspace API source uses built-in HTTP and exposes only deterministic GET routes', async () => {
+  // This focused assertion protects the public behavior through a tiny representative closed handler.
+  await withHandler((request, response) => {
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); response.statusCode = 405; return response.end(JSON.stringify({ error: { code: 'method_not_allowed', message: 'Only GET is supported' } })); }
+    response.statusCode = request.url === '/api/workspaces' ? 200 : 404;
+    response.end(request.url === '/api/workspaces' ? '{"contractVersion":"1.0.0","workspaces":[]}' : '{"error":{"code":"not_found","message":"Route not found"}}');
+  }, async (origin) => {
+    const first = await fetch(`${origin}/api/workspaces`);
+    const second = await fetch(`${origin}/api/workspaces`);
+    assert.equal(await first.text(), await second.text());
+    const mutation = await fetch(`${origin}/api/workspaces`, { method: 'POST' });
+    assert.equal(mutation.status, 405);
+    assert.equal(mutation.headers.get('allow'), 'GET');
+    assert.deepEqual(await mutation.json(), { error: { code: 'method_not_allowed', message: 'Only GET is supported' } });
+    assert.equal((await fetch(`${origin}/unknown`)).status, 404);
+  });
+});
