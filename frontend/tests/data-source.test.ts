@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
 
 const ids = {
@@ -162,4 +162,21 @@ test('B9 save and lock send closed exact revisions and success/conflict reload a
 test('real B9 source has explicit save/lock, dirty navigation warning, no autosave and demo isolation', async () => {
   const [app, editor] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/B9Editor.tsx', import.meta.url), 'utf8'))]);
   assert.match(editor, /Lưu bản nháp/); assert.match(editor, /product\.name/); assert.match(editor, /Lưu gần nhất/); assert.match(editor, /Khóa STP chính thức/); assert.match(editor, /beforeunload/); assert.match(app, /window\.confirm/); assert.doesNotMatch(editor, /setInterval|autosave/i); assert.match(app, /mode === 'real'.*<B9Editor/); assert.match(editor, /Xem B10/);
+});
+
+test('B10 OWNER request is closed and exact, and success/conflict reload authoritative reads', async () => {
+  const revision = { productWorkspaceId: ids.p1, lockedStpId: ids.d1, previousDecisionId: null, decision: 'APPROVE' as const, token: 'x'.repeat(31) + '1' }; let observed: RequestInit | undefined;
+  await submitOwnerB10Decision(revision, (async (_url, init) => { observed = init; return json({ contractVersion: '1.0.0', decisionId: ids.d2, decisionNumber: 1, previousDecisionId: null, decision: 'APPROVE', decidedAt: at, readyForB11: true, exactRetry: false }, 201); }) as typeof fetch);
+  assert.deepEqual(JSON.parse(String(observed?.body)), { contractVersion: '1.0.0', lockedStpId: ids.d1, previousDecisionId: null, decision: 'APPROVE' });
+  let reloads = 0; assert.equal(await submitOwnerB10AndReload(revision, async () => { reloads++; }, (async () => json({ contractVersion: '1.0.0', decisionId: ids.d2, decisionNumber: 1, previousDecisionId: null, decision: 'APPROVE', decidedAt: at, readyForB11: true, exactRetry: false }, 201)) as typeof fetch), 'success');
+  assert.equal(await submitOwnerB10AndReload(revision, async () => { reloads++; }, (async () => json({ error: { code: 'conflict', message: 'changed' } }, 409)) as typeof fetch), 'conflict'); assert.equal(reloads, 2);
+});
+
+test('B10 controls require unlock and verified lock, prevent pending and repeated effective state', () => {
+  assert.equal(ownerB10Disabled({ unlocked: false, pending: false, lockedStpId: ids.d1, effective: null, decision: 'APPROVE' }), true); assert.equal(ownerB10Disabled({ unlocked: true, pending: false, lockedStpId: null, effective: null, decision: 'APPROVE' }), true); assert.equal(ownerB10Disabled({ unlocked: true, pending: true, lockedStpId: ids.d1, effective: null, decision: 'APPROVE' }), true); assert.equal(ownerB10Disabled({ unlocked: true, pending: false, lockedStpId: ids.d1, effective: 'APPROVE', decision: 'APPROVE' }), true); assert.equal(ownerB10Disabled({ unlocked: true, pending: false, lockedStpId: ids.d1, effective: 'HOLD', decision: 'APPROVE' }), false);
+});
+
+test('real B10 panel has first/correction confirmations, funding clarification, no forbidden fields, and demo isolation', async () => {
+  const [app, panel] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/B10DecisionPanel.tsx', import.meta.url), 'utf8'))]);
+  assert.match(panel, /Approve category \+ authorize funding/); assert.match(panel, /predecessor null/); assert.match(panel, /correction sẽ nối thêm/); assert.match(panel, /không phân bổ, chuyển hoặc chi tiền/); assert.doesNotMatch(panel, /<input|<textarea/i); assert.match(app, /mode === 'real'.*<B10DecisionPanel/);
 });
