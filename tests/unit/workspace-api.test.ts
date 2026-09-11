@@ -4,6 +4,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import type { IncomingMessage, ServerResponse } from 'node:http';
+import fs from 'node:fs';
 
 // Exercise transport behavior without a database; composition/integrity is covered by integration.
 async function withHandler(handler: (request: IncomingMessage, response: ServerResponse) => void, run: (origin: string) => Promise<void>) {
@@ -30,4 +31,14 @@ test('workspace API source uses built-in HTTP and exposes only deterministic GET
     assert.deepEqual(await mutation.json(), { error: { code: 'method_not_allowed', message: 'Only GET is supported' } });
     assert.equal((await fetch(`${origin}/unknown`)).status, 404);
   });
+});
+
+test('workspace API contract retains existing responses and adds closed B9/B10 read responses', () => {
+  const schema = JSON.parse(fs.readFileSync('contracts/api/workspace-api.schema.json', 'utf8')) as any;
+  const refs = schema.oneOf.map((entry: any) => entry.$ref);
+  assert.deepEqual(refs, ['#/$defs/portfolio', '#/$defs/discoveryDetail', '#/$defs/productDetail', '#/$defs/productB9', '#/$defs/productB10', '#/$defs/error']);
+  assert.equal(schema.$defs.productB9.additionalProperties, false);
+  assert.deepEqual(schema.$defs.productB9.properties.state.enum, ['NOT_STARTED', 'WORKING', 'LOCKED']);
+  assert.equal(schema.$defs.productB10.additionalProperties, false);
+  assert.deepEqual(schema.$defs.productB10.required, ['contractVersion', 'productWorkspaceId', 'history', 'effective', 'readyForB11']);
 });

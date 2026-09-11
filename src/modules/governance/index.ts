@@ -62,11 +62,13 @@ export {
   ProductB10DecisionService,
   type ProductB10DecisionExecution,
   type ProductB10Status,
+  type ProductB10History,
   type TrustedProductB10DecisionActorContext,
 } from './product-b10-decision-service.js';
 export {
   GovernanceProductB10Reader,
   type ProductB10DecisionByIdReader,
   type ProductB10EffectiveStatusReader,
+  type ProductB10HistoryReader,
 } from './product-b10-decision-reader.js';
 export { validateProductB10Decision, validateProductB10DecisionRequest, validateSourceLockedStp } from './validation.js';

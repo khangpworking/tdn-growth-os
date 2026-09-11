@@ -54,6 +54,10 @@ export interface StpLockExecution {
   readonly deduplicated: boolean;
   readonly databaseMutations: number;
 }
+export type ProductB9ReadStatus =
+  | { readonly productWorkspaceId: string; readonly state: 'NOT_STARTED' }
+  | { readonly productWorkspaceId: string; readonly state: 'WORKING'; readonly working: StpWorkingRecord }
+  | { readonly productWorkspaceId: string; readonly state: 'LOCKED'; readonly working: StpWorkingRecord; readonly locked: LockedStpArtifact };
 
 type WorkingRow = {
   workingStpId: string; productWorkspaceId: string; productWorkspaceArtifactSha256: string;
@@ -164,6 +168,22 @@ export class StpService {
     if (!row) throw new FlowValidationError(`STP working record not found: ${productWorkspaceId}`);
     const sources = await this.#verifiedSources(productWorkspaceId, row.b8ClearanceId);
     return this.#readVerifiedWorkingRow(row, sources);
+  }
+
+  async readStatusByProductWorkspace(productWorkspaceId: string): Promise<ProductB9ReadStatus> {
+    assertUuid(productWorkspaceId);
+    const workingRow = this.#workingByWorkspace(productWorkspaceId);
+    const lockRow = this.#lockByWorkspace(productWorkspaceId);
+    if (!workingRow) {
+      if (lockRow) throw new StpIdentityConflictError('Locked STP has no working record');
+      return { productWorkspaceId, state: 'NOT_STARTED' };
+    }
+    const sources = await this.#verifiedSources(productWorkspaceId, workingRow.b8ClearanceId);
+    const working = await this.#readVerifiedWorkingRow(workingRow, sources);
+    if (!lockRow) return { productWorkspaceId, state: 'WORKING', working };
+    const locked = await this.replayLocked(lockRow.lockId);
+    if (locked.productWorkspace.artifact.productWorkspaceId !== productWorkspaceId || locked.workingStp.workingStpId !== working.workingStpId || locked.workingStp.workingDigest !== working.workingDigest) throw new StpIdentityConflictError('B9 status identity mismatch');
+    return { productWorkspaceId, state: 'LOCKED', working, locked };
   }
 
   async lock(untrustedInput: unknown, actorContext: TrustedStpLockActorContext): Promise<StpLockExecution> {

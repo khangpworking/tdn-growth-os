@@ -28,6 +28,11 @@ export interface ProductB10DecisionExecution {
 export type ProductB10Status =
   | { readonly lockedStpId?: string; readonly productWorkspaceId: string; readonly decisionExists: false; readonly readyForB11: false }
   | { readonly lockedStpId: string; readonly productWorkspaceId: string; readonly decisionExists: true; readonly effectiveDecisionId: string; readonly effectiveDecisionNumber: number; readonly effectiveDecision: ProductB10Decision['decision']; readonly readyForB11: boolean };
+export interface ProductB10History {
+  readonly productWorkspaceId: string;
+  readonly decisions: readonly ProductB10Decision[];
+  readonly status: ProductB10Status;
+}
 
 type Row = {
   decisionId: string; lockedStpId: string; lockedStpArtifactSha256: string; productWorkspaceId: string;
@@ -153,6 +158,20 @@ export class ProductB10DecisionService {
     const decision = await this.replay(row.decisionId);
     if (decision.productWorkspaceId !== productWorkspaceId) throw new ProductB10DecisionIdentityConflictError('B10 workspace status identity mismatch');
     return status(decision);
+  }
+
+  async readHistoryByProductWorkspace(productWorkspaceId: string): Promise<ProductB10History> {
+    assertUuid(productWorkspaceId);
+    const rows = this.#db.prepare(`SELECT decision_id decisionId FROM governance_product_b10_decisions WHERE product_workspace_id=? ORDER BY decision_number, decision_id`).all(productWorkspaceId) as { decisionId: string }[];
+    const decisions: ProductB10Decision[] = [];
+    for (const row of rows) {
+      const decision = await this.replay(row.decisionId);
+      if (decision.productWorkspaceId !== productWorkspaceId) throw new ProductB10DecisionIdentityConflictError('B10 history workspace identity mismatch');
+      decisions.push(decision);
+    }
+    const effective = decisions.at(-1);
+    const readStatus: ProductB10Status = effective ? status(effective) : { productWorkspaceId, decisionExists: false, readyForB11: false };
+    return { productWorkspaceId, decisions, status: readStatus };
   }
 
   #assertPredecessor(input: ProductB10DecisionRequest, current: Row | undefined): void {

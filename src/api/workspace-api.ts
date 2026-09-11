@@ -5,6 +5,8 @@ import type {
   B8ClearanceSummary,
   DiscoveryWorkspaceDetailResponse,
   ProductWorkspaceDetailResponse,
+  ProductB9Response,
+  ProductB10Response,
   WorkspaceApiErrorResponse,
   WorkspaceCandidateSummary,
   WorkspacePortfolioItem,
@@ -33,6 +35,10 @@ import {
 import { GovernanceProductB8Reader } from '../modules/governance/product-b8-status-reader.js';
 import { B8ClearanceService } from '../modules/flow/b8-clearance-service.js';
 import { FlowB8ClearanceReader } from '../modules/flow/b8-clearance-reader.js';
+import { StpService } from '../modules/flow/stp-service.js';
+import { FlowLockedStpReader } from '../modules/flow/locked-stp-reader.js';
+import { ProductB10DecisionService } from '../modules/governance/product-b10-decision-service.js';
+import { GovernanceProductB10Reader } from '../modules/governance/product-b10-decision-reader.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -53,6 +59,9 @@ type DiscoveryCatalogRow = { workspaceId: string };
 type CandidateCatalogRow = { candidateId: string; version: bigint };
 type ProductCatalogRow = { productWorkspaceId: string };
 type ClearanceCatalogRow = { clearanceId: string };
+type WorkingCatalogRow = { workingStpId: string };
+type LockCatalogRow = { lockId: string };
+type B10CatalogRow = { decisionId: string };
 
 export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): WorkspaceApiApplication {
   if (!configuration.databasePath || !configuration.artifactRoot) throw new TypeError('Explicit databasePath and artifactRoot are required');
@@ -84,6 +93,9 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
     const b8Reader = new GovernanceProductB8Reader(b8);
     const clearances = new B8ClearanceService({ db, artifactStore: artifacts, decisionReader: b8Reader, statusReader: b8Reader });
     const clearanceReader = new FlowB8ClearanceReader(clearances);
+    const stps = new StpService({ db, artifactStore: artifacts, productWorkspaceReader: productReader, b8ClearanceReader: clearanceReader });
+    const stpReader = new FlowLockedStpReader(stps);
+    const b10Reader = new GovernanceProductB10Reader(new ProductB10DecisionService({ db, artifactStore: artifacts, lockedStpReader: stpReader }));
 
     const portfolioRows = db.prepare(`
       SELECT w.workspace_id workspaceId
@@ -101,6 +113,9 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
     const productRows = db.prepare(`SELECT product_workspace_id productWorkspaceId FROM flow_product_workspaces WHERE source_workspace_id=? ORDER BY created_at, product_workspace_id`);
     const productExists = db.prepare(`SELECT product_workspace_id productWorkspaceId FROM flow_product_workspaces WHERE product_workspace_id=?`);
     const clearanceRow = db.prepare(`SELECT clearance_id clearanceId FROM flow_b8_clearances WHERE product_workspace_id=?`);
+    const workingRow = db.prepare(`SELECT working_stp_id workingStpId FROM flow_stp_working_records WHERE product_workspace_id=?`);
+    const lockRow = db.prepare(`SELECT lock_id lockId FROM flow_locked_stps WHERE product_workspace_id=?`);
+    const b10Rows = db.prepare(`SELECT decision_id decisionId FROM governance_product_b10_decisions WHERE product_workspace_id=? ORDER BY decision_number, decision_id`);
 
     const verifiedWorkspace = async (row: DiscoveryCatalogRow): Promise<{
       workspace: WorkspacePortfolioItem;
@@ -175,8 +190,36 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       };
     };
 
+    const productB9 = async (id: string): Promise<ProductB9Response | undefined> => {
+      if (!productExists.get(id)) return undefined;
+      await productReader.readVerifiedProductWorkspace(id);
+      const catalogWorking = workingRow.get(id) as WorkingCatalogRow | undefined;
+      const catalogLock = lockRow.get(id) as LockCatalogRow | undefined;
+      if (!catalogWorking) {
+        if (catalogLock) throw new Error('B9 lock catalog has no working record');
+        return { contractVersion: '1.0.0', productWorkspaceId: id, state: 'NOT_STARTED' };
+      }
+      const status = await stpReader.readStatusByProductWorkspace(id);
+      if (status.state === 'NOT_STARTED' || status.working.workingStpId !== catalogWorking.workingStpId) throw new Error('B9 catalog identity mismatch');
+      const working = { workingStpId: status.working.workingStpId, workingDigest: status.working.workingDigest, b8ClearanceId: status.working.b8ClearanceId, content: status.working.content, createdAt: status.working.createdAt, updatedAt: status.working.updatedAt };
+      if (status.state === 'WORKING') {
+        if (catalogLock) throw new Error('B9 lock catalog mismatch');
+        return { contractVersion: '1.0.0', productWorkspaceId: id, state: 'WORKING', working };
+      }
+      if (!catalogLock || status.locked.lockId !== catalogLock.lockId) throw new Error('B9 lock catalog identity mismatch');
+      return { contractVersion: '1.0.0', productWorkspaceId: id, state: 'LOCKED', working, locked: { lockId: status.locked.lockId, state: status.locked.state, lockedAt: status.locked.lockedAt } };
+    };
+    const productB10 = async (id: string): Promise<ProductB10Response | undefined> => {
+      if (!productExists.get(id)) return undefined;
+      await productReader.readVerifiedProductWorkspace(id);
+      const catalog = b10Rows.all(id) as B10CatalogRow[];
+      const verified = await b10Reader.readHistoryByProductWorkspace(id);
+      if (catalog.length !== verified.decisions.length || catalog.some((row, index) => row.decisionId !== verified.decisions[index]?.decisionId)) throw new Error('B10 catalog identity mismatch');
+      const history = verified.decisions.map((decision) => ({ decisionId: decision.decisionId, decisionNumber: decision.decisionNumber, previousDecisionId: decision.previousDecisionId, decision: decision.decision, decidedAt: decision.decidedAt, lockedStpId: decision.lockedStp.lockId }));
+      return { contractVersion: '1.0.0', productWorkspaceId: id, history, effective: history.at(-1) ?? null, readyForB11: verified.status.readyForB11 };
+    };
     const handler = (request: IncomingMessage, response: ServerResponse): void => {
-      void route(request, response, { portfolio, discoveryDetail, productDetail });
+      void route(request, response, { portfolio, discoveryDetail, productDetail, productB9, productB10 });
     };
     return {
       handler,
@@ -202,6 +245,8 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
   portfolio(): Promise<WorkspacePortfolioResponse>;
   discoveryDetail(id: string): Promise<DiscoveryWorkspaceDetailResponse | undefined>;
   productDetail(id: string): Promise<ProductWorkspaceDetailResponse | undefined>;
+  productB9(id: string): Promise<ProductB9Response | undefined>;
+  productB10(id: string): Promise<ProductB10Response | undefined>;
 }): Promise<void> {
   try {
     if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return sendError(response, 405, 'method_not_allowed', 'Only GET is supported'); }
@@ -217,6 +262,11 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Workspace ID must be a UUID');
       const result = await methods.discoveryDetail(parts[2]!);
       return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Workspace not found');
+    }
+    if (parts.length === 4 && parts[0] === 'api' && parts[1] === 'product-workspaces' && (parts[3] === 'b9' || parts[3] === 'b10')) {
+      if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Product workspace ID must be a UUID');
+      const result = parts[3] === 'b9' ? await methods.productB9(parts[2]!) : await methods.productB10(parts[2]!);
+      return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Product workspace not found');
     }
     if (parts.length === 3 && parts[0] === 'api' && parts[1] === 'product-workspaces') {
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Product workspace ID must be a UUID');
@@ -237,7 +287,7 @@ function safeVersion(value: bigint): number { const result = Number(value); if (
 function sendJson(response: ServerResponse, status: number, body: unknown): void { const bytes = Buffer.from(JSON.stringify(body)); response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': bytes.byteLength, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' }); response.end(bytes); }
 function sendError(response: ServerResponse, status: number, code: WorkspaceApiErrorResponse['error']['code'], message: string): void { sendJson(response, status, { error: { code, message } } satisfies WorkspaceApiErrorResponse); }
 function assertOwnerTables(db: BetterSqlite3.Database): void {
-  const required = ['artifact_manifests', 'flow_discovery_workspaces', 'flow_product_candidates', 'flow_product_candidate_revisions', 'flow_candidate_baskets', 'flow_candidate_basket_members', 'governance_candidate_b7_decisions', 'flow_product_workspaces', 'governance_product_b8_lane_decisions', 'flow_b8_clearances', 'flow_b8_clearance_decisions'];
+  const required = ['artifact_manifests', 'flow_discovery_workspaces', 'flow_product_candidates', 'flow_product_candidate_revisions', 'flow_candidate_baskets', 'flow_candidate_basket_members', 'governance_candidate_b7_decisions', 'flow_product_workspaces', 'governance_product_b8_lane_decisions', 'flow_b8_clearances', 'flow_b8_clearance_decisions', 'flow_stp_working_records', 'flow_locked_stps', 'governance_product_b10_decisions'];
   const rows = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as { name: string }[];
   const names = new Set(rows.map((row) => row.name));
   if (required.some((name) => !names.has(name))) throw new Error('Database is missing required owner tables');
