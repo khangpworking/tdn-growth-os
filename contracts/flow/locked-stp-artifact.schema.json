@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/locked-stp-artifact.schema.json",
+  "title": "LockedStpArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "lockId", "state", "lockedAt", "requestSha256", "workingStp", "productWorkspace", "b8Clearance", "actor", "requiredCapability", "policy"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "lockId": { "type": "string", "format": "uuid" },
+    "state": { "const": "LOCKED_STP" },
+    "lockedAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "workingStp": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workingStpId", "workingDigest", "content"],
+      "properties": {
+        "workingStpId": { "type": "string", "format": "uuid" },
+        "workingDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "content": { "$ref": "stp-content.schema.json" }
+      }
+    },
+    "productWorkspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productWorkspaceArtifactSha256", "artifact"],
+      "properties": {
+        "productWorkspaceArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "artifact": { "$ref": "product-workspace-artifact.schema.json" }
+      }
+    },
+    "b8Clearance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clearanceId", "clearanceArtifactSha256", "state"],
+      "properties": {
+        "clearanceId": { "type": "string", "format": "uuid" },
+        "clearanceArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "state": { "const": "READY_FOR_B9" }
+      }
+    },
+    "actor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["actorId", "roleSnapshot"],
+      "properties": {
+        "actorId": { "type": "string", "pattern": "^[a-z][a-z0-9:_-]{2,119}$" },
+        "roleSnapshot": { "const": "OWNER" }
+      }
+    },
+    "requiredCapability": { "const": "governance:product-b9-lock" },
+    "policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["policyId", "policyVersion"],
+      "properties": {
+        "policyId": { "const": "governance:product-b9-lock-v1" },
+        "policyVersion": { "const": 1 }
+      }
+    }
+  }
+}

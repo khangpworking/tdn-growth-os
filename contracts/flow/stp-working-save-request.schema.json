@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/stp-working-save-request.schema.json",
+  "title": "StpWorkingSaveRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "productWorkspaceId", "b8ClearanceId", "expectedWorkingDigest", "segments", "primaryTargetSegmentKey", "positioningStatement"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "productWorkspaceId": { "type": "string", "format": "uuid" },
+    "b8ClearanceId": { "type": "string", "format": "uuid" },
+    "expectedWorkingDigest": {
+      "oneOf": [
+        { "type": "null" },
+        { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+      ]
+    },
+    "segments": { "$ref": "stp-content.schema.json#/properties/segments" },
+    "primaryTargetSegmentKey": { "$ref": "stp-content.schema.json#/properties/primaryTargetSegmentKey" },
+    "secondaryTargetSegmentKeys": { "$ref": "stp-content.schema.json#/properties/secondaryTargetSegmentKeys" },
+    "positioningStatement": { "$ref": "stp-content.schema.json#/properties/positioningStatement" }
+  }
+}

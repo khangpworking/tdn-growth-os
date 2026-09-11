@@ -111,3 +111,7 @@ Box 5 supports append-only, immutable, button-only `PASS` / `HOLD` / `REJECT` hi
 ## Task 030 — exact four-PASS B8 clearance
 
 Box 4 can freeze one immutable `READY_FOR_B9` clearance for a product workspace from four explicitly supplied, exact, verified and currently effective B8 PASS decision IDs in deterministic LEGAL, SCIENTIFIC, QUALITY, FINANCE order. Creation reads Box 5 only through `ProductB8DecisionByIdReader` and `ProductB8StatusReader`; exact historical replay re-verifies the frozen decision artifacts without requiring them to remain current. The clearance is readiness evidence only: no product-workspace mutation, B9 implementation, task/action, AI, provider call, API, UI, or external authority is added.
+
+## Task 031 — single STP working record and B9 lock
+
+Each product workspace may have one mutable pre-lock STP working record and exactly one immutable official `LOCKED_STP`. Explicit segment order is preserved; primary and optional secondary targets must resolve to supplied unique segment keys. Saving identical canonical content deduplicates, changed pre-lock content updates the same row under a digest guard, and all writes fail after lock. OWNER-only locking verifies the exact product workspace and Task 030 `READY_FOR_B9` clearance through declared read-only interfaces and freezes their lineage with the exact current STP content. No B10, category approval, funding, scoring, ranking, AI/Pi, external action, reopening, repositioning, rollback, or multiple STP versions are introduced.

@@ -34,6 +34,14 @@ import b8ClearanceRequestSchema from '../../../contracts/flow/b8-clearance-creat
 import type { B8ClearanceCreateRequest } from '../../../contracts/flow/b8-clearance-create-request.generated.js';
 import b8ClearanceArtifactSchema from '../../../contracts/flow/b8-clearance-artifact.schema.json' with { type: 'json' };
 import type { B8ClearanceArtifact } from '../../../contracts/flow/b8-clearance-artifact.generated.js';
+import stpContentSchema from '../../../contracts/flow/stp-content.schema.json' with { type: 'json' };
+import type { StpContent } from '../../../contracts/flow/stp-content.generated.js';
+import stpWorkingSaveRequestSchema from '../../../contracts/flow/stp-working-save-request.schema.json' with { type: 'json' };
+import type { StpWorkingSaveRequest } from '../../../contracts/flow/stp-working-save-request.generated.js';
+import stpLockRequestSchema from '../../../contracts/flow/stp-lock-request.schema.json' with { type: 'json' };
+import type { StpLockRequest } from '../../../contracts/flow/stp-lock-request.generated.js';
+import lockedStpArtifactSchema from '../../../contracts/flow/locked-stp-artifact.schema.json' with { type: 'json' };
+import type { LockedStpArtifact } from '../../../contracts/flow/locked-stp-artifact.generated.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -47,6 +55,8 @@ ajv.addSchema(productWorkspaceRequestSchema);
 ajv.addSchema(productB8DecisionRequestSchema);
 ajv.addSchema(productWorkspaceArtifactSchema);
 ajv.addSchema(productB8DecisionSchema);
+ajv.addSchema(stpContentSchema);
+ajv.addSchema(stpWorkingSaveRequestSchema);
 const validateRequest = ajv.getSchema<ApprovedProposalIntakeRequest>(requestSchema.$id)!;
 const validatePlan = ajv.compile<AuthorizedPlan>(planSchema);
 const validateDecision = ajv.compile<GovernedProposalDecision>(decisionSchema);
@@ -63,6 +73,10 @@ const validateCandidateB7Source = ajv.compile<CandidateB7Decision>(candidateB7De
 const validateB8ClearanceRequest = ajv.compile<B8ClearanceCreateRequest>(b8ClearanceRequestSchema);
 const validateB8ClearanceEnvelope = ajv.compile<B8ClearanceArtifact>(b8ClearanceArtifactSchema);
 const validateProductB8Source = ajv.getSchema<ProductB8LaneDecision>(productB8DecisionSchema.$id)!;
+const validateStpContentEnvelope = ajv.getSchema<StpContent>(stpContentSchema.$id)!;
+const validateStpWorkingSave = ajv.getSchema<StpWorkingSaveRequest>(stpWorkingSaveRequestSchema.$id)!;
+const validateStpLock = ajv.compile<StpLockRequest>(stpLockRequestSchema);
+const validateLockedStp = ajv.compile<LockedStpArtifact>(lockedStpArtifactSchema);
 
 export class FlowValidationError extends Error {
   readonly details: string;
@@ -151,4 +165,42 @@ export function validateB8ClearanceArtifact(value: unknown): B8ClearanceArtifact
 export function validateSourceProductB8Decision(value: unknown): ProductB8LaneDecision {
   if (!validateProductB8Source(value)) throw new FlowValidationError(`Malformed verified B8 decision reader result: ${ajv.errorsText(validateProductB8Source.errors, { separator: '; ' })}`);
   return value as ProductB8LaneDecision;
+}
+
+export function validateStpContent(value: unknown): StpContent {
+  if (!validateStpContentEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateStpContentEnvelope.errors, { separator: '; ' }));
+  const content = value as StpContent;
+  const segmentKeys = content.segments.map((segment) => segment.key);
+  if (new Set(segmentKeys).size !== segmentKeys.length) throw new FlowValidationError('STP segment keys must be unique');
+  if (!segmentKeys.includes(content.primaryTargetSegmentKey)) throw new FlowValidationError('Primary target segment key must resolve to a supplied segment');
+  const secondary = content.secondaryTargetSegmentKeys ?? [];
+  if (secondary.includes(content.primaryTargetSegmentKey)) throw new FlowValidationError('Primary and secondary target segment keys must not overlap');
+  if (secondary.some((key) => !segmentKeys.includes(key))) throw new FlowValidationError('Secondary target segment keys must resolve to supplied segments');
+  return content;
+}
+
+export function validateStpWorkingSaveRequest(value: unknown): StpWorkingSaveRequest {
+  if (!validateStpWorkingSave(value)) throw new FlowValidationError(ajv.errorsText(validateStpWorkingSave.errors, { separator: '; ' }));
+  validateStpContent(stpContentFromSave(value as StpWorkingSaveRequest));
+  return value as StpWorkingSaveRequest;
+}
+
+export function validateStpLockRequest(value: unknown): StpLockRequest {
+  if (!validateStpLock(value)) throw new FlowValidationError(ajv.errorsText(validateStpLock.errors, { separator: '; ' }));
+  return value as StpLockRequest;
+}
+
+export function validateLockedStpArtifact(value: unknown): LockedStpArtifact {
+  if (!validateLockedStp(value)) throw new FlowValidationError(ajv.errorsText(validateLockedStp.errors, { separator: '; ' }));
+  validateStpContent((value as LockedStpArtifact).workingStp.content);
+  return value as LockedStpArtifact;
+}
+
+function stpContentFromSave(value: StpWorkingSaveRequest): StpContent {
+  return {
+    segments: value.segments,
+    primaryTargetSegmentKey: value.primaryTargetSegmentKey,
+    ...(value.secondaryTargetSegmentKeys === undefined ? {} : { secondaryTargetSegmentKeys: value.secondaryTargetSegmentKeys }),
+    positioningStatement: value.positioningStatement,
+  };
 }

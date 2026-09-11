@@ -52,6 +52,10 @@ const contracts = [
   ['flow', 'product-workspace-artifact'],
   ['flow', 'b8-clearance-create-request'],
   ['flow', 'b8-clearance-artifact'],
+  ['flow', 'stp-content'],
+  ['flow', 'stp-working-save-request'],
+  ['flow', 'stp-lock-request'],
+  ['flow', 'locked-stp-artifact'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);

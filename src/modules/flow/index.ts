@@ -83,3 +83,24 @@ export {
   validateB8ClearanceCreateRequest,
   validateSourceProductB8Decision,
 } from './validation.js';
+
+export {
+  PRODUCT_B9_LOCK_CAPABILITY,
+  PRODUCT_B9_LOCK_POLICY_ID,
+  StpIdentityConflictError,
+  StpService,
+  type StpLockExecution,
+  type StpWorkingExecution,
+  type StpWorkingRecord,
+  type TrustedStpLockActorContext,
+} from './stp-service.js';
+export {
+  FlowLockedStpReader,
+  type LockedStpReader,
+} from './locked-stp-reader.js';
+export {
+  validateLockedStpArtifact,
+  validateStpContent,
+  validateStpLockRequest,
+  validateStpWorkingSaveRequest,
+} from './validation.js';
