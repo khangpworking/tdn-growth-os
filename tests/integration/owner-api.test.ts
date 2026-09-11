@@ -51,6 +51,7 @@ const endpoint = (base: string) => `${base}/owner-api/product-workspaces/${produ
 const clearanceEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b8-clearance`;
 const workingEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b9/working`;
 const lockEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b9/lock`;
+const b10Endpoint = (base: string, productWorkspaceId = product) => `${base}/owner-api/product-workspaces/${productWorkspaceId}/b10-decisions`;
 const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json', origin: allowedOrigin };
 const body = (lane = 'LEGAL', expectedVersion = 0, decision = 'PASS') => JSON.stringify({ contractVersion: '1.0.0', lane, expectedVersion, decision });
 async function fourPasses(base: string): Promise<Record<'LEGAL' | 'SCIENTIFIC' | 'QUALITY' | 'FINANCE', string>> {
@@ -72,6 +73,14 @@ async function clearanceFixture(base: string): Promise<string> {
   const response = await fetch(clearanceEndpoint(base), { method: 'POST', headers, body: clearanceBody(await fourPasses(base)) });
   assert.equal(response.status, 201); return ((await response.json()) as { clearanceId: string }).clearanceId;
 }
+async function lockedFixture(base: string): Promise<string> {
+  const clearanceId = await clearanceFixture(base);
+  const working = await fetch(workingEndpoint(base), { method: 'POST', headers, body: workingBody(clearanceId, null) });
+  assert.equal(working.status, 201); const revision = ((await working.json()) as { workingRevision: string }).workingRevision;
+  const locked = await fetch(lockEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', expectedWorkingRevision: revision }) });
+  assert.equal(locked.status, 201); return ((await locked.json()) as { lockId: string }).lockId;
+}
+const b10Body = (lockedStpId: string, previousDecisionId: string | null, decision: 'APPROVE' | 'HOLD' | 'REJECT') => JSON.stringify({ contractVersion: '1.0.0', lockedStpId, previousDecisionId, decision });
 function tableCounts(databasePath: string) {
   const db = new BetterSqlite3(databasePath);
   const result = db.prepare(`SELECT
@@ -353,4 +362,55 @@ test('generated B9 owner contract is closed, bounded and registered', () => {
   assert.equal(schema.$defs.workingRequest.properties.segments.maxItems, 100);
   assert.equal(schema.$defs.workingRevision.pattern, '^wr1_[A-Za-z0-9_-]{43}$');
   assert.match(fs.readFileSync('scripts/generate-foundation-contract.mjs', 'utf8'), /\['api', 'owner-b9-stp-api'\]/);
+});
+
+
+test('B10 OWNER API creates and corrects the combined decision with the exact closed receipt and zero-mutation retries', async () => {
+  const state = await fixture(); await serve(state, async (base) => {
+    const lockId = await lockedFixture(base);
+    const created = await fetch(b10Endpoint(base), { method: 'POST', headers, body: b10Body(lockId, null, 'HOLD') });
+    assert.equal(created.status, 201); const first = await created.json() as any;
+    assert.deepEqual(Object.keys(first).sort(), ['contractVersion','decisionId','decisionNumber','previousDecisionId','decision','decidedAt','readyForB11','exactRetry'].sort());
+    assert.deepEqual({ ...first, decisionId: '<uuid>' }, { contractVersion: '1.0.0', decisionId: '<uuid>', decisionNumber: 1, previousDecisionId: null, decision: 'HOLD', decidedAt: '2027-01-01T00:00:00.000Z', readyForB11: false, exactRetry: false });
+    assert.equal(Object.hasOwn(first, 'lockedStpId'), false);
+    const beforeRetry = tableCounts(state.databasePath);
+    const retry = await fetch(b10Endpoint(base), { method: 'POST', headers, body: b10Body(lockId, null, 'HOLD') });
+    assert.equal(retry.status, 200); assert.deepEqual(await retry.json(), { ...first, exactRetry: true }); assert.deepEqual(tableCounts(state.databasePath), beforeRetry);
+    const corrected = await fetch(b10Endpoint(base), { method: 'POST', headers, body: b10Body(lockId, first.decisionId, 'APPROVE') });
+    assert.equal(corrected.status, 201); const second = await corrected.json() as any;
+    assert.deepEqual({ decisionNumber: second.decisionNumber, previousDecisionId: second.previousDecisionId, decision: second.decision, readyForB11: second.readyForB11, exactRetry: second.exactRetry }, { decisionNumber: 2, previousDecisionId: first.decisionId, decision: 'APPROVE', readyForB11: true, exactRetry: false });
+    assert.equal((await fetch(b10Endpoint(base), { method: 'POST', headers, body: b10Body(lockId, first.decisionId, 'REJECT') })).status, 409, 'stale predecessor fails closed');
+    assert.equal((await fetch(b10Endpoint(base), { method: 'POST', headers, body: b10Body(lockId, second.decisionId, 'APPROVE') })).status, 409, 'correction must change state');
+    const db = new BetterSqlite3(state.databasePath); const rows = db.prepare('SELECT actor_id actor,role_snapshot role,required_capability capability,decision_number number,decision FROM governance_product_b10_decisions ORDER BY decision_number').all(); db.close();
+    assert.deepEqual(rows, [
+      { actor: 'owner:local', role: 'OWNER', capability: 'governance:product-b10-review', number: 1, decision: 'HOLD' },
+      { actor: 'owner:local', role: 'OWNER', capability: 'governance:product-b10-review', number: 2, decision: 'APPROVE' },
+    ]);
+  });
+});
+
+test('B10 OWNER API rejects malformed, unknown and cross-workspace lock inputs without B10 mutation', async () => {
+  const state = await fixture(); await serve(state, async (base) => {
+    const lockId = await lockedFixture(base); const before = tableCounts(state.databasePath);
+    const invalid = [
+      '{}', '{',
+      JSON.stringify({ contractVersion: '1.0.0', lockedStpId: lockId, previousDecisionId: null, decision: 'APPROVE', actorId: 'attacker' }),
+      b10Body('not-a-uuid', null, 'APPROVE'),
+      JSON.stringify({ contractVersion: '1.0.0', lockedStpId: lockId, previousDecisionId: null, decision: 'PASS' }),
+    ];
+    for (const payload of invalid) assert.equal((await fetch(b10Endpoint(base), { method: 'POST', headers, body: payload })).status, 400);
+    assert.equal((await fetch(b10Endpoint(base), { method: 'POST', headers, body: b10Body('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', null, 'APPROVE') })).status, 404);
+    assert.equal((await fetch(b10Endpoint(base, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'), { method: 'POST', headers, body: b10Body(lockId, null, 'APPROVE') })).status, 404);
+    assert.deepEqual(tableCounts(state.databasePath), before);
+  });
+});
+
+test('generated B10 owner contract is closed, exact and registered', () => {
+  const schema = JSON.parse(fs.readFileSync('contracts/api/owner-b10-decision-api.schema.json', 'utf8')) as any;
+  assert.deepEqual(schema.oneOf.map((entry: any) => entry.$ref), ['#/$defs/request', '#/$defs/receipt']);
+  assert.equal(schema.$defs.request.additionalProperties, false); assert.equal(schema.$defs.receipt.additionalProperties, false);
+  assert.deepEqual(schema.$defs.request.required, ['contractVersion', 'lockedStpId', 'previousDecisionId', 'decision']);
+  assert.deepEqual(schema.$defs.receipt.required, ['contractVersion', 'decisionId', 'decisionNumber', 'previousDecisionId', 'decision', 'decidedAt', 'readyForB11', 'exactRetry']);
+  assert.equal(schema.$defs.receipt.properties.lockedStpId, undefined);
+  assert.match(fs.readFileSync('scripts/generate-foundation-contract.mjs', 'utf8'), /\['api', 'owner-b10-decision-api'\]/);
 });

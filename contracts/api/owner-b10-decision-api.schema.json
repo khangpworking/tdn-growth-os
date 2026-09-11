@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-b10-decision-api.schema.json",
+  "title": "OwnerB10DecisionApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/receipt" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "request": {
+      "title": "OwnerB10DecisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "lockedStpId", "previousDecisionId", "decision"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "lockedStpId": { "$ref": "#/$defs/uuid" },
+        "previousDecisionId": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }] },
+        "decision": { "enum": ["APPROVE", "HOLD", "REJECT"] }
+      }
+    },
+    "receipt": {
+      "title": "OwnerB10DecisionReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "decisionId", "decisionNumber", "previousDecisionId", "decision", "decidedAt", "readyForB11", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "decisionId": { "$ref": "#/$defs/uuid" },
+        "decisionNumber": { "type": "integer", "minimum": 1 },
+        "previousDecisionId": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/uuid" }] },
+        "decision": { "enum": ["APPROVE", "HOLD", "REJECT"] },
+        "decidedAt": { "type": "string", "format": "date-time" },
+        "readyForB11": { "type": "boolean" },
+        "exactRetry": { "type": "boolean" }
+      }
+    }
+  }
+}
