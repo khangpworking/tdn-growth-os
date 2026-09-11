@@ -18,6 +18,42 @@ export interface ClearanceSnapshot {
   readonly decisionIds: Readonly<Record<LaneKey, string>>;
 }
 
+export interface StpSegment {
+  readonly key: string;
+  readonly label: string;
+  readonly description?: string;
+}
+
+export interface B9WorkingStp {
+  readonly id: string;
+  readonly clearanceId: string;
+  readonly segments: readonly StpSegment[];
+  readonly primaryTargetKey: string;
+  readonly secondaryTargetKeys: readonly string[];
+  readonly positioning: string;
+  readonly createdAt: string;
+  readonly updatedAt: string;
+}
+
+export type B9State =
+  | { readonly state: 'NOT_STARTED'; readonly working: null; readonly locked: null }
+  | { readonly state: 'WORKING'; readonly working: B9WorkingStp; readonly locked: null }
+  | { readonly state: 'LOCKED'; readonly working: B9WorkingStp; readonly locked: { readonly id: string; readonly lockedAt: string } };
+
+export type B10Decision = 'APPROVE' | 'HOLD' | 'REJECT';
+export interface B10DecisionEvent {
+  readonly id: string;
+  readonly number: number;
+  readonly previousId: string | null;
+  readonly decision: B10Decision;
+  readonly decidedAt: string;
+}
+export interface B10State {
+  readonly history: readonly B10DecisionEvent[];
+  readonly effective: B10DecisionEvent | null;
+  readonly readyForB11: boolean;
+}
+
 export interface Product {
   readonly id: string;
   readonly marketId: string;
@@ -28,6 +64,8 @@ export interface Product {
   readonly states: Readonly<Record<LaneKey, LaneState>>;
   readonly history: readonly DecisionEvent[];
   readonly clearance: ClearanceSnapshot | null;
+  readonly b9: B9State;
+  readonly b10: B10State;
 }
 
 export interface Candidate {
@@ -90,16 +128,20 @@ export function createSeedState(): DemoState {
           { id: 'seed-scientific-pass', lane: 'SCIENTIFIC', state: 'PASS', time: '09:20 · minh họa' },
         ],
         clearance: null,
+        b9: { state: 'LOCKED', working: { id: 'demo-stp-adult', clearanceId: 'demo-clearance-adult', segments: [{ key: 'active-adult', label: 'Người trưởng thành vận động thường xuyên' }, { key: 'office-adult', label: 'Nhân viên văn phòng quan tâm sức khỏe xương' }, { key: 'senior', label: 'Người lớn tuổi cần tư vấn chuyên môn' }], primaryTargetKey: 'active-adult', secondaryTargetKeys: ['office-adult'], positioning: 'Giải pháp canxi tiện dụng cho người trưởng thành chủ động chăm sóc sức khỏe xương.', createdAt: '01/10/2026 09:00 · minh họa', updatedAt: '01/10/2026 10:30 · minh họa' }, locked: { id: 'demo-lock-adult', lockedAt: '01/10/2026 11:00 · minh họa' } },
+        b10: { history: [{ id: 'demo-b10-1', number: 1, previousId: null, decision: 'HOLD', decidedAt: '01/10/2026 13:00 · minh họa' }, { id: 'demo-b10-2', number: 2, previousId: 'demo-b10-1', decision: 'APPROVE', decidedAt: '02/10/2026 09:00 · minh họa' }], effective: { id: 'demo-b10-2', number: 2, previousId: 'demo-b10-1', decision: 'APPROVE', decidedAt: '02/10/2026 09:00 · minh họa' }, readyForB11: true },
       },
       {
         id: 'child', marketId: 'calcium', candidateId: 'candidate-calcium-child', candidateVersion: 1, name: 'Canxi cho trẻ em',
         summary: 'Ứng viên dành cho trẻ em, có hồ sơ và các quyết định độc lập với sản phẩm cho người lớn.',
         states: emptyStates(), history: [], clearance: null,
+        b9: { state: 'NOT_STARTED', working: null, locked: null }, b10: { history: [], effective: null, readyForB11: false },
       },
       {
         id: 'collagen-liquid', marketId: 'collagen', candidateId: 'candidate-collagen-liquid', candidateVersion: 1, name: 'Collagen dạng nước',
         summary: 'Ứng viên dạng nước trong thị trường collagen. Đây là nội dung minh họa, chưa phải kết luận nghiên cứu.',
         states: emptyStates(), history: [], clearance: null,
+        b9: { state: 'NOT_STARTED', working: null, locked: null }, b10: { history: [], effective: null, readyForB11: false },
       },
     ],
     sequence: 1,

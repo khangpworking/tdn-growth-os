@@ -92,11 +92,13 @@ export {
   type StpLockExecution,
   type StpWorkingExecution,
   type StpWorkingRecord,
+  type ProductB9ReadStatus,
   type TrustedStpLockActorContext,
 } from './stp-service.js';
 export {
   FlowLockedStpReader,
   type LockedStpReader,
+  type ProductB9StatusReader,
 } from './locked-stp-reader.js';
 export {
   validateLockedStpArtifact,

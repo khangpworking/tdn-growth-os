@@ -1,6 +1,6 @@
 import { laneOrder } from './model';
 import type { Candidate, DemoState, LaneKey, LaneState, Market, Product } from './model';
-import type { DiscoveryWorkspaceDetailResponse, ProductWorkspaceDetailResponse, WorkspacePortfolioResponse } from '../../contracts/api/workspace-api.generated';
+import type { DiscoveryWorkspaceDetailResponse, ProductB10Response, ProductB9Response, ProductWorkspaceDetailResponse, WorkspacePortfolioResponse } from '../../contracts/api/workspace-api.generated';
 
 export type FrontendMode = 'real' | 'demo';
 export type LoadFailure = 'connection' | 'integrity';
@@ -27,11 +27,14 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
   }));
   const summaries = details.flatMap((detail) => detail.products.map((product) => ({ product, detail })));
   const productDetails = await Promise.all(summaries.map(async ({ product, detail }) => {
-    const value = await requestJson(`/api/product-workspaces/${encodeURIComponent(product.productWorkspaceId)}`, fetcher);
+    const base = `/api/product-workspaces/${encodeURIComponent(product.productWorkspaceId)}`;
+    const [value, b9Value, b10Value] = await Promise.all([requestJson(base, fetcher), requestJson(`${base}/b9`, fetcher), requestJson(`${base}/b10`, fetcher)]);
     assertProduct(value, product.productWorkspaceId);
+    assertB9(b9Value, product.productWorkspaceId);
+    assertB10(b10Value, product.productWorkspaceId);
     const candidate = detail.candidates.find((item) => item.candidateId === value.product.sourceCandidateId);
     if (!sameProductSummary(value.product, product) || value.product.sourceWorkspaceId !== detail.workspace.workspaceId || !candidate || !sameSourceCandidate(value.product, candidate)) invalid('Chi tiết product workspace không khớp discovery.');
-    return value;
+    return { ...value, journeyB9: b9Value, journeyB10: b10Value };
   }));
   const productById = uniqueMap(productDetails, (detail) => detail.product.productWorkspaceId, 'Product workspace bị lặp.');
   const markets: Market[] = details.map((detail) => ({ id: detail.workspace.workspaceId, name: detail.workspace.title, keywords: '', note: detail.workspace.description ?? 'Chưa có mô tả workspace.' }));
@@ -56,6 +59,8 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
         states,
         history: source.b8.lanes.filter((lane) => lane.effectiveState !== 'NO_DECISION').map((lane) => ({ id: lane.decisionId!, lane: lane.lane, state: lane.effectiveState as Exclude<LaneState, 'NONE'>, time: formatTime(lane.decidedAt!) })),
         clearance: source.clearance ? { id: source.clearance.clearanceId, time: formatTime(source.clearance.clearedAt), decisionIds: Object.fromEntries(source.clearance.decisions.map((decision) => [decision.lane, decision.decisionId])) as Record<LaneKey, string> } : null,
+        b9: mapB9(source.journeyB9),
+        b10: { history: source.journeyB10.history.map((item) => ({ id: item.decisionId, number: item.decisionNumber, previousId: item.previousDecisionId, decision: item.decision, decidedAt: formatTime(item.decidedAt) })), effective: source.journeyB10.effective ? { id: source.journeyB10.effective.decisionId, number: source.journeyB10.effective.decisionNumber, previousId: source.journeyB10.effective.previousDecisionId, decision: source.journeyB10.effective.decision, decidedAt: formatTime(source.journeyB10.effective.decidedAt) } : null, readyForB11: source.journeyB10.readyForB11 },
       });
     }
   }
@@ -130,3 +135,26 @@ function version(value: unknown): value is number { return Number.isSafeInteger(
 function count(value: unknown): value is number { return Number.isSafeInteger(value) && Number(value) >= 0; }
 function dateTime(value: unknown): value is string { return typeof value === 'string' && /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value)); }
 function formatTime(value: string): string { return new Date(value).toLocaleString('vi-VN'); }
+
+function assertB9(value: unknown, id: string): asserts value is ProductB9Response {
+  if (!record(value) || value.contractVersion !== '1.0.0' || value.productWorkspaceId !== id || !['NOT_STARTED', 'WORKING', 'LOCKED'].includes(String(value.state))) invalid('Phản hồi B9 không đúng contract.');
+  if (value.state === 'NOT_STARTED') { if (value.working !== undefined || value.locked !== undefined) invalid('B9 chưa bắt đầu có dữ liệu mâu thuẫn.'); return; }
+  if (!record(value.working) || !uuid(value.working.workingStpId) || !uuid(value.working.b8ClearanceId) || !record(value.working.content) || !Array.isArray(value.working.content.segments) || !text(value.working.content.primaryTargetSegmentKey) || !Array.isArray(value.working.content.secondaryTargetSegmentKeys ?? []) || !text(value.working.content.positioningStatement) || !dateTime(value.working.createdAt) || !dateTime(value.working.updatedAt)) invalid('B9 working STP không đúng contract.');
+  const keys = new Set<string>(); for (const segment of value.working.content.segments) { if (!record(segment) || !text(segment.key) || !text(segment.label) || keys.has(segment.key)) invalid('Phân khúc STP không đúng contract.'); keys.add(segment.key); }
+  if (!keys.has(value.working.content.primaryTargetSegmentKey) || (value.working.content.secondaryTargetSegmentKeys ?? []).some((key: string) => !keys.has(key) || key === value.working!.content.primaryTargetSegmentKey)) invalid('Target STP không tham chiếu phân khúc hợp lệ.');
+  if (value.state === 'WORKING' && value.locked !== undefined) invalid('B9 working có lock mâu thuẫn.');
+  if (value.state === 'LOCKED' && (!record(value.locked) || !uuid(value.locked.lockId) || value.locked.state !== 'LOCKED_STP' || !dateTime(value.locked.lockedAt))) invalid('B9 lock không đúng contract.');
+}
+function assertB10(value: unknown, id: string): asserts value is ProductB10Response {
+  if (!record(value) || value.contractVersion !== '1.0.0' || value.productWorkspaceId !== id || !Array.isArray(value.history) || typeof value.readyForB11 !== 'boolean') invalid('Phản hồi B10 không đúng contract.');
+  let previous: string | null = null; let lockedStpId: string | null = null;
+  value.history.forEach((item, index) => { if (!record(item) || !uuid(item.decisionId) || !uuid(item.lockedStpId) || item.decisionNumber !== index + 1 || item.previousDecisionId !== previous || !['APPROVE','HOLD','REJECT'].includes(String(item.decision)) || !dateTime(item.decidedAt) || (lockedStpId !== null && item.lockedStpId !== lockedStpId)) invalid('Lịch sử B10 không đúng contract.'); previous = item.decisionId; lockedStpId = item.lockedStpId; });
+  const final = value.history.at(-1) ?? null;
+  if ((value.effective === null) !== (final === null) || (final && (!record(value.effective) || JSON.stringify(value.effective) !== JSON.stringify(final))) || value.readyForB11 !== (final?.decision === 'APPROVE')) invalid('Quyết định B10 hiệu lực không khớp lịch sử.');
+}
+function mapB9(value: ProductB9Response): Product['b9'] {
+  if (value.state === 'NOT_STARTED') return { state: 'NOT_STARTED', working: null, locked: null };
+  const working = value.working!;
+  const mapped = { id: working.workingStpId, clearanceId: working.b8ClearanceId, segments: working.content.segments, primaryTargetKey: working.content.primaryTargetSegmentKey, secondaryTargetKeys: working.content.secondaryTargetSegmentKeys ?? [], positioning: working.content.positioningStatement, createdAt: formatTime(working.createdAt), updatedAt: formatTime(working.updatedAt) };
+  return value.state === 'LOCKED' ? { state: 'LOCKED', working: mapped, locked: { id: value.locked!.lockId, lockedAt: formatTime(value.locked!.lockedAt) } } : { state: 'WORKING', working: mapped, locked: null };
+}

@@ -21,6 +21,9 @@ import { FlowProductWorkspaceReader } from '../../src/modules/flow/product-works
 import { ProductB8LaneDecisionService, PRODUCT_B8_LANES, PRODUCT_B8_REVIEW_CAPABILITY, PRODUCT_B8_REVIEW_POLICY_ID } from '../../src/modules/governance/product-b8-lane-decision-service.js';
 import { GovernanceProductB8Reader } from '../../src/modules/governance/product-b8-status-reader.js';
 import { B8ClearanceService } from '../../src/modules/flow/b8-clearance-service.js';
+import { StpService, PRODUCT_B9_LOCK_CAPABILITY } from '../../src/modules/flow/stp-service.js';
+import { FlowLockedStpReader } from '../../src/modules/flow/locked-stp-reader.js';
+import { ProductB10DecisionService, PRODUCT_B10_REVIEW_CAPABILITY } from '../../src/modules/governance/product-b10-decision-service.js';
 import { createWorkspaceApiServer, openWorkspaceApi } from '../../src/api/workspace-api.js';
 
 const roots: string[] = [];
@@ -31,10 +34,12 @@ const ids = {
   basket: '33333333-3333-4333-8333-111111111111', b7: '44444444-4444-4444-8444-111111111111',
   product: '55555555-5555-4555-8555-111111111111',
   decisions: ['66666666-6666-4666-8666-111111111111', '66666666-6666-4666-8666-222222222222', '66666666-6666-4666-8666-333333333333', '66666666-6666-4666-8666-444444444444'],
-  clearance: '77777777-7777-4777-8777-111111111111', unknown: '99999999-9999-4999-8999-999999999999',
+  clearance: '77777777-7777-4777-8777-111111111111', working: '88888888-8888-4888-8888-111111111111',
+  lock: '88888888-8888-4888-8888-222222222222', b10: ['99999999-9999-4999-8999-111111111111', '99999999-9999-4999-8999-222222222222'],
+  unknown: '99999999-9999-4999-8999-999999999999',
 } as const;
 
-async function fixture(withData = true) {
+async function fixture(withData = true, b9State: 'NOT_STARTED' | 'WORKING' | 'LOCKED' = 'LOCKED') {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-workspace-api-')); roots.push(root);
   const databasePath = path.join(root, 'db.sqlite'); const artifactRoot = path.join(root, 'artifacts');
   const { db } = openDatabase({ databasePath });
@@ -61,6 +66,18 @@ async function fixture(withData = true) {
     const b8Reader = new GovernanceProductB8Reader(b8);
     const clearance = new B8ClearanceService({ db, artifactStore: artifacts, decisionReader: b8Reader, statusReader: b8Reader, uuid: () => ids.clearance, now: () => new Date('2026-10-11T00:00:00Z') });
     await clearance.createClearance({ contractVersion: '1.0.0', productWorkspaceId: ids.product, decisions: Object.fromEntries(PRODUCT_B8_LANES.map((lane, index) => [lane, ids.decisions[index]])) });
+    if (b9State !== 'NOT_STARTED') {
+      let stpIndex = 0;
+      const stp = new StpService({ db, artifactStore: artifacts, productWorkspaceReader: new FlowProductWorkspaceReader(products), b8ClearanceReader: new (await import('../../src/modules/flow/b8-clearance-reader.js')).FlowB8ClearanceReader(clearance), uuid: () => [ids.working, ids.lock][stpIndex++]!, now: () => new Date('2026-10-12T00:00:00Z') });
+      const saved = await stp.saveWorking({ contractVersion: '1.0.0', productWorkspaceId: ids.product, b8ClearanceId: ids.clearance, expectedWorkingDigest: null, segments: [{ key: 'adult', label: 'Người trưởng thành' }], primaryTargetSegmentKey: 'adult', positioningStatement: 'Canxi tiện dùng mỗi ngày.' });
+      if (b9State === 'LOCKED') {
+        await stp.lock({ contractVersion: '1.0.0', productWorkspaceId: ids.product, expectedWorkingDigest: saved.workingDigest }, { actorId: 'owner:fixture', roleSnapshot: 'OWNER', capabilities: new Set([PRODUCT_B9_LOCK_CAPABILITY]) });
+        let b10Index = 0;
+        const b10 = new ProductB10DecisionService({ db, artifactStore: artifacts, lockedStpReader: new FlowLockedStpReader(stp), uuid: () => ids.b10[b10Index++]!, now: () => new Date(`2026-10-${13 + b10Index}T00:00:00Z`) });
+        const first = await b10.decide({ contractVersion: '1.0.0', lockedStpId: ids.lock, previousDecisionId: null, decision: 'HOLD' }, { actorId: 'owner:fixture', roleSnapshot: 'OWNER', capabilities: new Set([PRODUCT_B10_REVIEW_CAPABILITY]) });
+        await b10.decide({ contractVersion: '1.0.0', lockedStpId: ids.lock, previousDecisionId: first.decisionId, decision: 'APPROVE' }, { actorId: 'owner:fixture', roleSnapshot: 'OWNER', capabilities: new Set([PRODUCT_B10_REVIEW_CAPABILITY]) });
+      }
+    }
   }
   db.pragma('wal_checkpoint(TRUNCATE)'); db.close();
   return { root, databasePath, artifactRoot };
@@ -92,9 +109,29 @@ test('HTTP reads compose stable ID-based portfolio/detail, preserve ordering and
     assert.deepEqual(product.b8.lanes.map((lane: any) => [lane.lane, lane.effectiveState]), PRODUCT_B8_LANES.map((lane) => [lane, 'PASS']));
     assert.equal(product.b8.readyForB9, true); assert.equal(product.clearance.clearanceId, ids.clearance);
     assert.deepEqual(product.clearance.decisions.map((item: any) => item.decisionId), [...ids.decisions]);
+    const b9 = await (await fetch(`${origin}/api/product-workspaces/${ids.product}/b9`)).json() as any;
+    assert.deepEqual([b9.state, b9.working.workingStpId, b9.locked.lockId], ['LOCKED', ids.working, ids.lock]);
+    assert.equal(b9.working.content.positioningStatement, 'Canxi tiện dùng mỗi ngày.');
+    const b10 = await (await fetch(`${origin}/api/product-workspaces/${ids.product}/b10`)).json() as any;
+    assert.deepEqual(b10.history.map((item: any) => [item.decisionNumber, item.decision]), [[1, 'HOLD'], [2, 'APPROVE']]);
+    assert.equal(b10.effective.decisionId, ids.b10[1]); assert.equal(b10.readyForB11, true);
     assert.equal(JSON.stringify(await (await fetch(`${origin}/api/workspaces`)).json()), JSON.stringify(portfolio));
   });
   assert.equal(hash(state.databasePath), before);
+});
+
+test('B9 status is deterministic for NOT_STARTED and WORKING and B10 is empty without decisions', async () => {
+  for (const expected of ['NOT_STARTED', 'WORKING'] as const) {
+    const state = await fixture(true, expected);
+    await serve(state, async (origin) => {
+      const b9 = await (await fetch(`${origin}/api/product-workspaces/${ids.product}/b9`)).json() as any;
+      assert.equal(b9.state, expected);
+      assert.equal('working' in b9, expected === 'WORKING');
+      assert.equal('locked' in b9, false);
+      const b10 = await (await fetch(`${origin}/api/product-workspaces/${ids.product}/b10`)).json() as any;
+      assert.deepEqual(b10, { contractVersion: '1.0.0', productWorkspaceId: ids.product, history: [], effective: null, readyForB11: false });
+    });
+  }
 });
 
 test('empty, malformed, unknown and mutation requests are closed JSON responses', async () => {
@@ -104,6 +141,8 @@ test('empty, malformed, unknown and mutation requests are closed JSON responses'
     for (const route of ['/api/workspaces/not-a-uuid', '/api/workspaces/%2Fetc', '/api/workspaces?id=x']) assert.equal((await fetch(origin + route)).status, 400);
     assert.equal((await fetch(`${origin}/api/workspaces/${ids.unknown}`)).status, 404);
     assert.equal((await fetch(`${origin}/api/product-workspaces/${ids.unknown}`)).status, 404);
+    assert.equal((await fetch(`${origin}/api/product-workspaces/${ids.unknown}/b9`)).status, 404);
+    assert.equal((await fetch(`${origin}/api/product-workspaces/${ids.unknown}/b10`)).status, 404);
     const mutation = await fetch(`${origin}/api/workspaces`, { method: 'DELETE' }); assert.equal(mutation.status, 405); assert.equal(mutation.headers.get('allow'), 'GET');
   });
 });
