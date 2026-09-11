@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-b8-decision-api.schema.json",
+  "title": "OwnerB8DecisionApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/receipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "request": {
+      "title": "OwnerB8DecisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "lane", "expectedVersion", "decision"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "lane": { "enum": ["LEGAL", "SCIENTIFIC", "QUALITY", "FINANCE"] },
+        "expectedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 },
+        "decision": { "enum": ["PASS", "HOLD", "REJECT"] }
+      }
+    },
+    "receipt": {
+      "title": "OwnerB8DecisionReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "productWorkspaceId", "decisionId", "decisionVersion", "lane", "decision", "deduplicated"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "productWorkspaceId": { "$ref": "#/$defs/uuid" },
+        "decisionId": { "$ref": "#/$defs/uuid" },
+        "decisionVersion": { "type": "integer", "minimum": 1 },
+        "lane": { "enum": ["LEGAL", "SCIENTIFIC", "QUALITY", "FINANCE"] },
+        "decision": { "enum": ["PASS", "HOLD", "REJECT"] },
+        "deduplicated": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "payload_too_large", "unsupported_media_type", "conflict", "integrity_error"] },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
