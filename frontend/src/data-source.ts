@@ -25,11 +25,12 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
     if (!samePortfolioItem(value.workspace, workspace)) invalid('Chi tiết discovery không khớp portfolio.');
     return value;
   }));
-  const summaries = details.flatMap((detail) => detail.products.map((product) => ({ product, workspaceId: detail.workspace.workspaceId })));
-  const productDetails = await Promise.all(summaries.map(async ({ product, workspaceId }) => {
+  const summaries = details.flatMap((detail) => detail.products.map((product) => ({ product, detail })));
+  const productDetails = await Promise.all(summaries.map(async ({ product, detail }) => {
     const value = await requestJson(`/api/product-workspaces/${encodeURIComponent(product.productWorkspaceId)}`, fetcher);
     assertProduct(value, product.productWorkspaceId);
-    if (!sameProductSummary(value.product, product) || value.product.sourceWorkspaceId !== workspaceId) invalid('Chi tiết product workspace không khớp discovery.');
+    const candidate = detail.candidates.find((item) => item.candidateId === value.product.sourceCandidateId);
+    if (!sameProductSummary(value.product, product) || value.product.sourceWorkspaceId !== detail.workspace.workspaceId || !candidate || !sameSourceCandidate(value.product, candidate)) invalid('Chi tiết product workspace không khớp discovery.');
     return value;
   }));
   const productById = uniqueMap(productDetails, (detail) => detail.product.productWorkspaceId, 'Product workspace bị lặp.');
@@ -119,6 +120,7 @@ function assertProduct(value: unknown, id: string): asserts value is ProductWork
 
 function samePortfolioItem(left: WorkspacePortfolioResponse['workspaces'][number], right: WorkspacePortfolioResponse['workspaces'][number]): boolean { return JSON.stringify(left) === JSON.stringify(right); }
 function sameProductSummary(left: ProductWorkspaceDetailResponse['product'], right: DiscoveryWorkspaceDetailResponse['products'][number]): boolean { return left.productWorkspaceId === right.productWorkspaceId && left.productWorkspaceKey === right.productWorkspaceKey && left.state === right.state && left.entryStep === right.entryStep && left.title === right.title && left.createdAt === right.createdAt; }
+function sameSourceCandidate(product: ProductWorkspaceDetailResponse['product'], candidate: DiscoveryWorkspaceDetailResponse['candidates'][number]): boolean { return product.sourceCandidateId === candidate.candidateId && product.sourceCandidateKey === candidate.candidateKey && product.sourceCandidateVersion === candidate.version && product.sourceCandidateLabel === candidate.label && product.sourceCandidateSummary === candidate.summary; }
 function uniqueMap<T>(values: readonly T[], key: (value: T) => string, message: string): Map<string, T> { const result = new Map<string, T>(); for (const value of values) { const id = key(value); if (result.has(id)) invalid(message); result.set(id, value); } return result; }
 function invalid(message: string): never { throw new WorkspaceDataSourceError('integrity', message); }
 function record(value: unknown): value is Record<string, any> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
