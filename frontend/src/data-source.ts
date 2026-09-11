@@ -58,6 +58,7 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
         summary: source.product.sourceCandidateSummary ?? source.product.sourceCandidateLabel,
         states,
         versions: Object.fromEntries(laneOrder.map((lane) => [lane, source.b8.lanes.find((item) => item.lane === lane)!.decisionVersion ?? 0])) as Record<LaneKey, number>,
+        decisionIds: Object.fromEntries(laneOrder.map((lane) => [lane, source.b8.lanes.find((item) => item.lane === lane)!.decisionId ?? null])) as Record<LaneKey, string | null>,
         history: source.b8.lanes.filter((lane) => lane.effectiveState !== 'NO_DECISION').map((lane) => ({ id: lane.decisionId!, lane: lane.lane, state: lane.effectiveState as Exclude<LaneState, 'NONE'>, time: formatTime(lane.decidedAt!) })),
         clearance: source.clearance ? { id: source.clearance.clearanceId, time: formatTime(source.clearance.clearedAt), decisionIds: Object.fromEntries(source.clearance.decisions.map((decision) => [decision.lane, decision.decisionId])) as Record<LaneKey, string> } : null,
         b9: mapB9(source.journeyB9),
@@ -179,5 +180,27 @@ export async function submitOwnerB8Decision(input: { readonly productWorkspaceId
 export function ownerDecisionDisabled(input: { readonly unlocked: boolean; readonly pending: boolean; readonly effective: LaneState; readonly decision: Exclude<LaneState, 'NONE'> }): boolean { return !input.unlocked || input.pending || input.effective === input.decision; }
 export async function submitOwnerDecisionAndReload(input: Parameters<typeof submitOwnerB8Decision>[0], reload: () => Promise<void>, fetcher: typeof fetch = fetch): Promise<'success' | 'conflict'> {
   try { await submitOwnerB8Decision(input, fetcher); await reload(); return 'success'; }
+  catch (error) { if (error instanceof OwnerWriteError && error.kind === 'conflict') { await reload(); return 'conflict'; } throw error; }
+}
+
+export interface OwnerClearanceReceipt { readonly clearanceId: string; readonly state: 'READY_FOR_B9'; readonly clearedAt: string; readonly exactRetry: boolean }
+export type ExactDecisionIds = Readonly<Record<LaneKey, string>>;
+export function exactCurrentPassDecisionIds(product: Product): ExactDecisionIds | null {
+  if (product.clearance || !laneOrder.every((lane) => product.states[lane] === 'PASS' && uuid(product.decisionIds[lane]))) return null;
+  return Object.fromEntries(laneOrder.map((lane) => [lane, product.decisionIds[lane]!])) as Record<LaneKey, string>;
+}
+export function ownerClearanceDisabled(input: { readonly unlocked: boolean; readonly pending: boolean; readonly product: Product }): boolean { return !input.unlocked || input.pending || exactCurrentPassDecisionIds(input.product) === null; }
+export function clearanceMatchesCurrent(product: Product): boolean { return product.clearance !== null && laneOrder.every((lane) => product.states[lane] === 'PASS' && product.decisionIds[lane] === product.clearance!.decisionIds[lane]); }
+export async function submitOwnerB8Clearance(input: { readonly productWorkspaceId: string; readonly decisionIds: ExactDecisionIds; readonly token: string }, fetcher: typeof fetch = fetch): Promise<OwnerClearanceReceipt> {
+  let response: Response;
+  try { response = await fetcher(`/owner-api/product-workspaces/${encodeURIComponent(input.productWorkspaceId)}/b8-clearance`, { method: 'POST', headers: { Authorization: `Bearer ${input.token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ contractVersion: '1.0.0', decisionIds: input.decisionIds }) }); }
+  catch { throw new OwnerWriteError('connection', 'Không thể kết nối OWNER API cục bộ.'); }
+  if (!response.ok) { const kind: OwnerWriteFailure = response.status === 401 ? 'unauthorized' : response.status === 403 ? 'forbidden' : response.status === 409 ? 'conflict' : response.status === 404 ? 'not_found' : response.status >= 500 ? 'integrity' : 'invalid'; throw new OwnerWriteError(kind, kind === 'conflict' ? 'Một hoặc nhiều quyết định lane đã thay đổi.' : 'OWNER API từ chối xác nhận clearance.'); }
+  let value: unknown; try { value = await response.json(); } catch { throw new OwnerWriteError('integrity', 'OWNER API trả về JSON không hợp lệ.'); }
+  if (!record(value) || value.contractVersion !== '1.0.0' || !uuid(value.clearanceId) || value.state !== 'READY_FOR_B9' || !dateTime(value.clearedAt) || typeof value.exactRetry !== 'boolean') throw new OwnerWriteError('integrity', 'Biên nhận clearance không đúng contract.');
+  return { clearanceId: value.clearanceId, state: value.state, clearedAt: value.clearedAt, exactRetry: value.exactRetry };
+}
+export async function submitOwnerClearanceAndReload(input: Parameters<typeof submitOwnerB8Clearance>[0], reload: () => Promise<void>, fetcher: typeof fetch = fetch): Promise<'success' | 'conflict'> {
+  try { await submitOwnerB8Clearance(input, fetcher); await reload(); return 'success'; }
   catch (error) { if (error instanceof OwnerWriteError && error.kind === 'conflict') { await reload(); return 'conflict'; } throw error; }
 }

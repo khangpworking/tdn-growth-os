@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { frontendMode, loadRealWorkspaceState, ownerDecisionDisabled, OwnerWriteError, submitOwnerB8Decision, submitOwnerDecisionAndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, WorkspaceDataSourceError } from '../src/data-source';
 
 const ids = {
   w1: '11111111-1111-4111-8111-111111111111', w2: '11111111-1111-4111-8111-222222222222',
@@ -41,6 +41,7 @@ test('loads real portfolio/details by IDs and exact candidate versions without i
   assert.deepEqual(state.products.map((product) => [product.marketId, product.candidateVersion]), [[ids.w1, 3]]);
   assert.deepEqual(state.products[0]?.states, { LEGAL: 'PASS', SCIENTIFIC: 'NONE', QUALITY: 'HOLD', FINANCE: 'REJECT' });
   assert.deepEqual(state.products[0]?.versions, { LEGAL: 1, SCIENTIFIC: 0, QUALITY: 1, FINANCE: 1 });
+  assert.deepEqual(state.products[0]?.decisionIds, { LEGAL: ids.d1, SCIENTIFIC: null, QUALITY: ids.d2, FINANCE: ids.d3 });
 });
 
 test('truthfully preserves an empty real portfolio', async () => {
@@ -104,4 +105,34 @@ test('success and 409 both reload authoritative read data exactly once', async (
   assert.equal(success, 'success'); assert.equal(reloads, 1);
   const conflict = await submitOwnerDecisionAndReload(input, async () => { reloads++; }, (async () => json({ error: { code: 'conflict', message: 'conflict' } }, 409)) as typeof fetch);
   assert.equal(conflict, 'conflict'); assert.equal(reloads, 2);
+});
+
+test('clearance eligibility requires unlocked exact four current PASS IDs, no clearance, and no pending request', async () => {
+  const product = (await loadRealWorkspaceState(fetchFrom(validResponses()))).products[0]!;
+  const ready = { ...product, states: { LEGAL: 'PASS', SCIENTIFIC: 'PASS', QUALITY: 'PASS', FINANCE: 'PASS' } as const, decisionIds: { LEGAL: ids.d1, SCIENTIFIC: ids.d2, QUALITY: ids.d3, FINANCE: ids.b7 } };
+  assert.equal(ownerClearanceDisabled({ unlocked: false, pending: false, product: ready }), true);
+  assert.equal(ownerClearanceDisabled({ unlocked: true, pending: true, product: ready }), true);
+  assert.deepEqual(exactCurrentPassDecisionIds(ready), ready.decisionIds);
+  assert.equal(ownerClearanceDisabled({ unlocked: true, pending: false, product: ready }), false);
+  assert.equal(ownerClearanceDisabled({ unlocked: true, pending: false, product: { ...ready, decisionIds: { ...ready.decisionIds, LEGAL: null } } }), true);
+  assert.equal(ownerClearanceDisabled({ unlocked: true, pending: false, product: { ...ready, clearance: { id: ids.w2, time: at, decisionIds: ready.decisionIds } } }), true);
+});
+
+test('clearance submission sends exact closed decision IDs and success/conflict reload authoritative reads', async () => {
+  const decisionIds = { LEGAL: ids.d1, SCIENTIFIC: ids.d2, QUALITY: ids.d3, FINANCE: ids.b7 } as const; let observed: RequestInit | undefined;
+  const input = { productWorkspaceId: ids.p1, decisionIds, token: 'x'.repeat(31) + '1' }; let reloads = 0;
+  const receipt = await submitOwnerB8Clearance(input, (async (_url, init) => { observed = init; return json({ contractVersion: '1.0.0', clearanceId: ids.w2, state: 'READY_FOR_B9', clearedAt: at, exactRetry: false }, 201); }) as typeof fetch);
+  assert.deepEqual(JSON.parse(String(observed?.body)), { contractVersion: '1.0.0', decisionIds }); assert.equal(receipt.state, 'READY_FOR_B9');
+  const success = await submitOwnerClearanceAndReload(input, async () => { reloads++; }, (async () => json({ contractVersion: '1.0.0', clearanceId: ids.w2, state: 'READY_FOR_B9', clearedAt: at, exactRetry: false }, 201)) as typeof fetch);
+  const conflict = await submitOwnerClearanceAndReload(input, async () => { reloads++; }, (async () => json({ error: { code: 'conflict', message: 'conflict' } }, 409)) as typeof fetch);
+  assert.deepEqual([success, conflict, reloads], ['success', 'conflict', 2]);
+});
+
+test('historical clearance comparison detects any later B8 decision change', async () => {
+  const product = (await loadRealWorkspaceState(fetchFrom(validResponses()))).products[0]!; const frozen = { LEGAL: ids.d1, SCIENTIFIC: ids.d2, QUALITY: ids.d3, FINANCE: ids.b7 };
+  const historical = { ...product, states: { LEGAL: 'PASS', SCIENTIFIC: 'PASS', QUALITY: 'PASS', FINANCE: 'PASS' } as const, decisionIds: frozen, clearance: { id: ids.w2, time: at, decisionIds: frozen } };
+  assert.equal(clearanceMatchesCurrent(historical), true);
+  assert.equal(clearanceMatchesCurrent({ ...historical, decisionIds: { ...frozen, LEGAL: ids.c1 } }), false);
+  const source = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'));
+  assert.match(source, /role="dialog"/); assert.match(source, /Đóng băng bốn quyết định PASS hiện tại/); assert.match(source, /Xem B9/);
 });

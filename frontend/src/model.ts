@@ -63,6 +63,7 @@ export interface Product {
   readonly summary: string;
   readonly states: Readonly<Record<LaneKey, LaneState>>;
   readonly versions: Readonly<Record<LaneKey, number>>;
+  readonly decisionIds: Readonly<Record<LaneKey, string | null>>;
   readonly history: readonly DecisionEvent[];
   readonly clearance: ClearanceSnapshot | null;
   readonly b9: B9State;
@@ -100,6 +101,7 @@ export type DemoAction =
 
 const emptyStates = (): Record<LaneKey, LaneState> => ({ LEGAL: 'NONE', SCIENTIFIC: 'NONE', QUALITY: 'NONE', FINANCE: 'NONE' });
 const emptyVersions = (): Record<LaneKey, number> => ({ LEGAL: 0, SCIENTIFIC: 0, QUALITY: 0, FINANCE: 0 });
+const emptyDecisionIds = (): Record<LaneKey, string | null> => ({ LEGAL: null, SCIENTIFIC: null, QUALITY: null, FINANCE: null });
 
 export function createSeedState(): DemoState {
   return {
@@ -119,7 +121,7 @@ export function createSeedState(): DemoState {
       {
         id: 'adult', marketId: 'calcium', candidateId: 'candidate-calcium-adult', candidateVersion: 1, name: 'Canxi cho người lớn',
         summary: 'Ứng viên dành cho người trưởng thành. Nội dung này minh họa bản tóm tắt được giữ lại khi tạo workspace sản phẩm.',
-        states: { LEGAL: 'NONE', SCIENTIFIC: 'PASS', QUALITY: 'HOLD', FINANCE: 'NONE' }, versions: { LEGAL: 0, SCIENTIFIC: 1, QUALITY: 1, FINANCE: 0 },
+        states: { LEGAL: 'NONE', SCIENTIFIC: 'PASS', QUALITY: 'HOLD', FINANCE: 'NONE' }, versions: { LEGAL: 0, SCIENTIFIC: 1, QUALITY: 1, FINANCE: 0 }, decisionIds: { LEGAL: null, SCIENTIFIC: 'seed-scientific-pass', QUALITY: 'seed-quality-hold', FINANCE: null },
         history: [
           { id: 'seed-quality-hold', lane: 'QUALITY', state: 'HOLD', time: '09:40 · minh họa' },
           { id: 'seed-scientific-pass', lane: 'SCIENTIFIC', state: 'PASS', time: '09:20 · minh họa' },
@@ -131,13 +133,13 @@ export function createSeedState(): DemoState {
       {
         id: 'child', marketId: 'calcium', candidateId: 'candidate-calcium-child', candidateVersion: 1, name: 'Canxi cho trẻ em',
         summary: 'Ứng viên dành cho trẻ em, có hồ sơ và các quyết định độc lập với sản phẩm cho người lớn.',
-        states: emptyStates(), versions: emptyVersions(), history: [], clearance: null,
+        states: emptyStates(), versions: emptyVersions(), decisionIds: emptyDecisionIds(), history: [], clearance: null,
         b9: { state: 'NOT_STARTED', working: null, locked: null }, b10: { history: [], effective: null, readyForB11: false },
       },
       {
         id: 'collagen-liquid', marketId: 'collagen', candidateId: 'candidate-collagen-liquid', candidateVersion: 1, name: 'Collagen dạng nước',
         summary: 'Ứng viên dạng nước trong thị trường collagen. Đây là nội dung minh họa, chưa phải kết luận nghiên cứu.',
-        states: emptyStates(), versions: emptyVersions(), history: [], clearance: null,
+        states: emptyStates(), versions: emptyVersions(), decisionIds: emptyDecisionIds(), history: [], clearance: null,
         b9: { state: 'NOT_STARTED', working: null, locked: null }, b10: { history: [], effective: null, readyForB11: false },
       },
     ],
@@ -168,15 +170,13 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
         ...item,
         states: { ...item.states, [action.lane]: action.decision },
         versions: { ...item.versions, [action.lane]: item.versions[action.lane] + 1 },
+        decisionIds: { ...item.decisionIds, [action.lane]: event.id },
         history: [event, ...item.history],
       } : item),
     };
   }
   if (product.clearance || !laneOrder.every((lane) => product.states[lane] === 'PASS')) return state;
-  const decisionIds = Object.fromEntries(laneOrder.map((lane) => {
-    const event = product.history.find((entry) => entry.lane === lane && entry.state === 'PASS');
-    return [lane, event?.id ?? `seed-${product.id}-${lane.toLowerCase()}-pass`];
-  })) as Record<LaneKey, string>;
+  const decisionIds = Object.fromEntries(laneOrder.map((lane) => [lane, product.decisionIds[lane] ?? `seed-${product.id}-${lane.toLowerCase()}-pass`])) as Record<LaneKey, string>;
   return {
     ...state,
     sequence: state.sequence + 1,
