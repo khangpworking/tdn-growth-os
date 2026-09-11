@@ -147,10 +147,10 @@ function assertB9(value: unknown, id: string): asserts value is ProductB9Respons
 }
 function assertB10(value: unknown, id: string): asserts value is ProductB10Response {
   if (!record(value) || value.contractVersion !== '1.0.0' || value.productWorkspaceId !== id || !Array.isArray(value.history) || typeof value.readyForB11 !== 'boolean') invalid('Phản hồi B10 không đúng contract.');
-  let previous: string | null = null;
-  value.history.forEach((item, index) => { if (!record(item) || !uuid(item.decisionId) || item.decisionNumber !== index + 1 || item.previousDecisionId !== previous || !['APPROVE','HOLD','REJECT'].includes(String(item.decision)) || !dateTime(item.decidedAt)) invalid('Lịch sử B10 không đúng contract.'); previous = item.decisionId; });
+  let previous: string | null = null; let lockedStpId: string | null = null;
+  value.history.forEach((item, index) => { if (!record(item) || !uuid(item.decisionId) || !uuid(item.lockedStpId) || item.decisionNumber !== index + 1 || item.previousDecisionId !== previous || !['APPROVE','HOLD','REJECT'].includes(String(item.decision)) || !dateTime(item.decidedAt) || (lockedStpId !== null && item.lockedStpId !== lockedStpId)) invalid('Lịch sử B10 không đúng contract.'); previous = item.decisionId; lockedStpId = item.lockedStpId; });
   const final = value.history.at(-1) ?? null;
-  if ((value.effective === null) !== (final === null) || (final && (!record(value.effective) || value.effective.decisionId !== final.decisionId)) || value.readyForB11 !== (final?.decision === 'APPROVE')) invalid('Quyết định B10 hiệu lực không khớp lịch sử.');
+  if ((value.effective === null) !== (final === null) || (final && (!record(value.effective) || JSON.stringify(value.effective) !== JSON.stringify(final))) || value.readyForB11 !== (final?.decision === 'APPROVE')) invalid('Quyết định B10 hiệu lực không khớp lịch sử.');
 }
 function mapB9(value: ProductB9Response): Product['b9'] {
   if (value.state === 'NOT_STARTED') return { state: 'NOT_STARTED', working: null, locked: null };

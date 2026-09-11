@@ -201,7 +201,7 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       }
       const status = await stpReader.readStatusByProductWorkspace(id);
       if (status.state === 'NOT_STARTED' || status.working.workingStpId !== catalogWorking.workingStpId) throw new Error('B9 catalog identity mismatch');
-      const working = { workingStpId: status.working.workingStpId, workingDigest: status.working.workingDigest, b8ClearanceId: status.working.b8ClearanceId, content: status.working.content, createdAt: status.working.createdAt, updatedAt: status.working.updatedAt };
+      const working = { workingStpId: status.working.workingStpId, b8ClearanceId: status.working.b8ClearanceId, content: status.working.content, createdAt: status.working.createdAt, updatedAt: status.working.updatedAt };
       if (status.state === 'WORKING') {
         if (catalogLock) throw new Error('B9 lock catalog mismatch');
         return { contractVersion: '1.0.0', productWorkspaceId: id, state: 'WORKING', working };

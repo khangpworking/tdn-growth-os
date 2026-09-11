@@ -21,6 +21,7 @@ export interface ClearanceSnapshot {
 export interface StpSegment {
   readonly key: string;
   readonly label: string;
+  readonly description?: string;
 }
 
 export interface B9WorkingStp {
