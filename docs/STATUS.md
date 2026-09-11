@@ -134,3 +134,8 @@ B10 v1 records one combined OWNER button decision—`APPROVE`, `HOLD`, or `REJEC
 The Task 033 React frontend is implemented. Task 034 connects its normal mode to verified persisted SQLite records through a narrow local read-only HTTP API. The API provides portfolio, discovery-workspace detail, and independent product-workspace detail GET views; the database is opened read-only/file-must-exist and placed in SQLite query-only mode, and relationships are composed by IDs after Box-owned verified replay. The frontend shows truthful loading, empty, not-found, integrity, and connection states without synthetic fallback. Synthetic state remains available only through explicit `?mode=demo`, with a visible warning. Real-data B8 controls are disabled; B9 and B10 remain informational.
 
 Production API writes, authentication, deployment, mutable STP/B8/B9/B10 operations, and real business decisions are not implemented.
+
+
+## Task 035 — read-only B9 and B10 product journey
+
+The local read-only workspace API now exposes verified B9 STP and B10 decision views for one persisted product workspace. B9 truthfully reports NOT_STARTED, WORKING, or immutable LOCKED_STP content with ordered segments and targets. B10 reports no decision or the verified effective APPROVE/HOLD/REJECT state, B11 readiness, and sequential immutable correction history. The React frontend renders these views without save, lock, or decision controls; explicit labelled demo mode remains available. SQLite stays read-only/query-only, existing Task 034 endpoints remain compatible, and no migration, authentication, provider, AI/Pi, worker, external action, merge, or deployment is introduced.
