@@ -19,6 +19,8 @@ function validResponses(): Map<string, unknown> {
     ['/api/workspaces', { contractVersion: '1.0.0', workspaces: [w1, w2] }],
     [`/api/workspaces/${ids.w1}`, { contractVersion: '1.0.0', workspace: w1, candidates: [{ candidateId: ids.c1, candidateKey: 'candidate-one', state: 'EXPLORING', version: 3, label: 'Ứng viên', createdAt: at }], products: [productSummary] }],
     [`/api/workspaces/${ids.w2}`, { contractVersion: '1.0.0', workspace: w2, candidates: [], products: [] }],
+    [`/api/product-workspaces/${ids.p1}/b9`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, state: 'NOT_STARTED' }],
+    [`/api/product-workspaces/${ids.p1}/b10`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, history: [], effective: null, readyForB11: false }],
     [`/api/product-workspaces/${ids.p1}`, { contractVersion: '1.0.0', product: { ...productSummary, sourceWorkspaceId: ids.w1, sourceBasketId: ids.basket, sourceBasketKey: 'basket-one', sourceBasketVersion: 1, sourceCandidateId: ids.c1, sourceCandidateKey: 'candidate-one', sourceCandidateVersion: 3, sourceCandidateLabel: 'Ứng viên', sourceB7DecisionId: ids.b7, sourceB7DecidedAt: at }, b8: { readyForB9: false, lanes: [
       { lane: 'LEGAL', effectiveState: 'PASS', decisionId: ids.d1, decisionVersion: 1, decidedAt: at }, { lane: 'SCIENTIFIC', effectiveState: 'NO_DECISION' }, { lane: 'QUALITY', effectiveState: 'HOLD', decisionId: ids.d2, decisionVersion: 1, decidedAt: at }, { lane: 'FINANCE', effectiveState: 'REJECT', decisionId: ids.d3, decisionVersion: 1, decidedAt: at },
     ] } }],
@@ -61,4 +63,12 @@ test('rejects malformed nested responses and inconsistent relationships', async 
 test('connection and integrity failures remain distinct without demo fallback', async () => {
   await assert.rejects(loadRealWorkspaceState((async () => { throw new Error('private path'); }) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'connection');
   await assert.rejects(loadRealWorkspaceState((async () => json({ error: { code: 'integrity_error' } }, 500)) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
+});
+
+test('maps read-only B9 working/locked content and ordered B10 correction history', async () => {
+  const responses = validResponses();
+  responses.set(`/api/product-workspaces/${ids.p1}/b9`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, state: 'LOCKED', working: { workingStpId: ids.basket, workingDigest: 'a'.repeat(64), b8ClearanceId: ids.b7, content: { segments: [{ key: 'adult', label: 'Người lớn' }, { key: 'senior', label: 'Người cao tuổi' }], primaryTargetSegmentKey: 'adult', secondaryTargetSegmentKeys: ['senior'], positioningStatement: 'Định vị đã khóa.' }, createdAt: at, updatedAt: at }, locked: { lockId: ids.d1, state: 'LOCKED_STP', lockedAt: at } });
+  responses.set(`/api/product-workspaces/${ids.p1}/b10`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, history: [{ decisionId: ids.d2, decisionNumber: 1, previousDecisionId: null, decision: 'HOLD', decidedAt: at, lockedStpId: ids.d1 }, { decisionId: ids.d3, decisionNumber: 2, previousDecisionId: ids.d2, decision: 'APPROVE', decidedAt: at, lockedStpId: ids.d1 }], effective: { decisionId: ids.d3, decisionNumber: 2, previousDecisionId: ids.d2, decision: 'APPROVE', decidedAt: at, lockedStpId: ids.d1 }, readyForB11: true });
+  const state = await loadRealWorkspaceState(fetchFrom(responses)); const product = state.products[0]!;
+  assert.equal(product.b9.state, 'LOCKED'); assert.deepEqual(product.b9.working?.segments.map((segment) => segment.key), ['adult', 'senior']); assert.equal(product.b10.history.length, 2); assert.equal(product.b10.effective?.decision, 'APPROVE'); assert.equal(product.b10.readyForB11, true);
 });
