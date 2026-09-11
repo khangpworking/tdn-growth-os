@@ -57,6 +57,7 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
         name: source.product.title,
         summary: source.product.sourceCandidateSummary ?? source.product.sourceCandidateLabel,
         states,
+        versions: Object.fromEntries(laneOrder.map((lane) => [lane, source.b8.lanes.find((item) => item.lane === lane)!.decisionVersion ?? 0])) as Record<LaneKey, number>,
         history: source.b8.lanes.filter((lane) => lane.effectiveState !== 'NO_DECISION').map((lane) => ({ id: lane.decisionId!, lane: lane.lane, state: lane.effectiveState as Exclude<LaneState, 'NONE'>, time: formatTime(lane.decidedAt!) })),
         clearance: source.clearance ? { id: source.clearance.clearanceId, time: formatTime(source.clearance.clearedAt), decisionIds: Object.fromEntries(source.clearance.decisions.map((decision) => [decision.lane, decision.decisionId])) as Record<LaneKey, string> } : null,
         b9: mapB9(source.journeyB9),
@@ -157,4 +158,26 @@ function mapB9(value: ProductB9Response): Product['b9'] {
   const working = value.working!;
   const mapped = { id: working.workingStpId, clearanceId: working.b8ClearanceId, segments: working.content.segments, primaryTargetKey: working.content.primaryTargetSegmentKey, secondaryTargetKeys: working.content.secondaryTargetSegmentKeys ?? [], positioning: working.content.positioningStatement, createdAt: formatTime(working.createdAt), updatedAt: formatTime(working.updatedAt) };
   return value.state === 'LOCKED' ? { state: 'LOCKED', working: mapped, locked: { id: value.locked!.lockId, lockedAt: formatTime(value.locked!.lockedAt) } } : { state: 'WORKING', working: mapped, locked: null };
+}
+
+export type OwnerWriteFailure = 'unauthorized' | 'forbidden' | 'conflict' | 'not_found' | 'invalid' | 'integrity' | 'connection';
+export class OwnerWriteError extends Error { constructor(readonly kind: OwnerWriteFailure, message: string) { super(message); } }
+export interface OwnerDecisionReceipt { readonly decisionId: string; readonly decisionVersion: number; readonly lane: LaneKey; readonly decision: Exclude<LaneState, 'NONE'>; readonly decidedAt: string; readonly exactRetry: boolean }
+export async function submitOwnerB8Decision(input: { readonly productWorkspaceId: string; readonly lane: LaneKey; readonly expectedVersion: number; readonly decision: Exclude<LaneState, 'NONE'>; readonly token: string }, fetcher: typeof fetch = fetch): Promise<OwnerDecisionReceipt> {
+  let response: Response;
+  try { response = await fetcher(`/owner-api/product-workspaces/${encodeURIComponent(input.productWorkspaceId)}/b8-decisions`, { method: 'POST', headers: { Authorization: `Bearer ${input.token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify({ contractVersion: '1.0.0', lane: input.lane, expectedVersion: input.expectedVersion, decision: input.decision }) }); }
+  catch { throw new OwnerWriteError('connection', 'Không thể kết nối OWNER API cục bộ.'); }
+  if (!response.ok) {
+    const kind: OwnerWriteFailure = response.status === 401 ? 'unauthorized' : response.status === 403 ? 'forbidden' : response.status === 409 ? 'conflict' : response.status === 404 ? 'not_found' : response.status >= 500 ? 'integrity' : 'invalid';
+    throw new OwnerWriteError(kind, kind === 'conflict' ? 'Lane đã thay đổi bởi một quyết định khác.' : 'OWNER API từ chối yêu cầu.');
+  }
+  let value: unknown; try { value = await response.json(); } catch { throw new OwnerWriteError('integrity', 'OWNER API trả về JSON không hợp lệ.'); }
+  if (!record(value) || value.contractVersion !== '1.0.0' || !uuid(value.decisionId) || !version(value.decisionVersion) || value.lane !== input.lane || value.decision !== input.decision || !dateTime(value.decidedAt) || typeof value.exactRetry !== 'boolean') throw new OwnerWriteError('integrity', 'Biên nhận OWNER API không đúng contract.');
+  return { decisionId: value.decisionId, decisionVersion: value.decisionVersion, lane: value.lane, decision: value.decision, decidedAt: value.decidedAt, exactRetry: value.exactRetry };
+}
+
+export function ownerDecisionDisabled(input: { readonly unlocked: boolean; readonly pending: boolean; readonly effective: LaneState; readonly decision: Exclude<LaneState, 'NONE'> }): boolean { return !input.unlocked || input.pending || input.effective === input.decision; }
+export async function submitOwnerDecisionAndReload(input: Parameters<typeof submitOwnerB8Decision>[0], reload: () => Promise<void>, fetcher: typeof fetch = fetch): Promise<'success' | 'conflict'> {
+  try { await submitOwnerB8Decision(input, fetcher); await reload(); return 'success'; }
+  catch (error) { if (error instanceof OwnerWriteError && error.kind === 'conflict') { await reload(); return 'conflict'; } throw error; }
 }

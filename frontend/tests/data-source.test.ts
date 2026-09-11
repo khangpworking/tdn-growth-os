@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { frontendMode, loadRealWorkspaceState, WorkspaceDataSourceError } from '../src/data-source';
+import { frontendMode, loadRealWorkspaceState, ownerDecisionDisabled, OwnerWriteError, submitOwnerB8Decision, submitOwnerDecisionAndReload, WorkspaceDataSourceError } from '../src/data-source';
 
 const ids = {
   w1: '11111111-1111-4111-8111-111111111111', w2: '11111111-1111-4111-8111-222222222222',
@@ -40,6 +40,7 @@ test('loads real portfolio/details by IDs and exact candidate versions without i
   assert.deepEqual(state.candidates.map((candidate) => [candidate.marketId, candidate.version]), [[ids.w1, 3]]);
   assert.deepEqual(state.products.map((product) => [product.marketId, product.candidateVersion]), [[ids.w1, 3]]);
   assert.deepEqual(state.products[0]?.states, { LEGAL: 'PASS', SCIENTIFIC: 'NONE', QUALITY: 'HOLD', FINANCE: 'REJECT' });
+  assert.deepEqual(state.products[0]?.versions, { LEGAL: 1, SCIENTIFIC: 0, QUALITY: 1, FINANCE: 1 });
 });
 
 test('truthfully preserves an empty real portfolio', async () => {
@@ -71,4 +72,36 @@ test('maps read-only B9 working/locked content and ordered B10 correction histor
   responses.set(`/api/product-workspaces/${ids.p1}/b10`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, history: [{ decisionId: ids.d2, decisionNumber: 1, previousDecisionId: null, decision: 'HOLD', decidedAt: at, lockedStpId: ids.d1 }, { decisionId: ids.d3, decisionNumber: 2, previousDecisionId: ids.d2, decision: 'APPROVE', decidedAt: at, lockedStpId: ids.d1 }], effective: { decisionId: ids.d3, decisionNumber: 2, previousDecisionId: ids.d2, decision: 'APPROVE', decidedAt: at, lockedStpId: ids.d1 }, readyForB11: true });
   const state = await loadRealWorkspaceState(fetchFrom(responses)); const product = state.products[0]!;
   assert.equal(product.b9.state, 'LOCKED'); assert.deepEqual(product.b9.working?.segments.map((segment) => segment.key), ['adult', 'senior']); assert.equal(product.b10.history.length, 2); assert.equal(product.b10.effective?.decision, 'APPROVE'); assert.equal(product.b10.readyForB11, true);
+});
+
+test('OWNER submission sends only closed decision input and token in memory request headers', async () => {
+  let observed: RequestInit | undefined;
+  const receipt = await submitOwnerB8Decision({ productWorkspaceId: ids.p1, lane: 'LEGAL', expectedVersion: 1, decision: 'HOLD', token: 'x'.repeat(31) + '1' }, (async (_url, init) => { observed = init; return json({ contractVersion: '1.0.0', decisionId: ids.d2, decisionVersion: 2, lane: 'LEGAL', decision: 'HOLD', decidedAt: at, exactRetry: false }, 201); }) as typeof fetch);
+  assert.equal((observed?.headers as Record<string,string>).Authorization, `Bearer ${'x'.repeat(31) + '1'}`);
+  assert.deepEqual(JSON.parse(String(observed?.body)), { contractVersion: '1.0.0', lane: 'LEGAL', expectedVersion: 1, decision: 'HOLD' });
+  assert.equal(receipt.decisionVersion, 2);
+});
+
+test('OWNER 409 is explicit and never falls back to demo data', async () => {
+  await assert.rejects(submitOwnerB8Decision({ productWorkspaceId: ids.p1, lane: 'LEGAL', expectedVersion: 1, decision: 'HOLD', token: 'x'.repeat(31) + '1' }, (async () => json({ error: { code: 'conflict', message: 'conflict' } }, 409)) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'conflict');
+});
+
+test('frontend source keeps OWNER token out of persistent browser APIs', async () => {
+  const source = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'));
+  for (const forbidden of ['localStorage', 'sessionStorage', 'indexedDB', 'URLSearchParams']) assert.equal(source.includes(forbidden), false);
+});
+
+test('real OWNER controls stay disabled while locked, pending, or matching effective state', () => {
+  assert.equal(ownerDecisionDisabled({ unlocked: false, pending: false, effective: 'NONE', decision: 'PASS' }), true);
+  assert.equal(ownerDecisionDisabled({ unlocked: true, pending: true, effective: 'NONE', decision: 'PASS' }), true);
+  assert.equal(ownerDecisionDisabled({ unlocked: true, pending: false, effective: 'PASS', decision: 'PASS' }), true);
+  assert.equal(ownerDecisionDisabled({ unlocked: true, pending: false, effective: 'HOLD', decision: 'PASS' }), false);
+});
+
+test('success and 409 both reload authoritative read data exactly once', async () => {
+  let reloads = 0; const input = { productWorkspaceId: ids.p1, lane: 'LEGAL' as const, expectedVersion: 1, decision: 'HOLD' as const, token: 'x'.repeat(31) + '1' };
+  const success = await submitOwnerDecisionAndReload(input, async () => { reloads++; }, (async () => json({ contractVersion: '1.0.0', decisionId: ids.d2, decisionVersion: 2, lane: 'LEGAL', decision: 'HOLD', decidedAt: at, exactRetry: false }, 201)) as typeof fetch);
+  assert.equal(success, 'success'); assert.equal(reloads, 1);
+  const conflict = await submitOwnerDecisionAndReload(input, async () => { reloads++; }, (async () => json({ error: { code: 'conflict', message: 'conflict' } }, 409)) as typeof fetch);
+  assert.equal(conflict, 'conflict'); assert.equal(reloads, 2);
 });

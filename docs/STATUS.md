@@ -139,3 +139,8 @@ Production API writes, authentication, deployment, mutable STP/B8/B9/B10 operati
 ## Task 035 — read-only B9 and B10 product journey
 
 The local read-only workspace API now exposes verified B9 STP and B10 decision views for one persisted product workspace. B9 truthfully reports NOT_STARTED, WORKING, or immutable LOCKED_STP content with ordered segments and targets. B10 reports no decision or the verified effective APPROVE/HOLD/REJECT state, B11 readiness, and sequential immutable correction history. The React frontend renders these views without save, lock, or decision controls; explicit labelled demo mode remains available. SQLite stays read-only/query-only, existing Task 034 endpoints remain compatible, and no migration, authentication, provider, AI/Pi, worker, external action, merge, or deployment is introduced.
+
+
+## Task 036 — opt-in local OWNER B8 writes
+
+A separate loopback-only, explicitly enabled local OWNER process now accepts one closed B8 decision mutation endpoint and delegates to the existing Task 029 service. The real React UI keeps the Task 034/035 read views, holds a local token only in page memory, submits exact lane versions through button-only PASS/HOLD/REJECT controls, and reloads authoritative read data after success or conflict. The read server remains separately connected, read-only/file-must-exist/query-only, and backward compatible. This is a local development authorization gate, not production authentication; no clearance, B9/B10/B11 write, migration, provider, AI/Pi, worker, deployment, private data, or real calcium decision is included.

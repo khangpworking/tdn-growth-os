@@ -10,7 +10,7 @@ import {
   productsForMarket,
 } from './model';
 import type { DecisionState, DemoState, LaneKey, LaneState, Market, Product, ProductSection, Scenario } from './model';
-import { frontendMode, loadRealWorkspaceState, WorkspaceDataSourceError } from './data-source';
+import { frontendMode, loadRealWorkspaceState, ownerDecisionDisabled, OwnerWriteError, submitOwnerDecisionAndReload, WorkspaceDataSourceError } from './data-source';
 import type { FrontendMode, LoadFailure } from './data-source';
 import { parseRoute, routeToHash } from './routing';
 import type { Route } from './routing';
@@ -145,13 +145,26 @@ function B10View({ product }: { readonly product: Product }) {
   return <><div className="heading compact"><div><h2>B10 · Quyết định hiệu lực</h2><p>Quyết định chung về danh mục và quyền đủ điều kiện nhận cấp vốn.</p></div><Badge state={b10.effective.decision === 'APPROVE' ? 'PASS' : b10.effective.decision}>{labels[b10.effective.decision]}</Badge></div><div className="evidence"><h3>{b10.readyForB11 ? 'Sẵn sàng cho B11' : 'Chưa sẵn sàng cho B11'}</h3><p>{b10.effective.decision === 'APPROVE' ? 'APPROVE chỉ cấp quyền tiếp tục quy trình. Nó không chứng minh tiền đã được chuyển, ngân sách đã được phân bổ hay việc thực thi đã xảy ra.' : 'Chỉ quyết định APPROVE hiệu lực mới tạo trạng thái sẵn sàng cho B11; màn hình này không thực hiện hành động.'}</p></div><h3>Lịch sử correction bất biến</h3><ol className="timeline">{b10.history.map((event) => <li key={event.id}><strong>#{event.number} · {labels[event.decision]}</strong><small>{event.decidedAt}{event.previousId ? ' · correction của quyết định trước' : ' · quyết định đầu tiên'}</small></li>)}</ol></>;
 }
 
-function ProductWorkspace({ state, product, section, mode, dispatch, notify }: { readonly state: DemoState; readonly product: Product; readonly section: ProductSection; readonly mode: FrontendMode; readonly dispatch: (action: Parameters<typeof demoReducer>[1]) => void; readonly notify: (message: string) => void }) {
+function ProductWorkspace({ state, product, section, mode, dispatch, notify, ownerToken, reloadReal }: { readonly state: DemoState; readonly product: Product; readonly section: ProductSection; readonly mode: FrontendMode; readonly dispatch: (action: Parameters<typeof demoReducer>[1]) => void; readonly notify: (message: string) => void; readonly ownerToken: string | null; readonly reloadReal: () => Promise<void> }) {
   const [selected, setSelected] = useState<LaneKey>('LEGAL');
+  const [pending, setPending] = useState(false);
+  const [writeMessage, setWriteMessage] = useState('');
   const market = state.markets.find((item) => item.id === product.marketId)!;
   const decide = (decision: DecisionState) => {
     if (product.states[selected] === decision) return;
     dispatch({ type: 'decide', productId: product.id, lane: selected, decision, time: nowLabel() });
     notify(`Đã cập nhật ${laneLabels[selected]}: ${stateLabels[decision]} — chỉ trong demo.`);
+  };
+  const submitReal = async (decision: DecisionState) => {
+    if (!ownerToken || pending || product.states[selected] === decision) return;
+    setPending(true); setWriteMessage('');
+    try {
+      const outcome = await submitOwnerDecisionAndReload({ productWorkspaceId: product.id, lane: selected, expectedVersion: product.versions[selected], decision, token: ownerToken }, reloadReal);
+      if (outcome === 'conflict') setWriteMessage('Một quyết định khác đã thay đổi lane. Trạng thái hiện tại đã được tải lại; hãy xem lại trước khi gửi.');
+      else notify(`Đã ghi ${laneLabels[selected]}: ${stateLabels[decision]}. Dữ liệu đã được tải lại từ API chỉ đọc.`);
+    } catch (error) {
+      setWriteMessage(error instanceof OwnerWriteError ? error.message : 'Không thể ghi quyết định. Không có dữ liệu demo thay thế.');
+    } finally { setPending(false); }
   };
   const clearance = () => {
     dispatch({ type: 'create-clearance', productId: product.id, time: nowLabel() });
@@ -162,7 +175,7 @@ function ProductWorkspace({ state, product, section, mode, dispatch, notify }: {
     <div className="steps" aria-label="Các bước hồ sơ"><div className="step done"><b>B7 · Đã chọn</b><small>Ứng viên v{product.candidateVersion}</small></div><div className={`step ${section === 'b8' ? 'current' : product.clearance ? 'done' : ''}`}><b>B8 · Thẩm định</b><small>{passCount(product)}/4 lane đang Đạt</small></div><div className={`step ${section === 'b9' ? 'current' : product.b9.state === 'LOCKED' ? 'done' : ''}`}><b>B9 · Khóa STP</b><small>{product.b9.state === 'LOCKED' ? 'Đã khóa chính thức' : product.b9.state === 'WORKING' ? 'Đang soạn' : 'Chưa bắt đầu'}</small></div><div className={`step ${section === 'b10' ? 'current' : product.b10.readyForB11 ? 'done' : ''}`}><b>B10 · Phê duyệt</b><small>{product.b10.effective ? `${product.b10.effective.decision} hiệu lực` : 'Chưa có quyết định'}</small></div></div>
     <div className="dossier"><aside className="side"><div className="candidate"><span>Ứng viên v{product.candidateVersion}</span><h2>{product.name}</h2><p>Hồ sơ và quyết định được quản lý riêng.</p></div><nav aria-label="Các phần hồ sơ">{sections.map(([key, label]) => <button className={`nav-button ${section === key ? 'active' : ''}`} key={key} aria-current={section === key ? 'page' : undefined} onClick={() => navigate(routeToHash.product(market.id, product.id, key))}>{label}</button>)}</nav></aside>
       <section className="content"><ProductContent product={product} section={section} mode={mode} selected={selected} onSelect={setSelected} /></section>
-      <aside className="decision"><h2>{mode === 'real' ? 'Trạng thái B8' : 'Quyết định lane'}</h2><label htmlFor="lane" className="muted">Lane đang xem</label><select id="lane" value={selected} onChange={(event) => setSelected(event.target.value as LaneKey)}>{laneOrder.map((lane) => <option value={lane} key={lane}>{laneLabels[lane]}</option>)}</select><p>Hiện tại: <Badge state={product.states[selected]} /></p>{mode === 'demo' ? <div className="decision-actions">{(['PASS', 'HOLD', 'REJECT'] as const).map((decision) => <button className={decision.toLowerCase()} key={decision} disabled={product.states[selected] === decision} onClick={() => decide(decision)}>{stateLabels[decision]}</button>)}</div> : null}<p className="decision-note">{mode === 'real' ? 'Chỉ đọc · API không có thao tác ghi quyết định B8, STP hoặc B10.' : 'Không cần nhập lý do. Đổi trạng thái sẽ thêm một quyết định vào lịch sử demo.'}</p><div className="snapshot"><h3>Điều kiện chuyển bước</h3>{product.clearance ? <><p>Đã xác nhận B8 lúc {product.clearance.time}. Snapshot này giữ nguyên khi các lane được đánh giá lại.</p>{passCount(product) < 4 && <p className="snapshot-warning">Trạng thái hiện tại là {passCount(product)}/4 Đạt; clearance lịch sử vẫn được giữ.</p>}<button className="button primary" onClick={() => navigate(routeToHash.product(market.id, product.id, 'b9'))}>Xem B9 <Arrow /></button></> : <><p>Cần 4 lane Đạt để xác nhận B8. Hiện có {passCount(product)}/4.</p>{mode === 'demo' ? <button className="button primary" disabled={passCount(product) !== 4} onClick={clearance}>Xác nhận đủ điều kiện B9</button> : <p className="muted">Clearance chỉ đọc; không có thao tác xác nhận.</p>}</>}</div></aside>
+      <aside className="decision"><h2>{mode === 'real' ? 'Trạng thái B8' : 'Quyết định lane'}</h2><label htmlFor="lane" className="muted">Lane đang xem</label><select id="lane" value={selected} onChange={(event) => setSelected(event.target.value as LaneKey)}>{laneOrder.map((lane) => <option value={lane} key={lane}>{laneLabels[lane]}</option>)}</select><p>Hiện tại: <Badge state={product.states[selected]} /> · phiên bản {product.versions[selected]}</p><div className="decision-actions">{(['PASS', 'HOLD', 'REJECT'] as const).map((decision) => <button className={decision.toLowerCase()} key={decision} disabled={mode === 'demo' ? product.states[selected] === decision : ownerDecisionDisabled({ unlocked: ownerToken !== null, pending, effective: product.states[selected], decision })} onClick={() => mode === 'demo' ? decide(decision) : void submitReal(decision)}>{pending && mode === 'real' ? 'Đang gửi…' : stateLabels[decision]}</button>)}</div><p className="decision-note">{mode === 'real' ? ownerToken ? 'Đã mở khóa cục bộ. Không nhập lý do; mỗi lần gửi dùng đúng phiên bản lane hiện tại.' : 'Đang khóa · mở khóa OWNER cục bộ để bật ba nút quyết định.' : 'Không cần nhập lý do. Đổi trạng thái sẽ thêm một quyết định vào lịch sử demo.'}</p>{writeMessage && <p className="snapshot-warning" role="alert">{writeMessage}</p>}<div className="snapshot"><h3>Điều kiện chuyển bước</h3>{product.clearance ? <><p>Đã xác nhận B8 lúc {product.clearance.time}. Snapshot này giữ nguyên khi các lane được đánh giá lại.</p>{passCount(product) < 4 && <p className="snapshot-warning">Trạng thái hiện tại là {passCount(product)}/4 Đạt; clearance lịch sử vẫn được giữ.</p>}<button className="button primary" onClick={() => navigate(routeToHash.product(market.id, product.id, 'b9'))}>Xem B9 <Arrow /></button></> : <><p>Cần 4 lane Đạt để xác nhận B8. Hiện có {passCount(product)}/4.</p>{mode === 'demo' ? <button className="button primary" disabled={passCount(product) !== 4} onClick={clearance}>Xác nhận đủ điều kiện B9</button> : <p className="muted">Clearance chỉ đọc; không có thao tác xác nhận.</p>}</>}</div></aside>
     </div></>;
 }
 
@@ -177,6 +190,8 @@ export default function App() {
   const route = useRoute(state);
   const [scenario, setScenario] = useState<Scenario>('normal');
   const [toast, setToast] = useState('');
+  const [ownerToken, setOwnerToken] = useState<string | null>(null);
+  const [tokenDraft, setTokenDraft] = useState('');
   const timer = useRef<number | undefined>(undefined);
   const main = useRef<HTMLElement>(null);
   const notify = (message: string) => {
@@ -185,10 +200,13 @@ export default function App() {
     timer.current = window.setTimeout(() => setToast(''), 4500);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
+  const reloadReal = async (): Promise<void> => {
+    const loaded = await loadRealWorkspaceState();
+    dispatch({ type: 'replace', state: loaded }); setLoadState('ready');
+  };
   useEffect(() => {
     if (mode === 'demo') return;
-    let active = true;
-    setLoadState('loading');
+    let active = true; setLoadState('loading');
     loadRealWorkspaceState().then((loaded) => { if (active) { dispatch({ type: 'replace', state: loaded }); setLoadState('ready'); } }).catch((error: unknown) => { if (active) setLoadState(error instanceof WorkspaceDataSourceError ? error.kind : 'connection'); });
     return () => { active = false; };
   }, [mode]);
@@ -210,7 +228,7 @@ export default function App() {
   else if (scenario !== 'normal' && route.kind !== 'product' && route.kind !== 'invalid') content = <ScenarioPreview scenario={scenario} restore={() => setScenario('normal')} />;
   else if (route.kind === 'portfolio') content = <Portfolio state={state} mode={mode} onCreate={createMarket} />;
   else if (route.kind === 'market') content = <MarketWorkspace state={state} market={state.markets.find((market) => market.id === route.marketId)!} mode={mode} />;
-  else if (route.kind === 'product') content = <ProductWorkspace state={state} product={state.products.find((product) => product.id === route.productId)!} section={route.section} mode={mode} dispatch={dispatch} notify={notify} />;
+  else if (route.kind === 'product') content = <ProductWorkspace state={state} product={state.products.find((product) => product.id === route.productId)!} section={route.section} mode={mode} dispatch={dispatch} notify={notify} ownerToken={ownerToken} reloadReal={reloadReal} />;
   else content = <InvalidRoute hash={route.hash} />;
-  return <><button className="skip" type="button" onClick={() => { main.current?.focus(); main.current?.scrollIntoView(); }}>Bỏ qua điều hướng</button><header className="topbar"><div className="brand"><span className="mark">T</span><div><strong>TDN Growth OS</strong><small>Không gian phát triển sản phẩm</small></div></div><div className="owner"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></svg>Chủ dự án</div></header><div className={`demo-bar ${mode === 'real' ? 'real-bar' : ''}`}><span>{mode === 'demo' ? 'Dữ liệu minh họa · Không phải quyết định thật · Chỉ tồn tại trong phiên demo' : 'Dữ liệu SQLite đã xác minh · Chế độ chỉ đọc · Không có thao tác quyết định'}</span>{mode === 'demo' ? <button onClick={reset}>Đặt lại demo</button> : <a href="?mode=demo#/">Mở demo</a>}</div><main id="main" className="frame" tabIndex={-1} ref={main}><div className="view">{content}</div>{mode === 'demo' && route.kind !== 'product' && route.kind !== 'invalid' && <div className="view-options"><label htmlFor="scenario">Xem trạng thái giao diện:</label><select id="scenario" value={scenario} onChange={(event) => setScenario(event.target.value as Scenario)}><option value="normal">Có dữ liệu demo</option><option value="empty">Chưa có workspace</option><option value="loading">Đang tải</option><option value="error">Lỗi tải dữ liệu</option></select></div>}<p className="caption">{mode === 'demo' ? 'Frontend React demo · Mọi thao tác được đặt lại khi tải lại trang.' : 'Frontend React · Dữ liệu thật chỉ đọc qua API nội bộ.'}</p></main><div className="toast" role="status" aria-live="polite">{toast}</div></>;
+  return <><button className="skip" type="button" onClick={() => { main.current?.focus(); main.current?.scrollIntoView(); }}>Bỏ qua điều hướng</button><header className="topbar"><div className="brand"><span className="mark">T</span><div><strong>TDN Growth OS</strong><small>Không gian phát triển sản phẩm</small></div></div><div className="owner"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></svg>Chủ dự án</div></header><div className={`demo-bar ${mode === 'real' ? 'real-bar' : ''}`}><span>{mode === 'demo' ? 'Dữ liệu minh họa · Không phải quyết định thật · Chỉ tồn tại trong phiên demo' : ownerToken ? 'OWNER cục bộ đã mở khóa trong bộ nhớ · Không phải đăng nhập production' : 'Dữ liệu SQLite đã xác minh · OWNER cục bộ đang khóa'}</span>{mode === 'demo' ? <button onClick={reset}>Đặt lại demo</button> : ownerToken ? <button onClick={() => { setOwnerToken(null); setTokenDraft(''); notify('Đã khóa OWNER cục bộ và xóa token khỏi bộ nhớ.'); }}>Khóa</button> : <form className="unlock-form" onSubmit={(event) => { event.preventDefault(); if (tokenDraft.length < 32 || !/[A-Za-z]/.test(tokenDraft) || !/\d/.test(tokenDraft)) { notify('Token cục bộ phải có ít nhất 32 ký tự, gồm chữ và số.'); return; } setOwnerToken(tokenDraft); setTokenDraft(''); notify('Đã mở khóa OWNER cục bộ trong bộ nhớ phiên trang.'); }}><label htmlFor="owner-token">Unlock local OWNER actions</label><input id="owner-token" type="password" autoComplete="off" value={tokenDraft} onChange={(event) => setTokenDraft(event.target.value)} placeholder="Token cục bộ" /><button type="submit">Mở khóa</button></form>}</div><main id="main" className="frame" tabIndex={-1} ref={main}><div className="view">{content}</div>{mode === 'demo' && route.kind !== 'product' && route.kind !== 'invalid' && <div className="view-options"><label htmlFor="scenario">Xem trạng thái giao diện:</label><select id="scenario" value={scenario} onChange={(event) => setScenario(event.target.value as Scenario)}><option value="normal">Có dữ liệu demo</option><option value="empty">Chưa có workspace</option><option value="loading">Đang tải</option><option value="error">Lỗi tải dữ liệu</option></select></div>}<p className="caption">{mode === 'demo' ? 'Frontend React demo · Mọi thao tác được đặt lại khi tải lại trang.' : 'Frontend React · Dữ liệu thật chỉ đọc qua API nội bộ.'}</p></main><div className="toast" role="status" aria-live="polite">{toast}</div></>;
 }
