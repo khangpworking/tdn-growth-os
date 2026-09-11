@@ -128,3 +128,9 @@ Each product workspace may have one mutable pre-lock STP working record and exac
 ## Task 032 — combined B10 category-and-funding decision
 
 B10 v1 records one combined OWNER button decision—`APPROVE`, `HOLD`, or `REJECT`—for category/portfolio approval and authorization to receive funding. It uses immutable append-only correction history bound to one exact verified `LOCKED_STP`; exact predecessor IDs provide optimistic concurrency, repeated effective states are rejected, and exact successful requests deduplicate. Narrow readers replay decisions by ID and report only the effective status, with `readyForB11` true only for effective `APPROVE`. No budget allocation, B11 state, Box 4 SQL/FK, AI/Pi, provider call, external action, UI/API, worker, scheduler, notification, or deployment is introduced.
+
+## Task 034 — read-only workspace API and real-data frontend
+
+The Task 033 React frontend is implemented. Task 034 connects its normal mode to verified persisted SQLite records through a narrow local read-only HTTP API. The API provides portfolio, discovery-workspace detail, and independent product-workspace detail GET views; the database is opened read-only/file-must-exist and placed in SQLite query-only mode, and relationships are composed by IDs after Box-owned verified replay. The frontend shows truthful loading, empty, not-found, integrity, and connection states without synthetic fallback. Synthetic state remains available only through explicit `?mode=demo`, with a visible warning. Real-data B8 controls are disabled; B9 and B10 remain informational.
+
+Production API writes, authentication, deployment, mutable STP/B8/B9/B10 operations, and real business decisions are not implemented.

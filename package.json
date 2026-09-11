@@ -18,6 +18,7 @@
     "foundation:ingest": "tsx scripts/ingest-manual.ts",
     "foundation:ingest-export": "tsx scripts/ingest-json-export.ts",
     "typecheck": "node scripts/typecheck.mjs",
+    "workspace-api:start": "tsx scripts/serve-workspace-api.ts",
     "frontend:dev": "vite --config frontend/vite.config.ts",
     "frontend:typecheck": "tsc -p frontend/tsconfig.json --noEmit",
     "frontend:build": "vite build --config frontend/vite.config.ts",

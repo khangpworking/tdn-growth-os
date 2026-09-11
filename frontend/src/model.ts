@@ -22,6 +22,7 @@ export interface Product {
   readonly id: string;
   readonly marketId: string;
   readonly candidateId: string;
+  readonly candidateVersion: number;
   readonly name: string;
   readonly summary: string;
   readonly states: Readonly<Record<LaneKey, LaneState>>;
@@ -32,6 +33,7 @@ export interface Product {
 export interface Candidate {
   readonly id: string;
   readonly marketId: string;
+  readonly version: number;
   readonly name: string;
   readonly productId: string | null;
 }
@@ -51,6 +53,7 @@ export interface DemoState {
 }
 
 export type DemoAction =
+  | { readonly type: 'replace'; readonly state: DemoState }
   | { readonly type: 'create-market'; readonly id: string; readonly name: string; readonly keywords: string }
   | { readonly type: 'decide'; readonly productId: string; readonly lane: LaneKey; readonly decision: DecisionState; readonly time: string }
   | { readonly type: 'create-clearance'; readonly productId: string; readonly time: string }
@@ -71,15 +74,15 @@ export function createSeedState(): DemoState {
       { id: 'sleep', name: 'Chăm sóc giấc ngủ', keywords: 'giấc ngủ, sleep', note: 'Đang khám phá cơ hội; chưa có quyết định B7 hoặc hồ sơ sản phẩm.' },
     ],
     candidates: [
-      { id: 'candidate-calcium-adult', marketId: 'calcium', name: 'Canxi cho người lớn', productId: 'adult' },
-      { id: 'candidate-calcium-child', marketId: 'calcium', name: 'Canxi cho trẻ em', productId: 'child' },
-      { id: 'candidate-collagen-liquid', marketId: 'collagen', name: 'Collagen dạng nước', productId: 'collagen-liquid' },
-      { id: 'candidate-collagen-powder', marketId: 'collagen', name: 'Collagen dạng bột', productId: null },
-      { id: 'candidate-sleep-habit', marketId: 'sleep', name: 'Sản phẩm hỗ trợ thói quen ngủ', productId: null },
+      { id: 'candidate-calcium-adult', marketId: 'calcium', version: 1, name: 'Canxi cho người lớn', productId: 'adult' },
+      { id: 'candidate-calcium-child', marketId: 'calcium', version: 1, name: 'Canxi cho trẻ em', productId: 'child' },
+      { id: 'candidate-collagen-liquid', marketId: 'collagen', version: 1, name: 'Collagen dạng nước', productId: 'collagen-liquid' },
+      { id: 'candidate-collagen-powder', marketId: 'collagen', version: 1, name: 'Collagen dạng bột', productId: null },
+      { id: 'candidate-sleep-habit', marketId: 'sleep', version: 1, name: 'Sản phẩm hỗ trợ thói quen ngủ', productId: null },
     ],
     products: [
       {
-        id: 'adult', marketId: 'calcium', candidateId: 'candidate-calcium-adult', name: 'Canxi cho người lớn',
+        id: 'adult', marketId: 'calcium', candidateId: 'candidate-calcium-adult', candidateVersion: 1, name: 'Canxi cho người lớn',
         summary: 'Ứng viên dành cho người trưởng thành. Nội dung này minh họa bản tóm tắt được giữ lại khi tạo workspace sản phẩm.',
         states: { LEGAL: 'NONE', SCIENTIFIC: 'PASS', QUALITY: 'HOLD', FINANCE: 'NONE' },
         history: [
@@ -89,12 +92,12 @@ export function createSeedState(): DemoState {
         clearance: null,
       },
       {
-        id: 'child', marketId: 'calcium', candidateId: 'candidate-calcium-child', name: 'Canxi cho trẻ em',
+        id: 'child', marketId: 'calcium', candidateId: 'candidate-calcium-child', candidateVersion: 1, name: 'Canxi cho trẻ em',
         summary: 'Ứng viên dành cho trẻ em, có hồ sơ và các quyết định độc lập với sản phẩm cho người lớn.',
         states: emptyStates(), history: [], clearance: null,
       },
       {
-        id: 'collagen-liquid', marketId: 'collagen', candidateId: 'candidate-collagen-liquid', name: 'Collagen dạng nước',
+        id: 'collagen-liquid', marketId: 'collagen', candidateId: 'candidate-collagen-liquid', candidateVersion: 1, name: 'Collagen dạng nước',
         summary: 'Ứng viên dạng nước trong thị trường collagen. Đây là nội dung minh họa, chưa phải kết luận nghiên cứu.',
         states: emptyStates(), history: [], clearance: null,
       },
@@ -104,6 +107,7 @@ export function createSeedState(): DemoState {
 }
 
 export function demoReducer(state: DemoState, action: DemoAction): DemoState {
+  if (action.type === 'replace') return action.state;
   if (action.type === 'reset') return createSeedState();
   if (action.type === 'create-market') {
     const name = action.name.trim();
