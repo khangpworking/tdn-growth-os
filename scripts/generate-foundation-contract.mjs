@@ -39,6 +39,8 @@ const contracts = [
   ['governance', 'candidate-b7-decision'],
   ['governance', 'product-b8-lane-decision-request'],
   ['governance', 'product-b8-lane-decision'],
+  ['governance', 'product-b10-decision-request'],
+  ['governance', 'product-b10-decision'],
   ['flow', 'approved-proposal-intake-request'],
   ['flow', 'authorized-plan'],
   ['flow', 'discovery-workspace-request'],

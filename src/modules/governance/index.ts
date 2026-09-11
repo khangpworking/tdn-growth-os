@@ -54,3 +54,19 @@ export {
   type ProductB8StatusReader,
 } from './product-b8-status-reader.js';
 export { validateProductB8LaneDecision, validateProductB8LaneDecisionRequest } from './validation.js';
+
+export {
+  PRODUCT_B10_REVIEW_CAPABILITY,
+  PRODUCT_B10_REVIEW_POLICY_ID,
+  ProductB10DecisionIdentityConflictError,
+  ProductB10DecisionService,
+  type ProductB10DecisionExecution,
+  type ProductB10Status,
+  type TrustedProductB10DecisionActorContext,
+} from './product-b10-decision-service.js';
+export {
+  GovernanceProductB10Reader,
+  type ProductB10DecisionByIdReader,
+  type ProductB10EffectiveStatusReader,
+} from './product-b10-decision-reader.js';
+export { validateProductB10Decision, validateProductB10DecisionRequest, validateSourceLockedStp } from './validation.js';

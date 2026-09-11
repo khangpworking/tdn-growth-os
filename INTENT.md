@@ -81,6 +81,14 @@ Mỗi quyết định chỉ là **PASS**, **HOLD** hoặc **REJECT**. B8 là but
 
 B9 chỉ ở trạng thái sẵn sàng khi effective decision mới nhất của cả bốn lane đều là PASS. Task 029 chỉ ghi lịch sử quyết định append-only và đọc trạng thái sẵn sàng; không bắt đầu B9, không tạo B9 clearance, không đổi `entryStep` hay mutate product workspace, và không tạo task hoặc hành động bên ngoài. Một task tương lai sẽ đóng băng đúng bốn PASS decision ID trước khi vào B9.
 
+### D26 — B10 v1 là một quyết định kết hợp; B11 tương lai phải đóng băng đúng APPROVE hiệu lực
+
+B10 v1 có một quyết định nghiệp vụ kết hợp cho cả phê duyệt danh mục/portfolio và quyền nhận funding; không tách thành hai gate. Chỉ `OWNER` bấm một trong `APPROVE`, `HOLD`, `REJECT`, không lưu budget, amount, currency, kỳ/trần/lịch cấp vốn, reason, rationale, notes, explanation hay khuyến nghị AI. `APPROVE` đồng thời phê duyệt sản phẩm cho danh mục/portfolio và cho phép sản phẩm nhận funding; không tự phân bổ hoặc giải ngân tiền.
+
+Nhấn nhầm được sửa bằng lịch sử quyết định bất biến, append-only. Mỗi correction phải trỏ đúng quyết định hiện đang hiệu lực và đổi sang một trạng thái khác; lịch sử cũ vẫn replay độc lập. Chỉ quyết định hợp lệ mới nhất có hiệu lực. Task 032 không xây B11 hoặc policy reopening sau B11.
+
+Quy tắc chuyển tiếp bắt buộc cho implementation B11 tương lai: khi B11 bắt đầu, nó phải đóng băng đúng quyết định B10 `APPROVE` đang hiệu lực tại thời điểm đó. Chính sách có cho sửa/mở lại B10 sau khi B11 đã bắt đầu hay không vẫn là future work và không được tự suy diễn từ Task 032.
+
 ### D03 — Workspace khám phá vẫn mở
 
 Không đóng workspace B0–B7 khi có candidate PASS. Người dùng có thể khám phá thêm hoặc tiếp tục nghiên cứu khi chưa candidate nào PASS. Các workspace sản phẩm đã tách tiếp tục độc lập.
