@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-candidate-basket-api.schema.json",
+  "title": "OwnerCandidateBasketApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/receipt" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "basketKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateId", "candidateVersion"],
+      "properties": {
+        "candidateId": { "$ref": "#/$defs/uuid" },
+        "candidateVersion": { "$ref": "#/$defs/version" }
+      }
+    },
+    "request": {
+      "title": "OwnerCandidateBasketRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "basketKey", "version", "candidates"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "basketKey": { "$ref": "#/$defs/basketKey" },
+        "version": { "$ref": "#/$defs/version" },
+        "candidates": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/selection" } }
+      }
+    },
+    "receipt": {
+      "title": "OwnerCandidateBasketReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "basketId", "workspaceId", "basketKey", "version", "frozenAt", "candidateCount", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "basketId": { "$ref": "#/$defs/uuid" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "basketKey": { "$ref": "#/$defs/basketKey" },
+        "version": { "$ref": "#/$defs/version" },
+        "frozenAt": { "type": "string", "format": "date-time" },
+        "candidateCount": { "type": "integer", "minimum": 1 },
+        "exactRetry": { "type": "boolean" }
+      }
+    }
+  }
+}

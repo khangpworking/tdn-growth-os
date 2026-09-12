@@ -1,6 +1,6 @@
-import { laneOrder } from './model';
-import type { Candidate, DemoState, LaneKey, LaneState, Market, Product } from './model';
-import type { DiscoveryWorkspaceDetailResponse, ProductB10Response, ProductB9Response, ProductWorkspaceDetailResponse, WorkspacePortfolioResponse } from '../../contracts/api/workspace-api.generated';
+import { laneOrder, latestBasketVersion } from './model';
+import type { Candidate, CandidateBasket, DemoState, LaneKey, LaneState, Market, Product } from './model';
+import type { DiscoveryWorkspaceDetailResponse, ProductB10Response, ProductB9Response, ProductWorkspaceDetailResponse, WorkspaceCandidateBasketsResponse, WorkspacePortfolioResponse } from '../../contracts/api/workspace-api.generated';
 
 export type FrontendMode = 'real' | 'demo';
 export type LoadFailure = 'connection' | 'integrity';
@@ -25,6 +25,19 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
     if (!samePortfolioItem(value.workspace, workspace)) invalid('Chi tiết discovery không khớp portfolio.');
     return value;
   }));
+  const basketValues = await Promise.all(details.map(async (detail) => {
+    const value = await requestJson(`/api/workspaces/${encodeURIComponent(detail.workspace.workspaceId)}/candidate-baskets`, fetcher);
+    assertBaskets(value, detail.workspace.workspaceId);
+    return value;
+  }));
+  const baskets: CandidateBasket[] = basketValues.flatMap((value) => value.baskets.map((basket) => ({ id: basket.basketId, marketId: basket.workspaceId, key: basket.basketKey, version: basket.version, frozenAt: formatTime(basket.frozenAt), candidates: basket.candidates.map((candidate) => ({ candidateId: candidate.candidateId, candidateKey: candidate.candidateKey, candidateVersion: candidate.candidateVersion, name: candidate.label, summary: candidate.summary ?? '' })) })));
+  for (const basket of baskets) {
+    const detail = details.find((item) => item.workspace.workspaceId === basket.marketId)!;
+    for (const member of basket.candidates) {
+      const current = detail.candidates.find((candidate) => candidate.candidateId === member.candidateId);
+      if (!current || current.candidateKey !== member.candidateKey || member.candidateVersion > current.version || (member.candidateVersion === current.version && (member.name !== current.label || member.summary !== (current.summary ?? '')))) invalid('Snapshot rổ không khớp lịch sử ứng viên đã xác minh.');
+    }
+  }
   const summaries = details.flatMap((detail) => detail.products.map((product) => ({ product, detail })));
   const productDetails = await Promise.all(summaries.map(async ({ product, detail }) => {
     const base = `/api/product-workspaces/${encodeURIComponent(product.productWorkspaceId)}`;
@@ -33,7 +46,9 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
     assertB9(b9Value, product.productWorkspaceId);
     assertB10(b10Value, product.productWorkspaceId);
     const candidate = detail.candidates.find((item) => item.candidateId === value.product.sourceCandidateId);
-    if (!sameProductSummary(value.product, product) || value.product.sourceWorkspaceId !== detail.workspace.workspaceId || !candidate || !sameSourceCandidate(value.product, candidate)) invalid('Chi tiết product workspace không khớp discovery.');
+    const sourceBasket = baskets.find((basket) => basket.id === value.product.sourceBasketId && basket.marketId === detail.workspace.workspaceId);
+    const sourceMember = sourceBasket?.candidates.find((member) => member.candidateId === value.product.sourceCandidateId && member.candidateVersion === value.product.sourceCandidateVersion);
+    if (!sameProductSummary(value.product, product) || value.product.sourceWorkspaceId !== detail.workspace.workspaceId || !candidate || !sameSourceCandidate(value.product, candidate) || !sourceBasket || sourceBasket.key !== value.product.sourceBasketKey || sourceBasket.version !== value.product.sourceBasketVersion || !sourceMember || sourceMember.candidateKey !== value.product.sourceCandidateKey || sourceMember.name !== value.product.sourceCandidateLabel || sourceMember.summary !== (value.product.sourceCandidateSummary ?? '')) invalid('Chi tiết product workspace không khớp discovery và snapshot rổ.');
     return { ...value, journeyB9: b9Value, journeyB10: b10Value };
   }));
   const productById = uniqueMap(productDetails, (detail) => detail.product.productWorkspaceId, 'Product workspace bị lặp.');
@@ -53,6 +68,9 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
       products.push({
         id: source.product.productWorkspaceId,
         marketId: source.product.sourceWorkspaceId,
+        basketId: source.product.sourceBasketId,
+        basketKey: source.product.sourceBasketKey,
+        basketVersion: source.product.sourceBasketVersion,
         candidateId: source.product.sourceCandidateId,
         candidateVersion: source.product.sourceCandidateVersion,
         name: source.product.title,
@@ -67,7 +85,7 @@ export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Pro
       });
     }
   }
-  return { markets, candidates, products, sequence: 1 };
+  return { markets, candidates, baskets, products, sequence: 1 };
 }
 
 async function requestJson(url: string, fetcher: typeof fetch): Promise<unknown> {
@@ -100,6 +118,18 @@ function assertDiscovery(value: unknown, id: string): asserts value is Discovery
   uniqueMap(value.candidates, (candidate) => candidate.candidateId, 'Candidate bị lặp.');
   uniqueMap(value.products, (product) => product.productWorkspaceId, 'Product workspace bị lặp.');
   if (value.workspace.candidateCount !== value.candidates.length || value.workspace.productCount !== value.products.length) invalid('Số lượng workspace không khớp chi tiết đã xác minh.');
+}
+function assertBaskets(value: unknown, workspaceId: string): asserts value is WorkspaceCandidateBasketsResponse {
+  if (!record(value) || value.contractVersion !== '1.0.0' || value.workspaceId !== workspaceId || !Array.isArray(value.baskets)) invalid('Phản hồi rổ ứng viên không đúng contract.');
+  const identities = new Set<string>(); const familyVersions = new Map<string, number>(); let previousOrder = '';
+  for (const basket of value.baskets) {
+    if (!record(basket) || !uuid(basket.basketId) || basket.workspaceId !== workspaceId || !candidateKey(basket.basketKey) || !version(basket.version) || !dateTime(basket.frozenAt) || !Array.isArray(basket.candidates) || basket.candidates.length === 0) invalid('Rổ ứng viên không đúng contract.');
+    const identity = `${basket.basketKey}:${basket.version}`; if (identities.has(identity)) invalid('Phiên bản rổ ứng viên bị lặp.'); identities.add(identity);
+    const expectedVersion = (familyVersions.get(basket.basketKey) ?? 0) + 1; if (basket.version !== expectedVersion) invalid('Lịch sử phiên bản rổ ứng viên không nối tiếp.'); familyVersions.set(basket.basketKey, basket.version);
+    const order = `${basket.basketKey}\u0000${basket.version.toString().padStart(16, '0')}\u0000${basket.basketId}`; if (order <= previousOrder) invalid('Thứ tự rổ ứng viên không ổn định.'); previousOrder = order;
+    const members = new Set<string>(); let previousMember = '';
+    for (const candidate of basket.candidates) { if (!record(candidate) || !uuid(candidate.candidateId) || !candidateKey(candidate.candidateKey) || !version(candidate.candidateVersion) || !text(candidate.label) || (candidate.summary !== undefined && typeof candidate.summary !== 'string') || candidate.state !== 'EXPLORING' || members.has(candidate.candidateId) || candidate.candidateId <= previousMember) invalid('Snapshot ứng viên trong rổ không đúng contract.'); members.add(candidate.candidateId); previousMember = candidate.candidateId; }
+  }
 }
 function assertProductSummary(value: unknown): void {
   if (!record(value) || !uuid(value.productWorkspaceId) || !text(value.productWorkspaceKey) || value.state !== 'ACTIVE' || value.entryStep !== 'B8' || !text(value.title) || !dateTime(value.createdAt)) invalid('Product summary không đúng contract.');
@@ -265,3 +295,27 @@ export const submitOwnerCandidate=(input:OwnerCandidateInput,fetcher:typeof fetc
 export const submitOwnerCandidateRevision=(input:OwnerCandidateRevisionInput,fetcher:typeof fetch=fetch)=>submitOwnerCandidateRequest(input,fetcher);
 export type OwnerCandidateOutcome={readonly kind:'success';readonly receipt:OwnerCandidateReceipt;readonly state:DemoState}|{readonly kind:'conflict';readonly state:DemoState};
 export async function submitOwnerCandidateAndReload(input:OwnerCandidateInput|OwnerCandidateRevisionInput,reload:()=>Promise<DemoState>,fetcher:typeof fetch=fetch):Promise<OwnerCandidateOutcome>{try{const receipt=await submitOwnerCandidateRequest(input,fetcher);const state=await reload();const candidate=state.candidates.find(item=>item.id===receipt.candidateId&&item.marketId===receipt.workspaceId);if(!candidate||candidate.key!==receipt.candidateKey||candidate.version!==receipt.version||candidate.name!==receipt.label||candidate.summary!==(receipt.summary??''))throw new OwnerWriteError('integrity','Ứng viên chưa xuất hiện đúng ID và phiên bản trong dữ liệu có thẩm quyền.');return{kind:'success',receipt,state};}catch(error){if(error instanceof OwnerWriteError&&error.kind==='conflict')return{kind:'conflict',state:await reload()};throw error;}}
+
+export interface OwnerBasketSelection { readonly candidateId: string; readonly candidateVersion: number }
+export interface OwnerBasketInput { readonly workspaceId: string; readonly basketKey: string; readonly version: number; readonly candidates: readonly OwnerBasketSelection[]; readonly token: string }
+export interface OwnerBasketReceipt { readonly contractVersion: '1.0.0'; readonly basketId: string; readonly workspaceId: string; readonly basketKey: string; readonly version: number; readonly frozenAt: string; readonly candidateCount: number; readonly exactRetry: boolean }
+export function generatedBasketKey(uuidValue: string = crypto.randomUUID()): string { const compact=uuidValue.toLowerCase().replace(/-/g,''); if(!/^[0-9a-f]{32}$/.test(compact)) throw new TypeError('A random UUID is required'); return `basket-${compact}`; }
+export function ownerBasketDisabled(input:{readonly unlocked:boolean;readonly pending:boolean;readonly selectedCount:number}):boolean{return !input.unlocked||input.pending||input.selectedCount<1;}
+export async function submitOwnerBasket(input:OwnerBasketInput,fetcher:typeof fetch=fetch):Promise<OwnerBasketReceipt>{
+  const body={contractVersion:'1.0.0' as const,basketKey:input.basketKey,version:input.version,candidates:input.candidates}; let response:Response;
+  try{response=await fetcher(`/owner-api/workspaces/${encodeURIComponent(input.workspaceId)}/candidate-baskets`,{method:'POST',headers:{Authorization:`Bearer ${input.token}`,'Content-Type':'application/json',Accept:'application/json'},body:JSON.stringify(body)});}catch{throw new OwnerWriteError('connection','Kết nối bị gián đoạn. Lựa chọn và định danh rổ được giữ để có thể thử lại an toàn.');}
+  if(!response.ok){const kind:OwnerWriteFailure=response.status===401?'unauthorized':response.status===403?'forbidden':response.status===409?'conflict':response.status===404?'not_found':response.status>=500?'integrity':'invalid';throw new OwnerWriteError(kind,kind==='conflict'?'Rổ ứng viên hoặc phiên bản ứng viên đã thay đổi.':'OWNER API từ chối đóng băng rổ ứng viên.');}
+  let value:unknown;try{value=await response.json();}catch{throw new OwnerWriteError('integrity','Biên nhận rổ ứng viên không phải JSON hợp lệ.');}const expectedRetry=response.status===200;
+  if(!record(value)||Object.keys(value).sort().join(',')!=='basketId,basketKey,candidateCount,contractVersion,exactRetry,frozenAt,version,workspaceId'||value.contractVersion!=='1.0.0'||!uuid(value.basketId)||value.workspaceId!==input.workspaceId||value.basketKey!==input.basketKey||value.version!==input.version||!dateTime(value.frozenAt)||value.candidateCount!==input.candidates.length||value.exactRetry!==expectedRetry||(response.status!==200&&response.status!==201))throw new OwnerWriteError('integrity','Biên nhận rổ ứng viên không đúng contract.');return value as OwnerBasketReceipt;
+}
+export type OwnerBasketOutcome={readonly kind:'success';readonly receipt:OwnerBasketReceipt;readonly state:DemoState}|{readonly kind:'conflict';readonly state:DemoState};
+export async function submitOwnerBasketAndReload(input:OwnerBasketInput,reload:()=>Promise<DemoState>,fetcher:typeof fetch=fetch):Promise<OwnerBasketOutcome>{try{const receipt=await submitOwnerBasket(input,fetcher);const state=await reload();const basket=state.baskets.find(item=>item.id===receipt.basketId&&item.marketId===receipt.workspaceId);if(!basket||basket.key!==receipt.basketKey||basket.version!==receipt.version||basket.candidates.length!==receipt.candidateCount||!sameBasketSelections(basket.candidates,input.candidates))throw new OwnerWriteError('integrity','Rổ mới chưa xuất hiện đúng snapshot trong dữ liệu có thẩm quyền.');return{kind:'success',receipt,state};}catch(error){if(error instanceof OwnerWriteError&&error.kind==='conflict')return{kind:'conflict',state:await reload()};throw error;}}
+
+function sameBasketSelections(members: CandidateBasket['candidates'], selections: readonly OwnerBasketSelection[]): boolean {
+  const expected = [...selections].sort((left, right) => left.candidateId < right.candidateId ? -1 : left.candidateId > right.candidateId ? 1 : left.candidateVersion - right.candidateVersion);
+  return members.every((member, index) => member.candidateId === expected[index]?.candidateId && member.candidateVersion === expected[index]?.candidateVersion);
+}
+
+export function expectedLatestBasketVersion(baskets: readonly CandidateBasket[], workspaceId: string, basketKey: string): number | null {
+  return latestBasketVersion(baskets, workspaceId, basketKey);
+}

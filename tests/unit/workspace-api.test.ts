@@ -36,7 +36,10 @@ test('workspace API source uses built-in HTTP and exposes only deterministic GET
 test('workspace API contract retains existing responses and adds closed B9/B10 read responses', () => {
   const schema = JSON.parse(fs.readFileSync('contracts/api/workspace-api.schema.json', 'utf8')) as any;
   const refs = schema.oneOf.map((entry: any) => entry.$ref);
-  assert.deepEqual(refs, ['#/$defs/portfolio', '#/$defs/discoveryDetail', '#/$defs/productDetail', '#/$defs/productB9', '#/$defs/productB10', '#/$defs/error']);
+  assert.deepEqual(refs, ['#/$defs/portfolio', '#/$defs/discoveryDetail', '#/$defs/candidateBaskets', '#/$defs/productDetail', '#/$defs/productB9', '#/$defs/productB10', '#/$defs/error']);
+  assert.equal(schema.$defs.candidateBaskets.additionalProperties, false);
+  assert.equal(schema.$defs.candidateBasket.additionalProperties, false);
+  assert.equal(schema.$defs.basketCandidate.additionalProperties, false);
   assert.equal(schema.$defs.productB9.additionalProperties, false);
   assert.deepEqual(schema.$defs.productB9.properties.state.enum, ['NOT_STARTED', 'WORKING', 'LOCKED']);
   assert.equal(schema.$defs.productB10.additionalProperties, false);

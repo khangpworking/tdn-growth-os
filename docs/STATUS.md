@@ -1,5 +1,14 @@
 # Trạng thái hiện tại
 
+## Task 042 — governed candidate-basket freeze and UI
+
+- Read API có endpoint riêng cho các basket của đúng discovery workspace, replay từng basket qua verified Task 026 reader, sắp xếp deterministic theo basket key rồi version tăng dần, và chỉ trả identity/thời gian cùng exact frozen candidate fields an toàn. SQLite vẫn read-only, file-must-exist, query-only và bảo toàn bytes.
+- Opt-in local OWNER API nhận closed request gồm basket key, version và ít nhất một cặp exact candidate ID/version; workspace ID chỉ đến từ URL. Mutation chỉ gọi `CandidateBasketService.freezeBasket()`, không ghi trực tiếp candidate-basket SQL; create mới trả 201 và verified exact retry trả 200.
+- Mỗi basket version là snapshot bất biến, append-only của exact historical candidate revisions. Candidate sửa sau không đổi basket cũ; version basket sau có thể đổi membership hoặc dùng revision mới. Thứ tự deterministic không phải score, rank, recommendation, winner hay approval.
+- Real discovery UI bắt đầu với selection trống, hiển thị candidate hiện tại cùng `EXPLORING` và exact version, hỗ trợ family mới hoặc next version, confirmation, hidden stable key, retry identity, no optimistic mutation, authoritative reload/conflict handling và immutable history. Demo vẫn synthetic.
+- Request-owned staging của Task 040/041 được giữ nguyên: cleanup chỉ xóa private directory của request hiện tại; exact retry recovery chỉ phục hồi đúng canonical basket artifact thực sự thiếu sau full verification, không scan/xóa artifact root hay file không liên quan.
+- Task 042 không thêm migration, candidate mutation, B7 PASS/HOLD/REJECT, product workspace, scoring/ranking/comparison, research/provider/AI, production auth, worker, deployment hoặc real/private basket data.
+
 ## Task 041 — OWNER product candidate create/revise UI
 
 - Local OWNER API exposes closed create/revision paths inside one exact discovery workspace and delegates exclusively to Task 025 `ProductCandidateService`; revision membership is verified by candidate ID through the existing reader.

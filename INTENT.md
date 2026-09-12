@@ -385,3 +385,9 @@ Chủ dự án xác nhận B7 v1 là gate **chỉ OWNER**: trusted actor phải 
 **PASS** chỉ cho phép một bước tương lai, độc lập, tạo product workspace; Task 027 không tạo workspace ngay. PASS không phê duyệt cấp vốn, pháp lý, tuyên bố khoa học, nhà cung cấp, xuất bản, launch, hay bất kỳ gate B8–B10 nào. **HOLD** chỉ được xem xét lại bằng một basket version tương lai; không sửa hoặc ghi đè quyết định cho basket/member/version hiện tại.
 
 D24 thay thế ngôn ngữ D02 yêu cầu/giữ lý do và phần chưa chắc chắn về ai quyết định hoặc cách reconsideration. D02 vẫn là bối cảnh lịch sử cho ba kết quả, nhưng policy owner-only và semantics không-rationale/reconsideration tại đây là authoritative cho B7 v1.
+
+### D32 — Ranh giới B3 candidate basket v1
+
+B3 v1 đóng băng một tập các **exact candidate revision** trong một discovery workspace đang ACTIVE. Một basket family được nhận diện bằng `workspaceId + basketKey`; version phải nối tiếp từ v1, lịch sử append-only và exact retry không tạo bản mới. Read model chỉ phát các trường an toàn cần cho UI và replay toàn bộ basket bằng verified reader; mọi drift artifact/row/workspace/candidate trả lỗi integrity chung.
+
+Việc tạo basket không chấm điểm, xếp hạng, so sánh, chọn PASS/HOLD/REJECT, tạo B7 decision hay product workspace, sửa candidate, chạy research/provider/AI, hoặc xóa/sweep artifact. Workspace ID chỉ đến từ URL OWNER API; request-scoped staging chỉ phục hồi đúng canonical basket artifact bị thiếu của exact committed retry.
