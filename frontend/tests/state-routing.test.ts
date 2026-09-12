@@ -60,3 +60,15 @@ test('reset returns an independent synthetic seed', () => {
   assert.deepEqual(reset, createSeedState());
   assert.notEqual(reset, seed);
 });
+
+
+test('demo candidate create and revision are synthetic, isolated, and retain historical product linkage', () => {
+  const seed=createSeedState();
+  const created=demoReducer(seed,{type:'create-candidate',id:'candidate-demo',marketId:'sleep',key:'candidate-hidden',name:'  Magiê buổi tối  ',summary:'  Giả thuyết tổng hợp.  '});
+  assert.deepEqual(created.candidates.at(-1),{id:'candidate-demo',marketId:'sleep',key:'candidate-hidden',version:1,name:'Magiê buổi tối',summary:'Giả thuyết tổng hợp.',productId:null,productCandidateVersion:null});
+  assert.equal(created.products,seed.products);
+  const revised=demoReducer(created,{type:'revise-candidate',id:'candidate-calcium-adult',name:'Canxi người trưởng thành mới',summary:'Bản mô tả mới.'});
+  const candidate=revised.candidates.find(item=>item.id==='candidate-calcium-adult')!;
+  assert.equal(candidate.version,3); assert.equal(candidate.productCandidateVersion,1); assert.equal(candidate.productId,'adult');
+  assert.equal(revised.products.find(item=>item.id==='adult')?.candidateVersion,1);
+});

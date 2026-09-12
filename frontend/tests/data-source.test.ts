@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
 
 const ids = {
@@ -54,7 +54,7 @@ test('truthfully preserves an empty real portfolio', async () => {
 test('rejects malformed nested responses and inconsistent relationships', async () => {
   for (const mutate of [
     (responses: Map<string, unknown>) => { (responses.get(`/api/workspaces/${ids.w1}`) as any).workspace.candidateCount = 2; },
-    (responses: Map<string, unknown>) => { (responses.get(`/api/product-workspaces/${ids.p1}`) as any).product.sourceCandidateVersion = 2; },
+    (responses: Map<string, unknown>) => { (responses.get(`/api/product-workspaces/${ids.p1}`) as any).product.sourceCandidateVersion = 4; },
     (responses: Map<string, unknown>) => { (responses.get(`/api/product-workspaces/${ids.p1}`) as any).b8.lanes[0].decisionVersion = '1'; },
     (responses: Map<string, unknown>) => { (responses.get(`/api/product-workspaces/${ids.p1}`) as any).b8.readyForB9 = true; },
   ]) {
@@ -214,4 +214,33 @@ test('workspace receipt validation rejects status mismatch and malformed or extr
 test('workspace create panel includes a synchronous in-flight double-submit guard', async () => {
   const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/WorkspaceCreatePanel.tsx', import.meta.url), 'utf8'));
   assert.match(panel, /const inFlight = useRef\(false\)/); assert.match(panel, /if \(inFlight\.current\) return/); assert.match(panel, /inFlight\.current = true/); assert.match(panel, /inFlight\.current = false/);
+});
+
+
+test('candidate create uses a hidden stable key and validates the exact authoritative ID/version before success', async()=>{
+  const key=generatedCandidateKey('77777777-7777-4777-8777-777777777777');assert.equal(key,'candidate-77777777777747778777777777777777');
+  const token='x'.repeat(31)+'1';let observed:RequestInit|undefined;
+  const receipt={contractVersion:'1.0.0',candidateId:ids.c1,workspaceId:ids.w1,candidateKey:key,state:'EXPLORING',version:1,label:'Ứng viên mới',summary:'Tổng hợp.',createdAt:at,exactRetry:false};
+  await submitOwnerCandidate({workspaceId:ids.w1,candidateKey:key,label:'Ứng viên mới',summary:'Tổng hợp.',token},(async(_url,init)=>{observed=init;return json(receipt,201);}) as typeof fetch);
+  assert.deepEqual(JSON.parse(String(observed?.body)),{contractVersion:'1.0.0',candidateKey:key,label:'Ứng viên mới',summary:'Tổng hợp.'});
+  const authoritative={markets:[{id:ids.w1,name:'Thị trường',keywords:'',note:''}],candidates:[{id:ids.c1,marketId:ids.w1,key,version:1,name:'Ứng viên mới',summary:'Tổng hợp.',productId:null,productCandidateVersion:null}],products:[],sequence:1};
+  const outcome=await submitOwnerCandidateAndReload({workspaceId:ids.w1,candidateKey:key,label:'Ứng viên mới',summary:'Tổng hợp.',token},async()=>authoritative,(async()=>json(receipt,201)) as typeof fetch);assert.equal(outcome.kind,'success');
+  await assert.rejects(submitOwnerCandidateAndReload({workspaceId:ids.w1,candidateKey:key,label:'Ứng viên mới',summary:'Tổng hợp.',token},async()=>({...authoritative,candidates:[{...authoritative.candidates[0]!,version:2}]}),(async()=>json(receipt,201)) as typeof fetch),(error)=>error instanceof OwnerWriteError&&error.kind==='integrity');
+});
+
+test('candidate revision sends expected latest version, reloads on success and conflict, and never optimistically mutates',async()=>{
+ const token='x'.repeat(31)+'1',input={workspaceId:ids.w1,candidateId:ids.c1,expectedVersion:3,label:'Tên v4',token};let body:unknown;
+ const receipt={contractVersion:'1.0.0',candidateId:ids.c1,workspaceId:ids.w1,candidateKey:'candidate-one',state:'EXPLORING',version:4,label:'Tên v4',createdAt:at,exactRetry:false};
+ await submitOwnerCandidateRevision(input,(async(_url,init)=>{body=JSON.parse(String(init?.body));return json(receipt,201);}) as typeof fetch);assert.deepEqual(body,{contractVersion:'1.0.0',expectedVersion:3,label:'Tên v4'});
+ let reloads=0;const state={markets:[],candidates:[{id:ids.c1,marketId:ids.w1,key:'candidate-one',version:4,name:'Tên v4',summary:'',productId:ids.p1,productCandidateVersion:3}],products:[],sequence:1};
+ assert.equal((await submitOwnerCandidateAndReload(input,async()=>{reloads++;return state},(async()=>json(receipt,201)) as typeof fetch)).kind,'success');
+ assert.equal((await submitOwnerCandidateAndReload(input,async()=>{reloads++;return state},(async()=>json({error:{code:'conflict'}},409)) as typeof fetch)).kind,'conflict');assert.equal(reloads,2);
+ assert.equal(ownerCandidateDisabled({unlocked:true,pending:false,label:'Tên',summary:''}),false);
+});
+
+test('latest candidate and historical product source version coexist and UI keeps real/demo writes isolated',async()=>{
+ const responses=validResponses();(responses.get(`/api/workspaces/${ids.w1}`) as any).candidates[0].version=4;
+ const state=await loadRealWorkspaceState(fetchFrom(responses));assert.equal(state.candidates[0]?.version,4);assert.equal(state.candidates[0]?.productCandidateVersion,3);assert.equal(state.candidates[0]?.productId,ids.p1);
+ const [app,panel]=await Promise.all([import('node:fs/promises').then(fs=>fs.readFile(new URL('../src/App.tsx',import.meta.url),'utf8')),import('node:fs/promises').then(fs=>fs.readFile(new URL('../src/CandidateEditor.tsx',import.meta.url),'utf8'))]);
+ assert.doesNotMatch(panel,/name=["']candidateKey|Khóa ứng viên/);assert.match(panel,/useState\(\(\)=>candidate\?\.key \?\? generatedCandidateKey\(\)\)/);assert.match(panel,/mode==='demo'/);assert.match(app,/Workspace sản phẩm hiện có vẫn giữ snapshot của phiên bản ứng viên đã dùng tại B7/);
 });

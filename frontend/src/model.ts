@@ -74,9 +74,13 @@ export interface Product {
 export interface Candidate {
   readonly id: string;
   readonly marketId: string;
+  readonly key: string;
   readonly version: number;
   readonly name: string;
+  readonly summary: string;
+  /** A product remains linked to the candidate identity even after later candidate revisions. */
   readonly productId: string | null;
+  readonly productCandidateVersion: number | null;
 }
 
 export interface Market {
@@ -96,6 +100,8 @@ export interface DemoState {
 export type DemoAction =
   | { readonly type: 'replace'; readonly state: DemoState }
   | { readonly type: 'create-market'; readonly id: string; readonly name: string; readonly keywords: string }
+  | { readonly type: 'create-candidate'; readonly id: string; readonly marketId: string; readonly key: string; readonly name: string; readonly summary: string }
+  | { readonly type: 'revise-candidate'; readonly id: string; readonly name: string; readonly summary: string }
   | { readonly type: 'decide'; readonly productId: string; readonly lane: LaneKey; readonly decision: DecisionState; readonly time: string }
   | { readonly type: 'create-clearance'; readonly productId: string; readonly time: string }
   | { readonly type: 'reset' };
@@ -112,11 +118,11 @@ export function createSeedState(): DemoState {
       { id: 'sleep', name: 'Chăm sóc giấc ngủ', keywords: 'giấc ngủ, sleep', note: 'Đang khám phá cơ hội; chưa có quyết định B7 hoặc hồ sơ sản phẩm.' },
     ],
     candidates: [
-      { id: 'candidate-calcium-adult', marketId: 'calcium', version: 1, name: 'Canxi cho người lớn', productId: 'adult' },
-      { id: 'candidate-calcium-child', marketId: 'calcium', version: 1, name: 'Canxi cho trẻ em', productId: 'child' },
-      { id: 'candidate-collagen-liquid', marketId: 'collagen', version: 1, name: 'Collagen dạng nước', productId: 'collagen-liquid' },
-      { id: 'candidate-collagen-powder', marketId: 'collagen', version: 1, name: 'Collagen dạng bột', productId: null },
-      { id: 'candidate-sleep-habit', marketId: 'sleep', version: 1, name: 'Sản phẩm hỗ trợ thói quen ngủ', productId: null },
+      { id: 'candidate-calcium-adult', marketId: 'calcium', key: 'calcium-adult', version: 2, name: 'Canxi cho người lớn', summary: 'Ý tưởng canxi cho người trưởng thành đang được khám phá.', productId: 'adult', productCandidateVersion: 1 },
+      { id: 'candidate-calcium-child', marketId: 'calcium', key: 'calcium-child', version: 1, name: 'Canxi cho trẻ em', summary: 'Ý tưởng dành cho trẻ em cần tiếp tục xác minh.', productId: 'child', productCandidateVersion: 1 },
+      { id: 'candidate-collagen-liquid', marketId: 'collagen', key: 'collagen-liquid', version: 1, name: 'Collagen dạng nước', summary: 'Ứng viên dạng nước minh họa.', productId: 'collagen-liquid', productCandidateVersion: 1 },
+      { id: 'candidate-collagen-powder', marketId: 'collagen', key: 'collagen-powder', version: 1, name: 'Collagen dạng bột', summary: 'Ứng viên dạng bột đang khám phá.', productId: null, productCandidateVersion: null },
+      { id: 'candidate-sleep-habit', marketId: 'sleep', key: 'sleep-habit', version: 1, name: 'Sản phẩm hỗ trợ thói quen ngủ', summary: 'Ý tưởng tổng hợp hỗ trợ thói quen ngủ.', productId: null, productCandidateVersion: null },
     ],
     products: [
       {
@@ -158,6 +164,14 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
       ...state,
       markets: [...state.markets, { id: action.id, name, keywords: action.keywords.trim(), note: 'Workspace mới chưa có dữ liệu nghiên cứu hoặc ứng viên.' }],
     };
+  }
+  if (action.type === 'create-candidate') {
+    if (!state.markets.some((market) => market.id === action.marketId) || state.candidates.some((candidate) => candidate.id === action.id || (candidate.marketId === action.marketId && candidate.key === action.key))) return state;
+    return { ...state, candidates: [...state.candidates, { id: action.id, marketId: action.marketId, key: action.key, version: 1, name: action.name.trim(), summary: action.summary.trim(), productId: null, productCandidateVersion: null }] };
+  }
+  if (action.type === 'revise-candidate') {
+    if (!state.candidates.some((candidate) => candidate.id === action.id)) return state;
+    return { ...state, candidates: state.candidates.map((candidate) => candidate.id === action.id ? { ...candidate, version: candidate.version + 1, name: action.name.trim(), summary: action.summary.trim() } : candidate) };
   }
   const product = state.products.find((item) => item.id === action.productId);
   if (!product) return state;
