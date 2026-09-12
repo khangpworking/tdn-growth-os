@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-product-candidate-api.schema.json",
+  "title": "OwnerProductCandidateApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/createRequest" },
+    { "$ref": "#/$defs/revisionRequest" },
+    { "$ref": "#/$defs/receipt" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "candidateKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "label": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+    "summary": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+    "createRequest": {
+      "title": "OwnerProductCandidateCreateRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "candidateKey", "label"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "candidateKey": { "$ref": "#/$defs/candidateKey" },
+        "label": { "$ref": "#/$defs/label" },
+        "summary": { "$ref": "#/$defs/summary" }
+      }
+    },
+    "revisionRequest": {
+      "title": "OwnerProductCandidateRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "expectedVersion", "label"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+        "label": { "$ref": "#/$defs/label" },
+        "summary": { "$ref": "#/$defs/summary" }
+      }
+    },
+    "receipt": {
+      "title": "OwnerProductCandidateReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "candidateId", "workspaceId", "candidateKey", "state", "version", "label", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "candidateId": { "$ref": "#/$defs/uuid" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "candidateKey": { "$ref": "#/$defs/candidateKey" },
+        "state": { "const": "EXPLORING" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "label": { "$ref": "#/$defs/label" },
+        "summary": { "$ref": "#/$defs/summary" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    }
+  }
+}

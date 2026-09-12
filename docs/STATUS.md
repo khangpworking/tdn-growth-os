@@ -1,5 +1,14 @@
 # Trạng thái hiện tại
 
+## Task 041 — OWNER product candidate create/revise UI
+
+- Local OWNER API exposes closed create/revision paths inside one exact discovery workspace and delegates exclusively to Task 025 `ProductCandidateService`; revision membership is verified by candidate ID through the existing reader.
+- Candidate versions remain append-only and independent. Duplicate labels are allowed under distinct hidden keys; revisions do not modify another candidate or any frozen basket, B7 decision, or product-workspace source snapshot.
+- Real “Khám phá và rổ cơ hội” UI provides Vietnamese create/edit forms with memory-only OWNER unlock, stable generated create identity, exact expected versions, no optimistic mutation, authoritative reloads, and explicit stale-conflict handling. Demo remains synthetic.
+- Task 040 request-owned artifact staging is reused. Cleanup is limited to a unique private staging directory; exact post-commit recovery is bounded to a fully matching missing canonical create/revision target.
+- Task 041 adds no migration, score/rank/comparison, candidate relationship/state transition/delete/archive, basket/B7/product creation, provider/AI call, production authentication, deployment, or real/private candidate data.
+
+
 ## Frontend — Task 033 React workspace demo
 
 - Prototype nhiều thị trường đã duyệt ở D31 được triển khai thành React 19 + Vite 8 + TypeScript 5.9 trong `frontend/`; `docs/frontend/workspace-prototype.html` vẫn là nguồn thiết kế đã duyệt. Không dùng các hướng Coinbase, Meta, Apple hoặc HP đã loại.
