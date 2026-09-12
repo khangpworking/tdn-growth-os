@@ -1,0 +1,40 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-discovery-workspace-api.schema.json",
+  "title": "OwnerDiscoveryWorkspaceApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/request" },
+    { "$ref": "#/$defs/receipt" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "request": {
+      "title": "OwnerDiscoveryWorkspaceRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "workspaceKey", "title"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "workspaceKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" }
+      }
+    },
+    "receipt": {
+      "title": "OwnerDiscoveryWorkspaceReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "workspaceKey", "state", "title", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "workspaceKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+        "state": { "const": "ACTIVE" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    }
+  }
+}

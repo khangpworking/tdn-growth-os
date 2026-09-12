@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, WorkspaceDataSourceError } from '../src/data-source';
+import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
 
 const ids = {
@@ -179,4 +179,39 @@ test('B10 controls require unlock and verified lock, prevent pending and repeate
 test('real B10 panel has first/correction confirmations, funding clarification, no forbidden fields, and demo isolation', async () => {
   const [app, panel] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/B10DecisionPanel.tsx', import.meta.url), 'utf8'))]);
   assert.match(panel, /Approve category \+ authorize funding/); assert.match(panel, /predecessor null/); assert.match(panel, /correction sẽ nối thêm/); assert.match(panel, /không phân bổ, chuyển hoặc chi tiền/); assert.doesNotMatch(panel, /<input|<textarea/i); assert.match(app, /mode === 'real'.*<B10DecisionPanel/);
+});
+
+
+test('workspace key generation is stable, hidden, Task025-valid, and requests are closed', async () => {
+  const key = generatedWorkspaceKey('77777777-7777-4777-8777-777777777777'); assert.equal(key, 'market-77777777777747778777777777777777'); assert.match(key, /^[a-z][a-z0-9_-]{2,79}$/);
+  let observed: RequestInit | undefined; await submitOwnerWorkspace({ workspaceKey: key, title: 'Trùng tên', description: 'Rộng', token: 'x'.repeat(31) + '1' }, (async (_url, init) => { observed = init; return json({ contractVersion: '1.0.0', workspaceId: ids.w2, workspaceKey: key, state: 'ACTIVE', title: 'Trùng tên', description: 'Rộng', createdAt: at, exactRetry: false }, 201); }) as typeof fetch);
+  assert.deepEqual(JSON.parse(String(observed?.body)), { contractVersion: '1.0.0', workspaceKey: key, title: 'Trùng tên', description: 'Rộng' });
+  assert.equal(ownerWorkspaceDisabled({ unlocked: false, pending: false, title: 'A' }), true); assert.equal(ownerWorkspaceDisabled({ unlocked: true, pending: true, title: 'A' }), true); assert.equal(ownerWorkspaceDisabled({ unlocked: true, pending: false, title: ' ' }), true); assert.equal(ownerWorkspaceDisabled({ unlocked: true, pending: false, title: 'A' }), false);
+});
+
+test('workspace creation reloads authoritative portfolio and validates exact empty returned ID before navigation', async () => {
+  const key = generatedWorkspaceKey('77777777-7777-4777-8777-777777777777'); const input = { workspaceKey: key, title: 'Trùng tên', token: 'x'.repeat(31) + '1' };
+  const emptyState = { markets: [{ id: ids.w2, name: 'Trùng tên', keywords: '', note: 'Chưa có mô tả workspace.' }], candidates: [], products: [], sequence: 1 };
+  let reloads = 0; const result = await submitOwnerWorkspaceAndReload(input, async () => { reloads++; return emptyState; }, (async () => json({ contractVersion: '1.0.0', workspaceId: ids.w2, workspaceKey: key, state: 'ACTIVE', title: 'Trùng tên', createdAt: at, exactRetry: false }, 201)) as typeof fetch);
+  assert.equal(result.kind, 'success'); assert.equal(reloads, 1); assert.equal(result.state.markets[0]?.id, ids.w2);
+  const conflict = await submitOwnerWorkspaceAndReload(input, async () => { reloads++; return emptyState; }, (async () => json({ error: { code: 'conflict', message: 'used' } }, 409)) as typeof fetch); assert.equal(conflict.kind, 'conflict'); assert.equal(reloads, 2);
+});
+
+test('ambiguous workspace failure preserves retry identity and real/demo UI remain isolated', async () => {
+  const key = generatedWorkspaceKey('77777777-7777-4777-8777-777777777777'); const bodies: string[] = []; const input = { workspaceKey: key, title: 'Cơ hội rộng', token: 'x'.repeat(31) + '1' };
+  for (let attempt = 0; attempt < 2; attempt++) await assert.rejects(submitOwnerWorkspace(input, (async (_url, init) => { bodies.push(String(init?.body)); throw new Error('ambiguous'); }) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'connection');
+  assert.equal(bodies[0], bodies[1]);
+  const [app, panel] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/WorkspaceCreatePanel.tsx', import.meta.url), 'utf8'))]);
+  assert.doesNotMatch(panel, /name="workspaceKey"|Workspace key/); assert.match(panel, /useState\(\(\) => generatedWorkspaceKey\(\)\)/); assert.match(panel, /Thao tác này chỉ tạo một vùng nghiên cứu trống/); assert.match(panel, /mode === 'demo'/); assert.match(app, /Create new research/); assert.match(app, /ownerToken=.*reloadReal=/);
+});
+
+
+test('workspace receipt validation rejects status mismatch and malformed or extra receipt data', async () => {
+  const key = generatedWorkspaceKey('77777777-7777-4777-8777-777777777777'); const input = { workspaceKey: key, title: 'Cơ hội', token: 'x'.repeat(31) + '1' }; const valid = { contractVersion: '1.0.0', workspaceId: ids.w2, workspaceKey: key, state: 'ACTIVE', title: 'Cơ hội', createdAt: at, exactRetry: false };
+  for (const [body, status] of [[{ ...valid, extra: true }, 201], [{ ...valid, workspaceKey: 'wrong-key' }, 201], [{ ...valid, workspaceId: 'bad' }, 201], [{ ...valid, createdAt: 'bad' }, 201], [{ ...valid, exactRetry: true }, 201], [{ ...valid, exactRetry: false }, 200]] as const) await assert.rejects(submitOwnerWorkspace(input, (async () => json(body, status)) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'integrity');
+});
+
+test('workspace create panel includes a synchronous in-flight double-submit guard', async () => {
+  const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/WorkspaceCreatePanel.tsx', import.meta.url), 'utf8'));
+  assert.match(panel, /const inFlight = useRef\(false\)/); assert.match(panel, /if \(inFlight\.current\) return/); assert.match(panel, /inFlight\.current = true/); assert.match(panel, /inFlight\.current = false/);
 });
