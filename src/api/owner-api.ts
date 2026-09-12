@@ -1,6 +1,6 @@
-import { timingSafeEqual } from 'node:crypto';
-import http, { type IncomingMessage, type ServerResponse } from 'node:http';
+import { createHash, timingSafeEqual } from 'node:crypto';
 import fs from 'node:fs/promises';
+import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import type { OwnerApiErrorResponse, OwnerB8DecisionReceipt, OwnerB8DecisionRequest } from '../../contracts/api/owner-b8-decision-api.generated.js';
@@ -8,7 +8,7 @@ import type { OwnerB8ClearanceReceipt, OwnerB8ClearanceRequest } from '../../con
 import type { OwnerB9LockReceipt, OwnerB9LockRequest, OwnerB9WorkingReceipt, OwnerB9WorkingRequest } from '../../contracts/api/owner-b9-stp-api.generated.js';
 import type { OwnerB10DecisionReceipt, OwnerB10DecisionRequest } from '../../contracts/api/owner-b10-decision-api.generated.js';
 import type { OwnerDiscoveryWorkspaceReceipt, OwnerDiscoveryWorkspaceRequest } from '../../contracts/api/owner-discovery-workspace-api.generated.js';
-import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
+import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import { withDatabaseMutationMutex } from '../platform/db/index.js';
 import { CandidateB7DecisionService, CANDIDATE_B7_DECISION_CAPABILITY, CANDIDATE_B7_DECISION_POLICY_ID } from '../modules/governance/candidate-b7-decision-service.js';
 import { GovernanceCandidateB7DecisionReader } from '../modules/governance/candidate-b7-decision-reader.js';
@@ -58,7 +58,7 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     db.pragma('foreign_keys = ON');
     db.defaultSafeIntegers(true);
     assertOwnerTables(db);
-    const artifacts = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
+    const artifacts = new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot));
     const discoveries = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const candidates = new ProductCandidateService({ db, artifactStore: artifacts });
     const baskets = new CandidateBasketService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discoveries), candidateReader: new FlowProductCandidateReader(candidates) });
@@ -71,8 +71,10 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const lockedStps = new FlowLockedStpReader(stps);
     const b10 = new ProductB10DecisionService({ db, artifactStore: artifacts, lockedStpReader: lockedStps, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const actor = Object.freeze({ actorId: configuration.actorId, roleSnapshot: 'OWNER' as const, capabilities: new Set<string>([PRODUCT_B8_REVIEW_CAPABILITY, PRODUCT_B9_LOCK_CAPABILITY, PRODUCT_B10_REVIEW_CAPABILITY]) });
-    const workspaceByKey = db.prepare('SELECT workspace_id workspaceId FROM flow_discovery_workspaces WHERE workspace_key=?');
-    const artifactManifestExists = db.prepare('SELECT 1 FROM artifact_manifests WHERE relative_path=?');
+    const workspaceByKey = db.prepare(`SELECT workspace_id workspaceId, workspace_key workspaceKey, state, title, description,
+      request_sha256 requestSha256, workspace_artifact_sha256 artifactSha256, created_at createdAt
+      FROM flow_discovery_workspaces WHERE workspace_key=?`);
+    const workspaceManifest = db.prepare('SELECT byte_size byteSize, media_type mediaType, relative_path relativePath, acquired_at acquiredAt, contract_version contractVersion, retention_status retentionStatus, created_at createdAt FROM artifact_manifests WHERE sha256=?');
     const productExists = db.prepare('SELECT 1 FROM flow_product_workspaces WHERE product_workspace_id=?');
     const clearanceExists = db.prepare('SELECT 1 FROM flow_b8_clearances WHERE product_workspace_id=?');
     const clearanceByProduct = db.prepare('SELECT clearance_id clearanceId FROM flow_b8_clearances WHERE product_workspace_id=?');
@@ -80,12 +82,17 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const lockExists = db.prepare('SELECT 1 FROM flow_locked_stps WHERE product_workspace_id=?');
     const lockById = db.prepare('SELECT product_workspace_id productWorkspaceId FROM flow_locked_stps WHERE lock_id=?');
     const b10History = db.prepare('SELECT decision_id decisionId FROM governance_product_b10_decisions WHERE product_workspace_id=? ORDER BY decision_number');
-    const handler = (request: IncomingMessage, response: ServerResponse): void => { void route(request, response, configuration, async (body) => withDatabaseMutationMutex(db, async () => {
-      const filesBefore = await artifactFiles(configuration.artifactRoot);
-      try {
-        const existing = workspaceByKey.get(body.workspaceKey) as { workspaceId: string } | undefined;
-        if (existing) { try { await discoveries.readWorkspace(existing.workspaceId); } catch { throw new ExistingDiscoveryWorkspaceIntegrityError(); } }
+    const handler = (request: IncomingMessage, response: ServerResponse): void => { void route(request, response, configuration, async (body) => withDatabaseMutationMutex(db, async () => artifacts.withOwnership(async () => {
+        const existing = workspaceByKey.get(body.workspaceKey) as ExistingWorkspaceRow | undefined;
+        if (existing) {
+          try { await discoveries.readWorkspace(existing.workspaceId); }
+          catch {
+            try { await recoverExactMissingWorkspaceArtifact(body, existing, workspaceManifest, artifacts); await discoveries.readWorkspace(existing.workspaceId); }
+            catch { throw new ExistingDiscoveryWorkspaceIntegrityError(); }
+          }
+        }
         const result = await discoveries.createWorkspace(body);
+        await artifacts.publishOwned();
         let verified;
         try { verified = await discoveries.readWorkspace(result.workspaceId); } catch { throw new ExistingDiscoveryWorkspaceIntegrityError(); }
         const receipt: OwnerDiscoveryWorkspaceReceipt = {
@@ -94,8 +101,8 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
         };
         assertOwnerWorkspaceReceipt(receipt);
         return receipt;
-      } finally { await removeNewUnregisteredArtifacts(configuration.artifactRoot, filesBefore, artifactManifestExists); }
-    }), async (productWorkspaceId, body) => {
+      })),
+ async (productWorkspaceId, body) => {
       if (!productExists.get(productWorkspaceId)) throw new UnknownProductWorkspaceError();
       const result = await service.decide({ ...body, productWorkspaceId }, actor);
       const verified = await service.replay(result.decisionId);
@@ -261,6 +268,19 @@ function ownerWorkspaceBodyShape(value: unknown): value is OwnerDiscoveryWorkspa
   const allowed = new Set(['contractVersion', 'workspaceKey', 'title', 'description']);
   return Object.keys(body).every((key) => allowed.has(key)) && ['contractVersion', 'workspaceKey', 'title'].every((key) => Object.hasOwn(body, key));
 }
+type ExistingWorkspaceRow = { workspaceId: string; workspaceKey: string; state: string; title: string; description: string | null; requestSha256: string; artifactSha256: string; createdAt: string };
+async function recoverExactMissingWorkspaceArtifact(body: OwnerDiscoveryWorkspaceRequest, row: ExistingWorkspaceRow, manifestStatement: BetterSqlite3.Statement, artifacts: RequestScopedArtifactStore): Promise<void> {
+  const canonicalRequest = canonicalJson(body); const requestSha256 = createHash('sha256').update(Buffer.from(canonicalRequest, 'utf8')).digest('hex');
+  if (row.workspaceKey !== body.workspaceKey || row.state !== 'ACTIVE' || row.title !== body.title || row.description !== (body.description ?? null) || row.requestSha256 !== requestSha256) throw new ExistingDiscoveryWorkspaceIntegrityError();
+  const artifact = { contractVersion: '1.0.0', workspaceId: row.workspaceId, workspaceKey: row.workspaceKey, state: 'ACTIVE', title: row.title, ...(row.description === null ? {} : { description: row.description }), createdAt: row.createdAt, requestSha256: row.requestSha256 };
+  const bytes = Buffer.from(canonicalJson(artifact), 'utf8'); const digest = createHash('sha256').update(bytes).digest('hex'); const relativePath = `sha256/${digest.slice(0, 2)}/${digest}`;
+  const manifest = manifestStatement.get(row.artifactSha256) as { byteSize: bigint; mediaType: string; relativePath: string; acquiredAt: string; contractVersion: string; retentionStatus: string; createdAt: string } | undefined;
+  if (digest !== row.artifactSha256 || !manifest || manifest.byteSize !== BigInt(bytes.byteLength) || manifest.mediaType !== 'application/json' || manifest.relativePath !== relativePath || manifest.acquiredAt !== row.createdAt || manifest.contractVersion !== '1.0.0' || manifest.retentionStatus !== 'active' || manifest.createdAt !== row.createdAt) throw new ExistingDiscoveryWorkspaceIntegrityError();
+  try { await fs.access(artifacts.pathForDigest(digest)); throw new ExistingDiscoveryWorkspaceIntegrityError(); }
+  catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  const staged = await artifacts.put(bytes); if (staged.sha256 !== digest || staged.relativePath !== relativePath) throw new ExistingDiscoveryWorkspaceIntegrityError();
+  await artifacts.publishOwned();
+}
 function assertOwnerWorkspaceReceipt(value: OwnerDiscoveryWorkspaceReceipt): void { const keys = Object.keys(value).sort().join(','); const expected = ['contractVersion','workspaceId','workspaceKey','state','title','createdAt','exactRetry', ...(value.description === undefined ? [] : ['description'])].sort().join(','); if (keys !== expected || value.contractVersion !== '1.0.0' || !UUID.test(value.workspaceId) || !/^[a-z][a-z0-9_-]{2,79}$/.test(value.workspaceKey) || value.state !== 'ACTIVE' || value.title.length < 1 || value.title.length > 200 || (value.description !== undefined && (value.description.length < 1 || value.description.length > 1000)) || !Number.isFinite(Date.parse(value.createdAt)) || typeof value.exactRetry !== 'boolean') throw new ExistingDiscoveryWorkspaceIntegrityError(); }
 function clearanceSemanticConflict(error: Error): boolean { return /not found|must belong to|must be PASS|belongs to another|identical frozen|not currently ready|not the current effective PASS|cannot be assigned|already has a B8 clearance|different exact decision set|wrong .* decision/i.test(error.message); }
 function b10SemanticConflict(error: Error): boolean { return /belongs to another|wrong lock|previousDecisionId|first B10 decision|changed request|actor|predecessor|decision/i.test(error.message) && !/artifact|manifest|immutable row|historical|digest mismatch/i.test(error.message); }
@@ -336,7 +356,4 @@ async function readBody(request: IncomingMessage): Promise<string> {
 function cors(response: ServerResponse, origin: string): void { response.setHeader('Access-Control-Allow-Origin', origin); response.setHeader('Access-Control-Allow-Methods', 'POST'); response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type'); response.setHeader('Vary', 'Origin'); }
 function sendJson(response: ServerResponse, status: number, body: unknown, extra: Record<string, string> = {}): void { const bytes = Buffer.from(JSON.stringify(body)); response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': bytes.byteLength, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra }); response.end(bytes); }
 function sendError(response: ServerResponse, status: number, code: OwnerApiErrorResponse['error']['code'], message: string, extra: Record<string, string> = {}): void { sendJson(response, status, { error: { code, message } } satisfies OwnerApiErrorResponse, extra); }
-async function artifactFiles(root: string): Promise<Set<string>> { const files = new Set<string>(); try { for (const entry of await fs.readdir(path.resolve(root), { recursive: true, withFileTypes: true })) if (entry.isFile()) files.add(path.join(entry.parentPath, entry.name)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; } return files; }
-async function removeNewUnregisteredArtifacts(root: string, before: ReadonlySet<string>, manifestExists: BetterSqlite3.Statement): Promise<void> { const resolvedRoot = path.resolve(root); for (const file of await artifactFiles(root)) { if (before.has(file)) continue; const relativePath = path.relative(resolvedRoot, file); if (!artifactManifestExistsSafe(manifestExists, relativePath)) await fs.rm(file, { force: true }); } }
-function artifactManifestExistsSafe(statement: BetterSqlite3.Statement, relativePath: string): boolean { return !!statement.get(relativePath); }
 function assertOwnerTables(db: BetterSqlite3.Database): void { const names = new Set((db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(({ name }) => name)); for (const required of ['artifact_manifests', 'flow_discovery_workspaces', 'flow_product_candidates', 'flow_product_candidate_revisions', 'flow_candidate_baskets', 'flow_candidate_basket_members', 'governance_candidate_b7_decisions', 'flow_product_workspaces', 'governance_product_b8_lane_decisions', 'flow_b8_clearances', 'flow_b8_clearance_decisions', 'flow_stp_working_records', 'flow_locked_stps', 'governance_product_b10_decisions']) if (!names.has(required)) throw new Error('Database is missing required owner tables'); }

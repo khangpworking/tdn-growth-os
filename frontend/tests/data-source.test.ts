@@ -202,7 +202,7 @@ test('ambiguous workspace failure preserves retry identity and real/demo UI rema
   for (let attempt = 0; attempt < 2; attempt++) await assert.rejects(submitOwnerWorkspace(input, (async (_url, init) => { bodies.push(String(init?.body)); throw new Error('ambiguous'); }) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'connection');
   assert.equal(bodies[0], bodies[1]);
   const [app, panel] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/WorkspaceCreatePanel.tsx', import.meta.url), 'utf8'))]);
-  assert.doesNotMatch(panel, /name="workspaceKey"|Workspace key/); assert.match(panel, /useState\(\(\) => generatedWorkspaceKey\(\)\)/); assert.match(panel, /Creating this workspace only creates an empty research area/); assert.match(panel, /mode === 'demo'/); assert.match(app, /Create new research/); assert.match(app, /ownerToken=.*reloadReal=/);
+  assert.doesNotMatch(panel, /name="workspaceKey"|Workspace key/); assert.match(panel, /useState\(\(\) => generatedWorkspaceKey\(\)\)/); assert.match(panel, /Thao tác này chỉ tạo một vùng nghiên cứu trống/); assert.match(panel, /mode === 'demo'/); assert.match(app, /Create new research/); assert.match(app, /ownerToken=.*reloadReal=/);
 });
 
 

@@ -19,6 +19,7 @@ import { CandidateB7DecisionService, CANDIDATE_B7_DECISION_CAPABILITY, CANDIDATE
 import { GovernanceCandidateB7DecisionReader } from '../../src/modules/governance/candidate-b7-decision-reader.js';
 import { ProductWorkspaceService } from '../../src/modules/flow/product-workspace-service.js';
 import { createOwnerApiServer, openOwnerApi } from '../../src/api/owner-api.js';
+import { RequestScopedArtifactStore } from '../../src/api/request-scoped-artifact-store.js';
 
 const token = 'correct-owner-token-with-at-least-32-characters';
 const allowedOrigin = 'http://127.0.0.1:5173';
@@ -533,4 +534,43 @@ test('corrupt discovery row is generic 500 even when retry content differs', asy
   const state = await fixture(); const db = new BetterSqlite3(state.databasePath); db.exec('DROP TRIGGER flow_discovery_workspaces_no_update'); db.prepare("UPDATE flow_discovery_workspaces SET title='Corrupt' WHERE workspace_key='owner-test'").run(); const before = db.prepare('SELECT count(*) count FROM artifact_manifests').get() as any; db.close();
   await serve(state, async (base) => { const response = await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'owner-test', title: 'Changed request' }) }); assert.equal(response.status, 500); assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } }); });
   const after = new BetterSqlite3(state.databasePath); assert.equal((after.prepare('SELECT count(*) count FROM artifact_manifests').get() as any).count, before.count); after.close();
+});
+
+
+test('request-scoped artifact staging cleans only its private directory and never an artifact-root content path', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-owner-artifact-scope-')); roots.push(root);
+  const store = new RequestScopedArtifactStore(root); const base = new ContentAddressedArtifactStore(root); const preexistingBytes = Buffer.from('pre-existing'); const preexisting = await base.put(preexistingBytes);
+  let unrelated = ''; let ownedPath = '';
+  await assert.rejects(store.withOwnership(async () => {
+    const owned = await store.put(Buffer.from('owned-by-request')); ownedPath = owned.absolutePath;
+    unrelated = (await base.put(Buffer.from('unrelated-concurrent'))).absolutePath;
+    throw new Error('injected post-put failure');
+  }), /injected post-put failure/);
+  assert.equal(fs.existsSync(ownedPath), false, 'unpublished staged artifact never reached canonical path');
+  assert.equal(fs.readFileSync(preexisting.absolutePath).equals(preexistingBytes), true, 'pre-existing file is untouched');
+  assert.equal(fs.readFileSync(unrelated, 'utf8'), 'unrelated-concurrent', 'unrelated concurrent file is untouched');
+  assert.deepEqual(fs.readdirSync(path.join(root, '.owner-api-requests')), [], 'private request staging is cleaned');
+});
+
+test('request-scoped staging publishes only its own registered content and deduplicates existing artifacts', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-owner-artifact-dedup-')); roots.push(root); const base = new ContentAddressedArtifactStore(root); const existing = await base.put(Buffer.from('same-content')); const store = new RequestScopedArtifactStore(root);
+  await store.withOwnership(async () => { const reused = await store.put(Buffer.from('same-content')); assert.equal(reused.absolutePath, existing.absolutePath); await store.publishOwned(); });
+  assert.equal(fs.readFileSync(existing.absolutePath, 'utf8'), 'same-content');
+  let publishedPath = ''; await store.withOwnership(async () => { publishedPath = (await store.put(Buffer.from('registered'))).absolutePath; assert.equal(fs.existsSync(publishedPath), false); await store.publishOwned(); assert.equal(fs.readFileSync(publishedPath, 'utf8'), 'registered'); });
+  assert.equal(fs.readFileSync(publishedPath, 'utf8'), 'registered');
+});
+
+test('owner API source has no artifact-root sweeping or arbitrary recursive deletion', () => {
+  const source = fs.readFileSync('src/api/owner-api.ts', 'utf8');
+  assert.doesNotMatch(source, /artifactFiles|removeNewUnregisteredArtifacts|readdir\([^)]*recursive/);
+  assert.match(source, /withOwnership/); assert.match(source, /publishOwned/); assert.doesNotMatch(source, /unlink|\.rm\([^)]*artifact/);
+});
+
+
+test('exact retry narrowly recovers its deterministic missing workspace artifact', async () => {
+  const state = await fixture(); const db = new BetterSqlite3(state.databasePath); const row = db.prepare('SELECT workspace_artifact_sha256 sha FROM flow_discovery_workspaces WHERE workspace_key=?').get('owner-test') as { sha: string }; db.close();
+  const target = path.join(state.artifactRoot, 'sha256', row.sha.slice(0, 2), row.sha); fs.rmSync(target);
+  const unrelated = await new ContentAddressedArtifactStore(state.artifactRoot).put(Buffer.from('unrelated-unregistered'));
+  await serve(state, async (base) => { const response = await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'owner-test', title: 'Không gian thử nghiệm' }) }); assert.equal(response.status, 200); assert.equal((await response.json() as any).exactRetry, true); });
+  assert.equal(fs.existsSync(target), true, 'exact canonical artifact was republished'); assert.equal(fs.readFileSync(unrelated.absolutePath, 'utf8'), 'unrelated-unregistered');
 });
