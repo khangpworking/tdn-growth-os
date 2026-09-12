@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import type { FormEvent, ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import {
   candidatesForMarket,
   createSeedState,
@@ -14,6 +14,7 @@ import { clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loa
 import type { FrontendMode, LoadFailure } from './data-source';
 import B9Editor from './B9Editor';
 import B10DecisionPanel from './B10DecisionPanel';
+import WorkspaceCreatePanel from './WorkspaceCreatePanel';
 import { parseRoute, routeToHash } from './routing';
 import type { Route } from './routing';
 
@@ -60,26 +61,13 @@ function ScenarioPreview({ scenario, restore }: { readonly scenario: Scenario; r
   return <div className="surface empty"><h1>Chưa có workspace sản phẩm</h1><p>Sau khi chọn ứng viên ở B7, bạn có thể tạo hồ sơ sản phẩm độc lập. Dùng demo có sẵn để xem trước luồng này.</p><button className="button primary" onClick={restore}>Xem dữ liệu demo</button></div>;
 }
 
-function Portfolio({ state, mode, onCreate }: { readonly state: DemoState; readonly mode: FrontendMode; readonly onCreate: (id: string, name: string, keywords: string) => void }) {
+function Portfolio({ state, mode, ownerToken, reloadReal, onCreate }: { readonly state: DemoState; readonly mode: FrontendMode; readonly ownerToken: string | null; readonly reloadReal: () => Promise<DemoState>; readonly onCreate: (id: string, name: string, description: string) => void }) {
   const [search, setSearch] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [formError, setFormError] = useState('');
   const filtered = state.markets.filter((market) => marketMatches(market, search));
-  const submit = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const data = new FormData(event.currentTarget);
-    const name = String(data.get('name') ?? '').trim();
-    if (!name) {
-      setFormError('Tên thị trường không được chỉ chứa khoảng trắng.');
-      return;
-    }
-    setFormError('');
-    const id = `market-${state.sequence}-${Date.now().toString(36)}`;
-    onCreate(id, name, String(data.get('keywords') ?? ''));
-  };
   return <>
-    <div className="heading"><div><h1>Các thị trường đang nghiên cứu</h1><p>Mỗi thị trường là một workspace khám phá riêng.</p></div>{mode === 'demo' && <button className="button primary" onClick={() => setShowCreate(true)}>Tạo nghiên cứu mới</button>}</div>
-    {showCreate && <section className="surface surface-pad create-research"><h2>Tạo nghiên cứu minh họa</h2><p className="muted">Tạo workspace trống trong demo; chưa thu thập dữ liệu.</p><form onSubmit={submit}><label>Tên thị trường<input className="search" name="name" required maxLength={100} autoFocus placeholder="Ví dụ: Dinh dưỡng thể thao" /></label><label>Từ khóa ban đầu<input className="search" name="keywords" maxLength={180} placeholder="Ví dụ: protein, whey" /></label>{formError && <p className="form-error" role="alert">{formError}</p>}<div className="form-actions"><button className="button primary" type="submit">Tạo workspace demo</button><button className="button" type="button" onClick={() => setShowCreate(false)}>Hủy</button></div></form></section>}
+    <div className="heading"><div><h1>Các thị trường đang nghiên cứu</h1><p>Mỗi thị trường là một workspace khám phá riêng.</p></div><button className="button primary" onClick={() => setShowCreate(true)}>Create new research</button></div>
+    {showCreate && <WorkspaceCreatePanel mode={mode} ownerToken={ownerToken} reloadReal={reloadReal} onCreated={(id) => { setShowCreate(false); navigate(routeToHash.market(id)); }} onCancel={() => setShowCreate(false)} onDemoCreate={onCreate} />}
     <Stats items={[
       { label: 'Thị trường', value: state.markets.length, note: 'Workspace khám phá' },
       { label: 'Ứng viên', value: state.candidates.length, note: 'Trong các rổ cơ hội' },
@@ -213,9 +201,9 @@ export default function App() {
     timer.current = window.setTimeout(() => setToast(''), 4500);
   };
   useEffect(() => () => window.clearTimeout(timer.current), []);
-  const reloadReal = async (): Promise<void> => {
+  const reloadReal = async (): Promise<DemoState> => {
     const loaded = await loadRealWorkspaceState();
-    dispatch({ type: 'replace', state: loaded }); setLoadState('ready');
+    dispatch({ type: 'replace', state: loaded }); setLoadState('ready'); return loaded;
   };
   useEffect(() => {
     if (mode === 'demo') return;
@@ -230,8 +218,8 @@ export default function App() {
     navigate(routeToHash.portfolio());
     notify('Đã đặt lại toàn bộ dữ liệu demo.');
   };
-  const createMarket = (id: string, name: string, keywords: string) => {
-    dispatch({ type: 'create-market', id, name, keywords });
+  const createMarket = (id: string, name: string, description: string) => {
+    dispatch({ type: 'create-market', id, name, keywords: description });
     navigate(routeToHash.market(id));
     notify('Đã tạo thị trường minh họa. Chưa chạy nghiên cứu hoặc thu thập dữ liệu.');
   };
@@ -239,9 +227,9 @@ export default function App() {
   if (mode === 'real' && loadState === 'loading') content = <ScenarioPreview scenario="loading" restore={() => undefined} />;
   else if (mode === 'real' && loadState !== 'ready') content = <div className="surface error"><h1>{loadState === 'integrity' ? 'Dữ liệu không vượt qua kiểm tra toàn vẹn' : 'Không thể kết nối API workspace'}</h1><p>{loadState === 'integrity' ? 'Ứng dụng đã đóng an toàn, không hiển thị dữ liệu một phần.' : 'Hãy kiểm tra API nội bộ và tải lại trang. Dữ liệu demo không được tự động thay thế.'}</p><a className="button" href="?mode=demo#/">Mở demo rõ nhãn</a></div>;
   else if (scenario !== 'normal' && route.kind !== 'product' && route.kind !== 'invalid') content = <ScenarioPreview scenario={scenario} restore={() => setScenario('normal')} />;
-  else if (route.kind === 'portfolio') content = <Portfolio state={state} mode={mode} onCreate={createMarket} />;
+  else if (route.kind === 'portfolio') content = <Portfolio state={state} mode={mode} ownerToken={ownerToken} reloadReal={reloadReal} onCreate={createMarket} />;
   else if (route.kind === 'market') content = <MarketWorkspace state={state} market={state.markets.find((market) => market.id === route.marketId)!} mode={mode} />;
-  else if (route.kind === 'product') content = <ProductWorkspace state={state} product={state.products.find((product) => product.id === route.productId)!} section={route.section} mode={mode} dispatch={dispatch} notify={notify} ownerToken={ownerToken} reloadReal={reloadReal} />;
+  else if (route.kind === 'product') content = <ProductWorkspace state={state} product={state.products.find((product) => product.id === route.productId)!} section={route.section} mode={mode} dispatch={dispatch} notify={notify} ownerToken={ownerToken} reloadReal={async () => { await reloadReal(); }} />;
   else content = <InvalidRoute hash={route.hash} />;
   return <><button className="skip" type="button" onClick={() => { main.current?.focus(); main.current?.scrollIntoView(); }}>Bỏ qua điều hướng</button><header className="topbar"><div className="brand"><span className="mark">T</span><div><strong>TDN Growth OS</strong><small>Không gian phát triển sản phẩm</small></div></div><div className="owner"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></svg>Chủ dự án</div></header><div className={`demo-bar ${mode === 'real' ? 'real-bar' : ''}`}><span>{mode === 'demo' ? 'Dữ liệu minh họa · Không phải quyết định thật · Chỉ tồn tại trong phiên demo' : ownerToken ? 'OWNER cục bộ đã mở khóa trong bộ nhớ · Không phải đăng nhập production' : 'Dữ liệu SQLite đã xác minh · OWNER cục bộ đang khóa'}</span>{mode === 'demo' ? <button onClick={reset}>Đặt lại demo</button> : ownerToken ? <button onClick={() => { setOwnerToken(null); setTokenDraft(''); notify('Đã khóa OWNER cục bộ và xóa token khỏi bộ nhớ.'); }}>Khóa</button> : <form className="unlock-form" onSubmit={(event) => { event.preventDefault(); if (tokenDraft.length < 32 || !/[A-Za-z]/.test(tokenDraft) || !/\d/.test(tokenDraft)) { notify('Token cục bộ phải có ít nhất 32 ký tự, gồm chữ và số.'); return; } setOwnerToken(tokenDraft); setTokenDraft(''); notify('Đã mở khóa OWNER cục bộ trong bộ nhớ phiên trang.'); }}><label htmlFor="owner-token">Unlock local OWNER actions</label><input id="owner-token" type="password" autoComplete="off" value={tokenDraft} onChange={(event) => setTokenDraft(event.target.value)} placeholder="Token cục bộ" /><button type="submit">Mở khóa</button></form>}</div><main id="main" className="frame" tabIndex={-1} ref={main}><div className="view">{content}</div>{mode === 'demo' && route.kind !== 'product' && route.kind !== 'invalid' && <div className="view-options"><label htmlFor="scenario">Xem trạng thái giao diện:</label><select id="scenario" value={scenario} onChange={(event) => setScenario(event.target.value as Scenario)}><option value="normal">Có dữ liệu demo</option><option value="empty">Chưa có workspace</option><option value="loading">Đang tải</option><option value="error">Lỗi tải dữ liệu</option></select></div>}<p className="caption">{mode === 'demo' ? 'Frontend React demo · Mọi thao tác được đặt lại khi tải lại trang.' : 'Frontend React · Dữ liệu thật chỉ đọc qua API nội bộ.'}</p></main><div className="toast" role="status" aria-live="polite">{toast}</div></>;
 }
