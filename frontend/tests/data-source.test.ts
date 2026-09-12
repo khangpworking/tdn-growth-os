@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
 
 const ids = {
@@ -20,6 +20,8 @@ function validResponses(): Map<string, unknown> {
     ['/api/workspaces', { contractVersion: '1.0.0', workspaces: [w1, w2] }],
     [`/api/workspaces/${ids.w1}`, { contractVersion: '1.0.0', workspace: w1, candidates: [{ candidateId: ids.c1, candidateKey: 'candidate-one', state: 'EXPLORING', version: 3, label: 'Ứng viên', createdAt: at }], products: [productSummary] }],
     [`/api/workspaces/${ids.w2}`, { contractVersion: '1.0.0', workspace: w2, candidates: [], products: [] }],
+    [`/api/workspaces/${ids.w1}/candidate-baskets`, { contractVersion: '1.0.0', workspaceId: ids.w1, baskets: [{ basketId: ids.basket, workspaceId: ids.w1, basketKey: 'basket-one', version: 1, frozenAt: at, candidates: [{ candidateId: ids.c1, candidateKey: 'candidate-one', candidateVersion: 3, label: 'Ứng viên', state: 'EXPLORING' }] }] }],
+    [`/api/workspaces/${ids.w2}/candidate-baskets`, { contractVersion: '1.0.0', workspaceId: ids.w2, baskets: [] }],
     [`/api/product-workspaces/${ids.p1}/b9`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, state: 'NOT_STARTED' }],
     [`/api/product-workspaces/${ids.p1}/b10`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, history: [], effective: null, readyForB11: false }],
     [`/api/product-workspaces/${ids.p1}`, { contractVersion: '1.0.0', product: { ...productSummary, sourceWorkspaceId: ids.w1, sourceBasketId: ids.basket, sourceBasketKey: 'basket-one', sourceBasketVersion: 1, sourceCandidateId: ids.c1, sourceCandidateKey: 'candidate-one', sourceCandidateVersion: 3, sourceCandidateLabel: 'Ứng viên', sourceB7DecisionId: ids.b7, sourceB7DecidedAt: at }, b8: { readyForB9: false, lanes: [
@@ -243,4 +245,132 @@ test('latest candidate and historical product source version coexist and UI keep
  const state=await loadRealWorkspaceState(fetchFrom(responses));assert.equal(state.candidates[0]?.version,4);assert.equal(state.candidates[0]?.productCandidateVersion,3);assert.equal(state.candidates[0]?.productId,ids.p1);
  const [app,panel]=await Promise.all([import('node:fs/promises').then(fs=>fs.readFile(new URL('../src/App.tsx',import.meta.url),'utf8')),import('node:fs/promises').then(fs=>fs.readFile(new URL('../src/CandidateEditor.tsx',import.meta.url),'utf8'))]);
  assert.doesNotMatch(panel,/name=["']candidateKey|Khóa ứng viên/);assert.match(panel,/useState\(\(\)=>candidate\?\.key \?\? generatedCandidateKey\(\)\)/);assert.match(panel,/mode==='demo'/);assert.match(app,/Workspace sản phẩm hiện có vẫn giữ snapshot của phiên bản ứng viên đã dùng tại B7/);
+});
+
+
+test('Task042 basket POST is closed, uses an explicit version, and has a stable hidden generated key', async () => {
+  const basketKey = generatedBasketKey('77777777-7777-4777-8777-777777777777');
+  assert.equal(basketKey, 'basket-77777777777747778777777777777777');
+  assert.match(basketKey, /^[a-z][a-z0-9_-]{2,79}$/);
+  const input = { workspaceId: ids.w1, basketKey, version: 2, candidates: [{ candidateId: ids.c1, candidateVersion: 3 }], token: 'x'.repeat(31) + '1' };
+  let url = ''; let observed: RequestInit | undefined;
+  await submitOwnerBasket(input, (async (requestUrl, init) => {
+    url = String(requestUrl); observed = init;
+    return json({ contractVersion: '1.0.0', basketId: ids.basket, workspaceId: ids.w1, basketKey, version: 2, frozenAt: at, candidateCount: 1, exactRetry: false }, 201);
+  }) as typeof fetch);
+  assert.equal(url, `/owner-api/workspaces/${ids.w1}/candidate-baskets`);
+  assert.equal(observed?.method, 'POST');
+  assert.deepEqual(JSON.parse(String(observed?.body)), { contractVersion: '1.0.0', basketKey, version: 2, candidates: [{ candidateId: ids.c1, candidateVersion: 3 }] });
+  assert.equal(String(observed?.body).includes('expectedLatestVersion'), false);
+});
+
+test('Task042 accepts only exact 201-created and 200-exact-retry basket receipts', async () => {
+  const basketKey = generatedBasketKey('77777777-7777-4777-8777-777777777777');
+  const input = { workspaceId: ids.w1, basketKey, version: 1, candidates: [{ candidateId: ids.c1, candidateVersion: 3 }], token: 'x'.repeat(31) + '1' };
+  const base = { contractVersion: '1.0.0', basketId: ids.basket, workspaceId: ids.w1, basketKey, version: 1, frozenAt: at, candidateCount: 1 };
+  assert.equal((await submitOwnerBasket(input, (async () => json({ ...base, exactRetry: false }, 201)) as typeof fetch)).exactRetry, false);
+  assert.equal((await submitOwnerBasket(input, (async () => json({ ...base, exactRetry: true }, 200)) as typeof fetch)).exactRetry, true);
+  for (const [body, status] of [
+    [{ ...base, exactRetry: true }, 201], [{ ...base, exactRetry: false }, 200],
+    [{ ...base, exactRetry: false, extra: true }, 201], [{ ...base, exactRetry: false, basketId: 'bad' }, 201],
+    [{ ...base, exactRetry: false, basketKey: 'basket-wrong' }, 201], [{ ...base, exactRetry: false, version: 2 }, 201],
+    [{ ...base, exactRetry: false, candidateCount: 2 }, 201], [{ ...base, exactRetry: false, frozenAt: 'not-a-date' }, 201],
+    [{ ...base, exactRetry: false }, 202],
+  ] as const) {
+    await assert.rejects(submitOwnerBasket(input, (async () => json(body, status)) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'integrity');
+  }
+});
+
+test('Task042 success verifies authoritative basket identity, key, version, and exact membership', async () => {
+  const basketKey = generatedBasketKey('77777777-7777-4777-8777-777777777777');
+  const secondCandidateId = '22222222-2222-4222-8222-222222222222';
+  const selections = [{ candidateId: secondCandidateId, candidateVersion: 5 }, { candidateId: ids.c1, candidateVersion: 3 }];
+  const input = { workspaceId: ids.w1, basketKey, version: 1, candidates: selections, token: 'x'.repeat(31) + '1' };
+  const receipt = { contractVersion: '1.0.0', basketId: ids.basket, workspaceId: ids.w1, basketKey, version: 1, frozenAt: at, candidateCount: 2, exactRetry: false };
+  const authoritative = { markets: [], candidates: [], products: [], baskets: [{ id: ids.basket, marketId: ids.w1, key: basketKey, version: 1, frozenAt: at, candidates: [
+    { candidateId: ids.c1, candidateKey: 'candidate-one', candidateVersion: 3, name: 'Một', summary: 'Tóm tắt một' },
+    { candidateId: secondCandidateId, candidateKey: 'candidate-two', candidateVersion: 5, name: 'Hai', summary: 'Tóm tắt hai' },
+  ] }], sequence: 1 };
+  let reloads = 0;
+  const outcome = await submitOwnerBasketAndReload(input, async () => { reloads++; return authoritative; }, (async () => json(receipt, 201)) as typeof fetch);
+  assert.equal(outcome.kind, 'success'); assert.equal(reloads, 1);
+  for (const mutate of [
+    () => ({ ...authoritative, baskets: [{ ...authoritative.baskets[0]!, id: ids.w2 }] }),
+    () => ({ ...authoritative, baskets: [{ ...authoritative.baskets[0]!, key: 'basket-other' }] }),
+    () => ({ ...authoritative, baskets: [{ ...authoritative.baskets[0]!, version: 2 }] }),
+    () => ({ ...authoritative, baskets: [{ ...authoritative.baskets[0]!, candidates: authoritative.baskets[0]!.candidates.slice(0, 1) }] }),
+    () => ({ ...authoritative, baskets: [{ ...authoritative.baskets[0]!, candidates: [{ ...authoritative.baskets[0]!.candidates[0]!, candidateVersion: 4 }, authoritative.baskets[0]!.candidates[1]!] }] }),
+  ]) await assert.rejects(submitOwnerBasketAndReload(input, async () => mutate(), (async () => json(receipt, 201)) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'integrity');
+});
+
+test('Task042 conflict reloads once and ambiguous retries preserve byte-identical basket request', async () => {
+  const input = { workspaceId: ids.w1, basketKey: generatedBasketKey('77777777-7777-4777-8777-777777777777'), version: 4, candidates: [{ candidateId: ids.c1, candidateVersion: 3 }], token: 'x'.repeat(31) + '1' };
+  const state = { markets: [], candidates: [], baskets: [], products: [], sequence: 1 };
+  let reloads = 0;
+  const conflict = await submitOwnerBasketAndReload(input, async () => { reloads++; return state; }, (async () => json({ error: { code: 'conflict' } }, 409)) as typeof fetch);
+  assert.equal(conflict.kind, 'conflict'); assert.equal(reloads, 1);
+  const bodies: string[] = [];
+  for (let attempt = 0; attempt < 2; attempt++) await assert.rejects(submitOwnerBasket(input, (async (_url, init) => { bodies.push(String(init?.body)); throw new Error('ambiguous'); }) as typeof fetch), (error) => error instanceof OwnerWriteError && error.kind === 'connection');
+  assert.equal(bodies.length, 2); assert.equal(bodies[0], bodies[1]);
+});
+
+test('Task042 basket controls require OWNER, selection and no pending request', () => {
+  assert.equal(ownerBasketDisabled({ unlocked: false, pending: false, selectedCount: 1 }), true);
+  assert.equal(ownerBasketDisabled({ unlocked: true, pending: true, selectedCount: 1 }), true);
+  assert.equal(ownerBasketDisabled({ unlocked: true, pending: false, selectedCount: 0 }), true);
+  assert.equal(ownerBasketDisabled({ unlocked: true, pending: false, selectedCount: 2 }), false);
+});
+
+test('Task042 basket panel starts unchecked and preserves an immutable confirmation snapshot', async () => {
+  const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
+  assert.match(panel, /useState<readonly string\[]>\(\[]\)/);
+  assert.match(panel, /checked=\{selected\.includes\(candidate\.id\)\}/);
+  assert.match(panel, /const \[requestSnapshot, setRequestSnapshot\] = useState<\{ basketKey: string; version: number; candidates:/);
+  assert.match(panel, /const snapshot = requestSnapshot \?\?/);
+  assert.match(panel, /requestSnapshot\.candidates\.map\(\(\{ candidateId, candidateVersion \}\)/);
+  assert.doesNotMatch(panel, /candidateVersion:\s*candidates\.find.*freeze/s);
+});
+
+test('Task042 panel has exact Vietnamese action, section, confirmation, and immutable-snapshot warning', async () => {
+  const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
+  for (const text of ['Đóng băng rổ ứng viên', 'Đóng băng rổ cơ hội', 'Xác nhận đóng băng rổ cơ hội', 'Rổ này sẽ giữ nguyên các phiên bản ứng viên đã chọn. Chỉnh sửa ứng viên sau này không thay đổi snapshot này.']) assert.equal(panel.includes(text), true);
+  assert.match(panel, /role="dialog"/); assert.match(panel, /aria-modal="true"/);
+  assert.match(panel, /EXPLORING · phiên bản hiện tại v\{candidate\.version\}/);
+  assert.match(panel, /candidate\.summary && <small>\{candidate\.summary\}<\/small>/);
+});
+
+test('Task042 panel exposes all basket families with explicit next versions and no arbitrary global latest', async () => {
+  const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
+  assert.match(panel, /new Set\(baskets\.map\(\(basket\) => basket\.key\)\)/);
+  assert.match(panel, /familyKeys\.map\(\(key\) => \[key, Math\.max\(\.\.\.baskets\.filter/);
+  assert.match(panel, /familyKeys\.map\(\(key, index\) => <option/);
+  assert.match(panel, /Tạo rổ mới · phiên bản 1/);
+  assert.match(panel, /Rổ \{index \+ 1\} · tạo phiên bản \{versionByFamily\.get\(key\) \?\? 1\}/);
+  assert.doesNotMatch(panel, /latestBasketVersion|expectedLatestVersion/);
+});
+
+test('Task042 OWNER flow guards doubles, waits for authoritative reload, and does not navigate or optimistically append', async () => {
+  const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
+  assert.match(panel, /const inFlight = useRef\(false\)/); assert.match(panel, /if \(inFlight\.current\) return/);
+  assert.match(panel, /inFlight\.current = true/); assert.match(panel, /await submitOwnerBasketAndReload/);
+  assert.match(panel, /else onSaved\(\)/); assert.doesNotMatch(panel, /navigate|window\.location|history\.pushState/);
+  assert.doesNotMatch(panel, /dispatch\(|setBaskets|\.push\(/);
+});
+
+test('Task042 App renders grouped historical versions and every frozen member without choosing one family as latest', async () => {
+  const app = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'));
+  assert.match(app, /new Set\(baskets\.map\(\(basket\) => basket\.key\)\)/);
+  assert.match(app, /families\.map\(\(key, familyIndex\)/); assert.match(app, /basket\.version/);
+  assert.match(app, /basket\.candidates\.map\(\(candidate\)/); assert.match(app, /candidate\.candidateVersion/);
+  assert.match(app, /candidate\.summary/); assert.match(app, />EXPLORING</);
+  assert.match(app, /Mỗi nhóm rổ có lịch sử phiên bản riêng/);
+  assert.doesNotMatch(app, /latestBasketVersion\(/);
+});
+
+test('Task042 demo uses the same confirmation but never invokes OWNER basket API', async () => {
+  const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
+  assert.match(panel, /if \(mode === 'demo' \|\| ownerToken\) setConfirm\(true\)/);
+  assert.match(panel, /if \(mode === 'demo'\) \{ onDemoFreeze/);
+  const demoBranch = panel.slice(panel.indexOf("if (mode === 'demo')"), panel.indexOf('if (!ownerToken) return'));
+  assert.doesNotMatch(demoBranch, /submitOwnerBasket|owner-api|fetch/);
 });

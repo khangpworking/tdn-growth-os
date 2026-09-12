@@ -26,6 +26,27 @@ export interface WorkspaceCandidateSummary {
   summary?: string;
   createdAt: string;
 }
+export interface WorkspaceCandidateBasketMember {
+  candidateId: string;
+  candidateKey: string;
+  candidateVersion: number;
+  label: string;
+  summary?: string;
+  state: 'EXPLORING';
+}
+export interface WorkspaceCandidateBasket {
+  basketId: string;
+  workspaceId: string;
+  basketKey: string;
+  version: number;
+  frozenAt: string;
+  candidates: WorkspaceCandidateBasketMember[];
+}
+export interface WorkspaceCandidateBasketsResponse {
+  contractVersion: '1.0.0';
+  workspaceId: string;
+  baskets: WorkspaceCandidateBasket[];
+}
 export interface ProductWorkspaceSummary {
   productWorkspaceId: string;
   productWorkspaceKey: string;

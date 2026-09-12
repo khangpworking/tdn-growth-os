@@ -9,6 +9,7 @@ import type {
   ProductB10Response,
   WorkspaceApiErrorResponse,
   WorkspaceCandidateSummary,
+  WorkspaceCandidateBasketsResponse,
   WorkspacePortfolioItem,
   WorkspacePortfolioResponse,
 } from '../../contracts/api/workspace-api.generated.js';
@@ -58,6 +59,7 @@ export interface WorkspaceApiApplication {
 
 type DiscoveryCatalogRow = { workspaceId: string };
 type CandidateCatalogRow = { candidateId: string; version: bigint };
+type BasketCatalogRow = { basketId: string; basketKey: string; version: bigint };
 type ProductCatalogRow = { productWorkspaceId: string };
 type ClearanceCatalogRow = { clearanceId: string };
 type WorkingCatalogRow = { workingStpId: string };
@@ -81,8 +83,9 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
     const candidates = new ProductCandidateService({ db, artifactStore: artifacts });
     const candidateReader = new FlowProductCandidateReader(candidates);
     const baskets = new CandidateBasketService({ db, artifactStore: artifacts, workspaceReader: discoveryReader, candidateReader });
+    const basketReader = new FlowCandidateBasketReader(baskets);
     const b7 = new CandidateB7DecisionService({
-      db, artifactStore: artifacts, basketReader: new FlowCandidateBasketReader(baskets),
+      db, artifactStore: artifacts, basketReader,
       configuration: { policyId: CANDIDATE_B7_DECISION_POLICY_ID, policyVersion: 1, requiredCapability: CANDIDATE_B7_DECISION_CAPABILITY },
     });
     const products = new ProductWorkspaceService({ db, artifactStore: artifacts, decisionReader: new GovernanceCandidateB7DecisionReader(b7) });
@@ -111,6 +114,7 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       FROM flow_product_candidates c JOIN flow_product_candidate_revisions r ON r.candidate_id=c.candidate_id
       WHERE c.workspace_id=? GROUP BY c.candidate_id ORDER BY c.created_at, c.candidate_id
     `);
+    const basketRows = db.prepare(`SELECT basket_id basketId, basket_key basketKey, version FROM flow_candidate_baskets WHERE workspace_id=? ORDER BY basket_key, version`);
     const productRows = db.prepare(`SELECT product_workspace_id productWorkspaceId FROM flow_product_workspaces WHERE source_workspace_id=? ORDER BY created_at, product_workspace_id`);
     const productExists = db.prepare(`SELECT product_workspace_id productWorkspaceId FROM flow_product_workspaces WHERE product_workspace_id=?`);
     const clearanceRow = db.prepare(`SELECT clearance_id clearanceId FROM flow_b8_clearances WHERE product_workspace_id=?`);
@@ -158,6 +162,24 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       if (!row) return undefined;
       const verified = await verifiedWorkspace(row);
       return { contractVersion: '1.0.0', ...verified };
+    };
+    const candidateBaskets = async (id: string): Promise<WorkspaceCandidateBasketsResponse | undefined> => {
+      const row = discoveryRow.get(id) as DiscoveryCatalogRow | undefined;
+      if (!row) return undefined;
+      const workspace = await discoveryReader.readVerifiedWorkspace(id);
+      if (workspace.workspaceId !== id) throw new Error('Verified discovery workspace has wrong identity');
+      const results: WorkspaceCandidateBasketsResponse['baskets'] = [];
+      const familyVersions = new Map<string, number>();
+      for (const catalog of basketRows.all(id) as BasketCatalogRow[]) {
+        const version = safeVersion(catalog.version);
+        const expectedVersion = (familyVersions.get(catalog.basketKey) ?? 0) + 1;
+        if (version !== expectedVersion) throw new Error('Candidate basket family has a non-sequential version history');
+        familyVersions.set(catalog.basketKey, version);
+        const basket = await basketReader.readVerifiedBasket(catalog.basketId);
+        if (basket.basketId !== catalog.basketId || basket.workspaceId !== id || basket.basketKey !== catalog.basketKey || basket.version !== version) throw new Error('Verified basket has wrong identity, workspace, key, or version');
+        results.push({ basketId: basket.basketId, workspaceId: basket.workspaceId, basketKey: basket.basketKey, version: basket.version, frozenAt: basket.frozenAt, candidates: basket.candidates.map((candidate) => ({ candidateId: candidate.candidateId, candidateKey: candidate.candidateKey, candidateVersion: candidate.candidateVersion, label: candidate.label, ...(candidate.summary === undefined ? {} : { summary: candidate.summary }), state: candidate.state })) });
+      }
+      return { contractVersion: '1.0.0', workspaceId: id, baskets: results };
     };
     const productDetail = async (id: string): Promise<ProductWorkspaceDetailResponse | undefined> => {
       if (!productExists.get(id)) return undefined;
@@ -220,7 +242,7 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       return { contractVersion: '1.0.0', productWorkspaceId: id, history, effective: history.at(-1) ?? null, readyForB11: verified.status.readyForB11 };
     };
     const handler = (request: IncomingMessage, response: ServerResponse): void => {
-      void route(request, response, { portfolio, discoveryDetail, productDetail, productB9, productB10 });
+      void route(request, response, { portfolio, discoveryDetail, candidateBaskets, productDetail, productB9, productB10 });
     };
     return {
       handler,
@@ -245,6 +267,7 @@ export function createWorkspaceApiServer(configuration: WorkspaceApiConfiguratio
 async function route(request: IncomingMessage, response: ServerResponse, methods: {
   portfolio(): Promise<WorkspacePortfolioResponse>;
   discoveryDetail(id: string): Promise<DiscoveryWorkspaceDetailResponse | undefined>;
+  candidateBaskets(id: string): Promise<WorkspaceCandidateBasketsResponse | undefined>;
   productDetail(id: string): Promise<ProductWorkspaceDetailResponse | undefined>;
   productB9(id: string): Promise<ProductB9Response | undefined>;
   productB10(id: string): Promise<ProductB10Response | undefined>;
@@ -259,6 +282,11 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
     try { parts = url.pathname.split('/').slice(1).map((part) => decodeURIComponent(part)); } catch { return sendError(response, 400, 'bad_request', 'Malformed request URL'); }
     if (parts.some((part) => part === '.' || part === '..' || part.includes('/') || part.includes('\\') || part.includes('\0'))) return sendError(response, 400, 'bad_request', 'Malformed request URL');
     if (parts.length === 2 && parts[0] === 'api' && parts[1] === 'workspaces') return sendJson(response, 200, await methods.portfolio());
+    if (parts.length === 4 && parts[0] === 'api' && parts[1] === 'workspaces' && parts[3] === 'candidate-baskets') {
+      if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Workspace ID must be a UUID');
+      const result = await methods.candidateBaskets(parts[2]!);
+      return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Workspace not found');
+    }
     if (parts.length === 3 && parts[0] === 'api' && parts[1] === 'workspaces') {
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Workspace ID must be a UUID');
       const result = await methods.discoveryDetail(parts[2]!);

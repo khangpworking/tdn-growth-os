@@ -101,6 +101,10 @@ test('HTTP reads compose stable ID-based portfolio/detail, preserve ordering and
     const portfolioResponse = await fetch(`${origin}/api/workspaces`); assert.equal(portfolioResponse.status, 200);
     const portfolio = await portfolioResponse.json() as any;
     assert.deepEqual(portfolio.workspaces.map((item: any) => [item.workspaceId, item.title, item.candidateCount, item.productCount]), [[ids.workspace1, 'Duplicate name', 2, 1], [ids.workspace2, 'Duplicate name', 0, 0]]);
+    const basketsResponse = await fetch(`${origin}/api/workspaces/${ids.workspace1}/candidate-baskets`); assert.equal(basketsResponse.status, 200);
+    const basketRead = await basketsResponse.json() as any;
+    assert.deepEqual(basketRead, { contractVersion: '1.0.0', workspaceId: ids.workspace1, baskets: [{ basketId: ids.basket, workspaceId: ids.workspace1, basketKey: 'first-basket', version: 1, frozenAt: '2026-10-03T00:00:00.000Z', candidates: [{ candidateId: ids.candidate1, candidateKey: 'first-candidate', candidateVersion: 1, label: 'Duplicate candidate', state: 'EXPLORING' }] }] });
+    assert.doesNotMatch(JSON.stringify(basketRead), /sha256|requestSha|artifact/i);
     const discovery = await (await fetch(`${origin}/api/workspaces/${ids.workspace1}`)).json() as any;
     assert.deepEqual(discovery.candidates.map((item: any) => [item.candidateId, item.version, item.label]), [[ids.candidate1, 1, 'Duplicate candidate'], [ids.candidate2, 2, 'Duplicate candidate v2']]);
     assert.deepEqual(discovery.products.map((item: any) => item.productWorkspaceId), [ids.product]);
@@ -146,6 +150,8 @@ test('empty, malformed, unknown and mutation requests are closed JSON responses'
     assert.deepEqual(await (await fetch(`${origin}/api/workspaces`)).json(), { contractVersion: '1.0.0', workspaces: [] });
     for (const route of ['/api/workspaces/not-a-uuid', '/api/workspaces/%2Fetc', '/api/workspaces?id=x']) assert.equal((await fetch(origin + route)).status, 400);
     assert.equal((await fetch(`${origin}/api/workspaces/${ids.unknown}`)).status, 404);
+    assert.equal((await fetch(`${origin}/api/workspaces/${ids.unknown}/candidate-baskets`)).status, 404);
+    assert.equal((await fetch(`${origin}/api/workspaces/not-a-uuid/candidate-baskets`)).status, 400);
     assert.equal((await fetch(`${origin}/api/product-workspaces/${ids.unknown}`)).status, 404);
     assert.equal((await fetch(`${origin}/api/product-workspaces/${ids.unknown}/b9`)).status, 404);
     assert.equal((await fetch(`${origin}/api/product-workspaces/${ids.unknown}/b10`)).status, 404);
@@ -194,6 +200,94 @@ test('B9 missing lock artifact/manifest and orphan lock catalog rows fail as gen
       const response = await fetch(`${origin}/api/product-workspaces/${ids.product}/b9`); assert.equal(response.status, 500);
       assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } });
     });
+    assert.equal(hash(state.databasePath), before);
+  }
+});
+
+test('candidate basket read drift is a generic integrity error and leaves database bytes unchanged', async () => {
+  const state = await fixture();
+  const db = new (await import('better-sqlite3')).default(state.databasePath, { readonly: true });
+  const row = db.prepare('SELECT basket_artifact_sha256 digest FROM flow_candidate_baskets WHERE basket_id=?').get(ids.basket) as { digest: string }; db.close();
+  fs.rmSync(path.join(state.artifactRoot, 'sha256', row.digest.slice(0, 2), row.digest));
+  const before = hash(state.databasePath);
+  await serve(state, async (origin) => {
+    const response = await fetch(`${origin}/api/workspaces/${ids.workspace1}/candidate-baskets`);
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } });
+  });
+  assert.equal(hash(state.databasePath), before);
+});
+
+async function basketReadFixture() {
+  const state = await fixture(false);
+  const { db } = openDatabase({ databasePath: state.databasePath });
+  const artifacts = new ContentAddressedArtifactStore(state.artifactRoot);
+  let workspaceIndex = 0;
+  const workspaces = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => [ids.workspace1, ids.workspace2][workspaceIndex++]!, now: () => new Date('2026-11-01T00:00:00Z') });
+  await workspaces.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'alpha', title: 'Alpha' });
+  await workspaces.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'isolated', title: 'Isolated' });
+  let candidateIndex = 0;
+  const candidates = new ProductCandidateService({ db, artifactStore: artifacts, uuid: () => [ids.candidate1, ids.candidate2, '22222222-2222-4222-8222-333333333333'][candidateIndex++]!, now: () => new Date('2026-11-02T00:00:00Z') });
+  await candidates.createCandidate({ contractVersion: '1.0.0', workspaceId: ids.workspace1, candidateKey: 'one', label: 'One old', summary: 'Historical summary' });
+  await candidates.createCandidate({ contractVersion: '1.0.0', workspaceId: ids.workspace1, candidateKey: 'two', label: 'Two' });
+  const isolatedCandidate = await candidates.createCandidate({ contractVersion: '1.0.0', workspaceId: ids.workspace2, candidateKey: 'private', label: 'Private' });
+  let basketIndex = 0;
+  const basketIds = [
+    '33333333-3333-4333-8333-111111111111', '33333333-3333-4333-8333-222222222222',
+    '33333333-3333-4333-8333-333333333333', '33333333-3333-4333-8333-444444444444',
+  ];
+  const baskets = new CandidateBasketService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(workspaces), candidateReader: new FlowProductCandidateReader(candidates), uuid: () => basketIds[basketIndex++]!, now: () => new Date(`2026-11-0${3 + basketIndex}T00:00:00Z`) });
+  await baskets.freezeBasket({ contractVersion: '1.0.0', workspaceId: ids.workspace1, basketKey: 'zeta', version: 1, candidates: [{ candidateId: ids.candidate2, candidateVersion: 1 }, { candidateId: ids.candidate1, candidateVersion: 1 }] });
+  await baskets.freezeBasket({ contractVersion: '1.0.0', workspaceId: ids.workspace1, basketKey: 'alpha', version: 1, candidates: [{ candidateId: ids.candidate1, candidateVersion: 1 }] });
+  await candidates.reviseCandidate({ contractVersion: '1.0.0', candidateId: ids.candidate1, expectedVersion: 1, label: 'One current', summary: 'Current summary' });
+  await baskets.freezeBasket({ contractVersion: '1.0.0', workspaceId: ids.workspace1, basketKey: 'alpha', version: 2, candidates: [{ candidateId: ids.candidate1, candidateVersion: 2 }] });
+  await baskets.freezeBasket({ contractVersion: '1.0.0', workspaceId: ids.workspace2, basketKey: 'alpha', version: 1, candidates: [{ candidateId: isolatedCandidate.candidateId, candidateVersion: 1 }] });
+  db.pragma('wal_checkpoint(TRUNCATE)'); db.close();
+  return { ...state, basketIds };
+}
+
+test('candidate basket read returns all families and versions deterministically, safely, historically, and workspace-isolated without byte changes', async () => {
+  const state = await basketReadFixture(); const before = hash(state.databasePath);
+  await serve(state, async (origin) => {
+    const firstResponse = await fetch(`${origin}/api/workspaces/${ids.workspace1}/candidate-baskets`); assert.equal(firstResponse.status, 200);
+    const firstText = await firstResponse.text(); const value = JSON.parse(firstText);
+    assert.deepEqual(value.baskets.map((basket: any) => [basket.basketKey, basket.version, basket.basketId]), [['alpha', 1, state.basketIds[1]], ['alpha', 2, state.basketIds[2]], ['zeta', 1, state.basketIds[0]]]);
+    assert.deepEqual(value.baskets[0].candidates, [{ candidateId: ids.candidate1, candidateKey: 'one', candidateVersion: 1, label: 'One old', summary: 'Historical summary', state: 'EXPLORING' }]);
+    assert.deepEqual(value.baskets[1].candidates, [{ candidateId: ids.candidate1, candidateKey: 'one', candidateVersion: 2, label: 'One current', summary: 'Current summary', state: 'EXPLORING' }]);
+    assert.deepEqual(value.baskets[2].candidates.map((candidate: any) => candidate.candidateId), [ids.candidate1, ids.candidate2]);
+    assert.doesNotMatch(firstText, /sha256|requestSha|artifact|absolutePath|relativePath/i);
+    assert.equal(await (await fetch(`${origin}/api/workspaces/${ids.workspace1}/candidate-baskets`)).text(), firstText);
+    const isolated = await (await fetch(`${origin}/api/workspaces/${ids.workspace2}/candidate-baskets`)).json() as any;
+    assert.deepEqual(isolated.baskets.map((basket: any) => [basket.basketKey, basket.version]), [['alpha', 1]]);
+    assert.deepEqual(isolated.baskets[0].candidates.map((member: any) => member.candidateKey), ['private']);
+    assert.doesNotMatch(JSON.stringify(isolated), /One old|One current|Historical summary|Current summary/);
+  });
+  assert.equal(hash(state.databasePath), before);
+});
+
+test('candidate basket read rejects a version gap generically and leaves database bytes unchanged', async () => {
+  const state = await basketReadFixture();
+  const db = new (await import('better-sqlite3')).default(state.databasePath); db.exec('DROP TRIGGER flow_candidate_baskets_no_update');
+  db.prepare("UPDATE flow_candidate_baskets SET version=3 WHERE workspace_id=? AND basket_key='alpha' AND version=2").run(ids.workspace1);
+  db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); const before = hash(state.databasePath);
+  await serve(state, async (origin) => {
+    const response = await fetch(`${origin}/api/workspaces/${ids.workspace1}/candidate-baskets`); assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } });
+  });
+  assert.equal(hash(state.databasePath), before);
+});
+
+test('candidate basket read maps basket, manifest, member, and catalog drift to generic integrity errors without byte changes', async () => {
+  for (const mode of ['corrupt-artifact', 'manifest', 'member', 'catalog'] as const) {
+    const state = await basketReadFixture();
+    const db = new (await import('better-sqlite3')).default(state.databasePath);
+    const row = db.prepare("SELECT basket_id basketId,basket_artifact_sha256 digest FROM flow_candidate_baskets WHERE workspace_id=? AND basket_key='zeta'").get(ids.workspace1) as {basketId:string;digest:string};
+    if (mode === 'corrupt-artifact') fs.writeFileSync(path.join(state.artifactRoot, 'sha256', row.digest.slice(0, 2), row.digest), 'private /tmp/corruption');
+    else if (mode === 'manifest') { db.pragma('foreign_keys=OFF'); db.prepare('DELETE FROM artifact_manifests WHERE sha256=?').run(row.digest); }
+    else if (mode === 'member') { db.exec('DROP TRIGGER flow_candidate_basket_members_no_update'); db.prepare("UPDATE flow_candidate_basket_members SET label='drift' WHERE basket_id=? AND position=0").run(row.basketId); }
+    else { db.exec('DROP TRIGGER flow_candidate_baskets_no_update'); db.prepare("UPDATE flow_candidate_baskets SET member_count=9 WHERE basket_id=?").run(row.basketId); }
+    db.pragma('wal_checkpoint(TRUNCATE)'); db.close(); const before = hash(state.databasePath);
+    await serve(state, async (origin) => { const response = await fetch(`${origin}/api/workspaces/${ids.workspace1}/candidate-baskets`); assert.equal(response.status, 500); const text=await response.text(); assert.equal(text,'{"error":{"code":"integrity_error","message":"Stored workspace data failed integrity verification"}}'); assert.doesNotMatch(text,/tmp|private|sha256|SELECT|stack/i); });
     assert.equal(hash(state.databasePath), before);
   }
 });
