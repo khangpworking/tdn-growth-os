@@ -1,17 +1,20 @@
 import { timingSafeEqual } from 'node:crypto';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
+import fs from 'node:fs/promises';
 import path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import type { OwnerApiErrorResponse, OwnerB8DecisionReceipt, OwnerB8DecisionRequest } from '../../contracts/api/owner-b8-decision-api.generated.js';
 import type { OwnerB8ClearanceReceipt, OwnerB8ClearanceRequest } from '../../contracts/api/owner-b8-clearance-api.generated.js';
 import type { OwnerB9LockReceipt, OwnerB9LockRequest, OwnerB9WorkingReceipt, OwnerB9WorkingRequest } from '../../contracts/api/owner-b9-stp-api.generated.js';
 import type { OwnerB10DecisionReceipt, OwnerB10DecisionRequest } from '../../contracts/api/owner-b10-decision-api.generated.js';
+import type { OwnerDiscoveryWorkspaceReceipt, OwnerDiscoveryWorkspaceRequest } from '../../contracts/api/owner-discovery-workspace-api.generated.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
+import { withDatabaseMutationMutex } from '../platform/db/index.js';
 import { CandidateB7DecisionService, CANDIDATE_B7_DECISION_CAPABILITY, CANDIDATE_B7_DECISION_POLICY_ID } from '../modules/governance/candidate-b7-decision-service.js';
 import { GovernanceCandidateB7DecisionReader } from '../modules/governance/candidate-b7-decision-reader.js';
 import { CandidateBasketService } from '../modules/flow/candidate-basket-service.js';
 import { FlowCandidateBasketReader } from '../modules/flow/candidate-basket-reader.js';
-import { DiscoveryWorkspaceService } from '../modules/flow/discovery-workspace-service.js';
+import { DiscoveryWorkspaceIdentityConflictError, DiscoveryWorkspaceService } from '../modules/flow/discovery-workspace-service.js';
 import { FlowDiscoveryWorkspaceReader } from '../modules/flow/discovery-workspace-reader.js';
 import { ProductCandidateService } from '../modules/flow/product-candidate-service.js';
 import { FlowProductCandidateReader } from '../modules/flow/product-candidate-reader.js';
@@ -21,7 +24,7 @@ import { GovernanceValidationError } from '../modules/governance/validation.js';
 import { ProductB8DecisionIdentityConflictError, ProductB8LaneDecisionService, PRODUCT_B8_REVIEW_CAPABILITY, PRODUCT_B8_REVIEW_POLICY_ID } from '../modules/governance/product-b8-lane-decision-service.js';
 import { GovernanceProductB8Reader } from '../modules/governance/product-b8-status-reader.js';
 import { B8ClearanceIdentityConflictError, B8ClearanceService } from '../modules/flow/b8-clearance-service.js';
-import { FlowValidationError } from '../modules/flow/validation.js';
+import { FlowValidationError, validateDiscoveryWorkspaceRequest } from '../modules/flow/validation.js';
 import { FlowB8ClearanceReader } from '../modules/flow/b8-clearance-reader.js';
 import { PRODUCT_B9_LOCK_CAPABILITY, StpIdentityConflictError, StpService } from '../modules/flow/stp-service.js';
 import { FlowLockedStpReader } from '../modules/flow/locked-stp-reader.js';
@@ -56,7 +59,7 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     db.defaultSafeIntegers(true);
     assertOwnerTables(db);
     const artifacts = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
-    const discoveries = new DiscoveryWorkspaceService({ db, artifactStore: artifacts });
+    const discoveries = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const candidates = new ProductCandidateService({ db, artifactStore: artifacts });
     const baskets = new CandidateBasketService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discoveries), candidateReader: new FlowProductCandidateReader(candidates) });
     const b7 = new CandidateB7DecisionService({ db, artifactStore: artifacts, basketReader: new FlowCandidateBasketReader(baskets), configuration: { policyId: CANDIDATE_B7_DECISION_POLICY_ID, policyVersion: 1, requiredCapability: CANDIDATE_B7_DECISION_CAPABILITY } });
@@ -68,6 +71,8 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const lockedStps = new FlowLockedStpReader(stps);
     const b10 = new ProductB10DecisionService({ db, artifactStore: artifacts, lockedStpReader: lockedStps, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const actor = Object.freeze({ actorId: configuration.actorId, roleSnapshot: 'OWNER' as const, capabilities: new Set<string>([PRODUCT_B8_REVIEW_CAPABILITY, PRODUCT_B9_LOCK_CAPABILITY, PRODUCT_B10_REVIEW_CAPABILITY]) });
+    const workspaceByKey = db.prepare('SELECT workspace_id workspaceId FROM flow_discovery_workspaces WHERE workspace_key=?');
+    const artifactManifestExists = db.prepare('SELECT 1 FROM artifact_manifests WHERE relative_path=?');
     const productExists = db.prepare('SELECT 1 FROM flow_product_workspaces WHERE product_workspace_id=?');
     const clearanceExists = db.prepare('SELECT 1 FROM flow_b8_clearances WHERE product_workspace_id=?');
     const clearanceByProduct = db.prepare('SELECT clearance_id clearanceId FROM flow_b8_clearances WHERE product_workspace_id=?');
@@ -75,7 +80,22 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const lockExists = db.prepare('SELECT 1 FROM flow_locked_stps WHERE product_workspace_id=?');
     const lockById = db.prepare('SELECT product_workspace_id productWorkspaceId FROM flow_locked_stps WHERE lock_id=?');
     const b10History = db.prepare('SELECT decision_id decisionId FROM governance_product_b10_decisions WHERE product_workspace_id=? ORDER BY decision_number');
-    const handler = (request: IncomingMessage, response: ServerResponse): void => { void route(request, response, configuration, async (productWorkspaceId, body) => {
+    const handler = (request: IncomingMessage, response: ServerResponse): void => { void route(request, response, configuration, async (body) => withDatabaseMutationMutex(db, async () => {
+      const filesBefore = await artifactFiles(configuration.artifactRoot);
+      try {
+        const existing = workspaceByKey.get(body.workspaceKey) as { workspaceId: string } | undefined;
+        if (existing) { try { await discoveries.readWorkspace(existing.workspaceId); } catch { throw new ExistingDiscoveryWorkspaceIntegrityError(); } }
+        const result = await discoveries.createWorkspace(body);
+        let verified;
+        try { verified = await discoveries.readWorkspace(result.workspaceId); } catch { throw new ExistingDiscoveryWorkspaceIntegrityError(); }
+        const receipt: OwnerDiscoveryWorkspaceReceipt = {
+          contractVersion: '1.0.0', workspaceId: verified.workspaceId, workspaceKey: verified.workspaceKey, state: 'ACTIVE', title: verified.title,
+          ...(verified.description === undefined ? {} : { description: verified.description }), createdAt: verified.createdAt, exactRetry: result.deduplicated,
+        };
+        assertOwnerWorkspaceReceipt(receipt);
+        return receipt;
+      } finally { await removeNewUnregisteredArtifacts(configuration.artifactRoot, filesBefore, artifactManifestExists); }
+    }), async (productWorkspaceId, body) => {
       if (!productExists.get(productWorkspaceId)) throw new UnknownProductWorkspaceError();
       const result = await service.decide({ ...body, productWorkspaceId }, actor);
       const verified = await service.replay(result.decisionId);
@@ -154,6 +174,7 @@ async function route(
   request: IncomingMessage,
   response: ServerResponse,
   configuration: OwnerApiConfiguration,
+  createWorkspace: (body: OwnerDiscoveryWorkspaceRequest) => Promise<OwnerDiscoveryWorkspaceReceipt>,
   decide: (id: string, body: OwnerB8DecisionRequest) => Promise<OwnerB8DecisionReceipt>,
   clear: (id: string, body: OwnerB8ClearanceRequest) => Promise<OwnerB8ClearanceReceipt>,
   saveWorking: (id: string, body: OwnerB9WorkingRequest) => Promise<OwnerB9WorkingReceipt & { created: boolean }>,
@@ -165,8 +186,7 @@ async function route(
   if (origin) cors(response, origin);
   const matched = ownerRoute(request.url);
   if (matched === null) return sendError(response, 404, 'not_found', 'Route not found');
-  const { productWorkspaceId } = matched;
-  if (!UUID.test(productWorkspaceId)) return sendError(response, 400, 'bad_request', 'Product workspace ID must be a UUID');
+  if (matched.operation !== 'workspace' && !UUID.test(matched.productWorkspaceId)) return sendError(response, 400, 'bad_request', 'Product workspace ID must be a UUID');
   if (request.method === 'OPTIONS') {
     if (!origin || singleHeader(request.headers['access-control-request-method']) !== 'POST' || singleHeader(request.headers['access-control-request-headers'])?.toLowerCase() !== 'authorization, content-type') return sendError(response, 403, 'forbidden', 'Preflight is not allowed');
     response.writeHead(204, { Allow: 'POST, OPTIONS', 'Access-Control-Max-Age': '600', 'Content-Length': '0' }); response.end(); return;
@@ -178,6 +198,13 @@ async function route(
     const raw = await readBody(request);
     let body: unknown;
     try { body = JSON.parse(raw); } catch { return sendError(response, 400, 'bad_request', 'Request body must be valid JSON'); }
+    if (matched.operation === 'workspace') {
+      if (!ownerWorkspaceBodyShape(body)) return sendError(response, 400, 'bad_request', 'Invalid discovery workspace request');
+      try { validateDiscoveryWorkspaceRequest(body); } catch (error) { if (error instanceof FlowValidationError) return sendError(response, 400, 'bad_request', 'Invalid discovery workspace request'); throw error; }
+      const receipt = await createWorkspace(body);
+      return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
+    }
+    const productWorkspaceId = matched.productWorkspaceId;
     if (matched.operation === 'decision') {
       if (!ownerDecisionBodyShape(body)) return sendError(response, 400, 'bad_request', 'Invalid B8 decision request');
       const receipt = await decide(productWorkspaceId, body);
@@ -203,8 +230,9 @@ async function route(
     const receipt = await decideB10(productWorkspaceId, body);
     return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
-    if (error instanceof ExistingClearanceIntegrityError || error instanceof ExistingStpIntegrityError || error instanceof ExistingB10IntegrityError) return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
+    if (error instanceof ExistingClearanceIntegrityError || error instanceof ExistingStpIntegrityError || error instanceof ExistingB10IntegrityError || error instanceof ExistingDiscoveryWorkspaceIntegrityError) return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof PayloadTooLargeError) return sendError(response, 400, 'bad_request', 'Request body is too large');
+    if (error instanceof DiscoveryWorkspaceIdentityConflictError) return matched.operation === 'workspace' && /changed content/i.test(error.message) ? sendError(response, 409, 'conflict', 'Discovery workspace key conflicts with existing content') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof ProductB8DecisionIdentityConflictError) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
     if (error instanceof ProductB10DecisionIdentityConflictError) return b10SemanticConflict(error) ? sendError(response, 409, 'conflict', 'B10 decision conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof B8ClearanceIdentityConflictError) return clearanceSemanticConflict(error) ? sendError(response, 409, 'conflict', 'B8 clearance conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
@@ -218,6 +246,7 @@ async function route(
       return sendError(response, 400, 'bad_request', 'Invalid B8 decision request');
     }
     if (error instanceof FlowValidationError) {
+      if (matched.operation === 'workspace') return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
       if (matched.operation === 'working') return /locked|not found|requires null/i.test(error.message) ? sendError(response, 409, 'conflict', 'B9 working conflicts with current state') : sendError(response, 400, 'bad_request', 'Invalid B9 working request');
       if (matched.operation === 'lock') return /locked|requires one existing|trusted OWNER/i.test(error.message) ? sendError(response, 409, 'conflict', 'B9 lock conflicts with current state') : sendError(response, 400, 'bad_request', 'Invalid B9 lock request');
       return clearanceSemanticConflict(error) ? sendError(response, 409, 'conflict', 'B8 clearance conflicts with current state') : /distinct exact decision/i.test(error.message) ? sendError(response, 400, 'bad_request', 'Invalid B8 clearance request') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
@@ -226,6 +255,13 @@ async function route(
   }
 }
 
+function ownerWorkspaceBodyShape(value: unknown): value is OwnerDiscoveryWorkspaceRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const body = value as Record<string, unknown>;
+  const allowed = new Set(['contractVersion', 'workspaceKey', 'title', 'description']);
+  return Object.keys(body).every((key) => allowed.has(key)) && ['contractVersion', 'workspaceKey', 'title'].every((key) => Object.hasOwn(body, key));
+}
+function assertOwnerWorkspaceReceipt(value: OwnerDiscoveryWorkspaceReceipt): void { const keys = Object.keys(value).sort().join(','); const expected = ['contractVersion','workspaceId','workspaceKey','state','title','createdAt','exactRetry', ...(value.description === undefined ? [] : ['description'])].sort().join(','); if (keys !== expected || value.contractVersion !== '1.0.0' || !UUID.test(value.workspaceId) || !/^[a-z][a-z0-9_-]{2,79}$/.test(value.workspaceKey) || value.state !== 'ACTIVE' || value.title.length < 1 || value.title.length > 200 || (value.description !== undefined && (value.description.length < 1 || value.description.length > 1000)) || !Number.isFinite(Date.parse(value.createdAt)) || typeof value.exactRetry !== 'boolean') throw new ExistingDiscoveryWorkspaceIntegrityError(); }
 function clearanceSemanticConflict(error: Error): boolean { return /not found|must belong to|must be PASS|belongs to another|identical frozen|not currently ready|not the current effective PASS|cannot be assigned|already has a B8 clearance|different exact decision set|wrong .* decision/i.test(error.message); }
 function b10SemanticConflict(error: Error): boolean { return /belongs to another|wrong lock|previousDecisionId|first B10 decision|changed request|actor|predecessor|decision/i.test(error.message) && !/artifact|manifest|immutable row|historical|digest mismatch/i.test(error.message); }
 function ownerDecisionBodyShape(value: unknown): value is OwnerB8DecisionRequest {
@@ -273,10 +309,12 @@ function authorized(request: IncomingMessage, expected: string): boolean {
   return digestMatches && suppliedDigest.length === expectedDigest.length;
 }
 function singleHeader(value: string | string[] | undefined): string | undefined { return typeof value === 'string' ? value : undefined; }
-function ownerRoute(raw: string | undefined): { productWorkspaceId: string; operation: 'decision' | 'clearance' | 'working' | 'lock' | 'b10' } | null {
+type OwnerRoute = { operation: 'workspace' } | { productWorkspaceId: string; operation: 'decision' | 'clearance' | 'working' | 'lock' | 'b10' };
+function ownerRoute(raw: string | undefined): OwnerRoute | null {
   if (!raw || /%(?:2e|2f|5c)/i.test(raw)) return null;
   let url: URL; try { url = new URL(raw, 'http://owner-api.local'); } catch { return null; }
   if (url.search || url.hash || url.pathname.includes('//')) return null;
+  if (url.pathname === '/owner-api/workspaces') return { operation: 'workspace' };
   const match = /^\/owner-api\/product-workspaces\/([^/]+)\/(b8-decisions|b8-clearance|b9\/working|b9\/lock|b10-decisions)$/.exec(url.pathname); if (!match) return null;
   try { const id = decodeURIComponent(match[1]!); const operation = match[2] === 'b8-decisions' ? 'decision' : match[2] === 'b8-clearance' ? 'clearance' : match[2] === 'b9/working' ? 'working' : match[2] === 'b9/lock' ? 'lock' : 'b10'; return id.includes('/') || id.includes('\\') || id.includes('\0') ? null : { productWorkspaceId: id, operation }; } catch { return null; }
 }
@@ -286,6 +324,7 @@ class PayloadTooLargeError extends Error {}
 class UnknownProductWorkspaceError extends Error {}
 class UnknownLockedStpError extends Error {}
 class ExistingB10IntegrityError extends Error {}
+class ExistingDiscoveryWorkspaceIntegrityError extends Error {}
 async function readBody(request: IncomingMessage): Promise<string> {
   const declared = request.headers['content-length'];
   if (declared !== undefined && (!/^\d+$/.test(declared) || Number(declared) > MAX_BODY_BYTES)) { request.resume(); throw new PayloadTooLargeError(); }
@@ -297,4 +336,7 @@ async function readBody(request: IncomingMessage): Promise<string> {
 function cors(response: ServerResponse, origin: string): void { response.setHeader('Access-Control-Allow-Origin', origin); response.setHeader('Access-Control-Allow-Methods', 'POST'); response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type'); response.setHeader('Vary', 'Origin'); }
 function sendJson(response: ServerResponse, status: number, body: unknown, extra: Record<string, string> = {}): void { const bytes = Buffer.from(JSON.stringify(body)); response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': bytes.byteLength, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra }); response.end(bytes); }
 function sendError(response: ServerResponse, status: number, code: OwnerApiErrorResponse['error']['code'], message: string, extra: Record<string, string> = {}): void { sendJson(response, status, { error: { code, message } } satisfies OwnerApiErrorResponse, extra); }
+async function artifactFiles(root: string): Promise<Set<string>> { const files = new Set<string>(); try { for (const entry of await fs.readdir(path.resolve(root), { recursive: true, withFileTypes: true })) if (entry.isFile()) files.add(path.join(entry.parentPath, entry.name)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; } return files; }
+async function removeNewUnregisteredArtifacts(root: string, before: ReadonlySet<string>, manifestExists: BetterSqlite3.Statement): Promise<void> { const resolvedRoot = path.resolve(root); for (const file of await artifactFiles(root)) { if (before.has(file)) continue; const relativePath = path.relative(resolvedRoot, file); if (!artifactManifestExistsSafe(manifestExists, relativePath)) await fs.rm(file, { force: true }); } }
+function artifactManifestExistsSafe(statement: BetterSqlite3.Statement, relativePath: string): boolean { return !!statement.get(relativePath); }
 function assertOwnerTables(db: BetterSqlite3.Database): void { const names = new Set((db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(({ name }) => name)); for (const required of ['artifact_manifests', 'flow_discovery_workspaces', 'flow_product_candidates', 'flow_product_candidate_revisions', 'flow_candidate_baskets', 'flow_candidate_basket_members', 'governance_candidate_b7_decisions', 'flow_product_workspaces', 'governance_product_b8_lane_decisions', 'flow_b8_clearances', 'flow_b8_clearance_decisions', 'flow_stp_working_records', 'flow_locked_stps', 'governance_product_b10_decisions']) if (!names.has(required)) throw new Error('Database is missing required owner tables'); }

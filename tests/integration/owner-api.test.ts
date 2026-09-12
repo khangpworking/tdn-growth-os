@@ -47,6 +47,7 @@ async function serve(state: Awaited<ReturnType<typeof fixture>>, run: (base: str
   api.server.listen(0, '127.0.0.1'); await once(api.server, 'listening');
   try { await run(`http://127.0.0.1:${(api.server.address() as AddressInfo).port}`); } finally { await api.close(); }
 }
+const workspaceEndpoint = (base: string) => `${base}/owner-api/workspaces`;
 const endpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b8-decisions`;
 const clearanceEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b8-clearance`;
 const workingEndpoint = (base: string) => `${base}/owner-api/product-workspaces/${product}/b9/working`;
@@ -413,4 +414,123 @@ test('generated B10 owner contract is closed, exact and registered', () => {
   assert.deepEqual(schema.$defs.receipt.required, ['contractVersion', 'decisionId', 'decisionNumber', 'previousDecisionId', 'decision', 'decidedAt', 'readyForB11', 'exactRetry']);
   assert.equal(schema.$defs.receipt.properties.lockedStpId, undefined);
   assert.match(fs.readFileSync('scripts/generate-foundation-contract.mjs', 'utf8'), /\['api', 'owner-b10-decision-api'\]/);
+});
+
+
+test('discovery workspace creation returns closed receipts, preserves optional description, and creates no downstream records', async () => {
+  const state = await fixture();
+  await serve(state, async (base) => {
+    const first = await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'new-market', title: 'Shared title' }) });
+    assert.equal(first.status, 201);
+    const firstReceipt = await first.json() as any;
+    assert.deepEqual(Object.keys(firstReceipt).sort(), ['contractVersion', 'workspaceId', 'workspaceKey', 'state', 'title', 'createdAt', 'exactRetry'].sort());
+    assert.deepEqual({ ...firstReceipt, workspaceId: '<uuid>' }, { contractVersion: '1.0.0', workspaceId: '<uuid>', workspaceKey: 'new-market', state: 'ACTIVE', title: 'Shared title', createdAt: '2027-01-01T00:00:00.000Z', exactRetry: false });
+
+    const second = await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'other-market', title: 'Shared title', description: 'A distinct workspace.' }) });
+    assert.equal(second.status, 201);
+    const secondReceipt = await second.json() as any;
+    assert.deepEqual(Object.keys(secondReceipt).sort(), ['contractVersion', 'workspaceId', 'workspaceKey', 'state', 'title', 'description', 'createdAt', 'exactRetry'].sort());
+    assert.equal(secondReceipt.description, 'A distinct workspace.');
+    assert.notEqual(firstReceipt.workspaceId, secondReceipt.workspaceId);
+  });
+  const db = new BetterSqlite3(state.databasePath);
+  assert.equal((db.prepare('SELECT count(*) count FROM flow_discovery_workspaces').get() as any).count, 3);
+  for (const table of ['flow_product_candidates', 'flow_product_candidate_revisions', 'flow_candidate_baskets', 'flow_candidate_basket_members', 'governance_candidate_b7_decisions', 'flow_product_workspaces', 'governance_product_b8_lane_decisions', 'flow_b8_clearances', 'flow_b8_clearance_decisions', 'flow_stp_working_records', 'flow_locked_stps', 'governance_product_b10_decisions']) {
+    const expected = ['flow_product_candidates', 'flow_product_candidate_revisions', 'flow_candidate_baskets', 'flow_candidate_basket_members', 'governance_candidate_b7_decisions', 'flow_product_workspaces'].includes(table) ? 1 : 0;
+    assert.equal((db.prepare(`SELECT count(*) count FROM ${table}`).get() as any).count, expected, table);
+  }
+  db.close();
+});
+
+test('discovery workspace exact retries are zero-mutation; changed content conflicts and identical concurrency creates one artifact', async () => {
+  const state = await fixture();
+  await serve(state, async (base) => {
+    const request = JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'concurrent-market', title: 'Concurrent', description: 'Same content' });
+    const concurrent = await Promise.all([fetch(workspaceEndpoint(base), { method: 'POST', headers, body: request }), fetch(workspaceEndpoint(base), { method: 'POST', headers, body: request })]);
+    assert.deepEqual(concurrent.map((response) => response.status).sort(), [200, 201]);
+    const receipts = await Promise.all(concurrent.map((response) => response.json() as Promise<any>));
+    assert.equal(receipts[0].workspaceId, receipts[1].workspaceId);
+    assert.deepEqual(receipts.map((receipt) => receipt.exactRetry).sort(), [false, true]);
+
+    const db = new BetterSqlite3(state.databasePath);
+    const before = {
+      rows: db.prepare('SELECT * FROM flow_discovery_workspaces ORDER BY workspace_id').all(),
+      manifests: db.prepare('SELECT * FROM artifact_manifests ORDER BY sha256').all(),
+    };
+    db.close();
+    const retry = await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: request });
+    assert.equal(retry.status, 200); assert.equal((await retry.json() as any).exactRetry, true);
+    assert.equal((await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'concurrent-market', title: 'Changed' }) })).status, 409);
+    assert.equal((await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'concurrent-market', title: 'Concurrent', description: 'Changed description' }) })).status, 409);
+    const afterDb = new BetterSqlite3(state.databasePath);
+    assert.deepEqual(afterDb.prepare('SELECT * FROM flow_discovery_workspaces ORDER BY workspace_id').all(), before.rows);
+    assert.deepEqual(afterDb.prepare('SELECT * FROM artifact_manifests ORDER BY sha256').all(), before.manifests);
+    afterDb.close();
+  });
+  const files = fs.readdirSync(state.artifactRoot, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => path.relative(state.artifactRoot, path.join(entry.parentPath, entry.name)).replaceAll(path.sep, '/'));
+  assert.equal(files.some((name) => name.endsWith('.tmp')), false);
+  const manifestDb = new BetterSqlite3(state.databasePath); const manifests = new Set((manifestDb.prepare('SELECT relative_path relativePath FROM artifact_manifests').all() as { relativePath: string }[]).map((row) => row.relativePath)); manifestDb.close();
+  assert.equal(files.every((file) => manifests.has(file)), true, 'every permanent artifact file is registered');
+});
+
+test('discovery workspace route rejects malformed bounds, additional fields, auth/origin/method and oversized bodies without mutation', async () => {
+  const state = await fixture();
+  const beforeDb = new BetterSqlite3(state.databasePath);
+  const before = { rows: beforeDb.prepare('SELECT * FROM flow_discovery_workspaces').all(), manifests: beforeDb.prepare('SELECT * FROM artifact_manifests').all() };
+  beforeDb.close();
+  await serve(state, async (base) => {
+    const valid = { contractVersion: '1.0.0', workspaceKey: 'valid-key', title: 'Valid' };
+    assert.equal((await fetch(workspaceEndpoint(base), { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(valid) })).status, 401);
+    assert.equal((await fetch(workspaceEndpoint(base), { method: 'POST', headers: { ...headers, origin: 'http://evil.local' }, body: JSON.stringify(valid) })).status, 403);
+    assert.equal((await fetch(workspaceEndpoint(base), { method: 'GET', headers })).status, 405);
+    for (const invalid of [
+      {}, { contractVersion: '1.0.0', workspaceKey: '', title: 'Valid' }, { contractVersion: '1.0.0', workspaceKey: 'ab', title: 'Valid' },
+      { contractVersion: '1.0.0', workspaceKey: 'valid-key', title: '' }, { contractVersion: '1.0.0', workspaceKey: 'valid-key', title: ' ' },
+      { contractVersion: '1.0.0', workspaceKey: 'valid-key', title: 'x'.repeat(201) }, { contractVersion: '1.0.0', workspaceKey: 'valid-key', title: 'Valid', description: '' },
+      { contractVersion: '1.0.0', workspaceKey: 'valid-key', title: 'Valid', description: 'x'.repeat(1001) }, { ...valid, extra: true },
+    ]) assert.equal((await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify(invalid) })).status, 400);
+    assert.equal((await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: 'x'.repeat(4097) })).status, 400);
+  });
+  const afterDb = new BetterSqlite3(state.databasePath);
+  assert.deepEqual(afterDb.prepare('SELECT * FROM flow_discovery_workspaces').all(), before.rows);
+  assert.deepEqual(afterDb.prepare('SELECT * FROM artifact_manifests').all(), before.manifests);
+  afterDb.close();
+});
+
+test('discovery workspace retry verifies persisted artifact corruption as generic 500 with no orphan or mutation', async () => {
+  const state = await fixture();
+  const db = new BetterSqlite3(state.databasePath);
+  const row = db.prepare('SELECT workspace_artifact_sha256 sha FROM flow_discovery_workspaces WHERE workspace_key=?').get('owner-test') as { sha: string };
+  const beforeRows = db.prepare('SELECT * FROM flow_discovery_workspaces').all();
+  const beforeManifests = db.prepare('SELECT * FROM artifact_manifests').all();
+  db.close();
+  const artifactPath = path.join(state.artifactRoot, 'sha256', row.sha.slice(0, 2), row.sha);
+  fs.writeFileSync(artifactPath, '{}');
+  const filesBefore = fs.readdirSync(state.artifactRoot, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => path.join(entry.parentPath, entry.name)).sort();
+  await serve(state, async (base) => {
+    const response = await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'owner-test', title: 'Không gian thử nghiệm' }) });
+    assert.equal(response.status, 500);
+    assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } });
+  });
+  const afterDb = new BetterSqlite3(state.databasePath);
+  assert.deepEqual(afterDb.prepare('SELECT * FROM flow_discovery_workspaces').all(), beforeRows);
+  assert.deepEqual(afterDb.prepare('SELECT * FROM artifact_manifests').all(), beforeManifests);
+  afterDb.close();
+  assert.deepEqual(fs.readdirSync(state.artifactRoot, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => path.join(entry.parentPath, entry.name)).sort(), filesBefore);
+});
+
+
+test('generated discovery OWNER contract is closed, bounded, exact, and registered', () => {
+  const schema = JSON.parse(fs.readFileSync('contracts/api/owner-discovery-workspace-api.schema.json', 'utf8')) as any;
+  assert.deepEqual(schema.oneOf.map((entry: any) => entry.$ref), ['#/$defs/request', '#/$defs/receipt']);
+  assert.equal(schema.$defs.request.additionalProperties, false); assert.equal(schema.$defs.receipt.additionalProperties, false);
+  assert.deepEqual(schema.$defs.request.required, ['contractVersion', 'workspaceKey', 'title']); assert.deepEqual(schema.$defs.receipt.required, ['contractVersion', 'workspaceId', 'workspaceKey', 'state', 'title', 'createdAt', 'exactRetry']);
+  assert.equal(schema.$defs.request.properties.title.maxLength, 200); assert.equal(schema.$defs.request.properties.description.maxLength, 1000); assert.equal(schema.$defs.request.properties.workspaceKey.pattern, '^[a-z][a-z0-9_-]{2,79}$');
+  assert.match(fs.readFileSync('scripts/generate-foundation-contract.mjs', 'utf8'), /\['api', 'owner-discovery-workspace-api'\]/);
+});
+
+test('corrupt discovery row is generic 500 even when retry content differs', async () => {
+  const state = await fixture(); const db = new BetterSqlite3(state.databasePath); db.exec('DROP TRIGGER flow_discovery_workspaces_no_update'); db.prepare("UPDATE flow_discovery_workspaces SET title='Corrupt' WHERE workspace_key='owner-test'").run(); const before = db.prepare('SELECT count(*) count FROM artifact_manifests').get() as any; db.close();
+  await serve(state, async (base) => { const response = await fetch(workspaceEndpoint(base), { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'owner-test', title: 'Changed request' }) }); assert.equal(response.status, 500); assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored workspace data failed integrity verification' } }); });
+  const after = new BetterSqlite3(state.databasePath); assert.equal((after.prepare('SELECT count(*) count FROM artifact_manifests').get() as any).count, before.count); after.close();
 });
