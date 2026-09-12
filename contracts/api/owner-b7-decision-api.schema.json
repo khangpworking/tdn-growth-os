@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-b7-decision-api.schema.json",
+  "title": "OwnerB7DecisionApiContract",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/receipt" }, { "$ref": "#/$defs/error" }],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "request": {
+      "title": "OwnerB7DecisionRequest", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "candidateId", "candidateVersion", "decision"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "candidateId": { "$ref": "#/$defs/uuid" },
+        "candidateVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+        "decision": { "enum": ["PASS", "HOLD", "REJECT"] }
+      }
+    },
+    "receipt": {
+      "title": "OwnerB7DecisionReceipt", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "decisionId", "workspaceId", "basketId", "candidateId", "candidateVersion", "decision", "decidedAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" }, "decisionId": { "$ref": "#/$defs/uuid" },
+        "workspaceId": { "$ref": "#/$defs/uuid" }, "basketId": { "$ref": "#/$defs/uuid" },
+        "candidateId": { "$ref": "#/$defs/uuid" }, "candidateVersion": { "type": "integer", "minimum": 1 },
+        "decision": { "enum": ["PASS", "HOLD", "REJECT"] }, "decidedAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerB7ApiErrorResponse", "type": "object", "additionalProperties": false, "required": ["error"],
+      "properties": { "error": { "type": "object", "additionalProperties": false, "required": ["code", "message"], "properties": {
+        "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "conflict", "integrity_error"] }, "message": { "type": "string" }
+      } } }
+    }
+  }
+}

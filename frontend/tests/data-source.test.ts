@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, ownerB7Disabled, submitOwnerB7Decision, submitOwnerB7AndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
 
 const ids = {
@@ -22,6 +22,7 @@ function validResponses(): Map<string, unknown> {
     [`/api/workspaces/${ids.w2}`, { contractVersion: '1.0.0', workspace: w2, candidates: [], products: [] }],
     [`/api/workspaces/${ids.w1}/candidate-baskets`, { contractVersion: '1.0.0', workspaceId: ids.w1, baskets: [{ basketId: ids.basket, workspaceId: ids.w1, basketKey: 'basket-one', version: 1, frozenAt: at, candidates: [{ candidateId: ids.c1, candidateKey: 'candidate-one', candidateVersion: 3, label: 'Ứng viên', state: 'EXPLORING' }] }] }],
     [`/api/workspaces/${ids.w2}/candidate-baskets`, { contractVersion: '1.0.0', workspaceId: ids.w2, baskets: [] }],
+    [`/api/workspaces/${ids.w1}/candidate-baskets/${ids.basket}/b7`, { contractVersion: '1.0.0', workspaceId: ids.w1, basketId: ids.basket, basketKey: 'basket-one', basketVersion: 1, frozenAt: at, candidates: [{ candidateId: ids.c1, candidateKey: 'candidate-one', candidateVersion: 3, label: 'Ứng viên', state: 'EXPLORING', effectiveState: 'PASS', decisionId: ids.b7, decidedAt: at }] }],
     [`/api/product-workspaces/${ids.p1}/b9`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, state: 'NOT_STARTED' }],
     [`/api/product-workspaces/${ids.p1}/b10`, { contractVersion: '1.0.0', productWorkspaceId: ids.p1, history: [], effective: null, readyForB11: false }],
     [`/api/product-workspaces/${ids.p1}`, { contractVersion: '1.0.0', product: { ...productSummary, sourceWorkspaceId: ids.w1, sourceBasketId: ids.basket, sourceBasketKey: 'basket-one', sourceBasketVersion: 1, sourceCandidateId: ids.c1, sourceCandidateKey: 'candidate-one', sourceCandidateVersion: 3, sourceCandidateLabel: 'Ứng viên', sourceB7DecisionId: ids.b7, sourceB7DecidedAt: at }, b8: { readyForB9: false, lanes: [
@@ -374,3 +375,17 @@ test('Task042 demo uses the same confirmation but never invokes OWNER basket API
   const demoBranch = panel.slice(panel.indexOf("if (mode === 'demo')"), panel.indexOf('if (!ownerToken) return'));
   assert.doesNotMatch(demoBranch, /submitOwnerBasket|owner-api|fetch/);
 });
+
+
+test('B7 loads exact frozen state and OWNER request is closed with strict receipt/reload verification', async()=>{
+  const state=await loadRealWorkspaceState(fetchFrom(validResponses())); const member=state.baskets[0]!.candidates[0]!;
+  assert.deepEqual([member.candidateVersion,member.b7State,member.b7DecisionId],[3,'PASS',ids.b7]);
+  const input={workspaceId:ids.w1,basketId:ids.basket,candidateId:ids.c1,candidateVersion:3,decision:'HOLD' as const,token:'x'.repeat(31)+'1'};let body='';
+  await submitOwnerB7Decision(input,(async(_url,init)=>{body=String(init?.body);return json({contractVersion:'1.0.0',decisionId:ids.d1,workspaceId:ids.w1,basketId:ids.basket,candidateId:ids.c1,candidateVersion:3,decision:'HOLD',decidedAt:at,exactRetry:false},201);}) as typeof fetch);
+  assert.deepEqual(JSON.parse(body),{contractVersion:'1.0.0',candidateId:ids.c1,candidateVersion:3,decision:'HOLD'});
+  for(const malformed of [{contractVersion:'1.0.0',decisionId:ids.d1,workspaceId:ids.w1,basketId:ids.basket,candidateId:ids.c1,candidateVersion:4,decision:'HOLD',decidedAt:at,exactRetry:false},{contractVersion:'1.0.0',decisionId:ids.d1,workspaceId:ids.w1,basketId:ids.basket,candidateId:ids.c1,candidateVersion:3,decision:'HOLD',decidedAt:at,exactRetry:false,extra:true}]) await assert.rejects(submitOwnerB7Decision(input,(async()=>json(malformed,201)) as typeof fetch),error=>error instanceof OwnerWriteError&&error.kind==='integrity');
+  assert.equal(ownerB7Disabled({unlocked:true,pending:false,complete:true,effective:'NO_DECISION'}),false); assert.equal(ownerB7Disabled({unlocked:true,pending:false,complete:true,effective:'PASS'}),true);
+  let reloads=0;const conflict=await submitOwnerB7AndReload(input,async()=>{reloads++;return state;},(async()=>json({error:{code:'conflict'}},409)) as typeof fetch);assert.equal(conflict.kind,'conflict');assert.equal(reloads,1);
+});
+
+test('B7 UI has three exact controls, compact immutable confirmation, no reason/product creation, and demo isolation',async()=>{const panel=await import('node:fs/promises').then(fs=>fs.readFile(new URL('../src/B7DecisionPanel.tsx',import.meta.url),'utf8'));assert.match(panel,/Đạt/);assert.match(panel,/Tạm giữ/);assert.match(panel,/Loại/);assert.match(panel,/Xác nhận quyết định B7/);assert.match(panel,/phiên bản trong rổ này/);assert.doesNotMatch(panel,/<input|<textarea|reason|lý do/i);assert.match(panel,/mode==='demo'/);assert.doesNotMatch(panel,/Tạo.*sản phẩm/);});

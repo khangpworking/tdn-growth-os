@@ -391,3 +391,9 @@ D24 thay thế ngôn ngữ D02 yêu cầu/giữ lý do và phần chưa chắc c
 B3 v1 đóng băng một tập các **exact candidate revision** trong một discovery workspace đang ACTIVE. Một basket family được nhận diện bằng `workspaceId + basketKey`; version phải nối tiếp từ v1, lịch sử append-only và exact retry không tạo bản mới. Read model chỉ phát các trường an toàn cần cho UI và replay toàn bộ basket bằng verified reader; mọi drift artifact/row/workspace/candidate trả lỗi integrity chung.
 
 Việc tạo basket không chấm điểm, xếp hạng, so sánh, chọn PASS/HOLD/REJECT, tạo B7 decision hay product workspace, sửa candidate, chạy research/provider/AI, hoặc xóa/sweep artifact. Workspace ID chỉ đến từ URL OWNER API; request-scoped staging chỉ phục hồi đúng canonical basket artifact bị thiếu của exact committed retry.
+
+### D33 — OWNER B7 API/UI boundary v1
+
+B7 thao tác trên đúng một member revision của một candidate basket đã đóng băng, với route được scope bởi `workspaceId + basketId`; body chỉ chứa `candidateId`, `candidateVersion` và một quyết định **PASS / HOLD / REJECT**. Backend lấy actor OWNER và capability `governance:candidate-b7-review` từ cấu hình tin cậy, không nhận actor, rationale, reason, notes, evidence hay text AI từ caller.
+
+Một exact basket/member/version chỉ có một quyết định bất biến: request giống hệt là exact retry không mutation; request đổi quyết định là conflict. Basket thuộc workspace khác, candidate revision không phải exact member, hoặc stored row/artifact/manifest drift đều fail closed. Read model trả effective state theo từng frozen member nhưng không tự tạo product workspace; PASS vẫn chỉ mở đường cho bước tạo product workspace độc lập trong tương lai.
