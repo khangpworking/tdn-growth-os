@@ -1,5 +1,14 @@
 # Trạng thái hiện tại
 
+## Task 043 — governed B7 candidate decisions and UI
+
+- Read API có endpoint B7 riêng cho đúng workspace/basket, replay verified basket và effective Task 027 decision cho từng exact frozen member theo thứ tự snapshot; chỉ trả safe UI fields và giữ SQLite file-must-exist/query-only không đổi bytes.
+- Opt-in OWNER API nhận closed body chỉ gồm contract version, candidate ID/version và PASS/HOLD/REJECT; URL sở hữu workspace/basket. Server sở hữu OWNER actor, capability, fixed policy, decision ID/time và chỉ delegate mutation cho `CandidateB7DecisionService.decide()`.
+- Mỗi exact basket/member/version có tối đa một quyết định bất biến: retry exact trả 200, create trả 201, thay đổi quyết định trả 409; HOLD chỉ xem lại qua basket version tương lai. Không có reason/rationale/note/evidence/reviewer/AI field.
+- Request-scoped staging chỉ publish digest của committed result; exact missing-artifact recovery kiểm tra toàn bộ row, basket/member, manifest/timestamps/digest/size/path và không scan/sweep/xóa artifact không liên quan.
+- Real B3 history có ba nút `Đạt`/`Tạm giữ`/`Loại`, immutable confirmation snapshot, OWNER lock/double-submit guard, authoritative reload và post-decision copy. Demo chỉ mutate synthetic memory và không gọi OWNER API.
+- PASS chỉ cấp eligibility cho action tạo product workspace riêng trong tương lai. Task 043 không tạo product workspace, B8–B10 record, external action, provider/AI operation, migration, auth infrastructure, deployment hoặc real decision.
+
 ## Task 042 — governed candidate-basket freeze and UI
 
 - Read API có endpoint riêng cho các basket của đúng discovery workspace, replay từng basket qua verified Task 026 reader, sắp xếp deterministic theo basket key rồi version tăng dần, và chỉ trả identity/thời gian cùng exact frozen candidate fields an toàn. SQLite vẫn read-only, file-must-exist, query-only và bảo toàn bytes.

@@ -48,10 +48,19 @@ export class RequestScopedArtifactStore extends ContentAddressedArtifactStore {
     return staged;
   }
 
-  async publishOwned(): Promise<void> {
+  override async read(sha256: string): Promise<Buffer> {
+    const scope = this.#scope.getStore();
+    const staged = scope?.staged.get(sha256);
+    if (!staged) return super.read(sha256);
+    await verifyPath(staged.stagedPath, staged.sha256, staged.byteSize);
+    return fs.readFile(staged.stagedPath);
+  }
+
+  async publishOwned(sha256?: string): Promise<void> {
     const scope = this.#scope.getStore();
     if (!scope) throw new Error('No request-scoped artifact operation is active');
-    for (const artifact of scope.staged.values()) {
+    const artifacts = sha256 === undefined ? [...scope.staged.values()] : [scope.staged.get(sha256)].filter((value): value is StagedArtifact => value !== undefined);
+    for (const artifact of artifacts) {
       await fs.mkdir(path.dirname(artifact.absolutePath), { recursive: true });
       try { await fs.link(artifact.stagedPath, artifact.absolutePath); }
       catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; }

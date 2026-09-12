@@ -47,6 +47,20 @@ export interface WorkspaceCandidateBasketsResponse {
   workspaceId: string;
   baskets: WorkspaceCandidateBasket[];
 }
+export interface WorkspaceCandidateBasketB7Member extends WorkspaceCandidateBasketMember {
+  effectiveState: B8EffectiveState;
+  decisionId?: string;
+  decidedAt?: string;
+}
+export interface WorkspaceCandidateBasketB7Response {
+  contractVersion: '1.0.0';
+  workspaceId: string;
+  basketId: string;
+  basketKey: string;
+  basketVersion: number;
+  frozenAt: string;
+  candidates: WorkspaceCandidateBasketB7Member[];
+}
 export interface ProductWorkspaceSummary {
   productWorkspaceId: string;
   productWorkspaceKey: string;

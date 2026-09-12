@@ -10,6 +10,7 @@ import type {
   WorkspaceApiErrorResponse,
   WorkspaceCandidateSummary,
   WorkspaceCandidateBasketsResponse,
+  WorkspaceCandidateBasketB7Response,
   WorkspacePortfolioItem,
   WorkspacePortfolioResponse,
 } from '../../contracts/api/workspace-api.generated.js';
@@ -88,6 +89,7 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       db, artifactStore: artifacts, basketReader,
       configuration: { policyId: CANDIDATE_B7_DECISION_POLICY_ID, policyVersion: 1, requiredCapability: CANDIDATE_B7_DECISION_CAPABILITY },
     });
+    const b7Reader = new GovernanceCandidateB7DecisionReader(b7);
     const products = new ProductWorkspaceService({ db, artifactStore: artifacts, decisionReader: new GovernanceCandidateB7DecisionReader(b7) });
     const productReader = new FlowProductWorkspaceReader(products);
     const b8 = new ProductB8LaneDecisionService({
@@ -181,6 +183,29 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       }
       return { contractVersion: '1.0.0', workspaceId: id, baskets: results };
     };
+    const candidateBasketB7 = async (workspaceId: string, basketId: string): Promise<WorkspaceCandidateBasketB7Response | undefined> => {
+      if (!discoveryRow.get(workspaceId)) return undefined;
+      const workspace = await discoveryReader.readVerifiedWorkspace(workspaceId);
+      if (workspace.workspaceId !== workspaceId) throw new Error('Verified discovery workspace has wrong identity');
+      let basket;
+      try { basket = await basketReader.readVerifiedBasket(basketId); } catch (error) {
+        if (/not found/i.test((error as Error).message)) return undefined;
+        throw error;
+      }
+      if (basket.basketId !== basketId || basket.workspaceId !== workspaceId) return undefined;
+      const result: WorkspaceCandidateBasketB7Response['candidates'] = [];
+      for (const member of basket.candidates) {
+        const effective = await b7Reader.readEffectiveDecision(basketId, member.candidateId, member.candidateVersion);
+        if (effective.basketId !== basketId || effective.candidateId !== member.candidateId || effective.candidateVersion !== member.candidateVersion) throw new Error('B7 decision reader returned wrong identity');
+        const base = { candidateId: member.candidateId, candidateKey: member.candidateKey, candidateVersion: member.candidateVersion, label: member.label, ...(member.summary === undefined ? {} : { summary: member.summary }), state: member.state, effectiveState: effective.effectiveState };
+        if (effective.effectiveState === 'NO_DECISION') result.push(base);
+        else {
+          if (effective.decision.basket.basketId !== basketId || effective.decision.candidate.candidateId !== member.candidateId || effective.decision.candidate.candidateVersion !== member.candidateVersion || effective.decision.decision !== effective.effectiveState) throw new Error('B7 decision identity mismatch');
+          result.push({ ...base, decisionId: effective.decision.decisionId, decidedAt: effective.decision.decidedAt });
+        }
+      }
+      return { contractVersion: '1.0.0', workspaceId, basketId, basketKey: basket.basketKey, basketVersion: basket.version, frozenAt: basket.frozenAt, candidates: result };
+    };
     const productDetail = async (id: string): Promise<ProductWorkspaceDetailResponse | undefined> => {
       if (!productExists.get(id)) return undefined;
       const value = await productReader.readVerifiedProductWorkspace(id);
@@ -242,7 +267,7 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
       return { contractVersion: '1.0.0', productWorkspaceId: id, history, effective: history.at(-1) ?? null, readyForB11: verified.status.readyForB11 };
     };
     const handler = (request: IncomingMessage, response: ServerResponse): void => {
-      void route(request, response, { portfolio, discoveryDetail, candidateBaskets, productDetail, productB9, productB10 });
+      void route(request, response, { portfolio, discoveryDetail, candidateBaskets, candidateBasketB7, productDetail, productB9, productB10 });
     };
     return {
       handler,
@@ -268,6 +293,7 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
   portfolio(): Promise<WorkspacePortfolioResponse>;
   discoveryDetail(id: string): Promise<DiscoveryWorkspaceDetailResponse | undefined>;
   candidateBaskets(id: string): Promise<WorkspaceCandidateBasketsResponse | undefined>;
+  candidateBasketB7(workspaceId: string, basketId: string): Promise<WorkspaceCandidateBasketB7Response | undefined>;
   productDetail(id: string): Promise<ProductWorkspaceDetailResponse | undefined>;
   productB9(id: string): Promise<ProductB9Response | undefined>;
   productB10(id: string): Promise<ProductB10Response | undefined>;
@@ -282,6 +308,11 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
     try { parts = url.pathname.split('/').slice(1).map((part) => decodeURIComponent(part)); } catch { return sendError(response, 400, 'bad_request', 'Malformed request URL'); }
     if (parts.some((part) => part === '.' || part === '..' || part.includes('/') || part.includes('\\') || part.includes('\0'))) return sendError(response, 400, 'bad_request', 'Malformed request URL');
     if (parts.length === 2 && parts[0] === 'api' && parts[1] === 'workspaces') return sendJson(response, 200, await methods.portfolio());
+    if (parts.length === 6 && parts[0] === 'api' && parts[1] === 'workspaces' && parts[3] === 'candidate-baskets' && parts[5] === 'b7') {
+      if (!UUID.test(parts[2]!) || !UUID.test(parts[4]!)) return sendError(response, 400, 'bad_request', 'Workspace and basket IDs must be UUIDs');
+      const result = await methods.candidateBasketB7(parts[2]!, parts[4]!);
+      return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Workspace or candidate basket not found');
+    }
     if (parts.length === 4 && parts[0] === 'api' && parts[1] === 'workspaces' && parts[3] === 'candidate-baskets') {
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Workspace ID must be a UUID');
       const result = await methods.candidateBaskets(parts[2]!);
