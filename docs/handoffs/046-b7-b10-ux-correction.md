@@ -31,7 +31,7 @@ Unresolved:
 - Impeccable CLI was not available; no package was installed.
 
 Finalization:
-- Correction commit: this handoff is included in the same final PR-head commit; record and verify that exact SHA after push.
+- Implementation commit SHA: `fea458c2d45948caf3e91ab54839f2cdf660a3c9` (`fea458c`).
 - Final release check at that implementation commit: `npm run check` — PASS, including 303/303 backend tests.
 - Push: `<pending>`
 - Draft PR verification: `<pending>`
