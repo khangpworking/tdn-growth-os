@@ -33,9 +33,9 @@ Unresolved:
 Finalization:
 - Implementation commit SHA: `fea458c2d45948caf3e91ab54839f2cdf660a3c9` (`fea458c`).
 - Final release check at that implementation commit: `npm run check` — PASS, including 303/303 backend tests.
-- Push: `<pending>`
-- Draft PR verification: `<pending>`
-- CI: `<pending>`
+- Push: PASS — correction and handoff follow-up pushed normally to `feature/046-b7-b10-ux-correction`.
+- Draft PR verification: PASS — PR #43 remains open and draft; no merge or deployment performed.
+- CI: PASS — GitHub Actions `check` completed successfully on the pushed PR head; exact final head was verified against the remote after push.
 
 Next action: complete the pending finalization steps, then review the draft PR; do not merge or deploy from this handoff.
 Business decisions pending: none introduced by Task 046.
