@@ -51,6 +51,7 @@ export interface WorkspaceCandidateBasketB7Member extends WorkspaceCandidateBask
   effectiveState: B8EffectiveState;
   decisionId?: string;
   decidedAt?: string;
+  productWorkspace?: ProductWorkspaceSummary;
 }
 export interface WorkspaceCandidateBasketB7Response {
   contractVersion: '1.0.0';

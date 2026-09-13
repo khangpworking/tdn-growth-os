@@ -57,6 +57,15 @@ export interface B10State {
 
 export type B7State = 'NO_DECISION' | DecisionState;
 
+export interface BasketProductWorkspace {
+  readonly id: string;
+  readonly key: string;
+  readonly title: string;
+  readonly state: 'ACTIVE';
+  readonly entryStep: 'B8';
+  readonly createdAt: string;
+}
+
 export interface BasketMember {
   readonly candidateId: string;
   readonly candidateKey: string;
@@ -67,6 +76,7 @@ export interface BasketMember {
   readonly b7State: B7State;
   readonly b7DecisionId: string | null;
   readonly b7DecidedAt: string | null;
+  readonly productWorkspace: BasketProductWorkspace | null;
 }
 
 export interface CandidateBasket {
@@ -131,6 +141,7 @@ export type DemoAction =
   | { readonly type: 'revise-candidate'; readonly id: string; readonly name: string; readonly summary: string }
   | { readonly type: 'freeze-basket'; readonly id: string; readonly marketId: string; readonly key: string; readonly version: number; readonly candidateIds: readonly string[]; readonly time: string }
   | { readonly type: 'b7-decide'; readonly basketId: string; readonly candidateId: string; readonly candidateVersion: number; readonly decision: DecisionState; readonly time: string }
+  | { readonly type: 'create-product-workspace'; readonly workspaceId: string; readonly key: string; readonly basketId: string; readonly candidateId: string; readonly candidateVersion: number; readonly decisionId: string; readonly time: string }
   | { readonly type: 'decide'; readonly productId: string; readonly lane: LaneKey; readonly decision: DecisionState; readonly time: string }
   | { readonly type: 'create-clearance'; readonly productId: string; readonly time: string }
   | { readonly type: 'reset' };
@@ -155,17 +166,17 @@ export function createSeedState(): DemoState {
     ],
     baskets: [
       { id: 'basket-calcium-1', marketId: 'calcium', key: 'calcium-shortlist', version: 1, frozenAt: '01/10/2026 08:00 · minh họa', candidates: [
-        { candidateId: 'candidate-calcium-adult', candidateKey: 'calcium-adult', candidateVersion: 1, name: 'Canxi cho người lớn', summary: 'Ý tưởng canxi cho người trưởng thành đang được khám phá.', b7State: 'PASS', b7DecisionId: 'demo-b7-adult', b7DecidedAt: '01/10/2026 08:10 · minh họa' },
-        { candidateId: 'candidate-calcium-child', candidateKey: 'calcium-child', candidateVersion: 1, name: 'Canxi cho trẻ em', summary: 'Ý tưởng dành cho trẻ em cần tiếp tục xác minh.', b7State: 'PASS', b7DecisionId: 'demo-b7-child', b7DecidedAt: '01/10/2026 08:12 · minh họa' },
+        { candidateId: 'candidate-calcium-adult', candidateKey: 'calcium-adult', candidateVersion: 1, name: 'Canxi cho người lớn', summary: 'Ý tưởng canxi cho người trưởng thành đang được khám phá.', b7State: 'PASS', b7DecisionId: 'demo-b7-adult', b7DecidedAt: '01/10/2026 08:10 · minh họa', productWorkspace: { id: 'adult', key: 'demo-adult', title: 'Canxi cho người lớn', state: 'ACTIVE', entryStep: 'B8', createdAt: '01/10/2026 08:20 · minh họa' } },
+        { candidateId: 'candidate-calcium-child', candidateKey: 'calcium-child', candidateVersion: 1, name: 'Canxi cho trẻ em', summary: 'Ý tưởng dành cho trẻ em cần tiếp tục xác minh.', b7State: 'PASS', b7DecisionId: 'demo-b7-child', b7DecidedAt: '01/10/2026 08:12 · minh họa', productWorkspace: { id: 'child', key: 'demo-child', title: 'Canxi cho trẻ em', state: 'ACTIVE', entryStep: 'B8', createdAt: '01/10/2026 08:22 · minh họa' } },
       ] },
       { id: 'basket-calcium-2', marketId: 'calcium', key: 'calcium-shortlist', version: 2, frozenAt: '02/10/2026 08:00 · minh họa', candidates: [
-        { candidateId: 'candidate-calcium-adult', candidateKey: 'calcium-adult', candidateVersion: 2, name: 'Canxi cho người lớn', summary: 'Ý tưởng canxi cho người trưởng thành đang được khám phá.', b7State: 'NO_DECISION', b7DecisionId: null, b7DecidedAt: null },
+        { candidateId: 'candidate-calcium-adult', candidateKey: 'calcium-adult', candidateVersion: 2, name: 'Canxi cho người lớn', summary: 'Ý tưởng canxi cho người trưởng thành đang được khám phá.', b7State: 'NO_DECISION', b7DecisionId: null, b7DecidedAt: null, productWorkspace: null },
       ] },
       { id: 'basket-calcium-alt-1', marketId: 'calcium', key: 'calcium-alternative', version: 1, frozenAt: '02/10/2026 08:15 · minh họa', candidates: [
-        { candidateId: 'candidate-calcium-child', candidateKey: 'calcium-child', candidateVersion: 1, name: 'Canxi cho trẻ em', summary: 'Ý tưởng dành cho trẻ em cần tiếp tục xác minh.', b7State: 'NO_DECISION', b7DecisionId: null, b7DecidedAt: null },
+        { candidateId: 'candidate-calcium-child', candidateKey: 'calcium-child', candidateVersion: 1, name: 'Canxi cho trẻ em', summary: 'Ý tưởng dành cho trẻ em cần tiếp tục xác minh.', b7State: 'NO_DECISION', b7DecisionId: null, b7DecidedAt: null, productWorkspace: null },
       ] },
       { id: 'basket-collagen-1', marketId: 'collagen', key: 'collagen-shortlist', version: 1, frozenAt: '01/10/2026 08:30 · minh họa', candidates: [
-        { candidateId: 'candidate-collagen-liquid', candidateKey: 'collagen-liquid', candidateVersion: 1, name: 'Collagen dạng nước', summary: 'Ứng viên dạng nước minh họa.', b7State: 'PASS', b7DecisionId: 'demo-b7-collagen', b7DecidedAt: '01/10/2026 08:40 · minh họa' },
+        { candidateId: 'candidate-collagen-liquid', candidateKey: 'collagen-liquid', candidateVersion: 1, name: 'Collagen dạng nước', summary: 'Ứng viên dạng nước minh họa.', b7State: 'PASS', b7DecisionId: 'demo-b7-collagen', b7DecidedAt: '01/10/2026 08:40 · minh họa', productWorkspace: { id: 'collagen-liquid', key: 'demo-collagen', title: 'Collagen dạng nước', state: 'ACTIVE', entryStep: 'B8', createdAt: '01/10/2026 08:50 · minh họa' } },
       ] },
     ],
     products: [
@@ -221,13 +232,22 @@ export function demoReducer(state: DemoState, action: DemoAction): DemoState {
     const members = action.candidateIds.map((id) => state.candidates.find((candidate) => candidate.id === id && candidate.marketId === action.marketId));
     const latestVersion = latestBasketVersion(state.baskets, action.marketId, action.key);
     if (members.length === 0 || members.some((member) => !member) || new Set(action.candidateIds).size !== action.candidateIds.length || action.version !== (latestVersion ?? 0) + 1 || state.baskets.some((basket) => basket.id === action.id)) return state;
-    return { ...state, baskets: [...state.baskets, { id: action.id, marketId: action.marketId, key: action.key, version: action.version, frozenAt: action.time, candidates: members.map((member) => ({ candidateId: member!.id, candidateKey: member!.key, candidateVersion: member!.version, name: member!.name, summary: member!.summary, b7State: 'NO_DECISION', b7DecisionId: null, b7DecidedAt: null })) }] };
+    return { ...state, baskets: [...state.baskets, { id: action.id, marketId: action.marketId, key: action.key, version: action.version, frozenAt: action.time, candidates: members.map((member) => ({ candidateId: member!.id, candidateKey: member!.key, candidateVersion: member!.version, name: member!.name, summary: member!.summary, b7State: 'NO_DECISION', b7DecisionId: null, b7DecidedAt: null, productWorkspace: null })) }] };
   }
   if (action.type === 'b7-decide') {
     const basket = state.baskets.find((item) => item.id === action.basketId);
     const member = basket?.candidates.find((item) => item.candidateId === action.candidateId && item.candidateVersion === action.candidateVersion);
     if (!basket || !member || member.b7State !== 'NO_DECISION') return state;
-    return { ...state, sequence: state.sequence + 1, baskets: state.baskets.map((item) => item.id !== basket.id ? item : { ...item, candidates: item.candidates.map((candidate) => candidate !== member ? candidate : { ...candidate, b7State: action.decision, b7DecisionId: `demo-b7-${state.sequence}`, b7DecidedAt: action.time }) }) };
+    return { ...state, sequence: state.sequence + 1, baskets: state.baskets.map((item) => item.id !== basket.id ? item : { ...item, candidates: item.candidates.map((candidate) => candidate !== member ? candidate : { ...candidate, b7State: action.decision, b7DecisionId: `demo-b7-${state.sequence}`, b7DecidedAt: action.time, productWorkspace: null }) }) };
+  }
+  if (action.type === 'create-product-workspace') {
+    const basket = state.baskets.find((item) => item.id === action.basketId && item.marketId === action.workspaceId);
+    const member = basket?.candidates.find((item) => item.candidateId === action.candidateId && item.candidateVersion === action.candidateVersion && item.b7DecisionId === action.decisionId);
+    if (!basket || !member || member.b7State !== 'PASS' || member.productWorkspace || state.products.some((item) => item.id === action.key)) return state;
+    const id = action.key;
+    const workspace: BasketProductWorkspace = { id, key: action.key, title: member.name, state: 'ACTIVE', entryStep: 'B8', createdAt: action.time };
+    const product: Product = { id, marketId: action.workspaceId, basketId: basket.id, basketKey: basket.key, basketVersion: basket.version, candidateId: member.candidateId, candidateVersion: member.candidateVersion, name: member.name, summary: member.summary, states: emptyStates(), versions: emptyVersions(), decisionIds: emptyDecisionIds(), history: [], clearance: null, b9: { state: 'NOT_STARTED', working: null, locked: null }, b10: { history: [], effective: null, readyForB11: false } };
+    return { ...state, products: [...state.products, product], baskets: state.baskets.map((item) => item.id !== basket.id ? item : { ...item, candidates: item.candidates.map((candidate) => candidate === member ? { ...candidate, productWorkspace: workspace } : candidate) }) };
   }
   const product = state.products.find((item) => item.id === action.productId);
   if (!product) return state;

@@ -11,6 +11,7 @@ import type { OwnerDiscoveryWorkspaceReceipt, OwnerDiscoveryWorkspaceRequest } f
 import type { OwnerProductCandidateCreateRequest, OwnerProductCandidateReceipt, OwnerProductCandidateRevisionRequest } from '../../contracts/api/owner-product-candidate-api.generated.js';
 import type { OwnerCandidateBasketRequest, OwnerCandidateBasketReceipt } from '../../contracts/api/owner-candidate-basket-api.generated.js';
 import type { OwnerB7DecisionReceipt, OwnerB7DecisionRequest } from '../../contracts/api/owner-b7-decision-api.generated.js';
+import type { OwnerProductWorkspaceReceipt, OwnerProductWorkspaceRequest } from '../../contracts/api/owner-product-workspace-api.generated.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import { withDatabaseMutationMutex } from '../platform/db/index.js';
 import { CandidateB7DecisionIdentityConflictError, CandidateB7DecisionService, CANDIDATE_B7_DECISION_CAPABILITY, CANDIDATE_B7_DECISION_POLICY_ID } from '../modules/governance/candidate-b7-decision-service.js';
@@ -21,13 +22,13 @@ import { DiscoveryWorkspaceIdentityConflictError, DiscoveryWorkspaceService } fr
 import { FlowDiscoveryWorkspaceReader } from '../modules/flow/discovery-workspace-reader.js';
 import { ProductCandidateIdentityConflictError, ProductCandidateService } from '../modules/flow/product-candidate-service.js';
 import { FlowProductCandidateReader } from '../modules/flow/product-candidate-reader.js';
-import { ProductWorkspaceService } from '../modules/flow/product-workspace-service.js';
+import { ProductWorkspaceIdentityConflictError, ProductWorkspaceService } from '../modules/flow/product-workspace-service.js';
 import { FlowProductWorkspaceReader } from '../modules/flow/product-workspace-reader.js';
 import { GovernanceValidationError } from '../modules/governance/validation.js';
 import { ProductB8DecisionIdentityConflictError, ProductB8LaneDecisionService, PRODUCT_B8_REVIEW_CAPABILITY, PRODUCT_B8_REVIEW_POLICY_ID } from '../modules/governance/product-b8-lane-decision-service.js';
 import { GovernanceProductB8Reader } from '../modules/governance/product-b8-status-reader.js';
 import { B8ClearanceIdentityConflictError, B8ClearanceService } from '../modules/flow/b8-clearance-service.js';
-import { FlowValidationError, validateCandidateBasketFreezeRequest, validateDiscoveryWorkspaceRequest, validateProductCandidateCreateRequest, validateProductCandidateRevisionRequest } from '../modules/flow/validation.js';
+import { FlowValidationError, validateCandidateBasketFreezeRequest, validateDiscoveryWorkspaceRequest, validateProductCandidateCreateRequest, validateProductCandidateRevisionRequest, validateProductWorkspaceCreateRequest } from '../modules/flow/validation.js';
 import { FlowB8ClearanceReader } from '../modules/flow/b8-clearance-reader.js';
 import { PRODUCT_B9_LOCK_CAPABILITY, StpIdentityConflictError, StpService } from '../modules/flow/stp-service.js';
 import { FlowLockedStpReader } from '../modules/flow/locked-stp-reader.js';
@@ -66,7 +67,7 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const candidates = new ProductCandidateService({ db, artifactStore: artifacts, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const baskets = new CandidateBasketService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discoveries), candidateReader: new FlowProductCandidateReader(candidates), ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const b7 = new CandidateB7DecisionService({ db, artifactStore: artifacts, basketReader: new FlowCandidateBasketReader(baskets), configuration: { policyId: CANDIDATE_B7_DECISION_POLICY_ID, policyVersion: 1, requiredCapability: CANDIDATE_B7_DECISION_CAPABILITY }, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
-    const products = new ProductWorkspaceService({ db, artifactStore: artifacts, decisionReader: new GovernanceCandidateB7DecisionReader(b7) });
+    const products = new ProductWorkspaceService({ db, artifactStore: artifacts, decisionReader: new GovernanceCandidateB7DecisionReader(b7), ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const service = new ProductB8LaneDecisionService({ db, artifactStore: artifacts, productWorkspaceReader: new FlowProductWorkspaceReader(products), configuration: { policyId: PRODUCT_B8_REVIEW_POLICY_ID, policyVersion: 1, requiredCapability: PRODUCT_B8_REVIEW_CAPABILITY }, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const b8Reader = new GovernanceProductB8Reader(service);
     const clearances = new B8ClearanceService({ db, artifactStore: artifacts, decisionReader: b8Reader, statusReader: b8Reader, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
@@ -97,6 +98,16 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
       required_capability requiredCapability, policy_id policyId, policy_version policyVersion,
       request_sha256 requestSha256, decision_artifact_sha256 artifactSha256, decided_at decidedAt
       FROM governance_candidate_b7_decisions WHERE basket_id=? AND candidate_id=? AND candidate_version=?`);
+    const productByDecision = db.prepare(`SELECT product_workspace_id productWorkspaceId, product_workspace_key productWorkspaceKey, state, entry_step entryStep, title,
+      source_workspace_id sourceWorkspaceId, source_basket_id sourceBasketId, source_candidate_id sourceCandidateId,
+      source_candidate_version sourceCandidateVersion, source_b7_decision_id sourceB7DecisionId,
+      request_sha256 requestSha256, product_workspace_artifact_sha256 artifactSha256, created_at createdAt
+      FROM flow_product_workspaces WHERE source_b7_decision_id=?`);
+    const productByKey = db.prepare(`SELECT product_workspace_id productWorkspaceId, product_workspace_key productWorkspaceKey, state, entry_step entryStep, title,
+      source_workspace_id sourceWorkspaceId, source_basket_id sourceBasketId, source_candidate_id sourceCandidateId,
+      source_candidate_version sourceCandidateVersion, source_b7_decision_id sourceB7DecisionId,
+      request_sha256 requestSha256, product_workspace_artifact_sha256 artifactSha256, created_at createdAt
+      FROM flow_product_workspaces WHERE product_workspace_key=?`);
     const productExists = db.prepare('SELECT 1 FROM flow_product_workspaces WHERE product_workspace_id=?');
     const clearanceExists = db.prepare('SELECT 1 FROM flow_b8_clearances WHERE product_workspace_id=?');
     const clearanceByProduct = db.prepare('SELECT clearance_id clearanceId FROM flow_b8_clearances WHERE product_workspace_id=?');
@@ -195,8 +206,33 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
         await artifacts.publishOwned(result.decisionArtifactSha256);
         let verified; try { verified = await b7.replay(result.decisionId); } catch { throw new ExistingB7IntegrityError(); }
         return { contractVersion: '1.0.0', decisionId: verified.decisionId, workspaceId: verified.basket.workspaceId, basketId: verified.basket.basketId, candidateId: verified.candidate.candidateId, candidateVersion: verified.candidate.candidateVersion, decision: verified.decision, decidedAt: verified.decidedAt, exactRetry: result.deduplicated };
-      })),
- async (productWorkspaceId, body) => {
+      })), async (workspaceId, basketId, decisionId, body) => withDatabaseMutationMutex(db, async () => artifacts.withOwnership(async () => {
+        if (!discoveryExists.get(workspaceId)) throw new UnknownDiscoveryWorkspaceError();
+        const basketRow = basketWorkspace.get(basketId) as { workspaceId: string } | undefined;
+        if (!basketRow) throw new UnknownCandidateBasketError();
+        if (basketRow.workspaceId !== workspaceId) throw new CandidateBasketPairingConflictError();
+        let pass;
+        try { pass = await b7.replay(decisionId); } catch (error) { if (/not found/i.test((error as Error).message)) throw new UnknownB7DecisionError(); throw new ExistingProductWorkspaceIntegrityError(); }
+        if (pass.basket.workspaceId !== workspaceId || pass.basket.basketId !== basketId) throw new ProductWorkspacePairingConflictError();
+        if (pass.decision !== 'PASS') throw new ProductWorkspaceEligibilityConflictError();
+        const existingByDecision = productByDecision.get(decisionId) as ExistingProductWorkspaceRow | undefined;
+        const existingByKey = productByKey.get(body.productWorkspaceKey) as ExistingProductWorkspaceRow | undefined;
+        const existingRows = new Map([existingByDecision, existingByKey].filter((row): row is ExistingProductWorkspaceRow => row !== undefined).map((row) => [row.productWorkspaceId, row]));
+        for (const existing of existingRows.values()) {
+          try { await products.replay(existing.productWorkspaceId); }
+          catch {
+            const isExactTarget = existing.sourceB7DecisionId === decisionId && existing.productWorkspaceKey === body.productWorkspaceKey;
+            if (!isExactTarget) throw new ExistingProductWorkspaceIntegrityError();
+            try { await recoverExactMissingProductWorkspaceArtifact({ ...body, decisionId }, existing, pass, workspaceManifest, artifacts); await products.replay(existing.productWorkspaceId); }
+            catch { throw new ExistingProductWorkspaceIntegrityError(); }
+          }
+        }
+        const result = await products.createWorkspace({ ...body, decisionId });
+        await artifacts.publishOwned(result.productWorkspaceArtifactSha256);
+        let verified; try { verified = await products.replay(result.productWorkspaceId); } catch { throw new ExistingProductWorkspaceIntegrityError(); }
+        const receipt: OwnerProductWorkspaceReceipt = { contractVersion: '1.0.0', productWorkspaceId: verified.productWorkspaceId, productWorkspaceKey: verified.productWorkspaceKey, workspaceId: verified.source.discoveryWorkspace.workspaceId, basketId: verified.source.basket.basketId, candidateId: verified.source.candidate.candidateId, candidateVersion: verified.source.candidate.candidateVersion, b7DecisionId: verified.source.b7Decision.decisionId, state: 'ACTIVE', entryStep: 'B8', title: verified.title, createdAt: verified.createdAt, exactRetry: result.deduplicated };
+        return receipt;
+      })), async (productWorkspaceId, body) => {
       if (!productExists.get(productWorkspaceId)) throw new UnknownProductWorkspaceError();
       const result = await service.decide({ ...body, productWorkspaceId }, actor);
       const verified = await service.replay(result.decisionId);
@@ -280,6 +316,7 @@ async function route(
   reviseCandidate: (workspaceId: string, candidateId: string, body: OwnerProductCandidateRevisionRequest) => Promise<OwnerProductCandidateReceipt>,
   freezeBasket: (workspaceId: string, body: OwnerCandidateBasketRequest) => Promise<OwnerCandidateBasketReceipt>,
   decideB7: (workspaceId: string, basketId: string, body: OwnerB7DecisionRequest) => Promise<OwnerB7DecisionReceipt>,
+  createProductWorkspace: (workspaceId: string, basketId: string, decisionId: string, body: OwnerProductWorkspaceRequest) => Promise<OwnerProductWorkspaceReceipt>,
   decide: (id: string, body: OwnerB8DecisionRequest) => Promise<OwnerB8DecisionReceipt>,
   clear: (id: string, body: OwnerB8ClearanceRequest) => Promise<OwnerB8ClearanceReceipt>,
   saveWorking: (id: string, body: OwnerB9WorkingRequest) => Promise<OwnerB9WorkingReceipt & { created: boolean }>,
@@ -294,7 +331,8 @@ async function route(
   if (matched.operation === 'candidateCreate' && !UUID.test(matched.workspaceId)) return sendError(response, 400, 'bad_request', 'Workspace ID must be a UUID');
   if ((matched.operation === 'candidateCreate' || matched.operation === 'basketCreate') && !UUID.test(matched.workspaceId)) return sendError(response, 400, 'bad_request', 'Workspace ID must be a UUID');
   if (matched.operation === 'candidateRevision' && (!UUID.test(matched.workspaceId) || !UUID.test(matched.candidateId))) return sendError(response, 400, 'bad_request', 'Workspace and candidate IDs must be UUIDs');
-  if (matched.operation === 'b7Decision' && (!UUID.test(matched.workspaceId) || !UUID.test(matched.basketId))) return sendError(response, 400, 'bad_request', 'Workspace and basket IDs must be UUIDs');
+  if ((matched.operation === 'b7Decision' || matched.operation === 'productWorkspaceCreate') && (!UUID.test(matched.workspaceId) || !UUID.test(matched.basketId))) return sendError(response, 400, 'bad_request', 'Workspace and basket IDs must be UUIDs');
+  if (matched.operation === 'productWorkspaceCreate' && !UUID.test(matched.decisionId)) return sendError(response, 400, 'bad_request', 'B7 decision ID must be a UUID');
   if ('productWorkspaceId' in matched && !UUID.test(matched.productWorkspaceId)) return sendError(response, 400, 'bad_request', 'Product workspace ID must be a UUID');
   if (request.method === 'OPTIONS') {
     if (!origin || singleHeader(request.headers['access-control-request-method']) !== 'POST' || singleHeader(request.headers['access-control-request-headers'])?.toLowerCase() !== 'authorization, content-type') return sendError(response, 403, 'forbidden', 'Preflight is not allowed');
@@ -330,6 +368,12 @@ async function route(
       const receipt = await decideB7(matched.workspaceId, matched.basketId, body);
       return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
     }
+    if (matched.operation === 'productWorkspaceCreate') {
+      if (!ownerProductWorkspaceBodyShape(body)) return sendError(response, 400, 'bad_request', 'Invalid product workspace request');
+      try { validateProductWorkspaceCreateRequest({ ...body, decisionId: matched.decisionId }); } catch (error) { if (error instanceof FlowValidationError) return sendError(response, 400, 'bad_request', 'Invalid product workspace request'); throw error; }
+      const receipt = await createProductWorkspace(matched.workspaceId, matched.basketId, matched.decisionId, body);
+      return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
+    }
     if (matched.operation === 'candidateRevision') {
       if (!ownerCandidateRevisionBodyShape(body)) return sendError(response, 400, 'bad_request', 'Invalid product candidate revision request');
       try { validateProductCandidateRevisionRequest({ ...body, candidateId: matched.candidateId }); } catch (error) { if (error instanceof FlowValidationError) return sendError(response, 400, 'bad_request', 'Invalid product candidate revision request'); throw error; }
@@ -363,7 +407,7 @@ async function route(
     const receipt = await decideB10(productWorkspaceId, body);
     return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
-    if (error instanceof ExistingClearanceIntegrityError || error instanceof ExistingStpIntegrityError || error instanceof ExistingB10IntegrityError || error instanceof ExistingDiscoveryWorkspaceIntegrityError || error instanceof ExistingProductCandidateIntegrityError || error instanceof ExistingCandidateBasketIntegrityError || error instanceof ExistingB7IntegrityError) return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
+    if (error instanceof ExistingClearanceIntegrityError || error instanceof ExistingStpIntegrityError || error instanceof ExistingB10IntegrityError || error instanceof ExistingDiscoveryWorkspaceIntegrityError || error instanceof ExistingProductCandidateIntegrityError || error instanceof ExistingCandidateBasketIntegrityError || error instanceof ExistingB7IntegrityError || error instanceof ExistingProductWorkspaceIntegrityError) return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof PayloadTooLargeError) return sendError(response, 400, 'bad_request', 'Request body is too large');
     if (error instanceof DiscoveryWorkspaceIdentityConflictError) return matched.operation === 'workspace' && /changed content/i.test(error.message) ? sendError(response, 409, 'conflict', 'Discovery workspace key conflicts with existing content') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof ProductCandidatePairingConflictError) return sendError(response, 409, 'conflict', 'Product candidate belongs to another workspace');
@@ -372,12 +416,15 @@ async function route(
     if (error instanceof CandidateBasketIdentityConflictError) return /already exists with changed membership or metadata/i.test(error.message) ? sendError(response, 409, 'conflict', 'Candidate basket conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof CandidateB7DecisionIdentityConflictError) return /already has a B7 decision with changed request/i.test(error.message) ? sendError(response, 409, 'conflict', 'B7 decision conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof CandidateBasketPairingConflictError) return sendError(response, 409, 'conflict', 'Candidate basket belongs to another workspace');
+    if (error instanceof ProductWorkspacePairingConflictError || error instanceof ProductWorkspaceEligibilityConflictError) return sendError(response, 409, 'conflict', 'Product workspace conflicts with B7 source state');
+    if (error instanceof ProductWorkspaceIdentityConflictError) return /key or B7 PASS already exists with changed identity/i.test(error.message) ? sendError(response, 409, 'conflict', 'Product workspace conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof ProductB8DecisionIdentityConflictError) return sendError(response, 409, 'conflict', 'B8 decision conflicts with current state');
     if (error instanceof ProductB10DecisionIdentityConflictError) return b10SemanticConflict(error) ? sendError(response, 409, 'conflict', 'B10 decision conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof B8ClearanceIdentityConflictError) return clearanceSemanticConflict(error) ? sendError(response, 409, 'conflict', 'B8 clearance conflicts with current state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof UnknownDiscoveryWorkspaceError) return sendError(response, 404, 'not_found', 'Discovery workspace not found');
     if (error instanceof UnknownProductCandidateError) return sendError(response, 404, 'not_found', 'Product candidate not found');
     if (error instanceof UnknownCandidateBasketError) return sendError(response, 404, 'not_found', 'Candidate basket not found');
+    if (error instanceof UnknownB7DecisionError) return sendError(response, 404, 'not_found', 'B7 decision not found');
     if (error instanceof UnknownProductWorkspaceError) return sendError(response, 404, 'not_found', 'Product workspace not found');
     if (error instanceof UnknownLockedStpError) return sendError(response, 404, 'not_found', 'Locked STP not found');
     if (error instanceof StpIdentityConflictError) return sendError(response, 409, 'conflict', matched.operation === 'working' ? 'B9 working conflicts with current state' : 'B9 lock conflicts with current state');
@@ -389,6 +436,7 @@ async function route(
       return sendError(response, 400, 'bad_request', 'Invalid B8 decision request');
     }
     if (error instanceof FlowValidationError) {
+      if (matched.operation === 'productWorkspaceCreate') return /must be PASS/i.test(error.message) ? sendError(response, 409, 'conflict', 'Product workspace conflicts with B7 source state') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
       if (matched.operation === 'workspace') return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
       if (matched.operation === 'candidateCreate' || matched.operation === 'candidateRevision') return /not found|version/i.test(error.message) ? sendError(response, 409, 'conflict', 'Product candidate conflicts with current state') : sendError(response, 400, 'bad_request', 'Invalid product candidate request');
       if (matched.operation === 'basketCreate') return /different workspace/i.test(error.message) ? sendError(response, 409, 'conflict', 'Candidate basket conflicts with current state') : /not found/i.test(error.message) ? sendError(response, 404, 'not_found', 'Candidate not found') : sendError(response, 400, 'bad_request', 'Invalid candidate basket request');
@@ -438,6 +486,7 @@ async function readCandidateOrIntegrity(candidates:ProductCandidateService,candi
 function candidateReceipt(artifact:Awaited<ReturnType<ProductCandidateService['readCandidate']>>,exactRetry:boolean):OwnerProductCandidateReceipt { return {contractVersion:'1.0.0',candidateId:artifact.candidateId,workspaceId:artifact.workspaceId,candidateKey:artifact.candidateKey,state:'EXPLORING',version:artifact.version,label:artifact.label,...(artifact.summary===undefined?{}:{summary:artifact.summary}),createdAt:artifact.createdAt,exactRetry}; }
 function ownerCandidateBasketBodyShape(value: unknown): value is OwnerCandidateBasketRequest { if (!value || typeof value !== 'object' || Array.isArray(value)) return false; const body=value as Record<string,unknown>; return Object.keys(body).sort().join(',')==='basketKey,candidates,contractVersion,version'; }
 function ownerB7DecisionBodyShape(value: unknown): value is OwnerB7DecisionRequest { if (!value || typeof value !== 'object' || Array.isArray(value)) return false; const body=value as Record<string,unknown>; return Object.keys(body).sort().join(',')==='candidateId,candidateVersion,contractVersion,decision' && body.contractVersion==='1.0.0' && typeof body.candidateId==='string' && UUID.test(body.candidateId) && Number.isSafeInteger(body.candidateVersion) && (body.candidateVersion as number)>=1 && ['PASS','HOLD','REJECT'].includes(body.decision as string); }
+function ownerProductWorkspaceBodyShape(value: unknown): value is OwnerProductWorkspaceRequest { if (!value || typeof value !== 'object' || Array.isArray(value)) return false; const body=value as Record<string,unknown>; return Object.keys(body).sort().join(',')==='contractVersion,productWorkspaceKey' && body.contractVersion==='1.0.0' && typeof body.productWorkspaceKey==='string' && /^[a-z][a-z0-9_-]{2,79}$/.test(body.productWorkspaceKey); }
 type ExistingBasketRow = { basketId:string; version:bigint; requestSha256:string; artifactSha256:string; memberCount:bigint; frozenAt:string };
 type ExistingBasketMemberRow = { position:bigint; candidateId:string; candidateVersion:bigint; candidateArtifactSha256:string; candidateKey:string; label:string; summary:string|null; state:string };
 function assertSequentialBasketFamily(rows:ExistingBasketRow[]):void { rows.forEach((row,index)=>{ if(row.version!==BigInt(index+1)) throw new ExistingCandidateBasketIntegrityError(); }); }
@@ -468,6 +517,20 @@ async function recoverExactMissingB7Artifact(request:OwnerB7DecisionRequest & {b
   if(digest!==row.artifactSha256||!manifest||manifest.byteSize!==BigInt(bytes.byteLength)||manifest.mediaType!=='application/json'||manifest.relativePath!==relativePath||manifest.acquiredAt!==row.decidedAt||manifest.contractVersion!=='1.0.0'||manifest.retentionStatus!=='active'||manifest.createdAt!==row.decidedAt)throw new ExistingB7IntegrityError();
   try{await fs.access(artifacts.pathForDigest(digest));throw new ExistingB7IntegrityError();}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
   const staged=await artifacts.put(bytes);if(staged.sha256!==digest||staged.byteSize!==bytes.byteLength||staged.relativePath!==relativePath)throw new ExistingB7IntegrityError();
+}
+type ExistingProductWorkspaceRow = { productWorkspaceId:string; productWorkspaceKey:string; state:string; entryStep:string; title:string; sourceWorkspaceId:string; sourceBasketId:string; sourceCandidateId:string; sourceCandidateVersion:bigint; sourceB7DecisionId:string; requestSha256:string; artifactSha256:string; createdAt:string };
+type VerifiedB7Decision = Awaited<ReturnType<CandidateB7DecisionService['replay']>>;
+async function recoverExactMissingProductWorkspaceArtifact(request:OwnerProductWorkspaceRequest & {decisionId:string},row:ExistingProductWorkspaceRow,decision:VerifiedB7Decision,manifestStatement:BetterSqlite3.Statement,artifacts:RequestScopedArtifactStore):Promise<void>{
+  const requestSha256=createHash('sha256').update(Buffer.from(canonicalJson(request),'utf8')).digest('hex');
+  if(decision.decision!=='PASS'||decision.decisionId!==request.decisionId||row.productWorkspaceKey!==request.productWorkspaceKey||row.state!=='ACTIVE'||row.entryStep!=='B8'||row.title!==decision.candidate.label||row.sourceWorkspaceId!==decision.basket.workspaceId||row.sourceBasketId!==decision.basket.basketId||row.sourceCandidateId!==decision.candidate.candidateId||row.sourceCandidateVersion!==BigInt(decision.candidate.candidateVersion)||row.sourceB7DecisionId!==decision.decisionId||row.requestSha256!==requestSha256)throw new ExistingProductWorkspaceIntegrityError();
+  const decisionArtifactSha256=createHash('sha256').update(Buffer.from(canonicalJson(decision),'utf8')).digest('hex');
+  const source={discoveryWorkspace:{workspaceId:decision.basket.workspaceId},basket:{...decision.basket},candidate:{...decision.candidate},b7Decision:{contractVersion:decision.contractVersion,decisionId:decision.decisionId,decisionArtifactSha256,decidedAt:decision.decidedAt,decision:'PASS' as const,actor:{...decision.actor},requiredCapability:decision.requiredCapability,policy:{...decision.policy},requestSha256:decision.requestSha256}};
+  const artifact={contractVersion:'1.0.0',productWorkspaceId:row.productWorkspaceId,productWorkspaceKey:row.productWorkspaceKey,state:'ACTIVE',entryStep:'B8',title:row.title,createdAt:row.createdAt,requestSha256:row.requestSha256,source};
+  const bytes=Buffer.from(canonicalJson(artifact),'utf8');const digest=createHash('sha256').update(bytes).digest('hex');const relativePath=`sha256/${digest.slice(0,2)}/${digest}`;
+  const manifest=manifestStatement.get(row.artifactSha256) as {byteSize:bigint;mediaType:string;relativePath:string;acquiredAt:string;contractVersion:string;retentionStatus:string;createdAt:string}|undefined;
+  if(digest!==row.artifactSha256||!manifest||manifest.byteSize!==BigInt(bytes.byteLength)||manifest.mediaType!=='application/json'||manifest.relativePath!==relativePath||manifest.acquiredAt!==row.createdAt||manifest.contractVersion!=='1.0.0'||manifest.retentionStatus!=='active'||manifest.createdAt!==row.createdAt)throw new ExistingProductWorkspaceIntegrityError();
+  try{await fs.access(artifacts.pathForDigest(digest));throw new ExistingProductWorkspaceIntegrityError();}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}
+  const staged=await artifacts.put(bytes);if(staged.sha256!==digest||staged.byteSize!==bytes.byteLength||staged.relativePath!==relativePath)throw new ExistingProductWorkspaceIntegrityError();
 }
 function candidateSemanticConflict(error:Error):boolean { return /already exists with changed content|revision version or content drift/i.test(error.message); }
 function clearanceSemanticConflict(error: Error): boolean { return /not found|must belong to|must be PASS|belongs to another|identical frozen|not currently ready|not the current effective PASS|cannot be assigned|already has a B8 clearance|different exact decision set|wrong .* decision/i.test(error.message); }
@@ -517,12 +580,13 @@ function authorized(request: IncomingMessage, expected: string): boolean {
   return digestMatches && suppliedDigest.length === expectedDigest.length;
 }
 function singleHeader(value: string | string[] | undefined): string | undefined { return typeof value === 'string' ? value : undefined; }
-type OwnerRoute = { operation: 'workspace' } | { operation:'candidateCreate'|'basketCreate'; workspaceId:string } | { operation:'candidateRevision'; workspaceId:string; candidateId:string } | { operation:'b7Decision'; workspaceId:string; basketId:string } | { productWorkspaceId: string; operation: 'decision' | 'clearance' | 'working' | 'lock' | 'b10' };
+type OwnerRoute = { operation: 'workspace' } | { operation:'candidateCreate'|'basketCreate'; workspaceId:string } | { operation:'candidateRevision'; workspaceId:string; candidateId:string } | { operation:'b7Decision'; workspaceId:string; basketId:string } | { operation:'productWorkspaceCreate'; workspaceId:string; basketId:string; decisionId:string } | { productWorkspaceId: string; operation: 'decision' | 'clearance' | 'working' | 'lock' | 'b10' };
 function ownerRoute(raw: string | undefined): OwnerRoute | null {
   if (!raw || /%(?:2e|2f|5c)/i.test(raw)) return null;
   let url: URL; try { url = new URL(raw, 'http://owner-api.local'); } catch { return null; }
   if (url.search || url.hash || url.pathname.includes('//')) return null;
   if (url.pathname === '/owner-api/workspaces') return { operation: 'workspace' };
+  const productCreateMatch=/^\/owner-api\/workspaces\/([^/]+)\/candidate-baskets\/([^/]+)\/b7-decisions\/([^/]+)\/product-workspace$/.exec(url.pathname); if(productCreateMatch){try{const workspaceId=decodeURIComponent(productCreateMatch[1]!),basketId=decodeURIComponent(productCreateMatch[2]!),decisionId=decodeURIComponent(productCreateMatch[3]!);return [workspaceId,basketId,decisionId].some(id=>id.includes('/')||id.includes('\\')||id.includes('\0'))?null:{operation:'productWorkspaceCreate',workspaceId,basketId,decisionId};}catch{return null;}}
   const b7Match=/^\/owner-api\/workspaces\/([^/]+)\/candidate-baskets\/([^/]+)\/b7-decisions$/.exec(url.pathname); if(b7Match){try{const workspaceId=decodeURIComponent(b7Match[1]!),basketId=decodeURIComponent(b7Match[2]!);return [workspaceId,basketId].some(id=>id.includes('/')||id.includes('\\')||id.includes('\0'))?null:{operation:'b7Decision',workspaceId,basketId};}catch{return null;}}
   const basketMatch=/^\/owner-api\/workspaces\/([^/]+)\/candidate-baskets$/.exec(url.pathname); if(basketMatch){try{const workspaceId=decodeURIComponent(basketMatch[1]!);return workspaceId.includes('/')||workspaceId.includes('\\')||workspaceId.includes('\0')?null:{operation:'basketCreate',workspaceId};}catch{return null;}}
   const candidateMatch=/^\/owner-api\/workspaces\/([^/]+)\/candidates(?:\/([^/]+)\/revisions)?$/.exec(url.pathname);
@@ -539,6 +603,10 @@ class ProductCandidatePairingConflictError extends Error {}
 class ExistingProductCandidateIntegrityError extends Error {}
 class ExistingCandidateBasketIntegrityError extends Error {}
 class ExistingB7IntegrityError extends Error {}
+class ExistingProductWorkspaceIntegrityError extends Error {}
+class ProductWorkspacePairingConflictError extends Error {}
+class ProductWorkspaceEligibilityConflictError extends Error {}
+class UnknownB7DecisionError extends Error {}
 class UnknownCandidateBasketError extends Error {}
 class CandidateBasketPairingConflictError extends Error {}
 class CandidateBasketVersionConflictError extends Error {}

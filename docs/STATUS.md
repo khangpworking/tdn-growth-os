@@ -1,5 +1,14 @@
 # Trạng thái hiện tại
 
+## Task 044 — explicit product workspace creation from exact B7 PASS
+
+- Opt-in OWNER API có route riêng được scope bởi exact `workspaceId + basketId + decisionId`; closed body chỉ gồm contract version và hidden application-generated product-workspace key. Tạo mới trả 201, verified exact retry trả 200, còn changed PASS/key identity trả 409.
+- Endpoint replay exact Task 027 decision, yêu cầu `PASS`, kiểm tra workspace/basket lineage và chỉ delegate mutation cho Task 028 `ProductWorkspaceService.createWorkspace()`; không ghi trực tiếp product-workspace SQL hoặc thay canonical Task 028 service/contract.
+- B7 read projection chỉ liên kết product workspace bằng exact decision ID rồi replay và đối chiếu toàn bộ frozen workspace/basket/candidate/version/label/optional-summary/decision lineage. Safe summary không lộ hash, path, actor/policy internals; read API vẫn file-must-exist/query-only và bảo toàn database bytes.
+- Real discovery UI chỉ hiện `Tạo workspace sản phẩm` cho frozen member có effective B7 PASS chưa có workspace; dùng OWNER unlock trong memory, hidden stable retry key, immutable confirmation snapshot, duplicate-submit guard, authoritative reload và exact receipt/projection verification. Demo chỉ mutate synthetic memory.
+- Workspace mới là `ACTIVE` tại entry step `B8`, nhưng chỉ mang nghĩa sẵn sàng cho future B8 work. Task 044 không tự tạo workspace khi PASS, không tạo B8 decision/clearance, B9/B10 action, funding/supplier/claim approval, provider/AI/external action, migration, production auth, deployment hoặc real/private product workspace.
+- Request-scoped staging chỉ publish committed digest; exact retry chỉ phục hồi canonical product-workspace artifact thực sự thiếu sau full request/row/PASS/lineage/manifest/digest/size/path verification, không scan/sweep/xóa artifact không liên quan.
+
 ## Task 043 — governed B7 candidate decisions and UI
 
 - Read API có endpoint B7 riêng cho đúng workspace/basket, replay verified basket và effective Task 027 decision cho từng exact frozen member theo thứ tự snapshot; chỉ trả safe UI fields và giữ SQLite file-must-exist/query-only không đổi bytes.
