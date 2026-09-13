@@ -404,3 +404,9 @@ Một exact basket/member/version chỉ có một quyết định bất biến: 
 Sau một quyết định B7 `PASS`, OWNER phải chủ động tạo đúng một product workspace độc lập qua hành động riêng được scope bởi `workspaceId + basketId + decisionId`; không tự động tạo workspace khi bấm PASS. Body chỉ nhận `productWorkspaceKey`, còn ID, thời gian, tiêu đề, trạng thái `ACTIVE`, entry step `B8` và toàn bộ source snapshot lấy từ exact verified PASS. `HOLD`/`REJECT`, sai lineage hoặc decision không thuộc URL scope đều fail closed.
 
 Mỗi exact B7 PASS chỉ tạo tối đa một product workspace và mỗi key chỉ nhận diện một workspace. Exact retry không mutation; key hoặc PASS đã gắn identity khác là conflict. Read model B7 chỉ gắn product-workspace summary sau khi replay và đối chiếu toàn bộ frozen workspace/basket/candidate/decision lineage; nó không suy ra product từ tên và không tự chuyển bước B8. Hành động này không cấp quyền pháp lý, khoa học, chất lượng, tài chính, B9/B10, funding, supplier, publication, launch, provider hoặc AI execution.
+
+### D35 — Integrated operator runtime chỉ dành cho một operator local
+
+Frontend production đã build, verified read API, optional OWNER API và health endpoint cùng chạy trên một process/origin loopback; mặc định canonical là `http://127.0.0.1:8787`. Normal mode dùng persisted data; synthetic state chỉ qua `?mode=demo` có nhãn rõ. OWNER writes mặc định tắt; khi bật, token mạnh và actor ID chỉ là local development authorization giữ trong memory/shell, không phải public hoặc production authentication.
+
+Runtime này dành cho một trusted operator trên chính Fedora host: không bind wildcard/LAN, không port-forward hoặc expose internet. Systemd, reverse proxy, TLS, remote/multi-user access, production auth, backup/restore và deployment là future work. Quyết định vận hành này không thay đổi semantics, authority hoặc gate B3–B10.

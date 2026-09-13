@@ -3,6 +3,7 @@ import type { Candidate, CandidateBasket, DemoState, LaneKey, LaneState, Market,
 import type { DiscoveryWorkspaceDetailResponse, ProductB10Response, ProductB9Response, ProductWorkspaceDetailResponse, WorkspaceCandidateBasketB7Response, WorkspaceCandidateBasketsResponse, WorkspacePortfolioResponse } from '../../contracts/api/workspace-api.generated';
 
 export type FrontendMode = 'real' | 'demo';
+export interface FrontendAvailability { readonly status: 'ok'; readonly version: string; readonly ownerWritesEnabled: boolean }
 export type LoadFailure = 'connection' | 'integrity';
 export class WorkspaceDataSourceError extends Error {
   constructor(readonly kind: LoadFailure, message: string) { super(message); }
@@ -13,6 +14,20 @@ const laneStates = new Set(['NO_DECISION', 'PASS', 'HOLD', 'REJECT']);
 
 export function frontendMode(search: string): FrontendMode {
   return new URLSearchParams(search).get('mode') === 'demo' ? 'demo' : 'real';
+}
+
+export async function loadFrontendAvailability(fetcher: typeof fetch = fetch): Promise<FrontendAvailability> {
+  let response: Response;
+  try { response = await fetcher('/healthz', { headers: { Accept: 'application/json' } }); }
+  catch { throw new WorkspaceDataSourceError('connection', 'Không thể kiểm tra trạng thái OWNER.'); }
+  if (!response.ok) throw new WorkspaceDataSourceError('connection', 'Không thể kiểm tra trạng thái OWNER.');
+  let value: unknown;
+  try { value = await response.json(); }
+  catch { throw new WorkspaceDataSourceError('integrity', 'Trạng thái OWNER không phải JSON hợp lệ.'); }
+  if (!record(value) || Object.keys(value).sort().join(',') !== 'ownerWritesEnabled,status,version' || value.status !== 'ok' || !text(value.version) || typeof value.ownerWritesEnabled !== 'boolean') {
+    throw new WorkspaceDataSourceError('integrity', 'Trạng thái OWNER không đúng contract.');
+  }
+  return value as unknown as FrontendAvailability;
 }
 
 export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Promise<DemoState> {

@@ -10,3 +10,10 @@ export {
   type OwnerApiApplication,
   type OwnerApiConfiguration,
 } from './owner-api.js';
+
+export {
+  openOperatorApp,
+  operatorAppConfigurationFromEnvironment,
+  type OperatorAppApplication,
+  type OperatorAppConfiguration,
+} from './operator-app.js';
