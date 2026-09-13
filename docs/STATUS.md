@@ -1,5 +1,14 @@
 # Trạng thái hiện tại
 
+## Task 045 — integrated Fedora-local operator runtime
+
+- Tài liệu vận hành một process/origin đã có cho production frontend, verified read API, optional OWNER API và `/healthz`; mặc định canonical là `http://127.0.0.1:8787`, chỉ loopback và không dành cho LAN/internet.
+- Runbook pin đúng Node `24.15.0`/npm `11.12.1`, dùng `npm ci`, migration CLI với database path positional, `npm run frontend:build`, export biến trong shell (không `.env`), ví dụ OWNER disabled/enabled chỉ bằng placeholder, start/health và Ctrl-C/SIGTERM.
+- Normal mode đọc persisted data; chỉ `?mode=demo` dùng synthetic state trong memory. OWNER token là local development authorization cho một trusted operator, không phải public/production authentication.
+- Acceptance được mô tả bằng full synthetic B3→B10 smoke, disabled read-only smoke, static/health/lifecycle, query-only reopen, owner-only permissions và residue/leak checks.
+- Runtime, frontend health gating và deterministic disposable acceptance đã được triển khai; final full check, CI và final SHA sẽ được ghi ở handoff sau khi hoàn tất governed delivery. Không deploy và không tạo dữ liệu/quyết định thật.
+- Systemd, reverse proxy, TLS, remote access, backup/restore và deployment để future work. Xem `docs/runbooks/fedora-local-operator-runtime.md`, task và handoff 045.
+
 ## Task 044 — explicit product workspace creation from exact B7 PASS
 
 - Opt-in OWNER API có route riêng được scope bởi exact `workspaceId + basketId + decisionId`; closed body chỉ gồm contract version và hidden application-generated product-workspace key. Tạo mới trả 201, verified exact retry trả 200, còn changed PASS/key identity trả 409.

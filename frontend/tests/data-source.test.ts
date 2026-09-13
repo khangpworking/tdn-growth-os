@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { generatedProductWorkspaceKey, submitOwnerProductWorkspace, submitOwnerProductWorkspaceAndReload, b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, ownerB7Disabled, submitOwnerB7Decision, submitOwnerB7AndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { generatedProductWorkspaceKey, submitOwnerProductWorkspace, submitOwnerProductWorkspaceAndReload, b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadFrontendAvailability, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, ownerB7Disabled, submitOwnerB7Decision, submitOwnerB7AndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
 
 const ids = {
@@ -405,3 +405,40 @@ test('Task044 product workspace request is closed, stable, strict and reload-ver
 });
 
 test('Task044 UI keeps product creation separate, explicit, hidden-key and demo isolated',async()=>{const source=await import('node:fs/promises').then(fs=>fs.readFile(new URL('../src/ProductWorkspaceCreatePanel.tsx',import.meta.url),'utf8'));assert.match(source,/Tạo workspace sản phẩm riêng/);assert.match(source,/Tạo workspace sản phẩm/);assert.match(source,/exact B7 PASS/);assert.match(source,/chưa thực hiện bất kỳ quyết định B8 nào/);assert.match(source,/Đã tạo workspace sản phẩm/);assert.match(source,/Mở hồ sơ B8/);assert.match(source,/generatedProductWorkspaceKey/);assert.doesNotMatch(source,/<input|<textarea|reason|rationale|notes|funding/i);assert.match(source,/mode==='demo'/);assert.match(source,/inFlight\.current=true;try\{onDemoCreate/);assert.match(source,/const value=snapshot\?\?/);assert.match(source,/workspaceId,basketId:basket\.id,candidateId:member\.candidateId,candidateVersion:member\.candidateVersion,decisionId:member\.b7DecisionId/);assert.doesNotMatch(source,/onOpen\([^)]*productWorkspaceId[^)]*\).*submitOwnerProductWorkspace/s);});
+
+
+test('Task045 health availability uses relative /healthz and accepts only the closed contract', async () => {
+  let observedUrl = ''; let observedInit: RequestInit | undefined;
+  const available = await loadFrontendAvailability((async (url, init) => { observedUrl = String(url); observedInit = init; return json({ status: 'ok', version: '0.1.0', ownerWritesEnabled: true }); }) as typeof fetch);
+  assert.equal(observedUrl, '/healthz');
+  assert.deepEqual(observedInit, { headers: { Accept: 'application/json' } });
+  assert.deepEqual(available, { status: 'ok', version: '0.1.0', ownerWritesEnabled: true });
+  assert.equal((await loadFrontendAvailability((async () => json({ status: 'ok', version: '0.1.0', ownerWritesEnabled: false })) as typeof fetch)).ownerWritesEnabled, false);
+  for (const malformed of [
+    { status: 'down', version: '0.1.0', ownerWritesEnabled: true },
+    { status: 'ok', version: '', ownerWritesEnabled: true },
+    { status: 'ok', version: '0.1.0', ownerWritesEnabled: 'true' },
+    { status: 'ok', version: '0.1.0', ownerWritesEnabled: true, extra: true },
+  ]) await assert.rejects(loadFrontendAvailability((async () => json(malformed)) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
+});
+
+test('Task045 unavailable or unreachable health fails OWNER closed without coupling truthful reads or demo mode', async () => {
+  await assert.rejects(loadFrontendAvailability((async () => { throw new Error('offline'); }) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'connection');
+  await assert.rejects(loadFrontendAvailability((async () => json({ error: 'offline' }, 503)) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'connection');
+  const state = await loadRealWorkspaceState((async () => json({ contractVersion: '1.0.0', workspaces: [] })) as typeof fetch);
+  assert.deepEqual(state.markets, []);
+  assert.equal(frontendMode('?mode=demo'), 'demo');
+});
+
+test('Task045 boot UI gates the memory-only unlock form on health and production requests contain no dev origin', async () => {
+  const [app, dataSource] = await Promise.all([
+    import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')),
+    import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/data-source.ts', import.meta.url), 'utf8')),
+  ]);
+  assert.match(app, /loadFrontendAvailability\(\)/);
+  assert.match(app, /ownerAvailability !== 'available' \? null/);
+  assert.match(app, /Ghi OWNER hiện không khả dụng/);
+  assert.match(app, /setOwnerToken\(null\); setTokenDraft\(''\)/);
+  assert.doesNotMatch(`${app}\n${dataSource}`, /https?:\/\/[^'"`\s]+|(?:localhost|127\.0\.0\.1):\d+/);
+  for (const path of ['/healthz', '/api/', '/owner-api/']) assert.equal(dataSource.includes(path), true);
+});
