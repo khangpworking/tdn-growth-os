@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { generatedProductWorkspaceKey, submitOwnerProductWorkspace, submitOwnerProductWorkspaceAndReload, b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadFrontendAvailability, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, ownerB7Disabled, submitOwnerB7Decision, submitOwnerB7AndReload, WorkspaceDataSourceError } from '../src/data-source';
+import { generatedProductWorkspaceKey, submitOwnerProductWorkspace, submitOwnerProductWorkspaceAndReload, b9LockBlocker, b9SaveBlocker, b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadFrontendAvailability, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Blocker, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, ownerB7Disabled, submitOwnerB7Decision, submitOwnerB7AndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
 
 const ids = {
@@ -137,8 +137,8 @@ test('historical clearance comparison detects any later B8 decision change', asy
   const historical = { ...product, states: { LEGAL: 'PASS', SCIENTIFIC: 'PASS', QUALITY: 'PASS', FINANCE: 'PASS' } as const, decisionIds: frozen, clearance: { id: ids.w2, time: at, decisionIds: frozen } };
   assert.equal(clearanceMatchesCurrent(historical), true);
   assert.equal(clearanceMatchesCurrent({ ...historical, decisionIds: { ...frozen, LEGAL: ids.c1 } }), false);
-  const source = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'));
-  assert.match(source, /role="dialog"/); assert.match(source, /Đóng băng bốn quyết định PASS hiện tại/); assert.match(source, /Xem B9/);
+  const [source, dialog] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/ConfirmDialog.tsx', import.meta.url), 'utf8'))]);
+  assert.match(dialog, /role="dialog"/); assert.match(source, /Đóng băng bốn quyết định Đạt hiện tại/); assert.match(source, /Sang B9/);
 });
 
 test('B9 editor validates targets/order/limits and generates stable internal keys without user input', () => {
@@ -153,6 +153,16 @@ test('B9 controls enforce unlock, pending, dirty, saved revision and post-lock s
   assert.equal(b9LockDisabled({ unlocked: true, pending: false, locked: false, dirty: false, revision }), false); assert.equal(b9LockDisabled({ unlocked: true, pending: false, locked: false, dirty: true, revision }), true); assert.equal(b9LockDisabled({ unlocked: true, pending: false, locked: true, dirty: false, revision }), true); assert.equal(b9LockDisabled({ unlocked: false, pending: false, locked: false, dirty: false, revision }), true);
 });
 
+test('B9 blockers distinguish runtime, OWNER, input, unsaved changes and business prerequisites', () => {
+  const revision = `wr1_${'a'.repeat(43)}`;
+  assert.equal(b9SaveBlocker({ writesAvailable: false, unlocked: false, pending: false, locked: false, valid: true, clearanceId: ids.b7 }), 'runtime_unavailable');
+  assert.equal(b9SaveBlocker({ writesAvailable: true, unlocked: false, pending: false, locked: false, valid: true, clearanceId: ids.b7 }), 'owner_locked');
+  assert.equal(b9SaveBlocker({ writesAvailable: true, unlocked: true, pending: false, locked: false, valid: true, clearanceId: null }), 'business_prerequisite');
+  assert.equal(b9SaveBlocker({ writesAvailable: true, unlocked: true, pending: false, locked: false, valid: false, clearanceId: ids.b7 }), 'invalid_input');
+  assert.equal(b9LockBlocker({ writesAvailable: true, unlocked: true, pending: false, locked: false, dirty: true, revision, clearanceId: ids.b7 }), 'unsaved_changes');
+  assert.equal(b9LockBlocker({ writesAvailable: true, unlocked: true, pending: false, locked: false, dirty: false, revision: null, clearanceId: ids.b7 }), 'business_prerequisite');
+});
+
 test('B9 save and lock send closed exact revisions and success/conflict reload authoritative state', async () => {
   const revision = `wr1_${'a'.repeat(43)}`; const token = 'x'.repeat(31) + '1'; const calls: { url: string; init?: RequestInit }[] = [];
   const draft = { b8ClearanceId: ids.w2, expectedWorkingRevision: null, segments: [{ key: 'segment-1', label: 'Người lớn' }], primaryTargetSegmentKey: 'segment-1', positioningStatement: 'Định vị.' };
@@ -164,7 +174,7 @@ test('B9 save and lock send closed exact revisions and success/conflict reload a
 
 test('real B9 source has explicit save/lock, dirty navigation warning, no autosave and demo isolation', async () => {
   const [app, editor] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/B9Editor.tsx', import.meta.url), 'utf8'))]);
-  assert.match(editor, /Lưu bản nháp/); assert.match(editor, /product\.name/); assert.match(editor, /Lưu gần nhất/); assert.match(editor, /Khóa STP chính thức/); assert.match(editor, /beforeunload/); assert.match(app, /window\.confirm/); assert.doesNotMatch(editor, /setInterval|autosave/i); assert.match(app, /mode === 'real'.*<B9Editor/); assert.match(editor, /Xem B10/);
+  assert.match(editor, /Lưu bản nháp/); assert.match(editor, /product\.name/); assert.match(editor, /Lưu gần nhất/); assert.match(editor, /Khóa STP chính thức/); assert.match(editor, /beforeunload/); assert.match(app, /window\.confirm/); assert.doesNotMatch(editor, /setInterval|autosave/i); assert.match(app, /mode === 'real'.*<B9Editor/); assert.match(editor, /Sang B10/);
 });
 
 test('B10 OWNER request is closed and exact, and success/conflict reload authoritative reads', async () => {
@@ -179,9 +189,17 @@ test('B10 controls require unlock and verified lock, prevent pending and repeate
   assert.equal(ownerB10Disabled({ unlocked: false, pending: false, lockedStpId: ids.d1, effective: null, decision: 'APPROVE' }), true); assert.equal(ownerB10Disabled({ unlocked: true, pending: false, lockedStpId: null, effective: null, decision: 'APPROVE' }), true); assert.equal(ownerB10Disabled({ unlocked: true, pending: true, lockedStpId: ids.d1, effective: null, decision: 'APPROVE' }), true); assert.equal(ownerB10Disabled({ unlocked: true, pending: false, lockedStpId: ids.d1, effective: 'APPROVE', decision: 'APPROVE' }), true); assert.equal(ownerB10Disabled({ unlocked: true, pending: false, lockedStpId: ids.d1, effective: 'HOLD', decision: 'APPROVE' }), false);
 });
 
+test('B10 blockers distinguish runtime, missing lock, OWNER, pending and unchanged decisions', () => {
+  assert.equal(ownerB10Blocker({ writesAvailable: false, unlocked: false, pending: false, lockedStpId: null, effective: null, decision: 'APPROVE' }), 'runtime_unavailable');
+  assert.equal(ownerB10Blocker({ writesAvailable: true, unlocked: true, pending: false, lockedStpId: null, effective: null, decision: 'APPROVE' }), 'business_prerequisite');
+  assert.equal(ownerB10Blocker({ writesAvailable: true, unlocked: false, pending: false, lockedStpId: ids.d1, effective: null, decision: 'APPROVE' }), 'owner_locked');
+  assert.equal(ownerB10Blocker({ writesAvailable: true, unlocked: true, pending: true, lockedStpId: ids.d1, effective: null, decision: 'APPROVE' }), 'request_pending');
+  assert.equal(ownerB10Blocker({ writesAvailable: true, unlocked: true, pending: false, lockedStpId: ids.d1, effective: 'APPROVE', decision: 'APPROVE' }), 'business_prerequisite');
+});
+
 test('real B10 panel has first/correction confirmations, funding clarification, no forbidden fields, and demo isolation', async () => {
   const [app, panel] = await Promise.all([import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8')), import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/B10DecisionPanel.tsx', import.meta.url), 'utf8'))]);
-  assert.match(panel, /Approve category \+ authorize funding/); assert.match(panel, /predecessor null/); assert.match(panel, /correction sẽ nối thêm/); assert.match(panel, /không phân bổ, chuyển hoặc chi tiền/); assert.doesNotMatch(panel, /<input|<textarea/i); assert.match(app, /mode === 'real'.*<B10DecisionPanel/);
+  assert.match(panel, /Duyệt danh mục và cho phép nhận cấp vốn/); assert.match(panel, /quyết định B10 đầu tiên/); assert.match(panel, /bản sửa nối tiếp/); assert.match(panel, /không phân bổ, chuyển hoặc chi tiền/); assert.doesNotMatch(panel, /<input|<textarea/i); assert.match(app, /mode === 'real'.*<B10DecisionPanel/);
 });
 
 
@@ -324,7 +342,7 @@ test('Task042 basket controls require OWNER, selection and no pending request', 
 
 test('Task042 basket panel starts unchecked and preserves an immutable confirmation snapshot', async () => {
   const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
-  assert.match(panel, /useState<readonly string\[]>\(\[]\)/);
+  assert.match(panel, /useState<readonly string\[]>\(\(\) => initialCandidateIds/);
   assert.match(panel, /checked=\{selected\.includes\(candidate\.id\)\}/);
   assert.match(panel, /const \[requestSnapshot, setRequestSnapshot\] = useState<\{ basketKey: string; version: number; candidates:/);
   assert.match(panel, /const snapshot = requestSnapshot \?\?/);
@@ -336,7 +354,7 @@ test('Task042 panel has exact Vietnamese action, section, confirmation, and immu
   const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
   for (const text of ['Đóng băng rổ ứng viên', 'Đóng băng rổ cơ hội', 'Xác nhận đóng băng rổ cơ hội', 'Rổ này sẽ giữ nguyên các phiên bản ứng viên đã chọn. Chỉnh sửa ứng viên sau này không thay đổi snapshot này.']) assert.equal(panel.includes(text), true);
   assert.match(panel, /role="dialog"/); assert.match(panel, /aria-modal="true"/);
-  assert.match(panel, /EXPLORING · phiên bản hiện tại v\{candidate\.version\}/);
+  assert.match(panel, /Đang khám phá · phiên bản hiện tại v\{candidate\.version\}/);
   assert.match(panel, /candidate\.summary && <small>\{candidate\.summary\}<\/small>/);
 });
 
@@ -370,7 +388,7 @@ test('Task042 App renders grouped historical versions and every frozen member wi
 
 test('Task042 demo uses the same confirmation but never invokes OWNER basket API', async () => {
   const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
-  assert.match(panel, /if \(mode === 'demo' \|\| ownerToken\) setConfirm\(true\)/);
+  assert.match(panel, /setConfirm\(true\)/);
   assert.match(panel, /if \(mode === 'demo'\) \{ onDemoFreeze/);
   const demoBranch = panel.slice(panel.indexOf("if (mode === 'demo')"), panel.indexOf('if (!ownerToken) return'));
   assert.doesNotMatch(demoBranch, /submitOwnerBasket|owner-api|fetch/);
@@ -441,4 +459,23 @@ test('Task045 boot UI gates the memory-only unlock form on health and production
   assert.match(app, /setOwnerToken\(null\); setTokenDraft\(''\)/);
   assert.doesNotMatch(`${app}\n${dataSource}`, /https?:\/\/[^'"`\s]+|(?:localhost|127\.0\.0\.1):\d+/);
   for (const path of ['/healthz', '/api/', '/owner-api/']) assert.equal(dataSource.includes(path), true);
+});
+
+
+test('Task046 route panels, truthful copy, HOLD reconsideration and dialog accessibility are explicit', async () => {
+  const fs = await import('node:fs/promises');
+  const [app, b7, b9, b10, basket, dialog] = await Promise.all([
+    fs.readFile(new URL('../src/App.tsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../src/B7DecisionPanel.tsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../src/B9Editor.tsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../src/B10DecisionPanel.tsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../src/ConfirmDialog.tsx', import.meta.url), 'utf8'),
+  ]);
+  assert.match(app, /section === 'b8' && <aside/); assert.match(app, /section === 'b9' && <aside/); assert.match(app, /section === 'b10' && <aside/);
+  assert.match(b9, /Chưa có bản nháp/); assert.match(b9, /Bản nháp đã lưu · Chưa khóa/); assert.match(b9, /Có thay đổi chưa lưu/); assert.match(b9, /STP chính thức đã khóa/); assert.match(b9, /Lưu bản nháp không khóa STP/);
+  assert.match(b10, /Chưa thể quyết định B10 vì STP chưa khóa/); assert.match(b10, /Đã duyệt · Đủ điều kiện B11/); assert.match(b10, /B11 chưa được triển khai/);
+  assert.match(b7, /Xem xét lại/); assert.match(b7, /member\.productWorkspace/); assert.doesNotMatch(b7, /ID …/);
+  assert.match(app, /onReconsider=.*setBasketDraft\(\{familyKey,candidateIds:\[candidateId\]\}\)/); assert.match(basket, /initialFamilyKey/); assert.match(basket, /initialCandidateIds/);
+  assert.match(dialog, /cancel\.current\?\.focus/); assert.match(dialog, /event\.key === 'Escape'/); assert.match(dialog, /event\.key !== 'Tab'/); assert.match(dialog, /returnFocus\?\.focus/);
 });

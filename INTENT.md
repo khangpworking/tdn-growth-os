@@ -83,6 +83,12 @@ Sản phẩm giữ nguồn gốc thị trường để điều hướng, nhưng 
 
 Chủ dự án xác nhận hài lòng với `docs/frontend/workspace-prototype.html` sau cập nhật nhiều thị trường và yêu cầu tiến hành bước tiếp theo. Bản này là visual source of truth cho Task 033 React + Vite + TypeScript; không hỏi chọn lại layout hoặc reference. Task đầu tiên chuyển UI sang React bằng synthetic state, sau đó mới xây API/read và hành động OWNER thật. Chủ dự án yêu cầu bỏ qua LSP; không tạo task cài/cấu hình LSP.
 
+### D32 — UX B7–B10 phải nói rõ trạng thái, điều kiện và quyền thao tác
+
+Mỗi route B8, B9 và B10 chỉ hiển thị bảng hành động của chính bước đó; context bước trước có thể ở dạng chỉ xem. Điều hướng đến bước tương lai không đồng nghĩa được phép hành động. Giao diện phải giải thích bền vững gần nút bị vô hiệu hóa: runtime ghi không khả dụng, OWNER đang khóa, input chưa hợp lệ, thay đổi chưa lưu, điều kiện nghiệp vụ chưa đủ, request đang xử lý hoặc xung đột vừa tải lại.
+
+B9 phân biệt rõ “Chưa có bản nháp”, “Bản nháp đã lưu · Chưa khóa”, “Có thay đổi chưa lưu” và “STP chính thức đã khóa”; lưu không phải khóa. B10 chỉ cho quyết định khi có locked STP đã xác minh và APPROVE phải nói rõ chỉ đủ điều kiện B11, trong khi B11 chưa triển khai. B7 HOLD có thể mở form tạo phiên bản kế tiếp của đúng basket family với lựa chọn editable; việc mở form không ghi dữ liệu và quyết định HOLD cũ vẫn bất biến. Đây là làm rõ UX của policy hiện có, không thêm gate hoặc quyền mới.
+
 ### D01 — Khám phá chung B0–B7; tách workspace tại B7
 
 Workspace ban đầu bắt đầu bằng một cơ hội rộng, ví dụ “thị trường canxi”. Sản phẩm cụ thể hình thành trong B0–B7; giai đoạn này có thể chứa nhiều lựa chọn như canxi người lớn và canxi trẻ em.
