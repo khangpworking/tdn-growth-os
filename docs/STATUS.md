@@ -209,3 +209,14 @@ The opt-in loopback OWNER server now exposes a closed B10 decision endpoint back
 ## Task 040 — OWNER discovery workspace creation
 
 The opt-in loopback OWNER API now exposes a closed `POST /owner-api/workspaces` endpoint backed exclusively by Task 025 `DiscoveryWorkspaceService.createWorkspace()`. The real portfolio can create an empty broad market-opportunity workspace using only title and optional description; a hidden Task 025-valid key remains stable for pending and ambiguous retries. Successful creation reloads authoritative query-only data and navigates only after the exact returned ID appears with zero candidates and zero product workspaces. Conflicts reload and fail closed, duplicate titles remain distinct by ID/key, and demo creation remains synthetic. This does not finalize or define B0, and creates no candidate, revision, basket, B7 decision, product workspace, collection, report, research run, provider action, AI/Pi action, migration, production role, worker, deployment, or real calcium workspace.
+
+
+## Task 046 — B7–B10 frontend UX correction (pending review)
+
+- Frontend panels are route-specific: B8 mutation/clearance controls remain only on B8; B9 and B10 expose their own guidance and actions.
+- B9 now distinguishes not-started, saved draft, local dirty, and immutable locked states; Save/Lock blockers share the same predicates as their handlers and include OWNER/runtime, input, unsaved, pending, and business-prerequisite guidance.
+- B7 HOLD can open the existing basket-version form pinned to the same basket family with an editable suggested candidate selection; opening performs no write.
+- B7 workspace copy uses the verified projection, B8 historical-clearance copy distinguishes changed decision IDs from current lane outcomes, and B10 explains missing lock and future B11 status without changing policy.
+- Shared confirmations provide initial focus, tab containment, Escape/cancel, and focus return. Mobile product navigation scrolls the active item into view and keeps reduced-motion behavior.
+- Scope remains frontend-only: no migration, domain/API policy change, real OWNER write, active-runtime restart, provider call, deployment, or Windows backport.
+- Base: exact fetched `origin/main` `ab099f33ba1634d60f2209efee9af9637c4ac458`. Verification and PR state are recorded in `docs/handoffs/046-b7-b10-ux-correction.md`.
