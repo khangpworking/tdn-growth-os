@@ -397,3 +397,10 @@ Việc tạo basket không chấm điểm, xếp hạng, so sánh, chọn PASS/H
 B7 thao tác trên đúng một member revision của một candidate basket đã đóng băng, với route được scope bởi `workspaceId + basketId`; body chỉ chứa `candidateId`, `candidateVersion` và một quyết định **PASS / HOLD / REJECT**. Backend lấy actor OWNER và capability `governance:candidate-b7-review` từ cấu hình tin cậy, không nhận actor, rationale, reason, notes, evidence hay text AI từ caller.
 
 Một exact basket/member/version chỉ có một quyết định bất biến: request giống hệt là exact retry không mutation; request đổi quyết định là conflict. Basket thuộc workspace khác, candidate revision không phải exact member, hoặc stored row/artifact/manifest drift đều fail closed. Read model trả effective state theo từng frozen member nhưng không tự tạo product workspace; PASS vẫn chỉ mở đường cho bước tạo product workspace độc lập trong tương lai.
+
+
+### D34 — Tạo product workspace từ exact B7 PASS là hành động OWNER riêng
+
+Sau một quyết định B7 `PASS`, OWNER phải chủ động tạo đúng một product workspace độc lập qua hành động riêng được scope bởi `workspaceId + basketId + decisionId`; không tự động tạo workspace khi bấm PASS. Body chỉ nhận `productWorkspaceKey`, còn ID, thời gian, tiêu đề, trạng thái `ACTIVE`, entry step `B8` và toàn bộ source snapshot lấy từ exact verified PASS. `HOLD`/`REJECT`, sai lineage hoặc decision không thuộc URL scope đều fail closed.
+
+Mỗi exact B7 PASS chỉ tạo tối đa một product workspace và mỗi key chỉ nhận diện một workspace. Exact retry không mutation; key hoặc PASS đã gắn identity khác là conflict. Read model B7 chỉ gắn product-workspace summary sau khi replay và đối chiếu toàn bộ frozen workspace/basket/candidate/decision lineage; nó không suy ra product từ tên và không tự chuyển bước B8. Hành động này không cấp quyền pháp lý, khoa học, chất lượng, tài chính, B9/B10, funding, supplier, publication, launch, provider hoặc AI execution.

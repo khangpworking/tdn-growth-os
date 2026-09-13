@@ -118,6 +118,7 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
     `);
     const basketRows = db.prepare(`SELECT basket_id basketId, basket_key basketKey, version FROM flow_candidate_baskets WHERE workspace_id=? ORDER BY basket_key, version`);
     const productRows = db.prepare(`SELECT product_workspace_id productWorkspaceId FROM flow_product_workspaces WHERE source_workspace_id=? ORDER BY created_at, product_workspace_id`);
+    const productByB7Decision = db.prepare(`SELECT product_workspace_id productWorkspaceId FROM flow_product_workspaces WHERE source_b7_decision_id=?`);
     const productExists = db.prepare(`SELECT product_workspace_id productWorkspaceId FROM flow_product_workspaces WHERE product_workspace_id=?`);
     const clearanceRow = db.prepare(`SELECT clearance_id clearanceId FROM flow_b8_clearances WHERE product_workspace_id=?`);
     const workingRow = db.prepare(`SELECT working_stp_id workingStpId FROM flow_stp_working_records WHERE product_workspace_id=?`);
@@ -201,7 +202,20 @@ export function openWorkspaceApi(configuration: WorkspaceApiConfiguration): Work
         if (effective.effectiveState === 'NO_DECISION') result.push(base);
         else {
           if (effective.decision.basket.basketId !== basketId || effective.decision.candidate.candidateId !== member.candidateId || effective.decision.candidate.candidateVersion !== member.candidateVersion || effective.decision.decision !== effective.effectiveState) throw new Error('B7 decision identity mismatch');
-          result.push({ ...base, decisionId: effective.decision.decisionId, decidedAt: effective.decision.decidedAt });
+          const productRow = productByB7Decision.get(effective.decision.decisionId) as ProductCatalogRow | undefined;
+          if (!productRow) result.push({ ...base, decisionId: effective.decision.decisionId, decidedAt: effective.decision.decidedAt });
+          else {
+            if (effective.effectiveState !== 'PASS') throw new Error('A non-PASS B7 decision has a product workspace');
+            const product = await productReader.readVerifiedProductWorkspace(productRow.productWorkspaceId);
+            if (product.productWorkspaceId !== productRow.productWorkspaceId || product.source.discoveryWorkspace.workspaceId !== workspaceId ||
+                product.source.basket.basketId !== basketId || product.source.basket.basketKey !== basket.basketKey || product.source.basket.basketVersion !== basket.version ||
+                product.source.candidate.candidateId !== member.candidateId || product.source.candidate.candidateVersion !== member.candidateVersion ||
+                product.source.candidate.candidateKey !== member.candidateKey || product.source.candidate.label !== member.label ||
+                product.source.candidate.summary !== member.summary || product.source.candidate.state !== member.state ||
+                product.source.b7Decision.decisionId !== effective.decision.decisionId || product.source.b7Decision.decidedAt !== effective.decision.decidedAt ||
+                product.source.b7Decision.decision !== 'PASS') throw new Error('Product workspace frozen source lineage mismatch');
+            result.push({ ...base, decisionId: effective.decision.decisionId, decidedAt: effective.decision.decidedAt, productWorkspace: productSummary(product) });
+          }
         }
       }
       return { contractVersion: '1.0.0', workspaceId, basketId, basketKey: basket.basketKey, basketVersion: basket.version, frozenAt: basket.frozenAt, candidates: result };
