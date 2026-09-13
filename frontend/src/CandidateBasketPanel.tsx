@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import type { Candidate, CandidateBasket, DemoState } from './model';
 import { generatedBasketKey, ownerBasketDisabled, OwnerWriteError, submitOwnerBasketAndReload } from './data-source';
+import ConfirmDialog from './ConfirmDialog';
 
 interface CandidateBasketPanelProps {
   readonly mode: 'real' | 'demo';
@@ -31,7 +32,6 @@ export default function CandidateBasketPanel({ mode, marketId, candidates, baske
   const [message, setMessage] = useState('');
   const [confirm, setConfirm] = useState(false);
   const inFlight = useRef(false);
-  const confirmButton = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLElement>(null);
 
   const toggle = (id: string) => { setRequestSnapshot(null); setSelected((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id]); };
@@ -43,7 +43,7 @@ export default function CandidateBasketPanel({ mode, marketId, candidates, baske
   };
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (inFlight.current || selected.length === 0) return;
+    if (inFlight.current || selected.length === 0 || (mode === 'real' && !ownerToken)) return;
     const members = selected.map((id) => candidates.find((candidate) => candidate.id === id)).filter((candidate): candidate is Candidate => Boolean(candidate)).map((candidate) => ({ candidateId: candidate.id, candidateVersion: candidate.version, label: candidate.name }));
     if (members.length !== selected.length) return;
     const snapshot = requestSnapshot ?? { basketKey, version, candidates: members };
@@ -73,13 +73,6 @@ export default function CandidateBasketPanel({ mode, marketId, candidates, baske
   };
 
   useEffect(() => { if (initialFamilyKey) panel.current?.scrollIntoView({ block: 'nearest' }); }, [initialFamilyKey]);
-  useEffect(() => {
-    if (!confirm) return;
-    confirmButton.current?.focus();
-    const close = (event: KeyboardEvent) => { if (event.key === 'Escape' && !pending) setConfirm(false); };
-    window.addEventListener('keydown', close);
-    return () => window.removeEventListener('keydown', close);
-  }, [confirm, pending]);
 
   return <section ref={panel} className="candidate-editor basket-editor" aria-labelledby="basket-title">
     <div className="heading compact"><div><h3 id="basket-title">{initialFamilyKey ? 'Xem xét lại ứng viên tạm giữ' : 'Đóng băng rổ ứng viên'}</h3><p>{initialFamilyKey ? 'Biểu mẫu đang mở đúng nhóm rổ cũ và đề xuất phiên bản kế tiếp. Lựa chọn chỉ là gợi ý có thể sửa; mở biểu mẫu không ghi dữ liệu.' : 'Đóng băng rổ chỉ tạo snapshot bất biến của các phiên bản ứng viên đã chọn. Thao tác này chưa tạo quyết định B7 và chưa tạo workspace sản phẩm.'}</p></div></div>
@@ -95,8 +88,8 @@ export default function CandidateBasketPanel({ mode, marketId, candidates, baske
       {message && <p className="form-error" role="alert">{message}</p>}
       <div className="form-actions"><button className="button primary" type="submit" disabled={mode === 'real' ? ownerBasketDisabled({ unlocked: ownerToken !== null, pending, selectedCount: selected.length }) : pending || selected.length === 0}>{pending ? 'Đang đóng băng…' : 'Đóng băng rổ cơ hội'}</button><button className="button" type="button" disabled={pending} onClick={onCancel}>Hủy</button></div>
     </form>
-    {mode === 'real' && !ownerToken && <p className="decision-note">OWNER đang khóa. Bạn vẫn có thể xem, sửa lựa chọn và mở bước xác nhận; dữ liệu chỉ được ghi sau khi OWNER được mở khóa.</p>}
+    {mode === 'real' && !ownerToken && <p className="decision-note">OWNER đang khóa. Bạn vẫn có thể xem và sửa lựa chọn, nhưng phải mở khóa OWNER trước khi mở bước xác nhận và đóng băng rổ.</p>}
     <p className="caption">Định danh rổ được tạo tự động và không thể chỉnh sửa. Sau lỗi kết nối, thử lại trong biểu mẫu này dùng đúng nhóm rổ, phiên bản dự kiến và lựa chọn.</p>
-    {confirm && <div className="confirm-backdrop" role="presentation"><div className="confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="basket-confirm-title" aria-describedby="basket-confirm-description"><h3 id="basket-confirm-title">Xác nhận đóng băng rổ cơ hội</h3><p><strong>{family === 'new' ? 'Rổ mới' : `Rổ ${familyKeys.indexOf(family) + 1}`} · phiên bản {requestSnapshot?.version}</strong></p><p id="basket-confirm-description">Rổ này sẽ giữ nguyên các phiên bản ứng viên đã chọn. Chỉnh sửa ứng viên sau này không thay đổi snapshot này.</p><ul>{requestSnapshot?.candidates.map((item) => <li key={item.candidateId}>{item.label} · phiên bản {item.candidateVersion}</li>)}</ul><div className="confirm-actions"><button ref={confirmButton} className="button" type="button" disabled={pending} onClick={() => setConfirm(false)}>Quay lại</button><button className="button primary" type="button" disabled={pending} onClick={() => void freeze()}>Đóng băng rổ cơ hội</button></div></div></div>}
+    {confirm && requestSnapshot && <ConfirmDialog titleId="basket-confirm-title" descriptionId="basket-confirm-description" title="Xác nhận đóng băng rổ cơ hội" confirmLabel="Đóng băng rổ cơ hội" pending={pending} onCancel={() => setConfirm(false)} onConfirm={() => void freeze()}><p><strong>{family === 'new' ? 'Rổ mới' : `Rổ ${familyKeys.indexOf(family) + 1}`} · phiên bản {requestSnapshot.version}</strong></p><p id="basket-confirm-description">Rổ này sẽ giữ nguyên các phiên bản ứng viên đã chọn. Chỉnh sửa ứng viên sau này không thay đổi snapshot này.</p><ul>{requestSnapshot.candidates.map((item) => <li key={item.candidateId}>{item.label} · phiên bản {item.candidateVersion}</li>)}</ul></ConfirmDialog>}
   </section>;
 }

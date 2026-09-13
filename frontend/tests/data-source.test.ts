@@ -353,7 +353,7 @@ test('Task042 basket panel starts unchecked and preserves an immutable confirmat
 test('Task042 panel has exact Vietnamese action, section, confirmation, and immutable-snapshot warning', async () => {
   const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
   for (const text of ['Đóng băng rổ ứng viên', 'Đóng băng rổ cơ hội', 'Xác nhận đóng băng rổ cơ hội', 'Rổ này sẽ giữ nguyên các phiên bản ứng viên đã chọn. Chỉnh sửa ứng viên sau này không thay đổi snapshot này.']) assert.equal(panel.includes(text), true);
-  assert.match(panel, /role="dialog"/); assert.match(panel, /aria-modal="true"/);
+  assert.match(panel, /<ConfirmDialog/); assert.match(panel, /titleId="basket-confirm-title"/); assert.match(panel, /descriptionId="basket-confirm-description"/);
   assert.match(panel, /Đang khám phá · phiên bản hiện tại v\{candidate\.version\}/);
   assert.match(panel, /candidate\.summary && <small>\{candidate\.summary\}<\/small>/);
 });
@@ -477,5 +477,44 @@ test('Task046 route panels, truthful copy, HOLD reconsideration and dialog acces
   assert.match(b10, /Chưa thể quyết định B10 vì STP chưa khóa/); assert.match(b10, /Đã duyệt · Đủ điều kiện B11/); assert.match(b10, /B11 chưa được triển khai/);
   assert.match(b7, /Xem xét lại/); assert.match(b7, /member\.productWorkspace/); assert.doesNotMatch(b7, /ID …/);
   assert.match(app, /onReconsider=.*setBasketDraft\(\{familyKey,candidateIds:\[candidateId\]\}\)/); assert.match(basket, /initialFamilyKey/); assert.match(basket, /initialCandidateIds/);
-  assert.match(dialog, /cancel\.current\?\.focus/); assert.match(dialog, /event\.key === 'Escape'/); assert.match(dialog, /event\.key !== 'Tab'/); assert.match(dialog, /returnFocus\?\.focus/);
+  assert.match(dialog, /role="dialog"/); assert.match(dialog, /aria-modal="true"/); assert.match(dialog, /aria-labelledby=\{titleId\}/); assert.match(dialog, /aria-describedby=\{descriptionId\}/);
+});
+
+
+test('Task046 correction keeps locked OWNER editable but disables confirmation entry with truthful copy', async () => {
+  const panel = await import('node:fs/promises').then((fs) => fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'));
+  assert.match(panel, /ownerBasketDisabled\(\{ unlocked: ownerToken !== null, pending, selectedCount: selected\.length \}\)/);
+  assert.match(panel, /type="checkbox" checked=\{selected\.includes\(candidate\.id\)\} disabled=\{pending\}/);
+  assert.match(panel, /OWNER đang khóa\. Bạn vẫn có thể xem và sửa lựa chọn, nhưng phải mở khóa OWNER trước khi mở bước xác nhận và đóng băng rổ\./);
+  assert.match(panel, /selected\.length === 0 \|\| \(mode === 'real' && !ownerToken\)/);
+});
+
+test('Task046 basket confirmation is component-wired and browser acceptance proves trapped/restored focus without writes', async () => {
+  const fs = await import('node:fs/promises');
+  const [panel, acceptance] = await Promise.all([
+    fs.readFile(new URL('../src/CandidateBasketPanel.tsx', import.meta.url), 'utf8'),
+    fs.readFile(new URL('../../scripts/task046-browser-acceptance.mjs', import.meta.url), 'utf8'),
+  ]);
+  assert.match(panel, /import ConfirmDialog from '\.\/ConfirmDialog'/);
+  assert.match(panel, /confirm && requestSnapshot && <ConfirmDialog/);
+  assert.doesNotMatch(panel, /<div className="confirm-backdrop"/);
+  assert.match(panel, /onCancel=\{\(\) => setConfirm\(false\)\}/);
+  assert.match(panel, /onConfirm=\{\(\) => void freeze\(\)\}/);
+  assert.match(panel, /OWNER đang khóa\. Bạn vẫn có thể xem và sửa lựa chọn, nhưng phải mở khóa OWNER trước khi mở bước xác nhận và đóng băng rổ\./);
+  assert.match(panel, /selected\.length === 0 \|\| \(mode === 'real' && !ownerToken\)/);
+  const openPath = panel.slice(panel.indexOf('const submit ='), panel.indexOf('const freeze ='));
+  assert.match(openPath, /setRequestSnapshot\(snapshot\)/);
+  assert.match(openPath, /setConfirm\(true\)/);
+  assert.doesNotMatch(openPath, /submitOwnerBasketAndReload|onDemoFreeze/);
+
+  assert.match(acceptance, /\?mode=demo#\/markets\/calcium/);
+  assert.match(acceptance, /\['POST', 'PUT', 'PATCH', 'DELETE'\]\.includes\(request\.method\(\)\)/);
+  for (const exactName of ['Đóng băng rổ ứng viên', 'Đóng băng rổ cơ hội', 'Xác nhận đóng băng rổ cơ hội']) assert.equal(acceptance.includes(`name: '${exactName}', exact: true`), true);
+  assert.match(acceptance, /getByRole\('checkbox'\)\.first\(\)\.check\(\)/);
+  assert.match(acceptance, /node\.contains\(document\.activeElement\)/);
+  assert.match(acceptance, /keyboard\.press\('Tab'\)/);
+  assert.match(acceptance, /keyboard\.press\('Shift\+Tab'\)/);
+  assert.match(acceptance, /keyboard\.press\('Escape'\)/);
+  assert.match(acceptance, /writeRequests\.length !== 0/);
+  assert.match(acceptance, /submitOpenerHandle\.evaluate\(\(node\) => node === document\.activeElement\)/);
 });

@@ -26,6 +26,40 @@ try {
     if (!(await active.isVisible())) throw new Error('active mobile navigation is not visible');
     const box = await active.boundingBox(); if (!box || box.x < 0 || box.x + box.width > 390) throw new Error('active mobile navigation is clipped');
     await mobile.screenshot({ path: `${shots}/mobile-b9.png`, fullPage: true });
+
+    const basket = await browser.newPage({ viewport: { width: 1440, height: 1000 }, reducedMotion: 'reduce' });
+    const writeRequests = [];
+    basket.on('request', (request) => {
+      if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())) writeRequests.push(`${request.method()} ${request.url()}`);
+    });
+    await basket.goto('http://127.0.0.1:4176/?mode=demo#/markets/calcium');
+    await basket.getByRole('button', { name: 'Đóng băng rổ ứng viên', exact: true }).click();
+    await basket.getByRole('checkbox').first().check();
+    const submitOpener = basket.getByRole('button', { name: 'Đóng băng rổ cơ hội', exact: true });
+    await submitOpener.focus();
+    const submitOpenerHandle = await submitOpener.elementHandle();
+    if (!submitOpenerHandle) throw new Error('basket submit opener is missing');
+    await submitOpener.click();
+
+    const dialog = basket.getByRole('dialog', { name: 'Xác nhận đóng băng rổ cơ hội', exact: true });
+    await dialog.waitFor();
+    const cancelButton = dialog.getByRole('button', { name: 'Hủy', exact: true });
+    const confirmButton = dialog.getByRole('button', { name: 'Đóng băng rổ cơ hội', exact: true });
+    const assertDialogFocus = async (expected, step) => {
+      if (!(await dialog.evaluate((node) => node.contains(document.activeElement)))) throw new Error(`focus escaped basket dialog during ${step}`);
+      if (!(await expected.evaluate((node) => node === document.activeElement))) throw new Error(`unexpected focused button during ${step}`);
+    };
+    await assertDialogFocus(cancelButton, 'initial focus');
+    await basket.keyboard.press('Tab');
+    await assertDialogFocus(confirmButton, 'forward traversal');
+    await basket.keyboard.press('Tab');
+    await assertDialogFocus(cancelButton, 'forward wrap');
+    await basket.keyboard.press('Shift+Tab');
+    await assertDialogFocus(confirmButton, 'reverse wrap');
+    await basket.keyboard.press('Escape');
+    if (await dialog.count()) throw new Error('basket confirmation dialog remained open after Escape');
+    if (writeRequests.length !== 0) throw new Error(`basket cancellation issued write requests: ${writeRequests.join(', ')}`);
+    if (!(await submitOpenerHandle.evaluate((node) => node === document.activeElement))) throw new Error('basket submit opener did not regain focus');
   } finally { await browser.close(); }
 } finally {
   server.kill('SIGTERM');
