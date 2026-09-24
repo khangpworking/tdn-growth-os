@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-brand-artifact.schema.json",
+  "title": "ContentBrandArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "brandId", "brandKey", "version", "profile", "displayRules", "createdAt", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "brandId": { "type": "string", "format": "uuid" },
+    "brandKey": { "$ref": "content-brand-create-request.schema.json#/properties/brandKey" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "profile": { "$ref": "content-brand-create-request.schema.json#/$defs/profile" },
+    "displayRules": { "$ref": "content-brand-create-request.schema.json#/$defs/displayRules" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

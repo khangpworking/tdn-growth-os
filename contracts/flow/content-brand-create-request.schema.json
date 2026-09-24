@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-brand-create-request.schema.json",
+  "title": "ContentBrandCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "brandKey", "profile", "displayRules"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "brandKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "profile": { "$ref": "#/$defs/profile" },
+    "displayRules": { "$ref": "#/$defs/displayRules" }
+  },
+  "$defs": {
+    "text240": { "type": "string", "minLength": 1, "maxLength": 240, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+    "profile": {
+      "title": "ContentBrandProfile",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brandName"],
+      "properties": {
+        "brandName": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "tagline": { "$ref": "#/$defs/text240" },
+        "hotline": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "website": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "fanpage": { "type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "address": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" }
+      }
+    },
+    "visibility": { "title": "ContentBrandVisibility", "enum": ["ALWAYS", "OPTIONAL", "HIDDEN"] },
+    "elementRules": {
+      "title": "ContentBrandElementRules",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "logo", "tagline", "hotline", "web", "address"],
+      "properties": {
+        "name": { "$ref": "#/$defs/visibility" },
+        "logo": { "$ref": "#/$defs/visibility" },
+        "tagline": { "$ref": "#/$defs/visibility" },
+        "hotline": { "$ref": "#/$defs/visibility" },
+        "web": { "$ref": "#/$defs/visibility" },
+        "address": { "$ref": "#/$defs/visibility" }
+      }
+    },
+    "displayRules": {
+      "title": "ContentBrandDisplayRules",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sales", "trust", "education", "entertainment", "engagement"],
+      "properties": {
+        "sales": { "$ref": "#/$defs/elementRules" },
+        "trust": { "$ref": "#/$defs/elementRules" },
+        "education": { "$ref": "#/$defs/elementRules" },
+        "entertainment": { "$ref": "#/$defs/elementRules" },
+        "engagement": { "$ref": "#/$defs/elementRules" }
+      }
+    }
+  }
+}

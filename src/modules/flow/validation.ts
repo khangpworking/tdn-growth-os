@@ -42,6 +42,12 @@ import stpLockRequestSchema from '../../../contracts/flow/stp-lock-request.schem
 import type { StpLockRequest } from '../../../contracts/flow/stp-lock-request.generated.js';
 import lockedStpArtifactSchema from '../../../contracts/flow/locked-stp-artifact.schema.json' with { type: 'json' };
 import type { LockedStpArtifact } from '../../../contracts/flow/locked-stp-artifact.generated.js';
+import contentBrandCreateSchema from '../../../contracts/flow/content-brand-create-request.schema.json' with { type: 'json' };
+import type { ContentBrandCreateRequest } from '../../../contracts/flow/content-brand-create-request.generated.js';
+import contentBrandRevisionSchema from '../../../contracts/flow/content-brand-revision-request.schema.json' with { type: 'json' };
+import type { ContentBrandRevisionRequest } from '../../../contracts/flow/content-brand-revision-request.generated.js';
+import contentBrandArtifactSchema from '../../../contracts/flow/content-brand-artifact.schema.json' with { type: 'json' };
+import type { ContentBrandArtifact } from '../../../contracts/flow/content-brand-artifact.generated.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -77,6 +83,9 @@ const validateStpContentEnvelope = ajv.getSchema<StpContent>(stpContentSchema.$i
 const validateStpWorkingSave = ajv.getSchema<StpWorkingSaveRequest>(stpWorkingSaveRequestSchema.$id)!;
 const validateStpLock = ajv.compile<StpLockRequest>(stpLockRequestSchema);
 const validateLockedStp = ajv.compile<LockedStpArtifact>(lockedStpArtifactSchema);
+const validateContentBrandCreate = ajv.compile<ContentBrandCreateRequest>(contentBrandCreateSchema);
+const validateContentBrandRevision = ajv.compile<ContentBrandRevisionRequest>(contentBrandRevisionSchema);
+const validateContentBrandEnvelope = ajv.compile<ContentBrandArtifact>(contentBrandArtifactSchema);
 
 export class FlowValidationError extends Error {
   readonly details: string;
@@ -203,4 +212,19 @@ function stpContentFromSave(value: StpWorkingSaveRequest): StpContent {
     ...(value.secondaryTargetSegmentKeys === undefined ? {} : { secondaryTargetSegmentKeys: value.secondaryTargetSegmentKeys }),
     positioningStatement: value.positioningStatement,
   };
+}
+
+export function validateContentBrandCreateRequest(value: unknown): ContentBrandCreateRequest {
+  if (!validateContentBrandCreate(value)) throw new FlowValidationError(ajv.errorsText(validateContentBrandCreate.errors, { separator: '; ' }));
+  return value as ContentBrandCreateRequest;
+}
+
+export function validateContentBrandRevisionRequest(value: unknown): ContentBrandRevisionRequest {
+  if (!validateContentBrandRevision(value)) throw new FlowValidationError(ajv.errorsText(validateContentBrandRevision.errors, { separator: '; ' }));
+  return value as ContentBrandRevisionRequest;
+}
+
+export function validateContentBrandArtifact(value: unknown): ContentBrandArtifact {
+  if (!validateContentBrandEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentBrandEnvelope.errors, { separator: '; ' }));
+  return value as ContentBrandArtifact;
 }
