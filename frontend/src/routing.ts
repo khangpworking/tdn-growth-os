@@ -4,9 +4,12 @@ export type Route =
   | { readonly kind: 'portfolio' }
   | { readonly kind: 'market'; readonly marketId: string }
   | { readonly kind: 'product'; readonly marketId: string; readonly productId: string; readonly section: ProductSection }
+  | { readonly kind: 'brands' }
+  | { readonly kind: 'brand'; readonly brandId: string }
   | { readonly kind: 'invalid'; readonly hash: string };
 
 const sections = new Set<ProductSection>(['b8', 'sources', 'history', 'b9', 'b10']);
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function parseRoute(hash: string, state: DemoState): Route {
   const normalized = hash.replace(/^#/, '');
@@ -17,6 +20,8 @@ export function parseRoute(hash: string, state: DemoState): Route {
   } catch {
     return { kind: 'invalid', hash };
   }
+  if (parts.length === 1 && parts[0] === 'brands') return { kind: 'brands' };
+  if (parts.length === 2 && parts[0] === 'brands') return UUID.test(parts[1]!) ? { kind: 'brand', brandId: parts[1]! } : { kind: 'invalid', hash };
   if (parts.length === 2 && parts[0] === 'markets') {
     return state.markets.some((market) => market.id === parts[1])
       ? { kind: 'market', marketId: parts[1]! }
@@ -35,6 +40,8 @@ export function parseRoute(hash: string, state: DemoState): Route {
 
 export const routeToHash = {
   portfolio: (): string => '#/',
+  brands: (): string => '#/brands',
+  brand: (brandId: string): string => `#/brands/${encodeURIComponent(brandId)}`,
   market: (marketId: string): string => `#/markets/${encodeURIComponent(marketId)}`,
   product: (marketId: string, productId: string, section: ProductSection = 'b8'): string => `#/markets/${encodeURIComponent(marketId)}/products/${encodeURIComponent(productId)}/${section}`,
 };
