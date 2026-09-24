@@ -1,5 +1,12 @@
 # Trạng thái hiện tại
 
+## Task 048 — Content brands (hồ sơ, thông tin liên hệ, quy tắc hiển thị)
+
+- Migration 0021 (`flow_content_brands`, `flow_content_brand_revisions`) bất biến, phiên bản tuần tự; `ContentBrandService` với exact retry, xung đột khi nội dung thay đổi, xác minh artifact và khôi phục artifact đã commit nhưng chưa publish khi retry chính xác.
+- API: `GET /api/content/brands[/:id]` (query-only, đã xác minh) và OWNER `POST /owner-api/content/brands` · `/:id/revisions` với cùng quy tắc token/origin/preflight/kích thước body; operator app định tuyến cả hai.
+- Giao diện: mục “Thương hiệu” trên thanh trên cùng, danh sách, hồ sơ, quy tắc hiển thị Luôn / Tùy / Ẩn theo mục đích, lịch sử phiên bản; demo chỉ trong bộ nhớ.
+- Chưa có logo/ảnh, danh mục sản phẩm, thư viện prompt, chiến dịch hay lời gọi AI (các lát tiếp theo của Task 047).
+
 ## Task 047 — Content Studio design (B11–B13)
 
 - Chỉ tài liệu thiết kế đã được chủ dự án duyệt: brief `docs/tasks/047-content-studio-design.md`, ADR 0003, INTENT D33 và blueprint tĩnh `docs/frontend/content-studio-blueprint.html` (dữ liệu minh họa).

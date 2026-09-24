@@ -1,12 +1,12 @@
 # Task 048 — Content brands (profile, facts, display rules)
 
-Status: RUNNING
+Status: DONE (pending review)
 Lane: Standard
 Owner/worktree: `feature/048-content-brands` (stacked on `feature/047-content-studio-design`)
 Goal: First vertical slice of Content Studio (Task 047): OWNER can create brands and revise their profile, contact facts and per-purpose display rules; everything is immutable, versioned and readable through verified read paths and the React UI.
 Non-goals: Logo/photo upload and media storage, catalog items/tiers, prompt library, campaigns, custom purpose tags, any AI/provider call, deployment. (Follow-up slices: 048b catalog + media, 048c prompt library, 048d campaigns.)
 Dependencies: Task 047 brief §1/§5, ADR 0003.
-Owned paths: `migrations/0021_flow_content_brands.sql`; `contracts/flow/content-brand-*.schema.json` (+ generated); `contracts/api/content-api.schema.json`, `contracts/api/owner-content-brand-api.schema.json` (+ generated); `scripts/generate-foundation-contract.mjs` (list only); `src/modules/flow/content-brand-service.ts`, `content-brand-reader.ts`, `validation.ts` (brand validators), `index.ts` (exports); `src/api/content-api.ts`, `src/api/owner-http.ts`, `src/api/operator-app.ts` (routing only); `frontend/src/routing.ts`, `frontend/src/content-data-source.ts`, `frontend/src/BrandsPage.tsx`, `frontend/src/App.tsx` (nav + route only), `frontend/src/styles.css`; tests below; existing schema-version assertions (20 → 21) in `tests/integration/{sqlite-foundation,source-package-intake,shopee-file-research}.test.ts`; `docs/STATUS.md`, this brief, `docs/handoffs/048-content-brands.md`.
+Owned paths: `migrations/0021_flow_content_brands.sql`; `contracts/flow/content-brand-*.schema.json` (+ generated); `contracts/api/content-api.schema.json`, `contracts/api/owner-content-brand-api.schema.json` (+ generated); `scripts/generate-foundation-contract.mjs` (list only); `src/modules/flow/content-brand-service.ts`, `validation.ts` (brand validators), `index.ts` (exports); `src/api/content-api.ts`, `src/api/owner-http.ts`, `src/api/operator-app.ts` (routing only); `frontend/src/routing.ts`, `frontend/src/content-data-source.ts`, `frontend/src/BrandsPage.tsx`, `frontend/src/App.tsx` (nav + route only), `frontend/src/styles.css`; tests `tests/integration/content-{brand,api,operator-app}.test.ts`, `frontend/tests/content-brands.test.ts`; existing schema-version assertions (20 → 21) in `tests/integration/{sqlite-foundation,source-package-intake,shopee-file-research}.test.ts`; `docs/STATUS.md`, this brief, `docs/handoffs/048-content-brands.md`.
 Acceptance: see §4.
 Minimum verification: `npm run check` green on Linux CI; locally all new tests pass and no new failures beyond the known Windows-only baseline.
 Escalate when: a change is needed outside the owned paths, or an existing test must be weakened.
@@ -39,3 +39,10 @@ Escalate when: a change is needed outside the owned paths, or an existing test m
 3. Validation rejects unknown fields, missing display-rule entries, invalid enum values, untrimmed or oversize text.
 4. HTTP: read endpoints return closed, verified bodies; OWNER endpoints enforce auth/origin/content-type/body size, return 201/200/409/404/400 as above, and create no rows on rejected requests; operator routing reaches both apps and keeps disabled-mode 403.
 5. Frontend: routing parses both routes; data-source validates responses and maps OWNER failures to the existing failure kinds; default display rules equal Task 047 §5; the page renders list, empty, form and conflict states.
+
+## 5. Verification (local Windows, Node 24.15.0 / npm 11.12.1)
+
+- Contracts regenerate without diff; strict backend typecheck, frontend typecheck and production build pass.
+- New tests: 5 service, 4 HTTP (including exact-retry restoration of an unpublished artifact, mutation-checked), 2 operator-routing, 7 frontend — all pass.
+- Frontend suite 64/64. Backend suite 298/314: the 16 failures are the 14 pre-existing Windows-only failures (POSIX permissions, signals, symlinks in Tasks 015/016/023/045) plus the 2 new operator-routing tests, which fail only at the same `frontend/dist` permission check and pass with a scratch permission shim. Linux CI is the authoritative run.
+- Demo UI exercised in a browser at 1440 px and 390 px: create, revise (version history), unchanged-state blocker, no horizontal overflow.
