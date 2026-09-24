@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Content Studio Blueprint</title>
+<style>
+:root{
+  --ground:#dfe8ed; --paper:#ffffff; --paper-2:#f4f7fa; --ink:#172e43; --muted:#536a7c; --line:#d3dee6;
+  --teal:#087e8b; --teal-soft:#dff3f1; --code-bg:#edf2f5;
+  --doc-font:ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){color-scheme:dark;--ground:#0f1c27;--paper:#162635;--paper-2:#1b2f40;--ink:#e3edf3;--muted:#9fb3c1;--line:#2a4153;--teal:#4cc3c9;--teal-soft:#153a3d;--code-bg:#203344}
+}
+:root[data-theme="dark"]{color-scheme:dark;--ground:#0f1c27;--paper:#162635;--paper-2:#1b2f40;--ink:#e3edf3;--muted:#9fb3c1;--line:#2a4153;--teal:#4cc3c9;--teal-soft:#153a3d;--code-bg:#203344}
+*{box-sizing:border-box}
+body{margin:0;background:var(--ground);color:var(--ink);font:15px/1.6 var(--doc-font);padding-inline:16px}
+.wrap{max-width:1080px;margin:0 auto;padding-block:36px 64px;display:grid;gap:22px}
+h1,h2{margin:0;text-wrap:balance;letter-spacing:-.02em}
+h1{font-size:clamp(28px,4vw,38px);font-weight:800;line-height:1.15}
+h2{font-size:18px;font-weight:700}
+p{margin:0}
+code{font:12.5px ui-monospace,SFMono-Regular,Consolas,monospace;background:var(--code-bg);padding:2px 6px;border-radius:5px}
+.hero{display:grid;gap:12px;padding:26px 28px;background:var(--paper);border:1px solid var(--line);border-radius:16px}
+.hero p{color:var(--muted);max-width:66ch}
+.flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:13px;font-weight:600}
+.flow span{padding:5px 11px;border-radius:99px;background:var(--paper-2);border:1px solid var(--line)}
+.flow span.b{background:var(--teal-soft);border-color:var(--teal);color:var(--ink)}
+.flow i{font-style:normal;color:var(--muted)}
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:8px 18px;margin:0;padding:18px 22px;list-style:none;background:var(--paper);border:1px solid var(--line);border-radius:16px;font-size:14px}
+.rules li{display:flex;gap:10px;align-items:baseline}
+.rules li:before{content:"";flex:0 0 7px;height:7px;border-radius:50%;background:var(--teal);transform:translateY(-1px)}
+.fig{margin:0;display:grid;gap:8px}
+.fig-head{display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap}
+.fig-head span{font-size:13px;color:var(--muted)}
+.screen-scroll{overflow-x:auto;border-radius:14px;border:1px solid var(--line)}
+:focus-visible{outline:3px solid var(--teal);outline-offset:3px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ---------- Mockups: Growth OS product, light on purpose ---------- */
+.mock{min-width:980px;background:#dfe8ed;color:#172e43;font:13px/1.5 Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;color-scheme:light}
+.mock *{box-sizing:border-box}
+.m-top{background:#172e43;color:#fff;padding:12px 22px;display:flex;justify-content:space-between;align-items:center;gap:16px}
+.m-brand{display:flex;align-items:center;gap:10px;font-weight:700}
+.m-mark{width:28px;height:28px;border-radius:9px;background:#83d6d0;color:#172e43;display:grid;place-items:center;font-weight:900;font-size:13px}
+.m-top nav{display:flex;gap:4px}
+.m-top nav span{padding:6px 10px;border-radius:7px;color:#c9dbe5;font-size:12.5px}
+.m-top nav span.on{background:#24425d;color:#fff}
+.m-tray{display:flex;align-items:center;gap:8px;padding:5px 11px;border-radius:99px;background:#24425d;color:#e5f3f1;font-size:12px}
+.m-tray i{width:8px;height:8px;border-radius:50%;background:#83d6d0}
+.m-frame{padding:18px 22px 22px;display:grid;gap:12px}
+.m-crumb{font-size:12px;color:#536a7c;display:flex;gap:8px;align-items:center}
+.m-crumb b{color:#2457c5;font-weight:600}
+.m-dossier{display:grid;grid-template-columns:210px minmax(0,1fr) 290px;background:#fff;border-radius:15px;overflow:hidden;box-shadow:0 12px 28px rgba(25,48,64,.09);min-height:420px}
+.m-dossier.two{grid-template-columns:210px minmax(0,1fr)}
+.m-side{background:#f5f7f8;border-right:1px solid #dfe7ed;padding:16px 12px;display:grid;align-content:start;gap:4px}
+.m-side .grp{font-size:10.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:#7a8f9e;margin:10px 8px 4px}
+.m-side .grp:first-child{margin-top:0}
+.m-nav{padding:8px 10px;border-radius:8px;color:#536a7c;font-weight:600;font-size:12.5px;display:flex;justify-content:space-between;gap:6px}
+.m-nav small{color:#8aa0ae;font-weight:600;font-size:11px}
+.m-nav.on{background:#e1ebff;color:#1f4ea8}
+.m-nav.on small{color:#1f4ea8}
+.m-content{padding:20px 22px;display:grid;gap:12px;align-content:start;min-width:0}
+.m-head{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}
+.m-head h4{margin:0;font-size:19px;letter-spacing:-.02em}
+.m-head p{margin:2px 0 0;color:#536a7c;font-size:12.5px}
+.m-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:7px 13px;border-radius:9px;border:1px solid #cbd9e2;background:#fff;color:#172e43;font-weight:700;font-size:12.5px;white-space:nowrap}
+.m-btn.pri{background:#2457c5;border-color:#2457c5;color:#fff}
+.m-btn.quiet{border-color:transparent;background:transparent;color:#2457c5}
+.m-btn.full{width:100%}
+.m-badge{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:3px 9px;font-size:11px;font-weight:650;white-space:nowrap}
+.m-badge:before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.mb-pass{background:#e1f4ed;color:#186655}.mb-hold{background:#fff4d5;color:#79520e}.mb-none{background:#edf2f5;color:#536a7c}.mb-run{background:#dff3f1;color:#087e8b}
+.m-steps{display:grid;grid-template-columns:repeat(4,1fr);gap:6px}
+.m-step{padding:8px 10px;border-radius:9px;background:#edf2f5;border:1px solid #dfe7ed;color:#536a7c;font-size:12px;line-height:1.35}
+.m-step b{display:block;font-size:12.5px}
+.m-step small{font-size:10.5px}
+.m-step.done{background:#e1f4ed;border-color:#c6e7d9;color:#186655}
+.m-step.cur{background:#087e8b;border-color:#087e8b;color:#fff}
+.m-table{width:100%;border-collapse:collapse;font-size:12.5px}
+.m-table th{font-size:11px;color:#536a7c;font-weight:600;text-align:left;padding:8px 12px;background:#f5f8fa;border-bottom:1px solid #dfe7ed}
+.m-table td{padding:11px 12px;border-bottom:1px solid #dfe7ed;vertical-align:middle}
+.m-table td strong{display:block;font-size:13px}
+.m-table td small{color:#536a7c}
+.m-idea{border:1px solid #dfe7ed;border-radius:11px;padding:12px 14px;display:grid;gap:5px;background:#fff}
+.m-idea.sel{border:2px solid #2457c5;padding:11px 13px;background:#f4f7ff}
+.m-idea .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.m-idea h5{margin:0;font-size:14px}
+.m-idea p{margin:0;color:#3b5163;font-size:12.5px}
+.m-idea .meta{font-size:11px;color:#7a8f9e}
+.m-toggle{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#536a7c;padding:5px 10px;border:1px solid #cbd9e2;border-radius:8px;background:#fff;white-space:nowrap}
+.m-toggle i{width:14px;height:14px;border-radius:4px;border:1.5px solid #9fb2bf;background:#fff}
+.m-toggle.on{color:#1f4ea8;border-color:#2457c5;background:#e1ebff}
+.m-toggle.on i{background:#2457c5;border-color:#2457c5;box-shadow:inset 0 0 0 2px #e1ebff}
+.m-panel-r{background:#f8fafc;border-left:1px solid #dfe7ed;padding:16px;display:grid;gap:10px;align-content:start}
+.m-panel-r h5{margin:0;font-size:13.5px;display:flex;justify-content:space-between;align-items:center}
+.m-panel-r p{margin:0;font-size:12px;color:#536a7c}
+.m-field{display:grid;gap:4px;font-size:11.5px;font-weight:650;color:#536a7c}
+.m-input{border:1px solid #b8c8d2;border-radius:8px;padding:7px 10px;background:#fff;color:#172e43;font-weight:500;font-size:12.5px;display:flex;justify-content:space-between}
+.m-text{border:1px solid #b8c8d2;border-radius:8px;padding:8px 10px;background:#fff;color:#23384a;font-weight:500;font-size:12.5px;min-height:54px;line-height:1.5}
+.m-num{display:grid;grid-template-columns:34px 1fr 34px;border:1px solid #b8c8d2;border-radius:8px;overflow:hidden;background:#fff}
+.m-num span{display:grid;place-items:center;font-weight:700;color:#2457c5;background:#f4f7fa;font-size:15px}
+.m-num b{display:grid;place-items:center;font-size:13px;padding:6px 0;border-inline:1px solid #dfe7ed;color:#172e43}
+.m-hr{height:1px;background:#dfe7ed}
+.m-seg{display:grid;grid-template-columns:1fr 1fr;background:#e8eef2;border-radius:9px;padding:3px;gap:3px}
+.m-seg span{text-align:center;padding:6px 8px;border-radius:7px;font-size:12px;font-weight:650;color:#536a7c}
+.m-seg span.on{background:#fff;color:#172e43;box-shadow:0 1px 2px rgba(23,46,67,.12)}
+.m-area{border:1px solid #b8c8d2;border-radius:9px;background:#fff;padding:9px 10px;font-size:12px;line-height:1.5;color:#23384a;min-height:80px}
+.m-check{display:flex;gap:7px;align-items:flex-start;font-size:12px}
+.m-check i{flex:0 0 14px;height:14px;border-radius:4px;background:#2457c5;margin-top:2px}
+.m-pick{border:1px solid #dfe7ed;border-radius:10px;background:#fff;padding:9px 10px;display:grid;gap:3px;font-size:12px}
+.m-pick.on{border:2px solid #2457c5;padding:8px 9px;background:#f4f7ff}
+.m-pick .row{display:flex;justify-content:space-between;gap:6px;align-items:center}
+.m-pick small{color:#536a7c}
+.m-lin{display:flex;flex-wrap:wrap;gap:5px;align-items:center;font-size:11px;color:#536a7c}
+.m-lin span{padding:2px 8px;border-radius:6px;background:#edf2f5;color:#23384a;font-weight:600}
+.m-lin span.bi{background:#e1ebff;color:#1f4ea8}
+.m-lin span.an{background:#dff3f1;color:#0a6670}
+.m-group{display:grid;gap:8px;padding:12px;border:1px solid #dfe7ed;border-radius:12px;background:#fbfcfd}
+.m-group>header{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.m-group>header b{font-size:12.5px}
+.m-group>header small{color:#7a8f9e}
+.m-tree{display:grid;gap:2px;font-size:12px}
+.m-tree div{padding:6px 8px;border-radius:7px;color:#536a7c;display:flex;justify-content:space-between;gap:6px}
+.m-tree .l0{font-weight:700;color:#172e43}
+.m-tree .l1{padding-left:18px;position:relative}
+.m-tree .l1:before{content:"";position:absolute;left:8px;top:0;bottom:50%;width:7px;border-left:1.5px solid #b8c8d2;border-bottom:1.5px solid #b8c8d2;border-bottom-left-radius:4px}
+.m-tree .l2{padding-left:30px;position:relative;font-size:11.5px}
+.m-tree .l2:before{content:"";position:absolute;left:20px;top:0;bottom:50%;width:7px;border-left:1.5px solid #b8c8d2;border-bottom:1.5px solid #b8c8d2;border-bottom-left-radius:4px}
+.m-tree .on{background:#e1ebff;color:#1f4ea8;font-weight:650}
+.m-tree small{color:#8aa0ae;font-weight:600}
+.m-pkg{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:14px}
+.m-box2{border:1px solid #dfe7ed;border-radius:12px;padding:14px;display:grid;gap:10px;align-content:start}
+.m-box2 .row{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.m-box2 h5{margin:0;font-size:13.5px}
+.m-caption{white-space:pre-line;font-size:12.5px;line-height:1.55;background:#f8fafb;border:1px solid #e1e8ec;border-radius:9px;padding:11px 12px;color:#23384a}
+.m-callout{border-radius:9px;padding:9px 11px;font-size:12px}
+.m-callout.warn{background:#fff4d5;color:#6b4a0c}
+.m-callout.ok{background:#e1f4ed;color:#186655}
+.m-callout.info{background:#e1ebff;color:#1f4ea8}
+.m-actions{display:flex;gap:6px;flex-wrap:wrap}
+.m-poster{aspect-ratio:4/5;max-width:100%;border-radius:10px;background:linear-gradient(160deg,#0e4f63 0%,#087e8b 55%,#83d6d0 100%);color:#fff;padding:16px;display:grid;align-content:space-between}
+.m-poster b{font-size:18px;line-height:1.2;letter-spacing:-.02em}
+.m-poster span{font-size:11px;opacity:.9}
+.m-poster .chip{justify-self:start;background:rgba(255,255,255,.18);border-radius:99px;padding:3px 9px;font-size:10.5px}
+.m-poster.alt{background:linear-gradient(160deg,#eaf6f5 0%,#bfe6e2 60%,#83d6d0 100%);color:#0e3b4a}
+.m-poster.alt .chip{background:rgba(14,59,74,.12)}
+.m-versions{display:flex;gap:6px}
+.m-versions span{flex:1;height:32px;border-radius:7px;background:linear-gradient(160deg,#0e4f63,#83d6d0);opacity:.5;border:2px solid transparent}
+.m-versions span.on{opacity:1;border-color:#2457c5}
+.m-facts{display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:11.5px;margin:0}
+.m-facts dt{color:#7a8f9e}.m-facts dd{margin:0;font-weight:600}
+.m-quick{display:flex;gap:6px;flex-wrap:wrap}
+.m-quick span{font-size:11.5px;padding:4px 9px;border-radius:99px;border:1px solid #cbd9e2;color:#2457c5;background:#fff}
+.m-msgbox{border:1px solid #b8c8d2;border-radius:10px;padding:8px 11px;color:#7a8f9e;font-size:12.5px;display:flex;justify-content:space-between;background:#fff}
+.m-scope{font-size:11.5px;color:#536a7c;background:#fff;border:1px solid #dfe7ed;border-radius:8px;padding:7px 9px}
+.m-scope b{color:#172e43}
+.m-diff{font-size:12px;line-height:1.55;background:#fff;border:1px solid #dfe7ed;border-radius:9px;padding:10px 11px;white-space:pre-line;color:#23384a}
+.m-del{background:#fde9eb;color:#943643;text-decoration:line-through}
+.m-ins{background:#e1f4ed;color:#186655}
+.m-cost{font-size:11px;color:#536a7c;display:flex;justify-content:space-between}
+.m-alt{font-size:12px;color:#536a7c;display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 10px;border:1px dashed #cbd9e2;border-radius:9px;background:#fff}
+.m-hist{display:grid;gap:5px;font-size:11.5px}
+.m-hist div{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:#fff;border:1px solid #e6edf1}
+.m-hist div.on{border-color:#2457c5;background:#f4f7ff}
+.m-cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.m-cmp figure{margin:0;display:grid;gap:5px;font-size:11.5px;color:#536a7c}
+.m-lib{display:grid;grid-template-columns:260px minmax(0,1fr);background:#fff;border-radius:15px;overflow:hidden;box-shadow:0 12px 28px rgba(25,48,64,.09);min-height:430px}
+.m-lib-list{background:#f5f7f8;border-right:1px solid #dfe7ed;padding:14px 12px;display:grid;gap:8px;align-content:start}
+.m-tabs{display:flex;gap:4px;flex-wrap:wrap}
+.m-tabs span{font-size:11px;font-weight:650;padding:4px 8px;border-radius:99px;background:#fff;border:1px solid #dfe7ed;color:#536a7c}
+.m-tabs span.on{background:#e1ebff;border-color:#e1ebff;color:#1f4ea8}
+.m-lib-detail{padding:18px 20px;display:grid;gap:12px;align-content:start;min-width:0}
+.m-meta{display:flex;gap:6px;flex-wrap:wrap}
+.m-layer{border-radius:10px;padding:10px 12px;font-size:12px;line-height:1.5}
+.m-layer small{display:block;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;margin-bottom:3px}
+.m-layer.user{background:#fff;border:1px solid #cbd9e2;color:#23384a}
+.m-layer.user small{color:#2457c5}
+.m-layer.sys{background:#edf2f5;border:1px dashed #b8c8d2;color:#536a7c}
+.m-demo{display:grid;grid-template-columns:1fr 1.3fr;gap:10px}
+.m-demo div{border:1px solid #e1e8ec;border-radius:10px;background:#f8fafb;padding:10px 11px;font-size:12px;display:grid;gap:4px;align-content:start}
+.m-demo small{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#7a8f9e}
+.m-brandgrid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.m-logo{width:60px;height:60px;border-radius:14px;background:#172e43;color:#83d6d0;display:grid;place-items:center;font-weight:900;font-size:21px}
+.m-note{font-size:11.5px;color:#536a7c}
+.m-li{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 10px;border:1px solid #dfe7ed;border-radius:9px;font-size:12.5px;background:#fff}
+.m-li.on{border-color:#2457c5;background:#f4f7ff}
+.m-form{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.m-form .wide{grid-column:1/-1}
+.m-prod{display:grid;grid-template-columns:1.2fr .6fr 2fr;gap:8px;align-items:end}
+.m-thumbs{display:flex;gap:8px;flex-wrap:wrap}
+.m-thumb{width:74px;display:grid;gap:4px;font-size:10.5px;color:#536a7c;text-align:center}
+.m-thumb .img{height:74px;border-radius:9px;border:2px solid transparent;display:grid;place-items:center;font-weight:800;font-size:11px;color:#fff;position:relative}
+.m-thumb .img.box{background:linear-gradient(150deg,#f4a261,#e76f51)}
+.m-thumb .img.pill{background:linear-gradient(150deg,#e9f5f3,#a8dcd6);color:#0e3b4a}
+.m-thumb .img.hand{background:linear-gradient(150deg,#cfd8e3,#8ea5bd)}
+.m-thumb .img.logo{background:#172e43;color:#83d6d0;font-size:16px}
+.m-thumb .img.add{background:#fff;border:1.5px dashed #b8c8d2;color:#2457c5;font-size:20px}
+.m-thumb.on .img{border-color:#2457c5}
+.m-thumb .img .tick{position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:4px;background:#2457c5;box-shadow:0 0 0 2px #fff}
+.m-thumb .img .untick{position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:4px;background:#fff;border:1.5px solid #9fb2bf}
+.m-chips{display:flex;gap:6px;flex-wrap:wrap}
+.m-chip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:99px;border:1px solid #cbd9e2;background:#fff;font-size:12px;font-weight:650;color:#536a7c}
+.m-chip.on{background:#e1ebff;border-color:#2457c5;color:#1f4ea8}
+.m-purpose{display:inline-flex;align-items:center;gap:5px;border-radius:6px;padding:2px 8px;font-size:11px;font-weight:700}
+.m-purpose.add{background:#fff;border:1px dashed #b8c8d2;color:#2457c5}
+.p-edu{background:#e6f0ff;color:#1f4ea8}.p-fun{background:#fdeef6;color:#9b2c68}.p-sale{background:#fff1e0;color:#8a4b0a}.p-trust{background:#e1f4ed;color:#186655}
+.m-tags{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.p-custom{background:#f1ecfb;color:#5b3d99}
+.d-custom{background:#7a5bc0}
+.m-tagwrap{position:relative;display:inline-flex}
+.m-tagpick{position:absolute;top:26px;left:0;width:260px;background:#fff;border:1px solid #dfe7ed;border-radius:11px;box-shadow:0 14px 30px rgba(23,46,67,.18);padding:10px;display:grid;gap:8px;z-index:3}
+.m-tagpick .lbl{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#7a8f9e}
+.m-tagpick .m-chips{gap:5px}
+.m-tagpick .m-chip{font-size:11.5px;padding:4px 9px}
+.m-chip.custom.on{background:#f1ecfb;border-color:#7a5bc0;color:#5b3d99}
+.m-chip.new{border-style:dashed;color:#2457c5}
+.m-newtag{display:flex;gap:6px}
+.m-newtag span:first-child{flex:1;border:1px solid #b8c8d2;border-radius:8px;padding:6px 9px;font-size:12px;color:#172e43;background:#fff}
+/* brand display rules */
+.m-rules{width:100%;border-collapse:collapse;font-size:12px}
+.m-rules th{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#7a8f9e;text-align:left;padding:8px 8px 4px}
+.m-rules td{padding:6px 8px;border-top:1px solid #eef2f5;vertical-align:middle}
+.m-rules td:first-child{font-weight:600;color:#172e43;width:34%}
+.m-rules td small{display:block;font-weight:500;color:#7a8f9e;font-size:10.5px}
+.m-rules tr.grp td{border-top:0;padding-top:12px;font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#7a8f9e}
+.m-s3{display:inline-grid;grid-template-columns:repeat(3,auto);background:#e8eef2;border-radius:8px;padding:2px;gap:2px}
+.m-s3 span{padding:3px 9px;border-radius:6px;font-size:11px;font-weight:650;color:#536a7c}
+.m-s3 span.on{background:#fff;color:#172e43;box-shadow:0 1px 2px rgba(23,46,67,.12)}
+.m-s3 span.on.y{color:#186655}
+.m-s3 span.on.n{color:#943643}
+.m-switch{display:inline-flex;align-items:center;gap:7px;font-size:11.5px;color:#536a7c;font-weight:600}
+.m-switch i{width:30px;height:18px;border-radius:99px;background:#c9d5de;position:relative}
+.m-switch i:after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.m-switch.on i{background:#2457c5}
+.m-switch.on i:after{left:14px}
+.m-switch.on{color:#172e43}
+.m-footer{border:1px dashed #9ed8d2;background:#f2fbfa;border-radius:9px;padding:8px 11px;font-size:12.5px;line-height:1.55;color:#23384a;display:grid;gap:2px}
+.m-footer small{font-size:10.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#0a6670}
+.m-segtabs{display:flex;background:#e8eef2;border-radius:9px;padding:3px;gap:3px;flex-wrap:wrap}
+.m-segtabs span{padding:6px 11px;border-radius:7px;font-size:12px;font-weight:650;color:#536a7c}
+.m-segtabs span.on{background:#fff;color:#172e43;box-shadow:0 1px 2px rgba(23,46,67,.12)}
+.m-prodcard{display:grid;grid-template-columns:74px 1fr auto;gap:12px;align-items:center;padding:10px 12px;border:1px solid #dfe7ed;border-radius:11px;background:#fff}
+.m-prodcard.on{border:2px solid #2457c5;padding:9px 11px;background:#f4f7ff}
+.m-prodcard b{font-size:13px;display:block}
+.m-prodcard small{color:#536a7c;font-size:11.5px}
+.m-sel{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.m-selitem{display:flex;gap:8px;align-items:center;padding:6px 10px 6px 6px;border:1px solid #cbd9e2;border-radius:10px;background:#fff;font-size:12px}
+.m-selitem .sw{width:30px;height:30px;border-radius:7px;background:linear-gradient(150deg,#f4a261,#e76f51)}
+.m-selitem .sw.svc{background:linear-gradient(150deg,#cfd8e3,#8ea5bd)}
+.m-selitem small{display:block;color:#7a8f9e;font-size:10.5px}
+.m-tiers{width:100%;border-collapse:collapse;font-size:11.5px;background:#fff;border:1px solid #dfe7ed;border-radius:9px;overflow:hidden}
+.m-tiers th{background:#f5f8fa;color:#536a7c;font-weight:600;text-align:left;padding:6px 8px;border-bottom:1px solid #dfe7ed}
+.m-tiers td{padding:6px 8px;border-bottom:1px solid #eef2f5}
+.m-tiers tr:last-child td{border-bottom:0}
+.m-tiers td b{font-size:12px}
+/* codes + branch list */
+.m-code{display:inline-grid;place-items:center;min-width:22px;height:20px;padding:0 5px;border-radius:6px;font-size:10.5px;font-weight:800;letter-spacing:.02em;font-variant-numeric:tabular-nums}
+.c-bi{background:#1f4ea8;color:#fff}
+.c-an{background:#dff3f1;color:#0a6670;border:1px solid #9ed8d2}
+.c-pk{background:#fff4d5;color:#79520e}
+.m-branch{display:grid;gap:2px}
+.m-branch+.m-branch{margin-top:8px}
+.m-bhead{display:flex;align-items:center;gap:7px;padding:6px 8px;font-size:12px;font-weight:700;color:#172e43}
+.m-bhead small{margin-left:auto;color:#8aa0ae;font-weight:600;font-size:10.5px}
+.m-bitem{display:flex;align-items:center;gap:7px;padding:6px 8px 6px 14px;border-radius:8px;font-size:12px;color:#536a7c;font-weight:600}
+.m-bitem small{margin-left:auto;color:#8aa0ae;font-weight:600;font-size:10.5px}
+.m-bitem.on{background:#e1ebff;color:#1f4ea8}
+.m-bitem.on small{color:#1f4ea8}
+.m-dots{display:inline-flex;gap:3px}
+.m-dots i{width:7px;height:7px;border-radius:50%}
+.d-edu{background:#2457c5}.d-fun{background:#c2408a}.d-sale{background:#d9822b}.d-trust{background:#287b60}
+.m-lin{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:11.5px;color:#536a7c}
+.m-lin .seg{display:inline-flex;align-items:center;gap:5px;font-weight:600;color:#23384a}
+/* sections, selection, overflow */
+.m-sec{display:flex;align-items:center;gap:8px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#7a8f9e;margin-top:4px}
+.m-sec b{color:#172e43;font-size:11px}
+.m-sec:after{content:"";flex:1;height:1px;background:#dfe7ed}
+.m-idea .top{display:flex;justify-content:space-between;align-items:center;gap:10px}
+.m-idea .ttl{display:flex;align-items:center;gap:8px}
+.m-idea .ctl{display:flex;align-items:center;gap:6px}
+.m-more{display:grid;place-items:center;width:30px;height:30px;border-radius:8px;border:1px solid #dfe7ed;background:#fff;color:#536a7c;font-weight:800;letter-spacing:1px;position:relative}
+.m-more.open{border-color:#2457c5;color:#2457c5}
+.m-menu{position:absolute;top:34px;right:0;width:250px;background:#fff;border:1px solid #dfe7ed;border-radius:11px;box-shadow:0 14px 30px rgba(23,46,67,.18);padding:6px;display:grid;gap:2px;z-index:3;text-align:left;letter-spacing:0}
+.m-menu div{padding:8px 10px;border-radius:7px;font-size:12.5px;font-weight:600;color:#172e43}
+.m-menu div small{display:block;font-weight:500;color:#7a8f9e;font-size:11px}
+.m-menu div.danger{color:#943643;background:#fdf3f4}
+.m-menu div.danger small{color:#a86b73}
+.m-dev{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;color:#186655;background:#e1f4ed;border-radius:99px;padding:3px 10px}
+.m-checklist{display:grid;gap:5px;font-size:11.5px;margin:0;padding:0;list-style:none}
+.m-checklist li{display:flex;justify-content:space-between;gap:8px;padding:6px 8px;border-radius:7px;background:#fff;border:1px solid #e6edf1}
+.m-checklist .ok{color:#186655;font-weight:700}
+.m-checklist .na{color:#7a8f9e}
+.m-sub{font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#7a8f9e}
+.m-table tr.m-exp td{background:#f8fafc}
+.m-expbody{display:grid;grid-template-columns:minmax(0,.9fr) minmax(0,1.1fr);gap:16px;padding:4px 2px}
+.m-expcol{display:grid;gap:8px;align-content:start}
+</style>
+</head>
+<body>
+<!-- Static design blueprint for Task 047. All content is synthetic; not a production UI. -->
+
+
+<div class="wrap">
+
+<header class="hero">
+  <h1>Content Studio Blueprint</h1>
+  <p>The agreed UI for Content Studio inside TDN Growth OS. All content shown is a synthetic example.</p>
+  <div class="flow" aria-label="Flow">
+    <span>Thương hiệu &amp; sản phẩm</span><i>→</i><span>Chiến dịch</span><i>→</i><span class="b">1 Insight</span><i>→</i><span class="b">2 Big Idea</span><i>→</i><span class="b">3 Góc + mục đích</span><i>→</i><span class="b">4 Caption &amp; Poster</span>
+  </div>
+</header>
+
+<ul class="rules">
+  <li>Products and services live in the brand catalog, with tiers (Go / Plus / Pro).</li>
+  <li>Each campaign writes its own customer, pain point and insight.</li>
+  <li>Develop several Big Ideas or Angles; codes A, A1, A1·P show every branch.</li>
+  <li>An Angle can carry several purposes: suggested tags plus your own via “+”.</li>
+  <li>Every step and the package: library prompt or your own. Style and length: campaign default, batch, or per package.</li>
+  <li>Brand info shows by purpose; contact details are added by the system, never by AI.</li>
+  <li>Delete from “⋯”; restorable for 24 hours. AI edits are proposals you apply.</li>
+</ul>
+
+<figure class="fig">
+  <div class="fig-head"><h2>1 · Brand catalog: products, services and tiers</h2><span><code>#/brands/b1/products</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="Brand catalog with a service that has three tiers">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span>Nội dung</span><span class="on">Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-dossier" style="grid-template-columns:210px minmax(0,1fr) 330px">
+        <aside class="m-side">
+          <div class="grp">Canxi Việt</div>
+          <div class="m-nav">Hồ sơ thương hiệu</div>
+          <div class="m-nav on">Sản phẩm &amp; dịch vụ <small>3</small></div>
+          <div class="grp">Thương hiệu khác</div>
+          <div class="m-nav">NanoBone Pharma</div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Sản phẩm &amp; dịch vụ</h4><p>Dùng lại cho mọi chiến dịch của Canxi Việt.</p></div><span class="m-btn pri">+ Thêm</span></div>
+          <div class="m-prodcard"><div class="m-thumb"><div class="img box">HỘP</div></div><div><b>Canxi Nano D3K2</b><small>Sản phẩm · 2 gói: 30 viên, 60 viên · 3 ảnh</small></div><span class="m-badge mb-pass">2 chiến dịch</span></div>
+          <div class="m-prodcard"><div class="m-thumb"><div class="img pill">VIÊN</div></div><div><b>Canxi Nano Kids</b><small>Sản phẩm · 1 gói · 2 ảnh</small></div><span class="m-badge mb-none">Chưa dùng</span></div>
+          <div class="m-prodcard on"><div class="m-thumb"><div class="img hand">TƯ VẤN</div></div><div><b>Tư vấn dinh dưỡng xương</b><small>Dịch vụ · 3 gói: Go, Plus, Pro · 1 ảnh</small></div><span class="m-badge mb-pass">1 chiến dịch</span></div>
+        </div>
+        <aside class="m-panel-r">
+          <h5>Tư vấn dinh dưỡng xương</h5>
+          <label class="m-field">Loại<div class="m-seg"><span>Sản phẩm vật lý</span><span class="on">Dịch vụ</span></div></label>
+          <label class="m-field">Mô tả chung<span class="m-text">Chuyên gia dinh dưỡng tư vấn 1:1 về sức khỏe xương, online.</span></label>
+          <div class="m-field">Gói / phiên bản
+            <table class="m-tiers">
+              <thead><tr><th>Gói</th><th>Giá</th><th>Bao gồm</th></tr></thead>
+              <tbody>
+                <tr><td><b>Go</b></td><td>99.000đ</td><td>1 buổi 30 phút</td></tr>
+                <tr><td><b>Plus</b></td><td>249.000đ</td><td>3 buổi + thực đơn</td></tr>
+                <tr><td><b>Pro</b></td><td>590.000đ/tháng</td><td>Không giới hạn + theo dõi</td></tr>
+              </tbody>
+            </table>
+            <span class="m-btn quiet" style="justify-self:start">+ Thêm gói</span>
+          </div>
+          <label class="m-field">Ảnh<div class="m-thumbs"><div class="m-thumb on"><div class="img hand">TƯ VẤN<i class="tick"></i></div>Buổi tư vấn</div><div class="m-thumb"><div class="img add">+</div>Thêm ảnh</div></div></label>
+          <span class="m-btn pri full">Lưu</span>
+        </aside>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>2 · Campaigns</h2><span><code>#/content</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="Campaign list">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span class="on">Nội dung</span><span>Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Đang tạo · 2</div></div>
+    <div class="m-frame">
+      <div class="m-dossier two">
+        <aside class="m-side">
+          <div class="grp">Lọc</div>
+          <div class="m-nav on">Tất cả <small>3</small></div>
+          <div class="m-nav">Canxi Việt <small>2</small></div>
+          <div class="m-nav">NanoBone Pharma <small>1</small></div>
+          <div class="grp">Khác</div>
+          <div class="m-nav">Đã xóa gần đây</div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Chiến dịch nội dung</h4><p>Mỗi chiến dịch: một thương hiệu, một hoặc nhiều sản phẩm, dịch vụ của thương hiệu đó.</p></div><span class="m-btn pri">+ Tạo chiến dịch</span></div>
+          <table class="m-table">
+            <thead><tr><th>Chiến dịch</th><th>Thương hiệu</th><th>Sản phẩm / dịch vụ</th><th>Tiến độ</th><th>Cập nhật</th></tr></thead>
+            <tbody>
+              <tr><td><strong>Ra mắt canxi nano Q4</strong><small>2 Big Idea · 4 góc · 3 gói</small></td><td>Canxi Việt</td><td>Canxi Nano D3K2</td><td><span class="m-badge mb-run">4 · Caption &amp; Poster</span></td><td>Hôm nay 09:40</td></tr>
+              <tr><td><strong>Tết 2027 — quà sức khỏe</strong><small>3 Big Idea</small></td><td>Canxi Việt</td><td>Canxi Nano D3K2 · Tư vấn (Plus, Pro)</td><td><span class="m-badge mb-hold">2 · Big Idea</span></td><td>Hôm qua</td></tr>
+              <tr><td><strong>Nhà thuốc đối tác</strong><small>Insight đang soạn</small></td><td>NanoBone Pharma</td><td>Canxi hữu cơ NB</td><td><span class="m-badge mb-none">1 · Insight</span></td><td>22/09</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>3 · Insight</h2><span><code>#/content/c2/insight</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="Campaign insight with products and service tiers picked from the catalog">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span class="on">Nội dung</span><span>Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-crumb"><b>Nội dung</b> › Tết 2027 — quà sức khỏe</div>
+      <div class="m-steps">
+        <div class="m-step cur"><b>1 · Insight</b><small>Đang soạn</small></div>
+        <div class="m-step"><b>2 · Big Idea</b><small>Cần Insight đã khóa</small></div>
+        <div class="m-step"><b>3 · Góc + mục đích</b><small>Cần Big Idea</small></div>
+        <div class="m-step"><b>4 · Caption &amp; Poster</b><small>Cần góc</small></div>
+      </div>
+      <div class="m-dossier">
+        <aside class="m-side">
+          <div class="grp">Chiến dịch</div>
+          <div class="m-nav on">Tết 2027 — quà sức khỏe</div>
+          <div class="m-nav">Ra mắt canxi nano Q4</div>
+          <div class="m-nav">Nhà thuốc đối tác</div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Insight</h4><p>Riêng cho chiến dịch này.</p></div></div>
+          <div class="m-group">
+            <header><b>Sản phẩm &amp; dịch vụ trong chiến dịch</b><span class="m-btn quiet">+ Chọn từ Canxi Việt</span></header>
+            <div class="m-sel">
+              <div class="m-selitem"><span class="sw"></span><div><b>Canxi Nano D3K2</b><small>Gói: 60 viên · 350.000đ</small></div></div>
+              <div class="m-selitem"><span class="sw svc"></span><div><b>Tư vấn dinh dưỡng xương</b><small>Gói: Plus, Pro</small></div></div>
+            </div>
+          </div>
+          <div class="m-form">
+            <label class="m-field">Khách hàng mục tiêu<span class="m-text">Người con 28–40 tuổi, đi làm xa, mua quà Tết cho bố mẹ.</span></label>
+            <label class="m-field">Nỗi đau / vấn đề<span class="m-text">Quà Tết thường là bánh kẹo, không thể hiện sự quan tâm sức khỏe lâu dài.</span></label>
+            <label class="m-field wide">Sự thật ngầm hiểu (Insight)<span class="m-text">Con muốn tặng thứ khiến mình yên tâm về sức khỏe bố mẹ cả năm, không chỉ dịp Tết.</span></label>
+          </div>
+          <div class="m-actions"><span class="m-btn pri">Khóa Insight →</span><span class="m-btn">Lưu nháp</span></div>
+        </div>
+        <aside class="m-panel-r">
+          <h5>Nguồn dữ liệu</h5>
+          <div class="m-seg"><span class="on">Tự nhập</span><span>Từ nghiên cứu</span></div>
+          <p>“Từ nghiên cứu” điền sẵn khách hàng và nỗi đau từ STP đã khóa (B9) của một sản phẩm nghiên cứu. Vẫn sửa được.</p>
+          <label class="m-field">Nghiên cứu<span class="m-input">Chọn sản phẩm nghiên cứu… <span>▾</span></span></label>
+          <span class="m-btn full">Điền từ nghiên cứu</span>
+        </aside>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>4 · Big Idea</h2><span><code>#/content/c1/big-idea</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="Big Idea step with developing and other sections, codes, and overflow menu">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span class="on">Nội dung</span><span>Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-crumb"><b>Nội dung</b> › Ra mắt canxi nano Q4</div>
+      <div class="m-steps">
+        <div class="m-step done"><b>1 · Insight</b><small>Đã khóa</small></div>
+        <div class="m-step cur"><b>2 · Big Idea</b><small>2 đang phát triển</small></div>
+        <div class="m-step done"><b>3 · Góc + mục đích</b><small>4 góc</small></div>
+        <div class="m-step done"><b>4 · Caption &amp; Poster</b><small>3 gói</small></div>
+      </div>
+      <div class="m-dossier">
+        <aside class="m-side">
+          <div class="grp">Nhánh</div>
+          <div class="m-branch"><div class="m-bhead"><span class="m-code c-bi">A</span>Chắc từ bên trong<small>3 góc</small></div></div>
+          <div class="m-branch"><div class="m-bhead"><span class="m-code c-bi">B</span>Tết tặng bố mẹ<small>1 góc</small></div></div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Big Idea</h4><p>Phát triển một hoặc nhiều ý. Mỗi ý đang phát triển mở một nhánh.</p></div></div>
+          <div class="m-sec"><b>Đang phát triển</b> · 2</div>
+          <div class="m-idea sel"><div class="top"><div class="ttl"><span class="m-code c-bi">A</span><h5>“Chắc từ bên trong, không lo nóng trong”</h5></div><div class="ctl"><span class="m-dev">✓ Đang phát triển</span><span class="m-more">⋯</span></div></div><p>Canxi nano hấp thu êm, không gây táo bón.</p><span class="meta">Big Idea chiến lược v3.1 · GPT-5.6 Sol</span></div>
+          <div class="m-idea sel"><div class="top"><div class="ttl"><span class="m-code c-bi">B</span><h5>“Tết này, tặng bố mẹ bộ xương khỏe”</h5></div><div class="ctl"><span class="m-dev">✓ Đang phát triển</span><span class="m-more open">⋯<div class="m-menu"><div>Ngừng phát triển<small>Giữ lại ở “Đề xuất khác”</small></div><div>Sửa bằng AI</div><div class="danger">Xóa Big Idea<small>Ẩn cả 1 góc và 1 gói bên dưới · khôi phục được trong 24 giờ</small></div></div></span></div></div><p>Canxi như món quà quan tâm lâu dài.</p><span class="meta">Cảm xúc gia đình ngày Tết v1 · GPT-5.6 Luna</span></div>
+          <div class="m-sec"><b>Đề xuất khác</b> · 1</div>
+          <div class="m-idea"><div class="top"><div class="ttl"><h5>“Bữa cơm đủ canxi”</h5></div><div class="ctl"><span class="m-btn">Phát triển ý này</span><span class="m-more">⋯</span></div></div><p>Gắn vào thói quen gia đình, không cần đổi thực đơn.</p><span class="meta">Big Idea chiến lược v3.1 · GPT-5.6 Sol</span></div>
+        </div>
+        <aside class="m-panel-r">
+          <h5>Tạo Big Idea</h5>
+          <div class="m-seg"><span class="on">Từ thư viện</span><span>Tự viết</span></div>
+          <div class="m-pick on"><div class="row"><b>Big Idea chiến lược v3.1</b><span class="m-badge mb-none">Hệ thống</span></div><small>Mặc định của chiến dịch</small></div>
+          <div class="m-pick"><div class="row"><b>Cảm xúc gia đình ngày Tết</b><span class="m-badge mb-pass">Của tôi</span></div><small>Giọng người con, đời thường</small></div>
+          <label class="m-field">Số lượng<div class="m-num"><span>−</span><b>3</b><span>+</span></div></label>
+          <div class="m-cost"><span>= 3 lượt AI</span></div>
+          <span class="m-btn pri full">Tạo 3 Big Idea</span>
+        </aside>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>5 · Angles with purposes</h2><span><code>#/content/c1/angle</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="Angles grouped by Big Idea code, each with one or more purpose tags">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span class="on">Nội dung</span><span>Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-crumb"><b>Nội dung</b> › Ra mắt canxi nano Q4</div>
+      <div class="m-steps">
+        <div class="m-step done"><b>1 · Insight</b><small>Đã khóa</small></div>
+        <div class="m-step done"><b>2 · Big Idea</b><small>A, B</small></div>
+        <div class="m-step cur"><b>3 · Góc + mục đích</b><small>3 đang phát triển</small></div>
+        <div class="m-step done"><b>4 · Caption &amp; Poster</b><small>3 gói</small></div>
+      </div>
+      <div class="m-dossier">
+        <aside class="m-side">
+          <div class="grp">Nhánh</div>
+          <div class="m-branch">
+            <div class="m-bhead"><span class="m-code c-bi">A</span>Chắc từ bên trong</div>
+            <div class="m-bitem on"><span class="m-code c-an">A1</span>Nỗi sợ “nóng trong”<small><span class="m-dots"><i class="d-edu"></i><i class="d-sale"></i></span></small></div>
+            <div class="m-bitem"><span class="m-code c-an">A2</span>Thử thách 30 ngày<small><span class="m-dots"><i class="d-fun"></i><i class="d-custom"></i></span></small></div>
+          </div>
+          <div class="m-branch">
+            <div class="m-bhead"><span class="m-code c-bi">B</span>Tết tặng bố mẹ</div>
+            <div class="m-bitem"><span class="m-code c-an">B1</span>Con ở xa yên tâm<small><span class="m-dots"><i class="d-trust"></i></span></small></div>
+          </div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Góc khai thác</h4><p>Nhóm theo Big Idea. Mỗi góc có thể có nhiều mục đích: gợi ý sẵn hoặc tự tạo.</p></div><span class="m-btn pri">Tạo Caption &amp; Poster cho 3 góc →</span></div>
+          <div class="m-group">
+            <header><div class="m-lin"><span class="seg"><span class="m-code c-bi">A</span>Chắc từ bên trong, không lo nóng trong</span></div><small>3 góc</small></header>
+            <div class="m-idea sel"><div class="top"><div class="ttl"><span class="m-code c-an">A1</span><h5>Nỗi sợ “nóng trong”</h5></div><div class="ctl"><span class="m-dev">✓ Đang phát triển</span><span class="m-more">⋯</span></div></div><p>Giải thích vì sao canxi nano không gây nóng, rồi mời dùng thử gói 60 viên.</p><div class="m-tags"><span class="m-purpose p-edu">Giáo dục</span><span class="m-purpose p-sale">Bán hàng</span><span class="m-purpose add">+ Mục đích</span></div></div>
+            <div class="m-idea sel"><div class="top"><div class="ttl"><span class="m-code c-an">A2</span><h5>Thử thách 30 ngày</h5></div><div class="ctl"><span class="m-dev">✓ Đang phát triển</span><span class="m-more">⋯</span></div></div><p>Series vui: một viên mỗi sáng, cập nhật cảm nhận mỗi tuần.</p><div class="m-tags"><span class="m-purpose p-fun">Giải trí</span><span class="m-purpose p-custom">Hậu trường</span><span class="m-tagwrap"><span class="m-purpose add">+ Mục đích</span><div class="m-tagpick"><span class="lbl">Gợi ý</span><div class="m-chips"><span class="m-chip">Giáo dục</span><span class="m-chip on">Giải trí</span><span class="m-chip">Bán hàng</span><span class="m-chip">Niềm tin</span><span class="m-chip">Tương tác</span></div><span class="lbl">Của bạn</span><div class="m-chips"><span class="m-chip custom on">Hậu trường</span><span class="m-chip">Review khách hàng</span></div><div class="m-newtag"><span>Mini game</span><span class="m-btn pri">+ Tạo</span></div></div></span></div></div>
+            <div class="m-idea"><div class="top"><div class="ttl"><h5>Ưu đãi tuần ra mắt</h5></div><div class="ctl"><span class="m-btn">Phát triển ý này</span><span class="m-more">⋯</span></div></div><p>Mua 2 tặng 1, chỉ trong tuần đầu.</p><div class="m-tags"><span class="m-purpose p-sale">Bán hàng</span></div></div>
+          </div>
+          <div class="m-group">
+            <header><div class="m-lin"><span class="seg"><span class="m-code c-bi">B</span>Tết này, tặng bố mẹ bộ xương khỏe</span></div><small>1 góc</small></header>
+            <div class="m-idea sel"><div class="top"><div class="ttl"><span class="m-code c-an">B1</span><h5>Món quà khiến con ở xa yên tâm</h5></div><div class="ctl"><span class="m-dev">✓ Đang phát triển</span><span class="m-more">⋯</span></div></div><p>Kể từ góc nhìn người con đi làm xa; nhắc gói tư vấn Plus làm quà kèm.</p><div class="m-tags"><span class="m-purpose p-trust">Niềm tin</span><span class="m-purpose p-sale">Bán hàng</span><span class="m-purpose add">+ Mục đích</span></div></div>
+          </div>
+        </div>
+        <aside class="m-panel-r">
+          <h5>Tạo góc khai thác</h5>
+          <label class="m-field">Cho Big Idea<div class="m-chips"><span class="m-chip on">A</span><span class="m-chip on">B</span></div></label>
+          <label class="m-field">Mục đích của góc mới<div class="m-chips"><span class="m-chip on">Giáo dục</span><span class="m-chip on">Bán hàng</span><span class="m-chip">Giải trí</span><span class="m-chip">Niềm tin</span><span class="m-chip">Tương tác</span><span class="m-chip">Hậu trường</span><span class="m-chip new">+ Mục đích mới</span></div></label>
+          <p>Mỗi góc mới phục vụ tất cả mục đích đã chọn.</p>
+          <label class="m-field">Số góc cho mỗi Big Idea<div class="m-num"><span>−</span><b>2</b><span>+</span></div></label>
+          <div class="m-seg"><span class="on">Từ thư viện</span><span>Tự viết</span></div>
+          <div class="m-pick on"><div class="row"><b>Góc khai thác v3</b><span class="m-badge mb-none">Hệ thống</span></div><small>Mặc định của chiến dịch</small></div>
+          <div class="m-cost"><span>2 × 2 Big Idea = 4 lượt AI</span></div>
+          <span class="m-btn pri full">Tạo 4 góc</span>
+        </aside>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>6 · Create Caption &amp; Poster (one or many Angles)</h2><span><code>#/content/c1/package/new?angles=A1,A2,B1</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="One create screen: shared settings for all selected angles, one row expanded for its own settings">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span class="on">Nội dung</span><span>Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-crumb"><b>Nội dung</b> › Ra mắt canxi nano Q4</div>
+      <div class="m-steps">
+        <div class="m-step done"><b>1 · Insight</b><small>Đã khóa</small></div>
+        <div class="m-step done"><b>2 · Big Idea</b><small>A, B</small></div>
+        <div class="m-step done"><b>3 · Góc + mục đích</b><small>A1, A2, B1</small></div>
+        <div class="m-step cur"><b>4 · Caption &amp; Poster</b><small>Đang tạo 3 gói</small></div>
+      </div>
+      <div class="m-dossier" style="grid-template-columns:200px minmax(0,1fr) 300px">
+        <aside class="m-side">
+          <div class="grp">Gói theo nhánh</div>
+          <div class="m-branch">
+            <div class="m-bhead"><span class="m-code c-bi">A</span>Chắc từ bên trong</div>
+            <div class="m-bitem on"><span class="m-code c-an">A1</span>Nỗi sợ “nóng trong”<small>đang tạo</small></div>
+            <div class="m-bitem on"><span class="m-code c-an">A2</span>Thử thách 30 ngày<small>đang tạo</small></div>
+          </div>
+          <div class="m-branch">
+            <div class="m-bhead"><span class="m-code c-bi">B</span>Tết tặng bố mẹ</div>
+            <div class="m-bitem on"><span class="m-code c-an">B1</span>Con ở xa yên tâm<small>đang tạo</small></div>
+          </div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Tạo Caption &amp; Poster · 3 góc</h4><p>Cài đặt bên phải áp dụng cho tất cả. “Sửa riêng” để đổi cho một góc.</p></div><span class="m-btn quiet">+ Thêm góc</span></div>
+          <table class="m-table">
+            <thead><tr><th>Góc</th><th>Mục đích</th><th>Phong cách · Độ dài</th><th>Liên hệ</th><th></th></tr></thead>
+            <tbody>
+              <tr><td><span class="m-code c-an">A1</span> Nỗi sợ “nóng trong”</td><td><span class="m-purpose p-edu">Giáo dục</span> <span class="m-purpose p-sale">Bán hàng</span></td><td><small>Theo chung</small></td><td>Có</td><td><span class="m-btn quiet">Sửa riêng</span></td></tr>
+              <tr class="m-exp"><td><span class="m-code c-an">A2</span> Thử thách 30 ngày</td><td><span class="m-purpose p-fun">Giải trí</span> <span class="m-purpose p-custom">Hậu trường</span></td><td><b>Thân thiện · Ngắn</b> <small>riêng</small></td><td>Ẩn</td><td><span class="m-btn quiet">Thu gọn</span></td></tr>
+              <tr class="m-exp"><td colspan="5">
+                <div class="m-expbody">
+                  <div class="m-expcol">
+                    <span class="m-sub">Riêng cho A2</span>
+                    <label class="m-field">Phong cách<div class="m-s3" style="grid-template-columns:repeat(2,auto)"><span>Chuyên nghiệp</span><span class="on">Thân thiện</span></div></label>
+                    <label class="m-field">Độ dài<div class="m-s3"><span class="on">Ngắn</span><span>Vừa</span><span>Dài</span></div></label>
+                    <label class="m-field">Ảnh tham chiếu<div class="m-thumbs"><div class="m-thumb on"><div class="img logo">CV<i class="tick"></i></div>Logo</div><div class="m-thumb on"><div class="img box">HỘP<i class="tick"></i></div>Hộp</div><div class="m-thumb"><div class="img pill">VIÊN<i class="untick"></i></div>Viên</div></div></label>
+                  </div>
+                  <div class="m-expcol">
+                    <span class="m-sub">Thông tin thương hiệu · theo Giải trí + Hậu trường</span>
+                    <table class="m-rules">
+                      <thead><tr><th></th><th>Caption</th><th>Poster</th></tr></thead>
+                      <tbody>
+                        <tr><td>Tên thương hiệu</td><td><span class="m-s3"><span>Luôn</span><span class="on">Tùy</span><span>Ẩn</span></span></td><td><span class="m-switch on"><i></i>Hiện</span></td></tr>
+                        <tr><td>Logo</td><td><small>Chỉ Poster</small></td><td><span class="m-switch on"><i></i>Hiện</span></td></tr>
+                        <tr><td>Tagline</td><td><span class="m-s3"><span>Luôn</span><span>Tùy</span><span class="on n">Ẩn</span></span></td><td><span class="m-switch"><i></i>Ẩn</span></td></tr>
+                        <tr><td>Liên hệ</td><td><span class="m-s3"><span>Luôn</span><span>Tùy</span><span class="on n">Ẩn</span></span></td><td><span class="m-switch"><i></i>Ẩn</span></td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </td></tr>
+              <tr><td><span class="m-code c-an">B1</span> Con ở xa yên tâm</td><td><span class="m-purpose p-trust">Niềm tin</span> <span class="m-purpose p-sale">Bán hàng</span></td><td><b>Chuyên nghiệp</b> · Vừa <small>riêng</small></td><td>Có</td><td><span class="m-btn quiet">Sửa riêng</span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <aside class="m-panel-r">
+          <h5>Áp dụng cho tất cả</h5>
+          <span class="m-sub">Caption</span>
+          <div class="m-seg"><span class="on">Từ thư viện</span><span>Tự viết</span></div>
+          <span class="m-input">Caption theo mục đích v1 <span>▾</span></span>
+          <label class="m-field">Phong cách<div class="m-s3" style="grid-template-columns:repeat(2,auto)"><span>Chuyên nghiệp</span><span class="on">Thân thiện</span></div></label>
+          <label class="m-field">Độ dài<div class="m-s3"><span>Ngắn</span><span class="on">Vừa</span><span>Dài</span></div></label>
+          <span class="m-sub">Poster</span>
+          <div class="m-seg"><span>Từ thư viện</span><span class="on">Tự viết</span></div>
+          <div class="m-area" style="min-height:58px">Phong cách lịch treo tường 30 ô, tông xanh mint, sản phẩm ở góc phải.</div>
+          <div class="m-check"><i></i><span>Lưu prompt Poster vào thư viện</span></div>
+          <label class="m-field">Tỷ lệ<div class="m-chips"><span class="m-chip">1:1</span><span class="m-chip on">4:5</span><span class="m-chip">9:16</span><span class="m-chip">16:9</span></div></label>
+          <label class="m-field">Ảnh tham chiếu<div class="m-thumbs"><div class="m-thumb on"><div class="img logo">CV<i class="tick"></i></div>Logo</div><div class="m-thumb on"><div class="img box">HỘP<i class="tick"></i></div>Hộp</div></div></label>
+          <div class="m-check"><i style="background:#fff;border:1.5px solid #9fb2bf"></i><span>Lưu làm mặc định cho chiến dịch</span></div>
+          <div class="m-cost"><span>3 Caption + 3 Poster</span></div>
+          <span class="m-btn pri full">Tạo 3 gói</span>
+        </aside>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>7 · Caption &amp; Poster</h2><span><code>#/content/c1/package/A1-1</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="Package with lineage, caption, poster and a brand-fact checklist">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span class="on">Nội dung</span><span>Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-crumb"><b>Nội dung</b> › Ra mắt canxi nano Q4</div>
+      <div class="m-dossier">
+        <aside class="m-side">
+          <div class="grp">Gói theo nhánh</div>
+          <div class="m-branch">
+            <div class="m-bhead"><span class="m-code c-bi">A</span>Chắc từ bên trong</div>
+            <div class="m-bitem on"><span class="m-code c-an">A1</span>Nỗi sợ “nóng trong”<small>1 gói</small></div>
+            <div class="m-bitem"><span class="m-code c-an">A2</span>Thử thách 30 ngày<small>chưa có</small></div>
+          </div>
+          <div class="m-branch">
+            <div class="m-bhead"><span class="m-code c-bi">B</span>Tết tặng bố mẹ</div>
+            <div class="m-bitem"><span class="m-code c-an">B1</span>Con ở xa yên tâm<small>1 gói</small></div>
+          </div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Gói A1·1</h4><div class="m-lin" style="margin-top:4px"><span class="seg"><span class="m-code c-bi">A</span>Chắc từ bên trong</span>›<span class="seg"><span class="m-code c-an">A1</span>Nỗi sợ “nóng trong”</span><span class="m-purpose p-edu">Giáo dục</span><span class="m-purpose p-sale">Bán hàng</span></div></div><div class="ctl" style="display:flex;gap:6px;align-items:center"><span class="m-badge mb-pass">Sẵn sàng · nội bộ</span><span class="m-more">⋯</span></div></div>
+          <div class="m-pkg">
+            <div class="m-box2">
+              <div class="row"><h5>Caption</h5><span class="m-badge mb-none">v1</span></div>
+              <div class="m-caption">Vì sao nhiều người uống canxi bị “nóng trong”? 🤔
+Canxi thường khó tan, dễ gây táo bón. Canxi nano có kích thước siêu nhỏ nên hấp thu êm hơn.
+✅ Kết hợp D3 + K2 đưa canxi vào xương
+🎁 Thử ngay hộp 60 viên — 350.000đ</div>
+              <div class="m-footer"><small>Khối liên hệ · hệ thống tự thêm</small>📞 0900 000 000 · 🌐 canxiviet.example</div>
+              <div class="m-actions"><span class="m-btn">Sao chép</span><span class="m-btn">Tải .txt</span><span class="m-btn">Sửa tay</span><span class="m-btn pri">Sửa bằng AI</span></div>
+            </div>
+            <div class="m-box2">
+              <div class="row"><h5>Poster · 4:5</h5><span class="m-badge mb-none">V2</span></div>
+              <div class="m-poster"><span class="chip">Canxi Việt</span><b>Chắc từ bên trong,<br>không lo nóng trong</b><span>Canxi Nano D3K2</span></div>
+              <div class="m-versions"><span></span><span class="on"></span></div>
+              <div class="m-actions"><span class="m-btn">Tải PNG</span><span class="m-btn pri">Sửa bằng AI</span></div>
+            </div>
+          </div>
+        </div>
+        <aside class="m-panel-r">
+          <h5>Kiểm tra thông tin thương hiệu</h5>
+          <p>So sánh thông tin thương hiệu được ghi trong Caption với hồ sơ Canxi Việt v3.</p>
+          <ul class="m-checklist">
+            <li><span>Hotline, website</span><span class="ok">✓ Khối liên hệ</span></li>
+            <li><span>Giá gói 60 viên</span><span class="ok">✓ Đúng sản phẩm</span></li>
+            <li><span>Tên thương hiệu</span><span class="ok">✓ Đúng hồ sơ</span></li>
+            <li><span>Địa chỉ</span><span class="na">Ẩn theo mục đích</span></li>
+          </ul>
+          <div class="m-hr"></div>
+          <label class="m-field">Ảnh tham chiếu đã dùng<div class="m-thumbs"><div class="m-thumb"><div class="img logo">CV</div>Logo</div><div class="m-thumb"><div class="img box">HỘP</div>Hộp</div></div></label>
+        </aside>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>8 · Edit Caption with AI</h2><span><code>…/package/A1-1?edit=caption</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="AI editor proposing a caption change as a diff">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span class="on">Nội dung</span><span>Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Đang sửa · 1</div></div>
+    <div class="m-frame">
+      <div class="m-dossier">
+        <aside class="m-side">
+          <div class="grp">Gói theo nhánh</div>
+          <div class="m-branch">
+            <div class="m-bhead"><span class="m-code c-bi">A</span>Chắc từ bên trong</div>
+            <div class="m-bitem on"><span class="m-code c-an">A1</span>Nỗi sợ “nóng trong”<small>1 gói</small></div>
+            <div class="m-bitem"><span class="m-code c-an">A2</span>Thử thách 30 ngày<small>chưa có</small></div>
+          </div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Caption · Gói A1·1</h4><p>Đang dùng: v2.</p></div><span class="m-badge mb-run">Đề xuất v3</span></div>
+          <div class="m-caption">Vì sao nhiều người uống canxi bị “nóng trong”? 🤔
+Canxi thường khó tan, dễ gây táo bón. Canxi nano có kích thước siêu nhỏ nên hấp thu êm hơn — bổ sung đều mỗi ngày mà không cần đổi thói quen.
+🎁 Thử ngay hộp 60 viên — 350.000đ</div>
+          <div class="m-footer"><small>Khối liên hệ · hệ thống tự thêm, AI không sửa</small>📞 0900 000 000 · 🌐 canxiviet.example</div>
+        </div>
+        <aside class="m-panel-r">
+          <h5>Sửa bằng AI <span class="m-btn quiet">Đóng ✕</span></h5>
+          <div class="m-scope">Sửa <b>Caption v2</b> theo yêu cầu của bạn.</div>
+          <div class="m-quick"><span>Ngắn hơn</span><span>Thân thiện hơn</span><span>Thêm lời kêu gọi</span><span>Bớt emoji</span></div>
+          <div class="m-msgbox">Nhập yêu cầu…<span>↵</span></div>
+          <div class="m-diff">Vì sao nhiều người uống canxi bị “nóng trong”? 🤔
+Canxi thường khó tan, dễ gây táo bón. Canxi nano<span class="m-del"> có kích thước siêu nhỏ nên</span> hấp thu êm hơn<span class="m-del"> — bổ sung đều mỗi ngày mà không cần đổi thói quen</span>.
+🎁 Thử ngay hộp 60 viên — 350.000đ
+<span class="m-ins">👉 Nhắn ngay để được tư vấn liều dùng.</span></div>
+          <ul class="m-checklist"><li><span>Giá gói 60 viên</span><span class="ok">✓ Đúng sản phẩm</span></li></ul>
+          <div class="m-actions"><span class="m-btn pri">Áp dụng v3</span><span class="m-btn">Bỏ</span></div>
+          <div class="m-alt"><span>Muốn viết lại hoàn toàn?</span><span class="m-btn quiet">Tạo lại từ đầu</span></div>
+          <div class="m-hist"><div class="on"><span>v2 · Ngắn hơn</span><span>đang dùng</span></div><div><span>v1 · Bản tạo tự động</span><span>Khôi phục</span></div></div>
+        </aside>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>9 · Edit Poster with AI</h2><span><code>…/package/A1-1?edit=poster</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="AI editor comparing current and proposed poster">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span class="on">Nội dung</span><span>Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-dossier">
+        <aside class="m-side">
+          <div class="grp">Gói theo nhánh</div>
+          <div class="m-branch">
+            <div class="m-bhead"><span class="m-code c-bi">A</span>Chắc từ bên trong</div>
+            <div class="m-bitem on"><span class="m-code c-an">A1</span>Nỗi sợ “nóng trong”<small>1 gói</small></div>
+            <div class="m-bitem"><span class="m-code c-an">A2</span>Thử thách 30 ngày<small>chưa có</small></div>
+          </div>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>Poster · Gói A1·1 · 4:5</h4><p>So sánh trước khi áp dụng.</p></div><span class="m-badge mb-run">Đề xuất V3</span></div>
+          <div class="m-cmp">
+            <figure><div class="m-poster"><span class="chip">Canxi Việt</span><b>Chắc từ bên trong,<br>không lo nóng trong</b><span>V2</span></div>V2 · đang dùng</figure>
+            <figure><div class="m-poster alt"><span class="chip">Canxi Việt</span><b>Chắc từ bên trong,<br>không lo nóng trong</b><span>V3</span></div>V3 · “Nền sáng hơn, chữ to hơn”</figure>
+          </div>
+        </div>
+        <aside class="m-panel-r">
+          <h5>Sửa Poster bằng AI <span class="m-btn quiet">Đóng ✕</span></h5>
+          <div class="m-scope">Sửa <b>Poster V2</b>. Giữ tỷ lệ, logo và ảnh sản phẩm.</div>
+          <div class="m-quick"><span>Nền sáng hơn</span><span>Chữ to hơn</span><span>Sản phẩm to hơn</span><span>Bớt chi tiết</span></div>
+          <div class="m-msgbox">Nền sáng hơn, chữ tiêu đề to hơn<span>↵</span></div>
+          <div class="m-actions"><span class="m-btn pri">Dùng V3</span><span class="m-btn">Giữ V2</span></div>
+          <div class="m-alt"><span>Muốn một Poster mới hoàn toàn?</span><span class="m-btn quiet">Tạo lại từ đầu</span></div>
+          <div class="m-hist"><div><span>V3 · Nền sáng hơn</span><span>đề xuất</span></div><div class="on"><span>V2 · Thêm logo</span><span>đang dùng</span></div><div><span>V1 · Bản tạo tự động</span><span>Khôi phục</span></div></div>
+        </aside>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>10 · Prompt Library</h2><span><code>#/prompts/big-idea/p7</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="Prompt library with prompt layers, model and demo">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span>Nội dung</span><span>Thương hiệu</span><span class="on">Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-lib">
+        <aside class="m-lib-list">
+          <div class="m-tabs"><span class="on">Big Idea · 3</span><span>Góc · 2</span><span>Caption · 2</span><span>Poster · 4</span></div>
+          <div class="m-pick"><div class="row"><b>Big Idea chiến lược v3.1</b><span class="m-badge mb-none">Hệ thống</span></div><small>Mặc định · dùng 41 lần</small></div>
+          <div class="m-pick on"><div class="row"><b>Cảm xúc gia đình ngày Tết</b><span class="m-badge mb-pass">Của tôi</span></div><small>v1 · dùng 3 lần</small></div>
+          <div class="m-pick"><div class="row"><b>Chuyên gia giải thích</b><span class="m-badge mb-pass">Của tôi</span></div><small>v2 · dùng 7 lần</small></div>
+          <span class="m-btn full">+ Prompt mới</span>
+        </aside>
+        <div class="m-lib-detail">
+          <div class="m-head"><div><h4>Cảm xúc gia đình ngày Tết</h4><p>Big Idea từ góc nhìn người con; hợp chiến dịch quà tặng dịp lễ.</p></div><div class="m-actions"><span class="m-btn">Nhân bản</span><span class="m-btn">Sửa (tạo v2)</span><span class="m-more">⋯</span></div></div>
+          <div class="m-meta"><span class="m-badge mb-pass">Của tôi · v1</span><span class="m-badge mb-none">Mô hình: GPT-5.6 Luna</span><span class="m-badge mb-none">Tết, quà tặng</span></div>
+          <div class="m-layer user"><small>Phần sáng tạo · bạn viết</small>Viết như một người con đi làm xa nghĩ về bố mẹ ngày Tết. Tránh giọng quảng cáo; ưu tiên hình ảnh đời thường: bữa cơm, đi chúc Tết, về quê.</div>
+          <div class="m-layer sys"><small>Phần hệ thống · tự thêm</small>Dữ liệu khóa · quy tắc an toàn và sự thật · định dạng kết quả</div>
+          <div class="m-demo">
+            <div><small>Demo · đầu vào</small>Insight: “Con muốn tặng thứ khiến mình yên tâm về sức khỏe bố mẹ cả năm”</div>
+            <div><small>Demo · kết quả</small><b>“Mùa xuân của đôi chân”</b>Tết là lúc đi lại nhiều nhất; canxi giúp bố mẹ đi vững cả mùa xuân.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+<figure class="fig">
+  <div class="fig-head"><h2>11 · Brand profile</h2><span><code>#/brands/b2</code></span></div>
+  <div class="screen-scroll"><div class="mock" role="img" aria-label="Brand profile">
+    <div class="m-top"><div class="m-brand"><span class="m-mark">T</span>TDN Growth OS</div><nav><span>Thị trường</span><span>Sản phẩm</span><span>Nội dung</span><span class="on">Thương hiệu</span><span>Thư viện prompt</span></nav><div class="m-tray"><i></i>Không có tác vụ</div></div>
+    <div class="m-frame">
+      <div class="m-dossier two">
+        <aside class="m-side">
+          <div class="grp">NanoBone Pharma</div>
+          <div class="m-nav on">Hồ sơ thương hiệu</div>
+          <div class="m-nav">Sản phẩm &amp; dịch vụ <small>1</small></div>
+          <div class="grp">Thương hiệu khác</div>
+          <div class="m-nav">Canxi Việt</div>
+          <span class="m-btn full">+ Thêm thương hiệu</span>
+        </aside>
+        <div class="m-content">
+          <div class="m-head"><div><h4>NanoBone Pharma</h4><p>Hồ sơ v2. Sửa hồ sơ không đổi các gói đã tạo.</p></div><span class="m-btn pri">Lưu hồ sơ</span></div>
+          <div class="m-brandgrid">
+            <div class="m-box2"><h5>Logo</h5><div style="display:flex;gap:12px;align-items:center"><div class="m-logo">NB</div><div class="m-note">PNG, JPEG, WebP · tối đa 2 MB</div></div></div>
+            <div class="m-box2"><h5>Tagline</h5><span class="m-input">Xương khỏe mỗi ngày</span></div>
+            <div class="m-box2"><h5>Liên hệ</h5><label class="m-field">Hotline<span class="m-input">0900 111 222</span></label><label class="m-field">Website<span class="m-input">https://nanobone.example</span></label></div>
+            <div class="m-box2"><h5>Mạng xã hội &amp; địa chỉ</h5><label class="m-field">Fanpage<span class="m-input">https://facebook.com/nanobone.example</span></label><label class="m-field">Địa chỉ thương hiệu<span class="m-input">45 Phố Ví Dụ, Hà Nội</span></label></div>
+          </div>
+          <div class="m-box2">
+            <div class="row"><h5>Hiển thị thông tin theo mục đích</h5><span class="m-note">Mặc định cho mọi chiến dịch của thương hiệu này</span></div>
+            <div class="m-segtabs"><span class="on">Bán hàng</span><span>Niềm tin</span><span>Giáo dục</span><span>Giải trí</span><span>Tương tác</span><span>Hậu trường · như Giải trí</span></div>
+            <table class="m-rules">
+              <tbody>
+                <tr class="grp"><td colspan="2">Nhận diện</td></tr>
+                <tr><td>Tên thương hiệu</td><td><span class="m-s3"><span class="on y">Luôn</span><span>Tùy</span><span>Ẩn</span></span></td></tr>
+                <tr><td>Logo<small>Poster</small></td><td><span class="m-s3"><span class="on y">Luôn</span><span>Tùy</span><span>Ẩn</span></span></td></tr>
+                <tr><td>Tagline</td><td><span class="m-s3"><span>Luôn</span><span class="on">Tùy</span><span>Ẩn</span></span></td></tr>
+                <tr class="grp"><td colspan="2">Liên hệ · hệ thống tự thêm vào cuối Caption</td></tr>
+                <tr><td>Hotline</td><td><span class="m-s3"><span class="on y">Luôn</span><span>Tùy</span><span>Ẩn</span></span></td></tr>
+                <tr><td>Website / Fanpage</td><td><span class="m-s3"><span class="on y">Luôn</span><span>Tùy</span><span>Ẩn</span></span></td></tr>
+                <tr><td>Địa chỉ</td><td><span class="m-s3"><span>Luôn</span><span class="on">Tùy</span><span>Ẩn</span></span></td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div></div>
+</figure>
+
+</div>
+
+</body>
+</html>
