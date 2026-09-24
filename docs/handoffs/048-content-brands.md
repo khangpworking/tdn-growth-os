@@ -9,6 +9,7 @@ Completed:
 Changed paths: see Task 048 brief “Owned paths”; plus schema-version assertions 20 → 21 in three existing tests.
 Evidence (commands, results, relevant revision): Task 048 brief §5. Local backend 298/314 with only known Windows-only failures; frontend 64/64; typechecks and build pass. Linux CI on the PR is authoritative.
 Unresolved:
+- Operator startup now also opens the content read API, which requires migration 0021; run the runbook's explicit migration step before starting a build that contains this change (same behaviour as the existing owner tables).
 - `owner-http.ts` duplicates the OWNER HTTP primitives that are private inside `owner-api.ts`; a later cleanup could make `owner-api.ts` import them (kept separate to avoid touching the 80 KB file in this slice).
 - Local `scripts/typecheck.mjs` cannot spawn `tsc` on Windows (POSIX shim + command-line length); unrelated to this task.
 Next action: Independent review of the PR; then Task 048b (catalog items, tiers, media store for logo/product photos).
