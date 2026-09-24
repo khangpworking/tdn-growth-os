@@ -106,3 +106,14 @@ export {
   validateStpLockRequest,
   validateStpWorkingSaveRequest,
 } from './validation.js';
+
+export {
+  ContentBrandIdentityConflictError,
+  ContentBrandService,
+  type ContentBrandExecution,
+} from './content-brand-service.js';
+export {
+  validateContentBrandArtifact,
+  validateContentBrandCreateRequest,
+  validateContentBrandRevisionRequest,
+} from './validation.js';

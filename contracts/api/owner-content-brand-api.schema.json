@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-content-brand-api.schema.json",
+  "title": "OwnerContentBrandApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/createRequest" },
+    { "$ref": "#/$defs/revisionRequest" },
+    { "$ref": "#/$defs/receipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "brandKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "profile": { "title": "OwnerContentBrandProfile", "type": "object" },
+    "displayRules": { "title": "OwnerContentBrandDisplayRules", "type": "object" },
+    "createRequest": {
+      "title": "OwnerContentBrandCreateRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "brandKey", "profile", "displayRules"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "brandKey": { "$ref": "#/$defs/brandKey" },
+        "profile": { "$ref": "#/$defs/profile" },
+        "displayRules": { "$ref": "#/$defs/displayRules" }
+      }
+    },
+    "revisionRequest": {
+      "title": "OwnerContentBrandRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "expectedVersion", "profile", "displayRules"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+        "profile": { "$ref": "#/$defs/profile" },
+        "displayRules": { "$ref": "#/$defs/displayRules" }
+      }
+    },
+    "receipt": {
+      "title": "OwnerContentBrandReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "brandId", "brandKey", "version", "brandName", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "brandId": { "$ref": "#/$defs/uuid" },
+        "brandKey": { "$ref": "#/$defs/brandKey" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "brandName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerContentApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "conflict", "integrity_error"] },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

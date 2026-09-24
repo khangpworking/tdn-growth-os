@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
+import fs from 'node:fs/promises';
 import type Database from 'better-sqlite3';
 import type { ContentBrandArtifact, ContentBrandDisplayRules, ContentBrandProfile } from '../../../contracts/flow/content-brand-artifact.generated.js';
 import { canonicalJson } from '../foundation/index.js';
@@ -137,6 +138,34 @@ export class ContentBrandService {
       artifact.createdAt !== row.createdAt
     ) throw new ContentBrandIdentityConflictError('Brand artifact does not match immutable metadata');
     return artifact;
+  }
+
+  /**
+   * Re-stages the exact artifact of an already committed create or revision when the
+   * row exists with the same request digest but its artifact file was never published.
+   * Returns true when bytes were staged; the caller publishes them.
+   */
+  async restoreExactArtifact(untrustedInput: unknown): Promise<boolean> {
+    const isRevision = typeof untrustedInput === 'object' && untrustedInput !== null && 'brandId' in untrustedInput;
+    const input = snapshot(isRevision ? validateContentBrandRevisionRequest(untrustedInput) : validateContentBrandCreateRequest(untrustedInput));
+    const requestSha256 = digest(input);
+    const row = 'brandId' in input
+      ? this.#brandVersion(input.brandId, input.expectedVersion + 1)
+      : (() => { const existing = this.#brandByKey(input.brandKey); return existing ? this.#brandVersion(existing.brandId, 1) : undefined; })();
+    if (!row || row.requestSha256 !== requestSha256) return false;
+    if (await this.#artifactPresent(row.artifactSha256)) return false;
+    const artifact = brandArtifact(row.brandId, row.brandKey, Number(row.version), input.profile, input.displayRules, row.createdAt, row.requestSha256);
+    const restored = bytes(validateContentBrandArtifact(artifact));
+    if (createHash('sha256').update(restored).digest('hex') !== row.artifactSha256) {
+      throw new ContentBrandIdentityConflictError('Committed brand artifact cannot be reconstructed');
+    }
+    await this.#artifacts.put(restored);
+    return true;
+  }
+
+  async #artifactPresent(sha256: string): Promise<boolean> {
+    try { await fs.access(this.#artifacts.pathForDigest(sha256)); return true; }
+    catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
   }
 
   #retry(requestSha256: string, row: BrandRow): ContentBrandExecution {

@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
+import { openContentOwnerApi, openContentReadApi, type ContentApiApplication } from './content-api.js';
 import { openOwnerApi, type OwnerApiApplication } from './owner-api.js';
 import { openWorkspaceApi, type WorkspaceApiApplication } from './workspace-api.js';
 
@@ -59,27 +60,40 @@ export function openOperatorApp(configuration: OperatorAppConfiguration): Operat
   const authority = origin.slice('http://'.length);
   let read: WorkspaceApiApplication | undefined;
   let owner: OwnerApiApplication | undefined;
+  let contentRead: ContentApiApplication | undefined;
+  let contentOwner: ContentApiApplication | undefined;
   try {
     read = openWorkspaceApi({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot });
+    contentRead = openContentReadApi({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot });
     if (configuration.ownerWritesEnabled) owner = openOwnerApi({
       databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
       token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin,
     });
+    if (configuration.ownerWritesEnabled) contentOwner = openContentOwnerApi({
+      databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
+      token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin,
+    });
   } catch (error) {
+    try { contentOwner?.close(); } catch { /* preserve startup failure */ }
+    try { contentRead?.close(); } catch { /* preserve startup failure */ }
     try { owner?.close(); } catch { /* preserve startup failure */ }
     try { read?.close(); } catch { /* preserve startup failure */ }
     throw error;
   }
   const readApplication = read;
   const ownerApplication = owner;
+  const contentReadApplication = contentRead!;
+  const contentOwnerApplication = contentOwner;
   const server = http.createServer((request, response) => {
     if (!validAuthority(request, authority)) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Invalid Host authority' } });
     const pathname = rawPathname(request.url, authority);
     if (pathname === null) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Malformed request URL' } });
     if (pathname === '/healthz') return health(request, response, configuration.version, configuration.ownerWritesEnabled);
+    if (pathname === '/api/content' || pathname.startsWith('/api/content/')) return contentReadApplication.handler(request, response);
     if (pathname === '/api' || pathname.startsWith('/api/')) return readApplication.handler(request, response);
     if (pathname === '/owner-api' || pathname.startsWith('/owner-api/')) {
       if (!ownerApplication) return sendJson(response, 403, { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
+      if (pathname === '/owner-api/content' || pathname.startsWith('/owner-api/content/')) return contentOwnerApplication!.handler(request, response);
       return ownerApplication.handler(request, response);
     }
     return serveStatic(request, response, pathname, frontend);
@@ -96,6 +110,8 @@ export function openOperatorApp(configuration: OperatorAppConfiguration): Operat
           server.close((error) => { if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') errors.push(error); resolve(); });
           server.closeIdleConnections();
         });
+        try { contentOwnerApplication?.close(); } catch (error) { errors.push(error); }
+        try { contentReadApplication.close(); } catch (error) { errors.push(error); }
         try { ownerApplication?.close(); } catch (error) { errors.push(error); }
         try { readApplication.close(); } catch (error) { errors.push(error); }
         if (errors.length === 1) throw errors[0];
