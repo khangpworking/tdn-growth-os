@@ -43,6 +43,6 @@ Escalate when: a change is needed outside the owned paths, or an existing test m
 ## 5. Verification (local Windows, Node 24.15.0 / npm 11.12.1)
 
 - Contracts regenerate without diff; strict backend typecheck, frontend typecheck and production build pass.
-- New tests: 5 service, 4 HTTP (including exact-retry restoration of an unpublished artifact, mutation-checked), 2 operator-routing, 7 frontend — all pass.
+- New tests: 6 service (incl. v20→v21 upgrade and 0001–0020 byte identity), 4 HTTP (including exact-retry restoration of an unpublished artifact, mutation-checked), 2 operator-routing, 7 frontend — all pass.
 - Frontend suite 64/64. Backend suite 298/314: the 16 failures are the 14 pre-existing Windows-only failures (POSIX permissions, signals, symlinks in Tasks 015/016/023/045) plus the 2 new operator-routing tests, which fail only at the same `frontend/dist` permission check and pass with a scratch permission shim. Linux CI is the authoritative run.
 - Demo UI exercised in a browser at 1440 px and 390 px: create, revise (version history), unchanged-state blocker, no horizontal overflow.
