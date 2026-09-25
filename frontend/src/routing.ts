@@ -1,4 +1,5 @@
 import type { DemoState, ProductSection } from './model';
+import { slugOf, typeBySlug, type PromptType } from './prompt-data-source';
 
 export type Route =
   | { readonly kind: 'portfolio' }
@@ -7,6 +8,7 @@ export type Route =
   | { readonly kind: 'brands' }
   | { readonly kind: 'brand'; readonly brandId: string }
   | { readonly kind: 'catalog'; readonly brandId: string; readonly itemId: string | null }
+  | { readonly kind: 'prompts'; readonly promptType: PromptType; readonly promptRef: string | null }
   | { readonly kind: 'invalid'; readonly hash: string };
 
 const sections = new Set<ProductSection>(['b8', 'sources', 'history', 'b9', 'b10']);
@@ -23,6 +25,11 @@ export function parseRoute(hash: string, state: DemoState): Route {
   }
   if (parts.length === 1 && parts[0] === 'brands') return { kind: 'brands' };
   if (parts.length === 2 && parts[0] === 'brands') return UUID.test(parts[1]!) ? { kind: 'brand', brandId: parts[1]! } : { kind: 'invalid', hash };
+  if (parts[0] === 'prompts' && parts.length <= 3) {
+    const promptType = parts.length === 1 ? 'BIG_IDEA' : typeBySlug(parts[1]!);
+    const promptRef = parts[2] ?? null;
+    return promptType && (promptRef === null || UUID.test(promptRef) || /^system-[a-z0-9-]{3,60}$/.test(promptRef)) ? { kind: 'prompts', promptType, promptRef } : { kind: 'invalid', hash };
+  }
   if ((parts.length === 3 || parts.length === 4) && parts[0] === 'brands' && parts[2] === 'products') {
     const itemId = parts[3] ?? null;
     return UUID.test(parts[1]!) && (itemId === null || UUID.test(itemId)) ? { kind: 'catalog', brandId: parts[1]!, itemId } : { kind: 'invalid', hash };
@@ -48,6 +55,8 @@ export const routeToHash = {
   brands: (): string => '#/brands',
   brand: (brandId: string): string => `#/brands/${encodeURIComponent(brandId)}`,
   catalog: (brandId: string): string => `#/brands/${encodeURIComponent(brandId)}/products`,
+  prompts: (promptType: PromptType): string => `#/prompts/${slugOf(promptType)}`,
+  prompt: (promptType: PromptType, promptRef: string): string => `#/prompts/${slugOf(promptType)}/${encodeURIComponent(promptRef)}`,
   catalogItem: (brandId: string, itemId: string): string => `#/brands/${encodeURIComponent(brandId)}/products/${encodeURIComponent(itemId)}`,
   market: (marketId: string): string => `#/markets/${encodeURIComponent(marketId)}`,
   product: (marketId: string, productId: string, section: ProductSection = 'b8'): string => `#/markets/${encodeURIComponent(marketId)}/products/${encodeURIComponent(productId)}/${section}`,

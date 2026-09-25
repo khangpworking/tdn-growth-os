@@ -1,0 +1,135 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import test from 'node:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { tsImport } from 'tsx/esm/api';
+import { OwnerWriteError } from '../src/data-source';
+import { createSeedState } from '../src/model';
+import {
+  PROMPT_TYPES,
+  changeDemoLifecycle,
+  createDemoPrompt,
+  draftFromPrompt,
+  emptyPromptDraft,
+  loadPrompt,
+  loadPrompts,
+  loadSystemPrompt,
+  modelsForType,
+  promptDraftBlocker,
+  promptEditorReducer,
+  promptRequestFromDraft,
+  reviseDemoPrompt,
+  submitPromptCreate,
+  submitPromptLifecycle,
+  submitPromptRevision,
+} from '../src/prompt-data-source';
+import { parseRoute, routeToHash } from '../src/routing';
+import { ContentDataSourceError } from '../src/content-data-source';
+
+const promptId = '66666666-6666-4666-8666-0000000000c1';
+const time = '2027-01-01T00:00:00.000Z';
+const json = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
+const content = { name: 'Tết gia đình', description: 'Góc nhìn người con.', creativeText: 'Viết như người con xa nhà.', recommendedModel: 'gpt-5.6-luna', tags: ['Tết', 'quà tặng'] };
+const layer = { promptType: 'BIG_IDEA', version: 1, sha256: 'b'.repeat(64), text: '# DỮ LIỆU KHÓA' };
+
+test('prompt routes use the type slug and a user or system prompt reference', () => {
+  const state = createSeedState();
+  assert.deepEqual(parseRoute(routeToHash.prompts('BIG_IDEA'), state), { kind: 'prompts', promptType: 'BIG_IDEA', promptRef: null });
+  assert.deepEqual(parseRoute(routeToHash.prompt('POSTER', promptId), state), { kind: 'prompts', promptType: 'POSTER', promptRef: promptId });
+  assert.deepEqual(parseRoute(routeToHash.prompt('CAPTION', 'system-caption-facebook'), state), { kind: 'prompts', promptType: 'CAPTION', promptRef: 'system-caption-facebook' });
+  assert.deepEqual(parseRoute('#/prompts', state), { kind: 'prompts', promptType: 'BIG_IDEA', promptRef: null });
+  assert.equal(parseRoute('#/prompts/video', state).kind, 'invalid');
+  assert.equal(parseRoute('#/prompts/angle/../x', state).kind, 'invalid');
+  assert.deepEqual(PROMPT_TYPES.map((type) => type.label), ['Big Idea', 'Góc', 'Caption', 'Poster']);
+});
+
+test('drafts become trimmed requests; models and limits depend on the type', () => {
+  assert.deepEqual(modelsForType('POSTER').map((model) => model.key), ['gpt-image-2', 'gemini-3.1-flash-image']);
+  assert.equal(emptyPromptDraft('POSTER').recommendedModel, 'gpt-image-2');
+  const draft = { ...emptyPromptDraft('BIG_IDEA'), name: ' Tết ', creativeText: '  Viết như người con. ', tagsText: 'Tết,  quà tặng , Tết,', description: ' ', demoOutput: ' Kết quả ' };
+  assert.deepEqual(promptRequestFromDraft(draft), { name: 'Tết', creativeText: 'Viết như người con.', recommendedModel: 'gpt-5.6-sol', tags: ['Tết', 'quà tặng'], demoOutput: 'Kết quả' });
+  assert.equal(promptDraftBlocker(emptyPromptDraft('ANGLE')), 'Nhập tên prompt.');
+  assert.equal(promptDraftBlocker({ ...draft, creativeText: ' ' }), 'Nhập phần sáng tạo.');
+  assert.equal(promptDraftBlocker({ ...draft, tagsText: Array.from({ length: 9 }, (_, index) => `t${index}`).join(',') }), 'Tối đa 8 thẻ.');
+  assert.equal(promptDraftBlocker({ ...draft, creativeText: 'x'.repeat(12001) }), 'Phần sáng tạo tối đa 12000 ký tự.');
+  assert.equal(promptDraftBlocker(draft), null);
+  assert.deepEqual(draftFromPrompt(content as never, 'BIG_IDEA').tagsText, 'Tết, quà tặng');
+});
+
+test('library reads are validated before use', async () => {
+  const system = { id: 'system-big-idea-strategic', promptType: 'BIG_IDEA', version: 1, name: 'Big Idea chiến lược v3.1', description: 'x', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true };
+  const summary = { promptId, promptKey: 'tet', promptType: 'BIG_IDEA', version: 2, name: 'Tết', recommendedModel: 'gpt-5.6-luna', tags: ['Tết'], updatedAt: time, deleted: { deletedAt: time, restorableUntil: time } };
+  assert.equal((await loadPrompts(async () => json(200, { contractVersion: '1.0.0', systemPrompts: [system], prompts: [summary] }))).prompts[0]!.deleted?.restorableUntil, time);
+  await assert.rejects(loadPrompts(async () => json(200, { contractVersion: '1.0.0', systemPrompts: [{ ...system, promptType: 'VIDEO' }], prompts: [] })), ContentDataSourceError);
+  const detail = { contractVersion: '1.0.0', prompt: { promptId, promptKey: 'tet', promptType: 'BIG_IDEA', version: 1, prompt: content, duplicatedFrom: { kind: 'SYSTEM', id: 'system-big-idea-strategic', version: 1 }, createdAt: time }, history: [{ version: 1, name: 'Tết', createdAt: time }], lifecycle: { sequence: 0 }, systemLayer: layer };
+  assert.equal((await loadPrompt(promptId, async () => json(200, detail)))!.prompt.duplicatedFrom?.id, 'system-big-idea-strategic');
+  await assert.rejects(loadPrompt(promptId, async () => json(200, { ...detail, systemLayer: { ...layer, promptType: 'POSTER' } })), ContentDataSourceError);
+  await assert.rejects(loadPrompt(promptId, async () => json(200, { ...detail, prompt: { ...detail.prompt, promptId: 'x' } })), ContentDataSourceError);
+  const systemDetail = { contractVersion: '1.0.0', systemPrompt: { id: system.id, promptType: 'BIG_IDEA', version: 1, sha256: 'a'.repeat(64), prompt: { ...content, recommendedModel: 'gpt-5.6-sol' }, isDefault: true }, systemLayer: layer };
+  assert.equal((await loadSystemPrompt(system.id, async () => json(200, systemDetail)))!.systemPrompt.sha256, 'a'.repeat(64));
+  assert.equal(await loadSystemPrompt('system-khong-co', async () => json(404, { error: { code: 'not_found', message: 'x' } })), null);
+});
+
+test('OWNER submissions post exact bodies and map failures', async () => {
+  const calls: { url: string; body: unknown }[] = [];
+  const receipt = { contractVersion: '1.0.0', promptId, promptKey: 'prompt-abc', promptType: 'BIG_IDEA', version: 1, name: 'Tết', createdAt: time, exactRetry: false };
+  const fetcher = (answer: unknown, status = 201) => async (url: string | URL | Request, init?: RequestInit) => { calls.push({ url: String(url), body: JSON.parse(String(init!.body)) }); return json(status, answer); };
+  const lineage = { kind: 'SYSTEM', id: 'system-big-idea-strategic', version: 1 } as const;
+  await submitPromptCreate({ promptKey: 'prompt-abc', promptType: 'BIG_IDEA', prompt: content as never, duplicatedFrom: lineage, token: 't' }, fetcher(receipt));
+  assert.deepEqual(calls[0], { url: '/owner-api/content/prompts', body: { contractVersion: '1.0.0', promptKey: 'prompt-abc', promptType: 'BIG_IDEA', prompt: content, duplicatedFrom: lineage } });
+  await submitPromptRevision({ promptId, expectedVersion: 1, prompt: content as never, token: 't' }, fetcher({ ...receipt, version: 2 }));
+  assert.deepEqual(calls[1], { url: `/owner-api/content/prompts/${promptId}/revisions`, body: { contractVersion: '1.0.0', expectedVersion: 1, prompt: content } });
+  const lifecycleReceipt = { contractVersion: '1.0.0', promptId, sequence: 1, action: 'DELETE', createdAt: time, restorableUntil: time, exactRetry: false };
+  assert.equal((await submitPromptLifecycle({ promptId, action: 'DELETE', expectedSequence: 0, token: 't' }, fetcher(lifecycleReceipt))).restorableUntil, time);
+  assert.deepEqual(calls[2], { url: `/owner-api/content/prompts/${promptId}/lifecycle`, body: { contractVersion: '1.0.0', action: 'DELETE', expectedSequence: 0 } });
+  await assert.rejects(submitPromptLifecycle({ promptId, action: 'RESTORE', expectedSequence: 1, token: 't' }, fetcher({ error: { code: 'conflict', message: 'x' } }, 409)), (error: unknown) => error instanceof OwnerWriteError && error.kind === 'conflict');
+  await assert.rejects(submitPromptCreate({ promptKey: 'prompt-abc', promptType: 'BIG_IDEA', prompt: content as never, token: 't' }, fetcher({ ...receipt, promptType: 'POSTER' })), (error: unknown) => error instanceof OwnerWriteError && error.kind === 'integrity');
+});
+
+test('demo prompts are versioned, deleted and restored in memory only', () => {
+  const draft = { ...emptyPromptDraft('ANGLE'), name: 'Demo', creativeText: 'Viết cụ thể.' };
+  const created = createDemoPrompt([], 'ANGLE', draft, promptId, time);
+  assert.deepEqual([created[0]!.version, created[0]!.promptType], [1, 'ANGLE']);
+  const revised = reviseDemoPrompt(created, promptId, 1, { ...draft, name: 'Demo 2' }, time);
+  assert.equal(revised[0]!.history.length, 2);
+  const deleted = changeDemoLifecycle(revised, promptId, 'DELETE', time);
+  assert.equal(deleted[0]!.deleted?.restorableUntil, '2027-01-31T00:00:00.000Z');
+  assert.equal(changeDemoLifecycle(deleted, promptId, 'RESTORE', time)[0]!.deleted, undefined);
+  assert.throws(() => reviseDemoPrompt(deleted, promptId, 2, draft, time), /deleted/);
+});
+
+test('the prompt view shows layers read-only for system prompts and offers edit, delete and restore for user prompts', async () => {
+  const { PromptDetail, PromptForm } = await tsImport('../src/PromptsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/PromptsPage');
+  const common = { mode: 'real' as const, ownerToken: 'token', writesAvailable: true, onDuplicate: () => undefined, onEdit: () => undefined, onLifecycle: () => undefined };
+  const system = renderToStaticMarkup(createElement(PromptDetail, { ...common, view: { source: 'SYSTEM', id: 'system-big-idea-strategic', promptType: 'BIG_IDEA', version: 1, prompt: { ...content, recommendedModel: 'gpt-5.6-sol' }, isDefault: true, systemLayer: layer, history: [], lifecycle: { sequence: 0 } } }));
+  assert.match(system, /Hệ thống/);
+  assert.match(system, /Mặc định/);
+  assert.match(system, /Phần sáng tạo · bạn viết/);
+  assert.match(system, /Phần hệ thống · tự thêm/);
+  assert.match(system, /Nhân bản/);
+  assert.doesNotMatch(system, /Sửa \(tạo v2\)|Xóa/);
+  const user = { source: 'USER' as const, id: promptId, promptType: 'BIG_IDEA' as const, version: 2, prompt: content as never, isDefault: false, systemLayer: layer, history: [{ version: 1, name: 'Tết', createdAt: time }, { version: 2, name: 'Tết', createdAt: time }], lifecycle: { sequence: 0 } };
+  const active = renderToStaticMarkup(createElement(PromptDetail, { ...common, view: user }));
+  assert.match(active, /Của tôi · v2/);
+  assert.match(active, /Sửa \(tạo v3\)/);
+  assert.match(active, /Xóa prompt/);
+  const deleted = renderToStaticMarkup(createElement(PromptDetail, { ...common, view: { ...user, lifecycle: { sequence: 1, deleted: { deletedAt: time, restorableUntil: '2027-01-31T00:00:00.000Z' } } } }));
+  assert.match(deleted, /Đã xóa/);
+  assert.match(deleted, /Khôi phục/);
+  assert.doesNotMatch(deleted, /Sửa \(tạo v3\)/);
+  let editor = promptEditorReducer(null, { type: 'loaded', base: { promptId, promptType: 'BIG_IDEA', version: 1, draft: draftFromPrompt(content as never, 'BIG_IDEA'), history: [] } });
+  editor = promptEditorReducer(editor, { type: 'edit', draft: { ...editor.draft, name: 'LOCAL' } });
+  editor = promptEditorReducer(promptEditorReducer(editor, { type: 'submitted' }), { type: 'failed', conflict: true, message: '' });
+  editor = promptEditorReducer(editor, { type: 'loaded', base: { promptId, promptType: 'BIG_IDEA', version: 2, draft: draftFromPrompt({ ...content, name: 'SERVER' } as never, 'BIG_IDEA'), history: [] } });
+  const form = renderToStaticMarkup(createElement(PromptForm, { mode: 'real', ownerToken: 'token', writesAvailable: true, promptType: 'BIG_IDEA', editor, lineage: null, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined, onCancel: () => undefined, notify: () => undefined, demoPrompts: [], setDemoPrompts: () => undefined }));
+  assert.match(form, /value="LOCAL"/);
+  assert.match(form, /Bỏ thay đổi, dùng phiên bản 2/);
+  const saving = renderToStaticMarkup(createElement(PromptForm, { mode: 'real', ownerToken: 'token', writesAvailable: true, promptType: 'BIG_IDEA', editor: promptEditorReducer(editor, { type: 'submitted' }), lineage: null, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined, onCancel: () => undefined, notify: () => undefined, demoPrompts: [], setDemoPrompts: () => undefined }));
+  assert.match(saving, /<fieldset[^>]*disabled=""/);
+});
+
+test('prompt frontend sources contain no hard-coded development or remote origins', () => {
+  const sources = ['frontend/src/prompt-data-source.ts', 'frontend/src/PromptsPage.tsx'].map((file) => fs.readFileSync(file, 'utf8')).join('\n');
+  assert.doesNotMatch(sources, /https?:\/\/[^'"`\s]+|(?:localhost|127\.0\.0\.1):\d+/);
+});
