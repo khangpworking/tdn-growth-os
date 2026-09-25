@@ -1,5 +1,10 @@
 # Trạng thái hiện tại
 
+## Task 047 — Content Studio design (B11–B13)
+
+- Chỉ tài liệu thiết kế đã được chủ dự án duyệt: brief `docs/tasks/047-content-studio-design.md`, ADR 0003, INTENT D33 và blueprint tĩnh `docs/frontend/content-studio-blueprint.html` (dữ liệu minh họa).
+- Chưa có code, migration, API, provider call hay giao diện Content Studio nào trong repository; Tasks 048–053 trong brief là kế hoạch triển khai.
+
 ## Task 045 — integrated Fedora-local operator runtime
 
 - Tài liệu vận hành một process/origin đã có cho production frontend, verified read API, optional OWNER API và `/healthz`; mặc định canonical là `http://127.0.0.1:8787`, chỉ loopback và không dành cho LAN/internet.

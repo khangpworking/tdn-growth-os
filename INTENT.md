@@ -89,6 +89,10 @@ Mỗi route B8, B9 và B10 chỉ hiển thị bảng hành động của chính 
 
 B9 phân biệt rõ “Chưa có bản nháp”, “Bản nháp đã lưu · Chưa khóa”, “Có thay đổi chưa lưu” và “STP chính thức đã khóa”; lưu không phải khóa. B10 chỉ cho quyết định khi có locked STP đã xác minh và APPROVE phải nói rõ chỉ đủ điều kiện B11, trong khi B11 chưa triển khai. B7 HOLD có thể mở form tạo phiên bản kế tiếp của đúng basket family với lựa chọn editable; việc mở form không ghi dữ liệu và quyết định HOLD cũ vẫn bất biến. Đây là làm rõ UX của policy hiện có, không thêm gate hoặc quyền mới.
 
+### D33 — Content Studio là phần Nội dung (B11–B13); D26 chỉ áp dụng khi chiến dịch liên kết sản phẩm nghiên cứu
+
+Chủ dự án duyệt ngày 25/09/2026: Content Studio được viết lại trong Growth OS thành mục “Nội dung” (B11 Insight, B12 Big Idea và Góc khai thác, B13 Caption và Poster; không có bước Draft, không có video), cùng “Thương hiệu” (nhiều thương hiệu, danh mục sản phẩm/dịch vụ có gói) và “Thư viện prompt”. Chiến dịch có thể tự nhập Insight mà không cần nghiên cứu; liên kết sản phẩm nghiên cứu là tùy chọn. Quy tắc D26 (đóng băng đúng B10 `APPROVE` đang hiệu lực khi B11 bắt đầu) chỉ áp dụng cho chiến dịch có liên kết đó. AI chỉ đề xuất; mọi áp dụng, lựa chọn và xóa do người dùng quyết định. Chi tiết: ADR 0003 và Task 047.
+
 ### D01 — Khám phá chung B0–B7; tách workspace tại B7
 
 Workspace ban đầu bắt đầu bằng một cơ hội rộng, ví dụ “thị trường canxi”. Sản phẩm cụ thể hình thành trong B0–B7; giai đoạn này có thể chứa nhiều lựa chọn như canxi người lớn và canxi trẻ em.
