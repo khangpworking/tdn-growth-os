@@ -14,7 +14,7 @@ Non-goals:
 - Model discovery or overrides (049).
 - Generation itself, AI editing, campaign defaults (048d), deployment.
 Dependencies: Task 047 §1–§4, ADR 0003 decisions 5–6, Task 048b (patterns and the shared editor).
-Owned paths: `migrations/0023_flow_content_prompts.sql`; `prompts/content/**`; `contracts/flow/content-prompt-*.schema.json`, `contracts/api/content-api.schema.json`, `contracts/api/owner-content-prompt-api.schema.json` (+ generated); `scripts/generate-foundation-contract.mjs` (list only); `src/modules/flow/content-prompt-{library,service}.ts`, `validation.ts`, `index.ts`; `src/api/content-api.ts`, `src/api/operator-app.ts` (only if routing changes); `frontend/src/{routing.ts,App.tsx,PromptsPage.tsx,prompt-data-source.ts,styles.css}`; tests `tests/integration/content-prompt*.test.ts`, `tests/unit/content-prompt-library.test.ts`, `frontend/tests/content-prompts.test.ts`; schema-version assertions 22 → 23; `docs/STATUS.md`, `docs/content-studio-release.md`, this brief, `docs/handoffs/048c-content-prompt-library.md`.
+Owned paths: `migrations/0023_flow_content_prompts.sql`; `prompts/content/**` (+ one `.gitattributes` line keeping them LF); `contracts/flow/content-prompt-*.schema.json`, `contracts/api/content-api.schema.json`, `contracts/api/owner-content-prompt-api.schema.json` (+ generated); `scripts/generate-foundation-contract.mjs` (list only); `src/modules/flow/content-prompt-{library,service}.ts`, `validation.ts`, `index.ts`; `src/api/content-api.ts`, `src/api/operator-app.ts` (only if routing changes); `frontend/src/{routing.ts,App.tsx,PromptsPage.tsx,prompt-data-source.ts,styles.css}`; tests `tests/integration/content-prompt*.test.ts`, `tests/unit/content-prompt-library.test.ts`, `frontend/tests/content-prompts.test.ts`; schema-version assertions 22 → 23; `docs/STATUS.md`, `docs/content-studio-release.md`, this brief, `docs/handoffs/048c-content-prompt-library.md`.
 Minimum verification: `npm run check` green on Linux CI. Locally: all new tests pass, and no failures beyond the known Windows-only set.
 Escalate when: a change is needed outside the owned paths, or an existing assertion must be weakened.
 
@@ -55,7 +55,7 @@ Migration 0023 adds three tables, all immutable (triggers reject UPDATE and DELE
 
 A prompt artifact records the prompt's identity (`promptId`, `promptKey`, `promptType`, `version`), provenance (`createdAt`, `requestSha256`) and content:
 
-- **Required:** `name` (up to 120 characters), `creativeText` (up to 8000), `recommendedModel` (matching the type).
+- **Required:** `name` (up to 120 characters), `creativeText` (up to 12000), `recommendedModel` (matching the type).
 - **Optional:** `description` (up to 300), `tags` (up to 8 unique, each up to 40), `demoInput` (up to 2000), `demoOutput` (up to 4000).
 - **Lineage** (version 1 only): optional `duplicatedFrom` pointing to the exact system or user prompt version it was copied from, verified when created.
 
@@ -71,7 +71,7 @@ Service rules follow brands and catalog: exact retry, 409 on drift or a stale ve
   - `POST /owner-api/content/prompts`: create.
   - `POST /owner-api/content/prompts/:promptId/revisions`.
   - `POST /owner-api/content/prompts/:promptId/lifecycle`, with `{contractVersion, action, expectedSequence}`.
-  - These use the same token, origin, preflight and exact-key rules as the other content writes. The body limit is 64 KiB.
+  - These use the same token, origin, preflight and exact-key rules as the other content writes. The body limit is 96 KiB.
   - Every write verifies the existing history first, and writes nothing if verification fails.
 
 ## 5. UI

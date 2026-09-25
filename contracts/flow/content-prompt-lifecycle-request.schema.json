@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-prompt-lifecycle-request.schema.json",
+  "title": "ContentPromptLifecycleRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "promptId", "action", "expectedSequence"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "promptId": { "type": "string", "format": "uuid" },
+    "action": { "title": "ContentPromptLifecycleAction", "enum": ["DELETE", "RESTORE"] },
+    "expectedSequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 }
+  }
+}

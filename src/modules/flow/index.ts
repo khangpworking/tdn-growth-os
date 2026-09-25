@@ -119,4 +119,8 @@ export {
   validateContentCatalogItemArtifact,
   validateContentCatalogItemCreateRequest,
   validateContentCatalogItemRevisionRequest,
+  validateContentPromptArtifact,
+  validateContentPromptCreateRequest,
+  validateContentPromptLifecycleRequest,
+  validateContentPromptRevisionRequest,
 } from './validation.js';

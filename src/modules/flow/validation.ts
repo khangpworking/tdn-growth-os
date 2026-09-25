@@ -54,6 +54,14 @@ import contentCatalogItemRevisionSchema from '../../../contracts/flow/content-ca
 import type { ContentCatalogItemRevisionRequest } from '../../../contracts/flow/content-catalog-item-revision-request.generated.js';
 import contentCatalogItemArtifactSchema from '../../../contracts/flow/content-catalog-item-artifact.schema.json' with { type: 'json' };
 import type { ContentCatalogItemArtifact } from '../../../contracts/flow/content-catalog-item-artifact.generated.js';
+import contentPromptCreateSchema from '../../../contracts/flow/content-prompt-create-request.schema.json' with { type: 'json' };
+import type { ContentPromptContent, ContentPromptCreateRequest, ContentPromptModel, ContentPromptType } from '../../../contracts/flow/content-prompt-create-request.generated.js';
+import contentPromptRevisionSchema from '../../../contracts/flow/content-prompt-revision-request.schema.json' with { type: 'json' };
+import type { ContentPromptRevisionRequest } from '../../../contracts/flow/content-prompt-revision-request.generated.js';
+import contentPromptLifecycleSchema from '../../../contracts/flow/content-prompt-lifecycle-request.schema.json' with { type: 'json' };
+import type { ContentPromptLifecycleRequest } from '../../../contracts/flow/content-prompt-lifecycle-request.generated.js';
+import contentPromptArtifactSchema from '../../../contracts/flow/content-prompt-artifact.schema.json' with { type: 'json' };
+import type { ContentPromptArtifact } from '../../../contracts/flow/content-prompt-artifact.generated.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -95,6 +103,10 @@ const validateContentBrandEnvelope = ajv.compile<ContentBrandArtifact>(contentBr
 const validateContentCatalogItemCreate = ajv.compile<ContentCatalogItemCreateRequest>(contentCatalogItemCreateSchema);
 const validateContentCatalogItemRevision = ajv.compile<ContentCatalogItemRevisionRequest>(contentCatalogItemRevisionSchema);
 const validateContentCatalogItemEnvelope = ajv.compile<ContentCatalogItemArtifact>(contentCatalogItemArtifactSchema);
+const validateContentPromptCreate = ajv.compile<ContentPromptCreateRequest>(contentPromptCreateSchema);
+const validateContentPromptRevision = ajv.compile<ContentPromptRevisionRequest>(contentPromptRevisionSchema);
+const validateContentPromptLifecycle = ajv.compile<ContentPromptLifecycleRequest>(contentPromptLifecycleSchema);
+const validateContentPromptEnvelope = ajv.compile<ContentPromptArtifact>(contentPromptArtifactSchema);
 
 export class FlowValidationError extends Error {
   readonly details: string;
@@ -253,6 +265,38 @@ export function validateContentCatalogItemRevisionRequest(value: unknown): Conte
 export function validateContentCatalogItemArtifact(value: unknown): ContentCatalogItemArtifact {
   if (!validateContentCatalogItemEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentCatalogItemEnvelope.errors, { separator: '; ' }));
   assertCatalogItemUnique(value.item);
+  return value;
+}
+
+/** Text prompt types recommend a text model; Poster recommends an image model (Task 047 §4). */
+export const CONTENT_PROMPT_IMAGE_MODELS: readonly ContentPromptModel[] = ['gpt-image-2', 'gemini-3.1-flash-image'];
+
+export function assertContentPromptContent(type: ContentPromptType, prompt: ContentPromptContent): void {
+  if ((type === 'POSTER') !== CONTENT_PROMPT_IMAGE_MODELS.includes(prompt.recommendedModel)) throw new FlowValidationError(`Model ${prompt.recommendedModel} does not suit ${type} prompts`);
+  if (new Set(prompt.tags).size !== prompt.tags.length) throw new FlowValidationError('Prompt tags must be unique');
+}
+
+export function validateContentPromptCreateRequest(value: unknown): ContentPromptCreateRequest {
+  if (!validateContentPromptCreate(value)) throw new FlowValidationError(ajv.errorsText(validateContentPromptCreate.errors, { separator: '; ' }));
+  assertContentPromptContent(value.promptType, value.prompt);
+  if (value.duplicatedFrom && (value.duplicatedFrom.kind === 'SYSTEM') !== value.duplicatedFrom.id.startsWith('system-')) throw new FlowValidationError('Prompt lineage kind does not match its ID');
+  return value;
+}
+
+export function validateContentPromptRevisionRequest(value: unknown): ContentPromptRevisionRequest {
+  if (!validateContentPromptRevision(value)) throw new FlowValidationError(ajv.errorsText(validateContentPromptRevision.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentPromptLifecycleRequest(value: unknown): ContentPromptLifecycleRequest {
+  if (!validateContentPromptLifecycle(value)) throw new FlowValidationError(ajv.errorsText(validateContentPromptLifecycle.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentPromptArtifact(value: unknown): ContentPromptArtifact {
+  if (!validateContentPromptEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentPromptEnvelope.errors, { separator: '; ' }));
+  assertContentPromptContent(value.promptType, value.prompt);
+  if (value.duplicatedFrom && value.version !== 1) throw new FlowValidationError('Only version 1 records prompt lineage');
   return value;
 }
 

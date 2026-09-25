@@ -1,0 +1,46 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-prompt-create-request.schema.json",
+  "title": "ContentPromptCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "promptKey", "promptType", "prompt"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "promptKey": { "$ref": "#/$defs/promptKey" },
+    "promptType": { "$ref": "#/$defs/promptType" },
+    "prompt": { "$ref": "#/$defs/prompt" },
+    "duplicatedFrom": { "$ref": "#/$defs/lineage" }
+  },
+  "$defs": {
+    "promptKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "promptType": { "title": "ContentPromptType", "enum": ["BIG_IDEA", "ANGLE", "CAPTION", "POSTER"] },
+    "model": { "title": "ContentPromptModel", "enum": ["gpt-5.6-sol", "gpt-5.6-luna", "gemini-3.5-flash-low", "gpt-image-2", "gemini-3.1-flash-image"] },
+    "prompt": {
+      "title": "ContentPromptContent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "creativeText", "recommendedModel", "tags"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "creativeText": { "type": "string", "minLength": 1, "maxLength": 12000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "recommendedModel": { "$ref": "#/$defs/model" },
+        "tags": { "type": "array", "maxItems": 8, "items": { "type": "string", "minLength": 1, "maxLength": 40, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" } },
+        "demoInput": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "demoOutput": { "type": "string", "minLength": 1, "maxLength": 4000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" }
+      }
+    },
+    "lineage": {
+      "title": "ContentPromptLineage",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "id", "version"],
+      "properties": {
+        "kind": { "enum": ["SYSTEM", "USER"] },
+        "id": { "type": "string", "pattern": "^(?:system-[a-z0-9-]{3,60}|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    }
+  }
+}

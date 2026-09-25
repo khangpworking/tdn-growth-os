@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-prompt-artifact.schema.json",
+  "title": "ContentPromptArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "promptId", "promptKey", "promptType", "version", "prompt", "createdAt", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "promptId": { "type": "string", "format": "uuid" },
+    "promptKey": { "$ref": "content-prompt-create-request.schema.json#/$defs/promptKey" },
+    "promptType": { "$ref": "content-prompt-create-request.schema.json#/$defs/promptType" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "prompt": { "$ref": "content-prompt-create-request.schema.json#/$defs/prompt" },
+    "duplicatedFrom": { "$ref": "content-prompt-create-request.schema.json#/$defs/lineage" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
