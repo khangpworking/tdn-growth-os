@@ -44,7 +44,7 @@ The owner approved P1–P4 as written.
   - reference media.
 
   Storing them in 048d would fix a shape before 050/051 define how they are read. This matches how 048c moved the prompt picker to 050.
-- **P2 — Include campaign delete and restore in 048d.** Screen 2 shows “Đã xóa gần đây”. The 048c lifecycle pattern applies unchanged: append-only DELETE/RESTORE, alternation and 30-day window enforced by triggers, nothing physically deleted. In 048d nothing sits below a campaign, so there is no cascade yet. 050 adds the cascade statement (“Ẩn cả … bên dưới”) when Insight and later records exist.
+- **P2 — Include campaign delete and restore in 048d.** Screen 2 shows “Đã xóa gần đây”. The 048c lifecycle pattern applies unchanged: append-only DELETE/RESTORE, alternation, chronological dates and the 30-day window enforced by triggers, nothing physically deleted. In 048d nothing sits below a campaign, so there is no cascade yet. 050 adds the cascade statement (“Ẩn cả … bên dưới”) when Insight and later records exist.
 - **P3 — Campaign items pin the exact catalog item version.** A campaign item records `{itemId, itemVersion, tierKeys?}`. `tierKeys` is omitted for “all tiers”, or is a non-empty unique subset validated against that version's tiers. Every item must belong to the campaign's brand. Items change only through a campaign revision, which may move an item to a newer catalog version. The item list is locked from the point 050 decides (Insight lock). 048d does not pre-empt that.
 - **P4 — The research link is a verified reference only.** The optional `researchProductWorkspaceId` is checked through `ProductWorkspaceReader.readVerifiedProductWorkspace` when it is written. 048d records no B10 decision and freezes nothing. The link can change or be removed by revision until 050 defines when it locks.
 
@@ -53,7 +53,7 @@ The owner approved P1–P4 as written.
 Three immutable tables, whose triggers reject UPDATE and DELETE:
 - **`flow_content_campaigns`:** `campaign_id` and `campaign_key` (unique); `brand_id` references `flow_content_brands` and is fixed at creation.
 - **`flow_content_campaign_revisions`:** sequential versions with `request_sha256` and the artifact digest, following the brand and catalog pattern.
-- **`flow_content_campaign_lifecycle`:** append-only `DELETE` / `RESTORE`. The migration copies 048c's alternation and 30-day triggers under campaign names.
+- **`flow_content_campaign_lifecycle`:** append-only `DELETE` / `RESTORE`. The migration copies 048c's alternation, chronology and 30-day triggers under campaign names.
 
 Migrations 0001–0023 stay byte-identical. The v23→v24 upgrade is tested with 0023 pinned.
 
@@ -111,7 +111,7 @@ A failed check writes nothing. Service rules follow the earlier content slices: 
 
 ## 5. Acceptance
 
-1. Migration 0024 applies on top of 0023 and reruns idempotently; earlier migrations stay byte-identical. The lifecycle triggers enforce order, alternation and the 30-day window.
+1. Migration 0024 applies on top of 0023 and reruns idempotently; earlier migrations stay byte-identical. The lifecycle triggers enforce order, alternation, chronological dates and the 30-day window.
 2. Create and revise verify the brand, catalog item versions, tiers and product workspace. A wrong brand, missing item, unknown tier, duplicate item or missing workspace is rejected with zero writes.
 3. Exact retries do nothing new, drift gives 409, reads are verified, delete and restore work, and revising a deleted campaign is a conflict.
 4. HTTP: closed bodies, boundary rules, zero writes on rejection, history verified before writing.
