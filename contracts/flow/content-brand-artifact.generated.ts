@@ -1,0 +1,37 @@
+/* Generated from content-brand-artifact.schema.json. Do not edit by hand. */
+
+export type ContentBrandVisibility = 'ALWAYS' | 'OPTIONAL' | 'HIDDEN';
+
+export interface ContentBrandArtifact {
+  contractVersion: '1.0.0';
+  brandId: string;
+  brandKey: string;
+  version: number;
+  profile: ContentBrandProfile;
+  displayRules: ContentBrandDisplayRules;
+  createdAt: string;
+  requestSha256: string;
+}
+export interface ContentBrandProfile {
+  brandName: string;
+  tagline?: string;
+  hotline?: string;
+  website?: string;
+  fanpage?: string;
+  address?: string;
+}
+export interface ContentBrandDisplayRules {
+  sales: ContentBrandElementRules;
+  trust: ContentBrandElementRules;
+  education: ContentBrandElementRules;
+  entertainment: ContentBrandElementRules;
+  engagement: ContentBrandElementRules;
+}
+export interface ContentBrandElementRules {
+  name: ContentBrandVisibility;
+  logo: ContentBrandVisibility;
+  tagline: ContentBrandVisibility;
+  hotline: ContentBrandVisibility;
+  web: ContentBrandVisibility;
+  address: ContentBrandVisibility;
+}

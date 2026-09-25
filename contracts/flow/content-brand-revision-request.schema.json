@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-brand-revision-request.schema.json",
+  "title": "ContentBrandRevisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "brandId", "expectedVersion", "profile", "displayRules"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "brandId": { "type": "string", "format": "uuid" },
+    "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+    "profile": { "$ref": "content-brand-create-request.schema.json#/$defs/profile" },
+    "displayRules": { "$ref": "content-brand-create-request.schema.json#/$defs/displayRules" }
+  }
+}

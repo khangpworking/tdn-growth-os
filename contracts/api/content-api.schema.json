@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/content-api.schema.json",
+  "title": "ContentApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/brandList" },
+    { "$ref": "#/$defs/brandDetail" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "visibility": { "title": "ContentVisibility", "enum": ["ALWAYS", "OPTIONAL", "HIDDEN"] },
+    "elementRules": {
+      "title": "ContentElementRules",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "logo", "tagline", "hotline", "web", "address"],
+      "properties": {
+        "name": { "$ref": "#/$defs/visibility" },
+        "logo": { "$ref": "#/$defs/visibility" },
+        "tagline": { "$ref": "#/$defs/visibility" },
+        "hotline": { "$ref": "#/$defs/visibility" },
+        "web": { "$ref": "#/$defs/visibility" },
+        "address": { "$ref": "#/$defs/visibility" }
+      }
+    },
+    "displayRules": {
+      "title": "ContentDisplayRules",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sales", "trust", "education", "entertainment", "engagement"],
+      "properties": {
+        "sales": { "$ref": "#/$defs/elementRules" },
+        "trust": { "$ref": "#/$defs/elementRules" },
+        "education": { "$ref": "#/$defs/elementRules" },
+        "entertainment": { "$ref": "#/$defs/elementRules" },
+        "engagement": { "$ref": "#/$defs/elementRules" }
+      }
+    },
+    "profile": {
+      "title": "ContentProfile",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brandName"],
+      "properties": {
+        "brandName": { "type": "string" },
+        "tagline": { "type": "string" },
+        "hotline": { "type": "string" },
+        "website": { "type": "string" },
+        "fanpage": { "type": "string" },
+        "address": { "type": "string" }
+      }
+    },
+    "brandSummary": {
+      "title": "ContentBrandSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brandId", "brandKey", "version", "brandName", "updatedAt"],
+      "properties": {
+        "brandId": { "$ref": "#/$defs/uuid" },
+        "brandKey": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1 },
+        "brandName": { "type": "string" },
+        "updatedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "brandList": {
+      "title": "ContentBrandListResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "brands"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "brands": { "type": "array", "items": { "$ref": "#/$defs/brandSummary" } }
+      }
+    },
+    "brandHistoryItem": {
+      "title": "ContentBrandHistoryItem",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "brandName", "createdAt"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "brandName": { "type": "string" },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "brandDetail": {
+      "title": "ContentBrandDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "brand", "history"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "brand": {
+          "title": "ContentBrandRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["brandId", "brandKey", "version", "profile", "displayRules", "createdAt"],
+          "properties": {
+            "brandId": { "$ref": "#/$defs/uuid" },
+            "brandKey": { "type": "string" },
+            "version": { "type": "integer", "minimum": 1 },
+            "profile": { "$ref": "#/$defs/profile" },
+            "displayRules": { "$ref": "#/$defs/displayRules" },
+            "createdAt": { "$ref": "#/$defs/dateTime" }
+          }
+        },
+        "history": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/brandHistoryItem" } }
+      }
+    },
+    "error": {
+      "title": "ContentApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "not_found", "method_not_allowed", "integrity_error"] },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
