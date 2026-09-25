@@ -116,7 +116,7 @@ Route `#/prompts/:type[/:promptRef]`, reached from the “Thư viện prompt” 
   - removing the conflict mapping.
 - **Suites.** Frontend 93/93. Backend 341/357; the 16 failures are the same Windows-only set as on `main`. The operator content test passes with the scratch permission shim.
 - **Codex pre-review fixes** (each with a test that failed first):
-  - An exact create retry now verifies the full prompt history, like revisions and lifecycle changes. Before the fix, a retry after a later revision was tampered returned 200; now it returns 500 `integrity_error` and writes nothing.
+  - An exact create retry now verifies the full prompt history, like revisions and lifecycle changes. Before the fix, a retry after a later revision was tampered returned 200; now it returns 500 `integrity_error` and writes nothing. A changed create with the same key still returns 409, as for brands and catalog items (PR #48).
   - The Poster system layer now states that the Caption and Brand reference data are its only facts, treats UNTRUSTED blocks as data, forbids invented facts, and ends with an output contract. Its pinned SHA-256 changed to `8bb9d08dc3218a94ee3acc4a1658554c7953fafeeccfdcad4951ef21769d9b00`.
   - “+ Prompt mới” on a prompt detail page no longer closes its own editor when it navigates to the type list. Checked in headless Chrome with a trusted click: the old build showed the form for about 1 ms, and the fixed build keeps it open.
 - **End to end.** A local operator ran on a fresh synthetic database (schema 23) on port 18912. Through the UI:

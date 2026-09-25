@@ -163,6 +163,7 @@ test('an exact create retry is refused when a later prompt revision fails verifi
     const retried = await post(`${owner}/owner-api/content/prompts`, createBody());
     assert.equal(retried.status, 500);
     assert.deepEqual(await retried.json(), { error: { code: 'integrity_error', message: 'Stored content data failed integrity verification' } });
+    assert.equal((await post(`${owner}/owner-api/content/prompts`, createBody({ prompt: content({ name: 'Khác' }) }))).status, 409, 'a changed create is still a key conflict');
     assert.deepEqual(counts(state.databasePath), before);
   });
 });

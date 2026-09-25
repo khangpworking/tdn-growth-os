@@ -436,12 +436,12 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
         if (!type) throw new UnknownPromptError();
         assertPromptReferences(type, serviceRequest.prompt as ContentPromptContent, serviceRequest.duplicatedFrom as ContentPromptLineage | undefined);
         await prompts.restoreExactArtifact(serviceRequest);
-        const existingId = promptId ?? (typeof serviceRequest.promptKey === 'string' ? prompts.promptIdForKey(serviceRequest.promptKey) : undefined);
-        if (existingId !== undefined) await verifyPromptHistory(existingId);
+        if (promptId !== undefined) await verifyPromptHistory(promptId);
         const lineage = serviceRequest.duplicatedFrom as ContentPromptLineage | undefined;
         if (lineage?.kind === 'USER') await integrity(() => prompts.readPrompt(lineage.id, lineage.version));
         if (lineage?.kind === 'SYSTEM') await integrity(async () => library.read(lineage.id, lineage.version));
         const result = promptId === undefined ? await prompts.createPrompt(serviceRequest) : await prompts.revisePrompt(serviceRequest);
+        if (promptId === undefined && result.deduplicated) await verifyPromptHistory(result.promptId);
         await artifacts.publishOwned();
         const verified = await integrity(() => prompts.readPrompt(result.promptId, result.version));
         return {
