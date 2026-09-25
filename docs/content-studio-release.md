@@ -1,0 +1,56 @@
+# Content Studio — Caption & Poster release plan
+
+Updated: 2026-09-25 · Design: [Task 047](tasks/047-content-studio-design.md), [ADR 0003](adr/0003-content-studio-b11-b13.md), INTENT D33.
+
+**Release milestone:** the OWNER can go through the in-app flow **Brand & catalog → Campaign & Insight → Big Idea → Angle → Caption + Poster**, inside TDN Growth OS on Fedora. There is no Draft step, no video, and no social publishing. Brand management on its own (Task 048) is **not** the milestone.
+
+## 1. Reconciliation with merged code (main `76c21aa`)
+
+The original Task 047 §8 plan put the whole content foundation in Task 048. Only the brand slice was built and merged. That row is now split:
+
+| Planned item (047 §8, row 048) | State on main | Slice |
+|---|---|---|
+| Brands: profile, contact facts, Luôn/Tùy/Ẩn display rules, versions, UI | **Merged** (PR #44 design, PR #45 code; migration 0021) | 048 |
+| Brand logo (upload, validation, private storage, preview) | Not built | 048b |
+| Catalog: products/services per brand, description, tiers (price text, inclusions), product photos with Poster default | Not built | 048b |
+| Prompt Library: two-layer prompts, system prompts ported from the old Content Studio templates, freestyle saved to the library (no AI) | Not built | 048c |
+| Campaign list and create (brand, catalog items + tiers, objective, optional research link) | Not built | 048d |
+| Top navigation “Nội dung” and “Thư viện prompt” | Not built (only “Thị trường · Thương hiệu”) | 048c / 048d |
+| Custom purpose tags (“Của bạn”, mapped “như …”) | Not built (the five suggested purposes are fixed in display rules) | 050 |
+
+Rows 049–053 of 047 §8 have not started.
+
+## 2. Remaining slices
+
+| Slice | Scope | Depends on | Status |
+|---|---|---|---|
+| 048b | Brand catalog and reference media: catalog items, tiers, product photos, brand logo, image validation, private storage, safe preview, read/OWNER APIs, UI | 048 | **In progress** (this branch) |
+| 048c | Prompt Library: prompt and prompt-version records, creative vs system layers, system prompts from old templates, library/freestyle picker component, “Thư viện prompt” navigation | 048 | Pending |
+| 048d | Campaigns: list with brand filter, create (brand, catalog items + tier subset, objective, optional research product link), campaign defaults, “Nội dung” navigation | 048b | Pending |
+| 049 | AI plumbing (Controlled): generalize `AiGateway` for creative text and images, CLIProxy adapter, attempt records with startup sweep to `interrupted`, call-count preview, fake providers for tests | 047 | Pending |
+| 050 | Insight (typed, or copied from a locked STP; lock; D26 freeze when linked), Big Idea and Angle generation, branch codes A / A1, purpose tags incl. custom, develop/stop, soft delete + 30-day restore | 048c, 048d, 049 | Pending |
+| 051 | Caption & Poster for one or many Angles: Inspector (“Áp dụng cho tất cả” / “Sửa riêng”), style and length cascade, display-rule resolution, system contact footer, brand-fact checklist, Poster references (product photo first), package view with versions | 050 | Pending |
+| 052 | AI edit proposals (text diff, side-by-side image), manual edit, version restore | 051 | Pending |
+| 053 | Fedora live qualification (Controlled): owner-authorized first real calls, per-model multi-reference check, operator runbook, retire-Windows checklist | 051 (and 052 if release-gating) | Pending |
+
+Each slice follows AGENTS.md: its own branch, a task brief, focused tests, `npm run check`, a draft PR, and an owner merge.
+
+## 3. Caption & Poster release acceptance criteria
+
+The release is accepted when all of these hold on the Fedora operator with fresh data:
+
+1. **Brand & catalog.** The OWNER creates a brand with a logo and display rules, plus at least one product or service with tiers and product photos. Every save creates an immutable, verified version.
+2. **Campaign.** The OWNER creates a campaign for one brand with one or more catalog items (optionally specific tiers) and an objective. Linking a research product is optional; when it is linked, starting B11 freezes the effective B10 `APPROVE` (D26/D33).
+3. **Insight.** Customer, pain point and insight are typed freely or copied from a locked STP, then edited and locked.
+4. **Big Idea and Angle.** Generation uses a library or freestyle creative prompt. The system layer adds locked inputs, fact rules and output format. The call count is shown before running. Several Big Ideas and Angles can be developed at once (codes A, A1, A1·1). Angles carry one or more purpose tags.
+5. **Caption & Poster.** Created for one or many Angles from one screen. Style and length follow the cascade. Display rules resolve with the highest level winning; “Ẩn” values never reach the model. The contact footer is appended by the system. The brand-fact checklist is shown. The Poster uses the ticked product photos and logo as references (product photo first if only one reference is accepted).
+6. **Integrity.** Every package references the exact brand revision, catalog snapshot and prompt versions it used. Every AI call is an attempt record; a restart turns `running` into `interrupted`; nothing retries automatically.
+7. **Safety and scope.** OWNER only; no social publishing, no video, no daily AI limits. Uploaded media is validated and only served back through safe preview headers. Deletes are soft and restorable for 30 days.
+8. **Qualification.** Linux CI green on the release commit. Owner-authorized live checks on Fedora (053) pass for each selected text and image model, including the multi-reference check. The runbook covers migrations 0021+ and the startup sweep.
+
+## 4. What blocks the release today
+
+- 048b (this branch) awaiting review and merge.
+- 048c, 048d, 049, 050, 051 and 053 are not started. 049 and 053 need Controlled-lane authorization for the provider boundary and live calls.
+- **Owner decision:** does AI edit (052) gate this release, or follow it? The milestone path above does not include it; the accepted design does.
+- **Owner decision:** before first live Poster calls (051/053), should reference photos have their metadata (EXIF, including location) stripped? 048b stores uploaded bytes unchanged in private storage.
