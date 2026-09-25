@@ -5,10 +5,14 @@ import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { createRequire } from 'node:module';
 import type { AddressInfo } from 'node:net';
 import BetterSqlite3 from 'better-sqlite3';
+import ownerContentBrandApiSchema from '../../contracts/api/owner-content-brand-api.schema.json' with { type: 'json' };
+import contentBrandCreateSchema from '../../contracts/flow/content-brand-create-request.schema.json' with { type: 'json' };
 import { openDatabase } from '../../src/platform/db/database.js';
 import { openContentOwnerApi, openContentReadApi } from '../../src/api/content-api.js';
+import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 
 const token = 'correct-owner-token-with-at-least-32-characters';
 const origin = 'http://127.0.0.1:5173';
@@ -140,4 +144,123 @@ test('an exact retry restores a committed brand artifact that was never publishe
     assert.equal((await fetch(`${read}/api/content/brands/${brandId}`)).status, 200);
   });
   assert.deepEqual(brandRows(state.databasePath), { brands: 1n, revisions: 1n });
+});
+
+function artifactState(state: ReturnType<typeof fixture>): { manifests: bigint; files: string[] } {
+  const db = new BetterSqlite3(state.databasePath); db.defaultSafeIntegers(true);
+  const { manifests } = db.prepare('SELECT count(*) manifests FROM artifact_manifests').get() as { manifests: bigint };
+  db.close();
+  const dir = path.join(state.artifactRoot, 'sha256');
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => entry.name).sort() : [];
+  return { manifests, files };
+}
+function revisionFile(state: ReturnType<typeof fixture>, version: number): string {
+  const db = new BetterSqlite3(state.databasePath);
+  const { digest } = db.prepare('SELECT brand_artifact_sha256 digest FROM flow_content_brand_revisions WHERE version = ?').get(version) as { digest: string };
+  db.close();
+  return path.join(state.artifactRoot, 'sha256', digest.slice(0, 2), digest);
+}
+
+test('a revision is refused without writing when earlier brand history fails verification', async () => {
+  const corruptions: [string, (file: string) => void][] = [
+    ['tampered', (file) => { fs.chmodSync(file, 0o600); fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('Canxi Việt', 'Canxi Viet')); }],
+    ['missing', (file) => fs.rmSync(file)],
+  ];
+  for (const [label, corrupt] of corruptions) {
+    const state = fixture();
+    await serveBoth(state, async (_read, owner) => {
+      assert.equal((await fetch(`${owner}/owner-api/content/brands`, { method: 'POST', headers, body: createBody() })).status, 201);
+      corrupt(revisionFile(state, 1));
+      const before = artifactState(state);
+      const revised = await fetch(`${owner}/owner-api/content/brands/${brandId}/revisions`, { method: 'POST', headers, body: revisionBody() });
+      assert.equal(revised.status, 500, label);
+      assert.deepEqual(await revised.json(), { error: { code: 'integrity_error', message: 'Stored content data failed integrity verification' } });
+      assert.deepEqual(artifactState(state), before, label);
+    });
+    assert.deepEqual(brandRows(state.databasePath), { brands: 1n, revisions: 1n }, label);
+  }
+});
+
+test('an exact revision retry restores its unpublished artifact but still requires verified history', async () => {
+  const state = fixture();
+  await serveBoth(state, async (read, owner) => {
+    await fetch(`${owner}/owner-api/content/brands`, { method: 'POST', headers, body: createBody() });
+    assert.equal((await fetch(`${owner}/owner-api/content/brands/${brandId}/revisions`, { method: 'POST', headers, body: revisionBody() })).status, 201);
+    const v2 = revisionFile(state, 2);
+    fs.rmSync(v2);
+    const retry = await fetch(`${owner}/owner-api/content/brands/${brandId}/revisions`, { method: 'POST', headers, body: revisionBody() });
+    assert.equal(retry.status, 200);
+    assert.equal(fs.existsSync(v2), true);
+    assert.equal((await fetch(`${read}/api/content/brands/${brandId}`)).status, 200);
+    fs.rmSync(v2);
+    fs.rmSync(revisionFile(state, 1));
+    const refused = await fetch(`${owner}/owner-api/content/brands/${brandId}/revisions`, { method: 'POST', headers, body: revisionBody() });
+    assert.equal(refused.status, 500);
+    assert.equal(fs.existsSync(v2), false);
+  });
+  assert.deepEqual(brandRows(state.databasePath), { brands: 1n, revisions: 2n });
+});
+
+test('the brand list stays consistent when a brand is revised while the list is being read', async () => {
+  const state = fixture();
+  const ids = ['55555555-5555-4555-8555-00000000000a', '55555555-5555-4555-8555-00000000000b'];
+  let tick = 0; let next = 0;
+  const owner = openContentOwnerApi({ ...state, writeEnabled: true, token, allowedOrigin: origin, actorId: 'owner:local', uuid: () => ids[next++]!, now: () => new Date(Date.UTC(2027, 0, 1, 0, 0, tick++)) });
+  const read = openContentReadApi(state);
+  const ownerServer = await listen(owner.handler); const readServer = await listen(read.handler);
+  const originalRead = ContentAddressedArtifactStore.prototype.read;
+  try {
+    assert.equal((await fetch(`${ownerServer.base}/owner-api/content/brands`, { method: 'POST', headers, body: createBody({ brandKey: 'brand-a' }) })).status, 201);
+    assert.equal((await fetch(`${ownerServer.base}/owner-api/content/brands`, { method: 'POST', headers, body: createBody({ brandKey: 'brand-b', profile: { brandName: 'Brand B' } }) })).status, 201);
+    let revisedDuringList = false;
+    ContentAddressedArtifactStore.prototype.read = async function (this: ContentAddressedArtifactStore, sha256: string) {
+      ContentAddressedArtifactStore.prototype.read = originalRead;
+      const revision = await fetch(`${ownerServer.base}/owner-api/content/brands/${ids[1]}/revisions`, { method: 'POST', headers, body: revisionBody({ profile: { brandName: 'Brand B2' } }) });
+      revisedDuringList = revision.status === 201;
+      return originalRead.call(this, sha256);
+    };
+    const listed = await fetch(`${readServer.base}/api/content/brands`);
+    assert.equal(revisedDuringList, true);
+    assert.equal(listed.status, 200);
+    const body = await listed.json() as { brands: { brandId: string; version: number; brandName: string }[] };
+    assert.deepEqual(body.brands.map(({ brandId: id, version, brandName }) => ({ id, version, brandName })), [
+      { id: ids[0], version: 1, brandName: 'Canxi Việt' },
+      { id: ids[1], version: 1, brandName: 'Brand B' },
+    ]);
+    const after = await (await fetch(`${readServer.base}/api/content/brands`)).json() as { brands: { version: number }[] };
+    assert.deepEqual(after.brands.map((brand) => brand.version), [1, 2]);
+  } finally {
+    ContentAddressedArtifactStore.prototype.read = originalRead;
+    await ownerServer.close(); await readServer.close(); owner.close(); read.close();
+  }
+});
+
+test('the OWNER brand API contract rejects invalid nested profiles and display rules', () => {
+  const require = createRequire(import.meta.url);
+  const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+  const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
+  const ajv = new Ajv2020({ allErrors: true, strict: true }); addFormats(ajv);
+  ajv.addSchema(contentBrandCreateSchema); ajv.addSchema(ownerContentBrandApiSchema);
+  const createRequest = ajv.getSchema(`${ownerContentBrandApiSchema.$id}#/$defs/createRequest`)!;
+  const revisionRequest = ajv.getSchema(`${ownerContentBrandApiSchema.$id}#/$defs/revisionRequest`)!;
+  const valid = JSON.parse(createBody()) as Record<string, unknown>;
+  assert.equal(createRequest(valid), true);
+  assert.equal(revisionRequest(JSON.parse(revisionBody())), true);
+  const { engagement: _omitted, ...fourPurposes } = displayRules;
+  const invalid: [string, Record<string, unknown>][] = [
+    ['empty nested objects', { ...valid, profile: { invented: 'x' }, displayRules: {} }],
+    ['missing brand name', { ...valid, profile: { hotline: '0900' } }],
+    ['unknown profile field', { ...valid, profile: { ...profile, color: 'blue' } }],
+    ['untrimmed brand name', { ...valid, profile: { brandName: ' padded ' } }],
+    ['oversize hotline', { ...valid, profile: { brandName: 'A', hotline: '1'.repeat(65) } }],
+    ['incomplete purposes', { ...valid, displayRules: fourPurposes }],
+    ['incomplete elements', { ...valid, displayRules: { ...displayRules, sales: { name: 'ALWAYS' } } }],
+    ['unknown element', { ...valid, displayRules: { ...displayRules, sales: { ...displayRules.sales, fax: 'HIDDEN' } } }],
+    ['invalid visibility', { ...valid, displayRules: { ...displayRules, sales: { ...displayRules.sales, hotline: 'SOMETIMES' } } }],
+  ];
+  for (const [label, body] of invalid) {
+    assert.equal(createRequest(body), false, `create: ${label}`);
+    const { brandKey: _key, ...rest } = body;
+    assert.equal(revisionRequest({ ...rest, expectedVersion: 1 }), false, `revision: ${label}`);
+  }
 });

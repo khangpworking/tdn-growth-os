@@ -6,25 +6,43 @@ export type OwnerContentBrandApiContract =
   | OwnerContentBrandReceipt
   | OwnerContentApiErrorResponse;
 export type BrandKey = string;
+export type ContentBrandVisibility = 'ALWAYS' | 'OPTIONAL' | 'HIDDEN';
 export type Uuid = string;
 
 export interface OwnerContentBrandCreateRequest {
   contractVersion: '1.0.0';
   brandKey: BrandKey;
-  profile: OwnerContentBrandProfile;
-  displayRules: OwnerContentBrandDisplayRules;
+  profile: ContentBrandProfile;
+  displayRules: ContentBrandDisplayRules;
 }
-export interface OwnerContentBrandProfile {
-  [k: string]: unknown;
+export interface ContentBrandProfile {
+  brandName: string;
+  tagline?: string;
+  hotline?: string;
+  website?: string;
+  fanpage?: string;
+  address?: string;
 }
-export interface OwnerContentBrandDisplayRules {
-  [k: string]: unknown;
+export interface ContentBrandDisplayRules {
+  sales: ContentBrandElementRules;
+  trust: ContentBrandElementRules;
+  education: ContentBrandElementRules;
+  entertainment: ContentBrandElementRules;
+  engagement: ContentBrandElementRules;
+}
+export interface ContentBrandElementRules {
+  name: ContentBrandVisibility;
+  logo: ContentBrandVisibility;
+  tagline: ContentBrandVisibility;
+  hotline: ContentBrandVisibility;
+  web: ContentBrandVisibility;
+  address: ContentBrandVisibility;
 }
 export interface OwnerContentBrandRevisionRequest {
   contractVersion: '1.0.0';
   expectedVersion: number;
-  profile: OwnerContentBrandProfile;
-  displayRules: OwnerContentBrandDisplayRules;
+  profile: ContentBrandProfile;
+  displayRules: ContentBrandDisplayRules;
 }
 export interface OwnerContentBrandReceipt {
   contractVersion: '1.0.0';

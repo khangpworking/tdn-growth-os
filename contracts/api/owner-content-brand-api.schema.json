@@ -11,8 +11,8 @@
   "$defs": {
     "uuid": { "type": "string", "format": "uuid" },
     "brandKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
-    "profile": { "title": "OwnerContentBrandProfile", "type": "object" },
-    "displayRules": { "title": "OwnerContentBrandDisplayRules", "type": "object" },
+    "profile": { "$ref": "../flow/content-brand-create-request.schema.json#/$defs/profile" },
+    "displayRules": { "$ref": "../flow/content-brand-create-request.schema.json#/$defs/displayRules" },
     "createRequest": {
       "title": "OwnerContentBrandCreateRequest",
       "type": "object",

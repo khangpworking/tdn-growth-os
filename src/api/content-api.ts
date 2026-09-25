@@ -66,7 +66,7 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
     const list = async (): Promise<ContentBrandListResponse> => {
       const result: ContentBrandListResponse['brands'] = [];
       for (const row of catalog.all() as { brandId: string; version: bigint }[]) {
-        const brand = await brands.readBrand(row.brandId);
+        const brand = await brands.readBrand(row.brandId, Number(row.version));
         if (brand.brandId !== row.brandId || BigInt(brand.version) !== row.version) throw new Error('Brand catalog identity mismatch');
         result.push({ brandId: brand.brandId, brandKey: brand.brandKey, version: brand.version, brandName: brand.profile.brandName, updatedAt: brand.createdAt });
       }
@@ -121,6 +121,7 @@ async function routeRead(
 }
 
 class UnknownBrandError extends Error {}
+class ExistingBrandIntegrityError extends Error {}
 
 /** OWNER write paths for Content Studio (`/owner-api/content/*`). */
 export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration): ContentApiApplication {
@@ -137,11 +138,22 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
       ...(configuration.uuid ? { uuid: configuration.uuid } : {}),
     });
     const brandExists = db.prepare('SELECT 1 FROM flow_content_brands WHERE brand_id = ?');
+    const brandHistory = db.prepare('SELECT version FROM flow_content_brand_revisions WHERE brand_id = ? ORDER BY version');
+    const verifyHistory = async (brandId: string): Promise<void> => {
+      try {
+        const rows = brandHistory.all(brandId) as { version: bigint }[];
+        for (const [index, row] of rows.entries()) {
+          if (row.version !== BigInt(index + 1)) throw new Error('Brand history is not sequential');
+          await brands.readBrand(brandId, index + 1);
+        }
+      } catch { throw new ExistingBrandIntegrityError(); }
+    };
 
     const write = (serviceRequest: Record<string, unknown>, revision: boolean): Promise<OwnerContentBrandReceipt> =>
       withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
         if (revision && !brandExists.get(serviceRequest.brandId)) throw new UnknownBrandError();
         await brands.restoreExactArtifact(serviceRequest);
+        if (revision) await verifyHistory(serviceRequest.brandId as string);
         const result = revision ? await brands.reviseBrand(serviceRequest) : await brands.createBrand(serviceRequest);
         await artifacts.publishOwned();
         const verified = await brands.readBrand(result.brandId, result.version);
@@ -202,6 +214,7 @@ async function routeOwner(
   } catch (error) {
     if (error instanceof PayloadTooLargeError) return sendOwnerError(response, 400, 'bad_request', 'Request body is too large');
     if (error instanceof EmptyBodyError) return sendOwnerError(response, 400, 'bad_request', 'Request body is required');
+    if (error instanceof ExistingBrandIntegrityError) return sendOwnerError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');
     if (error instanceof UnknownBrandError) return sendOwnerError(response, 404, 'not_found', 'Brand not found');
     if (error instanceof ContentBrandIdentityConflictError && /changed content|drift/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Brand conflicts with current state');
     return sendOwnerError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');
