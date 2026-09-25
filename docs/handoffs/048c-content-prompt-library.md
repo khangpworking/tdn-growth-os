@@ -5,7 +5,7 @@ Worktree/branch: `feature/048c-content-prompt-library`, based on `main` `28ab319
 Completed:
 - **Release plan.** Marked 048b merged. Set the 048c scope and moved the prompt picker and “save freestyle to library” to 050 (`docs/content-studio-release.md`, brief `docs/tasks/048c-content-prompt-library.md`).
 - **System prompts and layers.** `prompts/content/library/*.md` and `prompts/content/system/*.md` were split by script from the four old Content Studio templates, with verbatim sections. The only change is one adapted Caption paragraph: the contact block is appended by the system, and hidden values are never sent. `ContentPromptLibrary` pins every file by SHA-256, and a `.gitattributes` line keeps the files LF.
-- **Data and service.** Migration 0023 (prompts, revisions, and a DELETE/RESTORE lifecycle with alternation and 30-day triggers), contracts, validators and `ContentPromptService`: create with verified lineage, revise, delete, restore, exact retry, drift conflicts, verified reads.
+- **Data and service.** Migration 0023 (prompts, revisions, and a DELETE/RESTORE lifecycle with alternation, chronological and 30-day triggers), contracts, validators and `ContentPromptService`: create with verified lineage, revise, delete, restore, exact retry, drift conflicts, verified reads.
 - **APIs.** Read routes for the library, a user prompt and a system prompt; OWNER routes for create, revisions and lifecycle, with history verified before every write.
 - **UI.** The “Thư viện prompt” page, following blueprint screen 10.
 Changed paths: see the brief's “Owned paths”, plus `docs/STATUS.md` and `docs/frontend/screenshots/task-048c/`.
@@ -16,9 +16,14 @@ Evidence (commands, results, relevant revision):
   - the Poster system layer now has data-not-instructions, fact limits and an output contract, and is repinned;
   - “+ Prompt mới” on a detail page keeps its editor open.
   The earlier head `9ece01b` passed CI in run 36105195428.
+- **Codex re-review:** three more findings, all verified and fixed with a test that failed first (details in brief §7):
+  - “Đặt lại demo” now resets demo content too;
+  - a prompt deleted elsewhere during an edit shows its deleted state, with the draft kept;
+  - lifecycle events can no longer be dated before the previous one.
+  An exact create retry now verifies history only when the create was deduplicated, so a changed create stays 409.
 - **Local Windows:**
-  - frontend 93/93;
-  - backend 341/357, with the same 16 Windows-only failures as `main`;
+  - frontend 95/95;
+  - backend 342/358, with the same 16 Windows-only failures as `main`;
   - typechecks, build and contract regeneration clean.
 - **Mutation checks and end-to-end check:** see brief §7.
 - The commit after the verified head (this handoff) changes docs only.
@@ -28,7 +33,7 @@ Unresolved:
 - **The Poster system prompt is the old B2B infographic style,** with a navy/gold corporate palette. Brands with a different style should duplicate it and adapt their own copy.
 - **Usage counts** (“dùng N lần”) need generation records (050/051).
 - **Demo mode** lists system prompts by name only. Their texts need the runtime.
-- **Brand and catalog create retries (048b, merged)** verify history only when a revision or item id is given, so they have the same gap the prompt fix closed. Not changed here, because it is outside 048c's owned paths.
+- **Brand and catalog create retries** get the same full-history check in the separate draft PR https://github.com/khangpworking/tdn-growth-os/pull/48. It also touches `src/api/content-api.ts`, so whichever of #47 and #48 merges second needs a rebase.
 - **Module layout** stays flat in `src/modules/flow/`, consistent with 048/048b. ADR 0003 names `src/modules/flow/content/`; moving the files later is mechanical.
 Next action: Independent review of PR #47, then owner merge. After that: 048d (campaigns, taking its migration number from merged main). 049 waits for Controlled-lane authorization.
 Business decisions pending:
