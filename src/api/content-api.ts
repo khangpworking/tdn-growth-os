@@ -9,6 +9,11 @@ import type {
   ContentCatalogDetailResponse,
   ContentCatalogHistoryItem,
   ContentCatalogListResponse,
+  ContentPromptDetailResponse,
+  ContentPromptHistoryItem,
+  ContentPromptListResponse,
+  ContentPromptSystemLayer,
+  ContentSystemPromptDetailResponse,
 } from '../../contracts/api/content-api.generated.js';
 import type {
   OwnerContentApiErrorResponse,
@@ -19,6 +24,9 @@ import type {
   OwnerContentMediaReceipt,
   OwnerContentMediaRejection,
 } from '../../contracts/api/owner-content-catalog-api.generated.js';
+import type { OwnerContentPromptLifecycleReceipt, OwnerContentPromptReceipt } from '../../contracts/api/owner-content-prompt-api.generated.js';
+import type { ContentPromptArtifact } from '../../contracts/flow/content-prompt-artifact.generated.js';
+import type { ContentPromptContent, ContentPromptLineage, ContentPromptType } from '../../contracts/flow/content-prompt-create-request.generated.js';
 import type { ContentBrandArtifact } from '../../contracts/flow/content-brand-artifact.generated.js';
 import type { ContentCatalogItemArtifact } from '../../contracts/flow/content-catalog-item-artifact.generated.js';
 import type { ContentCatalogItemContent } from '../../contracts/flow/content-catalog-item-create-request.generated.js';
@@ -28,12 +36,18 @@ import { ContentBrandIdentityConflictError, ContentBrandService } from '../modul
 import { ContentCatalogIdentityConflictError, ContentCatalogService } from '../modules/flow/content-catalog-service.js';
 import { CONTENT_MEDIA_LIMITS, ContentImageError, type ContentMediaKind } from '../modules/flow/content-image.js';
 import { ContentMediaService, registeredContentMedia, type ContentMediaRecord } from '../modules/flow/content-media-service.js';
+import { ContentPromptLibrary } from '../modules/flow/content-prompt-library.js';
+import { ContentPromptConflictError, ContentPromptService } from '../modules/flow/content-prompt-service.js';
 import {
+  assertContentPromptContent,
   FlowValidationError,
   validateContentBrandCreateRequest,
   validateContentBrandRevisionRequest,
   validateContentCatalogItemCreateRequest,
   validateContentCatalogItemRevisionRequest,
+  validateContentPromptCreateRequest,
+  validateContentPromptLifecycleRequest,
+  validateContentPromptRevisionRequest,
 } from '../modules/flow/validation.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import {
@@ -52,12 +66,16 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const SHA256 = /^[0-9a-f]{64}$/;
 const BRAND_BODY_BYTES = 16 * 1024;
 const CATALOG_BODY_BYTES = 64 * 1024;
-const REQUIRED_TABLES = ['artifact_manifests', 'flow_content_brands', 'flow_content_brand_revisions', 'flow_content_media', 'flow_content_catalog_items', 'flow_content_catalog_item_revisions'];
+const PROMPT_BODY_BYTES = 96 * 1024;
+const SYSTEM_PROMPT_ID = /^system-[a-z0-9-]{3,60}$/;
+const REQUIRED_TABLES = ['artifact_manifests', 'flow_content_brands', 'flow_content_brand_revisions', 'flow_content_media', 'flow_content_catalog_items', 'flow_content_catalog_item_revisions', 'flow_content_prompts', 'flow_content_prompt_revisions', 'flow_content_prompt_lifecycle'];
 const MEDIA_KINDS: Readonly<Record<string, ContentMediaKind>> = { logo: 'LOGO', photo: 'PHOTO' };
 
 export interface ContentReadApiConfiguration {
   readonly databasePath: string;
   readonly artifactRoot: string;
+  /** Clock used to decide whether deleted prompts are still restorable (tests only). */
+  readonly now?: () => Date;
 }
 export interface ContentOwnerApiConfiguration extends OwnerHttpConfiguration {
   readonly now?: () => Date;
@@ -74,6 +92,14 @@ interface ReadHandlers {
   catalogList(brandId: string): Promise<ContentCatalogListResponse | undefined>;
   catalogDetail(brandId: string, itemId: string): Promise<ContentCatalogDetailResponse | undefined>;
   media(brandId: string, mediaSha256: string): Promise<{ readonly media: ContentMediaRecord; readonly bytes: Buffer } | undefined>;
+  promptList(): Promise<ContentPromptListResponse>;
+  promptDetail(promptId: string): Promise<ContentPromptDetailResponse | undefined>;
+  systemPrompt(id: string): Promise<ContentSystemPromptDetailResponse | undefined>;
+}
+
+function systemLayer(library: ContentPromptLibrary, promptType: ContentPromptType): ContentPromptSystemLayer {
+  const layer = library.layer(promptType);
+  return { promptType, version: layer.version, sha256: layer.sha256, text: layer.text };
 }
 
 /** Verified, query-only read paths for Content Studio (`/api/content/*`). */
@@ -89,6 +115,8 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
     const brands = new ContentBrandService({ db, artifactStore });
     const catalog = new ContentCatalogService({ db, artifactStore });
     const media = new ContentMediaService({ db, artifactStore });
+    const library = new ContentPromptLibrary();
+    const prompts = new ContentPromptService({ db, artifactStore, library, ...(configuration.now ? { now: configuration.now } : {}) });
     const brandCatalog = db.prepare(`
       SELECT b.brand_id brandId, max(r.version) version
       FROM flow_content_brands b JOIN flow_content_brand_revisions r ON r.brand_id = b.brand_id
@@ -163,6 +191,58 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
         if (!mediaExists.get(brandId, mediaSha256)) return undefined;
         return media.readMedia(brandId, mediaSha256);
       },
+      async promptList() {
+        const systemPrompts: ContentPromptListResponse['systemPrompts'] = library.list().map((entry) => {
+          library.read(entry.id, entry.version);
+          return { id: entry.id, promptType: entry.promptType, version: entry.version, name: entry.name, description: entry.description, recommendedModel: entry.recommendedModel, tags: [...entry.tags], isDefault: entry.isDefault };
+        });
+        const summaries: ContentPromptListResponse['prompts'] = [];
+        for (const row of prompts.listPrompts()) {
+          const state = prompts.lifecycleState(row.promptId);
+          if (state.deleted && state.expired) continue;
+          const artifact = await prompts.readPrompt(row.promptId, row.version);
+          summaries.push({
+            promptId: artifact.promptId, promptKey: artifact.promptKey, promptType: artifact.promptType, version: artifact.version, name: artifact.prompt.name,
+            recommendedModel: artifact.prompt.recommendedModel, tags: [...artifact.prompt.tags], updatedAt: artifact.createdAt, ...(state.deleted ? { deleted: state.deleted } : {}),
+          });
+        }
+        return { contractVersion: '1.0.0', systemPrompts, prompts: summaries };
+      },
+      async promptDetail(promptId) {
+        if (!prompts.promptExists(promptId)) return undefined;
+        const history: ContentPromptHistoryItem[] = [];
+        let latest: ContentPromptArtifact | undefined;
+        let lineage: ContentPromptLineage | undefined;
+        for (const version of prompts.promptVersions(promptId)) {
+          latest = await prompts.readPrompt(promptId, version);
+          if (version === 1) lineage = latest.duplicatedFrom;
+          history.push({ version: latest.version, name: latest.prompt.name, createdAt: latest.createdAt });
+        }
+        const [first, ...rest] = history;
+        if (!latest || !first) throw new Error('Prompt history is empty');
+        const state = prompts.lifecycleState(promptId);
+        return {
+          contractVersion: '1.0.0',
+          prompt: {
+            promptId: latest.promptId, promptKey: latest.promptKey, promptType: latest.promptType, version: latest.version, prompt: latest.prompt,
+            ...(lineage ? { duplicatedFrom: lineage } : {}),
+            createdAt: latest.createdAt,
+          },
+          history: [first, ...rest],
+          lifecycle: { sequence: state.sequence, ...(state.deleted ? { deleted: state.deleted } : {}) },
+          systemLayer: systemLayer(library, latest.promptType),
+        };
+      },
+      async systemPrompt(id) {
+        const entry = library.find(id);
+        if (!entry) return undefined;
+        const { prompt } = library.read(entry.id, entry.version);
+        return {
+          contractVersion: '1.0.0',
+          systemPrompt: { id: entry.id, promptType: entry.promptType, version: entry.version, sha256: entry.sha256, prompt, isDefault: entry.isDefault },
+          systemLayer: systemLayer(library, entry.promptType),
+        };
+      },
     };
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeRead(request, response, handlers); };
     return { handler, close: () => db.close() };
@@ -177,6 +257,17 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
     if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return sendReadError(response, 405, 'method_not_allowed', 'Only GET is supported'); }
     const parts = pathParts(request.url);
     if (parts === null) return sendReadError(response, 400, 'bad_request', 'Malformed request URL');
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'prompts' && parts.length <= 4) {
+      if (parts.length === 3) return sendApiJson(response, 200, await handlers.promptList());
+      if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Prompt ID must be a UUID');
+      const result = await handlers.promptDetail(parts[3]!);
+      return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Prompt not found');
+    }
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'system-prompts' && parts.length === 4) {
+      if (!SYSTEM_PROMPT_ID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'System prompt ID is invalid');
+      const result = await handlers.systemPrompt(parts[3]!);
+      return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'System prompt not found');
+    }
     if (parts[0] !== 'api' || parts[1] !== 'content' || parts[2] !== 'brands') return sendReadError(response, 404, 'not_found', 'Route not found');
     if (parts.length === 3) return sendApiJson(response, 200, await handlers.list());
     const brandId = parts[3]!;
@@ -219,6 +310,8 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
 class UnknownBrandError extends Error {}
 class UnknownItemError extends Error {}
 class InvalidReferenceError extends Error {}
+class UnknownPromptError extends Error {}
+class InvalidPromptRequestError extends Error {}
 class ExistingContentIntegrityError extends Error {}
 
 type OwnerRoute =
@@ -226,12 +319,17 @@ type OwnerRoute =
   | { readonly kind: 'brand-revision'; readonly brandId: string }
   | { readonly kind: 'media'; readonly brandId: string; readonly mediaKind: ContentMediaKind }
   | { readonly kind: 'item-create'; readonly brandId: string }
-  | { readonly kind: 'item-revision'; readonly brandId: string; readonly itemId: string };
+  | { readonly kind: 'item-revision'; readonly brandId: string; readonly itemId: string }
+  | { readonly kind: 'prompt-create' }
+  | { readonly kind: 'prompt-revision'; readonly promptId: string }
+  | { readonly kind: 'prompt-lifecycle'; readonly promptId: string };
 
 interface OwnerWriters {
   brand(serviceRequest: Record<string, unknown>, revision: boolean): Promise<OwnerContentBrandReceipt>;
   media(brandId: string, kind: ContentMediaKind, declaredType: string, bytes: Buffer): Promise<OwnerContentMediaReceipt>;
   item(serviceRequest: Record<string, unknown>, brandId: string, itemId: string | undefined): Promise<OwnerContentCatalogItemReceipt>;
+  prompt(serviceRequest: Record<string, unknown>, promptId: string | undefined): Promise<OwnerContentPromptReceipt>;
+  promptLifecycle(serviceRequest: Record<string, unknown>): Promise<OwnerContentPromptLifecycleReceipt>;
 }
 
 /** OWNER write paths for Content Studio (`/owner-api/content/*`). */
@@ -250,6 +348,8 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
     const brands = new ContentBrandService({ db, artifactStore: artifacts, ...clock });
     const catalog = new ContentCatalogService({ db, artifactStore: artifacts, ...clock });
     const media = new ContentMediaService({ db, artifactStore: artifacts, ...(configuration.now ? { now: configuration.now } : {}) });
+    const library = new ContentPromptLibrary();
+    const prompts = new ContentPromptService({ db, artifactStore: artifacts, library, ...clock });
     const brandExists = db.prepare('SELECT 1 FROM flow_content_brands WHERE brand_id = ?');
     const brandHistory = db.prepare('SELECT version FROM flow_content_brand_revisions WHERE brand_id = ? ORDER BY version');
 
@@ -269,6 +369,20 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
         await catalog.readItem(itemId, version);
       }
     });
+    const verifyPromptHistory = (promptId: string) => integrity(async () => {
+      for (const [index, version] of prompts.promptVersions(promptId).entries()) {
+        if (version !== index + 1) throw new Error('Prompt history is not sequential');
+        await prompts.readPrompt(promptId, version);
+      }
+    });
+    const assertPromptReferences = (type: ContentPromptType, prompt: ContentPromptContent, lineage: ContentPromptLineage | undefined) => {
+      try { assertContentPromptContent(type, prompt); } catch { throw new InvalidPromptRequestError(); }
+      if (!lineage) return;
+      const known = lineage.kind === 'SYSTEM'
+        ? library.find(lineage.id, lineage.version)?.promptType === type
+        : prompts.promptTypeOf(lineage.id) === type && prompts.promptVersions(lineage.id).includes(lineage.version);
+      if (!known) throw new InvalidPromptRequestError();
+    };
     const verifyMedia = async (brandId: string, kind: ContentMediaKind, digests: readonly string[]) => {
       for (const digest of digests) if (!registeredContentMedia(db, brandId, kind, digest)) throw new InvalidReferenceError();
       await integrity(async () => { for (const digest of digests) await media.verifyRegistered(brandId, kind, digest); });
@@ -317,6 +431,33 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
           name: verified.item.name, createdAt: verified.createdAt, exactRetry: result.deduplicated,
         };
       })),
+      prompt: (serviceRequest, promptId) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+        const type = promptId === undefined ? serviceRequest.promptType as ContentPromptType : prompts.promptTypeOf(promptId);
+        if (!type) throw new UnknownPromptError();
+        assertPromptReferences(type, serviceRequest.prompt as ContentPromptContent, serviceRequest.duplicatedFrom as ContentPromptLineage | undefined);
+        await prompts.restoreExactArtifact(serviceRequest);
+        if (promptId !== undefined) await verifyPromptHistory(promptId);
+        const lineage = serviceRequest.duplicatedFrom as ContentPromptLineage | undefined;
+        if (lineage?.kind === 'USER') await integrity(() => prompts.readPrompt(lineage.id, lineage.version));
+        if (lineage?.kind === 'SYSTEM') await integrity(async () => library.read(lineage.id, lineage.version));
+        const result = promptId === undefined ? await prompts.createPrompt(serviceRequest) : await prompts.revisePrompt(serviceRequest);
+        await artifacts.publishOwned();
+        const verified = await integrity(() => prompts.readPrompt(result.promptId, result.version));
+        return {
+          contractVersion: '1.0.0', promptId: verified.promptId, promptKey: verified.promptKey, promptType: verified.promptType, version: verified.version,
+          name: verified.prompt.name, createdAt: verified.createdAt, exactRetry: result.deduplicated,
+        };
+      })),
+      promptLifecycle: (serviceRequest) => withDatabaseMutationMutex(db, async () => {
+        const promptId = serviceRequest.promptId as string;
+        if (!prompts.promptExists(promptId)) throw new UnknownPromptError();
+        await verifyPromptHistory(promptId);
+        const result = await prompts.changeLifecycle(serviceRequest);
+        return {
+          contractVersion: '1.0.0', promptId: result.promptId, sequence: result.sequence, action: result.action, createdAt: result.createdAt,
+          ...(result.restorableUntil ? { restorableUntil: result.restorableUntil } : {}), exactRetry: result.deduplicated,
+        };
+      }),
     };
 
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers); };
@@ -328,6 +469,12 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
 }
 
 function ownerRoute(parts: string[] | null): OwnerRoute | 'invalid-id' | null {
+  if (parts !== null && parts[0] === 'owner-api' && parts[1] === 'content' && parts[2] === 'prompts') {
+    if (parts.length === 3) return { kind: 'prompt-create' };
+    if (parts.length !== 5 || (parts[4] !== 'revisions' && parts[4] !== 'lifecycle')) return null;
+    if (!UUID.test(parts[3]!)) return 'invalid-id';
+    return parts[4] === 'revisions' ? { kind: 'prompt-revision', promptId: parts[3]! } : { kind: 'prompt-lifecycle', promptId: parts[3]! };
+  }
   if (parts === null || parts[0] !== 'owner-api' || parts[1] !== 'content' || parts[2] !== 'brands') return null;
   if (parts.length === 3) return { kind: 'brand-create' };
   const brandId = parts[3]!;
@@ -365,35 +512,46 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     }
     if (contentType !== 'application/json') return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be application/json');
     const catalogRoute = route.kind === 'item-create' || route.kind === 'item-revision';
-    const raw = (await readOwnerBytes(request, catalogRoute ? CATALOG_BODY_BYTES : BRAND_BODY_BYTES)).toString('utf8');
+    const promptRoute = route.kind === 'prompt-create' || route.kind === 'prompt-revision' || route.kind === 'prompt-lifecycle';
+    const raw = (await readOwnerBytes(request, promptRoute ? PROMPT_BODY_BYTES : catalogRoute ? CATALOG_BODY_BYTES : BRAND_BODY_BYTES)).toString('utf8');
     let body: unknown;
     try { body = JSON.parse(raw); } catch { return sendOwnerError(response, 400, 'bad_request', 'Request body must be valid JSON'); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
     const fields = body as Record<string, unknown>;
-    const keys = Object.keys(fields).filter((key) => !(route.kind === 'brand-revision' && key === 'logoMediaSha256')).sort().join(',');
+    const optional = route.kind === 'brand-revision' ? 'logoMediaSha256' : route.kind === 'prompt-create' ? 'duplicatedFrom' : undefined;
+    const keys = Object.keys(fields).filter((key) => key !== optional).sort().join(',');
     const expectedKeys = {
       'brand-create': 'brandKey,contractVersion,displayRules,profile',
       'brand-revision': 'contractVersion,displayRules,expectedVersion,profile',
       'item-create': 'contractVersion,item,itemKey',
       'item-revision': 'contractVersion,expectedVersion,item',
+      'prompt-create': 'contractVersion,prompt,promptKey,promptType',
+      'prompt-revision': 'contractVersion,expectedVersion,prompt',
+      'prompt-lifecycle': 'action,contractVersion,expectedSequence',
     }[route.kind];
     if (keys !== expectedKeys) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
     const serviceRequest = route.kind === 'brand-create' ? { ...fields }
       : route.kind === 'brand-revision' ? { ...fields, brandId: route.brandId }
       : route.kind === 'item-create' ? { ...fields, brandId: route.brandId }
-      : { ...fields, itemId: route.itemId };
+      : route.kind === 'item-revision' ? { ...fields, itemId: route.itemId }
+      : route.kind === 'prompt-create' ? { ...fields }
+      : { ...fields, promptId: route.promptId };
     try {
       if (route.kind === 'brand-create') validateContentBrandCreateRequest(serviceRequest);
       else if (route.kind === 'brand-revision') validateContentBrandRevisionRequest(serviceRequest);
       else if (route.kind === 'item-create') validateContentCatalogItemCreateRequest(serviceRequest);
-      else validateContentCatalogItemRevisionRequest(serviceRequest);
+      else if (route.kind === 'item-revision') validateContentCatalogItemRevisionRequest(serviceRequest);
+      else if (route.kind === 'prompt-create') validateContentPromptCreateRequest(serviceRequest);
+      else if (route.kind === 'prompt-revision') validateContentPromptRevisionRequest(serviceRequest);
+      else validateContentPromptLifecycleRequest(serviceRequest);
     } catch (error) {
       if (error instanceof FlowValidationError) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
       throw error;
     }
-    const receipt = route.kind === 'brand-create' || route.kind === 'brand-revision'
-      ? await writers.brand(serviceRequest, route.kind === 'brand-revision')
-      : await writers.item(serviceRequest, route.brandId, route.kind === 'item-revision' ? route.itemId : undefined);
+    const receipt = route.kind === 'brand-create' || route.kind === 'brand-revision' ? await writers.brand(serviceRequest, route.kind === 'brand-revision')
+      : route.kind === 'item-create' || route.kind === 'item-revision' ? await writers.item(serviceRequest, route.brandId, route.kind === 'item-revision' ? route.itemId : undefined)
+      : route.kind === 'prompt-lifecycle' ? await writers.promptLifecycle(serviceRequest)
+      : await writers.prompt(serviceRequest, route.kind === 'prompt-revision' ? route.promptId : undefined);
     return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
     if (error instanceof PayloadTooLargeError) return sendOwnerError(response, 400, 'bad_request', 'Request body is too large', {}, route.kind === 'media' ? 'too_large' : undefined);
@@ -402,6 +560,9 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     if (error instanceof UnknownBrandError) return sendOwnerError(response, 404, 'not_found', 'Brand not found');
     if (error instanceof UnknownItemError) return sendOwnerError(response, 404, 'not_found', 'Catalog item not found');
     if (error instanceof InvalidReferenceError) return sendOwnerError(response, 400, 'bad_request', 'Referenced media is not registered for this brand');
+    if (error instanceof UnknownPromptError) return sendOwnerError(response, 404, 'not_found', 'Prompt not found');
+    if (error instanceof InvalidPromptRequestError) return sendOwnerError(response, 400, 'bad_request', 'Invalid prompt request');
+    if (error instanceof ContentPromptConflictError && /drift|changed content|deleted|restore window/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     if ((error instanceof ContentBrandIdentityConflictError || error instanceof ContentCatalogIdentityConflictError) && /changed content|drift/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     return sendOwnerError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');
   }
