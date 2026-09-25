@@ -13,7 +13,7 @@ Escalate when: a change is needed outside the owned paths, or an existing assert
 ## 1. Data
 
 - Migration 0022 adds three tables, all immutable (triggers reject UPDATE and DELETE):
-  - `flow_content_media`: brand-scoped reference images. Primary key `(brand_id, media_kind, media_sha256)`; kind `LOGO | PHOTO`; type PNG/JPEG/WebP; width, height and byte size checked by the database.
+  - `flow_content_media`: brand-scoped reference images. Primary key `(brand_id, media_kind, media_sha256)`; kind `LOGO | PHOTO`; type PNG or JPEG; width, height and byte size checked by the database.
   - `flow_content_catalog_items`: `(brand_id, item_key)` is unique.
   - `flow_content_catalog_item_revisions`: sequential versions, following the brand pattern.
 - Image bytes live in the existing private content-addressed store. They have an `artifact_manifests` row with the image media type, like every other artifact. Nothing is public; bytes are only served back through the verified preview route below.
@@ -26,13 +26,15 @@ Escalate when: a change is needed outside the owned paths, or an existing assert
 
 ## 2. Image validation
 
-`src/modules/flow/content-image.ts` ports the original Content Studio PNG logo inspector (chunk CRCs, IHDR rules, full inflate and filter-byte check) and adds structural JPEG and WebP parsing:
+`src/modules/flow/content-image.ts` validates uploads, which must contain complete image data (owner decision, 2026-09-25):
 
-- **Accepted:** PNG, JPEG (baseline and progressive) and WebP (lossy, lossless, extended still).
+- **PNG:** ported from the original Content Studio logo inspector: chunk CRCs, IHDR rules, full inflate, and a filter-byte check on every scanline.
+- **JPEG:** `content-jpeg.ts` entropy-decodes every scan block by block (baseline and progressive, restart intervals, EOB runs, successive-approximation refinement). Pixels are not reconstructed, but a header, truncated scan, missing table or broken restart sequence is rejected.
+- **Accepted:** 8-bit grayscale or YCbCr JPEG (baseline or progressive), and still PNG.
 - **Rejected with a reason code:**
-  - SVG, GIF, HEIC or AVIF: `unsupported_format`;
-  - animation (APNG or animated WebP): `animated`;
-  - arithmetic, lossless or hierarchical JPEG: `unsupported_format`;
+  - WebP, SVG, GIF, HEIC or AVIF: `unsupported_format`;
+  - animation (APNG): `animated`;
+  - arithmetic, lossless, hierarchical, 12-bit or CMYK JPEG: `unsupported_format`;
   - unknown critical PNG chunks, or any structural damage: `invalid`;
   - data after the image ends, such as motion-photo trailers: `trailing_data`;
   - a declared type that doesn't match the bytes: `type_mismatch`.
@@ -40,6 +42,7 @@ Escalate when: a change is needed outside the owned paths, or an existing assert
   - Logo: 2 MiB (as in the blueprint). Photo: 8 MiB.
   - Each edge from 64 to 8192 px; at most 50 MP.
   - Decompressed PNG data at most 64 MiB.
+- **Re-reads.** Stored bytes are re-read with `decode: false`, a header-level check, because the SHA-256 proves they are the bytes fully decoded at upload.
 
 Uploaded bytes are stored unchanged. Stripping metadata (EXIF, including location) before images are sent to image models is an owner decision recorded in the release plan.
 
@@ -65,7 +68,7 @@ OWNER endpoints use the same token, origin and preflight rules as Task 048:
 - `POST …/brands/:brandId/catalog` and `…/catalog/:itemId/revisions` take a 64 KiB JSON body with an exact key set. They return 201, 200 on an exact retry, 409 on drift or a stale version, 404 for an unknown brand or an item of another brand, and 400 for invalid input or unregistered photos.
 - Brand revisions accept an optional `logoMediaSha256`.
 
-Before anything is staged, a write verifies the brand history, the item history (for revisions) and the stored bytes of every referenced photo or logo. A failure returns `500 integrity_error` and writes nothing: no rows, no manifests, no files.
+Before anything is staged, every write verifies the brand history. That includes media uploads, which added this check after review. It also verifies the item history (for revisions) and the stored bytes of every referenced photo or logo. A failure returns `500 integrity_error` and writes nothing: no rows, no manifests, no files.
 
 ## 4. UI
 
@@ -110,7 +113,8 @@ Before anything is staged, a write verifies the brand history, the item history 
 - **Static checks.** Contracts regenerate with no diff. The strict backend typecheck (temporary tsconfig workaround), the frontend typecheck and the production build all pass.
 - **New tests.** Image validator 4. Catalog and media services and migration 7. Catalog HTTP 6. Operator routing extended. Frontend: catalog 9 and brand-editor 1.
   - Five HTTP guarantees were mutation-checked: history verification, photo byte verification, preview CSP, registered-only preview, and the logo check.
-- **Real encoder outputs pass the validator:** Pillow baseline, progressive and EXIF JPEG; RGB, RGBA, palette and grayscale PNG; lossy, lossless and alpha WebP; and Windows sample images.
+- **Real encoder outputs pass the validator.** 93 JPEGs: 72 Pillow variants covering every subsampling mode, baseline and progressive, optimized tables, restart markers and odd sizes; plus grayscale and the Windows sample images. RGB, RGBA, palette and grayscale PNG also pass. CMYK is rejected as intended.
+  - A 12 MP progressive photo validates in about 0.8 s; baseline in under 0.3 s.
 - **Suites.** Frontend 79/79. Backend 320/336; the 16 failures are the same set as on `main` (Windows-only: POSIX permissions, signals and symlinks in Tasks 015/016/023/045, plus the operator tests' `frontend/dist` permission check). The operator content test passes with the scratch permission shim.
 - **End to end.** A local operator ran on a disposable synthetic database, with the Windows shim, on port 18911.
   - Seeded through the real OWNER API: brand, logo, logo revision, two photos, two catalog items. The SVG was rejected with `unsupported_format`.
@@ -118,3 +122,16 @@ Before anything is staged, a write verifies the brand history, the item history 
 - **Screenshots** (headless Chrome, exact viewports): [`catalog-desktop.png`](../frontend/screenshots/task-048b/catalog-desktop.png) (1440), [`brand-logo-desktop.png`](../frontend/screenshots/task-048b/brand-logo-desktop.png) (1440), [`catalog-phone.png`](../frontend/screenshots/task-048b/catalog-phone.png) (390).
   - At 390 px only the tiers table scrolls, inside its own container.
   - The product photos and logo are synthetic images generated for this test.
+
+## 7. Review corrections (orchestrator follow-up on `3c55c3f`, 2026-09-25)
+
+1. **Header-only WebP was accepted** as a 64×64 photo (a 26-byte container with no bitstream).
+   - Fix: WebP is no longer accepted (owner decision), and JPEG uploads are entropy-decoded as described in §2. Migration 0022 (still unmerged), the OWNER media receipt contract and the UI copy now list PNG and JPEG only.
+   - Regressions: the reviewer's 26-byte container, a real WebP, JPEGs with the header only or with truncated scans (baseline, progressive, restart), a missing Huffman table, and a wrong restart sequence.
+   - Tests now use small real encoder fixtures in `tests/fixtures/content-images/`. They are Pillow-encoded synthetic patterns; the synthetic JPEG helper is header-only.
+   - Mutation-checked: dropping AC value bits, refinement correction bits, the restart sequence check or EOB-run bits each makes tests fail.
+2. **Media uploads skipped brand-history verification.**
+   - Fix: they now verify it before registering.
+   - Regression: with brand v1 tampered or missing, both logo and photo uploads return `500 integrity_error`, and media rows, manifests and artifact files stay unchanged. Other brands still accept uploads.
+   - The regression failed before the fix (201).
+- **Suites after the corrections:** local frontend 79/79; backend 324/340 with the same 16 Windows-only failures. Linux CI evidence is in the handoff.

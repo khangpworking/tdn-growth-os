@@ -2,9 +2,9 @@
 
 ## Task 048b — Danh mục sản phẩm/dịch vụ và ảnh tham chiếu (draft PR)
 
-- Migration 0022 (`flow_content_media`, `flow_content_catalog_items`, `flow_content_catalog_item_revisions`) bất biến; logo và ảnh sản phẩm được kiểm tra cấu trúc (PNG/JPEG/WebP; logo ≤ 2 MB, ảnh ≤ 8 MB), lưu riêng tư trong kho artifact theo SHA-256 và chỉ xem lại qua route preview đã xác minh (nosniff, CSP sandbox).
+- Migration 0022 (`flow_content_media`, `flow_content_catalog_items`, `flow_content_catalog_item_revisions`) bất biến; logo và ảnh sản phẩm phải là PNG hoặc JPEG giải mã được đầy đủ (không nhận WebP; logo ≤ 2 MB, ảnh ≤ 8 MB), lưu riêng tư trong kho artifact theo SHA-256 và chỉ xem lại qua route preview đã xác minh (nosniff, CSP sandbox).
 - Sản phẩm/dịch vụ theo thương hiệu: loại, mô tả, gói (giá dạng chữ, “bao gồm”), ảnh có công tắc “Dùng cho Poster”; phiên bản bất biến, exact retry, xung đột 409, xác minh lịch sử và ảnh trước khi ghi. Hồ sơ thương hiệu có logo.
-- Giao diện: tab “Sản phẩm & dịch vụ” cạnh hồ sơ thương hiệu; bản nháp được giữ khi 409. Chưa có chiến dịch, thư viện prompt hay AI. Kế hoạch còn lại và tiêu chí phát hành Caption & Poster: `docs/content-studio-release.md`.
+- Giao diện: tab “Sản phẩm & dịch vụ” cạnh hồ sơ thương hiệu; bản nháp được giữ khi 409. Chưa có chiến dịch, thư viện prompt hay AI. Chủ dự án hoãn “Sửa bằng AI” sang bản sau (25/09/2026). Kế hoạch còn lại và tiêu chí phát hành Caption & Poster: `docs/content-studio-release.md`.
 
 ## Task 048 — Content brands (hồ sơ, thông tin liên hệ, quy tắc hiển thị)
 

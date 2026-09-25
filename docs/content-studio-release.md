@@ -30,8 +30,8 @@ Rows 049–053 of 047 §8 have not started.
 | 049 | AI plumbing (Controlled): generalize `AiGateway` for creative text and images, CLIProxy adapter, attempt records with startup sweep to `interrupted`, call-count preview, fake providers for tests | 047 | Pending |
 | 050 | Insight (typed, or copied from a locked STP; lock; D26 freeze when linked), Big Idea and Angle generation, branch codes A / A1, purpose tags incl. custom, develop/stop, soft delete + 30-day restore | 048c, 048d, 049 | Pending |
 | 051 | Caption & Poster for one or many Angles: Inspector (“Áp dụng cho tất cả” / “Sửa riêng”), style and length cascade, display-rule resolution, system contact footer, brand-fact checklist, Poster references (product photo first), package view with versions | 050 | Pending |
-| 052 | AI edit proposals (text diff, side-by-side image), manual edit, version restore | 051 | Pending |
-| 053 | Fedora live qualification (Controlled): owner-authorized first real calls, per-model multi-reference check, operator runbook, retire-Windows checklist | 051 (and 052 if release-gating) | Pending |
+| 052 | AI edit proposals (text diff, side-by-side image), manual edit, version restore | 051 | **AI edit deferred to a later release** (owner, 2026-09-25); manual edit and version handling to be reconciled when 051 is briefed |
+| 053 | Fedora live qualification (Controlled): owner-authorized first real calls, per-model multi-reference check, operator runbook, retire-Windows checklist | 051 | Pending |
 
 Each slice follows AGENTS.md: its own branch, a task brief, focused tests, `npm run check`, a draft PR, and an owner merge.
 
@@ -52,5 +52,11 @@ The release is accepted when all of these hold on the Fedora operator with fresh
 
 - 048b awaiting independent review and owner merge (migration 0022 must be applied before an operator build containing it starts).
 - 048c, 048d, 049, 050, 051 and 053 are not started. 049 and 053 need Controlled-lane authorization for the provider boundary and live calls.
-- **Owner decision:** does AI edit (052) gate this release, or follow it? The milestone path above does not include it; the accepted design does.
-- **Owner decision:** before first live Poster calls (051/053), should reference photos have their metadata (EXIF, including location) stripped? 048b stores uploaded bytes unchanged in private storage.
+- **Open, to reconcile when 051 is briefed:** manual editing (“Sửa tay”) and version history/restore of Caption and Poster are part of the accepted design and must not silently disappear with the AI-edit deferral.
+- **Owner decision pending:** before the first live Poster calls (051/053), should reference photos have their metadata (EXIF, including location) stripped? 048b stores uploaded bytes unchanged in private storage. Orchestrator recommendation, not approved: keep the private originals and create a derived, metadata-stripped, orientation-corrected reference with explicit lineage.
+- **Open design point for 048d:** catalog items cannot be archived or deleted; the accepted design does not define it. Do not invent it without a decision.
+
+## 5. Decisions recorded
+
+- 2026-09-25 (owner): AI editing (052 proposals: text diff, side-by-side image) is deferred to a later release and does not gate the first Caption & Poster release.
+- 2026-09-25 (owner): reference-image uploads accept PNG and JPEG only, and must contain complete, decodable image data. WebP is rejected until a vetted decoder is chosen; users are asked to re-export as JPEG or PNG.
