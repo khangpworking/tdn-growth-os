@@ -52,17 +52,17 @@ test('edits are ignored while saving and a successful save settles on the saved 
 });
 
 test('a new-brand editor keeps its retry key and draft across failures', () => {
-  let editor = brandEditorReducer(null, { type: 'new', brandKey: 'brand-abc' });
-  assert.deepEqual([editor.target, editor.brandKey, editor.base], ['new', 'brand-abc', null]);
+  let editor = brandEditorReducer(null, { type: 'new', key: 'brand-abc' });
+  assert.deepEqual([editor.target, editor.newKey, editor.base], ['new', 'brand-abc', null]);
   editor = edited(editor, 'Mới');
   editor = brandEditorReducer(brandEditorReducer(editor, { type: 'submitted' }), { type: 'failed', conflict: false, message: 'Kết nối không rõ kết quả.' });
-  assert.deepEqual([editor.brandKey, editor.draft.brandName, editor.notice], ['brand-abc', 'Mới', { kind: 'error', message: 'Kết nối không rõ kết quả.' }]);
+  assert.deepEqual([editor.newKey, editor.draft.brandName, editor.notice], ['brand-abc', 'Mới', { kind: 'error', message: 'Kết nối không rõ kết quả.' }]);
   assert.deepEqual(brandEditorReducer(editor, { type: 'discard' }).draft, emptyBrandDraft());
 });
 
 test('the brand form renders the kept draft, the conflict choice, and locks fields while saving', async () => {
   const { BrandForm } = await tsImport('../src/BrandsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/BrandsPage');
-  const props = { mode: 'real' as const, brandId, ownerToken: 'token', writesAvailable: true, demoBrands: [], setDemoBrands: () => undefined, navigate: () => undefined, notify: () => undefined, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined };
+  const props = { mode: 'real' as const, brandId, view: 'profile' as const, itemId: null, ownerToken: 'token', writesAvailable: true, demoBrands: [], setDemoBrands: () => undefined, demoItems: [], setDemoItems: () => undefined, demoMedia: {}, addDemoMedia: () => undefined, mediaSrc: (digest: string) => `/media/${digest}`, navigate: () => undefined, notify: () => undefined, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined };
   let editor = brandEditorReducer(brandEditorReducer(edited(opened(), 'LOCAL UNSAVED EDIT'), { type: 'submitted' }), { type: 'failed', conflict: true, message: 'x' });
   editor = brandEditorReducer(editor, { type: 'loaded', base: base(2, { brandName: 'SERVER OTHER EDIT' }) });
   const conflict = renderToStaticMarkup(createElement(BrandForm, { ...props, editor }));
@@ -74,4 +74,17 @@ test('the brand form renders the kept draft, the conflict choice, and locks fiel
   const saving = renderToStaticMarkup(createElement(BrandForm, { ...props, editor: brandEditorReducer(edited(opened(), 'SUBMITTED EDIT'), { type: 'submitted' }) }));
   assert.match(saving, /<fieldset[^>]*disabled=""[^>]*>\s*<legend>Hồ sơ/);
   assert.match(saving, /<fieldset[^>]*disabled=""[^>]*class="rules-lock"|<fieldset class="rules-lock"[^>]*disabled=""/);
+});
+
+test('the brand form previews the draft logo and offers upload only for saved brands', async () => {
+  const { BrandForm } = await tsImport('../src/BrandsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/BrandsPage');
+  const props = { mode: 'real' as const, brandId, view: 'profile' as const, itemId: null, ownerToken: 'token', writesAvailable: true, demoBrands: [], setDemoBrands: () => undefined, demoItems: [], setDemoItems: () => undefined, demoMedia: {}, addDemoMedia: () => undefined, mediaSrc: (digest: string) => `/media/${digest}`, navigate: () => undefined, notify: () => undefined, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined };
+  const withLogo = edited(opened(), 'Canxi Việt');
+  const html = renderToStaticMarkup(createElement(BrandForm, { ...props, editor: { ...withLogo, draft: { ...withLogo.draft, logoMediaSha256: 'b'.repeat(64) } } }));
+  assert.match(html, new RegExp(`<img src="/media/${'b'.repeat(64)}" alt="Logo Canxi Việt"`));
+  assert.match(html, /Đổi logo/);
+  assert.match(html, /Bỏ logo/);
+  const fresh = renderToStaticMarkup(createElement(BrandForm, { ...props, editor: brandEditorReducer(null, { type: 'new', key: 'brand-abc' }) }));
+  assert.match(fresh, /Lưu thương hiệu trước, rồi thêm logo\./);
+  assert.doesNotMatch(fresh, /type="file"/);
 });

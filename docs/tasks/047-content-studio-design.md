@@ -121,3 +121,5 @@ Do not reuse: Express routes, preflight/remote-origin/Access code, the separate 
 | 053 | Fedora live qualification: owner-authorized first real calls, multi-reference image check per model, operator runbook, retire-Windows checklist | Controlled | 052 |
 
 Each task follows AGENTS.md: dedicated branch/worktree, focused tests, `npm run check`, draft PR, owner merge.
+
+> Reconciled 2026-09-25: Task 048 as merged delivered brands only. The rest of row 048 is split into slices 048b (catalog and reference media), 048c (prompt library) and 048d (campaigns). The current slice status and the Caption & Poster release acceptance criteria are in [`docs/content-studio-release.md`](../content-studio-release.md).

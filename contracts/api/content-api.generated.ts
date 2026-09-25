@@ -1,9 +1,16 @@
 /* Generated from content-api.schema.json. Do not edit by hand. */
 
-export type ContentApiContract = ContentBrandListResponse | ContentBrandDetailResponse | ContentApiErrorResponse;
+export type ContentApiContract =
+  | ContentBrandListResponse
+  | ContentBrandDetailResponse
+  | ContentCatalogListResponse
+  | ContentCatalogDetailResponse
+  | ContentApiErrorResponse;
 export type Uuid = string;
 export type DateTime = string;
 export type ContentVisibility = 'ALWAYS' | 'OPTIONAL' | 'HIDDEN';
+export type Sha256 = string;
+export type ContentCatalogItemType = 'PHYSICAL' | 'SERVICE';
 
 export interface ContentBrandListResponse {
   contractVersion: '1.0.0';
@@ -30,6 +37,7 @@ export interface ContentBrandRecord {
   version: number;
   profile: ContentProfile;
   displayRules: ContentDisplayRules;
+  logoMediaSha256?: Sha256;
   createdAt: DateTime;
 }
 export interface ContentProfile {
@@ -58,6 +66,197 @@ export interface ContentElementRules {
 export interface ContentBrandHistoryItem {
   version: number;
   brandName: string;
+  createdAt: DateTime;
+}
+export interface ContentCatalogListResponse {
+  contractVersion: '1.0.0';
+  brandId: Uuid;
+  items: ContentCatalogItemSummary[];
+}
+export interface ContentCatalogItemSummary {
+  itemId: Uuid;
+  itemKey: string;
+  version: number;
+  itemType: 'PHYSICAL' | 'SERVICE';
+  name: string;
+  tierNames: string[];
+  photoCount: number;
+  updatedAt: DateTime;
+}
+export interface ContentCatalogDetailResponse {
+  contractVersion: '1.0.0';
+  item: ContentCatalogItemRecord;
+  /**
+   * @minItems 1
+   */
+  history: [ContentCatalogHistoryItem, ...ContentCatalogHistoryItem[]];
+}
+export interface ContentCatalogItemRecord {
+  itemId: Uuid;
+  brandId: Uuid;
+  itemKey: string;
+  version: number;
+  item: ContentCatalogItemContent;
+  createdAt: DateTime;
+}
+export interface ContentCatalogItemContent {
+  itemType: ContentCatalogItemType;
+  name: string;
+  description?: string;
+  /**
+   * @maxItems 8
+   */
+  tiers:
+    | []
+    | [ContentCatalogTier]
+    | [ContentCatalogTier, ContentCatalogTier]
+    | [ContentCatalogTier, ContentCatalogTier, ContentCatalogTier]
+    | [ContentCatalogTier, ContentCatalogTier, ContentCatalogTier, ContentCatalogTier]
+    | [ContentCatalogTier, ContentCatalogTier, ContentCatalogTier, ContentCatalogTier, ContentCatalogTier]
+    | [
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+      ]
+    | [
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+      ]
+    | [
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+        ContentCatalogTier,
+      ];
+  /**
+   * @maxItems 12
+   */
+  photos:
+    | []
+    | [ContentCatalogPhoto]
+    | [ContentCatalogPhoto, ContentCatalogPhoto]
+    | [ContentCatalogPhoto, ContentCatalogPhoto, ContentCatalogPhoto]
+    | [ContentCatalogPhoto, ContentCatalogPhoto, ContentCatalogPhoto, ContentCatalogPhoto]
+    | [ContentCatalogPhoto, ContentCatalogPhoto, ContentCatalogPhoto, ContentCatalogPhoto, ContentCatalogPhoto]
+    | [
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+      ]
+    | [
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+      ]
+    | [
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+      ]
+    | [
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+      ]
+    | [
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+      ]
+    | [
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+      ]
+    | [
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+        ContentCatalogPhoto,
+      ];
+}
+export interface ContentCatalogTier {
+  tierKey: string;
+  name: string;
+  priceText?: string;
+  /**
+   * @maxItems 12
+   */
+  inclusions:
+    | []
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string, string, string, string, string];
+}
+export interface ContentCatalogPhoto {
+  mediaSha256: string;
+  posterDefault: boolean;
+}
+export interface ContentCatalogHistoryItem {
+  version: number;
+  name: string;
   createdAt: DateTime;
 }
 export interface ContentApiErrorResponse {

@@ -5,11 +5,14 @@
   "oneOf": [
     { "$ref": "#/$defs/brandList" },
     { "$ref": "#/$defs/brandDetail" },
+    { "$ref": "#/$defs/catalogList" },
+    { "$ref": "#/$defs/catalogDetail" },
     { "$ref": "#/$defs/error" }
   ],
   "$defs": {
     "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
     "dateTime": { "type": "string", "format": "date-time" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "visibility": { "title": "ContentVisibility", "enum": ["ALWAYS", "OPTIONAL", "HIDDEN"] },
     "elementRules": {
       "title": "ContentElementRules",
@@ -104,10 +107,73 @@
             "version": { "type": "integer", "minimum": 1 },
             "profile": { "$ref": "#/$defs/profile" },
             "displayRules": { "$ref": "#/$defs/displayRules" },
+            "logoMediaSha256": { "$ref": "#/$defs/sha256" },
             "createdAt": { "$ref": "#/$defs/dateTime" }
           }
         },
         "history": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/brandHistoryItem" } }
+      }
+    },
+    "catalogItemSummary": {
+      "title": "ContentCatalogItemSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemId", "itemKey", "version", "itemType", "name", "tierNames", "photoCount", "updatedAt"],
+      "properties": {
+        "itemId": { "$ref": "#/$defs/uuid" },
+        "itemKey": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1 },
+        "itemType": { "enum": ["PHYSICAL", "SERVICE"] },
+        "name": { "type": "string" },
+        "tierNames": { "type": "array", "items": { "type": "string" } },
+        "photoCount": { "type": "integer", "minimum": 0 },
+        "updatedAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "catalogList": {
+      "title": "ContentCatalogListResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "brandId", "items"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "brandId": { "$ref": "#/$defs/uuid" },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/catalogItemSummary" } }
+      }
+    },
+    "catalogHistoryItem": {
+      "title": "ContentCatalogHistoryItem",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "name", "createdAt"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "catalogDetail": {
+      "title": "ContentCatalogDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "item", "history"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "item": {
+          "title": "ContentCatalogItemRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["itemId", "brandId", "itemKey", "version", "item", "createdAt"],
+          "properties": {
+            "itemId": { "$ref": "#/$defs/uuid" },
+            "brandId": { "$ref": "#/$defs/uuid" },
+            "itemKey": { "type": "string" },
+            "version": { "type": "integer", "minimum": 1 },
+            "item": { "$ref": "../flow/content-catalog-item-create-request.schema.json#/$defs/item" },
+            "createdAt": { "$ref": "#/$defs/dateTime" }
+          }
+        },
+        "history": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/catalogHistoryItem" } }
       }
     },
     "error": {

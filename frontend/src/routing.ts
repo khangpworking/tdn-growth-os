@@ -6,6 +6,7 @@ export type Route =
   | { readonly kind: 'product'; readonly marketId: string; readonly productId: string; readonly section: ProductSection }
   | { readonly kind: 'brands' }
   | { readonly kind: 'brand'; readonly brandId: string }
+  | { readonly kind: 'catalog'; readonly brandId: string; readonly itemId: string | null }
   | { readonly kind: 'invalid'; readonly hash: string };
 
 const sections = new Set<ProductSection>(['b8', 'sources', 'history', 'b9', 'b10']);
@@ -22,6 +23,10 @@ export function parseRoute(hash: string, state: DemoState): Route {
   }
   if (parts.length === 1 && parts[0] === 'brands') return { kind: 'brands' };
   if (parts.length === 2 && parts[0] === 'brands') return UUID.test(parts[1]!) ? { kind: 'brand', brandId: parts[1]! } : { kind: 'invalid', hash };
+  if ((parts.length === 3 || parts.length === 4) && parts[0] === 'brands' && parts[2] === 'products') {
+    const itemId = parts[3] ?? null;
+    return UUID.test(parts[1]!) && (itemId === null || UUID.test(itemId)) ? { kind: 'catalog', brandId: parts[1]!, itemId } : { kind: 'invalid', hash };
+  }
   if (parts.length === 2 && parts[0] === 'markets') {
     return state.markets.some((market) => market.id === parts[1])
       ? { kind: 'market', marketId: parts[1]! }
@@ -42,6 +47,8 @@ export const routeToHash = {
   portfolio: (): string => '#/',
   brands: (): string => '#/brands',
   brand: (brandId: string): string => `#/brands/${encodeURIComponent(brandId)}`,
+  catalog: (brandId: string): string => `#/brands/${encodeURIComponent(brandId)}/products`,
+  catalogItem: (brandId: string, itemId: string): string => `#/brands/${encodeURIComponent(brandId)}/products/${encodeURIComponent(itemId)}`,
   market: (marketId: string): string => `#/markets/${encodeURIComponent(marketId)}`,
   product: (marketId: string, productId: string, section: ProductSection = 'b8'): string => `#/markets/${encodeURIComponent(marketId)}/products/${encodeURIComponent(productId)}/${section}`,
 };

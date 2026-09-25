@@ -38,6 +38,10 @@ export function ownerAuthorized(request: IncomingMessage, expected: string): boo
 }
 
 export async function readOwnerBody(request: IncomingMessage, maxBytes: number): Promise<string> {
+  return (await readOwnerBytes(request, maxBytes)).toString('utf8');
+}
+
+export async function readOwnerBytes(request: IncomingMessage, maxBytes: number): Promise<Buffer> {
   const declared = request.headers['content-length'];
   if (declared !== undefined && (!/^\d+$/.test(declared) || Number(declared) > maxBytes)) { request.resume(); throw new PayloadTooLargeError(); }
   const chunks: Buffer[] = []; let size = 0;
@@ -47,7 +51,7 @@ export async function readOwnerBody(request: IncomingMessage, maxBytes: number):
     chunks.push(bytes);
   }
   if (size === 0) throw new EmptyBodyError();
-  return Buffer.concat(chunks).toString('utf8');
+  return Buffer.concat(chunks);
 }
 
 export function ownerCors(response: ServerResponse, origin: string): void {

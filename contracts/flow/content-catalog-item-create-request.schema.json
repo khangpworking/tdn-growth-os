@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-catalog-item-create-request.schema.json",
+  "title": "ContentCatalogItemCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "brandId", "itemKey", "item"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "brandId": { "type": "string", "format": "uuid" },
+    "itemKey": { "$ref": "#/$defs/itemKey" },
+    "item": { "$ref": "#/$defs/item" }
+  },
+  "$defs": {
+    "itemKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "item": {
+      "title": "ContentCatalogItemContent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemType", "name", "tiers", "photos"],
+      "properties": {
+        "itemType": { "title": "ContentCatalogItemType", "enum": ["PHYSICAL", "SERVICE"] },
+        "name": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "description": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "tiers": { "type": "array", "maxItems": 8, "items": { "$ref": "#/$defs/tier" } },
+        "photos": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/photo" } }
+      }
+    },
+    "tier": {
+      "title": "ContentCatalogTier",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tierKey", "name", "inclusions"],
+      "properties": {
+        "tierKey": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "priceText": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "inclusions": {
+          "type": "array",
+          "maxItems": 12,
+          "items": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" }
+        }
+      }
+    },
+    "photo": {
+      "title": "ContentCatalogPhoto",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mediaSha256", "posterDefault"],
+      "properties": {
+        "mediaSha256": { "$ref": "#/$defs/sha256" },
+        "posterDefault": { "type": "boolean" }
+      }
+    }
+  }
+}

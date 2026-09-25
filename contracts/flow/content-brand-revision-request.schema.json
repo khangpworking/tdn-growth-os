@@ -10,6 +10,7 @@
     "brandId": { "type": "string", "format": "uuid" },
     "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
     "profile": { "$ref": "content-brand-create-request.schema.json#/$defs/profile" },
-    "displayRules": { "$ref": "content-brand-create-request.schema.json#/$defs/displayRules" }
+    "displayRules": { "$ref": "content-brand-create-request.schema.json#/$defs/displayRules" },
+    "logoMediaSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
   }
 }

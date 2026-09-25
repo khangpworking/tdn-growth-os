@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-catalog-item-artifact.schema.json",
+  "title": "ContentCatalogItemArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "itemId", "brandId", "itemKey", "version", "item", "createdAt", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "itemId": { "type": "string", "format": "uuid" },
+    "brandId": { "type": "string", "format": "uuid" },
+    "itemKey": { "$ref": "content-catalog-item-create-request.schema.json#/$defs/itemKey" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "item": { "$ref": "content-catalog-item-create-request.schema.json#/$defs/item" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

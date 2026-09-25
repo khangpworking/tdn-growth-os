@@ -9,6 +9,7 @@ export interface ContentBrandArtifact {
   version: number;
   profile: ContentBrandProfile;
   displayRules: ContentBrandDisplayRules;
+  logoMediaSha256?: string;
   createdAt: string;
   requestSha256: string;
 }

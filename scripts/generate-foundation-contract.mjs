@@ -52,6 +52,7 @@ const contracts = [
   ['api', 'owner-product-workspace-api'],
   ['api', 'content-api'],
   ['api', 'owner-content-brand-api'],
+  ['api', 'owner-content-catalog-api'],
   ['flow', 'approved-proposal-intake-request'],
   ['flow', 'authorized-plan'],
   ['flow', 'discovery-workspace-request'],
@@ -72,6 +73,9 @@ const contracts = [
   ['flow', 'content-brand-create-request'],
   ['flow', 'content-brand-revision-request'],
   ['flow', 'content-brand-artifact'],
+  ['flow', 'content-catalog-item-create-request'],
+  ['flow', 'content-catalog-item-revision-request'],
+  ['flow', 'content-catalog-item-artifact'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);

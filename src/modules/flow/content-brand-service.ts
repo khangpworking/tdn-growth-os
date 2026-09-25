@@ -1,9 +1,17 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import type Database from 'better-sqlite3';
 import type { ContentBrandArtifact, ContentBrandDisplayRules, ContentBrandProfile } from '../../../contracts/flow/content-brand-artifact.generated.js';
-import { canonicalJson } from '../foundation/index.js';
-import { ContentAddressedArtifactStore, type StoredArtifact } from '../../platform/artifacts/index.js';
+import { ContentAddressedArtifactStore } from '../../platform/artifacts/index.js';
+import {
+  canonicalBytes as bytes,
+  canonicalDigest as digest,
+  canonicalSnapshot as snapshot,
+  readCanonicalJsonArtifact,
+  registerContentManifest,
+  sha256,
+} from './content-artifacts.js';
+import { registeredContentMedia } from './content-media-service.js';
 import {
   FlowValidationError,
   validateContentBrandArtifact,
@@ -69,7 +77,7 @@ export class ContentBrandService {
     const execute = this.#db.transaction((): ContentBrandExecution => {
       const concurrent = this.#brandByKey(input.brandKey);
       if (concurrent) return this.#retry(requestSha256, this.#versionOne(concurrent.brandId));
-      let databaseMutations = this.#registerArtifact(stored, createdAt);
+      let databaseMutations = registerContentManifest(this.#db, stored, createdAt, 'application/json');
       databaseMutations += this.#db.prepare(`
         INSERT INTO flow_content_brands(brand_id, brand_key, created_at) VALUES (?, ?, ?)
       `).run(brandId, input.brandKey, createdAt).changes;
@@ -95,9 +103,10 @@ export class ContentBrandService {
       return result;
     }
     if (Number(current.version) !== input.expectedVersion) throw new ContentBrandIdentityConflictError('Brand revision version or content drift');
+    this.#assertLogo(input.brandId, input.logoMediaSha256);
 
     const createdAt = this.#now().toISOString();
-    const artifact = brandArtifact(current.brandId, current.brandKey, targetVersion, input.profile, input.displayRules, createdAt, requestSha256);
+    const artifact = brandArtifact(current.brandId, current.brandKey, targetVersion, input.profile, input.displayRules, createdAt, requestSha256, input.logoMediaSha256);
     validateContentBrandArtifact(artifact);
     const stored = await this.#artifacts.put(bytes(artifact));
 
@@ -107,7 +116,7 @@ export class ContentBrandService {
       const concurrentTarget = this.#brandVersion(input.brandId, targetVersion);
       if (concurrentTarget) return this.#retry(requestSha256, concurrentTarget);
       if (Number(concurrent.version) !== input.expectedVersion) throw new ContentBrandIdentityConflictError('Brand revision version or content drift');
-      let databaseMutations = this.#registerArtifact(stored, createdAt);
+      let databaseMutations = registerContentManifest(this.#db, stored, createdAt, 'application/json');
       databaseMutations += this.#insertRevision(input.brandId, targetVersion, input.profile.brandName, requestSha256, stored.sha256, createdAt);
       return { brandId: input.brandId, brandArtifactSha256: stored.sha256, version: targetVersion, deduplicated: false, databaseMutations };
     });
@@ -121,12 +130,13 @@ export class ContentBrandService {
     assertUuid(brandId);
     const row = version === undefined ? this.#brandById(brandId) : this.#brandVersion(brandId, version);
     if (!row) throw new FlowValidationError(`Content brand revision not found: ${brandId}`);
-    const artifact = await this.#readArtifact(row.artifactSha256);
+    const artifact = validateContentBrandArtifact(await readCanonicalJsonArtifact(this.#db, this.#artifacts, row.artifactSha256));
     const ownerRequest = artifact.version === 1
       ? validateContentBrandCreateRequest({ contractVersion: '1.0.0', brandKey: artifact.brandKey, profile: artifact.profile, displayRules: artifact.displayRules })
       : validateContentBrandRevisionRequest({
           contractVersion: '1.0.0', brandId: artifact.brandId, expectedVersion: artifact.version - 1,
           profile: artifact.profile, displayRules: artifact.displayRules,
+          ...(artifact.logoMediaSha256 === undefined ? {} : { logoMediaSha256: artifact.logoMediaSha256 }),
         });
     if (
       digest(ownerRequest) !== artifact.requestSha256 ||
@@ -137,6 +147,7 @@ export class ContentBrandService {
       artifact.requestSha256 !== row.requestSha256 ||
       artifact.createdAt !== row.createdAt
     ) throw new ContentBrandIdentityConflictError('Brand artifact does not match immutable metadata');
+    this.#assertLogo(artifact.brandId, artifact.logoMediaSha256);
     return artifact;
   }
 
@@ -154,13 +165,17 @@ export class ContentBrandService {
       : (() => { const existing = this.#brandByKey(input.brandKey); return existing ? this.#brandVersion(existing.brandId, 1) : undefined; })();
     if (!row || row.requestSha256 !== requestSha256) return false;
     if (await this.#artifactPresent(row.artifactSha256)) return false;
-    const artifact = brandArtifact(row.brandId, row.brandKey, Number(row.version), input.profile, input.displayRules, row.createdAt, row.requestSha256);
+    const artifact = brandArtifact(row.brandId, row.brandKey, Number(row.version), input.profile, input.displayRules, row.createdAt, row.requestSha256, 'logoMediaSha256' in input ? input.logoMediaSha256 : undefined);
     const restored = bytes(validateContentBrandArtifact(artifact));
-    if (createHash('sha256').update(restored).digest('hex') !== row.artifactSha256) {
+    if (sha256(restored) !== row.artifactSha256) {
       throw new ContentBrandIdentityConflictError('Committed brand artifact cannot be reconstructed');
     }
     await this.#artifacts.put(restored);
     return true;
+  }
+
+  #assertLogo(brandId: string, logoMediaSha256: string | undefined): void {
+    if (logoMediaSha256 !== undefined && !registeredContentMedia(this.#db, brandId, 'LOGO', logoMediaSha256)) throw new FlowValidationError(`Brand logo is not a registered logo of this brand: ${logoMediaSha256}`);
   }
 
   async #artifactPresent(sha256: string): Promise<boolean> {
@@ -205,51 +220,6 @@ export class ContentBrandService {
     `).get(...values) as BrandRow | undefined;
   }
 
-  #registerArtifact(stored: StoredArtifact, acquiredAt: string): number {
-    const changes = this.#db.prepare(`
-      INSERT INTO artifact_manifests(
-        sha256, byte_size, media_type, relative_path, acquired_at,
-        contract_version, retention_status, created_at
-      ) VALUES (?, ?, 'application/json', ?, ?, '1.0.0', 'active', ?)
-      ON CONFLICT(sha256) DO NOTHING
-    `).run(stored.sha256, stored.byteSize, stored.relativePath, acquiredAt, acquiredAt);
-    const row = this.#db.prepare(`
-      SELECT byte_size byteSize, media_type mediaType, relative_path relativePath, contract_version contractVersion
-      FROM artifact_manifests WHERE sha256 = ?
-    `).get(stored.sha256) as { byteSize: bigint; mediaType: string; relativePath: string; contractVersion: string };
-    if (
-      row.byteSize !== BigInt(stored.byteSize) ||
-      row.mediaType !== 'application/json' ||
-      row.relativePath !== stored.relativePath ||
-      row.contractVersion !== '1.0.0'
-    ) throw new ContentBrandIdentityConflictError('Artifact metadata conflict');
-    return changes.changes;
-  }
-
-  async #readArtifact(sha256: string): Promise<ContentBrandArtifact> {
-    const manifest = this.#db.prepare(`
-      SELECT byte_size byteSize, media_type mediaType, relative_path relativePath, contract_version contractVersion
-      FROM artifact_manifests WHERE sha256 = ?
-    `).get(sha256) as { byteSize: bigint; mediaType: string; relativePath: string; contractVersion: string } | undefined;
-    const data = await this.#artifacts.read(sha256);
-    if (
-      !manifest ||
-      manifest.byteSize !== BigInt(data.byteLength) ||
-      manifest.mediaType !== 'application/json' ||
-      manifest.relativePath !== `sha256/${sha256.slice(0, 2)}/${sha256}` ||
-      manifest.contractVersion !== '1.0.0'
-    ) throw new ContentBrandIdentityConflictError('Artifact manifest metadata mismatch');
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(data));
-    } catch (error) {
-      throw new FlowValidationError(`Invalid artifact JSON: ${(error as Error).message}`);
-    }
-    const artifact = validateContentBrandArtifact(parsed);
-    if (!data.equals(bytes(artifact))) throw new FlowValidationError('Artifact is not canonical JSON');
-    return artifact;
-  }
-
   #validUuid(): string {
     const value = this.#uuid();
     assertUuid(value);
@@ -265,20 +235,9 @@ function brandArtifact(
   displayRules: ContentBrandDisplayRules,
   createdAt: string,
   requestSha256: string,
+  logoMediaSha256?: string,
 ): ContentBrandArtifact {
-  return { contractVersion: '1.0.0', brandId, brandKey, version, profile, displayRules, createdAt, requestSha256 };
-}
-
-function snapshot<T>(value: T): T {
-  return JSON.parse(canonicalJson(value)) as T;
-}
-
-function bytes(value: unknown): Buffer {
-  return Buffer.from(canonicalJson(value), 'utf8');
-}
-
-function digest(value: unknown): string {
-  return createHash('sha256').update(bytes(value)).digest('hex');
+  return { contractVersion: '1.0.0', brandId, brandKey, version, profile, displayRules, ...(logoMediaSha256 === undefined ? {} : { logoMediaSha256 }), createdAt, requestSha256 };
 }
 
 function assertUuid(value: string): void {
