@@ -11,8 +11,8 @@ The original Task 047 §8 plan put the whole content foundation in Task 048. Onl
 | Planned item (047 §8, row 048) | State on main | Slice |
 |---|---|---|
 | Brands: profile, contact facts, Luôn/Tùy/Ẩn display rules, versions, UI | **Merged** (PR #44 design, PR #45 code; migration 0021) | 048 |
-| Brand logo (upload, validation, private storage, preview) | Not built | 048b |
-| Catalog: products/services per brand, description, tiers (price text, inclusions), product photos with Poster default | Not built | 048b |
+| Brand logo (upload, validation, private storage, preview) | Built on `feature/048b-content-catalog-media` (not merged) | 048b |
+| Catalog: products/services per brand, description, tiers (price text, inclusions), product photos with Poster default | Built on `feature/048b-content-catalog-media` (not merged) | 048b |
 | Prompt Library: two-layer prompts, system prompts ported from the old Content Studio templates, freestyle saved to the library (no AI) | Not built | 048c |
 | Campaign list and create (brand, catalog items + tiers, objective, optional research link) | Not built | 048d |
 | Top navigation “Nội dung” and “Thư viện prompt” | Not built (only “Thị trường · Thương hiệu”) | 048c / 048d |
@@ -24,7 +24,7 @@ Rows 049–053 of 047 §8 have not started.
 
 | Slice | Scope | Depends on | Status |
 |---|---|---|---|
-| 048b | Brand catalog and reference media: catalog items, tiers, product photos, brand logo, image validation, private storage, safe preview, read/OWNER APIs, UI | 048 | **In progress** (this branch) |
+| 048b | Brand catalog and reference media: catalog items, tiers, product photos, brand logo, image validation, private storage, safe preview, read/OWNER APIs, UI ([brief](tasks/048b-content-catalog-media.md)) | 048 | **Draft PR, awaiting review** |
 | 048c | Prompt Library: prompt and prompt-version records, creative vs system layers, system prompts from old templates, library/freestyle picker component, “Thư viện prompt” navigation | 048 | Pending |
 | 048d | Campaigns: list with brand filter, create (brand, catalog items + tier subset, objective, optional research product link), campaign defaults, “Nội dung” navigation | 048b | Pending |
 | 049 | AI plumbing (Controlled): generalize `AiGateway` for creative text and images, CLIProxy adapter, attempt records with startup sweep to `interrupted`, call-count preview, fake providers for tests | 047 | Pending |
@@ -50,7 +50,7 @@ The release is accepted when all of these hold on the Fedora operator with fresh
 
 ## 4. What blocks the release today
 
-- 048b (this branch) awaiting review and merge.
+- 048b awaiting independent review and owner merge (migration 0022 must be applied before an operator build containing it starts).
 - 048c, 048d, 049, 050, 051 and 053 are not started. 049 and 053 need Controlled-lane authorization for the provider boundary and live calls.
 - **Owner decision:** does AI edit (052) gate this release, or follow it? The milestone path above does not include it; the accepted design does.
 - **Owner decision:** before first live Poster calls (051/053), should reference photos have their metadata (EXIF, including location) stripped? 048b stores uploaded bytes unchanged in private storage.
