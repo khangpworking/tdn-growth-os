@@ -54,18 +54,21 @@ export interface BrandDraft {
   readonly website: string;
   readonly fanpage: string;
   readonly address: string;
+  /** SHA-256 of a registered logo; empty when the brand has no logo. */
+  readonly logoMediaSha256: string;
   readonly displayRules: ContentDisplayRules;
 }
-export interface BrandRequest { readonly profile: ContentProfile; readonly displayRules: ContentDisplayRules }
+export interface BrandRequest { readonly profile: ContentProfile; readonly displayRules: ContentDisplayRules; readonly logoMediaSha256?: string }
 
 export function emptyBrandDraft(): BrandDraft {
-  return { brandName: '', tagline: '', hotline: '', website: '', fanpage: '', address: '', displayRules: cloneRules(DEFAULT_DISPLAY_RULES) };
+  return { brandName: '', tagline: '', hotline: '', website: '', fanpage: '', address: '', logoMediaSha256: '', displayRules: cloneRules(DEFAULT_DISPLAY_RULES) };
 }
 
-export function draftFromBrand(brand: { readonly profile: ContentProfile; readonly displayRules: ContentDisplayRules }): BrandDraft {
+export function draftFromBrand(brand: { readonly profile: ContentProfile; readonly displayRules: ContentDisplayRules; readonly logoMediaSha256?: string }): BrandDraft {
   return {
     brandName: brand.profile.brandName, tagline: brand.profile.tagline ?? '', hotline: brand.profile.hotline ?? '',
     website: brand.profile.website ?? '', fanpage: brand.profile.fanpage ?? '', address: brand.profile.address ?? '',
+    logoMediaSha256: brand.logoMediaSha256 ?? '',
     displayRules: cloneRules(brand.displayRules),
   };
 }
@@ -82,7 +85,7 @@ export function brandDraftBlocker(draft: BrandDraft): string | null {
 export function brandRequestFromDraft(draft: BrandDraft): BrandRequest {
   const profile: Record<string, string> = { brandName: draft.brandName.trim() };
   for (const key of FACTS) { const value = draft[key].trim(); if (value) profile[key] = value; }
-  return { profile: profile as unknown as ContentProfile, displayRules: cloneRules(draft.displayRules) };
+  return { profile: profile as unknown as ContentProfile, displayRules: cloneRules(draft.displayRules), ...(draft.logoMediaSha256 ? { logoMediaSha256: draft.logoMediaSha256 } : {}) };
 }
 
 export function generatedBrandKey(uuid: string = crypto.randomUUID()): string {
@@ -107,7 +110,8 @@ export async function loadBrand(brandId: string, fetcher: typeof fetch = fetch):
   if (value === null) return null;
   if (!record(value) || !exactKeys(value, ['brand', 'contractVersion', 'history']) || value.contractVersion !== '1.0.0') invalid();
   const brand = value.brand as Record<string, unknown>;
-  if (!record(brand) || !exactKeys(brand, ['brandId', 'brandKey', 'createdAt', 'displayRules', 'profile', 'version']) || brand.brandId !== brandId || typeof brand.brandKey !== 'string' || !version(brand.version) || !dateTime(brand.createdAt) || !profile(brand.profile) || !displayRules(brand.displayRules)) invalid();
+  const brandKeys = ['brandId', 'brandKey', 'createdAt', 'displayRules', 'profile', 'version', ...(record(brand) && 'logoMediaSha256' in brand ? ['logoMediaSha256'] : [])];
+  if (!record(brand) || !exactKeys(brand, brandKeys) || ('logoMediaSha256' in brand && !sha256(brand.logoMediaSha256)) || brand.brandId !== brandId || typeof brand.brandKey !== 'string' || !version(brand.version) || !dateTime(brand.createdAt) || !profile(brand.profile) || !displayRules(brand.displayRules)) invalid();
   const history = value.history as unknown[];
   if (!Array.isArray(history) || history.length !== brand.version || !history.every((item, index) => record(item) && exactKeys(item, ['brandName', 'createdAt', 'version']) && item.version === index + 1 && typeof item.brandName === 'string' && dateTime(item.createdAt))) invalid();
   return value as unknown as BrandDetail;
@@ -118,7 +122,7 @@ export async function submitBrandCreate(input: BrandRequest & { readonly brandKe
 }
 
 export async function submitBrandRevision(input: BrandRequest & { readonly brandId: string; readonly expectedVersion: number; readonly token: string }, fetcher: typeof fetch = fetch): Promise<OwnerContentBrandReceipt> {
-  return ownerSubmit(`/owner-api/content/brands/${encodeURIComponent(input.brandId)}/revisions`, input.token, { contractVersion: '1.0.0', expectedVersion: input.expectedVersion, profile: input.profile, displayRules: input.displayRules }, fetcher);
+  return ownerSubmit(`/owner-api/content/brands/${encodeURIComponent(input.brandId)}/revisions`, input.token, { contractVersion: '1.0.0', expectedVersion: input.expectedVersion, profile: input.profile, displayRules: input.displayRules, ...(input.logoMediaSha256 ? { logoMediaSha256: input.logoMediaSha256 } : {}) }, fetcher);
 }
 
 export interface DemoBrand {
@@ -127,13 +131,14 @@ export interface DemoBrand {
   readonly version: number;
   readonly profile: ContentProfile;
   readonly displayRules: ContentDisplayRules;
+  readonly logoMediaSha256?: string;
   readonly createdAt: string;
   readonly history: readonly { readonly version: number; readonly brandName: string; readonly createdAt: string }[];
 }
 
 export function createDemoBrand(brands: readonly DemoBrand[], draft: BrandDraft, brandId: string, now: string): DemoBrand[] {
-  const request = brandRequestFromDraft(draft);
-  return [...brands, { brandId, brandKey: generatedBrandKey(brandId), version: 1, ...request, createdAt: now, history: [{ version: 1, brandName: request.profile.brandName, createdAt: now }] }];
+  const { profile, displayRules } = brandRequestFromDraft(draft);
+  return [...brands, { brandId, brandKey: generatedBrandKey(brandId), version: 1, profile, displayRules, createdAt: now, history: [{ version: 1, brandName: profile.brandName, createdAt: now }] }];
 }
 
 export function reviseDemoBrand(brands: readonly DemoBrand[], brandId: string, expectedVersion: number, draft: BrandDraft, now: string): DemoBrand[] {
@@ -142,11 +147,12 @@ export function reviseDemoBrand(brands: readonly DemoBrand[], brandId: string, e
     if (brand.version !== expectedVersion) throw new Error('Demo brand revision conflict');
     const request = brandRequestFromDraft(draft);
     const version = brand.version + 1;
-    return { ...brand, ...request, version, createdAt: now, history: [...brand.history, { version, brandName: request.profile.brandName, createdAt: now }] };
+    const { logoMediaSha256: _previousLogo, ...rest } = brand;
+    return { ...rest, ...request, version, createdAt: now, history: [...brand.history, { version, brandName: request.profile.brandName, createdAt: now }] };
   });
 }
 
-async function readJson(url: string, fetcher: typeof fetch): Promise<unknown | null> {
+export async function readJson(url: string, fetcher: typeof fetch): Promise<unknown | null> {
   let response: Response;
   try { response = await fetcher(url, { headers: { Accept: 'application/json' } }); }
   catch { throw new ContentDataSourceError('connection', 'Không thể kết nối API nội dung.'); }
@@ -187,11 +193,12 @@ function displayRules(value: unknown): boolean {
 function cloneRules(rules: ContentDisplayRules): ContentDisplayRules {
   return Object.fromEntries(BRAND_PURPOSES.map(({ key }) => [key, { ...rules[key] }])) as unknown as ContentDisplayRules;
 }
-function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
+export function exactKeys(value: Record<string, unknown>, keys: readonly string[]): boolean {
   return Object.keys(value).sort().join(',') === [...keys].sort().join(',');
 }
-function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
-function uuid(value: unknown): value is string { return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
-function version(value: unknown): value is number { return Number.isSafeInteger(value) && Number(value) >= 1; }
-function dateTime(value: unknown): value is string { return typeof value === 'string' && /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value)); }
-function invalid(): never { throw new ContentDataSourceError('integrity', 'API nội dung không trả về dữ liệu hợp lệ.'); }
+export function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
+export function uuid(value: unknown): value is string { return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value); }
+export function sha256(value: unknown): value is string { return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value); }
+export function version(value: unknown): value is number { return Number.isSafeInteger(value) && Number(value) >= 1; }
+export function dateTime(value: unknown): value is string { return typeof value === 'string' && /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value)); }
+export function invalid(): never { throw new ContentDataSourceError('integrity', 'API nội dung không trả về dữ liệu hợp lệ.'); }

@@ -1,5 +1,6 @@
 import type { ContentBrandHistoryItem } from '../../contracts/api/content-api.generated';
 import { BRAND_ELEMENTS, BRAND_PURPOSES, brandRequestFromDraft, emptyBrandDraft, type BrandDraft } from './content-data-source';
+import { createDraftEditorReducer, type DraftEditor, type DraftEditorEvent, type EditorNotice } from './draft-editor';
 
 /** The saved brand version an edit is based on. */
 export interface BrandBase {
@@ -9,60 +10,16 @@ export interface BrandBase {
   readonly history: readonly ContentBrandHistoryItem[];
 }
 
-export type BrandEditorNotice =
-  | { readonly kind: 'stale' }
-  | { readonly kind: 'rebased'; readonly fromVersion: number; readonly toVersion: number; readonly fields: readonly string[] }
-  | { readonly kind: 'error'; readonly message: string };
-
-/**
- * Editing state owned by the brand page, so reloading the saved brand never
- * discards what the user typed (Task 047 §6: stale → reload keeping unsaved input).
- */
-export interface BrandEditor {
-  readonly target: string;
-  readonly brandKey: string | null;
-  readonly base: BrandBase | null;
-  readonly draft: BrandDraft;
-  readonly saving: boolean;
-  readonly notice: BrandEditorNotice | null;
-}
-
-export type BrandEditorEvent =
-  | { readonly type: 'new'; readonly brandKey: string }
-  | { readonly type: 'loaded'; readonly base: BrandBase }
-  | { readonly type: 'edit'; readonly draft: BrandDraft }
-  | { readonly type: 'discard' }
-  | { readonly type: 'submitted' }
-  | { readonly type: 'saved' }
-  | { readonly type: 'failed'; readonly conflict: boolean; readonly message: string };
-
-export function brandEditorReducer(editor: BrandEditor | null, event: BrandEditorEvent): BrandEditor {
-  if (event.type === 'new') return { target: 'new', brandKey: event.brandKey, base: null, draft: emptyBrandDraft(), saving: false, notice: null };
-  if (event.type === 'loaded') {
-    const latest = event.base;
-    const fresh: BrandEditor = { target: latest.brandId, brandKey: null, base: latest, draft: latest.draft, saving: false, notice: null };
-    if (!editor || editor.target !== latest.brandId || !editor.base) return fresh;
-    if (editor.saving) return editor;
-    if (sameContent(editor.draft, latest.draft) || sameContent(editor.draft, editor.base.draft)) return fresh;
-    if (latest.version === editor.base.version) return { ...editor, base: latest };
-    return { ...editor, base: latest, notice: { kind: 'rebased', fromVersion: editor.base.version, toVersion: latest.version, fields: draftDifferences(editor.draft, latest.draft) } };
-  }
-  if (!editor) throw new Error('Brand editor is not open');
-  switch (event.type) {
-    case 'edit': return editor.saving ? editor : { ...editor, draft: event.draft };
-    case 'discard': return editor.saving ? editor : { ...editor, draft: editor.base?.draft ?? emptyBrandDraft(), notice: null };
-    case 'submitted': return { ...editor, saving: true, notice: null };
-    case 'saved': return { ...editor, saving: false, notice: null };
-    case 'failed': return { ...editor, saving: false, notice: event.conflict ? { kind: 'stale' } : { kind: 'error', message: event.message } };
-  }
-}
+export type BrandEditorNotice = EditorNotice;
+export type BrandEditor = DraftEditor<BrandDraft, BrandBase>;
+export type BrandEditorEvent = DraftEditorEvent<BrandDraft, BrandBase>;
 
 export function sameContent(left: BrandDraft, right: BrandDraft): boolean {
   return JSON.stringify(brandRequestFromDraft(left)) === JSON.stringify(brandRequestFromDraft(right));
 }
 
 const PROFILE_LABELS: readonly [keyof Omit<BrandDraft, 'displayRules'>, string][] = [
-  ['brandName', 'Tên thương hiệu'], ['tagline', 'Tagline'], ['hotline', 'Hotline'],
+  ['brandName', 'Tên thương hiệu'], ['logoMediaSha256', 'Logo'], ['tagline', 'Tagline'], ['hotline', 'Hotline'],
   ['website', 'Website'], ['fanpage', 'Fanpage'], ['address', 'Địa chỉ'],
 ];
 
@@ -74,3 +31,10 @@ export function draftDifferences(draft: BrandDraft, saved: BrandDraft): string[]
   }
   return fields;
 }
+
+export const brandEditorReducer = createDraftEditorReducer<BrandDraft, BrandBase>({
+  idOf: (base) => base.brandId,
+  empty: emptyBrandDraft,
+  same: sameContent,
+  differences: draftDifferences,
+});

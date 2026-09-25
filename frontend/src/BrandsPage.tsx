@@ -24,22 +24,33 @@ import {
 import { OwnerWriteError } from './data-source';
 import { routeToHash } from './routing';
 import { brandEditorReducer, sameContent, type BrandBase, type BrandEditor, type BrandEditorEvent } from './brand-editor';
+import { mediaUrl, type DemoCatalogItem } from './catalog-data-source';
+import CatalogPanel from './CatalogPanel';
+import { noticeText } from './draft-editor';
+import MediaUpload from './MediaUpload';
 
 type LoadState<T> = { readonly status: 'loading' } | { readonly status: 'ready'; readonly value: T } | { readonly status: 'failed'; readonly message: string };
 
 export interface BrandsPageProps {
   readonly mode: 'real' | 'demo';
   readonly brandId: string | null;
+  readonly view: 'profile' | 'catalog';
+  readonly itemId: string | null;
   readonly ownerToken: string | null;
   readonly writesAvailable: boolean;
   readonly demoBrands: readonly DemoBrand[];
   readonly setDemoBrands: (brands: DemoBrand[]) => void;
+  readonly demoItems: readonly DemoCatalogItem[];
+  readonly setDemoItems: (items: DemoCatalogItem[]) => void;
+  readonly demoMedia: Readonly<Record<string, string>>;
+  readonly addDemoMedia: (mediaSha256: string, dataUrl: string) => void;
   readonly navigate: (hash: string) => void;
   readonly notify: (message: string) => void;
 }
 
 export default function BrandsPage(props: BrandsPageProps) {
   const { mode, brandId, demoBrands } = props;
+  const mediaSrc = (owner: string) => (mediaSha256: string) => mode === 'demo' ? props.demoMedia[mediaSha256] ?? '' : mediaUrl(owner, mediaSha256);
   const [list, setList] = useState<LoadState<readonly ContentBrandSummary[]>>(mode === 'demo' ? { status: 'ready', value: [] } : { status: 'loading' });
   const [detail, setDetail] = useState<LoadState<BrandBase | null>>({ status: 'loading' });
   const [editor, dispatch] = useReducer(brandEditorReducer, null);
@@ -75,7 +86,7 @@ export default function BrandsPage(props: BrandsPageProps) {
   }, [mode, brandId, demoBrands, reloadToken]);
 
   useEffect(() => { if (brandId) setCreating(false); }, [brandId]);
-  useEffect(() => { if (creating) dispatch({ type: 'new', brandKey: generatedBrandKey() }); }, [creating]);
+  useEffect(() => { if (creating) dispatch({ type: 'new', key: generatedBrandKey() }); }, [creating]);
 
   const summaries: readonly ContentBrandSummary[] = mode === 'demo'
     ? demoBrands.map((brand) => ({ brandId: brand.brandId, brandKey: brand.brandKey, version: brand.version, brandName: brand.profile.brandName, updatedAt: brand.createdAt }))
@@ -98,21 +109,30 @@ export default function BrandsPage(props: BrandsPageProps) {
       <section className="surface surface-pad brand-detail">
         {creating || !brandId
           ? creating
-            ? editor?.target === 'new' && <BrandForm {...props} editor={editor} dispatch={dispatch} onSaved={(savedId) => { setCreating(false); reload(); props.navigate(routeToHash.brand(savedId)); }} onConflict={reload} />
+            ? editor?.target === 'new' && <BrandForm {...props} editor={editor} dispatch={dispatch} mediaSrc={() => ''} onSaved={(savedId) => { setCreating(false); reload(); props.navigate(routeToHash.brand(savedId)); }} onConflict={reload} />
             : <div className="empty"><h2>Chọn một thương hiệu</h2><p>Chọn thương hiệu ở danh sách bên trái hoặc tạo thương hiệu mới.</p></div>
           : detail.status === 'ready' && detail.value === null ? <div className="empty"><h2>Không tìm thấy thương hiệu</h2><p>Thương hiệu này không có trong dữ liệu đang hiển thị.</p></div>
-          : editor?.target === brandId ? <>
-            {detail.status === 'failed' && <p className="form-error" role="alert">{detail.message}</p>}
-            <BrandForm {...props} editor={editor} dispatch={dispatch} onSaved={() => reload()} onConflict={reload} />
-          </>
-          : detail.status === 'failed' ? <p className="form-error" role="alert">{detail.message}</p>
-          : <p className="muted">Đang tải hồ sơ thương hiệu…</p>}
+          : <>
+            <nav className="brand-tabs" aria-label="Mục của thương hiệu">
+              <a href={routeToHash.brand(brandId)} aria-current={props.view === 'profile' ? 'page' : undefined}>Hồ sơ thương hiệu</a>
+              <a href={routeToHash.catalog(brandId)} aria-current={props.view === 'catalog' ? 'page' : undefined}>Sản phẩm &amp; dịch vụ</a>
+            </nav>
+            {props.view === 'catalog'
+              ? <CatalogPanel mode={mode} brandId={brandId} brandName={detail.status === 'ready' && detail.value ? detail.value.draft.brandName : null} itemId={props.itemId} ownerToken={props.ownerToken} writesAvailable={props.writesAvailable}
+                demoItems={props.demoItems} setDemoItems={props.setDemoItems} mediaSrc={mediaSrc(brandId)} addDemoMedia={props.addDemoMedia} navigate={props.navigate} notify={props.notify} />
+              : editor?.target === brandId ? <>
+                {detail.status === 'failed' && <p className="form-error" role="alert">{detail.message}</p>}
+                <BrandForm {...props} editor={editor} dispatch={dispatch} mediaSrc={mediaSrc(brandId)} onSaved={() => reload()} onConflict={reload} />
+              </>
+              : detail.status === 'failed' ? <p className="form-error" role="alert">{detail.message}</p>
+              : <p className="muted">Đang tải hồ sơ thương hiệu…</p>}
+          </>}
       </section>
     </div>
   </>;
 }
 
-export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEditor; readonly dispatch: Dispatch<BrandEditorEvent>; readonly onSaved: (brandId: string) => void; readonly onConflict: () => void }) {
+export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEditor; readonly dispatch: Dispatch<BrandEditorEvent>; readonly mediaSrc: (mediaSha256: string) => string; readonly onSaved: (brandId: string) => void; readonly onConflict: () => void }) {
   const { mode, ownerToken, writesAvailable, editor, dispatch } = props;
   const { draft, base: current, saving: pending, notice } = editor;
   const [purpose, setPurpose] = useState<PurposeKey>('sales');
@@ -143,7 +163,7 @@ export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEdito
       const request = brandRequestFromDraft(draft);
       const receipt = current
         ? await submitBrandRevision({ ...request, brandId: current.brandId, expectedVersion: current.version, token: ownerToken! })
-        : await submitBrandCreate({ ...request, brandKey: editor.brandKey ?? generatedBrandKey(), token: ownerToken! });
+        : await submitBrandCreate({ ...request, brandKey: editor.newKey ?? generatedBrandKey(), token: ownerToken! });
       dispatch({ type: 'saved' });
       props.notify(receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã tạo thương hiệu.');
       props.onSaved(receipt.brandId);
@@ -159,6 +179,20 @@ export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEdito
     <header className="brand-form-head">
       <div><h2>{current ? draft.brandName || 'Thương hiệu' : 'Thương hiệu mới'}</h2><p className="muted">{current ? `Phiên bản ${current.version}. Lưu sẽ tạo phiên bản mới; các gói đã tạo không thay đổi.` : 'Tạo hồ sơ phiên bản 1.'}{mode === 'demo' ? ' Dữ liệu minh họa, chỉ tồn tại trong phiên này.' : ''}</p></div>
     </header>
+    <section className="logo-field" aria-labelledby="logo-title">
+      <h3 id="logo-title">Logo</h3>
+      <div className="logo-row">
+        <div className="logo-preview">{draft.logoMediaSha256 ? <img src={props.mediaSrc(draft.logoMediaSha256)} alt={`Logo ${draft.brandName}`} /> : <span>Chưa có logo</span>}</div>
+        <div className="logo-actions">
+          {current
+            ? <MediaUpload mode={mode} brandId={current.brandId} kind="LOGO" token={ownerToken} disabled={pending || (mode === 'real' && !writesAvailable)} label={draft.logoMediaSha256 ? 'Đổi logo' : 'Tải logo lên'}
+              onDemoMedia={props.addDemoMedia} onUploaded={(mediaSha256) => dispatch({ type: 'update', update: (latest) => ({ ...latest, logoMediaSha256: mediaSha256 }) })} />
+            : <p className="muted">Lưu thương hiệu trước, rồi thêm logo.</p>}
+          {draft.logoMediaSha256 && <button className="button quiet" type="button" disabled={pending} onClick={() => set('logoMediaSha256', '')}>Bỏ logo</button>}
+          <p className="muted">PNG, JPEG hoặc WebP · tối đa 2 MB. Logo mới được dùng từ phiên bản hồ sơ bạn lưu tiếp theo.</p>
+        </div>
+      </div>
+    </section>
     <fieldset className="brand-fields" disabled={pending}><legend>Hồ sơ</legend>
       <label>Tên thương hiệu<input className="search" value={draft.brandName} onChange={(event) => set('brandName', event.target.value)} maxLength={120} required /></label>
       <label>Tagline<input className="search" value={draft.tagline} onChange={(event) => set('tagline', event.target.value)} maxLength={240} /></label>
@@ -178,7 +212,7 @@ export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEdito
           {(['identity', 'contact'] as const).map((group) => [
             <tr key={group} className="rules-group"><th colSpan={2} scope="colgroup">{group === 'identity' ? 'Nhận diện' : 'Liên hệ'}</th></tr>,
             ...BRAND_ELEMENTS.filter((element) => element.group === group).map((element) => <tr key={element.key}>
-              <th scope="row">{element.label}{element.key === 'logo' && <small>Logo được thêm ở bước sau</small>}</th>
+              <th scope="row">{element.label}{element.key === 'logo' && !draft.logoMediaSha256 && <small>Chưa có logo</small>}</th>
               <td><div className="segmented compact" role="radiogroup" aria-label={`${element.label} · ${BRAND_PURPOSES.find((item) => item.key === purpose)!.label}`}>
                 {VISIBILITY_OPTIONS.map((option) => <button key={option.key} type="button" role="radio" aria-checked={rules[element.key] === option.key} className={rules[element.key] === option.key ? `on v-${option.key.toLowerCase()}` : ''} onClick={() => setRule(element.key, option.key)}>{option.label}</button>)}
               </div></td>
@@ -200,12 +234,6 @@ export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEdito
       <ol className="timeline">{[...current.history].reverse().map((item) => <li key={item.version}><strong>Phiên bản {item.version}</strong> · {item.brandName}<small>{new Date(item.createdAt).toLocaleString('vi-VN')}</small></li>)}</ol>
     </section>}
   </form>;
-}
-
-function noticeText(notice: NonNullable<BrandEditor['notice']>): string {
-  if (notice.kind === 'error') return notice.message;
-  if (notice.kind === 'stale') return 'Thương hiệu đã thay đổi ở nơi khác. Đang tải phiên bản mới nhất; bản nháp của bạn được giữ nguyên.';
-  return `Phiên bản ${notice.toVersion} đã được lưu ở nơi khác trong lúc bạn sửa phiên bản ${notice.fromVersion}. Bản nháp của bạn được giữ nguyên. Khác với phiên bản ${notice.toVersion}: ${notice.fields.join(', ')}. Lưu để tạo phiên bản ${notice.toVersion + 1} từ bản nháp này, hoặc bỏ thay đổi.`;
 }
 
 function failureMessage(error: unknown): string {
