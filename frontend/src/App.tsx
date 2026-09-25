@@ -213,6 +213,17 @@ function InvalidRoute({ hash }: { readonly hash: string }) {
   return <div className="surface empty invalid-route"><h1>Không tìm thấy workspace</h1><p>Đường dẫn <code>{hash || '#/'}</code> không khớp thị trường hoặc hồ sơ sản phẩm nào trong dữ liệu đang hiển thị.</p><button className="button primary" onClick={() => navigate(routeToHash.portfolio())}>Về tất cả thị trường</button></div>;
 }
 
+/** In-memory content for the synthetic demo; "Đặt lại demo" returns to exactly this. */
+export function seedDemoContent(mode: FrontendMode): { brands: DemoBrand[]; items: DemoCatalogItem[]; media: Readonly<Record<string, string>>; prompts: DemoPrompt[] } {
+  if (mode !== 'demo') return { brands: [], items: [], media: {}, prompts: [] };
+  return {
+    brands: createDemoBrand([], { ...emptyBrandDraft(), brandName: 'Canxi Việt (minh họa)', tagline: 'Xương chắc mỗi ngày', hotline: '0900 000 000', website: 'canxiviet.example' }, '00000000-0000-4000-8000-00000000b001', '2026-09-01T00:00:00.000Z'),
+    items: createDemoItem([], '00000000-0000-4000-8000-00000000b001', { ...emptyCatalogDraft(), itemType: 'PHYSICAL', name: 'Canxi Nano D3K2 (minh họa)', description: 'Viên uống bổ sung canxi, vitamin D3 và K2.', tiers: [{ tierKey: 'hop-30', name: 'Hộp 30 viên', priceText: '320.000đ', inclusionsText: '30 viên' }, { tierKey: 'hop-60', name: 'Hộp 60 viên', priceText: '590.000đ', inclusionsText: '60 viên\nMiễn phí giao hàng' }] }, '00000000-0000-4000-8000-00000000c001', '2026-09-01T00:00:00.000Z'),
+    media: {},
+    prompts: [],
+  };
+}
+
 export default function App() {
   const mode = frontendMode(window.location.search);
   const [state, dispatch] = useReducer(demoReducer, undefined, () => mode === 'demo' ? createSeedState() : { markets: [], candidates: [], baskets: [], products: [], sequence: 1 });
@@ -223,12 +234,8 @@ export default function App() {
   const [ownerToken, setOwnerToken] = useState<string | null>(null);
   const [ownerAvailability, setOwnerAvailability] = useState<'checking' | 'available' | 'unavailable'>(mode === 'demo' ? 'unavailable' : 'checking');
   const [tokenDraft, setTokenDraft] = useState('');
-  const [demoBrands, setDemoBrands] = useState<DemoBrand[]>(() => mode === 'demo'
-    ? createDemoBrand([], { ...emptyBrandDraft(), brandName: 'Canxi Việt (minh họa)', tagline: 'Xương chắc mỗi ngày', hotline: '0900 000 000', website: 'canxiviet.example' }, '00000000-0000-4000-8000-00000000b001', '2026-09-01T00:00:00.000Z')
-    : []);
-  const [demoItems, setDemoItems] = useState<DemoCatalogItem[]>(() => mode === 'demo'
-    ? createDemoItem([], '00000000-0000-4000-8000-00000000b001', { ...emptyCatalogDraft(), itemType: 'PHYSICAL', name: 'Canxi Nano D3K2 (minh họa)', description: 'Viên uống bổ sung canxi, vitamin D3 và K2.', tiers: [{ tierKey: 'hop-30', name: 'Hộp 30 viên', priceText: '320.000đ', inclusionsText: '30 viên' }, { tierKey: 'hop-60', name: 'Hộp 60 viên', priceText: '590.000đ', inclusionsText: '60 viên\nMiễn phí giao hàng' }] }, '00000000-0000-4000-8000-00000000c001', '2026-09-01T00:00:00.000Z')
-    : []);
+  const [demoBrands, setDemoBrands] = useState<DemoBrand[]>(() => seedDemoContent(mode).brands);
+  const [demoItems, setDemoItems] = useState<DemoCatalogItem[]>(() => seedDemoContent(mode).items);
   const [demoMedia, setDemoMedia] = useState<Readonly<Record<string, string>>>({});
   const [demoPrompts, setDemoPrompts] = useState<DemoPrompt[]>([]);
   const timer = useRef<number | undefined>(undefined);
@@ -254,6 +261,8 @@ export default function App() {
   useEffect(() => { main.current?.focus(); window.scrollTo(0, 0); }, [route.kind, route.kind === 'market' ? route.marketId : route.kind === 'product' ? `${route.productId}-${route.section}` : '']);
   const reset = () => {
     dispatch({ type: 'reset' });
+    const seeded = seedDemoContent(mode);
+    setDemoBrands(seeded.brands); setDemoItems(seeded.items); setDemoMedia(seeded.media); setDemoPrompts(seeded.prompts);
     setScenario('normal');
     navigate(routeToHash.portfolio());
     notify('Đã đặt lại toàn bộ dữ liệu demo.');

@@ -10,6 +10,7 @@ import {
   createDemoPrompt,
   draftFromPrompt,
   editingForRoute,
+  editorHiddenByDeletion,
   emptyPromptDraft,
   generatedPromptKey,
   loadPrompt,
@@ -177,7 +178,7 @@ export default function PromptsPage(props: PromptsPageProps) {
         </div>}
       </nav>
       <section className="surface surface-pad prompt-detail">
-        {editing && editor && (editing.kind === 'new' ? editor.target === `new:${promptType}` : editor.target === view?.id)
+        {editing && editor && !editorHiddenByDeletion(editing, view) && (editing.kind === 'new' ? editor.target === `new:${promptType}` : editor.target === view?.id)
           ? <PromptForm mode={mode} ownerToken={props.ownerToken} writesAvailable={props.writesAvailable} promptType={promptType} editor={editor} lineage={editing.lineage} dispatch={dispatch}
               demoPrompts={props.demoPrompts} setDemoPrompts={props.setDemoPrompts} notify={props.notify} onCancel={() => setEditing(null)} onConflict={reload}
               onSaved={(savedId) => { setEditing(null); reload(); props.navigate(routeToHash.prompt(promptType, savedId)); }} />
@@ -185,14 +186,14 @@ export default function PromptsPage(props: PromptsPageProps) {
           : detail.status === 'loading' ? <p className="muted">Đang tải prompt…</p>
           : detail.status === 'failed' ? <p className="form-error" role="alert">{detail.message}</p>
           : !view ? <div className="empty"><h2>Không tìm thấy prompt</h2><p>Prompt này không có trong thư viện.</p></div>
-          : <PromptDetail mode={mode} ownerToken={props.ownerToken} writesAvailable={props.writesAvailable} view={view}
+          : <PromptDetail mode={mode} ownerToken={props.ownerToken} writesAvailable={props.writesAvailable} view={view} draftKept={editorHiddenByDeletion(editing, view)}
               onDuplicate={() => openNew(view)} onEdit={() => setEditing({ kind: 'edit', route, lineage: null })} onLifecycle={(action) => void changeLifecycle(view, action)} />}
       </section>
     </div>
   </>;
 }
 
-export function PromptDetail(props: { readonly mode: 'real' | 'demo'; readonly ownerToken: string | null; readonly writesAvailable: boolean; readonly view: PromptView; readonly onDuplicate: () => void; readonly onEdit: () => void; readonly onLifecycle: (action: 'DELETE' | 'RESTORE') => void }) {
+export function PromptDetail(props: { readonly mode: 'real' | 'demo'; readonly ownerToken: string | null; readonly writesAvailable: boolean; readonly view: PromptView; readonly draftKept?: boolean; readonly onDuplicate: () => void; readonly onEdit: () => void; readonly onLifecycle: (action: 'DELETE' | 'RESTORE') => void }) {
   const { view } = props;
   const [confirming, setConfirming] = useState(false);
   const canWrite = props.mode === 'demo' || (props.writesAvailable && props.ownerToken !== null);
@@ -229,6 +230,7 @@ export function PromptDetail(props: { readonly mode: 'real' | 'demo'; readonly o
     </div>}
     {deleted && <div className="deleted-banner" role="status">
       <p>{expired ? `Đã xóa ngày ${formatDate(deleted.deletedAt)}; đã quá hạn khôi phục.` : `Đã xóa ngày ${formatDate(deleted.deletedAt)} · khôi phục được đến ${formatDate(deleted.restorableUntil)}.`}</p>
+      {props.draftKept && <p>Prompt đã bị xóa ở nơi khác. Bản nháp chưa lưu vẫn được giữ; khôi phục prompt để tiếp tục sửa.</p>}
       {!expired && <button className="button" type="button" disabled={!canWrite} onClick={() => props.onLifecycle('RESTORE')}>Khôi phục</button>}
     </div>}
     <section className="prompt-layer creative" aria-labelledby="creative-title">

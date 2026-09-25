@@ -130,6 +130,11 @@ export function editingForRoute<T extends { readonly route: string }>(editing: T
   return editing?.route === route ? editing : null;
 }
 
+/** An open edit stays in memory but gives way to the deleted state when the prompt was deleted elsewhere. */
+export function editorHiddenByDeletion(editing: { readonly kind: 'new' | 'edit' } | null, view: { readonly lifecycle: { readonly deleted?: unknown } } | null): boolean {
+  return editing?.kind === 'edit' && view?.lifecycle.deleted !== undefined;
+}
+
 export function generatedPromptKey(id: string = crypto.randomUUID()): string {
   const compact = id.toLowerCase().replace(/-/g, '');
   if (!/^[0-9a-f]{32}$/.test(compact)) throw new TypeError('A UUID is required to generate a prompt key');

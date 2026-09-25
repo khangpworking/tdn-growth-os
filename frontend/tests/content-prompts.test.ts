@@ -12,6 +12,7 @@ import {
   createDemoPrompt,
   draftFromPrompt,
   editingForRoute,
+  editorHiddenByDeletion,
   emptyPromptDraft,
   loadPrompt,
   loadPrompts,
@@ -60,6 +61,37 @@ test('an open editor survives only the route it was opened for', () => {
   assert.equal(editingForRoute(edit, detail), edit);
   assert.equal(editingForRoute(edit, list), null);
   assert.equal(editingForRoute(null, list), null);
+});
+
+test('an open edit gives way to the deleted state when the prompt was deleted elsewhere', async () => {
+  const edit = { kind: 'edit' as const };
+  const deleted = { lifecycle: { sequence: 1, deleted: { deletedAt: '2026-09-25T00:00:00.000Z', restorableUntil: '2026-10-25T00:00:00.000Z' } } };
+  const active = { lifecycle: { sequence: 2 } };
+  assert.equal(editorHiddenByDeletion(edit, deleted), true);
+  assert.equal(editorHiddenByDeletion(edit, active), false);
+  assert.equal(editorHiddenByDeletion({ kind: 'new' as const }, deleted), false);
+  assert.equal(editorHiddenByDeletion(null, deleted), false);
+  assert.equal(editorHiddenByDeletion(edit, null), false);
+  const { PromptDetail } = await tsImport('../src/PromptsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/PromptsPage');
+  const html = renderToStaticMarkup(createElement(PromptDetail, { mode: 'real', ownerToken: 'token', writesAvailable: true, draftKept: true, onDuplicate: () => undefined, onEdit: () => undefined, onLifecycle: () => undefined,
+    view: { source: 'USER', id: promptId, promptType: 'BIG_IDEA', version: 2, prompt: content, isDefault: false, systemLayer: null, history: [], lifecycle: { sequence: 1, deleted: { deletedAt: '2099-09-25T00:00:00.000Z', restorableUntil: '2099-10-25T00:00:00.000Z' } } } }));
+  assert.match(html, /Khôi phục<\/button>/);
+  assert.match(html, /Bản nháp chưa lưu vẫn được giữ/);
+  assert.doesNotMatch(html, /Sửa \(tạo v/);
+});
+
+test('demo reset restores the seeded brand and catalog and drops demo prompts', async () => {
+  const { seedDemoContent } = await tsImport('../src/App.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/App');
+  const demo = seedDemoContent('demo');
+  assert.equal(demo.brands.length, 1);
+  assert.equal(demo.items.length, 1);
+  assert.deepEqual(demo.media, {});
+  assert.deepEqual(demo.prompts, []);
+  assert.deepEqual(seedDemoContent('real'), { brands: [], items: [], media: {}, prompts: [] });
+  const app = fs.readFileSync('frontend/src/App.tsx', 'utf8');
+  const reset = /const reset = \(\) => \{([\s\S]*?)\n  \};/.exec(app)?.[1] ?? '';
+  assert.match(reset, /seedDemoContent\(mode\)/);
+  for (const setter of ['setDemoBrands', 'setDemoItems', 'setDemoMedia', 'setDemoPrompts']) assert.match(reset, new RegExp(setter));
 });
 
 test('drafts become trimmed requests; models and limits depend on the type', () => {
