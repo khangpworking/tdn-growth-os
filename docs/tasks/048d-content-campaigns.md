@@ -1,6 +1,6 @@
 # Task 048d — Content Studio campaigns
 
-Status: PROPOSED (brief only; implementation starts after PR #47 merges)
+Status: READY (owner approved P1–P4 on 2026-09-25; implementation starts after PR #47 merges)
 Lane: Standard
 Owner/worktree: `feature/048d-content-campaigns`, rebased onto `main` after the merge of #47 (048c).
 Goal: “Nội dung” as designed in Task 047 §1–§3 and blueprint screen 2. The OWNER can list, filter, create and revise content campaigns and delete them with a 30-day restore. Each campaign has:
@@ -32,9 +32,9 @@ Escalate when:
 - an existing assertion must be weakened;
 - the design needs catalog archive/delete, a D26 freeze, or campaign defaults.
 
-## 0. Decisions proposed for the owner
+## 0. Owner decisions (approved 2026-09-25)
 
-These must be confirmed before implementation.
+The owner approved P1–P4 as written.
 
 - **P1 — Move campaign defaults to 051.** The blueprint writes the defaults in one place only: “Lưu làm mặc định cho chiến dịch” on screen 6 (Caption & Poster create). Their values exist only there:
   - Caption style (Chuyên nghiệp / Thân thiện);
