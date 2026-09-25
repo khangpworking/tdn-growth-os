@@ -1,6 +1,6 @@
 # Task 048c — Content Studio prompt library
 
-Status: IN PROGRESS
+Status: DONE (pending review)
 Lane: Standard
 Owner/worktree: `feature/048c-content-prompt-library` (base `main` `28ab319`)
 Goal: “Thư viện prompt” as designed in Task 047 §1 and blueprint screen 10. Prompts have two layers: the user writes only the creative layer, and the system adds a locked layer at generation time. The library has two kinds of prompts:
@@ -100,3 +100,28 @@ Route `#/prompts/:type[/:promptRef]`, reached from the “Thư viện prompt” 
 3. User prompts: create, revise, duplicate with verified lineage, delete and restore. Exact retries do nothing new, drift gives 409, and every read is verified. The recommended model must match the type.
 4. HTTP: closed bodies, boundary rules, zero writes on rejection, and history verified before writing.
 5. Frontend: routes, validated reads, exact request bodies, conflict-safe drafts, delete and restore, locked while saving, no hard-coded origins.
+
+## 7. Verification (local Windows, Node 24.15.0 / npm 11.12.1)
+
+- **Static checks.** Contracts regenerate with no diff. The strict backend typecheck (temporary tsconfig workaround), the frontend typecheck and the production build all pass.
+- **New tests:**
+  - system prompt registry: 3, including a tampered or missing file being refused;
+  - prompt service and migration: 7, covering lifecycle triggers, lineage, the 30-day window and the v22→v23 upgrade with 0022 pinned;
+  - HTTP: 6, covering library reads, receipts, retries and conflicts, zero writes on rejection, delete/restore/expiry, and history verification before writes;
+  - frontend: 7, covering routes, drafts, validated reads, exact bodies, demo lifecycle, and the rendered detail and editor.
+- **Mutation checks.** Each of these breaks a test:
+  - skipping the file-hash check;
+  - skipping history verification on revisions and on lifecycle changes;
+  - skipping the lineage pre-check or the expired-prompt filter;
+  - removing the conflict mapping.
+- **Suites.** Frontend 92/92. Backend 340/356; the 16 failures are the same Windows-only set as on `main`. The operator content test passes with the scratch permission shim.
+- **End to end.** A local operator ran on a fresh synthetic database (schema 23) on port 18912. Through the UI:
+  - opened the Big Idea system prompt (creative text and system layer shown read-only);
+  - duplicated it as a user prompt (version 1, lineage “Nhân bản từ prompt hệ thống”) and edited it to version 2;
+  - deleted it: inline confirmation, “Đã xóa gần đây · 1”, restore deadline shown;
+  - restored it.
+- **Screenshots** (headless Chrome, exact viewports; no horizontal overflow):
+  - [`system-prompt-desktop.png`](../frontend/screenshots/task-048c/system-prompt-desktop.png) (1440)
+  - [`user-prompt-desktop.png`](../frontend/screenshots/task-048c/user-prompt-desktop.png) (1440)
+  - [`user-prompt-phone.png`](../frontend/screenshots/task-048c/user-prompt-phone.png) (390)
+

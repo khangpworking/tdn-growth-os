@@ -25,7 +25,7 @@ Rows 049–053 of 047 §8 have not started.
 | Slice | Scope | Depends on | Status |
 |---|---|---|---|
 | 048b | Brand catalog and reference media: catalog items, tiers, product photos, brand logo, image validation, private storage, safe preview, read/OWNER APIs, UI ([brief](tasks/048b-content-catalog-media.md)) | 048 | **Merged** (PR #46, `28ab319`) |
-| 048c | Prompt Library: user prompt records and versions, duplicate, delete with 30-day restore, read-only system prompts and system layers ported from the old templates, “Thư viện prompt” page ([brief](tasks/048c-content-prompt-library.md)) | 048 | **In progress** |
+| 048c | Prompt Library: user prompt records and versions, duplicate, delete with 30-day restore, read-only system prompts and system layers ported from the old templates, “Thư viện prompt” page ([brief](tasks/048c-content-prompt-library.md)) | 048 | **Draft PR, awaiting review** |
 | 048d | Campaigns: list with brand filter, create (brand, catalog items + tier subset, objective, optional research product link), campaign defaults, “Nội dung” navigation | 048b | Pending |
 | 049 | AI plumbing (Controlled): generalize `AiGateway` for creative text and images, CLIProxy adapter, attempt records with startup sweep to `interrupted`, call-count preview, fake providers for tests | 047 | Pending |
 | 050 | Insight (typed, or copied from a locked STP; lock; D26 freeze when linked), Big Idea and Angle generation with the library/freestyle prompt picker (freestyle savable to the library), branch codes A / A1, purpose tags incl. custom, develop/stop, soft delete + 30-day restore | 048c, 048d, 049 | Pending |
@@ -50,7 +50,7 @@ The release is accepted when all of these hold on the Fedora operator with fresh
 
 ## 4. What blocks the release today
 
-- 048c in progress. 048d, 049, 050, 051 and 053 are not started. 049 and 053 need Controlled-lane authorization for the provider boundary and live calls.
+- 048c awaiting review and owner merge (migration 0023 must be applied before an operator build containing it starts). 048d, 049, 050, 051 and 053 are not started. 049 and 053 need Controlled-lane authorization for the provider boundary and live calls.
 - **Open, to reconcile when 051 is briefed:** manual editing (“Sửa tay”) and version history/restore of Caption and Poster are part of the accepted design and must not silently disappear with the AI-edit deferral.
 - **Owner decision pending:** before the first live Poster calls (051/053), should reference photos have their metadata (EXIF, including location) stripped? 048b stores uploaded bytes unchanged in private storage. Orchestrator recommendation, not approved: keep the private originals and create a derived, metadata-stripped, orientation-corrected reference with explicit lineage.
 - **Open design point for 048d:** catalog items cannot be archived or deleted; the accepted design does not define it. Do not invent it without a decision.
