@@ -26,7 +26,7 @@ import { routeToHash } from './routing';
 import { brandEditorReducer, sameContent, type BrandBase, type BrandEditor, type BrandEditorEvent } from './brand-editor';
 import { mediaUrl, type DemoCatalogItem } from './catalog-data-source';
 import CatalogPanel from './CatalogPanel';
-import { noticeText } from './draft-editor';
+import { noticeText, UPLOAD_PENDING_MESSAGE, uploadCallbacks } from './draft-editor';
 import MediaUpload from './MediaUpload';
 
 type LoadState<T> = { readonly status: 'loading' } | { readonly status: 'ready'; readonly value: T } | { readonly status: 'failed'; readonly message: string };
@@ -142,6 +142,7 @@ export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEdito
   const disabledReason = mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.'
     : mode === 'real' && !ownerToken ? 'Mở khóa OWNER cục bộ ở thanh phía trên để bật lưu.'
     : pending ? 'Đang gửi yêu cầu…'
+    : editor.uploads > 0 ? UPLOAD_PENDING_MESSAGE
     : blocker ?? (unchanged ? 'Chưa có thay đổi so với phiên bản hiện tại.' : null);
   const set = (key: keyof Omit<BrandDraft, 'displayRules'>, value: string) => dispatch({ type: 'edit', draft: { ...draft, [key]: value } });
   const setRule = (element: ElementKey, value: ContentVisibility) => dispatch({ type: 'edit', draft: { ...draft, displayRules: { ...draft.displayRules, [purpose]: { ...draft.displayRules[purpose], [element]: value } } } });
@@ -164,7 +165,7 @@ export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEdito
       const receipt = current
         ? await submitBrandRevision({ ...request, brandId: current.brandId, expectedVersion: current.version, token: ownerToken! })
         : await submitBrandCreate({ ...request, brandKey: editor.newKey ?? generatedBrandKey(), token: ownerToken! });
-      dispatch({ type: 'saved' });
+      dispatch({ type: 'saved', version: receipt.version, id: receipt.brandId });
       props.notify(receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã tạo thương hiệu.');
       props.onSaved(receipt.brandId);
     } catch (error) {
@@ -186,7 +187,7 @@ export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEdito
         <div className="logo-actions">
           {current
             ? <MediaUpload mode={mode} brandId={current.brandId} kind="LOGO" token={ownerToken} disabled={pending || (mode === 'real' && !writesAvailable)} label={draft.logoMediaSha256 ? 'Đổi logo' : 'Tải logo lên'}
-              onDemoMedia={props.addDemoMedia} onUploaded={(mediaSha256) => dispatch({ type: 'update', update: (latest) => ({ ...latest, logoMediaSha256: mediaSha256 }) })} />
+              onDemoMedia={props.addDemoMedia} callbacks={uploadCallbacks(dispatch, editor.session, (latest, mediaSha256) => ({ ...latest, logoMediaSha256: mediaSha256 }))} />
             : <p className="muted">Lưu thương hiệu trước, rồi thêm logo.</p>}
           {draft.logoMediaSha256 && <button className="button quiet" type="button" disabled={pending} onClick={() => set('logoMediaSha256', '')}>Bỏ logo</button>}
           <p className="muted">PNG hoặc JPEG · tối đa 2 MB. Logo mới được dùng từ phiên bản hồ sơ bạn lưu tiếp theo.</p>

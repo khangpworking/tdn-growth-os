@@ -25,7 +25,7 @@ import {
 } from './catalog-data-source';
 import { ContentDataSourceError } from './content-data-source';
 import { OwnerWriteError } from './data-source';
-import { noticeText } from './draft-editor';
+import { noticeText, UPLOAD_PENDING_MESSAGE, uploadCallbacks } from './draft-editor';
 import MediaUpload from './MediaUpload';
 import { routeToHash } from './routing';
 
@@ -133,6 +133,7 @@ export function CatalogForm(props: CatalogPanelProps & { readonly editor: Catalo
   const disabledReason = mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.'
     : mode === 'real' && !ownerToken ? 'Mở khóa OWNER cục bộ ở thanh phía trên để bật lưu và tải ảnh.'
     : pending ? 'Đang gửi yêu cầu…'
+    : editor.uploads > 0 ? UPLOAD_PENDING_MESSAGE
     : blocker ?? (unchanged ? 'Chưa có thay đổi so với phiên bản hiện tại.' : null);
   const edit = (patch: Partial<CatalogDraft>) => dispatch({ type: 'edit', draft: { ...draft, ...patch } });
   const editTier = (index: number, patch: Partial<TierDraft>) => edit({ tiers: draft.tiers.map((tier, position) => position === index ? { ...tier, ...patch } : tier) });
@@ -155,7 +156,7 @@ export function CatalogForm(props: CatalogPanelProps & { readonly editor: Catalo
       const receipt = current
         ? await submitCatalogRevision({ brandId, itemId: current.itemId, expectedVersion: current.version, item, token: ownerToken! })
         : await submitCatalogCreate({ brandId, itemKey: editor.newKey ?? generatedItemKey(), item, token: ownerToken! });
-      dispatch({ type: 'saved' });
+      dispatch({ type: 'saved', version: receipt.version, id: receipt.itemId });
       props.notify(receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã thêm sản phẩm/dịch vụ.');
       props.onSaved(receipt.itemId);
     } catch (error) {
@@ -205,7 +206,7 @@ export function CatalogForm(props: CatalogPanelProps & { readonly editor: Catalo
       </ul>}
       <MediaUpload mode={mode} brandId={brandId} kind="PHOTO" token={ownerToken} multiple disabled={pending || !canWrite || draft.photos.length >= 12} label="+ Thêm ảnh"
         onDemoMedia={props.addDemoMedia}
-        onUploaded={(mediaSha256) => dispatch({ type: 'update', update: (latest) => ({ ...latest, photos: addPhoto(latest.photos, mediaSha256) }) })} />
+        callbacks={uploadCallbacks(dispatch, editor.session, (latest, mediaSha256) => ({ ...latest, photos: addPhoto(latest.photos, mediaSha256) }))} />
     </fieldset>
     {notice && <div className="form-error brand-notice" role="alert">{noticeText(notice)}
       {notice.kind === 'rebased' && <button className="button" type="button" onClick={() => dispatch({ type: 'discard' })}>Bỏ thay đổi, dùng phiên bản {notice.toVersion}</button>}

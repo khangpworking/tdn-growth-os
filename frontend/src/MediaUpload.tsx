@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from 'react';
 import { MEDIA_TYPES, demoMediaFromFile, mediaBlocker, uploadBrandMedia, type MediaKind } from './catalog-data-source';
-import { OwnerWriteError } from './data-source';
+import { runUploads } from './media-upload-runner';
 
 export interface MediaUploadProps {
   readonly mode: 'real' | 'demo';
@@ -10,7 +10,8 @@ export interface MediaUploadProps {
   readonly disabled: boolean;
   readonly label: string;
   readonly multiple?: boolean;
-  readonly onUploaded: (mediaSha256: string) => void;
+  /** Bound by the editor to the session that is current when the upload starts (see draft-editor.ts). */
+  readonly callbacks: { readonly onStart: () => void; readonly onUploaded: (mediaSha256: string) => void; readonly onEnd: () => void };
   readonly onDemoMedia: (mediaSha256: string, dataUrl: string) => void;
 }
 
@@ -21,35 +22,33 @@ export default function MediaUpload(props: MediaUploadProps) {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
 
-  const upload = async (files: readonly File[]) => {
+  const upload = (files: readonly File[]) => {
+    // Capture everything now: a later render may belong to another editing session.
+    const { mode, brandId, kind, token, callbacks, onDemoMedia } = props;
+    const problems: string[] = [];
     setMessage(''); setBusy(true);
-    try {
-      for (const file of files) {
-        const blocker = mediaBlocker(file, props.kind);
-        if (blocker) { setMessage(`${file.name}: ${blocker}`); continue; }
-        try {
-          if (props.mode === 'demo') {
-            const media = await demoMediaFromFile(file);
-            props.onDemoMedia(media.mediaSha256, media.dataUrl);
-            props.onUploaded(media.mediaSha256);
-          } else {
-            const receipt = await uploadBrandMedia({ brandId: props.brandId, kind: props.kind, file, token: props.token! });
-            props.onUploaded(receipt.mediaSha256);
-          }
-        } catch (error) {
-          setMessage(`${file.name}: ${error instanceof OwnerWriteError ? error.message : 'Không thể tải ảnh lên.'}`);
+    void runUploads(files, {
+      ...callbacks,
+      check: (file) => mediaBlocker(file, kind),
+      upload: async (file) => {
+        if (mode === 'demo') {
+          const media = await demoMediaFromFile(file);
+          onDemoMedia(media.mediaSha256, media.dataUrl);
+          return media.mediaSha256;
         }
-      }
-    } finally {
+        return (await uploadBrandMedia({ brandId, kind, file, token: token! })).mediaSha256;
+      },
+      report: (problem) => { problems.push(problem); setMessage(problems.join(' ')); },
+    }).finally(() => {
       setBusy(false);
       if (input.current) input.current.value = '';
-    }
+    });
   };
 
   const blocked = props.disabled || busy || (props.mode === 'real' && !props.token);
   return <div className="media-upload">
     <input ref={input} id={inputId} className="file-input" type="file" accept={MEDIA_TYPES.join(',')} multiple={props.multiple ?? false} disabled={blocked}
-      onChange={(event) => { const files = [...(event.target.files ?? [])]; if (files.length > 0) void upload(files); }} />
+      onChange={(event) => { const files = [...(event.target.files ?? [])]; if (files.length > 0) upload(files); }} />
     <label htmlFor={inputId} className={`button${blocked ? ' is-disabled' : ''}`} aria-disabled={blocked}>{busy ? 'Đang tải ảnh…' : props.label}</label>
     {message && <p className="form-error" role="alert">{message}</p>}
   </div>;
