@@ -43,6 +43,10 @@ CREATE TRIGGER flow_content_prompt_lifecycle_alternates
 BEFORE INSERT ON flow_content_prompt_lifecycle
 WHEN NEW.action = COALESCE((SELECT action FROM flow_content_prompt_lifecycle WHERE prompt_id = NEW.prompt_id ORDER BY sequence DESC LIMIT 1), 'RESTORE')
 BEGIN SELECT RAISE(ABORT, 'flow_content_prompt_lifecycle_not_alternating'); END;
+CREATE TRIGGER flow_content_prompt_lifecycle_chronological
+BEFORE INSERT ON flow_content_prompt_lifecycle
+WHEN julianday(NEW.created_at) < (SELECT julianday(created_at) FROM flow_content_prompt_lifecycle WHERE prompt_id = NEW.prompt_id ORDER BY sequence DESC LIMIT 1)
+BEGIN SELECT RAISE(ABORT, 'flow_content_prompt_lifecycle_not_chronological'); END;
 CREATE TRIGGER flow_content_prompt_lifecycle_restore_window
 BEFORE INSERT ON flow_content_prompt_lifecycle
 WHEN NEW.action = 'RESTORE' AND julianday(NEW.created_at) - (SELECT julianday(created_at) FROM flow_content_prompt_lifecycle WHERE prompt_id = NEW.prompt_id ORDER BY sequence DESC LIMIT 1) > 30

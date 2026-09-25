@@ -177,6 +177,8 @@ export class ContentPromptService {
       if (input.action === 'DELETE' && state.deleted) throw new ContentPromptConflictError('Prompt is already deleted');
       if (input.action === 'RESTORE' && (!state.deleted || state.expired)) throw new ContentPromptConflictError(state.deleted ? 'Prompt restore window expired' : 'Prompt is not deleted');
       const createdAt = this.#now().toISOString();
+      const last = this.#lifecycleRow(input.promptId, state.sequence);
+      if (last && Date.parse(createdAt) < Date.parse(last.createdAt)) throw new ContentPromptConflictError('Prompt lifecycle change predates the last one');
       this.#db.prepare('INSERT INTO flow_content_prompt_lifecycle(prompt_id, sequence, action, created_at) VALUES (?, ?, ?, ?)').run(input.promptId, input.expectedSequence + 1, input.action, createdAt);
       return lifecycleExecution(input.promptId, input.expectedSequence + 1, input.action, createdAt, false);
     });

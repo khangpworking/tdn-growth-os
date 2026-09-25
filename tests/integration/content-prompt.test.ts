@@ -46,7 +46,9 @@ test('migration 0023 creates immutable prompt tables whose lifecycle alternates 
   assert.throws(() => insert.run(ids[0], 2, 'DELETE', '2027-01-02T00:00:00.000Z'), /not_alternating/);
   assert.throws(() => insert.run(ids[0], 3, 'RESTORE', '2027-01-02T00:00:00.000Z'), /not_sequential/);
   assert.throws(() => insert.run(ids[0], 2, 'RESTORE', '2027-02-01T00:00:01.000Z'), /restore_window_expired/);
+  assert.throws(() => insert.run(ids[0], 2, 'RESTORE', '2026-12-31T23:59:59.999Z'), /lifecycle_not_chronological/);
   insert.run(ids[0], 2, 'RESTORE', '2027-01-31T00:00:00.000Z');
+  assert.throws(() => insert.run(ids[0], 3, 'DELETE', '2027-01-30T00:00:00.000Z'), /lifecycle_not_chronological/);
   assert.throws(() => state.db.prepare("UPDATE flow_content_prompt_lifecycle SET action = 'DELETE'").run(), /flow_content_prompt_lifecycle_immutable/);
   assert.throws(() => state.db.prepare('DELETE FROM flow_content_prompt_revisions').run(), /flow_content_prompt_revision_immutable/);
   assert.throws(() => state.db.prepare('DELETE FROM flow_content_prompts').run(), /flow_content_prompt_immutable/);
@@ -98,6 +100,21 @@ test('duplicates record verified lineage to an exact system or user prompt versi
   ]) {
     await assert.rejects(state.prompts.createPrompt(createRequest({ promptKey: 'sai-nguon', duplicatedFrom })), FlowValidationError, JSON.stringify(duplicatedFrom));
   }
+  state.db.close();
+});
+
+test('a lifecycle change dated before the last one is a conflict and writes nothing', async () => {
+  const state = setup();
+  await state.prompts.createPrompt(createRequest());
+  await state.prompts.changeLifecycle(lifecycle('DELETE', 0));
+  state.advance(-1);
+  await assert.rejects(state.prompts.changeLifecycle(lifecycle('RESTORE', 1)), ContentPromptConflictError);
+  assert.equal(state.prompts.lifecycleState(ids[0]).sequence, 1);
+  state.advance(2);
+  await state.prompts.changeLifecycle(lifecycle('RESTORE', 1));
+  state.advance(-1);
+  await assert.rejects(state.prompts.changeLifecycle(lifecycle('DELETE', 2)), ContentPromptConflictError);
+  assert.equal(state.prompts.lifecycleState(ids[0]).sequence, 2);
   state.db.close();
 });
 
