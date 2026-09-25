@@ -4,7 +4,7 @@ Updated: 2026-09-25
 Worktree/branch: `feature/048b-content-catalog-media`, based on `main` `76c21aaffbc770a62ad2dfed03aeceac3738d50e` (release commit of PRs #44 and #45; `origin/main` was unchanged when this branch was pushed). Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/46.
 Completed:
 - Reconciled the Content Studio plan with merged code and recorded the remaining slices, the Caption & Poster release criteria and the blockers in `docs/content-studio-release.md`. Task 047 §8 links to it.
-- Migration 0022 with the media, catalog item and item revision tables. Image validation in `content-image.ts` (PNG checks ported from the old Content Studio; JPEG and WebP added). `ContentMediaService`, `ContentCatalogService`, and the optional brand logo. Shared helpers in `content-artifacts.ts`.
+- Migration 0022 with the media, catalog item and item revision tables. Image validation in `content-image.ts` (PNG checks ported from the old Content Studio; JPEG entropy check in `content-jpeg.ts`; PNG and JPEG only). `ContentMediaService`, `ContentCatalogService`, and the optional brand logo. Shared helpers in `content-artifacts.ts`.
 - New read, preview and OWNER routes in `src/api/content-api.ts`. Uploads go to `readOwnerBytes` in `owner-http.ts`. Every write verifies the brand and item history and the bytes of referenced images first.
 - Frontend: the “Sản phẩm & dịch vụ” tab, catalog editor, logo field, `MediaUpload`, and the draft editor generalized in `draft-editor.ts`.
 - Orchestrator follow-up on `3c55c3f`: both findings fixed (brief §7).
