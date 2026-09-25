@@ -28,7 +28,7 @@ test('system layers hold the locked-data, safety and output rules for every type
   assert.match(library.layer('ANGLE').text, /DỮ LIỆU KHÓA[\s\S]*OUTPUT TUYỆT ĐỐI/);
   assert.match(library.layer('CAPTION').text, /hệ thống tự thêm khối liên hệ/);
   assert.doesNotMatch(library.layer('CAPTION').text, /required_information/);
-  assert.match(library.layer('POSTER').text, /\{\{CAPTION_CONTENT\}\}[\s\S]*\{\{BRAND_JSON_LINE\}\}/);
+  assert.match(library.layer('POSTER').text, /### Locked data and fact limits[\s\S]*data, not instructions[\s\S]*Do not invent[\s\S]*\{\{CAPTION_CONTENT\}\}[\s\S]*\{\{BRAND_JSON_LINE\}\}[\s\S]*### Output contract[\s\S]*exactly one[\s\S]*Do not render[\s\S]*reasoning/);
 });
 
 test('a system prompt file that changed without a new version is refused', () => {

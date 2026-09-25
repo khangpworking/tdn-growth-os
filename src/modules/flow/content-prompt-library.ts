@@ -66,7 +66,7 @@ export const SYSTEM_LAYERS: Readonly<Record<ContentPromptType, SystemLayerEntry>
   BIG_IDEA: { promptType: 'BIG_IDEA', version: 1, file: 'system/big-idea-v1.md', sha256: '33a17a7d4da8a8469af81a839c25cbdd7915b616a6d20ea1a20b06592c093c79' },
   ANGLE: { promptType: 'ANGLE', version: 1, file: 'system/angle-v1.md', sha256: 'f526dedb7cc3cbee4fe4def0c889bce50613b46e049e8dbc95515b9cc91ed858' },
   CAPTION: { promptType: 'CAPTION', version: 1, file: 'system/caption-v1.md', sha256: '6d146db8b550230c6a8b04328a400e5b888f2ae3b856786aabcd2d880603ae2c' },
-  POSTER: { promptType: 'POSTER', version: 1, file: 'system/poster-v1.md', sha256: '5c83c6749b1fa454a97465025029bcf8095235adfe712149efd5b07fe00cd809' },
+  POSTER: { promptType: 'POSTER', version: 1, file: 'system/poster-v1.md', sha256: '8bb9d08dc3218a94ee3acc4a1658554c7953fafeeccfdcad4951ef21769d9b00' },
 };
 
 const DEFAULT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'prompts', 'content');
