@@ -122,6 +122,14 @@ export const promptEditorReducer = createDraftEditorReducer<PromptDraft, PromptB
   differences: promptDifferences,
 });
 
+/** The library route an open editor belongs to: a type list, or one prompt of that type. */
+export const promptEditorRoute = (promptType: PromptType, promptRef: string | null): string => `${promptType}/${promptRef ?? ''}`;
+
+/** Keeps an open editor only while the page shows the route it was opened for. */
+export function editingForRoute<T extends { readonly route: string }>(editing: T | null, route: string): T | null {
+  return editing?.route === route ? editing : null;
+}
+
 export function generatedPromptKey(id: string = crypto.randomUUID()): string {
   const compact = id.toLowerCase().replace(/-/g, '');
   if (!/^[0-9a-f]{32}$/.test(compact)) throw new TypeError('A UUID is required to generate a prompt key');

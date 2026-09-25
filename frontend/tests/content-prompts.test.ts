@@ -11,12 +11,14 @@ import {
   changeDemoLifecycle,
   createDemoPrompt,
   draftFromPrompt,
+  editingForRoute,
   emptyPromptDraft,
   loadPrompt,
   loadPrompts,
   loadSystemPrompt,
   modelsForType,
   promptDraftBlocker,
+  promptEditorRoute,
   promptEditorReducer,
   promptRequestFromDraft,
   reviseDemoPrompt,
@@ -42,6 +44,22 @@ test('prompt routes use the type slug and a user or system prompt reference', ()
   assert.equal(parseRoute('#/prompts/video', state).kind, 'invalid');
   assert.equal(parseRoute('#/prompts/angle/../x', state).kind, 'invalid');
   assert.deepEqual(PROMPT_TYPES.map((type) => type.label), ['Big Idea', 'Góc', 'Caption', 'Poster']);
+});
+
+test('an open editor survives only the route it was opened for', () => {
+  const list = promptEditorRoute('BIG_IDEA', null);
+  const detail = promptEditorRoute('BIG_IDEA', promptId);
+  assert.notEqual(list, detail);
+  assert.notEqual(list, promptEditorRoute('POSTER', null));
+  const fresh = { kind: 'new' as const, route: list };
+  // "+ Prompt mới" on a prompt's page opens the editor for the list route, then the hash changes to it.
+  assert.equal(editingForRoute(fresh, list), fresh);
+  assert.equal(editingForRoute(fresh, detail), null);
+  assert.equal(editingForRoute(fresh, promptEditorRoute('POSTER', null)), null);
+  const edit = { kind: 'edit' as const, route: detail };
+  assert.equal(editingForRoute(edit, detail), edit);
+  assert.equal(editingForRoute(edit, list), null);
+  assert.equal(editingForRoute(null, list), null);
 });
 
 test('drafts become trimmed requests; models and limits depend on the type', () => {

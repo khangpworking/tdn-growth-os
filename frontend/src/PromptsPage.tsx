@@ -9,6 +9,7 @@ import {
   changeDemoLifecycle,
   createDemoPrompt,
   draftFromPrompt,
+  editingForRoute,
   emptyPromptDraft,
   generatedPromptKey,
   loadPrompt,
@@ -17,6 +18,7 @@ import {
   modelLabel,
   modelsForType,
   promptDraftBlocker,
+  promptEditorRoute,
   promptEditorReducer,
   promptRequestFromDraft,
   reviseDemoPrompt,
@@ -79,7 +81,7 @@ export default function PromptsPage(props: PromptsPageProps) {
   const [list, setList] = useState<LoadState<PromptList>>({ status: 'loading' });
   const [detail, setDetail] = useState<LoadState<PromptView | null>>({ status: 'loading' });
   const [editor, dispatch] = useReducer(promptEditorReducer, null);
-  const [editing, setEditing] = useState<{ readonly kind: 'new' | 'edit'; readonly lineage: PromptLineage | null; readonly from?: PromptView } | null>(null);
+  const [editing, setEditing] = useState<{ readonly kind: 'new' | 'edit'; readonly route: string; readonly lineage: PromptLineage | null; readonly from?: PromptView } | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const reload = () => setReloadToken((value) => value + 1);
@@ -113,18 +115,19 @@ export default function PromptsPage(props: PromptsPageProps) {
     return () => { active = false; };
   }, [mode, promptRef, demoPrompts, reloadToken]);
 
-  useEffect(() => { setEditing(null); }, [promptRef, promptType]);
+  const route = promptEditorRoute(promptType, promptRef);
+  useEffect(() => { setEditing((current) => editingForRoute(current, route)); }, [route]);
   const view = detail.status === 'ready' ? detail.value : null;
   useEffect(() => {
     if (editing?.kind === 'edit' && view?.source === 'USER') dispatch({ type: 'loaded', base: { promptId: view.id, promptType: view.promptType, version: view.version, draft: draftFromPrompt(view.prompt, view.promptType), history: view.history } });
   }, [editing, view]);
 
-  const openNew = (from?: PromptView) => {
+  const openNew = (from?: PromptView, editorRoute: string = route) => {
     const lineage: PromptLineage | null = from ? { kind: from.source, id: from.id, version: from.version } : null;
     dispatch({ type: 'new', key: generatedPromptKey(), target: `new:${promptType}` });
     if (from) dispatch({ type: 'edit', draft: { ...draftFromPrompt(from.prompt, promptType), name: `${from.prompt.name} (bản sao)`.slice(0, 120) } });
     else dispatch({ type: 'edit', draft: emptyPromptDraft(promptType) });
-    setEditing({ kind: 'new', lineage, ...(from ? { from } : {}) });
+    setEditing({ kind: 'new', route: editorRoute, lineage, ...(from ? { from } : {}) });
   };
 
   const changeLifecycle = async (target: PromptView, action: 'DELETE' | 'RESTORE') => {
@@ -148,7 +151,7 @@ export default function PromptsPage(props: PromptsPageProps) {
   return <>
     <div className="heading">
       <div><h1>Thư viện prompt</h1><p>Phần sáng tạo do bạn viết; hệ thống tự thêm dữ liệu khóa, quy tắc an toàn và định dạng kết quả khi tạo nội dung.</p></div>
-      <button className="button primary" type="button" onClick={() => { props.navigate(routeToHash.prompts(promptType)); openNew(); }}>+ Prompt mới</button>
+      <button className="button primary" type="button" onClick={() => { openNew(undefined, promptEditorRoute(promptType, null)); props.navigate(routeToHash.prompts(promptType)); }}>+ Prompt mới</button>
     </div>
     <div className="prompt-layout">
       <nav className="surface prompt-nav" aria-label="Danh sách prompt">
@@ -183,7 +186,7 @@ export default function PromptsPage(props: PromptsPageProps) {
           : detail.status === 'failed' ? <p className="form-error" role="alert">{detail.message}</p>
           : !view ? <div className="empty"><h2>Không tìm thấy prompt</h2><p>Prompt này không có trong thư viện.</p></div>
           : <PromptDetail mode={mode} ownerToken={props.ownerToken} writesAvailable={props.writesAvailable} view={view}
-              onDuplicate={() => openNew(view)} onEdit={() => setEditing({ kind: 'edit', lineage: null })} onLifecycle={(action) => void changeLifecycle(view, action)} />}
+              onDuplicate={() => openNew(view)} onEdit={() => setEditing({ kind: 'edit', route, lineage: null })} onLifecycle={(action) => void changeLifecycle(view, action)} />}
       </section>
     </div>
   </>;
