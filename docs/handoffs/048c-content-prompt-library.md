@@ -10,7 +10,7 @@ Completed:
 - **UI.** The “Thư viện prompt” page, following blueprint screen 10.
 Changed paths: see the brief's “Owned paths”, plus `docs/STATUS.md` and `docs/frontend/screenshots/task-048c/`.
 Evidence (commands, results, relevant revision):
-- **Verified code head** `f9a04627df6c18e6ee79ff3477a39edaeb4a37eb`: Linux CI `npm run check` passed with frontend 93/93 and backend 357/357 — https://github.com/khangpworking/tdn-growth-os/actions/runs/36114548557.
+- **Verified head** `1b5018bcef4bf02347680765eb4a34274424a760` (the last code change is `c56a285`): Linux CI `npm run check` passed with frontend 95/95 and backend 358/358 — https://github.com/khangpworking/tdn-growth-os/actions/runs/36118422969. The previous verified head `f9a0462` passed in run 36114548557.
 - **Codex pre-review:** three findings, all verified and fixed with a test that failed first (commits `0c7f452`, `6d2cd8d`, `f9a0462`; details in brief §7):
   - an exact create retry now verifies the full prompt history;
   - the Poster system layer now has data-not-instructions, fact limits and an output contract, and is repinned;
@@ -21,6 +21,7 @@ Evidence (commands, results, relevant revision):
   - a prompt deleted elsewhere during an edit shows its deleted state, with the draft kept;
   - lifecycle events can no longer be dated before the previous one.
   An exact create retry now verifies history only when the create was deduplicated, so a changed create stays 409.
+  Fixes are in commits `b7110ef` and `c56a285`, with docs in `1b5018b`.
 - **Local Windows:**
   - frontend 95/95;
   - backend 342/358, with the same 16 Windows-only failures as `main`;
