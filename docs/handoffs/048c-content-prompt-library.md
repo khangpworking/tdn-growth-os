@@ -10,10 +10,15 @@ Completed:
 - **UI.** The “Thư viện prompt” page, following blueprint screen 10.
 Changed paths: see the brief's “Owned paths”, plus `docs/STATUS.md` and `docs/frontend/screenshots/task-048c/`.
 Evidence (commands, results, relevant revision):
-- **Verified code head** `9ece01b8b086d563f643aa6255e6f76c04e9c87b`: Linux CI `npm run check` passed with frontend 92/92 and backend 356/356 — https://github.com/khangpworking/tdn-growth-os/actions/runs/36105195428.
+- **Verified code head** `f9a04627df6c18e6ee79ff3477a39edaeb4a37eb`: Linux CI `npm run check` passed with frontend 93/93 and backend 357/357 — https://github.com/khangpworking/tdn-growth-os/actions/runs/36114548557.
+- **Codex pre-review:** three findings, all verified and fixed with a test that failed first (commits `0c7f452`, `6d2cd8d`, `f9a0462`; details in brief §7):
+  - an exact create retry now verifies the full prompt history;
+  - the Poster system layer now has data-not-instructions, fact limits and an output contract, and is repinned;
+  - “+ Prompt mới” on a detail page keeps its editor open.
+  The earlier head `9ece01b` passed CI in run 36105195428.
 - **Local Windows:**
-  - frontend 92/92;
-  - backend 340/356, with the same 16 Windows-only failures as `main`;
+  - frontend 93/93;
+  - backend 341/357, with the same 16 Windows-only failures as `main`;
   - typechecks, build and contract regeneration clean.
 - **Mutation checks and end-to-end check:** see brief §7.
 - The commit after the verified head (this handoff) changes docs only.
@@ -23,6 +28,7 @@ Unresolved:
 - **The Poster system prompt is the old B2B infographic style,** with a navy/gold corporate palette. Brands with a different style should duplicate it and adapt their own copy.
 - **Usage counts** (“dùng N lần”) need generation records (050/051).
 - **Demo mode** lists system prompts by name only. Their texts need the runtime.
+- **Brand and catalog create retries (048b, merged)** verify history only when a revision or item id is given, so they have the same gap the prompt fix closed. Not changed here, because it is outside 048c's owned paths.
 - **Module layout** stays flat in `src/modules/flow/`, consistent with 048/048b. ADR 0003 names `src/modules/flow/content/`; moving the files later is mechanical.
 Next action: Independent review of PR #47, then owner merge. After that: 048d (campaigns, taking its migration number from merged main). 049 waits for Controlled-lane authorization.
 Business decisions pending:
