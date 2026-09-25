@@ -10,6 +10,7 @@
   ],
   "$defs": {
     "uuid": { "type": "string", "format": "uuid" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "brandKey": { "type": "string", "pattern": "^[a-z][a-z0-9_-]{2,79}$" },
     "profile": { "$ref": "../flow/content-brand-create-request.schema.json#/$defs/profile" },
     "displayRules": { "$ref": "../flow/content-brand-create-request.schema.json#/$defs/displayRules" },
@@ -34,7 +35,8 @@
         "contractVersion": { "const": "1.0.0" },
         "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
         "profile": { "$ref": "#/$defs/profile" },
-        "displayRules": { "$ref": "#/$defs/displayRules" }
+        "displayRules": { "$ref": "#/$defs/displayRules" },
+        "logoMediaSha256": { "$ref": "#/$defs/sha256" }
       }
     },
     "receipt": {

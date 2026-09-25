@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-catalog-item-revision-request.schema.json",
+  "title": "ContentCatalogItemRevisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "itemId", "expectedVersion", "item"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "itemId": { "type": "string", "format": "uuid" },
+    "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+    "item": { "$ref": "content-catalog-item-create-request.schema.json#/$defs/item" }
+  }
+}

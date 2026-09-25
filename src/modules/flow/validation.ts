@@ -48,6 +48,12 @@ import contentBrandRevisionSchema from '../../../contracts/flow/content-brand-re
 import type { ContentBrandRevisionRequest } from '../../../contracts/flow/content-brand-revision-request.generated.js';
 import contentBrandArtifactSchema from '../../../contracts/flow/content-brand-artifact.schema.json' with { type: 'json' };
 import type { ContentBrandArtifact } from '../../../contracts/flow/content-brand-artifact.generated.js';
+import contentCatalogItemCreateSchema from '../../../contracts/flow/content-catalog-item-create-request.schema.json' with { type: 'json' };
+import type { ContentCatalogItemContent, ContentCatalogItemCreateRequest } from '../../../contracts/flow/content-catalog-item-create-request.generated.js';
+import contentCatalogItemRevisionSchema from '../../../contracts/flow/content-catalog-item-revision-request.schema.json' with { type: 'json' };
+import type { ContentCatalogItemRevisionRequest } from '../../../contracts/flow/content-catalog-item-revision-request.generated.js';
+import contentCatalogItemArtifactSchema from '../../../contracts/flow/content-catalog-item-artifact.schema.json' with { type: 'json' };
+import type { ContentCatalogItemArtifact } from '../../../contracts/flow/content-catalog-item-artifact.generated.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -86,6 +92,9 @@ const validateLockedStp = ajv.compile<LockedStpArtifact>(lockedStpArtifactSchema
 const validateContentBrandCreate = ajv.compile<ContentBrandCreateRequest>(contentBrandCreateSchema);
 const validateContentBrandRevision = ajv.compile<ContentBrandRevisionRequest>(contentBrandRevisionSchema);
 const validateContentBrandEnvelope = ajv.compile<ContentBrandArtifact>(contentBrandArtifactSchema);
+const validateContentCatalogItemCreate = ajv.compile<ContentCatalogItemCreateRequest>(contentCatalogItemCreateSchema);
+const validateContentCatalogItemRevision = ajv.compile<ContentCatalogItemRevisionRequest>(contentCatalogItemRevisionSchema);
+const validateContentCatalogItemEnvelope = ajv.compile<ContentCatalogItemArtifact>(contentCatalogItemArtifactSchema);
 
 export class FlowValidationError extends Error {
   readonly details: string;
@@ -227,4 +236,27 @@ export function validateContentBrandRevisionRequest(value: unknown): ContentBran
 export function validateContentBrandArtifact(value: unknown): ContentBrandArtifact {
   if (!validateContentBrandEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentBrandEnvelope.errors, { separator: '; ' }));
   return value as ContentBrandArtifact;
+}
+
+export function validateContentCatalogItemCreateRequest(value: unknown): ContentCatalogItemCreateRequest {
+  if (!validateContentCatalogItemCreate(value)) throw new FlowValidationError(ajv.errorsText(validateContentCatalogItemCreate.errors, { separator: '; ' }));
+  assertCatalogItemUnique(value.item);
+  return value;
+}
+
+export function validateContentCatalogItemRevisionRequest(value: unknown): ContentCatalogItemRevisionRequest {
+  if (!validateContentCatalogItemRevision(value)) throw new FlowValidationError(ajv.errorsText(validateContentCatalogItemRevision.errors, { separator: '; ' }));
+  assertCatalogItemUnique(value.item);
+  return value;
+}
+
+export function validateContentCatalogItemArtifact(value: unknown): ContentCatalogItemArtifact {
+  if (!validateContentCatalogItemEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentCatalogItemEnvelope.errors, { separator: '; ' }));
+  assertCatalogItemUnique(value.item);
+  return value;
+}
+
+function assertCatalogItemUnique(item: ContentCatalogItemContent): void {
+  if (new Set(item.tiers.map((tier) => tier.tierKey)).size !== item.tiers.length) throw new FlowValidationError('Catalog tier keys must be unique');
+  if (new Set(item.photos.map((photo) => photo.mediaSha256)).size !== item.photos.length) throw new FlowValidationError('Catalog photos must be unique');
 }

@@ -8,6 +8,7 @@ export interface ContentBrandRevisionRequest {
   expectedVersion: number;
   profile: ContentBrandProfile;
   displayRules: ContentBrandDisplayRules;
+  logoMediaSha256?: string;
 }
 export interface ContentBrandProfile {
   brandName: string;

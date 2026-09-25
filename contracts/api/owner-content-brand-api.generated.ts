@@ -7,6 +7,7 @@ export type OwnerContentBrandApiContract =
   | OwnerContentApiErrorResponse;
 export type BrandKey = string;
 export type ContentBrandVisibility = 'ALWAYS' | 'OPTIONAL' | 'HIDDEN';
+export type Sha256 = string;
 export type Uuid = string;
 
 export interface OwnerContentBrandCreateRequest {
@@ -43,6 +44,7 @@ export interface OwnerContentBrandRevisionRequest {
   expectedVersion: number;
   profile: ContentBrandProfile;
   displayRules: ContentBrandDisplayRules;
+  logoMediaSha256?: Sha256;
 }
 export interface OwnerContentBrandReceipt {
   contractVersion: '1.0.0';

@@ -116,4 +116,7 @@ export {
   validateContentBrandArtifact,
   validateContentBrandCreateRequest,
   validateContentBrandRevisionRequest,
+  validateContentCatalogItemArtifact,
+  validateContentCatalogItemCreateRequest,
+  validateContentCatalogItemRevisionRequest,
 } from './validation.js';

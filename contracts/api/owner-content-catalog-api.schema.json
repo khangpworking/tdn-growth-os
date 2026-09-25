@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-content-catalog-api.schema.json",
+  "title": "OwnerContentCatalogApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/createRequest" },
+    { "$ref": "#/$defs/revisionRequest" },
+    { "$ref": "#/$defs/receipt" },
+    { "$ref": "#/$defs/mediaReceipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "item": { "$ref": "../flow/content-catalog-item-create-request.schema.json#/$defs/item" },
+    "createRequest": {
+      "title": "OwnerContentCatalogItemCreateRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "itemKey", "item"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "itemKey": { "$ref": "../flow/content-catalog-item-create-request.schema.json#/$defs/itemKey" },
+        "item": { "$ref": "#/$defs/item" }
+      }
+    },
+    "revisionRequest": {
+      "title": "OwnerContentCatalogItemRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "expectedVersion", "item"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+        "item": { "$ref": "#/$defs/item" }
+      }
+    },
+    "receipt": {
+      "title": "OwnerContentCatalogItemReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "brandId", "itemId", "itemKey", "version", "name", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "brandId": { "$ref": "#/$defs/uuid" },
+        "itemId": { "$ref": "#/$defs/uuid" },
+        "itemKey": { "type": "string" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "mediaReceipt": {
+      "title": "OwnerContentMediaReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "brandId", "mediaKind", "mediaSha256", "mediaType", "width", "height", "byteSize", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "brandId": { "$ref": "#/$defs/uuid" },
+        "mediaKind": { "title": "OwnerContentMediaKind", "enum": ["LOGO", "PHOTO"] },
+        "mediaSha256": { "$ref": "#/$defs/sha256" },
+        "mediaType": { "enum": ["image/png", "image/jpeg", "image/webp"] },
+        "width": { "type": "integer", "minimum": 64, "maximum": 8192 },
+        "height": { "type": "integer", "minimum": 64, "maximum": 8192 },
+        "byteSize": { "type": "integer", "minimum": 1 },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerContentCatalogApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "conflict", "integrity_error"] },
+            "message": { "type": "string" },
+            "reason": { "title": "OwnerContentMediaRejection", "enum": ["unsupported_format", "type_mismatch", "too_large", "dimensions", "invalid", "animated", "trailing_data"] }
+          }
+        }
+      }
+    }
+  }
+}

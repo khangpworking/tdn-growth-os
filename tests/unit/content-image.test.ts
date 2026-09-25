@@ -37,7 +37,7 @@ test('size and dimension limits depend on the media kind', () => {
 
 test('structurally broken, animated or padded images are rejected', () => {
   const png = syntheticPng();
-  const badCrc = Buffer.from(png); badCrc[png.length - 20] ^= 0xff;
+  const badCrc = Buffer.from(png); badCrc[png.length - 20] = badCrc[png.length - 20]! ^ 0xff;
   rejects(badCrc, 'image/png', 'LOGO', 'invalid');
   rejects(png.subarray(0, png.length - 12), 'image/png', 'LOGO', 'invalid');
   rejects(syntheticPng(96, 64, { extraChunks: [pngChunk('acTL', Buffer.alloc(8))] }), 'image/png', 'LOGO', 'animated');

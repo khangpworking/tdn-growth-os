@@ -1,103 +1,22 @@
-/* Generated from content-api.schema.json. Do not edit by hand. */
+/* Generated from owner-content-catalog-api.schema.json. Do not edit by hand. */
 
-export type ContentApiContract =
-  | ContentBrandListResponse
-  | ContentBrandDetailResponse
-  | ContentCatalogListResponse
-  | ContentCatalogDetailResponse
-  | ContentApiErrorResponse;
-export type Uuid = string;
-export type DateTime = string;
-export type ContentVisibility = 'ALWAYS' | 'OPTIONAL' | 'HIDDEN';
-export type Sha256 = string;
+export type OwnerContentCatalogApiContract =
+  | OwnerContentCatalogItemCreateRequest
+  | OwnerContentCatalogItemRevisionRequest
+  | OwnerContentCatalogItemReceipt
+  | OwnerContentMediaReceipt
+  | OwnerContentCatalogApiErrorResponse;
 export type ContentCatalogItemType = 'PHYSICAL' | 'SERVICE';
+export type Uuid = string;
+export type OwnerContentMediaKind = 'LOGO' | 'PHOTO';
+export type Sha256 = string;
+export type OwnerContentMediaRejection =
+  'unsupported_format' | 'type_mismatch' | 'too_large' | 'dimensions' | 'invalid' | 'animated' | 'trailing_data';
 
-export interface ContentBrandListResponse {
+export interface OwnerContentCatalogItemCreateRequest {
   contractVersion: '1.0.0';
-  brands: ContentBrandSummary[];
-}
-export interface ContentBrandSummary {
-  brandId: Uuid;
-  brandKey: string;
-  version: number;
-  brandName: string;
-  updatedAt: DateTime;
-}
-export interface ContentBrandDetailResponse {
-  contractVersion: '1.0.0';
-  brand: ContentBrandRecord;
-  /**
-   * @minItems 1
-   */
-  history: [ContentBrandHistoryItem, ...ContentBrandHistoryItem[]];
-}
-export interface ContentBrandRecord {
-  brandId: Uuid;
-  brandKey: string;
-  version: number;
-  profile: ContentProfile;
-  displayRules: ContentDisplayRules;
-  logoMediaSha256?: Sha256;
-  createdAt: DateTime;
-}
-export interface ContentProfile {
-  brandName: string;
-  tagline?: string;
-  hotline?: string;
-  website?: string;
-  fanpage?: string;
-  address?: string;
-}
-export interface ContentDisplayRules {
-  sales: ContentElementRules;
-  trust: ContentElementRules;
-  education: ContentElementRules;
-  entertainment: ContentElementRules;
-  engagement: ContentElementRules;
-}
-export interface ContentElementRules {
-  name: ContentVisibility;
-  logo: ContentVisibility;
-  tagline: ContentVisibility;
-  hotline: ContentVisibility;
-  web: ContentVisibility;
-  address: ContentVisibility;
-}
-export interface ContentBrandHistoryItem {
-  version: number;
-  brandName: string;
-  createdAt: DateTime;
-}
-export interface ContentCatalogListResponse {
-  contractVersion: '1.0.0';
-  brandId: Uuid;
-  items: ContentCatalogItemSummary[];
-}
-export interface ContentCatalogItemSummary {
-  itemId: Uuid;
   itemKey: string;
-  version: number;
-  itemType: 'PHYSICAL' | 'SERVICE';
-  name: string;
-  tierNames: string[];
-  photoCount: number;
-  updatedAt: DateTime;
-}
-export interface ContentCatalogDetailResponse {
-  contractVersion: '1.0.0';
-  item: ContentCatalogItemRecord;
-  /**
-   * @minItems 1
-   */
-  history: [ContentCatalogHistoryItem, ...ContentCatalogHistoryItem[]];
-}
-export interface ContentCatalogItemRecord {
-  itemId: Uuid;
-  brandId: Uuid;
-  itemKey: string;
-  version: number;
   item: ContentCatalogItemContent;
-  createdAt: DateTime;
 }
 export interface ContentCatalogItemContent {
   itemType: ContentCatalogItemType;
@@ -254,14 +173,43 @@ export interface ContentCatalogPhoto {
   mediaSha256: string;
   posterDefault: boolean;
 }
-export interface ContentCatalogHistoryItem {
+export interface OwnerContentCatalogItemRevisionRequest {
+  contractVersion: '1.0.0';
+  expectedVersion: number;
+  item: ContentCatalogItemContent;
+}
+export interface OwnerContentCatalogItemReceipt {
+  contractVersion: '1.0.0';
+  brandId: Uuid;
+  itemId: Uuid;
+  itemKey: string;
   version: number;
   name: string;
-  createdAt: DateTime;
+  createdAt: string;
+  exactRetry: boolean;
 }
-export interface ContentApiErrorResponse {
+export interface OwnerContentMediaReceipt {
+  contractVersion: '1.0.0';
+  brandId: Uuid;
+  mediaKind: OwnerContentMediaKind;
+  mediaSha256: Sha256;
+  mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
+  width: number;
+  height: number;
+  byteSize: number;
+  exactRetry: boolean;
+}
+export interface OwnerContentCatalogApiErrorResponse {
   error: {
-    code: 'bad_request' | 'not_found' | 'method_not_allowed' | 'integrity_error';
+    code:
+      | 'bad_request'
+      | 'unauthorized'
+      | 'forbidden'
+      | 'not_found'
+      | 'method_not_allowed'
+      | 'conflict'
+      | 'integrity_error';
     message: string;
+    reason?: OwnerContentMediaRejection;
   };
 }
