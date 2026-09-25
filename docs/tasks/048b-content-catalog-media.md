@@ -6,7 +6,7 @@ Owner/worktree: `feature/048b-content-catalog-media` (base `main` `76c21aa`)
 Goal: Second Content Studio slice (Task 047 row 048, reconciled in [`docs/content-studio-release.md`](../content-studio-release.md)). The OWNER keeps products and services per brand, with description, tiers (price text, inclusions) and real product photos, plus the brand logo. Every record is immutable, versioned and verified, and is reachable through the read/OWNER APIs and the React UI.
 Non-goals: Campaigns, prompt library, custom purpose tags, AI generation or editing, Poster reference assembly, image resizing or metadata stripping, delete/restore of catalog items, a general media library, deployment.
 Dependencies: Task 048 (brands), Task 047 §1–§3, ADR 0003.
-Owned paths: `migrations/0022_flow_content_catalog_media.sql`; `contracts/flow/content-catalog-item-*.schema.json`, `contracts/flow/content-brand-{revision-request,artifact}.schema.json` (optional logo), `contracts/api/content-api.schema.json`, `contracts/api/owner-content-brand-api.schema.json`, `contracts/api/owner-content-catalog-api.schema.json` (+ generated); `scripts/generate-foundation-contract.mjs` (list only); `src/modules/flow/content-{image,artifacts,media-service,catalog-service,brand-service}.ts`, `validation.ts`, `index.ts`; `src/api/content-api.ts`, `src/api/owner-http.ts`; `frontend/src/{routing.ts,App.tsx,BrandsPage.tsx,CatalogPanel.tsx,MediaUpload.tsx,catalog-data-source.ts,content-data-source.ts,draft-editor.ts,brand-editor.ts,styles.css}`; tests `tests/unit/content-image.test.ts`, `tests/helpers/content-images.ts`, `tests/integration/content-{catalog,catalog-api,brand,operator-app}.test.ts`, `frontend/tests/{content-catalog,brand-editor}.test.ts`; schema-version assertions 21 → 22 in `tests/integration/{sqlite-foundation,source-package-intake,shopee-file-research}.test.ts`; docs listed in the handoff.
+Owned paths: `migrations/0022_flow_content_catalog_media.sql`; `contracts/flow/content-catalog-item-*.schema.json`, `contracts/flow/content-brand-{revision-request,artifact}.schema.json` (optional logo), `contracts/api/content-api.schema.json`, `contracts/api/owner-content-brand-api.schema.json`, `contracts/api/owner-content-catalog-api.schema.json` (+ generated); `scripts/generate-foundation-contract.mjs` (list only); `src/modules/flow/content-{image,artifacts,media-service,catalog-service,brand-service}.ts`, `validation.ts`, `index.ts`; `src/api/content-api.ts`, `src/api/owner-http.ts`; `frontend/src/{routing.ts,App.tsx,BrandsPage.tsx,CatalogPanel.tsx,MediaUpload.tsx,media-upload-runner.ts,catalog-data-source.ts,content-data-source.ts,draft-editor.ts,brand-editor.ts,styles.css}`; tests `tests/unit/content-image.test.ts`, `tests/helpers/content-images.ts`, `tests/integration/content-{catalog,catalog-api,brand,operator-app}.test.ts`, `frontend/tests/{content-catalog,brand-editor,upload-lifecycle}.test.ts`; schema-version assertions 21 → 22 in `tests/integration/{sqlite-foundation,source-package-intake,shopee-file-research}.test.ts`; docs listed in the handoff.
 Minimum verification: `npm run check` green on Linux CI; locally, all new tests pass and there are no failures beyond the known Windows-only set.
 Escalate when: a change is needed outside the owned paths, or an existing assertion must be weakened.
 
@@ -135,3 +135,29 @@ Before anything is staged, every write verifies the brand history. That includes
    - Regression: with brand v1 tampered or missing, both logo and photo uploads return `500 integrity_error`, and media rows, manifests and artifact files stay unchanged. Other brands still accept uploads.
    - The regression failed before the fix (201).
 - **Suites after the corrections:** local frontend 79/79; backend 324/340 with the same 16 Windows-only failures. Linux CI evidence is in the handoff.
+
+## 8. Review corrections (independent review of `bf2da25`, 2026-09-25)
+
+1. **R1: an upload could land in the wrong editor.** An upload that finished after the user opened another item, a new item, another brand, or reopened the same item was merged into whichever draft was current.
+   - Fix: every editing session has an identity (`session` in `draft-editor.ts`), which is new whenever a different record or a new draft is opened. Upload callbacks are bound to the session current when the upload starts (`uploadCallbacks`). The reducer ignores results and upload lifecycle events from any other session. The same path serves demo uploads.
+2. **R2: Save could silently drop an in-flight upload.**
+   - Fix: running uploads are counted per session. Save (catalog and brand logo) is unavailable with “Đang tải ảnh lên. Chờ tải xong rồi lưu.” until they finish.
+   - Defensively, a result that still arrives during a save is deferred and applied once the save settles. When our own saved version reloads, it stays as a visible unsaved change: no conflict notice, and the submitted request is never changed.
+   - Exact-retry keys, immutable versions and conflict-draft behaviour are unchanged.
+- **Tests.** `frontend/tests/upload-lifecycle.test.ts` drives real deferred completions through `media-upload-runner.ts`, the same code `MediaUpload` uses, with the forms' callbacks. It covers:
+  - catalog: item A → item B, → new item, and A → B → A;
+  - brand logo: brand A → brand B;
+  - same-session merges with edits made meanwhile, across several files and one failure;
+  - a result arriving during a save, for both a successful and a failed save;
+  - Save disabled while uploading (catalog and brand);
+  - stale lifecycle events.
+
+  Six mutations were checked, and each one breaks a test: removing the session check, fixing the session number, dropping deferred results, dropping own-save continuation, and removing the catalog or brand Save blocker.
+- **Real UI.** Checked against a local operator on the synthetic database, with photo upload responses held open:
+  - Save was disabled while A's upload ran;
+  - releasing A's upload after opening B left B unchanged;
+  - B's own upload blocked Save, then added the photo and re-enabled Save.
+
+  Chromium's JPEG encoder output passed the server-side decode check.
+- **Screenshots** were recaptured from this build and now show the “PNG hoặc JPEG” copy.
+- **Suites.** Local frontend 85/85. Backend 324/340, with the same 16 Windows-only failures. Linux CI evidence is in the handoff.
