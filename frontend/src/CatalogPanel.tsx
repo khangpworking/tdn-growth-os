@@ -195,7 +195,7 @@ export function CatalogForm(props: CatalogPanelProps & { readonly editor: Catalo
     </fieldset>
     <fieldset className="photos" disabled={pending}>
       <legend>Ảnh sản phẩm</legend>
-      <p className="muted">Ảnh thật của sản phẩm/dịch vụ. Ảnh bật “Dùng cho Poster” được chọn sẵn làm ảnh tham chiếu khi tạo Poster. PNG, JPEG hoặc WebP · tối đa 8 MB.</p>
+      <p className="muted">Ảnh thật của sản phẩm/dịch vụ. Ảnh bật “Dùng cho Poster” được chọn sẵn làm ảnh tham chiếu khi tạo Poster. PNG hoặc JPEG · tối đa 8 MB.</p>
       {draft.photos.length > 0 && <ul className="photo-grid">
         {draft.photos.map((photo, index) => <li key={photo.mediaSha256} className="photo-card">
           <img src={props.mediaSrc(photo.mediaSha256)} alt={`Ảnh ${index + 1} của ${draft.name || 'sản phẩm'}`} loading="lazy" />

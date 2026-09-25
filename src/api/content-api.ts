@@ -292,6 +292,7 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
       })),
       media: (brandId, kind, declaredType, bytes) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
         if (!brandExists.get(brandId)) throw new UnknownBrandError();
+        await verifyBrandHistory(brandId);
         const result = await media.registerMedia({ brandId, kind, declaredType, bytes });
         await artifacts.publishOwned();
         await integrity(() => media.verifyRegistered(brandId, kind, result.mediaSha256));
@@ -357,7 +358,7 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
   const contentType = singleHeader(request.headers['content-type']);
   try {
     if (route.kind === 'media') {
-      if (!contentType?.startsWith('image/')) return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be image/png, image/jpeg or image/webp');
+      if (!contentType?.startsWith('image/')) return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be image/png or image/jpeg');
       const bytes = await readOwnerBytes(request, CONTENT_MEDIA_LIMITS[route.mediaKind].maxBytes);
       const receipt = await writers.media(route.brandId, route.mediaKind, contentType, bytes);
       return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);

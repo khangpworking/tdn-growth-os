@@ -14,7 +14,7 @@ export interface MediaUploadProps {
   readonly onDemoMedia: (mediaSha256: string, dataUrl: string) => void;
 }
 
-/** Picks PNG/JPEG/WebP files, checks them locally, then uploads them one by one to the brand's private media. */
+/** Picks PNG/JPEG files, checks them locally, then uploads them one by one to the brand's private media. */
 export default function MediaUpload(props: MediaUploadProps) {
   const inputId = useId();
   const input = useRef<HTMLInputElement>(null);

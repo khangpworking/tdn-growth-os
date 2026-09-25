@@ -1,6 +1,16 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { deflateSync } from 'node:zlib';
 
-/** Synthetic, structurally valid images for Content Studio media tests. */
+/**
+ * Images for Content Studio media tests. `fixtureImage` returns small real encoder
+ * outputs (generated synthetic patterns, committed under tests/fixtures/content-images);
+ * the synthetic* builders produce header structures only and are not decodable.
+ */
+
+export function fixtureImage(name: string): Buffer {
+  return fs.readFileSync(path.join('tests', 'fixtures', 'content-images', name));
+}
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, index) => {
   let value = index;
@@ -41,7 +51,7 @@ function segment(marker: number, payload: Buffer): Buffer {
   return Buffer.concat([head, payload]);
 }
 
-/** Baseline JPEG marker structure (not decodable pixels; the server validates structure only). */
+/** Baseline JPEG marker structure with a fake scan: not decodable, used for header-level checks. */
 export function syntheticJpeg(width = 800, height = 600, options: { readonly sof?: number; readonly trailing?: Buffer; readonly seed?: number } = {}): Buffer {
   const sof = Buffer.alloc(15);
   sof[0] = 8; sof.writeUInt16BE(height, 1); sof.writeUInt16BE(width, 3); sof[5] = 3;
@@ -53,7 +63,7 @@ export function syntheticJpeg(width = 800, height = 600, options: { readonly sof
     segment(0xe0, Buffer.from('4a46494600010100000100010000', 'hex')),
     segment(0xdb, Buffer.alloc(65, 1)),
     segment(options.sof ?? 0xc0, sof),
-    segment(0xc4, Buffer.alloc(29, 0)),
+    segment(0xc4, Buffer.from([0x00, 1, ...Array<number>(15).fill(0), 0x00])),
     segment(0xda, sos),
     entropy,
     Buffer.from([0xff, 0xd9]),

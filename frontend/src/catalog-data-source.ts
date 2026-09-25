@@ -25,7 +25,7 @@ export const ITEM_TYPES: readonly { readonly key: CatalogItemType; readonly labe
   { key: 'PHYSICAL', label: 'Sản phẩm vật lý', badge: 'Sản phẩm' },
   { key: 'SERVICE', label: 'Dịch vụ', badge: 'Dịch vụ' },
 ];
-export const MEDIA_TYPES = ['image/png', 'image/jpeg', 'image/webp'] as const;
+export const MEDIA_TYPES = ['image/png', 'image/jpeg'] as const;
 export const MEDIA_LIMITS: Readonly<Record<MediaKind, { readonly maxBytes: number; readonly label: string }>> = {
   LOGO: { maxBytes: 2 * 1024 * 1024, label: 'Logo tối đa 2 MB.' },
   PHOTO: { maxBytes: 8 * 1024 * 1024, label: 'Ảnh tối đa 8 MB.' },
@@ -209,13 +209,13 @@ export function mediaBlocker(file: { readonly type: string; readonly size: numbe
 
 export function mediaRejectionMessage(reason: OwnerContentMediaRejection, kind: MediaKind): string {
   switch (reason) {
-    case 'unsupported_format': return 'Chỉ nhận ảnh PNG, JPEG hoặc WebP (không nhận SVG, GIF, HEIC hay ảnh động).';
+    case 'unsupported_format': return 'Chỉ nhận ảnh PNG hoặc JPEG (không nhận WebP, SVG, GIF, HEIC, ảnh CMYK hay ảnh động). Hãy xuất lại ảnh thành JPEG hoặc PNG.';
     case 'type_mismatch': return 'Định dạng ảnh không khớp với nội dung tệp. Hãy xuất lại ảnh rồi thử lại.';
     case 'too_large': return MEDIA_LIMITS[kind].label;
     case 'dimensions': return 'Mỗi cạnh ảnh phải từ 64 đến 8192 px.';
     case 'animated': return 'Không nhận ảnh động.';
     case 'trailing_data': return 'Ảnh có dữ liệu thừa sau phần hình (ví dụ ảnh chuyển động). Hãy xuất lại thành ảnh JPEG thường.';
-    case 'invalid': return 'Tệp ảnh bị hỏng hoặc không đầy đủ.';
+    case 'invalid': return 'Tệp ảnh bị hỏng hoặc thiếu dữ liệu ảnh. Hãy xuất lại ảnh rồi thử lại.';
   }
 }
 

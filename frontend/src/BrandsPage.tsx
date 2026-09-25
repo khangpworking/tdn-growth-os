@@ -189,7 +189,7 @@ export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEdito
               onDemoMedia={props.addDemoMedia} onUploaded={(mediaSha256) => dispatch({ type: 'update', update: (latest) => ({ ...latest, logoMediaSha256: mediaSha256 }) })} />
             : <p className="muted">Lưu thương hiệu trước, rồi thêm logo.</p>}
           {draft.logoMediaSha256 && <button className="button quiet" type="button" disabled={pending} onClick={() => set('logoMediaSha256', '')}>Bỏ logo</button>}
-          <p className="muted">PNG, JPEG hoặc WebP · tối đa 2 MB. Logo mới được dùng từ phiên bản hồ sơ bạn lưu tiếp theo.</p>
+          <p className="muted">PNG hoặc JPEG · tối đa 2 MB. Logo mới được dùng từ phiên bản hồ sơ bạn lưu tiếp theo.</p>
         </div>
       </div>
     </section>

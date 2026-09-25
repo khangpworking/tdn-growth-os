@@ -61,7 +61,7 @@
         "brandId": { "$ref": "#/$defs/uuid" },
         "mediaKind": { "title": "OwnerContentMediaKind", "enum": ["LOGO", "PHOTO"] },
         "mediaSha256": { "$ref": "#/$defs/sha256" },
-        "mediaType": { "enum": ["image/png", "image/jpeg", "image/webp"] },
+        "mediaType": { "enum": ["image/png", "image/jpeg"] },
         "width": { "type": "integer", "minimum": 64, "maximum": 8192 },
         "height": { "type": "integer", "minimum": 64, "maximum": 8192 },
         "byteSize": { "type": "integer", "minimum": 1 },

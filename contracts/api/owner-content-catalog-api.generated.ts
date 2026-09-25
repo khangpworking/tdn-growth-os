@@ -193,7 +193,7 @@ export interface OwnerContentMediaReceipt {
   brandId: Uuid;
   mediaKind: OwnerContentMediaKind;
   mediaSha256: Sha256;
-  mediaType: 'image/png' | 'image/jpeg' | 'image/webp';
+  mediaType: 'image/png' | 'image/jpeg';
   width: number;
   height: number;
   byteSize: number;

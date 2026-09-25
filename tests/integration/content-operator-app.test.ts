@@ -6,7 +6,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { openOperatorApp, type OperatorAppConfiguration } from '../../src/api/operator-app.js';
 import { openDatabase } from '../../src/platform/db/database.js';
-import { syntheticJpeg } from '../helpers/content-images.js';
+import { fixtureImage } from '../helpers/content-images.js';
 
 const roots: string[] = [];
 let nextPort = 18987;
@@ -44,7 +44,7 @@ test('operator app routes content read and OWNER paths to the content APIs', asy
     const list = await (await fetch(`${origin}/api/content/brands`)).json() as { brands: { brandName: string }[] };
     assert.deepEqual(list.brands.map((brand) => brand.brandName), ['Canxi Việt']);
     const { brandId } = await created.json() as { brandId: string };
-    const photo = syntheticJpeg(640, 480);
+    const photo = fixtureImage('photo-b.jpg');
     const uploaded = await fetch(`${origin}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'image/jpeg', origin }, body: new Uint8Array(photo) });
     assert.equal(uploaded.status, 201);
     const { mediaSha256 } = await uploaded.json() as { mediaSha256: string };

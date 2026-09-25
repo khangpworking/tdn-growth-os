@@ -2,7 +2,7 @@ CREATE TABLE flow_content_media (
   brand_id TEXT NOT NULL REFERENCES flow_content_brands(brand_id) ON DELETE RESTRICT,
   media_kind TEXT NOT NULL CHECK(media_kind IN ('LOGO', 'PHOTO')),
   media_sha256 TEXT NOT NULL REFERENCES artifact_manifests(sha256) ON DELETE RESTRICT,
-  media_type TEXT NOT NULL CHECK(media_type IN ('image/png', 'image/jpeg', 'image/webp')),
+  media_type TEXT NOT NULL CHECK(media_type IN ('image/png', 'image/jpeg')),
   width INTEGER NOT NULL CHECK(typeof(width) = 'integer' AND width BETWEEN 64 AND 8192),
   height INTEGER NOT NULL CHECK(typeof(height) = 'integer' AND height BETWEEN 64 AND 8192),
   byte_size INTEGER NOT NULL CHECK(typeof(byte_size) = 'integer' AND byte_size BETWEEN 1 AND 8388608),

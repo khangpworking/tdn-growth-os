@@ -11,7 +11,7 @@ import { ContentCatalogIdentityConflictError, ContentCatalogService } from '../.
 import { ContentImageError } from '../../src/modules/flow/content-image.js';
 import { ContentMediaService } from '../../src/modules/flow/content-media-service.js';
 import { FlowValidationError } from '../../src/modules/flow/validation.js';
-import { syntheticJpeg, syntheticPng } from '../helpers/content-images.js';
+import { fixtureImage, syntheticPng } from '../helpers/content-images.js';
 
 const brandId = '77777777-7777-4777-8777-000000000001';
 const otherBrandId = '77777777-7777-4777-8777-000000000002';
@@ -26,7 +26,7 @@ const displayRules = {
   entertainment: { name: 'OPTIONAL', logo: 'ALWAYS', tagline: 'HIDDEN', hotline: 'HIDDEN', web: 'HIDDEN', address: 'HIDDEN' },
   engagement: { name: 'OPTIONAL', logo: 'ALWAYS', tagline: 'HIDDEN', hotline: 'HIDDEN', web: 'ALWAYS', address: 'HIDDEN' },
 } as const;
-const photo = syntheticJpeg(1200, 900);
+const photo = fixtureImage('photo-a.jpg');
 const logo = syntheticPng(256, 256);
 const photoSha = createHash('sha256').update(photo).digest('hex');
 const logoSha = createHash('sha256').update(logo).digest('hex');
@@ -72,7 +72,7 @@ test('migration 0022 creates immutable media and catalog tables', async () => {
 test('media registration validates images, records metadata and deduplicates exact uploads', async () => {
   const state = await setup();
   const first = await state.media.registerMedia({ brandId, kind: 'PHOTO', declaredType: 'image/jpeg', bytes: photo });
-  assert.deepEqual(first, { brandId, kind: 'PHOTO', mediaSha256: photoSha, mediaType: 'image/jpeg', width: 1200, height: 900, byteSize: photo.length, exactRetry: false });
+  assert.deepEqual(first, { brandId, kind: 'PHOTO', mediaSha256: photoSha, mediaType: 'image/jpeg', width: 128, height: 96, byteSize: photo.length, exactRetry: false });
   const retry = await state.media.registerMedia({ brandId, kind: 'PHOTO', declaredType: 'image/jpeg', bytes: photo });
   assert.equal(retry.exactRetry, true);
   assert.equal(count(state.db, 'flow_content_media'), 1);

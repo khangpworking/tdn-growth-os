@@ -75,7 +75,10 @@ export class ContentMediaService {
     return { media: rows[0]!, bytes: await this.verifyMedia(rows[0]!, rows) };
   }
 
-  /** Verifies the stored bytes of a registered media row (used before a record references it). */
+  /**
+   * Verifies the stored bytes of a registered media row (used before a record references it).
+   * The digest proves they are the bytes fully decoded at upload, so only headers are re-checked.
+   */
   async verifyRegistered(brandId: string, kind: ContentMediaKind, mediaSha256: string): Promise<ContentMediaRecord> {
     const record = registeredContentMedia(this.#db, brandId, kind, mediaSha256);
     if (!record) throw new FlowValidationError(`Content media not registered as ${kind}: ${mediaSha256}`);
@@ -88,7 +91,7 @@ export class ContentMediaService {
     if (sha256(bytes) !== record.mediaSha256) throw new ContentArtifactIntegrityError('Media digest mismatch');
     assertContentManifest(this.#db, record.mediaSha256, bytes.byteLength, record.mediaType);
     for (const row of sameBytes) {
-      const info = inspectContentImage(bytes, { declaredType: row.mediaType, kind: row.kind });
+      const info = inspectContentImage(bytes, { declaredType: row.mediaType, kind: row.kind, decode: false });
       if (info.width !== row.width || info.height !== row.height || info.byteSize !== row.byteSize) throw new ContentArtifactIntegrityError('Media metadata mismatch');
     }
     return bytes;

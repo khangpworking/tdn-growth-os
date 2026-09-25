@@ -13,7 +13,7 @@ import ownerContentCatalogApiSchema from '../../contracts/api/owner-content-cata
 import contentCatalogItemCreateSchema from '../../contracts/flow/content-catalog-item-create-request.schema.json' with { type: 'json' };
 import { openDatabase } from '../../src/platform/db/database.js';
 import { openContentOwnerApi, openContentReadApi } from '../../src/api/content-api.js';
-import { syntheticJpeg, syntheticPng } from '../helpers/content-images.js';
+import { fixtureImage, syntheticPng } from '../helpers/content-images.js';
 
 const token = 'correct-owner-token-with-at-least-32-characters';
 const origin = 'http://127.0.0.1:5173';
@@ -31,7 +31,7 @@ const displayRules = {
   engagement: { name: 'OPTIONAL', logo: 'ALWAYS', tagline: 'HIDDEN', hotline: 'HIDDEN', web: 'ALWAYS', address: 'HIDDEN' },
 };
 const logo = syntheticPng(256, 256);
-const photo = syntheticJpeg(1200, 900);
+const photo = fixtureImage('photo-a.jpg');
 const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
 const bytes = (value: Buffer): Uint8Array<ArrayBuffer> => new Uint8Array(value);
 const json = { authorization: `Bearer ${token}`, 'content-type': 'application/json', origin };
@@ -229,4 +229,32 @@ test('the OWNER catalog contract accepts real requests and rejects invalid neste
   assert.equal(create({ contractVersion: '1.0.0', itemKey: 'canxi-nano', item: { invented: 1 } }), false);
   assert.equal(create({ contractVersion: '1.0.0', itemKey: 'canxi-nano', item: item({ tiers: [{ tierKey: 'x', name: 'X' }] }) }), false);
   assert.equal(media({ contractVersion: '1.0.0', brandId, mediaKind: 'LOGO', mediaSha256: sha(logo), mediaType: 'image/svg+xml', width: 256, height: 256, byteSize: 1, exactRetry: false }), false);
+});
+
+test('media uploads are refused without writing when the brand history fails verification', async () => {
+  const listFiles = (state: ReturnType<typeof fixture>) => {
+    const dir = path.join(state.artifactRoot, 'sha256');
+    return fs.readdirSync(dir, { recursive: true, withFileTypes: true }).filter((entry) => entry.isFile()).map((entry) => entry.name).sort();
+  };
+  const corruptions: [string, (state: ReturnType<typeof fixture>, digest: string) => void][] = [
+    ['tampered', (state, digest) => tamper(state, digest)],
+    ['missing', (state, digest) => fs.rmSync(path.join(state.artifactRoot, 'sha256', digest.slice(0, 2), digest))],
+  ];
+  for (const [label, corrupt] of corruptions) {
+    const state = fixture();
+    await serve(state, async (_read, owner) => {
+      const db = new BetterSqlite3(state.databasePath);
+      const { digest } = db.prepare('SELECT brand_artifact_sha256 digest FROM flow_content_brand_revisions WHERE brand_id = ? AND version = 1').get(brandId) as { digest: string };
+      db.close();
+      corrupt(state, digest);
+      const before = { counts: counts(state), files: listFiles(state) };
+      for (const [kind, type, body] of [['logo', 'image/png', logo], ['photo', 'image/jpeg', photo]] as const) {
+        const response = await fetch(`${owner}/owner-api/content/brands/${brandId}/media/${kind}`, { method: 'POST', headers: image(type), body: bytes(body) });
+        assert.equal(response.status, 500, `${label} ${kind}`);
+        assert.deepEqual(await response.json(), { error: { code: 'integrity_error', message: 'Stored content data failed integrity verification' } });
+      }
+      assert.deepEqual({ counts: counts(state), files: listFiles(state) }, before, label);
+      assert.equal((await fetch(`${owner}/owner-api/content/brands/${otherBrandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: bytes(photo) })).status, 201, 'other brands are unaffected');
+    });
+  }
 });
