@@ -33,6 +33,7 @@ const displayRules = {
 const logo = syntheticPng(256, 256);
 const photo = syntheticJpeg(1200, 900);
 const sha = (bytes: Buffer) => createHash('sha256').update(bytes).digest('hex');
+const bytes = (value: Buffer): Uint8Array<ArrayBuffer> => new Uint8Array(value);
 const json = { authorization: `Bearer ${token}`, 'content-type': 'application/json', origin };
 const image = (type: string) => ({ authorization: `Bearer ${token}`, 'content-type': type, origin });
 const item = (patch: Record<string, unknown> = {}) => ({
@@ -78,23 +79,23 @@ test('OWNER media uploads validate images and deduplicate exact uploads without 
   const state = fixture();
   await serve(state, async (_read, owner) => {
     const url = `${owner}/owner-api/content/brands/${brandId}/media/logo`;
-    const created = await fetch(url, { method: 'POST', headers: image('image/png'), body: logo });
+    const created = await fetch(url, { method: 'POST', headers: image('image/png'), body: bytes(logo) });
     assert.equal(created.status, 201);
     assert.deepEqual(await created.json(), { contractVersion: '1.0.0', brandId, mediaKind: 'LOGO', mediaSha256: sha(logo), mediaType: 'image/png', width: 256, height: 256, byteSize: logo.length, exactRetry: false });
-    const retry = await fetch(url, { method: 'POST', headers: image('image/png'), body: logo });
+    const retry = await fetch(url, { method: 'POST', headers: image('image/png'), body: bytes(logo) });
     assert.equal(retry.status, 200); assert.equal(((await retry.json()) as { exactRetry: boolean }).exactRetry, true);
-    assert.equal((await fetch(`${owner}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: photo })).status, 201);
+    assert.equal((await fetch(`${owner}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: bytes(photo) })).status, 201);
     const before = counts(state);
     const rejected: [RequestInit, number, string | undefined][] = [
       [{ headers: image('image/svg+xml'), body: '<svg xmlns="http://www.w3.org/2000/svg"/>' }, 400, 'unsupported_format'],
-      [{ headers: image('image/jpeg'), body: logo }, 400, 'type_mismatch'],
-      [{ headers: image('image/png'), body: syntheticPng(96, 64).subarray(0, 50) }, 400, 'invalid'],
-      [{ headers: image('image/png'), body: Buffer.alloc(2 * 1024 * 1024 + 1, 1) }, 400, 'too_large'],
-      [{ headers: image('image/png'), body: syntheticPng(32, 32) }, 400, 'dimensions'],
-      [{ headers: image('application/json'), body: logo }, 400, undefined],
+      [{ headers: image('image/jpeg'), body: bytes(logo) }, 400, 'type_mismatch'],
+      [{ headers: image('image/png'), body: bytes(syntheticPng(96, 64).subarray(0, 50)) }, 400, 'invalid'],
+      [{ headers: image('image/png'), body: bytes(Buffer.alloc(2 * 1024 * 1024 + 1, 1)) }, 400, 'too_large'],
+      [{ headers: image('image/png'), body: bytes(syntheticPng(32, 32)) }, 400, 'dimensions'],
+      [{ headers: image('application/json'), body: bytes(logo) }, 400, undefined],
       [{ headers: image('image/png') }, 400, undefined],
-      [{ headers: { ...image('image/png'), authorization: 'Bearer wrong' }, body: logo }, 401, undefined],
-      [{ headers: { ...image('image/png'), origin: 'http://evil.example' }, body: logo }, 403, undefined],
+      [{ headers: { ...image('image/png'), authorization: 'Bearer wrong' }, body: bytes(logo) }, 401, undefined],
+      [{ headers: { ...image('image/png'), origin: 'http://evil.example' }, body: bytes(logo) }, 403, undefined],
     ];
     for (const [init, status, reason] of rejected) {
       const response = await fetch(url, { method: 'POST', ...init });
@@ -102,8 +103,8 @@ test('OWNER media uploads validate images and deduplicate exact uploads without 
       const body = await response.json() as { error: { reason?: string } };
       assert.equal(body.error.reason, reason);
     }
-    assert.equal((await fetch(`${owner}/owner-api/content/brands/88888888-8888-4888-8888-00000000ffff/media/logo`, { method: 'POST', headers: image('image/png'), body: logo })).status, 404);
-    assert.equal((await fetch(`${owner}/owner-api/content/brands/${brandId}/media/banner`, { method: 'POST', headers: image('image/png'), body: logo })).status, 404);
+    assert.equal((await fetch(`${owner}/owner-api/content/brands/88888888-8888-4888-8888-00000000ffff/media/logo`, { method: 'POST', headers: image('image/png'), body: bytes(logo) })).status, 404);
+    assert.equal((await fetch(`${owner}/owner-api/content/brands/${brandId}/media/banner`, { method: 'POST', headers: image('image/png'), body: bytes(logo) })).status, 404);
     const preflight = await fetch(url, { method: 'OPTIONS', headers: { origin, 'access-control-request-method': 'POST', 'access-control-request-headers': 'authorization, content-type' } });
     assert.equal(preflight.status, 204);
     assert.deepEqual(counts(state), before);
@@ -113,7 +114,7 @@ test('OWNER media uploads validate images and deduplicate exact uploads without 
 test('media previews are served only for registered brand media, with safe headers and verified bytes', async () => {
   const state = fixture();
   await serve(state, async (read, owner) => {
-    await fetch(`${owner}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: photo });
+    await fetch(`${owner}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: bytes(photo) });
     const response = await fetch(`${read}/api/content/brands/${brandId}/media/${sha(photo)}`);
     assert.equal(response.status, 200);
     assert.equal(Buffer.from(await response.arrayBuffer()).equals(photo), true);
@@ -140,7 +141,7 @@ test('media previews are served only for registered brand media, with safe heade
 test('OWNER catalog create and revision return receipts, retries, conflicts and verified reads', async () => {
   const state = fixture();
   await serve(state, async (read, owner) => {
-    await fetch(`${owner}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: photo });
+    await fetch(`${owner}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: bytes(photo) });
     const catalogUrl = `${owner}/owner-api/content/brands/${brandId}/catalog`;
     const body = (patch: Record<string, unknown> = {}) => JSON.stringify({ contractVersion: '1.0.0', itemKey: 'canxi-nano', item: item(), ...patch });
     const created = await fetch(catalogUrl, { method: 'POST', headers: json, body: body() });
@@ -177,7 +178,7 @@ test('OWNER catalog create and revision return receipts, retries, conflicts and 
 test('catalog revisions are refused without writing when history or referenced photos fail verification', async () => {
   const state = fixture();
   await serve(state, async (read, owner) => {
-    await fetch(`${owner}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: photo });
+    await fetch(`${owner}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: image('image/jpeg'), body: bytes(photo) });
     await fetch(`${owner}/owner-api/content/brands/${brandId}/catalog`, { method: 'POST', headers: json, body: JSON.stringify({ contractVersion: '1.0.0', itemKey: 'canxi-nano', item: item({ photos: [] }) }) });
     const revisionUrl = `${owner}/owner-api/content/brands/${brandId}/catalog/${itemId}/revisions`;
     tamper(state, sha(photo));
@@ -203,9 +204,9 @@ test('brand revisions accept a registered logo through the OWNER API and expose 
     const revision = (patch: Record<string, unknown> = {}) => JSON.stringify({ contractVersion: '1.0.0', expectedVersion: 1, profile: { brandName: 'canxi-viet' }, displayRules, logoMediaSha256: sha(logo), ...patch });
     const url = `${owner}/owner-api/content/brands/${brandId}/revisions`;
     assert.equal((await fetch(url, { method: 'POST', headers: json, body: revision() })).status, 400);
-    await fetch(`${owner}/owner-api/content/brands/${otherBrandId}/media/logo`, { method: 'POST', headers: image('image/png'), body: logo });
+    await fetch(`${owner}/owner-api/content/brands/${otherBrandId}/media/logo`, { method: 'POST', headers: image('image/png'), body: bytes(logo) });
     assert.equal((await fetch(url, { method: 'POST', headers: json, body: revision() })).status, 400, 'logo of another brand');
-    await fetch(`${owner}/owner-api/content/brands/${brandId}/media/logo`, { method: 'POST', headers: image('image/png'), body: logo });
+    await fetch(`${owner}/owner-api/content/brands/${brandId}/media/logo`, { method: 'POST', headers: image('image/png'), body: bytes(logo) });
     assert.equal((await fetch(url, { method: 'POST', headers: json, body: revision() })).status, 201);
     const detail = await (await fetch(`${read}/api/content/brands/${brandId}`)).json() as { brand: { logoMediaSha256?: string } };
     assert.equal(detail.brand.logoMediaSha256, sha(logo));

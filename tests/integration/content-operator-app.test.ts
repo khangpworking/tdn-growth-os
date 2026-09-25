@@ -45,7 +45,7 @@ test('operator app routes content read and OWNER paths to the content APIs', asy
     assert.deepEqual(list.brands.map((brand) => brand.brandName), ['Canxi Việt']);
     const { brandId } = await created.json() as { brandId: string };
     const photo = syntheticJpeg(640, 480);
-    const uploaded = await fetch(`${origin}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'image/jpeg', origin }, body: photo });
+    const uploaded = await fetch(`${origin}/owner-api/content/brands/${brandId}/media/photo`, { method: 'POST', headers: { authorization: `Bearer ${token}`, 'content-type': 'image/jpeg', origin }, body: new Uint8Array(photo) });
     assert.equal(uploaded.status, 201);
     const { mediaSha256 } = await uploaded.json() as { mediaSha256: string };
     const preview = await fetch(`${origin}/api/content/brands/${brandId}/media/${mediaSha256}`);
