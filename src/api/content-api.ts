@@ -6,16 +6,35 @@ import type {
   ContentBrandDetailResponse,
   ContentBrandHistoryItem,
   ContentBrandListResponse,
+  ContentCatalogDetailResponse,
+  ContentCatalogHistoryItem,
+  ContentCatalogListResponse,
 } from '../../contracts/api/content-api.generated.js';
 import type {
   OwnerContentApiErrorResponse,
   OwnerContentBrandReceipt,
 } from '../../contracts/api/owner-content-brand-api.generated.js';
+import type {
+  OwnerContentCatalogItemReceipt,
+  OwnerContentMediaReceipt,
+  OwnerContentMediaRejection,
+} from '../../contracts/api/owner-content-catalog-api.generated.js';
 import type { ContentBrandArtifact } from '../../contracts/flow/content-brand-artifact.generated.js';
+import type { ContentCatalogItemArtifact } from '../../contracts/flow/content-catalog-item-artifact.generated.js';
+import type { ContentCatalogItemContent } from '../../contracts/flow/content-catalog-item-create-request.generated.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
 import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mutex.js';
 import { ContentBrandIdentityConflictError, ContentBrandService } from '../modules/flow/content-brand-service.js';
-import { FlowValidationError, validateContentBrandCreateRequest, validateContentBrandRevisionRequest } from '../modules/flow/validation.js';
+import { ContentCatalogIdentityConflictError, ContentCatalogService } from '../modules/flow/content-catalog-service.js';
+import { CONTENT_MEDIA_LIMITS, ContentImageError, type ContentMediaKind } from '../modules/flow/content-image.js';
+import { ContentMediaService, registeredContentMedia, type ContentMediaRecord } from '../modules/flow/content-media-service.js';
+import {
+  FlowValidationError,
+  validateContentBrandCreateRequest,
+  validateContentBrandRevisionRequest,
+  validateContentCatalogItemCreateRequest,
+  validateContentCatalogItemRevisionRequest,
+} from '../modules/flow/validation.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import {
   assertOwnerHttpConfiguration,
@@ -23,15 +42,18 @@ import {
   ownerAuthorized,
   ownerCors,
   PayloadTooLargeError,
-  readOwnerBody,
+  readOwnerBytes,
   sendApiJson,
   singleHeader,
   type OwnerHttpConfiguration,
 } from './owner-http.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const MAX_BODY_BYTES = 16 * 1024;
-const REQUIRED_TABLES = ['artifact_manifests', 'flow_content_brands', 'flow_content_brand_revisions'];
+const SHA256 = /^[0-9a-f]{64}$/;
+const BRAND_BODY_BYTES = 16 * 1024;
+const CATALOG_BODY_BYTES = 64 * 1024;
+const REQUIRED_TABLES = ['artifact_manifests', 'flow_content_brands', 'flow_content_brand_revisions', 'flow_content_media', 'flow_content_catalog_items', 'flow_content_catalog_item_revisions'];
+const MEDIA_KINDS: Readonly<Record<string, ContentMediaKind>> = { logo: 'LOGO', photo: 'PHOTO' };
 
 export interface ContentReadApiConfiguration {
   readonly databasePath: string;
@@ -46,6 +68,14 @@ export interface ContentApiApplication {
   close(): void;
 }
 
+interface ReadHandlers {
+  list(): Promise<ContentBrandListResponse>;
+  detail(brandId: string): Promise<ContentBrandDetailResponse | undefined>;
+  catalogList(brandId: string): Promise<ContentCatalogListResponse | undefined>;
+  catalogDetail(brandId: string, itemId: string): Promise<ContentCatalogDetailResponse | undefined>;
+  media(brandId: string, mediaSha256: string): Promise<{ readonly media: ContentMediaRecord; readonly bytes: Buffer } | undefined>;
+}
+
 /** Verified, query-only read paths for Content Studio (`/api/content/*`). */
 export function openContentReadApi(configuration: ContentReadApiConfiguration): ContentApiApplication {
   if (!configuration.databasePath || !configuration.artifactRoot) throw new TypeError('Explicit databasePath and artifactRoot are required');
@@ -55,42 +85,86 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
     db.pragma('foreign_keys = ON');
     db.defaultSafeIntegers(true);
     assertTables(db);
-    const brands = new ContentBrandService({ db, artifactStore: new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot)) });
-    const catalog = db.prepare(`
+    const artifactStore = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
+    const brands = new ContentBrandService({ db, artifactStore });
+    const catalog = new ContentCatalogService({ db, artifactStore });
+    const media = new ContentMediaService({ db, artifactStore });
+    const brandCatalog = db.prepare(`
       SELECT b.brand_id brandId, max(r.version) version
       FROM flow_content_brands b JOIN flow_content_brand_revisions r ON r.brand_id = b.brand_id
       GROUP BY b.brand_id ORDER BY b.created_at, b.brand_id
     `);
     const versions = db.prepare('SELECT version FROM flow_content_brand_revisions WHERE brand_id = ? ORDER BY version');
+    const brandExists = db.prepare('SELECT 1 FROM flow_content_brands WHERE brand_id = ?');
+    const mediaExists = db.prepare('SELECT 1 FROM flow_content_media WHERE brand_id = ? AND media_sha256 = ?');
 
-    const list = async (): Promise<ContentBrandListResponse> => {
-      const result: ContentBrandListResponse['brands'] = [];
-      for (const row of catalog.all() as { brandId: string; version: bigint }[]) {
-        const brand = await brands.readBrand(row.brandId, Number(row.version));
-        if (brand.brandId !== row.brandId || BigInt(brand.version) !== row.version) throw new Error('Brand catalog identity mismatch');
-        result.push({ brandId: brand.brandId, brandKey: brand.brandKey, version: brand.version, brandName: brand.profile.brandName, updatedAt: brand.createdAt });
-      }
-      return { contractVersion: '1.0.0', brands: result };
+    const handlers: ReadHandlers = {
+      async list() {
+        const result: ContentBrandListResponse['brands'] = [];
+        for (const row of brandCatalog.all() as { brandId: string; version: bigint }[]) {
+          const brand = await brands.readBrand(row.brandId, Number(row.version));
+          if (brand.brandId !== row.brandId || BigInt(brand.version) !== row.version) throw new Error('Brand catalog identity mismatch');
+          result.push({ brandId: brand.brandId, brandKey: brand.brandKey, version: brand.version, brandName: brand.profile.brandName, updatedAt: brand.createdAt });
+        }
+        return { contractVersion: '1.0.0', brands: result };
+      },
+      async detail(brandId) {
+        const rows = versions.all(brandId) as { version: bigint }[];
+        if (rows.length === 0) return undefined;
+        const history: ContentBrandHistoryItem[] = [];
+        let latest: ContentBrandArtifact | undefined;
+        for (const row of rows) {
+          latest = await brands.readBrand(brandId, Number(row.version));
+          history.push({ version: latest.version, brandName: latest.profile.brandName, createdAt: latest.createdAt });
+        }
+        const [first, ...rest] = history;
+        if (!latest || !first) throw new Error('Brand history is empty');
+        const brand = latest;
+        return {
+          contractVersion: '1.0.0',
+          brand: {
+            brandId: brand.brandId, brandKey: brand.brandKey, version: brand.version, profile: brand.profile, displayRules: brand.displayRules,
+            ...(brand.logoMediaSha256 === undefined ? {} : { logoMediaSha256: brand.logoMediaSha256 }), createdAt: brand.createdAt,
+          },
+          history: [first, ...rest],
+        };
+      },
+      async catalogList(brandId) {
+        if (!brandExists.get(brandId)) return undefined;
+        const items: ContentCatalogListResponse['items'] = [];
+        for (const row of catalog.listItems(brandId)) {
+          const artifact = await catalog.readItem(row.itemId, row.version);
+          if (artifact.itemId !== row.itemId || artifact.brandId !== brandId || artifact.version !== row.version) throw new Error('Catalog identity mismatch');
+          items.push({
+            itemId: artifact.itemId, itemKey: artifact.itemKey, version: artifact.version, itemType: artifact.item.itemType, name: artifact.item.name,
+            tierNames: artifact.item.tiers.map((tier) => tier.name), photoCount: artifact.item.photos.length, updatedAt: artifact.createdAt,
+          });
+        }
+        return { contractVersion: '1.0.0', brandId, items };
+      },
+      async catalogDetail(brandId, itemId) {
+        if (catalog.itemBrand(itemId) !== brandId) return undefined;
+        const history: ContentCatalogHistoryItem[] = [];
+        let latest: ContentCatalogItemArtifact | undefined;
+        for (const version of catalog.itemVersions(itemId)) {
+          latest = await catalog.readItem(itemId, version);
+          if (latest.brandId !== brandId) throw new Error('Catalog brand mismatch');
+          history.push({ version: latest.version, name: latest.item.name, createdAt: latest.createdAt });
+        }
+        const [first, ...rest] = history;
+        if (!latest || !first) throw new Error('Catalog history is empty');
+        return {
+          contractVersion: '1.0.0',
+          item: { itemId: latest.itemId, brandId: latest.brandId, itemKey: latest.itemKey, version: latest.version, item: latest.item, createdAt: latest.createdAt },
+          history: [first, ...rest],
+        };
+      },
+      async media(brandId, mediaSha256) {
+        if (!mediaExists.get(brandId, mediaSha256)) return undefined;
+        return media.readMedia(brandId, mediaSha256);
+      },
     };
-    const detail = async (brandId: string): Promise<ContentBrandDetailResponse | undefined> => {
-      const rows = versions.all(brandId) as { version: bigint }[];
-      if (rows.length === 0) return undefined;
-      const history: ContentBrandHistoryItem[] = [];
-      let latest: ContentBrandArtifact | undefined;
-      for (const row of rows) {
-        latest = await brands.readBrand(brandId, Number(row.version));
-        history.push({ version: latest.version, brandName: latest.profile.brandName, createdAt: latest.createdAt });
-      }
-      const [first, ...rest] = history;
-      if (!latest || !first) throw new Error('Brand history is empty');
-      const brand = latest;
-      return {
-        contractVersion: '1.0.0',
-        brand: { brandId: brand.brandId, brandKey: brand.brandKey, version: brand.version, profile: brand.profile, displayRules: brand.displayRules, createdAt: brand.createdAt },
-        history: [first, ...rest],
-      };
-    };
-    const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeRead(request, response, list, detail); };
+    const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeRead(request, response, handlers); };
     return { handler, close: () => db.close() };
   } catch (error) {
     db.close();
@@ -98,21 +172,43 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
   }
 }
 
-async function routeRead(
-  request: IncomingMessage,
-  response: ServerResponse,
-  list: () => Promise<ContentBrandListResponse>,
-  detail: (brandId: string) => Promise<ContentBrandDetailResponse | undefined>,
-): Promise<void> {
+async function routeRead(request: IncomingMessage, response: ServerResponse, handlers: ReadHandlers): Promise<void> {
   try {
     if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return sendReadError(response, 405, 'method_not_allowed', 'Only GET is supported'); }
     const parts = pathParts(request.url);
     if (parts === null) return sendReadError(response, 400, 'bad_request', 'Malformed request URL');
-    if (parts.length === 3 && parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'brands') return sendApiJson(response, 200, await list());
-    if (parts.length === 4 && parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'brands') {
-      if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Brand ID must be a UUID');
-      const result = await detail(parts[3]!);
+    if (parts[0] !== 'api' || parts[1] !== 'content' || parts[2] !== 'brands') return sendReadError(response, 404, 'not_found', 'Route not found');
+    if (parts.length === 3) return sendApiJson(response, 200, await handlers.list());
+    const brandId = parts[3]!;
+    if (!UUID.test(brandId)) return sendReadError(response, 400, 'bad_request', 'Brand ID must be a UUID');
+    if (parts.length === 4) {
+      const result = await handlers.detail(brandId);
       return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Brand not found');
+    }
+    if (parts[4] === 'catalog' && parts.length === 5) {
+      const result = await handlers.catalogList(brandId);
+      return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Brand not found');
+    }
+    if (parts[4] === 'catalog' && parts.length === 6) {
+      if (!UUID.test(parts[5]!)) return sendReadError(response, 400, 'bad_request', 'Item ID must be a UUID');
+      const result = await handlers.catalogDetail(brandId, parts[5]!);
+      return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Catalog item not found');
+    }
+    if (parts[4] === 'media' && parts.length === 6) {
+      if (!SHA256.test(parts[5]!)) return sendReadError(response, 400, 'bad_request', 'Media ID must be a SHA-256 digest');
+      const result = await handlers.media(brandId, parts[5]!);
+      if (!result) return sendReadError(response, 404, 'not_found', 'Media not found');
+      response.writeHead(200, {
+        'Content-Type': result.media.mediaType,
+        'Content-Length': result.bytes.byteLength,
+        'Cache-Control': 'private, max-age=31536000, immutable',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'Content-Disposition': 'inline',
+        'Cross-Origin-Resource-Policy': 'same-origin',
+      });
+      response.end(result.bytes);
+      return;
     }
     return sendReadError(response, 404, 'not_found', 'Route not found');
   } catch {
@@ -121,7 +217,22 @@ async function routeRead(
 }
 
 class UnknownBrandError extends Error {}
-class ExistingBrandIntegrityError extends Error {}
+class UnknownItemError extends Error {}
+class InvalidReferenceError extends Error {}
+class ExistingContentIntegrityError extends Error {}
+
+type OwnerRoute =
+  | { readonly kind: 'brand-create' }
+  | { readonly kind: 'brand-revision'; readonly brandId: string }
+  | { readonly kind: 'media'; readonly brandId: string; readonly mediaKind: ContentMediaKind }
+  | { readonly kind: 'item-create'; readonly brandId: string }
+  | { readonly kind: 'item-revision'; readonly brandId: string; readonly itemId: string };
+
+interface OwnerWriters {
+  brand(serviceRequest: Record<string, unknown>, revision: boolean): Promise<OwnerContentBrandReceipt>;
+  media(brandId: string, kind: ContentMediaKind, declaredType: string, bytes: Buffer): Promise<OwnerContentMediaReceipt>;
+  item(serviceRequest: Record<string, unknown>, brandId: string, itemId: string | undefined): Promise<OwnerContentCatalogItemReceipt>;
+}
 
 /** OWNER write paths for Content Studio (`/owner-api/content/*`). */
 export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration): ContentApiApplication {
@@ -132,38 +243,82 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
     db.defaultSafeIntegers(true);
     assertTables(db);
     const artifacts = new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot));
-    const brands = new ContentBrandService({
-      db, artifactStore: artifacts,
+    const clock = {
       ...(configuration.now ? { now: configuration.now } : {}),
       ...(configuration.uuid ? { uuid: configuration.uuid } : {}),
-    });
+    };
+    const brands = new ContentBrandService({ db, artifactStore: artifacts, ...clock });
+    const catalog = new ContentCatalogService({ db, artifactStore: artifacts, ...clock });
+    const media = new ContentMediaService({ db, artifactStore: artifacts, ...(configuration.now ? { now: configuration.now } : {}) });
     const brandExists = db.prepare('SELECT 1 FROM flow_content_brands WHERE brand_id = ?');
     const brandHistory = db.prepare('SELECT version FROM flow_content_brand_revisions WHERE brand_id = ? ORDER BY version');
-    const verifyHistory = async (brandId: string): Promise<void> => {
-      try {
-        const rows = brandHistory.all(brandId) as { version: bigint }[];
-        for (const [index, row] of rows.entries()) {
-          if (row.version !== BigInt(index + 1)) throw new Error('Brand history is not sequential');
-          await brands.readBrand(brandId, index + 1);
-        }
-      } catch { throw new ExistingBrandIntegrityError(); }
+
+    const integrity = async <T>(operation: () => Promise<T>): Promise<T> => {
+      try { return await operation(); } catch { throw new ExistingContentIntegrityError(); }
+    };
+    const verifyBrandHistory = (brandId: string) => integrity(async () => {
+      const rows = brandHistory.all(brandId) as { version: bigint }[];
+      for (const [index, row] of rows.entries()) {
+        if (row.version !== BigInt(index + 1)) throw new Error('Brand history is not sequential');
+        await brands.readBrand(brandId, index + 1);
+      }
+    });
+    const verifyItemHistory = (itemId: string) => integrity(async () => {
+      for (const [index, version] of catalog.itemVersions(itemId).entries()) {
+        if (version !== index + 1) throw new Error('Catalog history is not sequential');
+        await catalog.readItem(itemId, version);
+      }
+    });
+    const verifyMedia = async (brandId: string, kind: ContentMediaKind, digests: readonly string[]) => {
+      for (const digest of digests) if (!registeredContentMedia(db, brandId, kind, digest)) throw new InvalidReferenceError();
+      await integrity(async () => { for (const digest of digests) await media.verifyRegistered(brandId, kind, digest); });
     };
 
-    const write = (serviceRequest: Record<string, unknown>, revision: boolean): Promise<OwnerContentBrandReceipt> =>
-      withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+    const writers: OwnerWriters = {
+      brand: (serviceRequest, revision) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
         if (revision && !brandExists.get(serviceRequest.brandId)) throw new UnknownBrandError();
         await brands.restoreExactArtifact(serviceRequest);
-        if (revision) await verifyHistory(serviceRequest.brandId as string);
+        if (revision) {
+          await verifyBrandHistory(serviceRequest.brandId as string);
+          if (typeof serviceRequest.logoMediaSha256 === 'string') await verifyMedia(serviceRequest.brandId as string, 'LOGO', [serviceRequest.logoMediaSha256]);
+        }
         const result = revision ? await brands.reviseBrand(serviceRequest) : await brands.createBrand(serviceRequest);
         await artifacts.publishOwned();
-        const verified = await brands.readBrand(result.brandId, result.version);
+        const verified = await integrity(() => brands.readBrand(result.brandId, result.version));
         return {
           contractVersion: '1.0.0', brandId: verified.brandId, brandKey: verified.brandKey, version: verified.version,
           brandName: verified.profile.brandName, createdAt: verified.createdAt, exactRetry: result.deduplicated,
         };
-      }));
+      })),
+      media: (brandId, kind, declaredType, bytes) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+        if (!brandExists.get(brandId)) throw new UnknownBrandError();
+        const result = await media.registerMedia({ brandId, kind, declaredType, bytes });
+        await artifacts.publishOwned();
+        await integrity(() => media.verifyRegistered(brandId, kind, result.mediaSha256));
+        return {
+          contractVersion: '1.0.0', brandId, mediaKind: kind, mediaSha256: result.mediaSha256, mediaType: result.mediaType,
+          width: result.width, height: result.height, byteSize: result.byteSize, exactRetry: result.exactRetry,
+        };
+      })),
+      item: (serviceRequest, brandId, itemId) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+        if (!brandExists.get(brandId)) throw new UnknownBrandError();
+        if (itemId !== undefined && catalog.itemBrand(itemId) !== brandId) throw new UnknownItemError();
+        await verifyBrandHistory(brandId);
+        await catalog.restoreExactArtifact(serviceRequest);
+        if (itemId !== undefined) await verifyItemHistory(itemId);
+        const content = serviceRequest.item as ContentCatalogItemContent;
+        await verifyMedia(brandId, 'PHOTO', content.photos.map((photo) => photo.mediaSha256));
+        const result = itemId === undefined ? await catalog.createItem(serviceRequest) : await catalog.reviseItem(serviceRequest);
+        await artifacts.publishOwned();
+        const verified = await integrity(() => catalog.readItem(result.itemId, result.version));
+        return {
+          contractVersion: '1.0.0', brandId: verified.brandId, itemId: verified.itemId, itemKey: verified.itemKey, version: verified.version,
+          name: verified.item.name, createdAt: verified.createdAt, exactRetry: result.deduplicated,
+        };
+      })),
+    };
 
-    const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, write); };
+    const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers); };
     return { handler, close: () => db.close() };
   } catch (error) {
     db.close();
@@ -171,52 +326,82 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
   }
 }
 
-async function routeOwner(
-  request: IncomingMessage,
-  response: ServerResponse,
-  configuration: ContentOwnerApiConfiguration,
-  write: (serviceRequest: Record<string, unknown>, revision: boolean) => Promise<OwnerContentBrandReceipt>,
-): Promise<void> {
+function ownerRoute(parts: string[] | null): OwnerRoute | 'invalid-id' | null {
+  if (parts === null || parts[0] !== 'owner-api' || parts[1] !== 'content' || parts[2] !== 'brands') return null;
+  if (parts.length === 3) return { kind: 'brand-create' };
+  const brandId = parts[3]!;
+  const shape = parts.slice(4).join('/');
+  const known = shape === 'revisions' || shape === 'catalog' || (parts.length === 6 && parts[4] === 'media' && parts[5]! in MEDIA_KINDS) || (parts.length === 7 && parts[4] === 'catalog' && parts[6] === 'revisions');
+  if (!known) return null;
+  if (!UUID.test(brandId)) return 'invalid-id';
+  if (shape === 'revisions') return { kind: 'brand-revision', brandId };
+  if (shape === 'catalog') return { kind: 'item-create', brandId };
+  if (parts[4] === 'media') return { kind: 'media', brandId, mediaKind: MEDIA_KINDS[parts[5]!]! };
+  if (!UUID.test(parts[5]!)) return 'invalid-id';
+  return { kind: 'item-revision', brandId, itemId: parts[5]! };
+}
+
+async function routeOwner(request: IncomingMessage, response: ServerResponse, configuration: ContentOwnerApiConfiguration, writers: OwnerWriters): Promise<void> {
   const origin = singleHeader(request.headers.origin);
   if (origin !== undefined && origin !== configuration.allowedOrigin) return sendOwnerError(response, 403, 'forbidden', 'Origin is not allowed');
   if (origin) ownerCors(response, origin);
-  const parts = pathParts(request.url);
-  const create = parts !== null && parts.length === 3 && parts[0] === 'owner-api' && parts[1] === 'content' && parts[2] === 'brands';
-  const revision = parts !== null && parts.length === 5 && parts[0] === 'owner-api' && parts[1] === 'content' && parts[2] === 'brands' && parts[4] === 'revisions';
-  if (!create && !revision) return sendOwnerError(response, 404, 'not_found', 'Route not found');
-  const brandId = revision ? parts![3]! : undefined;
-  if (brandId !== undefined && !UUID.test(brandId)) return sendOwnerError(response, 400, 'bad_request', 'Brand ID must be a UUID');
+  const route = ownerRoute(pathParts(request.url));
+  if (route === null) return sendOwnerError(response, 404, 'not_found', 'Route not found');
+  if (route === 'invalid-id') return sendOwnerError(response, 400, 'bad_request', 'Route IDs must be UUIDs');
   if (request.method === 'OPTIONS') {
     if (!origin || singleHeader(request.headers['access-control-request-method']) !== 'POST' || singleHeader(request.headers['access-control-request-headers'])?.toLowerCase() !== 'authorization, content-type') return sendOwnerError(response, 403, 'forbidden', 'Preflight is not allowed');
     response.writeHead(204, { Allow: 'POST, OPTIONS', 'Access-Control-Max-Age': '600', 'Content-Length': '0' }); response.end(); return;
   }
   if (request.method !== 'POST') { response.setHeader('Allow', 'POST, OPTIONS'); return sendOwnerError(response, 405, 'method_not_allowed', 'Only POST is supported'); }
   if (!ownerAuthorized(request, configuration.token)) return sendOwnerError(response, 401, 'unauthorized', 'Authentication required', { 'WWW-Authenticate': 'Bearer' });
-  if (singleHeader(request.headers['content-type']) !== 'application/json') return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be application/json');
+  const contentType = singleHeader(request.headers['content-type']);
   try {
-    const raw = await readOwnerBody(request, MAX_BODY_BYTES);
+    if (route.kind === 'media') {
+      if (!contentType?.startsWith('image/')) return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be image/png, image/jpeg or image/webp');
+      const bytes = await readOwnerBytes(request, CONTENT_MEDIA_LIMITS[route.mediaKind].maxBytes);
+      const receipt = await writers.media(route.brandId, route.mediaKind, contentType, bytes);
+      return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+    }
+    if (contentType !== 'application/json') return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be application/json');
+    const catalogRoute = route.kind === 'item-create' || route.kind === 'item-revision';
+    const raw = (await readOwnerBytes(request, catalogRoute ? CATALOG_BODY_BYTES : BRAND_BODY_BYTES)).toString('utf8');
     let body: unknown;
     try { body = JSON.parse(raw); } catch { return sendOwnerError(response, 400, 'bad_request', 'Request body must be valid JSON'); }
-    if (!body || typeof body !== 'object' || Array.isArray(body)) return sendOwnerError(response, 400, 'bad_request', 'Invalid brand request');
-    const keys = Object.keys(body).sort().join(',');
-    const expectedKeys = create ? 'brandKey,contractVersion,displayRules,profile' : 'contractVersion,displayRules,expectedVersion,profile';
-    if (keys !== expectedKeys) return sendOwnerError(response, 400, 'bad_request', 'Invalid brand request');
-    const serviceRequest = create ? { ...(body as Record<string, unknown>) } : { ...(body as Record<string, unknown>), brandId };
+    if (!body || typeof body !== 'object' || Array.isArray(body)) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
+    const fields = body as Record<string, unknown>;
+    const keys = Object.keys(fields).filter((key) => !(route.kind === 'brand-revision' && key === 'logoMediaSha256')).sort().join(',');
+    const expectedKeys = {
+      'brand-create': 'brandKey,contractVersion,displayRules,profile',
+      'brand-revision': 'contractVersion,displayRules,expectedVersion,profile',
+      'item-create': 'contractVersion,item,itemKey',
+      'item-revision': 'contractVersion,expectedVersion,item',
+    }[route.kind];
+    if (keys !== expectedKeys) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
+    const serviceRequest = route.kind === 'brand-create' ? { ...fields }
+      : route.kind === 'brand-revision' ? { ...fields, brandId: route.brandId }
+      : route.kind === 'item-create' ? { ...fields, brandId: route.brandId }
+      : { ...fields, itemId: route.itemId };
     try {
-      if (create) validateContentBrandCreateRequest(serviceRequest);
-      else validateContentBrandRevisionRequest(serviceRequest);
+      if (route.kind === 'brand-create') validateContentBrandCreateRequest(serviceRequest);
+      else if (route.kind === 'brand-revision') validateContentBrandRevisionRequest(serviceRequest);
+      else if (route.kind === 'item-create') validateContentCatalogItemCreateRequest(serviceRequest);
+      else validateContentCatalogItemRevisionRequest(serviceRequest);
     } catch (error) {
-      if (error instanceof FlowValidationError) return sendOwnerError(response, 400, 'bad_request', 'Invalid brand request');
+      if (error instanceof FlowValidationError) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
       throw error;
     }
-    const receipt = await write(serviceRequest, revision);
+    const receipt = route.kind === 'brand-create' || route.kind === 'brand-revision'
+      ? await writers.brand(serviceRequest, route.kind === 'brand-revision')
+      : await writers.item(serviceRequest, route.brandId, route.kind === 'item-revision' ? route.itemId : undefined);
     return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
-    if (error instanceof PayloadTooLargeError) return sendOwnerError(response, 400, 'bad_request', 'Request body is too large');
+    if (error instanceof PayloadTooLargeError) return sendOwnerError(response, 400, 'bad_request', 'Request body is too large', {}, route.kind === 'media' ? 'too_large' : undefined);
     if (error instanceof EmptyBodyError) return sendOwnerError(response, 400, 'bad_request', 'Request body is required');
-    if (error instanceof ExistingBrandIntegrityError) return sendOwnerError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');
+    if (error instanceof ContentImageError) return sendOwnerError(response, 400, 'bad_request', 'Image was rejected', {}, error.code);
     if (error instanceof UnknownBrandError) return sendOwnerError(response, 404, 'not_found', 'Brand not found');
-    if (error instanceof ContentBrandIdentityConflictError && /changed content|drift/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Brand conflicts with current state');
+    if (error instanceof UnknownItemError) return sendOwnerError(response, 404, 'not_found', 'Catalog item not found');
+    if (error instanceof InvalidReferenceError) return sendOwnerError(response, 400, 'bad_request', 'Referenced media is not registered for this brand');
+    if ((error instanceof ContentBrandIdentityConflictError || error instanceof ContentCatalogIdentityConflictError) && /changed content|drift/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     return sendOwnerError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');
   }
 }
@@ -241,6 +426,6 @@ function sendReadError(response: ServerResponse, status: number, code: ContentAp
   sendApiJson(response, status, { error: { code, message } } satisfies ContentApiErrorResponse);
 }
 
-function sendOwnerError(response: ServerResponse, status: number, code: OwnerContentApiErrorResponse['error']['code'], message: string, extra: Record<string, string> = {}): void {
-  sendApiJson(response, status, { error: { code, message } } satisfies OwnerContentApiErrorResponse, extra);
+function sendOwnerError(response: ServerResponse, status: number, code: OwnerContentApiErrorResponse['error']['code'], message: string, extra: Record<string, string> = {}, reason?: OwnerContentMediaRejection): void {
+  sendApiJson(response, status, { error: { code, message, ...(reason === undefined ? {} : { reason }) } }, extra);
 }
