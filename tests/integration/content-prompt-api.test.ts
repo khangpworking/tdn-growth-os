@@ -150,6 +150,23 @@ test('prompt writes are refused without writing when the prompt history fails ve
   });
 });
 
+test('an exact create retry is refused when a later prompt revision fails verification', async () => {
+  await serve(async (_read, owner, state) => {
+    await post(`${owner}/owner-api/content/prompts`, createBody());
+    assert.equal((await post(`${owner}/owner-api/content/prompts/${ids[0]}/revisions`, revisionBody())).status, 201);
+    const db = new BetterSqlite3(state.databasePath);
+    const { digest } = db.prepare('SELECT prompt_artifact_sha256 digest FROM flow_content_prompt_revisions WHERE version = 2').get() as { digest: string };
+    db.close();
+    const file = path.join(state.artifactRoot, 'sha256', digest.slice(0, 2), digest);
+    fs.chmodSync(file, 0o600); fs.writeFileSync(file, fs.readFileSync(file, 'utf8').replace('Tết đoàn viên', 'Tet doan vien'));
+    const before = counts(state.databasePath);
+    const retried = await post(`${owner}/owner-api/content/prompts`, createBody());
+    assert.equal(retried.status, 500);
+    assert.deepEqual(await retried.json(), { error: { code: 'integrity_error', message: 'Stored content data failed integrity verification' } });
+    assert.deepEqual(counts(state.databasePath), before);
+  });
+});
+
 test('the OWNER prompt contract accepts real requests and rejects invalid nested prompts', () => {
   const require = createRequire(import.meta.url);
   const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');

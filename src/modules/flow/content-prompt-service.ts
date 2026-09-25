@@ -206,6 +206,8 @@ export class ContentPromptService {
 
   promptExists(promptId: string): boolean { return this.#byId(promptId) !== undefined; }
 
+  promptIdForKey(promptKey: string): string | undefined { return this.#byKey(promptKey)?.promptId; }
+
   promptTypeOf(promptId: string): ContentPromptType | undefined { return /^[0-9a-f-]{36}$/i.test(promptId) ? this.#byId(promptId)?.promptType : undefined; }
 
   /** Re-stages the exact artifact of a committed create/revision whose artifact file was never published. */

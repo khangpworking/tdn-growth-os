@@ -436,7 +436,8 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
         if (!type) throw new UnknownPromptError();
         assertPromptReferences(type, serviceRequest.prompt as ContentPromptContent, serviceRequest.duplicatedFrom as ContentPromptLineage | undefined);
         await prompts.restoreExactArtifact(serviceRequest);
-        if (promptId !== undefined) await verifyPromptHistory(promptId);
+        const existingId = promptId ?? (typeof serviceRequest.promptKey === 'string' ? prompts.promptIdForKey(serviceRequest.promptKey) : undefined);
+        if (existingId !== undefined) await verifyPromptHistory(existingId);
         const lineage = serviceRequest.duplicatedFrom as ContentPromptLineage | undefined;
         if (lineage?.kind === 'USER') await integrity(() => prompts.readPrompt(lineage.id, lineage.version));
         if (lineage?.kind === 'SYSTEM') await integrity(async () => library.read(lineage.id, lineage.version));
