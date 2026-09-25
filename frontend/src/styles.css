@@ -37,4 +37,5 @@
 .rules-table{width:100%;border-collapse:collapse;font-size:13px}.rules-table th,.rules-table td{padding:8px 6px;border-top:1px solid var(--line);text-align:left;vertical-align:middle}.rules-table th{font-weight:650;width:40%}.rules-table th small{display:block;font-weight:500;color:var(--muted);font-size:11px}.rules-table .rules-group th{border-top:0;padding-top:14px;font-size:11px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
 .brand-history{padding-top:16px;border-top:1px solid var(--line)}.brand-history h3{margin:0}
 @media(max-width:900px){.brand-layout{grid-template-columns:1fr}.brand-list{grid-auto-flow:column;grid-auto-columns:max-content;overflow-x:auto}.topnav{margin-left:12px}}
+.rules-lock{margin:0;padding:0;border:0;min-width:0}.rules-lock legend{position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap}.brand-notice{display:grid;gap:10px;justify-items:start}
 @media(max-width:650px){.brand-fields{grid-template-columns:1fr}.topnav a{padding:6px 8px;font-size:12px}.rules-table th{width:auto}}

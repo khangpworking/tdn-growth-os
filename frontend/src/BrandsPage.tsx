@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
-import type { FormEvent } from 'react';
+import { useEffect, useReducer, useRef, useState } from 'react';
+import type { Dispatch, FormEvent } from 'react';
 import type { ContentBrandSummary, ContentVisibility } from '../../contracts/api/content-api.generated';
 import {
   BRAND_ELEMENTS,
@@ -10,14 +10,12 @@ import {
   brandRequestFromDraft,
   createDemoBrand,
   draftFromBrand,
-  emptyBrandDraft,
   generatedBrandKey,
   loadBrand,
   loadBrands,
   reviseDemoBrand,
   submitBrandCreate,
   submitBrandRevision,
-  type BrandDetail,
   type BrandDraft,
   type DemoBrand,
   type ElementKey,
@@ -25,9 +23,9 @@ import {
 } from './content-data-source';
 import { OwnerWriteError } from './data-source';
 import { routeToHash } from './routing';
+import { brandEditorReducer, sameContent, type BrandBase, type BrandEditor, type BrandEditorEvent } from './brand-editor';
 
 type LoadState<T> = { readonly status: 'loading' } | { readonly status: 'ready'; readonly value: T } | { readonly status: 'failed'; readonly message: string };
-type Current = { readonly brandId: string; readonly version: number; readonly draft: BrandDraft; readonly history: BrandDetail['history'] };
 
 export interface BrandsPageProps {
   readonly mode: 'real' | 'demo';
@@ -43,7 +41,8 @@ export interface BrandsPageProps {
 export default function BrandsPage(props: BrandsPageProps) {
   const { mode, brandId, demoBrands } = props;
   const [list, setList] = useState<LoadState<readonly ContentBrandSummary[]>>(mode === 'demo' ? { status: 'ready', value: [] } : { status: 'loading' });
-  const [detail, setDetail] = useState<LoadState<Current | null>>({ status: 'loading' });
+  const [detail, setDetail] = useState<LoadState<BrandBase | null>>({ status: 'loading' });
+  const [editor, dispatch] = useReducer(brandEditorReducer, null);
   const [creating, setCreating] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   const reload = () => setReloadToken((value) => value + 1);
@@ -60,17 +59,23 @@ export default function BrandsPage(props: BrandsPageProps) {
     if (!brandId) { setDetail({ status: 'ready', value: null }); return; }
     if (mode === 'demo') {
       const brand = demoBrands.find((item) => item.brandId === brandId);
-      setDetail({ status: 'ready', value: brand ? { brandId: brand.brandId, version: brand.version, draft: draftFromBrand(brand), history: brand.history as BrandDetail['history'] } : null });
+      const value = brand ? { brandId: brand.brandId, version: brand.version, draft: draftFromBrand(brand), history: brand.history } : null;
+      setDetail({ status: 'ready', value });
+      if (value) dispatch({ type: 'loaded', base: value });
       return;
     }
     let active = true; setDetail({ status: 'loading' });
     loadBrand(brandId).then((value) => {
-      if (active) setDetail({ status: 'ready', value: value ? { brandId: value.brand.brandId, version: value.brand.version, draft: draftFromBrand(value.brand), history: value.history } : null });
+      if (!active) return;
+      const base = value ? { brandId: value.brand.brandId, version: value.brand.version, draft: draftFromBrand(value.brand), history: value.history } : null;
+      setDetail({ status: 'ready', value: base });
+      if (base) dispatch({ type: 'loaded', base });
     }).catch((error: unknown) => { if (active) setDetail({ status: 'failed', message: failureMessage(error) }); });
     return () => { active = false; };
   }, [mode, brandId, demoBrands, reloadToken]);
 
   useEffect(() => { if (brandId) setCreating(false); }, [brandId]);
+  useEffect(() => { if (creating) dispatch({ type: 'new', brandKey: generatedBrandKey() }); }, [creating]);
 
   const summaries: readonly ContentBrandSummary[] = mode === 'demo'
     ? demoBrands.map((brand) => ({ brandId: brand.brandId, brandKey: brand.brandKey, version: brand.version, brandName: brand.profile.brandName, updatedAt: brand.createdAt }))
@@ -93,33 +98,33 @@ export default function BrandsPage(props: BrandsPageProps) {
       <section className="surface surface-pad brand-detail">
         {creating || !brandId
           ? creating
-            ? <BrandForm key="new" {...props} current={null} onSaved={(savedId) => { setCreating(false); reload(); props.navigate(routeToHash.brand(savedId)); }} onConflict={reload} />
+            ? editor?.target === 'new' && <BrandForm {...props} editor={editor} dispatch={dispatch} onSaved={(savedId) => { setCreating(false); reload(); props.navigate(routeToHash.brand(savedId)); }} onConflict={reload} />
             : <div className="empty"><h2>Chọn một thương hiệu</h2><p>Chọn thương hiệu ở danh sách bên trái hoặc tạo thương hiệu mới.</p></div>
-          : detail.status === 'loading' ? <p className="muted">Đang tải hồ sơ thương hiệu…</p>
+          : detail.status === 'ready' && detail.value === null ? <div className="empty"><h2>Không tìm thấy thương hiệu</h2><p>Thương hiệu này không có trong dữ liệu đang hiển thị.</p></div>
+          : editor?.target === brandId ? <>
+            {detail.status === 'failed' && <p className="form-error" role="alert">{detail.message}</p>}
+            <BrandForm {...props} editor={editor} dispatch={dispatch} onSaved={() => reload()} onConflict={reload} />
+          </>
           : detail.status === 'failed' ? <p className="form-error" role="alert">{detail.message}</p>
-          : detail.value === null ? <div className="empty"><h2>Không tìm thấy thương hiệu</h2><p>Thương hiệu này không có trong dữ liệu đang hiển thị.</p></div>
-          : <BrandForm key={`${detail.value.brandId}-${detail.value.version}`} {...props} current={detail.value} onSaved={() => reload()} onConflict={reload} />}
+          : <p className="muted">Đang tải hồ sơ thương hiệu…</p>}
       </section>
     </div>
   </>;
 }
 
-function BrandForm(props: BrandsPageProps & { readonly current: Current | null; readonly onSaved: (brandId: string) => void; readonly onConflict: () => void }) {
-  const { mode, ownerToken, writesAvailable, current } = props;
-  const [draft, setDraft] = useState<BrandDraft>(() => current?.draft ?? emptyBrandDraft());
+export function BrandForm(props: BrandsPageProps & { readonly editor: BrandEditor; readonly dispatch: Dispatch<BrandEditorEvent>; readonly onSaved: (brandId: string) => void; readonly onConflict: () => void }) {
+  const { mode, ownerToken, writesAvailable, editor, dispatch } = props;
+  const { draft, base: current, saving: pending, notice } = editor;
   const [purpose, setPurpose] = useState<PurposeKey>('sales');
-  const [pending, setPending] = useState(false);
-  const [message, setMessage] = useState('');
-  const [brandKey] = useState(() => generatedBrandKey());
   const inFlight = useRef(false);
   const blocker = brandDraftBlocker(draft);
-  const unchanged = useMemo(() => current !== null && JSON.stringify(brandRequestFromDraft(draft)) === JSON.stringify(brandRequestFromDraft(current.draft)), [draft, current]);
+  const unchanged = current !== null && sameContent(draft, current.draft);
   const disabledReason = mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.'
     : mode === 'real' && !ownerToken ? 'Mở khóa OWNER cục bộ ở thanh phía trên để bật lưu.'
     : pending ? 'Đang gửi yêu cầu…'
     : blocker ?? (unchanged ? 'Chưa có thay đổi so với phiên bản hiện tại.' : null);
-  const set = (key: keyof Omit<BrandDraft, 'displayRules'>, value: string) => setDraft((prior) => ({ ...prior, [key]: value }));
-  const setRule = (element: ElementKey, value: ContentVisibility) => setDraft((prior) => ({ ...prior, displayRules: { ...prior.displayRules, [purpose]: { ...prior.displayRules[purpose], [element]: value } } }));
+  const set = (key: keyof Omit<BrandDraft, 'displayRules'>, value: string) => dispatch({ type: 'edit', draft: { ...draft, [key]: value } });
+  const setRule = (element: ElementKey, value: ContentVisibility) => dispatch({ type: 'edit', draft: { ...draft, displayRules: { ...draft.displayRules, [purpose]: { ...draft.displayRules[purpose], [element]: value } } } });
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -130,22 +135,23 @@ function BrandForm(props: BrandsPageProps & { readonly current: Current | null; 
         props.setDemoBrands(current ? reviseDemoBrand(props.demoBrands, id, current.version, draft, now) : createDemoBrand(props.demoBrands, draft, id, now));
         props.notify(current ? 'Đã lưu phiên bản minh họa mới.' : 'Đã tạo thương hiệu minh họa.');
         props.onSaved(id);
-      } catch { setMessage('Thương hiệu minh họa đã thay đổi. Hãy tải lại trang demo.'); }
+      } catch { dispatch({ type: 'failed', conflict: false, message: 'Thương hiệu minh họa đã thay đổi. Hãy tải lại trang demo.' }); }
       return;
     }
-    inFlight.current = true; setPending(true); setMessage('');
+    inFlight.current = true; dispatch({ type: 'submitted' });
     try {
       const request = brandRequestFromDraft(draft);
       const receipt = current
         ? await submitBrandRevision({ ...request, brandId: current.brandId, expectedVersion: current.version, token: ownerToken! })
-        : await submitBrandCreate({ ...request, brandKey, token: ownerToken! });
+        : await submitBrandCreate({ ...request, brandKey: editor.brandKey ?? generatedBrandKey(), token: ownerToken! });
+      dispatch({ type: 'saved' });
       props.notify(receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã tạo thương hiệu.');
       props.onSaved(receipt.brandId);
     } catch (error) {
-      if (error instanceof OwnerWriteError && error.kind === 'conflict') { setMessage('Thương hiệu đã thay đổi ở nơi khác. Đã tải lại phiên bản mới nhất; hãy kiểm tra rồi lưu lại.'); props.onConflict(); }
-      else if (error instanceof OwnerWriteError && error.kind === 'connection') setMessage('Kết nối không rõ kết quả. Form giữ nguyên nội dung; hãy gửi lại an toàn.');
-      else setMessage(error instanceof OwnerWriteError ? error.message : 'Không thể lưu thương hiệu.');
-    } finally { inFlight.current = false; setPending(false); }
+      if (error instanceof OwnerWriteError && error.kind === 'conflict') { dispatch({ type: 'failed', conflict: true, message: '' }); props.onConflict(); }
+      else if (error instanceof OwnerWriteError && error.kind === 'connection') dispatch({ type: 'failed', conflict: false, message: 'Kết nối không rõ kết quả. Form giữ nguyên nội dung; hãy gửi lại an toàn.' });
+      else dispatch({ type: 'failed', conflict: false, message: error instanceof OwnerWriteError ? error.message : 'Không thể lưu thương hiệu.' });
+    } finally { inFlight.current = false; }
   };
 
   const rules = draft.displayRules[purpose];
@@ -153,7 +159,7 @@ function BrandForm(props: BrandsPageProps & { readonly current: Current | null; 
     <header className="brand-form-head">
       <div><h2>{current ? draft.brandName || 'Thương hiệu' : 'Thương hiệu mới'}</h2><p className="muted">{current ? `Phiên bản ${current.version}. Lưu sẽ tạo phiên bản mới; các gói đã tạo không thay đổi.` : 'Tạo hồ sơ phiên bản 1.'}{mode === 'demo' ? ' Dữ liệu minh họa, chỉ tồn tại trong phiên này.' : ''}</p></div>
     </header>
-    <fieldset className="brand-fields"><legend>Hồ sơ</legend>
+    <fieldset className="brand-fields" disabled={pending}><legend>Hồ sơ</legend>
       <label>Tên thương hiệu<input className="search" value={draft.brandName} onChange={(event) => set('brandName', event.target.value)} maxLength={120} required /></label>
       <label>Tagline<input className="search" value={draft.tagline} onChange={(event) => set('tagline', event.target.value)} maxLength={240} /></label>
       <label>Hotline<input className="search" value={draft.hotline} onChange={(event) => set('hotline', event.target.value)} maxLength={64} inputMode="tel" /></label>
@@ -167,7 +173,7 @@ function BrandForm(props: BrandsPageProps & { readonly current: Current | null; 
       <div className="segmented" role="radiogroup" aria-label="Mục đích">
         {BRAND_PURPOSES.map((item) => <button key={item.key} type="button" role="radio" aria-checked={purpose === item.key} className={purpose === item.key ? 'on' : ''} onClick={() => setPurpose(item.key)}>{item.label}</button>)}
       </div>
-      <table className="rules-table">
+      <fieldset className="rules-lock" disabled={pending}><legend>Quy tắc hiển thị · {BRAND_PURPOSES.find((item) => item.key === purpose)!.label}</legend><table className="rules-table">
         <tbody>
           {(['identity', 'contact'] as const).map((group) => [
             <tr key={group} className="rules-group"><th colSpan={2} scope="colgroup">{group === 'identity' ? 'Nhận diện' : 'Liên hệ'}</th></tr>,
@@ -179,12 +185,14 @@ function BrandForm(props: BrandsPageProps & { readonly current: Current | null; 
             </tr>),
           ])}
         </tbody>
-      </table>
+      </table></fieldset>
     </section>
-    {message && <p className="form-error" role="alert">{message}</p>}
+    {notice && <div className="form-error brand-notice" role="alert">{noticeText(notice)}
+      {notice.kind === 'rebased' && <button className="button" type="button" onClick={() => dispatch({ type: 'discard' })}>Bỏ thay đổi, dùng phiên bản {notice.toVersion}</button>}
+    </div>}
     <div className="form-actions">
       <button className="button primary" type="submit" disabled={disabledReason !== null} aria-describedby="brand-save-note">{pending ? 'Đang lưu…' : current ? 'Lưu phiên bản mới' : 'Tạo thương hiệu'}</button>
-      {current && <button className="button" type="button" disabled={pending || unchanged} onClick={() => { setDraft(current.draft); setMessage(''); }}>Hoàn tác thay đổi</button>}
+      {current && <button className="button" type="button" disabled={pending || unchanged} onClick={() => dispatch({ type: 'discard' })}>Hoàn tác thay đổi</button>}
     </div>
     <p id="brand-save-note" className="decision-note">{disabledReason ?? 'Sẵn sàng lưu.'}</p>
     {current && current.history.length > 0 && <section className="brand-history" aria-labelledby="brand-history-title">
@@ -192,6 +200,12 @@ function BrandForm(props: BrandsPageProps & { readonly current: Current | null; 
       <ol className="timeline">{[...current.history].reverse().map((item) => <li key={item.version}><strong>Phiên bản {item.version}</strong> · {item.brandName}<small>{new Date(item.createdAt).toLocaleString('vi-VN')}</small></li>)}</ol>
     </section>}
   </form>;
+}
+
+function noticeText(notice: NonNullable<BrandEditor['notice']>): string {
+  if (notice.kind === 'error') return notice.message;
+  if (notice.kind === 'stale') return 'Thương hiệu đã thay đổi ở nơi khác. Đang tải phiên bản mới nhất; bản nháp của bạn được giữ nguyên.';
+  return `Phiên bản ${notice.toVersion} đã được lưu ở nơi khác trong lúc bạn sửa phiên bản ${notice.fromVersion}. Bản nháp của bạn được giữ nguyên. Khác với phiên bản ${notice.toVersion}: ${notice.fields.join(', ')}. Lưu để tạo phiên bản ${notice.toVersion + 1} từ bản nháp này, hoặc bỏ thay đổi.`;
 }
 
 function failureMessage(error: unknown): string {
