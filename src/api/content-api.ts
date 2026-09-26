@@ -283,6 +283,7 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
           if (typeof serviceRequest.logoMediaSha256 === 'string') await verifyMedia(serviceRequest.brandId as string, 'LOGO', [serviceRequest.logoMediaSha256]);
         }
         const result = revision ? await brands.reviseBrand(serviceRequest) : await brands.createBrand(serviceRequest);
+        if (!revision && result.deduplicated) await verifyBrandHistory(result.brandId);
         await artifacts.publishOwned();
         const verified = await integrity(() => brands.readBrand(result.brandId, result.version));
         return {
@@ -310,6 +311,7 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
         const content = serviceRequest.item as ContentCatalogItemContent;
         await verifyMedia(brandId, 'PHOTO', content.photos.map((photo) => photo.mediaSha256));
         const result = itemId === undefined ? await catalog.createItem(serviceRequest) : await catalog.reviseItem(serviceRequest);
+        if (itemId === undefined && result.deduplicated) await verifyItemHistory(result.itemId);
         await artifacts.publishOwned();
         const verified = await integrity(() => catalog.readItem(result.itemId, result.version));
         return {

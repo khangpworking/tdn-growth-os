@@ -198,6 +198,44 @@ test('catalog revisions are refused without writing when history or referenced p
   });
 });
 
+function removeArtifact(state: ReturnType<typeof fixture>, sql: string): void {
+  const db = new BetterSqlite3(state.databasePath);
+  const { digest } = db.prepare(sql).get() as { digest: string };
+  db.close();
+  fs.rmSync(path.join(state.artifactRoot, 'sha256', digest.slice(0, 2), digest));
+}
+const integrityError = { error: { code: 'integrity_error', message: 'Stored content data failed integrity verification' } };
+
+test('an exact brand create retry is refused when a later brand revision fails verification', async () => {
+  const state = fixture();
+  await serve(state, async (_read, owner) => {
+    const url = `${owner}/owner-api/content/brands`;
+    assert.equal((await fetch(`${url}/${brandId}/revisions`, { method: 'POST', headers: json, body: JSON.stringify({ contractVersion: '1.0.0', expectedVersion: 1, profile: { brandName: 'Canxi Việt' }, displayRules }) })).status, 201);
+    removeArtifact(state, `SELECT brand_artifact_sha256 digest FROM flow_content_brand_revisions WHERE brand_id = '${brandId}' AND version = 2`);
+    const before = counts(state);
+    const retried = await fetch(url, { method: 'POST', headers: json, body: JSON.stringify({ contractVersion: '1.0.0', brandKey: 'canxi-viet', profile: { brandName: 'canxi-viet' }, displayRules }) });
+    assert.equal(retried.status, 500);
+    assert.deepEqual(await retried.json(), integrityError);
+    assert.deepEqual(counts(state), before);
+  });
+});
+
+test('an exact catalog create retry is refused when a later item revision fails verification', async () => {
+  const state = fixture();
+  await serve(state, async (_read, owner) => {
+    const catalogUrl = `${owner}/owner-api/content/brands/${brandId}/catalog`;
+    const createBody = JSON.stringify({ contractVersion: '1.0.0', itemKey: 'canxi-nano', item: item({ photos: [] }) });
+    assert.equal((await fetch(catalogUrl, { method: 'POST', headers: json, body: createBody })).status, 201);
+    assert.equal((await fetch(`${catalogUrl}/${itemId}/revisions`, { method: 'POST', headers: json, body: JSON.stringify({ contractVersion: '1.0.0', expectedVersion: 1, item: item({ photos: [], name: 'Mới' }) }) })).status, 201);
+    removeArtifact(state, 'SELECT item_artifact_sha256 digest FROM flow_content_catalog_item_revisions WHERE version = 2');
+    const before = counts(state);
+    const retried = await fetch(catalogUrl, { method: 'POST', headers: json, body: createBody });
+    assert.equal(retried.status, 500);
+    assert.deepEqual(await retried.json(), integrityError);
+    assert.deepEqual(counts(state), before);
+  });
+});
+
 test('brand revisions accept a registered logo through the OWNER API and expose it on read', async () => {
   const state = fixture();
   await serve(state, async (read, owner) => {
