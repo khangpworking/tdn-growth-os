@@ -69,8 +69,11 @@ export interface PromptsPageProps {
 /** Demo mode has no runtime: system prompts are listed by name only. */
 const DEMO_SYSTEM: PromptList['systemPrompts'] = [
   { id: 'system-big-idea-strategic', promptType: 'BIG_IDEA', version: 1, name: 'Big Idea chiến lược v3.1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true },
+  { id: 'system-big-idea-insight', promptType: 'BIG_IDEA', version: 1, name: 'Big Idea từ Consumer Insight v1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: false },
   { id: 'system-angle-social', promptType: 'ANGLE', version: 1, name: 'Góc khai thác mạng xã hội v3', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true },
+  { id: 'system-angle-content', promptType: 'ANGLE', version: 1, name: 'Góc nội dung từ Big Idea v1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: false },
   { id: 'system-caption-facebook', promptType: 'CAPTION', version: 1, name: 'Caption Facebook v3', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true },
+  { id: 'system-caption-social-post', promptType: 'CAPTION', version: 1, name: 'Social Post từ góc nội dung v1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: false },
   { id: 'system-poster-b2b-infographic', promptType: 'POSTER', version: 1, name: 'Poster infographic B2B v2', recommendedModel: 'gpt-image-2', tags: [], isDefault: true },
 ];
 const DEMO_NOTE = 'Bản demo không kết nối runtime: nội dung prompt hệ thống chỉ xem được với dữ liệu thật.';
@@ -113,7 +116,7 @@ export default function PromptsPage(props: PromptsPageProps) {
       const system = DEMO_SYSTEM.find((entry) => entry.id === promptRef);
       const user = demoPrompts.find((entry) => entry.promptId === promptRef);
       setDetail({ status: 'ready', value: system
-        ? { source: 'SYSTEM', id: system.id, promptType: system.promptType, version: system.version, prompt: { name: system.name, creativeText: DEMO_NOTE, recommendedModel: system.recommendedModel as PromptContent['recommendedModel'], tags: [] }, isDefault: true, systemLayer: null, history: [], lifecycle: { sequence: 0 } }
+        ? { source: 'SYSTEM', id: system.id, promptType: system.promptType, version: system.version, prompt: { name: system.name, creativeText: DEMO_NOTE, recommendedModel: system.recommendedModel as PromptContent['recommendedModel'], tags: [] }, isDefault: system.isDefault, systemLayer: null, history: [], lifecycle: { sequence: 0 } }
         : user ? { source: 'USER', id: user.promptId, promptType: user.promptType, version: user.version, prompt: user.prompt, isDefault: false, systemLayer: null, history: user.history, lifecycle: { sequence: user.sequence, ...(user.deleted ? { deleted: user.deleted } : {}) }, ...(user.duplicatedFrom ? { duplicatedFrom: user.duplicatedFrom } : {}) }
         : null });
       return;

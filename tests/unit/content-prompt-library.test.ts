@@ -9,8 +9,14 @@ import { validateContentPromptCreateRequest } from '../../src/modules/flow/valid
 const library = new ContentPromptLibrary();
 
 test('there is exactly one default system prompt per type and each is valid prompt content', () => {
-  assert.deepEqual(SYSTEM_PROMPTS.map((entry) => entry.promptType).sort(), ['ANGLE', 'BIG_IDEA', 'CAPTION', 'POSTER']);
-  assert.ok(SYSTEM_PROMPTS.every((entry) => entry.isDefault && /^system-[a-z0-9-]{3,60}$/.test(entry.id)));
+  assert.deepEqual(SYSTEM_PROMPTS.map((entry) => [entry.id, entry.promptType, entry.isDefault]), [
+    ['system-big-idea-strategic', 'BIG_IDEA', true], ['system-big-idea-insight', 'BIG_IDEA', false],
+    ['system-angle-social', 'ANGLE', true], ['system-angle-content', 'ANGLE', false],
+    ['system-caption-facebook', 'CAPTION', true], ['system-caption-social-post', 'CAPTION', false],
+    ['system-poster-b2b-infographic', 'POSTER', true],
+  ]);
+  assert.deepEqual(SYSTEM_PROMPTS.filter((entry) => entry.isDefault).map((entry) => entry.promptType).sort(), ['ANGLE', 'BIG_IDEA', 'CAPTION', 'POSTER']);
+  assert.ok(SYSTEM_PROMPTS.every((entry) => /^system-[a-z0-9-]{3,60}$/.test(entry.id)));
   for (const entry of SYSTEM_PROMPTS) {
     const { prompt } = library.read(entry.id, entry.version);
     assert.doesNotMatch(prompt.creativeText, /\{\{[A-Z_]+\}\}|LOCKED_INPUT_JSON|HỢP ĐỒNG OUTPUT|OUTPUT TUYỆT ĐỐI/, entry.id);

@@ -52,7 +52,7 @@ const post = (url: string, body: string) => fetch(url, { method: 'POST', headers
 test('the library lists read-only system prompts with their system layers', async () => {
   await serve(async (read) => {
     const list = await (await fetch(`${read}/api/content/prompts`)).json() as { systemPrompts: { id: string; promptType: string; isDefault: boolean }[]; prompts: unknown[] };
-    assert.deepEqual(list.systemPrompts.map((entry) => [entry.promptType, entry.isDefault]), [['BIG_IDEA', true], ['ANGLE', true], ['CAPTION', true], ['POSTER', true]]);
+    assert.deepEqual(list.systemPrompts.map((entry) => [entry.promptType, entry.isDefault]), [['BIG_IDEA', true], ['BIG_IDEA', false], ['ANGLE', true], ['ANGLE', false], ['CAPTION', true], ['CAPTION', false], ['POSTER', true]]);
     assert.deepEqual(list.prompts, []);
     const detail = await (await fetch(`${read}/api/content/system-prompts/system-caption-facebook`)).json() as { systemPrompt: { sha256: string; prompt: { creativeText: string; recommendedModel: string } }; systemLayer: { promptType: string; text: string } };
     assert.match(detail.systemPrompt.prompt.creativeText, /Senior Vietnamese Social Copywriter/);
