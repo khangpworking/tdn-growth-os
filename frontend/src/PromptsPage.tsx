@@ -85,6 +85,11 @@ export default function PromptsPage(props: PromptsPageProps) {
   const [editing, setEditing] = useState<{ readonly kind: 'new' | 'edit'; readonly route: string; readonly lineage: PromptLineage | null; readonly from?: PromptView } | null>(null);
   const [showDeleted, setShowDeleted] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+  const isActiveSession = (session: number) => editingRef.current !== null && editorRef.current?.session === session;
   const reload = () => setReloadToken((value) => value + 1);
 
   useEffect(() => {
@@ -181,6 +186,7 @@ export default function PromptsPage(props: PromptsPageProps) {
         {editing && editor && !editorHiddenByDeletion(editing, view) && (editing.kind === 'new' ? editor.target === `new:${promptType}` : editor.target === view?.id)
           ? <PromptForm mode={mode} ownerToken={props.ownerToken} writesAvailable={props.writesAvailable} promptType={promptType} editor={editor} lineage={editing.lineage} dispatch={dispatch}
               demoPrompts={props.demoPrompts} setDemoPrompts={props.setDemoPrompts} notify={props.notify} onCancel={() => setEditing(null)} onConflict={reload}
+              isActiveSession={isActiveSession} onStaleSettled={reload}
               onSaved={(savedId) => { setEditing(null); reload(); props.navigate(routeToHash.prompt(promptType, savedId)); }} />
           : !promptRef ? <div className="empty"><h2>Chọn một prompt</h2><p>Chọn prompt hệ thống để xem hoặc nhân bản, hoặc tạo prompt mới cho {PROMPT_TYPES.find((type) => type.key === promptType)!.label}.</p></div>
           : detail.status === 'loading' ? <p className="muted">Đang tải prompt…</p>
@@ -255,12 +261,12 @@ export function PromptDetail(props: { readonly mode: 'real' | 'demo'; readonly o
 export function PromptForm(props: {
   readonly mode: 'real' | 'demo'; readonly ownerToken: string | null; readonly writesAvailable: boolean; readonly promptType: PromptType;
   readonly editor: PromptEditor; readonly lineage: PromptLineage | null; readonly dispatch: Dispatch<PromptEditorEvent>;
-  readonly onSaved: (promptId: string) => void; readonly onConflict: () => void; readonly onCancel: () => void; readonly notify: (message: string) => void;
+  readonly onSaved: (promptId: string) => void; readonly onConflict: () => void; readonly onStaleSettled: () => void; readonly isActiveSession: (session: number) => boolean; readonly onCancel: () => void; readonly notify: (message: string) => void;
   readonly demoPrompts: readonly DemoPrompt[]; readonly setDemoPrompts: (prompts: DemoPrompt[]) => void;
 }) {
   const { mode, ownerToken, writesAvailable, promptType, editor, dispatch } = props;
   const { draft, base: current, saving: pending, notice } = editor;
-  const inFlight = useRef(false);
+  const inFlight = useRef<number | null>(null);
   const blocker = promptDraftBlocker(draft);
   const unchanged = current !== null && samePromptContent(draft, current.draft);
   const disabledReason = mode === 'real' && !writesAvailable ? 'Ghi OWNER hiện không khả dụng trong runtime này.'
@@ -271,7 +277,8 @@ export function PromptForm(props: {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (inFlight.current || disabledReason) return;
+    const session = editor.session;
+    if (inFlight.current === session || disabledReason) return;
     if (mode === 'demo') {
       try {
         const id = current?.promptId ?? crypto.randomUUID(); const now = new Date().toISOString();
@@ -281,20 +288,29 @@ export function PromptForm(props: {
       } catch { dispatch({ type: 'failed', conflict: false, message: 'Prompt minh họa đã thay đổi hoặc đã bị xóa.' }); }
       return;
     }
-    inFlight.current = true; dispatch({ type: 'submitted' });
+    inFlight.current = session; dispatch({ type: 'submitted' });
     try {
       const prompt = promptRequestFromDraft(draft);
       const receipt = current
         ? await submitPromptRevision({ promptId: current.promptId, promptType, expectedVersion: current.version, prompt, token: ownerToken! })
         : await submitPromptCreate({ promptKey: editor.newKey ?? generatedPromptKey(), promptType, prompt, ...(props.lineage ? { duplicatedFrom: props.lineage } : {}), token: ownerToken! });
-      dispatch({ type: 'saved', version: receipt.version, id: receipt.promptId });
-      props.notify(receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã tạo prompt.');
-      props.onSaved(receipt.promptId);
+      const message = receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã tạo prompt.';
+      if (props.isActiveSession(session)) {
+        dispatch({ type: 'saved', version: receipt.version, id: receipt.promptId });
+        props.notify(message);
+        props.onSaved(receipt.promptId);
+      } else {
+        props.notify(message);
+        props.onStaleSettled();
+      }
     } catch (error) {
-      if (error instanceof OwnerWriteError && error.kind === 'conflict') { dispatch({ type: 'failed', conflict: true, message: '' }); props.onConflict(); }
+      if (!props.isActiveSession(session)) {
+        props.notify(`Lần lưu trước không hoàn tất: ${error instanceof OwnerWriteError ? error.message : 'Không thể lưu prompt.'}`);
+        props.onStaleSettled();
+      } else if (error instanceof OwnerWriteError && error.kind === 'conflict') { dispatch({ type: 'failed', conflict: true, message: '' }); props.onConflict(); }
       else if (error instanceof OwnerWriteError && error.kind === 'connection') dispatch({ type: 'failed', conflict: false, message: 'Kết nối không rõ kết quả. Form giữ nguyên nội dung; hãy gửi lại an toàn.' });
       else dispatch({ type: 'failed', conflict: false, message: error instanceof OwnerWriteError ? error.message : 'Không thể lưu prompt.' });
-    } finally { inFlight.current = false; }
+    } finally { if (inFlight.current === session) inFlight.current = null; }
   };
 
   const typeLabel = PROMPT_TYPES.find((type) => type.key === promptType)!.label;

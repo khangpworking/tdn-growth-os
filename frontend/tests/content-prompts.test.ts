@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { createElement } from 'react';
+import { act, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { tsImport } from 'tsx/esm/api';
 import { OwnerWriteError } from '../src/data-source';
@@ -29,12 +29,125 @@ import {
 } from '../src/prompt-data-source';
 import { parseRoute, routeToHash } from '../src/routing';
 import { ContentDataSourceError } from '../src/content-data-source';
+import { setupDom } from './dom';
 
 const promptId = '66666666-6666-4666-8666-0000000000c1';
 const time = '2027-01-01T00:00:00.000Z';
 const json = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 const content = { name: 'Tết gia đình', description: 'Góc nhìn người con.', creativeText: 'Viết như người con xa nhà.', recommendedModel: 'gpt-5.6-luna', tags: ['Tết', 'quà tặng'] };
 const layer = { promptType: 'BIG_IDEA', version: 1, sha256: 'b'.repeat(64), text: '# DỮ LIỆU KHÓA' };
+const promptBId = '66666666-6666-4666-8666-0000000000c2';
+const promptAContent = { ...content, name: 'Prompt A', creativeText: 'Viết prompt A.' };
+const promptBContent = { ...content, name: 'Prompt B', creativeText: 'Viết prompt B.' };
+const systemSummary = { id: 'system-big-idea-strategic', promptType: 'BIG_IDEA', version: 1, name: 'Big Idea chiến lược v3.1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true };
+
+function promptSummary(promptId: string, prompt: typeof content) {
+  return { promptId, promptKey: `prompt-${promptId}`, promptType: 'BIG_IDEA', version: 1, name: prompt.name, recommendedModel: prompt.recommendedModel, tags: prompt.tags, updatedAt: time };
+}
+
+function promptDetail(promptId: string, prompt: typeof content) {
+  return { contractVersion: '1.0.0', prompt: { promptId, promptKey: `prompt-${promptId}`, promptType: 'BIG_IDEA', version: 1, prompt, createdAt: time }, history: [{ version: 1, name: prompt.name, createdAt: time }], lifecycle: { sequence: 0 }, systemLayer: layer };
+}
+
+function promptList(entries: readonly { readonly promptId: string; readonly prompt: typeof content }[]) {
+  return { contractVersion: '1.0.0', systemPrompts: [systemSummary], prompts: entries.map((entry) => promptSummary(entry.promptId, entry.prompt)) };
+}
+
+interface PendingRequest {
+  readonly url: string;
+  readonly method: string;
+  readonly resolve: (response: Response) => void;
+  readonly reject: (reason: unknown) => void;
+}
+
+function deferredFetchQueue() {
+  const pending: PendingRequest[] = [];
+  const fetcher: typeof fetch = (input, init) => new Promise<Response>((resolve, reject) => {
+    pending.push({ url: String(input), method: String(init?.method ?? 'GET').toUpperCase(), resolve, reject });
+  });
+  const find = (url: string, method?: string) => pending.findIndex((request) => request.url === url && (method === undefined || request.method === method.toUpperCase()));
+  const resolve = (url: string, body: unknown, status = 200, method?: string) => {
+    const index = find(url, method);
+    assert.notEqual(index, -1, `No pending ${method ?? ''} request for ${url}; pending: ${pending.map((request) => `${request.method} ${request.url}`).join(', ')}`);
+    const request = pending.splice(index, 1)[0]!;
+    request.resolve(json(status, body));
+  };
+  return { pending, fetcher, resolve, has: (url: string, method?: string) => find(url, method) !== -1 };
+}
+
+type PromptPageModule = typeof import('../src/PromptsPage');
+
+async function importPromptsPage() {
+  return (await tsImport('../src/PromptsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as PromptPageModule).default;
+}
+
+async function flushAct() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function settleRequest(queue: ReturnType<typeof deferredFetchQueue>, url: string, body: unknown, status = 200, method?: string) {
+  await act(async () => {
+    queue.resolve(url, body, status, method);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+interface PromptHarness {
+  readonly container: HTMLElement;
+  readonly queue: ReturnType<typeof deferredFetchQueue>;
+  readonly navigateCalls: string[];
+  readonly notifications: string[];
+  readonly notice: HTMLElement;
+  readonly render: (promptRef: string | null) => Promise<void>;
+  readonly settle: (url: string, body: unknown, status?: number, method?: string) => Promise<void>;
+  readonly cleanup: () => Promise<void>;
+}
+
+async function mountPromptPage(PromptsPage: PromptPageModule['default'], initialPromptRef: string): Promise<PromptHarness> {
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const queue = deferredFetchQueue();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = queue.fetcher;
+  const navigateCalls: string[] = [];
+  const notifications: string[] = [];
+  const notice = dom.container.ownerDocument.createElement('div');
+  notice.setAttribute('role', 'status');
+  dom.container.append(notice);
+  let promptRef: string | null = initialPromptRef;
+  const root = createRoot(dom.container);
+  const render = async (nextPromptRef: string | null) => {
+    promptRef = nextPromptRef;
+    await act(async () => {
+      root.render(createElement(PromptsPage, {
+        mode: 'real', promptType: 'BIG_IDEA', promptRef, ownerToken: 'token', writesAvailable: true,
+        demoPrompts: [], setDemoPrompts: () => undefined,
+        navigate: (hash: string) => navigateCalls.push(hash),
+        notify: (message: string) => { notifications.push(message); notice.textContent = message; },
+      }));
+      await Promise.resolve();
+    });
+  };
+  await render(initialPromptRef);
+  return {
+    container: dom.container,
+    queue,
+    navigateCalls,
+    notifications,
+    notice,
+    render,
+    settle: (url, body, status, method) => settleRequest(queue, url, body, status, method),
+    cleanup: async () => {
+      await act(async () => { root.unmount(); });
+      globalThis.fetch = originalFetch;
+      dom.cleanup();
+    },
+  };
+}
 
 test('prompt routes use the type slug and a user or system prompt reference', () => {
   const state = createSeedState();
@@ -177,6 +290,151 @@ test('the prompt view shows layers read-only for system prompts and offers edit,
   assert.match(form, /Bỏ thay đổi, dùng phiên bản 2/);
   const saving = renderToStaticMarkup(createElement(PromptForm, { mode: 'real', ownerToken: 'token', writesAvailable: true, promptType: 'BIG_IDEA', editor: promptEditorReducer(editor, { type: 'submitted' }), lineage: null, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined, onCancel: () => undefined, notify: () => undefined, demoPrompts: [], setDemoPrompts: () => undefined }));
   assert.match(saving, /<fieldset[^>]*disabled=""/);
+});
+
+function buttonWithText(container: HTMLElement, text: string): HTMLButtonElement {
+  const button = [...container.querySelectorAll('button')].find((candidate) => candidate.textContent?.includes(text));
+  assert.ok(button, `Expected a button containing ${text}`);
+  return button as HTMLButtonElement;
+}
+
+function promptForm(container: HTMLElement): HTMLFormElement {
+  const form = container.querySelector('form.prompt-form');
+  assert.ok(form, 'Expected the prompt form to be mounted');
+  return form as HTMLFormElement;
+}
+
+async function setPromptName(form: HTMLFormElement, value: string) {
+  const input = form.querySelector('input') as HTMLInputElement | null;
+  assert.ok(input, 'Expected the prompt name input');
+  const setter = Object.getOwnPropertyDescriptor(input.ownerDocument.defaultView!.HTMLInputElement.prototype, 'value')!.set!;
+  await act(async () => {
+    setter.call(input, value);
+    input.dispatchEvent(new input.ownerDocument.defaultView!.Event('input', { bubbles: true }));
+    input.dispatchEvent(new input.ownerDocument.defaultView!.Event('change', { bubbles: true }));
+    await Promise.resolve();
+  });
+  assert.equal(input.value, value);
+}
+
+async function clickEdit(harness: PromptHarness) {
+  await act(async () => {
+    buttonWithText(harness.container, 'Sửa (tạo v2)').click();
+    await Promise.resolve();
+  });
+  await flushAct();
+}
+
+async function submitCurrentEdit(harness: PromptHarness, name: string, promptIdToSave: string) {
+  await clickEdit(harness);
+  const form = promptForm(harness.container);
+  await setPromptName(form, name);
+  assert.equal((form.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, false, `Save remained disabled after changing the name to ${name}`);
+  await act(async () => {
+    buttonWithText(form, 'Lưu phiên bản 2').click();
+    await Promise.resolve();
+  });
+  assert.equal(harness.queue.has(`/owner-api/content/prompts/${promptIdToSave}/revisions`, 'POST'), true);
+}
+
+async function settleReload(harness: PromptHarness, list: unknown, detail?: { readonly promptId: string; readonly body: unknown }) {
+  await flushAct();
+  if (harness.queue.has('/api/content/prompts')) await harness.settle('/api/content/prompts', list);
+  await flushAct();
+  if (detail && harness.queue.has(`/api/content/prompts/${detail.promptId}`)) await harness.settle(`/api/content/prompts/${detail.promptId}`, detail.body);
+  await flushAct();
+}
+
+const revisionReceipt = { contractVersion: '1.0.0', promptId, promptKey: `prompt-${promptId}`, promptType: 'BIG_IDEA', version: 2, name: 'Prompt A đã lưu', createdAt: time, exactRetry: false };
+
+test('a stale prompt save success leaves a newly opened draft intact', { concurrency: false }, async () => {
+  const PromptsPage = await importPromptsPage();
+  const harness = await mountPromptPage(PromptsPage, promptId);
+  try {
+    const list = promptList([{ promptId, prompt: promptAContent }, { promptId: promptBId, prompt: promptBContent }]);
+    await harness.settle('/api/content/prompts', list);
+    await harness.settle(`/api/content/prompts/${promptId}`, promptDetail(promptId, promptAContent));
+    await submitCurrentEdit(harness, 'A đang lưu', promptId);
+
+    await harness.render(null);
+    await flushAct();
+    await act(async () => {
+      buttonWithText(harness.container, '+ Prompt mới').click();
+      await Promise.resolve();
+    });
+    await setPromptName(promptForm(harness.container), 'UNSAVED NEW B');
+
+    await harness.settle(`/owner-api/content/prompts/${promptId}/revisions`, revisionReceipt, 200, 'POST');
+    await settleReload(harness, list);
+
+    const form = promptForm(harness.container);
+    assert.equal((form.querySelector('input') as HTMLInputElement).value, 'UNSAVED NEW B');
+    assert.equal(buttonWithText(form, 'Tạo prompt').textContent?.trim(), 'Tạo prompt');
+    assert.equal((form.querySelector('input') as HTMLInputElement).disabled, false);
+    assert.equal(harness.notice.textContent, 'Đã lưu phiên bản 2.');
+    assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptId)), false);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a stale prompt save failure leaves a newly opened draft intact and reports the prior failure', { concurrency: false }, async () => {
+  const PromptsPage = await importPromptsPage();
+  const harness = await mountPromptPage(PromptsPage, promptId);
+  try {
+    const list = promptList([{ promptId, prompt: promptAContent }, { promptId: promptBId, prompt: promptBContent }]);
+    await harness.settle('/api/content/prompts', list);
+    await harness.settle(`/api/content/prompts/${promptId}`, promptDetail(promptId, promptAContent));
+    await submitCurrentEdit(harness, 'A đang lưu lỗi', promptId);
+
+    await harness.render(null);
+    await flushAct();
+    await act(async () => {
+      buttonWithText(harness.container, '+ Prompt mới').click();
+      await Promise.resolve();
+    });
+    await setPromptName(promptForm(harness.container), 'UNSAVED NEW B AFTER FAILURE');
+
+    await harness.settle(`/owner-api/content/prompts/${promptId}/revisions`, { error: { code: 'integrity', message: 'server failure' } }, 500, 'POST');
+    await settleReload(harness, list);
+
+    const form = promptForm(harness.container);
+    assert.equal((form.querySelector('input') as HTMLInputElement).value, 'UNSAVED NEW B AFTER FAILURE');
+    assert.equal(buttonWithText(form, 'Tạo prompt').textContent?.trim(), 'Tạo prompt');
+    assert.match(harness.notice.textContent ?? '', /^Lần lưu trước không hoàn tất:/);
+    assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptId)), false);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a stale prompt save success leaves an existing B edit intact', { concurrency: false }, async () => {
+  const PromptsPage = await importPromptsPage();
+  const harness = await mountPromptPage(PromptsPage, promptId);
+  try {
+    const list = promptList([{ promptId, prompt: promptAContent }, { promptId: promptBId, prompt: promptBContent }]);
+    await harness.settle('/api/content/prompts', list);
+    await harness.settle(`/api/content/prompts/${promptId}`, promptDetail(promptId, promptAContent));
+    await submitCurrentEdit(harness, 'A đang lưu trước B', promptId);
+
+    await harness.render(promptBId);
+    await flushAct();
+    await harness.settle(`/api/content/prompts/${promptBId}`, promptDetail(promptBId, promptBContent));
+    await clickEdit(harness);
+    await setPromptName(promptForm(harness.container), 'UNSAVED EXISTING B');
+
+    await harness.settle(`/owner-api/content/prompts/${promptId}/revisions`, revisionReceipt, 200, 'POST');
+    await settleReload(harness, list, { promptId: promptBId, body: promptDetail(promptBId, promptBContent) });
+
+    const form = promptForm(harness.container);
+    assert.equal((form.querySelector('input') as HTMLInputElement).value, 'UNSAVED EXISTING B');
+    assert.equal(buttonWithText(form, 'Lưu phiên bản 2').textContent?.trim(), 'Lưu phiên bản 2');
+    assert.equal((form.querySelector('input') as HTMLInputElement).disabled, false);
+    assert.equal(harness.notice.textContent, 'Đã lưu phiên bản 2.');
+    assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptId)), false);
+  } finally {
+    await harness.cleanup();
+  }
 });
 
 test('prompt frontend sources contain no hard-coded development or remote origins', () => {
