@@ -37,6 +37,7 @@ const json = (status: number, body: unknown): Response => new Response(JSON.stri
 const content = { name: 'Tết gia đình', description: 'Góc nhìn người con.', creativeText: 'Viết như người con xa nhà.', recommendedModel: 'gpt-5.6-luna', tags: ['Tết', 'quà tặng'] };
 const layer = { promptType: 'BIG_IDEA', version: 1, sha256: 'b'.repeat(64), text: '# DỮ LIỆU KHÓA' };
 const promptBId = '66666666-6666-4666-8666-0000000000c2';
+const promptCId = '66666666-6666-4666-8666-0000000000c3';
 const promptAContent = { ...content, name: 'Prompt A', creativeText: 'Viết prompt A.' };
 const promptBContent = { ...content, name: 'Prompt B', creativeText: 'Viết prompt B.' };
 const systemSummary = { id: 'system-big-idea-strategic', promptType: 'BIG_IDEA', version: 1, name: 'Big Idea chiến lược v3.1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true };
@@ -317,6 +318,19 @@ async function setPromptName(form: HTMLFormElement, value: string) {
   assert.equal(input.value, value);
 }
 
+async function setPromptCreativeText(form: HTMLFormElement, value: string) {
+  const textarea = form.querySelector('textarea') as HTMLTextAreaElement | null;
+  assert.ok(textarea, 'Expected the prompt creative text input');
+  const setter = Object.getOwnPropertyDescriptor(textarea.ownerDocument.defaultView!.HTMLTextAreaElement.prototype, 'value')!.set!;
+  await act(async () => {
+    setter.call(textarea, value);
+    textarea.dispatchEvent(new textarea.ownerDocument.defaultView!.Event('input', { bubbles: true }));
+    textarea.dispatchEvent(new textarea.ownerDocument.defaultView!.Event('change', { bubbles: true }));
+    await Promise.resolve();
+  });
+  assert.equal(textarea.value, value);
+}
+
 async function clickEdit(harness: PromptHarness) {
   await act(async () => {
     buttonWithText(harness.container, 'Sửa (tạo v2)').click();
@@ -337,6 +351,24 @@ async function submitCurrentEdit(harness: PromptHarness, name: string, promptIdT
   assert.equal(harness.queue.has(`/owner-api/content/prompts/${promptIdToSave}/revisions`, 'POST'), true);
 }
 
+async function openNewPrompt(harness: PromptHarness, name: string, creativeText: string): Promise<HTMLFormElement> {
+  await harness.render(null);
+  await flushAct();
+  await act(async () => {
+    buttonWithText(harness.container, '+ Prompt mới').click();
+    await Promise.resolve();
+  });
+  const form = promptForm(harness.container);
+  await setPromptName(form, name);
+  await setPromptCreativeText(form, creativeText);
+  assert.equal((form.querySelector('button[type="submit"]') as HTMLButtonElement).disabled, false, `Save remained disabled after changing the new prompt to ${name}`);
+  return form;
+}
+
+function pendingCount(harness: PromptHarness, url: string, method: string): number {
+  return harness.queue.pending.filter((request) => request.url === url && request.method === method.toUpperCase()).length;
+}
+
 async function settleReload(harness: PromptHarness, list: unknown, detail?: { readonly promptId: string; readonly body: unknown }) {
   await flushAct();
   if (harness.queue.has('/api/content/prompts')) await harness.settle('/api/content/prompts', list);
@@ -346,6 +378,108 @@ async function settleReload(harness: PromptHarness, list: unknown, detail?: { re
 }
 
 const revisionReceipt = { contractVersion: '1.0.0', promptId, promptKey: `prompt-${promptId}`, promptType: 'BIG_IDEA', version: 2, name: 'Prompt A đã lưu', createdAt: time, exactRetry: false };
+
+test('a prompt editor ignores a duplicate submit within one session', { concurrency: false }, async () => {
+  const PromptsPage = await importPromptsPage();
+  const harness = await mountPromptPage(PromptsPage, promptId);
+  try {
+    const list = promptList([{ promptId, prompt: promptAContent }]);
+    await harness.settle('/api/content/prompts', list);
+    await harness.settle(`/api/content/prompts/${promptId}`, promptDetail(promptId, promptAContent));
+    await clickEdit(harness);
+    const form = promptForm(harness.container);
+    await setPromptName(form, 'A double submit');
+
+    await act(async () => {
+      const Event = form.ownerDocument.defaultView!.Event;
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+      await Promise.resolve();
+    });
+
+    assert.equal(pendingCount(harness, `/owner-api/content/prompts/${promptId}/revisions`, 'POST'), 1);
+    assert.equal(buttonWithText(form, 'Đang lưu…').disabled, true);
+
+    await harness.settle(`/owner-api/content/prompts/${promptId}/revisions`, revisionReceipt, 200, 'POST');
+    await settleReload(harness, list, { promptId, body: promptDetail(promptId, promptAContent) });
+    assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptId)), true);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a stale exact-retry after leaving the editor keeps the list open and refreshes it', { concurrency: false }, async () => {
+  const PromptsPage = await importPromptsPage();
+  const harness = await mountPromptPage(PromptsPage, promptId);
+  try {
+    const list = promptList([{ promptId, prompt: promptAContent }]);
+    await harness.settle('/api/content/prompts', list);
+    await harness.settle(`/api/content/prompts/${promptId}`, promptDetail(promptId, promptAContent));
+    await submitCurrentEdit(harness, 'A exact retry', promptId);
+
+    await harness.render(null);
+    await flushAct();
+    assert.equal(harness.container.querySelector('form.prompt-form'), null);
+    assert.match(harness.container.textContent ?? '', /Chọn một prompt/);
+
+    await harness.settle(`/owner-api/content/prompts/${promptId}/revisions`, { ...revisionReceipt, exactRetry: true }, 200, 'POST');
+    await flushAct();
+    assert.equal(harness.queue.has('/api/content/prompts'), true, 'A stale completion should refresh the prompt list');
+    await harness.settle('/api/content/prompts', list);
+
+    assert.equal(harness.container.querySelector('form.prompt-form'), null);
+    assert.match(harness.container.textContent ?? '', /Chọn một prompt/);
+    assert.equal(harness.notice.textContent, 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.');
+    assert.deepEqual(harness.navigateCalls, []);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a new prompt session can submit while the previous session is still in flight', { concurrency: false }, async () => {
+  const PromptsPage = await importPromptsPage();
+  const harness = await mountPromptPage(PromptsPage, promptId);
+  try {
+    const list = promptList([{ promptId, prompt: promptAContent }]);
+    await harness.settle('/api/content/prompts', list);
+    await harness.settle(`/api/content/prompts/${promptId}`, promptDetail(promptId, promptAContent));
+
+    const firstForm = await openNewPrompt(harness, 'FIRST NEW', 'First prompt body.');
+    await act(async () => {
+      buttonWithText(firstForm, 'Tạo prompt').click();
+      await Promise.resolve();
+    });
+    assert.equal(pendingCount(harness, '/owner-api/content/prompts', 'POST'), 1);
+
+    const secondForm = await openNewPrompt(harness, 'SECOND NEW', 'Second prompt body.');
+    await act(async () => {
+      buttonWithText(secondForm, 'Tạo prompt').click();
+      await Promise.resolve();
+    });
+    assert.equal(pendingCount(harness, '/owner-api/content/prompts', 'POST'), 2);
+
+    const firstReceipt = { contractVersion: '1.0.0', promptId: promptBId, promptKey: `prompt-${promptBId}`, promptType: 'BIG_IDEA', version: 1, name: 'FIRST NEW', createdAt: time, exactRetry: true };
+    const secondReceipt = { contractVersion: '1.0.0', promptId: promptCId, promptKey: `prompt-${promptCId}`, promptType: 'BIG_IDEA', version: 1, name: 'SECOND NEW', createdAt: time, exactRetry: false };
+    await harness.settle('/owner-api/content/prompts', firstReceipt, 200, 'POST');
+    await flushAct();
+
+    const currentForm = promptForm(harness.container);
+    assert.equal((currentForm.querySelector('input') as HTMLInputElement).value, 'SECOND NEW');
+    assert.equal(buttonWithText(currentForm, 'Đang lưu…').disabled, true);
+    assert.equal(harness.notice.textContent, 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.');
+    assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptBId)), false);
+    assert.equal(harness.queue.has('/api/content/prompts'), true, 'The stale exact-retry should refresh the list');
+    await harness.settle('/api/content/prompts', list);
+
+    await harness.settle('/owner-api/content/prompts', secondReceipt, 201, 'POST');
+    await settleReload(harness, list);
+    assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptCId)), true);
+    assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptBId)), false);
+    assert.deepEqual(harness.notifications, ['Yêu cầu đã được ghi trước đó; không tạo bản trùng.', 'Đã tạo prompt.']);
+  } finally {
+    await harness.cleanup();
+  }
+});
 
 test('a stale prompt save success leaves a newly opened draft intact', { concurrency: false }, async () => {
   const PromptsPage = await importPromptsPage();
