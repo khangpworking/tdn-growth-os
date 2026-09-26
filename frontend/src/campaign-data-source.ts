@@ -330,7 +330,7 @@ function campaignListEntry(entry: DemoCampaign, items: readonly CampaignCatalogI
   };
 }
 
-export function demoCampaignList(campaigns: readonly DemoCampaign[], _brands: readonly ContentBrandSummary[] | readonly unknown[], items: readonly CampaignCatalogItemSource[]): CampaignList {
+export function demoCampaignList(campaigns: readonly DemoCampaign[], items: readonly CampaignCatalogItemSource[]): CampaignList {
   return { contractVersion: '1.0.0', campaigns: campaigns.map((entry) => campaignListEntry(entry, items)) };
 }
 
@@ -345,10 +345,7 @@ function detailForDemoCampaign(entry: DemoCampaign, items: readonly CampaignCata
   };
 }
 
-export function demoCampaignDetail(campaign: DemoCampaign, _brands: readonly ContentBrandSummary[] | readonly unknown[], items: readonly CampaignCatalogItemSource[]): CampaignDetail | null;
-export function demoCampaignDetail(campaigns: readonly DemoCampaign[], campaignId: string, _brands: readonly ContentBrandSummary[] | readonly unknown[], items: readonly CampaignCatalogItemSource[]): CampaignDetail | null;
-export function demoCampaignDetail(first: DemoCampaign | readonly DemoCampaign[], second: string | readonly unknown[], third: readonly unknown[], fourth?: readonly CampaignCatalogItemSource[]): CampaignDetail | null {
-  const entry = Array.isArray(first) ? first.find((candidate) => candidate.campaignId === second) : first;
-  const items = Array.isArray(first) ? fourth ?? [] : third as readonly CampaignCatalogItemSource[];
+export function demoCampaignDetail(campaigns: readonly DemoCampaign[], campaignId: string, items: readonly CampaignCatalogItemSource[]): CampaignDetail | null {
+  const entry = campaigns.find((candidate) => candidate.campaignId === campaignId);
   return entry ? detailForDemoCampaign(entry, items) : null;
 }

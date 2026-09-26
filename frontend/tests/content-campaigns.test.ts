@@ -1,11 +1,16 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
+import { createElement } from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
+import { tsImport } from 'tsx/esm/api';
 import { createSeedState } from '../src/model';
 import { ContentDataSourceError } from '../src/content-data-source';
 import { OwnerWriteError } from '../src/data-source';
 import {
   brandCounts,
   campaignDraftBlocker,
+  campaignEditorReducer,
   campaignRequestFromDraft,
   changeDemoCampaignLifecycle,
   createDemoCampaign,
@@ -168,4 +173,97 @@ test('demo campaigns are versioned, deleted and restored in memory only', () => 
   assert.equal(changeDemoCampaignLifecycle(deleted, campaignId, 'RESTORE', time)[0]!.lifecycle.deleted, undefined);
   assert.throws(() => reviseDemoCampaign(deleted, campaignId, 2, draft, time), /deleted/);
   assert.throws(() => changeDemoCampaignLifecycle(deleted, campaignId, 'RESTORE', '2027-02-02T00:00:00.000Z'), /30 ngày/);
+});
+
+const campaignBrands = [
+  { brandId, brandKey: 'brand-a', version: 1, profile: { brandName: 'Canxi A' }, displayRules: {} as never, createdAt: time, history: [] },
+  { brandId: otherBrandId, brandKey: 'brand-b', version: 1, profile: { brandName: 'Canxi B' }, displayRules: {} as never, createdAt: time, history: [] },
+];
+const campaignItems = [
+  { itemId, brandId, itemKey: 'tu-van', version: 1, item: { itemType: 'SERVICE' as const, name: 'Tư vấn', tiers: [{ tierKey: 'plus', name: 'Plus' }, { tierKey: 'pro', name: 'Pro' }], photos: [] }, createdAt: time, history: [] },
+  { itemId: otherItemId, brandId: otherBrandId, itemKey: 'goi-a', version: 1, item: { itemType: 'PHYSICAL' as const, name: 'Gói A', tiers: [], photos: [] }, createdAt: time, history: [] },
+];
+
+function pageProps(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    mode: 'demo', ownerToken: 'demo-token', writesAvailable: true, campaignId: null, creating: false,
+    demoCampaigns: [], setDemoCampaigns: () => undefined, demoBrands: campaignBrands, demoItems: campaignItems,
+    productWorkspaces: [{ id: workspaceId, name: 'Workspace nghiên cứu' }], navigate: () => undefined, notify: () => undefined,
+    ...overrides,
+  };
+}
+
+function editorWithDraft(draft: Parameters<typeof emptyCampaignDraft>[0] extends never ? never : ReturnType<typeof emptyCampaignDraft> & { name: string; objective: string; items: { itemId: string; itemVersion: number; tierKeys: string[] }[] }) {
+  return campaignEditorReducer(campaignEditorReducer(null, { type: 'new', key: 'campaign-test', target: 'new' }), { type: 'edit', draft });
+}
+
+test('campaign page renders active rows and keeps deleted campaigns in the recent section', async () => {
+  const { default: CampaignsPage } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
+  const first = createDemoCampaign([], brandId, { ...emptyCampaignDraft(brandId), name: 'Chiến dịch A', objective: 'Mục tiêu A', items: [{ itemId, itemVersion: 1, tierKeys: ['plus', 'pro'] }] }, campaignId, time);
+  const second = createDemoCampaign(first, otherBrandId, { ...emptyCampaignDraft(otherBrandId), name: 'Chiến dịch B', objective: 'Mục tiêu B', items: [{ itemId: otherItemId, itemVersion: 1, tierKeys: [] }] }, otherItemId, time);
+  const third = createDemoCampaign(second, brandId, { ...emptyCampaignDraft(brandId), name: 'Chiến dịch đã xóa', objective: 'Mục tiêu xóa', items: [{ itemId, itemVersion: 1, tierKeys: [] }] }, '66666666-6666-4666-8666-0000000000c3', deletedAt);
+  const campaigns = changeDemoCampaignLifecycle(third, '66666666-6666-4666-8666-0000000000c3', 'DELETE', deletedAt);
+  const html = renderToStaticMarkup(createElement(CampaignsPage, pageProps({ demoCampaigns: campaigns })));
+  assert.match(html, /Tất cả \(2\)/);
+  assert.match(html, /Canxi A \(1\)/);
+  assert.match(html, /Canxi B \(1\)/);
+  assert.match(html, /Tư vấn \(Plus, Pro\)/);
+  assert.match(html, /Chưa có Insight/);
+  assert.match(html, /Đã xóa gần đây/);
+  assert.match(html, /Chiến dịch đã xóa/);
+  assert.match(html, /Khôi phục/);
+  assert.equal((html.match(/Chiến dịch đã xóa/g) ?? []).length, 1);
+});
+
+test('campaign page renders the brand and campaign empty states', async () => {
+  const { default: CampaignsPage } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
+  const noBrand = renderToStaticMarkup(createElement(CampaignsPage, pageProps({ demoBrands: [] })));
+  assert.match(noBrand, /Chưa có thương hiệu\. Hãy tạo thương hiệu trước khi tạo chiến dịch\./);
+  assert.match(noBrand, /#\/brands/);
+  const noCampaign = renderToStaticMarkup(createElement(CampaignsPage, pageProps({ demoCampaigns: [] })));
+  assert.match(noCampaign, /Chưa có chiến dịch nào\./);
+});
+
+test('CampaignForm shows a blocker and locks every control while saving', async () => {
+  const { CampaignForm } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
+  const blocked = editorWithDraft({ ...emptyCampaignDraft(brandId), name: '', objective: 'Mục tiêu', items: [{ itemId, itemVersion: 1, tierKeys: [] }] });
+  const common = { mode: 'demo' as const, ownerToken: 'demo-token', writesAvailable: true, brands: campaignBrands, catalogItems: campaignItems, productWorkspaces: [], editor: blocked, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined, onCancel: () => undefined, notify: () => undefined, demoCampaigns: [], setDemoCampaigns: () => undefined };
+  const form = renderToStaticMarkup(createElement(CampaignForm, common));
+  assert.match(form, /Nhập tên chiến dịch\./);
+  assert.match(form, /<button[^>]*disabled=""[^>]*>Lưu<\/button>/);
+  const saving = renderToStaticMarkup(createElement(CampaignForm, { ...common, editor: campaignEditorReducer(blocked, { type: 'submitted' }) }));
+  assert.match(saving, /Đang lưu…/);
+  for (const control of saving.match(/<(?:input|select|textarea|button)\b[^>]*>/g) ?? []) assert.match(control, /disabled=""/);
+});
+
+test('CampaignForm warns before upgrading a pinned catalog item version', async () => {
+  const { CampaignForm } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
+  const draft = { ...emptyCampaignDraft(brandId), name: 'Chiến dịch', objective: 'Mục tiêu', items: [{ itemId, itemVersion: 1, tierKeys: ['old'] }] };
+  const editor = campaignEditorReducer(campaignEditorReducer(null, { type: 'new', key: 'campaign-test', target: campaignId }), { type: 'loaded', base: { campaignId, version: 1, draft, history: [] } });
+  const current = { ...campaignItems[0]!, version: 2, item: { ...campaignItems[0]!.item, tiers: [{ tierKey: 'new', name: 'Gói mới' }] } };
+  const html = renderToStaticMarkup(createElement(CampaignForm, { mode: 'demo', ownerToken: 'demo-token', writesAvailable: true, brands: campaignBrands, catalogItems: [current], productWorkspaces: [], editor, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined, onCancel: () => undefined, notify: () => undefined, demoCampaigns: [], setDemoCampaigns: () => undefined }));
+  assert.match(html, /Đang dùng phiên bản v1 — có phiên bản mới v2/);
+  assert.match(html, /Dùng phiên bản mới/);
+});
+
+test('campaign detail shows disabled next-step indicators and respects deletion and OWNER lock', async () => {
+  const { CampaignDetail } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
+  const common = { view: detail as never, brandName: 'Canxi A', researchProductWorkspaceName: 'Workspace nghiên cứu', onEdit: () => undefined, onLifecycle: () => undefined };
+  const active = renderToStaticMarkup(createElement(CampaignDetail, { ...common, mode: 'demo', ownerToken: 'demo-token', writesAvailable: true }));
+  for (const step of ['Insight — có ở bước tiếp theo', 'Big Idea — có ở bước tiếp theo', 'Góc nội dung — có ở bước tiếp theo', 'Caption &amp; Poster — có ở bước tiếp theo']) assert.match(active, new RegExp(step));
+  const deleted = renderToStaticMarkup(createElement(CampaignDetail, { ...common, mode: 'demo', ownerToken: 'demo-token', writesAvailable: true }));
+  assert.match(deleted, /Chiến dịch đã bị xóa\. Khôi phục được đến/);
+  assert.doesNotMatch(deleted, />Sửa</);
+  const locked = renderToStaticMarkup(createElement(CampaignDetail, { ...common, view: { ...detail, lifecycle: { sequence: 0 } } as never, mode: 'real', ownerToken: null, writesAvailable: true }));
+  assert.doesNotMatch(locked, />Sửa</);
+  assert.doesNotMatch(locked, />Xóa</);
+});
+
+test('App keeps the content navigation in the planned order and wires seeded campaign state', () => {
+  const app = fs.readFileSync('frontend/src/App.tsx', 'utf8');
+  const nav = /<nav className="topnav"[\s\S]*?<\/nav>/.exec(app)?.[0] ?? '';
+  assert.ok(nav.indexOf('Thị trường') < nav.indexOf('Nội dung'));
+  assert.ok(nav.indexOf('Nội dung') < nav.indexOf('Thương hiệu'));
+  assert.ok(nav.indexOf('Thương hiệu') < nav.indexOf('Thư viện prompt'));
+  assert.match(nav, /routeToHash\.content\(\)/);
 });
