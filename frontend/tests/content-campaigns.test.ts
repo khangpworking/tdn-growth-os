@@ -319,12 +319,12 @@ async function mountCampaignPage(CampaignsPage: CampaignPageModule['default'], i
   };
 }
 
-async function settleCampaignReads(harness: CampaignHarness, detailBody: unknown) {
+async function settleCampaignReads(harness: CampaignHarness, detailBody: unknown, listBody: unknown = mountedCampaignList()) {
   for (let round = 0; round < 6; round += 1) {
     await flushAct();
     let settled = false;
     if (harness.queue.has('/api/content/brands')) { await harness.settle('/api/content/brands', mountedBrands); settled = true; }
-    if (harness.queue.has('/api/content/campaigns')) { await harness.settle('/api/content/campaigns', mountedCampaignList()); settled = true; }
+    if (harness.queue.has('/api/content/campaigns')) { await harness.settle('/api/content/campaigns', listBody); settled = true; }
     if (harness.queue.has(`/api/content/campaigns/${campaignId}`)) { await harness.settle(`/api/content/campaigns/${campaignId}`, detailBody); settled = true; }
     if (harness.queue.has(`/api/content/brands/${brandId}/catalog`)) { await harness.settle(`/api/content/brands/${brandId}/catalog`, mountedCatalog); settled = true; }
     if (!settled) break;
@@ -402,6 +402,76 @@ test('a stale campaign save success leaves a newly created draft intact', { conc
     assert.equal((form.querySelector('input') as HTMLInputElement).disabled, false);
     assert.equal(harness.navigateCalls.length, navigationBeforeStaleSave);
     assert.equal(harness.notice.textContent, 'Đã lưu phiên bản 2.');
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a stale campaign save failure after leaving to the list keeps the list and reloads it', { concurrency: false }, async () => {
+  const CampaignsPage = await importCampaignsPage();
+  const harness = await mountCampaignPage(CampaignsPage, campaignId);
+  try {
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+    await submitCampaignEdit(harness, 'Campaign A đang lưu lỗi');
+
+    await harness.render(null, false);
+    await flushAct();
+    const navigationBeforeStaleFailure = harness.navigateCalls.length;
+    const refreshedList = { contractVersion: '1.0.0', campaigns: [{ ...mountedCampaignSummary, name: 'Campaign list reloaded' }] };
+
+    await harness.settle(`/owner-api/content/campaigns/${campaignId}/revisions`, { error: { code: 'integrity', message: 'server failure' } }, 500, 'POST');
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }), refreshedList);
+
+    assert.equal(harness.container.querySelector('form.campaign-form') === null, true);
+    assert.match(harness.container.textContent ?? '', /Campaign list reloaded/);
+    assert.match(harness.notice.textContent ?? '', /^Lần lưu trước không hoàn tất:/);
+    assert.equal(harness.navigateCalls.length, navigationBeforeStaleFailure);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('an exact-retry campaign save reports reuse and completes the current editor session', { concurrency: false }, async () => {
+  const CampaignsPage = await importCampaignsPage();
+  const harness = await mountCampaignPage(CampaignsPage, campaignId);
+  try {
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+    await submitCampaignEdit(harness, 'Campaign A đã lưu');
+    const navigationBeforeSave = harness.navigateCalls.length;
+
+    await harness.settle(`/owner-api/content/campaigns/${campaignId}/revisions`, { ...campaignRevisionReceipt, exactRetry: true }, 200, 'POST');
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+
+    assert.equal(harness.notice.textContent, 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.');
+    assert.equal(harness.navigateCalls.length, navigationBeforeSave + 1);
+    assert.equal(harness.navigateCalls.at(-1), routeToHash.campaign(campaignId));
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a campaign form suppresses a synchronous double submit within one editor session', { concurrency: false }, async () => {
+  const CampaignsPage = await importCampaignsPage();
+  const harness = await mountCampaignPage(CampaignsPage, campaignId);
+  try {
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+    await clickCampaignEdit(harness);
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+    const form = campaignForm(harness.container);
+    await setCampaignName(form, 'Campaign A double submit');
+
+    await act(async () => {
+      const submit = () => form.dispatchEvent(new form.ownerDocument.defaultView!.Event('submit', { bubbles: true, cancelable: true }));
+      submit();
+      submit();
+      await Promise.resolve();
+    });
+
+    assert.equal(harness.queue.pending.filter((request) => request.url === `/owner-api/content/campaigns/${campaignId}/revisions` && request.method === 'POST').length, 1);
+    assert.equal(campaignButtonWithText(form, 'Đang lưu…').textContent?.trim(), 'Đang lưu…');
+
+    await harness.settle(`/owner-api/content/campaigns/${campaignId}/revisions`, campaignRevisionReceipt, 200, 'POST');
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
   } finally {
     await harness.cleanup();
   }
