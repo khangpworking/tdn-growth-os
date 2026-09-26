@@ -246,6 +246,47 @@ test('CampaignForm warns before upgrading a pinned catalog item version', async 
   assert.match(html, /Dùng phiên bản mới/);
 });
 
+test('CampaignForm keeps tier keys and hides chips when catalog detail is unavailable', async () => {
+  const { CampaignForm } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
+  const draft = { ...emptyCampaignDraft(brandId), name: 'Chiến dịch', objective: 'Mục tiêu', items: [{ itemId, itemVersion: 2, tierKeys: ['plus', 'pro'] }] };
+  const editor = editorWithDraft(draft);
+  const summaryOnly = { itemId, itemKey: 'tu-van', itemType: 'SERVICE' as const, name: 'Tư vấn', version: 2, tierNames: ['Plus', 'Pro'], photoCount: 0, updatedAt: time };
+  const html = renderToStaticMarkup(createElement(CampaignForm, { mode: 'demo', ownerToken: 'demo-token', writesAvailable: true, brands: campaignBrands, catalogItems: [summaryOnly], productWorkspaces: [], editor, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined, onCancel: () => undefined, notify: () => undefined, demoCampaigns: [], setDemoCampaigns: () => undefined }));
+  assert.doesNotMatch(html, /class="tier-chips"/);
+  assert.doesNotMatch(html, />Plus<\/button>/);
+  assert.match(html, /Không tải được danh sách gói — giữ nguyên lựa chọn gói hiện tại\./);
+  assert.deepEqual(campaignRequestFromDraft(draft).items, [{ itemId, itemVersion: 2, tierKeys: ['plus', 'pro'] }]);
+});
+
+test('CampaignForm hides chips for an older pinned version and shows latest chips after upgrade', async () => {
+  const { CampaignForm, upgradeCampaignDraft } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
+  const draft = { ...emptyCampaignDraft(brandId), name: 'Chiến dịch', objective: 'Mục tiêu', items: [{ itemId, itemVersion: 1, tierKeys: ['old', 'keep'] }] };
+  const editor = campaignEditorReducer(campaignEditorReducer(null, { type: 'new', key: 'campaign-test', target: campaignId }), { type: 'loaded', base: { campaignId, version: 1, draft, history: [] } });
+  const latest = { ...campaignItems[0]!, version: 2, item: { ...campaignItems[0]!.item, tiers: [{ tierKey: 'new', name: 'Gói mới' }, { tierKey: 'keep', name: 'Gói giữ' }] } };
+  const common = { mode: 'demo' as const, ownerToken: 'demo-token', writesAvailable: true, brands: campaignBrands, catalogItems: [latest], productWorkspaces: [], dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined, onCancel: () => undefined, notify: () => undefined, demoCampaigns: [], setDemoCampaigns: () => undefined };
+  const pinned = renderToStaticMarkup(createElement(CampaignForm, { ...common, editor }));
+  assert.doesNotMatch(pinned, /class="tier-chips"/);
+  assert.match(pinned, /Dùng phiên bản mới để đổi gói\./);
+
+  const upgradedDraft = upgradeCampaignDraft(draft, { itemId, version: latest.version, tiers: latest.item.tiers });
+  const upgraded = editorWithDraft(upgradedDraft);
+  const afterUpgrade = renderToStaticMarkup(createElement(CampaignForm, { ...common, editor: upgraded }));
+  assert.match(afterUpgrade, /class="tier-chips"/);
+  assert.match(afterUpgrade, />Gói mới<\/button>/);
+  assert.match(afterUpgrade, />Gói giữ<\/button>/);
+  assert.doesNotMatch(afterUpgrade, />old<\/button>/);
+  assert.deepEqual(campaignRequestFromDraft(upgradedDraft).items, [{ itemId, itemVersion: 2, tierKeys: ['keep'] }]);
+});
+
+test('CampaignForm disables upgrade when a selected summary-only option has no detail tiers', async () => {
+  const { CampaignForm } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
+  const draft = { ...emptyCampaignDraft(brandId), name: 'Chiến dịch', objective: 'Mục tiêu', items: [{ itemId, itemVersion: 1, tierKeys: ['plus', 'pro'] }] };
+  const editor = campaignEditorReducer(campaignEditorReducer(null, { type: 'new', key: 'campaign-test', target: campaignId }), { type: 'loaded', base: { campaignId, version: 1, draft, history: [] } });
+  const summaryOnly = { itemId, itemKey: 'tu-van', itemType: 'SERVICE' as const, name: 'Tư vấn', version: 2, tierNames: ['Plus', 'Pro'], photoCount: 0, updatedAt: time };
+  const html = renderToStaticMarkup(createElement(CampaignForm, { mode: 'demo', ownerToken: 'demo-token', writesAvailable: true, brands: campaignBrands, catalogItems: [summaryOnly], productWorkspaces: [], editor, dispatch: () => undefined, onSaved: () => undefined, onConflict: () => undefined, onCancel: () => undefined, notify: () => undefined, demoCampaigns: [], setDemoCampaigns: () => undefined }));
+  assert.match(html, /<button[^>]*disabled=""[^>]*>Dùng phiên bản mới<\/button>/);
+});
+
 test('campaign detail shows disabled next-step indicators and respects deletion and OWNER lock', async () => {
   const { CampaignDetail } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
   const common = { view: detail as never, brandName: 'Canxi A', researchProductWorkspaceName: 'Workspace nghiên cứu', onEdit: () => undefined, onLifecycle: () => undefined };

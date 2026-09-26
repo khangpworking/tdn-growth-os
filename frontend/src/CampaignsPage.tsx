@@ -55,6 +55,7 @@ export interface CampaignCatalogOption {
   readonly name: string;
   readonly version: number;
   readonly tiers: readonly { readonly tierKey: string; readonly name: string }[];
+  readonly tiersUnavailable?: boolean;
 }
 
 type CampaignCatalogInput = CampaignCatalogOption | ContentCatalogItemSummary | DemoCatalogItem;
@@ -145,7 +146,8 @@ function summaryCatalogOption(item: ContentCatalogItemSummary): CampaignCatalogO
     itemType: item.itemType,
     name: item.name,
     version: item.version,
-    tiers: item.tierNames.map((name, index) => ({ tierKey: `tier-${index + 1}`, name })),
+    tiers: [],
+    tiersUnavailable: true,
   };
 }
 
@@ -153,6 +155,18 @@ function normalizeCatalogOption(item: CampaignCatalogInput): CampaignCatalogOpti
   if ('tiers' in item && Array.isArray(item.tiers)) return item as CampaignCatalogOption;
   if ('item' in item) return demoCatalogOption(item);
   return summaryCatalogOption(item as ContentCatalogItemSummary);
+}
+
+export function upgradeCampaignDraft(draft: CampaignDraft, item: Pick<CampaignCatalogOption, 'itemId' | 'version' | 'tiers'>): CampaignDraft {
+  const keys = new Set(item.tiers.map((tier) => tier.tierKey));
+  return { ...draft, items: draft.items.map((entry) => entry.itemId !== item.itemId ? entry : { ...entry, itemVersion: item.version, tierKeys: entry.tierKeys.filter((key) => keys.has(key)) }) };
+}
+
+function campaignTierOptions(item: CampaignCatalogOption, entry: CampaignDraft['items'][number], older: boolean, controlsDisabled: boolean, onToggle: (tierKey: string) => void) {
+  if (item.tiersUnavailable) return <small className="muted">Không tải được danh sách gói — giữ nguyên lựa chọn gói hiện tại.</small>;
+  if (older) return <small className="muted">Dùng phiên bản mới để đổi gói.</small>;
+  if (item.tiers.length === 0) return null;
+  return <><div className="tier-chips" role="group" aria-label={`Gói của ${item.name}`}>{item.tiers.map((tier) => <button key={tier.tierKey} className={entry.tierKeys.includes(tier.tierKey) ? 'on' : ''} disabled={controlsDisabled} type="button" aria-pressed={entry.tierKeys.includes(tier.tierKey)} onClick={() => onToggle(tier.tierKey)}>{tier.name}</button>)}</div>{entry.tierKeys.length === 0 && <small className="muted">Không chọn gói = tất cả các gói</small>}</>;
 }
 
 function findBrandName(brands: readonly ContentBrandSummary[], brandId: string): string {
@@ -271,8 +285,8 @@ export function CampaignForm(props: CampaignFormProps) {
     edit({ ...draft, items: draft.items.map((entry) => entry.itemId !== itemId ? entry : { ...entry, tierKeys: entry.tierKeys.includes(tierKey) ? entry.tierKeys.filter((key) => key !== tierKey) : [...entry.tierKeys, tierKey] }) });
   };
   const upgrade = (item: CampaignCatalogOption) => {
-    const keys = new Set(item.tiers.map((tier) => tier.tierKey));
-    edit({ ...draft, items: draft.items.map((entry) => entry.itemId !== item.itemId ? entry : { ...entry, itemVersion: item.version, tierKeys: entry.tierKeys.filter((key) => keys.has(key)) }) });
+    if (item.tiersUnavailable) return;
+    edit(upgradeCampaignDraft(draft, item));
   };
 
   return <form className="brand-form campaign-form" onSubmit={(event) => void submit(event)} noValidate>
@@ -296,8 +310,8 @@ export function CampaignForm(props: CampaignFormProps) {
                 return <div className="campaign-item" key={item.itemId}>
                   <label><input type="checkbox" disabled={controlsDisabled} checked={entry !== undefined} onChange={() => toggleItem(item)} /> <strong>{item.name}</strong> <small>v{item.version}</small></label>
                   {entry && <div className="campaign-item-options">
-                    {older && <div className="snapshot-warning"><span>Đang dùng phiên bản v{entry.itemVersion} — có phiên bản mới v{item.version}</span><button className="button quiet" disabled={controlsDisabled} type="button" onClick={() => upgrade(item)}>Dùng phiên bản mới</button></div>}
-                    {item.tiers.length > 0 && <><div className="tier-chips" role="group" aria-label={`Gói của ${item.name}`}>{item.tiers.map((tier) => <button key={tier.tierKey} className={entry.tierKeys.includes(tier.tierKey) ? 'on' : ''} disabled={controlsDisabled} type="button" aria-pressed={entry.tierKeys.includes(tier.tierKey)} onClick={() => toggleTier(item.itemId, tier.tierKey)}>{tier.name}</button>)}</div>{entry.tierKeys.length === 0 && <small className="muted">Không chọn gói = tất cả các gói</small>}</>}
+                    {older && <div className="snapshot-warning"><span>Đang dùng phiên bản v{entry.itemVersion} — có phiên bản mới v{item.version}</span><button className="button quiet" disabled={controlsDisabled || item.tiersUnavailable} type="button" onClick={() => upgrade(item)}>Dùng phiên bản mới</button></div>}
+                    {campaignTierOptions(item, entry, older, controlsDisabled, (tierKey) => toggleTier(item.itemId, tierKey))}
                   </div>}
                 </div>;
               })}</div>}
