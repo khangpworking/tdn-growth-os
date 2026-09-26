@@ -11,7 +11,7 @@ Completed:
 Changed paths: see the brief's “Owned paths”, plus the extended demo-reset assertion in `frontend/tests/content-prompts.test.ts` (brief §7).
 Evidence (commands, results, relevant revision):
 - **Linux CI:** no checks run on this PR while its base is `feature/048c-content-prompt-library`; CI runs once it targets `main`.
-- **Codex pre-review:** two P2 findings, both verified and fixed in `b21576c`:
+- **Codex pre-review:** two P2 findings, both verified and fixed in `4a8e0a6`:
   - the campaign editor showed the latest catalog version's tier chips for an item pinned to an older version;
   - the summary fallback invented `tier-N` keys.
 
