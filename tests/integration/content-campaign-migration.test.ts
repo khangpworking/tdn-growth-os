@@ -67,7 +67,7 @@ test('migration 0024 creates immutable campaign tables whose lifecycle alternate
   state.db.close();
 });
 
-test('migration v23 to v24 applies once and leaves 0001-0023 byte-identical', () => {
+test('migration v23 to v24 applies once and pins 0023 byte-identical', () => {
   assert.equal(createHash('sha256').update(fs.readFileSync('migrations/0023_flow_content_prompts.sql')).digest('hex'), 'b95eda258e48c8c067ec2cca18e5cd53562567ff0de60364d68a17307015218a');
   const prior = fs.readdirSync('migrations').filter((name) => /^00(?:0[1-9]|1[0-9]|2[0-3])_/.test(name)).sort();
   assert.equal(prior.length, 23);

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { createElement } from 'react';
+import { act, createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { tsImport } from 'tsx/esm/api';
 import { createSeedState } from '../src/model';
@@ -26,6 +26,7 @@ import {
   submitCampaignRevision,
 } from '../src/campaign-data-source';
 import { parseRoute, routeToHash } from '../src/routing';
+import { setupDom } from './dom';
 
 const brandId = '66666666-6666-4666-8666-000000000001';
 const otherBrandId = '66666666-6666-4666-8666-000000000002';
@@ -196,6 +197,265 @@ function pageProps(overrides: Record<string, unknown> = {}): Record<string, unkn
 function editorWithDraft(draft: Parameters<typeof emptyCampaignDraft>[0] extends never ? never : ReturnType<typeof emptyCampaignDraft> & { name: string; objective: string; items: { itemId: string; itemVersion: number; tierKeys: string[] }[] }) {
   return campaignEditorReducer(campaignEditorReducer(null, { type: 'new', key: 'campaign-test', target: 'new' }), { type: 'edit', draft });
 }
+
+const mountedCampaignContent = { ...campaign, name: 'Campaign A', objective: 'Objective A' };
+const mountedCampaignSummary = {
+  campaignId,
+  campaignKey: 'campaign-a',
+  brandId,
+  version: 1,
+  name: mountedCampaignContent.name,
+  items: [{ itemId, itemVersion: 2, name: 'Tư vấn', tierNames: ['Plus', 'Pro'] }],
+  updatedAt: time,
+};
+const mountedBrands = { contractVersion: '1.0.0', brands: [{ brandId, brandKey: 'brand-a', version: 1, brandName: 'Canxi A', updatedAt: time }] };
+const mountedCatalog = { contractVersion: '1.0.0', brandId, items: [] };
+
+function mountedCampaignList() {
+  return { contractVersion: '1.0.0', campaigns: [mountedCampaignSummary] };
+}
+
+function mountedCampaignDetail(lifecycle: unknown, content = mountedCampaignContent) {
+  return {
+    contractVersion: '1.0.0',
+    campaign: { campaignId, campaignKey: 'campaign-a', brandId, version: 1, campaign: content, createdAt: time },
+    items: [{ itemId, itemVersion: 2, itemKey: 'tu-van', itemType: 'SERVICE', name: 'Tư vấn', tiers: [{ tierKey: 'plus', name: 'Plus' }, { tierKey: 'pro', name: 'Pro' }] }],
+    history: [{ version: 1, name: content.name, createdAt: time }],
+    lifecycle,
+  };
+}
+
+interface PendingCampaignRequest {
+  readonly url: string;
+  readonly method: string;
+  readonly resolve: (response: Response) => void;
+  readonly reject: (reason: unknown) => void;
+}
+
+function deferredCampaignFetchQueue() {
+  const pending: PendingCampaignRequest[] = [];
+  const fetcher: typeof fetch = (input, init) => new Promise<Response>((resolve, reject) => {
+    pending.push({ url: String(input), method: String(init?.method ?? 'GET').toUpperCase(), resolve, reject });
+  });
+  const find = (url: string, method?: string) => pending.findIndex((request) => request.url === url && (method === undefined || request.method === method.toUpperCase()));
+  const resolve = (url: string, body: unknown, status = 200, method?: string) => {
+    const index = find(url, method);
+    assert.notEqual(index, -1, `No pending ${method ?? ''} request for ${url}; pending: ${pending.map((request) => `${request.method} ${request.url}`).join(', ')}`);
+    const request = pending.splice(index, 1)[0]!;
+    request.resolve(json(status, body));
+  };
+  return { pending, fetcher, resolve, has: (url: string, method?: string) => find(url, method) !== -1 };
+}
+
+type CampaignPageModule = typeof import('../src/CampaignsPage');
+
+async function importCampaignsPage() {
+  return (await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as CampaignPageModule).default;
+}
+
+async function flushAct() {
+  await act(async () => {
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+async function settleCampaignRequest(queue: ReturnType<typeof deferredCampaignFetchQueue>, url: string, body: unknown, status = 200, method?: string) {
+  await act(async () => {
+    queue.resolve(url, body, status, method);
+    await Promise.resolve();
+    await Promise.resolve();
+  });
+}
+
+interface CampaignHarness {
+  readonly container: HTMLElement;
+  readonly queue: ReturnType<typeof deferredCampaignFetchQueue>;
+  readonly navigateCalls: string[];
+  readonly notifications: string[];
+  readonly notice: HTMLElement;
+  readonly render: (campaignId: string | null, creating: boolean) => Promise<void>;
+  readonly settle: (url: string, body: unknown, status?: number, method?: string) => Promise<void>;
+  readonly cleanup: () => Promise<void>;
+}
+
+async function mountCampaignPage(CampaignsPage: CampaignPageModule['default'], initialCampaignId: string | null): Promise<CampaignHarness> {
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const queue = deferredCampaignFetchQueue();
+  const originalFetch = globalThis.fetch;
+  globalThis.fetch = queue.fetcher;
+  const navigateCalls: string[] = [];
+  const notifications: string[] = [];
+  const notice = dom.container.ownerDocument.createElement('div');
+  notice.setAttribute('role', 'status');
+  dom.container.append(notice);
+  const root = createRoot(dom.container);
+  const render = async (campaignId: string | null, creating: boolean) => {
+    await act(async () => {
+      root.render(createElement(CampaignsPage, {
+        mode: 'real', campaignId, creating, ownerToken: 'token', writesAvailable: true,
+        demoCampaigns: [], setDemoCampaigns: () => undefined, demoBrands: [], demoItems: [], productWorkspaces: [],
+        navigate: (hash: string) => navigateCalls.push(hash),
+        notify: (message: string) => { notifications.push(message); notice.textContent = message; },
+      }));
+      await Promise.resolve();
+    });
+  };
+  await render(initialCampaignId, false);
+  return {
+    container: dom.container,
+    queue,
+    navigateCalls,
+    notifications,
+    notice,
+    render,
+    settle: (url, body, status, method) => settleCampaignRequest(queue, url, body, status, method),
+    cleanup: async () => {
+      await act(async () => { root.unmount(); });
+      globalThis.fetch = originalFetch;
+      dom.cleanup();
+    },
+  };
+}
+
+async function settleCampaignReads(harness: CampaignHarness, detailBody: unknown) {
+  for (let round = 0; round < 6; round += 1) {
+    await flushAct();
+    let settled = false;
+    if (harness.queue.has('/api/content/brands')) { await harness.settle('/api/content/brands', mountedBrands); settled = true; }
+    if (harness.queue.has('/api/content/campaigns')) { await harness.settle('/api/content/campaigns', mountedCampaignList()); settled = true; }
+    if (harness.queue.has(`/api/content/campaigns/${campaignId}`)) { await harness.settle(`/api/content/campaigns/${campaignId}`, detailBody); settled = true; }
+    if (harness.queue.has(`/api/content/brands/${brandId}/catalog`)) { await harness.settle(`/api/content/brands/${brandId}/catalog`, mountedCatalog); settled = true; }
+    if (!settled) break;
+  }
+  await flushAct();
+}
+
+function campaignButtonWithText(container: HTMLElement, text: string): HTMLButtonElement {
+  const button = [...container.querySelectorAll('button')].find((candidate) => candidate.textContent?.includes(text));
+  assert.ok(button, `Expected a button containing ${text}`);
+  return button as HTMLButtonElement;
+}
+
+function campaignForm(container: HTMLElement): HTMLFormElement {
+  const form = container.querySelector('form.campaign-form');
+  assert.ok(form, 'Expected the campaign form to be mounted');
+  return form as HTMLFormElement;
+}
+
+async function setCampaignName(form: HTMLFormElement, value: string) {
+  const input = form.querySelector('input') as HTMLInputElement | null;
+  assert.ok(input, 'Expected the campaign name input');
+  const setter = Object.getOwnPropertyDescriptor(input.ownerDocument.defaultView!.HTMLInputElement.prototype, 'value')!.set!;
+  await act(async () => {
+    setter.call(input, value);
+    input.dispatchEvent(new input.ownerDocument.defaultView!.Event('input', { bubbles: true }));
+    input.dispatchEvent(new input.ownerDocument.defaultView!.Event('change', { bubbles: true }));
+    await Promise.resolve();
+  });
+  assert.equal(input.value, value);
+}
+
+async function clickCampaignEdit(harness: CampaignHarness) {
+  await act(async () => {
+    campaignButtonWithText(harness.container, 'Sửa').click();
+    await Promise.resolve();
+  });
+  await flushAct();
+}
+
+async function submitCampaignEdit(harness: CampaignHarness, name: string) {
+  await clickCampaignEdit(harness);
+  await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+  const form = campaignForm(harness.container);
+  await setCampaignName(form, name);
+  await act(async () => {
+    campaignButtonWithText(form, 'Lưu').click();
+    await Promise.resolve();
+  });
+  assert.equal(harness.queue.has(`/owner-api/content/campaigns/${campaignId}/revisions`, 'POST'), true);
+}
+
+const campaignRevisionReceipt = { contractVersion: '1.0.0', campaignId, campaignKey: 'campaign-a', brandId, version: 2, name: 'Campaign A đã lưu', createdAt: time, exactRetry: false };
+
+test('a stale campaign save success leaves a newly created draft intact', { concurrency: false }, async () => {
+  const CampaignsPage = await importCampaignsPage();
+  const harness = await mountCampaignPage(CampaignsPage, campaignId);
+  try {
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+    await submitCampaignEdit(harness, 'Campaign A đang lưu');
+    const navigationBeforeStaleSave = harness.navigateCalls.length;
+
+    await harness.render(null, false);
+    await flushAct();
+    await harness.render(null, true);
+    await flushAct();
+    await setCampaignName(campaignForm(harness.container), 'UNSAVED CAMPAIGN B');
+
+    await harness.settle(`/owner-api/content/campaigns/${campaignId}/revisions`, campaignRevisionReceipt, 200, 'POST');
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+
+    const form = campaignForm(harness.container);
+    assert.equal((form.querySelector('input') as HTMLInputElement).value, 'UNSAVED CAMPAIGN B');
+    assert.equal(campaignButtonWithText(form, 'Lưu').textContent?.trim(), 'Lưu');
+    assert.equal((form.querySelector('input') as HTMLInputElement).disabled, false);
+    assert.equal(harness.navigateCalls.length, navigationBeforeStaleSave);
+    assert.equal(harness.notice.textContent, 'Đã lưu phiên bản 2.');
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('campaign deletion elsewhere while editing hides the form and restores the kept draft', { concurrency: false }, async () => {
+  const CampaignsPage = await importCampaignsPage();
+  const harness = await mountCampaignPage(CampaignsPage, campaignId);
+  try {
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+    await submitCampaignEdit(harness, 'UNSAVED AFTER DELETE');
+
+    const deletedDetail = mountedCampaignDetail({ sequence: 1, deleted: { deletedAt, restorableUntil } });
+    await harness.settle(`/owner-api/content/campaigns/${campaignId}/revisions`, { error: { code: 'conflict' } }, 409, 'POST');
+    await settleCampaignReads(harness, deletedDetail);
+
+    assert.equal(harness.container.querySelector('form.campaign-form') === null, true);
+    assert.match(harness.container.textContent ?? '', /Chiến dịch đã bị xóa\. Khôi phục được đến/);
+    assert.match(harness.container.textContent ?? '', /Chiến dịch đã bị xóa ở nơi khác\. Bản nháp chưa lưu vẫn được giữ; khôi phục chiến dịch để tiếp tục sửa\./);
+    assert.equal([...harness.container.querySelectorAll('button')].filter((button) => button.textContent?.includes('Khôi phục')).length, 1);
+
+    campaignButtonWithText(harness.container, 'Khôi phục').click();
+    await flushAct();
+    assert.equal(harness.queue.has(`/owner-api/content/campaigns/${campaignId}/lifecycle`, 'POST'), true);
+    await harness.settle(`/owner-api/content/campaigns/${campaignId}/lifecycle`, { contractVersion: '1.0.0', campaignId, action: 'RESTORE', createdAt: time, exactRetry: false, sequence: 2 }, 200, 'POST');
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 2 }));
+
+    const form = campaignForm(harness.container);
+    assert.equal((form.querySelector('input') as HTMLInputElement).value, 'UNSAVED AFTER DELETE');
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('expired campaign deletion while editing keeps the form hidden and offers no restore', { concurrency: false }, async () => {
+  const CampaignsPage = await importCampaignsPage();
+  const harness = await mountCampaignPage(CampaignsPage, campaignId);
+  try {
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+    await submitCampaignEdit(harness, 'UNSAVED EXPIRED');
+
+    const expiredDetail = mountedCampaignDetail({ sequence: 1, deleted: { deletedAt: '2020-01-02T00:00:00.000Z', restorableUntil: '2020-01-31T00:00:00.000Z' } });
+    await harness.settle(`/owner-api/content/campaigns/${campaignId}/revisions`, { error: { code: 'conflict' } }, 409, 'POST');
+    await settleCampaignReads(harness, expiredDetail);
+
+    assert.equal(harness.container.querySelector('form.campaign-form') === null, true);
+    assert.match(harness.container.textContent ?? '', /Chiến dịch đã bị xóa ngày/);
+    assert.match(harness.container.textContent ?? '', /đã quá hạn khôi phục\./);
+    assert.match(harness.container.textContent ?? '', /Chiến dịch đã bị xóa ở nơi khác và đã quá hạn khôi phục, nên bản nháp chưa lưu không thể lưu được\./);
+    assert.equal([...harness.container.querySelectorAll('button')].filter((button) => button.textContent?.includes('Khôi phục')).length, 0);
+  } finally {
+    await harness.cleanup();
+  }
+});
 
 test('campaign page renders active rows and keeps deleted campaigns in the recent section', async () => {
   const { default: CampaignsPage } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');

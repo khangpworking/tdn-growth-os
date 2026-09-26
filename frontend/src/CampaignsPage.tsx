@@ -93,6 +93,8 @@ export interface CampaignFormProps {
   readonly dispatch: Dispatch<CampaignEditorEvent>;
   readonly onSaved: (campaignId: string) => void;
   readonly onConflict: () => void;
+  readonly onStaleSettled: () => void;
+  readonly isActiveSession: (session: number) => boolean;
   readonly onCancel: () => void;
   readonly notify: (message: string) => void;
   readonly demoCampaigns: readonly DemoCampaign[];
@@ -106,6 +108,7 @@ export interface CampaignDetailProps {
   readonly view: CampaignDataDetail;
   readonly brandName: string;
   readonly researchProductWorkspaceName?: string | null;
+  readonly draftKept?: boolean;
   readonly onEdit: () => void;
   readonly onLifecycle: (action: 'DELETE' | 'RESTORE') => void;
 }
@@ -231,7 +234,7 @@ function CampaignListView(props: {
 export function CampaignForm(props: CampaignFormProps) {
   const { mode, ownerToken, writesAvailable, brands, catalogItems, productWorkspaces, editor, dispatch } = props;
   const { draft, base: current, saving: pending, notice } = editor;
-  const inFlight = useRef(false);
+  const inFlight = useRef<number | null>(null);
   const blocker = campaignDraftBlocker(draft);
   const unchanged = current !== null && sameCampaignContent(draft, current.draft);
   const writable = canWrite(mode, ownerToken, writesAvailable);
@@ -247,7 +250,8 @@ export function CampaignForm(props: CampaignFormProps) {
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (inFlight.current || disabledReason) return;
+    const session = editor.session;
+    if (inFlight.current === session || disabledReason) return;
     if (mode === 'demo') {
       try {
         const id = current?.campaignId ?? crypto.randomUUID();
@@ -260,21 +264,30 @@ export function CampaignForm(props: CampaignFormProps) {
       } catch { dispatch({ type: 'failed', conflict: false, message: 'Chiến dịch minh họa đã thay đổi hoặc đã bị xóa.' }); }
       return;
     }
-    inFlight.current = true;
+    inFlight.current = session;
     dispatch({ type: 'submitted' });
     try {
       const campaign = campaignRequestFromDraft(draft);
       const receipt = current
         ? await submitCampaignRevision({ campaignId: current.campaignId, expectedVersion: current.version, campaign, token: ownerToken! })
         : await submitCampaignCreate({ campaignKey: editor.newKey ?? generatedCampaignKey(), brandId: draft.brandId, campaign, token: ownerToken! });
-      dispatch({ type: 'saved', version: receipt.version, id: receipt.campaignId });
-      props.notify(receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã tạo chiến dịch.');
-      props.onSaved(receipt.campaignId);
+      const message = receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : current ? `Đã lưu phiên bản ${receipt.version}.` : 'Đã tạo chiến dịch.';
+      if (props.isActiveSession(session)) {
+        dispatch({ type: 'saved', version: receipt.version, id: receipt.campaignId });
+        props.notify(message);
+        props.onSaved(receipt.campaignId);
+      } else {
+        props.notify(message);
+        props.onStaleSettled();
+      }
     } catch (error) {
-      if (error instanceof OwnerWriteError && error.kind === 'conflict') { dispatch({ type: 'failed', conflict: true, message: '' }); props.onConflict(); }
+      if (!props.isActiveSession(session)) {
+        props.notify(`Lần lưu trước không hoàn tất: ${error instanceof OwnerWriteError ? error.message : 'Không thể lưu chiến dịch.'}`);
+        props.onStaleSettled();
+      } else if (error instanceof OwnerWriteError && error.kind === 'conflict') { dispatch({ type: 'failed', conflict: true, message: '' }); props.onConflict(); }
       else if (error instanceof OwnerWriteError && error.kind === 'connection') dispatch({ type: 'failed', conflict: false, message: 'Kết nối không rõ kết quả. Form giữ nguyên nội dung; hãy gửi lại an toàn.' });
       else dispatch({ type: 'failed', conflict: false, message: error instanceof OwnerWriteError ? error.message : 'Không thể lưu chiến dịch.' });
-    } finally { inFlight.current = false; }
+    } finally { if (inFlight.current === session) inFlight.current = null; }
   };
 
   const toggleItem = (item: CampaignCatalogOption) => {
@@ -335,7 +348,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
     </div></header>
     {!writable && <p className="decision-note">Mở khóa OWNER cục bộ ở thanh phía trên để sửa, xóa hoặc khôi phục chiến dịch.</p>}
     {confirming && !deleted && <ConfirmDialog titleId="campaign-delete-title" descriptionId="campaign-delete-description" title="Xóa chiến dịch này? Bạn có thể khôi phục trong 30 ngày." confirmLabel="Xóa" onCancel={() => setConfirming(false)} onConfirm={() => { setConfirming(false); props.onLifecycle('DELETE'); }}><p id="campaign-delete-description">Xóa chiến dịch này? Bạn có thể khôi phục trong 30 ngày.</p></ConfirmDialog>}
-    {deleted && <div className="deleted-banner" role="status"><p>Chiến dịch đã bị xóa. Khôi phục được đến {formatDate(deleted.restorableUntil)}.</p>{!expired && writable && <button className="button" type="button" onClick={() => props.onLifecycle('RESTORE')}>Khôi phục</button>}</div>}
+    {deleted && <div className="deleted-banner" role="status"><p>{expired ? `Chiến dịch đã bị xóa ngày ${formatDate(deleted.deletedAt)}; đã quá hạn khôi phục.` : `Chiến dịch đã bị xóa. Khôi phục được đến ${formatDate(deleted.restorableUntil)}.`}</p>{props.draftKept && <p>{expired ? 'Chiến dịch đã bị xóa ở nơi khác và đã quá hạn khôi phục, nên bản nháp chưa lưu không thể lưu được.' : 'Chiến dịch đã bị xóa ở nơi khác. Bản nháp chưa lưu vẫn được giữ; khôi phục chiến dịch để tiếp tục sửa.'}</p>}{!expired && writable && <button className="button" type="button" onClick={() => props.onLifecycle('RESTORE')}>Khôi phục</button>}</div>}
     <section className="campaign-objective"><h3>Mục tiêu</h3><p>{view.campaign.campaign.objective}</p></section>
     <section className="campaign-detail-items" aria-labelledby="campaign-products-title"><h3 id="campaign-products-title">Sản phẩm</h3><ul>{view.items.map((item) => <li key={item.itemId}><strong>{item.name}</strong> <small>v{item.itemVersion}</small><span>{item.tiers.length > 0 ? item.tiers.map((tier) => tier.name).join(', ') : 'Tất cả các gói'}</span></li>)}</ul></section>
     {props.researchProductWorkspaceName && <p className="muted">Liên kết sản phẩm nghiên cứu: <strong>{props.researchProductWorkspaceName}</strong></p>}
@@ -354,6 +367,11 @@ export default function CampaignsPage(props: CampaignsPageProps) {
   const [filter, setFilter] = useState<string | null>(null);
   const [catalogState, setCatalogState] = useState<LoadState<readonly CampaignCatalogOption[]>>({ status: 'ready', value: [] });
   const [reloadToken, setReloadToken] = useState(0);
+  const editorRef = useRef(editor);
+  editorRef.current = editor;
+  const editingRef = useRef(editing);
+  editingRef.current = editing;
+  const isActiveSession = (session: number) => editingRef.current !== null && editorRef.current?.session === session;
   const reload = () => setReloadToken((value) => value + 1);
   const brandSummaries = mode === 'demo' ? demoBrands.map(brandSummary) : brandsState.status === 'ready' ? brandsState.value : [];
   const list = mode === 'demo' ? listCampaigns(demoCampaigns, demoItems) : listState.status === 'ready' ? listState.value : null;
@@ -448,18 +466,19 @@ export default function CampaignsPage(props: CampaignsPageProps) {
     mode, ownerToken: props.ownerToken, writesAvailable: props.writesAvailable, brands: brandSummaries,
     catalogItems: catalogState.status === 'ready' ? catalogState.value : [], catalogLoading: catalogState.status === 'loading', catalogError: catalogState.status === 'failed' ? catalogState.message : null,
     productWorkspaces: props.productWorkspaces, editor, dispatch, demoCampaigns, setDemoCampaigns: props.setDemoCampaigns, notify: props.notify,
-    onCancel: () => { setEditing(null); props.navigate(routeToHash.content()); }, onConflict: reload,
+    onCancel: () => { setEditing(null); props.navigate(routeToHash.content()); }, onConflict: reload, isActiveSession, onStaleSettled: reload,
     onSaved: (id: string) => { setEditing(null); reload(); props.navigate(routeToHash.campaign(id)); },
   } satisfies CampaignFormProps : null;
 
-  if (formProps && (creating || editing === 'new' || editing === 'edit')) return <CampaignForm {...formProps} />;
-  if (creating || editing) return <p className="muted">Đang mở chiến dịch…</p>;
+  const editorHiddenByDeletion = editing === 'edit' && detail?.lifecycle.deleted !== undefined;
+  if (formProps && !editorHiddenByDeletion && (creating || editing === 'new' || editing === 'edit')) return <CampaignForm {...formProps} />;
+  if ((creating || editing) && !editorHiddenByDeletion) return <p className="muted">Đang mở chiến dịch…</p>;
   if (campaignId) {
     if (mode === 'real' && detailState.status === 'loading') return <p className="muted">Đang tải chiến dịch…</p>;
     if (mode === 'real' && detailState.status === 'failed') return <section className="surface surface-pad prompt-detail"><p className="form-error" role="alert">{detailState.message}</p></section>;
     if (!detail) return <div className="surface empty"><h1>Không tìm thấy chiến dịch.</h1><a className="button" href={routeToHash.content()}>Về danh sách chiến dịch</a></div>;
     const researchName = detail.campaign.campaign.researchProductWorkspaceId ? props.productWorkspaces.find((workspace) => workspace.id === detail.campaign.campaign.researchProductWorkspaceId)?.name ?? detail.campaign.campaign.researchProductWorkspaceId : null;
-    return <CampaignDetail mode={mode} ownerToken={props.ownerToken} writesAvailable={props.writesAvailable} view={detail} brandName={findBrandName(brandSummaries, detail.campaign.brandId)} researchProductWorkspaceName={researchName} onEdit={() => { setEditing('edit'); props.navigate(routeToHash.campaign(detail.campaign.campaignId)); }} onLifecycle={(action) => void changeLifecycle(action)} />;
+    return <CampaignDetail mode={mode} ownerToken={props.ownerToken} writesAvailable={props.writesAvailable} view={detail} brandName={findBrandName(brandSummaries, detail.campaign.brandId)} researchProductWorkspaceName={researchName} draftKept={editorHiddenByDeletion} onEdit={() => { setEditing('edit'); props.navigate(routeToHash.campaign(detail.campaign.campaignId)); }} onLifecycle={(action) => void changeLifecycle(action)} />;
   }
   return <CampaignListView mode={mode} list={list} brands={brandSummaries} filter={filter} onFilter={setFilter} canCreate={writable && brandSummaries.length > 0} onRestore={(summary) => void restore(summary)} loading={mode === 'real' && (brandsState.status === 'loading' || listState.status === 'loading')} error={mode === 'real' ? (brandsState.status === 'failed' ? brandsState.message : listState.status === 'failed' ? listState.message : null) : null} />;
 }
