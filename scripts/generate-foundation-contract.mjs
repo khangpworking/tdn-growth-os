@@ -54,6 +54,7 @@ const contracts = [
   ['api', 'owner-content-brand-api'],
   ['api', 'owner-content-catalog-api'],
   ['api', 'owner-content-prompt-api'],
+  ['api', 'owner-content-campaign-api'],
   ['flow', 'approved-proposal-intake-request'],
   ['flow', 'authorized-plan'],
   ['flow', 'discovery-workspace-request'],

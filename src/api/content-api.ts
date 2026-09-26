@@ -4,6 +4,10 @@ import BetterSqlite3 from 'better-sqlite3';
 import type {
   ContentApiErrorResponse,
   ContentBrandDetailResponse,
+  ContentCampaignDetailResponse,
+  ContentCampaignHistoryItem,
+  ContentCampaignItemView,
+  ContentCampaignListResponse,
   ContentBrandHistoryItem,
   ContentBrandListResponse,
   ContentCatalogDetailResponse,
@@ -24,7 +28,10 @@ import type {
   OwnerContentMediaReceipt,
   OwnerContentMediaRejection,
 } from '../../contracts/api/owner-content-catalog-api.generated.js';
+import type { OwnerContentCampaignLifecycleReceipt, OwnerContentCampaignReceipt } from '../../contracts/api/owner-content-campaign-api.generated.js';
 import type { OwnerContentPromptLifecycleReceipt, OwnerContentPromptReceipt } from '../../contracts/api/owner-content-prompt-api.generated.js';
+import type { ContentCampaignArtifact } from '../../contracts/flow/content-campaign-artifact.generated.js';
+import type { ContentCampaignContent } from '../../contracts/flow/content-campaign-create-request.generated.js';
 import type { ContentPromptArtifact } from '../../contracts/flow/content-prompt-artifact.generated.js';
 import type { ContentPromptContent, ContentPromptLineage, ContentPromptType } from '../../contracts/flow/content-prompt-create-request.generated.js';
 import type { ContentBrandArtifact } from '../../contracts/flow/content-brand-artifact.generated.js';
@@ -33,16 +40,30 @@ import type { ContentCatalogItemContent } from '../../contracts/flow/content-cat
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
 import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mutex.js';
 import { ContentBrandIdentityConflictError, ContentBrandService } from '../modules/flow/content-brand-service.js';
+import { ContentCampaignConflictError, ContentCampaignReferenceError, ContentCampaignService } from '../modules/flow/content-campaign-service.js';
 import { ContentCatalogIdentityConflictError, ContentCatalogService } from '../modules/flow/content-catalog-service.js';
 import { CONTENT_MEDIA_LIMITS, ContentImageError, type ContentMediaKind } from '../modules/flow/content-image.js';
 import { ContentMediaService, registeredContentMedia, type ContentMediaRecord } from '../modules/flow/content-media-service.js';
 import { ContentPromptLibrary } from '../modules/flow/content-prompt-library.js';
 import { ContentPromptConflictError, ContentPromptService } from '../modules/flow/content-prompt-service.js';
+import { DiscoveryWorkspaceService } from '../modules/flow/discovery-workspace-service.js';
+import { FlowDiscoveryWorkspaceReader } from '../modules/flow/discovery-workspace-reader.js';
+import { ProductCandidateService } from '../modules/flow/product-candidate-service.js';
+import { FlowProductCandidateReader } from '../modules/flow/product-candidate-reader.js';
+import { CandidateBasketService } from '../modules/flow/candidate-basket-service.js';
+import { FlowCandidateBasketReader } from '../modules/flow/candidate-basket-reader.js';
+import { ProductWorkspaceService } from '../modules/flow/product-workspace-service.js';
+import { FlowProductWorkspaceReader } from '../modules/flow/product-workspace-reader.js';
+import { CANDIDATE_B7_DECISION_CAPABILITY, CANDIDATE_B7_DECISION_POLICY_ID, CandidateB7DecisionService } from '../modules/governance/candidate-b7-decision-service.js';
+import { GovernanceCandidateB7DecisionReader } from '../modules/governance/candidate-b7-decision-reader.js';
 import {
   assertContentPromptContent,
   FlowValidationError,
   validateContentBrandCreateRequest,
   validateContentBrandRevisionRequest,
+  validateContentCampaignCreateRequest,
+  validateContentCampaignLifecycleRequest,
+  validateContentCampaignRevisionRequest,
   validateContentCatalogItemCreateRequest,
   validateContentCatalogItemRevisionRequest,
   validateContentPromptCreateRequest,
@@ -67,8 +88,13 @@ const SHA256 = /^[0-9a-f]{64}$/;
 const BRAND_BODY_BYTES = 16 * 1024;
 const CATALOG_BODY_BYTES = 64 * 1024;
 const PROMPT_BODY_BYTES = 96 * 1024;
+const CAMPAIGN_BODY_BYTES = 32 * 1024;
 const SYSTEM_PROMPT_ID = /^system-[a-z0-9-]{3,60}$/;
-const REQUIRED_TABLES = ['artifact_manifests', 'flow_content_brands', 'flow_content_brand_revisions', 'flow_content_media', 'flow_content_catalog_items', 'flow_content_catalog_item_revisions', 'flow_content_prompts', 'flow_content_prompt_revisions', 'flow_content_prompt_lifecycle'];
+const REQUIRED_TABLES = [
+  'artifact_manifests', 'flow_content_brands', 'flow_content_brand_revisions', 'flow_content_media', 'flow_content_catalog_items', 'flow_content_catalog_item_revisions',
+  'flow_content_prompts', 'flow_content_prompt_revisions', 'flow_content_prompt_lifecycle',
+  'flow_content_campaigns', 'flow_content_campaign_revisions', 'flow_content_campaign_lifecycle',
+];
 const MEDIA_KINDS: Readonly<Record<string, ContentMediaKind>> = { logo: 'LOGO', photo: 'PHOTO' };
 
 export interface ContentReadApiConfiguration {
@@ -95,6 +121,8 @@ interface ReadHandlers {
   promptList(): Promise<ContentPromptListResponse>;
   promptDetail(promptId: string): Promise<ContentPromptDetailResponse | undefined>;
   systemPrompt(id: string): Promise<ContentSystemPromptDetailResponse | undefined>;
+  campaignList(): Promise<ContentCampaignListResponse>;
+  campaignDetail(campaignId: string): Promise<ContentCampaignDetailResponse | undefined>;
 }
 
 function systemLayer(library: ContentPromptLibrary, promptType: ContentPromptType): ContentPromptSystemLayer {
@@ -117,6 +145,24 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
     const media = new ContentMediaService({ db, artifactStore });
     const library = new ContentPromptLibrary();
     const prompts = new ContentPromptService({ db, artifactStore, library, ...(configuration.now ? { now: configuration.now } : {}) });
+    const campaigns = new ContentCampaignService({ db, artifactStore, catalog, ...(configuration.now ? { now: configuration.now } : {}) });
+    /** Re-reads every pinned item version; the campaign's brand, item identity and every selected tier must still match. */
+    const resolveCampaignItems = async (campaign: ContentCampaignArtifact): Promise<ContentCampaignItemView[]> => {
+      const views: ContentCampaignItemView[] = [];
+      for (const ref of campaign.campaign.items) {
+        const artifact = await catalog.readItem(ref.itemId, ref.itemVersion);
+        if (artifact.itemId !== ref.itemId || artifact.brandId !== campaign.brandId || artifact.version !== ref.itemVersion) throw new Error('Campaign item identity mismatch');
+        const tierNames = new Map(artifact.item.tiers.map((tier) => [tier.tierKey, tier.name] as const));
+        const selected: string[] = ref.tierKeys ? [...ref.tierKeys] : [];
+        const tiers = selected.map((tierKey) => {
+          const name = tierNames.get(tierKey);
+          if (name === undefined) throw new Error('Campaign tier is missing from the pinned item version');
+          return { tierKey, name };
+        });
+        views.push({ itemId: artifact.itemId, itemVersion: artifact.version, itemKey: artifact.itemKey, itemType: artifact.item.itemType, name: artifact.item.name, tiers });
+      }
+      return views;
+    };
     const brandCatalog = db.prepare(`
       SELECT b.brand_id brandId, max(r.version) version
       FROM flow_content_brands b JOIN flow_content_brand_revisions r ON r.brand_id = b.brand_id
@@ -243,6 +289,40 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
           systemLayer: systemLayer(library, entry.promptType),
         };
       },
+      async campaignList() {
+        const summaries: ContentCampaignListResponse['campaigns'] = [];
+        for (const row of campaigns.listCampaigns()) {
+          const state = campaigns.lifecycleState(row.campaignId);
+          if (state.deleted && state.expired) continue;
+          const artifact = await campaigns.readCampaign(row.campaignId, row.version);
+          if (artifact.campaignId !== row.campaignId || artifact.brandId !== row.brandId || artifact.version !== row.version) throw new Error('Campaign list identity mismatch');
+          const items = (await resolveCampaignItems(artifact)).map((view) => ({ itemId: view.itemId, itemVersion: view.itemVersion, name: view.name, tierNames: view.tiers.map((tier) => tier.name) }));
+          summaries.push({
+            campaignId: artifact.campaignId, campaignKey: artifact.campaignKey, brandId: artifact.brandId, version: artifact.version, name: artifact.campaign.name,
+            items, updatedAt: artifact.createdAt, ...(state.deleted ? { deleted: state.deleted } : {}),
+          });
+        }
+        return { contractVersion: '1.0.0', campaigns: summaries };
+      },
+      async campaignDetail(campaignId) {
+        if (!campaigns.campaignExists(campaignId)) return undefined;
+        const history: ContentCampaignHistoryItem[] = [];
+        let latest: ContentCampaignArtifact | undefined;
+        for (const version of campaigns.campaignVersions(campaignId)) {
+          latest = await campaigns.readCampaign(campaignId, version);
+          history.push({ version: latest.version, name: latest.campaign.name, createdAt: latest.createdAt });
+        }
+        const [first, ...rest] = history;
+        if (!latest || !first) throw new Error('Campaign history is empty');
+        const state = campaigns.lifecycleState(campaignId);
+        return {
+          contractVersion: '1.0.0',
+          campaign: { campaignId: latest.campaignId, campaignKey: latest.campaignKey, brandId: latest.brandId, version: latest.version, campaign: latest.campaign, createdAt: latest.createdAt },
+          items: await resolveCampaignItems(latest),
+          history: [first, ...rest],
+          lifecycle: { sequence: state.sequence, ...(state.deleted ? { deleted: state.deleted } : {}) },
+        };
+      },
     };
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeRead(request, response, handlers); };
     return { handler, close: () => db.close() };
@@ -257,6 +337,12 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
     if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return sendReadError(response, 405, 'method_not_allowed', 'Only GET is supported'); }
     const parts = pathParts(request.url);
     if (parts === null) return sendReadError(response, 400, 'bad_request', 'Malformed request URL');
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length <= 4) {
+      if (parts.length === 3) return sendApiJson(response, 200, await handlers.campaignList());
+      if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Campaign ID must be a UUID');
+      const result = await handlers.campaignDetail(parts[3]!);
+      return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Campaign not found');
+    }
     if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'prompts' && parts.length <= 4) {
       if (parts.length === 3) return sendApiJson(response, 200, await handlers.promptList());
       if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Prompt ID must be a UUID');
@@ -311,6 +397,7 @@ class UnknownBrandError extends Error {}
 class UnknownItemError extends Error {}
 class InvalidReferenceError extends Error {}
 class UnknownPromptError extends Error {}
+class UnknownCampaignError extends Error {}
 class InvalidPromptRequestError extends Error {}
 class ExistingContentIntegrityError extends Error {}
 
@@ -322,7 +409,10 @@ type OwnerRoute =
   | { readonly kind: 'item-revision'; readonly brandId: string; readonly itemId: string }
   | { readonly kind: 'prompt-create' }
   | { readonly kind: 'prompt-revision'; readonly promptId: string }
-  | { readonly kind: 'prompt-lifecycle'; readonly promptId: string };
+  | { readonly kind: 'prompt-lifecycle'; readonly promptId: string }
+  | { readonly kind: 'campaign-create' }
+  | { readonly kind: 'campaign-revision'; readonly campaignId: string }
+  | { readonly kind: 'campaign-lifecycle'; readonly campaignId: string };
 
 interface OwnerWriters {
   brand(serviceRequest: Record<string, unknown>, revision: boolean): Promise<OwnerContentBrandReceipt>;
@@ -330,6 +420,8 @@ interface OwnerWriters {
   item(serviceRequest: Record<string, unknown>, brandId: string, itemId: string | undefined): Promise<OwnerContentCatalogItemReceipt>;
   prompt(serviceRequest: Record<string, unknown>, promptId: string | undefined): Promise<OwnerContentPromptReceipt>;
   promptLifecycle(serviceRequest: Record<string, unknown>): Promise<OwnerContentPromptLifecycleReceipt>;
+  campaign(serviceRequest: Record<string, unknown>, campaignId: string | undefined): Promise<OwnerContentCampaignReceipt>;
+  campaignLifecycle(serviceRequest: Record<string, unknown>): Promise<OwnerContentCampaignLifecycleReceipt>;
 }
 
 /** OWNER write paths for Content Studio (`/owner-api/content/*`). */
@@ -350,6 +442,18 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
     const media = new ContentMediaService({ db, artifactStore: artifacts, ...(configuration.now ? { now: configuration.now } : {}) });
     const library = new ContentPromptLibrary();
     const prompts = new ContentPromptService({ db, artifactStore: artifacts, library, ...clock });
+    // Research workspaces are only read here, so their chain uses a plain store outside the request-scoped ownership.
+    const workspaceArtifacts = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
+    const discoveries = new DiscoveryWorkspaceService({ db, artifactStore: workspaceArtifacts });
+    const discoveryReader = new FlowDiscoveryWorkspaceReader(discoveries);
+    const candidates = new ProductCandidateService({ db, artifactStore: workspaceArtifacts });
+    const candidateReader = new FlowProductCandidateReader(candidates);
+    const baskets = new CandidateBasketService({ db, artifactStore: workspaceArtifacts, workspaceReader: discoveryReader, candidateReader });
+    const basketReader = new FlowCandidateBasketReader(baskets);
+    const b7 = new CandidateB7DecisionService({ db, artifactStore: workspaceArtifacts, basketReader, configuration: { policyId: CANDIDATE_B7_DECISION_POLICY_ID, policyVersion: 1, requiredCapability: CANDIDATE_B7_DECISION_CAPABILITY } });
+    const products = new ProductWorkspaceService({ db, artifactStore: workspaceArtifacts, decisionReader: new GovernanceCandidateB7DecisionReader(b7) });
+    const productReader = new FlowProductWorkspaceReader(products);
+    const campaigns = new ContentCampaignService({ db, artifactStore: artifacts, catalog, workspaceReader: productReader, ...clock });
     const brandExists = db.prepare('SELECT 1 FROM flow_content_brands WHERE brand_id = ?');
     const brandHistory = db.prepare('SELECT version FROM flow_content_brand_revisions WHERE brand_id = ? ORDER BY version');
 
@@ -373,6 +477,12 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
       for (const [index, version] of prompts.promptVersions(promptId).entries()) {
         if (version !== index + 1) throw new Error('Prompt history is not sequential');
         await prompts.readPrompt(promptId, version);
+      }
+    });
+    const verifyCampaignHistory = (campaignId: string) => integrity(async () => {
+      for (const [index, version] of campaigns.campaignVersions(campaignId).entries()) {
+        if (version !== index + 1) throw new Error('Campaign history is not sequential');
+        await campaigns.readCampaign(campaignId, version);
       }
     });
     const assertPromptReferences = (type: ContentPromptType, prompt: ContentPromptContent, lineage: ContentPromptLineage | undefined) => {
@@ -461,6 +571,35 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
           ...(result.restorableUntil ? { restorableUntil: result.restorableUntil } : {}), exactRetry: result.deduplicated,
         };
       }),
+      campaign: (serviceRequest, campaignId) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+        if (campaignId !== undefined && !campaigns.campaignExists(campaignId)) throw new UnknownCampaignError();
+        const brandId = campaignId === undefined ? serviceRequest.brandId as string : campaigns.campaignBrand(campaignId);
+        if (brandId === undefined || !brandExists.get(brandId)) throw new UnknownBrandError();
+        await verifyBrandHistory(brandId);
+        await campaigns.restoreExactArtifact(serviceRequest);
+        if (campaignId !== undefined) await verifyCampaignHistory(campaignId);
+        // Items of other brands are refused by the service as bad references; items of this brand must verify first.
+        const content = serviceRequest.campaign as ContentCampaignContent;
+        for (const ref of content.items) if (catalog.itemBrand(ref.itemId) === brandId) await verifyItemHistory(ref.itemId);
+        const result = campaignId === undefined ? await campaigns.createCampaign(serviceRequest) : await campaigns.reviseCampaign(serviceRequest);
+        if (campaignId === undefined && result.deduplicated) await verifyCampaignHistory(result.campaignId);
+        await artifacts.publishOwned();
+        const verified = await integrity(() => campaigns.readCampaign(result.campaignId, result.version));
+        return {
+          contractVersion: '1.0.0', campaignId: verified.campaignId, campaignKey: verified.campaignKey, brandId: verified.brandId, version: verified.version,
+          name: verified.campaign.name, createdAt: verified.createdAt, exactRetry: result.deduplicated,
+        };
+      })),
+      campaignLifecycle: (serviceRequest) => withDatabaseMutationMutex(db, async () => {
+        const campaignId = serviceRequest.campaignId as string;
+        if (!campaigns.campaignExists(campaignId)) throw new UnknownCampaignError();
+        await verifyCampaignHistory(campaignId);
+        const result = await campaigns.changeLifecycle(serviceRequest);
+        return {
+          contractVersion: '1.0.0', campaignId: result.campaignId, sequence: result.sequence, action: result.action, createdAt: result.createdAt,
+          ...(result.restorableUntil ? { restorableUntil: result.restorableUntil } : {}), exactRetry: result.deduplicated,
+        };
+      }),
     };
 
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers); };
@@ -472,6 +611,12 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
 }
 
 function ownerRoute(parts: string[] | null): OwnerRoute | 'invalid-id' | null {
+  if (parts !== null && parts[0] === 'owner-api' && parts[1] === 'content' && parts[2] === 'campaigns') {
+    if (parts.length === 3) return { kind: 'campaign-create' };
+    if (parts.length !== 5 || (parts[4] !== 'revisions' && parts[4] !== 'lifecycle')) return null;
+    if (!UUID.test(parts[3]!)) return 'invalid-id';
+    return parts[4] === 'revisions' ? { kind: 'campaign-revision', campaignId: parts[3]! } : { kind: 'campaign-lifecycle', campaignId: parts[3]! };
+  }
   if (parts !== null && parts[0] === 'owner-api' && parts[1] === 'content' && parts[2] === 'prompts') {
     if (parts.length === 3) return { kind: 'prompt-create' };
     if (parts.length !== 5 || (parts[4] !== 'revisions' && parts[4] !== 'lifecycle')) return null;
@@ -516,7 +661,8 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     if (contentType !== 'application/json') return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be application/json');
     const catalogRoute = route.kind === 'item-create' || route.kind === 'item-revision';
     const promptRoute = route.kind === 'prompt-create' || route.kind === 'prompt-revision' || route.kind === 'prompt-lifecycle';
-    const raw = (await readOwnerBytes(request, promptRoute ? PROMPT_BODY_BYTES : catalogRoute ? CATALOG_BODY_BYTES : BRAND_BODY_BYTES)).toString('utf8');
+    const campaignRoute = route.kind === 'campaign-create' || route.kind === 'campaign-revision' || route.kind === 'campaign-lifecycle';
+    const raw = (await readOwnerBytes(request, campaignRoute ? CAMPAIGN_BODY_BYTES : promptRoute ? PROMPT_BODY_BYTES : catalogRoute ? CATALOG_BODY_BYTES : BRAND_BODY_BYTES)).toString('utf8');
     let body: unknown;
     try { body = JSON.parse(raw); } catch { return sendOwnerError(response, 400, 'bad_request', 'Request body must be valid JSON'); }
     if (!body || typeof body !== 'object' || Array.isArray(body)) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
@@ -531,13 +677,15 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
       'prompt-create': 'contractVersion,prompt,promptKey,promptType',
       'prompt-revision': 'contractVersion,expectedVersion,prompt',
       'prompt-lifecycle': 'action,contractVersion,expectedSequence',
+      'campaign-create': 'brandId,campaign,campaignKey,contractVersion',
+      'campaign-revision': 'campaign,contractVersion,expectedVersion',
+      'campaign-lifecycle': 'action,contractVersion,expectedSequence',
     }[route.kind];
     if (keys !== expectedKeys) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
-    const serviceRequest = route.kind === 'brand-create' ? { ...fields }
-      : route.kind === 'brand-revision' ? { ...fields, brandId: route.brandId }
-      : route.kind === 'item-create' ? { ...fields, brandId: route.brandId }
+    const serviceRequest = route.kind === 'brand-create' || route.kind === 'prompt-create' || route.kind === 'campaign-create' ? { ...fields }
+      : route.kind === 'brand-revision' || route.kind === 'item-create' ? { ...fields, brandId: route.brandId }
       : route.kind === 'item-revision' ? { ...fields, itemId: route.itemId }
-      : route.kind === 'prompt-create' ? { ...fields }
+      : route.kind === 'campaign-revision' || route.kind === 'campaign-lifecycle' ? { ...fields, campaignId: route.campaignId }
       : { ...fields, promptId: route.promptId };
     try {
       if (route.kind === 'brand-create') validateContentBrandCreateRequest(serviceRequest);
@@ -546,6 +694,9 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
       else if (route.kind === 'item-revision') validateContentCatalogItemRevisionRequest(serviceRequest);
       else if (route.kind === 'prompt-create') validateContentPromptCreateRequest(serviceRequest);
       else if (route.kind === 'prompt-revision') validateContentPromptRevisionRequest(serviceRequest);
+      else if (route.kind === 'campaign-create') validateContentCampaignCreateRequest(serviceRequest);
+      else if (route.kind === 'campaign-revision') validateContentCampaignRevisionRequest(serviceRequest);
+      else if (route.kind === 'campaign-lifecycle') validateContentCampaignLifecycleRequest(serviceRequest);
       else validateContentPromptLifecycleRequest(serviceRequest);
     } catch (error) {
       if (error instanceof FlowValidationError) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
@@ -553,6 +704,8 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     }
     const receipt = route.kind === 'brand-create' || route.kind === 'brand-revision' ? await writers.brand(serviceRequest, route.kind === 'brand-revision')
       : route.kind === 'item-create' || route.kind === 'item-revision' ? await writers.item(serviceRequest, route.brandId, route.kind === 'item-revision' ? route.itemId : undefined)
+      : route.kind === 'campaign-create' || route.kind === 'campaign-revision' ? await writers.campaign(serviceRequest, route.kind === 'campaign-revision' ? route.campaignId : undefined)
+      : route.kind === 'campaign-lifecycle' ? await writers.campaignLifecycle(serviceRequest)
       : route.kind === 'prompt-lifecycle' ? await writers.promptLifecycle(serviceRequest)
       : await writers.prompt(serviceRequest, route.kind === 'prompt-revision' ? route.promptId : undefined);
     return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
@@ -565,6 +718,9 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     if (error instanceof InvalidReferenceError) return sendOwnerError(response, 400, 'bad_request', 'Referenced media is not registered for this brand');
     if (error instanceof UnknownPromptError) return sendOwnerError(response, 404, 'not_found', 'Prompt not found');
     if (error instanceof InvalidPromptRequestError) return sendOwnerError(response, 400, 'bad_request', 'Invalid prompt request');
+    if (error instanceof UnknownCampaignError) return sendOwnerError(response, 404, 'not_found', 'Campaign not found');
+    if (error instanceof ContentCampaignReferenceError) return sendOwnerError(response, 400, 'bad_request', 'Invalid campaign reference');
+    if (error instanceof ContentCampaignConflictError && /drift|changed content|deleted|restore window/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     if (error instanceof ContentPromptConflictError && /drift|changed content|deleted|restore window/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     if ((error instanceof ContentBrandIdentityConflictError || error instanceof ContentCatalogIdentityConflictError) && /changed content|drift/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     return sendOwnerError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');
