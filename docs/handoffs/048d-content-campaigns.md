@@ -17,7 +17,7 @@ Evidence (commands, results, relevant revision):
 
   Chips are now hidden until “Dùng phiên bản mới” is applied. Summary-only items keep their existing tier keys, and their upgrade is disabled.
 - **Local Windows** (Codex runs the tests and reports the results; Claude reviews each diff against the plan):
-  - frontend 120/120 after the independent-review fixes; frontend typecheck and build clean; root typecheck `status 0`;
+  - frontend 121/121 after the re-review fix; frontend typecheck and build clean; root typecheck `status 0`;
   - root `npm test` 362/378, the 16 failures being the known Windows-only set;
   - campaign backend suites 20/20 (migration 2, contracts 2, service 9, API 7);
   - content integration suites 63/65, the 2 failures being in the known Windows-only set.
@@ -29,7 +29,8 @@ Unresolved:
 - **Campaign defaults** are 051 (P1).
 - **`INTENT.md` has two D33 headings;** renumbering needs an owner decision (brief §6).
 - **Independent review:** R2 and R3 are fixed in `fb204f9`, with Codex test-audit tests in `ea08d39`. There are no deviations from the fix plan and no production bug was found by the audit.
-Next action: re-review of R2/R3, then the owner merges this PR after #47. Retarget it to `main` for final-head CI.
+- **Focused re-review:** R3 is closed. The R2 page-unmount gap is fixed in `7eb343d`, and a mounted regression that unmounts the page mid-save failed before the fix.
+Next action: confirm R2 at the new head, then the owner merges this PR after #47. Retarget it to `main` for final-head CI.
 Business decisions pending:
 - Strip EXIF metadata before live Poster calls?
 - Catalog archive/delete, which is still undefined.
