@@ -275,6 +275,7 @@ interface CampaignHarness {
   readonly notifications: string[];
   readonly notice: HTMLElement;
   readonly render: (campaignId: string | null, creating: boolean) => Promise<void>;
+  readonly remount: (campaignId: string | null, creating: boolean) => Promise<void>;
   readonly settle: (url: string, body: unknown, status?: number, method?: string) => Promise<void>;
   readonly cleanup: () => Promise<void>;
 }
@@ -290,7 +291,7 @@ async function mountCampaignPage(CampaignsPage: CampaignPageModule['default'], i
   const notice = dom.container.ownerDocument.createElement('div');
   notice.setAttribute('role', 'status');
   dom.container.append(notice);
-  const root = createRoot(dom.container);
+  let root = createRoot(dom.container);
   const render = async (campaignId: string | null, creating: boolean) => {
     await act(async () => {
       root.render(createElement(CampaignsPage, {
@@ -302,6 +303,11 @@ async function mountCampaignPage(CampaignsPage: CampaignPageModule['default'], i
       await Promise.resolve();
     });
   };
+  const remount = async (campaignId: string | null, creating: boolean) => {
+    await act(async () => { root.unmount(); });
+    root = createRoot(dom.container);
+    await render(campaignId, creating);
+  };
   await render(initialCampaignId, false);
   return {
     container: dom.container,
@@ -310,6 +316,7 @@ async function mountCampaignPage(CampaignsPage: CampaignPageModule['default'], i
     notifications,
     notice,
     render,
+    remount,
     settle: (url, body, status, method) => settleCampaignRequest(queue, url, body, status, method),
     cleanup: async () => {
       await act(async () => { root.unmount(); });
@@ -378,6 +385,31 @@ async function submitCampaignEdit(harness: CampaignHarness, name: string) {
 }
 
 const campaignRevisionReceipt = { contractVersion: '1.0.0', campaignId, campaignKey: 'campaign-a', brandId, version: 2, name: 'Campaign A đã lưu', createdAt: time, exactRetry: false };
+
+test('an unmounted campaign save cannot navigate over a newly mounted draft', { concurrency: false }, async () => {
+  const CampaignsPage = await importCampaignsPage();
+  const harness = await mountCampaignPage(CampaignsPage, campaignId);
+  try {
+    await settleCampaignReads(harness, mountedCampaignDetail({ sequence: 0 }));
+    await submitCampaignEdit(harness, 'Campaign A đang lưu trước khi unmount');
+    const navigationBeforeUnmount = harness.navigateCalls.length;
+
+    await harness.remount(null, false);
+    await settleCampaignReads(harness, null);
+    await harness.render(null, true);
+    await setCampaignName(campaignForm(harness.container), 'UNSAVED CAMPAIGN B');
+
+    await harness.settle(`/owner-api/content/campaigns/${campaignId}/revisions`, campaignRevisionReceipt, 200, 'POST');
+
+    const form = campaignForm(harness.container);
+    assert.equal((form.querySelector('input') as HTMLInputElement).value, 'UNSAVED CAMPAIGN B');
+    assert.equal(campaignButtonWithText(form, 'Lưu').textContent?.trim(), 'Lưu');
+    assert.equal((form.querySelector('input') as HTMLInputElement).disabled, false);
+    assert.equal(harness.navigateCalls.slice(navigationBeforeUnmount).includes(routeToHash.campaign(campaignId)), false);
+  } finally {
+    await harness.cleanup();
+  }
+});
 
 test('a stale campaign save success leaves a newly created draft intact', { concurrency: false }, async () => {
   const CampaignsPage = await importCampaignsPage();

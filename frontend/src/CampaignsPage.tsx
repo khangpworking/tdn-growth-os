@@ -371,7 +371,12 @@ export default function CampaignsPage(props: CampaignsPageProps) {
   editorRef.current = editor;
   const editingRef = useRef(editing);
   editingRef.current = editing;
-  const isActiveSession = (session: number) => editingRef.current !== null && editorRef.current?.session === session;
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
+  const isActiveSession = (session: number) => mountedRef.current && editingRef.current !== null && editorRef.current?.session === session;
   const reload = () => setReloadToken((value) => value + 1);
   const brandSummaries = mode === 'demo' ? demoBrands.map(brandSummary) : brandsState.status === 'ready' ? brandsState.value : [];
   const list = mode === 'demo' ? listCampaigns(demoCampaigns, demoItems) : listState.status === 'ready' ? listState.value : null;
