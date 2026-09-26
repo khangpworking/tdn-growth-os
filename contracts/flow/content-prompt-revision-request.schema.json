@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-prompt-revision-request.schema.json",
+  "title": "ContentPromptRevisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "promptId", "expectedVersion", "prompt"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "promptId": { "type": "string", "format": "uuid" },
+    "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+    "prompt": { "$ref": "content-prompt-create-request.schema.json#/$defs/prompt" }
+  }
+}

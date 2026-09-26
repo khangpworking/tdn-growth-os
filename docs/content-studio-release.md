@@ -4,16 +4,16 @@ Updated: 2026-09-25 · Design: [Task 047](tasks/047-content-studio-design.md), [
 
 **Release milestone:** the OWNER can go through the in-app flow **Brand & catalog → Campaign & Insight → Big Idea → Angle → Caption + Poster**, inside TDN Growth OS on Fedora. There is no Draft step, no video, and no social publishing. Brand management on its own (Task 048) is **not** the milestone.
 
-## 1. Reconciliation with merged code (main `76c21aa`)
+## 1. Reconciliation with merged code (main `28ab319`)
 
 The original Task 047 §8 plan put the whole content foundation in Task 048. Only the brand slice was built and merged. That row is now split:
 
 | Planned item (047 §8, row 048) | State on main | Slice |
 |---|---|---|
 | Brands: profile, contact facts, Luôn/Tùy/Ẩn display rules, versions, UI | **Merged** (PR #44 design, PR #45 code; migration 0021) | 048 |
-| Brand logo (upload, validation, private storage, preview) | Built on `feature/048b-content-catalog-media` (not merged) | 048b |
-| Catalog: products/services per brand, description, tiers (price text, inclusions), product photos with Poster default | Built on `feature/048b-content-catalog-media` (not merged) | 048b |
-| Prompt Library: two-layer prompts, system prompts ported from the old Content Studio templates, freestyle saved to the library (no AI) | Not built | 048c |
+| Brand logo (upload, validation, private storage, preview) | **Merged** (PR #46; migration 0022) | 048b |
+| Catalog: products/services per brand, description, tiers (price text, inclusions), product photos with Poster default | **Merged** (PR #46; migration 0022) | 048b |
+| Prompt Library: two-layer prompts, system prompts ported from the old Content Studio templates, freestyle saved to the library (no AI) | In progress on `feature/048c-content-prompt-library` (library, layers, user prompts); the picker and “save freestyle to library” move to 050 | 048c / 050 |
 | Campaign list and create (brand, catalog items + tiers, objective, optional research link) | Not built | 048d |
 | Top navigation “Nội dung” and “Thư viện prompt” | Not built (only “Thị trường · Thương hiệu”) | 048c / 048d |
 | Custom purpose tags (“Của bạn”, mapped “như …”) | Not built (the five suggested purposes are fixed in display rules) | 050 |
@@ -24,11 +24,11 @@ Rows 049–053 of 047 §8 have not started.
 
 | Slice | Scope | Depends on | Status |
 |---|---|---|---|
-| 048b | Brand catalog and reference media: catalog items, tiers, product photos, brand logo, image validation, private storage, safe preview, read/OWNER APIs, UI ([brief](tasks/048b-content-catalog-media.md)) | 048 | **Draft PR, awaiting review** |
-| 048c | Prompt Library: prompt and prompt-version records, creative vs system layers, system prompts from old templates, library/freestyle picker component, “Thư viện prompt” navigation | 048 | Pending |
+| 048b | Brand catalog and reference media: catalog items, tiers, product photos, brand logo, image validation, private storage, safe preview, read/OWNER APIs, UI ([brief](tasks/048b-content-catalog-media.md)) | 048 | **Merged** (PR #46, `28ab319`) |
+| 048c | Prompt Library: user prompt records and versions, duplicate, delete with 30-day restore, read-only system prompts and system layers ported from the old templates, “Thư viện prompt” page ([brief](tasks/048c-content-prompt-library.md)) | 048 | **Draft PR, awaiting review** |
 | 048d | Campaigns: list with brand filter, create (brand, catalog items + tier subset, objective, optional research product link), campaign defaults, “Nội dung” navigation | 048b | Pending |
 | 049 | AI plumbing (Controlled): generalize `AiGateway` for creative text and images, CLIProxy adapter, attempt records with startup sweep to `interrupted`, call-count preview, fake providers for tests | 047 | Pending |
-| 050 | Insight (typed, or copied from a locked STP; lock; D26 freeze when linked), Big Idea and Angle generation, branch codes A / A1, purpose tags incl. custom, develop/stop, soft delete + 30-day restore | 048c, 048d, 049 | Pending |
+| 050 | Insight (typed, or copied from a locked STP; lock; D26 freeze when linked), Big Idea and Angle generation with the library/freestyle prompt picker (freestyle savable to the library), branch codes A / A1, purpose tags incl. custom, develop/stop, soft delete + 30-day restore | 048c, 048d, 049 | Pending |
 | 051 | Caption & Poster for one or many Angles: Inspector (“Áp dụng cho tất cả” / “Sửa riêng”), style and length cascade, display-rule resolution, system contact footer, brand-fact checklist, Poster references (product photo first), package view with versions | 050 | Pending |
 | 052 | AI edit proposals (text diff, side-by-side image), manual edit, version restore | 051 | **AI edit deferred to a later release** (owner, 2026-09-25); manual edit and version handling to be reconciled when 051 is briefed |
 | 053 | Fedora live qualification (Controlled): owner-authorized first real calls, per-model multi-reference check, operator runbook, retire-Windows checklist | 051 | Pending |
@@ -50,8 +50,7 @@ The release is accepted when all of these hold on the Fedora operator with fresh
 
 ## 4. What blocks the release today
 
-- 048b awaiting independent review and owner merge (migration 0022 must be applied before an operator build containing it starts).
-- 048c, 048d, 049, 050, 051 and 053 are not started. 049 and 053 need Controlled-lane authorization for the provider boundary and live calls.
+- 048c awaiting review and owner merge (migration 0023 must be applied before an operator build containing it starts). 048d, 049, 050, 051 and 053 are not started. 049 and 053 need Controlled-lane authorization for the provider boundary and live calls.
 - **Open, to reconcile when 051 is briefed:** manual editing (“Sửa tay”) and version history/restore of Caption and Poster are part of the accepted design and must not silently disappear with the AI-edit deferral.
 - **Owner decision pending:** before the first live Poster calls (051/053), should reference photos have their metadata (EXIF, including location) stripped? 048b stores uploaded bytes unchanged in private storage. Orchestrator recommendation, not approved: keep the private originals and create a derived, metadata-stripped, orientation-corrected reference with explicit lineage.
 - **Open design point for 048d:** catalog items cannot be archived or deleted; the accepted design does not define it. Do not invent it without a decision.

@@ -1,3 +1,4 @@
 # Checksummed artifacts must have identical bytes on Windows and Linux.
 migrations/*.sql text eol=lf
 scripts/filter-shopee-reviews.py text eol=lf
+prompts/content/**/*.md text eol=lf

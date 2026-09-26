@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-content-prompt-api.schema.json",
+  "title": "OwnerContentPromptApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/createRequest" },
+    { "$ref": "#/$defs/revisionRequest" },
+    { "$ref": "#/$defs/lifecycleRequest" },
+    { "$ref": "#/$defs/receipt" },
+    { "$ref": "#/$defs/lifecycleReceipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "createRequest": {
+      "title": "OwnerContentPromptCreateRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "promptKey", "promptType", "prompt"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "promptKey": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/promptKey" },
+        "promptType": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/promptType" },
+        "prompt": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/prompt" },
+        "duplicatedFrom": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/lineage" }
+      }
+    },
+    "revisionRequest": {
+      "title": "OwnerContentPromptRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "expectedVersion", "prompt"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+        "prompt": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/prompt" }
+      }
+    },
+    "lifecycleRequest": {
+      "title": "OwnerContentPromptLifecycleRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "action", "expectedSequence"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "action": { "enum": ["DELETE", "RESTORE"] },
+        "expectedSequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 }
+      }
+    },
+    "receipt": {
+      "title": "OwnerContentPromptReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "promptId", "promptKey", "promptType", "version", "name", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "promptId": { "$ref": "#/$defs/uuid" },
+        "promptKey": { "type": "string" },
+        "promptType": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/promptType" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "name": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "lifecycleReceipt": {
+      "title": "OwnerContentPromptLifecycleReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "promptId", "sequence", "action", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "promptId": { "$ref": "#/$defs/uuid" },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "action": { "enum": ["DELETE", "RESTORE"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "restorableUntil": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerContentPromptApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "conflict", "integrity_error"] },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

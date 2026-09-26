@@ -1,5 +1,11 @@
 # Trạng thái hiện tại
 
+## Task 048c — Thư viện prompt (draft PR)
+
+- Bốn prompt hệ thống (Big Idea v3.1, Góc v3, Caption Facebook v3, Poster infographic B2B v2) tách từ template Content Studio cũ: phần sáng tạo là prompt “Hệ thống · Mặc định”, phần dữ liệu khóa/an toàn/định dạng kết quả là “Phần hệ thống · tự thêm”; mọi tệp được khóa bằng SHA-256.
+- Prompt “Của tôi”: tạo, nhân bản (ghi nguồn), sửa thành phiên bản mới, xóa và khôi phục trong 30 ngày (migration 0023; trigger kiểm tra thứ tự và hạn 30 ngày). API đọc và OWNER đã xác minh; trang “Thư viện prompt” theo blueprint màn hình 10.
+- Bộ chọn prompt thư viện/tự viết và “lưu prompt tự viết vào thư viện” chuyển sang 050, nơi có màn hình tạo nội dung. Chưa có lời gọi AI.
+
 ## Task 048b — Danh mục sản phẩm/dịch vụ và ảnh tham chiếu (draft PR)
 
 - Migration 0022 (`flow_content_media`, `flow_content_catalog_items`, `flow_content_catalog_item_revisions`) bất biến; logo và ảnh sản phẩm phải là PNG hoặc JPEG giải mã được đầy đủ (không nhận WebP; logo ≤ 2 MB, ảnh ≤ 8 MB), lưu riêng tư trong kho artifact theo SHA-256 và chỉ xem lại qua route preview đã xác minh (nosniff, CSP sandbox).

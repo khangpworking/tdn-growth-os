@@ -7,6 +7,9 @@
     { "$ref": "#/$defs/brandDetail" },
     { "$ref": "#/$defs/catalogList" },
     { "$ref": "#/$defs/catalogDetail" },
+    { "$ref": "#/$defs/promptList" },
+    { "$ref": "#/$defs/promptDetail" },
+    { "$ref": "#/$defs/systemPromptDetail" },
     { "$ref": "#/$defs/error" }
   ],
   "$defs": {
@@ -174,6 +177,145 @@
           }
         },
         "history": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/catalogHistoryItem" } }
+      }
+    },
+    "promptContent": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/prompt" },
+    "promptType": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/promptType" },
+    "promptDeletion": {
+      "title": "ContentPromptDeletion",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deletedAt", "restorableUntil"],
+      "properties": {
+        "deletedAt": { "$ref": "#/$defs/dateTime" },
+        "restorableUntil": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "systemLayer": {
+      "title": "ContentPromptSystemLayer",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["promptType", "version", "sha256", "text"],
+      "properties": {
+        "promptType": { "$ref": "#/$defs/promptType" },
+        "version": { "type": "integer", "minimum": 1 },
+        "sha256": { "$ref": "#/$defs/sha256" },
+        "text": { "type": "string" }
+      }
+    },
+    "systemPromptSummary": {
+      "title": "ContentSystemPromptSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "promptType", "version", "name", "recommendedModel", "tags", "isDefault"],
+      "properties": {
+        "id": { "type": "string" },
+        "promptType": { "$ref": "#/$defs/promptType" },
+        "version": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "recommendedModel": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "isDefault": { "type": "boolean" }
+      }
+    },
+    "promptSummary": {
+      "title": "ContentPromptSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["promptId", "promptKey", "promptType", "version", "name", "recommendedModel", "tags", "updatedAt"],
+      "properties": {
+        "promptId": { "$ref": "#/$defs/uuid" },
+        "promptKey": { "type": "string" },
+        "promptType": { "$ref": "#/$defs/promptType" },
+        "version": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "recommendedModel": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "updatedAt": { "$ref": "#/$defs/dateTime" },
+        "deleted": { "$ref": "#/$defs/promptDeletion" }
+      }
+    },
+    "promptList": {
+      "title": "ContentPromptListResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "systemPrompts", "prompts"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "systemPrompts": { "type": "array", "items": { "$ref": "#/$defs/systemPromptSummary" } },
+        "prompts": { "type": "array", "items": { "$ref": "#/$defs/promptSummary" } }
+      }
+    },
+    "promptHistoryItem": {
+      "title": "ContentPromptHistoryItem",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "name", "createdAt"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "promptDetail": {
+      "title": "ContentPromptDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "prompt", "history", "lifecycle", "systemLayer"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "prompt": {
+          "title": "ContentPromptRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["promptId", "promptKey", "promptType", "version", "prompt", "createdAt"],
+          "properties": {
+            "promptId": { "$ref": "#/$defs/uuid" },
+            "promptKey": { "type": "string" },
+            "promptType": { "$ref": "#/$defs/promptType" },
+            "version": { "type": "integer", "minimum": 1 },
+            "prompt": { "$ref": "#/$defs/promptContent" },
+            "duplicatedFrom": { "$ref": "../flow/content-prompt-create-request.schema.json#/$defs/lineage" },
+            "createdAt": { "$ref": "#/$defs/dateTime" }
+          }
+        },
+        "history": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/promptHistoryItem" } },
+        "lifecycle": {
+          "title": "ContentPromptLifecycleState",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sequence"],
+          "properties": {
+            "sequence": { "type": "integer", "minimum": 0 },
+            "deleted": { "$ref": "#/$defs/promptDeletion" }
+          }
+        },
+        "systemLayer": { "$ref": "#/$defs/systemLayer" }
+      }
+    },
+    "systemPromptDetail": {
+      "title": "ContentSystemPromptDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "systemPrompt", "systemLayer"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "systemPrompt": {
+          "title": "ContentSystemPromptRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "promptType", "version", "sha256", "prompt", "isDefault"],
+          "properties": {
+            "id": { "type": "string" },
+            "promptType": { "$ref": "#/$defs/promptType" },
+            "version": { "type": "integer", "minimum": 1 },
+            "sha256": { "$ref": "#/$defs/sha256" },
+            "prompt": { "$ref": "#/$defs/promptContent" },
+            "isDefault": { "type": "boolean" }
+          }
+        },
+        "systemLayer": { "$ref": "#/$defs/systemLayer" }
       }
     },
     "error": {
