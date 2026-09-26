@@ -104,6 +104,7 @@ interface PromptHarness {
   readonly notifications: string[];
   readonly notice: HTMLElement;
   readonly render: (promptRef: string | null) => Promise<void>;
+  readonly unmountPage: () => Promise<void>;
   readonly settle: (url: string, body: unknown, status?: number, method?: string) => Promise<void>;
   readonly cleanup: () => Promise<void>;
 }
@@ -141,6 +142,12 @@ async function mountPromptPage(PromptsPage: PromptPageModule['default'], initial
     notifications,
     notice,
     render,
+    unmountPage: async () => {
+      await act(async () => {
+        root.render(null);
+        await Promise.resolve();
+      });
+    },
     settle: (url, body, status, method) => settleRequest(queue, url, body, status, method),
     cleanup: async () => {
       await act(async () => { root.unmount(); });
@@ -506,6 +513,30 @@ test('a stale prompt save success leaves a newly opened draft intact', { concurr
     assert.equal(buttonWithText(form, 'Tạo prompt').textContent?.trim(), 'Tạo prompt');
     assert.equal((form.querySelector('input') as HTMLInputElement).disabled, false);
     assert.equal(harness.notice.textContent, 'Đã lưu phiên bản 2.');
+    assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptId)), false);
+  } finally {
+    await harness.cleanup();
+  }
+});
+
+test('a prompt save that resolves after the page unmounts cannot navigate over a new draft', { concurrency: false }, async () => {
+  const PromptsPage = await importPromptsPage();
+  const harness = await mountPromptPage(PromptsPage, promptId);
+  try {
+    const list = promptList([{ promptId, prompt: promptAContent }, { promptId: promptBId, prompt: promptBContent }]);
+    await harness.settle('/api/content/prompts', list);
+    await harness.settle(`/api/content/prompts/${promptId}`, promptDetail(promptId, promptAContent));
+    await submitCurrentEdit(harness, 'A dang luu truoc khi roi trang', promptId);
+
+    await harness.unmountPage();
+    await openNewPrompt(harness, 'UNSAVED NEW B AFTER UNMOUNT', 'B draft must survive the old save.');
+
+    await harness.settle(`/owner-api/content/prompts/${promptId}/revisions`, revisionReceipt, 200, 'POST');
+
+    const form = promptForm(harness.container);
+    assert.equal((form.querySelector('input') as HTMLInputElement).value, 'UNSAVED NEW B AFTER UNMOUNT');
+    assert.equal(buttonWithText(form, 'Tạo prompt').textContent?.trim(), 'Tạo prompt');
+    assert.equal((form.querySelector('input') as HTMLInputElement).disabled, false);
     assert.equal(harness.navigateCalls.includes(routeToHash.prompt('BIG_IDEA', promptId)), false);
   } finally {
     await harness.cleanup();
