@@ -1,6 +1,6 @@
 # Task 048c1: Owner template prompts in the prompt library
 
-Lane: Standard. Stacked on Task 048c (`feature/048c-content-prompt-library`).
+Lane: Standard. Built on Task 048c; rebased onto `main` `f133f12` after #47 and #48 merged.
 
 ## Goal
 
