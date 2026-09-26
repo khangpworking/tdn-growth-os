@@ -129,4 +129,8 @@ A failed check writes nothing. Service rules follow the earlier content slices: 
   - The campaign service detects "product workspace not found" through `FlowValidationError.details`, because `.message` carries the `Invalid flow input:` prefix.
   - The list read takes no query string (§3, amended).
   - `frontend/tests/content-prompts.test.ts` is outside the owned paths. Its demo-reset assertion was extended, not weakened, to include `campaigns: []` and `setDemoCampaigns`, because `seedDemoContent` now also seeds campaigns and “Đặt lại demo” resets them.
+- **Independent review fixes** (b204f9, plus audit tests in a08d39):
+  - **R2:** campaign save completion is bound to the submitting editor session, using the same mechanism as 048c's R1 fix. A late result for an editor that is no longer shown only notifies and reloads; it never navigates away from or closes the current editor.
+  - **R3:** a campaign deleted elsewhere while being edited shows its deleted detail, with either the restore window or the expired notice, instead of the form. The unsaved draft is kept and returns after restore.
+  - Mounted jsdom tests (the pinned jsdom devDependency from 048c) failed before the fix. Codex then audited coverage with its test-audit skill and added the stale-failure, exact-retry and double-submit cases.
 - **Evidence:** see `docs/handoffs/048d-content-campaigns.md`.

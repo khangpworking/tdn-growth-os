@@ -1,7 +1,7 @@
 # Handoff — Task 048d Content Studio campaigns
 
 Updated: 2026-09-26
-Worktree/branch: `feature/048d-content-campaigns`, stacked on `feature/048c-content-prompt-library` `65eb263` (PR #47, not merged yet). Rebase onto `main` once #47 merges; the migration number 0024 holds only if nothing else takes it first.
+Worktree/branch: `feature/048d-content-campaigns`, stacked on `feature/048c-content-prompt-library` `8b7d843` (PR #47, not merged yet). Rebase onto `main` once #47 merges; the migration number 0024 holds only if nothing else takes it first.
 Completed:
 - **Brief and decisions.** `docs/tasks/048d-content-campaigns.md`; the owner approved P1–P4 on 2026-09-25 (defaults to 051, delete/restore in 048d, items pin catalog versions, research link verified only).
 - **Data.** Migration 0024: campaigns, revisions and a DELETE/RESTORE lifecycle, with 048c's alternation, chronological and 30-day triggers copied under campaign names. Schema-version assertions 23 → 24.
@@ -17,7 +17,7 @@ Evidence (commands, results, relevant revision):
 
   Chips are now hidden until “Dùng phiên bản mới” is applied. Summary-only items keep their existing tier keys, and their upgrade is disabled.
 - **Local Windows** (Codex runs the tests and reports the results; Claude reviews each diff against the plan):
-  - frontend 111/111 after the fix; frontend typecheck and build clean; root typecheck `status 0`;
+  - frontend 120/120 after the independent-review fixes; frontend typecheck and build clean; root typecheck `status 0`;
   - root `npm test` 362/378, the 16 failures being the known Windows-only set;
   - campaign backend suites 20/20 (migration 2, contracts 2, service 9, API 7);
   - content integration suites 63/65, the 2 failures being in the known Windows-only set.
@@ -28,7 +28,8 @@ Unresolved:
 - **Item and research-link locking** is decided by 050 (Insight lock). Until then both change only through a campaign revision.
 - **Campaign defaults** are 051 (P1).
 - **`INTENT.md` has two D33 headings;** renumbering needs an owner decision (brief §6).
-Next action: independent review of the draft PR, then the owner merges it after #47.
+- **Independent review:** R2 and R3 are fixed in `fb204f9`, with Codex test-audit tests in `ea08d39`. There are no deviations from the fix plan and no production bug was found by the audit.
+Next action: re-review of R2/R3, then the owner merges this PR after #47. Retarget it to `main` for final-head CI.
 Business decisions pending:
 - Strip EXIF metadata before live Poster calls?
 - Catalog archive/delete, which is still undefined.
