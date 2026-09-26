@@ -8,6 +8,9 @@ export type Route =
   | { readonly kind: 'brands' }
   | { readonly kind: 'brand'; readonly brandId: string }
   | { readonly kind: 'catalog'; readonly brandId: string; readonly itemId: string | null }
+  | { readonly kind: 'content'; readonly hash: string }
+  | { readonly kind: 'campaign-new'; readonly hash: string }
+  | { readonly kind: 'campaign'; readonly campaignId: string; readonly hash: string }
   | { readonly kind: 'prompts'; readonly promptType: PromptType; readonly promptRef: string | null }
   | { readonly kind: 'invalid'; readonly hash: string };
 
@@ -25,6 +28,11 @@ export function parseRoute(hash: string, state: DemoState): Route {
   }
   if (parts.length === 1 && parts[0] === 'brands') return { kind: 'brands' };
   if (parts.length === 2 && parts[0] === 'brands') return UUID.test(parts[1]!) ? { kind: 'brand', brandId: parts[1]! } : { kind: 'invalid', hash };
+  if (parts.length === 1 && parts[0] === 'content') return { kind: 'content' } as Route;
+  if (parts.length === 2 && parts[0] === 'content') {
+    if (parts[1] === 'new') return { kind: 'campaign-new' } as Route;
+    return UUID.test(parts[1]!) ? { kind: 'campaign', campaignId: parts[1]! } as Route : { kind: 'invalid', hash };
+  }
   if (parts[0] === 'prompts' && parts.length <= 3) {
     const promptType = parts.length === 1 ? 'BIG_IDEA' : typeBySlug(parts[1]!);
     const promptRef = parts[2] ?? null;
@@ -55,6 +63,9 @@ export const routeToHash = {
   brands: (): string => '#/brands',
   brand: (brandId: string): string => `#/brands/${encodeURIComponent(brandId)}`,
   catalog: (brandId: string): string => `#/brands/${encodeURIComponent(brandId)}/products`,
+  content: (): string => '#/content',
+  campaignNew: (): string => '#/content/new',
+  campaign: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}`,
   prompts: (promptType: PromptType): string => `#/prompts/${slugOf(promptType)}`,
   prompt: (promptType: PromptType, promptRef: string): string => `#/prompts/${slugOf(promptType)}/${encodeURIComponent(promptRef)}`,
   catalogItem: (brandId: string, itemId: string): string => `#/brands/${encodeURIComponent(brandId)}/products/${encodeURIComponent(itemId)}`,
