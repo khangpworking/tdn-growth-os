@@ -43,16 +43,34 @@ export const SYSTEM_PROMPTS: readonly SystemPromptEntry[] = [
     file: 'library/big-idea-strategic-v3.1.md', sha256: '89ebebca757b525a269c0da93bc92c0695c5a907c664cfadb23a151ca8e6280f',
   },
   {
+    id: 'system-big-idea-insight', promptType: 'BIG_IDEA', version: 1, name: 'Big Idea từ Consumer Insight v1',
+    description: 'Biến một Insight có sẵn thành đúng một Big Idea (Concept + Expression), qua Quality Test và Tagline Trap Test, tránh lặp các Big Idea trước. Mẫu của chủ dự án.',
+    recommendedModel: 'gpt-5.6-sol', tags: ['chiến lược', 'mẫu chủ dự án'], isDefault: false,
+    file: 'library/big-idea-insight-v1.md', sha256: '73fe89f0a19cdac2df09b7d6c7bdd7b63e8da2b7c0e211a8324c16d7ed450d04',
+  },
+  {
     id: 'system-angle-social', promptType: 'ANGLE', version: 1, name: 'Góc khai thác mạng xã hội v3',
     description: 'Một lát cắt cụ thể của Big Idea, đủ cho một bài Facebook, tránh văn mẫu AI. Chuyển từ Content Studio v3.',
     recommendedModel: 'gpt-5.6-sol', tags: ['Facebook', 'Content Studio v3'], isDefault: true,
     file: 'library/angle-social-v3.md', sha256: 'bdee71f7a72df7f02186b8f77879209440d4d70cfd5f78fef71edd40318dfe31',
   },
   {
+    id: 'system-angle-content', promptType: 'ANGLE', version: 1, name: 'Góc nội dung từ Big Idea v1',
+    description: 'Một Content Angle cụ thể từ Big Idea, đủ cho một bài, đổi góc khai thác thay vì đổi câu chữ, có quy tắc chống văn mẫu AI. Mẫu của chủ dự án.',
+    recommendedModel: 'gpt-5.6-sol', tags: ['mạng xã hội', 'mẫu chủ dự án'], isDefault: false,
+    file: 'library/angle-content-v1.md', sha256: '18eae96499b73864849748c8687e9fb62efdfd58d8be5820ae258ec9413c3655',
+  },
+  {
     id: 'system-caption-facebook', promptType: 'CAPTION', version: 1, name: 'Caption Facebook v3',
     description: 'Một bài Facebook hoàn chỉnh từ góc đã chọn, giọng người Việt tự nhiên, không claim ngoài dữ liệu. Chuyển từ Content Studio v3.',
     recommendedModel: 'gpt-5.6-sol', tags: ['Facebook', 'Content Studio v3'], isDefault: true,
     file: 'library/caption-facebook-v3.md', sha256: 'efb5a5150b919950c86eabe0f6392f1a053bbd4495e2d8d2b6215529702450a9',
+  },
+  {
+    id: 'system-caption-social-post', promptType: 'CAPTION', version: 1, name: 'Social Post từ góc nội dung v1',
+    description: 'Một Social Post hoàn chỉnh từ Content Angle đã chọn: cầu nối sản phẩm tự nhiên, 14 quy tắc chống văn mẫu AI, không bịa dữ kiện. Mẫu của chủ dự án.',
+    recommendedModel: 'gpt-5.6-sol', tags: ['mạng xã hội', 'mẫu chủ dự án'], isDefault: false,
+    file: 'library/caption-social-post-v1.md', sha256: '77a0fed664d07a9f09f520ddd7f90a9c010231a652f7a24b959932f5135332a2',
   },
   {
     id: 'system-poster-b2b-infographic', promptType: 'POSTER', version: 1, name: 'Poster infographic B2B v2',
