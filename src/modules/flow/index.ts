@@ -123,4 +123,8 @@ export {
   validateContentPromptCreateRequest,
   validateContentPromptLifecycleRequest,
   validateContentPromptRevisionRequest,
+  validateContentCampaignArtifact,
+  validateContentCampaignCreateRequest,
+  validateContentCampaignLifecycleRequest,
+  validateContentCampaignRevisionRequest,
 } from './validation.js';

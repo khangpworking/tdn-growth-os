@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-campaign-lifecycle-request.schema.json",
+  "title": "ContentCampaignLifecycleRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "action", "expectedSequence"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "action": { "title": "ContentCampaignLifecycleAction", "enum": ["DELETE", "RESTORE"] },
+    "expectedSequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 }
+  }
+}
