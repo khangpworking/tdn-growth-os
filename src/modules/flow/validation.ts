@@ -62,6 +62,14 @@ import contentPromptLifecycleSchema from '../../../contracts/flow/content-prompt
 import type { ContentPromptLifecycleRequest } from '../../../contracts/flow/content-prompt-lifecycle-request.generated.js';
 import contentPromptArtifactSchema from '../../../contracts/flow/content-prompt-artifact.schema.json' with { type: 'json' };
 import type { ContentPromptArtifact } from '../../../contracts/flow/content-prompt-artifact.generated.js';
+import contentCampaignCreateSchema from '../../../contracts/flow/content-campaign-create-request.schema.json' with { type: 'json' };
+import type { ContentCampaignContent, ContentCampaignCreateRequest } from '../../../contracts/flow/content-campaign-create-request.generated.js';
+import contentCampaignRevisionSchema from '../../../contracts/flow/content-campaign-revision-request.schema.json' with { type: 'json' };
+import type { ContentCampaignRevisionRequest } from '../../../contracts/flow/content-campaign-revision-request.generated.js';
+import contentCampaignLifecycleSchema from '../../../contracts/flow/content-campaign-lifecycle-request.schema.json' with { type: 'json' };
+import type { ContentCampaignLifecycleRequest } from '../../../contracts/flow/content-campaign-lifecycle-request.generated.js';
+import contentCampaignArtifactSchema from '../../../contracts/flow/content-campaign-artifact.schema.json' with { type: 'json' };
+import type { ContentCampaignArtifact } from '../../../contracts/flow/content-campaign-artifact.generated.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -107,6 +115,10 @@ const validateContentPromptCreate = ajv.compile<ContentPromptCreateRequest>(cont
 const validateContentPromptRevision = ajv.compile<ContentPromptRevisionRequest>(contentPromptRevisionSchema);
 const validateContentPromptLifecycle = ajv.compile<ContentPromptLifecycleRequest>(contentPromptLifecycleSchema);
 const validateContentPromptEnvelope = ajv.compile<ContentPromptArtifact>(contentPromptArtifactSchema);
+const validateContentCampaignCreate = ajv.compile<ContentCampaignCreateRequest>(contentCampaignCreateSchema);
+const validateContentCampaignRevision = ajv.compile<ContentCampaignRevisionRequest>(contentCampaignRevisionSchema);
+const validateContentCampaignLifecycle = ajv.compile<ContentCampaignLifecycleRequest>(contentCampaignLifecycleSchema);
+const validateContentCampaignEnvelope = ajv.compile<ContentCampaignArtifact>(contentCampaignArtifactSchema);
 
 export class FlowValidationError extends Error {
   readonly details: string;
@@ -297,6 +309,35 @@ export function validateContentPromptArtifact(value: unknown): ContentPromptArti
   if (!validateContentPromptEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentPromptEnvelope.errors, { separator: '; ' }));
   assertContentPromptContent(value.promptType, value.prompt);
   if (value.duplicatedFrom && value.version !== 1) throw new FlowValidationError('Only version 1 records prompt lineage');
+  return value;
+}
+
+/** A campaign names each catalog item once; tier keys are already unique per item by schema. */
+export function assertContentCampaignContent(campaign: ContentCampaignContent): void {
+  const itemIds = campaign.items.map((item) => item.itemId);
+  if (new Set(itemIds).size !== itemIds.length) throw new FlowValidationError('Campaign items must be unique');
+}
+
+export function validateContentCampaignCreateRequest(value: unknown): ContentCampaignCreateRequest {
+  if (!validateContentCampaignCreate(value)) throw new FlowValidationError(ajv.errorsText(validateContentCampaignCreate.errors, { separator: '; ' }));
+  assertContentCampaignContent(value.campaign);
+  return value;
+}
+
+export function validateContentCampaignRevisionRequest(value: unknown): ContentCampaignRevisionRequest {
+  if (!validateContentCampaignRevision(value)) throw new FlowValidationError(ajv.errorsText(validateContentCampaignRevision.errors, { separator: '; ' }));
+  assertContentCampaignContent(value.campaign);
+  return value;
+}
+
+export function validateContentCampaignLifecycleRequest(value: unknown): ContentCampaignLifecycleRequest {
+  if (!validateContentCampaignLifecycle(value)) throw new FlowValidationError(ajv.errorsText(validateContentCampaignLifecycle.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentCampaignArtifact(value: unknown): ContentCampaignArtifact {
+  if (!validateContentCampaignEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentCampaignEnvelope.errors, { separator: '; ' }));
+  assertContentCampaignContent(value.campaign);
   return value;
 }
 

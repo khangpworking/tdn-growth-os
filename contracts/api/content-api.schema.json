@@ -10,6 +10,8 @@
     { "$ref": "#/$defs/promptList" },
     { "$ref": "#/$defs/promptDetail" },
     { "$ref": "#/$defs/systemPromptDetail" },
+    { "$ref": "#/$defs/campaignList" },
+    { "$ref": "#/$defs/campaignDetail" },
     { "$ref": "#/$defs/error" }
   ],
   "$defs": {
@@ -316,6 +318,127 @@
           }
         },
         "systemLayer": { "$ref": "#/$defs/systemLayer" }
+      }
+    },
+    "campaignContent": { "$ref": "../flow/content-campaign-create-request.schema.json#/$defs/campaign" },
+    "campaignDeletion": {
+      "title": "ContentCampaignDeletion",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["deletedAt", "restorableUntil"],
+      "properties": {
+        "deletedAt": { "$ref": "#/$defs/dateTime" },
+        "restorableUntil": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "campaignItemSummary": {
+      "title": "ContentCampaignItemSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemId", "itemVersion", "name", "tierNames"],
+      "properties": {
+        "itemId": { "$ref": "#/$defs/uuid" },
+        "itemVersion": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "tierNames": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "campaignSummary": {
+      "title": "ContentCampaignSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["campaignId", "campaignKey", "brandId", "version", "name", "items", "updatedAt"],
+      "properties": {
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "campaignKey": { "type": "string" },
+        "brandId": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/campaignItemSummary" } },
+        "updatedAt": { "$ref": "#/$defs/dateTime" },
+        "deleted": { "$ref": "#/$defs/campaignDeletion" }
+      }
+    },
+    "campaignList": {
+      "title": "ContentCampaignListResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaigns"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaigns": { "type": "array", "items": { "$ref": "#/$defs/campaignSummary" } }
+      }
+    },
+    "campaignHistoryItem": {
+      "title": "ContentCampaignHistoryItem",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "name", "createdAt"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "name": { "type": "string" },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "campaignItemView": {
+      "title": "ContentCampaignItemView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemId", "itemVersion", "itemKey", "itemType", "name", "tiers"],
+      "properties": {
+        "itemId": { "$ref": "#/$defs/uuid" },
+        "itemVersion": { "type": "integer", "minimum": 1 },
+        "itemKey": { "type": "string" },
+        "itemType": { "enum": ["PHYSICAL", "SERVICE"] },
+        "name": { "type": "string" },
+        "tiers": {
+          "type": "array",
+          "items": {
+            "title": "ContentCampaignTierView",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["tierKey", "name"],
+            "properties": {
+              "tierKey": { "type": "string" },
+              "name": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "campaignDetail": {
+      "title": "ContentCampaignDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaign", "items", "history", "lifecycle"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaign": {
+          "title": "ContentCampaignRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["campaignId", "campaignKey", "brandId", "version", "campaign", "createdAt"],
+          "properties": {
+            "campaignId": { "$ref": "#/$defs/uuid" },
+            "campaignKey": { "type": "string" },
+            "brandId": { "$ref": "#/$defs/uuid" },
+            "version": { "type": "integer", "minimum": 1 },
+            "campaign": { "$ref": "#/$defs/campaignContent" },
+            "createdAt": { "$ref": "#/$defs/dateTime" }
+          }
+        },
+        "items": { "type": "array", "items": { "$ref": "#/$defs/campaignItemView" } },
+        "history": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/campaignHistoryItem" } },
+        "lifecycle": {
+          "title": "ContentCampaignLifecycleState",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["sequence"],
+          "properties": {
+            "sequence": { "type": "integer", "minimum": 0 },
+            "deleted": { "$ref": "#/$defs/campaignDeletion" }
+          }
+        }
       }
     },
     "error": {

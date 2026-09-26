@@ -8,6 +8,8 @@ export type ContentApiContract =
   | ContentPromptListResponse
   | ContentPromptDetailResponse
   | ContentSystemPromptDetailResponse
+  | ContentCampaignListResponse
+  | ContentCampaignDetailResponse
   | ContentApiErrorResponse;
 export type Uuid = string;
 export type DateTime = string;
@@ -367,6 +369,184 @@ export interface ContentSystemPromptRecord {
   sha256: Sha256;
   prompt: ContentPromptContent;
   isDefault: boolean;
+}
+export interface ContentCampaignListResponse {
+  contractVersion: '1.0.0';
+  campaigns: ContentCampaignSummary[];
+}
+export interface ContentCampaignSummary {
+  campaignId: Uuid;
+  campaignKey: string;
+  brandId: Uuid;
+  version: number;
+  name: string;
+  items: ContentCampaignItemSummary[];
+  updatedAt: DateTime;
+  deleted?: ContentCampaignDeletion;
+}
+export interface ContentCampaignItemSummary {
+  itemId: Uuid;
+  itemVersion: number;
+  name: string;
+  tierNames: string[];
+}
+export interface ContentCampaignDeletion {
+  deletedAt: DateTime;
+  restorableUntil: DateTime;
+}
+export interface ContentCampaignDetailResponse {
+  contractVersion: '1.0.0';
+  campaign: ContentCampaignRecord;
+  items: ContentCampaignItemView[];
+  /**
+   * @minItems 1
+   */
+  history: [ContentCampaignHistoryItem, ...ContentCampaignHistoryItem[]];
+  lifecycle: ContentCampaignLifecycleState;
+}
+export interface ContentCampaignRecord {
+  campaignId: Uuid;
+  campaignKey: string;
+  brandId: Uuid;
+  version: number;
+  campaign: ContentCampaignContent;
+  createdAt: DateTime;
+}
+export interface ContentCampaignContent {
+  name: string;
+  objective: string;
+  /**
+   * @minItems 1
+   * @maxItems 12
+   */
+  items:
+    | [ContentCampaignItemRef]
+    | [ContentCampaignItemRef, ContentCampaignItemRef]
+    | [ContentCampaignItemRef, ContentCampaignItemRef, ContentCampaignItemRef]
+    | [ContentCampaignItemRef, ContentCampaignItemRef, ContentCampaignItemRef, ContentCampaignItemRef]
+    | [
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+      ]
+    | [
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+      ]
+    | [
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+      ]
+    | [
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+      ]
+    | [
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+      ]
+    | [
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+      ]
+    | [
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+      ]
+    | [
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+        ContentCampaignItemRef,
+      ];
+  researchProductWorkspaceId?: string;
+}
+export interface ContentCampaignItemRef {
+  itemId: string;
+  itemVersion: number;
+  /**
+   * @minItems 1
+   * @maxItems 8
+   */
+  tierKeys?:
+    | [string]
+    | [string, string]
+    | [string, string, string]
+    | [string, string, string, string]
+    | [string, string, string, string, string]
+    | [string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string]
+    | [string, string, string, string, string, string, string, string];
+}
+export interface ContentCampaignItemView {
+  itemId: Uuid;
+  itemVersion: number;
+  itemKey: string;
+  itemType: 'PHYSICAL' | 'SERVICE';
+  name: string;
+  tiers: ContentCampaignTierView[];
+}
+export interface ContentCampaignTierView {
+  tierKey: string;
+  name: string;
+}
+export interface ContentCampaignHistoryItem {
+  version: number;
+  name: string;
+  createdAt: DateTime;
+}
+export interface ContentCampaignLifecycleState {
+  sequence: number;
+  deleted?: ContentCampaignDeletion;
 }
 export interface ContentApiErrorResponse {
   error: {

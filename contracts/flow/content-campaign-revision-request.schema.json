@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-campaign-revision-request.schema.json",
+  "title": "ContentCampaignRevisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "expectedVersion", "campaign"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "expectedVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740990 },
+    "campaign": { "$ref": "content-campaign-create-request.schema.json#/$defs/campaign" }
+  }
+}

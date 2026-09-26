@@ -58,8 +58,8 @@ const count = (db: ReturnType<typeof openDatabase>['db'], table: string) => Numb
 
 test('migration 0022 creates immutable media and catalog tables', async () => {
   const state = await setup();
-  assert.equal(state.migration.currentVersion, 23);
-  const names = (state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'flow_content_%' AND name NOT LIKE 'flow_content_prompt%' ORDER BY name").all() as { name: string }[]).map((row) => row.name);
+  assert.equal(state.migration.currentVersion, 24);
+  const names = (state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'flow_content_%' AND name NOT LIKE 'flow_content_prompt%' AND name NOT LIKE 'flow_content_campaign%' ORDER BY name").all() as { name: string }[]).map((row) => row.name);
   assert.deepEqual(names, ['flow_content_brand_revisions', 'flow_content_brands', 'flow_content_catalog_item_revisions', 'flow_content_catalog_items', 'flow_content_media']);
   await state.media.registerMedia({ brandId, kind: 'PHOTO', declaredType: 'image/jpeg', bytes: photo });
   await state.catalog.createItem(createRequest());

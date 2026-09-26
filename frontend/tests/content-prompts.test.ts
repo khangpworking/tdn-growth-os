@@ -208,11 +208,11 @@ test('demo reset restores the seeded brand and catalog and drops demo prompts', 
   assert.equal(demo.items.length, 1);
   assert.deepEqual(demo.media, {});
   assert.deepEqual(demo.prompts, []);
-  assert.deepEqual(seedDemoContent('real'), { brands: [], items: [], media: {}, prompts: [] });
+  assert.deepEqual(seedDemoContent('real'), { brands: [], items: [], media: {}, prompts: [], campaigns: [] });
   const app = fs.readFileSync('frontend/src/App.tsx', 'utf8');
   const reset = /const reset = \(\) => \{([\s\S]*?)\n  \};/.exec(app)?.[1] ?? '';
   assert.match(reset, /seedDemoContent\(mode\)/);
-  for (const setter of ['setDemoBrands', 'setDemoItems', 'setDemoMedia', 'setDemoPrompts']) assert.match(reset, new RegExp(setter));
+  for (const setter of ['setDemoBrands', 'setDemoItems', 'setDemoMedia', 'setDemoPrompts', 'setDemoCampaigns']) assert.match(reset, new RegExp(setter));
 });
 
 test('drafts become trimmed requests; models and limits depend on the type', () => {

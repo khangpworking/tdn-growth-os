@@ -113,6 +113,17 @@ export {
   type ContentBrandExecution,
 } from './content-brand-service.js';
 export {
+  CAMPAIGN_RESTORE_DAYS,
+  ContentCampaignConflictError,
+  ContentCampaignReferenceError,
+  ContentCampaignService,
+  campaignRestoreDeadline,
+  type ContentCampaignExecution,
+  type ContentCampaignLifecycleExecution,
+  type ContentCampaignLifecycleState,
+  type ContentCampaignRow,
+} from './content-campaign-service.js';
+export {
   validateContentBrandArtifact,
   validateContentBrandCreateRequest,
   validateContentBrandRevisionRequest,
@@ -123,4 +134,8 @@ export {
   validateContentPromptCreateRequest,
   validateContentPromptLifecycleRequest,
   validateContentPromptRevisionRequest,
+  validateContentCampaignArtifact,
+  validateContentCampaignCreateRequest,
+  validateContentCampaignLifecycleRequest,
+  validateContentCampaignRevisionRequest,
 } from './validation.js';
