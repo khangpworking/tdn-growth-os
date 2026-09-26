@@ -1,5 +1,11 @@
 # Trạng thái hiện tại
 
+## Task 048d — Chiến dịch nội dung (draft PR)
+
+- Chiến dịch theo thương hiệu: tên, mục tiêu, 1–12 sản phẩm của thương hiệu, mỗi sản phẩm ghim đúng phiên bản danh mục và chọn gói (không chọn = tất cả gói), liên kết tùy chọn tới hồ sơ sản phẩm nghiên cứu (chỉ kiểm tra, không khóa gì).
+- Sửa thành phiên bản mới, xóa và khôi phục trong 30 ngày (migration 0024; trigger kiểm tra thứ tự và hạn 30 ngày, như 048c). API đọc và OWNER kiểm tra toàn bộ lịch sử trước mỗi lần ghi.
+- Giao diện “Nội dung” (`#/content`): danh sách lọc theo thương hiệu (lọc và đếm phía giao diện), tạo/sửa, chi tiết với bốn bước kế tiếp chưa mở (Insight ở 050), “Đã xóa gần đây”. Mặc định chiến dịch chuyển sang 051. Chưa có lời gọi AI.
+
 ## Task 048c — Thư viện prompt (draft PR)
 
 - Bốn prompt hệ thống (Big Idea v3.1, Góc v3, Caption Facebook v3, Poster infographic B2B v2) tách từ template Content Studio cũ: phần sáng tạo là prompt “Hệ thống · Mặc định”, phần dữ liệu khóa/an toàn/định dạng kết quả là “Phần hệ thống · tự thêm”; mọi tệp được khóa bằng SHA-256.

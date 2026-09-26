@@ -78,7 +78,7 @@ A failed check writes nothing. Service rules follow the earlier content slices: 
 ## 3. APIs
 
 - **Read:**
-  - `GET /api/content/campaigns?brandId=`: active and restorable campaigns (each read at its captured version), with per-brand counts for the filter.
+  - `GET /api/content/campaigns`: active and restorable campaigns of every brand (each read at its captured version). It takes no query string: the content read API rejects any `url.search`, as the other content reads do. The UI filters by brand and computes the per-brand counts on the client. (Amended during implementation; the proposal had `?brandId=` with server-side counts.)
   - `GET /api/content/campaigns/:campaignId`: the verified campaign, its history and lifecycle state, and the resolved item and tier names from the pinned catalog versions.
 - **OWNER:**
   - `POST /owner-api/content/campaigns`: create.
@@ -121,3 +121,12 @@ A failed check writes nothing. Service rules follow the earlier content slices: 
 
 - `INTENT.md` has two headings numbered **D33**: line 92, the Content Studio decision cited by ADR 0003 and 047, and line 405, the OWNER B7 API/UI boundary. Renumbering needs an owner decision, and `INTENT.md` is outside this slice's owned paths.
 - Catalog archive/delete is still undefined. Campaigns only reference catalog item versions, so a later archive rule cannot corrupt them.
+
+## 7. Implementation notes
+
+- **Division of work.** Claude wrote the plan; Codex implemented Tasks 1 and 3–5 from it; Claude wrote the contracts (Task 2) and these docs, reviewed each Codex diff against the plan, and committed.
+- **Deviations from the plan:**
+  - The campaign service detects "product workspace not found" through `FlowValidationError.details`, because `.message` carries the `Invalid flow input:` prefix.
+  - The list read takes no query string (§3, amended).
+  - `frontend/tests/content-prompts.test.ts` is outside the owned paths. Its demo-reset assertion was extended, not weakened, to include `campaigns: []` and `setDemoCampaigns`, because `seedDemoContent` now also seeds campaigns and “Đặt lại demo” resets them.
+- **Evidence:** see `docs/handoffs/048d-content-campaigns.md`.
