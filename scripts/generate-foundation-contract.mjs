@@ -5,6 +5,8 @@ import { compileFromFile } from 'json-schema-to-typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contracts = [
+  ['analysis', 'report-section-catalog'],
+  ['analysis', 'versioned-report-packet'],
   ['analysis', 'metric-source-manifest'],
   ['analysis', 'metric-source-labels'],
   ['analysis', 'metric-scope-input'],
@@ -95,6 +97,8 @@ for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
+    // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
+    ...(['report-section-catalog', 'versioned-report-packet'].includes(contract) ? { ignoreMinAndMaxItems: true } : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,
     style: { singleQuote: true, semi: true, tabWidth: 2, trailingComma: 'all' },
   });

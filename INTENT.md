@@ -8,6 +8,8 @@ Cùng bộ đầu vào đã đóng băng, phiên bản phương pháp và cấu 
 
 A1 là calculator/CLI offline với bản nháp JSON/Markdown deterministic, chưa full report/Insight, chưa có SQLite report-run/UI hoặc AI generation. Chính sách UNKNOWN trong wide là cấu hình bắt buộc và chưa có lựa chọn mặc định cho báo cáo thật. Xem `docs/tasks/research-a1-deterministic-metric.md`.
 
+A3a (2026-09-28) triển khai lát packet offline nhỏ trước phần A3 persistence: cùng dependency bytes và phiên bản code/phương pháp cho cùng bản nháp; đổi dependency tạo content identity khác, không tự ghi đè hay bịa lịch sử phiên bản tuần tự. Catalog 30 mục là metadata kế hoạch; maturity lịch sử không phải bằng chứng độ hoàn thiện của bản mới. Chỉ materialize quan sát định lượng do ứng dụng tính, chưa nhận/sinh INFERENCE hoặc HYPOTHESIS. Phần thiếu hiện blocker; tất cả UNREVIEWED. Quyền nhập case/claim thủ công, source acceptance thật, official approval và database/workspace integration còn để lát sau.
+
 Cập nhật: 11/09/2026. Trạng thái: ghi nhận quyết định frontend sau baseline Task 032; visual direction đang đề xuất.
 
 ## Mục đích và cách đọc
