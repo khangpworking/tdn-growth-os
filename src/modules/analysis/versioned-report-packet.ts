@@ -92,9 +92,14 @@ export function createResearchReportPacket(resultBytes: Buffer, resultSha256: st
           }
         }
       }
+      if ((sectionId === 'M03' || sectionId === 'M04') && claimIds.length === 0) {
+        deliveryState = 'BLOCKED';
+        blockers.push('NO_ELIGIBLE_OBSERVATIONS');
+      }
     }
     const section = { sectionId, deliveryState, claimIds, contextPointers, blockers: [...new Set(blockers)] };
-    return { ...section, sectionSha256: identity({ definition, metricResultSha256: resultSha256, ...section }) };
+    return { ...section, sectionSha256: identity({ policyVersion: 'report-packet-a3a-v1', definition,
+      metricResultSha256: resultSha256, claims: claims.filter(c => c.sectionId === sectionId), ...section }) };
   });
   const content: Omit<VersionedReportPacket, 'packetId'> = {
     contractVersion: '1.0.0', policyVersion: 'report-packet-a3a-v1', rendererVersion: 'report-packet-vi-v1',

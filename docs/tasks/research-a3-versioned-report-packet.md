@@ -12,11 +12,15 @@ Offline CLI takes one exact A1-format result file, its expected byte SHA-256, a 
 
 The packet binds the catalog snapshot, exact result bytes, normalized-input digest, declared source hashes, calculation/rounding versions, packet policy and renderer version. No runtime timestamp, generated UUID or implicit latest lookup enters deterministic identity. Changed dependencies produce a different content identity; this does not invent a sequential report history.
 
+The retained canonical A1 result embeds the normalized input exactly as canonical JSON; `inputSha256` binds `canonicalJson(result.input)` without a trailing LF. This is not a separate original normalized-input file artifact and makes no claim to preserve that original file's whitespace. Raw source bytes remain outside this bundle and are not reverified. A section hash additionally binds its definition, result digest, policy and actual claim payloads.
+
 The catalog is planning metadata, not an executable or approved methodology. Its historical template maturity is not proof of a new report's maturity. Section IDs are extensible; unimplemented handlers remain explicit. No catalog field can grant approval or supply a numeric claim.
 
 Application-owned FACT observations only: listing/shop counts, observed revenue/units, and eligible top-shop shares, with exact JSON pointers, period/scope, coverage, precision caveats and denominator references. These are observations of normalized input, not verified market facts. No caller-supplied FACT text, INFERENCE, HYPOTHESIS or manual evidence import is supported in A3a. Importing those categories requires its own method/rights/review boundary later; a schema cannot prove their truth.
 
 M02/M03/M04/M13 get bounded partial outputs; wide/core remain blocked when labels are stale/missing. I03/I17 carry method/provenance scaffolding only. Other sections retain missing-input/manual/method/not-implemented states from the versioned planning catalog. No assertion that all 30 sections are complete.
+
+Scope blockers remain explicit even when a section has some usable observations. M03/M04 with no surviving observations is BLOCKED rather than partial. In particular M04 cannot claim delivery when missing/zero revenue leaves no eligible concentration denominator.
 
 All outputs remain UNREVIEWED/DRAFT. No approval command exists. Source hashes and scope/acquisition declarations are preserved but A3a does not reopen raw workbooks or authenticate providers. The result therefore remains NORMALIZED_INPUT_ONLY, even if produced by A2; A2 receipt hashes alone do not upgrade verification.
 

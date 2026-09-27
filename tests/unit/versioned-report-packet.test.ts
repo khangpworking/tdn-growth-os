@@ -56,6 +56,7 @@ test('A3 keeps missing, zero, non-exact observations and blocked labels distinct
   assert.equal(partial.packet.claims.find(c => c.claimId === 'M03:all:revenue')?.value, '35');
   assert.equal(partial.packet.claims.some(c => c.scopeKey !== 'all'), false);
   assert.equal(partial.packet.claims.some(c => c.statementKind === 'TOP_SHOP_SHARE'), false);
+  assert.equal(partial.packet.sections.find(s => s.sectionId === 'M04')?.deliveryState, 'BLOCKED');
   assert.ok(partial.packet.sections.find(s => s.sectionId === 'M03')!.blockers.includes('wide:BLOCKED_LABELS'));
   assert.match(partial.report, /2 dòng thiếu, 1 dòng không có precision exact/);
   for (const row of input.records) row.revenue = { ...row.revenue, state: 'missing', value: null, displayedValue: null };
@@ -66,6 +67,7 @@ test('A3 keeps missing, zero, non-exact observations and blocked labels distinct
   const zero = compose(calculateMetricScopes(input));
   assert.equal(zero.packet.claims.find(c => c.claimId === 'M03:all:revenue')?.value, '0');
   assert.equal(zero.packet.claims.some(c => c.statementKind === 'TOP_SHOP_SHARE'), false);
+  assert.equal(zero.packet.sections.find(s => s.sectionId === 'M04')?.deliveryState, 'BLOCKED');
 });
 
 test('A3 rejects tampered result/hash or unsupported manual claims; catalog changes cannot promote observations or approval', () => {
