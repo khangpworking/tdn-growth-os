@@ -1,6 +1,8 @@
 # Research A2 handoff
 
-Implementation complete locally; Linux CI and review pending. Based on A1 `781e819b54b97434794600fcf7d03764484efbf9` / PR #52, not yet merged. No Windows tests, typechecks or builds run. Generated TypeScript files were produced by the existing schema generator only (not verification).
+Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/54. Based on A1 `781e819b54b97434794600fcf7d03764484efbf9` / PR #52, not yet merged. PR targets main for existing Linux CI; review the A2-only delta from the A1 head and merge A1 first. No Windows tests, typechecks or builds run. Generated TypeScript files were produced by the existing schema generator only (not verification).
+
+Implementation commit `7a3cd2aa0553f9fad5b980225cd9b23465e65922` passed Linux CI: https://github.com/khangpworking/tdn-growth-os/actions/runs/36336589081. Later documentation-only heads still require their own successful check. Exact final-head evidence belongs in the PR handoff comment. Business task independently reviewed this mapping with no material mismatch; technical independent review and owner merge remain outstanding.
 
 Changes: two canonical manifest/sidecar schemas and generated types; bounded Python standard-library OOXML reader; TypeScript exact-profile normalization; private offline CLI; synthetic source-boundary tests; task/README/STATUS/INTENT documentation.
 
