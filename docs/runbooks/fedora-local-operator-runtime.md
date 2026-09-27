@@ -47,6 +47,8 @@ npm run frontend:build
 
 `TDN_WORKSPACE_DB` configures the operator runtime; the migration CLI does **not** read it. Pass the intended database explicitly as shown, then export that same absolute path for startup. Keep the SQLite database, WAL/SHM files, and artifact root private and outside Git.
 
+**Run the migration step before starting any new build.** Startup refuses a database whose schema is older than the build (`Database schema is at v<n>; apply migrations up to v<head> before starting`). A build containing Task 049 needs migration 0025 (`flow_content_ai_attempts`); it is additive, and rolling the build back leaves an unused table.
+
 ## 3. Configure without `.env`
 
 Export variables in the current private shell only. Never create or commit `.env`, tokens, databases, artifacts, or real business data.
@@ -76,6 +78,38 @@ export TDN_OWNER_API_ACTOR_ID='<valid-local-owner-actor-id>'
 
 The token is a local development authorization gate, not production authentication. The actor ID must match `[a-z][a-z0-9:_-]{2,119}`. Never use `0.0.0.0`, a LAN address, a public hostname, or port forwarding.
 
+### Content Studio AI (optional, Task 049)
+
+AI is off unless both CLIProxy variables are exported in the same private shell, like the OWNER token:
+
+```bash
+export TDN_CLIPROXY_BASE_URL='http://127.0.0.1:8317'
+export TDN_CLIPROXY_API_KEY='<cliproxy-client-api-key>'
+```
+
+- Both unset: the operator starts with AI disabled; `GET /api/content/ai/status` reports `"configured": false`.
+- Exactly one set: startup fails. Set both or unset both.
+- The base URL must be exactly `http://127.0.0.1:<port>` or `http://[::1]:<port>` (optional trailing `/`). `localhost`, other hosts, `https`, paths, queries and user info are rejected. The key must be 1–512 printable ASCII characters with no whitespace; it is never logged, returned or stored.
+- Where the key is kept persistently on Fedora (for example a systemd `EnvironmentFile=` outside the repository, mode 600) is decided in Task 053. Until then, never write it into `.env` or any repository file.
+- Task 049 makes no real provider call. The first real call needs its own owner authorization (Task 053).
+
+### One executor per database
+
+An operator started with `TDN_OWNER_API_ENABLED='true'` is the **executor**. Only one executor may use a database at a time. At startup it creates `<canonical database path>.executor.lock` next to the database (the path after resolving symbolic links) and removes it on an orderly stop (Ctrl-C / `SIGTERM`). Before serving, the executor marks any AI attempt left `running` by an earlier process as `interrupted` (`interrupted_by_restart`). Nothing is retried automatically.
+
+Read-only operators (`TDN_OWNER_API_ENABLED='false'`) take no lock and never change attempt rows, so they can run alongside an executor.
+
+Any existing lock file stops executor startup with `Another operator executor may own this database (...)`, including a lock left by a killed process. The operator never deletes or overwrites a lock by itself. Hard-linked database files are rejected.
+
+**Manual stale-lock recovery** (only when you are sure no executor is running):
+
+1. Stop every operator executor, starter and supervisor that uses this database, on every host that can see the file.
+2. Confirm nothing is running: `pgrep -af 'serve-operator-app'` shows no executor for this database.
+3. Resolve the exact pair: `realpath "$TDN_WORKSPACE_DB"`; the lock is that path plus `.executor.lock`. Read it (`cat`): the `pid`, `hostname` and `startedAt` must belong to a process that is confirmed stopped.
+4. If the lock names another host, or ownership is uncertain, stop here and resolve ownership first.
+5. Remove only that confirmed lock: `rm -- "$(realpath "$TDN_WORKSPACE_DB").executor.lock"`.
+6. Start exactly one executor. Its startup sweep marks the abandoned attempts `interrupted`.
+
 ## 4. Start and verify
 
 ```bash
@@ -104,6 +138,8 @@ Stop in the server terminal with **Ctrl-C**. `SIGINT` and `SIGTERM` trigger orde
 ## Troubleshooting
 
 - Startup requires both the migrated database and artifact root, plus a completed `frontend/dist` build.
+- `Database schema is at v<n>; apply migrations up to v<head>`: run the migration step in §2 against the same database, then start again.
+- `Another operator executor may own this database`: another executor is running, or an earlier one was killed. Follow the manual stale-lock recovery above; never delete the lock while an executor may be running.
 - `OWNER writes are disabled`/HTTP 403 is expected in disabled mode.
 - Port conflict: stop the other local process or choose a placeholder loopback port and use that exact origin consistently.
 - Configuration rejects non-loopback hosts, malformed ports, weak enabled-mode tokens, and missing actor IDs.
