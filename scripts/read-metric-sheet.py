@@ -27,6 +27,32 @@ def reject(locator, code):
     raise Rejected(locator, code)
 
 
+def rich_text(container, locator):
+    """Admit one plain text node OR ordered rich runs, never competing forms."""
+    if container.find(S + 'rPh') is not None:
+        reject(locator, 'UNSUPPORTED_PHONETIC_STRING')
+    plain, runs = container.findall(S + 't'), container.findall(S + 'r')
+    if (len(plain) > 1 or (plain and runs)
+            or any(child.tag not in (S + 't', S + 'r') for child in container)
+            or (container.text or '').strip()
+            or any((child.tail or '').strip() for child in container)):
+        reject(locator, 'AMBIGUOUS_RICH_STRING')
+    if plain:
+        if len(plain[0]):
+            reject(locator, 'AMBIGUOUS_RICH_STRING')
+        return plain[0].text or ''
+    text = []
+    for run in runs:
+        nodes = run.findall(S + 't')
+        if (len(nodes) != 1 or len(nodes[0]) or len(run.findall(S + 'rPr')) > 1
+                or any(child.tag not in (S + 't', S + 'rPr') for child in run)
+                or (run.text or '').strip()
+                or any((child.tail or '').strip() for child in run)):
+            reject(locator, 'AMBIGUOUS_RICH_STRING')
+        text.append(nodes[0].text or '')
+    return ''.join(text)
+
+
 def read_workbook(data):
     if len(data) > LIMIT:
         reject('workbook', 'WORKBOOK_SIZE_LIMIT')
@@ -64,9 +90,7 @@ def read_workbook(data):
         shared = []
         if 'xl/sharedStrings.xml' in names:
             for si in xml('xl/sharedStrings.xml').findall(S + 'si'):
-                if si.find(S + 'rPh') is not None:
-                    reject('sharedStrings', 'UNSUPPORTED_PHONETIC_STRING')
-                text = ''.join(t.text or '' for t in si.iter(S + 't'))
+                text = rich_text(si, 'sharedStrings')
                 if len(text) > 10000:
                     reject('sharedStrings', 'CELL_TEXT_LIMIT')
                 shared.append(text)
@@ -103,6 +127,9 @@ def read_workbook(data):
                 if cell.find(S + 'f') is not None:
                     reject('Sheet1!' + ref, 'FORMULA_NOT_ALLOWED')
                 typ = cell.get('t', 'n')
+                inlines = cell.findall(S + 'is')
+                if typ != 'inlineStr' and inlines:
+                    reject('Sheet1!' + ref, 'AMBIGUOUS_CELL_CONTENT')
                 vals = cell.findall(S + 'v')
                 if len(vals) > 1:
                     reject('Sheet1!' + ref, 'DUPLICATE_VALUE')
@@ -116,12 +143,9 @@ def read_workbook(data):
                         reject('Sheet1!' + ref, 'SHARED_STRING_INDEX')
                     value, typ = shared[int(value)], 'text'
                 elif typ == 'inlineStr':
-                    if vals or cell.find(S + 'is/' + S + 'rPh') is not None:
+                    if vals or len(inlines) != 1:
                         reject('Sheet1!' + ref, 'AMBIGUOUS_INLINE_STRING')
-                    value, typ = ''.join(t.text or '' for t in cell.findall(S + 'is/' + S + 't')), 'text'
-                    rich = cell.findall(S + 'is/' + S + 'r/' + S + 't')
-                    if rich:
-                        value = ''.join(t.text or '' for t in rich)
+                    value, typ = rich_text(inlines[0], 'Sheet1!' + ref), 'text'
                 elif typ == 'n':
                     typ = 'number' if value is not None else 'blank'
                 elif typ in ('b', 'e', 'str', 'd'):
