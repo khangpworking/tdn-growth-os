@@ -258,6 +258,27 @@ export interface DemoPrompt {
   readonly deleted?: { readonly deletedAt: string; readonly restorableUntil: string };
 }
 
+/** Demo mode has no runtime: system prompts are listed by name only. */
+export const DEMO_SYSTEM_PROMPTS: PromptList['systemPrompts'] = [
+  { id: 'system-big-idea-strategic', promptType: 'BIG_IDEA', version: 1, name: 'Big Idea chiến lược v3.1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true },
+  { id: 'system-big-idea-insight', promptType: 'BIG_IDEA', version: 1, name: 'Big Idea từ Consumer Insight v1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: false },
+  { id: 'system-angle-social', promptType: 'ANGLE', version: 1, name: 'Góc khai thác mạng xã hội v3', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true },
+  { id: 'system-angle-content', promptType: 'ANGLE', version: 1, name: 'Góc nội dung từ Big Idea v1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: false },
+  { id: 'system-caption-facebook', promptType: 'CAPTION', version: 1, name: 'Caption Facebook v3', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: true },
+  { id: 'system-caption-social-post', promptType: 'CAPTION', version: 1, name: 'Social Post từ góc nội dung v1', recommendedModel: 'gpt-5.6-sol', tags: [], isDefault: false },
+  { id: 'system-poster-b2b-infographic', promptType: 'POSTER', version: 1, name: 'Poster infographic B2B v2', recommendedModel: 'gpt-image-2', tags: [], isDefault: true },
+];
+
+export function demoPromptList(prompts: readonly DemoPrompt[]): PromptList {
+  return {
+    contractVersion: '1.0.0', systemPrompts: DEMO_SYSTEM_PROMPTS,
+    prompts: prompts.map((entry) => ({
+      promptId: entry.promptId, promptKey: entry.promptKey, promptType: entry.promptType, version: entry.version, name: entry.prompt.name,
+      recommendedModel: entry.prompt.recommendedModel, tags: entry.prompt.tags, updatedAt: entry.createdAt, ...(entry.deleted ? { deleted: entry.deleted } : {}),
+    })),
+  };
+}
+
 export function createDemoPrompt(prompts: readonly DemoPrompt[], promptType: PromptType, draft: PromptDraft, promptId: string, now: string, duplicatedFrom?: PromptLineage): DemoPrompt[] {
   const prompt = promptRequestFromDraft(draft);
   return [...prompts, { promptId, promptKey: generatedPromptKey(promptId), promptType, version: 1, prompt, ...(duplicatedFrom ? { duplicatedFrom } : {}), createdAt: now, history: [{ version: 1, name: prompt.name, createdAt: now }], sequence: 0 }];

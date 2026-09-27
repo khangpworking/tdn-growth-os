@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-purpose-tag-request.schema.json",
+  "title": "ContentPurposeTagRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "label", "displayLike"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "label": { "type": "string", "minLength": 1, "maxLength": 40, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+    "displayLike": { "title": "ContentPurposeKind", "enum": ["EDUCATION", "ENTERTAINMENT", "SALES", "TRUST", "ENGAGEMENT"] }
+  }
+}

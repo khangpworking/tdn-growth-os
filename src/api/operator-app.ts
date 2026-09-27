@@ -100,7 +100,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     });
     if (configuration.ownerWritesEnabled) contentOwner = openContentOwnerApi({
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
-      token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin,
+      token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin, gateway,
     });
   } catch (error) {
     let stopped = true;

@@ -13,6 +13,7 @@
     { "$ref": "#/$defs/campaignList" },
     { "$ref": "#/$defs/campaignDetail" },
     { "$ref": "#/$defs/insightDetail" },
+    { "$ref": "#/$defs/ideaList" },
     { "$ref": "#/$defs/aiStatus" },
     { "$ref": "#/$defs/error" }
   ],
@@ -514,6 +515,57 @@
             "insight": { "type": "string" }
           }
         }
+      }
+    },
+    "ideaListEntry": {
+      "title": "ContentIdeaListEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ideaId", "kind", "code", "concept", "developing", "deleted", "stateSequence", "purposes", "model", "promptLabel", "createdAt"],
+      "properties": {
+        "ideaId": { "$ref": "#/$defs/uuid" },
+        "kind": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/kind" },
+        "parentIdeaId": { "$ref": "#/$defs/uuid" },
+        "code": { "type": "string", "pattern": "^[A-Z]+(?:[1-9][0-9]*)?$" },
+        "concept": { "type": "string", "minLength": 1 },
+        "expression": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "developing": { "type": "boolean" },
+        "deleted": { "type": "boolean" },
+        "restorableUntil": { "$ref": "#/$defs/dateTime" },
+        "stateSequence": { "type": "integer", "minimum": 0 },
+        "purposes": { "$ref": "../flow/content-idea-state-request.schema.json#/$defs/purposes" },
+        "model": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/model" },
+        "promptLabel": { "type": "string", "minLength": 1 },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "purposeTagEntry": {
+      "title": "ContentPurposeTagEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tagId", "label", "displayLike", "createdAt"],
+      "properties": {
+        "tagId": { "$ref": "#/$defs/uuid" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "displayLike": { "$ref": "../flow/content-purpose-tag-request.schema.json#/properties/displayLike" },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "ideaList": {
+      "title": "ContentIdeaListResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "campaignName", "campaignDeleted", "insightLocked", "ideas", "purposeTags"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "campaignName": { "type": "string", "minLength": 1 },
+        "campaignDeleted": { "type": "boolean" },
+        "insightLocked": { "type": "boolean" },
+        "insightVersion": { "type": "integer", "minimum": 1 },
+        "ideas": { "type": "array", "items": { "$ref": "#/$defs/ideaListEntry" } },
+        "purposeTags": { "type": "array", "items": { "$ref": "#/$defs/purposeTagEntry" } }
       }
     },
     "aiModelAvailability": {

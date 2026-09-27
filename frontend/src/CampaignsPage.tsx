@@ -221,7 +221,7 @@ function CampaignListView(props: {
           <td><a href={routeToHash.campaign(campaign.campaignId)}><strong>{campaign.name}</strong></a><small>v{campaign.version}</small></td>
           <td>{findBrandName(brands, campaign.brandId)}</td>
           <td className="campaign-items">{campaign.items.map(itemLabel).join(', ')}</td>
-          <td><a href={routeToHash.campaignInsight(campaign.campaignId)}>Insight</a></td>
+          <td className="campaign-progress"><a href={routeToHash.campaignInsight(campaign.campaignId)}>Insight</a> · <a href={routeToHash.campaignBigIdea(campaign.campaignId)}>Big Idea</a> · <a href={routeToHash.campaignAngle(campaign.campaignId)}>Góc</a></td>
           <td>{formatDateTime(campaign.updatedAt)}</td>
         </tr>)}</tbody></table></div>}
     {deleted.length > 0 && <section className="surface recently-deleted campaign-deleted" aria-labelledby="campaign-deleted-title">
@@ -352,7 +352,7 @@ export function CampaignDetail(props: CampaignDetailProps) {
     <section className="campaign-objective"><h3>Mục tiêu</h3><p>{view.campaign.campaign.objective}</p></section>
     <section className="campaign-detail-items" aria-labelledby="campaign-products-title"><h3 id="campaign-products-title">Sản phẩm</h3><ul>{view.items.map((item) => <li key={item.itemId}><strong>{item.name}</strong> <small>v{item.itemVersion}</small><span>{item.tiers.length > 0 ? item.tiers.map((tier) => tier.name).join(', ') : 'Tất cả các gói'}</span></li>)}</ul></section>
     {props.researchProductWorkspaceName && <p className="muted">Liên kết sản phẩm nghiên cứu: <strong>{props.researchProductWorkspaceName}</strong></p>}
-    <section className="campaign-steps" aria-label="Các bước chiến dịch"><a className="step" href={routeToHash.campaignInsight(view.campaign.campaignId)}><b>Insight — mở bước 1</b></a>{[['Big Idea', 'cần khóa Insight trước'], ['Góc nội dung', 'cần khóa Insight trước'], ['Caption & Poster', 'có ở bước tiếp theo']].map(([title, note]) => <button className="step" disabled type="button" key={title}><b>{title} — {note}</b></button>)}</section>
+    <section className="campaign-steps" aria-label="Các bước chiến dịch"><a className="step" href={routeToHash.campaignInsight(view.campaign.campaignId)}><b>Insight — mở bước 1</b></a><a className="step" href={routeToHash.campaignBigIdea(view.campaign.campaignId)}><b>Big Idea — mở bước 2</b></a><a className="step" href={routeToHash.campaignAngle(view.campaign.campaignId)}><b>Góc nội dung — mở bước 3</b></a><button className="step" disabled type="button"><b>Caption &amp; Poster — có ở bước tiếp theo</b></button></section>
     <section className="brand-history" aria-labelledby="campaign-history-title"><h3 id="campaign-history-title">Lịch sử phiên bản</h3><ol className="timeline">{[...view.history].reverse().map((entry) => <li key={entry.version}>v{entry.version} · {entry.name} · {formatDateTime(entry.createdAt)}</li>)}</ol></section>
   </article>;
 }

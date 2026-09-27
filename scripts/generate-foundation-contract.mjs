@@ -56,6 +56,7 @@ const contracts = [
   ['api', 'owner-content-prompt-api'],
   ['api', 'owner-content-campaign-api'],
   ['api', 'owner-content-insight-api'],
+  ['api', 'owner-content-idea-api'],
   ['flow', 'approved-proposal-intake-request'],
   ['flow', 'authorized-plan'],
   ['flow', 'discovery-workspace-request'],
@@ -91,6 +92,10 @@ const contracts = [
   ['flow', 'content-insight-artifact'],
   ['flow', 'content-insight-lock-request'],
   ['flow', 'content-insight-lock-artifact'],
+  ['flow', 'content-idea-generate-request'],
+  ['flow', 'content-idea-artifact'],
+  ['flow', 'content-idea-state-request'],
+  ['flow', 'content-purpose-tag-request'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
