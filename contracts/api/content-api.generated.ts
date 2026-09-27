@@ -10,6 +10,7 @@ export type ContentApiContract =
   | ContentSystemPromptDetailResponse
   | ContentCampaignListResponse
   | ContentCampaignDetailResponse
+  | ContentAiStatusResponse
   | ContentApiErrorResponse;
 export type Uuid = string;
 export type DateTime = string;
@@ -547,6 +548,28 @@ export interface ContentCampaignHistoryItem {
 export interface ContentCampaignLifecycleState {
   sequence: number;
   deleted?: ContentCampaignDeletion;
+}
+export interface ContentAiStatusResponse {
+  contractVersion: '1.0.0';
+  configured: boolean;
+  checkedAt: DateTime | null;
+  error?:
+    | 'ai_not_configured'
+    | 'model_not_allowed'
+    | 'request_too_large'
+    | 'timeout'
+    | 'network_error'
+    | 'gateway_http_error'
+    | 'malformed_envelope'
+    | 'response_too_large'
+    | 'invalid_image'
+    | 'schema_mismatch';
+  models: ContentAiModelAvailability[];
+}
+export interface ContentAiModelAvailability {
+  id: 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low' | 'gpt-image-2' | 'gemini-3.1-flash-image';
+  kind: 'text' | 'image';
+  available: boolean;
 }
 export interface ContentApiErrorResponse {
   error: {

@@ -139,3 +139,18 @@ export {
   validateContentCampaignLifecycleRequest,
   validateContentCampaignRevisionRequest,
 } from './validation.js';
+export {
+  ContentAiAttemptCloseError,
+  createContentAiAttemptService,
+  type ContentAiAttemptErrorCode,
+  type ContentAiAttemptInput,
+  type ContentAiAttemptListFilter,
+  type ContentAiAttemptOutcome,
+  type ContentAiAttemptRecord,
+  type ContentAiAttemptService,
+  type ContentAiAttemptState,
+  type ContentAiCall,
+  type ContentAiPersistSteps,
+} from './content-ai-attempt-service.js';
+export { contentAiCallCount, type ContentAiCallCount, type ContentAiPlannedAction } from './content-ai-call-count.js';
+export { CONTENT_AI_NOT_CONFIGURED, createContentAiStatusSource, type ContentAiStatus, type ContentAiStatusSource } from './content-ai-status.js';

@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
 import type {
+  ContentAiStatusResponse,
   ContentApiErrorResponse,
   ContentBrandDetailResponse,
   ContentCampaignDetailResponse,
@@ -39,6 +40,7 @@ import type { ContentCatalogItemArtifact } from '../../contracts/flow/content-ca
 import type { ContentCatalogItemContent } from '../../contracts/flow/content-catalog-item-create-request.generated.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
 import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mutex.js';
+import { CONTENT_AI_NOT_CONFIGURED, type ContentAiStatusSource } from '../modules/flow/content-ai-status.js';
 import { ContentBrandIdentityConflictError, ContentBrandService } from '../modules/flow/content-brand-service.js';
 import { ContentCampaignConflictError, ContentCampaignReferenceError, ContentCampaignService } from '../modules/flow/content-campaign-service.js';
 import { ContentCatalogIdentityConflictError, ContentCatalogService } from '../modules/flow/content-catalog-service.js';
@@ -94,6 +96,7 @@ const REQUIRED_TABLES = [
   'artifact_manifests', 'flow_content_brands', 'flow_content_brand_revisions', 'flow_content_media', 'flow_content_catalog_items', 'flow_content_catalog_item_revisions',
   'flow_content_prompts', 'flow_content_prompt_revisions', 'flow_content_prompt_lifecycle',
   'flow_content_campaigns', 'flow_content_campaign_revisions', 'flow_content_campaign_lifecycle',
+  'flow_content_ai_attempts',
 ];
 const MEDIA_KINDS: Readonly<Record<string, ContentMediaKind>> = { logo: 'LOGO', photo: 'PHOTO' };
 
@@ -102,6 +105,8 @@ export interface ContentReadApiConfiguration {
   readonly artifactRoot: string;
   /** Clock used to decide whether deleted prompts are still restorable (tests only). */
   readonly now?: () => Date;
+  /** Content Studio AI availability; absent means AI is not configured. */
+  readonly aiStatus?: ContentAiStatusSource;
 }
 export interface ContentOwnerApiConfiguration extends OwnerHttpConfiguration {
   readonly now?: () => Date;
@@ -123,6 +128,7 @@ interface ReadHandlers {
   systemPrompt(id: string): Promise<ContentSystemPromptDetailResponse | undefined>;
   campaignList(): Promise<ContentCampaignListResponse>;
   campaignDetail(campaignId: string): Promise<ContentCampaignDetailResponse | undefined>;
+  aiStatus(): Promise<ContentAiStatusResponse>;
 }
 
 function systemLayer(library: ContentPromptLibrary, promptType: ContentPromptType): ContentPromptSystemLayer {
@@ -323,6 +329,14 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
           lifecycle: { sequence: state.sequence, ...(state.deleted ? { deleted: state.deleted } : {}) },
         };
       },
+      async aiStatus() {
+        const status = await (configuration.aiStatus ?? notConfigured).read();
+        return {
+          contractVersion: '1.0.0', configured: status.configured, checkedAt: status.checkedAt,
+          ...(status.error === undefined ? {} : { error: status.error }),
+          models: status.models.map((model) => ({ id: model.id, kind: model.kind, available: model.available })),
+        };
+      },
     };
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeRead(request, response, handlers); };
     return { handler, close: () => db.close() };
@@ -349,6 +363,7 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
       const result = await handlers.promptDetail(parts[3]!);
       return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Prompt not found');
     }
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'ai' && parts[3] === 'status' && parts.length === 4) return sendApiJson(response, 200, await handlers.aiStatus());
     if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'system-prompts' && parts.length === 4) {
       if (!SYSTEM_PROMPT_ID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'System prompt ID is invalid');
       const result = await handlers.systemPrompt(parts[3]!);
@@ -392,6 +407,8 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
     return sendReadError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');
   }
 }
+
+const notConfigured: ContentAiStatusSource = { read: async () => CONTENT_AI_NOT_CONFIGURED };
 
 class UnknownBrandError extends Error {}
 class UnknownItemError extends Error {}
