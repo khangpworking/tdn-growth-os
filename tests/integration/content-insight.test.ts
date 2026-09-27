@@ -132,7 +132,11 @@ async function setup(options: SetupOptions = {}) {
   const brands = new ContentBrandService({ db, artifactStore: artifacts, uuid: () => brandId, now });
   const catalogIds = [itemA, itemB];
   const catalog = new ContentCatalogService({ db, artifactStore: artifacts, uuid: () => catalogIds.shift()!, now });
-  const research = new ResearchFixture({ decision: options.decision ?? null, lockedStpWorkspaceId: options.linkedStpWorkspaceId, stpAvailable: options.stpAvailable });
+  const research = new ResearchFixture({
+    decision: options.decision ?? null,
+    ...(options.linkedStpWorkspaceId === undefined ? {} : { lockedStpWorkspaceId: options.linkedStpWorkspaceId }),
+    ...(options.stpAvailable === undefined ? {} : { stpAvailable: options.stpAvailable }),
+  });
   const campaigns = new ContentCampaignService({ db, artifactStore: artifacts, catalog, workspaceReader: research, uuid: () => campaignId, now });
   await brands.createBrand({ contractVersion: '1.0.0', brandKey: 'canxi-viet', profile: { brandName: 'Canxi Việt' }, displayRules });
   await catalog.createItem({ contractVersion: '1.0.0', brandId, itemKey: 'tu-van', item: catalogItem() });
