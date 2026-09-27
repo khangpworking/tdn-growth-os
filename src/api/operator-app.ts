@@ -1,9 +1,17 @@
 import fs from 'node:fs';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
+import BetterSqlite3 from 'better-sqlite3';
+import { cliproxyConfigurationFromEnvironment, assertCliproxyConfiguration, type CliproxyConfiguration } from '../platform/ai/cliproxy-configuration.js';
+import { createCliproxyCreativeGateway } from '../platform/ai/cliproxy-creative-gateway.js';
+import { disabledCreativeGateway } from '../platform/ai/fake-creative-gateway.js';
+import { readMigrations } from '../platform/db/migrations.js';
+import { createContentAiAttemptService } from '../modules/flow/content-ai-attempt-service.js';
+import { createContentAiStatusSource } from '../modules/flow/content-ai-status.js';
 import { openContentOwnerApi, openContentReadApi, type ContentApiApplication } from './content-api.js';
 import { openOwnerApi, type OwnerApiApplication } from './owner-api.js';
 import { openWorkspaceApi, type WorkspaceApiApplication } from './workspace-api.js';
+import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from './executor-lock.js';
 
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
 const ACTOR = /^[a-z][a-z0-9:_-]{2,119}$/;
@@ -27,6 +35,12 @@ export interface OperatorAppConfiguration {
   readonly ownerWritesEnabled: boolean;
   readonly ownerToken?: string;
   readonly ownerActorId?: string;
+  /** Loopback CLIProxy for Content Studio AI; absent means AI is off. */
+  readonly cliproxy?: CliproxyConfiguration;
+}
+export interface OperatorAppDependencies {
+  readonly creativeAiTransport?: typeof fetch;
+  readonly clock?: () => Date;
 }
 export interface OperatorAppApplication {
   readonly server: http.Server;
@@ -42,6 +56,7 @@ export function operatorAppConfigurationFromEnvironment(
   if (enabled !== undefined && enabled !== 'true' && enabled !== 'false') throw new TypeError('TDN_OWNER_API_ENABLED must be exactly true or false');
   const rawPort = environment.TDN_OPERATOR_APP_PORT ?? '8787';
   if (!/^[1-9]\d{0,4}$/.test(rawPort)) throw new TypeError('TDN_OPERATOR_APP_PORT must be an integer from 1 to 65535');
+  const cliproxy = cliproxyConfigurationFromEnvironment(environment);
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -49,37 +64,54 @@ export function operatorAppConfigurationFromEnvironment(
     port: Number(rawPort), ownerWritesEnabled: enabled === 'true',
     ...(environment.TDN_OWNER_API_TOKEN === undefined ? {} : { ownerToken: environment.TDN_OWNER_API_TOKEN }),
     ...(environment.TDN_OWNER_API_ACTOR_ID === undefined ? {} : { ownerActorId: environment.TDN_OWNER_API_ACTOR_ID }),
+    ...(cliproxy === undefined ? {} : { cliproxy }),
   };
   validateConfiguration(configuration);
   return configuration;
 }
 
-export function openOperatorApp(configuration: OperatorAppConfiguration): OperatorAppApplication {
+export function openOperatorApp(configuration: OperatorAppConfiguration, dependencies: OperatorAppDependencies = {}): OperatorAppApplication {
   const frontend = validateConfiguration(configuration);
   const origin = operatorOrigin(configuration.host, configuration.port);
   const authority = origin.slice('http://'.length);
+  const clock = dependencies.clock ?? (() => new Date());
+  const databasePath = canonicalDatabasePath(configuration.databasePath);
+  let lock: ExecutorLock | undefined;
   let read: WorkspaceApiApplication | undefined;
   let owner: OwnerApiApplication | undefined;
   let contentRead: ContentApiApplication | undefined;
   let contentOwner: ContentApiApplication | undefined;
   try {
-    read = openWorkspaceApi({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot });
-    contentRead = openContentReadApi({ databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot });
+    // Only an operator with OWNER writes is an executor: it holds the lock and sweeps abandoned attempts. Viewers never write.
+    if (configuration.ownerWritesEnabled) lock = acquireExecutorLock(databasePath);
+    prepareDatabase(databasePath, configuration.artifactRoot, configuration.ownerWritesEnabled, clock);
+    const gateway = configuration.cliproxy
+      ? createCliproxyCreativeGateway({
+        configuration: configuration.cliproxy,
+        ...(dependencies.creativeAiTransport ? { transport: dependencies.creativeAiTransport } : {}),
+      })
+      : disabledCreativeGateway();
+    const aiStatus = createContentAiStatusSource({ gateway, clock });
+    read = openWorkspaceApi({ databasePath, artifactRoot: configuration.artifactRoot });
+    contentRead = openContentReadApi({ databasePath, artifactRoot: configuration.artifactRoot, aiStatus });
     if (configuration.ownerWritesEnabled) owner = openOwnerApi({
-      databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
+      databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
       token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin,
     });
     if (configuration.ownerWritesEnabled) contentOwner = openContentOwnerApi({
-      databasePath: configuration.databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
+      databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
       token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin,
     });
   } catch (error) {
-    try { contentOwner?.close(); } catch { /* preserve startup failure */ }
-    try { contentRead?.close(); } catch { /* preserve startup failure */ }
-    try { owner?.close(); } catch { /* preserve startup failure */ }
-    try { read?.close(); } catch { /* preserve startup failure */ }
+    let stopped = true;
+    try { contentOwner?.close(); } catch { stopped = false; }
+    try { contentRead?.close(); } catch { stopped = false; }
+    try { owner?.close(); } catch { stopped = false; }
+    try { read?.close(); } catch { stopped = false; }
+    if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
     throw error;
   }
+  const executorLock = lock;
   const readApplication = read;
   const ownerApplication = owner;
   const contentReadApplication = contentRead!;
@@ -114,12 +146,50 @@ export function openOperatorApp(configuration: OperatorAppConfiguration): Operat
         try { contentReadApplication.close(); } catch (error) { errors.push(error); }
         try { ownerApplication?.close(); } catch (error) { errors.push(error); }
         try { readApplication.close(); } catch (error) { errors.push(error); }
+        // Executor authority is released only after a clean stop; an uncertain shutdown keeps the lock.
+        if (errors.length === 0) { try { executorLock?.release(); } catch (error) { errors.push(error); } }
         if (errors.length === 1) throw errors[0];
         if (errors.length > 1) throw new AggregateError(errors, 'Operator app shutdown failed');
       })();
       return closePromise;
     },
   };
+}
+
+/**
+ * Refuses a database that is not at the schema head (read-only, never creates or migrates). An executor then
+ * counts `running` attempts on the same connection and, only when there are some, sweeps them to
+ * `interrupted` on a short-lived writable connection.
+ */
+function prepareDatabase(databasePath: string, artifactRoot: string, executor: boolean, clock: () => Date): void {
+  let running = 0;
+  const reader = new BetterSqlite3(databasePath, { readonly: true, fileMustExist: true });
+  try {
+    const head = readMigrations().at(-1)!.version;
+    const userVersion = Number(reader.pragma('user_version', { simple: true }));
+    let recorded: number | undefined;
+    try { recorded = Number(reader.prepare('SELECT MAX(version) FROM schema_migrations').pluck().get()); } catch { recorded = undefined; }
+    if (userVersion !== head || recorded !== head) throw new Error(`Database schema is at v${userVersion}; apply migrations up to v${head} before starting`);
+    if (executor) running = attemptService(reader, artifactRoot, clock).countRunning();
+  } finally {
+    reader.close();
+  }
+  if (running === 0) return;
+  const writer = new BetterSqlite3(databasePath, { fileMustExist: true });
+  try {
+    writer.pragma('foreign_keys = ON');
+    writer.pragma('busy_timeout = 5000');
+    attemptService(writer, artifactRoot, clock).sweepInterrupted(clock());
+  } finally {
+    writer.close();
+  }
+}
+
+function attemptService(db: BetterSqlite3.Database, artifactRoot: string, clock: () => Date) {
+  return createContentAiAttemptService({
+    db, gateway: disabledCreativeGateway(), artifactRoot, clock,
+    newId: () => { throw new Error('Startup never records AI attempts'); },
+  });
 }
 
 function validateConfiguration(configuration: OperatorAppConfiguration): StaticFiles {
@@ -129,6 +199,7 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (!configuration.version || /[\r\n]/.test(configuration.version)) throw new TypeError('Application version is invalid');
   if (configuration.ownerWritesEnabled && (!configuration.ownerToken || !TOKEN.test(configuration.ownerToken))) throw new TypeError('TDN_OWNER_API_TOKEN must be a strong 32-512 character token containing letters and digits when OWNER writes are enabled');
   if (configuration.ownerWritesEnabled && (!configuration.ownerActorId || !ACTOR.test(configuration.ownerActorId))) throw new TypeError('TDN_OWNER_API_ACTOR_ID is required and invalid when OWNER writes are enabled');
+  if (configuration.cliproxy !== undefined) assertCliproxyConfiguration(configuration.cliproxy);
   return preloadFrontend(configuration.frontendDist);
 }
 

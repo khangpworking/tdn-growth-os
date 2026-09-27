@@ -1,5 +1,12 @@
 # Trạng thái hiện tại
 
+## Task 049 — Hạ tầng AI cho Content Studio (Controlled; đã làm cục bộ, đang review)
+
+- Chưa commit, chưa có PR. Không có lời gọi provider thật; mọi kiểm thử dùng fake gateway và dữ liệu tổng hợp.
+- `CreativeAiGateway` (anh em với `AiGateway` phân tích, không sửa `AiGateway`) cho văn bản và ảnh; adapter CLIProxy chỉ nhận địa chỉ loopback dạng số, bật khi đặt cả `TDN_CLIPROXY_BASE_URL` và `TDN_CLIPROXY_API_KEY`.
+- Migration 0025: bảng `flow_content_ai_attempts` ghi mỗi lời gọi AI; service chạy đồng bộ, lưu và đăng ký đầu ra trước khi bên gọi ghi dữ liệu phụ thuộc ([ADR 0004](adr/0004-content-ai-synchronous-attempts.md)).
+- Một executor cho mỗi database (`<db>.executor.lock`, gỡ thủ công theo runbook); chỉ executor chuyển attempt treo thành `interrupted` khi khởi động. `GET /api/content/ai/status` báo mô hình khả dụng.
+
 ## Task 048d — Chiến dịch nội dung (draft PR)
 
 - Chiến dịch theo thương hiệu: tên, mục tiêu, 1–12 sản phẩm của thương hiệu, mỗi sản phẩm ghim đúng phiên bản danh mục và chọn gói (không chọn = tất cả gói), liên kết tùy chọn tới hồ sơ sản phẩm nghiên cứu (chỉ kiểm tra, không khóa gì).
