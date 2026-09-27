@@ -34,7 +34,7 @@ async function setup() {
 
 test('migration 0024 creates immutable campaign tables whose lifecycle alternates within the restore window', async () => {
   const state = await setup();
-  assert.equal(state.migration.currentVersion, 26);
+  assert.equal(state.migration.currentVersion, 27);
   assert.ok(state.db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'index' AND name = 'flow_content_campaigns_by_brand'").get());
   const at = '2027-01-01T00:00:00.000Z';
   const parent = state.db.prepare('INSERT INTO flow_content_campaigns(campaign_id, campaign_key, brand_id, created_at) VALUES (?, ?, ?, ?)');

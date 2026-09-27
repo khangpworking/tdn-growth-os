@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { act, createElement } from 'react';
+import { setupDom } from './dom';
 import type {
   ContentInsightContent,
   ContentInsightStpSuggestion,
@@ -8,6 +10,7 @@ import { tsImport } from 'tsx/esm/api';
 import { ContentDataSourceError } from '../src/content-data-source';
 import { OwnerWriteError } from '../src/data-source';
 import { createSeedState } from '../src/model';
+import { createDemoCampaign, emptyCampaignDraft } from '../src/campaign-data-source';
 import {
   INSIGHT_GATE_NOT_APPROVED,
   applyStpSuggestion,
@@ -24,6 +27,7 @@ import {
   reviseDemoInsight,
   submitInsightLock,
   submitInsightRevision,
+  type DemoInsight,
   type InsightDetail,
   type InsightDraft,
 } from '../src/insight-data-source';
@@ -251,4 +255,38 @@ test('researchProduct maps a locked B9 primary target and the effective B10 deci
   } as typeof child;
   assert.equal(researchProduct(hold).b10, 'HOLD');
   assert.equal(researchProduct(hold).stp, null);
+});
+
+test('Insight step indicator keeps later steps locked until Insight is locked, then links steps 2 and 3', { concurrency: false }, async () => {
+  const { default: InsightPage } = await tsImport('../src/InsightPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/InsightPage');
+  const campaigns = createDemoCampaign([], '66666666-6666-4666-8666-000000000001', {
+    ...emptyCampaignDraft('66666666-6666-4666-8666-000000000001'), name: 'Campaign', objective: 'Objective',
+  }, campaignId, at);
+  const draft: InsightDraft = { customer: 'Customer', painPoint: 'Pain', insight: 'Insight', lockedStpId: '' };
+  const revised = reviseDemoInsight([], campaignId, 0, draft, at);
+  const locked = lockDemoInsight(revised, campaignId, 1, 1, later);
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(dom.container);
+  const render = async (demoInsights: readonly DemoInsight[]) => {
+    await act(async () => {
+      root.render(createElement(InsightPage, {
+        mode: 'demo', campaignId, ownerToken: token, writesAvailable: true, demoCampaigns: campaigns, demoItems: [], demoInsights,
+        setDemoInsights: () => undefined, researchProducts: [], notify: () => undefined,
+      }));
+      await Promise.resolve(); await Promise.resolve();
+    });
+  };
+  try {
+    await render([]);
+    assert.match(dom.container.textContent ?? '', /Big IdeaCần khóa Insight trước/);
+    assert.match(dom.container.textContent ?? '', /Góc nội dungCần khóa Insight trước/);
+    assert.equal(dom.container.querySelector(`a[href="#/content/${campaignId}/big-idea"]`), null);
+    await render(locked);
+    assert.match(dom.container.querySelector(`a[href="#/content/${campaignId}/big-idea"]`)?.textContent ?? '', /Big IdeaMở bước 2/);
+    assert.match(dom.container.querySelector(`a[href="#/content/${campaignId}/angle"]`)?.textContent ?? '', /Góc nội dungCần Big Idea đang phát triển/);
+  } finally {
+    await act(async () => { root.unmount(); });
+    dom.cleanup();
+  }
 });

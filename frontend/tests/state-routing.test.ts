@@ -18,7 +18,13 @@ test('market relationships, search, empty creation and routes use IDs', () => {
   assert.deepEqual(parseRoute(routeToHash.product('calcium', 'adult'), state), { kind: 'product', marketId: 'calcium', productId: 'adult', section: 'b8' });
   const campaignId = '66666666-6666-4666-8666-0000000000c1';
   assert.deepEqual(parseRoute(routeToHash.campaignInsight(campaignId), state), { kind: 'campaign-insight', campaignId });
+  assert.deepEqual(parseRoute(routeToHash.campaignBigIdea(campaignId), state), { kind: 'campaign-ideas', campaignId, ideaKind: 'BIG_IDEA' });
+  assert.deepEqual(parseRoute(routeToHash.campaignAngle(campaignId), state), { kind: 'campaign-ideas', campaignId, ideaKind: 'ANGLE' });
+  assert.equal(routeToHash.campaignBigIdea(campaignId), `#/content/${campaignId}/big-idea`);
+  assert.equal(routeToHash.campaignAngle(campaignId), `#/content/${campaignId}/angle`);
   assert.equal(parseRoute('#/content/not-a-uuid/insight', state).kind, 'invalid');
+  assert.equal(parseRoute('#/content/not-a-uuid/big-idea', state).kind, 'invalid');
+  assert.equal(parseRoute('#/content/not-a-uuid/angle', state).kind, 'invalid');
   assert.equal(parseRoute(routeToHash.product('collagen', 'adult'), state).kind, 'invalid');
   assert.equal(parseRoute('#/markets/missing', state).kind, 'invalid');
   assert.equal(parseRoute('#/markets/%E0%A4%A', state).kind, 'invalid');
