@@ -62,6 +62,28 @@ async function runText(state: ReturnType<typeof setup>, value = input(), steps: 
   return state.service.run(value, steps as never);
 }
 
+const geminiConfiguration = { baseUrl: 'http://127.0.0.1:8317', apiKey: 'gemini-mime-regression-key-049' } as const;
+
+function imageInput(targetId: string): ContentAiAttemptInput {
+  return input({
+    targetId,
+    call: { modality: 'image', request: { model: 'gemini-3.1-flash-image', prompt: 'poster', format: 'square', references: [] } },
+  });
+}
+
+function geminiTransport(inlineKey: 'inlineData' | 'inline_data', inlineData: Record<string, unknown>): typeof fetch {
+  return async () => new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{ [inlineKey]: inlineData }] } }],
+  }), { status: 200, headers: { 'content-type': 'application/json' } });
+}
+
+function hasStoredFile(root: string): boolean {
+  if (!fs.existsSync(root)) return false;
+  return fs.readdirSync(root, { withFileTypes: true }).some((entry) => entry.isDirectory()
+    ? hasStoredFile(path.join(root, entry.name))
+    : true);
+}
+
 test('successful text attempts store exact bytes, register a manifest, persist synchronously and close once', async () => {
   nextId = 1;
   const gateway = createFakeCreativeGateway({ text: [{ result: textResult('exact text bytes') }] });
@@ -128,6 +150,94 @@ test('image MIME validation is table-driven: sniffed PNG/JPEG without declaratio
         assert.equal(row(state.db).error_code, 'invalid_image');
         assert.equal(row(state.db).output_sha256, null);
       }
+    } finally { state.db.close(); }
+  }
+});
+
+test('Gemini inline MIME declarations that contradict data-URL MIME fail before persistence', async () => {
+  const png = fixtureImage('rgb.png');
+  const jpeg = fixtureImage('photo-a.jpg');
+  const cases = [
+    { label: 'camelCase PNG data with JPEG declaration', inlineKey: 'inlineData' as const, mimeKey: 'mimeType', inlineMime: 'image/jpeg', bytes: png, dataUrlMime: 'image/png' },
+    { label: 'camelCase JPEG data with PNG declaration', inlineKey: 'inlineData' as const, mimeKey: 'mimeType', inlineMime: 'image/png', bytes: jpeg, dataUrlMime: 'image/jpeg' },
+    { label: 'snake_case PNG data with JPEG declaration', inlineKey: 'inline_data' as const, mimeKey: 'mime_type', inlineMime: 'image/jpeg', bytes: png, dataUrlMime: 'image/png' },
+  ];
+
+  for (const [index, scenario] of cases.entries()) {
+    nextId = 300 + index;
+    const encoded = `data:${scenario.dataUrlMime};base64,${scenario.bytes.toString('base64')}`;
+    const gateway = createCliproxyCreativeGateway({
+      configuration: geminiConfiguration,
+      transport: geminiTransport(scenario.inlineKey, { [scenario.mimeKey]: scenario.inlineMime, data: encoded }),
+    });
+    const state = setup(gateway);
+    let stageCalls = 0;
+    let persistCalls = 0;
+    try {
+      await assert.rejects(state.service.run(imageInput(`gemini-contradiction-${index}`), {
+        stage: async () => { stageCalls += 1; return 'staged'; },
+        persist: () => { persistCalls += 1; return 'persisted'; },
+      }), (error: unknown) => {
+        assert.ok(error instanceof CreativeAiError);
+        assert.equal(error.code, 'malformed_envelope', scenario.label);
+        return true;
+      });
+      assert.equal(row(state.db).state, 'failed', scenario.label);
+      assert.equal(row(state.db).error_code, 'malformed_envelope', scenario.label);
+      assert.equal(row(state.db).output_sha256, null, scenario.label);
+      assert.equal(stageCalls, 0, scenario.label);
+      assert.equal(persistCalls, 0, scenario.label);
+      assert.equal((state.db.prepare('SELECT count(*) AS count FROM artifact_manifests').get() as { count: bigint }).count, 0n, scenario.label);
+      assert.equal(hasStoredFile(state.artifactRoot), false, scenario.label);
+    } finally { state.db.close(); }
+  }
+});
+
+test('matching Gemini inline and data-URL MIME declarations persist as the sniffed image type', async () => {
+  nextId = 320;
+  const png = fixtureImage('rgb.png');
+  const data = `data:image/png;base64,${png.toString('base64')}`;
+  const gateway = createCliproxyCreativeGateway({
+    configuration: geminiConfiguration,
+    transport: geminiTransport('inlineData', { mimeType: 'image/png', data }),
+  });
+  const state = setup(gateway);
+  try {
+    let persistedMediaType: string | undefined;
+    const result = await state.service.run(imageInput('gemini-matching'), {
+      persist: (outcome) => {
+        if (outcome.modality !== 'image') throw new Error('expected image outcome');
+        persistedMediaType = outcome.image.mediaType;
+        return 'persisted';
+      },
+    });
+    assert.equal(result.persisted, 'persisted');
+    assert.equal(persistedMediaType, 'image/png');
+    const attempt = row(state.db, result.outcome.attemptId);
+    assert.equal(attempt.state, 'succeeded');
+    assert.equal(attempt.output_sha256, result.outcome.outputSha256);
+    assert.equal((state.db.prepare('SELECT media_type AS mediaType FROM artifact_manifests WHERE sha256=?').get(result.outcome.outputSha256) as { mediaType: string }).mediaType, 'image/png');
+  } finally { state.db.close(); }
+});
+
+test('missing Gemini MIME declarations leave image type to service byte sniffing', async () => {
+  const png = fixtureImage('rgb.png');
+  const jpeg = fixtureImage('photo-a.jpg');
+  const cases = [
+    { label: 'data URL without inline MIME', inline: { data: `data:image/png;base64,${png.toString('base64')}` }, expected: 'image/png' },
+    { label: 'inline MIME with raw base64', inline: { mimeType: 'image/jpeg', data: jpeg.toString('base64') }, expected: 'image/jpeg' },
+    { label: 'neither declaration', inline: { data: png.toString('base64') }, expected: 'image/png' },
+  ];
+
+  for (const [index, scenario] of cases.entries()) {
+    nextId = 340 + index;
+    const gateway = createCliproxyCreativeGateway({ configuration: geminiConfiguration, transport: geminiTransport('inlineData', scenario.inline) });
+    const state = setup(gateway);
+    try {
+      const result = await state.service.run(imageInput(`gemini-missing-${index}`), { persist: () => 'persisted' });
+      assert.equal((result.outcome as Extract<ContentAiAttemptOutcome, { modality: 'image' }>).image.mediaType, scenario.expected, scenario.label);
+      assert.equal(row(state.db, result.outcome.attemptId).state, 'succeeded', scenario.label);
+      assert.equal((state.db.prepare('SELECT media_type AS mediaType FROM artifact_manifests WHERE sha256=?').get(result.outcome.outputSha256) as { mediaType: string }).mediaType, scenario.expected, scenario.label);
     } finally { state.db.close(); }
   }
 });
