@@ -1,6 +1,6 @@
 # Handoff — Task 049 Content Studio AI plumbing
 
-Updated: 2026-09-27
+Updated: 2026-09-28
 Worktree/branch: `feature/049-content-ai-plumbing` from `main` `cfb234a`. Implemented from plan v5. **Draft PR [#53](https://github.com/khangpworking/tdn-growth-os/pull/53)**; implementation commit `433574317773dc56caeb4f3fa1e2c5fd737a4a20`. Migration 0025 is the next free number on that base.
 Roles: Claude implemented production code, contracts, migration and docs and reviewed every GPT diff. GPT-5.6 Luna (Codex) wrote the CLIProxy adapter and designed and ran all tests.
 
@@ -91,6 +91,7 @@ Historical implementation-pass evidence below is from Windows, Node 24.15.0. GPT
 ## Review findings
 
 - **Timeout mapping (adapter).** A transport that rejected with its own `TimeoutError`/`AbortError` was reported as `timeout`, although the adapter's timer had not fired. It now uses the fired signal only, in all four places, with a regression test.
+- **Contradictory Gemini image declarations (R1/P2, PR #53 review).** The adapter preferred the data-URL type and silently dropped a different inline `mimeType`/`mime_type`, so an inline JPEG declaration over a PNG data URL with PNG bytes was accepted. The adapter now fails `malformed_envelope` when both are present and differ; a single declaration, matching declarations and no declaration are unchanged, and byte sniffing stays in the service. The new tests drive the real adapter (fake transport, synthetic PNG/JPEG) through `ContentAiAttemptService` and verify a failed attempt with no output association, staging, downstream persistence, image file or manifest. Tests-only commit `e1b7f6cf4c5eca043703fa6598053c6c2b11d03d` reproduced R1 on Linux: [run 36337502804](https://github.com/khangpworking/tdn-growth-os/actions/runs/36337502804) failed only the contradictory-declarations test with `Missing expected rejection` (433 passed / 1 failed). Matching/missing declarations passed already. The fix is published afterward; final-head green evidence will be recorded in the PR comment, not inferred from the red run. No Windows execution was used.
 - **GPT's test fixes (reviewed):**
   - Direct terminal-row fixtures now follow the running → terminal trigger.
   - The status-route AJV test registers the referenced flow schemas.

@@ -632,6 +632,9 @@ async function generateImage(
     ? providerRequestId(envelope.responseId ?? envelope.response_id)
     : undefined;
   const latencyMs = Math.max(0, now() - started);
+  // Two declarations that disagree are a contradictory envelope; either alone is only cross-checked by the service.
+  if (decoded.declaredMediaType !== undefined && inlineDeclaredMediaType !== undefined
+    && decoded.declaredMediaType !== inlineDeclaredMediaType) fail('malformed_envelope');
   const declaredMediaType = decoded.declaredMediaType ?? inlineDeclaredMediaType;
   return {
     bytes: decoded.bytes,
