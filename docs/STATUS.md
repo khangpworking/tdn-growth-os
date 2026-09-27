@@ -1,8 +1,8 @@
 # Trạng thái hiện tại
 
-## Task 049 — Hạ tầng AI cho Content Studio (Controlled; đã làm cục bộ, đang review)
+## Task 049 — Hạ tầng AI cho Content Studio (Controlled; draft PR #53, đang review)
 
-- Chưa commit, chưa có PR. Không có lời gọi provider thật; mọi kiểm thử dùng fake gateway và dữ liệu tổng hợp.
+- Đã mở [draft PR #53](https://github.com/khangpworking/tdn-growth-os/pull/53); chờ CI Linux ở đúng final head và review trước khi merge. Từ lần bàn giao này không chạy test/typecheck/build trên Windows. Không có lời gọi provider thật; kiểm thử dùng fake gateway và dữ liệu tổng hợp.
 - `CreativeAiGateway` (anh em với `AiGateway` phân tích, không sửa `AiGateway`) cho văn bản và ảnh; adapter CLIProxy chỉ nhận địa chỉ loopback dạng số, bật khi đặt cả `TDN_CLIPROXY_BASE_URL` và `TDN_CLIPROXY_API_KEY`.
 - Migration 0025: bảng `flow_content_ai_attempts` ghi mỗi lời gọi AI; service chạy đồng bộ, lưu và đăng ký đầu ra trước khi bên gọi ghi dữ liệu phụ thuộc ([ADR 0004](adr/0004-content-ai-synchronous-attempts.md)).
 - Một executor cho mỗi database (`<db>.executor.lock`, gỡ thủ công theo runbook); chỉ executor chuyển attempt treo thành `interrupted` khi khởi động. `GET /api/content/ai/status` báo mô hình khả dụng.

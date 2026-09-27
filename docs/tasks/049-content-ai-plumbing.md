@@ -1,6 +1,6 @@
 # Task 049 — Content Studio AI plumbing
 
-Status: IMPLEMENTED LOCALLY, IN REVIEW (plan v5, 2026-09-27). Uncommitted; no PR has been opened. The owner approved the Controlled lane, P1, P2 and P5 on 2026-09-27 and delegated completion of the v5 design; P3/P4 are implemented with **provisional** model ids that Task 053 must verify before any real call. The corrections of plan v5 are applied below; §9 records them.
+Status: DRAFT PR [#53](https://github.com/khangpworking/tdn-growth-os/pull/53), IN REVIEW (plan v5, 2026-09-27). The owner approved the Controlled lane, P1, P2 and P5 on 2026-09-27 and delegated completion of the v5 design; P3/P4 are implemented with **provisional** model ids that Task 053 must verify before any real call. The corrections of plan v5 are applied below; §9 records them.
 Lane: **Controlled** (provider and credential boundary; Task 047 §8, ADR 0003 decision 5)
 Owner/worktree: `feature/049-content-ai-plumbing`, from `main` `cfb234a`.
 Goal: the application-owned path that 050 and 051 use for every creative AI call. That path covers:
@@ -150,7 +150,7 @@ The adapter (`src/platform/ai/cliproxy-creative-gateway.ts`) ports the old clien
 
 Existing Content Studio manifest helpers are reused without modification.
 
-Minimum verification: `npm run check` green on Linux CI. Locally, all new tests pass with no failures beyond the known Windows-only set. Codex pre-review of the branch, then the independent review (required for this lane).
+Minimum verification: `npm run check` green on final-head Linux CI, followed by independent review (required for this lane). Per the owner's latest instruction, do not run tests, typechecks or builds on Windows. Historical Windows results remain in the handoff as historical evidence only.
 
 Escalate when:
 - a change is needed outside the owned paths, including the analysis gateway;

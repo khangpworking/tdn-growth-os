@@ -1,7 +1,7 @@
 # Handoff — Task 049 Content Studio AI plumbing
 
 Updated: 2026-09-27
-Worktree/branch: `feature/049-content-ai-plumbing` from `main` `cfb234a`. Implemented from plan v5. **Uncommitted, no PR.** Migration 0025 is the next free number on that base.
+Worktree/branch: `feature/049-content-ai-plumbing` from `main` `cfb234a`. Implemented from plan v5. **Draft PR [#53](https://github.com/khangpworking/tdn-growth-os/pull/53)**; implementation commit `433574317773dc56caeb4f3fa1e2c5fd737a4a20`. Migration 0025 is the next free number on that base.
 Roles: Claude implemented production code, contracts, migration and docs and reviewed every GPT diff. GPT-5.6 Luna (Codex) wrote the CLIProxy adapter and designed and ran all tests.
 
 Completed:
@@ -51,7 +51,7 @@ Evidence: see “Test results” below.
 
 ## Test results
 
-Local Windows, Node 24.15.0. GPT designed and ran the focused suites, and Claude reran the full suite. Linux CI has not run (no PR yet) and is authoritative for Fedora.
+Historical implementation-pass evidence below is from Windows, Node 24.15.0. GPT designed and ran the focused suites, and Claude reran the full suite. The owner subsequently required Linux-CI-only execution validation: no further Windows tests, typechecks or builds. Codex ran none during publication. Final-head Linux CI on PR #53 is authoritative; its verified result is recorded in the PR handoff rather than inferred from these historical runs.
 
 - **Typecheck:** clean (246 files). `git diff --check` is clean. Regenerating the contracts leaves the committed output byte-identical.
 - **New focused suites:**
@@ -106,7 +106,7 @@ Local Windows, Node 24.15.0. GPT designed and ran the focused suites, and Claude
 - **Where the key is stored persistently on Fedora** is decided in 053.
 - **Windows:** directory `stat.mode` has no execute bits, so `preloadFrontend` rejects `frontend/dist` as unreadable. Operator-app tests that load the real frontend fail on Windows for this pre-existing reason; Linux CI is authoritative.
 
-Next action: owner review of the uncommitted diff; on approval, commit, open a draft PR and let Linux CI run.
+Next action: finish final-head Linux CI and independent diff review on draft PR #53. No merge, deployment or provider calls are authorized by this handoff. ADR 0004 remains Proposed until the owner accepts it.
 Business decisions pending:
 - Accept ADR 0004.
 - Persistent key storage (053).
