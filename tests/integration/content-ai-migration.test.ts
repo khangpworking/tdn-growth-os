@@ -100,8 +100,21 @@ test('the state matrix rejects NULL loopholes, illegal terminal combinations and
   ];
   for (const [label, overrides] of cases) {
     const state = setup();
-    assert.throws(() => insert(state.db, row(10, overrides)), (error: unknown) => error instanceof Error, label);
-    state.db.close();
+    try {
+      if (overrides.state !== undefined && overrides.state !== 'running') {
+        // Reach the closing CHECKs rather than the unrelated start-only INSERT trigger.
+        insert(state.db, row(10));
+        const terminal = { closed_at: closedAt, ...overrides };
+        const columns = Object.keys(terminal);
+        assert.throws(() => state.db.prepare(
+          `UPDATE flow_content_ai_attempts SET ${columns.map((column) => `${column} = ?`).join(', ')} WHERE attempt_id = ?`,
+        ).run(...columns.map((column) => (terminal as Record<string, unknown>)[column]), attemptId(10)),
+        /CHECK constraint failed|cannot store REAL/, label);
+        assert.equal((state.db.prepare('SELECT state FROM flow_content_ai_attempts WHERE attempt_id = ?').get(attemptId(10)) as { state: string }).state, 'running');
+      } else {
+        assert.throws(() => insert(state.db, row(10, overrides)), /CHECK constraint failed|flow_content_ai_attempt_must_start_running|cannot store REAL/, label);
+      }
+    } finally { state.db.close(); }
   }
 });
 
@@ -146,8 +159,18 @@ test('timestamps, identifiers, NULL-safe retry identity, and all retry parent st
   ];
   for (const [label, overrides] of timestampCases) {
     const state = setup();
-    assert.throws(() => insert(state.db, row(30, overrides)), (error: unknown) => error instanceof Error, label);
-    state.db.close();
+    try {
+      if (overrides.state === 'succeeded') {
+        insert(state.db, row(30));
+        assert.throws(() => state.db.prepare(
+          "UPDATE flow_content_ai_attempts SET state = 'succeeded', output_sha256 = ?, closed_at = ? WHERE attempt_id = ?",
+        ).run(outputSha, overrides.closed_at, attemptId(30)),
+        overrides.closed_at === null ? /flow_content_ai_attempt_close_invalid/ : /CHECK constraint failed/, label);
+        assert.equal((state.db.prepare('SELECT state FROM flow_content_ai_attempts WHERE attempt_id = ?').get(attemptId(30)) as { state: string }).state, 'running');
+      } else {
+        assert.throws(() => insert(state.db, row(30, overrides)), /CHECK constraint failed|NOT NULL constraint failed/, label);
+      }
+    } finally { state.db.close(); }
   }
 
   const retryParentCases: Array<[string, AttemptOverrides]> = [
