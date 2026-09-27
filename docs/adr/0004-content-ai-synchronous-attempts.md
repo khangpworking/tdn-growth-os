@@ -1,6 +1,6 @@
 # ADR 0004 — Lời gọi AI của Content Studio chạy đồng bộ, attempt là bản ghi kiểm toán
 
-Trạng thái: **Proposed**. Được chấp nhận khi chủ dự án merge nhánh Task 049.
+Trạng thái: **Accepted — 2026-09-28**. Chủ dự án xác nhận “ok duyệt” cho việc chấp nhận ADR 0004 và merge PR #53 sau focused re-review R1/P2. Phê duyệt này không bao gồm deployment, migration dữ liệu đang dùng hoặc lời gọi provider thật; Task 053 vẫn cần ủy quyền riêng.
 Chi tiết: [Task 049](../tasks/049-content-ai-plumbing.md); bối cảnh: [ADR 0003](0003-content-studio-b11-b13.md) quyết định 5.
 
 ## Bối cảnh

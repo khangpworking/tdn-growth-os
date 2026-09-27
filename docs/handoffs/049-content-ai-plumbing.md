@@ -11,7 +11,7 @@ Completed:
 - **Data.** Migration 0025 `flow_content_ai_attempts`: STRICT, NULL-safe CHECKs, output/state matrix, close-once and no-replacement triggers, output FK to `artifact_manifests`.
 - **Service.** `ContentAiAttemptService.run(input, { stage, persist })`: one gateway dispatch per attempt; output validated, stored, verified and registered before `stage` and the synchronous `persist` run; `ContentAiAttemptCloseError` when the close itself fails; `countRunning`, `list`.
 - **Runtime.** Single executor per database (`<canonical db>.executor.lock`); executor-only startup sweep to `interrupted_by_restart`; startup refuses an older schema; `GET /api/content/ai/status` with a 5 min / 30 s discovery cache and shared in-flight listing; call-count preview.
-- **Docs.** Brief (status, corrections, §9), ADR 0004 (Proposed), runbook (variables, migration order, executor lock and manual recovery), STATUS, release row.
+- **Docs.** Brief (status, corrections, §9), ADR 0004 (Accepted by owner on 2026-09-28), runbook (variables, migration order, executor lock and manual recovery), STATUS, release row.
 
 Changed paths: see the brief's §8 “Owned paths”.
 
@@ -107,8 +107,7 @@ Historical implementation-pass evidence below is from Windows, Node 24.15.0. GPT
 - **Where the key is stored persistently on Fedora** is decided in 053.
 - **Windows:** directory `stat.mode` has no execute bits, so `preloadFrontend` rejects `frontend/dist` as unreadable. Operator-app tests that load the real frontend fail on Windows for this pre-existing reason; Linux CI is authoritative.
 
-Next action: finish final-head Linux CI and independent diff review on draft PR #53. No merge, deployment or provider calls are authorized by this handoff. ADR 0004 remains Proposed until the owner accepts it.
+Owner approval (2026-09-28): the owner explicitly accepted ADR 0004 and authorized merge of PR #53 after R1/P2 was closed. Reviewed code head `ddeebb94f25647c90dadcbf9e07a38ed5e6f5066` passed Linux [run 36337726412](https://github.com/khangpworking/tdn-growth-os/actions/runs/36337726412): 434/434 backend and 125/125 frontend. This approval-record documentation commit must pass final-head CI before merge. PR history records the actual merge outcome. Deployment, live migration, credentials and provider calls remain outside this authorization.
 Business decisions pending:
-- Accept ADR 0004.
 - Persistent key storage (053).
 - Strip EXIF metadata before live Poster calls?
