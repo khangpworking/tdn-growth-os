@@ -45,6 +45,20 @@ test('A2 preserves exact large integer/numeric lexical values and distinguishes 
   assert.equal(parsed.input.records[1]!.revenue.displayedValue, '1.2E2');
 });
 
+test('A2 rejects ambiguous rich-string content instead of discarding or concatenating alternatives', () => {
+  for (const type of ['inlineStr', 's']) {
+    const valid = normalize(fixture({ cells: { E2: { type, richXml: '<r><t>10</t></r><r><t>0</t></r>' } } }));
+    assert.equal(valid.input.records[0]!.revenue.value, '100');
+    assert.equal(valid.result.scopes[0].revenue.value, '150');
+    for (const richXml of ['<t>100</t><r><t>200</t></r>', '<t>100</t><t>200</t>', '<r><t>100</t><t>200</t></r>']) {
+      assert.throws(() => normalize(fixture({ cells: { E2: { type, richXml } } })),
+        e => e instanceof MetricSourceRejection && e.code === 'AMBIGUOUS_RICH_STRING', `${type}: ${richXml}`);
+    }
+  }
+  assert.throws(() => normalize(fixture({ cells: { E2: { type: 'inlineStr', value: '100', duplicateInline: true } } })),
+    e => e instanceof MetricSourceRejection && e.locator === 'Sheet1!E2' && e.code === 'AMBIGUOUS_INLINE_STRING');
+});
+
 test('A2 rejects a whole workbook at the offending locator instead of repairing or dropping rows', () => {
   const cases: [object, string, string][] = [
     [{ cells: { E2: { type: 's', value: '1.5' } } }, 'Sheet1!E2', 'INVALID_INTEGER_TEXT'],
