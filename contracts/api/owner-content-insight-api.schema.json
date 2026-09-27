@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-content-insight-api.schema.json",
+  "title": "OwnerContentInsightApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/revisionRequest" },
+    { "$ref": "#/$defs/lockRequest" },
+    { "$ref": "#/$defs/revisionReceipt" },
+    { "$ref": "#/$defs/lockReceipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "revisionRequest": {
+      "title": "OwnerContentInsightRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "expectedVersion", "insight"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "expectedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 },
+        "insight": { "$ref": "../flow/content-insight-revision-request.schema.json#/$defs/insight" }
+      }
+    },
+    "lockRequest": {
+      "title": "OwnerContentInsightLockRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "insightVersion", "campaignVersion"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "insightVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "campaignVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+      }
+    },
+    "revisionReceipt": {
+      "title": "OwnerContentInsightRevisionReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "version", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "lockReceipt": {
+      "title": "OwnerContentInsightLockReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "insightVersion", "campaignVersion", "lockedAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "insightVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "campaignVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "lockedAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerContentInsightApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "conflict", "integrity_error"] },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

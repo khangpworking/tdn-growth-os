@@ -10,6 +10,7 @@ export type ContentApiContract =
   | ContentSystemPromptDetailResponse
   | ContentCampaignListResponse
   | ContentCampaignDetailResponse
+  | ContentInsightDetailResponse
   | ContentAiStatusResponse
   | ContentApiErrorResponse;
 export type Uuid = string;
@@ -20,6 +21,7 @@ export type ContentCatalogItemType = 'PHYSICAL' | 'SERVICE';
 export type ContentPromptType = 'BIG_IDEA' | 'ANGLE' | 'CAPTION' | 'POSTER';
 export type ContentPromptModel =
   'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low' | 'gpt-image-2' | 'gemini-3.1-flash-image';
+export type ContentInsightSource = ContentInsightTypedSource | ContentInsightStpSource;
 
 export interface ContentBrandListResponse {
   contractVersion: '1.0.0';
@@ -548,6 +550,65 @@ export interface ContentCampaignHistoryItem {
 export interface ContentCampaignLifecycleState {
   sequence: number;
   deleted?: ContentCampaignDeletion;
+}
+export interface ContentInsightDetailResponse {
+  contractVersion: '1.0.0';
+  campaignId: Uuid;
+  campaignVersion: number;
+  campaignDeleted: boolean;
+  latest?: ContentInsightRecord;
+  history: ContentInsightHistoryItem[];
+  lock?: ContentInsightLockView;
+  gate: ContentInsightGate;
+  stpSuggestion?: ContentInsightStpSuggestion;
+}
+export interface ContentInsightRecord {
+  version: number;
+  insight: ContentInsightContent;
+  createdAt: DateTime;
+}
+export interface ContentInsightContent {
+  customer: string;
+  painPoint: string;
+  insight: string;
+  source: ContentInsightSource;
+}
+export interface ContentInsightTypedSource {
+  kind: 'TYPED';
+}
+export interface ContentInsightStpSource {
+  kind: 'STP';
+  lockedStpId: string;
+}
+export interface ContentInsightHistoryItem {
+  version: number;
+  sourceKind: 'TYPED' | 'STP';
+  createdAt: DateTime;
+}
+export interface ContentInsightLockView {
+  insightVersion: number;
+  campaignVersion: number;
+  lockedAt: DateTime;
+  b10?: ContentInsightB10Clearance;
+}
+export interface ContentInsightB10Clearance {
+  productWorkspaceId: string;
+  lockedStpId: string;
+  effectiveDecisionId: string;
+  effectiveDecisionNumber: number;
+  effectiveDecision: 'APPROVE';
+}
+export interface ContentInsightGate {
+  required: boolean;
+  ready: boolean;
+  productWorkspaceId?: Uuid;
+  effectiveDecision?: 'APPROVE' | 'HOLD' | 'REJECT';
+  reason?: string;
+}
+export interface ContentInsightStpSuggestion {
+  lockedStpId: Uuid;
+  customer: string;
+  insight: string;
 }
 export interface ContentAiStatusResponse {
   contractVersion: '1.0.0';

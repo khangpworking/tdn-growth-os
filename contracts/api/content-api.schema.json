@@ -12,6 +12,7 @@
     { "$ref": "#/$defs/systemPromptDetail" },
     { "$ref": "#/$defs/campaignList" },
     { "$ref": "#/$defs/campaignDetail" },
+    { "$ref": "#/$defs/insightDetail" },
     { "$ref": "#/$defs/aiStatus" },
     { "$ref": "#/$defs/error" }
   ],
@@ -438,6 +439,79 @@
           "properties": {
             "sequence": { "type": "integer", "minimum": 0 },
             "deleted": { "$ref": "#/$defs/campaignDeletion" }
+          }
+        }
+      }
+    },
+    "insightDetail": {
+      "title": "ContentInsightDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "campaignVersion", "campaignDeleted", "history", "gate"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "campaignVersion": { "type": "integer", "minimum": 1 },
+        "campaignDeleted": { "type": "boolean" },
+        "latest": {
+          "title": "ContentInsightRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "insight", "createdAt"],
+          "properties": {
+            "version": { "type": "integer", "minimum": 1 },
+            "insight": { "$ref": "../flow/content-insight-revision-request.schema.json#/$defs/insight" },
+            "createdAt": { "$ref": "#/$defs/dateTime" }
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "title": "ContentInsightHistoryItem",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["version", "sourceKind", "createdAt"],
+            "properties": {
+              "version": { "type": "integer", "minimum": 1 },
+              "sourceKind": { "enum": ["TYPED", "STP"] },
+              "createdAt": { "$ref": "#/$defs/dateTime" }
+            }
+          }
+        },
+        "lock": {
+          "title": "ContentInsightLockView",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["insightVersion", "campaignVersion", "lockedAt"],
+          "properties": {
+            "insightVersion": { "type": "integer", "minimum": 1 },
+            "campaignVersion": { "type": "integer", "minimum": 1 },
+            "lockedAt": { "$ref": "#/$defs/dateTime" },
+            "b10": { "$ref": "../flow/content-insight-lock-artifact.schema.json#/$defs/b10" }
+          }
+        },
+        "gate": {
+          "title": "ContentInsightGate",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "ready"],
+          "properties": {
+            "required": { "type": "boolean" },
+            "ready": { "type": "boolean" },
+            "productWorkspaceId": { "$ref": "#/$defs/uuid" },
+            "effectiveDecision": { "enum": ["APPROVE", "HOLD", "REJECT"] },
+            "reason": { "type": "string" }
+          }
+        },
+        "stpSuggestion": {
+          "title": "ContentInsightStpSuggestion",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lockedStpId", "customer", "insight"],
+          "properties": {
+            "lockedStpId": { "$ref": "#/$defs/uuid" },
+            "customer": { "type": "string" },
+            "insight": { "type": "string" }
           }
         }
       }

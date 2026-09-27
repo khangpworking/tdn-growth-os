@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-insight-lock-request.schema.json",
+  "title": "ContentInsightLockRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "insightVersion", "campaignVersion"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "insightVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "campaignVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+  }
+}

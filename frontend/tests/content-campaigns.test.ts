@@ -570,7 +570,7 @@ test('campaign page renders active rows and keeps deleted campaigns in the recen
   assert.match(html, /Canxi A \(1\)/);
   assert.match(html, /Canxi B \(1\)/);
   assert.match(html, /Tư vấn \(Plus, Pro\)/);
-  assert.match(html, /Chưa có Insight/);
+  assert.match(html, new RegExp(`href="#/content/${campaignId}/insight">Insight</`));
   assert.match(html, /Đã xóa gần đây/);
   assert.match(html, /Chiến dịch đã xóa/);
   assert.match(html, /Khôi phục/);
@@ -649,11 +649,12 @@ test('CampaignForm disables upgrade when a selected summary-only option has no d
   assert.match(html, /<button[^>]*disabled=""[^>]*>Dùng phiên bản mới<\/button>/);
 });
 
-test('campaign detail shows disabled next-step indicators and respects deletion and OWNER lock', async () => {
+test('campaign detail links step 1, shows disabled next-step indicators and respects deletion and OWNER lock', async () => {
   const { CampaignDetail } = await tsImport('../src/CampaignsPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/CampaignsPage');
   const common = { view: detail as never, brandName: 'Canxi A', researchProductWorkspaceName: 'Workspace nghiên cứu', onEdit: () => undefined, onLifecycle: () => undefined };
   const active = renderToStaticMarkup(createElement(CampaignDetail, { ...common, mode: 'demo', ownerToken: 'demo-token', writesAvailable: true }));
-  for (const step of ['Insight — có ở bước tiếp theo', 'Big Idea — có ở bước tiếp theo', 'Góc nội dung — có ở bước tiếp theo', 'Caption &amp; Poster — có ở bước tiếp theo']) assert.match(active, new RegExp(step));
+  assert.match(active, new RegExp(`<a class="step" href="#/content/${campaignId}/insight"><b>Insight — mở bước 1</b></a>`));
+  for (const step of ['Big Idea — cần khóa Insight trước', 'Góc nội dung — cần khóa Insight trước', 'Caption &amp; Poster — có ở bước tiếp theo']) assert.match(active, new RegExp(step));
   const deleted = renderToStaticMarkup(createElement(CampaignDetail, { ...common, mode: 'demo', ownerToken: 'demo-token', writesAvailable: true }));
   assert.match(deleted, /Chiến dịch đã bị xóa\. Khôi phục được đến/);
   assert.doesNotMatch(deleted, />Sửa</);

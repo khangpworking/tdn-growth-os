@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-insight-artifact.schema.json",
+  "title": "ContentInsightArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "version", "insight", "createdAt", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "insight": { "$ref": "content-insight-revision-request.schema.json#/$defs/insight" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

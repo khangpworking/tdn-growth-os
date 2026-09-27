@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-insight-revision-request.schema.json",
+  "title": "ContentInsightRevisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "expectedVersion", "insight"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "expectedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 },
+    "insight": { "$ref": "#/$defs/insight" }
+  },
+  "$defs": {
+    "insight": {
+      "title": "ContentInsightContent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["customer", "painPoint", "insight", "source"],
+      "properties": {
+        "customer": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "painPoint": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "insight": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "source": { "$ref": "#/$defs/source" }
+      }
+    },
+    "source": {
+      "title": "ContentInsightSource",
+      "oneOf": [
+        {
+          "title": "ContentInsightTypedSource",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind"],
+          "properties": { "kind": { "const": "TYPED" } }
+        },
+        {
+          "title": "ContentInsightStpSource",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kind", "lockedStpId"],
+          "properties": { "kind": { "const": "STP" }, "lockedStpId": { "type": "string", "format": "uuid" } }
+        }
+      ]
+    }
+  }
+}
