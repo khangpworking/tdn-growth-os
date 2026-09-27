@@ -30,4 +30,6 @@ The business task **Review marketing framework files** supplied sanitized catalo
 
 ## Remaining work
 
-This is not raw-to-full-report automation. Real A2 source acceptance still needs the explicit real manifest, acquisition basis, UNKNOWN policy and source-bound label sidecar. Manual Insight evidence requires separate rights/lineage/method acceptance. Database/workspace binding, official approval, UI, jobs and AI synthesis are future slices. No provider call, deployment or merge was performed.
+This is not raw-to-full-report automation. Real A2 source acceptance still needs the selected workbook, explicit real manifest, acquisition basis and UNKNOWN policy. The source-bound label sidecar is optional for an all-scope draft but required for WIDE/CORE. Manual Insight evidence requires separate rights/lineage/method acceptance. Database/workspace binding, official approval, UI, jobs and AI synthesis are future slices. No provider call, deployment or merge was performed.
+
+The consolidated Linux acceptance runbook and remaining input gates are in `docs/research/offline-acceptance.md`. Technical hashes/locators/profile metadata belong to code, not owner questions. An unknown acquisition timestamp cannot currently satisfy the v1 manifest and must not be inferred from filesystem metadata. UNKNOWN policy affects WIDE membership, not CORE membership.
