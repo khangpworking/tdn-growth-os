@@ -12,6 +12,7 @@
     { "$ref": "#/$defs/systemPromptDetail" },
     { "$ref": "#/$defs/campaignList" },
     { "$ref": "#/$defs/campaignDetail" },
+    { "$ref": "#/$defs/aiStatus" },
     { "$ref": "#/$defs/error" }
   ],
   "$defs": {
@@ -439,6 +440,35 @@
             "deleted": { "$ref": "#/$defs/campaignDeletion" }
           }
         }
+      }
+    },
+    "aiModelAvailability": {
+      "title": "ContentAiModelAvailability",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "available"],
+      "properties": {
+        "id": { "enum": ["gpt-5.6-sol", "gpt-5.6-luna", "gemini-3.5-flash-low", "gpt-image-2", "gemini-3.1-flash-image"] },
+        "kind": { "enum": ["text", "image"] },
+        "available": { "type": "boolean" }
+      }
+    },
+    "aiStatus": {
+      "title": "ContentAiStatusResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "configured", "checkedAt", "models"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "configured": { "type": "boolean" },
+        "checkedAt": { "oneOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] },
+        "error": {
+          "enum": [
+            "ai_not_configured", "model_not_allowed", "request_too_large", "timeout", "network_error",
+            "gateway_http_error", "malformed_envelope", "response_too_large", "invalid_image", "schema_mismatch"
+          ]
+        },
+        "models": { "type": "array", "items": { "$ref": "#/$defs/aiModelAvailability" } }
       }
     },
     "error": {
