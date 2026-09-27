@@ -1,5 +1,13 @@
 # Ý định sản phẩm và quyết định thiết kế — TDN Growth OS
 
+## Quyết định bổ sung 27/09/2026 — độ ổn định báo cáo nghiên cứu
+
+OWNER giao task **Review marketing framework files** phụ trách nghiệp vụ và task **TDN operation** phụ trách code, phối hợp triển khai. Code tính số liệu/biểu đồ; dữ kiện, suy luận và giả thuyết phải tách rõ. Insight phải truy được bằng chứng, phạm vi/thời gian, giả định và giới hạn; validator hoặc AI kiểm tra chéo không chứng minh kết luận là thật.
+
+Cùng bộ đầu vào đã đóng băng, phiên bản phương pháp và cấu hình phải mở lại kết quả đã lưu sau kiểm tra identity; không âm thầm gọi AI sinh lại hoặc ghi đè. Phương án diễn giải mới phải tạo phiên bản riêng theo yêu cầu rõ ràng. Kết luận chính thức vẫn cần người duyệt.
+
+A1 là calculator/CLI offline với bản nháp JSON/Markdown deterministic, chưa full report/Insight, chưa có SQLite report-run/UI hoặc AI generation. Chính sách UNKNOWN trong wide là cấu hình bắt buộc và chưa có lựa chọn mặc định cho báo cáo thật. Xem `docs/tasks/research-a1-deterministic-metric.md`.
+
 Cập nhật: 11/09/2026. Trạng thái: ghi nhận quyết định frontend sau baseline Task 032; visual direction đang đề xuất.
 
 ## Mục đích và cách đọc

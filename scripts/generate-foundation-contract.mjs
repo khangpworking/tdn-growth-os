@@ -5,6 +5,8 @@ import { compileFromFile } from 'json-schema-to-typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contracts = [
+  ['analysis', 'metric-scope-input'],
+  ['analysis', 'metric-scope-output'],
   ['foundation', 'shopee-listing-request'],
   ['foundation', 'shopee-collection'],
   ['foundation', 'apify-shopee-rows'],

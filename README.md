@@ -50,6 +50,10 @@ npm run report:combined:export -- \
 
 The exporter opens the database read-only, verifies both Results and their frozen sources, preserves missing values separately from zero and keeps integer strings lossless. Market and review scopes remain separate unless existing verified shared identity is available. Output must be outside the repository, is created with owner-only permissions, and is never overwritten.
 
+## Offline normalized Metric calculation (research A1)
+
+`npm run research:metric:calculate -- <normalized-input.json> <outside-git-bundle-directory>` calculates versioned exact-integer metrics and a Vietnamese draft without AI or database access. Existing identical bundles are verified and reused; changed or corrupt content is never overwritten. This validates normalized input only, not original XLSX cells or business conclusions. See [A1 scope and method](docs/tasks/research-a1-deterministic-metric.md).
+
 ## Offline source-package intake
 
 Run `npm run source-package:intake -- <database> <artifact-root> <package-directory> <intake.json> <audit.json> <output.md>` to verify and persist an exact-byte source package and immutable field audit without provider calls. The package directory must exactly match descriptor membership; the report path must be outside this repository and must not already exist. See `docs/tasks/023-source-package-intake.md`.
