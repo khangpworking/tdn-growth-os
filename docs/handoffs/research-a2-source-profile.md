@@ -10,4 +10,12 @@ Test ownership (test-audit): one source integration file covers actual shared st
 
 Known boundaries: one Sheet1/20-column source profile, General-format metric cells, one workbook per run, no missing-date inference. First error yields JSON diagnostic and no result. Manifest and label provenance/adjudication are declarations, not independent authentication. Receipts retain raw OOXML type/index/style and resolved lexical values, not Excel rendered display. No private source copies are tracked.
 
-Real source acceptance is blocked pending explicit period/acquisition manifest and policy/sidecar; no Fedora file transfer performed. Synthetic test success must not be described as a real report or measured market finding. No provider/AI call, database migration, runtime or UI change, merge or deployment.
+Real source acceptance is blocked pending the selected source, explicit period/acquisition manifest and UNKNOWN policy. A source-bound sidecar is optional for an all-scope draft but required for WIDE/CORE; no Fedora file transfer performed. Synthetic test success must not be described as a real report or measured market finding. No provider/AI call, database migration, runtime or UI change, merge or deployment.
+
+## Rich-string correction and current-main integration
+
+Current main `ff20bbb1cc344fdf68eb7713327077826f899b81` was integrated normally; the STATUS-only conflict retained both research and Content Studio sections.
+
+Review found that an ambiguous inline string with both a plain `<t>` and rich runs could silently discard the plain value. Shared strings could concatenate competing forms. The parser now admits either one plain text node or ordered, individually valid rich runs, never both; repeated inline containers and competing value representations are rejected. Valid plain/rich strings remain supported. No mapping, numeric policy or schema was changed.
+
+The single owner-boundary regression uses synthetic workbook bytes through the real normalization path; no production test seam was added. On pre-fix head `9bffee60125f53ef84ce8e945d3ca973d3984a9c`, Linux CI [36340633431](https://github.com/khangpworking/tdn-growth-os/actions/runs/36340633431) failed only this regression: 446/447 backend tests passed, with the expected missing-rejection assertion for mixed inline content. Frontend 125/125 passed. Post-fix final-head evidence will be recorded in the PR comment; this document does not claim it has passed yet.

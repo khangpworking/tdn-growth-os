@@ -24,7 +24,7 @@ The business task **Review marketing framework files** supplied sanitized catalo
 
 - A3 starts from A2 `de697351febb15c60a51ec4da1b78b67962cedd8` and integrates main `ff20bbb1cc344fdf68eb7713327077826f899b81` (Content Studio 049 already merged).
 - The only merge conflict was STATUS; both research and Content Studio status sections were preserved.
-- PR includes unmerged A1 #52 and A2 #54. A3-only review starts at integration commit `cc704cb`; do not merge #55 before the dependencies are accepted.
+- PR includes unmerged A1 #52 and A2 #54. Latest integration includes A1 `ccfe847ea371b46783cbb62a2d80b6a39124a323` and corrected A2 `426985d807b8240a20ecec1650dcdb7ae6cdf8bf` (ambiguous rich strings rejected). Review the A3-only delta against that A2 head; do not merge #55 before dependencies are accepted. The follow-up merge conflict was STATUS only; all feature status sections were retained.
 - No dependency/lockfile/workflow/migration changes, domain/API/UI changes, live records, private source files or historical findings in this slice.
 - Catalog metadata can be extended/versioned but cannot authorize execution of arbitrary methods, claim truth, or human approval.
 

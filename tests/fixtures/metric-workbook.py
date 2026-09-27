@@ -15,6 +15,7 @@ rows = [headers, ['Synthetic A', 'https://shopee.vn/product/10/101', '900', '2',
         ['Synthetic B', 'https://shopee.vn/product/20/102', '800', '0', '50', 'Health', 'Brand', '', '',
          'https://shopee.vn/shop/20', '1__102__20', 'Health', 'Supplements', '', '2020-01-01', '', 'Shop', '88888', '4', '444']]
 shared = []
+shared_xml = []
 row_xml = []
 for r, values in enumerate(rows, 1):
     cells = []
@@ -28,9 +29,12 @@ for r, values in enumerate(rows, 1):
         style = ' s="1"' if spec.get('dateStyle') else ''
         if typ == 's':
             shared.append(value)
+            shared_xml.append(spec.get('richXml', '<t>' + escape(value) + '</t>'))
             contents = '<v>' + str(len(shared) - 1) + '</v>'
         elif typ == 'inlineStr':
-            contents = '<is><t>' + escape(value) + '</t></is>'
+            contents = '<is>' + spec.get('richXml', '<t>' + escape(value) + '</t>') + '</is>'
+            if spec.get('duplicateInline'):
+                contents += '<is><t>900</t></is>'
         else:
             contents = '<v>' + escape(value) + '</v>'
         cells.append('<c r="' + ref + '" t="' + typ + '"' + style + '>' + formula + contents + '</c>')
@@ -45,7 +49,7 @@ parts = {
     'xl/_rels/workbook.xml.rels': '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>',
     'xl/worksheets/sheet1.xml': sheet,
     'xl/styles.xml': '<styleSheet xmlns="' + ns + '"><cellXfs count="2"><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>',
-    'xl/sharedStrings.xml': '<sst xmlns="' + ns + '">' + ''.join('<si><t>' + escape(s) + '</t></si>' for s in shared) + '</sst>',
+    'xl/sharedStrings.xml': '<sst xmlns="' + ns + '">' + ''.join('<si>' + s + '</si>' for s in shared_xml) + '</sst>',
 }
 if config.get('badXml'):
     parts['xl/worksheets/sheet1.xml'] = '<!DOCTYPE x [<!ENTITY foo "bar">]>' + sheet
