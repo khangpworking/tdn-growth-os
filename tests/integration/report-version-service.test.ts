@@ -28,6 +28,7 @@ import {
   ReportInterpretationLedgerConflictError,
   ReportInterpretationLedgerIntegrityError,
   ReportInterpretationLedgerService,
+  ReportInterpretationLedgerValidationError,
 } from '../../src/modules/analysis/report-interpretation-ledger.js';
 import { NormalizedMetricObservationStore } from '../../src/modules/analysis/normalized-metric-observation-store.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
@@ -396,6 +397,51 @@ test('retains every evidence-bound interpretation run and replays exact evidence
   assert.ok(history[0]!.artifactBytes.equals(firstBuilt.artifactBytes));
   assert.ok(!('chainOfThought' in history[0]!.artifact));
   assert.ok(!('promptText' in history[0]!.artifact.generation));
+
+  const changedCatalog = JSON.parse(JSON.stringify(catalog)) as typeof catalog;
+  changedCatalog.catalogVersion = '0.1.1';
+  changedCatalog.sections[0]!.title = 'Kết luận chính — phiên bản thử nghiệm';
+  const changedCatalogBytes = canonicalBytes(changedCatalog);
+  const secondReportVersion = await state.service.createVersion({
+    ...state.request,
+    version: 2,
+    previousSemanticVersionId: report.semanticVersionId,
+    sourceRequest: { ...state.request.sourceRequest, catalogSha256: sha256(changedCatalogBytes) },
+  }, changedCatalogBytes);
+  assert.notEqual(secondReportVersion.semanticVersionId, report.semanticVersionId);
+  assert.ok((await ledger.read(report.reportId, 1, first.interpretationId)).artifactBytes.equals(firstBuilt.artifactBytes));
+  await assert.rejects(
+    ledger.read(report.reportId, 2, first.interpretationId),
+    ReportInterpretationLedgerValidationError,
+  );
+
+  const failedBuilt = buildEvidenceBoundReportInterpretation({
+    request,
+    output: {
+      items: [{ ...baseOutput.items[0]!, conclusion: 'Diễn giải tổng hợp dùng để kiểm tra rollback artifact.' }],
+    },
+    bundle: source.bundle, configuration,
+    now: () => new Date('2026-10-01T04:02:00.000Z'),
+    createId: () => '77777777-7777-4777-8777-777777777777',
+  });
+  const filesBeforeFailedPersist = artifactTree(state.artifactRoot);
+  state.db.exec(`
+    CREATE TEMP TRIGGER reject_synthetic_interpretation
+    BEFORE INSERT ON analysis_report_interpretation_runs
+    BEGIN
+      SELECT RAISE(ABORT, 'synthetic interpretation insert failure');
+    END
+  `);
+  try {
+    await assert.rejects(ledger.persist({
+      reportId: report.reportId, reportVersion: 1,
+      artifactBytes: failedBuilt.artifactBytes, promptText,
+    }), /synthetic interpretation insert failure/);
+  } finally {
+    state.db.exec('DROP TRIGGER reject_synthetic_interpretation');
+  }
+  assert.equal(artifactTree(state.artifactRoot), filesBeforeFailedPersist);
+  assert.equal(count(state.db, 'analysis_report_interpretation_runs'), 2n);
 
   const changedSameIdentity = buildEvidenceBoundReportInterpretation({
     request, output: {

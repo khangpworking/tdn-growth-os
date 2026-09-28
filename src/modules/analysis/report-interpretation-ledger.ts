@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import type Database from 'better-sqlite3';
 import artifactSchema from '../../../contracts/analysis/report-interpretation-artifact.schema.json' with { type: 'json' };
@@ -108,6 +109,11 @@ interface RunRow {
   readonly storedAt: string;
 }
 
+interface CreatedArtifact {
+  readonly stored: StoredArtifact;
+  readonly removeOnFailure: boolean;
+}
+
 export class ReportInterpretationLedgerService {
   readonly #db: Database.Database;
   readonly #artifacts: ContentAddressedArtifactStore;
@@ -146,17 +152,18 @@ export class ReportInterpretationLedgerService {
     const existing = this.#rowById(artifact.interpretationId);
     if (existing) return this.#verifiedRetry(existing, source, artifactBytes, options.promptText);
 
-    const storedArtifact = await this.#artifacts.put(artifactBytes);
-    const storedPrompt = await this.#artifacts.put(promptBytes);
     const storedAt = exactTimestamp(this.#now());
     return withDatabaseMutationMutex(this.#db, async () => {
       this.#db.exec('BEGIN IMMEDIATE');
       let execution: ReportInterpretationLedgerExecution;
+      const createdArtifacts: CreatedArtifact[] = [];
       try {
         const raced = this.#rowById(artifact.interpretationId);
         if (raced) {
           execution = await this.#verifiedRetry(raced, source, artifactBytes, options.promptText);
         } else {
+          const storedArtifact = await this.#putTracked(artifactBytes, createdArtifacts);
+          const storedPrompt = await this.#putTracked(promptBytes, createdArtifacts);
           const interpretationNumber = this.#nextNumber(options.reportId, options.reportVersion);
           let databaseMutations = 0;
           databaseMutations += this.#registerArtifact(storedArtifact, JSON_MEDIA, storedAt);
@@ -193,7 +200,16 @@ export class ReportInterpretationLedgerService {
         }
         this.#db.exec('COMMIT');
       } catch (error) {
+        let cleanupError: unknown;
+        try {
+          await this.#removeUnregisteredArtifacts(createdArtifacts);
+        } catch (cleanupFailure) {
+          cleanupError = cleanupFailure;
+        }
         if (this.#db.inTransaction) this.#db.exec('ROLLBACK');
+        if (cleanupError) {
+          throw new ReportInterpretationLedgerIntegrityError('Failed to clean up interpretation artifacts', { cause: cleanupError });
+        }
         throw error;
       }
       const verified = await this.read(
@@ -282,6 +298,28 @@ export class ReportInterpretationLedgerService {
 
   #rowById(interpretationId: string): RunRow | undefined {
     return this.#db.prepare(`${runSelect()} WHERE interpretation_id = ?`).get(interpretationId) as RunRow | undefined;
+  }
+
+  async #putTracked(bytes: Buffer, createdArtifacts: CreatedArtifact[]): Promise<StoredArtifact> {
+    const sha256 = digest(bytes);
+    const absolutePath = this.#artifacts.pathForDigest(sha256);
+    const existed = await pathExists(absolutePath);
+    const registered = this.#db.prepare('SELECT 1 found FROM artifact_manifests WHERE sha256 = ?').get(sha256) !== undefined;
+    const stored = await this.#artifacts.put(bytes);
+    if (!existed) createdArtifacts.push({ stored, removeOnFailure: !registered });
+    return stored;
+  }
+
+  async #removeUnregisteredArtifacts(artifacts: readonly CreatedArtifact[]): Promise<void> {
+    const unique = new Map(artifacts.map(({ stored, removeOnFailure }) => [stored.sha256, { stored, removeOnFailure }]));
+    for (const { stored, removeOnFailure } of unique.values()) {
+      if (!removeOnFailure) continue;
+      const bytes = await this.#artifacts.read(stored.sha256, { maxBytes: stored.byteSize });
+      if (bytes.byteLength !== stored.byteSize || digest(bytes) !== stored.sha256) {
+        throw new ReportInterpretationLedgerIntegrityError('Interpretation artifact changed before cleanup');
+      }
+      await fs.rm(stored.absolutePath);
+    }
   }
 
   #registerArtifact(stored: StoredArtifact, mediaType: string, storedAt: string): number {
@@ -498,4 +536,14 @@ function optionalNumber(value: bigint | null): number | undefined {
 
 function digest(bytes: Uint8Array): string {
   return createHash('sha256').update(bytes).digest('hex');
+}
+
+async function pathExists(filePath: string): Promise<boolean> {
+  try {
+    await fs.access(filePath);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
 }
