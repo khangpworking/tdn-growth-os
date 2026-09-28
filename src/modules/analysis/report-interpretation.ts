@@ -10,6 +10,7 @@ import type { VersionedReportPacket } from '../../../contracts/analysis/versione
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { buildReportSemanticContent } from './report-semantic-content.js';
 import type { SourceBackedReportBundle } from './source-backed-report.js';
+import { createResearchReportPacket } from './versioned-report-packet.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -20,8 +21,9 @@ const validateRequest = ajv.compile<ReportInterpretationRequest>(requestSchema);
 const validateOutput = ajv.compile<ReportInterpretationOutput>(outputSchema);
 const validateArtifact = ajv.compile<ReportInterpretationArtifact>(artifactSchema);
 
-const forbiddenDecisionLanguage = /\b(?:recommend(?:ation|ed|s)?|approv(?:al|e|ed|es)|should|must|action|autonomous)\b|\bgo\s*\/\s*no-go\b|\bno-go\b|\b(?:khuyến\s*nghị|đề\s*xuất|phê\s*duyệt|chấp\s*thuận|nên|phải|hãy|triển\s*khai|thực\s*hiện)\b/iu;
-const forbiddenAuthorityLanguage = /\b(?:cure|treat|prevent|cause[sd]?|guarantee[sd]?)\b|\b(?:chữa|điều\s*trị|ngăn\s*ngừa|gây\s*ra|dẫn\s*đến|bảo\s*đảm)\b/iu;
+const forbiddenDecisionLanguage = /\b(?:recommend(?:ation|ations|ed|ing|s)?|approv(?:al|e|ed|es|ing)|reject(?:ion|ed|ing|s)?|instruct(?:ion|ed|ing|s)?|launch(?:ed|es|ing)?|proceed(?:ed|ing|s)?|invest(?:ment|ments|ed|ing|s)?|fund(?:ing|ed|s)?|authoriz(?:ation|e|ed|es|ing)|should|must|action|autonomous)\b|\bgo\s*\/\s*no-go\b|\bno-go\b|(?:khuyến\s*nghị|đề\s*xuất|phê\s*duyệt|chấp\s*thuận|từ\s*chối|loại\s*bỏ|chỉ\s*đạo|ra\s*mắt|tiến\s*hành|đầu\s*tư|cấp\s*vốn|nên|phải|hãy|triển\s*khai|thực\s*hiện)/iu;
+const forbiddenAuthorityLanguage = /\b(?:cure|treat|prevent|cause[sd]?|causal|causation|guarantee[sd]?|safe|safety|compliant|compliance|legal|medical|clinical(?:ly)?\s+proven)\b|(?:chữa|điều\s*trị|ngăn\s*ngừa|gây\s*ra|dẫn\s*đến|nguyên\s*nhân|bảo\s*đảm|an\s*toàn|tuân\s*thủ|hợp\s*pháp|y\s*khoa|lâm\s*sàng)/iu;
+const forbiddenProvenanceLanguage = /(?:https?:\/\/|www\.|file:\/\/)|\.(?:xlsx?|csv|json|pdf|docx|html?)\b|\b[0-9a-f]{64}\b|\b(?:provider[-\s]+verified|verified\s+by|source\s+confirms?)\b|(?:nhà\s*cung\s*cấp\s+xác\s*minh|đã\s*được\s+xác\s*minh|nguồn\s+xác\s*nhận)/iu;
 const numericLiteral = /\p{Number}/u;
 
 export interface ReportInterpretationConfiguration {
@@ -85,6 +87,30 @@ function assertText(text: string, label: string): void {
   if (numericLiteral.test(text)) throw new TypeError(`${label}: NUMERIC_LITERAL_FORBIDDEN`);
   if (forbiddenDecisionLanguage.test(text)) throw new TypeError(`${label}: DECISION_LANGUAGE_FORBIDDEN`);
   if (forbiddenAuthorityLanguage.test(text)) throw new TypeError(`${label}: AUTHORITY_LANGUAGE_FORBIDDEN`);
+  if (forbiddenProvenanceLanguage.test(text)) throw new TypeError(`${label}: PROVENANCE_LANGUAGE_FORBIDDEN`);
+}
+
+function requiredFile(bundle: SourceBackedReportBundle, name: string): Buffer {
+  const value = bundle.files.get(name);
+  if (!value) throw new TypeError(`interpretation source: MISSING_${name.toUpperCase().replaceAll(/[^A-Z0-9]+/g, '_')}`);
+  return value;
+}
+
+function assertReplayedPacket(bundle: SourceBackedReportBundle): void {
+  let replayed: ReturnType<typeof createResearchReportPacket>;
+  try {
+    replayed = createResearchReportPacket(
+      requiredFile(bundle, 'metric-result.json'),
+      bundle.envelope.artifacts.metricResultSha256,
+      requiredFile(bundle, 'section-catalog.json'),
+      bundle.envelope.artifacts.catalogSha256,
+    );
+  } catch (cause) {
+    throw new TypeError('interpretation source: A3_PACKET_REPLAY_FAILED', { cause });
+  }
+  if (canonicalJson(replayed.packet) !== canonicalJson(bundle.packet)) {
+    throw new TypeError('interpretation source: A3_PACKET_REPLAY_MISMATCH');
+  }
 }
 
 function resolvedCitation(claim: PacketClaim): ResolvedItem['citations'][number] {
@@ -181,6 +207,7 @@ export function buildEvidenceBoundReportInterpretation(options: {
   assertTelemetry(telemetry);
 
   const base = buildReportSemanticContent(options.bundle).content;
+  assertReplayedPacket(options.bundle);
   if (base.semanticVersionId !== request.semanticVersionId) {
     throw new TypeError('interpretation request: SEMANTIC_VERSION_MISMATCH');
   }

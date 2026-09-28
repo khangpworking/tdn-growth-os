@@ -1,9 +1,14 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import test from 'node:test';
+import catalog from '../../docs/research/report-section-catalog-v1.json' with { type: 'json' };
+import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { buildEvidenceBoundReportInterpretation } from '../../src/modules/analysis/report-interpretation.js';
+import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
+import { buildResearchReportChartData } from '../../src/modules/analysis/research-report-charts.js';
 import { buildReportSemanticContent } from '../../src/modules/analysis/report-semantic-content.js';
 import type { SourceBackedReportBundle } from '../../src/modules/analysis/source-backed-report.js';
+import { createResearchReportPacket } from '../../src/modules/analysis/versioned-report-packet.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 
 // Test-authoring gate: this file is the single owner for the new trust boundary.
@@ -13,70 +18,16 @@ const digest = (label: string): string => sha256(Buffer.from(label));
 const canonicalBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
 
 function fixture(): SourceBackedReportBundle {
-  const input = { input: 'exact' };
+  const input = metricFixture();
   const inputBytes = canonicalBytes(input);
-  const result = { rendererVersion: 'metric-draft-vi-v1', result: 'exact' };
+  const result = calculateMetricScopes(input);
   const resultBytes = canonicalBytes(result);
-  const catalog = {
-    catalog: 'exact',
-    sections: [
-      { sectionId: 'M03', title: 'Quy mô', methodId: 'fixture-method', methodVersion: '1.0.0' },
-      { sectionId: 'M10', title: 'Dự báo', methodId: 'blocked-method', methodVersion: '1.0.0' },
-    ],
-  };
   const catalogBytes = canonicalBytes(catalog);
   const catalogSha256 = sha256(catalogBytes);
   const metricResultSha256 = sha256(resultBytes);
-  const claim = {
-    claimId: 'm03_wide_revenue',
-    sectionId: 'M03',
-    claimType: 'FACT',
-    evidenceState: 'DETERMINISTIC_NORMALIZED_OBSERVATION',
-    approvalState: 'UNREVIEWED',
-    statementKind: 'OBSERVED_REVENUE',
-    scopeKey: 'wide',
-    value: '125000000',
-    unit: 'VND',
-    metricPointer: '/totals/wide/revenueVnd',
-    scopePointer: '/input/scope',
-    membershipPointer: '/scope/wide/recordIndices',
-    denominatorPointer: null,
-    coveragePointer: '/coverage/wide',
-    limitations: ['OBSERVED_SCOPE_ONLY'],
-  };
-  const packet = {
-    packetId: digest('packet-id'),
-    policyVersion: 'report-packet-a3a-v1',
-    rendererVersion: 'report-packet-vi-v1',
-    metricMethodVersion: 'metric-scope-v1',
-    metricRounding: 'percent-half-even-2-v1',
-    metricResultSha256,
-    catalogSha256,
-    catalog,
-    claims: [claim],
-    sections: [
-      {
-        sectionId: 'M03', deliveryState: 'PARTIAL_DETERMINISTIC_DRAFT',
-        sectionSha256: digest('section-m03'), claimIds: [claim.claimId], contextPointers: [], blockers: [],
-      },
-      {
-        sectionId: 'M10', deliveryState: 'BLOCKED',
-        sectionSha256: digest('section-m10'), claimIds: [], contextPointers: [], blockers: ['DAILY_SERIES_REQUIRED'],
-      },
-    ],
-  } as never;
+  const packet = createResearchReportPacket(resultBytes, metricResultSha256, catalogBytes, catalogSha256).packet;
   const packetBytes = canonicalBytes(packet);
-  const charts = {
-    approvalState: 'UNREVIEWED',
-    resultSha256: metricResultSha256,
-    catalogSha256,
-    computation: {
-      inputSha256: digest('input'), methodVersion: 'metric-scope-v1', rounding: 'percent-half-even-2-v1',
-      rendererVersion: 'metric-draft-vi-v1', profileId: 'fixture', labelCodebookVersion: 'fixture',
-      wideUnknownPolicy: 'exclude',
-    },
-    points: [{ resultSha256: metricResultSha256, value: 'exact' }],
-  } as never;
+  const charts = buildResearchReportChartData(resultBytes, metricResultSha256, catalogBytes, catalogSha256);
   const chartBytes = canonicalBytes(charts);
   const envelope = {
     contractVersion: 'source-backed-report-v1',
@@ -111,12 +62,24 @@ function fixture(): SourceBackedReportBundle {
     envelope,
     envelopeBytes: canonicalBytes(envelope),
     input: input as never,
-    result: result as never,
+    result,
     receipt: {} as never,
     packet,
     charts,
     files,
   };
+}
+
+function withForgedPacketId(source: SourceBackedReportBundle): SourceBackedReportBundle {
+  const packet = { ...source.packet, packetId: digest('forged-packet-id') };
+  const packetBytes = canonicalBytes(packet);
+  const envelope = {
+    ...source.envelope,
+    artifacts: { ...source.envelope.artifacts, packetSha256: sha256(packetBytes) },
+  };
+  const files = new Map(source.files);
+  files.set('packet.json', packetBytes);
+  return { ...source, packet, envelope, envelopeBytes: canonicalBytes(envelope), files };
 }
 
 const configuration = {
@@ -134,7 +97,7 @@ const output = {
     kind: 'INTERPRETATION',
     conclusion: 'Doanh thu quan sát tập trung trong phạm vi đã phân loại.',
     evidenceLogic: 'Kết luận chỉ nối phép tổng hợp đã kiểm chứng với phạm vi wide.',
-    supportingClaimIds: ['m03_wide_revenue'],
+    supportingClaimIds: ['M03:wide:revenue'],
     assumptions: [],
     limitations: ['Không suy rộng ra toàn thị trường.'],
   }],
@@ -163,8 +126,8 @@ test('builds stable meaning with application-resolved citations and separate tel
   assert.equal(first.interpretationContentSha256, replayedMeaning.interpretationContentSha256);
   assert.notDeepEqual(first.artifactBytes, replayedMeaning.artifactBytes);
   assert.equal(first.artifact.source.semanticVersionId, semantic.semanticVersionId);
-  assert.equal(first.artifact.items[0]?.citations[0]?.value, '125000000');
-  assert.equal(first.artifact.items[0]?.citations[0]?.metricPointer, '/totals/wide/revenueVnd');
+  assert.equal(first.artifact.items[0]?.citations[0]?.value, '175');
+  assert.equal(first.artifact.items[0]?.citations[0]?.metricPointer, '/scopes/1/revenue/value');
   assert.ok(!('chainOfThought' in first.artifact));
   assert.equal(first.artifactBytes.at(-1), 10);
 });
@@ -194,9 +157,73 @@ test('fails closed for unsupported sections, citations, numbers, authority langu
   assert.throws(() => build(request, {
     ...output, items: [{ ...output.items[0], conclusion: 'Nên phê duyệt cơ hội này.' }],
   }), /DECISION_LANGUAGE_FORBIDDEN/);
+  for (const text of [
+    'Reject this candidate.',
+    'Instruct the team to launch.',
+    'Proceed with investment and funding.',
+  ]) assert.throws(() => build(request, {
+    ...output, items: [{ ...output.items[0], conclusion: text }],
+  }), /DECISION_LANGUAGE_FORBIDDEN/);
+  for (const text of [
+    'This observation is safe and compliant.',
+    'This is medical and legal evidence.',
+    'The observed pattern causes adoption.',
+  ]) assert.throws(() => build(request, {
+    ...output, items: [{ ...output.items[0], conclusion: text }],
+  }), /AUTHORITY_LANGUAGE_FORBIDDEN/);
+  for (const text of [
+    'The source confirms raw-workbook.xlsx.',
+    'Provider-verified evidence supports the interpretation.',
+    'See https://nguon.example for confirmation.',
+  ]) assert.throws(() => build(request, {
+    ...output, items: [{ ...output.items[0], conclusion: text }],
+  }), /PROVENANCE_LANGUAGE_FORBIDDEN/);
   assert.throws(() => build({ ...request, sectionIds: ['M03', 'M04'] }, output), /SECTION_NOT_ELIGIBLE|SECTION_NOT_FOUND/);
   assert.throws(() => build({ ...request, semanticVersionId: digest('wrong') }, output), /SEMANTIC_VERSION_MISMATCH/);
 
   const duplicate = { items: [output.items[0], output.items[0]] };
   assert.throws(() => build(request, duplicate), /DUPLICATE_ITEM/);
+});
+
+test('requires explicit assumptions for hypotheses and preserves them as unapproved meaning', () => {
+  const bundle = fixture();
+  const semantic = buildReportSemanticContent(bundle).content;
+  const request = {
+    contractVersion: '1.0.0', semanticVersionId: semantic.semanticVersionId,
+    packetId: bundle.packet.packetId, sectionIds: ['M03'],
+  };
+  const hypothesis = {
+    items: [{
+      ...output.items[0],
+      kind: 'HYPOTHESIS',
+      conclusion: 'Phân bố quan sát có thể phản ánh sự tập trung trong phạm vi đã gắn nhãn.',
+      evidenceLogic: 'Giả thuyết nối quan sát đã kiểm chứng với một cách diễn giải chưa được xác nhận.',
+      assumptions: ['Giả định tập dữ liệu quan sát đại diện cho phạm vi đã khai báo.'],
+    }],
+  };
+  const built = buildEvidenceBoundReportInterpretation({
+    request, output: hypothesis, bundle, configuration,
+    now: () => new Date('2026-09-28T01:02:03.000Z'),
+    createId: () => '33333333-3333-4333-8333-333333333333',
+  });
+  assert.equal(built.artifact.items[0]?.kind, 'HYPOTHESIS');
+  assert.deepEqual(built.artifact.items[0]?.assumptions, hypothesis.items[0].assumptions);
+  assert.throws(() => buildEvidenceBoundReportInterpretation({
+    request,
+    output: { items: [{ ...hypothesis.items[0], assumptions: [] }] },
+    bundle,
+    configuration,
+  }), /INVALID_CONTRACT/);
+});
+
+test('rejects a packet that matches its envelope bytes but cannot be reproduced by A3', () => {
+  const bundle = withForgedPacketId(fixture());
+  const semantic = buildReportSemanticContent(bundle).content;
+  const request = {
+    contractVersion: '1.0.0', semanticVersionId: semantic.semanticVersionId,
+    packetId: bundle.packet.packetId, sectionIds: ['M03'],
+  };
+  assert.throws(() => buildEvidenceBoundReportInterpretation({
+    request, output, bundle, configuration,
+  }), /A3_PACKET_REPLAY_MISMATCH/);
 });
