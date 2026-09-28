@@ -552,13 +552,14 @@ recorded in `docs/handoffs/research-a15-interpretation-dashboard.md`: draft PR
 Linux CI PASS with 171/171 frontend and 579/579 repository tests. No Windows
 test, build or typecheck is release evidence.
 
-## Research A23: M13 deterministic provenance appendix (implementation in progress)
+## Research A23: M13 deterministic provenance appendix (complete, draft PR #80)
 
 Catalog 0.3.0 gives M13 a canonical source-to-record provenance artifact. It
 binds the exact finalized source package, selected file bytes, normalized input,
 normalization receipt, deterministic calculation and every retained record
 locator into the immutable report identity and visible HTML appendix. This is
 traceability only: it does not authenticate a provider, establish market
-completeness, create AI interpretation or record a human decision. Final Linux
-CI and draft-PR evidence are recorded in
+completeness, create AI interpretation or record a human decision. Linux Check
+passed with 176/176 frontend and 587/587 repository tests; the Linux report
+preview also passed. Exact draft-PR evidence is recorded in
 `docs/handoffs/research-a23-m13-provenance.md`.
