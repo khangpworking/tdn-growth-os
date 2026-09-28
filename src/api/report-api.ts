@@ -165,6 +165,7 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
           contextPointers: [...section.contextPointers],
           blockers: [...section.blockers],
           sectionSha256: section.sectionSha256,
+          ...(section.methodArtifact === undefined ? {} : { methodArtifact: { ...section.methodArtifact } }),
         };
       });
       return {

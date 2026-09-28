@@ -161,6 +161,18 @@ export function buildReportSemanticContent(bundle: SourceBackedReportBundle): {
   assertJsonMeaning(catalogBytes, bundle.packet.catalog, 'CATALOG');
   assertDigest(bundle.packet.metricResultSha256, bundle.charts.resultSha256, 'RESULT_CHART_BINDING');
   assertDigest(bundle.packet.catalogSha256, bundle.charts.catalogSha256, 'CATALOG_CHART_BINDING');
+  for (const section of bundle.packet.sections) {
+    if (section.methodArtifact === undefined) continue;
+    const methodBytes = requiredFile(bundle, section.methodArtifact.fileName);
+    assertDigest(digest(methodBytes), section.methodArtifact.sha256, 'SECTION_METHOD_ARTIFACT');
+    let methodOutput: unknown;
+    try { methodOutput = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(methodBytes)); }
+    catch { throw new TypeError('semantic content: SECTION_METHOD_ARTIFACT_INVALID_JSON_UTF8'); }
+    if (methodOutput === null || typeof methodOutput !== 'object' ||
+        (methodOutput as { methodOutputId?: unknown }).methodOutputId !== section.methodArtifact.methodOutputId) {
+      throw new TypeError('semantic content: SECTION_METHOD_OUTPUT_ID_MISMATCH');
+    }
+  }
 
   const selectedSourceSha256s = [...new Set(bundle.envelope.selectedSources.map(source => source.sha256))].sort();
   if (selectedSourceSha256s.length < 2) throw new TypeError('semantic content: INSUFFICIENT_SOURCE_MEMBERSHIP');

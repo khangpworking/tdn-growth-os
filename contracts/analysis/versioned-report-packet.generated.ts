@@ -102,6 +102,11 @@ export interface SectionPacket {
    */
   blockers: string[];
   sectionSha256: string;
+  methodArtifact?: {
+    fileName: 'm02-scope-method.json';
+    sha256: string;
+    methodOutputId: string;
+  };
 }
 export interface FactObservation {
   claimId: string;

@@ -432,6 +432,8 @@ Owner assigns business methodology to task **Review marketing framework files** 
 
 **Review-target UI boundary, 2026-09-28:** after the operator explicitly selects one report version and one retained interpretation, the local UI may collect an exact intended use, confirm that snapshot, create it through A19 and open it only after an authoritative A18 read. Each target has a stable exact-digest route and presents source evidence, reproducible calculation, AI interpretation and human decision as separate layers. The fourth layer remains visibly empty and the whole target remains unapproved. No target list, latest inference, demo target, reviewer field or approve/hold/reject action is permitted in this slice.
 
+**M02 deterministic-method boundary, 2026-09-28:** M02 may produce a canonical structured account only from an exact verified source package and its normalized observations. It records declared scope/period, exact selected-source and raw-byte membership, locator and measurement coverage, missing versus observed zero, precision, label coverage and the explicit UNKNOWN/WIDE rule. Byte verification does not authenticate provider collection, and an observed export is not promoted to the whole market. The artifact is part of the immutable report version and semantic identity, remains unreviewed, and contains no AI interpretation, conclusion or human decision. Older catalog 0.1.0 report versions must replay without the new artifact; catalog 0.2.0 must fail closed when it is absent or mismatched.
+
 - Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
 - Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.
 - Khi người dùng đổi ý, ghi quyết định mới và lý do thay thế; Git giữ lịch sử.

@@ -1,7 +1,7 @@
 {
   "contractVersion": "1.0.0",
   "catalogId": "market-insight-30-section-catalog-v1",
-  "catalogVersion": "0.1.0",
+  "catalogVersion": "0.2.0",
   "authority": "PLANNING_METADATA_NOT_EXECUTABLE_METHOD",
   "sections": [
     {
@@ -28,7 +28,7 @@
       "sectionId": "M02",
       "title": "Phạm vi và phương pháp",
       "methodId": "metric-scope-packet-context",
-      "methodVersion": "1.0.0",
+      "methodVersion": "2.0.0",
       "historicalTemplateMaturity": "PILOT",
       "moduleIds": [
         "source-scope"

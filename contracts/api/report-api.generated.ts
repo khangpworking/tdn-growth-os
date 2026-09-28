@@ -129,6 +129,11 @@ export interface ReportSectionReadinessEntry {
    */
   blockers: string[];
   sectionSha256: Digest;
+  methodArtifact?: {
+    fileName: 'm02-scope-method.json';
+    sha256: Digest;
+    methodOutputId: Digest;
+  };
 }
 export interface ReportInterpretationIndexResponse {
   contractVersion: '1.0.0';

@@ -1,5 +1,17 @@
 # Trạng thái hiện tại
 
+## Research A22: deterministic M02 scope and method account (in progress)
+
+- Upgrades the planning catalog to 0.2.0 only for M02 and emits one canonical
+  method account from exact source-package bytes and normalized observations.
+- Records scope, periods, source membership, locators, missing/zero and
+  precision coverage, label coverage and the explicit UNKNOWN/WIDE policy.
+- Binds the method artifact to the packet, semantic identity, immutable report
+  version and exact-version readiness API. It adds no AI narrative, conclusion
+  or human decision. Linux verification passed with 176/176 frontend tests,
+  585/585 repository tests, contract generation, strict backend/frontend
+  TypeScript, production build and research preview.
+
 ## Research A21: exact-version 30-section readiness matrix
 
 - Adds a read-only exact-version route that replays the immutable report packet

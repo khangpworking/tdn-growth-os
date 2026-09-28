@@ -205,6 +205,15 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(first.envelope.rawByteMappings[0]!.rawByteSha256, sha256(state.workbook));
   assert.equal(first.envelope.selectedSources[0]!.providerProvenance, 'synthetic');
   assert.equal(first.envelope.artifacts.packetSha256, sha256(first.files.get('packet.json')!));
+  const m02 = JSON.parse(first.files.get('m02-scope-method.json')!.toString('utf8')) as {
+    methodOutputId: string; sourceVerification: string; measurement: { recordCount: number; wideUnknownPolicy: string };
+  };
+  assert.equal(first.envelope.artifacts.m02ScopeMethodSha256, sha256(first.files.get('m02-scope-method.json')!));
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'M02')?.methodArtifact?.methodOutputId, m02.methodOutputId);
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'M02')?.blockers.includes('FULL_SECTION_METHOD_NOT_IMPLEMENTED'), false);
+  assert.equal(m02.sourceVerification, 'EXACT_PACKAGE_BYTES_REPLAYED');
+  assert.equal(m02.measurement.recordCount, 2);
+  assert.equal(m02.measurement.wideUnknownPolicy, 'exclude');
   assert.match(first.envelope.limitations.join('\n'), /DO_NOT_AUTHENTICATE_PROVIDER_COLLECTION/);
 
   const second = await buildSourceBackedReport(state.request, state.catalogBytes, state.dependencies);

@@ -146,6 +146,16 @@
         "sectionSha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        },
+        "methodArtifact": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fileName", "sha256", "methodOutputId"],
+          "properties": {
+            "fileName": { "const": "m02-scope-method.json" },
+            "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+            "methodOutputId": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+          }
         }
       },
       "required": [

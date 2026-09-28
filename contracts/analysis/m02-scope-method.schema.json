@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m02-scope-method.schema.json",
+  "title": "M02ScopeMethod",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodOutputId", "methodId", "methodVersion", "sourceVerification", "scope", "measurement", "sources", "rawByteMappings", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodOutputId": { "$ref": "#/$defs/digest" },
+    "methodId": { "const": "metric-scope-packet-context" },
+    "methodVersion": { "const": "2.0.0" },
+    "sourceVerification": { "const": "EXACT_PACKAGE_BYTES_REPLAYED" },
+    "scope": {
+      "type": "object", "additionalProperties": false,
+      "required": ["key", "platform", "selection", "start", "end", "periodBasis", "acquiredAt", "currency"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "platform": { "enum": ["shopee", "tiktok"] },
+        "selection": { "enum": ["ON", "OFF", "UNSPECIFIED"] },
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" },
+        "periodBasis": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "acquiredAt": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+        "currency": { "const": "VND" }
+      }
+    },
+    "measurement": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profileId", "labelCodebookVersion", "wideUnknownPolicy", "recordCount", "labelIssueCount", "recordLocatorCount", "revenue", "units", "labels"],
+      "properties": {
+        "profileId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "labelCodebookVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "wideUnknownPolicy": { "enum": ["include", "exclude"] },
+        "recordCount": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "labelIssueCount": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "recordLocatorCount": { "type": "integer", "minimum": 0, "maximum": 10000 },
+        "revenue": { "$ref": "#/$defs/observationCoverage" },
+        "units": { "$ref": "#/$defs/observationCoverage" },
+        "labels": {
+          "type": "object", "additionalProperties": false,
+          "required": ["labeled", "unlabeled", "coreCandidate", "adjacent", "outside", "unknown", "human", "assistant", "unadjudicated"],
+          "properties": {
+            "labeled": { "$ref": "#/$defs/count" }, "unlabeled": { "$ref": "#/$defs/count" },
+            "coreCandidate": { "$ref": "#/$defs/count" }, "adjacent": { "$ref": "#/$defs/count" },
+            "outside": { "$ref": "#/$defs/count" }, "unknown": { "$ref": "#/$defs/count" },
+            "human": { "$ref": "#/$defs/count" }, "assistant": { "$ref": "#/$defs/count" },
+            "unadjudicated": { "$ref": "#/$defs/count" }
+          }
+        }
+      }
+    },
+    "sources": {
+      "type": "array", "minItems": 2, "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["role", "logicalPath", "sha256", "byteSize", "mediaType", "evidenceFamily", "representationRole", "independence", "providerProvenance", "provenanceBasis", "period"],
+        "properties": {
+          "role": { "enum": ["workbook", "manifest", "labels"] },
+          "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "sha256": { "$ref": "#/$defs/digest" },
+          "byteSize": { "type": "integer", "minimum": 0 },
+          "mediaType": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "evidenceFamily": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "representationRole": { "enum": ["primary", "alternate", "structured", "derived"] },
+          "independence": { "enum": ["independent", "non_independent"] },
+          "providerProvenance": { "enum": ["verified", "provider_reported", "operator_supplied_unverified", "synthetic"] },
+          "provenanceBasis": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "period": { "anyOf": [{ "$ref": "#/$defs/period" }, { "type": "null" }] }
+        }
+      }
+    },
+    "rawByteMappings": {
+      "type": "array", "minItems": 2, "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["role", "logicalPath", "packageFileSha256", "rawByteSha256", "byteSize", "mediaType", "exportPath"],
+        "properties": {
+          "role": { "enum": ["workbook", "manifest", "labels"] },
+          "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "packageFileSha256": { "$ref": "#/$defs/digest" },
+          "rawByteSha256": { "$ref": "#/$defs/digest" },
+          "byteSize": { "type": "integer", "minimum": 0 },
+          "mediaType": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "exportPath": { "type": "string", "minLength": 1, "maxLength": 120 }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array", "minItems": 3, "maxItems": 20, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "count": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "period": {
+      "type": "object", "additionalProperties": false, "required": ["start", "end"],
+      "properties": { "start": { "type": "string", "format": "date" }, "end": { "type": "string", "format": "date" } }
+    },
+    "observationCoverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["missing", "observedZero", "observedValue", "exact", "displayRounded", "estimated", "unknownPrecision", "locatorCount"],
+      "properties": {
+        "missing": { "$ref": "#/$defs/count" }, "observedZero": { "$ref": "#/$defs/count" },
+        "observedValue": { "$ref": "#/$defs/count" }, "exact": { "$ref": "#/$defs/count" },
+        "displayRounded": { "$ref": "#/$defs/count" }, "estimated": { "$ref": "#/$defs/count" },
+        "unknownPrecision": { "$ref": "#/$defs/count" }, "locatorCount": { "$ref": "#/$defs/count" }
+      }
+    }
+  }
+}
