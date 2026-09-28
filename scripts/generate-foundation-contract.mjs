@@ -14,6 +14,8 @@ const contracts = [
   ['analysis', 'metric-scope-output'],
   ['analysis', 'conditional-economics-input'],
   ['analysis', 'conditional-economics-output'],
+  ['analysis', 'tablet-quote-input'],
+  ['analysis', 'tablet-quote-output'],
   ['foundation', 'shopee-listing-request'],
   ['foundation', 'shopee-collection'],
   ['foundation', 'apify-shopee-rows'],
