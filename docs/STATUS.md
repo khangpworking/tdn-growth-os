@@ -195,13 +195,16 @@ Cập nhật: 13/09/2026.
 
 Không chuyển nguyên phần trăm cũ sang repo mới. Chỉ cập nhật sau khi code được tái sử dụng, tích hợp và có bằng chứng nghiệm thu. Không tính cài tool hoặc tạo folder là hoàn thành Box.
 
-## Research A4 — source-backed chart/export work in progress
+## Research A4 — source-backed chart/export draft PR #60
 
 Development now connects an exact retained Foundation package and verified
 discovery workspace to A2 re-parsing, deterministic A3 calculations, evidence-linked
 chart data and an internal HTML export. All four evidence layers are recorded in
-INTENT.md. Linux verification and synthetic desktop/mobile/PDF review are pending;
-no local Windows tests/build/typecheck are run. No new migration is installed:
+INTENT.md. Linux checks passed at code head edf5bff (461 backend tests), and the
+actual-CLI synthetic desktop/mobile/PDF preview passed, including evidence links,
+files, keyboard and contrast. Fresh design review: ship. Antislop is applied
+during design; the approved TDN system is preserved. No local Windows tests,
+build or typecheck were run. No new migration is installed:
 0026–0028 belong to the pending Content Studio stack, with 0029 reserved for
 report persistence after integration. Normalized-row SQLite persistence, report
 version/history, AI interpretation/review and operator dashboard integration are
