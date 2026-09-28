@@ -130,7 +130,7 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
       const result = await methods.index(parts[2]!);
       return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Workspace not found');
     }
-    if (parts.length === 5 && parts[0] === 'api' && parts[1] === 'reports' && parts[3] === 'versions') {
+    if (parts.length === 4 && parts[0] === 'api' && parts[1] === 'reports' && parts[3] === 'versions') {
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Report ID must be a UUID');
       const result = await methods.history(parts[2]!);
       return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Report series not found');
