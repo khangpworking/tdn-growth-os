@@ -24,8 +24,15 @@ import BrandsPage from './BrandsPage';
 import { createDemoBrand, emptyBrandDraft, type DemoBrand } from './content-data-source';
 import { createDemoItem, emptyCatalogDraft, type DemoCatalogItem } from './catalog-data-source';
 import PromptsPage from './PromptsPage';
-import type { DemoPrompt } from './prompt-data-source';
+import { demoPromptList, type DemoPrompt } from './prompt-data-source';
 import CampaignsPage from './CampaignsPage';
+import InsightPage from './InsightPage';
+import IdeasPage from './IdeasPage';
+import { demoIdeaList, type DemoIdea, type DemoIdeaCampaign, type PurposeTag } from './idea-data-source';
+import PackageNewPage, { demoReferencePhotos } from './PackageNewPage';
+import PackagePage from './PackagePage';
+import type { DemoPackage, DemoPackageContext, DemoPackageDefaults } from './package-data-source';
+import type { DemoInsight, DemoResearchProduct } from './insight-data-source';
 import { createDemoCampaign, emptyCampaignDraft, type DemoCampaign } from './campaign-data-source';
 import { parseRoute, routeToHash } from './routing';
 import type { Route } from './routing';
@@ -43,6 +50,32 @@ function Badge({ state, children }: { readonly state: LaneState; readonly childr
 
 function Arrow() {
   return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M5 12h14m-6-6 6 6-6 6" /></svg>;
+}
+
+/** The demo campaign as the Ideas page sees it: its latest name and the locked Insight it generates from. */
+function demoIdeaCampaign(campaigns: readonly DemoCampaign[], insights: readonly DemoInsight[], campaignId: string): DemoIdeaCampaign | null {
+  const campaign = campaigns.find((entry) => entry.campaignId === campaignId);
+  const latest = campaign?.versions[campaign.versions.length - 1];
+  if (!campaign || !latest) return null;
+  const lock = insights.find((entry) => entry.campaignId === campaignId)?.lock;
+  const locked = lock ? insights.find((entry) => entry.campaignId === campaignId)?.versions.find((version) => version.version === lock.insightVersion) : undefined;
+  return {
+    campaignId, name: latest.campaign.name, deleted: campaign.lifecycle.deleted !== undefined,
+    ...(lock && locked ? { insightVersion: lock.insightVersion, insight: locked.insight.insight } : {}),
+  };
+}
+
+/** The demo campaign as the Caption & Poster pages see it: its brand, packageable ideas and prompt library. */
+function demoPackageContextOf(campaigns: readonly DemoCampaign[], insights: readonly DemoInsight[], brands: readonly DemoBrand[], ideas: readonly DemoIdea[], tags: readonly PurposeTag[], prompts: DemoPackageContext['prompts'], campaignId: string): DemoPackageContext | null {
+  const campaign = demoIdeaCampaign(campaigns, insights, campaignId);
+  const brandId = campaigns.find((entry) => entry.campaignId === campaignId)?.brandId;
+  if (!campaign) return null;
+  return {
+    campaign: { campaignId, name: campaign.name, deleted: campaign.deleted, insightLocked: campaign.insightVersion !== undefined },
+    brand: brands.find((brand) => brand.brandId === brandId) ?? null,
+    ideas: demoIdeaList(ideas, tags, campaign, new Date().toISOString()),
+    prompts,
+  };
 }
 
 function navigate(hash: string): void {
@@ -216,6 +249,15 @@ function InvalidRoute({ hash }: { readonly hash: string }) {
 }
 
 /** In-memory content for the synthetic demo; "Đặt lại demo" returns to exactly this. */
+/** Research product view the Insight page needs: effective B10 decision and the locked STP primary target. */
+export function researchProduct(product: Product): DemoResearchProduct & { readonly name: string } {
+  const b10 = product.b10.effective?.decision ?? null;
+  if (product.b9.state !== 'LOCKED') return { id: product.id, name: product.name, b10, stp: null };
+  const working = product.b9.working;
+  const primary = working.segments.find((segment) => segment.key === working.primaryTargetKey);
+  return { id: product.id, name: product.name, b10, stp: primary ? { lockedStpId: product.b9.locked.id, customer: primary.label, insight: working.positioning } : null };
+}
+
 export function seedDemoContent(mode: FrontendMode): { brands: DemoBrand[]; items: DemoCatalogItem[]; media: Readonly<Record<string, string>>; prompts: DemoPrompt[]; campaigns: DemoCampaign[] } {
   if (mode !== 'demo') return { brands: [], items: [], media: {}, prompts: [], campaigns: [] };
   const seededBrandId = '00000000-0000-4000-8000-00000000b001';
@@ -241,6 +283,16 @@ export default function App() {
   const [demoMedia, setDemoMedia] = useState<Readonly<Record<string, string>>>({});
   const [demoPrompts, setDemoPrompts] = useState<DemoPrompt[]>([]);
   const [demoCampaigns, setDemoCampaigns] = useState<DemoCampaign[]>(() => seedDemoContent(mode).campaigns);
+  const [demoInsights, setDemoInsights] = useState<DemoInsight[]>([]);
+  const [demoIdeas, setDemoIdeas] = useState<DemoIdea[]>([]);
+  const [demoTags, setDemoTags] = useState<PurposeTag[]>([]);
+  const [demoPackages, setDemoPackages] = useState<DemoPackage[]>([]);
+  const [demoPackageDefaults, setDemoPackageDefaults] = useState<DemoPackageDefaults[]>([]);
+  const demoPromptLibrary = useMemo(() => demoPromptList(demoPrompts), [demoPrompts]);
+  const packageCampaignId = route.kind === 'package-new' || route.kind === 'package' ? route.campaignId : null;
+  const demoPackageContext = useMemo(() => packageCampaignId === null ? null : demoPackageContextOf(demoCampaigns, demoInsights, demoBrands, demoIdeas, demoTags, demoPromptLibrary, packageCampaignId), [packageCampaignId, demoCampaigns, demoInsights, demoBrands, demoIdeas, demoTags, demoPromptLibrary]);
+  const demoReferences = useMemo(() => packageCampaignId === null ? null : demoReferencePhotos(demoCampaigns, demoItems, demoMedia, packageCampaignId), [packageCampaignId, demoCampaigns, demoItems, demoMedia]);
+  const researchProducts = useMemo(() => state.products.map(researchProduct), [state.products]);
   const timer = useRef<number | undefined>(undefined);
   const main = useRef<HTMLElement>(null);
   const notify = (message: string) => {
@@ -265,7 +317,7 @@ export default function App() {
   const reset = () => {
     dispatch({ type: 'reset' });
     const seeded = seedDemoContent(mode);
-    setDemoBrands(seeded.brands); setDemoItems(seeded.items); setDemoMedia(seeded.media); setDemoPrompts(seeded.prompts); setDemoCampaigns(seeded.campaigns);
+    setDemoBrands(seeded.brands); setDemoItems(seeded.items); setDemoMedia(seeded.media); setDemoPrompts(seeded.prompts); setDemoCampaigns(seeded.campaigns); setDemoInsights([]); setDemoIdeas([]); setDemoTags([]); setDemoPackages([]); setDemoPackageDefaults([]);
     setScenario('normal');
     navigate(routeToHash.portfolio());
     notify('Đã đặt lại toàn bộ dữ liệu demo.');
@@ -278,6 +330,10 @@ export default function App() {
   let content: ReactNode;
   if (route.kind === 'prompts') content = <PromptsPage mode={mode} promptType={route.promptType} promptRef={route.promptRef} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoPrompts={demoPrompts} setDemoPrompts={setDemoPrompts} navigate={navigate} notify={notify} />;
   else if (route.kind === 'content' || route.kind === 'campaign-new' || route.kind === 'campaign') content = <CampaignsPage mode={mode} campaignId={route.kind === 'campaign' ? route.campaignId : null} creating={route.kind === 'campaign-new'} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoCampaigns={demoCampaigns} setDemoCampaigns={setDemoCampaigns} demoBrands={demoBrands} demoItems={demoItems} productWorkspaces={state.products.map((product) => ({ id: product.id, name: product.name }))} navigate={navigate} notify={notify} />;
+  else if (route.kind === 'campaign-insight') content = <InsightPage key={route.campaignId} mode={mode} campaignId={route.campaignId} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoCampaigns={demoCampaigns} demoItems={demoItems} demoInsights={demoInsights} setDemoInsights={setDemoInsights} researchProducts={researchProducts} notify={notify} />;
+  else if (route.kind === 'campaign-ideas') content = <IdeasPage key={`${route.campaignId}-${route.ideaKind}-${route.parentIdeaId ?? ''}`} mode={mode} campaignId={route.campaignId} kind={route.ideaKind} requestedParentId={route.parentIdeaId ?? null} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoCampaign={demoIdeaCampaign(demoCampaigns, demoInsights, route.campaignId)} demoIdeas={demoIdeas} setDemoIdeas={setDemoIdeas} demoTags={demoTags} setDemoTags={setDemoTags} demoPrompts={demoPromptLibrary} notify={notify} />;
+  else if (route.kind === 'package-new') content = <PackageNewPage key={`${route.campaignId}-${route.angleCodes.join(',')}`} mode={mode} campaignId={route.campaignId} angleCodes={route.angleCodes} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoContext={demoPackageContext} demoPackages={demoPackages} setDemoPackages={setDemoPackages} demoDefaults={demoPackageDefaults} setDemoDefaults={setDemoPackageDefaults} demoReferences={demoReferences} notify={notify} />;
+  else if (route.kind === 'package') content = <PackagePage key={`${route.campaignId}-${route.code}`} mode={mode} campaignId={route.campaignId} code={route.code} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoContext={demoPackageContext} demoPackages={demoPackages} setDemoPackages={setDemoPackages} demoMedia={demoMedia} notify={notify} />;
   else if (route.kind === 'brands' || route.kind === 'brand' || route.kind === 'catalog') content = <BrandsPage mode={mode} brandId={route.kind === 'brands' ? null : route.brandId} view={route.kind === 'catalog' ? 'catalog' : 'profile'} itemId={route.kind === 'catalog' ? route.itemId : null} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoBrands={demoBrands} setDemoBrands={setDemoBrands} demoItems={demoItems} setDemoItems={setDemoItems} demoMedia={demoMedia} addDemoMedia={(mediaSha256, dataUrl) => setDemoMedia((prior) => ({ ...prior, [mediaSha256]: dataUrl }))} navigate={navigate} notify={notify} />;
   else if (mode === 'real' && loadState === 'loading') content = <ScenarioPreview scenario="loading" restore={() => undefined} />;
   else if (mode === 'real' && loadState !== 'ready') content = <div className="surface error"><h1>{loadState === 'integrity' ? 'Dữ liệu không vượt qua kiểm tra toàn vẹn' : 'Không thể kết nối API workspace'}</h1><p>{loadState === 'integrity' ? 'Ứng dụng đã đóng an toàn, không hiển thị dữ liệu một phần.' : 'Hãy kiểm tra API nội bộ và tải lại trang. Dữ liệu demo không được tự động thay thế.'}</p><a className="button" href="?mode=demo#/">Mở demo rõ nhãn</a></div>;
@@ -286,5 +342,5 @@ export default function App() {
   else if (route.kind === 'market') content = <MarketWorkspace state={state} market={state.markets.find((market) => market.id === route.marketId)!} mode={mode} ownerToken={ownerToken} reloadReal={reloadReal} dispatch={dispatch} notify={notify} />;
   else if (route.kind === 'product') content = <ProductWorkspace state={state} product={state.products.find((product) => product.id === route.productId)!} section={route.section} mode={mode} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} dispatch={dispatch} notify={notify} ownerToken={ownerToken} reloadReal={async () => { await reloadReal(); }} />;
   else content = <InvalidRoute hash={route.hash} />;
-  return <><button className="skip" type="button" onClick={() => { main.current?.focus(); main.current?.scrollIntoView(); }}>Bỏ qua điều hướng</button><header className="topbar"><div className="brand"><span className="mark">T</span><div><strong>TDN Growth OS</strong><small>Không gian phát triển sản phẩm</small></div></div><nav className="topnav" aria-label="Khu vực chính"><a href={routeToHash.portfolio()} aria-current={route.kind === 'portfolio' || route.kind === 'market' || route.kind === 'product' ? 'page' : undefined}>Thị trường</a><a href={routeToHash.content()} aria-current={route.kind === 'content' || route.kind === 'campaign-new' || route.kind === 'campaign' ? 'page' : undefined}>Nội dung</a><a href={routeToHash.brands()} aria-current={route.kind === 'brands' || route.kind === 'brand' || route.kind === 'catalog' ? 'page' : undefined}>Thương hiệu</a><a href={routeToHash.prompts('BIG_IDEA')} aria-current={route.kind === 'prompts' ? 'page' : undefined}>Thư viện prompt</a></nav><div className="owner"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></svg>Chủ dự án</div></header><div className={`demo-bar ${mode === 'real' ? 'real-bar' : ''}`}><span>{mode === 'demo' ? 'Dữ liệu minh họa · Không phải quyết định thật · Chỉ tồn tại trong phiên demo' : ownerAvailability === 'checking' ? 'Dữ liệu thật · Đang kiểm tra khả năng ghi OWNER' : ownerAvailability === 'unavailable' ? 'Dữ liệu thật · Ghi OWNER hiện không khả dụng' : ownerToken ? 'OWNER cục bộ đã mở khóa trong bộ nhớ · Không phải đăng nhập production' : loadState === 'ready' ? 'Dữ liệu SQLite đã xác minh · OWNER cục bộ đang khóa' : 'OWNER API cục bộ khả dụng · Dữ liệu SQLite chưa sẵn sàng'}</span>{mode === 'demo' ? <button onClick={reset}>Đặt lại demo</button> : ownerAvailability !== 'available' ? null : ownerToken ? <button onClick={() => { setOwnerToken(null); setTokenDraft(''); notify('Đã khóa OWNER cục bộ và xóa token khỏi bộ nhớ.'); }}>Khóa</button> : <form className="unlock-form" onSubmit={(event) => { event.preventDefault(); if (tokenDraft.length < 32 || !/[A-Za-z]/.test(tokenDraft) || !/\d/.test(tokenDraft)) { notify('Token cục bộ phải có ít nhất 32 ký tự, gồm chữ và số.'); return; } setOwnerToken(tokenDraft); setTokenDraft(''); notify('Đã mở khóa OWNER cục bộ trong bộ nhớ phiên trang.'); }}><label htmlFor="owner-token">Unlock local OWNER actions</label><input id="owner-token" type="password" autoComplete="off" value={tokenDraft} onChange={(event) => setTokenDraft(event.target.value)} placeholder="Token cục bộ" /><button type="submit">Mở khóa</button></form>}</div><main id="main" className="frame" tabIndex={-1} ref={main}><div className="view">{content}</div>{mode === 'demo' && route.kind !== 'product' && route.kind !== 'invalid' && route.kind !== 'brands' && route.kind !== 'brand' && route.kind !== 'catalog' && route.kind !== 'prompts' && route.kind !== 'content' && route.kind !== 'campaign-new' && route.kind !== 'campaign' && <div className="view-options"><label htmlFor="scenario">Xem trạng thái giao diện:</label><select id="scenario" value={scenario} onChange={(event) => setScenario(event.target.value as Scenario)}><option value="normal">Có dữ liệu demo</option><option value="empty">Chưa có workspace</option><option value="loading">Đang tải</option><option value="error">Lỗi tải dữ liệu</option></select></div>}<p className="caption">{mode === 'demo' ? 'Frontend React demo · Mọi thao tác được đặt lại khi tải lại trang.' : 'Frontend React · Đọc dữ liệu qua API nội bộ; thao tác OWNER chỉ khả dụng khi runtime cục bộ cho phép và đã mở khóa trong bộ nhớ.'}</p></main><div className="toast" role="status" aria-live="polite">{toast}</div></>;
+  return <><button className="skip" type="button" onClick={() => { main.current?.focus(); main.current?.scrollIntoView(); }}>Bỏ qua điều hướng</button><header className="topbar"><div className="brand"><span className="mark">T</span><div><strong>TDN Growth OS</strong><small>Không gian phát triển sản phẩm</small></div></div><nav className="topnav" aria-label="Khu vực chính"><a href={routeToHash.portfolio()} aria-current={route.kind === 'portfolio' || route.kind === 'market' || route.kind === 'product' ? 'page' : undefined}>Thị trường</a><a href={routeToHash.content()} aria-current={route.kind === 'content' || route.kind === 'campaign-new' || route.kind === 'campaign' || route.kind === 'campaign-insight' || route.kind === 'campaign-ideas' || route.kind === 'package-new' || route.kind === 'package' ? 'page' : undefined}>Nội dung</a><a href={routeToHash.brands()} aria-current={route.kind === 'brands' || route.kind === 'brand' || route.kind === 'catalog' ? 'page' : undefined}>Thương hiệu</a><a href={routeToHash.prompts('BIG_IDEA')} aria-current={route.kind === 'prompts' ? 'page' : undefined}>Thư viện prompt</a></nav><div className="owner"><svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><circle cx="12" cy="8" r="3" /><path d="M5 21v-3a7 7 0 0 1 14 0v3" /></svg>Chủ dự án</div></header><div className={`demo-bar ${mode === 'real' ? 'real-bar' : ''}`}><span>{mode === 'demo' ? 'Dữ liệu minh họa · Không phải quyết định thật · Chỉ tồn tại trong phiên demo' : ownerAvailability === 'checking' ? 'Dữ liệu thật · Đang kiểm tra khả năng ghi OWNER' : ownerAvailability === 'unavailable' ? 'Dữ liệu thật · Ghi OWNER hiện không khả dụng' : ownerToken ? 'OWNER cục bộ đã mở khóa trong bộ nhớ · Không phải đăng nhập production' : loadState === 'ready' ? 'Dữ liệu SQLite đã xác minh · OWNER cục bộ đang khóa' : 'OWNER API cục bộ khả dụng · Dữ liệu SQLite chưa sẵn sàng'}</span>{mode === 'demo' ? <button onClick={reset}>Đặt lại demo</button> : ownerAvailability !== 'available' ? null : ownerToken ? <button onClick={() => { setOwnerToken(null); setTokenDraft(''); notify('Đã khóa OWNER cục bộ và xóa token khỏi bộ nhớ.'); }}>Khóa</button> : <form className="unlock-form" onSubmit={(event) => { event.preventDefault(); if (tokenDraft.length < 32 || !/[A-Za-z]/.test(tokenDraft) || !/\d/.test(tokenDraft)) { notify('Token cục bộ phải có ít nhất 32 ký tự, gồm chữ và số.'); return; } setOwnerToken(tokenDraft); setTokenDraft(''); notify('Đã mở khóa OWNER cục bộ trong bộ nhớ phiên trang.'); }}><label htmlFor="owner-token">Unlock local OWNER actions</label><input id="owner-token" type="password" autoComplete="off" value={tokenDraft} onChange={(event) => setTokenDraft(event.target.value)} placeholder="Token cục bộ" /><button type="submit">Mở khóa</button></form>}</div><main id="main" className="frame" tabIndex={-1} ref={main}><div className="view">{content}</div>{mode === 'demo' && route.kind !== 'product' && route.kind !== 'invalid' && route.kind !== 'brands' && route.kind !== 'brand' && route.kind !== 'catalog' && route.kind !== 'prompts' && route.kind !== 'content' && route.kind !== 'campaign-new' && route.kind !== 'campaign' && route.kind !== 'campaign-insight' && route.kind !== 'campaign-ideas' && route.kind !== 'package-new' && route.kind !== 'package' && <div className="view-options"><label htmlFor="scenario">Xem trạng thái giao diện:</label><select id="scenario" value={scenario} onChange={(event) => setScenario(event.target.value as Scenario)}><option value="normal">Có dữ liệu demo</option><option value="empty">Chưa có workspace</option><option value="loading">Đang tải</option><option value="error">Lỗi tải dữ liệu</option></select></div>}<p className="caption">{mode === 'demo' ? 'Frontend React demo · Mọi thao tác được đặt lại khi tải lại trang.' : 'Frontend React · Đọc dữ liệu qua API nội bộ; thao tác OWNER chỉ khả dụng khi runtime cục bộ cho phép và đã mở khóa trong bộ nhớ.'}</p></main><div className="toast" role="status" aria-live="polite">{toast}</div></>;
 }

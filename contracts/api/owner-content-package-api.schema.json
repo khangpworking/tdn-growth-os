@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-content-package-api.schema.json",
+  "title": "OwnerContentPackageApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/createReceipt" },
+    { "$ref": "#/$defs/generateReceipt" },
+    { "$ref": "#/$defs/versionReceipt" },
+    { "$ref": "#/$defs/stateReceipt" },
+    { "$ref": "#/$defs/defaultsReceipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "createReceipt": {
+      "title": "OwnerContentPackageCreateReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "requestId", "packages", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "packages": {
+          "type": "array",
+          "items": {
+            "title": "OwnerContentPackageCreated",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["packageId", "angleId", "code", "createdAt"],
+            "properties": {
+              "packageId": { "$ref": "#/$defs/uuid" },
+              "angleId": { "$ref": "#/$defs/uuid" },
+              "code": { "type": "string", "minLength": 1, "maxLength": 40 },
+              "createdAt": { "type": "string", "format": "date-time" }
+            }
+          }
+        },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "generateReceipt": {
+      "title": "OwnerContentPackageGenerateReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "packageId", "part", "version", "attemptId", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "part": { "$ref": "../flow/content-package-generate-request.schema.json#/$defs/part" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "versionReceipt": {
+      "title": "OwnerContentPackageVersionReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "packageId", "part", "version", "source", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "part": { "$ref": "../flow/content-package-generate-request.schema.json#/$defs/part" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "source": { "$ref": "../flow/content-package-version-artifact.schema.json#/properties/source" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "stateReceipt": {
+      "title": "OwnerContentPackageStateReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "packageId", "sequence", "action", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "action": { "$ref": "../flow/content-package-state-request.schema.json#/properties/action" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "restorableUntil": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "defaultsReceipt": {
+      "title": "OwnerContentCampaignDefaultsReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "version", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerContentPackageApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "conflict", "integrity_error", "ai_unavailable", "ai_failed"] },
+            "message": { "type": "string" },
+            "reason": {
+              "title": "OwnerContentPackageAiFailureReason",
+              "enum": ["ai_not_configured", "model_not_allowed", "request_too_large", "timeout", "network_error", "gateway_http_error", "malformed_envelope", "response_too_large", "invalid_image", "schema_mismatch"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

@@ -12,6 +12,10 @@
     { "$ref": "#/$defs/systemPromptDetail" },
     { "$ref": "#/$defs/campaignList" },
     { "$ref": "#/$defs/campaignDetail" },
+    { "$ref": "#/$defs/insightDetail" },
+    { "$ref": "#/$defs/ideaList" },
+    { "$ref": "#/$defs/packageList" },
+    { "$ref": "#/$defs/packageDetail" },
     { "$ref": "#/$defs/aiStatus" },
     { "$ref": "#/$defs/error" }
   ],
@@ -440,6 +444,316 @@
             "deleted": { "$ref": "#/$defs/campaignDeletion" }
           }
         }
+      }
+    },
+    "insightDetail": {
+      "title": "ContentInsightDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "campaignVersion", "campaignDeleted", "history", "gate"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "campaignVersion": { "type": "integer", "minimum": 1 },
+        "campaignDeleted": { "type": "boolean" },
+        "latest": {
+          "title": "ContentInsightRecord",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["version", "insight", "createdAt"],
+          "properties": {
+            "version": { "type": "integer", "minimum": 1 },
+            "insight": { "$ref": "../flow/content-insight-revision-request.schema.json#/$defs/insight" },
+            "createdAt": { "$ref": "#/$defs/dateTime" }
+          }
+        },
+        "history": {
+          "type": "array",
+          "items": {
+            "title": "ContentInsightHistoryItem",
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["version", "sourceKind", "createdAt"],
+            "properties": {
+              "version": { "type": "integer", "minimum": 1 },
+              "sourceKind": { "enum": ["TYPED", "STP"] },
+              "createdAt": { "$ref": "#/$defs/dateTime" }
+            }
+          }
+        },
+        "lock": {
+          "title": "ContentInsightLockView",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["insightVersion", "campaignVersion", "lockedAt"],
+          "properties": {
+            "insightVersion": { "type": "integer", "minimum": 1 },
+            "campaignVersion": { "type": "integer", "minimum": 1 },
+            "lockedAt": { "$ref": "#/$defs/dateTime" },
+            "b10": { "$ref": "../flow/content-insight-lock-artifact.schema.json#/$defs/b10" }
+          }
+        },
+        "gate": {
+          "title": "ContentInsightGate",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["required", "ready"],
+          "properties": {
+            "required": { "type": "boolean" },
+            "ready": { "type": "boolean" },
+            "productWorkspaceId": { "$ref": "#/$defs/uuid" },
+            "effectiveDecision": { "enum": ["APPROVE", "HOLD", "REJECT"] },
+            "reason": { "type": "string" }
+          }
+        },
+        "stpSuggestion": {
+          "title": "ContentInsightStpSuggestion",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["lockedStpId", "customer", "insight"],
+          "properties": {
+            "lockedStpId": { "$ref": "#/$defs/uuid" },
+            "customer": { "type": "string" },
+            "insight": { "type": "string" }
+          }
+        }
+      }
+    },
+    "ideaListEntry": {
+      "title": "ContentIdeaListEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ideaId", "kind", "code", "concept", "developing", "deleted", "stateSequence", "purposes", "model", "promptLabel", "createdAt"],
+      "properties": {
+        "ideaId": { "$ref": "#/$defs/uuid" },
+        "kind": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/kind" },
+        "parentIdeaId": { "$ref": "#/$defs/uuid" },
+        "code": { "type": "string", "pattern": "^[A-Z]+(?:[1-9][0-9]*)?$" },
+        "concept": { "type": "string", "minLength": 1 },
+        "expression": { "type": "string", "minLength": 1 },
+        "name": { "type": "string", "minLength": 1 },
+        "developing": { "type": "boolean" },
+        "deleted": { "type": "boolean" },
+        "restorableUntil": { "$ref": "#/$defs/dateTime" },
+        "hiddenByParent": { "const": true },
+        "stateSequence": { "type": "integer", "minimum": 0 },
+        "purposes": { "$ref": "../flow/content-idea-state-request.schema.json#/$defs/purposes" },
+        "model": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/model" },
+        "promptLabel": { "type": "string", "minLength": 1 },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "purposeTagEntry": {
+      "title": "ContentPurposeTagEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tagId", "label", "displayLike", "createdAt"],
+      "properties": {
+        "tagId": { "$ref": "#/$defs/uuid" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "displayLike": { "$ref": "../flow/content-purpose-tag-request.schema.json#/properties/displayLike" },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "ideaList": {
+      "title": "ContentIdeaListResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "campaignName", "campaignDeleted", "insightLocked", "ideas", "purposeTags"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "campaignName": { "type": "string", "minLength": 1 },
+        "campaignDeleted": { "type": "boolean" },
+        "insightLocked": { "type": "boolean" },
+        "insightVersion": { "type": "integer", "minimum": 1 },
+        "ideas": { "type": "array", "items": { "$ref": "#/$defs/ideaListEntry" } },
+        "purposeTags": { "type": "array", "items": { "$ref": "#/$defs/purposeTagEntry" } }
+      }
+    },
+    "packagePart": { "title": "ContentPackagePart", "enum": ["CAPTION", "POSTER"] },
+    "packageVersionSource": { "title": "ContentPackageVersionSource", "enum": ["GENERATED", "MANUAL", "RESTORE"] },
+    "posterFormat": { "title": "ContentPosterFormat", "enum": ["square", "portrait", "story", "landscape"] },
+    "packageListEntry": {
+      "title": "ContentPackageListEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageId", "angleId", "code", "deleted", "stateSequence", "captionVersion", "posterVersion", "posterFormat", "createdAt"],
+      "properties": {
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "angleId": { "$ref": "#/$defs/uuid" },
+        "code": { "type": "string", "minLength": 1 },
+        "deleted": { "type": "boolean" },
+        "restorableUntil": { "$ref": "#/$defs/dateTime" },
+        "hiddenByParent": { "const": true },
+        "stateSequence": { "type": "integer", "minimum": 0 },
+        "captionVersion": { "type": "integer", "minimum": 0 },
+        "posterVersion": { "type": "integer", "minimum": 0 },
+        "captionPreview": { "type": "string", "minLength": 1 },
+        "posterFormat": { "$ref": "#/$defs/posterFormat" },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "packageDefaults": {
+      "title": "ContentPackageDefaultsView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "defaults", "createdAt"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "defaults": { "$ref": "../flow/content-campaign-defaults-request.schema.json#/$defs/defaults" },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "packageList": {
+      "title": "ContentPackageListResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "campaignId", "campaignName", "campaignDeleted", "insightLocked", "packages"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "campaignName": { "type": "string", "minLength": 1 },
+        "campaignDeleted": { "type": "boolean" },
+        "insightLocked": { "type": "boolean" },
+        "defaults": { "$ref": "#/$defs/packageDefaults" },
+        "packages": { "type": "array", "items": { "$ref": "#/$defs/packageListEntry" } }
+      }
+    },
+    "factCheckRow": {
+      "title": "ContentBrandFactCheckView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["element", "state", "found"],
+      "properties": {
+        "element": { "enum": ["name", "tagline", "hotline", "website", "fanpage", "address", "price"] },
+        "state": { "enum": ["MATCH", "NOT_MENTIONED", "HIDDEN", "MISMATCH"] },
+        "found": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "captionVersionView": {
+      "title": "ContentCaptionVersionView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "source", "post", "footer", "text", "factCheck", "createdAt"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "source": { "$ref": "#/$defs/packageVersionSource" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "restoredFromVersion": { "type": "integer", "minimum": 1 },
+        "post": { "type": "string" },
+        "footer": { "type": "string" },
+        "text": { "type": "string" },
+        "factCheck": { "type": "array", "items": { "$ref": "#/$defs/factCheckRow" } },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "posterVersionView": {
+      "title": "ContentPosterVersionView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "source", "mediaType", "width", "height", "sizeMatchesFormat", "captionVersion", "createdAt"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1 },
+        "source": { "$ref": "#/$defs/packageVersionSource" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "restoredFromVersion": { "type": "integer", "minimum": 1 },
+        "mediaType": { "enum": ["image/png", "image/jpeg"] },
+        "width": { "type": "integer", "minimum": 1 },
+        "height": { "type": "integer", "minimum": 1 },
+        "sizeMatchesFormat": { "type": "boolean" },
+        "captionVersion": { "type": "integer", "minimum": 1 },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "packageAttemptView": {
+      "title": "ContentPackageAttemptView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attemptId", "part", "state", "errorCode", "retryOf", "model", "createdAt", "closedAt"],
+      "properties": {
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "part": { "$ref": "#/$defs/packagePart" },
+        "state": { "type": "string", "minLength": 1 },
+        "errorCode": { "type": ["string", "null"] },
+        "retryOf": { "oneOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
+        "model": { "type": "string", "minLength": 1 },
+        "createdAt": { "$ref": "#/$defs/dateTime" },
+        "closedAt": { "oneOf": [{ "$ref": "#/$defs/dateTime" }, { "type": "null" }] }
+      }
+    },
+    "packageSettingsView": {
+      "title": "ContentPackageSettingsView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brandId", "purposes", "captionPromptName", "captionModel", "captionStyle", "captionLength", "posterPromptName", "posterModel", "posterFormat", "includeLogo", "referenceMediaSha256s", "captionDisplay", "posterDisplay"],
+      "properties": {
+        "brandId": { "$ref": "#/$defs/uuid" },
+        "purposes": { "type": "array", "items": { "type": "string" } },
+        "captionPromptName": { "type": "string", "minLength": 1 },
+        "captionModel": { "enum": ["gpt-5.6-sol", "gpt-5.6-luna", "gemini-3.5-flash-low"] },
+        "captionStyle": { "enum": ["PROFESSIONAL", "FRIENDLY"] },
+        "captionLength": { "enum": ["SHORT", "MEDIUM", "LONG"] },
+        "posterPromptName": { "type": "string", "minLength": 1 },
+        "posterModel": { "enum": ["gpt-image-2", "gemini-3.1-flash-image"] },
+        "posterFormat": { "$ref": "#/$defs/posterFormat" },
+        "includeLogo": { "type": "boolean" },
+        "logoMediaSha256": { "$ref": "#/$defs/sha256" },
+        "referenceMediaSha256s": { "type": "array", "items": { "$ref": "#/$defs/sha256" } },
+        "captionDisplay": { "$ref": "#/$defs/captionDisplayView" },
+        "posterDisplay": { "$ref": "#/$defs/posterDisplayView" }
+      }
+    },
+    "captionDisplayView": {
+      "title": "ContentCaptionDisplayView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "tagline", "hotline", "web", "address"],
+      "properties": {
+        "name": { "$ref": "#/$defs/visibility" },
+        "tagline": { "$ref": "#/$defs/visibility" },
+        "hotline": { "$ref": "#/$defs/visibility" },
+        "web": { "$ref": "#/$defs/visibility" },
+        "address": { "$ref": "#/$defs/visibility" }
+      }
+    },
+    "posterDisplayView": {
+      "title": "ContentPosterDisplayView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "logo", "tagline", "hotline", "web", "address"],
+      "properties": {
+        "name": { "type": "boolean" },
+        "logo": { "type": "boolean" },
+        "tagline": { "type": "boolean" },
+        "hotline": { "type": "boolean" },
+        "web": { "type": "boolean" },
+        "address": { "type": "boolean" }
+      }
+    },
+    "packageDetail": {
+      "title": "ContentPackageDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "packageId", "campaignId", "campaignName", "campaignDeleted", "angleId", "code", "deleted", "stateSequence", "settings", "footer", "captions", "posters", "attempts", "createdAt"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "campaignName": { "type": "string", "minLength": 1 },
+        "campaignDeleted": { "type": "boolean" },
+        "angleId": { "$ref": "#/$defs/uuid" },
+        "code": { "type": "string", "minLength": 1 },
+        "deleted": { "type": "boolean" },
+        "restorableUntil": { "$ref": "#/$defs/dateTime" },
+        "hiddenByParent": { "const": true },
+        "stateSequence": { "type": "integer", "minimum": 0 },
+        "settings": { "$ref": "#/$defs/packageSettingsView" },
+        "footer": { "type": "string" },
+        "captions": { "type": "array", "items": { "$ref": "#/$defs/captionVersionView" } },
+        "posters": { "type": "array", "items": { "$ref": "#/$defs/posterVersionView" } },
+        "attempts": { "type": "array", "items": { "$ref": "#/$defs/packageAttemptView" } },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
       }
     },
     "aiModelAvailability": {

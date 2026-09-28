@@ -1,0 +1,106 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-idea-artifact.schema.json",
+  "title": "ContentIdeaArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion", "ideaId", "campaignId", "kind", "insightVersion", "requestId", "requestSha256", "prompt", "model",
+    "systemLayer", "lockedInput", "inputBundleSha256", "attemptId", "outputSha256", "output", "createdAt"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "ideaId": { "type": "string", "format": "uuid" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "kind": { "$ref": "content-idea-generate-request.schema.json#/$defs/kind" },
+    "parentIdeaId": { "type": "string", "format": "uuid" },
+    "insightVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "requestId": { "type": "string", "format": "uuid" },
+    "requestSha256": { "$ref": "#/$defs/sha256" },
+    "prompt": { "$ref": "#/$defs/promptUsed" },
+    "model": { "$ref": "content-idea-generate-request.schema.json#/$defs/model" },
+    "systemLayer": {
+      "title": "ContentIdeaSystemLayerRef",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "sha256"],
+      "properties": {
+        "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "sha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "lockedInput": { "type": "object" },
+    "inputBundleSha256": { "$ref": "#/$defs/sha256" },
+    "attemptId": { "type": "string", "format": "uuid" },
+    "outputSha256": { "$ref": "#/$defs/sha256" },
+    "output": { "$ref": "#/$defs/output" },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "promptUsed": {
+      "title": "ContentIdeaPromptUsed",
+      "oneOf": [
+        {
+          "title": "ContentIdeaSystemPromptUsed",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "id", "version", "name", "creativeTextSha256"],
+          "properties": {
+            "source": { "const": "SYSTEM" },
+            "id": { "type": "string", "pattern": "^system-[a-z0-9-]{3,60}$" },
+            "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+            "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+            "creativeTextSha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        {
+          "title": "ContentIdeaUserPromptUsed",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "promptId", "version", "name", "creativeTextSha256"],
+          "properties": {
+            "source": { "const": "USER" },
+            "promptId": { "type": "string", "format": "uuid" },
+            "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+            "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+            "creativeTextSha256": { "$ref": "#/$defs/sha256" }
+          }
+        },
+        {
+          "title": "ContentIdeaFreestylePromptUsed",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "name", "creativeTextSha256", "creativeText"],
+          "properties": {
+            "source": { "const": "FREESTYLE" },
+            "name": { "type": "string", "minLength": 1, "maxLength": 120 },
+            "creativeTextSha256": { "$ref": "#/$defs/sha256" },
+            "creativeText": { "type": "string", "minLength": 1, "maxLength": 12000 }
+          }
+        }
+      ]
+    },
+    "output": { "title": "ContentIdeaOutput", "oneOf": [{ "$ref": "#/$defs/bigIdeaOutput" }, { "$ref": "#/$defs/angleOutput" }] },
+    "bigIdeaOutput": {
+      "title": "ContentBigIdeaOutput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["concept", "expression"],
+      "properties": {
+        "concept": { "type": "string", "minLength": 1, "maxLength": 780, "pattern": "\\S" },
+        "expression": { "type": "string", "minLength": 1, "maxLength": 180, "pattern": "\\S" }
+      }
+    },
+    "angleOutput": {
+      "title": "ContentAngleOutput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "concept"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "\\S" },
+        "concept": { "type": "string", "minLength": 1, "maxLength": 840, "pattern": "\\S" }
+      }
+    }
+  }
+}

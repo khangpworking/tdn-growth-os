@@ -1,0 +1,65 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-package-version-artifact.schema.json",
+  "title": "ContentPackageVersionArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "packageId", "part", "version", "source", "requestId", "requestSha256", "createdAt"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "packageId": { "type": "string", "format": "uuid" },
+    "part": { "$ref": "content-package-generate-request.schema.json#/$defs/part" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "source": { "title": "ContentPackageVersionSource", "enum": ["GENERATED", "MANUAL", "RESTORE"] },
+    "requestId": { "type": "string", "format": "uuid" },
+    "requestSha256": { "$ref": "#/$defs/sha256" },
+    "attemptId": { "type": "string", "format": "uuid" },
+    "inputBundleSha256": { "$ref": "#/$defs/sha256" },
+    "outputSha256": { "$ref": "#/$defs/sha256" },
+    "restoredFromVersion": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "caption": {
+      "title": "ContentCaptionVersionBody",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["post", "footer", "text", "factCheck"],
+      "properties": {
+        "lockedInput": { "type": "object" },
+        "post": { "type": "string", "minLength": 1, "maxLength": 4000 },
+        "footer": { "type": "string", "maxLength": 2000 },
+        "text": { "type": "string", "minLength": 1, "maxLength": 6002 },
+        "factCheck": { "type": "array", "items": { "$ref": "#/$defs/factCheckRow" } }
+      }
+    },
+    "poster": {
+      "title": "ContentPosterVersionBody",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["imageSha256", "mediaType", "width", "height", "sizeMatchesFormat", "captionVersion", "referenceMediaSha256s"],
+      "properties": {
+        "promptSha256": { "$ref": "#/$defs/sha256" },
+        "imageSha256": { "$ref": "#/$defs/sha256" },
+        "mediaType": { "enum": ["image/png", "image/jpeg"] },
+        "width": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "height": { "type": "integer", "minimum": 1, "maximum": 16384 },
+        "sizeMatchesFormat": { "type": "boolean" },
+        "captionVersion": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "referenceMediaSha256s": { "type": "array", "items": { "$ref": "#/$defs/sha256" } }
+      }
+    },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "factCheckRow": {
+      "title": "ContentBrandFactCheckRow",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["element", "state", "found"],
+      "properties": {
+        "element": { "title": "ContentBrandFactElement", "enum": ["name", "tagline", "hotline", "website", "fanpage", "address", "price"] },
+        "state": { "title": "ContentBrandFactState", "enum": ["MATCH", "NOT_MENTIONED", "HIDDEN", "MISMATCH"] },
+        "found": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 200 } }
+      }
+    }
+  }
+}

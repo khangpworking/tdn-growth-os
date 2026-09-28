@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-idea-generate-request.schema.json",
+  "title": "ContentIdeaGenerateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "requestId", "kind", "model", "plannedCallCount", "prompt"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "requestId": { "type": "string", "format": "uuid" },
+    "kind": { "$ref": "#/$defs/kind" },
+    "parentIdeaId": { "type": "string", "format": "uuid" },
+    "model": { "$ref": "#/$defs/model" },
+    "plannedCallCount": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "prompt": { "$ref": "#/$defs/prompt" }
+  },
+  "$defs": {
+    "kind": { "title": "ContentIdeaKind", "enum": ["BIG_IDEA", "ANGLE"] },
+    "model": { "title": "ContentIdeaModel", "enum": ["gpt-5.6-sol", "gpt-5.6-luna", "gemini-3.5-flash-low"] },
+    "prompt": {
+      "title": "ContentIdeaPromptChoice",
+      "oneOf": [
+        {
+          "title": "ContentIdeaSystemPrompt",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "id", "version"],
+          "properties": {
+            "source": { "const": "SYSTEM" },
+            "id": { "type": "string", "pattern": "^system-[a-z0-9-]{3,60}$" },
+            "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+          }
+        },
+        {
+          "title": "ContentIdeaUserPrompt",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "promptId", "version"],
+          "properties": {
+            "source": { "const": "USER" },
+            "promptId": { "type": "string", "format": "uuid" },
+            "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 }
+          }
+        },
+        {
+          "title": "ContentIdeaFreestylePrompt",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "creativeText"],
+          "properties": {
+            "source": { "const": "FREESTYLE" },
+            "creativeText": { "type": "string", "minLength": 1, "maxLength": 12000, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" }
+          }
+        }
+      ]
+    }
+  }
+}
