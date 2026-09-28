@@ -8,7 +8,9 @@
   backed by verified replay before it is returned.
 - This prepares a review packet only. It adds no human decision, reviewer,
   authority, approval state, publication right, UI, migration or provider call.
-- Draft PR and final Linux verification are pending.
+- Draft PR #76 is open; Linux verification passed with 171/171 frontend and
+  583/583 repository tests, strict TypeScript, contract generation, production
+  build and report preview.
 
 ## Research A18: exact review-target read API
 

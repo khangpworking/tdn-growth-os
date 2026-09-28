@@ -2,9 +2,9 @@
 
 ## Delivery state
 
-Implementation is prepared on
+Implementation is on draft PR
+[#76](https://github.com/khangpworking/tdn-growth-os/pull/76) on
 `feature/research-a19-review-target-owner-api`, stacked after Research A18.
-Final PR and Linux verification evidence are pending.
 
 ## Implemented scope
 
@@ -24,5 +24,11 @@ provider call, deployment or real business action.
 
 ## Release evidence
 
-Pending Linux CI on the final pushed SHA. No Windows test, build or typecheck is
-part of this delivery.
+- Linux check run
+  [36425202363](https://github.com/khangpworking/tdn-growth-os/actions/runs/36425202363)
+  passed contract generation, strict backend/frontend TypeScript, production
+  build, 171/171 frontend tests and 583/583 repository tests.
+- Linux report-preview run
+  [36425202384](https://github.com/khangpworking/tdn-growth-os/actions/runs/36425202384)
+  passed.
+- No Windows test, build or typecheck was run.
