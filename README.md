@@ -50,6 +50,62 @@ npm run report:combined:export -- \
 
 The exporter opens the database read-only, verifies both Results and their frozen sources, preserves missing values separately from zero and keeps integer strings lossless. Market and review scopes remain separate unless existing verified shared identity is available. Output must be outside the repository, is created with owner-only permissions, and is never overwritten.
 
+## Offline normalized Metric calculation (research A1)
+
+`npm run research:metric:calculate -- <normalized-input.json> <outside-git-bundle-directory>` calculates versioned exact-integer metrics and a Vietnamese draft without AI or database access. Existing identical bundles are verified and reused; changed or corrupt content is never overwritten. This validates normalized input only, not original XLSX cells or business conclusions. See [A1 scope and method](docs/tasks/research-a1-deterministic-metric.md).
+
+## Offline Metric source profile (research A2)
+
+`npm run research:metric:normalize -- <export.xlsx> <manifest.json> <labels.json|-> <outside-git-bundle-directory>`.
+Only the exact `metric-shopee-product-list-sheet1-v1` profile is supported. An explicit period/acquisition manifest is mandatory; no source dates, identities or labels are guessed. Python 3 standard library is required. See [A2 boundary and mapping](docs/tasks/research-a2-source-profile.md). No real-source acceptance or complete report automation is implied.
+
+## Offline versioned report packet (research A3a)
+
+`npm run research:report:packet -- <result.json> <exact-result-byte-sha256> <catalog.json> <exact-catalog-byte-sha256> <outside-git-bundle-directory>`.
+
+Use an exact A1/A2 `result.json` and the explicitly selected [planning catalog](docs/research/report-section-catalog-v1.json). The packet recomputes/compares the normalized result, binds its exact bytes and catalog, and creates a deterministic Vietnamese DRAFT with partial observed metrics and explicit section blockers. It does not authenticate raw sources, generate Insight, grant approval, or connect to the live workspace/database. The same bundle is verified/reused; conflicting content is never overwritten. See [A3a scope](docs/tasks/research-a3-versioned-report-packet.md).
+
+## Source-backed research report export (A4, under review)
+
+`npm run research:report:export -- <database.sqlite> <artifact-root> <request.json> <catalog.json> <outside-git-bundle-directory>`
+
+The request selects an existing discovery workspace, an existing source package
+by ID and exact manifest digest, and exact workbook/manifest/optional-label
+logical paths. See [the request schema](contracts/analysis/source-backed-report-request.schema.json).
+The CLI opens SQLite read-only/query-only without migration, replays the verified
+workspace and retained package bytes, and reparses the supported Metric workbook.
+It exports a deterministic internal HTML report with charts, numeric/source
+drill-down, readiness for all catalog sections and the selected original files.
+Every file is bound by an export manifest. Exact retries reuse identical output;
+changed or partial bundles are rejected, never overwritten.
+
+The export also emits `semantic-content.json`, a deterministic identity for the
+exact source/calculation/section content, and a separate `review-state.json` that
+remains `UNREVIEWED`. HTML/PDF rendering does not create a new semantic version;
+changing evidence or calculations does. This identity is not yet persisted in a
+report-run database registry.
+
+This export contains private source data. Keep it outside Git; do not publish it
+externally. Mapping validation is not provider authentication. It creates no AI
+interpretation, approval, report-run DB record or official report. SQLite run
+persistence and operator-dashboard integration remain unfinished parts of the
+larger automation objective. See [A4 scope and pending integration](docs/tasks/research-a4-evidence-workspace.md).
+
+Research A8 adds an offline evidence-bound interpretation contract for the same
+report. Untrusted model-shaped output may select only existing deterministic
+claim IDs from eligible sections; application code resolves the exact values,
+pointers and limitations. The artifact stores a concise user-visible evidence
+logic summary, not hidden chain-of-thought, and remains unapproved. A8 does not
+call a provider or persist a report run. See [A8 scope](docs/tasks/research-a8-evidence-bound-interpretation.md)
+and [ADR 0005](docs/adr/0005-report-evidence-and-decision-ledger.md).
+
+Research A9 deepens the same deterministic report without adding a section
+method. It renders M03 filter-membership sensitivity and M04 group composition
+and top-shop-removal sensitivity directly from the verified A1 Result. Every
+diagnostic links to exact pointers and row membership; the UI states that these
+are not growth, additive market segments, forecasts or recommendations. See
+[A9 scope](docs/tasks/research-a9-diagnostic-charts.md).
+
 ## Offline source-package intake
 
 Run `npm run source-package:intake -- <database> <artifact-root> <package-directory> <intake.json> <audit.json> <output.md>` to verify and persist an exact-byte source package and immutable field audit without provider calls. The package directory must exactly match descriptor membership; the report path must be outside this repository and must not already exist. See `docs/tasks/023-source-package-intake.md`.

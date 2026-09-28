@@ -6,6 +6,79 @@
 - Khóa Insight: nếu chiến dịch liên kết sản phẩm nghiên cứu thì phải có quyết định B10 hiện hành `APPROVE`; khóa ghi lại quyết định đó (D26/D33). Sau khóa, sản phẩm/gói và liên kết nghiên cứu của chiến dịch cố định; tên và mục tiêu vẫn sửa được (mặc định tạm thời, chờ chủ dự án).
 - Migration 0026 (`flow_content_insight_revisions`, `flow_content_insight_locks`); `GET /api/content/campaigns/:id/insight` và OWNER `…/insight/revisions`, `…/insight/lock`; màn hình `#/content/:id/insight`. Không gọi AI. Big Idea và Góc nội dung ở 050b ([brief](tasks/050-content-insight-ideas.md)).
 
+## Research A9: deterministic M03/M04 diagnostic charts (draft PR #65; not deployed)
+
+- The accepted four-layer framework remains authoritative; this slice deepens
+  only deterministic layer-two display.
+- M03 now exposes same-period membership sensitivity from ALL to WIDE/CORE with
+  exact deltas, removed rows and Result pointers. It is explicitly not growth.
+- M04 now exposes within-scope group composition and top-shop-removal
+  sensitivity. Overlapping scopes are not additive, and removal is not a
+  forecast or recommendation.
+- Every diagnostic links to its exact Result digest, pointer and row membership;
+  missing labels or denominators stay blocked/partial rather than becoming zero.
+- The automated-section count remains 4/30 (M02, M03, M04, M13). No provider/AI
+  call, fifth method, migration, API, approval or live data import is included.
+- Linux full check passed with 486/486 repository tests and the desktop/mobile
+  visual preview passed with no page error. Windows tests/build/typecheck were
+  not run by policy. The PR remains draft while A1–A8 dependencies are unmerged.
+
+## Research A8: evidence-bound interpretation contract (draft PR #64; not deployed)
+
+- Added closed request, untrusted-output and application-owned artifact
+  contracts for the third report layer in ADR 0005.
+- Interpretation is permitted only for verified partial-draft sections with
+  deterministic claims. The exact A3 packet is replayed from its pinned result
+  and catalog before use. Model output chooses claim IDs; application code
+  copies exact citation values, pointers and limitations from that replayed packet.
+- Numeric literals, decision/action, regulated-authority or invented-provenance
+  language, unsupported claim IDs and blocked or method-only sections fail
+  closed. Hypotheses remain labelled and require explicit assumptions. Hidden
+  chain-of-thought is not stored.
+- Interpretation meaning has a stable content digest separate from provider
+  telemetry, run identity, render bytes and future human decisions.
+- This is offline contract/validator work with synthetic fixtures. No provider
+  call, migration, SQLite row, API/UI, human decision or new section method is
+  included. Linux full check and preview passed on the verified implementation
+  head; no Windows tests/build/typecheck were run.
+
+## Research A7 — semantic report version boundary (local implementation)
+
+- A4 private export now separates a deterministic meaning-bearing identity from
+  renderer/export bytes and from human review state.
+- `semantic-content.json` binds the exact verified source package/envelope,
+  normalized input, calculation Result, packet, catalog, chart and every section
+  identity/state. `review-state.json` remains separately `UNREVIEWED`; AI
+  interpretation is explicitly absent.
+- HTML exposes the content ID and links the exact workspace/export manifest.
+  No additional section method, report conclusion or approval is claimed.
+- No migration is added while 0029 remains sequenced after pending Content
+  migrations 0026–0028. Durable SQLite report history, AI interpretation,
+  human-review API, dashboard and production PDF remain incomplete.
+- Contract generation succeeded locally. Per project policy no Windows
+  test/build/typecheck is run; Linux CI is the delivery gate.
+
+## Research A3a — versioned report packet (draft PR #55; not deployed)
+
+- CLI offline ghim result/catalog theo exact byte SHA-256, replay phép tính A1 trước khi đóng gói.
+- Bản nháp có content identity, context/pointer/coverage rõ, 30 section metadata và blocker; không phải full Market/Insight Report.
+- Chỉ quan sát FACT trong normalized input; không xác thực lại workbook/provider, không import hoặc sinh suy luận/giả thuyết. Maturity là của template lịch sử, không phải trạng thái report mới.
+- Đã nối main sau Task 049; A1 #52 / A2 #54 vẫn chưa merge. Không Windows tests/build/typecheck; trạng thái Linux CI đúng head ghi trong PR #55 và handoff comment. Không DB/UI/AI/live intake/deploy.
+
+## Research A2 — exact Metric source profile (draft PR #54, not deployed)
+
+- Offline XLSX → A1 adapter cho đúng một profile Metric Shopee, dùng manifest scope/period/acquisition rõ ràng, kiểm exact header/hash/row range và ID từ URL.
+- Giữ ô nguồn có kiểu dữ liệu, số nguyên chính xác, missing/zero, doanh thu theo kỳ tách tổng trọn đời; sidecar nhãn phải khớp toàn bộ dữ liệu đã đóng băng.
+- Không có nhãn thì all có thể tính, wide/core bị chặn. Dữ liệu/nhãn lỗi bị từ chối toàn gói kèm locator; không tự sửa hoặc bỏ dòng.
+- Chỉ synthetic acceptance; chưa có manifest thật/transfer Fedora. Không provider/AI/DB/UI/deployment. Xem `docs/tasks/research-a2-source-profile.md`.
+- Implementation `7a3cd2a` đã PASS Linux CI; task nghiệp vụ không thấy material mapping mismatch. SHA cuối và CI tương ứng được ghi trong handoff PR #54. A1 (#52) vẫn là dependency chưa merge; technical independent review/owner merge còn chờ.
+
+## Research A1 — deterministic normalized Metric draft (local implementation, not deployed)
+
+- Có calculator Box 2 và CLI `research:metric:calculate`: tính all/wide/core, totals/coverage, shop/group concentration, scope sensitivity và top-shop removal bằng số nguyên chính xác; xuất draft JSON/Markdown có nguồn khai báo.
+- Cùng bundle/input/method/profile: kiểm lại rồi tái sử dụng, không ghi đè; changed/corrupt/incomplete bundle bị từ chối. Không AI/provider/DB/migration/UI.
+- Nghiệp vụ đã đối chiếu với task Review marketing framework files và fixture độc lập. Raw XLSX verification, source transfer, workspace-bound Results, Insight claims và duyệt bản chính thức chưa triển khai. Xem task/handoff `research-a1-deterministic-metric.md`.
+
 ## Task 049 — Hạ tầng AI cho Content Studio (Controlled; PR #53 đã merge)
 
 - Cập nhật 2026-09-28: chủ dự án đã duyệt ADR 0004 và merge PR #53; R1/P2 đã đóng, code head `ddeebb94` PASS Linux (434 backend / 125 frontend). Commit ghi nhận phê duyệt cần CI trước merge; lịch sử PR là nguồn xác nhận merge. Chưa deploy/migrate live hoặc gọi provider thật.
@@ -179,6 +252,42 @@ Cập nhật: 13/09/2026.
 | 5 — Governance | 68% | Minimal governed human proposal-review decision foundation đã triển khai; chưa có authentication route, staff-specific/multi-party policy, delegation, expiry, UI/API hoặc production approval operations |
 
 Không chuyển nguyên phần trăm cũ sang repo mới. Chỉ cập nhật sau khi code được tái sử dụng, tích hợp và có bằng chứng nghiệm thu. Không tính cài tool hoặc tạo folder là hoàn thành Box.
+
+## Research A4 — source-backed chart/export draft PR #60
+
+Development now connects an exact retained Foundation package and verified
+discovery workspace to A2 re-parsing, deterministic A3 calculations, evidence-linked
+chart data and an internal HTML export. All four evidence layers are recorded in
+INTENT.md. Linux checks passed at code head edf5bff (461 backend tests), and the
+actual-CLI synthetic desktop/mobile/PDF preview passed, including evidence links,
+files, keyboard and contrast. Fresh design review: ship. Antislop is applied
+during design; the approved TDN system is preserved. No local Windows tests,
+build or typecheck were run. No new migration is installed:
+0026–0028 belong to the pending Content Studio stack, with 0029 reserved for
+report persistence after integration. Normalized-row SQLite persistence, report
+version/history, AI interpretation/review and operator dashboard integration are
+not complete. Do not count 30 represented section states as 30 automated methods.
+
+## Research A5 — conditional P3 calculation draft PR #61
+
+An independent branch adds exact rational P3 contribution/threshold equations,
+closed scenario contracts and a private offline calculation CLI. Null inputs
+remain unavailable, fee bases are explicit, and Cmax/Mmax solve one variable
+at a time. Outputs remain SCENARIO, UNREVIEWED and declared/unverified; no
+seller applicability, optimal price, profitability or commercial conclusion is
+inferred. Linux verification is recorded in the A5 handoff and final-head PR
+checks; focused arithmetic review remains a release gate. P4, database
+persistence, operator UI and AI interpretation are not included.
+
+## Research A6 — single-quote tablet arithmetic draft
+
+The next isolated slice adds M08/P4 per-quote VND/explicit-tablet-count
+normalization, not a completed price-comparison section. It preserves declared
+source, pack text, price state, time and identity flags; missing count remains
+unavailable, with no title inference or equal-dose claims. A private offline
+CLI uses the existing immutable publisher. Linux verification is a release
+gate. No comparison groups, ranking, SQLite migration, operator UI, approval,
+provider call or real-data import is included.
 
 ## Task 022 — combined Vietnamese market-and-review evidence report
 

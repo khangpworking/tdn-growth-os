@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/tablet-quote-input.schema.json",
+  "title": "TabletQuoteInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "methodVersion",
+    "quoteId",
+    "sourceRef",
+    "observedAt",
+    "observationPeriod",
+    "observationTimeState",
+    "entityTitle",
+    "packText",
+    "packCount",
+    "priceVnd",
+    "currency",
+    "priceState",
+    "identityTier",
+    "variantStatus",
+    "gtinStatus",
+    "versionStatus",
+    "sourceRole"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodVersion": { "const": "tablet-quote-normalization-v1" },
+    "quoteId": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[a-z][a-z0-9._:-]*$" },
+    "sourceRef": { "$ref": "#/$defs/SourceRef" },
+    "observedAt": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+    "observationPeriod": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 120 }, { "type": "null" }] },
+    "observationTimeState": { "enum": ["KNOWN", "UNKNOWN"] },
+    "entityTitle": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "packText": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "packCount": { "anyOf": [{ "$ref": "#/$defs/OperatorPackCount" }, { "type": "null" }] },
+    "priceVnd": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] },
+    "currency": { "const": "VND" },
+    "priceState": { "enum": ["DISPLAYED_LISTED", "CHECKOUT_FINAL"] },
+    "identityTier": { "enum": ["TITLE_PACK_MATCH_ONLY", "EXACT_IDENTITY_DECLARED", "UNRESOLVED"] },
+    "variantStatus": { "enum": ["DECLARED_MATCH", "UNKNOWN", "CONFLICT"] },
+    "gtinStatus": { "enum": ["DECLARED_MATCH", "UNKNOWN", "CONFLICT"] },
+    "versionStatus": { "enum": ["DECLARED_MATCH", "UNKNOWN", "CONFLICT"] },
+    "sourceRole": { "enum": ["RETAILER", "BRAND", "MARKETPLACE", "OTHER"] }
+  },
+  "$defs": {
+    "DecimalString": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]{0,39})(\\.[0-9]{1,6})?$"
+    },
+    "NonNegativeDecimalString": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,39})(\\.[0-9]{1,6})?$"
+    },
+    "PositiveIntegerString": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,39}$"
+    },
+    "SourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactSha256", "locator"],
+      "properties": {
+        "artifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "note", "sourceRef"],
+      "properties": {
+        "kind": { "enum": ["SOURCE_DECLARED", "OWNER_DECLARED", "SCENARIO_ASSUMPTION"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "note": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "sourceRef": { "anyOf": [{ "$ref": "#/$defs/SourceRef" }, { "type": "null" }] }
+      },
+      "allOf": [
+        {
+          "if": { "type": "object", "properties": { "kind": { "const": "SOURCE_DECLARED" } }, "required": ["kind"] },
+          "then": { "type": "object", "properties": { "sourceRef": { "$ref": "#/$defs/SourceRef" } } }
+        }
+      ]
+    },
+    "NonNegativeDecimalInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "provenance"],
+      "properties": {
+        "value": { "$ref": "#/$defs/NonNegativeDecimalString" },
+        "provenance": { "$ref": "#/$defs/Provenance" }
+      }
+    },
+    "OperatorPackCount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declaration", "unit", "value", "provenance"],
+      "properties": {
+        "declaration": { "const": "OPERATOR_DECLARED" },
+        "unit": { "const": "TABLET" },
+        "value": { "$ref": "#/$defs/PositiveIntegerString" },
+        "provenance": { "$ref": "#/$defs/Provenance" }
+      },
+      "allOf": [
+        {
+          "if": { "type": "object", "properties": { "declaration": { "const": "OPERATOR_DECLARED" } }, "required": ["declaration"] },
+          "then": { "type": "object", "properties": { "provenance": { "type": "object", "properties": { "kind": { "const": "OWNER_DECLARED" } } } } }
+        }
+      ]
+    }
+  }
+}

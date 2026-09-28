@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/tablet-quote-output.schema.json",
+  "title": "TabletQuoteOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "methodVersion",
+    "quoteId",
+    "sourceRef",
+    "observedAt",
+    "observationPeriod",
+    "observationTimeState",
+    "entityTitle",
+    "packText",
+    "packCount",
+    "priceVnd",
+    "currency",
+    "priceState",
+    "identityTier",
+    "variantStatus",
+    "gtinStatus",
+    "versionStatus",
+    "sourceRole",
+    "status",
+    "approvalState",
+    "evidenceState",
+    "sourceAuthenticity",
+    "inputSha256",
+    "pricePerPack",
+    "pricePerTabletArithmetic",
+    "limitations"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodVersion": { "const": "tablet-quote-normalization-v1" },
+    "quoteId": { "$ref": "tablet-quote-input.schema.json#/properties/quoteId" },
+    "sourceRef": { "$ref": "tablet-quote-input.schema.json#/$defs/SourceRef" },
+    "observedAt": { "$ref": "tablet-quote-input.schema.json#/properties/observedAt" },
+    "observationPeriod": { "$ref": "tablet-quote-input.schema.json#/properties/observationPeriod" },
+    "observationTimeState": { "$ref": "tablet-quote-input.schema.json#/properties/observationTimeState" },
+    "entityTitle": { "$ref": "tablet-quote-input.schema.json#/properties/entityTitle" },
+    "packText": { "$ref": "tablet-quote-input.schema.json#/properties/packText" },
+    "packCount": { "$ref": "tablet-quote-input.schema.json#/properties/packCount" },
+    "priceVnd": { "$ref": "tablet-quote-input.schema.json#/properties/priceVnd" },
+    "currency": { "const": "VND" },
+    "priceState": { "$ref": "tablet-quote-input.schema.json#/properties/priceState" },
+    "identityTier": { "$ref": "tablet-quote-input.schema.json#/properties/identityTier" },
+    "variantStatus": { "$ref": "tablet-quote-input.schema.json#/properties/variantStatus" },
+    "gtinStatus": { "$ref": "tablet-quote-input.schema.json#/properties/gtinStatus" },
+    "versionStatus": { "$ref": "tablet-quote-input.schema.json#/properties/versionStatus" },
+    "sourceRole": { "$ref": "tablet-quote-input.schema.json#/properties/sourceRole" },
+    "status": { "const": "SCENARIO" },
+    "approvalState": { "const": "UNREVIEWED" },
+    "evidenceState": { "const": "DECLARED_UNVERIFIED" },
+    "sourceAuthenticity": { "const": "NOT_AUTHENTICATED" },
+    "inputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "pricePerPack": { "$ref": "#/$defs/CalculationOutput" },
+    "pricePerTabletArithmetic": { "$ref": "#/$defs/CalculationOutput" },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+    }
+  },
+  "$defs": {
+    "IntegerString": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]{0,159})$"
+    },
+    "PositiveIntegerString": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,159}$"
+    },
+    "DisplayString": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]{0,159})(\\.[0-9]{1,6})?$"
+    },
+    "Rational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator", "reduced"],
+      "properties": {
+        "numerator": { "$ref": "#/$defs/IntegerString" },
+        "denominator": { "$ref": "#/$defs/PositiveIntegerString" },
+        "reduced": { "const": true }
+      }
+    },
+    "DisplayValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "roundingVersion"],
+      "properties": {
+        "value": { "$ref": "#/$defs/DisplayString" },
+        "roundingVersion": { "const": "HALF_EVEN_DECIMAL_2_VND_V1" }
+      }
+    },
+    "CalculationOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "exactValue", "displayValue", "missingInputs", "limitations"],
+      "properties": {
+        "state": { "enum": ["AVAILABLE", "UNAVAILABLE"] },
+        "exactValue": { "anyOf": [{ "$ref": "#/$defs/Rational" }, { "type": "null" }] },
+        "displayValue": { "anyOf": [{ "$ref": "#/$defs/DisplayValue" }, { "type": "null" }] },
+        "missingInputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    }
+  }
+}

@@ -5,6 +5,22 @@ import { compileFromFile } from 'json-schema-to-typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contracts = [
+  ['analysis', 'report-section-catalog'],
+  ['analysis', 'versioned-report-packet'],
+  ['analysis', 'source-backed-report-request'],
+  ['analysis', 'report-semantic-content'],
+  ['analysis', 'report-review-state'],
+  ['analysis', 'report-interpretation-request'],
+  ['analysis', 'report-interpretation-output'],
+  ['analysis', 'report-interpretation-artifact'],
+  ['analysis', 'metric-source-manifest'],
+  ['analysis', 'metric-source-labels'],
+  ['analysis', 'metric-scope-input'],
+  ['analysis', 'metric-scope-output'],
+  ['analysis', 'conditional-economics-input'],
+  ['analysis', 'conditional-economics-output'],
+  ['analysis', 'tablet-quote-input'],
+  ['analysis', 'tablet-quote-output'],
   ['foundation', 'shopee-listing-request'],
   ['foundation', 'shopee-collection'],
   ['foundation', 'apify-shopee-rows'],
@@ -96,6 +112,10 @@ for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
+    // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
+    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact'].includes(contract)
+      ? { ignoreMinAndMaxItems: true }
+      : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,
     style: { singleQuote: true, semi: true, tabWidth: 2, trailingComma: 'all' },
   });

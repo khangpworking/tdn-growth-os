@@ -1,0 +1,174 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/conditional-economics-output.schema.json",
+  "title": "ConditionalEconomicsOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "methodVersion",
+    "scenarioId",
+    "currency",
+    "unitBasis",
+    "requestedOutputs",
+    "status",
+    "approvalState",
+    "evidenceState",
+    "sourceAuthenticity",
+    "inputSha256",
+    "feeBasePolicy",
+    "feeBindings",
+    "inputProvenance",
+    "modeledTerms",
+    "excludedTerms",
+    "outputs",
+    "limitations"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodVersion": { "const": "conditional-economics-v1" },
+    "scenarioId": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[a-z][a-z0-9._-]*$" },
+    "currency": { "const": "VND" },
+    "unitBasis": { "const": "VND_PER_UNIT" },
+    "requestedOutputs": { "$ref": "conditional-economics-input.schema.json#/properties/requestedOutputs" },
+    "status": { "const": "SCENARIO" },
+    "approvalState": { "const": "UNREVIEWED" },
+    "evidenceState": { "const": "DECLARED_UNVERIFIED" },
+    "sourceAuthenticity": { "const": "NOT_AUTHENTICATED" },
+    "inputSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "feeBasePolicy": { "$ref": "conditional-economics-input.schema.json#/properties/feeBasePolicy" },
+    "feeBindings": { "$ref": "conditional-economics-input.schema.json#/properties/feeBindings" },
+    "inputProvenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pricePerUnit",
+        "cogsPerUnit",
+        "otherVariableCostPerUnit",
+        "sharedMarketingPerUnit",
+        "targetContributionPerUnit",
+        "unitsPerOrder",
+        "commissionRate",
+        "transactionRate",
+        "processingFeePerOrder"
+      ],
+      "properties": {
+        "pricePerUnit": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] },
+        "cogsPerUnit": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] },
+        "otherVariableCostPerUnit": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] },
+        "sharedMarketingPerUnit": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] },
+        "targetContributionPerUnit": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] },
+        "unitsPerOrder": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] },
+        "commissionRate": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] },
+        "transactionRate": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] },
+        "processingFeePerOrder": { "anyOf": [{ "$ref": "conditional-economics-input.schema.json#/$defs/Provenance" }, { "type": "null" }] }
+      }
+    },
+    "modeledTerms": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "pricePerUnit",
+          "cogsPerUnit",
+          "otherVariableCostPerUnit",
+          "sharedMarketingPerUnit",
+          "targetContributionPerUnit",
+          "unitsPerOrder",
+          "commissionRate",
+          "transactionRate",
+          "processingFeePerOrder"
+        ]
+      }
+    },
+    "excludedTerms": { "$ref": "conditional-economics-input.schema.json#/properties/excludedTerms" },
+    "outputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "minProperties": 1,
+      "properties": {
+        "contributionPerUnit": { "$ref": "#/$defs/CalculationOutput" },
+        "pmin": { "$ref": "#/$defs/CalculationOutput" },
+        "cmax": { "$ref": "#/$defs/CalculationOutput" },
+        "mmax": { "$ref": "#/$defs/CalculationOutput" }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+    }
+  },
+  "$defs": {
+    "IntegerString": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]{0,159})$"
+    },
+    "PositiveIntegerString": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,159}$"
+    },
+    "DisplayString": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]{0,159})(\\.[0-9]{1,6})?$"
+    },
+    "Rational": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["numerator", "denominator", "reduced"],
+      "properties": {
+        "numerator": { "$ref": "#/$defs/IntegerString" },
+        "denominator": { "$ref": "#/$defs/PositiveIntegerString" },
+        "reduced": { "const": true }
+      }
+    },
+    "DisplayValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "roundingVersion"],
+      "properties": {
+        "value": { "$ref": "#/$defs/DisplayString" },
+        "roundingVersion": { "enum": ["CEIL_INTEGER_VND_V1", "HALF_EVEN_DECIMAL_2_VND_V1"] }
+      }
+    },
+    "CalculationOutput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "exactValue", "displayValue", "missingInputs", "heldFixed", "warnings", "limitations"],
+      "properties": {
+        "state": { "enum": ["AVAILABLE", "UNAVAILABLE"] },
+        "exactValue": { "anyOf": [{ "$ref": "#/$defs/Rational" }, { "type": "null" }] },
+        "displayValue": { "anyOf": [{ "$ref": "#/$defs/DisplayValue" }, { "type": "null" }] },
+        "missingInputs": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+        },
+        "heldFixed": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 120 }
+        },
+        "warnings": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "NEGATIVE_CONTRIBUTION",
+              "INFEASIBLE_THRESHOLD",
+              "NON_POSITIVE_PRICE_THRESHOLD"
+            ]
+          }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    }
+  }
+}
