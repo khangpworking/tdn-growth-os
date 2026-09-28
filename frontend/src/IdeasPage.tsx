@@ -91,6 +91,9 @@ const FREESTYLE_LABEL = 'Prompt tự do';
 const DEFAULT_COUNT = 3;
 const DEMO_BANNER = 'Chế độ demo — ý tưởng được tạo bằng bộ sinh giả lập và chỉ lưu trong trình duyệt này.';
 const formatDateTime = (value: string): string => new Date(value).toLocaleString('vi-VN');
+/** The generated purposes type is a tuple union (maxItems) whose empty member makes includes() take never. */
+const purposesOf = (idea: IdeaEntry): readonly string[] => idea.purposes;
+const hasPurpose = (idea: IdeaEntry, value: string): boolean => purposesOf(idea).includes(value);
 const formatDate = (value: string): string => new Date(value).toLocaleDateString('vi-VN');
 const clampCount = (value: number): number => Math.min(MAX_CALLS_PER_PROMPT, Math.max(1, Math.trunc(Number.isFinite(value) ? value : 1)));
 
@@ -265,7 +268,8 @@ export default function IdeasPage(props: IdeasPageProps) {
   };
 
   const togglePurpose = (idea: IdeaEntry, value: string) => {
-    const next = idea.purposes.includes(value) ? idea.purposes.filter((purpose) => purpose !== value) : [...idea.purposes, value];
+    const current = purposesOf(idea);
+    const next = current.includes(value) ? current.filter((purpose) => purpose !== value) : [...current, value];
     if (next.length > MAX_PURPOSES) { setNotice({ message: `Mỗi góc tối đa ${MAX_PURPOSES} mục đích.`, reload: false }); return; }
     void changeState(idea, 'PURPOSES', next);
   };
@@ -340,9 +344,9 @@ export default function IdeasPage(props: IdeasPageProps) {
         <button className="button" type="button" disabled={busy} aria-expanded={purposeEditor === idea.ideaId} onClick={() => setPurposeEditor(purposeEditor === idea.ideaId ? null : idea.ideaId)}>{idea.purposes.length ? 'Sửa mục đích' : 'Gắn mục đích'}</button>
         {purposeEditor === idea.ideaId && <div className="purpose-editor">
           <p className="muted">Gợi ý</p>
-          <div className="chip-list">{PURPOSE_KINDS.map((purpose) => <button key={purpose.key} type="button" className={`purpose-chip purpose-${purpose.key.toLowerCase()}`} aria-pressed={idea.purposes.includes(purpose.key)} disabled={busy} onClick={() => togglePurpose(idea, purpose.key)}>{purpose.label}</button>)}</div>
+          <div className="chip-list">{PURPOSE_KINDS.map((purpose) => <button key={purpose.key} type="button" className={`purpose-chip purpose-${purpose.key.toLowerCase()}`} aria-pressed={hasPurpose(idea, purpose.key)} disabled={busy} onClick={() => togglePurpose(idea, purpose.key)}>{purpose.label}</button>)}</div>
           <p className="muted">Của bạn</p>
-          <div className="chip-list">{list.purposeTags.length === 0 ? <span className="muted">Chưa có mục đích riêng.</span> : list.purposeTags.map((tag) => <button key={tag.tagId} type="button" className={`purpose-chip purpose-${tag.displayLike.toLowerCase()}`} aria-pressed={idea.purposes.includes(`tag:${tag.tagId}`)} disabled={busy} onClick={() => togglePurpose(idea, `tag:${tag.tagId}`)}>{tag.label}</button>)}</div>
+          <div className="chip-list">{list.purposeTags.length === 0 ? <span className="muted">Chưa có mục đích riêng.</span> : list.purposeTags.map((tag) => <button key={tag.tagId} type="button" className={`purpose-chip purpose-${tag.displayLike.toLowerCase()}`} aria-pressed={hasPurpose(idea, `tag:${tag.tagId}`)} disabled={busy} onClick={() => togglePurpose(idea, `tag:${tag.tagId}`)}>{tag.label}</button>)}</div>
           <form className="purpose-tag-form" onSubmit={(event) => void createTag(event)} noValidate>
             <label className="field" htmlFor={`tag-label-${idea.ideaId}`}>Mục đích mới<input id={`tag-label-${idea.ideaId}`} className="search" value={tagDraft.label} maxLength={40} onChange={(event) => setTagDraft({ ...tagDraft, label: event.target.value })} /></label>
             <label className="field" htmlFor={`tag-kind-${idea.ideaId}`}>Hiển thị giống<select id={`tag-kind-${idea.ideaId}`} className="search" value={tagDraft.displayLike} onChange={(event) => setTagDraft({ ...tagDraft, displayLike: event.target.value as PurposeKind })}>{PURPOSE_KINDS.map((purpose) => <option key={purpose.key} value={purpose.key}>{purpose.label}</option>)}</select></label>
