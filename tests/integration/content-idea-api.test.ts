@@ -9,9 +9,6 @@ import test from 'node:test';
 import type { AddressInfo } from 'node:net';
 import contentApiSchema from '../../contracts/api/content-api.schema.json' with { type: 'json' };
 import ownerContentIdeaApiSchema from '../../contracts/api/owner-content-idea-api.schema.json' with { type: 'json' };
-import contentIdeaGenerateSchema from '../../contracts/flow/content-idea-generate-request.schema.json' with { type: 'json' };
-import contentIdeaStateSchema from '../../contracts/flow/content-idea-state-request.schema.json' with { type: 'json' };
-import contentPurposeTagSchema from '../../contracts/flow/content-purpose-tag-request.schema.json' with { type: 'json' };
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { createFakeCreativeGateway, type FakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
 import { ContentBrandService } from '../../src/modules/flow/content-brand-service.js';
@@ -105,13 +102,50 @@ async function prepareCampaign(owner: string): Promise<void> {
   assert.equal((await post(`${owner}/owner-api/content/campaigns/${campaignId}/insight/lock`, lockBody())).status, 201);
 }
 
+type JsonSchema = Record<string, unknown>;
+
+function collectRelativeReferences(value: unknown, references = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectRelativeReferences(entry, references);
+  } else if (value !== null && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      if (key === '$ref' && typeof entry === 'string' && !entry.startsWith('#') && !/^[A-Za-z][A-Za-z\d+.-]*:/.test(entry)) {
+        references.add(entry.split('#', 1)[0]!);
+      } else {
+        collectRelativeReferences(entry, references);
+      }
+    }
+  }
+  return references;
+}
+
+function contentApiSchemas(): readonly JsonSchema[] {
+  const contractsRoot = path.resolve('contracts');
+  const rootPath = path.join(contractsRoot, 'api', 'content-api.schema.json');
+  const rootSchema = contentApiSchema as JsonSchema;
+  const schemas = new Map<string, JsonSchema>([[rootPath, rootSchema]]);
+  const visit = (schemaPath: string, schema: JsonSchema): void => {
+    for (const reference of collectRelativeReferences(schema)) {
+      const referencedPath = path.resolve(path.dirname(schemaPath), reference);
+      const relativePath = path.relative(contractsRoot, referencedPath);
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) throw new Error(`Schema reference escapes contracts/: ${reference}`);
+      if (schemas.has(referencedPath)) continue;
+      const referencedSchema = JSON.parse(fs.readFileSync(referencedPath, 'utf8')) as JsonSchema;
+      schemas.set(referencedPath, referencedSchema);
+      visit(referencedPath, referencedSchema);
+    }
+  };
+  visit(rootPath, rootSchema);
+  return [...schemas.values()];
+}
+
 function addAjvSchemas() {
   const require = createRequire(import.meta.url);
   const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
   const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
   const ajv = new Ajv2020({ allErrors: true, strict: true }); addFormats(ajv);
-  ajv.addSchema(contentApiSchema); ajv.addSchema(ownerContentIdeaApiSchema);
-  ajv.addSchema(contentIdeaGenerateSchema); ajv.addSchema(contentIdeaStateSchema); ajv.addSchema(contentPurposeTagSchema);
+  for (const schema of contentApiSchemas()) ajv.addSchema(schema);
+  ajv.addSchema(ownerContentIdeaApiSchema);
   return ajv;
 }
 
@@ -225,12 +259,7 @@ test('missing gateway maps generation to 503 ai_unavailable and never echoes the
 });
 
 test('idea route and contract inventories expose the new generated list and owner types', () => {
-  const require = createRequire(import.meta.url);
-  const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
-  const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
-  const ajv = new Ajv2020({ allErrors: true, strict: true }); addFormats(ajv);
-  ajv.addSchema(contentApiSchema); ajv.addSchema(ownerContentIdeaApiSchema);
-  ajv.addSchema(contentIdeaGenerateSchema); ajv.addSchema(contentIdeaStateSchema); ajv.addSchema(contentPurposeTagSchema);
+  const ajv = addAjvSchemas();
   assert.ok(ajv.getSchema(`${contentApiSchema.$id}#/$defs/ideaList`));
   assert.ok(ajv.getSchema(`${contentApiSchema.$id}#/$defs/ideaListEntry`));
   assert.ok(ajv.getSchema(`${contentApiSchema.$id}#/$defs/purposeTagEntry`));

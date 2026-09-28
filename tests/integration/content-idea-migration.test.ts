@@ -101,7 +101,10 @@ function insertState(db: ReturnType<typeof openDatabase>['db'], ideaId: string, 
 test('migration 0027 creates the three immutable tables and all relationship/sequential guards', async () => {
   const state = await setup();
   currentArtifactSha = state.artifactSha;
-  assert.equal(state.migration.currentVersion, 27);
+  const migrations = fs.readdirSync('migrations').filter((name) => /^\d{4}_[a-z0-9_]+\.sql$/.test(name)).sort();
+  const head = Number(migrations.at(-1)!.slice(0, 4));
+  assert.ok(head >= 27);
+  assert.equal(state.migration.currentVersion, head);
   assert.deepEqual(
     (state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('flow_content_ideas', 'flow_content_idea_states', 'flow_content_purpose_tags') ORDER BY name").all() as { name: string }[]).map((row) => row.name),
     ['flow_content_idea_states', 'flow_content_ideas', 'flow_content_purpose_tags'],
