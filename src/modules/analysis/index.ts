@@ -91,6 +91,16 @@ export {
   type ReportVersionExecution,
 } from './report-version-service.js';
 export {
+  AnalysisReportInterpretationReader,
+  ReportInterpretationLedgerConflictError,
+  ReportInterpretationLedgerIntegrityError,
+  ReportInterpretationLedgerService,
+  ReportInterpretationLedgerValidationError,
+  type ReportInterpretationLedgerExecution,
+  type ReportInterpretationLedgerRecord,
+  type VerifiedReportInterpretation,
+} from './report-interpretation-ledger.js';
+export {
   NormalizedMetricObservationIntegrityError,
   NormalizedMetricObservationStore,
   NormalizedMetricObservationValidationError,

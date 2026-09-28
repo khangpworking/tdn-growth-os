@@ -23,6 +23,12 @@ import {
   ReportVersionService,
   ReportVersionValidationError,
 } from '../../src/modules/analysis/report-version-service.js';
+import { buildEvidenceBoundReportInterpretation } from '../../src/modules/analysis/report-interpretation.js';
+import {
+  ReportInterpretationLedgerConflictError,
+  ReportInterpretationLedgerIntegrityError,
+  ReportInterpretationLedgerService,
+} from '../../src/modules/analysis/report-interpretation-ledger.js';
 import { NormalizedMetricObservationStore } from '../../src/modules/analysis/normalized-metric-observation-store.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
@@ -313,6 +319,109 @@ test('fails closed on changed identity and on a missing immutable artifact', asy
   assert.equal(count(state.db, 'analysis_report_version_artifacts'), BigInt(record.artifacts.length));
 });
 
+// Test-authoring gate: this integration test owns A13 persistence/replay. A8's
+// unit test remains the owner of language and citation-validation cases.
+test('retains every evidence-bound interpretation run and replays exact evidence without regeneration', async () => {
+  const state = await fixture();
+  const report = await state.service.createVersion(state.request, state.catalogBytes);
+  const reports = new AnalysisReportVersionReader(state.service);
+  const source = await reports.readInterpretationSource(report.reportId, report.version);
+  const promptText = 'bounded synthetic interpretation prompt';
+  const configuration = {
+    providerId: 'synthetic-provider', modelId: 'synthetic-model', promptId: 'market-report-interpretation',
+    promptVersion: 1, promptText, outputSchemaVersion: '1.0.0' as const,
+  };
+  const request = {
+    contractVersion: '1.0.0', semanticVersionId: report.semanticVersionId,
+    packetId: source.bundle.packet.packetId, sectionIds: ['M03'],
+  };
+  const baseOutput = {
+    items: [{
+      sectionId: 'M03', kind: 'INTERPRETATION',
+      conclusion: 'Doanh thu quan sát tập trung trong phạm vi đã phân loại.',
+      evidenceLogic: 'Diễn giải chỉ nối tổng hợp đã xác minh với phạm vi wide.',
+      supportingClaimIds: ['M03:wide:revenue'], assumptions: [],
+      limitations: ['Không suy rộng ra toàn thị trường.'],
+    }],
+  };
+  const firstBuilt = buildEvidenceBoundReportInterpretation({
+    request, output: baseOutput, bundle: source.bundle, configuration,
+    telemetry: { providerRequestId: 'synthetic-run-a', inputTokenCount: 10, outputTokenCount: 20, latencyMs: 30 },
+    now: () => new Date('2026-10-01T04:00:00.000Z'),
+    createId: () => '55555555-5555-4555-8555-555555555555',
+  });
+  const ledger = new ReportInterpretationLedgerService({
+    db: state.db, artifactStore: state.artifacts, reports,
+    now: () => new Date('2026-10-01T05:00:00.000Z'),
+  });
+  const first = await ledger.persist({
+    reportId: report.reportId, reportVersion: report.version,
+    artifactBytes: firstBuilt.artifactBytes, promptText,
+  });
+  assert.equal(first.interpretationNumber, 1);
+  assert.equal(first.deduplicated, false);
+  const filesBeforeRetry = artifactTree(state.artifactRoot);
+  const changesBeforeRetry = (state.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count;
+  const retry = await ledger.persist({
+    reportId: report.reportId, reportVersion: report.version,
+    artifactBytes: firstBuilt.artifactBytes, promptText,
+  });
+  assert.equal(retry.interpretationId, first.interpretationId);
+  assert.equal(retry.deduplicated, true);
+  assert.equal(retry.databaseMutations, 0);
+  assert.equal((state.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count, changesBeforeRetry);
+  assert.equal(artifactTree(state.artifactRoot), filesBeforeRetry);
+
+  const alternateBuilt = buildEvidenceBoundReportInterpretation({
+    request,
+    output: {
+      items: [{
+        ...baseOutput.items[0]!,
+        conclusion: 'Phạm vi đã phân loại cho thấy một cách đọc khác của cùng quan sát.',
+      }],
+    },
+    bundle: source.bundle, configuration,
+    telemetry: { providerRequestId: 'synthetic-run-b', inputTokenCount: 10, outputTokenCount: 22, latencyMs: 31 },
+    now: () => new Date('2026-10-01T04:01:00.000Z'),
+    createId: () => '66666666-6666-4666-8666-666666666666',
+  });
+  const alternate = await ledger.persist({
+    reportId: report.reportId, reportVersion: report.version,
+    artifactBytes: alternateBuilt.artifactBytes, promptText,
+  });
+  assert.equal(alternate.interpretationNumber, 2);
+  assert.notEqual(alternate.interpretationContentSha256, first.interpretationContentSha256);
+  const history = await ledger.list(report.reportId, report.version);
+  assert.deepEqual(history.map(item => item.record.interpretationNumber), [1, 2]);
+  assert.ok(history[0]!.artifactBytes.equals(firstBuilt.artifactBytes));
+  assert.ok(!('chainOfThought' in history[0]!.artifact));
+  assert.ok(!('promptText' in history[0]!.artifact.generation));
+
+  const changedSameIdentity = buildEvidenceBoundReportInterpretation({
+    request, output: {
+      items: [{ ...baseOutput.items[0]!, conclusion: 'Một diễn giải thay đổi không được ghi đè cùng danh tính.' }],
+    },
+    bundle: source.bundle, configuration,
+    now: () => new Date('2026-10-01T04:00:00.000Z'),
+    createId: () => first.interpretationId,
+  });
+  await assert.rejects(ledger.persist({
+    reportId: report.reportId, reportVersion: report.version,
+    artifactBytes: changedSameIdentity.artifactBytes, promptText,
+  }), ReportInterpretationLedgerConflictError);
+  assert.equal(count(state.db, 'analysis_report_interpretation_runs'), 2n);
+  assert.throws(
+    () => state.db.prepare(`UPDATE analysis_report_interpretation_runs SET model_id = 'changed' WHERE interpretation_id = ?`).run(first.interpretationId),
+    /analysis_report_interpretation_immutable/,
+  );
+
+  fs.rmSync(state.artifacts.pathForDigest(history[0]!.record.artifactSha256));
+  await assert.rejects(
+    ledger.read(report.reportId, report.version, first.interpretationId),
+    ReportInterpretationLedgerIntegrityError,
+  );
+});
+
 test('read API lists workspace series, verifies explicit history, and serves only exact member bytes', async () => {
   const state = await fixture();
   const created = await state.service.createVersion(state.request, state.catalogBytes);
@@ -432,6 +541,37 @@ test('upgrades an existing v30 database to v31 exactly once', () => {
   const rerun = openDatabase({ databasePath, migrationsDirectory });
   assert.deepEqual(rerun.migration.applied, []);
   assert.equal(rerun.migration.currentVersion, 31);
+  rerun.db.close();
+});
+
+test('upgrades an existing v31 database to v32 exactly once', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-report-interpretation-ledger-migration-'));
+  tempRoots.push(directory);
+  const migrationsDirectory = path.join(directory, 'migrations');
+  fs.mkdirSync(migrationsDirectory);
+  const prior = fs.readdirSync('migrations')
+    .filter(name => /^00(?:0[1-9]|[12][0-9]|3[01])_/.test(name))
+    .sort();
+  assert.equal(prior.length, 31);
+  for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(migrationsDirectory, name));
+  const databasePath = path.join(directory, 'report.sqlite');
+  const v31 = openDatabase({ databasePath, migrationsDirectory });
+  assert.equal(v31.migration.currentVersion, 31);
+  v31.db.close();
+
+  fs.copyFileSync(
+    'migrations/0032_analysis_report_interpretations.sql',
+    path.join(migrationsDirectory, '0032_analysis_report_interpretations.sql'),
+  );
+  const v32 = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(v32.migration.applied, [32]);
+  assert.equal(v32.migration.currentVersion, 32);
+  assert.equal(count(v32.db, 'analysis_report_interpretation_runs'), 0n);
+  v32.db.close();
+
+  const rerun = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(rerun.migration.applied, []);
+  assert.equal(rerun.migration.currentVersion, 32);
   rerun.db.close();
 });
 

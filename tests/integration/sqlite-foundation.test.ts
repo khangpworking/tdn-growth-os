@@ -68,7 +68,7 @@ test('opens a fresh WAL database and a second migration run is idempotent', () =
 
   const second = openDatabase({ databasePath });
   assert.deepEqual(second.migration.applied, []);
-  assert.equal(second.migration.currentVersion, 31);
+  assert.equal(second.migration.currentVersion, 32);
   assert.deepEqual(second.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all(), [
     { version: 1n },
     { version: 2n },

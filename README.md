@@ -99,6 +99,13 @@ logic summary, not hidden chain-of-thought, and remains unapproved. A8 does not
 call a provider or persist a report run. See [A8 scope](docs/tasks/research-a8-evidence-bound-interpretation.md)
 and [ADR 0005](docs/adr/0005-report-evidence-and-decision-ledger.md).
 
+Research A13 adds durable SQLite history for those validated interpretation
+artifacts. Each run names one exact report ID/version, retains exact prompt
+bytes and generation metadata, and replays citations against the same verified
+evidence without calling AI again. Multiple runs remain separate and
+unapproved; no interpretation becomes source evidence or a human decision. See
+[A13 scope](docs/tasks/research-a13-interpretation-ledger.md).
+
 Research A9 deepens the same deterministic report without adding a section
 method. It renders M03 filter-membership sensitivity and M04 group composition
 and top-shop-removal sensitivity directly from the verified A1 Result. Every
