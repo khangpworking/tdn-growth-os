@@ -1,5 +1,11 @@
 # Trạng thái hiện tại
 
+## Task 050a — Insight của chiến dịch (Standard; nhánh `feature/050-content-insight-ideas`, tạm thời)
+
+- Bước 1 của chiến dịch: nhập Khách hàng mục tiêu, Nỗi đau, Insight hoặc lấy gợi ý từ STP đã khóa của sản phẩm nghiên cứu liên kết; mỗi lần lưu là một phiên bản bất biến, gửi lại trùng không tạo bản mới.
+- Khóa Insight: nếu chiến dịch liên kết sản phẩm nghiên cứu thì phải có quyết định B10 hiện hành `APPROVE`; khóa ghi lại quyết định đó (D26/D33). Sau khóa, sản phẩm/gói và liên kết nghiên cứu của chiến dịch cố định; tên và mục tiêu vẫn sửa được (mặc định tạm thời, chờ chủ dự án).
+- Migration 0026 (`flow_content_insight_revisions`, `flow_content_insight_locks`); `GET /api/content/campaigns/:id/insight` và OWNER `…/insight/revisions`, `…/insight/lock`; màn hình `#/content/:id/insight`. Không gọi AI. Big Idea và Góc nội dung ở 050b ([brief](tasks/050-content-insight-ideas.md)).
+
 ## Research A9: deterministic M03/M04 diagnostic charts (draft PR #65; not deployed)
 
 - The accepted four-layer framework remains authoritative; this slice deepens
@@ -73,7 +79,7 @@
 - Cùng bundle/input/method/profile: kiểm lại rồi tái sử dụng, không ghi đè; changed/corrupt/incomplete bundle bị từ chối. Không AI/provider/DB/migration/UI.
 - Nghiệp vụ đã đối chiếu với task Review marketing framework files và fixture độc lập. Raw XLSX verification, source transfer, workspace-bound Results, Insight claims và duyệt bản chính thức chưa triển khai. Xem task/handoff `research-a1-deterministic-metric.md`.
 
-## Task 049 — Hạ tầng AI cho Content Studio (Controlled; draft PR #53, đang review)
+## Task 049 — Hạ tầng AI cho Content Studio (Controlled; PR #53 đã merge)
 
 - Cập nhật 2026-09-28: chủ dự án đã duyệt ADR 0004 và merge PR #53; R1/P2 đã đóng, code head `ddeebb94` PASS Linux (434 backend / 125 frontend). Commit ghi nhận phê duyệt cần CI trước merge; lịch sử PR là nguồn xác nhận merge. Chưa deploy/migrate live hoặc gọi provider thật.
 

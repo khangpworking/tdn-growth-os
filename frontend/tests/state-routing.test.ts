@@ -16,6 +16,9 @@ test('market relationships, search, empty creation and routes use IDs', () => {
   assert.equal(state.products.some((product) => product.marketId === 'market-new'), false);
   assert.deepEqual(parseRoute(routeToHash.market('market-new'), state), { kind: 'market', marketId: 'market-new' });
   assert.deepEqual(parseRoute(routeToHash.product('calcium', 'adult'), state), { kind: 'product', marketId: 'calcium', productId: 'adult', section: 'b8' });
+  const campaignId = '66666666-6666-4666-8666-0000000000c1';
+  assert.deepEqual(parseRoute(routeToHash.campaignInsight(campaignId), state), { kind: 'campaign-insight', campaignId });
+  assert.equal(parseRoute('#/content/not-a-uuid/insight', state).kind, 'invalid');
   assert.equal(parseRoute(routeToHash.product('collagen', 'adult'), state).kind, 'invalid');
   assert.equal(parseRoute('#/markets/missing', state).kind, 'invalid');
   assert.equal(parseRoute('#/markets/%E0%A4%A', state).kind, 'invalid');

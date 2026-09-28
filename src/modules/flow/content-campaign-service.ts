@@ -134,6 +134,11 @@ export class ContentCampaignService {
     }
     if (current.version !== input.expectedVersion) throw new ContentCampaignConflictError('Campaign version or content drift');
     if (this.lifecycleState(input.campaignId).deleted) throw new ContentCampaignConflictError('Campaign is deleted and cannot be revised');
+    // Once the insight is locked (Task 050a), the products and research link it was locked against stay fixed.
+    const insightLocked = this.#insightLocked(input.campaignId);
+    if (insightLocked && lockPinned(input.campaign) !== lockPinned((await this.readCampaign(input.campaignId)).campaign)) {
+      throw new ContentCampaignConflictError('Campaign insight lock prevents changed content');
+    }
     await this.#assertReferences(current.brandId, input.campaign);
 
     const createdAt = this.#now().toISOString();
@@ -145,6 +150,7 @@ export class ContentCampaignService {
       if (concurrentTarget) return this.#retry(requestSha256, concurrentTarget);
       if (this.#byId(input.campaignId)!.version !== input.expectedVersion) throw new ContentCampaignConflictError('Campaign version or content drift');
       if (this.lifecycleState(input.campaignId).deleted) throw new ContentCampaignConflictError('Campaign is deleted and cannot be revised');
+      if (!insightLocked && this.#insightLocked(input.campaignId)) throw new ContentCampaignConflictError('Campaign insight lock drift');
       let databaseMutations = registerContentManifest(this.#db, stored, createdAt, 'application/json');
       databaseMutations += this.#insertRevision(input.campaignId, targetVersion, input.campaign.name, requestSha256, stored.sha256, createdAt);
       return { campaignId: input.campaignId, campaignArtifactSha256: stored.sha256, version: targetVersion, deduplicated: false, databaseMutations };
@@ -279,6 +285,10 @@ export class ContentCampaignService {
     `).run(campaignId, version, name, requestSha256, artifactSha256, createdAt).changes;
   }
 
+  #insightLocked(campaignId: string): boolean {
+    return this.#db.prepare('SELECT 1 FROM flow_content_insight_locks WHERE campaign_id = ?').get(campaignId) !== undefined;
+  }
+
   #lifecycleRow(campaignId: string, sequence: number): { sequence: number; action: 'DELETE' | 'RESTORE'; createdAt: string } | undefined {
     const row = this.#db.prepare('SELECT sequence, action, created_at createdAt FROM flow_content_campaign_lifecycle WHERE campaign_id = ? AND sequence = ?').get(campaignId, sequence) as { sequence: bigint | number; action: 'DELETE' | 'RESTORE'; createdAt: string } | undefined;
     return row ? { ...row, sequence: Number(row.sequence) } : undefined;
@@ -304,6 +314,10 @@ const ROW_COLUMNS = `c.campaign_id campaignId, c.campaign_key campaignKey, c.bra
   r.request_sha256 requestSha256, r.campaign_artifact_sha256 artifactSha256, r.created_at createdAt`;
 type RawRow = Omit<ContentCampaignRow, 'version'> & { version: bigint | number };
 function toRow(row: RawRow): ContentCampaignRow { return { ...row, version: Number(row.version) }; }
+
+function lockPinned(campaign: ContentCampaignContent): string {
+  return canonicalDigest({ items: campaign.items, researchProductWorkspaceId: campaign.researchProductWorkspaceId ?? null });
+}
 
 export function campaignRestoreDeadline(deletedAt: string): string {
   return new Date(Date.parse(deletedAt) + CAMPAIGN_RESTORE_DAYS * 86_400_000).toISOString();

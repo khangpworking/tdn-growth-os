@@ -14,6 +14,9 @@ import type {
   ContentCatalogDetailResponse,
   ContentCatalogHistoryItem,
   ContentCatalogListResponse,
+  ContentInsightDetailResponse,
+  ContentInsightHistoryItem,
+  ContentInsightStpSuggestion,
   ContentPromptDetailResponse,
   ContentPromptHistoryItem,
   ContentPromptListResponse,
@@ -30,10 +33,12 @@ import type {
   OwnerContentMediaRejection,
 } from '../../contracts/api/owner-content-catalog-api.generated.js';
 import type { OwnerContentCampaignLifecycleReceipt, OwnerContentCampaignReceipt } from '../../contracts/api/owner-content-campaign-api.generated.js';
+import type { OwnerContentInsightLockReceipt, OwnerContentInsightRevisionReceipt } from '../../contracts/api/owner-content-insight-api.generated.js';
 import type { OwnerContentPromptLifecycleReceipt, OwnerContentPromptReceipt } from '../../contracts/api/owner-content-prompt-api.generated.js';
 import type { ContentCampaignArtifact } from '../../contracts/flow/content-campaign-artifact.generated.js';
 import type { ContentCampaignContent } from '../../contracts/flow/content-campaign-create-request.generated.js';
 import type { ContentPromptArtifact } from '../../contracts/flow/content-prompt-artifact.generated.js';
+import type { LockedStpArtifact } from '../../contracts/flow/locked-stp-artifact.generated.js';
 import type { ContentPromptContent, ContentPromptLineage, ContentPromptType } from '../../contracts/flow/content-prompt-create-request.generated.js';
 import type { ContentBrandArtifact } from '../../contracts/flow/content-brand-artifact.generated.js';
 import type { ContentCatalogItemArtifact } from '../../contracts/flow/content-catalog-item-artifact.generated.js';
@@ -56,8 +61,17 @@ import { CandidateBasketService } from '../modules/flow/candidate-basket-service
 import { FlowCandidateBasketReader } from '../modules/flow/candidate-basket-reader.js';
 import { ProductWorkspaceService } from '../modules/flow/product-workspace-service.js';
 import { FlowProductWorkspaceReader } from '../modules/flow/product-workspace-reader.js';
+import { ContentInsightConflictError, ContentInsightGateError, ContentInsightReferenceError, ContentInsightService } from '../modules/flow/content-insight-service.js';
+import { B8ClearanceService } from '../modules/flow/b8-clearance-service.js';
+import { FlowB8ClearanceReader } from '../modules/flow/b8-clearance-reader.js';
+import { StpService } from '../modules/flow/stp-service.js';
+import { FlowLockedStpReader } from '../modules/flow/locked-stp-reader.js';
 import { CANDIDATE_B7_DECISION_CAPABILITY, CANDIDATE_B7_DECISION_POLICY_ID, CandidateB7DecisionService } from '../modules/governance/candidate-b7-decision-service.js';
 import { GovernanceCandidateB7DecisionReader } from '../modules/governance/candidate-b7-decision-reader.js';
+import { PRODUCT_B8_REVIEW_CAPABILITY, PRODUCT_B8_REVIEW_POLICY_ID, ProductB8LaneDecisionService } from '../modules/governance/product-b8-lane-decision-service.js';
+import { GovernanceProductB8Reader } from '../modules/governance/product-b8-status-reader.js';
+import { ProductB10DecisionService } from '../modules/governance/product-b10-decision-service.js';
+import { GovernanceProductB10Reader } from '../modules/governance/product-b10-decision-reader.js';
 import {
   assertContentPromptContent,
   FlowValidationError,
@@ -68,6 +82,8 @@ import {
   validateContentCampaignRevisionRequest,
   validateContentCatalogItemCreateRequest,
   validateContentCatalogItemRevisionRequest,
+  validateContentInsightLockRequest,
+  validateContentInsightRevisionRequest,
   validateContentPromptCreateRequest,
   validateContentPromptLifecycleRequest,
   validateContentPromptRevisionRequest,
@@ -96,7 +112,7 @@ const REQUIRED_TABLES = [
   'artifact_manifests', 'flow_content_brands', 'flow_content_brand_revisions', 'flow_content_media', 'flow_content_catalog_items', 'flow_content_catalog_item_revisions',
   'flow_content_prompts', 'flow_content_prompt_revisions', 'flow_content_prompt_lifecycle',
   'flow_content_campaigns', 'flow_content_campaign_revisions', 'flow_content_campaign_lifecycle',
-  'flow_content_ai_attempts',
+  'flow_content_ai_attempts', 'flow_content_insight_revisions', 'flow_content_insight_locks',
 ];
 const MEDIA_KINDS: Readonly<Record<string, ContentMediaKind>> = { logo: 'LOGO', photo: 'PHOTO' };
 
@@ -128,7 +144,34 @@ interface ReadHandlers {
   systemPrompt(id: string): Promise<ContentSystemPromptDetailResponse | undefined>;
   campaignList(): Promise<ContentCampaignListResponse>;
   campaignDetail(campaignId: string): Promise<ContentCampaignDetailResponse | undefined>;
+  insightDetail(campaignId: string): Promise<ContentInsightDetailResponse | undefined>;
   aiStatus(): Promise<ContentAiStatusResponse>;
+}
+
+/** Read-only research chain (B7 → B10) that campaigns and insights check against. */
+function openResearchReaders(db: BetterSqlite3.Database, artifactStore: ContentAddressedArtifactStore) {
+  const discoveryReader = new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore }));
+  const candidateReader = new FlowProductCandidateReader(new ProductCandidateService({ db, artifactStore }));
+  const basketReader = new FlowCandidateBasketReader(new CandidateBasketService({ db, artifactStore, workspaceReader: discoveryReader, candidateReader }));
+  const b7 = new CandidateB7DecisionService({ db, artifactStore, basketReader, configuration: { policyId: CANDIDATE_B7_DECISION_POLICY_ID, policyVersion: 1, requiredCapability: CANDIDATE_B7_DECISION_CAPABILITY } });
+  const productReader = new FlowProductWorkspaceReader(new ProductWorkspaceService({ db, artifactStore, decisionReader: new GovernanceCandidateB7DecisionReader(b7) }));
+  const b8Reader = new GovernanceProductB8Reader(new ProductB8LaneDecisionService({
+    db, artifactStore, productWorkspaceReader: productReader,
+    configuration: { policyId: PRODUCT_B8_REVIEW_POLICY_ID, policyVersion: 1, requiredCapability: PRODUCT_B8_REVIEW_CAPABILITY },
+  }));
+  const clearanceReader = new FlowB8ClearanceReader(new B8ClearanceService({ db, artifactStore, decisionReader: b8Reader, statusReader: b8Reader }));
+  const stpReader = new FlowLockedStpReader(new StpService({ db, artifactStore, productWorkspaceReader: productReader, b8ClearanceReader: clearanceReader }));
+  const b10Reader = new GovernanceProductB10Reader(new ProductB10DecisionService({ db, artifactStore, lockedStpReader: stpReader }));
+  return { productReader, stpReader, b10Reader };
+}
+
+/** STP help for the insight form: the primary segment pre-fills the customer; the positioning statement (`insight`) is shown for reference only (Q-I4). */
+function stpSuggestion(locked: LockedStpArtifact): ContentInsightStpSuggestion | undefined {
+  const { segments, primaryTargetSegmentKey, positioningStatement } = locked.workingStp.content;
+  const primary = segments.find((segment) => segment.key === primaryTargetSegmentKey) ?? segments[0];
+  if (primary === undefined) return undefined;
+  const customer = primary.description ? `${primary.label} — ${primary.description}` : primary.label;
+  return { lockedStpId: locked.lockId, customer: customer.slice(0, 500).trim(), insight: positioningStatement.slice(0, 2000).trim() };
 }
 
 function systemLayer(library: ContentPromptLibrary, promptType: ContentPromptType): ContentPromptSystemLayer {
@@ -152,6 +195,8 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
     const library = new ContentPromptLibrary();
     const prompts = new ContentPromptService({ db, artifactStore, library, ...(configuration.now ? { now: configuration.now } : {}) });
     const campaigns = new ContentCampaignService({ db, artifactStore, catalog, ...(configuration.now ? { now: configuration.now } : {}) });
+    const research = openResearchReaders(db, artifactStore);
+    const insights = new ContentInsightService({ db, artifactStore, campaigns, lockedStpReader: research.stpReader, b10Reader: research.b10Reader });
     /** Re-reads every pinned item version; the campaign's brand, item identity and every selected tier must still match. */
     const resolveCampaignItems = async (campaign: ContentCampaignArtifact): Promise<ContentCampaignItemView[]> => {
       const views: ContentCampaignItemView[] = [];
@@ -329,6 +374,30 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
           lifecycle: { sequence: state.sequence, ...(state.deleted ? { deleted: state.deleted } : {}) },
         };
       },
+      async insightDetail(campaignId) {
+        if (!campaigns.campaignExists(campaignId)) return undefined;
+        const campaign = await campaigns.readCampaign(campaignId);
+        const history: ContentInsightHistoryItem[] = [];
+        let latest: Awaited<ReturnType<ContentInsightService['readInsight']>> | undefined;
+        for (const row of insights.history(campaignId)) {
+          latest = await insights.readInsight(campaignId, row.version);
+          if (latest.version !== history.length + 1) throw new Error('Insight history is not sequential');
+          history.push({ version: latest.version, sourceKind: latest.insight.source.kind, createdAt: latest.createdAt });
+        }
+        const lock = await insights.readLock(campaignId);
+        const workspaceId = campaign.campaign.researchProductWorkspaceId;
+        const gate = await insights.gate(workspaceId);
+        const b9 = workspaceId === undefined ? undefined : await research.stpReader.readStatusByProductWorkspace(workspaceId);
+        const suggestion = b9?.state === 'LOCKED' ? stpSuggestion(b9.locked) : undefined;
+        return {
+          contractVersion: '1.0.0', campaignId, campaignVersion: campaign.version, campaignDeleted: campaigns.lifecycleState(campaignId).deleted !== undefined,
+          ...(latest ? { latest: { version: latest.version, insight: latest.insight, createdAt: latest.createdAt } } : {}),
+          history,
+          ...(lock ? { lock: { insightVersion: lock.insightVersion, campaignVersion: lock.campaignVersion, lockedAt: lock.lockedAt, ...(lock.b10 ? { b10: lock.b10 } : {}) } } : {}),
+          gate: { ...gate, ...(workspaceId === undefined ? {} : { productWorkspaceId: workspaceId }) },
+          ...(suggestion ? { stpSuggestion: suggestion } : {}),
+        };
+      },
       async aiStatus() {
         const status = await (configuration.aiStatus ?? notConfigured).read();
         return {
@@ -351,6 +420,11 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
     if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return sendReadError(response, 405, 'method_not_allowed', 'Only GET is supported'); }
     const parts = pathParts(request.url);
     if (parts === null) return sendReadError(response, 400, 'bad_request', 'Malformed request URL');
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length === 5 && parts[4] === 'insight') {
+      if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Campaign ID must be a UUID');
+      const result = await handlers.insightDetail(parts[3]!);
+      return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Campaign not found');
+    }
     if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length <= 4) {
       if (parts.length === 3) return sendApiJson(response, 200, await handlers.campaignList());
       if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Campaign ID must be a UUID');
@@ -429,7 +503,9 @@ type OwnerRoute =
   | { readonly kind: 'prompt-lifecycle'; readonly promptId: string }
   | { readonly kind: 'campaign-create' }
   | { readonly kind: 'campaign-revision'; readonly campaignId: string }
-  | { readonly kind: 'campaign-lifecycle'; readonly campaignId: string };
+  | { readonly kind: 'campaign-lifecycle'; readonly campaignId: string }
+  | { readonly kind: 'insight-revision'; readonly campaignId: string }
+  | { readonly kind: 'insight-lock'; readonly campaignId: string };
 
 interface OwnerWriters {
   brand(serviceRequest: Record<string, unknown>, revision: boolean): Promise<OwnerContentBrandReceipt>;
@@ -439,6 +515,8 @@ interface OwnerWriters {
   promptLifecycle(serviceRequest: Record<string, unknown>): Promise<OwnerContentPromptLifecycleReceipt>;
   campaign(serviceRequest: Record<string, unknown>, campaignId: string | undefined): Promise<OwnerContentCampaignReceipt>;
   campaignLifecycle(serviceRequest: Record<string, unknown>): Promise<OwnerContentCampaignLifecycleReceipt>;
+  insightRevision(serviceRequest: Record<string, unknown>): Promise<OwnerContentInsightRevisionReceipt>;
+  insightLock(serviceRequest: Record<string, unknown>): Promise<OwnerContentInsightLockReceipt>;
 }
 
 /** OWNER write paths for Content Studio (`/owner-api/content/*`). */
@@ -460,17 +538,12 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
     const library = new ContentPromptLibrary();
     const prompts = new ContentPromptService({ db, artifactStore: artifacts, library, ...clock });
     // Research workspaces are only read here, so their chain uses a plain store outside the request-scoped ownership.
-    const workspaceArtifacts = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
-    const discoveries = new DiscoveryWorkspaceService({ db, artifactStore: workspaceArtifacts });
-    const discoveryReader = new FlowDiscoveryWorkspaceReader(discoveries);
-    const candidates = new ProductCandidateService({ db, artifactStore: workspaceArtifacts });
-    const candidateReader = new FlowProductCandidateReader(candidates);
-    const baskets = new CandidateBasketService({ db, artifactStore: workspaceArtifacts, workspaceReader: discoveryReader, candidateReader });
-    const basketReader = new FlowCandidateBasketReader(baskets);
-    const b7 = new CandidateB7DecisionService({ db, artifactStore: workspaceArtifacts, basketReader, configuration: { policyId: CANDIDATE_B7_DECISION_POLICY_ID, policyVersion: 1, requiredCapability: CANDIDATE_B7_DECISION_CAPABILITY } });
-    const products = new ProductWorkspaceService({ db, artifactStore: workspaceArtifacts, decisionReader: new GovernanceCandidateB7DecisionReader(b7) });
-    const productReader = new FlowProductWorkspaceReader(products);
-    const campaigns = new ContentCampaignService({ db, artifactStore: artifacts, catalog, workspaceReader: productReader, ...clock });
+    const research = openResearchReaders(db, new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot)));
+    const campaigns = new ContentCampaignService({ db, artifactStore: artifacts, catalog, workspaceReader: research.productReader, ...clock });
+    const insights = new ContentInsightService({
+      db, artifactStore: artifacts, campaigns, lockedStpReader: research.stpReader, b10Reader: research.b10Reader,
+      ...(configuration.now ? { now: configuration.now } : {}),
+    });
     const brandExists = db.prepare('SELECT 1 FROM flow_content_brands WHERE brand_id = ?');
     const brandHistory = db.prepare('SELECT version FROM flow_content_brand_revisions WHERE brand_id = ? ORDER BY version');
 
@@ -501,6 +574,13 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
         if (version !== index + 1) throw new Error('Campaign history is not sequential');
         await campaigns.readCampaign(campaignId, version);
       }
+    });
+    const verifyInsightHistory = (campaignId: string) => integrity(async () => {
+      for (const [index, row] of insights.history(campaignId).entries()) {
+        if (row.version !== index + 1) throw new Error('Insight history is not sequential');
+        await insights.readInsight(campaignId, row.version);
+      }
+      await insights.readLock(campaignId);
     });
     const assertPromptReferences = (type: ContentPromptType, prompt: ContentPromptContent, lineage: ContentPromptLineage | undefined) => {
       try { assertContentPromptContent(type, prompt); } catch { throw new InvalidPromptRequestError(); }
@@ -617,6 +697,35 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
           ...(result.restorableUntil ? { restorableUntil: result.restorableUntil } : {}), exactRetry: result.deduplicated,
         };
       }),
+      insightRevision: (serviceRequest) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+        const campaignId = serviceRequest.campaignId as string;
+        if (!campaigns.campaignExists(campaignId)) throw new UnknownCampaignError();
+        await insights.restoreExactArtifact(serviceRequest);
+        await verifyCampaignHistory(campaignId);
+        await verifyInsightHistory(campaignId);
+        const result = await insights.reviseInsight(serviceRequest);
+        await artifacts.publishOwned();
+        const verified = await integrity(() => insights.readInsight(campaignId, result.version));
+        return { contractVersion: '1.0.0', campaignId, version: verified.version, createdAt: verified.createdAt, exactRetry: result.deduplicated };
+      })),
+      insightLock: (serviceRequest) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
+        const campaignId = serviceRequest.campaignId as string;
+        if (!campaigns.campaignExists(campaignId)) throw new UnknownCampaignError();
+        await insights.restoreExactArtifact(serviceRequest);
+        await verifyCampaignHistory(campaignId);
+        await verifyInsightHistory(campaignId);
+        const result = await insights.lockInsight(serviceRequest);
+        await artifacts.publishOwned();
+        const verified = await integrity(async () => {
+          const lock = await insights.readLock(campaignId);
+          if (!lock) throw new Error('Insight lock is missing after commit');
+          return lock;
+        });
+        return {
+          contractVersion: '1.0.0', campaignId, insightVersion: verified.insightVersion, campaignVersion: verified.campaignVersion,
+          lockedAt: verified.lockedAt, exactRetry: result.deduplicated,
+        };
+      })),
     };
 
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers); };
@@ -630,6 +739,10 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
 function ownerRoute(parts: string[] | null): OwnerRoute | 'invalid-id' | null {
   if (parts !== null && parts[0] === 'owner-api' && parts[1] === 'content' && parts[2] === 'campaigns') {
     if (parts.length === 3) return { kind: 'campaign-create' };
+    if (parts.length === 6 && parts[4] === 'insight' && (parts[5] === 'revisions' || parts[5] === 'lock')) {
+      if (!UUID.test(parts[3]!)) return 'invalid-id';
+      return parts[5] === 'revisions' ? { kind: 'insight-revision', campaignId: parts[3]! } : { kind: 'insight-lock', campaignId: parts[3]! };
+    }
     if (parts.length !== 5 || (parts[4] !== 'revisions' && parts[4] !== 'lifecycle')) return null;
     if (!UUID.test(parts[3]!)) return 'invalid-id';
     return parts[4] === 'revisions' ? { kind: 'campaign-revision', campaignId: parts[3]! } : { kind: 'campaign-lifecycle', campaignId: parts[3]! };
@@ -678,7 +791,7 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     if (contentType !== 'application/json') return sendOwnerError(response, 400, 'bad_request', 'Content-Type must be application/json');
     const catalogRoute = route.kind === 'item-create' || route.kind === 'item-revision';
     const promptRoute = route.kind === 'prompt-create' || route.kind === 'prompt-revision' || route.kind === 'prompt-lifecycle';
-    const campaignRoute = route.kind === 'campaign-create' || route.kind === 'campaign-revision' || route.kind === 'campaign-lifecycle';
+    const campaignRoute = route.kind === 'campaign-create' || route.kind === 'campaign-revision' || route.kind === 'campaign-lifecycle' || route.kind === 'insight-revision' || route.kind === 'insight-lock';
     const raw = (await readOwnerBytes(request, campaignRoute ? CAMPAIGN_BODY_BYTES : promptRoute ? PROMPT_BODY_BYTES : catalogRoute ? CATALOG_BODY_BYTES : BRAND_BODY_BYTES)).toString('utf8');
     let body: unknown;
     try { body = JSON.parse(raw); } catch { return sendOwnerError(response, 400, 'bad_request', 'Request body must be valid JSON'); }
@@ -697,12 +810,14 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
       'campaign-create': 'brandId,campaign,campaignKey,contractVersion',
       'campaign-revision': 'campaign,contractVersion,expectedVersion',
       'campaign-lifecycle': 'action,contractVersion,expectedSequence',
+      'insight-revision': 'contractVersion,expectedVersion,insight',
+      'insight-lock': 'campaignVersion,contractVersion,insightVersion',
     }[route.kind];
     if (keys !== expectedKeys) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
     const serviceRequest = route.kind === 'brand-create' || route.kind === 'prompt-create' || route.kind === 'campaign-create' ? { ...fields }
       : route.kind === 'brand-revision' || route.kind === 'item-create' ? { ...fields, brandId: route.brandId }
       : route.kind === 'item-revision' ? { ...fields, itemId: route.itemId }
-      : route.kind === 'campaign-revision' || route.kind === 'campaign-lifecycle' ? { ...fields, campaignId: route.campaignId }
+      : route.kind === 'campaign-revision' || route.kind === 'campaign-lifecycle' || route.kind === 'insight-revision' || route.kind === 'insight-lock' ? { ...fields, campaignId: route.campaignId }
       : { ...fields, promptId: route.promptId };
     try {
       if (route.kind === 'brand-create') validateContentBrandCreateRequest(serviceRequest);
@@ -714,6 +829,8 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
       else if (route.kind === 'campaign-create') validateContentCampaignCreateRequest(serviceRequest);
       else if (route.kind === 'campaign-revision') validateContentCampaignRevisionRequest(serviceRequest);
       else if (route.kind === 'campaign-lifecycle') validateContentCampaignLifecycleRequest(serviceRequest);
+      else if (route.kind === 'insight-revision') validateContentInsightRevisionRequest(serviceRequest);
+      else if (route.kind === 'insight-lock') validateContentInsightLockRequest(serviceRequest);
       else validateContentPromptLifecycleRequest(serviceRequest);
     } catch (error) {
       if (error instanceof FlowValidationError) return sendOwnerError(response, 400, 'bad_request', 'Invalid request');
@@ -723,6 +840,8 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
       : route.kind === 'item-create' || route.kind === 'item-revision' ? await writers.item(serviceRequest, route.brandId, route.kind === 'item-revision' ? route.itemId : undefined)
       : route.kind === 'campaign-create' || route.kind === 'campaign-revision' ? await writers.campaign(serviceRequest, route.kind === 'campaign-revision' ? route.campaignId : undefined)
       : route.kind === 'campaign-lifecycle' ? await writers.campaignLifecycle(serviceRequest)
+      : route.kind === 'insight-revision' ? await writers.insightRevision(serviceRequest)
+      : route.kind === 'insight-lock' ? await writers.insightLock(serviceRequest)
       : route.kind === 'prompt-lifecycle' ? await writers.promptLifecycle(serviceRequest)
       : await writers.prompt(serviceRequest, route.kind === 'prompt-revision' ? route.promptId : undefined);
     return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
@@ -738,6 +857,9 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     if (error instanceof UnknownCampaignError) return sendOwnerError(response, 404, 'not_found', 'Campaign not found');
     if (error instanceof ContentCampaignReferenceError) return sendOwnerError(response, 400, 'bad_request', 'Invalid campaign reference');
     if (error instanceof ContentCampaignConflictError && /drift|changed content|deleted|restore window/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
+    if (error instanceof ContentInsightGateError) return sendOwnerError(response, 409, 'conflict', error.reason);
+    if (error instanceof ContentInsightReferenceError) return sendOwnerError(response, 400, 'bad_request', 'Invalid insight reference');
+    if (error instanceof ContentInsightConflictError && error.code === 'state_conflict') return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     if (error instanceof ContentPromptConflictError && /drift|changed content|deleted|restore window/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     if ((error instanceof ContentBrandIdentityConflictError || error instanceof ContentCatalogIdentityConflictError) && /changed content|drift/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     return sendOwnerError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');

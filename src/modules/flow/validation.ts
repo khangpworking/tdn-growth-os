@@ -70,6 +70,14 @@ import contentCampaignLifecycleSchema from '../../../contracts/flow/content-camp
 import type { ContentCampaignLifecycleRequest } from '../../../contracts/flow/content-campaign-lifecycle-request.generated.js';
 import contentCampaignArtifactSchema from '../../../contracts/flow/content-campaign-artifact.schema.json' with { type: 'json' };
 import type { ContentCampaignArtifact } from '../../../contracts/flow/content-campaign-artifact.generated.js';
+import contentInsightRevisionSchema from '../../../contracts/flow/content-insight-revision-request.schema.json' with { type: 'json' };
+import type { ContentInsightRevisionRequest } from '../../../contracts/flow/content-insight-revision-request.generated.js';
+import contentInsightArtifactSchema from '../../../contracts/flow/content-insight-artifact.schema.json' with { type: 'json' };
+import type { ContentInsightArtifact } from '../../../contracts/flow/content-insight-artifact.generated.js';
+import contentInsightLockSchema from '../../../contracts/flow/content-insight-lock-request.schema.json' with { type: 'json' };
+import type { ContentInsightLockRequest } from '../../../contracts/flow/content-insight-lock-request.generated.js';
+import contentInsightLockArtifactSchema from '../../../contracts/flow/content-insight-lock-artifact.schema.json' with { type: 'json' };
+import type { ContentInsightLockArtifact } from '../../../contracts/flow/content-insight-lock-artifact.generated.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -119,6 +127,10 @@ const validateContentCampaignCreate = ajv.compile<ContentCampaignCreateRequest>(
 const validateContentCampaignRevision = ajv.compile<ContentCampaignRevisionRequest>(contentCampaignRevisionSchema);
 const validateContentCampaignLifecycle = ajv.compile<ContentCampaignLifecycleRequest>(contentCampaignLifecycleSchema);
 const validateContentCampaignEnvelope = ajv.compile<ContentCampaignArtifact>(contentCampaignArtifactSchema);
+const validateContentInsightRevision = ajv.compile<ContentInsightRevisionRequest>(contentInsightRevisionSchema);
+const validateContentInsightEnvelope = ajv.compile<ContentInsightArtifact>(contentInsightArtifactSchema);
+const validateContentInsightLock = ajv.compile<ContentInsightLockRequest>(contentInsightLockSchema);
+const validateContentInsightLockEnvelope = ajv.compile<ContentInsightLockArtifact>(contentInsightLockArtifactSchema);
 
 export class FlowValidationError extends Error {
   readonly details: string;
@@ -338,6 +350,26 @@ export function validateContentCampaignLifecycleRequest(value: unknown): Content
 export function validateContentCampaignArtifact(value: unknown): ContentCampaignArtifact {
   if (!validateContentCampaignEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentCampaignEnvelope.errors, { separator: '; ' }));
   assertContentCampaignContent(value.campaign);
+  return value;
+}
+
+export function validateContentInsightRevisionRequest(value: unknown): ContentInsightRevisionRequest {
+  if (!validateContentInsightRevision(value)) throw new FlowValidationError(ajv.errorsText(validateContentInsightRevision.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentInsightArtifact(value: unknown): ContentInsightArtifact {
+  if (!validateContentInsightEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentInsightEnvelope.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentInsightLockRequest(value: unknown): ContentInsightLockRequest {
+  if (!validateContentInsightLock(value)) throw new FlowValidationError(ajv.errorsText(validateContentInsightLock.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentInsightLockArtifact(value: unknown): ContentInsightLockArtifact {
+  if (!validateContentInsightLockEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentInsightLockEnvelope.errors, { separator: '; ' }));
   return value;
 }
 

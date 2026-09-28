@@ -7,9 +7,6 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import test from 'node:test';
 import contentApiSchema from '../../contracts/api/content-api.schema.json' with { type: 'json' };
-import contentCampaignCreateSchema from '../../contracts/flow/content-campaign-create-request.schema.json' with { type: 'json' };
-import contentCatalogItemCreateSchema from '../../contracts/flow/content-catalog-item-create-request.schema.json' with { type: 'json' };
-import contentPromptCreateSchema from '../../contracts/flow/content-prompt-create-request.schema.json' with { type: 'json' };
 import { openContentReadApi } from '../../src/api/content-api.js';
 import { openDatabase } from '../../src/platform/db/database.js';
 import type { ContentAiStatus } from '../../src/modules/flow/content-ai-status.js';
@@ -17,6 +14,43 @@ import type { ContentAiStatus } from '../../src/modules/flow/content-ai-status.j
 const roots: string[] = [];
 const SENTINEL = 'content-ai-status-route-sentinel-049';
 test.afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
+
+type JsonSchema = Record<string, unknown>;
+
+function collectRelativeReferences(value: unknown, references = new Set<string>()): Set<string> {
+  if (Array.isArray(value)) {
+    for (const entry of value) collectRelativeReferences(entry, references);
+  } else if (value !== null && typeof value === 'object') {
+    for (const [key, entry] of Object.entries(value)) {
+      if (key === '$ref' && typeof entry === 'string' && !entry.startsWith('#') && !/^[A-Za-z][A-Za-z\d+.-]*:/.test(entry)) {
+        references.add(entry.split('#', 1)[0]!);
+      } else {
+        collectRelativeReferences(entry, references);
+      }
+    }
+  }
+  return references;
+}
+
+function contentApiSchemas(): readonly JsonSchema[] {
+  const contractsRoot = path.resolve('contracts');
+  const rootPath = path.join(contractsRoot, 'api', 'content-api.schema.json');
+  const rootSchema = contentApiSchema as JsonSchema;
+  const schemas = new Map<string, JsonSchema>([[rootPath, rootSchema]]);
+  const visit = (schemaPath: string, schema: JsonSchema): void => {
+    for (const reference of collectRelativeReferences(schema)) {
+      const referencedPath = path.resolve(path.dirname(schemaPath), reference);
+      const relativePath = path.relative(contractsRoot, referencedPath);
+      if (relativePath.startsWith('..') || path.isAbsolute(relativePath)) throw new Error(`Schema reference escapes contracts/: ${reference}`);
+      if (schemas.has(referencedPath)) continue;
+      const referencedSchema = JSON.parse(fs.readFileSync(referencedPath, 'utf8')) as JsonSchema;
+      schemas.set(referencedPath, referencedSchema);
+      visit(referencedPath, referencedSchema);
+    }
+  };
+  visit(rootPath, rootSchema);
+  return [...schemas.values()];
+}
 
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-content-ai-status-route-')); roots.push(root);
@@ -59,10 +93,7 @@ test('GET /api/content/ai/status returns the closed AJV-valid envelope and non-G
     const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
     const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
     const ajv = new Ajv2020({ allErrors: true, strict: true }); addFormats(ajv);
-    ajv.addSchema(contentCampaignCreateSchema);
-    ajv.addSchema(contentCatalogItemCreateSchema);
-    ajv.addSchema(contentPromptCreateSchema);
-    ajv.addSchema(contentApiSchema);
+    for (const schema of contentApiSchemas()) ajv.addSchema(schema);
     const validate = ajv.getSchema(`${contentApiSchema.$id}#/$defs/aiStatus`)!;
     assert.equal(validate(body), true, JSON.stringify(validate.errors));
     assert.equal((contentApiSchema.oneOf as Array<{ $ref: string }>).some((entry) => entry.$ref === '#/$defs/aiStatus'), true);

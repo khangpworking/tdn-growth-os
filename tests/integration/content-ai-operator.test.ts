@@ -64,10 +64,13 @@ test('viewer starts with AI disabled and status never exposes configuration deta
 test('an operator database one migration behind fails before serving and writes nothing', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-content-ai-behind-')); roots.push(root);
   const directory = path.join(root, 'migrations'); fs.mkdirSync(directory);
-  const prior = fs.readdirSync('migrations').filter((name) => /^00(?:0[1-9]|1[0-9]|2[0-4])_/.test(name)).sort();
+  const migrations = fs.readdirSync('migrations').filter((name) => /^\d{4}_[a-z0-9_]+\.sql$/.test(name)).sort();
+  const head = Number(migrations.at(-1)!.slice(0, 4));
+  const prior = migrations.filter((name) => /^00(?:0[1-9]|1[0-9]|2[0-4])_/.test(name));
+  const priorHead = Number(prior.at(-1)!.slice(0, 4));
   for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(directory, name));
   const state = fixture(false, directory);
-  assert.throws(() => openOperatorApp(state.configuration), /Database schema is at v24; apply migrations up to v25 before starting/);
+  assert.throws(() => openOperatorApp(state.configuration), { message: new RegExp(`^Database schema is at v${priorHead}; apply migrations up to v${head} before starting$`) });
   assert.equal(fs.existsSync(`${state.databasePath}.executor.lock`), false);
   const db = new BetterSqlite3(state.databasePath); assert.equal((db.prepare("SELECT count(*) count FROM sqlite_master WHERE name='flow_content_ai_attempts'").get() as { count: number }).count, 0); db.close();
 });

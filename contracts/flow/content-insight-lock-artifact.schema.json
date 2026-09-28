@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-insight-lock-artifact.schema.json",
+  "title": "ContentInsightLockArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "insightVersion", "campaignVersion", "insightArtifactSha256", "campaignArtifactSha256", "lockedAt", "requestSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "insightVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "campaignVersion": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "insightArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "campaignArtifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "b10": { "$ref": "#/$defs/b10" },
+    "lockedAt": { "type": "string", "format": "date-time" },
+    "requestSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  },
+  "$defs": {
+    "b10": {
+      "title": "ContentInsightB10Clearance",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["productWorkspaceId", "lockedStpId", "effectiveDecisionId", "effectiveDecisionNumber", "effectiveDecision"],
+      "properties": {
+        "productWorkspaceId": { "type": "string", "format": "uuid" },
+        "lockedStpId": { "type": "string", "format": "uuid" },
+        "effectiveDecisionId": { "type": "string", "format": "uuid" },
+        "effectiveDecisionNumber": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "effectiveDecision": { "const": "APPROVE" }
+      }
+    }
+  }
+}
