@@ -1,6 +1,6 @@
 # Trạng thái hiện tại
 
-## Research A22: deterministic M02 scope and method account (in progress)
+## Research A22: deterministic M02 scope and method account (complete, merged PR #79)
 
 - Upgrades the planning catalog to 0.2.0 only for M02 and emits one canonical
   method account from exact source-package bytes and normalized observations.
