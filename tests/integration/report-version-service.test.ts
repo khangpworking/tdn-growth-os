@@ -647,6 +647,20 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.equal(history.versions[0].interpretationState, 'NONE');
     assert.equal(history.versions[0].reviewState, 'UNREVIEWED');
 
+    const readinessResponse = await fetch(`${base}/api/reports/${created.reportId}/versions/1/sections`);
+    assert.equal(readinessResponse.status, 200);
+    const readiness = await readinessResponse.json() as any;
+    assert.equal(readiness.reportId, created.reportId);
+    assert.equal(readiness.reportVersion, 1);
+    assert.equal(readiness.versionId, created.versionId);
+    assert.equal(readiness.semanticVersionId, created.semanticVersionId);
+    assert.equal(readiness.sections.length, 30);
+    assert.deepEqual([readiness.sections[0].sectionId, readiness.sections.at(-1).sectionId], ['M01', 'I17']);
+    assert.equal(readiness.sections.find((section: any) => section.sectionId === 'M03').deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
+    assert.ok(readiness.sections.find((section: any) => section.sectionId === 'M03').claimIds.includes('M03:all:revenue'));
+    assert.match(readiness.sections.find((section: any) => section.sectionId === 'M10').reopenCondition, /daily series/i);
+    assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/2/sections`)).status, 404);
+
     const interpretationIndexResponse = await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations`);
     assert.equal(interpretationIndexResponse.status, 200);
     const interpretationIndex = await interpretationIndexResponse.json() as any;
@@ -712,6 +726,8 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     const corrupt = await fetch(`${base}/api/reports/${created.reportId}/versions`);
     assert.equal(corrupt.status, 500);
     assert.deepEqual(await corrupt.json(), { error: { code: 'integrity_error', message: 'Stored report data failed integrity verification' } });
+    const corruptReadiness = await fetch(`${base}/api/reports/${created.reportId}/versions/1/sections`);
+    assert.equal(corruptReadiness.status, 500);
     const corruptInterpretation = await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations/${persisted.interpretationId}`);
     assert.equal(corruptInterpretation.status, 500);
     assert.deepEqual(await corruptInterpretation.json(), { error: { code: 'integrity_error', message: 'Stored report data failed integrity verification' } });

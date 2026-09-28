@@ -8,6 +8,7 @@ import type {
   ReportInterpretationDetailResponse,
   ReportInterpretationIndexResponse,
   ReportInterpretationSummary,
+  ReportSectionReadinessResponse,
   ReportVersionSummary,
   WorkspaceReportIndexResponse,
 } from '../../contracts/api/report-api.generated.js';
@@ -136,6 +137,44 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
         throw error;
       }
     };
+    const sectionReadiness = async (
+      reportId: string,
+      version: number,
+    ): Promise<ReportSectionReadinessResponse | undefined> => {
+      let record: ReportVersionRecord;
+      try { record = await reportReader.readVersion(reportId, version); }
+      catch (error) {
+        if (/not found/i.test((error as Error).message)) return undefined;
+        throw error;
+      }
+      const packet = parsePacket((await reportReader.readArtifact(reportId, version, 'packet.json')).bytes);
+      const packets = new Map(packet.sections.map(section => [section.sectionId, section]));
+      if (packets.size !== packet.sections.length || packet.catalog.sections.length !== packet.sections.length) {
+        throw new Error('Report packet and section catalog membership differ');
+      }
+      const sections = packet.catalog.sections.map(definition => {
+        const section = packets.get(definition.sectionId);
+        if (!section) throw new Error('Report packet is missing a catalog section');
+        return {
+          ...definition,
+          moduleIds: [...definition.moduleIds],
+          requiredInputs: [...definition.requiredInputs],
+          fallbackReasons: [...definition.fallbackReasons],
+          deliveryState: section.deliveryState,
+          claimIds: [...section.claimIds],
+          contextPointers: [...section.contextPointers],
+          blockers: [...section.blockers],
+          sectionSha256: section.sectionSha256,
+        };
+      });
+      return {
+        contractVersion: '1.0.0', reportId, reportVersion: version,
+        versionId: record.versionId, semanticVersionId: record.semanticVersionId,
+        packetId: packet.packetId, catalogId: packet.catalog.catalogId,
+        catalogVersion: packet.catalog.catalogVersion, catalogSha256: packet.catalogSha256,
+        sections,
+      };
+    };
     const interpretation = async (
       reportId: string,
       version: number,
@@ -162,7 +201,7 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
     };
     const artifact = (reportId: string, version: number, fileName: string) => reportReader.readArtifact(reportId, version, fileName);
     const handler = (request: IncomingMessage, response: ServerResponse): void => {
-      void route(request, response, { index, history, interpretations, interpretation, reviewTarget, artifact });
+      void route(request, response, { index, history, sectionReadiness, interpretations, interpretation, reviewTarget, artifact });
     };
     return { handler, diagnostics: () => ({ queryOnly: db.pragma('query_only', { simple: true }) === 1n }), close: () => db.close() };
   } catch (error) {
@@ -183,6 +222,7 @@ export function createReportApiServer(configuration: ReportApiConfiguration): { 
 async function route(request: IncomingMessage, response: ServerResponse, methods: {
   index(workspaceId: string): Promise<WorkspaceReportIndexResponse | undefined>;
   history(reportId: string): Promise<ReportHistoryResponse | undefined>;
+  sectionReadiness(reportId: string, version: number): Promise<ReportSectionReadinessResponse | undefined>;
   interpretations(reportId: string, version: number): Promise<ReportInterpretationIndexResponse | undefined>;
   interpretation(reportId: string, version: number, interpretationId: string): Promise<ReportInterpretationDetailResponse | undefined>;
   reviewTarget(reviewTargetId: string): Promise<ReportReviewTarget | undefined>;
@@ -206,6 +246,13 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
       if (!DIGEST.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Review target ID must be a lowercase SHA-256 digest');
       const result = await methods.reviewTarget(parts[2]!);
       return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Review target not found');
+    }
+    if (parts.length === 6 && parts[0] === 'api' && parts[1] === 'reports' && parts[3] === 'versions' && parts[5] === 'sections') {
+      if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Report ID must be a UUID');
+      const version = strictVersion(parts[4]!);
+      if (version === null) return sendError(response, 400, 'bad_request', 'Report version is invalid');
+      const result = await methods.sectionReadiness(parts[2]!, version);
+      return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Report version not found');
     }
     if (parts.length === 6 && parts[0] === 'api' && parts[1] === 'reports' && parts[3] === 'versions' && parts[5] === 'interpretations') {
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Report ID must be a UUID');

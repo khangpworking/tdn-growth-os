@@ -6,9 +6,10 @@ import type {
   ReportInterpretationDetailResponse,
   ReportInterpretationIndexResponse,
   ReportInterpretationSummary,
+  ReportSectionReadinessResponse,
   WorkspaceReportIndexResponse,
 } from '../../contracts/api/report-api.generated';
-import { isReportInterpretationDetailResponse, isReportInterpretationIndexResponse } from './report-contract-validation';
+import { isReportInterpretationDetailResponse, isReportInterpretationIndexResponse, isReportSectionReadinessResponse } from './report-contract-validation';
 
 export type FrontendMode = 'real' | 'demo';
 export interface FrontendAvailability { readonly status: 'ok'; readonly version: string; readonly ownerWritesEnabled: boolean }
@@ -80,6 +81,23 @@ export async function loadReportInterpretations(reportId: string, reportVersion:
   }
   uniqueMap(value.interpretations, item => item.interpretationId, 'Nhận định AI bị lặp.');
   return value as ReportInterpretationIndexResponse;
+}
+
+export async function loadReportSectionReadiness(reportId: string, reportVersion: number, fetcher: typeof fetch = fetch): Promise<ReportSectionReadinessResponse> {
+  assertReportVersionIdentity(reportId, reportVersion);
+  const value = await requestJson(`/api/reports/${encodeURIComponent(reportId)}/versions/${reportVersion}/sections`, fetcher);
+  if (!isReportSectionReadinessResponse(value) || value.reportId !== reportId || value.reportVersion !== reportVersion) invalid('Ma trận điều kiện section không đúng contract hoặc sai phiên bản báo cáo.');
+  const seen = new Set<string>();
+  let expectedMarket = 1, expectedInsight = 1, insightStarted = false;
+  for (const section of value.sections) {
+    const number = Number(section.sectionId.slice(1));
+    let ordered: boolean;
+    if (section.sectionId.startsWith('M')) ordered = !insightStarted && number === expectedMarket++;
+    else { insightStarted = true; ordered = number === expectedInsight++; }
+    if (seen.has(section.sectionId) || !ordered) invalid('Ma trận section bị lặp hoặc không theo thứ tự catalog.');
+    seen.add(section.sectionId);
+  }
+  return value;
 }
 
 export async function loadReportInterpretation(reportId: string, reportVersion: number, interpretationId: string, fetcher: typeof fetch = fetch): Promise<ReportInterpretationDetailResponse> {

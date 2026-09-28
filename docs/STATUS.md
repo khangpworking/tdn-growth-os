@@ -1,5 +1,18 @@
 # Trạng thái hiện tại
 
+## Research A21: exact-version 30-section readiness matrix
+
+- Adds a read-only exact-version route that replays the immutable report packet
+  and projects every embedded catalog section with its real delivery state,
+  prerequisites, blockers, claims, evidence pointers and trace identities.
+- Adds an operator matrix under the selected report version with Market/Insight
+  filters and progressive disclosure. It explicitly distinguishes catalog
+  method metadata from deterministic output.
+- This does not add a section method, chart, interpretation, provider call or
+  human decision. Draft PR #78 is open; Linux verification passed with 176/176
+  frontend tests, 583/583 repository tests, strict TypeScript, contract
+  generation, production build and report preview.
+
 ## Research A20: review-target preparation and inspection UI
 
 - Adds an explicit OWNER preparation form only after one report version and one

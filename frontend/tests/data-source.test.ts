@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { generatedProductWorkspaceKey, submitOwnerProductWorkspace, submitOwnerProductWorkspaceAndReload, b9LockBlocker, b9SaveBlocker, b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadFrontendAvailability, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Blocker, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, ownerB7Disabled, submitOwnerB7Decision, submitOwnerB7AndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
-import { loadReportHistory, loadReportInterpretations, loadWorkspaceReportIndex, reportArtifactUrl } from '../src/data-source';
+import { loadReportHistory, loadReportInterpretations, loadReportSectionReadiness, loadWorkspaceReportIndex, reportArtifactUrl } from '../src/data-source';
 
 const ids = {
   w1: '11111111-1111-4111-8111-111111111111', w2: '11111111-1111-4111-8111-222222222222',
@@ -63,6 +63,24 @@ test('validates the exact-version interpretation index from the canonical closed
   const response = { contractVersion: '1.0.0', reportId: ids.c1, reportVersion: 1, interpretations: [summary] };
   assert.equal((await loadReportInterpretations(ids.c1, 1, (async () => json(response)) as typeof fetch)).interpretations[0]?.interpretationId, ids.d2);
   await assert.rejects(loadReportInterpretations(ids.c1, 1, (async () => json({ ...response, interpretations: [{ ...summary, providerRequestId: 'private' }] })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
+});
+
+test('validates exact-version section readiness and rejects reordered or extended projections', async () => {
+  const entry = (sectionId: 'M01' | 'I01') => ({
+    sectionId, title: sectionId === 'M01' ? 'Kết luận chính' : 'Câu hỏi kinh doanh',
+    methodId: `planning-${sectionId.toLowerCase()}`, methodVersion: '1.0.0', historicalTemplateMaturity: 'METHOD',
+    moduleIds: ['bounded-method'], requiredInputs: ['verified-input'], reopenCondition: 'New evidence changes readiness.',
+    fallbackState: 'METHOD_ONLY', fallbackReasons: ['INPUT_REQUIRED'], deliveryState: 'METHOD_ONLY',
+    claimIds: [], contextPointers: [], blockers: ['INPUT_REQUIRED'], sectionSha256: sectionId === 'M01' ? '1'.repeat(64) : '2'.repeat(64),
+  });
+  const response = {
+    contractVersion: '1.0.0', reportId: ids.c1, reportVersion: 1, versionId: ids.d1,
+    semanticVersionId: 'a'.repeat(64), packetId: 'b'.repeat(64), catalogId: 'catalog-v1', catalogVersion: '0.1.0', catalogSha256: 'c'.repeat(64),
+    sections: [entry('M01'), entry('I01')],
+  };
+  assert.equal((await loadReportSectionReadiness(ids.c1, 1, (async () => json(response)) as typeof fetch)).sections.length, 2);
+  await assert.rejects(loadReportSectionReadiness(ids.c1, 1, (async () => json({ ...response, sections: [entry('I01'), entry('M01')] })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
+  await assert.rejects(loadReportSectionReadiness(ids.c1, 1, (async () => json({ ...response, reviewer: 'owner' })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
 });
 
 test('loads real portfolio/details by IDs and exact candidate versions without inferring duplicate names', async () => {
