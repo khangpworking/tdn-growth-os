@@ -65,9 +65,9 @@ function insert(db: ReturnType<typeof setup>['db'], values: Record<string, unkno
   db.prepare(sql).run(...columns.map((column) => values[column]));
 }
 
-test('migration 0025/0028/0033 creates the audit table, active-target claim and strict legal output-state matrix', () => {
+test('migration 0025/0028/0034 creates the audit table, active-target claim and strict legal output-state matrix', () => {
   const state = setup();
-  assert.equal(state.migration.currentVersion, 33);
+  assert.equal(state.migration.currentVersion, 34);
   assert.deepEqual(state.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'flow_content_ai_attempts%' ORDER BY name").all(), [
     { name: 'flow_content_ai_attempts_active_target' },
     { name: 'flow_content_ai_attempts_by_target' },
@@ -150,42 +150,42 @@ test('direct SQL enforces start-only inserts, duplicate protection, immutable cl
   state.db.close();
 });
 
-test('migration 0033 requires a valid provider model for new rows and preserves legacy NULL provenance', () => {
+test('migration 0034 requires a valid provider model for new rows and preserves legacy NULL provenance', () => {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-content-ai-provider-model-migration-')); roots.push(root);
   const directory = path.join(root, 'migrations'); fs.mkdirSync(directory);
-  const prior = fs.readdirSync('migrations').filter((name) => /^00(?:0[1-9]|1[0-9]|2[0-9]|3[0-2])_/.test(name)).sort();
-  assert.equal(prior.length, 32);
+  const prior = fs.readdirSync('migrations').filter((name) => /^00(?:0[1-9]|1[0-9]|2[0-9]|3[0-3])_/.test(name)).sort();
+  assert.equal(prior.length, 33);
   for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(directory, name));
 
   const databasePath = path.join(root, 'db.sqlite');
-  const v32 = openDatabase({ databasePath, migrationsDirectory: directory });
-  assert.equal(v32.migration.currentVersion, 32);
+  const v33 = openDatabase({ databasePath, migrationsDirectory: directory });
+  assert.equal(v33.migration.currentVersion, 33);
   const legacy = row(40);
   delete legacy.provider_model;
-  insert(v32.db, legacy);
-  v32.db.close();
+  insert(v33.db, legacy);
+  v33.db.close();
 
-  fs.copyFileSync('migrations/0033_flow_content_ai_provider_model.sql', path.join(directory, '0033_flow_content_ai_provider_model.sql'));
-  const v33 = openDatabase({ databasePath, migrationsDirectory: directory });
-  assert.deepEqual(v33.migration.applied, [33]);
-  assert.equal(v33.migration.currentVersion, 33);
-  assert.deepEqual(v33.db.prepare('SELECT model, provider_model providerModel FROM flow_content_ai_attempts WHERE attempt_id = ?').get(attemptId(40)), {
+  fs.copyFileSync('migrations/0034_flow_content_ai_provider_model.sql', path.join(directory, '0034_flow_content_ai_provider_model.sql'));
+  const v34 = openDatabase({ databasePath, migrationsDirectory: directory });
+  assert.deepEqual(v34.migration.applied, [34]);
+  assert.equal(v34.migration.currentVersion, 34);
+  assert.deepEqual(v34.db.prepare('SELECT model, provider_model providerModel FROM flow_content_ai_attempts WHERE attempt_id = ?').get(attemptId(40)), {
     model: 'gpt-5.6-sol', providerModel: null,
   });
 
   const missing = row(41, { target_id: 'missing-provider' });
   delete missing.provider_model;
-  assert.throws(() => insert(v33.db, missing), /flow_content_ai_attempt_provider_model_required/);
+  assert.throws(() => insert(v34.db, missing), /flow_content_ai_attempt_provider_model_required/);
 
-  insert(v33.db, row(42, { target_id: 'immutable-provider' }));
-  assert.throws(() => v33.db.prepare('UPDATE flow_content_ai_attempts SET provider_model = ? WHERE attempt_id = ?').run('gpt-5.6-luna', attemptId(42)), /flow_content_ai_attempt_provider_model_immutable/);
-  assert.throws(() => v33.db.prepare('UPDATE flow_content_ai_attempts SET provider_model = ? WHERE attempt_id = ?').run('gpt-5.6-sol', attemptId(40)), /flow_content_ai_attempt_provider_model_immutable/);
+  insert(v34.db, row(42, { target_id: 'immutable-provider' }));
+  assert.throws(() => v34.db.prepare('UPDATE flow_content_ai_attempts SET provider_model = ? WHERE attempt_id = ?').run('gpt-5.6-luna', attemptId(42)), /flow_content_ai_attempt_provider_model_immutable/);
+  assert.throws(() => v34.db.prepare('UPDATE flow_content_ai_attempts SET provider_model = ? WHERE attempt_id = ?').run('gpt-5.6-sol', attemptId(40)), /flow_content_ai_attempt_provider_model_immutable/);
 
   const invalidProviderModels = [[43, 'bad/id'], [44, ''], [45, 'a'.repeat(129)]] as const;
   for (const [number, providerModel] of invalidProviderModels) {
-    assert.throws(() => insert(v33.db, row(number, { target_id: `bad-provider-${number}`, provider_model: providerModel })), /CHECK constraint failed/);
+    assert.throws(() => insert(v34.db, row(number, { target_id: `bad-provider-${number}`, provider_model: providerModel })), /CHECK constraint failed/);
   }
-  v33.db.close();
+  v34.db.close();
 });
 
 test('timestamps, identifiers, NULL-safe retry identity, and all retry parent states are guarded at SQL boundaries', () => {
