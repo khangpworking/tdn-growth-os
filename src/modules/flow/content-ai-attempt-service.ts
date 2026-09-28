@@ -110,6 +110,14 @@ export class ContentAiAttemptCloseError extends Error {
   }
 }
 
+/** Another executor already owns a live dispatch for this target. */
+export class ContentAiAttemptConflictError extends Error {
+  constructor(readonly targetType: string, readonly targetId: string) {
+    super(`AI target ${targetType}/${targetId} already has a running attempt`);
+    this.name = 'ContentAiAttemptConflictError';
+  }
+}
+
 const TARGET_TYPE = /^[a-z][a-z0-9_]{2,63}$/;
 const TARGET_ID = /^[^\x00-\x1f\x7f]{1,128}$/;
 const PROMPT_REF = /^[^\x00-\x1f\x7f]{1,200}$/;
@@ -206,6 +214,12 @@ export function createContentAiAttemptService(options: {
       } catch (error) {
         if (error instanceof Error && error.message.includes('flow_content_ai_attempt_retry_invalid')) {
           throw new TypeError('retry_of must name a failed or interrupted attempt for the same target');
+        }
+        // The partial unique index is the durable claim boundary. A second process may
+        // pass all in-memory checks, so translate its SQLite conflict before any gateway
+        // call is reachable.
+        if (error instanceof Error && error.message.includes('flow_content_ai_attempts.target_type')) {
+          throw new ContentAiAttemptConflictError(input.targetType, input.targetId);
         }
         throw error;
       }

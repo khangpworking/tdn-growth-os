@@ -455,11 +455,15 @@ test('aggregate-over-limit output leaves no idea row and closes the audited atte
   const concept = '\u0000'.repeat(780);
   const state = await setup({ outputs: [{ concept, expression: 'x' }] });
   assert.ok(BIG_IDEA_AGGREGATE_LIMIT < JSON.stringify({ concept, expression: 'x' }).length);
-  await assert.rejects(state.ideas.generate(bigRequest(id(80)), 'owner:050b'));
+  const input = bigRequest(id(80));
+  await assert.rejects(state.ideas.generate(input, 'owner:050b'));
   assert.equal(count(state.db, 'flow_content_ideas'), 0);
   const attempt = state.attempts.list({ targetType: 'content_big_idea', limit: 10 })[0];
   assert.ok(attempt);
   assert.equal(attempt.state, 'failed');
   assert.equal(attempt.outputSha256 !== null, true);
+  const calls = state.gateway.calls.filter((call) => call.operation === 'generateText').length;
+  await assert.rejects(state.ideas.generate(input, 'owner:050b'), ContentIdeaConflictError);
+  assert.equal(state.gateway.calls.filter((call) => call.operation === 'generateText').length, calls);
   state.db.close();
 });
