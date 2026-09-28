@@ -186,9 +186,9 @@ try {
       } else throw new Error(`Unowned interaction: ${control.href}`);
     }
     await evaluate('document.querySelector("details").open = false; document.querySelector("summary").focus()');
-    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+    await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13, text: '\r', unmodifiedText: '\r' });
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
-    if (!await evaluate('document.querySelector("details").open')) throw new Error('Keyboard disclosure failed');
+    if (!await evaluate('document.querySelector("details").open')) throw new Error(`Keyboard disclosure failed: ${JSON.stringify(await evaluate('({focused:document.activeElement.outerHTML,hasFocus:document.hasFocus(),url:location.href})'))}`);
     await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
     const focused = await evaluate('({tag:document.activeElement.tagName,outline:getComputedStyle(document.activeElement).outlineStyle})');

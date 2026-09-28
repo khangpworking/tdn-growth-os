@@ -77,7 +77,7 @@ function sourceManifest(workbook: Buffer): object {
       start: '2026-08-17',
       end: '2026-09-15',
       periodBasis: 'Synthetic declared period',
-      acquiredAt: '2026-09-16T00:00:00.000Z',
+      acquiredAt: '2026-09-16T01:00:00+07:00',
     },
     precision: { revenue: 'unknown', units: 'unknown' },
     labelCodebookVersion: 'synthetic-v1',
@@ -296,6 +296,8 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   const html = fs.readFileSync(path.join(output, 'report.html'), 'utf8');
   const document = new JSDOM(html).window.document;
   assert.equal(document.querySelector('h1')?.textContent, 'Synthetic <Report> & "Evidence" · Báo cáo bằng chứng');
+  assert.ok(document.querySelector('.meta')?.textContent?.includes('Thu nhận (theo nguồn): 2026-09-16'));
+  assert.ok([...document.querySelectorAll('header code')].some(element => element.textContent === '2026-09-16T01:00:00+07:00'));
   assert.ok(html.includes('&lt;Report&gt; &amp; &quot;Evidence&quot;'));
   assert.ok(!html.includes('<Report> & "Evidence"'));
   const links = [...document.querySelectorAll('a[download]')].map(anchor => anchor.getAttribute('href')).filter((href): href is string => href !== null);
