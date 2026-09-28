@@ -1,5 +1,15 @@
 # Trạng thái hiện tại
 
+## Research A19: OWNER review-target creation API
+
+- Adds one authenticated local OWNER route for retaining an exact A16 target
+  from an explicitly selected report version, interpretation and intended use.
+- Creation delegates to A17; exact retry is mutation-free and every receipt is
+  backed by verified replay before it is returned.
+- This prepares a review packet only. It adds no human decision, reviewer,
+  authority, approval state, publication right, UI, migration or provider call.
+- Draft PR and final Linux verification are pending.
+
 ## Research A18: exact review-target read API
 
 - Draft PR #75 is open on `feature/research-a18-review-target-read-api`.
