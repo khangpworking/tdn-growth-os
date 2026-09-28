@@ -29,8 +29,16 @@
 
 - Contract generation: PASS locally; this is generation only, not a Windows
   test/build/typecheck run.
-- `git diff --check`: pending final inspection.
-- Linux focused/full CI: pending draft PR.
+- `git diff --check`: PASS.
+- Independent static review: PASS with no remaining findings.
+- Linux full check: PASS on implementation head `6162aa3c385613b1790cbaea35b0eb21a38ac2cd`.
+  - <https://github.com/khangpworking/tdn-growth-os/actions/runs/36385409294>
+- Linux report preview: PASS on the same implementation head.
+  - <https://github.com/khangpworking/tdn-growth-os/actions/runs/36385409346>
+- The prior preview run completed report generation and browser inspection but
+  exposed a Chrome profile-cleanup race. The helper now waits for process
+  closure and retries removal only for its request-owned temporary directory;
+  the succeeding preview run is the regression proof.
 
 The new unit test is the primary owner for semantic identity. The existing CLI
 integration is extended only for its distinct publication contract. No existing
@@ -46,5 +54,8 @@ not a substitute for it.
 
 ## Delivery state
 
-Implementation is local on `feature/research-a7-semantic-version`. Final commit,
-draft PR, Linux CI and exact handoff evidence will be recorded after delivery.
+Delivered on `feature/research-a7-semantic-version` in draft PR #63:
+<https://github.com/khangpworking/tdn-growth-os/pull/63>. The implementation and
+preview-cleanup head is `6162aa3c385613b1790cbaea35b0eb21a38ac2cd`;
+the handoff-document commit follows it. The PR remains draft because A7 is
+stacked on the still-unmerged A1–A6 report automation foundation.
