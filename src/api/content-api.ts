@@ -20,6 +20,8 @@ import type {
   ContentInsightDetailResponse,
   ContentInsightHistoryItem,
   ContentInsightStpSuggestion,
+  ContentPackageDetailResponse,
+  ContentPackageListResponse,
   ContentPromptDetailResponse,
   ContentPromptHistoryItem,
   ContentPromptListResponse,
@@ -53,6 +55,7 @@ import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mute
 import { createContentAiAttemptService } from '../modules/flow/content-ai-attempt-service.js';
 import { CONTENT_AI_NOT_CONFIGURED, type ContentAiStatusSource } from '../modules/flow/content-ai-status.js';
 import { ContentIdeaService } from '../modules/flow/content-idea-service.js';
+import { ContentPackageService } from '../modules/flow/content-package-service.js';
 import { ContentBrandIdentityConflictError, ContentBrandService } from '../modules/flow/content-brand-service.js';
 import { ContentCampaignConflictError, ContentCampaignReferenceError, ContentCampaignService } from '../modules/flow/content-campaign-service.js';
 import { ContentCatalogIdentityConflictError, ContentCatalogService } from '../modules/flow/content-catalog-service.js';
@@ -96,6 +99,13 @@ import {
   validateContentPromptRevisionRequest,
 } from '../modules/flow/validation.js';
 import { contentIdeaOwnerRoute, createContentIdeaOwnerWriters, routeContentIdeaOwner, type ContentIdeaOwnerWriters } from './content-ideas-api.js';
+import {
+  contentPackageOwnerRoute,
+  createContentPackageOwnerWriters,
+  packageDetailView,
+  routeContentPackageOwner,
+  type ContentPackageOwnerWriters,
+} from './content-packages-api.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import {
   assertOwnerHttpConfiguration,
@@ -122,6 +132,7 @@ const REQUIRED_TABLES = [
   'flow_content_campaigns', 'flow_content_campaign_revisions', 'flow_content_campaign_lifecycle',
   'flow_content_ai_attempts', 'flow_content_insight_revisions', 'flow_content_insight_locks',
   'flow_content_ideas', 'flow_content_idea_states', 'flow_content_purpose_tags',
+  'flow_content_packages', 'flow_content_package_versions', 'flow_content_package_states', 'flow_content_campaign_defaults',
 ];
 const MEDIA_KINDS: Readonly<Record<string, ContentMediaKind>> = { logo: 'LOGO', photo: 'PHOTO' };
 
@@ -157,6 +168,9 @@ interface ReadHandlers {
   campaignDetail(campaignId: string): Promise<ContentCampaignDetailResponse | undefined>;
   insightDetail(campaignId: string): Promise<ContentInsightDetailResponse | undefined>;
   ideaList(campaignId: string): Promise<ContentIdeaListResponse | undefined>;
+  packageList(campaignId: string): Promise<ContentPackageListResponse | undefined>;
+  packageDetail(packageId: string): Promise<ContentPackageDetailResponse | undefined>;
+  posterImage(packageId: string, version: number): Promise<{ readonly bytes: Buffer; readonly mediaType: 'image/png' | 'image/jpeg' } | undefined>;
   aiStatus(): Promise<ContentAiStatusResponse>;
 }
 
@@ -209,14 +223,18 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
     const campaigns = new ContentCampaignService({ db, artifactStore, catalog, ...(configuration.now ? { now: configuration.now } : {}) });
     const research = openResearchReaders(db, artifactStore);
     const insights = new ContentInsightService({ db, artifactStore, campaigns, lockedStpReader: research.stpReader, b10Reader: research.b10Reader });
-    // The read API only lists ideas; its attempt service has a disabled gateway and can never record an attempt.
+    // The read API only lists ideas and packages; its attempt service has a disabled gateway and can never record an attempt.
+    const attempts = createContentAiAttemptService({
+      db, gateway: disabledCreativeGateway(), artifactRoot: path.resolve(configuration.artifactRoot),
+      clock: configuration.now ?? (() => new Date()),
+      newId: () => { throw new Error('The read API never records AI attempts'); },
+    });
     const ideas = new ContentIdeaService({
-      db, artifactStore, campaigns, insights, catalog, prompts, library,
-      attempts: createContentAiAttemptService({
-        db, gateway: disabledCreativeGateway(), artifactRoot: path.resolve(configuration.artifactRoot),
-        clock: configuration.now ?? (() => new Date()),
-        newId: () => { throw new Error('The read API never records AI attempts'); },
-      }),
+      db, artifactStore, campaigns, insights, catalog, prompts, library, attempts,
+      ...(configuration.now ? { now: configuration.now } : {}),
+    });
+    const packages = new ContentPackageService({
+      db, artifactStore, attempts, campaigns, insights, catalog, prompts, library, brands, media, ideas,
       ...(configuration.now ? { now: configuration.now } : {}),
     });
     /** Re-reads every pinned item version; the campaign's brand, item identity and every selected tier must still match. */
@@ -433,6 +451,31 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
           purposeTags: ideas.purposeTags().map((tag) => ({ tagId: tag.tagId, label: tag.label, displayLike: tag.displayLike, createdAt: tag.createdAt })),
         };
       },
+      async packageList(campaignId) {
+        if (!campaigns.campaignExists(campaignId)) return undefined;
+        const campaign = await campaigns.readCampaign(campaignId);
+        const lock = await insights.readLock(campaignId);
+        const defaults = packages.readDefaults(campaignId);
+        return {
+          contractVersion: '1.0.0', campaignId, campaignName: campaign.campaign.name,
+          campaignDeleted: campaigns.lifecycleState(campaignId).deleted !== undefined,
+          insightLocked: lock !== undefined,
+          ...(defaults ? { defaults: { version: defaults.version, defaults: defaults.defaults, createdAt: defaults.createdAt } } : {}),
+          packages: (await packages.listCampaignPackages(campaignId)).map((entry) => ({ ...entry })),
+        };
+      },
+      async packageDetail(packageId) {
+        if (!packages.packageExists(packageId)) return undefined;
+        const detail = await packages.readPackage(packageId);
+        const campaign = await campaigns.readCampaign(detail.campaignId, detail.pin.campaignVersion);
+        return packageDetailView(detail, { name: campaign.campaign.name, deleted: campaigns.lifecycleState(detail.campaignId).deleted !== undefined });
+      },
+      async posterImage(packageId, version) {
+        if (!packages.packageExists(packageId)) return undefined;
+        const detail = await packages.readPackage(packageId);
+        if (!detail.poster.some((item) => item.version === version)) return undefined;
+        return packages.readPosterImage(packageId, version);
+      },
       async aiStatus() {
         const status = await (configuration.aiStatus ?? notConfigured).read();
         return {
@@ -464,6 +507,33 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
       if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Campaign ID must be a UUID');
       const result = await handlers.ideaList(parts[3]!);
       return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Campaign not found');
+    }
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length === 5 && parts[4] === 'packages') {
+      if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Campaign ID must be a UUID');
+      const result = await handlers.packageList(parts[3]!);
+      return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Campaign not found');
+    }
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'packages' && (parts.length === 4 || (parts.length === 6 && parts[4] === 'posters'))) {
+      if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Package ID must be a UUID');
+      if (parts.length === 4) {
+        const result = await handlers.packageDetail(parts[3]!);
+        return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Package not found');
+      }
+      if (!/^[1-9][0-9]{0,5}$/.test(parts[5]!)) return sendReadError(response, 400, 'bad_request', 'Poster version must be a positive integer');
+      const image = await handlers.posterImage(parts[3]!, Number(parts[5]));
+      if (!image) return sendReadError(response, 404, 'not_found', 'Poster not found');
+      // Same hardened headers as brand media: generated bytes are served inert and never sniffed.
+      response.writeHead(200, {
+        'Content-Type': image.mediaType,
+        'Content-Length': image.bytes.byteLength,
+        'Cache-Control': 'private, max-age=31536000, immutable',
+        'X-Content-Type-Options': 'nosniff',
+        'Content-Security-Policy': "default-src 'none'; sandbox",
+        'Content-Disposition': 'inline',
+        'Cross-Origin-Resource-Policy': 'same-origin',
+      });
+      response.end(image.bytes);
+      return;
     }
     if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length <= 4) {
       if (parts.length === 3) return sendApiJson(response, 200, await handlers.campaignList());
@@ -632,10 +702,14 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
       ...(configuration.now ? { now: configuration.now } : {}),
       ...(configuration.uuid ? { newId: configuration.uuid } : {}),
     });
-    const ideaWriters = createContentIdeaOwnerWriters({
-      db, ideas, campaigns, integrity,
-      verifyCampaignInputs: async (campaignId) => { await verifyCampaignHistory(campaignId); await verifyInsightHistory(campaignId); },
+    const verifyCampaignInputs = async (campaignId: string) => { await verifyCampaignHistory(campaignId); await verifyInsightHistory(campaignId); };
+    const ideaWriters = createContentIdeaOwnerWriters({ db, ideas, campaigns, integrity, verifyCampaignInputs });
+    const packages = new ContentPackageService({
+      db, artifactStore: artifacts, attempts, campaigns, insights, catalog, prompts, library, brands, media, ideas,
+      ...(configuration.now ? { now: configuration.now } : {}),
+      ...(configuration.uuid ? { newId: configuration.uuid } : {}),
     });
+    const packageWriters = createContentPackageOwnerWriters({ db, packages, ideas, campaigns, integrity, verifyCampaignInputs });
     const assertPromptReferences = (type: ContentPromptType, prompt: ContentPromptContent, lineage: ContentPromptLineage | undefined) => {
       try { assertContentPromptContent(type, prompt); } catch { throw new InvalidPromptRequestError(); }
       if (!lineage) return;
@@ -782,7 +856,7 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
       })),
     };
 
-    const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers, ideaWriters); };
+    const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers, ideaWriters, packageWriters); };
     return { handler, close: () => db.close() };
   } catch (error) {
     db.close();
@@ -821,13 +895,14 @@ function ownerRoute(parts: string[] | null): OwnerRoute | 'invalid-id' | null {
   return { kind: 'item-revision', brandId, itemId: parts[5]! };
 }
 
-async function routeOwner(request: IncomingMessage, response: ServerResponse, configuration: ContentOwnerApiConfiguration, writers: OwnerWriters, ideaWriters: ContentIdeaOwnerWriters): Promise<void> {
+async function routeOwner(request: IncomingMessage, response: ServerResponse, configuration: ContentOwnerApiConfiguration, writers: OwnerWriters, ideaWriters: ContentIdeaOwnerWriters, packageWriters: ContentPackageOwnerWriters): Promise<void> {
   const origin = singleHeader(request.headers.origin);
   if (origin !== undefined && origin !== configuration.allowedOrigin) return sendOwnerError(response, 403, 'forbidden', 'Origin is not allowed');
   if (origin) ownerCors(response, origin);
   const parts = pathParts(request.url);
   const ideaRoute = contentIdeaOwnerRoute(parts);
-  const route = ideaRoute ?? ownerRoute(parts);
+  const packageRoute = contentPackageOwnerRoute(parts);
+  const route = ideaRoute ?? packageRoute ?? ownerRoute(parts);
   if (route === null) return sendOwnerError(response, 404, 'not_found', 'Route not found');
   if (route === 'invalid-id') return sendOwnerError(response, 400, 'bad_request', 'Route IDs must be UUIDs');
   if (request.method === 'OPTIONS') {
@@ -837,7 +912,9 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
   if (request.method !== 'POST') { response.setHeader('Allow', 'POST, OPTIONS'); return sendOwnerError(response, 405, 'method_not_allowed', 'Only POST is supported'); }
   if (!ownerAuthorized(request, configuration.token)) return sendOwnerError(response, 401, 'unauthorized', 'Authentication required', { 'WWW-Authenticate': 'Bearer' });
   if (ideaRoute !== null && ideaRoute !== 'invalid-id') return routeContentIdeaOwner(request, response, ideaRoute, ideaWriters);
-  if (route.kind === 'idea-generate' || route.kind === 'idea-state' || route.kind === 'purpose-tag') return sendOwnerError(response, 404, 'not_found', 'Route not found');
+  if (packageRoute !== null && packageRoute !== 'invalid-id') return routeContentPackageOwner(request, response, packageRoute, packageWriters);
+  if (route.kind === 'idea-generate' || route.kind === 'idea-state' || route.kind === 'purpose-tag'
+    || route.kind === 'package-create' || route.kind === 'package-defaults' || route.kind === 'package-generate' || route.kind === 'package-version' || route.kind === 'package-state') return sendOwnerError(response, 404, 'not_found', 'Route not found');
   const contentType = singleHeader(request.headers['content-type']);
   try {
     if (route.kind === 'media') {

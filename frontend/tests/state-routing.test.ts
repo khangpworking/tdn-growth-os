@@ -70,6 +70,21 @@ test('reset returns an independent synthetic seed', () => {
   assert.notEqual(reset, seed);
 });
 
+test('Caption & Poster routes parse UUID campaigns, angle query codes, package codes, and reject malformed input', () => {
+  const state = createSeedState();
+  const campaignId = '66666666-6666-4666-8666-0000000000c1';
+  assert.deepEqual(parseRoute(`#/content/${campaignId}/package/new?angles=A1,A2`, state), { kind: 'package-new', campaignId, angleCodes: ['A1', 'A2'] });
+  assert.equal(parseRoute(`#/content/${campaignId}/package/new?angles=A1,A1`, state).kind, 'invalid');
+  assert.equal(parseRoute(`#/content/${campaignId}/package/new?angles=A1,bad`, state).kind, 'invalid');
+  assert.equal(parseRoute(`#/content/${campaignId}/package/new?angles=A1,,A2`, state).kind, 'invalid');
+  assert.equal(parseRoute(`#/content/${campaignId}/package/new?angles=A1&unexpected=true`, state).kind, 'invalid');
+  assert.deepEqual(parseRoute(`#/content/${campaignId}/package/A1·1`, state), { kind: 'package', campaignId, code: 'A1·1' });
+  assert.equal(parseRoute('#/content/not-a-uuid/package/A1·1', state).kind, 'invalid');
+  assert.equal(parseRoute(`#/content/${campaignId}/package/A1·1?angles=A1`, state).kind, 'invalid');
+  assert.equal(routeToHash.packageNew(campaignId, ['A1', 'A2']), `#/content/${campaignId}/package/new?angles=A1,A2`);
+  assert.equal(routeToHash.package(campaignId, 'A1·1'), `#/content/${campaignId}/package/A1%C2%B71`);
+});
+
 
 test('demo candidate create and revision are synthetic, isolated, and retain historical product linkage', () => {
   const seed=createSeedState();

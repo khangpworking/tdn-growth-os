@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import type { ContentIdeaPromptChoice } from '../../contracts/flow/content-idea-generate-request.generated';
 import { ContentDataSourceError } from './content-data-source';
 import { OwnerWriteError } from './data-source';
+import CampaignSteps from './CampaignSteps';
 import ConfirmDialog from './ConfirmDialog';
 import { generatedPromptKey, loadPrompts, submitPromptCreate, type PromptContent, type PromptList } from './prompt-data-source';
 import {
@@ -41,6 +42,7 @@ import {
   type PurposeKind,
   type PurposeTag,
 } from './idea-data-source';
+import { PACKAGE_BATCH_LIMIT } from './package-data-source';
 import { routeToHash } from './routing';
 
 export interface IdeasPageProps {
@@ -87,7 +89,6 @@ interface RunState {
 
 type StateAction = 'DEVELOP' | 'STOP' | 'DELETE' | 'RESTORE' | 'PURPOSES';
 
-const STEPS = ['Insight', 'Big Idea', 'Góc nội dung', 'Caption & Poster'] as const;
 const FREESTYLE_LABEL = 'Prompt tự do';
 const DEFAULT_COUNT = 3;
 const DEMO_BANNER = 'Chế độ demo — ý tưởng được tạo bằng bộ sinh giả lập và chỉ lưu trong trình duyệt này.';
@@ -116,15 +117,6 @@ function promptOptions(prompts: PromptList | null, kind: IdeaKind): PromptOption
   return [...system, ...own];
 }
 
-function StepIndicator({ campaignId, kind }: { readonly campaignId: string; readonly kind: IdeaKind }) {
-  const current = kind === 'BIG_IDEA' ? 1 : 2;
-  const href = [routeToHash.campaignInsight(campaignId), routeToHash.campaignBigIdea(campaignId), routeToHash.campaignAngle(campaignId)];
-  return <ol className="insight-steps" aria-label="Các bước chiến dịch">{STEPS.map((step, index) => <li key={step} className={index === current ? 'current' : ''} aria-current={index === current ? 'step' : undefined}>
-    {href[index] && index !== current ? <a href={href[index]}><b>{step}</b></a> : <b>{step}</b>}
-    <small>{index < current ? 'Đã qua' : index === current ? 'Đang làm' : index === 3 ? 'Sắp có' : 'Tiếp theo'}</small>
-  </li>)}</ol>;
-}
-
 export default function IdeasPage(props: IdeasPageProps) {
   const { mode, campaignId, kind } = props;
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
@@ -139,12 +131,25 @@ export default function IdeasPage(props: IdeasPageProps) {
   const [notice, setNotice] = useState<{ readonly message: string; readonly reload: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<IdeaEntry | null>(null);
   const [purposeEditor, setPurposeEditor] = useState<string | null>(null);
+  /** Angle codes picked for Caption & Poster, in the order they were ticked. */
+  const [chosen, setChosen] = useState<readonly string[]>([]);
   const [tagDraft, setTagDraft] = useState<{ readonly label: string; readonly displayLike: PurposeKind }>({ label: '', displayLike: 'EDUCATION' });
   const mountedRef = useRef(true);
   const cancelRef = useRef(false);
+  const sessionKey = `${mode}:${campaignId}:${kind}`;
+  const sessionRef = useRef<{ readonly key: string; readonly serial: number }>({ key: sessionKey, serial: 0 });
+  if (sessionRef.current.key !== sessionKey) sessionRef.current = { key: sessionKey, serial: sessionRef.current.serial + 1 };
+  const sessionSerial = sessionRef.current.serial;
+  const isCurrentSession = (serial = sessionSerial): boolean => mountedRef.current && sessionRef.current.key === sessionKey && sessionRef.current.serial === serial;
   const pickedInitRef = useRef(false);
   // Leaving the page stops a running batch before its next AI call (the in-flight call still finishes server-side).
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; cancelRef.current = true; }; }, []);
+  useEffect(() => {
+    cancelRef.current = true;
+    setRun(null);
+    setBusyId(null);
+    setSavingPrompt(false);
+  }, [sessionKey]);
   const reload = () => setReloadToken((value) => value + 1);
 
   useEffect(() => {
@@ -163,13 +168,13 @@ export default function IdeasPage(props: IdeasPageProps) {
   }, [mode, campaignId, reloadToken, props.demoCampaign, props.demoIdeas, props.demoTags, props.demoPrompts]);
 
   // Quiet refresh after a write: keeps the page (and a running tray) on screen instead of a loading state.
-  const refresh = async (): Promise<void> => {
-    if (mode === 'demo') return;
+  const refresh = async (serial = sessionSerial): Promise<void> => {
+    if (mode === 'demo' || !isCurrentSession(serial)) return;
     try {
       const list = await loadIdeas(campaignId);
-      if (!mountedRef.current) return;
+      if (!isCurrentSession(serial)) return;
       setLoaded((current) => list ? { status: 'ready', list, prompts: current.status === 'ready' ? current.prompts : null } : { status: 'missing' });
-    } catch (error) { if (mountedRef.current) setLoaded({ status: 'failed', message: failureMessage(error) }); }
+    } catch (error) { if (isCurrentSession(serial)) setLoaded({ status: 'failed', message: failureMessage(error) }); }
   };
 
   const list = loaded.status === 'ready' ? loaded.list : null;
@@ -204,14 +209,16 @@ export default function IdeasPage(props: IdeasPageProps) {
   const visible = kind === 'BIG_IDEA' ? bigIdeasOf(list) : parent ? anglesOf(list, parent.ideaId) : [];
   const title = kind === 'BIG_IDEA' ? 'Big Idea' : 'Góc nội dung';
 
-  const fail = (error: unknown, fallback: string) => {
-    if (!mountedRef.current) return;
+  const fail = (error: unknown, fallback: string, serial = sessionSerial) => {
+    if (!isCurrentSession(serial)) return;
     if (error instanceof OwnerWriteError && error.kind === 'conflict') setNotice({ message: 'Ý tưởng đã thay đổi ở nơi khác. Tải lại để xem trạng thái mới nhất.', reload: true });
     else if (error instanceof OwnerWriteError && error.kind === 'connection') setNotice({ message: 'Kết nối không rõ kết quả. Tải lại để kiểm tra trước khi thử lại.', reload: true });
     else setNotice({ message: error instanceof OwnerWriteError ? error.message : fallback, reload: false });
   };
 
   const executeRun = async (calls: readonly IdeaRunCall[], startAt: number) => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     cancelRef.current = false;
     setNotice(null);
     const failures: { label: string; message: string }[] = [];
@@ -221,7 +228,7 @@ export default function IdeasPage(props: IdeasPageProps) {
     let demoIdeas = props.demoIdeas;
     setRun({ calls, done, failures: [], active: true, stopped: null, resumeAt: null });
     for (let index = startAt; index < calls.length; index += 1) {
-      if (cancelRef.current || !mountedRef.current) { stopped = `Đã dừng — còn ${calls.length - index} lần gọi chưa chạy.`; break; }
+      if (cancelRef.current || !isCurrentSession(serial)) { stopped = `Đã dừng — còn ${calls.length - index} lần gọi chưa chạy.`; break; }
       const call = calls[index]!;
       try {
         if (mode === 'demo') {
@@ -230,7 +237,7 @@ export default function IdeasPage(props: IdeasPageProps) {
           props.setDemoIdeas(result.ideas);
         } else {
           await submitIdeaGenerate({ campaignId, request: call.request, token: props.ownerToken! });
-          await refresh();
+          await refresh(serial);
         }
         done = index + 1;
       } catch (error) {
@@ -247,9 +254,9 @@ export default function IdeasPage(props: IdeasPageProps) {
         failures.push({ label: call.label, message: error instanceof Error && error.message ? error.message : 'Không tạo được ý này.' });
         done = index + 1;
       }
-      if (mountedRef.current) setRun({ calls, done, failures: [...failures], active: true, stopped: null, resumeAt: null });
+      if (isCurrentSession(serial)) setRun({ calls, done, failures: [...failures], active: true, stopped: null, resumeAt: null });
     }
-    if (!mountedRef.current) return;
+    if (!isCurrentSession(serial)) return;
     setRun({ calls, done, failures, active: false, stopped, resumeAt });
     const created = done - startAt - failures.length;
     if (created > 0) props.notify(`Đã tạo ${created} ${kind === 'BIG_IDEA' ? 'Big Idea' : 'góc nội dung'}.`);
@@ -262,6 +269,8 @@ export default function IdeasPage(props: IdeasPageProps) {
   };
 
   const changeState = async (idea: IdeaEntry, action: StateAction, purposes?: readonly string[]) => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     if (!writable || busyId || running) return;
     setNotice(null);
     const input = { ideaId: idea.ideaId, expectedSequence: idea.stateSequence, action, ...(purposes ? { purposes } : {}) };
@@ -272,10 +281,12 @@ export default function IdeasPage(props: IdeasPageProps) {
     setBusyId(idea.ideaId);
     try {
       const receipt = await submitIdeaState({ ...input, token: props.ownerToken! });
-      if (action === 'DELETE') props.notify(`Đã xóa ${idea.code}. Có thể khôi phục đến ${formatDate(receipt.restorableUntil!)}.`);
-      else if (action === 'RESTORE') props.notify(`Đã khôi phục ${idea.code}.`);
-      await refresh();
-    } catch (error) { fail(error, 'Không thể cập nhật ý tưởng.'); } finally { if (mountedRef.current) setBusyId(null); }
+      if (isCurrentSession(serial)) {
+        if (action === 'DELETE') props.notify(`Đã xóa ${idea.code}. Có thể khôi phục đến ${formatDate(receipt.restorableUntil!)}.`);
+        else if (action === 'RESTORE') props.notify(`Đã khôi phục ${idea.code}.`);
+      }
+      await refresh(serial);
+    } catch (error) { fail(error, 'Không thể cập nhật ý tưởng.', serial); } finally { if (isCurrentSession(serial)) setBusyId(null); }
   };
 
   const togglePurpose = (idea: IdeaEntry, value: string) => {
@@ -288,6 +299,8 @@ export default function IdeasPage(props: IdeasPageProps) {
   const tagBlocker = purposeTagBlocker(tagDraft.label, list.purposeTags);
   const createTag = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     if (tagBlocker || !writable || busyId) return;
     const label = tagDraft.label.trim();
     if (mode === 'demo') {
@@ -298,15 +311,17 @@ export default function IdeasPage(props: IdeasPageProps) {
     setBusyId('tag');
     try {
       await submitPurposeTag({ label, displayLike: tagDraft.displayLike, token: props.ownerToken! });
-      if (mountedRef.current) setTagDraft({ label: '', displayLike: tagDraft.displayLike });
-      await refresh();
-    } catch (error) { fail(error, 'Không thể thêm mục đích.'); } finally { if (mountedRef.current) setBusyId(null); }
+      if (isCurrentSession(serial)) setTagDraft({ label: '', displayLike: tagDraft.displayLike });
+      await refresh(serial);
+    } catch (error) { fail(error, 'Không thể thêm mục đích.', serial); } finally { if (isCurrentSession(serial)) setBusyId(null); }
   };
 
   const freestyleSaveReason = mode === 'demo' ? 'Lưu prompt chỉ có ở chế độ thật.'
     : !writable ? 'Mở khóa OWNER để lưu prompt.'
       : freestyleBlocker(freestyle.text) ?? (!freestyle.name.trim() ? 'Đặt tên cho prompt.' : [...freestyle.name.trim()].length > 120 ? 'Tên prompt tối đa 120 ký tự.' : null);
   const saveFreestyle = async () => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     if (freestyleSaveReason || savingPrompt) return;
     setSavingPrompt(true);
     setNotice(null);
@@ -314,12 +329,12 @@ export default function IdeasPage(props: IdeasPageProps) {
       const prompt = { name: freestyle.name.trim(), creativeText: freestyle.text.trim(), recommendedModel: model, tags: [] } as unknown as PromptContent;
       const receipt = await submitPromptCreate({ promptKey: generatedPromptKey(), promptType: kind, prompt, token: props.ownerToken! });
       const prompts = await loadPrompts();
-      if (!mountedRef.current) return;
+      if (!isCurrentSession(serial)) return;
       setLoaded((current) => current.status === 'ready' ? { ...current, prompts } : current);
       setPicked((current) => ({ ...current, [`user:${receipt.promptId}`]: freestyle.count }));
       setFreestyle({ on: false, text: '', count: DEFAULT_COUNT, name: '' });
       props.notify(`Đã lưu prompt “${receipt.name}” vào thư viện.`);
-    } catch (error) { fail(error, 'Không thể lưu prompt.'); } finally { if (mountedRef.current) setSavingPrompt(false); }
+    } catch (error) { fail(error, 'Không thể lưu prompt.', serial); } finally { if (isCurrentSession(serial)) setSavingPrompt(false); }
   };
 
   const togglePick = (key: string) => setPicked((current) => {
@@ -353,6 +368,9 @@ export default function IdeasPage(props: IdeasPageProps) {
           ? <><span className="status-pill good">Đang phát triển</span><button className="button" type="button" disabled={busy} onClick={() => void changeState(idea, 'STOP')}>Ngừng phát triển</button><a className="button" href={routeToHash.campaignAngle(campaignId, idea.ideaId)}>Tạo góc nội dung</a></>
           : <button className="button primary" type="button" disabled={busy} onClick={() => void changeState(idea, 'DEVELOP')}>Phát triển ý này</button>}
       </div> : <div className="idea-purposes">
+        {idea.purposes.length > 0
+          ? <label className="idea-pick" htmlFor={`package-pick-${idea.ideaId}`}><input id={`package-pick-${idea.ideaId}`} type="checkbox" checked={chosen.includes(idea.code)} disabled={!chosen.includes(idea.code) && chosen.length >= PACKAGE_BATCH_LIMIT} onChange={() => setChosen((current) => current.includes(idea.code) ? current.filter((code) => code !== idea.code) : current.length >= PACKAGE_BATCH_LIMIT ? current : [...current, idea.code])} /> Chọn để tạo Caption & Poster</label>
+          : <p className="muted">Gắn mục đích để tạo Caption & Poster.</p>}
         <ul className="chip-list" aria-label="Mục đích">{idea.purposes.map((value) => <li key={value} className={`purpose-chip purpose-${(purposeDisplayKind(value, list.purposeTags) ?? 'EDUCATION').toLowerCase()}`}>{purposeLabel(value, list.purposeTags)}</li>)}</ul>
         <button className="button" type="button" disabled={busy} aria-expanded={purposeEditor === idea.ideaId} onClick={() => setPurposeEditor(purposeEditor === idea.ideaId ? null : idea.ideaId)}>{idea.purposes.length ? 'Sửa mục đích' : 'Gắn mục đích'}</button>
         {purposeEditor === idea.ideaId && <div className="purpose-editor">
@@ -375,7 +393,7 @@ export default function IdeasPage(props: IdeasPageProps) {
     {mode === 'demo' && <div className="demo-banner" role="note">{DEMO_BANNER}</div>}
     <nav className="crumb" aria-label="Đường dẫn"><a href={routeToHash.content()}>Chiến dịch</a><span aria-hidden="true">/</span><a href={routeToHash.campaign(campaignId)}>{list.campaignName}</a><span aria-hidden="true">/</span><span>{title}</span></nav>
     <div className="heading"><div><h1>{title}</h1><p>{kind === 'BIG_IDEA' ? 'Ý tưởng lớn dẫn dắt cả chiến dịch, sinh từ Insight đã khóa. Chọn ý để phát triển thành các góc nội dung.' : 'Mỗi góc là một cách kể Big Idea cho một mục đích cụ thể.'}</p></div></div>
-    <StepIndicator campaignId={campaignId} kind={kind} />
+    <CampaignSteps campaignId={campaignId} current={kind === 'BIG_IDEA' ? 1 : 2} />
     {list.campaignDeleted && <div className="deleted-banner" role="status"><p>Chiến dịch đã bị xóa. Khôi phục chiến dịch để tiếp tục.</p><a className="button" href={routeToHash.campaign(campaignId)}>Mở chiến dịch</a></div>}
     {!list.insightLocked && !list.campaignDeleted && <div className="snapshot-warning" role="status"><p>Cần khóa Insight trước khi tạo ý tưởng.</p><a className="button" href={routeToHash.campaignInsight(campaignId)}>Mở Insight</a></div>}
     {kind === 'ANGLE' && list.insightLocked && developing.length === 0 && <div className="snapshot-warning" role="status"><p>Chưa có Big Idea nào đang phát triển. Chọn “Phát triển ý này” ở bước Big Idea.</p><a className="button" href={routeToHash.campaignBigIdea(campaignId)}>Mở Big Idea</a></div>}
@@ -426,7 +444,10 @@ export default function IdeasPage(props: IdeasPageProps) {
     {notice && <div className="form-error brand-notice" role="alert"><p>{notice.message}</p>{notice.reload && <button className="button" type="button" onClick={reload}>Tải lại</button>}</div>}
 
     <section aria-labelledby="idea-list-title">
-      <h2 id="idea-list-title">{kind === 'BIG_IDEA' ? `Big Idea (${visible.filter((idea) => !idea.deleted).length})` : parent ? `Góc của ${parent.code} (${visible.filter((idea) => !idea.deleted).length})` : 'Góc nội dung'}</h2>
+      <div className="idea-list-head">
+        <h2 id="idea-list-title">{kind === 'BIG_IDEA' ? `Big Idea (${visible.filter((idea) => !idea.deleted).length})` : parent ? `Góc của ${parent.code} (${visible.filter((idea) => !idea.deleted).length})` : 'Góc nội dung'}</h2>
+        {kind === 'ANGLE' && chosen.length > 0 && <a className="button primary" href={routeToHash.packageNew(campaignId, chosen)}>Tạo Caption & Poster ({chosen.length})</a>}
+      </div>
       {visible.length === 0 ? <p className="muted">Chưa có ý nào. Chọn prompt và bấm “Tạo”.</p> : <ul className="idea-grid">{visible.map(ideaCard)}</ul>}
     </section>
 

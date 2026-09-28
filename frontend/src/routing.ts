@@ -13,21 +13,44 @@ export type Route =
   | { readonly kind: 'campaign'; readonly campaignId: string }
   | { readonly kind: 'campaign-insight'; readonly campaignId: string }
   | { readonly kind: 'campaign-ideas'; readonly campaignId: string; readonly ideaKind: 'BIG_IDEA' | 'ANGLE'; readonly parentIdeaId?: string }
+  | { readonly kind: 'package-new'; readonly campaignId: string; readonly angleCodes: readonly string[] }
+  | { readonly kind: 'package'; readonly campaignId: string; readonly code: string }
   | { readonly kind: 'prompts'; readonly promptType: PromptType; readonly promptRef: string | null }
   | { readonly kind: 'invalid'; readonly hash: string };
 
 const sections = new Set<ProductSection>(['b8', 'sources', 'history', 'b9', 'b10']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const ANGLE_CODE = /^[A-Z]+[1-9][0-9]*$/;
+const PACKAGE_CODE = /^[A-Z]+[1-9][0-9]*·[1-9][0-9]*$/;
+
+/** `angles=A1,A2` from the package-new query; null when the query is malformed or names a code twice. */
+function angleCodes(query: string): string[] | null {
+  const params = new URLSearchParams(query);
+  if ([...params.keys()].some((key) => key !== 'angles')) return null;
+  const raw = params.get('angles');
+  if (raw === null || raw === '') return [];
+  const codes = raw.split(',');
+  return codes.every((code) => ANGLE_CODE.test(code)) && new Set(codes).size === codes.length ? codes : null;
+}
 
 export function parseRoute(hash: string, state: DemoState): Route {
-  const normalized = hash.replace(/^#/, '');
-  if (!normalized || normalized === '/') return { kind: 'portfolio' };
+  const [normalized = '', query, ...extra] = hash.replace(/^#/, '').split('?');
+  if (extra.length) return { kind: 'invalid', hash };
+  if ((!normalized || normalized === '/') && query === undefined) return { kind: 'portfolio' };
   let parts: string[];
   try {
     parts = normalized.split('/').filter(Boolean).map((part) => decodeURIComponent(part));
   } catch {
     return { kind: 'invalid', hash };
   }
+  if (parts.length === 4 && parts[0] === 'content' && parts[2] === 'package' && UUID.test(parts[1]!)) {
+    if (parts[3] === 'new') {
+      const codes = angleCodes(query ?? '');
+      return codes ? { kind: 'package-new', campaignId: parts[1]!, angleCodes: codes } : { kind: 'invalid', hash };
+    }
+    return query === undefined && PACKAGE_CODE.test(parts[3]!) ? { kind: 'package', campaignId: parts[1]!, code: parts[3]! } : { kind: 'invalid', hash };
+  }
+  if (query !== undefined) return { kind: 'invalid', hash };
   if (parts.length === 1 && parts[0] === 'brands') return { kind: 'brands' };
   if (parts.length === 2 && parts[0] === 'brands') return UUID.test(parts[1]!) ? { kind: 'brand', brandId: parts[1]! } : { kind: 'invalid', hash };
   if (parts.length === 1 && parts[0] === 'content') return { kind: 'content' };
@@ -79,6 +102,8 @@ export const routeToHash = {
   campaignInsight: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/insight`,
   campaignBigIdea: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/big-idea`,
   campaignAngle: (campaignId: string, bigIdeaId?: string): string => `#/content/${encodeURIComponent(campaignId)}/angle${bigIdeaId ? `/${encodeURIComponent(bigIdeaId)}` : ''}`,
+  packageNew: (campaignId: string, angleCodes: readonly string[]): string => `#/content/${encodeURIComponent(campaignId)}/package/new${angleCodes.length ? `?angles=${angleCodes.join(',')}` : ''}`,
+  package: (campaignId: string, code: string): string => `#/content/${encodeURIComponent(campaignId)}/package/${encodeURIComponent(code)}`,
   prompts: (promptType: PromptType): string => `#/prompts/${slugOf(promptType)}`,
   prompt: (promptType: PromptType, promptRef: string): string => `#/prompts/${slugOf(promptType)}/${encodeURIComponent(promptRef)}`,
   catalogItem: (brandId: string, itemId: string): string => `#/brands/${encodeURIComponent(brandId)}/products/${encodeURIComponent(itemId)}`,

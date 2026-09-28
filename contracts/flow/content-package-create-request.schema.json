@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-package-create-request.schema.json",
+  "title": "ContentPackageCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "requestId", "caption", "poster", "rows"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "requestId": { "type": "string", "format": "uuid" },
+    "caption": { "$ref": "#/$defs/captionSettings" },
+    "poster": { "$ref": "#/$defs/posterSettings" },
+    "rows": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/row" } }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "style": { "title": "ContentCaptionStyle", "enum": ["PROFESSIONAL", "FRIENDLY"] },
+    "length": { "title": "ContentCaptionLength", "enum": ["SHORT", "MEDIUM", "LONG"] },
+    "imageModel": { "title": "ContentPosterModel", "enum": ["gpt-image-2", "gemini-3.1-flash-image"] },
+    "format": { "title": "ContentPosterFormat", "enum": ["square", "portrait", "story", "landscape"] },
+    "level": { "title": "ContentDisplayLevel", "enum": ["ALWAYS", "OPTIONAL", "HIDDEN"] },
+    "references": { "title": "ContentPosterReferences", "type": "array", "uniqueItems": true, "items": { "$ref": "#/$defs/sha256" } },
+    "captionSettings": {
+      "title": "ContentCaptionSettings",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt", "model", "style", "length"],
+      "properties": {
+        "prompt": { "$ref": "content-idea-generate-request.schema.json#/$defs/prompt" },
+        "model": { "$ref": "content-idea-generate-request.schema.json#/$defs/model" },
+        "style": { "$ref": "#/$defs/style" },
+        "length": { "$ref": "#/$defs/length" }
+      }
+    },
+    "posterSettings": {
+      "title": "ContentPosterSettings",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt", "model", "format", "referenceMediaSha256s", "includeLogo"],
+      "properties": {
+        "prompt": { "$ref": "content-idea-generate-request.schema.json#/$defs/prompt" },
+        "model": { "$ref": "#/$defs/imageModel" },
+        "format": { "$ref": "#/$defs/format" },
+        "referenceMediaSha256s": { "$ref": "#/$defs/references" },
+        "includeLogo": { "type": "boolean" }
+      }
+    },
+    "captionDisplay": {
+      "title": "ContentCaptionDisplayOverride",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "$ref": "#/$defs/level" },
+        "tagline": { "$ref": "#/$defs/level" },
+        "hotline": { "$ref": "#/$defs/level" },
+        "web": { "$ref": "#/$defs/level" },
+        "address": { "$ref": "#/$defs/level" }
+      }
+    },
+    "posterDisplay": {
+      "title": "ContentPosterDisplayOverride",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "boolean" },
+        "logo": { "type": "boolean" },
+        "tagline": { "type": "boolean" },
+        "hotline": { "type": "boolean" },
+        "web": { "type": "boolean" },
+        "address": { "type": "boolean" }
+      }
+    },
+    "row": {
+      "title": "ContentPackageRow",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["angleId"],
+      "properties": {
+        "angleId": { "type": "string", "format": "uuid" },
+        "caption": {
+          "title": "ContentPackageRowCaption",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "style": { "$ref": "#/$defs/style" }, "length": { "$ref": "#/$defs/length" } }
+        },
+        "poster": {
+          "title": "ContentPackageRowPoster",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "referenceMediaSha256s": { "$ref": "#/$defs/references" } }
+        },
+        "display": {
+          "title": "ContentPackageRowDisplay",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": { "caption": { "$ref": "#/$defs/captionDisplay" }, "poster": { "$ref": "#/$defs/posterDisplay" } }
+        }
+      }
+    }
+  }
+}
