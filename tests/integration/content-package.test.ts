@@ -104,6 +104,24 @@ test('create and generated part retries are exact and never call the gateway twi
   } finally { state.close(); }
 });
 
+test('a provider result whose package version commit fails is not silently dispatched again', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [textReply('{"post":"persist-failure caption"}')] });
+  try {
+    const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(42) }));
+    state.db.exec("CREATE TRIGGER test_fail_content_package_version BEFORE INSERT ON flow_content_package_versions BEGIN SELECT RAISE(ABORT, 'synthetic package persistence failure'); END");
+    const call = generateRequest(created.packages[0]!.packageId, 'CAPTION', 43);
+    await assert.rejects(state.packages.generate(call, 'owner:synthetic'), /synthetic package persistence failure/);
+    const firstCalls = state.gateway.calls.filter((entry) => entry.operation === 'generateText').length;
+    const attempt = state.attempts.list({ targetType: 'content_caption', targetId: created.packages[0]!.packageId, limit: 10 })[0];
+    assert.ok(attempt);
+    assert.equal(attempt.state, 'failed');
+    assert.equal(attempt.errorCode, 'persist_failed');
+    assert.notEqual(attempt.outputSha256, null);
+    await assert.rejects(state.packages.generate({ ...call, requestId: requestId(44) }, 'owner:synthetic'), ContentPackageConflictError);
+    assert.equal(state.gateway.calls.filter((entry) => entry.operation === 'generateText').length, firstCalls);
+  } finally { state.close(); }
+});
+
 test('the package pin contains every integrity input and the footer remains byte-identical', async () => {
   const state = await createPackageFixture({ textAfterIdeas: [textReply('{"post":"Brand-safe caption"}')], imageAfterIdeas: [] });
   try {

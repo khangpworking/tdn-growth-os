@@ -136,9 +136,20 @@ export default function IdeasPage(props: IdeasPageProps) {
   const [tagDraft, setTagDraft] = useState<{ readonly label: string; readonly displayLike: PurposeKind }>({ label: '', displayLike: 'EDUCATION' });
   const mountedRef = useRef(true);
   const cancelRef = useRef(false);
+  const sessionKey = `${mode}:${campaignId}:${kind}`;
+  const sessionRef = useRef<{ readonly key: string; readonly serial: number }>({ key: sessionKey, serial: 0 });
+  if (sessionRef.current.key !== sessionKey) sessionRef.current = { key: sessionKey, serial: sessionRef.current.serial + 1 };
+  const sessionSerial = sessionRef.current.serial;
+  const isCurrentSession = (serial = sessionSerial): boolean => mountedRef.current && sessionRef.current.key === sessionKey && sessionRef.current.serial === serial;
   const pickedInitRef = useRef(false);
   // Leaving the page stops a running batch before its next AI call (the in-flight call still finishes server-side).
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; cancelRef.current = true; }; }, []);
+  useEffect(() => {
+    cancelRef.current = true;
+    setRun(null);
+    setBusyId(null);
+    setSavingPrompt(false);
+  }, [sessionKey]);
   const reload = () => setReloadToken((value) => value + 1);
 
   useEffect(() => {
@@ -157,13 +168,13 @@ export default function IdeasPage(props: IdeasPageProps) {
   }, [mode, campaignId, reloadToken, props.demoCampaign, props.demoIdeas, props.demoTags, props.demoPrompts]);
 
   // Quiet refresh after a write: keeps the page (and a running tray) on screen instead of a loading state.
-  const refresh = async (): Promise<void> => {
-    if (mode === 'demo') return;
+  const refresh = async (serial = sessionSerial): Promise<void> => {
+    if (mode === 'demo' || !isCurrentSession(serial)) return;
     try {
       const list = await loadIdeas(campaignId);
-      if (!mountedRef.current) return;
+      if (!isCurrentSession(serial)) return;
       setLoaded((current) => list ? { status: 'ready', list, prompts: current.status === 'ready' ? current.prompts : null } : { status: 'missing' });
-    } catch (error) { if (mountedRef.current) setLoaded({ status: 'failed', message: failureMessage(error) }); }
+    } catch (error) { if (isCurrentSession(serial)) setLoaded({ status: 'failed', message: failureMessage(error) }); }
   };
 
   const list = loaded.status === 'ready' ? loaded.list : null;
@@ -198,14 +209,16 @@ export default function IdeasPage(props: IdeasPageProps) {
   const visible = kind === 'BIG_IDEA' ? bigIdeasOf(list) : parent ? anglesOf(list, parent.ideaId) : [];
   const title = kind === 'BIG_IDEA' ? 'Big Idea' : 'Góc nội dung';
 
-  const fail = (error: unknown, fallback: string) => {
-    if (!mountedRef.current) return;
+  const fail = (error: unknown, fallback: string, serial = sessionSerial) => {
+    if (!isCurrentSession(serial)) return;
     if (error instanceof OwnerWriteError && error.kind === 'conflict') setNotice({ message: 'Ý tưởng đã thay đổi ở nơi khác. Tải lại để xem trạng thái mới nhất.', reload: true });
     else if (error instanceof OwnerWriteError && error.kind === 'connection') setNotice({ message: 'Kết nối không rõ kết quả. Tải lại để kiểm tra trước khi thử lại.', reload: true });
     else setNotice({ message: error instanceof OwnerWriteError ? error.message : fallback, reload: false });
   };
 
   const executeRun = async (calls: readonly IdeaRunCall[], startAt: number) => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     cancelRef.current = false;
     setNotice(null);
     const failures: { label: string; message: string }[] = [];
@@ -215,7 +228,7 @@ export default function IdeasPage(props: IdeasPageProps) {
     let demoIdeas = props.demoIdeas;
     setRun({ calls, done, failures: [], active: true, stopped: null, resumeAt: null });
     for (let index = startAt; index < calls.length; index += 1) {
-      if (cancelRef.current || !mountedRef.current) { stopped = `Đã dừng — còn ${calls.length - index} lần gọi chưa chạy.`; break; }
+      if (cancelRef.current || !isCurrentSession(serial)) { stopped = `Đã dừng — còn ${calls.length - index} lần gọi chưa chạy.`; break; }
       const call = calls[index]!;
       try {
         if (mode === 'demo') {
@@ -224,7 +237,7 @@ export default function IdeasPage(props: IdeasPageProps) {
           props.setDemoIdeas(result.ideas);
         } else {
           await submitIdeaGenerate({ campaignId, request: call.request, token: props.ownerToken! });
-          await refresh();
+          await refresh(serial);
         }
         done = index + 1;
       } catch (error) {
@@ -241,9 +254,9 @@ export default function IdeasPage(props: IdeasPageProps) {
         failures.push({ label: call.label, message: error instanceof Error && error.message ? error.message : 'Không tạo được ý này.' });
         done = index + 1;
       }
-      if (mountedRef.current) setRun({ calls, done, failures: [...failures], active: true, stopped: null, resumeAt: null });
+      if (isCurrentSession(serial)) setRun({ calls, done, failures: [...failures], active: true, stopped: null, resumeAt: null });
     }
-    if (!mountedRef.current) return;
+    if (!isCurrentSession(serial)) return;
     setRun({ calls, done, failures, active: false, stopped, resumeAt });
     const created = done - startAt - failures.length;
     if (created > 0) props.notify(`Đã tạo ${created} ${kind === 'BIG_IDEA' ? 'Big Idea' : 'góc nội dung'}.`);
@@ -256,6 +269,8 @@ export default function IdeasPage(props: IdeasPageProps) {
   };
 
   const changeState = async (idea: IdeaEntry, action: StateAction, purposes?: readonly string[]) => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     if (!writable || busyId || running) return;
     setNotice(null);
     const input = { ideaId: idea.ideaId, expectedSequence: idea.stateSequence, action, ...(purposes ? { purposes } : {}) };
@@ -266,10 +281,12 @@ export default function IdeasPage(props: IdeasPageProps) {
     setBusyId(idea.ideaId);
     try {
       const receipt = await submitIdeaState({ ...input, token: props.ownerToken! });
-      if (action === 'DELETE') props.notify(`Đã xóa ${idea.code}. Có thể khôi phục đến ${formatDate(receipt.restorableUntil!)}.`);
-      else if (action === 'RESTORE') props.notify(`Đã khôi phục ${idea.code}.`);
-      await refresh();
-    } catch (error) { fail(error, 'Không thể cập nhật ý tưởng.'); } finally { if (mountedRef.current) setBusyId(null); }
+      if (isCurrentSession(serial)) {
+        if (action === 'DELETE') props.notify(`Đã xóa ${idea.code}. Có thể khôi phục đến ${formatDate(receipt.restorableUntil!)}.`);
+        else if (action === 'RESTORE') props.notify(`Đã khôi phục ${idea.code}.`);
+      }
+      await refresh(serial);
+    } catch (error) { fail(error, 'Không thể cập nhật ý tưởng.', serial); } finally { if (isCurrentSession(serial)) setBusyId(null); }
   };
 
   const togglePurpose = (idea: IdeaEntry, value: string) => {
@@ -282,6 +299,8 @@ export default function IdeasPage(props: IdeasPageProps) {
   const tagBlocker = purposeTagBlocker(tagDraft.label, list.purposeTags);
   const createTag = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     if (tagBlocker || !writable || busyId) return;
     const label = tagDraft.label.trim();
     if (mode === 'demo') {
@@ -292,15 +311,17 @@ export default function IdeasPage(props: IdeasPageProps) {
     setBusyId('tag');
     try {
       await submitPurposeTag({ label, displayLike: tagDraft.displayLike, token: props.ownerToken! });
-      if (mountedRef.current) setTagDraft({ label: '', displayLike: tagDraft.displayLike });
-      await refresh();
-    } catch (error) { fail(error, 'Không thể thêm mục đích.'); } finally { if (mountedRef.current) setBusyId(null); }
+      if (isCurrentSession(serial)) setTagDraft({ label: '', displayLike: tagDraft.displayLike });
+      await refresh(serial);
+    } catch (error) { fail(error, 'Không thể thêm mục đích.', serial); } finally { if (isCurrentSession(serial)) setBusyId(null); }
   };
 
   const freestyleSaveReason = mode === 'demo' ? 'Lưu prompt chỉ có ở chế độ thật.'
     : !writable ? 'Mở khóa OWNER để lưu prompt.'
       : freestyleBlocker(freestyle.text) ?? (!freestyle.name.trim() ? 'Đặt tên cho prompt.' : [...freestyle.name.trim()].length > 120 ? 'Tên prompt tối đa 120 ký tự.' : null);
   const saveFreestyle = async () => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     if (freestyleSaveReason || savingPrompt) return;
     setSavingPrompt(true);
     setNotice(null);
@@ -308,12 +329,12 @@ export default function IdeasPage(props: IdeasPageProps) {
       const prompt = { name: freestyle.name.trim(), creativeText: freestyle.text.trim(), recommendedModel: model, tags: [] } as unknown as PromptContent;
       const receipt = await submitPromptCreate({ promptKey: generatedPromptKey(), promptType: kind, prompt, token: props.ownerToken! });
       const prompts = await loadPrompts();
-      if (!mountedRef.current) return;
+      if (!isCurrentSession(serial)) return;
       setLoaded((current) => current.status === 'ready' ? { ...current, prompts } : current);
       setPicked((current) => ({ ...current, [`user:${receipt.promptId}`]: freestyle.count }));
       setFreestyle({ on: false, text: '', count: DEFAULT_COUNT, name: '' });
       props.notify(`Đã lưu prompt “${receipt.name}” vào thư viện.`);
-    } catch (error) { fail(error, 'Không thể lưu prompt.'); } finally { if (mountedRef.current) setSavingPrompt(false); }
+    } catch (error) { fail(error, 'Không thể lưu prompt.', serial); } finally { if (isCurrentSession(serial)) setSavingPrompt(false); }
   };
 
   const togglePick = (key: string) => setPicked((current) => {

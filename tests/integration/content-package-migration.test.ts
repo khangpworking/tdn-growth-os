@@ -77,9 +77,9 @@ function version(db: ReturnType<typeof setup>['db'], values: { packageId: string
       uuid(values.requestNo), sha((values.requestNo % 16).toString(16)), sha('a'), at);
 }
 
-test('0028 inventories all package tables and triggers and keeps every table append-only', () => {
+test('0028/0029 inventories all package tables and triggers and keeps every table append-only', () => {
   const state = setup();
-  assert.equal(state.migration.currentVersion, 28);
+  assert.equal(state.migration.currentVersion, 29);
   assert.deepEqual((state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('flow_content_packages', 'flow_content_package_versions', 'flow_content_package_states', 'flow_content_campaign_defaults') ORDER BY name").all() as { name: string }[]).map((row) => row.name), [
     'flow_content_campaign_defaults', 'flow_content_package_states', 'flow_content_package_versions', 'flow_content_packages',
   ]);

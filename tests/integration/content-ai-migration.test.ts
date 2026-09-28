@@ -64,9 +64,9 @@ function insert(db: ReturnType<typeof setup>['db'], values: Record<string, unkno
   db.prepare(sql).run(...columns.map((column) => values[column]));
 }
 
-test('migration 0025/0028 creates the audit table, active-target claim and strict legal output-state matrix', () => {
+test('migration 0025/0029 creates the audit table, active-target claim and strict legal output-state matrix', () => {
   const state = setup();
-  assert.equal(state.migration.currentVersion, 28);
+  assert.equal(state.migration.currentVersion, 29);
   assert.deepEqual(state.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'flow_content_ai_attempts%' ORDER BY name").all(), [
     { name: 'flow_content_ai_attempts_active_target' },
     { name: 'flow_content_ai_attempts_by_target' },

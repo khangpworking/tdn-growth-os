@@ -467,7 +467,7 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
       async packageDetail(packageId) {
         if (!packages.packageExists(packageId)) return undefined;
         const detail = await packages.readPackage(packageId);
-        const campaign = await campaigns.readCampaign(detail.campaignId);
+        const campaign = await campaigns.readCampaign(detail.campaignId, detail.pin.campaignVersion);
         return packageDetailView(detail, { name: campaign.campaign.name, deleted: campaigns.lifecycleState(detail.campaignId).deleted !== undefined });
       },
       async posterImage(packageId, version) {
