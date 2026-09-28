@@ -8,6 +8,7 @@ import {
   type FrontendMode,
 } from './data-source';
 import ReportInterpretations from './ReportInterpretations';
+import ReportSectionReadiness from './ReportSectionReadiness';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -117,6 +118,7 @@ export default function ResearchReportsPanel({ mode, workspaceId, ownerToken = n
               <a className="button primary" href={reportArtifactUrl(history.reportId, version.version, 'report.html')} target="_blank" rel="noreferrer">Mở report và evidence</a>
               <a className="button" href={reportArtifactUrl(history.reportId, version.version, 'packet.json')}>Tải packet JSON</a>
             </div>
+            <ReportSectionReadiness reportId={history.reportId} reportVersion={version.version} semanticVersionId={version.semanticVersionId} />
             <ReportInterpretations key={`${history.reportId}:${version.version}`} reportId={history.reportId} reportVersion={version.version} semanticVersionId={version.semanticVersionId} ownerToken={ownerToken} writesAvailable={writesAvailable} navigate={navigate} notify={notify} />
           </article>}
         </>}

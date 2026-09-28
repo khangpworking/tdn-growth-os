@@ -10,6 +10,8 @@ A1 là calculator/CLI offline với bản nháp JSON/Markdown deterministic, ch�
 
 A3a (2026-09-28) triển khai lát packet offline nhỏ trước phần A3 persistence: cùng dependency bytes và phiên bản code/phương pháp cho cùng bản nháp; đổi dependency tạo content identity khác, không tự ghi đè hay bịa lịch sử phiên bản tuần tự. Catalog 30 mục là metadata kế hoạch; maturity lịch sử không phải bằng chứng độ hoàn thiện của bản mới. Chỉ materialize quan sát định lượng do ứng dụng tính, chưa nhận/sinh INFERENCE hoặc HYPOTHESIS. Phần thiếu hiện blocker; tất cả UNREVIEWED. Quyền nhập case/claim thủ công, source acceptance thật, official approval và database/workspace integration còn để lát sau.
 
+Research A21 đưa trạng thái thực của đúng packet/report version ra API và UI để OWNER nhìn được section nào đã có kết quả code, section nào mới có metadata phương pháp, section nào bị chặn và cần đầu vào gì. Màn hình này không nâng readiness, không chạy phương pháp còn thiếu và không coi framework approval là approval nội dung báo cáo.
+
 Cập nhật: 11/09/2026. Trạng thái: ghi nhận quyết định frontend sau baseline Task 032; visual direction đang đề xuất.
 
 ## Mục đích và cách đọc

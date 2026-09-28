@@ -3,6 +3,7 @@
 export type ResearchReportReadAPIResponses =
   | WorkspaceReportIndexResponse
   | ReportHistoryResponse
+  | ReportSectionReadinessResponse
   | ReportInterpretationIndexResponse
   | ReportInterpretationDetailResponse
   | ReportReviewTarget
@@ -74,6 +75,60 @@ export interface Artifact {
   fileName: string;
   mediaType: string;
   byteSize: number;
+}
+export interface ReportSectionReadinessResponse {
+  contractVersion: '1.0.0';
+  reportId: Uuid;
+  reportVersion: number;
+  versionId: Uuid;
+  semanticVersionId: Digest;
+  packetId: Digest;
+  catalogId: string;
+  catalogVersion: string;
+  catalogSha256: Digest;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  sections: ReportSectionReadinessEntry[];
+}
+export interface ReportSectionReadinessEntry {
+  sectionId: string;
+  title: string;
+  methodId: string;
+  methodVersion: string;
+  historicalTemplateMaturity: 'PILOT' | 'SYNTHESIS' | 'METHOD' | 'SCENARIO';
+  /**
+   * @minItems 1
+   * @maxItems 10
+   */
+  moduleIds: string[];
+  /**
+   * @maxItems 20
+   */
+  requiredInputs: string[];
+  reopenCondition: string;
+  fallbackState: 'BLOCKED' | 'METHOD_ONLY' | 'MANUAL_REVIEW_REQUIRED' | 'NOT_IMPLEMENTED';
+  /**
+   * @minItems 1
+   * @maxItems 20
+   */
+  fallbackReasons: string[];
+  deliveryState:
+    'PARTIAL_DETERMINISTIC_DRAFT' | 'METHOD_ONLY' | 'BLOCKED' | 'MANUAL_REVIEW_REQUIRED' | 'NOT_IMPLEMENTED';
+  /**
+   * @maxItems 100
+   */
+  claimIds: string[];
+  /**
+   * @maxItems 10
+   */
+  contextPointers: string[];
+  /**
+   * @maxItems 50
+   */
+  blockers: string[];
+  sectionSha256: Digest;
 }
 export interface ReportInterpretationIndexResponse {
   contractVersion: '1.0.0';
