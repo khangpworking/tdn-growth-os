@@ -59,8 +59,8 @@
       "allOf": [
         {
           "if": { "properties": { "kind": { "const": "HYPOTHESIS" } } },
-          "then": { "properties": { "assumptions": { "minItems": 1 } } },
-          "else": { "properties": { "assumptions": { "maxItems": 0 } } }
+          "then": { "properties": { "assumptions": { "type": "array", "minItems": 1 } } },
+          "else": { "properties": { "assumptions": { "type": "array", "maxItems": 0 } } }
         }
       ]
     }
