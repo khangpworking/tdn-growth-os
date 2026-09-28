@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { generatedProductWorkspaceKey, submitOwnerProductWorkspace, submitOwnerProductWorkspaceAndReload, b9LockBlocker, b9SaveBlocker, b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadFrontendAvailability, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Blocker, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, ownerB7Disabled, submitOwnerB7Decision, submitOwnerB7AndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
-import { loadReportHistory, loadWorkspaceReportIndex, reportArtifactUrl } from '../src/data-source';
+import { loadReportHistory, loadReportInterpretations, loadWorkspaceReportIndex, reportArtifactUrl } from '../src/data-source';
 
 const ids = {
   w1: '11111111-1111-4111-8111-111111111111', w2: '11111111-1111-4111-8111-222222222222',
@@ -56,6 +56,13 @@ test('loads an explicit report series and predecessor-bound history without choo
   assert.equal((await loadReportHistory(reportId, fetcher)).versions[0]?.sectionCounts.partialDeterministicDraft, 4);
   assert.equal(reportArtifactUrl(reportId, 1, 'report.html'), `/api/reports/${reportId}/versions/1/files/report.html`);
   await assert.rejects(loadReportHistory(reportId, (async () => json({ ...history, versions: [{ ...version, previousSemanticVersionId: 'b'.repeat(64) }] })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
+});
+
+test('validates the exact-version interpretation index from the canonical closed contract', async () => {
+  const summary = { interpretationId: ids.d2, interpretationNumber: 1, interpretationContentSha256: 'b'.repeat(64), completedAt: at, storedAt: at, sourceSemanticVersionId: 'a'.repeat(64), sourcePacketId: 'c'.repeat(64), providerId: 'offline-fixture', modelId: 'model-pinned', promptId: 'report-insight', promptVersion: 1, itemCount: 1, sectionIds: ['M01'] };
+  const response = { contractVersion: '1.0.0', reportId: ids.c1, reportVersion: 1, interpretations: [summary] };
+  assert.equal((await loadReportInterpretations(ids.c1, 1, (async () => json(response)) as typeof fetch)).interpretations[0]?.interpretationId, ids.d2);
+  await assert.rejects(loadReportInterpretations(ids.c1, 1, (async () => json({ ...response, interpretations: [{ ...summary, providerRequestId: 'private' }] })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
 });
 
 test('loads real portfolio/details by IDs and exact candidate versions without inferring duplicate names', async () => {

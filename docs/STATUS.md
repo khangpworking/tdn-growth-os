@@ -454,3 +454,14 @@ The opt-in loopback OWNER API now exposes a closed `POST /owner-api/workspaces` 
 - Shared confirmations provide initial focus, tab containment, Escape/cancel, and focus return. Mobile product navigation scrolls the active item into view and keeps reduced-motion behavior.
 - Scope remains frontend-only: no migration, domain/API policy change, real OWNER write, active-runtime restart, provider call, deployment, or Windows backport.
 - Base: exact fetched `origin/main` `ab099f33ba1634d60f2209efee9af9637c4ac458`. Verification and PR state are recorded in `docs/handoffs/046-b7-b10-ux-correction.md`.
+
+## Research A15 — exact-version interpretation dashboard (in progress)
+
+The local report workspace can inspect A13 interpretation overlays only after
+the operator explicitly selects an exact report version and an exact saved
+interpretation. The read-only view exposes evidence logic, resolved claim
+citations/pointers, assumptions, limitations and safe generation identity,
+while labelling every run unapproved and distinct from source evidence or a
+human decision. No approval control, regeneration, provider call, report write,
+migration or deployment is included. Final PR and Linux CI evidence remain
+pending.

@@ -1,7 +1,14 @@
 import { laneOrder, latestBasketVersion } from './model';
 import type { Candidate, CandidateBasket, DemoState, LaneKey, LaneState, Market, Product } from './model';
 import type { DiscoveryWorkspaceDetailResponse, ProductB10Response, ProductB9Response, ProductWorkspaceDetailResponse, WorkspaceCandidateBasketB7Response, WorkspaceCandidateBasketsResponse, WorkspacePortfolioResponse } from '../../contracts/api/workspace-api.generated';
-import type { ReportHistoryResponse, WorkspaceReportIndexResponse } from '../../contracts/api/report-api.generated';
+import type {
+  ReportHistoryResponse,
+  ReportInterpretationDetailResponse,
+  ReportInterpretationIndexResponse,
+  ReportInterpretationSummary,
+  WorkspaceReportIndexResponse,
+} from '../../contracts/api/report-api.generated';
+import { isReportInterpretationDetailResponse, isReportInterpretationIndexResponse } from './report-contract-validation';
 
 export type FrontendMode = 'real' | 'demo';
 export interface FrontendAvailability { readonly status: 'ok'; readonly version: string; readonly ownerWritesEnabled: boolean }
@@ -60,6 +67,45 @@ export async function loadReportHistory(reportId: string, fetcher: typeof fetch 
     expectedVersion += 1;
   }
   return value as ReportHistoryResponse;
+}
+
+export async function loadReportInterpretations(reportId: string, reportVersion: number, fetcher: typeof fetch = fetch): Promise<ReportInterpretationIndexResponse> {
+  assertReportVersionIdentity(reportId, reportVersion);
+  const value = await requestJson(`/api/reports/${encodeURIComponent(reportId)}/versions/${reportVersion}/interpretations`, fetcher);
+  if (!isReportInterpretationIndexResponse(value) || value.reportId !== reportId || value.reportVersion !== reportVersion) invalid('Danh mục nhận định AI không đúng contract hoặc sai phiên bản báo cáo.');
+  let expectedNumber = 1;
+  for (const item of value.interpretations) {
+    if (item.interpretationNumber !== expectedNumber || item.sectionIds.some((section, index) => index > 0 && item.sectionIds[index - 1]! >= section)) invalid('Danh mục nhận định AI không đúng thứ tự bất biến.');
+    expectedNumber += 1;
+  }
+  uniqueMap(value.interpretations, item => item.interpretationId, 'Nhận định AI bị lặp.');
+  return value as ReportInterpretationIndexResponse;
+}
+
+export async function loadReportInterpretation(reportId: string, reportVersion: number, interpretationId: string, fetcher: typeof fetch = fetch): Promise<ReportInterpretationDetailResponse> {
+  assertReportVersionIdentity(reportId, reportVersion);
+  if (!uuid(interpretationId)) invalid('Interpretation ID không hợp lệ.');
+  const value = await requestJson(`/api/reports/${encodeURIComponent(reportId)}/versions/${reportVersion}/interpretations/${encodeURIComponent(interpretationId)}`, fetcher);
+  if (!isReportInterpretationDetailResponse(value) || value.reportId !== reportId || value.reportVersion !== reportVersion || value.interpretation.interpretationId !== interpretationId) invalid('Chi tiết nhận định AI không đúng contract hoặc sai phiên bản báo cáo.');
+  return value as ReportInterpretationDetailResponse;
+}
+
+export function interpretationMatchesSummary(detail: ReportInterpretationDetailResponse, summary: ReportInterpretationSummary): boolean {
+  const interpretation = detail.interpretation;
+  const sections = [...new Set(interpretation.items.map(item => item.sectionId))].sort();
+  return interpretation.interpretationId === summary.interpretationId &&
+    interpretation.interpretationNumber === summary.interpretationNumber &&
+    interpretation.interpretationContentSha256 === summary.interpretationContentSha256 &&
+    interpretation.completedAt === summary.completedAt &&
+    interpretation.storedAt === summary.storedAt &&
+    interpretation.source.semanticVersionId === summary.sourceSemanticVersionId &&
+    interpretation.source.packetId === summary.sourcePacketId &&
+    interpretation.generation.providerId === summary.providerId &&
+    interpretation.generation.modelId === summary.modelId &&
+    interpretation.generation.promptId === summary.promptId &&
+    interpretation.generation.promptVersion === summary.promptVersion &&
+    interpretation.items.length === summary.itemCount &&
+    sections.length === summary.sectionIds.length && sections.every((section, index) => section === summary.sectionIds[index]);
 }
 
 export function reportArtifactUrl(reportId: string, version: number, fileName: string): string {
@@ -246,6 +292,9 @@ function version(value: unknown): value is number { return Number.isSafeInteger(
 function count(value: unknown): value is number { return Number.isSafeInteger(value) && Number(value) >= 0; }
 function dateTime(value: unknown): value is string { return typeof value === 'string' && /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value)); }
 function digest(value: unknown): value is string { return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value); }
+function assertReportVersionIdentity(reportId: string, reportVersion: number): void {
+  if (!uuid(reportId) || !Number.isSafeInteger(reportVersion) || reportVersion < 1 || reportVersion > 10000) invalid('Định danh phiên bản báo cáo không hợp lệ.');
+}
 function reportScope(value: unknown): boolean {
   return record(value) && text(value.key) && (value.platform === 'shopee' || value.platform === 'tiktok') &&
     (value.selection === 'ON' || value.selection === 'OFF' || value.selection === 'UNSPECIFIED') &&

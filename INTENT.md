@@ -418,6 +418,8 @@ Owner assigns business methodology to task **Review marketing framework files** 
 
 **Interpretation read boundary, 2026-09-28:** the local read-only report API may list and inspect retained interpretation overlays only under an explicitly named report ID and version. Every response must replay the exact A13 artifact against the exact report bundle before returning the user-visible conclusion, evidence logic, resolved citations, assumptions and limitations. Safe generation identity may include provider/model and prompt ID/version, but prompt material, provider request IDs, token counts, latency, request identities and artifact paths are not API fields. This is inspection of unapproved layer-three material only; it does not create or imply review, acceptance, official-report status or permission to act.
 
+**Interpretation dashboard boundary, 2026-09-28:** the local operator UI may render the safe interpretation-read projection only after an explicit report-series, report-version and interpretation-run selection. It must not infer a latest or official run. The primary reading path answers what AI concluded, which exact claims and pointers support it, and which assumptions/limitations remain; digest and generation details stay available as secondary provenance. Every run is visibly `UNREVIEWED`, is not source evidence and carries no approve/reject/regenerate control in this slice. Truthful empty, loading, connection and integrity states must not fall back to synthetic business content.
+
 - Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
 - Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.
 - Khi người dùng đổi ý, ghi quyết định mới và lý do thay thế; Git giữ lịch sử.
