@@ -394,12 +394,12 @@ function assertCatalogItemUnique(item: ContentCatalogItemContent): void {
 
 export function validateContentIdeaGenerateRequest(value: unknown): ContentIdeaGenerateRequest {
   if (!validateContentIdeaGenerate(value)) throw new FlowValidationError(ajv.errorsText(validateContentIdeaGenerate.errors, { separator: '; ' }));
-  return value;
+  return value as ContentIdeaGenerateRequest;
 }
 
 export function validateContentIdeaStateRequest(value: unknown): ContentIdeaStateRequest {
   if (!validateContentIdeaState(value)) throw new FlowValidationError(ajv.errorsText(validateContentIdeaState.errors, { separator: '; ' }));
-  return value;
+  return value as ContentIdeaStateRequest;
 }
 
 export function validateContentPurposeTagRequest(value: unknown): ContentPurposeTagRequest {
