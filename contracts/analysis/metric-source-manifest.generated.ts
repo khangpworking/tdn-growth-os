@@ -28,5 +28,8 @@ export interface Scope {
   start: string;
   end: string;
   periodBasis: string;
-  acquiredAt: string;
+  /**
+   * Declared acquisition time, or explicit null when unconfirmed. Never inferred from the reporting period or filesystem timestamp.
+   */
+  acquiredAt: string | null;
 }

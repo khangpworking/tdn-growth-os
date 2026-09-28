@@ -44,7 +44,8 @@
           "maxLength": 1000
         },
         "acquiredAt": {
-          "type": "string",
+          "description": "Declared acquisition time, or explicit null when unconfirmed. Never inferred from the reporting period or filesystem timestamp.",
+          "type": ["string", "null"],
           "format": "date-time"
         }
       },

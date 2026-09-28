@@ -391,6 +391,8 @@ Owner assigns business methodology to task **Review marketing framework files** 
 
 **Subsequent owner selection, 2026-09-28:** for this calcium Metric study, use workbook `(4)` (abnormal filter ON) as the primary analysis and `(3)` (abnormal filter OFF) as a separate filter-sensitivity comparison. Run each independently; never sum their rows/totals or interpret their difference as market movement. The suffix itself is not evidence: bind each source to its exact hash and saved filter-capture record. This is not a claim that ON is universally more accurate or that excluded rows are fake sales. Retain the separate UNKNOWN-exclusion policy above. This source selection does not approve official report conclusions, merges, deployment, provider calls or an acquisition timestamp inferred from filesystem metadata.
 
+**Subsequent owner approval, 2026-09-28 — unconfirmed acquisition:** a diagnostic draft may proceed with explicit `scope.acquiredAt=null` when acquisition time cannot be confirmed. Preserve the evidence-backed measurement period unchanged, display the unconfirmed-time warning, and keep DRAFT/UNREVIEWED/source-verification limitations. Omitted, empty or malformed dates are not silently converted to null. Never infer acquisition from period endpoints, current time or filesystem mtime. This supersedes the earlier acquisition-time blocking rule only for these drafts; it grants no official approval or stronger source verification.
+
 - Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
 - Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.
 - Khi người dùng đổi ý, ghi quyết định mới và lý do thay thế; Git giữ lịch sử.

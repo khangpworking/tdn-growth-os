@@ -139,7 +139,7 @@ export function renderMetricScopeDraft(output: MetricScopeOutput): string {
   const literal = (s: string): string => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\r\n]+/g, ' ').replace(/[\\`*_[\]#|]/g, c => `&#${c.charCodeAt(0)};`);
   const lines = ['# Bản nháp định lượng thị trường', '', '> DRAFT — chưa phải kết luận được OWNER duyệt. Chỉ kiểm đầu vào chuẩn hóa, chưa xác minh ô dữ liệu nguồn.', '',
     `Phạm vi: ${literal(output.input.scope.key)} · ${output.input.scope.platform} · ${output.input.scope.selection}`,
-    `Kỳ đo: ${output.input.scope.start} → ${output.input.scope.end}. Thu nhận: ${output.input.scope.acquiredAt}.`,
+    `Kỳ đo: ${output.input.scope.start} → ${output.input.scope.end}. Thu nhận: ${output.input.scope.acquiredAt ?? 'chưa xác nhận — không suy đoán từ kỳ đo hoặc ngày sửa file'}.`,
     `Cơ sở kỳ đo: ${literal(output.input.scope.periodBasis)}`, `Phương pháp: ${output.methodVersion} · ${output.rounding} · ${output.rendererVersion}`, `Profile: ${literal(output.input.profileId)} · Codebook: ${literal(output.input.labelCodebookVersion)} · UNKNOWN trong wide: ${output.input.wideUnknownPolicy}`, `Đầu vào SHA-256: ${output.inputSha256}`, '',
     'Không cộng ON/OFF; listing không đồng nghĩa sản phẩm độc lập. Không suy diễn thị phần toàn ngành, động cơ mua, hiệu quả sức khỏe hoặc nhân quả.', ''];
   for (const [i, s] of output.scopes.entries()) {

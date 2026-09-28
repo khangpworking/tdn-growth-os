@@ -56,6 +56,7 @@ export function createResearchReportPacket(resultBytes: Buffer, resultSha256: st
     } else {
       deliveryState = 'PARTIAL_DETERMINISTIC_DRAFT';
       blockers.push('FULL_SECTION_METHOD_NOT_IMPLEMENTED', 'RAW_SOURCE_NOT_REVERIFIED', 'OWNER_REVIEW_REQUIRED');
+      if (result.input.scope.acquiredAt === null) blockers.push('ACQUISITION_TIME_UNCONFIRMED');
       contextPointers.push('/input/scope');
       if (sectionId === 'M02') contextPointers.push('/input/profileId', '/input/labelCodebookVersion', '/input/wideUnknownPolicy', '/labelIssues');
       if (sectionId === 'M13') contextPointers.push('/input/sources', '/input/records');
@@ -72,6 +73,7 @@ export function createResearchReportPacket(resultBytes: Buffer, resultSha256: st
             statementKind: kind, scopeKey: scope.key, value, unit, metricPointer, scopePointer: '/input/scope',
             membershipPointer: `${base}/recordIndices`, denominatorPointer, coveragePointer,
             limitations: ['OBSERVED_EXPORT_SCOPE_NOT_MARKET_UNIVERSE', 'SOURCE_PROVENANCE_DECLARED_NOT_AUTHENTICATED',
+              ...(result.input.scope.acquiredAt === null ? ['ACQUISITION_TIME_UNCONFIRMED'] : []),
               ...scope.warnings],
           };
           claims.push(claim); claimIds.push(claimId);
@@ -126,7 +128,7 @@ function render(packet: VersionedReportPacket, result: MetricScopeOutput): strin
     'Chưa nhận suy luận (INFERENCE), giả thuyết (HYPOTHESIS) hoặc corpus Insight. Không tự điền phần thiếu.', '',
     `Packet: ${packet.packetId}`, `Result bytes: ${packet.metricResultSha256}`, `Catalog bytes: ${packet.catalogSha256}`,
     `Phạm vi: ${literal(packet.scope.key)} · ${packet.scope.platform} · ${packet.scope.selection}`,
-    `Kỳ đo khai báo: ${packet.scope.start} → ${packet.scope.end}. Thu nhận khai báo: ${packet.scope.acquiredAt}.`,
+    `Kỳ đo khai báo: ${packet.scope.start} → ${packet.scope.end}. Thu nhận khai báo: ${packet.scope.acquiredAt ?? 'chưa xác nhận — không suy đoán từ kỳ đo hoặc ngày sửa file'}.`,
     `Cơ sở kỳ: ${literal(packet.scope.periodBasis)}`, '',
     `Catalog: ${literal(packet.catalog.catalogId)} @ ${literal(packet.catalog.catalogVersion)} — metadata kế hoạch, không phải phương pháp đã thực thi.`,
     'Nhãn maturity chỉ thuộc mẫu báo cáo lịch sử, không chứng minh độ trưởng thành của bản nháp này. Có mục trong catalog không đồng nghĩa đã hoàn thành.', ''];
