@@ -91,6 +91,14 @@ interpretation, approval, report-run DB record or official report. SQLite run
 persistence and operator-dashboard integration remain unfinished parts of the
 larger automation objective. See [A4 scope and pending integration](docs/tasks/research-a4-evidence-workspace.md).
 
+Research A8 adds an offline evidence-bound interpretation contract for the same
+report. Untrusted model-shaped output may select only existing deterministic
+claim IDs from eligible sections; application code resolves the exact values,
+pointers and limitations. The artifact stores a concise user-visible evidence
+logic summary, not hidden chain-of-thought, and remains unapproved. A8 does not
+call a provider or persist a report run. See [A8 scope](docs/tasks/research-a8-evidence-bound-interpretation.md)
+and [ADR 0005](docs/adr/0005-report-evidence-and-decision-ledger.md).
+
 ## Offline source-package intake
 
 Run `npm run source-package:intake -- <database> <artifact-root> <package-directory> <intake.json> <audit.json> <output.md>` to verify and persist an exact-byte source package and immutable field audit without provider calls. The package directory must exactly match descriptor membership; the report path must be outside this repository and must not already exist. See `docs/tasks/023-source-package-intake.md`.

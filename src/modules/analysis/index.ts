@@ -76,3 +76,9 @@ export * from "./combined-market-review-report.js";
 
 export { SourcePackageFieldAuditService, SourcePackageFieldAuditIdentityConflictError, type SourcePackageFieldAuditExecution, type VerifiedSourcePackageFieldAudit } from './source-package-field-audit-service.js';
 export { AnalysisSourcePackageFieldAuditReader, type SourcePackageFieldAuditReader } from './source-package-field-audit-reader.js';
+export {
+  buildEvidenceBoundReportInterpretation,
+  type BuiltReportInterpretation,
+  type ReportInterpretationConfiguration,
+  type ReportInterpretationTelemetry,
+} from './report-interpretation.js';
