@@ -72,7 +72,10 @@ try {
       }
       element.scrollIntoView({block:'center'});
       const rect = element.getBoundingClientRect();
-      return {x:rect.x + rect.width / 2,y:rect.y + rect.height / 2};
+      const point = {x:rect.x + rect.width / 2,y:rect.y + rect.height / 2};
+      const hit = document.elementFromPoint(point.x,point.y);
+      if (!hit || !(hit === element || element.contains(hit))) throw new Error('Occluded interaction: ' + element.outerHTML + ' hit=' + hit?.outerHTML);
+      return point;
     })()`);
     await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
     await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
@@ -115,8 +118,13 @@ try {
         await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`);
         await click(selector);
         const id = decodeURIComponent(control.href.slice(1));
-        const target = await evaluate(`({hash:decodeURIComponent(location.hash.slice(1)),exists:!!document.getElementById(${JSON.stringify(id)})})`);
-        if (!target.exists || target.hash !== id) throw new Error(`Evidence navigation failed: ${control.href}`);
+        let target;
+        for (let attempt = 0; attempt < 20; attempt++) {
+          target = await evaluate(`({hash:decodeURIComponent(location.hash.slice(1)),exists:!!document.getElementById(${JSON.stringify(id)})})`);
+          if (target.exists && target.hash === id) break;
+          await pause(50);
+        }
+        if (!target.exists || target.hash !== id) throw new Error(`Evidence navigation failed: ${JSON.stringify({control,target})}`);
         actions.push({ text: control.text, action: 'navigated', target: control.href });
       } else if (control.download) {
         // The bundle owns exact file bytes. Check the browser link resolves to
