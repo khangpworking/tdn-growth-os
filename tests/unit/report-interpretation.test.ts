@@ -207,7 +207,7 @@ test('requires explicit assumptions for hypotheses and preserves them as unappro
     createId: () => '33333333-3333-4333-8333-333333333333',
   });
   assert.equal(built.artifact.items[0]?.kind, 'HYPOTHESIS');
-  assert.deepEqual(built.artifact.items[0]?.assumptions, hypothesis.items[0].assumptions);
+  assert.deepEqual(built.artifact.items[0]?.assumptions, hypothesis.items[0]!.assumptions);
   assert.throws(() => buildEvidenceBoundReportInterpretation({
     request,
     output: { items: [{ ...hypothesis.items[0], assumptions: [] }] },
