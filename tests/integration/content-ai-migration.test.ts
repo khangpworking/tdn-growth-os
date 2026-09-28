@@ -141,6 +141,7 @@ test('direct SQL enforces start-only inserts, duplicate protection, immutable cl
   state.db.prepare("UPDATE flow_content_ai_attempts SET state='failed', closed_at=?, error_code='network_error' WHERE attempt_id=?").run(closedAt, attemptId(21));
   insert(state.db, row(22, { state: 'running', target_id: 'same-target', retry_of: null }));
   assert.throws(() => state.db.prepare(`UPDATE flow_content_ai_attempts SET state='failed', error_code='network_error', closed_at=?, retry_of=? WHERE attempt_id=?`).run(closedAt, attemptId(21), attemptId(22)), /flow_content_ai_attempt_close_invalid/);
+  state.db.prepare("UPDATE flow_content_ai_attempts SET state='failed', closed_at=?, error_code='network_error' WHERE attempt_id=?").run(closedAt, attemptId(22));
   insert(state.db, row(23, { target_id: 'same-target' }));
   state.db.prepare("UPDATE flow_content_ai_attempts SET state='failed', closed_at=?, error_code='network_error' WHERE attempt_id=?").run(closedAt, attemptId(23));
   insert(state.db, row(24, { target_id: 'same-target', retry_of: attemptId(23) }));
