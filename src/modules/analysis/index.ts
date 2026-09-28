@@ -106,3 +106,11 @@ export {
   NormalizedMetricObservationValidationError,
   type NormalizedMetricObservationExecution,
 } from './normalized-metric-observation-store.js';
+export {
+  buildReportReviewTarget,
+  ReportReviewTargetIntegrityError,
+  ReportReviewTargetValidationError,
+  type BuiltReportReviewTarget,
+  type ReportReviewTargetInterpretationReader,
+  type ReportReviewTargetReportReader,
+} from './report-review-target.js';
