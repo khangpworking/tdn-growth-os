@@ -2,7 +2,8 @@
 
 ## Research A12: exact normalized observations in SQLite
 
-- In progress on `feature/research-a12-normalized-observations`.
+- Draft PR #69 is open on `feature/research-a12-normalized-observations`;
+  exact-head Linux check and report preview pass.
 - Materializes an explicitly selected report version's exact normalized input
   into immutable queryable source and observation rows keyed by its digest.
 - Preserves missing versus zero, exact integer strings, precision, displayed

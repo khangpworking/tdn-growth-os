@@ -2,9 +2,8 @@
 
 ## Delivery state
 
-Implementation is in progress on
-`feature/research-a12-normalized-observations`. Final commit, pull request and
-Linux verification links are added after publishing.
+Draft PR [#69](https://github.com/khangpworking/tdn-growth-os/pull/69) is open on
+`feature/research-a12-normalized-observations`.
 
 ## Implemented scope
 
@@ -25,5 +24,11 @@ call, new section method, UI, API or live import.
 
 ## Release evidence
 
-Pending final-head Linux CI. No Windows test, build or typecheck is release
-evidence.
+- Exact implementation head `c122890aaca5e43f77e080e5dc909e2350ab3982`
+  passed the full Linux check with 169/169 frontend and 577/577 repository tests:
+  [run 36406335192](https://github.com/khangpworking/tdn-growth-os/actions/runs/36406335192).
+- Research report preview passed:
+  [run 36406335269](https://github.com/khangpworking/tdn-growth-os/actions/runs/36406335269).
+- Migration 0031 SHA-256 is
+  `a0086e22e8764ec8cd6bfc2f098dec28cff4cd5c80faf2a7c9363ba912123a1a`.
+- No Windows test, build or typecheck is release evidence.
