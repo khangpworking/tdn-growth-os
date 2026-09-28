@@ -30,11 +30,15 @@ const call = (method, params = {}) => new Promise((resolve, reject) => {
 });
 try {
   let port;
-  for (let i = 0; i < 100; i++) {
+  const startupDeadline = Date.now() + 30_000;
+  while (Date.now() < startupDeadline) {
     if (launchError) throw launchError;
     if (browser.exitCode !== null) throw new Error(`Chrome exited: ${stderr}`);
-    try { port = Number((await fs.readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]); break; }
-    catch { await pause(100); }
+    try {
+      const candidate = Number((await fs.readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]);
+      if (Number.isInteger(candidate) && candidate > 0 && candidate <= 65535) { port = candidate; break; }
+    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    await pause(100);
   }
   if (!port) throw new Error(`Chrome did not start: ${stderr}`);
   const pages = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json();
