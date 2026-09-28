@@ -105,7 +105,7 @@ Review follow-ups:
 - **R8:** every package read re-reads and verifies the pinned campaign version, the catalog item versions, the Insight version, the Angle and its Big Idea. A tampered or missing pinned artifact fails closed as an integrity error.
 - **Restart recovery:** a generation targets one package part and its next version number. It re-checks that number before writing, and a same-request replay returns the committed version. After a restart the interrupted attempt stays visible, and a retry names it in `retryOfAttemptId`, so no version is written twice.
 
-### Derived deletion (Q6, agreed with GPT-6 Astra in debate, not owner-approved)
+### Derived deletion (Q6, agreed with GPT-6 Astra in debate; owner-approved 2026-09-28)
 
 - A package counts as deleted while it, its Angle or that Angle's Big Idea is deleted. No cascade rows are written.
 - It then shows deleted: true and hiddenByParent: true in the list and detail. The restore deadline is the earliest one that applies.
