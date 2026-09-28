@@ -143,7 +143,7 @@ test('Insight request mapping trims text and carries only the selected source ki
     customer: 'Customer', painPoint: 'Pain', insight: 'Insight', source: { kind: 'STP', lockedStpId },
   });
   assert.deepEqual(insightRequestFromDraft({ customer: 'Customer', painPoint: 'Pain', insight: 'Insight', lockedStpId: '' }), {
-    ...typedInsight(),
+    customer: 'Customer', painPoint: 'Pain', insight: 'Insight', source: { kind: 'TYPED' },
   });
 });
 
