@@ -173,6 +173,33 @@ function artifactTree(rootDirectory: string): string {
   return rows.sort().join('\n');
 }
 
+async function interpretationFixture(
+  state: Awaited<ReturnType<typeof fixture>>,
+  report: { reportId: string; version: number; semanticVersionId: string },
+) {
+  const reports = new AnalysisReportVersionReader(state.service);
+  const source = await reports.readInterpretationSource(report.reportId, report.version);
+  const promptText = 'bounded synthetic interpretation prompt';
+  const configuration = {
+    providerId: 'synthetic-provider', modelId: 'synthetic-model', promptId: 'market-report-interpretation',
+    promptVersion: 1, promptText, outputSchemaVersion: '1.0.0' as const,
+  };
+  const request = {
+    contractVersion: '1.0.0', semanticVersionId: report.semanticVersionId,
+    packetId: source.bundle.packet.packetId, sectionIds: ['M03'],
+  };
+  const baseOutput = {
+    items: [{
+      sectionId: 'M03', kind: 'INTERPRETATION',
+      conclusion: 'Doanh thu quan sát tập trung trong toàn bộ phạm vi đã khai báo.',
+      evidenceLogic: 'Diễn giải chỉ nối tổng hợp đã xác minh với phạm vi all.',
+      supportingClaimIds: ['M03:all:revenue'], assumptions: [],
+      limitations: ['Không suy rộng ra toàn thị trường.'],
+    }],
+  };
+  return { reports, source, promptText, configuration, request, baseOutput };
+}
+
 test('persists one exact unreviewed report version and replays it without read-side writes', async () => {
   const state = await fixture();
   const created = await state.service.createVersion(state.request, state.catalogBytes);
@@ -325,26 +352,7 @@ test('fails closed on changed identity and on a missing immutable artifact', asy
 test('retains every evidence-bound interpretation run and replays exact evidence without regeneration', async () => {
   const state = await fixture();
   const report = await state.service.createVersion(state.request, state.catalogBytes);
-  const reports = new AnalysisReportVersionReader(state.service);
-  const source = await reports.readInterpretationSource(report.reportId, report.version);
-  const promptText = 'bounded synthetic interpretation prompt';
-  const configuration = {
-    providerId: 'synthetic-provider', modelId: 'synthetic-model', promptId: 'market-report-interpretation',
-    promptVersion: 1, promptText, outputSchemaVersion: '1.0.0' as const,
-  };
-  const request = {
-    contractVersion: '1.0.0', semanticVersionId: report.semanticVersionId,
-    packetId: source.bundle.packet.packetId, sectionIds: ['M03'],
-  };
-  const baseOutput = {
-    items: [{
-      sectionId: 'M03', kind: 'INTERPRETATION',
-      conclusion: 'Doanh thu quan sát tập trung trong toàn bộ phạm vi đã khai báo.',
-      evidenceLogic: 'Diễn giải chỉ nối tổng hợp đã xác minh với phạm vi all.',
-      supportingClaimIds: ['M03:all:revenue'], assumptions: [],
-      limitations: ['Không suy rộng ra toàn thị trường.'],
-    }],
-  };
+  const { reports, source, promptText, configuration, request, baseOutput } = await interpretationFixture(state, report);
   const firstBuilt = buildEvidenceBoundReportInterpretation({
     request, output: baseOutput, bundle: source.bundle, configuration,
     telemetry: { providerRequestId: 'synthetic-run-a', inputTokenCount: 10, outputTokenCount: 20, latencyMs: 30 },
@@ -471,6 +479,24 @@ test('retains every evidence-bound interpretation run and replays exact evidence
 test('read API lists workspace series, verifies explicit history, and serves only exact member bytes', async () => {
   const state = await fixture();
   const created = await state.service.createVersion(state.request, state.catalogBytes);
+  const interpretation = await interpretationFixture(state, created);
+  const built = buildEvidenceBoundReportInterpretation({
+    request: interpretation.request,
+    output: interpretation.baseOutput,
+    bundle: interpretation.source.bundle,
+    configuration: interpretation.configuration,
+    telemetry: { providerRequestId: 'private-provider-request', inputTokenCount: 10, outputTokenCount: 20, latencyMs: 30 },
+    now: () => new Date('2026-10-01T04:00:00.000Z'),
+    createId: () => '88888888-8888-4888-8888-888888888888',
+  });
+  const ledger = new ReportInterpretationLedgerService({
+    db: state.db, artifactStore: state.artifacts, reports: interpretation.reports,
+    now: () => new Date('2026-10-01T05:00:00.000Z'),
+  });
+  const persisted = await ledger.persist({
+    reportId: created.reportId, reportVersion: created.version,
+    artifactBytes: built.artifactBytes, promptText: interpretation.promptText,
+  });
   const application = createReportApiServer({ databasePath: state.db.name, artifactRoot: state.artifactRoot });
   await new Promise<void>(resolve => application.server.listen(0, '127.0.0.1', resolve));
   const address = application.server.address();
@@ -501,6 +527,42 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.equal(history.versions[0].interpretationState, 'NONE');
     assert.equal(history.versions[0].reviewState, 'UNREVIEWED');
 
+    const interpretationIndexResponse = await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations`);
+    assert.equal(interpretationIndexResponse.status, 200);
+    const interpretationIndex = await interpretationIndexResponse.json() as any;
+    assert.deepEqual(interpretationIndex.interpretations, [{
+      interpretationId: persisted.interpretationId,
+      interpretationNumber: 1,
+      interpretationContentSha256: persisted.interpretationContentSha256,
+      completedAt: '2026-10-01T04:00:00.000Z',
+      storedAt: '2026-10-01T05:00:00.000Z',
+      sourceSemanticVersionId: created.semanticVersionId,
+      sourcePacketId: interpretation.source.bundle.packet.packetId,
+      providerId: 'synthetic-provider',
+      modelId: 'synthetic-model',
+      promptId: 'market-report-interpretation',
+      promptVersion: 1,
+      itemCount: 1,
+      sectionIds: ['M03'],
+    }]);
+    assert.ok(!JSON.stringify(interpretationIndex).includes('private-provider-request'));
+
+    const interpretationDetailResponse = await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations/${persisted.interpretationId}`);
+    assert.equal(interpretationDetailResponse.status, 200);
+    const interpretationDetail = await interpretationDetailResponse.json() as any;
+    assert.equal(interpretationDetail.interpretation.source.semanticVersionId, created.semanticVersionId);
+    assert.equal(interpretationDetail.interpretation.source.packetId, interpretation.source.bundle.packet.packetId);
+    assert.equal(interpretationDetail.interpretation.items[0].conclusion, interpretation.baseOutput.items[0]!.conclusion);
+    assert.equal(interpretationDetail.interpretation.items[0].evidenceLogic, interpretation.baseOutput.items[0]!.evidenceLogic);
+    assert.equal(interpretationDetail.interpretation.items[0].citations[0].claimId, 'M03:all:revenue');
+    assert.equal(interpretationDetail.interpretation.items[0].citations[0].scopePointer, '/input/scope');
+    for (const privateField of ['promptText', 'promptSha256', 'providerRequestId', 'inputTokenCount', 'outputTokenCount', 'latencyMs', 'artifactSha256', 'relativePath']) {
+      assert.ok(!JSON.stringify(interpretationDetail).includes(privateField));
+    }
+    assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/2/interpretations`)).status, 404);
+    assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations/99999999-9999-4999-8999-999999999999`)).status, 404);
+    assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations/not-a-uuid`)).status, 400);
+
     const expectedHtml = await state.service.readArtifact(created.reportId, 1, 'report.html');
     const htmlResponse = await fetch(`${base}/api/reports/${created.reportId}/versions/1/files/report.html`);
     assert.equal(htmlResponse.status, 200);
@@ -516,6 +578,9 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     const corrupt = await fetch(`${base}/api/reports/${created.reportId}/versions`);
     assert.equal(corrupt.status, 500);
     assert.deepEqual(await corrupt.json(), { error: { code: 'integrity_error', message: 'Stored report data failed integrity verification' } });
+    const corruptInterpretation = await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations/${persisted.interpretationId}`);
+    assert.equal(corruptInterpretation.status, 500);
+    assert.deepEqual(await corruptInterpretation.json(), { error: { code: 'integrity_error', message: 'Stored report data failed integrity verification' } });
   } finally {
     await application.close();
   }

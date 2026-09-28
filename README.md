@@ -106,6 +106,16 @@ evidence without calling AI again. Multiple runs remain separate and
 unapproved; no interpretation becomes source evidence or a human decision. See
 [A13 scope](docs/tasks/research-a13-interpretation-ledger.md).
 
+Research A14 exposes those saved overlays through the read-only report API:
+`GET /api/reports/:reportId/versions/:version/interpretations` and
+`GET /api/reports/:reportId/versions/:version/interpretations/:interpretationId`.
+Both routes require an explicit report version and replay the exact A13 artifact
+before returning safe user-visible conclusions, evidence logic, application-
+resolved citations, assumptions and limitations. They do not return prompt
+material, provider request data, usage telemetry or artifact paths, and they
+create no approval or human decision. See
+[A14 scope](docs/tasks/research-a14-interpretation-read-api.md).
+
 Research A9 deepens the same deterministic report without adding a section
 method. It renders M03 filter-membership sensitivity and M04 group composition
 and top-shop-removal sensitivity directly from the verified A1 Result. Every

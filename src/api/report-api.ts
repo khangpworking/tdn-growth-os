@@ -4,11 +4,20 @@ import BetterSqlite3 from 'better-sqlite3';
 import type {
   ReportApiErrorResponse,
   ReportHistoryResponse,
+  ReportInterpretationDetail,
+  ReportInterpretationDetailResponse,
+  ReportInterpretationIndexResponse,
+  ReportInterpretationSummary,
   ReportVersionSummary,
   WorkspaceReportIndexResponse,
 } from '../../contracts/api/report-api.generated.js';
 import type { VersionedReportPacket } from '../../contracts/analysis/versioned-report-packet.generated.js';
 import type { ReportVersionRecord } from '../../contracts/analysis/report-version-record.generated.js';
+import {
+  AnalysisReportInterpretationReader,
+  ReportInterpretationLedgerService,
+  type VerifiedReportInterpretation,
+} from '../modules/analysis/report-interpretation-ledger.js';
 import { AnalysisReportVersionReader, ReportVersionService } from '../modules/analysis/report-version-service.js';
 import { FoundationSourcePackageReader, SourcePackageService } from '../modules/foundation/index.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../modules/flow/index.js';
@@ -39,13 +48,17 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
     const sourcePackages = new SourcePackageService({ db, artifactStore: artifacts });
     const workspaces = new DiscoveryWorkspaceService({ db, artifactStore: artifacts });
     const workspaceReader = new FlowDiscoveryWorkspaceReader(workspaces);
-    const reportReader = new AnalysisReportVersionReader(new ReportVersionService({
+    const reportService = new ReportVersionService({
       db,
       artifactStore: artifacts,
       dependencies: {
         sourcePackages: new FoundationSourcePackageReader(sourcePackages),
         workspaces: workspaceReader,
       },
+    });
+    const reportReader = new AnalysisReportVersionReader(reportService);
+    const interpretationReader = new AnalysisReportInterpretationReader(new ReportInterpretationLedgerService({
+      db, artifactStore: artifacts, reports: reportReader,
     }));
 
     const index = async (workspaceId: string): Promise<WorkspaceReportIndexResponse | undefined> => {
@@ -96,9 +109,40 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
       const first = records[0]!;
       return { contractVersion: '1.0.0', reportId, reportKey: first.reportKey, workspaceId: first.workspaceId, versions };
     };
+    const interpretations = async (
+      reportId: string,
+      version: number,
+    ): Promise<ReportInterpretationIndexResponse | undefined> => {
+      try {
+        const entries = await interpretationReader.list(reportId, version);
+        return {
+          contractVersion: '1.0.0', reportId, reportVersion: version,
+          interpretations: entries.map(interpretationSummary),
+        };
+      } catch (error) {
+        if (/not found/i.test((error as Error).message)) return undefined;
+        throw error;
+      }
+    };
+    const interpretation = async (
+      reportId: string,
+      version: number,
+      interpretationId: string,
+    ): Promise<ReportInterpretationDetailResponse | undefined> => {
+      try {
+        const verified = await interpretationReader.read(reportId, version, interpretationId);
+        return {
+          contractVersion: '1.0.0', reportId, reportVersion: version,
+          interpretation: interpretationDetail(verified),
+        };
+      } catch (error) {
+        if (/not found/i.test((error as Error).message)) return undefined;
+        throw error;
+      }
+    };
     const artifact = (reportId: string, version: number, fileName: string) => reportReader.readArtifact(reportId, version, fileName);
     const handler = (request: IncomingMessage, response: ServerResponse): void => {
-      void route(request, response, { index, history, artifact });
+      void route(request, response, { index, history, interpretations, interpretation, artifact });
     };
     return { handler, diagnostics: () => ({ queryOnly: db.pragma('query_only', { simple: true }) === 1n }), close: () => db.close() };
   } catch (error) {
@@ -119,6 +163,8 @@ export function createReportApiServer(configuration: ReportApiConfiguration): { 
 async function route(request: IncomingMessage, response: ServerResponse, methods: {
   index(workspaceId: string): Promise<WorkspaceReportIndexResponse | undefined>;
   history(reportId: string): Promise<ReportHistoryResponse | undefined>;
+  interpretations(reportId: string, version: number): Promise<ReportInterpretationIndexResponse | undefined>;
+  interpretation(reportId: string, version: number, interpretationId: string): Promise<ReportInterpretationDetailResponse | undefined>;
   artifact(reportId: string, version: number, fileName: string): ReturnType<AnalysisReportVersionReader['readArtifact']>;
 }): Promise<void> {
   try {
@@ -134,6 +180,20 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Report ID must be a UUID');
       const result = await methods.history(parts[2]!);
       return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Report series not found');
+    }
+    if (parts.length === 6 && parts[0] === 'api' && parts[1] === 'reports' && parts[3] === 'versions' && parts[5] === 'interpretations') {
+      if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Report ID must be a UUID');
+      const version = strictVersion(parts[4]!);
+      if (version === null) return sendError(response, 400, 'bad_request', 'Report version is invalid');
+      const result = await methods.interpretations(parts[2]!, version);
+      return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Report version not found');
+    }
+    if (parts.length === 7 && parts[0] === 'api' && parts[1] === 'reports' && parts[3] === 'versions' && parts[5] === 'interpretations') {
+      if (!UUID.test(parts[2]!) || !UUID.test(parts[6]!)) return sendError(response, 400, 'bad_request', 'Report or interpretation ID must be a UUID');
+      const version = strictVersion(parts[4]!);
+      if (version === null) return sendError(response, 400, 'bad_request', 'Report version is invalid');
+      const result = await methods.interpretation(parts[2]!, version, parts[6]!);
+      return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Interpretation not found for the exact report version');
     }
     if (parts.length === 7 && parts[0] === 'api' && parts[1] === 'reports' && parts[3] === 'versions' && parts[5] === 'files') {
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Report ID must be a UUID');
@@ -187,6 +247,52 @@ function countSections(packet: VersionedReportPacket): ReportVersionSummary['sec
   return counts;
 }
 
+function interpretationSummary(verified: VerifiedReportInterpretation): ReportInterpretationSummary {
+  const { record, artifact } = verified;
+  return {
+    interpretationId: record.interpretationId,
+    interpretationNumber: record.interpretationNumber,
+    interpretationContentSha256: record.interpretationContentSha256,
+    completedAt: record.completedAt,
+    storedAt: record.storedAt,
+    sourceSemanticVersionId: record.sourceSemanticVersionId,
+    sourcePacketId: record.sourcePacketId,
+    providerId: record.providerId,
+    modelId: record.modelId,
+    promptId: record.promptId,
+    promptVersion: record.promptVersion,
+    itemCount: artifact.items.length,
+    sectionIds: [...new Set(artifact.items.map(item => item.sectionId))].sort(),
+  };
+}
+
+function interpretationDetail(verified: VerifiedReportInterpretation): ReportInterpretationDetail {
+  const { record, artifact } = verified;
+  return {
+    interpretationId: record.interpretationId,
+    interpretationNumber: record.interpretationNumber,
+    interpretationContentSha256: record.interpretationContentSha256,
+    completedAt: record.completedAt,
+    storedAt: record.storedAt,
+    source: { ...artifact.source },
+    generation: {
+      providerId: artifact.generation.providerId,
+      modelId: artifact.generation.modelId,
+      promptId: artifact.generation.promptId,
+      promptVersion: artifact.generation.promptVersion,
+      outputSchemaVersion: artifact.generation.outputSchemaVersion,
+    },
+    items: artifact.items.map(item => ({
+      ...item,
+      supportingClaimIds: [...item.supportingClaimIds],
+      citations: item.citations.map(citation => ({ ...citation, limitations: [...citation.limitations] })),
+      assumptions: [...item.assumptions],
+      limitations: [...item.limitations],
+    })),
+    limitations: [...artifact.limitations],
+  };
+}
+
 function strictVersion(value: string): number | null {
   if (!/^[1-9]\d{0,4}$/.test(value)) return null;
   const version = Number(value);
@@ -218,7 +324,7 @@ function sendArtifact(response: ServerResponse, fileName: string, mediaType: str
   response.end(bytes);
 }
 function assertReportTables(db: BetterSqlite3.Database): void {
-  const required = ['artifact_manifests', 'foundation_source_packages', 'foundation_source_package_files', 'flow_discovery_workspaces', 'analysis_report_series', 'analysis_report_versions', 'analysis_report_version_artifacts', 'analysis_report_version_sources'];
+  const required = ['artifact_manifests', 'foundation_source_packages', 'foundation_source_package_files', 'flow_discovery_workspaces', 'analysis_report_series', 'analysis_report_versions', 'analysis_report_version_artifacts', 'analysis_report_version_sources', 'analysis_report_interpretation_runs'];
   const rows = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as { name: string }[];
   const names = new Set(rows.map(row => row.name));
   if (required.some(name => !names.has(name))) throw new Error('Database is missing required report tables');

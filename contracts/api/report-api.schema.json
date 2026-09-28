@@ -5,6 +5,8 @@
   "oneOf": [
     { "$ref": "#/$defs/index" },
     { "$ref": "#/$defs/history" },
+    { "$ref": "#/$defs/interpretationIndex" },
+    { "$ref": "#/$defs/interpretationDetail" },
     { "$ref": "#/$defs/error" }
   ],
   "$defs": {
@@ -101,6 +103,129 @@
         "reportKey": { "type": "string", "minLength": 1, "maxLength": 120 },
         "workspaceId": { "$ref": "#/$defs/uuid" },
         "versions": { "type": "array", "minItems": 1, "maxItems": 10000, "items": { "$ref": "#/$defs/version" } }
+      }
+    },
+    "interpretationSummary": {
+      "title": "ReportInterpretationSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interpretationId", "interpretationNumber", "interpretationContentSha256", "completedAt", "storedAt", "sourceSemanticVersionId", "sourcePacketId", "providerId", "modelId", "promptId", "promptVersion", "itemCount", "sectionIds"],
+      "properties": {
+        "interpretationId": { "$ref": "#/$defs/uuid" },
+        "interpretationNumber": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "interpretationContentSha256": { "$ref": "#/$defs/digest" },
+        "completedAt": { "$ref": "#/$defs/dateTime" },
+        "storedAt": { "$ref": "#/$defs/dateTime" },
+        "sourceSemanticVersionId": { "$ref": "#/$defs/digest" },
+        "sourcePacketId": { "$ref": "#/$defs/digest" },
+        "providerId": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "promptId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "promptVersion": { "type": "integer", "minimum": 1 },
+        "itemCount": { "type": "integer", "minimum": 1, "maximum": 30 },
+        "sectionIds": {
+          "type": "array", "minItems": 1, "maxItems": 30, "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" }
+        }
+      }
+    },
+    "interpretationIndex": {
+      "title": "ReportInterpretationIndexResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "reportId", "reportVersion", "interpretations"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "reportId": { "$ref": "#/$defs/uuid" },
+        "reportVersion": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "interpretations": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/interpretationSummary" } }
+      }
+    },
+    "interpretationSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["semanticVersionId", "packetId", "packetSha256", "claimsSha256"],
+      "properties": {
+        "semanticVersionId": { "$ref": "#/$defs/digest" },
+        "packetId": { "$ref": "#/$defs/digest" },
+        "packetSha256": { "$ref": "#/$defs/digest" },
+        "claimsSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "interpretationGeneration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["providerId", "modelId", "promptId", "promptVersion", "outputSchemaVersion"],
+      "properties": {
+        "providerId": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "promptId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "promptVersion": { "type": "integer", "minimum": 1 },
+        "outputSchemaVersion": { "const": "1.0.0" }
+      }
+    },
+    "citation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimId", "sectionId", "statementKind", "scopeKey", "value", "unit", "metricPointer", "scopePointer", "membershipPointer", "denominatorPointer", "coveragePointer", "limitations"],
+      "properties": {
+        "claimId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "sectionId": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" },
+        "statementKind": { "enum": ["LISTING_COUNT", "SHOP_COUNT", "OBSERVED_REVENUE", "OBSERVED_UNITS", "TOP_SHOP_SHARE"] },
+        "scopeKey": { "enum": ["all", "wide", "core"] },
+        "value": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 80 }, { "type": "integer", "minimum": 0 }] },
+        "unit": { "enum": ["listing", "shop", "VND", "unit", "percent"] },
+        "metricPointer": { "type": "string", "pattern": "^/", "maxLength": 400 },
+        "scopePointer": { "const": "/input/scope" },
+        "membershipPointer": { "type": "string", "pattern": "^/", "maxLength": 400 },
+        "denominatorPointer": { "oneOf": [{ "type": "string", "pattern": "^/", "maxLength": 400 }, { "type": "null" }] },
+        "coveragePointer": { "oneOf": [{ "type": "string", "pattern": "^/", "maxLength": 400 }, { "type": "null" }] },
+        "limitations": { "type": "array", "minItems": 1, "maxItems": 20, "items": { "type": "string", "minLength": 1, "maxLength": 200 } }
+      }
+    },
+    "interpretationItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemId", "sectionId", "kind", "conclusion", "evidenceLogic", "supportingClaimIds", "citations", "assumptions", "limitations"],
+      "properties": {
+        "itemId": { "$ref": "#/$defs/digest" },
+        "sectionId": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" },
+        "kind": { "enum": ["INTERPRETATION", "HYPOTHESIS"] },
+        "conclusion": { "type": "string", "minLength": 1, "maxLength": 1200 },
+        "evidenceLogic": { "type": "string", "minLength": 1, "maxLength": 1200 },
+        "supportingClaimIds": { "type": "array", "minItems": 1, "maxItems": 12, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } },
+        "citations": { "type": "array", "minItems": 1, "maxItems": 12, "items": { "$ref": "#/$defs/citation" } },
+        "assumptions": { "type": "array", "maxItems": 8, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 400 } },
+        "limitations": { "type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 400 } }
+      }
+    },
+    "interpretationDetailRecord": {
+      "title": "ReportInterpretationDetail",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interpretationId", "interpretationNumber", "interpretationContentSha256", "completedAt", "storedAt", "source", "generation", "items", "limitations"],
+      "properties": {
+        "interpretationId": { "$ref": "#/$defs/uuid" },
+        "interpretationNumber": { "type": "integer", "minimum": 1, "maximum": 1000 },
+        "interpretationContentSha256": { "$ref": "#/$defs/digest" },
+        "completedAt": { "$ref": "#/$defs/dateTime" },
+        "storedAt": { "$ref": "#/$defs/dateTime" },
+        "source": { "$ref": "#/$defs/interpretationSource" },
+        "generation": { "$ref": "#/$defs/interpretationGeneration" },
+        "items": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "$ref": "#/$defs/interpretationItem" } },
+        "limitations": { "type": "array", "minItems": 2, "maxItems": 12, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 200 } }
+      }
+    },
+    "interpretationDetail": {
+      "title": "ReportInterpretationDetailResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "reportId", "reportVersion", "interpretation"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "reportId": { "$ref": "#/$defs/uuid" },
+        "reportVersion": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "interpretation": { "$ref": "#/$defs/interpretationDetailRecord" }
       }
     },
     "error": {
