@@ -46,9 +46,28 @@ test('IdeasPage renders CampaignSteps and caps package selection at PACKAGE_BATC
 
   const picks = [...dom.container.querySelectorAll<HTMLInputElement>('input[id^="package-pick-"]')];
   assert.equal(picks.length, 21);
+  assert.equal(picks.filter((input) => !input.disabled).length, 21);
+  assert.equal(picks.filter((input) => input.disabled).length, 0);
+
+  await act(async () => {
+    for (const input of picks.slice(0, 20)) input.click();
+    await Promise.resolve();
+  });
   assert.equal(picks.filter((input) => !input.disabled).length, 20);
   assert.equal(picks.filter((input) => input.disabled).length, 1);
-  await act(async () => { picks[0]!.click(); picks[1]!.click(); await Promise.resolve(); });
+  assert.equal(picks[20]!.checked, false);
+  assert.equal(picks[20]!.disabled, true);
+
+  await act(async () => { picks[19]!.click(); await Promise.resolve(); });
+  assert.equal(picks[19]!.checked, false);
+  assert.equal(picks[19]!.disabled, false);
+  assert.equal(picks.filter((input) => !input.disabled).length, 21);
+  assert.equal(picks.filter((input) => input.disabled).length, 0);
+
+  await act(async () => {
+    for (const input of picks.slice(2, 19)) input.click();
+    await Promise.resolve();
+  });
   const packageLink = [...dom.container.querySelectorAll<HTMLAnchorElement>('a')].find((anchor) => anchor.textContent?.includes('Tạo Caption & Poster (2)'));
   assert.ok(packageLink);
   assert.equal(packageLink.href, `http://localhost/#/content/${campaignId}/package/new?angles=A1,A2`);
@@ -57,4 +76,3 @@ test('IdeasPage renders CampaignSteps and caps package selection at PACKAGE_BATC
   await act(async () => { root.unmount(); });
   dom.cleanup();
 });
-
