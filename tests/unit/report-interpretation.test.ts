@@ -178,7 +178,7 @@ test('fails closed for unsupported sections, citations, numbers, authority langu
   ]) assert.throws(() => build(request, {
     ...output, items: [{ ...output.items[0], conclusion: text }],
   }), /PROVENANCE_LANGUAGE_FORBIDDEN/);
-  assert.throws(() => build({ ...request, sectionIds: ['M03', 'M04'] }, output), /SECTION_NOT_ELIGIBLE|SECTION_NOT_FOUND/);
+  assert.throws(() => build({ ...request, sectionIds: ['M03', 'M04'] }, output), /REQUESTED_SECTION_MISSING/);
   assert.throws(() => build({ ...request, semanticVersionId: digest('wrong') }, output), /SEMANTIC_VERSION_MISMATCH/);
 
   const duplicate = { items: [output.items[0], output.items[0]] };
