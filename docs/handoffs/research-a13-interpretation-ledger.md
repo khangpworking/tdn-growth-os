@@ -26,7 +26,7 @@ stored.
 
 ## Release evidence
 
-- Exact final head `7a249cbce9f553cbceb637379a3d2e567e700114`
+- Exact implementation head `7a249cbce9f553cbceb637379a3d2e567e700114`
   passed the full Linux check with 169/169 frontend and 579/579 repository
   tests: [run 36410679523](https://github.com/khangpworking/tdn-growth-os/actions/runs/36410679523).
 - Research report preview passed:
