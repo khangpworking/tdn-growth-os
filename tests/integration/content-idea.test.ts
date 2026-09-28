@@ -169,13 +169,18 @@ test('contentIdeaIdFor is deterministic, UUID v8/variant-valid, and request-scop
 test('a durable running generation conflicts across service instances, then restart recovery chains an interrupted retry', async () => {
   type TextResult = Awaited<ReturnType<FakeCreativeGateway['generateText']>>;
   let release: ((result: TextResult) => void) | undefined;
+  let markStarted: (() => void) | undefined;
+  const started = new Promise<void>((resolve) => { markStarted = resolve; });
   const calls: FakeCreativeCall[] = [];
   const hangingGateway: FakeCreativeGateway = {
     configured: true,
     calls,
     generateText(request) {
       calls.push({ operation: 'generateText', request });
-      return new Promise<TextResult>((resolve) => { release = resolve; });
+      return new Promise<TextResult>((resolve) => {
+        release = resolve;
+        markStarted!();
+      });
     },
     generateImage: async () => { throw new Error('unused image call'); },
     listModels: async () => [],
@@ -183,37 +188,43 @@ test('a durable running generation conflicts across service instances, then rest
   const state = await setup({ gateway: hangingGateway });
   const input = bigRequest(id(14));
   const running = state.ideas.generate(input, 'owner:050b');
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  const targetId = contentIdeaIdFor(input.requestId);
-  const runningAttempt = state.attempts.list({ targetId, limit: 10 })[0];
-  assert.ok(runningAttempt);
-  assert.equal(runningAttempt.state, 'running');
+  const staleResult = { text: JSON.stringify(bigOutput('stale process')), latencyMs: 1 };
+  try {
+    await started;
+    const targetId = contentIdeaIdFor(input.requestId);
+    const runningAttempt = state.attempts.list({ targetId, limit: 10 })[0];
+    assert.ok(runningAttempt);
+    assert.equal(runningAttempt.state, 'running');
 
-  const secondGateway = createFakeCreativeGateway({ text: [{ result: { text: JSON.stringify(bigOutput('recovered')), latencyMs: 1 } }] });
-  const secondAttemptIds = [id(9000)];
-  const secondAttempts = createContentAiAttemptService({
-    db: state.db, gateway: secondGateway, artifactRoot: path.join(state.root, 'artifacts'), clock: state.now,
-    newId: () => secondAttemptIds.shift()!,
-  });
-  const restartedIdeas = new ContentIdeaService({
-    db: state.db, artifactStore: state.artifacts, attempts: secondAttempts, campaigns: state.campaigns, insights: state.insights,
-    catalog: state.catalog, prompts: state.prompts, library: state.library, now: state.now,
-  });
-  await assert.rejects(restartedIdeas.generate(input, 'owner:050b'), ContentIdeaConflictError);
-  assert.equal(secondGateway.calls.filter((call) => call.operation === 'generateText').length, 0);
+    const secondGateway = createFakeCreativeGateway({ text: [{ result: { text: JSON.stringify(bigOutput('recovered')), latencyMs: 1 } }] });
+    const secondAttemptIds = [id(9000)];
+    const secondAttempts = createContentAiAttemptService({
+      db: state.db, gateway: secondGateway, artifactRoot: path.join(state.root, 'artifacts'), clock: state.now,
+      newId: () => secondAttemptIds.shift()!,
+    });
+    const restartedIdeas = new ContentIdeaService({
+      db: state.db, artifactStore: state.artifacts, attempts: secondAttempts, campaigns: state.campaigns, insights: state.insights,
+      catalog: state.catalog, prompts: state.prompts, library: state.library, now: state.now,
+    });
+    await assert.rejects(restartedIdeas.generate(input, 'owner:050b'), ContentIdeaConflictError);
+    assert.equal(secondGateway.calls.filter((call) => call.operation === 'generateText').length, 0);
 
-  assert.equal(state.attempts.sweepInterrupted(new Date('2027-01-01T00:00:01.000Z')), 1);
-  assert.equal(state.attempts.list({ targetId, limit: 10 }).find((attempt) => attempt.attemptId === runningAttempt.attemptId)?.state, 'interrupted');
-  const recovered = await restartedIdeas.generate(input, 'owner:050b');
-  const attempts = state.attempts.list({ targetId, limit: 10 });
-  const retry = attempts.find((attempt) => attempt.attemptId === id(9000));
-  assert.ok(retry);
-  assert.deepEqual([recovered.ideaId, recovered.deduplicated, retry.retryOf, count(state.db, 'flow_content_ideas')], [targetId, false, runningAttempt.attemptId, 1]);
-  assert.equal(secondGateway.calls.filter((call) => call.operation === 'generateText').length, 1);
+    assert.equal(state.attempts.sweepInterrupted(new Date('2027-01-01T00:00:01.000Z')), 1);
+    assert.equal(state.attempts.list({ targetId, limit: 10 }).find((attempt) => attempt.attemptId === runningAttempt.attemptId)?.state, 'interrupted');
+    const recovered = await restartedIdeas.generate(input, 'owner:050b');
+    const attempts = state.attempts.list({ targetId, limit: 10 });
+    const retry = attempts.find((attempt) => attempt.attemptId === id(9000));
+    assert.ok(retry);
+    assert.deepEqual([recovered.ideaId, recovered.deduplicated, retry.retryOf, count(state.db, 'flow_content_ideas')], [targetId, false, runningAttempt.attemptId, 1]);
+    assert.equal(secondGateway.calls.filter((call) => call.operation === 'generateText').length, 1);
 
-  release!({ text: JSON.stringify(bigOutput('stale process')), latencyMs: 1 });
-  await assert.rejects(running);
-  state.db.close();
+    release!(staleResult);
+    await assert.rejects(running);
+  } finally {
+    release?.(staleResult);
+    await running.catch(() => undefined);
+    state.db.close();
+  }
 });
 
 test('failed generations retry under the same request id as one retryOf chain', async () => {
@@ -430,7 +441,12 @@ test('Q6 derives Big Idea deletion over Angles without cascade rows, blocks Angl
   assert.deepEqual([ownRestored.deleted, ownRestored.developing, 'hiddenByParent' in ownRestored, ownRestored.restorableUntil], [true, false, false, ownDeleted.restorableUntil]);
   assert.deepEqual([liveRestored.deleted, liveRestored.developing, liveRestored.purposes, 'hiddenByParent' in liveRestored], [false, true, ['EDUCATION'], false]);
 
-  state.clock.value = new Date('2027-02-02T00:00:00.001Z');
+  state.clock.value = new Date('2027-02-01T00:00:00.001Z');
+  const afterOwnExpiry = await state.ideas.listCampaignIdeas(campaignId);
+  assert.deepEqual(afterOwnExpiry.map((entry) => entry.ideaId), [parent.ideaId, live.ideaId]);
+
+  const parentDeletedAgain = state.ideas.changeState({ contractVersion: '1.0.0', ideaId: parent.ideaId, expectedSequence: 3, action: 'DELETE' });
+  state.clock.value = new Date(Date.parse(parentDeletedAgain.restorableUntil!) + 1);
   assert.deepEqual(await state.ideas.listCampaignIdeas(campaignId), []);
   state.db.close();
 });
