@@ -12,6 +12,7 @@ export type Route =
   | { readonly kind: 'campaign-new' }
   | { readonly kind: 'campaign'; readonly campaignId: string }
   | { readonly kind: 'campaign-insight'; readonly campaignId: string }
+  | { readonly kind: 'campaign-ideas'; readonly campaignId: string; readonly ideaKind: 'BIG_IDEA' | 'ANGLE'; readonly parentIdeaId?: string }
   | { readonly kind: 'prompts'; readonly promptType: PromptType; readonly promptRef: string | null }
   | { readonly kind: 'invalid'; readonly hash: string };
 
@@ -35,6 +36,13 @@ export function parseRoute(hash: string, state: DemoState): Route {
     return UUID.test(parts[1]!) ? { kind: 'campaign', campaignId: parts[1]! } : { kind: 'invalid', hash };
   }
   if (parts.length === 3 && parts[0] === 'content' && parts[2] === 'insight') return UUID.test(parts[1]!) ? { kind: 'campaign-insight', campaignId: parts[1]! } : { kind: 'invalid', hash };
+  if (parts.length === 3 && parts[0] === 'content' && (parts[2] === 'big-idea' || parts[2] === 'angle')) {
+    return UUID.test(parts[1]!) ? { kind: 'campaign-ideas', campaignId: parts[1]!, ideaKind: parts[2] === 'big-idea' ? 'BIG_IDEA' : 'ANGLE' } : { kind: 'invalid', hash };
+  }
+  // The Angle step opened for one specific Big Idea ("Tạo góc nội dung" on that Big Idea).
+  if (parts.length === 4 && parts[0] === 'content' && parts[2] === 'angle') {
+    return UUID.test(parts[1]!) && UUID.test(parts[3]!) ? { kind: 'campaign-ideas', campaignId: parts[1]!, ideaKind: 'ANGLE', parentIdeaId: parts[3]! } : { kind: 'invalid', hash };
+  }
   if (parts[0] === 'prompts' && parts.length <= 3) {
     const promptType = parts.length === 1 ? 'BIG_IDEA' : typeBySlug(parts[1]!);
     const promptRef = parts[2] ?? null;
@@ -69,6 +77,8 @@ export const routeToHash = {
   campaignNew: (): string => '#/content/new',
   campaign: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}`,
   campaignInsight: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/insight`,
+  campaignBigIdea: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/big-idea`,
+  campaignAngle: (campaignId: string, bigIdeaId?: string): string => `#/content/${encodeURIComponent(campaignId)}/angle${bigIdeaId ? `/${encodeURIComponent(bigIdeaId)}` : ''}`,
   prompts: (promptType: PromptType): string => `#/prompts/${slugOf(promptType)}`,
   prompt: (promptType: PromptType, promptRef: string): string => `#/prompts/${slugOf(promptType)}/${encodeURIComponent(promptRef)}`,
   catalogItem: (brandId: string, itemId: string): string => `#/brands/${encodeURIComponent(brandId)}/products/${encodeURIComponent(itemId)}`,

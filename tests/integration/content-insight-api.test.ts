@@ -12,10 +12,13 @@ import contentApiSchema from '../../contracts/api/content-api.schema.json' with 
 import ownerContentInsightApiSchema from '../../contracts/api/owner-content-insight-api.schema.json' with { type: 'json' };
 import contentCampaignCreateSchema from '../../contracts/flow/content-campaign-create-request.schema.json' with { type: 'json' };
 import contentCatalogItemCreateSchema from '../../contracts/flow/content-catalog-item-create-request.schema.json' with { type: 'json' };
+import contentIdeaGenerateSchema from '../../contracts/flow/content-idea-generate-request.schema.json' with { type: 'json' };
+import contentIdeaStateSchema from '../../contracts/flow/content-idea-state-request.schema.json' with { type: 'json' };
 import contentInsightLockArtifactSchema from '../../contracts/flow/content-insight-lock-artifact.schema.json' with { type: 'json' };
 import contentInsightRevisionSchema from '../../contracts/flow/content-insight-revision-request.schema.json' with { type: 'json' };
 import contentInsightLockSchema from '../../contracts/flow/content-insight-lock-request.schema.json' with { type: 'json' };
 import contentPromptCreateSchema from '../../contracts/flow/content-prompt-create-request.schema.json' with { type: 'json' };
+import contentPurposeTagSchema from '../../contracts/flow/content-purpose-tag-request.schema.json' with { type: 'json' };
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { canonicalBytes, canonicalDigest, registerContentManifest } from '../../src/modules/flow/content-artifacts.js';
 import { openDatabase } from '../../src/platform/db/database.js';
@@ -297,7 +300,8 @@ test('OWNER Insight schemas are closed and route responses satisfy their JSON co
   const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
   const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
   const ajv = new Ajv2020({ allErrors: true, strict: true }); addFormats(ajv);
-  ajv.addSchema(contentCampaignCreateSchema); ajv.addSchema(contentCatalogItemCreateSchema); ajv.addSchema(contentPromptCreateSchema);
+  ajv.addSchema(contentCampaignCreateSchema); ajv.addSchema(contentCatalogItemCreateSchema);
+  ajv.addSchema(contentIdeaGenerateSchema); ajv.addSchema(contentIdeaStateSchema); ajv.addSchema(contentPromptCreateSchema); ajv.addSchema(contentPurposeTagSchema);
   ajv.addSchema(contentInsightRevisionSchema); ajv.addSchema(contentInsightLockSchema); ajv.addSchema(contentInsightLockArtifactSchema); ajv.addSchema(contentApiSchema); ajv.addSchema(ownerContentInsightApiSchema);
   const revisionRequest = ajv.getSchema(`${ownerContentInsightApiSchema.$id}#/$defs/revisionRequest`)!;
   const lockRequest = ajv.getSchema(`${ownerContentInsightApiSchema.$id}#/$defs/lockRequest`)!;

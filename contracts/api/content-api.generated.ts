@@ -11,6 +11,7 @@ export type ContentApiContract =
   | ContentCampaignListResponse
   | ContentCampaignDetailResponse
   | ContentInsightDetailResponse
+  | ContentIdeaListResponse
   | ContentAiStatusResponse
   | ContentApiErrorResponse;
 export type Uuid = string;
@@ -22,6 +23,21 @@ export type ContentPromptType = 'BIG_IDEA' | 'ANGLE' | 'CAPTION' | 'POSTER';
 export type ContentPromptModel =
   'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low' | 'gpt-image-2' | 'gemini-3.1-flash-image';
 export type ContentInsightSource = ContentInsightTypedSource | ContentInsightStpSource;
+export type ContentIdeaKind = 'BIG_IDEA' | 'ANGLE';
+/**
+ * @maxItems 6
+ */
+export type ContentIdeaPurposes =
+  | []
+  | [ContentIdeaPurpose]
+  | [ContentIdeaPurpose, ContentIdeaPurpose]
+  | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
+  | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
+  | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
+  | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose];
+export type ContentIdeaPurpose = string;
+export type ContentIdeaModel = 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low';
+export type ContentPurposeKind = 'EDUCATION' | 'ENTERTAINMENT' | 'SALES' | 'TRUST' | 'ENGAGEMENT';
 
 export interface ContentBrandListResponse {
   contractVersion: '1.0.0';
@@ -609,6 +625,40 @@ export interface ContentInsightStpSuggestion {
   lockedStpId: Uuid;
   customer: string;
   insight: string;
+}
+export interface ContentIdeaListResponse {
+  contractVersion: '1.0.0';
+  campaignId: Uuid;
+  campaignName: string;
+  campaignDeleted: boolean;
+  insightLocked: boolean;
+  insightVersion?: number;
+  ideas: ContentIdeaListEntry[];
+  purposeTags: ContentPurposeTagEntry[];
+}
+export interface ContentIdeaListEntry {
+  ideaId: Uuid;
+  kind: ContentIdeaKind;
+  parentIdeaId?: Uuid;
+  code: string;
+  concept: string;
+  expression?: string;
+  name?: string;
+  developing: boolean;
+  deleted: boolean;
+  restorableUntil?: DateTime;
+  hiddenByParent?: true;
+  stateSequence: number;
+  purposes: ContentIdeaPurposes;
+  model: ContentIdeaModel;
+  promptLabel: string;
+  createdAt: DateTime;
+}
+export interface ContentPurposeTagEntry {
+  tagId: Uuid;
+  label: string;
+  displayLike: ContentPurposeKind;
+  createdAt: DateTime;
 }
 export interface ContentAiStatusResponse {
   contractVersion: '1.0.0';

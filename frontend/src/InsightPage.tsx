@@ -54,10 +54,15 @@ function failureMessage(error: unknown): string {
   return 'Dữ liệu Insight không vượt qua kiểm tra toàn vẹn.';
 }
 
-function StepIndicator({ locked }: { readonly locked: boolean }) {
-  return <ol className="insight-steps" aria-label="Các bước chiến dịch">{STEPS.map((step, index) => <li key={step} className={index === 0 ? 'current' : ''} aria-current={index === 0 ? 'step' : undefined}>
-    <b>{step}</b><small>{index === 0 ? locked ? 'Đã khóa' : 'Đang soạn' : locked && index === 1 ? 'Mở ở bước tiếp theo' : 'Cần khóa Insight trước'}</small>
-  </li>)}</ol>;
+function StepIndicator({ campaignId, locked }: { readonly campaignId: string; readonly locked: boolean }) {
+  const href = (index: number): string | undefined => !locked ? undefined : index === 1 ? routeToHash.campaignBigIdea(campaignId) : index === 2 ? routeToHash.campaignAngle(campaignId) : undefined;
+  const note = (index: number): string => index === 0 ? locked ? 'Đã khóa' : 'Đang soạn' : !locked ? 'Cần khóa Insight trước' : index === 1 ? 'Mở bước 2' : index === 2 ? 'Cần Big Idea đang phát triển' : 'Có ở bước tiếp theo';
+  return <ol className="insight-steps" aria-label="Các bước chiến dịch">{STEPS.map((step, index) => {
+    const target = href(index);
+    return <li key={step} className={index === 0 ? 'current' : ''} aria-current={index === 0 ? 'step' : undefined}>
+      {target ? <a href={target}><b>{step}</b><small>{note(index)}</small></a> : <><b>{step}</b><small>{note(index)}</small></>}
+    </li>;
+  })}</ol>;
 }
 
 function InsightSummary({ insight }: { readonly insight: InsightDetail }) {
@@ -211,7 +216,7 @@ export default function InsightPage(props: InsightPageProps) {
     {mode === 'demo' && <div className="demo-banner" role="note">{DEMO_BANNER}</div>}
     <nav className="crumb" aria-label="Đường dẫn"><a href={routeToHash.content()}>Chiến dịch</a><span aria-hidden="true">/</span><a href={routeToHash.campaign(campaignId)}>{campaign.campaign.campaign.name}</a><span aria-hidden="true">/</span><span>Insight</span></nav>
     <div className="heading"><div><h1>Insight</h1><p>Khách hàng là ai, họ đang đau ở đâu, và sự thật nào khiến thông điệp chạm tới họ.</p></div></div>
-    <StepIndicator locked={stage === 'locked'} />
+    <StepIndicator campaignId={props.campaignId} locked={stage === 'locked'} />
     {stage === 'deleted' && <div className="deleted-banner" role="status"><p>Chiến dịch đã bị xóa. Khôi phục chiến dịch để tiếp tục soạn Insight.</p><a className="button" href={routeToHash.campaign(campaignId)}>Mở chiến dịch</a></div>}
     {stage === 'locked' && view.lock && <section className="surface surface-pad insight-locked" aria-labelledby="insight-locked-title">
       <h2 id="insight-locked-title">Insight đã khóa</h2>

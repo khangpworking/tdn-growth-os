@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-content-idea-api.schema.json",
+  "title": "OwnerContentIdeaApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/generateRequest" },
+    { "$ref": "#/$defs/stateRequest" },
+    { "$ref": "#/$defs/purposeTagRequest" },
+    { "$ref": "#/$defs/generateReceipt" },
+    { "$ref": "#/$defs/stateReceipt" },
+    { "$ref": "#/$defs/purposeTagReceipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "generateRequest": {
+      "title": "OwnerContentIdeaGenerateRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "requestId", "kind", "model", "plannedCallCount", "prompt"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "requestId": { "$ref": "#/$defs/uuid" },
+        "kind": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/kind" },
+        "parentIdeaId": { "$ref": "#/$defs/uuid" },
+        "model": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/model" },
+        "plannedCallCount": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "prompt": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/prompt" }
+      }
+    },
+    "stateRequest": {
+      "title": "OwnerContentIdeaStateRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "expectedSequence", "action"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "expectedSequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 },
+        "action": { "$ref": "#/$defs/stateAction" },
+        "purposes": { "$ref": "../flow/content-idea-state-request.schema.json#/$defs/purposes" }
+      }
+    },
+    "purposeTagRequest": {
+      "title": "OwnerContentPurposeTagRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "label", "displayLike"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40, "pattern": "^(?:\\S|\\S[\\s\\S]*\\S)$" },
+        "displayLike": { "$ref": "#/$defs/purposeKind" }
+      }
+    },
+    "stateAction": { "title": "OwnerContentIdeaStateAction", "enum": ["DEVELOP", "STOP", "DELETE", "RESTORE", "PURPOSES"] },
+    "purposeKind": { "title": "OwnerContentPurposeKind", "enum": ["EDUCATION", "ENTERTAINMENT", "SALES", "TRUST", "ENGAGEMENT"] },
+    "generateReceipt": {
+      "title": "OwnerContentIdeaReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "ideaId", "campaignId", "kind", "code", "attemptId", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "ideaId": { "$ref": "#/$defs/uuid" },
+        "campaignId": { "$ref": "#/$defs/uuid" },
+        "kind": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/kind" },
+        "code": { "type": "string", "pattern": "^[A-Z]+(?:[1-9][0-9]*)?$" },
+        "attemptId": { "$ref": "#/$defs/uuid" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "stateReceipt": {
+      "title": "OwnerContentIdeaStateReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "ideaId", "sequence", "action", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "ideaId": { "$ref": "#/$defs/uuid" },
+        "sequence": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+        "action": { "$ref": "#/$defs/stateAction" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "restorableUntil": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "purposeTagReceipt": {
+      "title": "OwnerContentPurposeTagReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "tagId", "label", "displayLike", "createdAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "tagId": { "$ref": "#/$defs/uuid" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "displayLike": { "$ref": "#/$defs/purposeKind" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerContentIdeaApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "conflict", "integrity_error", "ai_unavailable", "ai_failed"] },
+            "message": { "type": "string" },
+            "reason": {
+              "title": "OwnerContentIdeaAiFailureReason",
+              "enum": ["ai_not_configured", "model_not_allowed", "request_too_large", "timeout", "network_error", "gateway_http_error", "malformed_envelope", "response_too_large", "invalid_image", "schema_mismatch"]
+            }
+          }
+        }
+      }
+    }
+  }
+}

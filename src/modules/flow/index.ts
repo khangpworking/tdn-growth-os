@@ -140,6 +140,7 @@ export {
   validateContentCampaignRevisionRequest,
 } from './validation.js';
 export {
+  ContentAiAttemptConflictError,
   ContentAiAttemptCloseError,
   createContentAiAttemptService,
   type ContentAiAttemptErrorCode,

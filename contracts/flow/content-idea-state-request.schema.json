@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-idea-state-request.schema.json",
+  "title": "ContentIdeaStateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "ideaId", "expectedSequence", "action"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "ideaId": { "type": "string", "format": "uuid" },
+    "expectedSequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 },
+    "action": { "title": "ContentIdeaStateAction", "enum": ["DEVELOP", "STOP", "DELETE", "RESTORE", "PURPOSES"] },
+    "purposes": { "$ref": "#/$defs/purposes" }
+  },
+  "$defs": {
+    "purposes": {
+      "title": "ContentIdeaPurposes",
+      "type": "array",
+      "maxItems": 6,
+      "uniqueItems": true,
+      "items": {
+        "title": "ContentIdeaPurpose",
+        "type": "string",
+        "pattern": "^(?:EDUCATION|ENTERTAINMENT|SALES|TRUST|ENGAGEMENT|tag:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$"
+      }
+    }
+  }
+}

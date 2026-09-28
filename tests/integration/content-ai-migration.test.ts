@@ -64,10 +64,11 @@ function insert(db: ReturnType<typeof setup>['db'], values: Record<string, unkno
   db.prepare(sql).run(...columns.map((column) => values[column]));
 }
 
-test('migration 0025 creates the audit table, indexes and strict legal output-state matrix', () => {
+test('migration 0025/0028 creates the audit table, active-target claim and strict legal output-state matrix', () => {
   const state = setup();
-  assert.equal(state.migration.currentVersion, 26);
+  assert.equal(state.migration.currentVersion, 28);
   assert.deepEqual(state.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'flow_content_ai_attempts%' ORDER BY name").all(), [
+    { name: 'flow_content_ai_attempts_active_target' },
     { name: 'flow_content_ai_attempts_by_target' },
     { name: 'flow_content_ai_attempts_running' },
   ]);
@@ -81,6 +82,8 @@ test('migration 0025 creates the audit table, indexes and strict legal output-st
   insert(state.db, row(5));
   state.db.prepare("UPDATE flow_content_ai_attempts SET state='interrupted', closed_at=?, error_code='interrupted_by_restart' WHERE attempt_id=?").run(closedAt, attemptId(5));
   assert.equal((state.db.prepare('SELECT count(*) AS count FROM flow_content_ai_attempts').get() as { count: bigint }).count, 5n);
+  insert(state.db, row(6, { target_id: 'active-target' }));
+  assert.throws(() => insert(state.db, row(7, { target_id: 'active-target' })), /UNIQUE constraint failed/);
   state.db.close();
 });
 
@@ -138,6 +141,7 @@ test('direct SQL enforces start-only inserts, duplicate protection, immutable cl
   state.db.prepare("UPDATE flow_content_ai_attempts SET state='failed', closed_at=?, error_code='network_error' WHERE attempt_id=?").run(closedAt, attemptId(21));
   insert(state.db, row(22, { state: 'running', target_id: 'same-target', retry_of: null }));
   assert.throws(() => state.db.prepare(`UPDATE flow_content_ai_attempts SET state='failed', error_code='network_error', closed_at=?, retry_of=? WHERE attempt_id=?`).run(closedAt, attemptId(21), attemptId(22)), /flow_content_ai_attempt_close_invalid/);
+  state.db.prepare("UPDATE flow_content_ai_attempts SET state='failed', closed_at=?, error_code='network_error' WHERE attempt_id=?").run(closedAt, attemptId(22));
   insert(state.db, row(23, { target_id: 'same-target' }));
   state.db.prepare("UPDATE flow_content_ai_attempts SET state='failed', closed_at=?, error_code='network_error' WHERE attempt_id=?").run(closedAt, attemptId(23));
   insert(state.db, row(24, { target_id: 'same-target', retry_of: attemptId(23) }));

@@ -1,5 +1,10 @@
 # Trạng thái hiện tại
 
+## Task 050b — Big Idea và Góc nội dung (Controlled qua fake gateway; nhánh `feature/050b-content-ideas`, xếp chồng lên 050a)
+
+- Bước 2–3 của chiến dịch: từ Insight đã khóa, tạo Big Idea (A, B, …) rồi Góc nội dung (A1, A2, …) cho Big Idea đang phát triển. Mỗi ý là một lần gọi AI qua `CreativeAiGateway`, ghi lại thành attempt 049; chọn prompt thư viện hoặc prompt tự do (lưu được vào thư viện) và mô hình.
+- Phát triển/ngừng, xóa mềm và khôi phục trong 30 ngày, gắn mục đích cho Góc (5 mục đích sẵn có và mục đích riêng). Giới hạn 10 lần gọi mỗi prompt, 100 mỗi lượt (mặc định tạm thời, chờ chủ dự án).
+- Migration 0027 (`flow_content_ideas`, `flow_content_idea_states`, `flow_content_purpose_tags`); `GET /api/content/campaigns/:id/ideas`; OWNER `…/campaigns/:id/ideas`, `…/ideas/:id/state`, `…/purpose-tags`; màn hình `#/content/:id/big-idea` và `#/content/:id/angle`. Chưa cấu hình AI thì OWNER API trả 503. Không gọi provider thật (053) ([brief](tasks/050-content-insight-ideas.md) §8–§13).
 ## Task 050a — Insight của chiến dịch (Standard; nhánh `feature/050-content-insight-ideas`, tạm thời)
 
 - Bước 1 của chiến dịch: nhập Khách hàng mục tiêu, Nỗi đau, Insight hoặc lấy gợi ý từ STP đã khóa của sản phẩm nghiên cứu liên kết; mỗi lần lưu là một phiên bản bất biến, gửi lại trùng không tạo bản mới.

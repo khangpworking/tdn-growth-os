@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import path from 'node:path';
 import BetterSqlite3 from 'better-sqlite3';
@@ -14,6 +15,8 @@ import type {
   ContentCatalogDetailResponse,
   ContentCatalogHistoryItem,
   ContentCatalogListResponse,
+  ContentIdeaListEntry,
+  ContentIdeaListResponse,
   ContentInsightDetailResponse,
   ContentInsightHistoryItem,
   ContentInsightStpSuggestion,
@@ -43,9 +46,13 @@ import type { ContentPromptContent, ContentPromptLineage, ContentPromptType } fr
 import type { ContentBrandArtifact } from '../../contracts/flow/content-brand-artifact.generated.js';
 import type { ContentCatalogItemArtifact } from '../../contracts/flow/content-catalog-item-artifact.generated.js';
 import type { ContentCatalogItemContent } from '../../contracts/flow/content-catalog-item-create-request.generated.js';
+import type { CreativeAiGateway } from '../platform/ai/creative-ai-gateway.js';
+import { disabledCreativeGateway } from '../platform/ai/fake-creative-gateway.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
 import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mutex.js';
+import { createContentAiAttemptService } from '../modules/flow/content-ai-attempt-service.js';
 import { CONTENT_AI_NOT_CONFIGURED, type ContentAiStatusSource } from '../modules/flow/content-ai-status.js';
+import { ContentIdeaService } from '../modules/flow/content-idea-service.js';
 import { ContentBrandIdentityConflictError, ContentBrandService } from '../modules/flow/content-brand-service.js';
 import { ContentCampaignConflictError, ContentCampaignReferenceError, ContentCampaignService } from '../modules/flow/content-campaign-service.js';
 import { ContentCatalogIdentityConflictError, ContentCatalogService } from '../modules/flow/content-catalog-service.js';
@@ -88,6 +95,7 @@ import {
   validateContentPromptLifecycleRequest,
   validateContentPromptRevisionRequest,
 } from '../modules/flow/validation.js';
+import { contentIdeaOwnerRoute, createContentIdeaOwnerWriters, routeContentIdeaOwner, type ContentIdeaOwnerWriters } from './content-ideas-api.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import {
   assertOwnerHttpConfiguration,
@@ -113,6 +121,7 @@ const REQUIRED_TABLES = [
   'flow_content_prompts', 'flow_content_prompt_revisions', 'flow_content_prompt_lifecycle',
   'flow_content_campaigns', 'flow_content_campaign_revisions', 'flow_content_campaign_lifecycle',
   'flow_content_ai_attempts', 'flow_content_insight_revisions', 'flow_content_insight_locks',
+  'flow_content_ideas', 'flow_content_idea_states', 'flow_content_purpose_tags',
 ];
 const MEDIA_KINDS: Readonly<Record<string, ContentMediaKind>> = { logo: 'LOGO', photo: 'PHOTO' };
 
@@ -127,6 +136,8 @@ export interface ContentReadApiConfiguration {
 export interface ContentOwnerApiConfiguration extends OwnerHttpConfiguration {
   readonly now?: () => Date;
   readonly uuid?: () => string;
+  /** Content Studio AI; absent means AI is not configured and generation answers `ai_unavailable`. */
+  readonly gateway?: CreativeAiGateway;
 }
 export interface ContentApiApplication {
   readonly handler: (request: IncomingMessage, response: ServerResponse) => void;
@@ -145,6 +156,7 @@ interface ReadHandlers {
   campaignList(): Promise<ContentCampaignListResponse>;
   campaignDetail(campaignId: string): Promise<ContentCampaignDetailResponse | undefined>;
   insightDetail(campaignId: string): Promise<ContentInsightDetailResponse | undefined>;
+  ideaList(campaignId: string): Promise<ContentIdeaListResponse | undefined>;
   aiStatus(): Promise<ContentAiStatusResponse>;
 }
 
@@ -197,6 +209,16 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
     const campaigns = new ContentCampaignService({ db, artifactStore, catalog, ...(configuration.now ? { now: configuration.now } : {}) });
     const research = openResearchReaders(db, artifactStore);
     const insights = new ContentInsightService({ db, artifactStore, campaigns, lockedStpReader: research.stpReader, b10Reader: research.b10Reader });
+    // The read API only lists ideas; its attempt service has a disabled gateway and can never record an attempt.
+    const ideas = new ContentIdeaService({
+      db, artifactStore, campaigns, insights, catalog, prompts, library,
+      attempts: createContentAiAttemptService({
+        db, gateway: disabledCreativeGateway(), artifactRoot: path.resolve(configuration.artifactRoot),
+        clock: configuration.now ?? (() => new Date()),
+        newId: () => { throw new Error('The read API never records AI attempts'); },
+      }),
+      ...(configuration.now ? { now: configuration.now } : {}),
+    });
     /** Re-reads every pinned item version; the campaign's brand, item identity and every selected tier must still match. */
     const resolveCampaignItems = async (campaign: ContentCampaignArtifact): Promise<ContentCampaignItemView[]> => {
       const views: ContentCampaignItemView[] = [];
@@ -398,6 +420,19 @@ export function openContentReadApi(configuration: ContentReadApiConfiguration): 
           ...(suggestion ? { stpSuggestion: suggestion } : {}),
         };
       },
+      async ideaList(campaignId) {
+        if (!campaigns.campaignExists(campaignId)) return undefined;
+        const campaign = await campaigns.readCampaign(campaignId);
+        const lock = await insights.readLock(campaignId);
+        return {
+          contractVersion: '1.0.0', campaignId, campaignName: campaign.campaign.name,
+          campaignDeleted: campaigns.lifecycleState(campaignId).deleted !== undefined,
+          insightLocked: lock !== undefined,
+          ...(lock ? { insightVersion: lock.insightVersion } : {}),
+          ideas: (await ideas.listCampaignIdeas(campaignId)).map((idea) => ({ ...idea, purposes: [...idea.purposes] as ContentIdeaListEntry['purposes'] })),
+          purposeTags: ideas.purposeTags().map((tag) => ({ tagId: tag.tagId, label: tag.label, displayLike: tag.displayLike, createdAt: tag.createdAt })),
+        };
+      },
       async aiStatus() {
         const status = await (configuration.aiStatus ?? notConfigured).read();
         return {
@@ -423,6 +458,11 @@ async function routeRead(request: IncomingMessage, response: ServerResponse, han
     if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length === 5 && parts[4] === 'insight') {
       if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Campaign ID must be a UUID');
       const result = await handlers.insightDetail(parts[3]!);
+      return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Campaign not found');
+    }
+    if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length === 5 && parts[4] === 'ideas') {
+      if (!UUID.test(parts[3]!)) return sendReadError(response, 400, 'bad_request', 'Campaign ID must be a UUID');
+      const result = await handlers.ideaList(parts[3]!);
       return result ? sendApiJson(response, 200, result) : sendReadError(response, 404, 'not_found', 'Campaign not found');
     }
     if (parts[0] === 'api' && parts[1] === 'content' && parts[2] === 'campaigns' && parts.length <= 4) {
@@ -582,6 +622,20 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
       }
       await insights.readLock(campaignId);
     });
+    const attempts = createContentAiAttemptService({
+      db, gateway: configuration.gateway ?? disabledCreativeGateway(), artifactRoot: path.resolve(configuration.artifactRoot),
+      clock: configuration.now ?? (() => new Date()), newId: configuration.uuid ?? randomUUID,
+    });
+    // Idea generation runs outside request-scoped ownership, so its artifacts go straight to the shared store.
+    const ideas = new ContentIdeaService({
+      db, artifactStore: artifacts, attempts, campaigns, insights, catalog, prompts, library,
+      ...(configuration.now ? { now: configuration.now } : {}),
+      ...(configuration.uuid ? { newId: configuration.uuid } : {}),
+    });
+    const ideaWriters = createContentIdeaOwnerWriters({
+      db, ideas, campaigns, integrity,
+      verifyCampaignInputs: async (campaignId) => { await verifyCampaignHistory(campaignId); await verifyInsightHistory(campaignId); },
+    });
     const assertPromptReferences = (type: ContentPromptType, prompt: ContentPromptContent, lineage: ContentPromptLineage | undefined) => {
       try { assertContentPromptContent(type, prompt); } catch { throw new InvalidPromptRequestError(); }
       if (!lineage) return;
@@ -728,7 +782,7 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
       })),
     };
 
-    const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers); };
+    const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers, ideaWriters); };
     return { handler, close: () => db.close() };
   } catch (error) {
     db.close();
@@ -767,11 +821,13 @@ function ownerRoute(parts: string[] | null): OwnerRoute | 'invalid-id' | null {
   return { kind: 'item-revision', brandId, itemId: parts[5]! };
 }
 
-async function routeOwner(request: IncomingMessage, response: ServerResponse, configuration: ContentOwnerApiConfiguration, writers: OwnerWriters): Promise<void> {
+async function routeOwner(request: IncomingMessage, response: ServerResponse, configuration: ContentOwnerApiConfiguration, writers: OwnerWriters, ideaWriters: ContentIdeaOwnerWriters): Promise<void> {
   const origin = singleHeader(request.headers.origin);
   if (origin !== undefined && origin !== configuration.allowedOrigin) return sendOwnerError(response, 403, 'forbidden', 'Origin is not allowed');
   if (origin) ownerCors(response, origin);
-  const route = ownerRoute(pathParts(request.url));
+  const parts = pathParts(request.url);
+  const ideaRoute = contentIdeaOwnerRoute(parts);
+  const route = ideaRoute ?? ownerRoute(parts);
   if (route === null) return sendOwnerError(response, 404, 'not_found', 'Route not found');
   if (route === 'invalid-id') return sendOwnerError(response, 400, 'bad_request', 'Route IDs must be UUIDs');
   if (request.method === 'OPTIONS') {
@@ -780,6 +836,8 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
   }
   if (request.method !== 'POST') { response.setHeader('Allow', 'POST, OPTIONS'); return sendOwnerError(response, 405, 'method_not_allowed', 'Only POST is supported'); }
   if (!ownerAuthorized(request, configuration.token)) return sendOwnerError(response, 401, 'unauthorized', 'Authentication required', { 'WWW-Authenticate': 'Bearer' });
+  if (ideaRoute !== null && ideaRoute !== 'invalid-id') return routeContentIdeaOwner(request, response, ideaRoute, ideaWriters);
+  if (route.kind === 'idea-generate' || route.kind === 'idea-state' || route.kind === 'purpose-tag') return sendOwnerError(response, 404, 'not_found', 'Route not found');
   const contentType = singleHeader(request.headers['content-type']);
   try {
     if (route.kind === 'media') {
