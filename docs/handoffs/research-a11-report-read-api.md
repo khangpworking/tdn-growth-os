@@ -2,8 +2,8 @@
 
 ## Delivery state
 
-Implementation is prepared on `feature/research-a11-report-read-api`. Final
-commit, pull request and Linux verification links are added after publishing.
+PR [#67](https://github.com/khangpworking/tdn-growth-os/pull/67) was merged to
+`main` at `a7ae29809cb61345d2327c60fbb8787d5da145b3`.
 
 ## Implemented
 
@@ -31,8 +31,11 @@ before broader section automation relies on SQL queries.
 
 ## Release evidence
 
-Pending Linux CI on the final pushed SHA. No Windows test, build or typecheck is
-used as release evidence.
+Final-head Linux check passed in
+[run 36404141871](https://github.com/khangpworking/tdn-growth-os/actions/runs/36404141871),
+and the report preview passed in
+[run 36404141841](https://github.com/khangpworking/tdn-growth-os/actions/runs/36404141841).
+No Windows test, build or typecheck was used as release evidence.
 
 No provider call, live import, real report version, human decision, deployment,
 public exposure or runtime activation is performed by this task.
