@@ -195,6 +195,18 @@ Cập nhật: 13/09/2026.
 
 Không chuyển nguyên phần trăm cũ sang repo mới. Chỉ cập nhật sau khi code được tái sử dụng, tích hợp và có bằng chứng nghiệm thu. Không tính cài tool hoặc tạo folder là hoàn thành Box.
 
+## Research A4 — source-backed chart/export work in progress
+
+Development now connects an exact retained Foundation package and verified
+discovery workspace to A2 re-parsing, deterministic A3 calculations, evidence-linked
+chart data and an internal HTML export. All four evidence layers are recorded in
+INTENT.md. Linux verification and synthetic desktop/mobile/PDF review are pending;
+no local Windows tests/build/typecheck are run. No new migration is installed:
+0026–0028 belong to the pending Content Studio stack, with 0029 reserved for
+report persistence after integration. Normalized-row SQLite persistence, report
+version/history, AI interpretation/review and operator dashboard integration are
+not complete. Do not count 30 represented section states as 30 automated methods.
+
 ## Task 022 — combined Vietnamese market-and-review evidence report
 
 Implemented a bounded offline composition/export path for an explicitly selected `market_snapshot_v1` Result and adapter3 Shopee review Result. It reuses verified Result/Data Pack/collection readers and Task 021 safe review rendering; performs no analysis/filter execution, provider calls, scraping, migrations, or database writes. Exact integer strings and missing-versus-zero semantics are preserved, while differing/unverified scopes, review date independence, and partial collection limits are explicit. Export is read-only, outside Git, owner-only, deterministic, and refuses overwrite. Acceptance is synthetic and persisted; no private review dataset or fabricated provider lineage is included.

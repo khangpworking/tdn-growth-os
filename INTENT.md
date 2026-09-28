@@ -383,6 +383,21 @@ Không quay lại đào sâu B0, insight, framework versioning, B14, chat AI v�
 
 ## Cách duy trì
 
+### Report automation — four distinct evidence layers (2026-09-28)
+
+The owner confirms original source evidence, reproducible calculations, AI
+interpretations, and human decisions must remain distinguishable and traceable.
+An AI interpretation must cite the exact evidence/calculation version and expose
+its checkable explanation, assumptions and limitations; it is not independent
+source evidence. Accepting an interpretation records a human decision, not proof
+of its truth. Preserve original files, normalize into SQLite, evaluate readiness
+of all 30 sections, calculate through approved methods, then render charts and
+evidence-backed interpretations for review and versioned Dashboard/HTML/PDF.
+Methodology remains owned by **Review marketing framework files**. No missing
+method, label, commercial measurement period or approval may be invented.
+Retrieval/context systems remain replaceable future additions, not the
+authoritative calculation or approval store.
+
 ### Report automation — deterministic evidence foundation (2026-09-28)
 
 Owner assigns business methodology to task **Review marketing framework files** and code to the TDN task. Numbers and reproducible calculations are application-owned; AI must not invent missing values, periods, entity IDs or source lineage. A1 normalized calculations and A2 exact Metric source mapping are bounded implementation slices, not approval of official market/insight conclusions. A2 requires explicit scope/acquisition declarations and labels bound to source bytes; no implicit UNKNOWN-policy choice for real reports. The current raw profile supports one Metric Shopee export only; incompatible Kalodata/trade/legacy sources require separate future profiles. No live collection is authorized by this decision.

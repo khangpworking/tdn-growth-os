@@ -65,6 +65,26 @@ Only the exact `metric-shopee-product-list-sheet1-v1` profile is supported. An e
 
 Use an exact A1/A2 `result.json` and the explicitly selected [planning catalog](docs/research/report-section-catalog-v1.json). The packet recomputes/compares the normalized result, binds its exact bytes and catalog, and creates a deterministic Vietnamese DRAFT with partial observed metrics and explicit section blockers. It does not authenticate raw sources, generate Insight, grant approval, or connect to the live workspace/database. The same bundle is verified/reused; conflicting content is never overwritten. See [A3a scope](docs/tasks/research-a3-versioned-report-packet.md).
 
+## Source-backed research report export (A4, under review)
+
+`npm run research:report:export -- <database.sqlite> <artifact-root> <request.json> <catalog.json> <outside-git-bundle-directory>`
+
+The request selects an existing discovery workspace, an existing source package
+by ID and exact manifest digest, and exact workbook/manifest/optional-label
+logical paths. See [the request schema](contracts/analysis/source-backed-report-request.schema.json).
+The CLI opens SQLite read-only/query-only without migration, replays the verified
+workspace and retained package bytes, and reparses the supported Metric workbook.
+It exports a deterministic internal HTML report with charts, numeric/source
+drill-down, readiness for all catalog sections and the selected original files.
+Every file is bound by an export manifest. Exact retries reuse identical output;
+changed or partial bundles are rejected, never overwritten.
+
+This export contains private source data. Keep it outside Git; do not publish it
+externally. Mapping validation is not provider authentication. It creates no AI
+interpretation, approval, report-run DB record or official report. SQLite run
+persistence and operator-dashboard integration remain unfinished parts of the
+larger automation objective. See [A4 scope and pending integration](docs/tasks/research-a4-evidence-workspace.md).
+
 ## Offline source-package intake
 
 Run `npm run source-package:intake -- <database> <artifact-root> <package-directory> <intake.json> <audit.json> <output.md>` to verify and persist an exact-byte source package and immutable field audit without provider calls. The package directory must exactly match descriptor membership; the report path must be outside this repository and must not already exist. See `docs/tasks/023-source-package-intake.md`.
