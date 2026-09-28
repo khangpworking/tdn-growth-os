@@ -7,6 +7,7 @@ import {
   WorkspaceDataSourceError,
   type FrontendMode,
 } from './data-source';
+import ReportInterpretations from './ReportInterpretations';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
@@ -106,8 +107,8 @@ export default function ResearchReportsPanel({ mode, workspaceId }: { readonly m
           {version && <article className="report-version-summary">
             <header><div><h4>{history.reportKey} · v{version.version}</h4><p>{version.scope.platform.toUpperCase()} · {version.scope.start} → {version.scope.end}</p></div><span className="status-pill">Bản nháp chưa duyệt</span></header>
             <dl>
-              <div><dt>Method chạy được</dt><dd>{version.sectionCounts.partialDeterministicDraft}/{version.sectionCounts.total} section</dd></div>
-              <div><dt>AI interpretation</dt><dd>Chưa tạo</dd></div>
+              <div><dt>Phương pháp đã chạy</dt><dd>{version.sectionCounts.partialDeterministicDraft}/{version.sectionCounts.total} phần</dd></div>
+              <div><dt>Nhận định AI</dt><dd>Xem các lần đã lưu bên dưới</dd></div>
               <div><dt>Quyết định người dùng</dt><dd>Chưa có</dd></div>
               <div><dt>Nguồn đã chọn</dt><dd>{version.selectedSourceCount}</dd></div>
             </dl>
@@ -116,6 +117,7 @@ export default function ResearchReportsPanel({ mode, workspaceId }: { readonly m
               <a className="button primary" href={reportArtifactUrl(history.reportId, version.version, 'report.html')} target="_blank" rel="noreferrer">Mở report và evidence</a>
               <a className="button" href={reportArtifactUrl(history.reportId, version.version, 'packet.json')}>Tải packet JSON</a>
             </div>
+            <ReportInterpretations key={`${history.reportId}:${version.version}`} reportId={history.reportId} reportVersion={version.version} semanticVersionId={version.semanticVersionId} />
           </article>}
         </>}
       </div>}
