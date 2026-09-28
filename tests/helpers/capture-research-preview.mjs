@@ -18,6 +18,7 @@ const browser = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--dis
 let stderr = '', socket, nextId = 0, launchError;
 const pending = new Map();
 const pageErrors = [];
+const downloadEvents = [];
 browser.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-4000); });
 browser.on('error', error => { launchError = error; });
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
@@ -41,6 +42,7 @@ try {
   await new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); });
   socket.addEventListener('message', event => {
     const message = JSON.parse(String(event.data)), item = pending.get(message.id);
+    if (message.method?.includes('download')) downloadEvents.push(message);
     if (message.method === 'Runtime.exceptionThrown' ||
         (message.method === 'Log.entryAdded' && message.params.entry.level === 'error')) pageErrors.push(message);
     if (!item) return;
@@ -54,7 +56,7 @@ try {
   await call('Log.enable');
   const downloadsDirectory = path.join(profile, 'downloads');
   await fs.mkdir(downloadsDirectory, { mode: 0o700 });
-  await call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadsDirectory });
+  await call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadsDirectory, eventsEnabled: true });
   await call('Page.navigate', { url: pathToFileURL(report).href });
   let loaded = false;
   for (let i = 0; i < 100; i++) {
@@ -101,6 +103,7 @@ try {
     const first = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     await fs.writeFile(path.join(root, `${name}-first.png`), Buffer.from(first.data, 'base64'), { mode: 0o600 });
     evidence.push({ name, ...state, height: metrics.cssContentSize.height });
+    await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
     const originalOpen = await evaluate('Array.from(document.querySelectorAll("details"), item => item.open)');
     const controls = await evaluate(`(() => {
       const controls = [...document.querySelectorAll('summary,a')];
@@ -152,7 +155,7 @@ try {
           catch (error) { if (error.code !== 'ENOENT') throw error; }
           await pause(50);
         }
-        if (!received || !received.equals(await fs.readFile(file))) throw new Error(`Download bytes differ: ${control.href}`);
+        if (!received || !received.equals(await fs.readFile(file))) throw new Error(`Download failed: ${JSON.stringify({href:control.href,bytes:received?.length,files:await fs.readdir(downloadsDirectory),url:await evaluate('location.href'),events:downloadEvents,errors:pageErrors})}`);
         actions.push({ text: control.text, action: 'downloaded-exact-bytes', target: control.href });
       } else throw new Error(`Unowned interaction: ${control.href}`);
     }

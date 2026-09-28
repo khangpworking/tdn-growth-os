@@ -44,6 +44,7 @@ jobs:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview
         run: node tests/helpers/capture-research-preview.mjs
       - name: Retain synthetic visual evidence for review
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: research-report-synthetic-preview
