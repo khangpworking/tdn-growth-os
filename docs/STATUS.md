@@ -2,6 +2,7 @@
 
 ## Research A18: exact review-target read API
 
+- Draft PR #75 is open on `feature/research-a18-review-target-read-api`.
 - Adds one read-only route for an explicitly named A17 review-target digest.
 - Every response replays the retained target through the exact A10 report and
   A13 interpretation readers before returning the canonical A16 contract.

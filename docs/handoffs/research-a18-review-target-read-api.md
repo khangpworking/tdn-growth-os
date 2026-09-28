@@ -2,9 +2,10 @@
 
 ## Delivery state
 
-Implementation is prepared on `feature/research-a18-review-target-read-api`,
-stacked on Research A17. Final Linux CI and draft-PR identity are recorded after
-publication.
+Implementation is on draft PR
+[#75](https://github.com/khangpworking/tdn-growth-os/pull/75), stacked after
+Research A17 in the required merge order. Final Linux evidence is recorded
+after exact-head CI completes.
 
 ## Implemented scope
 
