@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-interpretation-output.schema.json",
+  "title": "ReportInterpretationOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["items"],
+  "properties": {
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/item" }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1200,
+      "pattern": "^[^0-9\\u0000-\\u001F\\u007F]*$"
+    },
+    "shortText": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 400,
+      "pattern": "^[^0-9\\u0000-\\u001F\\u007F]*$"
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionId", "kind", "conclusion", "evidenceLogic", "supportingClaimIds", "assumptions", "limitations"],
+      "properties": {
+        "sectionId": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" },
+        "kind": { "enum": ["INTERPRETATION", "HYPOTHESIS"] },
+        "conclusion": { "$ref": "#/$defs/text" },
+        "evidenceLogic": { "$ref": "#/$defs/text" },
+        "supportingClaimIds": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 12,
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 100 }
+        },
+        "assumptions": {
+          "type": "array",
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/shortText" }
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 8,
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/shortText" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "HYPOTHESIS" } } },
+          "then": { "properties": { "assumptions": { "type": "array", "minItems": 1 } } },
+          "else": { "properties": { "assumptions": { "type": "array", "maxItems": 0 } } }
+        }
+      ]
+    }
+  }
+}

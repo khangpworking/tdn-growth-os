@@ -15,6 +15,7 @@ const positioningReference = 'Positioning from the linked locked STP';
 const campaignUrl = `/api/content/campaigns/${campaignId}`;
 const insightUrl = `${campaignUrl}/insight`;
 const revisionUrl = `/owner-api/content/campaigns/${campaignId}/insight/revisions`;
+const lockUrl = `/owner-api/content/campaigns/${campaignId}/insight/lock`;
 
 const response = (status: number, body: unknown): Response => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -109,6 +110,7 @@ async function settleReads(queue: ReturnType<typeof deferredFetchQueue>, detail:
 interface InsightHarness {
   readonly container: HTMLElement;
   readonly queue: ReturnType<typeof deferredFetchQueue>;
+  readonly notifications: string[];
   readonly cleanup: () => Promise<void>;
 }
 
@@ -116,21 +118,26 @@ async function mountInsightPage(Page: InsightPageComponent): Promise<InsightHarn
   const dom = setupDom();
   const { createRoot } = await import('react-dom/client');
   const queue = deferredFetchQueue();
+  const notifications: string[] = [];
   const originalFetch = globalThis.fetch;
+  let cleaned = false;
   globalThis.fetch = queue.fetcher;
   const root = createRoot(dom.container);
   await act(async () => {
     root.render(createElement(Page, {
       mode: 'real', campaignId, ownerToken: 'owner-token', writesAvailable: true,
       demoCampaigns: [], demoItems: [], demoInsights: [], setDemoInsights: () => undefined,
-      researchProducts: [], notify: () => undefined,
+      researchProducts: [], notify: (message: string) => { notifications.push(message); },
     }));
     await Promise.resolve();
   });
   return {
     container: dom.container,
     queue,
+    notifications,
     cleanup: async () => {
+      if (cleaned) return;
+      cleaned = true;
       await act(async () => { root.unmount(); });
       globalThis.fetch = originalFetch;
       dom.cleanup();
@@ -312,4 +319,54 @@ test('Insight conflict reload offers discard that restores the server version', 
   } finally {
     await harness.cleanup();
   }
+});
+
+test('a deferred save completion after unmount does not notify or reload the old Insight page', { concurrency: false }, async () => {
+  const Page = await importInsightPage();
+  const harness = await mountInsightPage(Page);
+  await settleReads(harness.queue, insightDetail());
+  const form = insightForm(harness.container);
+  try {
+    await setInsightField(form, 'insight-customer', ownerDraft.customer);
+    await setInsightField(form, 'insight-pain', ownerDraft.painPoint);
+    await setInsightField(form, 'insight-text', ownerDraft.insight);
+    await submitInsight(harness);
+    await harness.cleanup();
+    await act(async () => {
+      harness.queue.resolve(revisionUrl, { contractVersion: '1.0.0', campaignId, version: 1, createdAt: at, exactRetry: false }, 201, 'POST');
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    assert.deepEqual(harness.notifications, []);
+    assert.equal(harness.queue.pending.some((request) => request.method === 'GET'), false);
+  } finally { await harness.cleanup(); }
+});
+
+test('a deferred lock completion after unmount does not notify or reload the old Insight page', { concurrency: false }, async () => {
+  const Page = await importInsightPage();
+  const harness = await mountInsightPage(Page);
+  await settleReads(harness.queue, insightDetail(insightWith({ customer: 'Customer', painPoint: 'Pain', insight: 'Insight' })));
+  try {
+    await act(async () => {
+      buttonWithText(harness.container, 'Khóa Insight').click();
+      await Promise.resolve();
+    });
+    const dialog = harness.container.querySelector('[role="dialog"]');
+    assert.ok(dialog, 'Expected the lock confirmation dialog');
+    const confirm = [...dialog.querySelectorAll('button')].find((button) => button.textContent?.includes('Khóa Insight')) as HTMLButtonElement | undefined;
+    assert.ok(confirm, 'Expected the lock confirmation button');
+    await act(async () => {
+      confirm.click();
+      await Promise.resolve();
+    });
+    assert.equal(harness.queue.pending.some((request) => request.url === lockUrl && request.method === 'POST'), true);
+    await harness.cleanup();
+    await act(async () => {
+      harness.queue.resolve(lockUrl, { contractVersion: '1.0.0', campaignId, insightVersion: 1, campaignVersion: 1, lockedAt: at, exactRetry: false }, 201, 'POST');
+      await Promise.resolve();
+      await Promise.resolve();
+    });
+    assert.deepEqual(harness.notifications, []);
+    assert.equal(harness.queue.pending.some((request) => request.method === 'GET'), false);
+  } finally { await harness.cleanup(); }
 });

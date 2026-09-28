@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/metric-source-manifest.schema.json",
+  "title": "MetricSourceManifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "profileId", "profileVersion", "source", "scope", "precision", "labelCodebookVersion", "wideUnknownPolicy"],
+  "properties": {
+    "contractVersion": {"const": "1.0.0"},
+    "profileId": {"const": "metric-shopee-product-list-sheet1-v1"},
+    "profileVersion": {"const": "1.0.0"},
+    "source": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sha256", "label", "provenanceBasis", "evidenceFamily", "sheetName", "headerSha256", "lastRow"],
+      "properties": {
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "label": {"type": "string", "minLength": 1, "maxLength": 200},
+        "provenanceBasis": {"type": "string", "minLength": 1, "maxLength": 1000},
+        "evidenceFamily": {"type": "string", "minLength": 1, "maxLength": 200},
+        "sheetName": {"const": "Sheet1"},
+        "headerSha256": {"const": "8c2bdf296db44d3ab32e4e67908a0385cc34960717270a38ae05e325f5127bba"},
+        "lastRow": {"type": "integer", "minimum": 2, "maximum": 10001}
+      }
+    },
+    "scope": {"$ref": "metric-scope-input.schema.json#/properties/scope"},
+    "precision": {
+      "type": "object", "additionalProperties": false, "required": ["revenue", "units"],
+      "properties": {
+        "revenue": {"$ref": "metric-scope-input.schema.json#/$defs/Observation/properties/precision"},
+        "units": {"$ref": "metric-scope-input.schema.json#/$defs/Observation/properties/precision"}
+      }
+    },
+    "labelCodebookVersion": {"$ref": "metric-scope-input.schema.json#/properties/labelCodebookVersion"},
+    "wideUnknownPolicy": {"$ref": "metric-scope-input.schema.json#/properties/wideUnknownPolicy"}
+  }
+}

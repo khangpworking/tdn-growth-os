@@ -1,0 +1,595 @@
+{
+  "contractVersion": "1.0.0",
+  "catalogId": "market-insight-30-section-catalog-v1",
+  "catalogVersion": "0.1.0",
+  "authority": "PLANNING_METADATA_NOT_EXECUTABLE_METHOD",
+  "sections": [
+    {
+      "sectionId": "M01",
+      "title": "Kết luận chính",
+      "methodId": "planning-m01",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "SYNTHESIS",
+      "moduleIds": [
+        "bounded-synthesis"
+      ],
+      "requiredInputs": [
+        "validated-metrics",
+        "source-bound-claims",
+        "owner-review"
+      ],
+      "reopenCondition": "New evidence can change the scope, confidence, or action of a main conclusion.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "NO_SOURCE_BOUND_SYNTHESIS"
+      ]
+    },
+    {
+      "sectionId": "M02",
+      "title": "Phạm vi và phương pháp",
+      "methodId": "metric-scope-packet-context",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "source-scope"
+      ],
+      "requiredInputs": [
+        "source-manifest",
+        "verified-locators"
+      ],
+      "reopenCondition": "A coverage or market-definition question needs sufficient identifiers, period, and source-filter evidence.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "A2_MANIFEST_AND_VERIFIED_INPUT_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M03",
+      "title": "Quy mô và diễn biến",
+      "methodId": "metric-scope-packet-totals",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "metric-scope-calculation"
+      ],
+      "requiredInputs": [
+        "normalized-metric-rows",
+        "frozen-label-decisions",
+        "source-scope"
+      ],
+      "reopenCondition": "A compatible same-definition universe or series could change a growth or position claim.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "A1_RESULT_AND_EXPLICIT_SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M04",
+      "title": "Cơ cấu thị trường",
+      "methodId": "metric-scope-packet-concentration",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "metric-scope-calculation"
+      ],
+      "requiredInputs": [
+        "normalized-metric-rows",
+        "frozen-label-decisions",
+        "source-scope"
+      ],
+      "reopenCondition": "A listing, entity, variant, or label-resolution change could alter the composition claim.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "A1_RESULT_AND_LABEL_FRESHNESS_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M05",
+      "title": "Nhu cầu",
+      "methodId": "planning-m05",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "context-evidence"
+      ],
+      "requiredInputs": [
+        "source-manifest",
+        "domain-specific-evidence"
+      ],
+      "reopenCondition": "A demand-size question has a source with suitable sample, denominator, period, and definition.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "DOMAIN_EVIDENCE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M06",
+      "title": "Nguồn cung",
+      "methodId": "planning-m06",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "context-evidence"
+      ],
+      "requiredInputs": [
+        "source-manifest",
+        "domain-specific-evidence"
+      ],
+      "reopenCondition": "A narrow product/import/source record and a valid price basis could change the supply interpretation.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "NARROW_ENTITY_AND_IMPORT_PROFILE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M07",
+      "title": "Đối thủ",
+      "methodId": "planning-m07",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "context-evidence"
+      ],
+      "requiredInputs": [
+        "source-manifest",
+        "domain-specific-evidence"
+      ],
+      "reopenCondition": "A comparable product/shop universe with common-period identifiers could change the competitor conclusion.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "COMPARABLE_ENTITY_UNIVERSE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M08",
+      "title": "Giá và kinh tế đơn vị",
+      "methodId": "planning-m08",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "unit-economics"
+      ],
+      "requiredInputs": [
+        "fee-method-version",
+        "cost-assumptions"
+      ],
+      "reopenCondition": "A seller-specific decision has verified costs, payouts, returns, eligibility, and the applicable fee version.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "SELLER_INPUTS_AND_FEE_VERSION_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M09",
+      "title": "Động lực và rủi ro",
+      "methodId": "planning-m09",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "METHOD",
+      "moduleIds": [
+        "context-evidence"
+      ],
+      "requiredInputs": [
+        "source-manifest",
+        "domain-specific-evidence"
+      ],
+      "reopenCondition": "An independent event/source can be linked to the same entity and a compatible period and measure.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "EVENT_TO_ENTITY_LINKAGE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M10",
+      "title": "Dự báo và kịch bản",
+      "methodId": "planning-m10",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "SCENARIO",
+      "moduleIds": [
+        "forecast-evaluation"
+      ],
+      "requiredInputs": [
+        "compatible-daily-series",
+        "held-out-horizon"
+      ],
+      "reopenCondition": "A same-listing daily series with timezone, definition, and holdout enables evaluation.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "DAILY_SERIES_AND_HOLDOUT_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M11",
+      "title": "Cơ hội",
+      "methodId": "planning-m11",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "SYNTHESIS",
+      "moduleIds": [
+        "bounded-synthesis"
+      ],
+      "requiredInputs": [
+        "validated-metrics",
+        "source-bound-claims",
+        "owner-review"
+      ],
+      "reopenCondition": "New outcome-compatible evidence can change opportunity priority.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "SOURCE_BOUND_OPPORTUNITY_EVIDENCE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M12",
+      "title": "Hành động",
+      "methodId": "planning-m12",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "SYNTHESIS",
+      "moduleIds": [
+        "bounded-synthesis"
+      ],
+      "requiredInputs": [
+        "validated-metrics",
+        "source-bound-claims",
+        "owner-review"
+      ],
+      "reopenCondition": "An owner and operating objective are defined, or evidence changes the choice.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "OWNER_DECISION_CONTEXT_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "M13",
+      "title": "Phụ lục và truy nguồn",
+      "methodId": "metric-scope-packet-provenance",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "source-scope"
+      ],
+      "requiredInputs": [
+        "source-manifest",
+        "verified-locators"
+      ],
+      "reopenCondition": "A new source, replay failure, or unresolved locator requires a lineage update.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "SOURCE_MANIFEST_AND_REPLAY_LINEAGE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I01",
+      "title": "Câu hỏi kinh doanh",
+      "methodId": "planning-i01",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "METHOD",
+      "moduleIds": [
+        "business-brief"
+      ],
+      "requiredInputs": [
+        "owner-question",
+        "scope"
+      ],
+      "reopenCondition": "A new audience, decision, or scope changes the brief.",
+      "fallbackState": "MANUAL_REVIEW_REQUIRED",
+      "fallbackReasons": [
+        "OWNER_QUESTION_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I02",
+      "title": "Khách hàng và hoàn cảnh",
+      "methodId": "planning-i02",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A published study or public case with suitable buyer context and sample becomes available.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "CASE_OR_STUDY_LOCATORS_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I03",
+      "title": "Phương pháp nghiên cứu",
+      "methodId": "planning-i03",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "source-scope"
+      ],
+      "requiredInputs": [
+        "source-manifest",
+        "verified-locators"
+      ],
+      "reopenCondition": "A new question needs a measurement frame, sampling logic, and label audit.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "SOURCE_METHOD_PACKET_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I04",
+      "title": "Hành vi",
+      "methodId": "planning-i04",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A linked public episode or behavior log can connect choice to subsequent action.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "EPISODE_LOCATORS_AND_OUTCOME_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I05",
+      "title": "Cảm nhận và thái độ",
+      "methodId": "planning-i05",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A published study with suitable sample, questions, and period can support an attitude or prevalence claim.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "QUOTE_CONTEXT_AND_DENOMINATOR_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I06",
+      "title": "Hành trình",
+      "methodId": "planning-i06",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "SYNTHESIS",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A linked episode or person-level behavior data covers sequence, time, and outcome.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "LINKED_JOURNEY_EPISODE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I07",
+      "title": "Lý do lựa chọn",
+      "methodId": "planning-i07",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A real choice account or measured reasons with suitable sample becomes available.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "CHOICE_CASE_AND_OUTCOME_CONTEXT_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I08",
+      "title": "Rào cản",
+      "methodId": "planning-i08",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A case documents the barrier, context, product version, and next action.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "BARRIER_CASE_AND_CONTEXT_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I09",
+      "title": "Nhu cầu chưa được đáp ứng",
+      "methodId": "planning-i09",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "SYNTHESIS",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A concrete question requires new evidence or compatible outcome/understanding data.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "ANSWER_GAP_EVIDENCE_AND_SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I10",
+      "title": "Chủ đề và mối quan tâm",
+      "methodId": "planning-i10",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A prevalence question has sample frame, source IDs, dates, and dedup/codebook rules.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "SOURCE_IDS_AND_DEDUP_RULE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I11",
+      "title": "Khác biệt giữa các nhóm",
+      "methodId": "planning-i11",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "METHOD",
+      "moduleIds": [
+        "group-comparison"
+      ],
+      "requiredInputs": [
+        "comparable-groups",
+        "denominators"
+      ],
+      "reopenCondition": "Comparable groups with the same variables and denominators become available.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "COMPARABLE_GROUPS_AND_DENOMINATORS_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I12",
+      "title": "Điểm tiếp xúc",
+      "methodId": "planning-i12",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A decision needs compatible exposure, click/order/outcome data with anti-double-counting controls.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "EXPOSURE_AND_OUTCOME_COMPATIBILITY_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I13",
+      "title": "Thương hiệu và đối thủ",
+      "methodId": "planning-i13",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "case-claim-packaging"
+      ],
+      "requiredInputs": [
+        "source-scope",
+        "case-locators",
+        "adjudication-provenance"
+      ],
+      "reopenCondition": "A message or offer claim needs a comparable content sample and exact locators.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "CONTENT_LOCATORS_AND_SAMPLING_SCOPE_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I14",
+      "title": "Hướng cơ hội",
+      "methodId": "planning-i14",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "SYNTHESIS",
+      "moduleIds": [
+        "bounded-synthesis"
+      ],
+      "requiredInputs": [
+        "validated-metrics",
+        "source-bound-claims",
+        "owner-review"
+      ],
+      "reopenCondition": "Independent outcome evidence could reorder an opportunity.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "VALIDATED_SOURCE_BOUND_CLAIMS_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I15",
+      "title": "Định hướng chiến lược",
+      "methodId": "planning-i15",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "SYNTHESIS",
+      "moduleIds": [
+        "bounded-synthesis"
+      ],
+      "requiredInputs": [
+        "validated-metrics",
+        "source-bound-claims",
+        "owner-review"
+      ],
+      "reopenCondition": "A brief and capability/cost/unknown inputs allow a strategy trade-off.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "OWNER_BRIEF_AND_TRADEOFF_INPUTS_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I16",
+      "title": "Thử nghiệm và đo lường",
+      "methodId": "planning-i16",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "METHOD",
+      "moduleIds": [
+        "outcome-measurement"
+      ],
+      "requiredInputs": [
+        "existing-relevant-outcomes",
+        "measurement-design"
+      ],
+      "reopenCondition": "Relevant behavior or outcome data, or an existing measurement design, resolves the question.",
+      "fallbackState": "BLOCKED",
+      "fallbackReasons": [
+        "RELEVANT_OUTCOME_MEASUREMENT_REQUIRED"
+      ]
+    },
+    {
+      "sectionId": "I17",
+      "title": "Phụ lục và bằng chứng",
+      "methodId": "planning-i17",
+      "methodVersion": "1.0.0",
+      "historicalTemplateMaturity": "PILOT",
+      "moduleIds": [
+        "source-scope"
+      ],
+      "requiredInputs": [
+        "source-manifest",
+        "verified-locators"
+      ],
+      "reopenCondition": "A new source, duplicate/error locator, or usage-rights condition changes the evidence appendix.",
+      "fallbackState": "METHOD_ONLY",
+      "fallbackReasons": [
+        "EVIDENCE_LEDGER_AND_LOCATORS_REQUIRED"
+      ]
+    }
+  ]
+}
