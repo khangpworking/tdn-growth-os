@@ -4,7 +4,7 @@ import test from 'node:test';
 import catalog from '../../docs/research/report-section-catalog-v1.json' with { type: 'json' };
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
-import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
+import { calculateMetricScopes, metricLabelFingerprint } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { buildResearchReportChartData } from '../../src/modules/analysis/research-report-charts.js';
 
 // Test-authoring gate: these tests own the chart builder's public boundary.
@@ -156,7 +156,10 @@ test('keeps missing labels and zero denominators blocked with truthful empty lan
   }
 
   const zeroRevenue = metricFixture();
-  for (const row of zeroRevenue.records) row.revenue = { ...row.revenue, state: 'observed_zero', value: '0', displayedValue: '0' };
+  for (const row of zeroRevenue.records) {
+    row.revenue = { ...row.revenue, state: 'observed_zero', value: '0', displayedValue: '0' };
+    row.label!.contentSha256 = metricLabelFingerprint(zeroRevenue.scope.platform, row);
+  }
   const zero = inputs(zeroRevenue);
   const zeroChart = buildResearchReportChartData(zero.result, zero.resultSha256, zero.catalog, zero.catalogSha256);
   assert.equal(zeroChart.totals.scopes[0]!.points.find(point => point.metric === 'revenue')?.value, '0');
@@ -173,6 +176,9 @@ test('keeps missing labels and zero denominators blocked with truthful empty lan
     ...incompleteRevenue.records[0]!.revenue,
     state: 'missing', value: null, displayedValue: null,
   };
+  incompleteRevenue.records[0]!.label!.contentSha256 = metricLabelFingerprint(
+    incompleteRevenue.scope.platform, incompleteRevenue.records[0]!,
+  );
   const incomplete = inputs(incompleteRevenue);
   const incompleteChart = buildResearchReportChartData(
     incomplete.result, incomplete.resultSha256, incomplete.catalog, incomplete.catalogSha256,
