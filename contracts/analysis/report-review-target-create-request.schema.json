@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-review-target-create-request.schema.json",
+  "title": "ReportReviewTargetCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "reportId", "reportVersion", "interpretationId", "intendedUse"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "reportId": { "type": "string", "format": "uuid" },
+    "reportVersion": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "interpretationId": { "type": "string", "format": "uuid" },
+    "intendedUse": { "type": "string", "minLength": 1, "maxLength": 300 }
+  }
+}

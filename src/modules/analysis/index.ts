@@ -114,3 +114,12 @@ export {
   type ReportReviewTargetInterpretationReader,
   type ReportReviewTargetReportReader,
 } from './report-review-target.js';
+export {
+  AnalysisReportReviewTargetReader,
+  ReportReviewTargetLedgerConflictError,
+  ReportReviewTargetLedgerIntegrityError,
+  ReportReviewTargetLedgerService,
+  ReportReviewTargetLedgerValidationError,
+  type ReportReviewTargetLedgerExecution,
+  type VerifiedReportReviewTarget,
+} from './report-review-target-ledger.js';

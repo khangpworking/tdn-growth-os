@@ -1,5 +1,16 @@
 # Trạng thái hiện tại
 
+## Research A17: immutable review-target ledger
+
+- Persists one canonical A16 target from a closed exact report/version,
+  interpretation and intended-use request; exact retry is mutation-free.
+- Verified replay rebuilds the target through A10/A13 and checks the immutable
+  row, active manifest and content-addressed bytes.
+- Migration 0033 adds only the target ledger. No decision, reviewer, UI/API,
+  provider call, publication right or deployment is included.
+- Draft PR #74 is open; Linux CI passed on implementation head `ad6109f` with
+  171/171 frontend and 583/583 repository tests plus report preview.
+
 ## Research A16: exact report review target
 
 - Composes one deterministic internal-review target from an explicitly named
