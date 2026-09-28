@@ -40,6 +40,20 @@ export interface ReportVersionExecution {
   readonly databaseMutations: number;
 }
 
+export interface ReportSeriesCatalogEntry {
+  readonly reportId: string;
+  readonly reportKey: string;
+  readonly workspaceId: string;
+  readonly createdAt: string;
+}
+
+export interface VerifiedReportArtifact {
+  readonly record: ReportVersionRecord;
+  readonly fileName: string;
+  readonly mediaType: string;
+  readonly bytes: Buffer;
+}
+
 interface SeriesRow {
   readonly reportId: string;
   readonly reportKey: string;
@@ -343,6 +357,31 @@ export class ReportVersionService {
     return records;
   }
 
+  /** Catalog lookup only. Call readHistory before treating any version as verified. */
+  listSeriesByWorkspace(workspaceId: string): readonly ReportSeriesCatalogEntry[] {
+    assertUuid(workspaceId, 'workspaceId');
+    const rows = this.#db.prepare(`
+      SELECT report_id reportId, report_key reportKey, workspace_id workspaceId, created_at createdAt
+      FROM analysis_report_series
+      WHERE workspace_id = ?
+      ORDER BY created_at, report_id
+      LIMIT 1001
+    `).all(workspaceId) as ReportSeriesCatalogEntry[];
+    if (rows.length > 1000) throw new ReportVersionIntegrityError('Report series catalog exceeds the read limit');
+    return rows;
+  }
+
+  /** Returns one exact member only after replay-verifying the complete report version. */
+  async readArtifact(reportId: string, version: number, fileName: string): Promise<VerifiedReportArtifact> {
+    if (!/^[a-z0-9._-]{1,120}$/.test(fileName)) throw new ReportVersionValidationError('Unsafe report artifact name');
+    const record = await this.readVersion(reportId, version);
+    const member = record.artifacts.find(artifact => artifact.fileName === fileName);
+    if (!member) throw new ReportVersionValidationError('Report artifact not found');
+    const bytes = await this.#readRegisteredArtifact(member.sha256, member.mediaType);
+    if (bytes.byteLength !== member.byteSize) throw new ReportVersionIntegrityError('Report artifact byte size mismatch');
+    return { record, fileName, mediaType: member.mediaType, bytes: Buffer.from(bytes) };
+  }
+
   async #verifiedRetry(
     request: ReportVersionCreateRequest,
     requestSha256: string,
@@ -511,6 +550,12 @@ export class AnalysisReportVersionReader {
   }
   readHistory(reportId: string): Promise<readonly ReportVersionRecord[]> {
     return this.#service.readHistory(reportId);
+  }
+  listSeriesByWorkspace(workspaceId: string): readonly ReportSeriesCatalogEntry[] {
+    return this.#service.listSeriesByWorkspace(workspaceId);
+  }
+  readArtifact(reportId: string, version: number, fileName: string): Promise<VerifiedReportArtifact> {
+    return this.#service.readArtifact(reportId, version, fileName);
   }
 }
 

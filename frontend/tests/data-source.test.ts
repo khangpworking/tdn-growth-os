@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { generatedProductWorkspaceKey, submitOwnerProductWorkspace, submitOwnerProductWorkspaceAndReload, b9LockBlocker, b9SaveBlocker, b9LockDisabled, b9SaveDisabled, clearanceMatchesCurrent, exactCurrentPassDecisionIds, frontendMode, loadFrontendAvailability, loadRealWorkspaceState, ownerClearanceDisabled, ownerDecisionDisabled, OwnerWriteError, stableSegmentKey, submitB9AndReload, submitOwnerB8Clearance, submitOwnerB8Decision, submitOwnerB9Lock, submitOwnerB9Working, submitOwnerClearanceAndReload, submitOwnerDecisionAndReload, submitOwnerB10Decision, submitOwnerB10AndReload, ownerB10Blocker, ownerB10Disabled, generatedWorkspaceKey, ownerWorkspaceDisabled, submitOwnerWorkspace, submitOwnerWorkspaceAndReload, generatedCandidateKey, ownerCandidateDisabled, submitOwnerCandidate, submitOwnerCandidateRevision, submitOwnerCandidateAndReload, generatedBasketKey, ownerBasketDisabled, submitOwnerBasket, submitOwnerBasketAndReload, ownerB7Disabled, submitOwnerB7Decision, submitOwnerB7AndReload, WorkspaceDataSourceError } from '../src/data-source';
 import { validStpDraft } from '../src/B9Editor';
+import { loadReportHistory, loadWorkspaceReportIndex, reportArtifactUrl } from '../src/data-source';
 
 const ids = {
   w1: '11111111-1111-4111-8111-111111111111', w2: '11111111-1111-4111-8111-222222222222',
@@ -36,6 +37,25 @@ test('real mode is default and demo requires an explicit URL parameter', () => {
   assert.equal(frontendMode(''), 'real');
   assert.equal(frontendMode('?mode=real'), 'real');
   assert.equal(frontendMode('?mode=demo'), 'demo');
+});
+
+test('loads an explicit report series and predecessor-bound history without choosing a version', async () => {
+  const reportId = ids.c1;
+  const index = { contractVersion: '1.0.0', workspaceId: ids.w1, reports: [{ reportId, reportKey: 'market-canxi', createdAt: at }] };
+  const version = {
+    versionId: ids.d1, version: 1, previousSemanticVersionId: null, semanticVersionId: 'a'.repeat(64), createdAt: at,
+    status: 'DRAFT', interpretationState: 'NONE', reviewState: 'UNREVIEWED',
+    scope: { key: 'canxi', platform: 'shopee', selection: 'ON', start: '2024-08-10', end: '2026-08-10', periodBasis: 'Metric filter', acquiredAt: null },
+    sectionCounts: { total: 30, partialDeterministicDraft: 4, methodOnly: 13, blocked: 12, manualReviewRequired: 1, notImplemented: 0 },
+    selectedSourceCount: 2,
+    artifacts: [{ fileName: 'report.html', mediaType: 'text/html; charset=utf-8', byteSize: 1200 }, { fileName: 'packet.json', mediaType: 'application/json', byteSize: 800 }],
+  };
+  const history = { contractVersion: '1.0.0', reportId, reportKey: 'market-canxi', workspaceId: ids.w1, versions: [version] };
+  const fetcher = (async (input: string | URL | Request) => json(String(input).endsWith('/versions') ? history : index)) as typeof fetch;
+  assert.deepEqual((await loadWorkspaceReportIndex(ids.w1, fetcher)).reports.map(item => item.reportId), [reportId]);
+  assert.equal((await loadReportHistory(reportId, fetcher)).versions[0]?.sectionCounts.partialDeterministicDraft, 4);
+  assert.equal(reportArtifactUrl(reportId, 1, 'report.html'), `/api/reports/${reportId}/versions/1/files/report.html`);
+  await assert.rejects(loadReportHistory(reportId, (async () => json({ ...history, versions: [{ ...version, previousSemanticVersionId: 'b'.repeat(64) }] })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
 });
 
 test('loads real portfolio/details by IDs and exact candidate versions without inferring duplicate names', async () => {

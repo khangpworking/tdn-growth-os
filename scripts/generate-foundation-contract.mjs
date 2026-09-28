@@ -69,6 +69,7 @@ const contracts = [
   ['api', 'owner-b7-decision-api'],
   ['api', 'owner-product-workspace-api'],
   ['api', 'content-api'],
+  ['api', 'report-api'],
   ['api', 'owner-content-brand-api'],
   ['api', 'owner-content-catalog-api'],
   ['api', 'owner-content-prompt-api'],
@@ -128,7 +129,7 @@ for (const [module, contract] of contracts) {
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
     // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
-    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-version-record'].includes(contract)
+    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-version-record', 'report-api'].includes(contract)
       ? { ignoreMinAndMaxItems: true }
       : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,

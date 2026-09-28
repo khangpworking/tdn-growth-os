@@ -1,0 +1,124 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/report-api.schema.json",
+  "title": "Research report read API responses",
+  "oneOf": [
+    { "$ref": "#/$defs/index" },
+    { "$ref": "#/$defs/history" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "dateTime": { "type": "string", "format": "date-time" },
+    "series": {
+      "title": "ReportSeriesSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reportId", "reportKey", "createdAt"],
+      "properties": {
+        "reportId": { "$ref": "#/$defs/uuid" },
+        "reportKey": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "createdAt": { "$ref": "#/$defs/dateTime" }
+      }
+    },
+    "index": {
+      "title": "WorkspaceReportIndexResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "reports"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "reports": { "type": "array", "maxItems": 1000, "items": { "$ref": "#/$defs/series" } }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "platform", "selection", "start", "end", "periodBasis", "acquiredAt"],
+      "properties": {
+        "key": { "type": "string" },
+        "platform": { "enum": ["shopee", "tiktok"] },
+        "selection": { "enum": ["ON", "OFF", "UNSPECIFIED"] },
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" },
+        "periodBasis": { "type": "string" },
+        "acquiredAt": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/dateTime" }] }
+      }
+    },
+    "sectionCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "partialDeterministicDraft", "methodOnly", "blocked", "manualReviewRequired", "notImplemented"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "partialDeterministicDraft": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "methodOnly": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "blocked": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "manualReviewRequired": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "notImplemented": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "mediaType", "byteSize"],
+      "properties": {
+        "fileName": { "type": "string", "pattern": "^[a-z0-9._-]{1,120}$" },
+        "mediaType": { "type": "string" },
+        "byteSize": { "type": "integer", "minimum": 0, "maximum": 33554432 }
+      }
+    },
+    "version": {
+      "title": "ReportVersionSummary",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["versionId", "version", "previousSemanticVersionId", "semanticVersionId", "createdAt", "status", "interpretationState", "reviewState", "scope", "sectionCounts", "selectedSourceCount", "artifacts"],
+      "properties": {
+        "versionId": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "previousSemanticVersionId": { "oneOf": [{ "type": "null" }, { "$ref": "#/$defs/digest" }] },
+        "semanticVersionId": { "$ref": "#/$defs/digest" },
+        "createdAt": { "$ref": "#/$defs/dateTime" },
+        "status": { "const": "DRAFT" },
+        "interpretationState": { "const": "NONE" },
+        "reviewState": { "const": "UNREVIEWED" },
+        "scope": { "$ref": "#/$defs/scope" },
+        "sectionCounts": { "$ref": "#/$defs/sectionCounts" },
+        "selectedSourceCount": { "type": "integer", "minimum": 2, "maximum": 20 },
+        "artifacts": { "type": "array", "minItems": 1, "maxItems": 40, "items": { "$ref": "#/$defs/artifact" } }
+      }
+    },
+    "history": {
+      "title": "ReportHistoryResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "reportId", "reportKey", "workspaceId", "versions"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "reportId": { "$ref": "#/$defs/uuid" },
+        "reportKey": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "versions": { "type": "array", "minItems": 1, "maxItems": 10000, "items": { "$ref": "#/$defs/version" } }
+      }
+    },
+    "error": {
+      "title": "ReportApiErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "not_found", "method_not_allowed", "integrity_error"] },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
