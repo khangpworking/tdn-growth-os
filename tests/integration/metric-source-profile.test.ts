@@ -52,6 +52,7 @@ test('explicitly unconfirmed acquisition survives workbook intake and report rep
   assert.equal(packet.packet.approvalState, 'UNREVIEWED');
   assert.equal(packet.packet.sourceVerification, 'NORMALIZED_INPUT_ONLY');
   assert.match(packet.report, /Thu nhận khai báo: chưa xác nhận/);
+  assert.equal(packet.packet.claims.find(claim => claim.claimId === 'M03:all:revenue')?.value, '150');
   assert.ok(packet.packet.claims.every(claim => claim.limitations.includes('ACQUISITION_TIME_UNCONFIRMED')));
   assert.ok(packet.packet.sections.find(s => s.sectionId === 'M13')!.blockers.includes('ACQUISITION_TIME_UNCONFIRMED'));
   assert.deepEqual(compose(parsed.result), packet);
