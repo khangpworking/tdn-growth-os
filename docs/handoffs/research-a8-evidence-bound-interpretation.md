@@ -7,8 +7,10 @@
 - Added closed request, untrusted-output and application-owned interpretation
   artifact schemas with generated TypeScript.
 - Added a pure builder that re-verifies the exact A7 source-backed bundle,
-  resolves citations from A3 deterministic claims and rejects unsupported
-  sections, citations, numbers and authority language.
+  replays the A3 packet from its exact result and catalog bytes, resolves
+  citations from deterministic claims and rejects unsupported sections,
+  citations, numbers, decision/regulated-authority language and invented
+  provenance.
 - Added a stable interpretation-content digest that excludes run ID, time,
   provider telemetry and render bytes.
 - Added an offline prompt policy and one focused test owner for this boundary.
@@ -28,9 +30,18 @@
 
 - Contract generation: PASS locally; generation only.
 - Windows test/build/typecheck: not run by policy.
-- Linux focused/full CI and independent static review: pending delivery.
+- Independent static review findings closed: A3 deterministic replay, broader
+  language/provenance guards, hypothesis coverage and forged-packet regression.
+- Linux full repository check: PASS on implementation head `99daefd2ee9e198a743b3082a68de23a035bc323` —
+  https://github.com/khangpworking/tdn-growth-os/actions/runs/36388535823
+- Linux report preview: PASS on the same head —
+  https://github.com/khangpworking/tdn-growth-os/actions/runs/36388535819
+- `git diff --check`: PASS.
 
 ## Delivery state
 
-Local implementation on `feature/research-a8-evidence-bound-interpretation`.
-Final commit, draft PR, Linux evidence and exact handoff comment remain pending.
+Draft PR #64 remains open on `feature/research-a8-evidence-bound-interpretation`:
+https://github.com/khangpworking/tdn-growth-os/pull/64
+
+The PR is stacked on Research A1 through A7 and is not merge-ready until those
+dependencies are resolved. No deployment or provider call was performed.
