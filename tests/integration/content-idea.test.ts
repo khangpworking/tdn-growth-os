@@ -4,16 +4,18 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
-import { createFakeCreativeGateway, type FakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
+import { createFakeCreativeGateway, type FakeCreativeCall, type FakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
 import { ContentBrandService } from '../../src/modules/flow/content-brand-service.js';
 import { ContentCampaignService } from '../../src/modules/flow/content-campaign-service.js';
 import { ContentCatalogService } from '../../src/modules/flow/content-catalog-service.js';
 import {
   BIG_IDEA_AGGREGATE_LIMIT,
   ContentIdeaConflictError,
+  ContentIdeaIntegrityError,
   ContentIdeaReferenceError,
   ContentIdeaService,
   FREESTYLE_PROMPT_NAME,
+  contentIdeaIdFor,
   letterCode,
   purposeLabelKey,
 } from '../../src/modules/flow/content-idea-service.js';
@@ -57,6 +59,7 @@ const insight = {
 
 type SetupOptions = {
   readonly outputs?: readonly Record<string, string>[];
+  readonly gateway?: FakeCreativeGateway;
   readonly lockInsight?: boolean;
   readonly now?: string;
 };
@@ -81,15 +84,15 @@ async function setup(options: SetupOptions = {}) {
   const library = new ContentPromptLibrary();
   const promptIds = Array.from({ length: 10 }, (_, index) => id(300 + index));
   const prompts = new ContentPromptService({ db: opened.db, artifactStore: artifacts, library, uuid: () => promptIds.shift()!, now });
-  const gateway: FakeCreativeGateway = createFakeCreativeGateway({
+  const gateway: FakeCreativeGateway = options.gateway ?? createFakeCreativeGateway({
     text: (options.outputs ?? []).map((output) => ({ result: { text: JSON.stringify(output), latencyMs: 1 } })),
   });
   const attemptIds = Array.from({ length: 100 }, (_, index) => id(1000 + index));
   const attempts = createContentAiAttemptService({ db: opened.db, gateway, artifactRoot: path.join(root, 'artifacts'), clock: now, newId: () => attemptIds.shift()! });
-  const ideaIds = Array.from({ length: 100 }, (_, index) => id(2000 + index));
+  const purposeTagIds = Array.from({ length: 100 }, (_, index) => id(2000 + index));
   const ideas = new ContentIdeaService({
     db: opened.db, artifactStore: artifacts, attempts, campaigns, insights, catalog, prompts, library, now,
-    newId: () => ideaIds.shift()!,
+    newId: () => purposeTagIds.shift()!,
   });
   return { ...opened, root, artifacts, clock, now, brands, catalog, campaigns, insights, prompts, library, gateway, attempts, ideas };
 }
@@ -125,6 +128,7 @@ test('Big Idea generation stores a verified artifact and succeeded text attempt,
   const state = await setup({ outputs: [bigOutput('one')] });
   const input = bigRequest(id(10));
   const first = await state.ideas.generate(input, 'owner:050b');
+  assert.equal(first.ideaId, contentIdeaIdFor(input.requestId));
   assert.deepEqual([first.kind, first.code, first.deduplicated], ['BIG_IDEA', 'A', false]);
   const retry = await state.ideas.generate(input, 'owner:050b');
   assert.deepEqual([retry.ideaId, retry.attemptId, retry.code, retry.deduplicated], [first.ideaId, first.attemptId, 'A', true]);
@@ -137,6 +141,107 @@ test('Big Idea generation stores a verified artifact and succeeded text attempt,
   assert.ok(attempt);
   assert.deepEqual([attempt.targetType, attempt.modality, attempt.state, attempt.outputSha256 !== null], ['content_big_idea', 'text', 'succeeded', true]);
   assert.match((state.gateway.calls.find((call) => call.operation === 'generateText') as { request: { userInput: string } }).request.userInput, /LOCKED_INPUT_JSON/);
+  state.db.close();
+});
+
+test('exact retry fails closed when the stored original AI output bytes are tampered with', async () => {
+  const state = await setup({ outputs: [bigOutput('one')] });
+  const input = bigRequest(id(11));
+  const first = await state.ideas.generate(input, 'owner:050b');
+  const artifact = await state.ideas.readIdea(first.ideaId);
+  fs.writeFileSync(state.artifacts.pathForDigest(artifact.outputSha256), Buffer.from(JSON.stringify(bigOutput('tampered')), 'utf8'));
+
+  await assert.rejects(state.ideas.generate(input, 'owner:050b'), ContentIdeaIntegrityError);
+  assert.equal(state.gateway.calls.filter((call) => call.operation === 'generateText').length, 1);
+  assert.equal(count(state.db, 'flow_content_ideas'), 1);
+  state.db.close();
+});
+
+test('contentIdeaIdFor is deterministic, UUID v8/variant-valid, and request-scoped', () => {
+  const first = contentIdeaIdFor(id(12));
+  const same = contentIdeaIdFor(id(12));
+  const other = contentIdeaIdFor(id(13));
+  assert.match(first, /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.equal(same, first);
+  assert.notEqual(other, first);
+});
+
+test('a durable running generation conflicts across service instances, then restart recovery chains an interrupted retry', async () => {
+  type TextResult = Awaited<ReturnType<FakeCreativeGateway['generateText']>>;
+  let release: ((result: TextResult) => void) | undefined;
+  const calls: FakeCreativeCall[] = [];
+  const hangingGateway: FakeCreativeGateway = {
+    configured: true,
+    calls,
+    generateText(request) {
+      calls.push({ operation: 'generateText', request });
+      return new Promise<TextResult>((resolve) => { release = resolve; });
+    },
+    generateImage: async () => { throw new Error('unused image call'); },
+    listModels: async () => [],
+  };
+  const state = await setup({ gateway: hangingGateway });
+  const input = bigRequest(id(14));
+  const running = state.ideas.generate(input, 'owner:050b');
+  await new Promise<void>((resolve) => setImmediate(resolve));
+  const targetId = contentIdeaIdFor(input.requestId);
+  const runningAttempt = state.attempts.list({ targetId, limit: 10 })[0];
+  assert.ok(runningAttempt);
+  assert.equal(runningAttempt.state, 'running');
+
+  const secondGateway = createFakeCreativeGateway({ text: [{ result: { text: JSON.stringify(bigOutput('recovered')), latencyMs: 1 } }] });
+  const secondAttemptIds = [id(9000)];
+  const secondAttempts = createContentAiAttemptService({
+    db: state.db, gateway: secondGateway, artifactRoot: path.join(state.root, 'artifacts'), clock: state.now,
+    newId: () => secondAttemptIds.shift()!,
+  });
+  const restartedIdeas = new ContentIdeaService({
+    db: state.db, artifactStore: state.artifacts, attempts: secondAttempts, campaigns: state.campaigns, insights: state.insights,
+    catalog: state.catalog, prompts: state.prompts, library: state.library, now: state.now,
+  });
+  await assert.rejects(restartedIdeas.generate(input, 'owner:050b'), ContentIdeaConflictError);
+  assert.equal(secondGateway.calls.filter((call) => call.operation === 'generateText').length, 0);
+
+  assert.equal(state.attempts.sweepInterrupted(new Date('2027-01-01T00:00:01.000Z')), 1);
+  assert.equal(state.attempts.list({ targetId, limit: 10 }).find((attempt) => attempt.attemptId === runningAttempt.attemptId)?.state, 'interrupted');
+  const recovered = await restartedIdeas.generate(input, 'owner:050b');
+  const attempts = state.attempts.list({ targetId, limit: 10 });
+  const retry = attempts.find((attempt) => attempt.attemptId === id(9000));
+  assert.ok(retry);
+  assert.deepEqual([recovered.ideaId, recovered.deduplicated, retry.retryOf, count(state.db, 'flow_content_ideas')], [targetId, false, runningAttempt.attemptId, 1]);
+  assert.equal(secondGateway.calls.filter((call) => call.operation === 'generateText').length, 1);
+
+  release!({ text: JSON.stringify(bigOutput('stale process')), latencyMs: 1 });
+  await assert.rejects(running);
+  state.db.close();
+});
+
+test('failed generations retry under the same request id as one retryOf chain', async () => {
+  const state = await setup({ outputs: [{ concept: 'bad' }, { concept: 'bad again' }, bigOutput('recovered')] });
+  const input = bigRequest(id(15));
+  await assert.rejects(state.ideas.generate(input, 'owner:050b'));
+  await assert.rejects(state.ideas.generate(input, 'owner:050b'));
+  const recovered = await state.ideas.generate(input, 'owner:050b');
+  const attempts = state.attempts.list({ targetId: recovered.ideaId, limit: 10 });
+  const first = attempts.find((attempt) => attempt.attemptId === id(1000));
+  const second = attempts.find((attempt) => attempt.attemptId === id(1001));
+  const third = attempts.find((attempt) => attempt.attemptId === id(1002));
+  assert.ok(first && second && third);
+  assert.deepEqual([first.state, second.state, third.state, second.retryOf, third.retryOf, count(state.db, 'flow_content_ideas')], [
+    'failed', 'failed', 'succeeded', first.attemptId, second.attemptId, 1,
+  ]);
+  assert.equal(state.gateway.calls.filter((call) => call.operation === 'generateText').length, 3);
+  state.db.close();
+});
+
+test('a changed input after a failed attempt conflicts without a second AI call', async () => {
+  const state = await setup({ outputs: [{ concept: 'bad' }, bigOutput('unused retry')] });
+  const requestId = id(16);
+  await assert.rejects(state.ideas.generate(bigRequest(requestId), 'owner:050b'));
+  await assert.rejects(state.ideas.generate(bigRequest(requestId, { model: 'gpt-5.6-luna' }), 'owner:050b'), ContentIdeaConflictError);
+  assert.equal(state.gateway.calls.filter((call) => call.operation === 'generateText').length, 1);
+  assert.equal(count(state.db, 'flow_content_ideas'), 0);
+  assert.equal(state.attempts.list({ targetId: contentIdeaIdFor(requestId), limit: 10 }).length, 1);
   state.db.close();
 });
 
@@ -276,6 +381,57 @@ test('listCampaignIdeas orders Big Ideas before their Angles and exposes state, 
     developing: false, deleted: true, restorableUntil: deleted.restorableUntil, stateSequence: 1, purposes: [], model: 'gpt-5.6-sol',
     promptLabel: state.library.find('system-angle-content', 1)!.name, createdAt: at,
   });
+  state.db.close();
+});
+
+test('Q6 derives Big Idea deletion over Angles without cascade rows, blocks Angle writes, and expires the whole subtree', async () => {
+  const state = await setup({ outputs: [bigOutput('parent'), angleOutput('own'), angleOutput('live')] });
+  const parent = await state.ideas.generate(bigRequest(id(17)), 'owner:050b');
+  state.ideas.changeState({ contractVersion: '1.0.0', ideaId: parent.ideaId, expectedSequence: 0, action: 'DEVELOP' });
+  const own = await state.ideas.generate(angleRequest(id(18), parent.ideaId), 'owner:050b');
+  const live = await state.ideas.generate(angleRequest(id(19), parent.ideaId), 'owner:050b');
+
+  state.clock.value = new Date('2027-01-02T00:00:00.000Z');
+  const ownDeleted = state.ideas.changeState({ contractVersion: '1.0.0', ideaId: own.ideaId, expectedSequence: 0, action: 'DELETE' });
+  state.ideas.changeState({ contractVersion: '1.0.0', ideaId: live.ideaId, expectedSequence: 0, action: 'DEVELOP' });
+  state.ideas.changeState({ contractVersion: '1.0.0', ideaId: live.ideaId, expectedSequence: 1, action: 'PURPOSES', purposes: ['EDUCATION'] });
+  const angleStateCountsBefore = [own, live].map((idea) => Number((state.db.prepare('SELECT count(*) n FROM flow_content_idea_states WHERE idea_id = ?').get(idea.ideaId) as { n: bigint | number }).n));
+
+  state.clock.value = new Date('2027-01-03T00:00:00.000Z');
+  const parentDeleted = state.ideas.changeState({ contractVersion: '1.0.0', ideaId: parent.ideaId, expectedSequence: 1, action: 'DELETE' });
+  const hidden = await state.ideas.listCampaignIdeas(campaignId);
+  const parentEntry = hidden.find((entry) => entry.ideaId === parent.ideaId)!;
+  const ownHidden = hidden.find((entry) => entry.ideaId === own.ideaId)!;
+  const liveHidden = hidden.find((entry) => entry.ideaId === live.ideaId)!;
+  assert.deepEqual([parentEntry.deleted, parentEntry.developing, parentEntry.hiddenByParent, parentEntry.restorableUntil], [true, false, undefined, parentDeleted.restorableUntil]);
+  assert.deepEqual([ownHidden.deleted, ownHidden.developing, ownHidden.hiddenByParent, ownHidden.restorableUntil], [true, false, true, ownDeleted.restorableUntil]);
+  assert.deepEqual([liveHidden.deleted, liveHidden.developing, liveHidden.hiddenByParent, liveHidden.restorableUntil], [true, false, true, parentDeleted.restorableUntil]);
+  assert.deepEqual([ownHidden.restorableUntil, liveHidden.restorableUntil], ['2027-02-01T00:00:00.000Z', '2027-02-02T00:00:00.000Z']);
+  assert.deepEqual(
+    [own, live].map((idea) => Number((state.db.prepare('SELECT count(*) n FROM flow_content_idea_states WHERE idea_id = ?').get(idea.ideaId) as { n: bigint | number }).n)),
+    angleStateCountsBefore,
+  );
+
+  for (const action of ['DELETE', 'RESTORE', 'PURPOSES'] as const) {
+    assert.throws(() => state.ideas.changeState({
+      contractVersion: '1.0.0', ideaId: live.ideaId, expectedSequence: 2, action,
+      ...(action === 'PURPOSES' ? { purposes: ['TRUST'] } : {}),
+    }), ContentIdeaConflictError);
+  }
+  const callsBeforeRejectedAngle = state.gateway.calls.filter((call) => call.operation === 'generateText').length;
+  await assert.rejects(state.ideas.generate(angleRequest(id(20), parent.ideaId), 'owner:050b'), ContentIdeaConflictError);
+  assert.equal(state.gateway.calls.filter((call) => call.operation === 'generateText').length, callsBeforeRejectedAngle);
+
+  state.clock.value = new Date('2027-01-04T00:00:00.000Z');
+  state.ideas.changeState({ contractVersion: '1.0.0', ideaId: parent.ideaId, expectedSequence: 2, action: 'RESTORE' });
+  const restored = await state.ideas.listCampaignIdeas(campaignId);
+  const ownRestored = restored.find((entry) => entry.ideaId === own.ideaId)!;
+  const liveRestored = restored.find((entry) => entry.ideaId === live.ideaId)!;
+  assert.deepEqual([ownRestored.deleted, ownRestored.developing, 'hiddenByParent' in ownRestored, ownRestored.restorableUntil], [true, false, false, ownDeleted.restorableUntil]);
+  assert.deepEqual([liveRestored.deleted, liveRestored.developing, liveRestored.purposes, 'hiddenByParent' in liveRestored], [false, true, ['EDUCATION'], false]);
+
+  state.clock.value = new Date('2027-02-02T00:00:00.001Z');
+  assert.deepEqual(await state.ideas.listCampaignIdeas(campaignId), []);
   state.db.close();
 });
 

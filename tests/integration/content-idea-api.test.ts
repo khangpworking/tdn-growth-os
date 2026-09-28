@@ -14,6 +14,7 @@ import { createFakeCreativeGateway, type FakeCreativeGateway } from '../../src/p
 import { ContentBrandService } from '../../src/modules/flow/content-brand-service.js';
 import { ContentCatalogService } from '../../src/modules/flow/content-catalog-service.js';
 import { ContentPromptLibrary } from '../../src/modules/flow/content-prompt-library.js';
+import { contentIdeaIdFor } from '../../src/modules/flow/content-idea-service.js';
 import { CREATIVE_AI_ERROR_MESSAGES } from '../../src/platform/ai/creative-ai-gateway.js';
 import { openContentOwnerApi, openContentReadApi } from '../../src/api/content-api.js';
 import { openDatabase } from '../../src/platform/db/database.js';
@@ -25,11 +26,13 @@ const brandId = id(1);
 const itemId = id(2);
 const campaignId = id(3);
 const unknownId = id(99);
-const ideaId = id(100);
 const attemptId = id(101);
-const angleId = id(102);
 const angleAttemptId = id(103);
 const tagId = id(104);
+const bigIdeaRequestId = id(200);
+const angleRequestId = id(201);
+const ideaId = contentIdeaIdFor(bigIdeaRequestId);
+const angleId = contentIdeaIdFor(angleRequestId);
 const at = '2027-01-01T00:00:00.000Z';
 const roots: string[] = [];
 const systemBigIdeaLabel = new ContentPromptLibrary().find('system-big-idea-insight', 1)!.name;
@@ -74,7 +77,7 @@ async function serve(run: (read: string, owner: string) => Promise<void>, option
     await brands.createBrand({ contractVersion: '1.0.0', brandKey: 'synthetic-brand', profile: { brandName: 'Synthetic brand' }, displayRules });
     await catalog.createItem({ contractVersion: '1.0.0', brandId, itemKey: 'synthetic-service', item: item() });
   } finally { opened.db.close(); }
-  const uuidValues = [...(options.uuidValues ?? [campaignId, ideaId, attemptId, angleId, angleAttemptId, tagId])];
+  const uuidValues = [...(options.uuidValues ?? [campaignId, attemptId, angleAttemptId, tagId])];
   const owner = openContentOwnerApi({
     databasePath, artifactRoot, writeEnabled: true, token, allowedOrigin: origin, actorId: 'owner:050b',
     uuid: () => uuidValues.shift()!, now: () => new Date(at), ...(options.gateway ? { gateway: options.gateway } : {}),
@@ -90,7 +93,7 @@ const createBody = (patch: Record<string, unknown> = {}) => JSON.stringify({ con
 const revisionBody = (patch: Record<string, unknown> = {}) => JSON.stringify({ contractVersion: '1.0.0', expectedVersion: 0, insight, ...patch });
 const lockBody = (patch: Record<string, unknown> = {}) => JSON.stringify({ contractVersion: '1.0.0', insightVersion: 1, campaignVersion: 1, ...patch });
 const generateBody = (patch: Record<string, unknown> = {}) => JSON.stringify({
-  contractVersion: '1.0.0', requestId: id(200), kind: 'BIG_IDEA', model: 'gpt-5.6-sol', plannedCallCount: 1,
+  contractVersion: '1.0.0', requestId: bigIdeaRequestId, kind: 'BIG_IDEA', model: 'gpt-5.6-sol', plannedCallCount: 1,
   prompt: { source: 'SYSTEM', id: 'system-big-idea-insight', version: 1 }, ...patch,
 });
 const stateBody = (patch: Record<string, unknown> = {}) => JSON.stringify({ contractVersion: '1.0.0', expectedSequence: 0, action: 'DEVELOP', ...patch });
@@ -172,6 +175,47 @@ test('GET idea list returns the contract shape and exposes the locked Insight ve
   }, { gateway });
 });
 
+test('GET idea list exposes derived hidden Angles with schema-valid true-only hiddenByParent', async () => {
+  const gateway = createFakeCreativeGateway({
+    text: [
+      { result: { text: JSON.stringify({ concept: 'Synthetic concept', expression: 'Synthetic expression' }), latencyMs: 1 } },
+      { result: { text: JSON.stringify({ name: 'Synthetic angle', concept: 'Synthetic angle concept' }), latencyMs: 1 } },
+    ],
+  });
+  await serve(async (read, owner) => {
+    await prepareCampaign(owner);
+    assert.equal((await post(`${owner}/owner-api/content/campaigns/${campaignId}/ideas`, generateBody())).status, 201);
+    assert.equal((await post(`${owner}/owner-api/content/ideas/${ideaId}/state`, stateBody())).status, 201);
+    assert.equal((await post(`${owner}/owner-api/content/campaigns/${campaignId}/ideas`, generateBody({
+      requestId: angleRequestId, kind: 'ANGLE', parentIdeaId: ideaId, prompt: { source: 'SYSTEM', id: 'system-angle-content', version: 1 },
+    }))).status, 201);
+    const deleted = await post(`${owner}/owner-api/content/ideas/${ideaId}/state`, stateBody({ expectedSequence: 1, action: 'DELETE' }));
+    assert.equal(deleted.status, 201);
+    for (const action of ['DELETE', 'RESTORE', 'PURPOSES'] as const) {
+      const response = await post(`${owner}/owner-api/content/ideas/${angleId}/state`, stateBody({
+        expectedSequence: 0, action, ...(action === 'PURPOSES' ? { purposes: ['EDUCATION'] } : {}),
+      }));
+      assert.equal(response.status, 409);
+    }
+    const callsBeforeRejectedAngle = gateway.calls.filter((call) => call.operation === 'generateText').length;
+    const rejectedAngle = await post(`${owner}/owner-api/content/campaigns/${campaignId}/ideas`, generateBody({
+      requestId: id(202), kind: 'ANGLE', parentIdeaId: ideaId, prompt: { source: 'SYSTEM', id: 'system-angle-content', version: 1 },
+    }));
+    assert.equal(rejectedAngle.status, 409);
+    assert.equal(gateway.calls.filter((call) => call.operation === 'generateText').length, callsBeforeRejectedAngle);
+
+    const response = await fetch(`${read}/api/content/campaigns/${campaignId}/ideas`);
+    assert.equal(response.status, 200);
+    const body = await response.json() as { ideas: { ideaId: string; deleted: boolean; developing: boolean; hiddenByParent?: unknown; restorableUntil?: string }[] };
+    assert.equal(addAjvSchemas().getSchema(`${contentApiSchema.$id}#/$defs/ideaList`)!(body), true);
+    const parent = body.ideas.find((entry) => entry.ideaId === ideaId)!;
+    const angle = body.ideas.find((entry) => entry.ideaId === angleId)!;
+    assert.equal('hiddenByParent' in parent, false);
+    assert.deepEqual([angle.deleted, angle.developing, angle.hiddenByParent, angle.restorableUntil], [true, false, true, '2027-01-31T00:00:00.000Z']);
+    assert.ok(body.ideas.every((entry) => !('hiddenByParent' in entry) || entry.hiddenByParent === true));
+  }, { gateway, uuidValues: [campaignId, attemptId, angleAttemptId] });
+});
+
 test('OWNER idea routes return schema-valid receipts and enforce exact keys, auth, origin, preflight and content type', async () => {
   const gateway = createFakeCreativeGateway({
     text: [
@@ -194,7 +238,7 @@ test('OWNER idea routes return schema-valid receipts and enforce exact keys, aut
     const state = await post(`${owner}/owner-api/content/ideas/${ideaId}/state`, stateBody());
     assert.equal(state.status, 201);
     assert.equal(ajv.getSchema(`${ownerContentIdeaApiSchema.$id}#/$defs/stateReceipt`)!(await state.json()), true);
-    const angle = await post(`${owner}/owner-api/content/campaigns/${campaignId}/ideas`, generateBody({ requestId: id(201), kind: 'ANGLE', parentIdeaId: ideaId, prompt: { source: 'SYSTEM', id: 'system-angle-content', version: 1 } }));
+    const angle = await post(`${owner}/owner-api/content/campaigns/${campaignId}/ideas`, generateBody({ requestId: angleRequestId, kind: 'ANGLE', parentIdeaId: ideaId, prompt: { source: 'SYSTEM', id: 'system-angle-content', version: 1 } }));
     assert.equal(angle.status, 201);
     assert.equal((await angle.json() as { ideaId: string }).ideaId, angleId);
     const purposes = await post(`${owner}/owner-api/content/ideas/${angleId}/state`, stateBody({ action: 'PURPOSES', purposes: ['EDUCATION'] }));

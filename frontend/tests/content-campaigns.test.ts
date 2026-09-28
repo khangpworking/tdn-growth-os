@@ -70,11 +70,16 @@ test('campaign routes parse and round-trip only the supported content paths', ()
   assert.deepEqual(parseRoute(routeToHash.content(), state), { kind: 'content' });
   assert.deepEqual(parseRoute(routeToHash.campaignNew(), state), { kind: 'campaign-new' });
   assert.deepEqual(parseRoute(routeToHash.campaign(campaignId), state), { kind: 'campaign', campaignId });
+  const angleHash = routeToHash.campaignAngle(campaignId, workspaceId);
+  assert.deepEqual(parseRoute(angleHash, state), { kind: 'campaign-ideas', campaignId, ideaKind: 'ANGLE', parentIdeaId: workspaceId });
+  assert.equal(routeToHash.campaignAngle(campaignId, workspaceId), angleHash);
+  assert.equal(parseRoute(`#/content/${campaignId}/angle/not-a-uuid`, state).kind, 'invalid');
   assert.equal(parseRoute('#/content/abc', state).kind, 'invalid');
   assert.equal(parseRoute(`#/content/${campaignId}/x`, state).kind, 'invalid');
   assert.equal(routeToHash.content(), '#/content');
   assert.equal(routeToHash.campaignNew(), '#/content/new');
   assert.equal(routeToHash.campaign(campaignId), `#/content/${campaignId}`);
+  assert.equal(routeToHash.campaignAngle(campaignId), `#/content/${campaignId}/angle`);
 });
 
 test('campaign reads accept valid Task 4 payloads and reject unexpected shapes', async () => {
