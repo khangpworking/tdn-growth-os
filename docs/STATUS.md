@@ -455,7 +455,7 @@ The opt-in loopback OWNER API now exposes a closed `POST /owner-api/workspaces` 
 - Scope remains frontend-only: no migration, domain/API policy change, real OWNER write, active-runtime restart, provider call, deployment, or Windows backport.
 - Base: exact fetched `origin/main` `ab099f33ba1634d60f2209efee9af9637c4ac458`. Verification and PR state are recorded in `docs/handoffs/046-b7-b10-ux-correction.md`.
 
-## Research A15 — exact-version interpretation dashboard (in progress)
+## Research A15 — exact-version interpretation dashboard (complete, draft PR)
 
 The local report workspace can inspect A13 interpretation overlays only after
 the operator explicitly selects an exact report version and an exact saved
@@ -464,4 +464,7 @@ citations/pointers, assumptions, limitations and safe generation identity,
 while labelling every run unapproved and distinct from source evidence or a
 human decision. No approval control, regeneration, provider call, report write,
 migration or deployment is included. Final PR and Linux CI evidence remain
-pending.
+recorded in `docs/handoffs/research-a15-interpretation-dashboard.md`: draft PR
+#72, verified implementation head `c3c2528e839c26d5eaff6e017e26e1cdb55901d0`,
+Linux CI PASS with 171/171 frontend and 579/579 repository tests. No Windows
+test, build or typecheck is release evidence.
