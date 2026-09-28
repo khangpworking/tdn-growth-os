@@ -9,7 +9,8 @@
   `report.html` file the future reviewer sees.
 - The target is internal and unapproved. It adds no human decision, reviewer,
   publication right, UI/API, migration, model call, data write or deployment.
-- Final draft-PR SHA and Linux verification remain pending.
+- Draft PR #73 is open; Linux CI passed on implementation head `f1bdcea` with
+  171/171 frontend and 581/581 repository tests plus the report preview.
 
 ## Research A14: exact-version interpretation read API
 
