@@ -34,7 +34,7 @@ test('M02 records exact scope, source membership and missing-versus-zero coverag
   assert.equal(first.output.scope.start, input.scope.start);
   assert.equal(first.output.measurement.wideUnknownPolicy, 'exclude');
   assert.equal(first.output.measurement.revenue.missing, 1);
-  assert.equal(first.output.measurement.revenue.observedZero, 1);
+  assert.equal(first.output.measurement.revenue.observedZero, input.records.filter(record => record.revenue.state === 'observed_zero').length);
   assert.equal(first.output.measurement.labels.unlabeled, 1);
   assert.equal(first.output.measurement.labelIssueCount, 1);
   assert.equal(first.output.sources[0]!.sha256, workbook);

@@ -99,11 +99,34 @@ function requiredFile(bundle: SourceBackedReportBundle, name: string): Buffer {
 function assertReplayedPacket(bundle: SourceBackedReportBundle): void {
   let replayed: ReturnType<typeof createResearchReportPacket>;
   try {
+    const methodArtifacts = bundle.packet.sections.flatMap(section => {
+      if (section.methodArtifact === undefined) return [];
+      const bytes = requiredFile(bundle, section.methodArtifact.fileName);
+      if (sha256(bytes) !== section.methodArtifact.sha256) {
+        throw new TypeError('interpretation source: METHOD_ARTIFACT_DIGEST_MISMATCH');
+      }
+      let artifact: unknown;
+      try { artifact = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
+      catch { throw new TypeError('interpretation source: METHOD_ARTIFACT_INVALID_JSON_UTF8'); }
+      if (artifact === null || typeof artifact !== 'object' ||
+          (artifact as { methodOutputId?: unknown }).methodOutputId !== section.methodArtifact.methodOutputId ||
+          section.sectionId !== 'M02') {
+        throw new TypeError('interpretation source: METHOD_ARTIFACT_IDENTITY_MISMATCH');
+      }
+      return [{
+        sectionId: 'M02' as const,
+        methodVersion: '2.0.0' as const,
+        fileName: section.methodArtifact.fileName,
+        sha256: section.methodArtifact.sha256,
+        methodOutputId: section.methodArtifact.methodOutputId,
+      }];
+    });
     replayed = createResearchReportPacket(
       requiredFile(bundle, 'metric-result.json'),
       bundle.envelope.artifacts.metricResultSha256,
       requiredFile(bundle, 'section-catalog.json'),
       bundle.envelope.artifacts.catalogSha256,
+      methodArtifacts,
     );
   } catch (cause) {
     throw new TypeError('interpretation source: A3_PACKET_REPLAY_FAILED', { cause });
