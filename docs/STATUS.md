@@ -8,7 +8,9 @@
   precision coverage, label coverage and the explicit UNKNOWN/WIDE policy.
 - Binds the method artifact to the packet, semantic identity, immutable report
   version and exact-version readiness API. It adds no AI narrative, conclusion
-  or human decision; Linux verification is pending.
+  or human decision. Linux verification passed with 176/176 frontend tests,
+  585/585 repository tests, contract generation, strict backend/frontend
+  TypeScript, production build and research preview.
 
 ## Research A21: exact-version 30-section readiness matrix
 
