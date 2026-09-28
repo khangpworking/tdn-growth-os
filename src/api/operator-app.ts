@@ -11,6 +11,7 @@ import { createContentAiStatusSource } from '../modules/flow/content-ai-status.j
 import { openContentOwnerApi, openContentReadApi, type ContentApiApplication } from './content-api.js';
 import { openOwnerApi, type OwnerApiApplication } from './owner-api.js';
 import { openWorkspaceApi, type WorkspaceApiApplication } from './workspace-api.js';
+import { openReportApi, type ReportApiApplication } from './report-api.js';
 import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from './executor-lock.js';
 
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
@@ -81,6 +82,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   let owner: OwnerApiApplication | undefined;
   let contentRead: ContentApiApplication | undefined;
   let contentOwner: ContentApiApplication | undefined;
+  let reports: ReportApiApplication | undefined;
   try {
     // Only an operator with OWNER writes is an executor: it holds the lock and sweeps abandoned attempts. Viewers never write.
     if (configuration.ownerWritesEnabled) lock = acquireExecutorLock(databasePath);
@@ -93,6 +95,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       : disabledCreativeGateway();
     const aiStatus = createContentAiStatusSource({ gateway, clock });
     read = openWorkspaceApi({ databasePath, artifactRoot: configuration.artifactRoot });
+    reports = openReportApi({ databasePath, artifactRoot: configuration.artifactRoot });
     contentRead = openContentReadApi({ databasePath, artifactRoot: configuration.artifactRoot, aiStatus });
     if (configuration.ownerWritesEnabled) owner = openOwnerApi({
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
@@ -106,6 +109,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     let stopped = true;
     try { contentOwner?.close(); } catch { stopped = false; }
     try { contentRead?.close(); } catch { stopped = false; }
+    try { reports?.close(); } catch { stopped = false; }
     try { owner?.close(); } catch { stopped = false; }
     try { read?.close(); } catch { stopped = false; }
     if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
@@ -116,12 +120,14 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   const ownerApplication = owner;
   const contentReadApplication = contentRead!;
   const contentOwnerApplication = contentOwner;
+  const reportApplication = reports;
   const server = http.createServer((request, response) => {
     if (!validAuthority(request, authority)) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Invalid Host authority' } });
     const pathname = rawPathname(request.url, authority);
     if (pathname === null) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Malformed request URL' } });
     if (pathname === '/healthz') return health(request, response, configuration.version, configuration.ownerWritesEnabled);
     if (pathname === '/api/content' || pathname.startsWith('/api/content/')) return contentReadApplication.handler(request, response);
+    if (reportApplication && reportApiPath(pathname)) return reportApplication.handler(request, response);
     if (pathname === '/api' || pathname.startsWith('/api/')) return readApplication.handler(request, response);
     if (pathname === '/owner-api' || pathname.startsWith('/owner-api/')) {
       if (!ownerApplication) return sendJson(response, 403, { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
@@ -144,6 +150,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         });
         try { contentOwnerApplication?.close(); } catch (error) { errors.push(error); }
         try { contentReadApplication.close(); } catch (error) { errors.push(error); }
+        try { reportApplication?.close(); } catch (error) { errors.push(error); }
         try { ownerApplication?.close(); } catch (error) { errors.push(error); }
         try { readApplication.close(); } catch (error) { errors.push(error); }
         // Executor authority is released only after a clean stop; an uncertain shutdown keeps the lock.
@@ -154,6 +161,10 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       return closePromise;
     },
   };
+}
+
+function reportApiPath(pathname: string): boolean {
+  return /^\/api\/workspaces\/[^/]+\/reports$/.test(pathname) || /^\/api\/reports(?:\/|$)/.test(pathname);
 }
 
 /**

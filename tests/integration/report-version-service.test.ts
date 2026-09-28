@@ -25,6 +25,7 @@ import {
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
 import { openDatabase } from '../../src/platform/db/index.js';
+import { createReportApiServer } from '../../src/api/report-api.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const tempRoots: string[] = [];
@@ -264,6 +265,59 @@ test('fails closed on changed identity and on a missing immutable artifact', asy
   await assert.rejects(state.service.readVersion(created.reportId, 1), ReportVersionIntegrityError);
   assert.equal(count(state.db, 'analysis_report_versions'), 1n);
   assert.equal(count(state.db, 'analysis_report_version_artifacts'), BigInt(record.artifacts.length));
+});
+
+test('read API lists workspace series, verifies explicit history, and serves only exact member bytes', async () => {
+  const state = await fixture();
+  const created = await state.service.createVersion(state.request, state.catalogBytes);
+  const application = createReportApiServer({ databasePath: state.db.name, artifactRoot: state.artifactRoot });
+  await new Promise<void>(resolve => application.server.listen(0, '127.0.0.1', resolve));
+  const address = application.server.address();
+  assert.ok(address && typeof address !== 'string');
+  const base = `http://127.0.0.1:${address.port}`;
+  try {
+    const indexResponse = await fetch(`${base}/api/workspaces/${state.request.sourceRequest.workspaceId}/reports`);
+    assert.equal(indexResponse.status, 200);
+    assert.deepEqual((await indexResponse.json() as any).reports, [{
+      reportId: created.reportId,
+      reportKey: state.request.reportKey,
+      createdAt: '2026-10-01T03:00:00.000Z',
+    }]);
+
+    const historyResponse = await fetch(`${base}/api/reports/${created.reportId}/versions`);
+    assert.equal(historyResponse.status, 200);
+    const history = await historyResponse.json() as any;
+    assert.equal(history.workspaceId, state.request.sourceRequest.workspaceId);
+    assert.deepEqual(history.versions.map((item: any) => item.version), [1]);
+    assert.deepEqual(history.versions[0].sectionCounts, {
+      total: 30,
+      partialDeterministicDraft: 4,
+      methodOnly: 13,
+      blocked: 12,
+      manualReviewRequired: 1,
+      notImplemented: 0,
+    });
+    assert.equal(history.versions[0].interpretationState, 'NONE');
+    assert.equal(history.versions[0].reviewState, 'UNREVIEWED');
+
+    const expectedHtml = await state.service.readArtifact(created.reportId, 1, 'report.html');
+    const htmlResponse = await fetch(`${base}/api/reports/${created.reportId}/versions/1/files/report.html`);
+    assert.equal(htmlResponse.status, 200);
+    assert.equal(htmlResponse.headers.get('x-content-type-options'), 'nosniff');
+    assert.match(htmlResponse.headers.get('content-security-policy') ?? '', /default-src 'none'/);
+    assert.deepEqual(Buffer.from(await htmlResponse.arrayBuffer()), expectedHtml.bytes);
+    assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/1/files/not-member.json`)).status, 404);
+    assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/1/files/%2e%2e%2fsecret`)).status, 400);
+
+    const record = await state.service.readVersion(created.reportId, 1);
+    const packet = record.artifacts.find(item => item.fileName === 'packet.json')!;
+    fs.writeFileSync(state.artifacts.pathForDigest(packet.sha256), 'corrupt');
+    const corrupt = await fetch(`${base}/api/reports/${created.reportId}/versions`);
+    assert.equal(corrupt.status, 500);
+    assert.deepEqual(await corrupt.json(), { error: { code: 'integrity_error', message: 'Stored report data failed integrity verification' } });
+  } finally {
+    await application.close();
+  }
 });
 
 test('offline CLI creates the same bounded ledger receipt without AI or provider calls', async () => {

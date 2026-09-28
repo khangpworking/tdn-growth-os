@@ -1,6 +1,7 @@
 import { laneOrder, latestBasketVersion } from './model';
 import type { Candidate, CandidateBasket, DemoState, LaneKey, LaneState, Market, Product } from './model';
 import type { DiscoveryWorkspaceDetailResponse, ProductB10Response, ProductB9Response, ProductWorkspaceDetailResponse, WorkspaceCandidateBasketB7Response, WorkspaceCandidateBasketsResponse, WorkspacePortfolioResponse } from '../../contracts/api/workspace-api.generated';
+import type { ReportHistoryResponse, WorkspaceReportIndexResponse } from '../../contracts/api/report-api.generated';
 
 export type FrontendMode = 'real' | 'demo';
 export interface FrontendAvailability { readonly status: 'ok'; readonly version: string; readonly ownerWritesEnabled: boolean }
@@ -28,6 +29,42 @@ export async function loadFrontendAvailability(fetcher: typeof fetch = fetch): P
     throw new WorkspaceDataSourceError('integrity', 'Trạng thái OWNER không đúng contract.');
   }
   return value as unknown as FrontendAvailability;
+}
+
+export async function loadWorkspaceReportIndex(workspaceId: string, fetcher: typeof fetch = fetch): Promise<WorkspaceReportIndexResponse> {
+  if (!uuid(workspaceId)) invalid('Workspace ID của báo cáo không hợp lệ.');
+  const value = await requestJson(`/api/workspaces/${encodeURIComponent(workspaceId)}/reports`, fetcher);
+  if (!record(value) || value.contractVersion !== '1.0.0' || value.workspaceId !== workspaceId || !Array.isArray(value.reports) || value.reports.length > 1000) invalid('Danh mục báo cáo không đúng contract.');
+  let previous = '';
+  for (const report of value.reports) {
+    if (!record(report) || !uuid(report.reportId) || !text(report.reportKey) || !dateTime(report.createdAt)) invalid('Series báo cáo không đúng contract.');
+    const order = `${report.createdAt}\u0000${report.reportId}`;
+    if (order <= previous) invalid('Thứ tự series báo cáo không ổn định.');
+    previous = order;
+  }
+  uniqueMap(value.reports, report => report.reportId, 'Series báo cáo bị lặp.');
+  return value as WorkspaceReportIndexResponse;
+}
+
+export async function loadReportHistory(reportId: string, fetcher: typeof fetch = fetch): Promise<ReportHistoryResponse> {
+  if (!uuid(reportId)) invalid('Report ID không hợp lệ.');
+  const value = await requestJson(`/api/reports/${encodeURIComponent(reportId)}/versions`, fetcher);
+  if (!record(value) || value.contractVersion !== '1.0.0' || value.reportId !== reportId || !text(value.reportKey) || !uuid(value.workspaceId) || !Array.isArray(value.versions) || value.versions.length === 0 || value.versions.length > 10000) invalid('Lịch sử báo cáo không đúng contract.');
+  let expectedVersion = 1;
+  let previousSemanticVersionId: string | null = null;
+  for (const versionValue of value.versions) {
+    if (!record(versionValue) || !uuid(versionValue.versionId) || versionValue.version !== expectedVersion || versionValue.previousSemanticVersionId !== previousSemanticVersionId || !digest(versionValue.semanticVersionId) || !dateTime(versionValue.createdAt) || versionValue.status !== 'DRAFT' || versionValue.interpretationState !== 'NONE' || versionValue.reviewState !== 'UNREVIEWED' || !reportScope(versionValue.scope) || !sectionCounts(versionValue.sectionCounts) || !count(versionValue.selectedSourceCount) || versionValue.selectedSourceCount < 2 || versionValue.selectedSourceCount > 20 || !Array.isArray(versionValue.artifacts) || versionValue.artifacts.length === 0 || versionValue.artifacts.length > 40) invalid('Phiên bản báo cáo không đúng contract hoặc chuỗi predecessor bị đứt.');
+    for (const artifact of versionValue.artifacts) if (!record(artifact) || typeof artifact.fileName !== 'string' || !/^[a-z0-9._-]{1,120}$/.test(artifact.fileName) || !text(artifact.mediaType) || !count(artifact.byteSize) || artifact.byteSize > 32 * 1024 * 1024) invalid('Danh sách artifact báo cáo không đúng contract.');
+    if (!versionValue.artifacts.some((artifact: Record<string, unknown>) => artifact.fileName === 'report.html')) invalid('Phiên bản báo cáo thiếu report.html đã xác minh.');
+    previousSemanticVersionId = versionValue.semanticVersionId;
+    expectedVersion += 1;
+  }
+  return value as ReportHistoryResponse;
+}
+
+export function reportArtifactUrl(reportId: string, version: number, fileName: string): string {
+  if (!uuid(reportId) || !Number.isSafeInteger(version) || version < 1 || version > 10000 || !/^[a-z0-9._-]{1,120}$/.test(fileName)) throw new TypeError('Invalid report artifact identity');
+  return `/api/reports/${encodeURIComponent(reportId)}/versions/${version}/files/${encodeURIComponent(fileName)}`;
 }
 
 export async function loadRealWorkspaceState(fetcher: typeof fetch = fetch): Promise<DemoState> {
@@ -208,6 +245,25 @@ function candidateKey(value: unknown): value is string { return typeof value ===
 function version(value: unknown): value is number { return Number.isSafeInteger(value) && Number(value) >= 1; }
 function count(value: unknown): value is number { return Number.isSafeInteger(value) && Number(value) >= 0; }
 function dateTime(value: unknown): value is string { return typeof value === 'string' && /^\d{4}-\d\d-\d\dT/.test(value) && Number.isFinite(Date.parse(value)); }
+function digest(value: unknown): value is string { return typeof value === 'string' && /^[0-9a-f]{64}$/.test(value); }
+function reportScope(value: unknown): boolean {
+  return record(value) && text(value.key) && (value.platform === 'shopee' || value.platform === 'tiktok') &&
+    (value.selection === 'ON' || value.selection === 'OFF' || value.selection === 'UNSPECIFIED') &&
+    dateOnly(value.start) && dateOnly(value.end) &&
+    text(value.periodBasis) && (value.acquiredAt === null || dateTime(value.acquiredAt));
+}
+function sectionCounts(value: unknown): boolean {
+  if (!record(value)) return false;
+  const keys = ['total', 'partialDeterministicDraft', 'methodOnly', 'blocked', 'manualReviewRequired', 'notImplemented'] as const;
+  if (keys.some(key => !count(value[key]))) return false;
+  return Number(value.total) >= 1 && Number(value.total) <= 100 &&
+    keys.every(key => Number(value[key]) <= 100) &&
+    keys.slice(1).reduce((sum, key) => sum + Number(value[key]), 0) === Number(value.total);
+}
+function dateOnly(value: unknown): value is string {
+  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  return new Date(`${value}T00:00:00.000Z`).toISOString().slice(0, 10) === value;
+}
 function formatTime(value: string): string { return new Date(value).toLocaleString('vi-VN'); }
 function workingRevision(value: unknown): value is string { return typeof value === 'string' && /^wr1_[A-Za-z0-9_-]{43}$/.test(value); }
 

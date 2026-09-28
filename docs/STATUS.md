@@ -311,6 +311,27 @@ CLI uses the existing immutable publisher. Linux verification is a release
 gate. No comparison groups, ranking, SQLite migration, operator UI, approval,
 provider call or real-data import is included.
 
+## Research A10 — immutable report-version ledger merged
+
+PR #66 is merged on `main` at `3fa773446bfa116cdedda5b02885cab568658d5e`.
+Migration 0030 persists immutable report series, explicit sequential versions,
+exact artifact/source membership, semantic identity and an explicit
+`NONE`/`UNREVIEWED` interpretation/review state. Replays rebuild and compare the
+complete report bytes through verified readers. No live report, AI call, human
+decision or deployment was created.
+
+## Research A11 — verified report read API and operator UI
+
+In progress on `feature/research-a11-report-read-api`. The bounded slice exposes
+workspace report series, replay-verified explicit history and exact persisted
+HTML/evidence members through the local query-only operator. The React workspace
+requires explicit series and version choice and shows the current truth:
+4/30 partial deterministic methods, no AI interpretation and no human review.
+This task adds no method, report write, migration, provider call or deployment.
+Normalized rows remain immutable content-addressed artifacts referenced by
+SQLite; row-level normalized-observation persistence remains the next foundation
+slice.
+
 ## Task 022 — combined Vietnamese market-and-review evidence report
 
 Implemented a bounded offline composition/export path for an explicitly selected `market_snapshot_v1` Result and adapter3 Shopee review Result. It reuses verified Result/Data Pack/collection readers and Task 021 safe review rendering; performs no analysis/filter execution, provider calls, scraping, migrations, or database writes. Exact integer strings and missing-versus-zero semantics are preserved, while differing/unverified scopes, review date independence, and partial collection limits are explicit. Export is read-only, outside Git, owner-only, deterministic, and refuses overwrite. Acceptance is synthetic and persisted; no private review dataset or fabricated provider lineage is included.
