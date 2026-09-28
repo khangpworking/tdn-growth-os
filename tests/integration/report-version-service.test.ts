@@ -338,9 +338,9 @@ test('retains every evidence-bound interpretation run and replays exact evidence
   const baseOutput = {
     items: [{
       sectionId: 'M03', kind: 'INTERPRETATION',
-      conclusion: 'Doanh thu quan sát tập trung trong phạm vi đã phân loại.',
-      evidenceLogic: 'Diễn giải chỉ nối tổng hợp đã xác minh với phạm vi wide.',
-      supportingClaimIds: ['M03:wide:revenue'], assumptions: [],
+      conclusion: 'Doanh thu quan sát tập trung trong toàn bộ phạm vi đã khai báo.',
+      evidenceLogic: 'Diễn giải chỉ nối tổng hợp đã xác minh với phạm vi all.',
+      supportingClaimIds: ['M03:all:revenue'], assumptions: [],
       limitations: ['Không suy rộng ra toàn thị trường.'],
     }],
   };
