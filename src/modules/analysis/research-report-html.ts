@@ -81,7 +81,7 @@ function shortDate(value: string): string {
 }
 
 /** Render only a bundle built through the raw-source verified application boundary. */
-export function renderResearchReportHtml(bundle: SourceBackedReportBundle): string {
+export function renderResearchReportHtml(bundle: SourceBackedReportBundle, semanticVersionId?: string): string {
   const { result, packet, charts, files } = bundle;
   const scope = result.input.scope;
   const workspace = JSON.parse(files.get('workspace.json')!.toString('utf8')) as { title: string };
@@ -121,6 +121,8 @@ export function renderResearchReportHtml(bundle: SourceBackedReportBundle): stri
     ['normalized-input.json', 'Dữ liệu chuẩn hóa'], ['receipt.json', 'Biên bản ánh xạ ô nguồn'],
     ['metric-result.json', 'Kết quả tính toán'], ['charts.json', 'Chart và liên kết bằng chứng'],
     ['packet.json', 'Packet báo cáo'], ['section-catalog.json', 'Phương pháp / điều kiện section'],
+    ['workspace.json', 'Workspace đã xác minh'],
+    ['semantic-content.json', 'Phiên bản nội dung'], ['review-state.json', 'Trạng thái duyệt'],
   ].filter(([file]) => files.has(file!)).map(([file, label]) => `<li><a href="${file}" download>${label}</a></li>`).join('');
   return `<!doctype html>
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>${escape(workspace.title)} · Báo cáo bằng chứng</title><style>
@@ -134,5 +136,5 @@ h2{font-size:20px}h3,figcaption{font-size:16px}summary{min-height:44px;padding:8
 <section id="readiness"><h2>Điều kiện của ${packet.sections.length} section</h2><p>Một section có số liệu từng phần không có nghĩa toàn bộ phương pháp đã hoàn thành. Mở từng mục để xem điều kiện còn thiếu.</p><ul>${readinessSummary.map(text => `<li>${escape(text)}</li>`).join('')}</ul>${readiness}</section>
 <section id="claims"><h2>Truy nguồn từng con số</h2><p>Mở một quan sát để xem phương pháp, tập thành viên, mẫu số và vị trí trong Result.</p>${claims}${memberships}</section>
 <section id="source-rows"><h2>Dòng nguồn đã chuẩn hóa</h2><p>Giá trị thiếu không bằng 0. Ô nguồn dẫn về <a href="raw-workbook.xlsx" download>workbook giữ nguyên byte</a>; <a href="receipt.json" download>biên bản ánh xạ</a> giữ giá trị ô và dấu vết chuẩn hóa.</p><div class="table-wrap" role="region" aria-label="Các dòng nguồn" tabindex="0"><table><thead><tr><th>Index</th><th>Sản phẩm / ID nguồn</th><th>Doanh thu</th><th>Sản lượng</th><th>Phân loại / vị trí</th></tr></thead><tbody>${observations}</tbody></table></div></section>
-<section id="files"><h2>File và phiên bản</h2><ul class="downloads">${downloads}<li><a href="evidence-envelope.json" download>Liên kết nguồn của bản xuất</a></li></ul><details><summary>Nhận diện chính xác</summary><dl><dt>Packet</dt><dd><code>${escape(packet.packetId)}</code></dd><dt>Result</dt><dd><code>${escape(packet.metricResultSha256)}</code></dd><dt>Catalog</dt><dd><code>${escape(packet.catalogSha256)}</code></dd></dl></details><p>Đây là gói nội bộ có dữ liệu nguồn. Không tự động chia sẻ ra ngoài. In / lưu PDF bằng trình duyệt không đồng nghĩa báo cáo đã được duyệt.</p></section><footer>TDN Growth OS · Dữ liệu → phép tính → nhận định → quyết định. Không có lời gọi AI, nhà cung cấp hoặc quyết định kinh doanh nào được thực hiện khi xuất bản nháp này.</footer></main></body></html>\n`;
+<section id="files"><h2>File và phiên bản</h2><ul class="downloads">${downloads}<li><a href="evidence-envelope.json" download>Liên kết nguồn của bản xuất</a></li><li><a href="export-manifest.json" download>Danh mục byte của bản xuất</a></li></ul><details><summary>Nhận diện chính xác</summary><dl>${semanticVersionId ? `<dt>Nội dung</dt><dd><code>${escape(semanticVersionId)}</code></dd>` : ''}<dt>Packet</dt><dd><code>${escape(packet.packetId)}</code></dd><dt>Result</dt><dd><code>${escape(packet.metricResultSha256)}</code></dd><dt>Catalog</dt><dd><code>${escape(packet.catalogSha256)}</code></dd></dl></details><p>ID nội dung chỉ đổi khi nguồn, phép tính, chart hoặc section thay đổi; đổi renderer HTML/PDF không tự biến thành nội dung mới. Trạng thái duyệt được lưu riêng và hiện vẫn là UNREVIEWED.</p><p>Đây là gói nội bộ có dữ liệu nguồn. Không tự động chia sẻ ra ngoài. In / lưu PDF bằng trình duyệt không đồng nghĩa báo cáo đã được duyệt.</p></section><footer>TDN Growth OS · Dữ liệu → phép tính → nhận định → quyết định. Không có lời gọi AI, nhà cung cấp hoặc quyết định kinh doanh nào được thực hiện khi xuất bản nháp này.</footer></main></body></html>\n`;
 }

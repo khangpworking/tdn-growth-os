@@ -8,6 +8,8 @@ const contracts = [
   ['analysis', 'report-section-catalog'],
   ['analysis', 'versioned-report-packet'],
   ['analysis', 'source-backed-report-request'],
+  ['analysis', 'report-semantic-content'],
+  ['analysis', 'report-review-state'],
   ['analysis', 'metric-source-manifest'],
   ['analysis', 'metric-source-labels'],
   ['analysis', 'metric-scope-input'],
@@ -103,7 +105,9 @@ for (const [module, contract] of contracts) {
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
     // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
-    ...(['report-section-catalog', 'versioned-report-packet'].includes(contract) ? { ignoreMinAndMaxItems: true } : {}),
+    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'report-review-state'].includes(contract)
+      ? { ignoreMinAndMaxItems: true }
+      : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,
     style: { singleQuote: true, semi: true, tabWidth: 2, trailingComma: 'all' },
   });

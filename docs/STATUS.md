@@ -1,5 +1,21 @@
 # Trạng thái hiện tại
 
+## Research A7 — semantic report version boundary (local implementation)
+
+- A4 private export now separates a deterministic meaning-bearing identity from
+  renderer/export bytes and from human review state.
+- `semantic-content.json` binds the exact verified source package/envelope,
+  normalized input, calculation Result, packet, catalog, chart and every section
+  identity/state. `review-state.json` remains separately `UNREVIEWED`; AI
+  interpretation is explicitly absent.
+- HTML exposes the content ID and links the exact workspace/export manifest.
+  No additional section method, report conclusion or approval is claimed.
+- No migration is added while 0029 remains sequenced after pending Content
+  migrations 0026–0028. Durable SQLite report history, AI interpretation,
+  human-review API, dashboard and production PDF remain incomplete.
+- Contract generation succeeded locally. Per project policy no Windows
+  test/build/typecheck is run; Linux CI is the delivery gate.
+
 ## Research A3a — versioned report packet (draft PR #55; not deployed)
 
 - CLI offline ghim result/catalog theo exact byte SHA-256, replay phép tính A1 trước khi đóng gói.
