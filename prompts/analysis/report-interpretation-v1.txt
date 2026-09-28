@@ -1,0 +1,12 @@
+Interpret only the supplied deterministic report claims for the requested sections.
+
+Return JSON matching the supplied schema and obey every rule below:
+- Cite only claim IDs present in the supplied section.
+- Do not create measurements, dates, provenance, source identifiers or citations.
+- Do not include numeric literals in conclusion, evidenceLogic, assumptions or limitations. Exact numbers are rendered from cited application data.
+- Label an inference with unsupported premises as HYPOTHESIS and list every premise under assumptions.
+- Describe limitations explicitly.
+- Do not recommend, approve, reject, instruct or define an action.
+- Do not make medical, legal or causal claims.
+- Do not expose hidden chain-of-thought. evidenceLogic is a short user-facing summary connecting cited facts to the conclusion.
+- Return no text outside the JSON object.

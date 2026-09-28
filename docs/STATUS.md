@@ -1,5 +1,24 @@
 # Trạng thái hiện tại
 
+## Research A8: evidence-bound interpretation contract (draft PR #64; not deployed)
+
+- Added closed request, untrusted-output and application-owned artifact
+  contracts for the third report layer in ADR 0005.
+- Interpretation is permitted only for verified partial-draft sections with
+  deterministic claims. The exact A3 packet is replayed from its pinned result
+  and catalog before use. Model output chooses claim IDs; application code
+  copies exact citation values, pointers and limitations from that replayed packet.
+- Numeric literals, decision/action, regulated-authority or invented-provenance
+  language, unsupported claim IDs and blocked or method-only sections fail
+  closed. Hypotheses remain labelled and require explicit assumptions. Hidden
+  chain-of-thought is not stored.
+- Interpretation meaning has a stable content digest separate from provider
+  telemetry, run identity, render bytes and future human decisions.
+- This is offline contract/validator work with synthetic fixtures. No provider
+  call, migration, SQLite row, API/UI, human decision or new section method is
+  included. Linux full check and preview passed on the verified implementation
+  head; no Windows tests/build/typecheck were run.
+
 ## Research A7 — semantic report version boundary (local implementation)
 
 - A4 private export now separates a deterministic meaning-bearing identity from
