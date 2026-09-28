@@ -296,7 +296,7 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   const html = fs.readFileSync(path.join(output, 'report.html'), 'utf8');
   const document = new JSDOM(html).window.document;
   assert.equal(document.querySelector('h1')?.textContent, 'Synthetic <Report> & "Evidence" · Báo cáo bằng chứng');
-  assert.ok(document.querySelector('.meta')?.textContent?.includes('Thu nhận (theo nguồn): 2026-09-16'));
+  assert.ok(document.querySelector('.meta')?.textContent?.includes('Thu nhận (theo nguồn): 16/09/2026'));
   assert.ok([...document.querySelectorAll('header code')].some(element => element.textContent === '2026-09-16T01:00:00+07:00'));
   assert.ok(html.includes('&lt;Report&gt; &amp; &quot;Evidence&quot;'));
   assert.ok(!html.includes('<Report> & "Evidence"'));
