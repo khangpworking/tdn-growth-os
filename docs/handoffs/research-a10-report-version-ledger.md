@@ -2,11 +2,10 @@
 
 ## Delivery state
 
-Implementation is in progress on
-`feature/research-a10-report-version-ledger`. The branch temporarily includes
-the unmerged Content Studio migration stack so migration 0030 can be developed
-after 0026–0029. It must be integrated onto final `main` only after those four
-migrations are reviewed and merged.
+Draft PR [#66](https://github.com/khangpworking/tdn-growth-os/pull/66) is open
+from `feature/research-a10-report-version-ledger` at
+`843c486bbc6421c16cdbba71944d1cf670cc5387`. It is integrated onto the final
+Content Studio stack on `main`; migration 0030 follows migrations 0028–0029.
 
 ## Implemented locally
 
@@ -17,12 +16,16 @@ migrations are reviewed and merged.
 - Offline `research:report:version` command.
 - Focused synthetic integration coverage.
 
-## Pending release evidence
+## Release evidence
 
-- Contract regeneration using the pinned Linux dependencies.
-- Final-head Linux full check and independent review.
-- Current-base integration after Content Studio migrations 0026–0029 land.
-- Commit, push, draft PR and exact-head handoff.
+- Contract regeneration and strict TypeScript passed on Linux.
+- Full repository check passed at the exact head:
+  [run 36400362403](https://github.com/khangpworking/tdn-growth-os/actions/runs/36400362403).
+- Research report preview passed:
+  [run 36400362373](https://github.com/khangpworking/tdn-growth-os/actions/runs/36400362373).
+- Independent static review findings on retry identity, write serialization and
+  migration accounting were corrected before the final run.
+- PR #66 remains open and draft; no deployment or live migration was performed.
 
 No provider call, live import, human decision, deployment or real report version
 has been created by this work.

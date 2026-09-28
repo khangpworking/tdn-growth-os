@@ -1,6 +1,6 @@
 # Trạng thái hiện tại
 
-## Research A10: immutable report-version ledger (local implementation)
+## Research A10: immutable report-version ledger (draft PR #66)
 
 - Persists one exact verified source-backed report bundle as an immutable report
   version with explicit source and artifact membership.
@@ -10,8 +10,8 @@
   readers, reruns deterministic calculations and compares every retained byte.
 - Layer 3 remains `NONE` and layer 4 remains `UNREVIEWED`; framework approval is
   not treated as report-content approval.
-- Migration 0030 is being developed after the pending Content Studio migrations
-  0026–0029 on a temporary integration branch. It is not deployed or merged.
+- Migration 0030 follows the merged Content Studio migrations 0028–0029 on
+  current `main`. Exact-head Linux check and report preview passed.
 - No provider/AI call, fifth section, live import, dashboard mutation or real
   business decision is included. Linux release verification is still pending.
 
