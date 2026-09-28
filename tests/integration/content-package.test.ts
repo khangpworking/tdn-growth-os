@@ -141,6 +141,7 @@ test('the package pin contains every integrity input and the footer remains byte
     assert.deepEqual(lockedInput.previous_posts, []);
     const generatedVersion = (await state.packages.readPackage(created.packages[0]!.packageId)).caption[0]!;
     assert.equal(generatedVersion.attemptId, caption.attemptId);
+    assert.ok(generatedVersion.inputBundleSha256);
     assert.equal(generatedVersion.inputBundleSha256.length, 64);
     assert.equal(generatedVersion.outputSha256!.length, 64);
     const manualInput = { contractVersion: '1.0.0' as const, packageId: created.packages[0]!.packageId, part: 'CAPTION' as const, action: 'MANUAL' as const, expectedVersion: 1, requestId: requestId(51), post: 'Manual synthetic caption' };

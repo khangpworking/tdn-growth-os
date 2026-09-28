@@ -436,7 +436,7 @@ export function validateContentIdeaArtifact(value: unknown): ContentIdeaArtifact
 
 export function validateContentPackageCreateRequest(value: unknown): ContentPackageCreateRequest {
   if (!validateContentPackageCreate(value)) throw new FlowValidationError(ajv.errorsText(validateContentPackageCreate.errors, { separator: '; ' }));
-  return value;
+  return value as ContentPackageCreateRequest;
 }
 
 export function validateContentPackageArtifact(value: unknown): ContentPackageArtifact {
@@ -446,7 +446,7 @@ export function validateContentPackageArtifact(value: unknown): ContentPackageAr
 
 export function validateContentPackageGenerateRequest(value: unknown): ContentPackageGenerateRequest {
   if (!validateContentPackageGenerate(value)) throw new FlowValidationError(ajv.errorsText(validateContentPackageGenerate.errors, { separator: '; ' }));
-  return value;
+  return value as ContentPackageGenerateRequest;
 }
 
 export function validateContentPackageVersionRequest(value: unknown): ContentPackageVersionRequest {
