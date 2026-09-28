@@ -40,6 +40,7 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { createReportApiServer } from '../../src/api/report-api.js';
+import { createOwnerApiServer } from '../../src/api/owner-api.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const tempRoots: string[] = [];
@@ -572,20 +573,50 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     reportId: created.reportId, reportVersion: created.version,
     artifactBytes: built.artifactBytes, promptText: interpretation.promptText,
   });
-  const targets = new ReportReviewTargetLedgerService({
-    db: state.db,
-    artifactStore: state.artifacts,
-    reports: interpretation.reports,
-    interpretations: ledger,
-    now: () => new Date('2026-10-01T06:00:00.000Z'),
-  });
-  const retainedTarget = await targets.create({
+  const targetRequest = {
     contractVersion: '1.0.0',
     reportId: created.reportId,
     reportVersion: created.version,
     interpretationId: persisted.interpretationId,
     intendedUse: 'Internal market-opportunity review and decision support.',
+  } as const;
+  const ownerToken = 'synthetic-report-owner-token-12345678901234567890';
+  const allowedOrigin = 'http://owner.test';
+  const owner = createOwnerApiServer({
+    databasePath: state.db.name,
+    artifactRoot: state.artifactRoot,
+    writeEnabled: true,
+    token: ownerToken,
+    allowedOrigin,
+    actorId: 'owner:report-test',
+    now: () => new Date('2026-10-01T06:00:00.000Z'),
   });
+  await new Promise<void>(resolve => owner.server.listen(0, '127.0.0.1', resolve));
+  const ownerAddress = owner.server.address();
+  assert.ok(ownerAddress && typeof ownerAddress !== 'string');
+  const ownerBase = `http://127.0.0.1:${ownerAddress.port}`;
+  const ownerHeaders = { origin: allowedOrigin, authorization: `Bearer ${ownerToken}`, 'content-type': 'application/json' };
+  let retainedTarget: any = null;
+  try {
+    const createdTarget = await fetch(`${ownerBase}/owner-api/report-review-targets`, { method: 'POST', headers: ownerHeaders, body: JSON.stringify(targetRequest) });
+    assert.equal(createdTarget.status, 201);
+    retainedTarget = await createdTarget.json();
+    assert.equal(retainedTarget.exactRetry, false);
+    assert.equal(retainedTarget.intendedUse, targetRequest.intendedUse);
+    const retryTarget = await fetch(`${ownerBase}/owner-api/report-review-targets`, { method: 'POST', headers: ownerHeaders, body: JSON.stringify(targetRequest) });
+    assert.equal(retryTarget.status, 200);
+    assert.deepEqual(await retryTarget.json(), { ...retainedTarget, exactRetry: true });
+    assert.equal(count(state.db, 'analysis_report_review_targets'), 1n);
+    const extraField = await fetch(`${ownerBase}/owner-api/report-review-targets`, { method: 'POST', headers: ownerHeaders, body: JSON.stringify({ ...targetRequest, reviewer: 'owner:report-test' }) });
+    assert.equal(extraField.status, 400);
+    const paddedUse = await fetch(`${ownerBase}/owner-api/report-review-targets`, { method: 'POST', headers: ownerHeaders, body: JSON.stringify({ ...targetRequest, intendedUse: ` ${targetRequest.intendedUse}` }) });
+    assert.equal(paddedUse.status, 400);
+    const unknownReport = await fetch(`${ownerBase}/owner-api/report-review-targets`, { method: 'POST', headers: ownerHeaders, body: JSON.stringify({ ...targetRequest, reportId: '99999999-9999-4999-8999-999999999999' }) });
+    assert.equal(unknownReport.status, 404);
+  } finally {
+    await owner.close();
+  }
+  assert.ok(retainedTarget);
   const application = createReportApiServer({ databasePath: state.db.name, artifactRoot: state.artifactRoot });
   await new Promise<void>(resolve => application.server.listen(0, '127.0.0.1', resolve));
   const address = application.server.address();

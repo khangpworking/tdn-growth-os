@@ -72,6 +72,7 @@ const contracts = [
   ['api', 'owner-product-workspace-api'],
   ['api', 'content-api'],
   ['api', 'report-api'],
+  ['api', 'owner-report-review-target-api'],
   ['api', 'owner-content-brand-api'],
   ['api', 'owner-content-catalog-api'],
   ['api', 'owner-content-prompt-api'],

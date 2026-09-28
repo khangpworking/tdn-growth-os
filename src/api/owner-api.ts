@@ -12,6 +12,7 @@ import type { OwnerProductCandidateCreateRequest, OwnerProductCandidateReceipt, 
 import type { OwnerCandidateBasketRequest, OwnerCandidateBasketReceipt } from '../../contracts/api/owner-candidate-basket-api.generated.js';
 import type { OwnerB7DecisionReceipt, OwnerB7DecisionRequest } from '../../contracts/api/owner-b7-decision-api.generated.js';
 import type { OwnerProductWorkspaceReceipt, OwnerProductWorkspaceRequest } from '../../contracts/api/owner-product-workspace-api.generated.js';
+import type { OwnerReportReviewTargetReceipt, ReportReviewTargetCreateRequest } from '../../contracts/api/owner-report-review-target-api.generated.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import { withDatabaseMutationMutex } from '../platform/db/index.js';
 import { CandidateB7DecisionIdentityConflictError, CandidateB7DecisionService, CANDIDATE_B7_DECISION_CAPABILITY, CANDIDATE_B7_DECISION_POLICY_ID } from '../modules/governance/candidate-b7-decision-service.js';
@@ -35,6 +36,11 @@ import { FlowLockedStpReader } from '../modules/flow/locked-stp-reader.js';
 import { ProductB10DecisionIdentityConflictError, ProductB10DecisionService, PRODUCT_B10_REVIEW_CAPABILITY } from '../modules/governance/product-b10-decision-service.js';
 import { b9WorkingRevision, matchesB9WorkingRevision, validB9WorkingRevision } from './b9-working-revision.js';
 import { canonicalJson } from '../modules/foundation/canonical-json.js';
+import { FoundationSourcePackageReader, SourcePackageService } from '../modules/foundation/index.js';
+import { AnalysisReportVersionReader, ReportVersionService, ReportVersionValidationError } from '../modules/analysis/report-version-service.js';
+import { AnalysisReportInterpretationReader, ReportInterpretationLedgerService, ReportInterpretationLedgerValidationError } from '../modules/analysis/report-interpretation-ledger.js';
+import { ReportReviewTargetLedgerConflictError, ReportReviewTargetLedgerIntegrityError, ReportReviewTargetLedgerService, ReportReviewTargetLedgerValidationError } from '../modules/analysis/report-review-target-ledger.js';
+import { ReportReviewTargetValidationError } from '../modules/analysis/report-review-target.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
@@ -74,6 +80,24 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
     const stps = new StpService({ db, artifactStore: artifacts, productWorkspaceReader: new FlowProductWorkspaceReader(products), b8ClearanceReader: new FlowB8ClearanceReader(clearances), ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
     const lockedStps = new FlowLockedStpReader(stps);
     const b10 = new ProductB10DecisionService({ db, artifactStore: artifacts, lockedStpReader: lockedStps, ...(configuration.now ? { now: configuration.now } : {}), ...(configuration.uuid ? { uuid: configuration.uuid } : {}) });
+    const sourcePackages = new SourcePackageService({ db, artifactStore: artifacts });
+    const reportService = new ReportVersionService({
+      db,
+      artifactStore: artifacts,
+      dependencies: {
+        sourcePackages: new FoundationSourcePackageReader(sourcePackages),
+        workspaces: new FlowDiscoveryWorkspaceReader(discoveries),
+      },
+    });
+    const reportReader = new AnalysisReportVersionReader(reportService);
+    const interpretations = new ReportInterpretationLedgerService({ db, artifactStore: artifacts, reports: reportReader });
+    const reviewTargets = new ReportReviewTargetLedgerService({
+      db,
+      artifactStore: artifacts,
+      reports: reportReader,
+      interpretations: new AnalysisReportInterpretationReader(interpretations),
+      ...(configuration.now ? { now: configuration.now } : {}),
+    });
     const actor = Object.freeze({ actorId: configuration.actorId, roleSnapshot: 'OWNER' as const, capabilities: new Set<string>([CANDIDATE_B7_DECISION_CAPABILITY, PRODUCT_B8_REVIEW_CAPABILITY, PRODUCT_B9_LOCK_CAPABILITY, PRODUCT_B10_REVIEW_CAPABILITY]) });
     const workspaceByKey = db.prepare(`SELECT workspace_id workspaceId, workspace_key workspaceKey, state, title, description,
       request_sha256 requestSha256, workspace_artifact_sha256 artifactSha256, created_at createdAt
@@ -296,6 +320,20 @@ export function openOwnerApi(configuration: OwnerApiConfiguration): OwnerApiAppl
       let verified;
       try { verified = await b10.replay(result.decisionId); } catch { throw new ExistingB10IntegrityError(); }
       return { contractVersion: '1.0.0', decisionId: result.decisionId, decisionNumber: result.decisionNumber, previousDecisionId: verified.previousDecisionId, decision: result.decision, decidedAt: verified.decidedAt, readyForB11: result.decision === 'APPROVE', exactRetry: result.deduplicated };
+    }, async (body) => {
+      const result = await reviewTargets.create(body);
+      const verified = await reviewTargets.read(result.reviewTargetId);
+      const receipt: OwnerReportReviewTargetReceipt = {
+        contractVersion: '1.0.0',
+        reviewTargetId: result.reviewTargetId,
+        reportId: result.reportId,
+        reportVersion: result.reportVersion,
+        interpretationId: result.interpretationId,
+        intendedUse: verified.target.approvalScope.intendedUse,
+        storedAt: verified.storedAt,
+        exactRetry: result.deduplicated,
+      };
+      return receipt;
     }); };
     return { handler, close: () => db.close() };
   } catch (error) { db.close(); throw error; }
@@ -322,6 +360,7 @@ async function route(
   saveWorking: (id: string, body: OwnerB9WorkingRequest) => Promise<OwnerB9WorkingReceipt & { created: boolean }>,
   lock: (id: string, body: OwnerB9LockRequest) => Promise<OwnerB9LockReceipt>,
   decideB10: (id: string, body: OwnerB10DecisionRequest) => Promise<OwnerB10DecisionReceipt>,
+  createReviewTarget: (body: ReportReviewTargetCreateRequest) => Promise<OwnerReportReviewTargetReceipt>,
 ): Promise<void> {
   const origin = singleHeader(request.headers.origin);
   if (origin !== undefined && origin !== configuration.allowedOrigin) return sendError(response, 403, 'forbidden', 'Origin is not allowed');
@@ -345,6 +384,11 @@ async function route(
     const raw = await readBody(request);
     let body: unknown;
     try { body = JSON.parse(raw); } catch { return sendError(response, 400, 'bad_request', 'Request body must be valid JSON'); }
+    if (matched.operation === 'reviewTargetCreate') {
+      if (!ownerReviewTargetBodyShape(body)) return sendError(response, 400, 'bad_request', 'Invalid report review target request');
+      const receipt = await createReviewTarget(body);
+      return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
+    }
     if (matched.operation === 'workspace') {
       if (!ownerWorkspaceBodyShape(body)) return sendError(response, 400, 'bad_request', 'Invalid discovery workspace request');
       try { validateDiscoveryWorkspaceRequest(body); } catch (error) { if (error instanceof FlowValidationError) return sendError(response, 400, 'bad_request', 'Invalid discovery workspace request'); throw error; }
@@ -407,6 +451,14 @@ async function route(
     const receipt = await decideB10(productWorkspaceId, body);
     return sendJson(response, receipt.exactRetry ? 200 : 201, receipt);
   } catch (error) {
+    if (matched.operation === 'reviewTargetCreate') {
+      if (error instanceof PayloadTooLargeError) return sendError(response, 400, 'bad_request', 'Request body is too large');
+      if (error instanceof GovernanceValidationError) return sendError(response, 400, 'bad_request', 'Invalid report review target request');
+      if (error instanceof ReportReviewTargetLedgerValidationError || error instanceof ReportReviewTargetValidationError) return sendError(response, 400, 'bad_request', 'Invalid report review target request');
+      if ((error instanceof ReportVersionValidationError || error instanceof ReportInterpretationLedgerValidationError) && /not found/i.test(error.message)) return sendError(response, 404, 'not_found', 'Report version or interpretation not found');
+      if (error instanceof ReportReviewTargetLedgerConflictError || error instanceof ReportReviewTargetLedgerIntegrityError) return sendError(response, 500, 'integrity_error', 'Stored report review data failed integrity verification');
+      return sendError(response, 500, 'integrity_error', 'Stored report review data failed integrity verification');
+    }
     if (error instanceof ExistingClearanceIntegrityError || error instanceof ExistingStpIntegrityError || error instanceof ExistingB10IntegrityError || error instanceof ExistingDiscoveryWorkspaceIntegrityError || error instanceof ExistingProductCandidateIntegrityError || error instanceof ExistingCandidateBasketIntegrityError || error instanceof ExistingB7IntegrityError || error instanceof ExistingProductWorkspaceIntegrityError) return sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
     if (error instanceof PayloadTooLargeError) return sendError(response, 400, 'bad_request', 'Request body is too large');
     if (error instanceof DiscoveryWorkspaceIdentityConflictError) return matched.operation === 'workspace' && /changed content/i.test(error.message) ? sendError(response, 409, 'conflict', 'Discovery workspace key conflicts with existing content') : sendError(response, 500, 'integrity_error', 'Stored workspace data failed integrity verification');
@@ -563,6 +615,15 @@ function ownerB10DecisionBodyShape(value: unknown): value is OwnerB10DecisionReq
   const body = value as Record<string, unknown>;
   return Object.keys(body).sort().join(',') === 'contractVersion,decision,lockedStpId,previousDecisionId' && body.contractVersion === '1.0.0' && typeof body.lockedStpId === 'string' && UUID.test(body.lockedStpId) && (body.previousDecisionId === null || (typeof body.previousDecisionId === 'string' && UUID.test(body.previousDecisionId))) && ['APPROVE', 'HOLD', 'REJECT'].includes(body.decision as string);
 }
+function ownerReviewTargetBodyShape(value: unknown): value is ReportReviewTargetCreateRequest {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const body = value as Record<string, unknown>;
+  return Object.keys(body).sort().join(',') === 'contractVersion,intendedUse,interpretationId,reportId,reportVersion' &&
+    body.contractVersion === '1.0.0' && typeof body.reportId === 'string' && UUID.test(body.reportId) &&
+    Number.isInteger(body.reportVersion) && Number(body.reportVersion) >= 1 && Number(body.reportVersion) <= 10000 &&
+    typeof body.interpretationId === 'string' && UUID.test(body.interpretationId) &&
+    typeof body.intendedUse === 'string' && body.intendedUse.length >= 1 && body.intendedUse.length <= 300;
+}
 function assertConfiguration(value: OwnerApiConfiguration): void {
   if (value.writeEnabled !== true) throw new TypeError('OWNER API write mode must be explicitly enabled');
   if (!value.databasePath || !value.artifactRoot) throw new TypeError('Explicit databasePath and artifactRoot are required');
@@ -580,11 +641,12 @@ function authorized(request: IncomingMessage, expected: string): boolean {
   return digestMatches && suppliedDigest.length === expectedDigest.length;
 }
 function singleHeader(value: string | string[] | undefined): string | undefined { return typeof value === 'string' ? value : undefined; }
-type OwnerRoute = { operation: 'workspace' } | { operation:'candidateCreate'|'basketCreate'; workspaceId:string } | { operation:'candidateRevision'; workspaceId:string; candidateId:string } | { operation:'b7Decision'; workspaceId:string; basketId:string } | { operation:'productWorkspaceCreate'; workspaceId:string; basketId:string; decisionId:string } | { productWorkspaceId: string; operation: 'decision' | 'clearance' | 'working' | 'lock' | 'b10' };
+type OwnerRoute = { operation: 'workspace' | 'reviewTargetCreate' } | { operation:'candidateCreate'|'basketCreate'; workspaceId:string } | { operation:'candidateRevision'; workspaceId:string; candidateId:string } | { operation:'b7Decision'; workspaceId:string; basketId:string } | { operation:'productWorkspaceCreate'; workspaceId:string; basketId:string; decisionId:string } | { productWorkspaceId: string; operation: 'decision' | 'clearance' | 'working' | 'lock' | 'b10' };
 function ownerRoute(raw: string | undefined): OwnerRoute | null {
   if (!raw || /%(?:2e|2f|5c)/i.test(raw)) return null;
   let url: URL; try { url = new URL(raw, 'http://owner-api.local'); } catch { return null; }
   if (url.search || url.hash || url.pathname.includes('//')) return null;
+  if (url.pathname === '/owner-api/report-review-targets') return { operation: 'reviewTargetCreate' };
   if (url.pathname === '/owner-api/workspaces') return { operation: 'workspace' };
   const productCreateMatch=/^\/owner-api\/workspaces\/([^/]+)\/candidate-baskets\/([^/]+)\/b7-decisions\/([^/]+)\/product-workspace$/.exec(url.pathname); if(productCreateMatch){try{const workspaceId=decodeURIComponent(productCreateMatch[1]!),basketId=decodeURIComponent(productCreateMatch[2]!),decisionId=decodeURIComponent(productCreateMatch[3]!);return [workspaceId,basketId,decisionId].some(id=>id.includes('/')||id.includes('\\')||id.includes('\0'))?null:{operation:'productWorkspaceCreate',workspaceId,basketId,decisionId};}catch{return null;}}
   const b7Match=/^\/owner-api\/workspaces\/([^/]+)\/candidate-baskets\/([^/]+)\/b7-decisions$/.exec(url.pathname); if(b7Match){try{const workspaceId=decodeURIComponent(b7Match[1]!),basketId=decodeURIComponent(b7Match[2]!);return [workspaceId,basketId].some(id=>id.includes('/')||id.includes('\\')||id.includes('\0'))?null:{operation:'b7Decision',workspaceId,basketId};}catch{return null;}}
@@ -625,4 +687,4 @@ async function readBody(request: IncomingMessage): Promise<string> {
 function cors(response: ServerResponse, origin: string): void { response.setHeader('Access-Control-Allow-Origin', origin); response.setHeader('Access-Control-Allow-Methods', 'POST'); response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type'); response.setHeader('Vary', 'Origin'); }
 function sendJson(response: ServerResponse, status: number, body: unknown, extra: Record<string, string> = {}): void { const bytes = Buffer.from(JSON.stringify(body)); response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': bytes.byteLength, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', ...extra }); response.end(bytes); }
 function sendError(response: ServerResponse, status: number, code: OwnerApiErrorResponse['error']['code'], message: string, extra: Record<string, string> = {}): void { sendJson(response, status, { error: { code, message } } satisfies OwnerApiErrorResponse, extra); }
-function assertOwnerTables(db: BetterSqlite3.Database): void { const names = new Set((db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(({ name }) => name)); for (const required of ['artifact_manifests', 'flow_discovery_workspaces', 'flow_product_candidates', 'flow_product_candidate_revisions', 'flow_candidate_baskets', 'flow_candidate_basket_members', 'governance_candidate_b7_decisions', 'flow_product_workspaces', 'governance_product_b8_lane_decisions', 'flow_b8_clearances', 'flow_b8_clearance_decisions', 'flow_stp_working_records', 'flow_locked_stps', 'governance_product_b10_decisions']) if (!names.has(required)) throw new Error('Database is missing required owner tables'); }
+function assertOwnerTables(db: BetterSqlite3.Database): void { const names = new Set((db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all() as { name: string }[]).map(({ name }) => name)); for (const required of ['artifact_manifests', 'foundation_source_packages', 'foundation_source_package_files', 'flow_discovery_workspaces', 'flow_product_candidates', 'flow_product_candidate_revisions', 'flow_candidate_baskets', 'flow_candidate_basket_members', 'governance_candidate_b7_decisions', 'flow_product_workspaces', 'governance_product_b8_lane_decisions', 'flow_b8_clearances', 'flow_b8_clearance_decisions', 'flow_stp_working_records', 'flow_locked_stps', 'governance_product_b10_decisions', 'analysis_report_series', 'analysis_report_versions', 'analysis_report_version_artifacts', 'analysis_report_version_sources', 'analysis_report_interpretation_runs', 'analysis_report_review_targets']) if (!names.has(required)) throw new Error('Database is missing required owner tables'); }

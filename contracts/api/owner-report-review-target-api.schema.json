@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/owner-report-review-target-api.schema.json",
+  "title": "OwnerReportReviewTargetApiContract",
+  "oneOf": [
+    { "$ref": "../analysis/report-review-target-create-request.schema.json" },
+    { "$ref": "#/$defs/receipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "receipt": {
+      "title": "OwnerReportReviewTargetReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "reviewTargetId", "reportId", "reportVersion", "interpretationId", "intendedUse", "storedAt", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "reviewTargetId": { "$ref": "#/$defs/digest" },
+        "reportId": { "$ref": "#/$defs/uuid" },
+        "reportVersion": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "interpretationId": { "$ref": "#/$defs/uuid" },
+        "intendedUse": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "storedAt": { "type": "string", "format": "date-time" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "error": {
+      "title": "OwnerReportReviewTargetErrorResponse",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": { "enum": ["bad_request", "unauthorized", "forbidden", "not_found", "method_not_allowed", "conflict", "integrity_error"] },
+            "message": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

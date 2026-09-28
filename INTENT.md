@@ -426,6 +426,8 @@ Owner assigns business methodology to task **Review marketing framework files** 
 
 **Review-target read boundary, 2026-09-28:** the local read-only report API may return one retained A17 target only when the caller supplies its exact lowercase content digest. The response is the canonical A16 target itself after full A10/A13 replay; there is no collection or latest-target route. This inspection path does not create review state, acceptance, rejection, reviewer identity, authority, publication permission or any write. Human-decision semantics and UI/API remain a separate future boundary.
 
+**Review-target preparation boundary, 2026-09-28:** the local OWNER operator may explicitly retain an A16 review target only by naming one exact report ID/version, one exact interpretation ID and one exact intended use. The write delegates to the A17 ledger and returns only after verified replay; an exact retry is mutation-free. This is preparation of an immutable review packet, not approval of the report, interpretation or framework content. No reviewer, authority, rationale, decision, revocation or publication permission is accepted or inferred. Human-decision semantics and controls remain blocked until the owner defines them separately.
+
 - Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
 - Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.
 - Khi người dùng đổi ý, ghi quyết định mới và lý do thay thế; Git giữ lịch sử.

@@ -121,6 +121,12 @@ explicit lowercase A17 target digest. It returns the canonical, replay-verified
 A16 target; no list/latest route or human-decision action is included. See
 [A18 scope](docs/tasks/research-a18-review-target-read-api.md).
 
+Research A19 adds authenticated local `POST /owner-api/report-review-targets`
+for retaining a target from one exact report version, interpretation and
+intended use. It prepares an immutable review packet only; it does not record a
+reviewer or decision. See
+[A19 scope](docs/tasks/research-a19-review-target-owner-api.md).
+
 Research A9 deepens the same deterministic report without adding a section
 method. It renders M03 filter-membership sensitivity and M04 group composition
 and top-shop-removal sensitivity directly from the verified A1 Result. Every
