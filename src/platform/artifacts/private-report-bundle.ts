@@ -30,8 +30,13 @@ export async function publishPrivateReportBundle(
   files: ReadonlyMap<string, Buffer>,
 ): Promise<{ directory: string; reused: boolean }> {
   if (!files.size) throw new Error('Cannot publish an empty report');
-  for (const name of files.keys()) {
+  let totalBytes = 0;
+  for (const [name, bytes] of files) {
     if (!/^[a-z0-9][a-z0-9._-]*$/.test(name) || name === '.git') throw new Error('Unsafe report filename');
+    totalBytes += bytes.byteLength;
+    if (bytes.byteLength > 32 * 1024 * 1024 || totalBytes > 128 * 1024 * 1024) {
+      throw new Error('Report export exceeds size limit');
+    }
   }
   const resolved = path.resolve(output), parent = await fs.realpath(path.dirname(resolved));
   const directory = path.join(parent, path.basename(resolved));

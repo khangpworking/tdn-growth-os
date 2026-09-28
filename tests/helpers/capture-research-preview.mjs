@@ -15,9 +15,10 @@ const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-research-chrome-'))
 const browser = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu',
   '--remote-debugging-port=0', '--remote-debugging-address=127.0.0.1', `--user-data-dir=${profile}`, 'about:blank'],
 { stdio: ['ignore', 'ignore', 'pipe'] });
-let stderr = '', socket, nextId = 0;
+let stderr = '', socket, nextId = 0, launchError;
 const pending = new Map();
 browser.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-4000); });
+browser.on('error', error => { launchError = error; });
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
 const call = (method, params = {}) => new Promise((resolve, reject) => {
   const id = ++nextId;
@@ -28,6 +29,7 @@ const call = (method, params = {}) => new Promise((resolve, reject) => {
 try {
   let port;
   for (let i = 0; i < 100; i++) {
+    if (launchError) throw launchError;
     if (browser.exitCode !== null) throw new Error(`Chrome exited: ${stderr}`);
     try { port = Number((await fs.readFile(path.join(profile, 'DevToolsActivePort'), 'utf8')).split('\n')[0]); break; }
     catch { await pause(100); }
@@ -44,11 +46,13 @@ try {
   });
   await call('Page.enable');
   await call('Page.navigate', { url: pathToFileURL(report).href });
+  let loaded = false;
   for (let i = 0; i < 100; i++) {
-    const ready = await call('Runtime.evaluate', { expression: 'document.readyState', returnByValue: true });
-    if (ready.result.value === 'complete') break;
+    const ready = await call('Runtime.evaluate', { expression: 'document.readyState === "complete" && !!document.querySelector("a.value")', returnByValue: true });
+    if (ready.result.value === true) { loaded = true; break; }
     await pause(50);
   }
+  if (!loaded) throw new Error('Synthetic report never reached the expected loaded state');
   const evidence = [];
   for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
@@ -59,6 +63,8 @@ try {
     const capture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
       clip: { x: 0, y: 0, width, height: Math.ceil(metrics.cssContentSize.height), scale: 1 } });
     await fs.writeFile(path.join(root, `${name}.png`), Buffer.from(capture.data, 'base64'), { mode: 0o600 });
+    const first = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+    await fs.writeFile(path.join(root, `${name}-first.png`), Buffer.from(first.data, 'base64'), { mode: 0o600 });
     evidence.push({ name, ...state, height: metrics.cssContentSize.height });
   }
   // Expand native disclosures for PDF so evidence is not silently omitted.
@@ -71,7 +77,7 @@ try {
   socket?.close();
   for (const item of pending.values()) clearTimeout(item.timeout);
   browser.kill('SIGTERM');
-  for (let i = 0; i < 40 && browser.exitCode === null; i++) await pause(100);
-  if (browser.exitCode === null) { browser.kill('SIGKILL'); await pause(200); }
+  for (let i = 0; i < 40 && browser.exitCode === null && browser.signalCode === null; i++) await pause(100);
+  if (browser.exitCode === null && browser.signalCode === null) { browser.kill('SIGKILL'); await pause(200); }
   await fs.rm(profile, { recursive: true, force: true });
 }

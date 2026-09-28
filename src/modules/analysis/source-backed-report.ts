@@ -8,6 +8,7 @@ import type { VersionedReportPacket } from '../../../contracts/analysis/versione
 import type { SourcePackageManifest } from '../../../contracts/foundation/source-package-manifest.generated.js';
 import type { DiscoveryWorkspaceArtifact } from '../../../contracts/flow/discovery-workspace-artifact.generated.js';
 import type { FinalizedSourcePackageReader } from '../foundation/source-package-reader.js';
+import type { SourcePackageReadBudget } from '../foundation/source-package-service.js';
 import type { VerifiedFinalizedSourcePackage, VerifiedSourcePackageFile } from '../foundation/source-package-service.js';
 import type { DiscoveryWorkspaceReader } from '../flow/discovery-workspace-reader.js';
 import { validateSourcePackageManifest } from '../foundation/validation.js';
@@ -25,6 +26,10 @@ addFormats(ajv);
 const validateRequest = ajv.compile<SourceBackedReportRequest>(requestSchema);
 
 const MAX_BYTES = 32 * 1024 * 1024;
+const SOURCE_BACKED_REPORT_READ_BUDGET: SourcePackageReadBudget = Object.freeze({
+  maxFileBytes: MAX_BYTES,
+  maxTotalBytes: 128 * 1024 * 1024,
+});
 const XLSX_MEDIA_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const JSON_MEDIA_TYPE = 'application/json';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -117,9 +122,8 @@ function canonicalBytes(value: unknown, newline = true): Buffer {
 }
 
 function cloneBytes(bytes: Uint8Array, label: string): Buffer {
-  const cloned = Buffer.from(bytes);
-  if (cloned.byteLength > MAX_BYTES) throw new TypeError(`${label}: SIZE_LIMIT`);
-  return cloned;
+  if (bytes.byteLength > MAX_BYTES) throw new TypeError(`${label}: SIZE_LIMIT`);
+  return Buffer.from(bytes);
 }
 
 function assertDigest(value: string, label: string): void {
@@ -251,13 +255,13 @@ function selectedFile(
 
 function verifyNormalizedEvidenceFamilies(
   input: MetricScopeInput,
-  selected: readonly { readonly role: SourceRole; readonly file: VerifiedSourcePackageFile }[],
+  selected: readonly { readonly file: VerifiedSourcePackageFile; readonly provenance: SourceBackedSourceProvenance }[],
 ): void {
   for (const item of selected) {
     const digest = sha256(item.file.bytes);
     const source = input.sources.find(candidate => candidate.sha256 === digest);
     if (!source || source.evidenceFamily !== item.file.evidenceFamily) {
-      throw new TypeError(`${item.role}: NORMALIZED_EVIDENCE_FAMILY_MISMATCH`);
+      throw new TypeError(`${item.provenance.role}: NORMALIZED_EVIDENCE_FAMILY_MISMATCH`);
     }
   }
 }
@@ -283,11 +287,12 @@ export async function buildSourceBackedReport(
 ): Promise<SourceBackedReportBundle> {
   const request = requestSnapshot(untrustedRequest);
   ensureDistinct(request);
+  if (catalogBytes.byteLength > MAX_BYTES) throw new TypeError('catalog: SIZE_LIMIT');
+  if (sha256(catalogBytes) !== request.catalogSha256) throw new TypeError('catalog: DIGEST_MISMATCH');
   const catalog = cloneBytes(catalogBytes, 'catalog');
-  if (sha256(catalog) !== request.catalogSha256) throw new TypeError('catalog: DIGEST_MISMATCH');
   const [workspace, sourcePackage] = await Promise.all([
     dependencies.workspaces.readVerifiedWorkspace(request.workspaceId),
-    dependencies.sourcePackages.readFinalizedSourcePackage(request.packageId),
+    dependencies.sourcePackages.readFinalizedSourcePackage(request.packageId, SOURCE_BACKED_REPORT_READ_BUDGET),
   ]);
   const workspaceSnapshotSha256 = verifyWorkspace(workspace, request);
   verifyPackage(sourcePackage, request);

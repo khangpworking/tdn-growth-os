@@ -19,6 +19,7 @@ import {
   FlowDiscoveryWorkspaceReader,
 } from '../../src/modules/flow/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
+import type { ArtifactReadOptions } from '../../src/platform/artifacts/artifact-store.js';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { buildSourceBackedReport, type SourceBackedReportDependencies } from '../../src/modules/analysis/source-backed-report.js';
@@ -27,6 +28,15 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const tempRoots: string[] = [];
 const databases: ReturnType<typeof openDatabase>['db'][] = [];
 
+class CountingArtifactStore extends ContentAddressedArtifactStore {
+  readCount = 0;
+
+  override async read(sha256: string, options?: ArtifactReadOptions): Promise<Buffer> {
+    this.readCount++;
+    return super.read(sha256, options);
+  }
+}
+
 afterEach(async () => {
   for (const db of databases.splice(0)) if (db.open) db.close();
   await Promise.all(tempRoots.splice(0).map(directory => fsp.rm(directory, { recursive: true, force: true })));
@@ -34,6 +44,7 @@ afterEach(async () => {
 
 const sha256 = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const jsonBytes = (value: unknown): Buffer => Buffer.from(JSON.stringify(value), 'utf8');
+const readBudget = { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 } as const;
 
 function workbookFixture(): Buffer {
   const result = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], {
@@ -74,7 +85,7 @@ function sourceManifest(workbook: Buffer): object {
   };
 }
 
-async function persistedFixture() {
+async function persistedFixture(oversizedMember = false) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-source-backed-report-'));
   tempRoots.push(directory);
   const opened = openDatabase({
@@ -82,7 +93,7 @@ async function persistedFixture() {
     now: () => new Date('2026-10-01T00:00:00.000Z'),
   });
   databases.push(opened.db);
-  const artifacts = new ContentAddressedArtifactStore(path.join(directory, 'artifacts'));
+  const artifacts = new CountingArtifactStore(path.join(directory, 'artifacts'));
   const sourcePackages = new SourcePackageService({
     db: opened.db,
     artifactStore: artifacts,
@@ -96,6 +107,7 @@ async function persistedFixture() {
   });
   const workbook = workbookFixture();
   const manifest = jsonBytes(sourceManifest(workbook));
+  const oversized = oversizedMember ? Buffer.alloc(readBudget.maxFileBytes + 1, 0x5a) : null;
   const sourcePackage = await sourcePackages.intake({
     contractVersion: '1.0.0',
     packageKey: 'metric:synthetic-report',
@@ -114,8 +126,16 @@ async function persistedFixture() {
         mediaType: 'application/json', evidenceFamily: 'synthetic-metric', representationRole: 'derived',
         independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Generated fixture declaration',
       },
+      ...(oversized === null ? [] : [{
+        path: 'metric/oversized.bin', sha256: sha256(oversized), byteSize: oversized.length,
+        mediaType: 'application/octet-stream', evidenceFamily: 'synthetic-metric', representationRole: 'primary',
+        independence: 'independent', providerProvenance: 'synthetic', provenanceBasis: 'Generated oversized regression fixture',
+      }]),
     ],
-  }, new Map([['metric/workbook.xlsx', workbook], ['metric/manifest.json', manifest]]));
+  }, new Map([
+    ['metric/workbook.xlsx', workbook], ['metric/manifest.json', manifest],
+    ...(oversized === null ? [] : [['metric/oversized.bin', oversized] as const]),
+  ]));
   const workspace = await workspaces.createWorkspace({
     contractVersion: '1.0.0', workspaceKey: 'synthetic-report', title: 'Synthetic <Report> & "Evidence"',
   });
@@ -140,7 +160,7 @@ async function persistedFixture() {
     sourcePackages: new FoundationSourcePackageReader(sourcePackages),
     workspaces: new FlowDiscoveryWorkspaceReader(workspaces),
   };
-  return { db: opened.db, directory, databasePath, artifactRoot, requestPath, catalogPath, workbook, manifest, request, catalogBytes, dependencies };
+  return { db: opened.db, artifacts, directory, databasePath, artifactRoot, requestPath, catalogPath, workbook, manifest, request, catalogBytes, dependencies };
 }
 
 function databaseReadSnapshot(db: ReturnType<typeof openDatabase>['db']): string {
@@ -220,6 +240,26 @@ test('rejects wrong source selectors and corrupt raw bytes before normalization'
     },
   };
   await assert.rejects(buildSourceBackedReport(state.request, state.catalogBytes, corrupting), /FILE_BYTES_MISMATCH/);
+});
+
+test('rejects a persisted oversized package member before any package artifact is materialized', async () => {
+  const state = await persistedFixture(true);
+  assert.equal(state.artifacts.readCount, 0);
+  const packageReader = state.dependencies.sourcePackages;
+  await assert.rejects(
+    packageReader.readFinalizedSourcePackage(state.request.packageId, readBudget),
+    /FILE_SIZE_LIMIT/,
+  );
+  assert.equal(state.artifacts.readCount, 0);
+
+  state.artifacts.readCount = 0;
+  await assert.rejects(
+    buildSourceBackedReport(state.request, state.catalogBytes, state.dependencies),
+    /FILE_SIZE_LIMIT/,
+  );
+  // The workspace reader reads its own small artifact; the source-package reader
+  // must reject during metadata preflight and perform no package artifact read.
+  assert.equal(state.artifacts.readCount, 1);
 });
 
 test('CLI reopens the seeded database read-only, publishes exact links, and escapes persisted workspace text', async () => {

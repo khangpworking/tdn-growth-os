@@ -68,6 +68,11 @@ approved explicit run policy. Unknown acquisition time stays null, never mtime.
 
 ## Validation and test authoring gate
 
+Export publication bounds every member, including generated HTML, to 32 MiB
+and the complete bundle to 128 MiB before creating an output directory.
+Oversized output fails rather than silently omitting evidence rows. Foundation
+read budgets must also apply before materializing retained source members.
+
 No Windows tests, typechecks or builds. Verify through Linux CI. Synthetic
 fixtures only in Git; original/private data stays outside Git.
 

@@ -9,6 +9,11 @@ export interface StoredArtifact {
   readonly absolutePath: string;
 }
 
+export interface ArtifactReadOptions {
+  /** Reject before allocating when the opened regular file is larger than this bound. */
+  readonly maxBytes?: number;
+}
+
 export class ArtifactIntegrityError extends Error {}
 
 export class ContentAddressedArtifactStore {
@@ -58,9 +63,13 @@ export class ContentAddressedArtifactStore {
     return { sha256, byteSize: buffer.byteLength, relativePath, absolutePath };
   }
 
-  async read(sha256: string): Promise<Buffer> {
+  async read(sha256: string, options?: ArtifactReadOptions): Promise<Buffer> {
     assertDigest(sha256);
     const absolutePath = this.pathForDigest(sha256);
+    if (options?.maxBytes !== undefined) {
+      assertReadLimit(options.maxBytes);
+      return this.#readBounded(absolutePath, sha256, options.maxBytes);
+    }
     const bytes = await fs.readFile(absolutePath);
     if (digest(bytes) !== sha256) throw new ArtifactIntegrityError(`Artifact digest mismatch: ${sha256}`);
     return bytes;
@@ -77,6 +86,28 @@ export class ContentAddressedArtifactStore {
       throw new ArtifactIntegrityError(`Artifact integrity check failed: ${expectedDigest}`);
     }
   }
+
+  async #readBounded(filePath: string, expectedDigest: string, maxBytes: number): Promise<Buffer> {
+    const handle = await fs.open(filePath, 'r');
+    try {
+      const opened = await handle.stat();
+      if (!opened.isFile()) throw new ArtifactIntegrityError(`Artifact is not a regular file: ${expectedDigest}`);
+      if (opened.size > maxBytes) throw new ArtifactIntegrityError(`Artifact exceeds read limit: ${expectedDigest}`);
+      const bytes = Buffer.alloc(opened.size);
+      let offset = 0;
+      while (offset < opened.size) {
+        const read = await handle.read(bytes, offset, opened.size - offset, offset);
+        if (read.bytesRead === 0) throw new ArtifactIntegrityError(`Artifact truncated while reading: ${expectedDigest}`);
+        offset += read.bytesRead;
+      }
+      const closed = await handle.stat();
+      if (closed.size !== opened.size) throw new ArtifactIntegrityError(`Artifact changed while reading: ${expectedDigest}`);
+      if (digest(bytes) !== expectedDigest) throw new ArtifactIntegrityError(`Artifact digest mismatch: ${expectedDigest}`);
+      return bytes;
+    } finally {
+      await handle.close();
+    }
+  }
 }
 
 function digest(bytes: Uint8Array): string {
@@ -85,6 +116,10 @@ function digest(bytes: Uint8Array): string {
 
 function assertDigest(value: string): void {
   if (!/^[0-9a-f]{64}$/.test(value)) throw new TypeError('Invalid SHA-256 digest');
+}
+
+function assertReadLimit(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0) throw new RangeError('Invalid artifact read limit');
 }
 
 async function exists(filePath: string): Promise<boolean> {

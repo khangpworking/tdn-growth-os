@@ -5,6 +5,19 @@ deterministic report packet. The owner asks for charts and evidence drill-down,
 not a new visual identity. Inherit DESIGN.md; no concept tournament or new brand.
 Proceed with the approved workflow while collecting non-blocking decisions.
 
+Owner confirmed Antislop DURING design on 2026-09-28. Apply its core, UI and
+copy filters together with Impeccable; no additional skill installation or
+project-entry-file changes are needed for this task.
+
+Design read: an internal evidence report for the TDN owner reviewing source
+numbers, using the existing light TDN reading surface. ENERGY 1 / RHYTHM 2 /
+MOTION 1. The static light surface also serves paper/PDF review; no theme toggle
+or animation is added. Blue denotes evidence navigation; teal marks comparable
+data bars. System typography retains Vietnamese coverage without network fonts.
+Charts, readiness table and expandable source records have different structures
+because comparison, missing-input triage and detailed verification are different
+reading tasks. Spacing groups each figure and separates those tasks.
+
 ## Direction contract
 
 THESIS: A number can be inspected, not merely believed. Show observed totals and

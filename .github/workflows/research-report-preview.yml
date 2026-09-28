@@ -3,8 +3,18 @@ on:
   pull_request:
     branches: [main]
     paths:
-      - 'src/modules/analysis/*report*'
-      - 'src/platform/artifacts/private-report-bundle.ts'
+      - 'src/modules/analysis/**'
+      - 'src/modules/foundation/**'
+      - 'src/modules/flow/discovery-workspace*'
+      - 'src/platform/artifacts/**'
+      - 'contracts/analysis/**'
+      - 'contracts/foundation/**'
+      - 'contracts/flow/discovery-workspace*'
+      - 'docs/research/report-section-catalog-v1.json'
+      - 'scripts/read-metric-sheet.py'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'migrations/**'
       - 'scripts/export-source-backed-report.ts'
       - 'tests/integration/source-backed-report.test.ts'
       - 'tests/helpers/capture-research-preview.mjs'

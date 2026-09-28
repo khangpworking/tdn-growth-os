@@ -82,6 +82,16 @@ test('publishes exact private bytes, reuses exact bundle without writes, and rej
       prepare: async caseRoot => path.join(caseRoot, 'bundle'),
     },
     {
+      name: 'oversized-html', files: new Map([['report.html', Buffer.alloc(32 * 1024 * 1024 + 1)]]), expected: /Report export exceeds size limit/,
+      prepare: async caseRoot => path.join(caseRoot, 'bundle'),
+    },
+    {
+      name: 'aggregate-limit',
+      files: new Map(Array.from({ length: 5 }, (_, index) => [`part-${index}.json`, Buffer.alloc(27 * 1024 * 1024)] as const)),
+      expected: /Report export exceeds size limit/,
+      prepare: async caseRoot => path.join(caseRoot, 'bundle'),
+    },
+    {
       name: 'incomplete-membership', files, expected: /Incomplete or unexpected report bundle/,
       prepare: async caseRoot => {
         const directory = path.join(caseRoot, 'bundle');
@@ -145,5 +155,8 @@ test('publishes exact private bytes, reuses exact bundle without writes, and rej
     await fs.mkdir(caseRoot, { recursive: true });
     const target = await failure.prepare(caseRoot);
     await assert.rejects(() => publishPrivateReportBundle(target, failure.files), failure.expected, failure.name);
+    if (failure.name === 'oversized-html' || failure.name === 'aggregate-limit') {
+      await assert.rejects(fs.lstat(target), { code: 'ENOENT' });
+    }
   }
 });
