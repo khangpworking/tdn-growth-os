@@ -1,6 +1,6 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import addFormats from 'ajv-formats';
-import type { AnySchema } from 'ajv';
+import type { AnySchema, ValidateFunction } from 'ajv';
 import type {
   ReportInterpretationDetailResponse,
   ReportInterpretationIndexResponse,
@@ -11,12 +11,20 @@ const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
 ajv.addSchema(reportApiSchema as AnySchema);
 
-const validateInterpretationIndex = ajv.getSchema<ReportInterpretationIndexResponse>(`${reportApiSchema.$id}#/$defs/interpretationIndex`);
-const validateInterpretationDetail = ajv.getSchema<ReportInterpretationDetailResponse>(`${reportApiSchema.$id}#/$defs/interpretationDetail`);
-
-if (!validateInterpretationIndex || !validateInterpretationDetail) {
-  throw new Error('Research report API interpretation validators are unavailable');
+function requiredSynchronousValidator<T>(schemaRef: string): ValidateFunction<T> {
+  const validator = ajv.getSchema<T>(schemaRef);
+  if (!validator || '$async' in validator) {
+    throw new Error(`Research report API validator is unavailable or asynchronous: ${schemaRef}`);
+  }
+  return validator;
 }
+
+const validateInterpretationIndex = requiredSynchronousValidator<ReportInterpretationIndexResponse>(
+  `${reportApiSchema.$id}#/$defs/interpretationIndex`,
+);
+const validateInterpretationDetail = requiredSynchronousValidator<ReportInterpretationDetailResponse>(
+  `${reportApiSchema.$id}#/$defs/interpretationDetail`,
+);
 
 export function isReportInterpretationIndexResponse(value: unknown): value is ReportInterpretationIndexResponse {
   return validateInterpretationIndex(value);
