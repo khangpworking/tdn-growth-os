@@ -93,7 +93,7 @@ Schema head 25 → 26 and the two new tables in table lists; service (sequential
 | Q-B3 | Models offered and default | GPT-5.6 Luna (default), GPT-5.6 Sol, Gemini 3.5 Flash Low |
 | Q-B4 | Third code level (A1·1) | Not in 050b |
 | Q-B5 | Restore window | 30 days |
-| Q6 | Deleting a Big Idea | Derived: its Angles are hidden, no rows written; restore reveals only Angles hidden solely by it; earliest deadline wins *(agreed with GPT-6 Astra in debate, not owner-approved)* |
+| Q6 | Deleting a Big Idea | Derived: its Angles are hidden, no rows written; restore reveals only Angles hidden solely by it; earliest deadline wins *(agreed with GPT-6 Astra in debate; owner-approved 2026-09-28)* |
 
 ## 13. 050b tests (owned and run by GPT on Linux CI)
 
