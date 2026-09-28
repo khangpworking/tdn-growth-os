@@ -278,11 +278,15 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
     state.requestPath, state.catalogPath, output,
   ], { cwd: root, encoding: 'utf8', maxBuffer: 2 * 1024 * 1024 });
   assert.equal(run.status, 0, run.stderr);
-  const summary = JSON.parse(run.stdout.trim()) as { databaseMutations: number; providerAuthenticity: string; aiCalls: number; providerCalls: number };
+  const summary = JSON.parse(run.stdout.trim()) as {
+    databaseMutations: number; providerAuthenticity: string; aiCalls: number; providerCalls: number;
+    semanticVersionId: string;
+  };
   assert.equal(summary.databaseMutations, 0);
   assert.equal(summary.providerAuthenticity, 'NOT_ESTABLISHED');
   assert.equal(summary.aiCalls, 0);
   assert.equal(summary.providerCalls, 0);
+  assert.match(summary.semanticVersionId, /^[0-9a-f]{64}$/);
 
   const readonly = new BetterSqlite3(state.databasePath, { readonly: true, fileMustExist: true });
   try {
@@ -303,7 +307,8 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   const links = [...document.querySelectorAll('a[download]')].map(anchor => anchor.getAttribute('href')).filter((href): href is string => href !== null);
   const expected = [
     'raw-workbook.xlsx', 'raw-manifest.json', 'source-package-manifest.json', 'normalized-input.json',
-    'receipt.json', 'metric-result.json', 'charts.json', 'packet.json', 'section-catalog.json', 'evidence-envelope.json',
+    'receipt.json', 'metric-result.json', 'charts.json', 'packet.json', 'section-catalog.json', 'workspace.json',
+    'semantic-content.json', 'review-state.json', 'evidence-envelope.json', 'export-manifest.json',
   ];
   assert.deepEqual([...new Set(links)].sort(), [...expected].sort());
   for (const link of links) assert.ok(fs.statSync(path.join(output, link)).isFile(), link);
@@ -316,6 +321,24 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   assert.equal(document.querySelector('report'), null);
   assert.ok(fs.statSync(path.join(output, 'evidence-envelope.json')).isFile());
   assert.ok(fs.statSync(path.join(output, 'export-manifest.json')).isFile());
+  const semantic = JSON.parse(fs.readFileSync(path.join(output, 'semantic-content.json'), 'utf8')) as {
+    semanticVersionId: string; interpretationLayer: { state: string; artifacts: unknown[] };
+  };
+  const review = JSON.parse(fs.readFileSync(path.join(output, 'review-state.json'), 'utf8')) as {
+    semanticVersionId: string; state: string; decisionArtifacts: unknown[];
+  };
+  const exportManifest = JSON.parse(fs.readFileSync(path.join(output, 'export-manifest.json'), 'utf8')) as {
+    semanticVersionId: string; reviewStateSha256: string;
+  };
+  assert.equal(semantic.semanticVersionId, summary.semanticVersionId);
+  assert.equal(semantic.interpretationLayer.state, 'NONE');
+  assert.deepEqual(semantic.interpretationLayer.artifacts, []);
+  assert.equal(review.semanticVersionId, summary.semanticVersionId);
+  assert.equal(review.state, 'UNREVIEWED');
+  assert.deepEqual(review.decisionArtifacts, []);
+  assert.equal(exportManifest.semanticVersionId, summary.semanticVersionId);
+  assert.equal(exportManifest.reviewStateSha256, sha256(fs.readFileSync(path.join(output, 'review-state.json'))));
+  assert.ok(document.querySelector('#files')?.textContent?.includes(summary.semanticVersionId));
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-workbook.xlsx')), state.workbook);
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-manifest.json')), state.manifest);
   assert.deepEqual(fs.readFileSync(state.databasePath), databaseBytesBefore);

@@ -10,6 +10,7 @@ import { ContentAddressedArtifactStore } from '../src/platform/artifacts/artifac
 import { readReportInput, publishPrivateReportBundle } from '../src/platform/artifacts/private-report-bundle.js';
 import { buildSourceBackedReport } from '../src/modules/analysis/source-backed-report.js';
 import { renderResearchReportHtml } from '../src/modules/analysis/research-report-html.js';
+import { buildReportSemanticContent, buildUnreviewedReportState } from '../src/modules/analysis/report-semantic-content.js';
 import { canonicalJson } from '../src/modules/foundation/canonical-json.js';
 
 async function main(): Promise<void> {
@@ -35,12 +36,18 @@ async function main(): Promise<void> {
     });
     const files = new Map(bundle.files);
     files.set('evidence-envelope.json', bundle.envelopeBytes);
-    files.set('report.html', Buffer.from(renderResearchReportHtml(bundle)));
+    const semantic = buildReportSemanticContent(bundle);
+    const review = buildUnreviewedReportState(semantic.content.semanticVersionId);
+    files.set('semantic-content.json', semantic.contentBytes);
+    files.set('review-state.json', review.stateBytes);
+    files.set('report.html', Buffer.from(renderResearchReportHtml({ ...bundle, files }, semantic.content.semanticVersionId)));
     // A content manifest binds every rendered/exported byte, without a self-hash.
     const digest = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
     const exportManifest = {
       contractVersion: 'source-backed-export-v1', rendererVersion: 'research-evidence-html-vi-v1',
       approvalState: 'UNREVIEWED', packetId: bundle.packet.packetId,
+      semanticVersionId: semantic.content.semanticVersionId,
+      reviewStateSha256: digest(review.stateBytes),
       files: [...files].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0)
         .map(([name, bytes]) => ({ name, byteSize: bytes.length, sha256: digest(bytes) })),
     };
@@ -48,6 +55,7 @@ async function main(): Promise<void> {
     const published = await publishPrivateReportBundle(output, files);
     console.log(JSON.stringify({ ...published, status: 'DRAFT', approvalState: 'UNREVIEWED',
       packetId: bundle.packet.packetId, exportManifestSha256: digest(files.get('export-manifest.json')!),
+      semanticVersionId: semantic.content.semanticVersionId,
       sourceMapping: 'REPARSED_RETAINED_BYTES', providerAuthenticity: 'NOT_ESTABLISHED',
       sections: bundle.packet.sections.length, databaseMutations: 0, aiCalls: 0, providerCalls: 0 }));
   } finally { db.close(); }

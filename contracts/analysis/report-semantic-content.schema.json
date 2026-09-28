@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-semantic-content.schema.json",
+  "title": "ReportSemanticContent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "semanticVersionId", "policyVersion", "sourceLayer", "calculationLayer", "interpretationLayer", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "semanticVersionId": { "$ref": "#/$defs/digest" },
+    "policyVersion": { "const": "report-semantic-content-v1" },
+    "sourceLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspaceId", "sourceEvidenceSha256", "sourcePackageId", "sourcePackageManifestSha256", "packageContentSha256", "selectedSourceSha256s"],
+      "properties": {
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "sourceEvidenceSha256": { "$ref": "#/$defs/digest" },
+        "sourcePackageId": { "type": "string", "format": "uuid" },
+        "sourcePackageManifestSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "selectedSourceSha256s": {
+          "type": "array", "minItems": 2, "maxItems": 20, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/digest" }
+        }
+      }
+    },
+    "calculationLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packetPolicyVersion", "metricMethodVersion", "metricRounding", "normalizedInputSha256", "metricResultContentSha256", "catalogContentSha256", "claimsSha256", "chartContentSha256", "sections"],
+      "properties": {
+        "packetPolicyVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "metricMethodVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "metricRounding": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "normalizedInputSha256": { "$ref": "#/$defs/digest" },
+        "metricResultContentSha256": { "$ref": "#/$defs/digest" },
+        "catalogContentSha256": { "$ref": "#/$defs/digest" },
+        "claimsSha256": { "$ref": "#/$defs/digest" },
+        "chartContentSha256": { "$ref": "#/$defs/digest" },
+        "sections": {
+          "type": "array", "minItems": 1, "maxItems": 100,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["sectionId", "sectionContentSha256", "deliveryState"],
+            "properties": {
+              "sectionId": { "type": "string", "minLength": 1, "maxLength": 10 },
+              "sectionContentSha256": { "$ref": "#/$defs/digest" },
+              "deliveryState": {
+                "enum": ["PARTIAL_DETERMINISTIC_DRAFT", "METHOD_ONLY", "BLOCKED", "MANUAL_REVIEW_REQUIRED", "NOT_IMPLEMENTED"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "interpretationLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "artifacts"],
+      "properties": {
+        "state": { "const": "NONE" },
+        "artifacts": { "type": "array", "maxItems": 0 }
+      }
+    },
+    "limitations": {
+      "type": "array", "minItems": 2, "maxItems": 20, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

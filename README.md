@@ -79,6 +79,12 @@ drill-down, readiness for all catalog sections and the selected original files.
 Every file is bound by an export manifest. Exact retries reuse identical output;
 changed or partial bundles are rejected, never overwritten.
 
+The export also emits `semantic-content.json`, a deterministic identity for the
+exact source/calculation/section content, and a separate `review-state.json` that
+remains `UNREVIEWED`. HTML/PDF rendering does not create a new semantic version;
+changing evidence or calculations does. This identity is not yet persisted in a
+report-run database registry.
+
 This export contains private source data. Keep it outside Git; do not publish it
 externally. Mapping validation is not provider authentication. It creates no AI
 interpretation, approval, report-run DB record or official report. SQLite run

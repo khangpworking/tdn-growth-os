@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-review-state.schema.json",
+  "title": "ReportReviewState",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "semanticVersionId", "state", "decisionArtifacts", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "semanticVersionId": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "state": { "const": "UNREVIEWED" },
+    "decisionArtifacts": { "type": "array", "maxItems": 0 },
+    "limitations": {
+      "type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
+  }
+}
