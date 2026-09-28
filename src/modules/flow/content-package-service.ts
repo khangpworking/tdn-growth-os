@@ -20,7 +20,7 @@ import type {
 } from '../../../contracts/flow/content-package-version-artifact.generated.js';
 import type { ContentPackageVersionRequest } from '../../../contracts/flow/content-package-version-request.generated.js';
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../platform/artifacts/index.js';
-import type { ContentAiAttemptService } from './content-ai-attempt-service.js';
+import { ContentAiAttemptConflictError, type ContentAiAttemptService } from './content-ai-attempt-service.js';
 import {
   assertContentManifest,
   assertContentUuid,
@@ -379,6 +379,9 @@ export class ContentPackageService {
     this.#inFlight.add(slot);
     try {
       return await this.#generate(input, requestSha256, actorId);
+    } catch (error) {
+      if (error instanceof ContentAiAttemptConflictError) throw new ContentPackageConflictError('This generation request is already running');
+      throw error;
     } finally {
       this.#inFlight.delete(input.requestId);
       this.#inFlight.delete(slot);
@@ -397,6 +400,7 @@ export class ContentPackageService {
         throw new ContentPackageReferenceError('retryOfAttemptId must name a failed or interrupted attempt of this part');
       }
     }
+    this.#assertNoUncommittedProviderResult(PACKAGE_TARGET_TYPES[input.part], row.packageId, input.part, input.retryOfAttemptId);
     const common = {
       kind: 'generate' as const, targetType: PACKAGE_TARGET_TYPES[input.part], targetId: row.packageId,
       plannedActionCallCount: input.plannedCallCount, actorId,
@@ -1031,6 +1035,16 @@ export class ContentPackageService {
       SELECT attempt_id attemptId, target_type targetType, target_id targetId, modality, model, state, input_bundle_sha256 inputBundleSha256, output_sha256 outputSha256
       FROM flow_content_ai_attempts WHERE attempt_id = ?
     `).get(attemptId) as AttemptRow | undefined;
+  }
+
+  /** A verified provider result without a committed version is recoverable history, not an implicit retry. */
+  #assertNoUncommittedProviderResult(targetType: string, targetId: string, part: ContentPackagePart, retryOfAttemptId: string | undefined): void {
+    const committed = new Set(this.#versionRows('package_id = ? AND part = ?', targetId, part)
+      .map((version) => version.attemptId)
+      .filter((attemptId): attemptId is string => attemptId !== null));
+    const unresolved = this.#attempts.list({ targetType, targetId, limit: 200 })
+      .find((attempt) => attempt.outputSha256 !== null && attempt.attemptId !== retryOfAttemptId && !committed.has(attempt.attemptId));
+    if (unresolved) throw new ContentPackageConflictError('A provider result exists without a committed version; choose an explicit retry before dispatching again');
   }
 
   #lastState(packageId: string): StateRow | undefined { return this.#stateQuery('package_id = ? ORDER BY sequence DESC LIMIT 1', packageId); }

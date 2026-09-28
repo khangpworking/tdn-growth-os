@@ -90,7 +90,20 @@ export default function PackagePage(props: PackagePageProps) {
   const [resend, setResend] = useState<{ readonly label: string; readonly run: () => void } | null>(null);
   const versionIdRef = useRef<{ readonly key: string; readonly id: string } | null>(null);
   const mountedRef = useRef(true);
+  const sessionKey = `${mode}:${campaignId}:${code}`;
+  const sessionRef = useRef<{ readonly key: string; readonly serial: number }>({ key: sessionKey, serial: 0 });
+  if (sessionRef.current.key !== sessionKey) sessionRef.current = { key: sessionKey, serial: sessionRef.current.serial + 1 };
+  const sessionSerial = sessionRef.current.serial;
+  const isCurrentSession = (serial = sessionSerial): boolean => mountedRef.current && sessionRef.current.key === sessionKey && sessionRef.current.serial === serial;
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  useEffect(() => {
+    setBusy(null);
+    setNotice(null);
+    setResend(null);
+    setEditing(null);
+    setConfirmDelete(false);
+    versionIdRef.current = null;
+  }, [sessionKey]);
   const reload = () => setReloadToken((value) => value + 1);
 
   useEffect(() => {
@@ -129,33 +142,37 @@ export default function PackagePage(props: PackagePageProps) {
   const imageUrl = (sha: string): string | undefined => mode === 'demo' ? props.demoMedia[sha] : mediaUrl(settings.brandId, sha);
   const posterSrc = (version: PosterVersion): string => mode === 'demo' ? demoPosterDataUrl(detail, version, brandName) : posterUrl(detail.packageId, version.version);
 
-  const fail = (error: unknown, fallback: string) => {
-    if (!mountedRef.current) return;
+  const fail = (error: unknown, fallback: string, serial = sessionSerial) => {
+    if (!isCurrentSession(serial)) return;
     if (error instanceof OwnerWriteError && error.kind === 'conflict') setNotice({ message: error.message, reload: true });
     else if (error instanceof DemoPackageError) setNotice({ message: 'Gói minh họa đã thay đổi.', reload: true });
     else if (error instanceof PackageAiError || error instanceof OwnerWriteError) setNotice({ message: error.message, reload: false });
     else setNotice({ message: fallback, reload: false });
   };
 
-  const after = async (message: string) => {
+  const after = async (message: string, serial: number) => {
+    if (!isCurrentSession(serial)) return;
     props.notify(message);
     if (mode === 'real') reload();
   };
 
   const generate = async (call: PackageRunCall) => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     setBusy(`generate:${call.part}`);
     setNotice(null);
     setResend(null);
     try {
       if (mode === 'demo') props.setDemoPackages(generateDemoPart(props.demoPackages, props.demoContext!, call, new Date().toISOString(), crypto.randomUUID()).packages);
       else await submitPackageGenerate({ call, token: props.ownerToken! });
-      await after(`Đã tạo ${PART_LABELS[call.part]} mới.`);
+      await after(`Đã tạo ${PART_LABELS[call.part]} mới.`, serial);
     } catch (error) {
+      if (!isCurrentSession(serial)) return;
       if (error instanceof OwnerWriteError && error.kind === 'connection') {
         setNotice({ message: 'Mất kết nối — chưa rõ kết quả. Gửi lại dùng cùng mã yêu cầu nên không tạo phiên bản trùng.', reload: false });
         setResend({ label: `Gửi lại ${PART_LABELS[call.part]}`, run: () => void generate(call) });
-      } else fail(error, `Không tạo được ${PART_LABELS[call.part]}.`);
-    } finally { if (mountedRef.current) setBusy(null); }
+      } else fail(error, `Không tạo được ${PART_LABELS[call.part]}.`, serial);
+    } finally { if (isCurrentSession(serial)) setBusy(null); }
   };
 
   const regenerate = (part: PackagePart, retryOfAttemptId?: string) => {
@@ -164,6 +181,8 @@ export default function PackagePage(props: PackagePageProps) {
   };
 
   const changeVersion = async (action: VersionAction, success: string) => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     const key = JSON.stringify([detail.packageId, action]);
     const requestId = versionIdRef.current?.key === key ? versionIdRef.current.id : crypto.randomUUID();
     versionIdRef.current = { key, id: requestId };
@@ -175,17 +194,20 @@ export default function PackagePage(props: PackagePageProps) {
       if (mode === 'demo') props.setDemoPackages(changeDemoPackageVersion(props.demoPackages, props.demoContext!, input, new Date().toISOString()));
       else await submitPackageVersion({ ...input, token: props.ownerToken! });
       versionIdRef.current = null;
-      if (action.action === 'MANUAL' && mountedRef.current) setEditing(null);
-      await after(success);
+      if (action.action === 'MANUAL' && isCurrentSession(serial)) setEditing(null);
+      await after(success, serial);
     } catch (error) {
+      if (!isCurrentSession(serial)) return;
       if (error instanceof OwnerWriteError && error.kind === 'connection') {
         setNotice({ message: 'Mất kết nối — chưa rõ kết quả. Gửi lại dùng cùng mã yêu cầu nên không tạo phiên bản trùng.', reload: false });
         setResend({ label: 'Gửi lại', run: () => void changeVersion(action, success) });
-      } else fail(error, 'Không lưu được phiên bản.');
-    } finally { if (mountedRef.current) setBusy(null); }
+      } else fail(error, 'Không lưu được phiên bản.', serial);
+    } finally { if (isCurrentSession(serial)) setBusy(null); }
   };
 
   const changeState = async (action: 'DELETE' | 'RESTORE') => {
+    const serial = sessionSerial;
+    if (!isCurrentSession(serial)) return;
     setBusy(`state:${action}`);
     setNotice(null);
     setResend(null);
@@ -193,12 +215,13 @@ export default function PackagePage(props: PackagePageProps) {
       const input = { packageId: detail.packageId, expectedSequence: detail.stateSequence, action };
       if (mode === 'demo') props.setDemoPackages(changeDemoPackageState(props.demoPackages, input, new Date().toISOString()));
       else await submitPackageState({ ...input, token: props.ownerToken! });
-      if (mountedRef.current) setConfirmDelete(false);
-      await after(action === 'DELETE' ? `Đã xóa gói ${detail.code}. Có thể khôi phục trong ${PACKAGE_RESTORE_DAYS} ngày.` : `Đã khôi phục gói ${detail.code}.`);
+      if (isCurrentSession(serial)) setConfirmDelete(false);
+      await after(action === 'DELETE' ? `Đã xóa gói ${detail.code}. Có thể khôi phục trong ${PACKAGE_RESTORE_DAYS} ngày.` : `Đã khôi phục gói ${detail.code}.`, serial);
     } catch (error) {
-      if (mountedRef.current) setConfirmDelete(false);
-      fail(error, action === 'DELETE' ? 'Không xóa được gói.' : 'Không khôi phục được gói.');
-    } finally { if (mountedRef.current) setBusy(null); }
+      if (!isCurrentSession(serial)) return;
+      setConfirmDelete(false);
+      fail(error, action === 'DELETE' ? 'Không xóa được gói.' : 'Không khôi phục được gói.', serial);
+    } finally { if (isCurrentSession(serial)) setBusy(null); }
   };
 
   const manualBlocker = editing === null ? null : manualPostBlocker(editing);

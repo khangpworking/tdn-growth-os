@@ -77,9 +77,9 @@ function version(db: ReturnType<typeof setup>['db'], values: { packageId: string
       uuid(values.requestNo), sha((values.requestNo % 16).toString(16)), sha('a'), at);
 }
 
-test('0028 inventories all package tables and triggers and keeps every table append-only', () => {
+test('0028/0029 inventories all package tables and triggers and keeps every table append-only', () => {
   const state = setup();
-  assert.equal(state.migration.currentVersion, 30);
+  assert.equal(state.migration.currentVersion, 29);
   assert.deepEqual((state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name IN ('flow_content_packages', 'flow_content_package_versions', 'flow_content_package_states', 'flow_content_campaign_defaults') ORDER BY name").all() as { name: string }[]).map((row) => row.name), [
     'flow_content_campaign_defaults', 'flow_content_package_states', 'flow_content_package_versions', 'flow_content_packages',
   ]);
@@ -129,6 +129,7 @@ test('version attempts must match package target id, target type and modality', 
   for (const [index, wrong] of cases.entries()) {
     state.attempt(wrong.id, wrong.targetType, wrong.targetId, wrong.modality, wrong.model);
     assert.throws(() => version(state.db, { packageId: secondPackageId, part: 'CAPTION', version: 1, source: 'GENERATED', attemptId: wrong.id, requestNo: 50 + index }), /flow_content_package_version_attempt_mismatch/);
+    state.db.prepare("UPDATE flow_content_ai_attempts SET state = 'failed', error_code = 'network_error', closed_at = ? WHERE attempt_id = ?").run(at, wrong.id);
   }
   const correctCaption = uuid(60);
   const correctPoster = uuid(61);

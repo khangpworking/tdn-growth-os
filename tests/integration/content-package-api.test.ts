@@ -23,7 +23,7 @@ import purposeTagSchema from '../../contracts/flow/content-purpose-tag-request.s
 import defaultsSchema from '../../contracts/flow/content-campaign-defaults-request.schema.json' with { type: 'json' };
 import { openContentOwnerApi, openContentReadApi } from '../../src/api/content-api.js';
 import { createFakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
-import { fixtureAt, fixtureCampaignId, createPackageFixture, imageReply, textReply } from '../helpers/content-package-fixture.js';
+import { fixtureAt, fixtureCampaignContent, fixtureCampaignId, createPackageFixture, imageReply, textReply } from '../helpers/content-package-fixture.js';
 import { fixtureImage } from '../helpers/content-images.js';
 
 const token = 'synthetic-owner-token-051-with-at-least-32-characters';
@@ -86,7 +86,6 @@ test('Task 051 schemas are in the contract generator inventory', () => {
 
 test('GET package list/detail/poster routes are contract-shaped, fail closed and serve inert poster bytes', async () => {
   const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
-  state.db.close();
   const gateway = createFakeCreativeGateway({ text: [textReply('{"post":"API caption"}')], image: [imageReply()] });
   let nextId = 600;
   const owner = openContentOwnerApi({ databasePath: state.databasePath, artifactRoot: state.artifactRoot, writeEnabled: true, token, allowedOrigin: origin, actorId: 'owner:content-studio', gateway, uuid: () => `05130000-0000-4000-8000-${(nextId++).toString(16).padStart(12, '0')}`, now: () => new Date(fixtureAt) });
@@ -103,12 +102,17 @@ test('GET package list/detail/poster routes are contract-shaped, fail closed and
     assert.equal(generateCaption.status, 201); assert.equal(contracts.owner(await generateCaption.json()), true);
     const generatePoster = await fetch(`${ownerServer.base}/owner-api/content/packages/${created.packages[0]!.packageId}/generate`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', part: 'POSTER', plannedCallCount: 2, requestId: packageRequestId(3) }) });
     assert.equal(generatePoster.status, 201); assert.equal(contracts.owner(await generatePoster.json()), true);
+    await state.campaigns.reviseCampaign({
+      contractVersion: '1.0.0', campaignId: fixtureCampaignId, expectedVersion: 1,
+      campaign: { ...fixtureCampaignContent, name: 'Synthetic campaign — newer version' },
+    });
 
     const list = await fetch(`${readServer.base}/api/content/campaigns/${fixtureCampaignId}/packages`);
     assert.equal(list.status, 200); const listBody = await list.json(); assert.equal(contracts.content(listBody), true);
     assert.equal((listBody as { packages: unknown[] }).packages.length, 1);
     const detail = await fetch(`${readServer.base}/api/content/packages/${created.packages[0]!.packageId}`);
     assert.equal(detail.status, 200); const detailBody = await detail.json(); assert.equal(contracts.content(detailBody), true);
+    assert.equal((detailBody as { campaignName: string }).campaignName, fixtureCampaignContent.name);
     assert.equal((detailBody as { captions: unknown[]; posters: unknown[] }).captions.length, 1);
     assert.equal((detailBody as { posters: unknown[] }).posters.length, 1);
     const poster = await fetch(`${readServer.base}/api/content/packages/${created.packages[0]!.packageId}/posters/1`);

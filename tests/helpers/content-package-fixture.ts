@@ -70,7 +70,7 @@ export interface PackageFixtureOptions {
 }
 
 export async function createPackageFixture(options: PackageFixtureOptions = {}) {
-  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-content-package-')); 
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-content-package-'));
   const databasePath = path.join(root, 'db.sqlite');
   const artifactRoot = path.join(root, 'artifacts');
   const opened = openDatabase({ databasePath });

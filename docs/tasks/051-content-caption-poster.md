@@ -21,7 +21,7 @@ Non-goals:
 - **C1 — Campaign defaults.** “Lưu làm mặc định cho chiến dịch” appends an immutable **campaign defaults revision** (`flow_content_campaign_defaults`). This is not a campaign content revision, so it does not touch the Insight lock pin. A revision stores:
   - the Caption prompt, model, style and length;
   - the Poster prompt, model, ratio, ticked reference photos and the logo switch.
-  
+
   The Inspector starts from the latest revision, or from built-in defaults.
 - **C2 — Manual edit and versions.**
   - “Sửa tay” on a Caption appends a `MANUAL` Caption version.
@@ -56,7 +56,7 @@ The override works differently for each part:
   - Luôn is on.
   - Tùy is on for identity (name, logo, tagline) and off for contact (047: contact is off Posters by default).
   - Ẩn is off.
-  
+
   Only switched-on values reach the poster prompt.
 
 Ẩn values never enter an input bundle unless the OWNER explicitly overrides them for this package.
@@ -116,12 +116,12 @@ Review follow-ups:
 
 ## 2. Scope
 
-- **Migration** `0028_flow_content_packages.sql`:
+- **Migration** `0029_flow_content_packages.sql`:
   - `flow_content_packages`
   - `flow_content_package_versions`
   - `flow_content_package_states`
   - `flow_content_campaign_defaults`
-  
+
   All four are append-only, with sequential numbering and attempt-match triggers. For attempts, `target_type` is `content_caption` (text) or `content_poster` (image), and `target_id` is the package id.
 - **Pure modules:**
   - `content-display-rules.ts` (resolver and footer);

@@ -414,6 +414,57 @@ test('PackagePage demo renders caption/footer/fact history and failed-attempt re
   dom.cleanup();
 });
 
+test('a package generation completion cannot settle a different mounted package session', { concurrency: false }, async () => {
+  const { default: PackagePage } = await tsImport('../src/PackagePage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/PackagePage');
+  const secondPackageId = '66666666-6666-4666-8666-0000000000d2';
+  const firstCreated = createDemoPackages([], context, packageRequest('page-first'), at, () => packageId);
+  const secondCreated = createDemoPackages(firstCreated.packages, context, packageCreateRequest({ caption, poster, rows: [emptyRowDraft(angleTwoId)] }, 'page-second'), at, () => secondPackageId);
+  const firstCall = packageRunPlan([{ packageId, code: 'A1·1' }], ['CAPTION'], () => attemptId)[0]!;
+  const firstGenerated = generateDemoPart(firstCreated.packages, context, firstCall, at, attemptId).packages;
+  const secondCall = packageRunPlan([{ packageId: secondPackageId, code: 'A2·1' }], ['CAPTION'], () => '66666666-6666-4666-8666-0000000000e2')[0]!;
+  const secondGenerated = generateDemoPart(secondCreated.packages, context, secondCall, at, '66666666-6666-4666-8666-0000000000e2').packages;
+  const list = demoPackageList(secondGenerated, [], context, at);
+  const firstDetail = demoPackageDetail(firstGenerated, packageId, context, at);
+  const secondDetail = demoPackageDetail(secondGenerated, secondPackageId, context, at);
+  assert.ok(firstDetail && secondDetail);
+  const originalFetch = globalThis.fetch;
+  const writes: string[] = [];
+  const notices: string[] = [];
+  let release!: (value: Response) => void;
+  try {
+    globalThis.fetch = async (input, init) => {
+      const url = String(input);
+      if (String(init?.method ?? 'GET').toUpperCase() === 'POST') {
+        writes.push(url);
+        return new Promise<Response>((resolve) => { release = resolve; });
+      }
+      if (url.endsWith(`/api/content/campaigns/${campaignId}/packages`)) return json(200, list);
+      if (url.endsWith(`/api/content/packages/${packageId}`)) return json(200, firstDetail);
+      if (url.endsWith(`/api/content/packages/${secondPackageId}`)) return json(200, secondDetail);
+      throw new Error(`Unexpected synthetic fetch: ${url}`);
+    };
+    const dom = setupDom();
+    const { createRoot } = await import('react-dom/client');
+    const root = createRoot(dom.container);
+    const props = (code: string) => ({ mode: 'real' as const, campaignId, code, ownerToken: token, writesAvailable: true, demoContext: null, demoPackages: [], setDemoPackages: () => undefined, demoMedia: {}, notify: (message: string) => notices.push(message) });
+    await act(async () => { root.render(createElement(PackagePage, props('A1·1'))); for (let index = 0; index < 8; index += 1) await Promise.resolve(); });
+    const generateButton = [...dom.container.querySelectorAll('button')].find((button) => button.textContent?.includes('Tạo lại')) as HTMLButtonElement | undefined;
+    assert.ok(generateButton);
+    await act(async () => { generateButton.click(); for (let index = 0; index < 8; index += 1) await Promise.resolve(); });
+    assert.equal(writes.length, 1);
+    await act(async () => { root.render(createElement(PackagePage, props('A2·1'))); for (let index = 0; index < 8; index += 1) await Promise.resolve(); });
+    assert.ok(dom.container.textContent?.includes('A2·1'));
+    release(json(201, { contractVersion: '1.0.0', packageId, part: 'CAPTION', version: 2, attemptId, createdAt: later, exactRetry: false }));
+    await act(async () => { for (let index = 0; index < 12; index += 1) await Promise.resolve(); });
+    assert.deepEqual(notices, []);
+    await act(async () => { root.unmount(); });
+    dom.cleanup();
+  } finally {
+    if (release) release(json(201, { contractVersion: '1.0.0', packageId, part: 'CAPTION', version: 2, attemptId, createdAt: later, exactRetry: false }));
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test('Q6 PackagePage shows the ancestor-hidden banner without package restore, while own deletion keeps restore', async () => {
   const { default: PackagePage } = await tsImport('../src/PackagePage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/PackagePage');
   const built = packageWithCaption();

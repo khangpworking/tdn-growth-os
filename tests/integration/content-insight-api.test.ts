@@ -8,10 +8,21 @@ import path from 'node:path';
 import test from 'node:test';
 import type { AddressInfo } from 'node:net';
 import BetterSqlite3 from 'better-sqlite3';
+import contentApiSchema from '../../contracts/api/content-api.schema.json' with { type: 'json' };
 import ownerContentInsightApiSchema from '../../contracts/api/owner-content-insight-api.schema.json' with { type: 'json' };
+import contentCampaignCreateSchema from '../../contracts/flow/content-campaign-create-request.schema.json' with { type: 'json' };
+import contentCampaignDefaultsSchema from '../../contracts/flow/content-campaign-defaults-request.schema.json' with { type: 'json' };
+import contentCatalogItemCreateSchema from '../../contracts/flow/content-catalog-item-create-request.schema.json' with { type: 'json' };
+import contentIdeaGenerateSchema from '../../contracts/flow/content-idea-generate-request.schema.json' with { type: 'json' };
+import contentIdeaStateSchema from '../../contracts/flow/content-idea-state-request.schema.json' with { type: 'json' };
+import contentInsightLockArtifactSchema from '../../contracts/flow/content-insight-lock-artifact.schema.json' with { type: 'json' };
 import contentInsightRevisionSchema from '../../contracts/flow/content-insight-revision-request.schema.json' with { type: 'json' };
 import contentInsightLockSchema from '../../contracts/flow/content-insight-lock-request.schema.json' with { type: 'json' };
+import contentPackageCreateSchema from '../../contracts/flow/content-package-create-request.schema.json' with { type: 'json' };
+import contentPromptCreateSchema from '../../contracts/flow/content-prompt-create-request.schema.json' with { type: 'json' };
+import contentPurposeTagSchema from '../../contracts/flow/content-purpose-tag-request.schema.json' with { type: 'json' };
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
+import { canonicalBytes, canonicalDigest, registerContentManifest } from '../../src/modules/flow/content-artifacts.js';
 import { openDatabase } from '../../src/platform/db/database.js';
 import { ContentBrandService } from '../../src/modules/flow/content-brand-service.js';
 import { ContentCatalogService } from '../../src/modules/flow/content-catalog-service.js';
@@ -127,6 +138,43 @@ async function serve(run: (read: string, owner: string, state: { databasePath: s
 
 const post = (url: string, body: string, extraHeaders: Record<string, string> = headers) => fetch(url, { method: 'POST', headers: extraHeaders, body });
 
+async function seedUnlinkedStpInsight(state: { readonly databasePath: string; readonly artifactRoot: string }): Promise<void> {
+  const request = {
+    contractVersion: '1.0.0' as const,
+    campaignId,
+    expectedVersion: 0,
+    insight: {
+      customer: 'Người con đi làm xa',
+      painPoint: 'Khó chọn món quà thiết thực.',
+      insight: 'Trao sự yên tâm mỗi ngày.',
+      source: { kind: 'STP' as const, lockedStpId: '88888888-8888-4888-8888-0000000000e1' },
+    },
+  };
+  const artifact = {
+    contractVersion: '1.0.0' as const,
+    campaignId,
+    version: 1,
+    insight: request.insight,
+    createdAt: at,
+    requestSha256: canonicalDigest(request),
+  };
+  const db = new BetterSqlite3(state.databasePath);
+  try {
+    const stored = await new ContentAddressedArtifactStore(state.artifactRoot).put(canonicalBytes(artifact));
+    registerContentManifest(db, stored, at, 'application/json');
+    db.prepare(`
+      INSERT INTO flow_content_insight_revisions(campaign_id, version, source_kind, locked_stp_id, request_sha256, insight_artifact_sha256, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(campaignId, 1, 'STP', request.insight.source.lockedStpId, artifact.requestSha256, stored.sha256, at);
+  } finally { db.close(); }
+}
+
+function committedDigest(state: { readonly databasePath: string }, table: 'flow_content_insight_revisions' | 'flow_content_insight_locks', column: 'insight_artifact_sha256' | 'lock_artifact_sha256'): string {
+  const db = new BetterSqlite3(state.databasePath, { readonly: true });
+  try { return (db.prepare(`SELECT ${column} digest FROM ${table} WHERE campaign_id = ?`).get(campaignId) as { digest: string }).digest; }
+  finally { db.close(); }
+}
+
 test('Insight GET has the closed shape, distinguishes unknown campaigns and rejects invalid routes', async () => {
   await serve(async (read, owner) => {
     assert.equal((await post(`${owner}/owner-api/content/campaigns`, createBody())).status, 201);
@@ -209,22 +257,78 @@ test('Insight API maps invalid references, version conflicts and the B10 gate to
   }, { researchProduct: true });
 });
 
-test('OWNER Insight schemas are closed and generated response shapes have a real contract owner', () => {
+test('OWNER Insight lock maps an unlinked STP source mismatch to a stable 409 conflict', async () => {
+  await serve(async (_read, owner, state) => {
+    assert.equal((await post(`${owner}/owner-api/content/campaigns`, createBody())).status, 201);
+    await seedUnlinkedStpInsight(state);
+    const locks = `${owner}/owner-api/content/campaigns/${campaignId}/insight/lock`;
+    const response = await post(locks, lockBody());
+    assert.deepEqual([response.status, await response.json()], [409, { error: { code: 'conflict', message: 'Request conflicts with current state' } }]);
+  });
+});
+
+test('OWNER Insight retries recover only the exact missing committed revision and lock artifacts', async () => {
+  await serve(async (_read, owner, state) => {
+    assert.equal((await post(`${owner}/owner-api/content/campaigns`, createBody())).status, 201);
+    const revisions = `${owner}/owner-api/content/campaigns/${campaignId}/insight/revisions`;
+    const locks = `${owner}/owner-api/content/campaigns/${campaignId}/insight/lock`;
+    assert.equal((await post(revisions, revisionBody())).status, 201);
+
+    const revisionDigest = committedDigest(state, 'flow_content_insight_revisions', 'insight_artifact_sha256');
+    const revisionFile = path.join(state.artifactRoot, 'sha256', revisionDigest.slice(0, 2), revisionDigest);
+    fs.rmSync(revisionFile);
+    const changedRevision = await post(revisions, revisionBody({ insight: insight({ insight: 'Yêu cầu khác.' }) }));
+    assert.deepEqual([changedRevision.status, await changedRevision.json()], [500, { error: { code: 'integrity_error', message: 'Stored content data failed integrity verification' } }]);
+    assert.equal(fs.existsSync(revisionFile), false);
+    const revisionRetry = await post(revisions, revisionBody());
+    assert.equal(revisionRetry.status, 200);
+    assert.equal(fs.existsSync(revisionFile), true);
+
+    assert.equal((await post(locks, lockBody())).status, 201);
+    const lockDigest = committedDigest(state, 'flow_content_insight_locks', 'lock_artifact_sha256');
+    const lockFile = path.join(state.artifactRoot, 'sha256', lockDigest.slice(0, 2), lockDigest);
+    fs.rmSync(lockFile);
+    const changedLock = await post(locks, lockBody({ campaignVersion: 2 }));
+    assert.deepEqual([changedLock.status, await changedLock.json()], [500, { error: { code: 'integrity_error', message: 'Stored content data failed integrity verification' } }]);
+    assert.equal(fs.existsSync(lockFile), false);
+    const lockRetry = await post(locks, lockBody());
+    assert.equal(lockRetry.status, 200);
+    assert.equal(fs.existsSync(lockFile), true);
+  });
+});
+
+test('OWNER Insight schemas are closed and route responses satisfy their JSON contracts', async () => {
   const require = createRequire(import.meta.url);
   const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
   const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
   const ajv = new Ajv2020({ allErrors: true, strict: true }); addFormats(ajv);
-  ajv.addSchema(contentInsightRevisionSchema); ajv.addSchema(contentInsightLockSchema); ajv.addSchema(ownerContentInsightApiSchema);
+  ajv.addSchema(contentCampaignCreateSchema); ajv.addSchema(contentCampaignDefaultsSchema); ajv.addSchema(contentCatalogItemCreateSchema);
+  ajv.addSchema(contentIdeaGenerateSchema); ajv.addSchema(contentIdeaStateSchema); ajv.addSchema(contentPackageCreateSchema); ajv.addSchema(contentPromptCreateSchema); ajv.addSchema(contentPurposeTagSchema);
+  ajv.addSchema(contentInsightRevisionSchema); ajv.addSchema(contentInsightLockSchema); ajv.addSchema(contentInsightLockArtifactSchema); ajv.addSchema(contentApiSchema); ajv.addSchema(ownerContentInsightApiSchema);
   const revisionRequest = ajv.getSchema(`${ownerContentInsightApiSchema.$id}#/$defs/revisionRequest`)!;
   const lockRequest = ajv.getSchema(`${ownerContentInsightApiSchema.$id}#/$defs/lockRequest`)!;
+  const insightDetail = ajv.getSchema(`${contentApiSchema.$id}#/$defs/insightDetail`)!;
+  const revisionReceipt = ajv.getSchema(`${ownerContentInsightApiSchema.$id}#/$defs/revisionReceipt`)!;
+  const lockReceipt = ajv.getSchema(`${ownerContentInsightApiSchema.$id}#/$defs/lockReceipt`)!;
   assert.equal(revisionRequest({ contractVersion: '1.0.0', expectedVersion: 0, insight: insight() }), true);
   assert.equal(lockRequest({ contractVersion: '1.0.0', insightVersion: 1, campaignVersion: 1 }), true);
   assert.equal(revisionRequest({ contractVersion: '1.0.0', expectedVersion: 0, insight: insight(), extra: true }), false);
   assert.equal(lockRequest({ contractVersion: '1.0.0', insightVersion: 1, campaignVersion: 1, extra: true }), false);
-  const ownerGenerated = fs.readFileSync('contracts/api/owner-content-insight-api.generated.ts', 'utf8');
-  const readGenerated = fs.readFileSync('contracts/api/content-api.generated.ts', 'utf8');
-  assert.match(ownerGenerated, /OwnerContentInsightRevisionReceipt/);
-  assert.match(ownerGenerated, /exactRetry: boolean/);
-  assert.match(readGenerated, /ContentInsightDetailResponse/);
-  assert.match(readGenerated, /stpSuggestion\?: ContentInsightStpSuggestion/);
+  await serve(async (read, owner) => {
+    assert.equal((await post(`${owner}/owner-api/content/campaigns`, createBody())).status, 201);
+    const emptyDetail = await (await fetch(`${read}/api/content/campaigns/${campaignId}/insight`)).json();
+    assert.equal(insightDetail(emptyDetail), true);
+    const revisions = `${owner}/owner-api/content/campaigns/${campaignId}/insight/revisions`;
+    const revisionResponse = await post(revisions, revisionBody());
+    const revisionValue = await revisionResponse.json();
+    assert.equal(revisionResponse.status, 201);
+    assert.equal(revisionReceipt(revisionValue), true);
+    const locks = `${owner}/owner-api/content/campaigns/${campaignId}/insight/lock`;
+    const lockResponse = await post(locks, lockBody());
+    const lockValue = await lockResponse.json();
+    assert.equal(lockResponse.status, 201);
+    assert.equal(lockReceipt(lockValue), true);
+    const finalDetail = await (await fetch(`${read}/api/content/campaigns/${campaignId}/insight`)).json();
+    assert.equal(insightDetail(finalDetail), true);
+  });
 });

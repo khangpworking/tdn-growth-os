@@ -5,7 +5,7 @@ import type { ContentIdeaGenerateRequest, ContentIdeaKind } from '../../../contr
 import type { ContentIdeaStateAction } from '../../../contracts/flow/content-idea-state-request.generated.js';
 import type { ContentPurposeKind } from '../../../contracts/flow/content-purpose-tag-request.generated.js';
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../platform/artifacts/index.js';
-import type { ContentAiAttemptService } from './content-ai-attempt-service.js';
+import { ContentAiAttemptConflictError, type ContentAiAttemptService } from './content-ai-attempt-service.js';
 import {
   assertContentManifest,
   assertContentUuid,
@@ -219,6 +219,9 @@ export class ContentIdeaService {
     this.#inFlight.add(input.requestId);
     try {
       return await this.#generate(input, requestSha256, actorId);
+    } catch (error) {
+      if (error instanceof ContentAiAttemptConflictError) throw new ContentIdeaConflictError('This generation request is already running');
+      throw error;
     } finally {
       this.#inFlight.delete(input.requestId);
     }
@@ -290,6 +293,9 @@ export class ContentIdeaService {
     const heads = prior.filter((attempt) => !retried.has(attempt.attemptId));
     if (heads.length !== 1) throw new ContentIdeaIntegrityError('Generation request attempts do not form one retry chain');
     if (heads[0]!.inputBundleSha256 !== inputBundleSha256) throw new ContentIdeaConflictError('Request id was reused with a different input; start a new request');
+    if (heads[0]!.outputSha256 !== null) {
+      throw new ContentIdeaConflictError('A provider result exists without a committed idea; choose an explicit retry decision before dispatching again');
+    }
     return heads[0]!.attemptId;
   }
 
