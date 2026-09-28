@@ -156,7 +156,9 @@ test('migration 0027 creates the three immutable tables and all relationship/seq
   const wrongParentAttempt = '77777777-7777-4777-8777-000000000108';
   insertAttempt(state.db, wrongParentAttempt, wrongParentIdea, 'content_angle', 8);
   assert.throws(() => insertIdea(state.db, { ideaId: wrongParentIdea, campaignId: campaignOne, kind: 'ANGLE', parentIdeaId: bigOther, ordinal: 1, insightVersion: 1, requestId: '77777777-7777-4777-8777-000000000208', attemptId: wrongParentAttempt }), /flow_content_idea_parent_invalid/);
-  assert.throws(() => insertIdea(state.db, { ideaId: '77777777-7777-4777-8777-0000000000b8', campaignId: campaignOne, kind: 'ANGLE', parentIdeaId: angleOne, ordinal: 1, insightVersion: 1, requestId: '77777777-7777-4777-8777-000000000209', attemptId: wrongParentAttempt }), /flow_content_idea_parent_invalid/);
+  const angleParentAttempt = '77777777-7777-4777-8777-000000000109';
+  insertAttempt(state.db, angleParentAttempt, '77777777-7777-4777-8777-0000000000b8', 'content_angle', 9);
+  assert.throws(() => insertIdea(state.db, { ideaId: '77777777-7777-4777-8777-0000000000b8', campaignId: campaignOne, kind: 'ANGLE', parentIdeaId: angleOne, ordinal: 1, insightVersion: 1, requestId: '77777777-7777-4777-8777-000000000209', attemptId: angleParentAttempt }), /flow_content_idea_parent_invalid/);
 
   assert.throws(() => insertState(state.db, bigOne, 3, 'DEVELOP'), /flow_content_idea_state_not_sequential/);
   assert.throws(() => insertState(state.db, bigOne, 2, 'PURPOSES', ['EDUCATION']), /flow_content_idea_purposes_angle_only/);
