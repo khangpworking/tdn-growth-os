@@ -1,0 +1,289 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/versioned-report-packet.schema.json",
+  "title": "VersionedReportPacket",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "contractVersion": {
+      "const": "1.0.0"
+    },
+    "packetId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "policyVersion": {
+      "const": "report-packet-a3a-v1"
+    },
+    "rendererVersion": {
+      "const": "report-packet-vi-v1"
+    },
+    "status": {
+      "const": "DRAFT"
+    },
+    "approvalState": {
+      "const": "UNREVIEWED"
+    },
+    "sourceVerification": {
+      "const": "NORMALIZED_INPUT_ONLY"
+    },
+    "claimPolicy": {
+      "const": "APPLICATION_DERIVED_FACT_OBSERVATIONS_ONLY"
+    },
+    "catalogSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "metricResultSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "inputSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "metricMethodVersion": {
+      "const": "metric-scope-v1"
+    },
+    "metricRounding": {
+      "const": "percent-half-even-2-v1"
+    },
+    "metricRendererVersion": {
+      "const": "metric-draft-vi-v1"
+    },
+    "catalog": {
+      "$ref": "./report-section-catalog.schema.json"
+    },
+    "scope": {
+      "$ref": "./metric-scope-input.schema.json#/properties/scope"
+    },
+    "declaredSources": {
+      "$ref": "./metric-scope-input.schema.json#/properties/sources"
+    },
+    "sections": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/SectionPacket"
+      }
+    },
+    "claims": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/FactObservation"
+      }
+    }
+  },
+  "required": [
+    "contractVersion",
+    "packetId",
+    "policyVersion",
+    "rendererVersion",
+    "status",
+    "approvalState",
+    "sourceVerification",
+    "claimPolicy",
+    "catalogSha256",
+    "metricResultSha256",
+    "inputSha256",
+    "metricMethodVersion",
+    "metricRounding",
+    "metricRendererVersion",
+    "catalog",
+    "scope",
+    "declaredSources",
+    "sections",
+    "claims"
+  ],
+  "$defs": {
+    "SectionPacket": {
+      "title": "SectionPacket",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "deliveryState": {
+          "enum": [
+            "PARTIAL_DETERMINISTIC_DRAFT",
+            "METHOD_ONLY",
+            "BLOCKED",
+            "MANUAL_REVIEW_REQUIRED",
+            "NOT_IMPLEMENTED"
+          ]
+        },
+        "claimIds": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "contextPointers": {
+          "type": "array",
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "pattern": "^/",
+            "maxLength": 400
+          }
+        },
+        "blockers": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "sectionSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      },
+      "required": [
+        "sectionId",
+        "deliveryState",
+        "claimIds",
+        "contextPointers",
+        "blockers",
+        "sectionSha256"
+      ]
+    },
+    "FactObservation": {
+      "title": "FactObservation",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "claimId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "sectionId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10
+        },
+        "claimType": {
+          "const": "FACT"
+        },
+        "evidenceState": {
+          "const": "DETERMINISTIC_NORMALIZED_OBSERVATION"
+        },
+        "approvalState": {
+          "const": "UNREVIEWED"
+        },
+        "statementKind": {
+          "enum": [
+            "LISTING_COUNT",
+            "SHOP_COUNT",
+            "OBSERVED_REVENUE",
+            "OBSERVED_UNITS",
+            "TOP_SHOP_SHARE"
+          ]
+        },
+        "scopeKey": {
+          "enum": [
+            "all",
+            "wide",
+            "core"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80
+            },
+            {
+              "type": "integer",
+              "minimum": 0
+            }
+          ]
+        },
+        "unit": {
+          "enum": [
+            "listing",
+            "shop",
+            "VND",
+            "unit",
+            "percent"
+          ]
+        },
+        "metricPointer": {
+          "type": "string",
+          "pattern": "^/",
+          "maxLength": 400
+        },
+        "scopePointer": {
+          "const": "/input/scope"
+        },
+        "membershipPointer": {
+          "type": "string",
+          "pattern": "^/",
+          "maxLength": 400
+        },
+        "denominatorPointer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^/",
+              "maxLength": 400
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "coveragePointer": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^/",
+              "maxLength": 400
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "claimId",
+        "sectionId",
+        "claimType",
+        "evidenceState",
+        "approvalState",
+        "statementKind",
+        "scopeKey",
+        "value",
+        "unit",
+        "metricPointer",
+        "scopePointer",
+        "membershipPointer",
+        "denominatorPointer",
+        "coveragePointer",
+        "limitations"
+      ]
+    }
+  }
+}

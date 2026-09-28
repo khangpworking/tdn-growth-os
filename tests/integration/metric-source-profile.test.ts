@@ -7,6 +7,10 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { normalizeMetricWorkbook, MetricSourceRejection } from '../../src/modules/analysis/metric-source-profile.js';
+import { renderMetricScopeDraft } from '../../src/modules/analysis/metric-scope-calculator.js';
+import { createResearchReportPacket } from '../../src/modules/analysis/versioned-report-packet.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import catalog from '../../docs/research/report-section-catalog-v1.json' with { type: 'json' };
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 function fixture(config: object = {}): Buffer {
@@ -22,6 +26,42 @@ function manifest(bytes: Buffer) {
     precision: { revenue: 'unknown', units: 'unknown' }, labelCodebookVersion: 'synthetic-v1', wideUnknownPolicy: 'exclude' };
 }
 const normalize = (bytes: Buffer) => normalizeMetricWorkbook(bytes, encode(manifest(bytes)));
+
+test('explicitly unconfirmed acquisition survives workbook intake and report replay without changing measurement dates or totals', () => {
+  const bytes = fixture(), knownManifest = manifest(bytes), known = normalize(bytes);
+  const unknownManifest = { ...knownManifest, scope: { ...knownManifest.scope, acquiredAt: null } };
+  const parsed = normalizeMetricWorkbook(bytes, encode(unknownManifest));
+  assert.equal(parsed.input.scope.acquiredAt, null);
+  assert.equal(parsed.input.scope.start, '2026-08-17');
+  assert.equal(parsed.input.scope.end, '2026-09-15');
+  assert.deepEqual(parsed.result.scopes, known.result.scopes);
+  assert.equal(parsed.result.scopes[0].revenue.value, '150');
+  assert.equal(parsed.result.scopes[1].status, 'BLOCKED_LABELS');
+  assert.notEqual(parsed.result.inputSha256, known.result.inputSha256);
+  assert.match(renderMetricScopeDraft(parsed.result), /Thu nhận: chưa xác nhận/);
+  assert.match(renderMetricScopeDraft(known.result), /Thu nhận: 2026-09-16T00:00:00.000Z/);
+  const hash = (b: Buffer) => createHash('sha256').update(b).digest('hex');
+  const c = Buffer.from(canonicalJson(catalog) + '\n');
+  const compose = (r: typeof parsed.result) => {
+    const b = Buffer.from(canonicalJson(r) + '\n');
+    return createResearchReportPacket(b, hash(b), c, hash(c));
+  };
+  const packet = compose(parsed.result);
+  assert.equal(packet.packet.scope.acquiredAt, null);
+  assert.equal(packet.packet.status, 'DRAFT');
+  assert.equal(packet.packet.approvalState, 'UNREVIEWED');
+  assert.equal(packet.packet.sourceVerification, 'NORMALIZED_INPUT_ONLY');
+  assert.match(packet.report, /Thu nhận khai báo: chưa xác nhận/);
+  assert.equal(packet.packet.claims.find(claim => claim.claimId === 'M03:all:revenue')?.value, '150');
+  assert.ok(packet.packet.claims.every(claim => claim.limitations.includes('ACQUISITION_TIME_UNCONFIRMED')));
+  assert.ok(packet.packet.sections.find(s => s.sectionId === 'M13')!.blockers.includes('ACQUISITION_TIME_UNCONFIRMED'));
+  assert.deepEqual(compose(parsed.result), packet);
+  assert.notEqual(compose(known.result).packet.packetId, packet.packet.packetId);
+  for (const acquiredAt of ['', 'not-a-date', '2026-99-99T99:99:99Z', undefined]) {
+    const bad = { ...unknownManifest, scope: { ...unknownManifest.scope, acquiredAt } };
+    assert.throws(() => normalizeMetricWorkbook(bytes, encode(bad)), /INVALID_MANIFEST/);
+  }
+});
 
 test('A2 reads actual shared-string cells and maps period metrics, never lifetime totals or source names', () => {
   const parsed = normalize(fixture());

@@ -8,6 +8,8 @@ Cùng bộ đầu vào đã đóng băng, phiên bản phương pháp và cấu 
 
 A1 là calculator/CLI offline với bản nháp JSON/Markdown deterministic, chưa full report/Insight, chưa có SQLite report-run/UI hoặc AI generation. Chính sách UNKNOWN trong wide là cấu hình bắt buộc và chưa có lựa chọn mặc định cho báo cáo thật. Xem `docs/tasks/research-a1-deterministic-metric.md`.
 
+A3a (2026-09-28) triển khai lát packet offline nhỏ trước phần A3 persistence: cùng dependency bytes và phiên bản code/phương pháp cho cùng bản nháp; đổi dependency tạo content identity khác, không tự ghi đè hay bịa lịch sử phiên bản tuần tự. Catalog 30 mục là metadata kế hoạch; maturity lịch sử không phải bằng chứng độ hoàn thiện của bản mới. Chỉ materialize quan sát định lượng do ứng dụng tính, chưa nhận/sinh INFERENCE hoặc HYPOTHESIS. Phần thiếu hiện blocker; tất cả UNREVIEWED. Quyền nhập case/claim thủ công, source acceptance thật, official approval và database/workspace integration còn để lát sau.
+
 Cập nhật: 11/09/2026. Trạng thái: ghi nhận quyết định frontend sau baseline Task 032; visual direction đang đề xuất.
 
 ## Mục đích và cách đọc
@@ -384,6 +386,12 @@ Không quay lại đào sâu B0, insight, framework versioning, B14, chat AI v�
 ### Report automation — deterministic evidence foundation (2026-09-28)
 
 Owner assigns business methodology to task **Review marketing framework files** and code to the TDN task. Numbers and reproducible calculations are application-owned; AI must not invent missing values, periods, entity IDs or source lineage. A1 normalized calculations and A2 exact Metric source mapping are bounded implementation slices, not approval of official market/insight conclusions. A2 requires explicit scope/acquisition declarations and labels bound to source bytes; no implicit UNKNOWN-policy choice for real reports. The current raw profile supports one Metric Shopee export only; incompatible Kalodata/trade/legacy sources require separate future profiles. No live collection is authorized by this decision.
+
+**Owner clarification, 2026-09-28:** use `wideUnknownPolicy=exclude` for the current research workflow. Retain fresh UNKNOWN records for inspection and separate disclosure; do not count them in WIDE, delete raw rows, or change CORE membership. Missing/stale/pending labels do not become fresh UNKNOWN. This choice must remain explicit and version-bound in real run inputs, not a silent calculator default. Owner also confirms date filters exist in Metric and Kalodata: recover measurement-period evidence from existing source/filter records where possible, separately for each source. A measurement period is not the export/acquisition timestamp. No unknown-acquisition-date contract revision was approved.
+
+**Subsequent owner selection, 2026-09-28:** for this calcium Metric study, use workbook `(4)` (abnormal filter ON) as the primary analysis and `(3)` (abnormal filter OFF) as a separate filter-sensitivity comparison. Run each independently; never sum their rows/totals or interpret their difference as market movement. The suffix itself is not evidence: bind each source to its exact hash and saved filter-capture record. This is not a claim that ON is universally more accurate or that excluded rows are fake sales. Retain the separate UNKNOWN-exclusion policy above. This source selection does not approve official report conclusions, merges, deployment, provider calls or an acquisition timestamp inferred from filesystem metadata.
+
+**Subsequent owner approval, 2026-09-28 — unconfirmed acquisition:** a diagnostic draft may proceed with explicit `scope.acquiredAt=null` when acquisition time cannot be confirmed. Preserve the evidence-backed measurement period unchanged, display the unconfirmed-time warning, and keep DRAFT/UNREVIEWED/source-verification limitations. Omitted, empty or malformed dates are not silently converted to null. Never infer acquisition from period endpoints, current time or filesystem mtime. This supersedes the earlier acquisition-time blocking rule only for these drafts; it grants no official approval or stronger source verification.
 
 - Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
 - Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.

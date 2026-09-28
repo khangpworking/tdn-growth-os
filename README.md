@@ -59,6 +59,12 @@ The exporter opens the database read-only, verifies both Results and their froze
 `npm run research:metric:normalize -- <export.xlsx> <manifest.json> <labels.json|-> <outside-git-bundle-directory>`.
 Only the exact `metric-shopee-product-list-sheet1-v1` profile is supported. An explicit period/acquisition manifest is mandatory; no source dates, identities or labels are guessed. Python 3 standard library is required. See [A2 boundary and mapping](docs/tasks/research-a2-source-profile.md). No real-source acceptance or complete report automation is implied.
 
+## Offline versioned report packet (research A3a)
+
+`npm run research:report:packet -- <result.json> <exact-result-byte-sha256> <catalog.json> <exact-catalog-byte-sha256> <outside-git-bundle-directory>`.
+
+Use an exact A1/A2 `result.json` and the explicitly selected [planning catalog](docs/research/report-section-catalog-v1.json). The packet recomputes/compares the normalized result, binds its exact bytes and catalog, and creates a deterministic Vietnamese DRAFT with partial observed metrics and explicit section blockers. It does not authenticate raw sources, generate Insight, grant approval, or connect to the live workspace/database. The same bundle is verified/reused; conflicting content is never overwritten. See [A3a scope](docs/tasks/research-a3-versioned-report-packet.md).
+
 ## Offline source-package intake
 
 Run `npm run source-package:intake -- <database> <artifact-root> <package-directory> <intake.json> <audit.json> <output.md>` to verify and persist an exact-byte source package and immutable field audit without provider calls. The package directory must exactly match descriptor membership; the report path must be outside this repository and must not already exist. See `docs/tasks/023-source-package-intake.md`.

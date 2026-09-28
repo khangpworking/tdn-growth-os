@@ -1,5 +1,12 @@
 # Trạng thái hiện tại
 
+## Research A3a — versioned report packet (draft PR #55; not deployed)
+
+- CLI offline ghim result/catalog theo exact byte SHA-256, replay phép tính A1 trước khi đóng gói.
+- Bản nháp có content identity, context/pointer/coverage rõ, 30 section metadata và blocker; không phải full Market/Insight Report.
+- Chỉ quan sát FACT trong normalized input; không xác thực lại workbook/provider, không import hoặc sinh suy luận/giả thuyết. Maturity là của template lịch sử, không phải trạng thái report mới.
+- Đã nối main sau Task 049; A1 #52 / A2 #54 vẫn chưa merge. Không Windows tests/build/typecheck; trạng thái Linux CI đúng head ghi trong PR #55 và handoff comment. Không DB/UI/AI/live intake/deploy.
+
 ## Research A2 — exact Metric source profile (draft PR #54, not deployed)
 
 - Offline XLSX → A1 adapter cho đúng một profile Metric Shopee, dùng manifest scope/period/acquisition rõ ràng, kiểm exact header/hash/row range và ID từ URL.
