@@ -167,9 +167,15 @@ test('keeps missing labels and zero denominators blocked with truthful empty lan
   assert.equal(zeroChart.topShopShare.scopes[0]!.points.length, 0);
   assert.ok(zeroChart.topShopShare.scopes[0]!.blockers.includes('all:top1:NO_ELIGIBLE_DENOMINATOR'));
   assert.ok(zeroChart.topShopShare.blockers.includes('top-shop-share:all:top1:NO_ELIGIBLE_DENOMINATOR'));
-  assert.equal(zeroChart.groupComposition.scopes[0]!.points.every(point => point.sharePercent === null), true);
-  assert.equal(zeroChart.groupComposition.scopes[0]!.state, 'PARTIAL');
-  assert.equal(zeroChart.topShopRemoval.scopes[0]!.point?.remainingRevenueSharePercent, null);
+  // A zero denominator produces no eligible M04 fact claim in the verified
+  // packet, so every M04-derived view must remain fail-closed rather than
+  // exposing unclaimed group/removal observations.
+  assert.equal(zeroChart.groupComposition.state, 'BLOCKED');
+  assert.equal(zeroChart.groupComposition.scopes[0]!.state, 'BLOCKED');
+  assert.equal(zeroChart.groupComposition.scopes[0]!.points.length, 0);
+  assert.ok(zeroChart.groupComposition.scopes[0]!.blockers.includes('all:SECTION_HANDLER_NOT_CHARTABLE'));
+  assert.equal(zeroChart.topShopRemoval.scopes[0]!.state, 'BLOCKED');
+  assert.equal(zeroChart.topShopRemoval.scopes[0]!.point, null);
 
   const incompleteRevenue = metricFixture();
   incompleteRevenue.records[0]!.revenue = {
