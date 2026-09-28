@@ -104,6 +104,10 @@ try {
     await fs.writeFile(path.join(root, `${name}-first.png`), Buffer.from(first.data, 'base64'), { mode: 0o600 });
     evidence.push({ name, ...state, height: metrics.cssContentSize.height });
     await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
+  }
+  for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
+    await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
+    await evaluate('window.scrollTo(0,0)');
     const originalOpen = await evaluate('Array.from(document.querySelectorAll("details"), item => item.open)');
     const controls = await evaluate(`(() => {
       const controls = [...document.querySelectorAll('summary,a')];
@@ -149,14 +153,34 @@ try {
         const downloaded = path.join(downloadsDirectory, path.basename(file));
         await fs.unlink(downloaded).catch(error => { if (error.code !== 'ENOENT') throw error; });
         await click(selector);
-        let received;
+        let received, opened = false;
         for (let attempt = 0; attempt < 100; attempt++) {
           try { received = await fs.readFile(downloaded); break; }
           catch (error) { if (error.code !== 'ENOENT') throw error; }
+          // Chromium may open a local JSON file instead of honoring download.
+          // Verify the resource it actually opened, then restore the report.
+          if (await evaluate('location.href') === pathToFileURL(file).href) {
+            const tree = await call('Page.getResourceTree');
+            const resource = await call('Page.getResourceContent', { frameId: tree.frameTree.frame.id, url: pathToFileURL(file).href });
+            received = Buffer.from(resource.content, resource.base64Encoded ? 'base64' : 'utf8');
+            opened = true;
+            break;
+          }
           await pause(50);
         }
         if (!received || !received.equals(await fs.readFile(file))) throw new Error(`Download failed: ${JSON.stringify({href:control.href,bytes:received?.length,files:await fs.readdir(downloadsDirectory),url:await evaluate('location.href'),events:downloadEvents,errors:pageErrors})}`);
-        actions.push({ text: control.text, action: 'downloaded-exact-bytes', target: control.href });
+        actions.push({ text: control.text, action: opened ? 'opened-exact-file-bytes' : 'downloaded-exact-bytes', target: control.href });
+        if (opened) {
+          await call('Page.navigate', { url: pathToFileURL(report).href });
+          let restored = false;
+          for (let attempt = 0; attempt < 100; attempt++) {
+            restored = await evaluate('document.readyState === "complete" && !!document.querySelector("a.value")');
+            if (restored) break;
+            await pause(50);
+          }
+          if (!restored) throw new Error('Could not return from source file to report');
+          await evaluate(`document.querySelectorAll('summary,a').forEach((item,index) => item.dataset.previewControl = String(index))`);
+        }
       } else throw new Error(`Unowned interaction: ${control.href}`);
     }
     await evaluate('document.querySelector("details").open = false; document.querySelector("summary").focus()');
