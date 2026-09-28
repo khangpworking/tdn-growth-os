@@ -49,4 +49,3 @@ claim, AI interpretation or business decision.
   identity and renderer behavior; A10 does not duplicate their formulas.
 - Linux CI is the typecheck/test/build gate. Windows tests, builds and
   typechecks are not run.
-
