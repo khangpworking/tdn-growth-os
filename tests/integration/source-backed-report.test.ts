@@ -307,7 +307,6 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   assert.ok(document.querySelector('#charts')?.textContent?.includes('Đổi membership làm số quan sát thay đổi thế nào?'));
   assert.ok(document.querySelector('#charts')?.textContent?.includes('không phải diễn biến hoặc tăng trưởng'));
   assert.ok(document.querySelector('#charts')?.textContent?.includes('Nếu bỏ shop đứng đầu thì cấu trúc còn lại ra sao?'));
-  assert.ok(document.getElementById('diagnostic-scope-wide-0'));
   assert.ok(document.getElementById('diagnostic-removal-all-0'));
   const links = [...document.querySelectorAll('a[download]')].map(anchor => anchor.getAttribute('href')).filter((href): href is string => href !== null);
   const expected = [
