@@ -129,6 +129,36 @@ test('GET package list/detail/poster routes are contract-shaped, fail closed and
   }
 });
 
+test('unknown display overrides return a 4xx and persist no packages', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
+  state.db.close();
+  let nextId = 650;
+  const owner = openContentOwnerApi({ databasePath: state.databasePath, artifactRoot: state.artifactRoot, writeEnabled: true, token, allowedOrigin: origin, actorId: 'owner:content-studio', gateway: createFakeCreativeGateway(), uuid: () => `05130000-0000-4000-8000-${(nextId++).toString(16).padStart(12, '0')}`, now: () => new Date(fixtureAt) });
+  const read = openContentReadApi({ databasePath: state.databasePath, artifactRoot: state.artifactRoot, now: () => new Date(fixtureAt) });
+  const ownerServer = await listen(owner.handler); const readServer = await listen(read.handler);
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Origin: origin };
+  try {
+    for (const [index, display] of [
+      { caption: { logo: 'ALWAYS' } },
+      { poster: { foo: true } },
+    ].entries()) {
+      const response = await fetch(`${ownerServer.base}/owner-api/content/campaigns/${fixtureCampaignId}/packages`, {
+        method: 'POST', headers,
+        body: JSON.stringify({ ...ownerCreateBody(fixtureCampaignId, state.angleIds[0]!, packageRequestId(30 + index)), rows: [{ angleId: state.angleIds[0]!, display }] }),
+      });
+      assert.equal(response.status, 400);
+      const body = await response.json() as { error: { code: string } };
+      assert.equal(body.error.code, 'bad_request');
+    }
+    const list = await fetch(`${readServer.base}/api/content/campaigns/${fixtureCampaignId}/packages`);
+    assert.equal(list.status, 200);
+    const body = await list.json() as { packages: unknown[] };
+    assert.deepEqual(body.packages, []);
+  } finally {
+    await ownerServer.close(); await readServer.close(); owner.close(); read.close(); state.close();
+  }
+});
+
 test('all five OWNER package routes enforce auth/origin/preflight/content type, exact keys, limits and mappings', async () => {
   const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
   state.db.close();

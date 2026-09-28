@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
 import test from 'node:test';
 import { CreativeAiError, type CreativeTextResult } from '../../src/platform/ai/creative-ai-gateway.js';
 import {
   ContentPackageConflictError,
+  ContentPackageIntegrityError,
   ContentPackageReferenceError,
   PACKAGE_BATCH_LIMIT,
   PACKAGE_TICKED_REFERENCE_LIMIT,
@@ -242,6 +244,17 @@ test('reference and lifecycle conflicts reject deleted, missing, purposeless and
   } finally { unlocked.close(); }
 });
 
+test('missing package artifact bytes surface as ContentPackageIntegrityError on read', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
+  try {
+    const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!]));
+    const packageId = created.packages[0]!.packageId;
+    const row = state.db.prepare('SELECT package_artifact_sha256 artifactSha256 FROM flow_content_packages WHERE package_id = ?').get(packageId) as { artifactSha256: string };
+    fs.rmSync(state.artifacts.pathForDigest(row.artifactSha256));
+    await assert.rejects(state.packages.readPackage(packageId), ContentPackageIntegrityError);
+  } finally { state.close(); }
+});
+
 function baseRequestFor(angleId: string, patch: Record<string, unknown> = {}) {
   return createRequest(fixtureCampaignId, [angleId], patch);
 }
@@ -299,5 +312,19 @@ test('read and list expose verified package shapes and poster bytes are content-
     assert.equal(state.packages.packageCampaign(detail.packageId), fixtureCampaignId);
     assert.equal(fixtureLogoSha.length, 64);
     assert.equal(PACKAGE_BATCH_LIMIT, 20);
+  } finally { state.close(); }
+});
+
+test('missing poster image bytes surface as ContentPackageIntegrityError on image read', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [textReply('{"post":"Integrity caption"}')], imageAfterIdeas: [imageReply()] });
+  try {
+    const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!]));
+    const packageId = created.packages[0]!.packageId;
+    await state.packages.generate(generateRequest(packageId, 'CAPTION', 100), 'owner:synthetic');
+    const poster = await state.packages.generate(generateRequest(packageId, 'POSTER', 101), 'owner:synthetic');
+    const detail = await state.packages.readPackage(packageId);
+    const imageSha256 = detail.poster[0]!.poster!.imageSha256;
+    fs.rmSync(state.artifacts.pathForDigest(imageSha256));
+    await assert.rejects(state.packages.readPosterImage(packageId, poster.version), ContentPackageIntegrityError);
   } finally { state.close(); }
 });

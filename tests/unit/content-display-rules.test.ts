@@ -67,6 +67,24 @@ test('custom tags use displayLike and highest wins across all brand elements', (
   });
 });
 
+test('display overrides reject unknown elements while valid overrides remain effective', () => {
+  const levels = resolveBrandLevels(rules, ['SALES']);
+  assert.deepEqual(resolveCaptionDisplay(levels, { tagline: 'ALWAYS' }), {
+    name: 'ALWAYS', tagline: 'ALWAYS', hotline: 'ALWAYS', web: 'ALWAYS', address: 'OPTIONAL',
+  });
+  assert.deepEqual(resolvePosterDisplay(levels, true, { hotline: false }), {
+    name: true, logo: true, tagline: true, hotline: false, web: true, address: false,
+  });
+  assert.throws(
+    () => resolveCaptionDisplay(levels, { logo: 'ALWAYS' } as never),
+    (error: unknown) => error instanceof ContentDisplayRuleError && error.message === 'Unknown display element: logo',
+  );
+  assert.throws(
+    () => resolvePosterDisplay(levels, true, { foo: true } as never),
+    (error: unknown) => error instanceof ContentDisplayRuleError && error.message === 'Unknown display element: foo',
+  );
+});
+
 test('hidden values are absent from model bundles unless the owner overrides them', () => {
   const levels = resolveBrandLevels(rules, ['ENTERTAINMENT']);
   const hiddenCaption = resolveCaptionDisplay(levels);
