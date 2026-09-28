@@ -24,7 +24,7 @@ export interface ReportSemanticContent {
     metricRounding: string;
     normalizedInputSha256: Digest;
     metricResultContentSha256: Digest;
-    catalogSha256: Digest;
+    catalogContentSha256: Digest;
     claimsSha256: Digest;
     chartContentSha256: Digest;
     /**
@@ -33,7 +33,7 @@ export interface ReportSemanticContent {
      */
     sections: {
       sectionId: string;
-      sectionSha256: Digest;
+      sectionContentSha256: Digest;
       deliveryState:
         'PARTIAL_DETERMINISTIC_DRAFT' | 'METHOD_ONLY' | 'BLOCKED' | 'MANUAL_REVIEW_REQUIRED' | 'NOT_IMPLEMENTED';
     }[];

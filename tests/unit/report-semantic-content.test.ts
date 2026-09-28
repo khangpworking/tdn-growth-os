@@ -12,19 +12,28 @@ const sha256 = (value: Uint8Array): string => createHash('sha256').update(value)
 const digest = (label: string): string => sha256(Buffer.from(label));
 const canonicalBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
 
-function fixture(options: { readonly report?: string; readonly chart?: string; readonly sourceTwo?: string } = {}): SourceBackedReportBundle {
-  const packetId = digest('packet-id');
+function fixture(options: {
+  readonly report?: string; readonly chart?: string; readonly sourceTwo?: string;
+  readonly resultRenderer?: string; readonly packetRenderer?: string; readonly prettyCatalog?: boolean;
+} = {}): SourceBackedReportBundle {
+  const packetId = digest(`packet-id:${options.packetRenderer ?? 'report-packet-vi-v1'}`);
   const input = { input: 'exact' };
   const inputBytes = canonicalBytes(input);
-  const result = { rendererVersion: 'metric-draft-vi-v1', result: 'exact' };
+  const result = { rendererVersion: options.resultRenderer ?? 'metric-draft-vi-v1', result: 'exact' };
   const resultBytes = canonicalBytes(result);
-  const catalog = { catalog: 'exact' };
-  const catalogBytes = canonicalBytes(catalog);
+  const catalog = {
+    catalog: 'exact',
+    sections: [{ sectionId: 'M03', title: 'Observed totals', methodId: 'fixture-method', methodVersion: '1.0.0' }],
+  };
+  const catalogBytes = options.prettyCatalog
+    ? Buffer.from(`${JSON.stringify(catalog, null, 2)}\n`, 'utf8')
+    : canonicalBytes(catalog);
   const catalogSha256 = sha256(catalogBytes);
   const metricResultSha256 = sha256(resultBytes);
   const packet = {
     packetId,
     policyVersion: 'report-packet-a3a-v1',
+    rendererVersion: options.packetRenderer ?? 'report-packet-vi-v1',
     metricMethodVersion: 'metric-scope-v1',
     metricRounding: 'percent-half-even-2-v1',
     metricResultSha256,
@@ -32,7 +41,8 @@ function fixture(options: { readonly report?: string; readonly chart?: string; r
     catalog,
     claims: [],
     sections: [{
-      sectionId: 'M03', deliveryState: 'PARTIAL_DETERMINISTIC_DRAFT', sectionSha256: digest('section'),
+      sectionId: 'M03', deliveryState: 'PARTIAL_DETERMINISTIC_DRAFT',
+      sectionSha256: digest(`section:${metricResultSha256}`),
       claimIds: [], contextPointers: [], blockers: [],
     }],
   } as never;
@@ -44,14 +54,15 @@ function fixture(options: { readonly report?: string; readonly chart?: string; r
     catalogSha256,
     computation: {
       inputSha256: digest('input'), methodVersion: 'metric-scope-v1', rounding: 'percent-half-even-2-v1',
-      rendererVersion: 'metric-draft-vi-v1', profileId: 'fixture', labelCodebookVersion: 'fixture',
+      rendererVersion: options.resultRenderer ?? 'metric-draft-vi-v1', profileId: 'fixture', labelCodebookVersion: 'fixture',
       wideUnknownPolicy: 'exclude',
     },
+    points: [{ resultSha256: metricResultSha256, value: '1' }],
   } as never;
   const chartBytes = canonicalBytes(charts);
   const envelope = {
     contractVersion: 'source-backed-report-v1',
-    request: {} as never,
+    request: { catalogSha256 } as never,
     workspace: { workspaceId: '11111111-1111-4111-8111-111111111111', state: 'ACTIVE', snapshotSha256: digest('workspace'), snapshot: {} as never },
     sourcePackage: {
       packageId: '22222222-2222-4222-8222-222222222222',
@@ -103,9 +114,18 @@ test('semantic identity binds exact evidence and calculations but not renderer o
   const same = buildReportSemanticContent(fixture());
   assert.equal(same.content.semanticVersionId, first.content.semanticVersionId);
   assert.deepEqual(same.contentBytes, first.contentBytes);
+  const { semanticVersionId: _semanticVersionId, ...semanticPayload } = first.content;
+  assert.equal(first.content.semanticVersionId, sha256(Buffer.from(canonicalJson(semanticPayload), 'utf8')));
+  assert.notEqual(first.content.semanticVersionId, sha256(canonicalBytes(semanticPayload)));
 
   const rendererOnly = buildReportSemanticContent(fixture({ report: 'renderer B' }));
   assert.equal(rendererOnly.content.semanticVersionId, first.content.semanticVersionId);
+  const resultRendererOnly = buildReportSemanticContent(fixture({ resultRenderer: 'metric-draft-vi-v2' }));
+  assert.equal(resultRendererOnly.content.semanticVersionId, first.content.semanticVersionId);
+  const packetRendererOnly = buildReportSemanticContent(fixture({ packetRenderer: 'report-packet-vi-v2' }));
+  assert.equal(packetRendererOnly.content.semanticVersionId, first.content.semanticVersionId);
+  const catalogFormattingOnly = buildReportSemanticContent(fixture({ prettyCatalog: true }));
+  assert.equal(catalogFormattingOnly.content.semanticVersionId, first.content.semanticVersionId);
   const changedChart = buildReportSemanticContent(fixture({ chart: '{"chart":"changed"}' }));
   assert.notEqual(changedChart.content.semanticVersionId, first.content.semanticVersionId);
   const changedSource = buildReportSemanticContent(fixture({ sourceTwo: 'source-two-changed' }));

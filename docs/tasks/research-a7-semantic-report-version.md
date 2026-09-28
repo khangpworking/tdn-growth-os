@@ -23,8 +23,9 @@ additional section, AI interpretation or business conclusion is complete.
 4. **Human decision** is emitted as a separate `UNREVIEWED` snapshot. Approval
    of the governance framework does not approve this report content.
 
-The semantic ID is SHA-256 over canonical source/calculation/interpretation
-projections before its own ID is inserted. The exact export manifest still binds
+The semantic ID is SHA-256 over canonical JSON source/calculation/interpretation
+projections before its own ID is inserted, without the trailing LF used to frame
+JSON artifact files. The exact export manifest still binds
 the complete envelope, packet, Result, chart and render bytes, while semantic
 projections exclude their representation-only renderer/review fields. HTML, PDF,
 export-manifest bytes and human review state are intentionally outside that hash. A future interpretation

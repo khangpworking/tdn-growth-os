@@ -18,7 +18,8 @@ const validateContent = ajv.compile<ReportSemanticContent>(contentSchema);
 const validateReview = ajv.compile<ReportReviewState>(reviewSchema);
 
 const digest = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
-const bytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
+const artifactBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
+const identity = (value: unknown): string => digest(Buffer.from(canonicalJson(value), 'utf8'));
 
 function requiredFile(bundle: SourceBackedReportBundle, name: string): Buffer {
   const value = bundle.files.get(name);
@@ -31,13 +32,24 @@ function assertDigest(actual: string, expected: string, label: string): void {
 }
 
 function assertCanonicalBytes(actual: Buffer, value: unknown, label: string): void {
-  if (!actual.equals(bytes(value))) throw new TypeError(`semantic content: ${label}_OBJECT_BYTES_MISMATCH`);
+  if (!actual.equals(artifactBytes(value))) throw new TypeError(`semantic content: ${label}_OBJECT_BYTES_MISMATCH`);
 }
 
-function sourceEvidenceProjection(bundle: SourceBackedReportBundle): unknown {
+function assertJsonMeaning(actual: Buffer, value: unknown, label: string): void {
+  let parsed: unknown;
+  try { parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(actual)); }
+  catch { throw new TypeError(`semantic content: ${label}_INVALID_JSON_UTF8`); }
+  if (canonicalJson(parsed) !== canonicalJson(value)) {
+    throw new TypeError(`semantic content: ${label}_OBJECT_BYTES_MISMATCH`);
+  }
+}
+
+function sourceEvidenceProjection(bundle: SourceBackedReportBundle, catalogContentSha256: string): unknown {
   const { artifacts, ...envelope } = bundle.envelope;
+  const { catalogSha256: _catalogSha256, ...request } = envelope.request;
   return {
     ...envelope,
+    request: { ...request, catalogContentSha256 },
     artifacts: {
       workspaceSnapshotSha256: artifacts.workspaceSnapshotSha256,
       sourcePackageManifestSha256: artifacts.sourcePackageManifestSha256,
@@ -52,10 +64,75 @@ function resultContentProjection(bundle: SourceBackedReportBundle): unknown {
   return content;
 }
 
-function chartContentProjection(bundle: SourceBackedReportBundle): unknown {
+function normalizedLineageDigests(
+  value: unknown,
+  exactResultSha256: string,
+  resultContentSha256: string,
+  exactCatalogSha256: string,
+  catalogContentSha256: string,
+): unknown {
+  if (Array.isArray(value)) {
+    return value.map(item => normalizedLineageDigests(
+      item, exactResultSha256, resultContentSha256, exactCatalogSha256, catalogContentSha256,
+    ));
+  }
+  if (value === null || typeof value !== 'object') return value;
+  const normalized: Record<string, unknown> = {};
+  for (const [key, item] of Object.entries(value)) {
+    if (key === 'resultSha256') {
+      if (item !== exactResultSha256) throw new TypeError('semantic content: CHART_RESULT_LINEAGE_MISMATCH');
+      normalized.resultContentSha256 = resultContentSha256;
+    } else if (key === 'catalogSha256') {
+      if (item !== exactCatalogSha256) throw new TypeError('semantic content: CHART_CATALOG_LINEAGE_MISMATCH');
+      normalized.catalogContentSha256 = catalogContentSha256;
+    } else {
+      normalized[key] = normalizedLineageDigests(
+        item, exactResultSha256, resultContentSha256, exactCatalogSha256, catalogContentSha256,
+      );
+    }
+  }
+  return normalized;
+}
+
+function chartContentProjection(
+  bundle: SourceBackedReportBundle,
+  resultContentSha256: string,
+  catalogContentSha256: string,
+): unknown {
   const { approvalState: _approvalState, computation, ...chart } = bundle.charts;
   const { rendererVersion: _rendererVersion, ...calculation } = computation;
-  return { ...chart, computation: calculation };
+  return normalizedLineageDigests(
+    { ...chart, computation: calculation },
+    bundle.packet.metricResultSha256,
+    resultContentSha256,
+    bundle.packet.catalogSha256,
+    catalogContentSha256,
+  );
+}
+
+function semanticSections(bundle: SourceBackedReportBundle): ReportSemanticContent['calculationLayer']['sections'] {
+  return bundle.packet.sections.map(section => {
+    const definition = bundle.packet.catalog.sections.find(item => item.sectionId === section.sectionId);
+    if (!definition) throw new TypeError('semantic content: SECTION_DEFINITION_MISSING');
+    const claims = section.claimIds.map(claimId => {
+      const claim = bundle.packet.claims.find(item => item.claimId === claimId);
+      if (!claim) throw new TypeError('semantic content: SECTION_CLAIM_MISSING');
+      return claim;
+    });
+    const sectionContent = {
+      definition,
+      deliveryState: section.deliveryState,
+      claimIds: section.claimIds,
+      contextPointers: section.contextPointers,
+      blockers: section.blockers,
+      claims,
+    };
+    return {
+      sectionId: section.sectionId,
+      sectionContentSha256: identity(sectionContent),
+      deliveryState: section.deliveryState,
+    };
+  });
 }
 
 /**
@@ -81,18 +158,20 @@ export function buildReportSemanticContent(bundle: SourceBackedReportBundle): {
   assertCanonicalBytes(inputBytes, bundle.input, 'NORMALIZED_INPUT');
   assertCanonicalBytes(resultBytes, bundle.result, 'METRIC_RESULT');
   assertCanonicalBytes(chartBytes, bundle.charts, 'CHART');
-  assertCanonicalBytes(catalogBytes, bundle.packet.catalog, 'CATALOG');
+  assertJsonMeaning(catalogBytes, bundle.packet.catalog, 'CATALOG');
   assertDigest(bundle.packet.metricResultSha256, bundle.charts.resultSha256, 'RESULT_CHART_BINDING');
   assertDigest(bundle.packet.catalogSha256, bundle.charts.catalogSha256, 'CATALOG_CHART_BINDING');
 
   const selectedSourceSha256s = [...new Set(bundle.envelope.selectedSources.map(source => source.sha256))].sort();
   if (selectedSourceSha256s.length < 2) throw new TypeError('semantic content: INSUFFICIENT_SOURCE_MEMBERSHIP');
+  const resultContentSha256 = identity(resultContentProjection(bundle));
+  const catalogContentSha256 = identity(bundle.packet.catalog);
   const payload: SemanticPayload = {
     contractVersion: '1.0.0',
     policyVersion: 'report-semantic-content-v1',
     sourceLayer: {
       workspaceId: bundle.envelope.workspace.workspaceId,
-      sourceEvidenceSha256: digest(bytes(sourceEvidenceProjection(bundle))),
+      sourceEvidenceSha256: identity(sourceEvidenceProjection(bundle, catalogContentSha256)),
       sourcePackageId: bundle.envelope.sourcePackage.packageId,
       sourcePackageManifestSha256: bundle.envelope.sourcePackage.manifestArtifactSha256,
       packageContentSha256: bundle.envelope.sourcePackage.packageContentSha256,
@@ -103,15 +182,11 @@ export function buildReportSemanticContent(bundle: SourceBackedReportBundle): {
       metricMethodVersion: bundle.packet.metricMethodVersion,
       metricRounding: bundle.packet.metricRounding,
       normalizedInputSha256: digest(inputBytes),
-      metricResultContentSha256: digest(bytes(resultContentProjection(bundle))),
-      catalogSha256: bundle.packet.catalogSha256,
-      claimsSha256: digest(bytes(bundle.packet.claims)),
-      chartContentSha256: digest(bytes(chartContentProjection(bundle))),
-      sections: bundle.packet.sections.map(section => ({
-        sectionId: section.sectionId,
-        sectionSha256: section.sectionSha256,
-        deliveryState: section.deliveryState,
-      })),
+      metricResultContentSha256: resultContentSha256,
+      catalogContentSha256,
+      claimsSha256: identity(bundle.packet.claims),
+      chartContentSha256: identity(chartContentProjection(bundle, resultContentSha256, catalogContentSha256)),
+      sections: semanticSections(bundle),
     },
     interpretationLayer: { state: 'NONE', artifacts: [] },
     limitations: [
@@ -121,10 +196,10 @@ export function buildReportSemanticContent(bundle: SourceBackedReportBundle): {
       'PROVIDER_AUTHENTICITY_AND_MARKET_COMPLETENESS_ARE_NOT_ESTABLISHED',
     ],
   };
-  const semanticVersionId = digest(bytes(payload));
+  const semanticVersionId = identity(payload);
   const content: ReportSemanticContent = { ...payload, semanticVersionId };
   if (!validateContent(content)) throw new TypeError('semantic content: INVALID_OUTPUT_CONTRACT');
-  return { content, contentBytes: bytes(content) };
+  return { content, contentBytes: artifactBytes(content) };
 }
 
 /** A separate layer-four snapshot; it cannot alter the semantic content ID. */
@@ -144,5 +219,5 @@ export function buildUnreviewedReportState(semanticVersionId: string): {
     ],
   };
   if (!validateReview(state)) throw new TypeError('review state: INVALID_OUTPUT_CONTRACT');
-  return { state, stateBytes: bytes(state) };
+  return { state, stateBytes: artifactBytes(state) };
 }
