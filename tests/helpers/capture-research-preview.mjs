@@ -48,8 +48,13 @@ try {
     if (message.error) item.reject(new Error(JSON.stringify(message.error))); else item.resolve(message.result);
   });
   await call('Page.enable');
+  await call('Page.bringToFront');
+  await call('Emulation.setFocusEmulationEnabled', { enabled: true });
   await call('Runtime.enable');
   await call('Log.enable');
+  const downloadsDirectory = path.join(profile, 'downloads');
+  await fs.mkdir(downloadsDirectory, { mode: 0o700 });
+  await call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadsDirectory });
   await call('Page.navigate', { url: pathToFileURL(report).href });
   let loaded = false;
   for (let i = 0; i < 100; i++) {
@@ -101,7 +106,7 @@ try {
       const controls = [...document.querySelectorAll('summary,a')];
       return controls.map((item,index) => {
         item.dataset.previewControl = String(index);
-        return {index,tag:item.tagName,text:item.textContent.trim(),href:item.getAttribute('href'),download:item.hasAttribute('download')};
+        return {index,tag:item.tagName,text:item.textContent.trim(),href:item.getAttribute('href'),download:item.hasAttribute('download'),skip:item.classList.contains('skip')};
       });
     })()`);
     const actions = [];
@@ -114,24 +119,41 @@ try {
         if (!await evaluate(`document.querySelector(${JSON.stringify(selector)}).parentElement.open`)) throw new Error(`Disclosure failed: ${control.text}`);
         actions.push({ text: control.text, action: 'opened' });
       } else if (control.href.startsWith('#')) {
+        const id = decodeURIComponent(control.href.slice(1));
+        if (id.startsWith('claim-') || id.startsWith('members-')) {
+          await evaluate(`document.getElementById(${JSON.stringify(id)}).closest('details').open = false`);
+        }
         // Skip link is intentionally offscreen until keyboard focus.
         await evaluate(`document.querySelector(${JSON.stringify(selector)}).focus()`);
-        await click(selector);
-        const id = decodeURIComponent(control.href.slice(1));
+        if (control.skip) {
+          await call('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+          await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Enter', code: 'Enter', windowsVirtualKeyCode: 13 });
+        } else await click(selector);
         let target;
         for (let attempt = 0; attempt < 20; attempt++) {
-          target = await evaluate(`({hash:decodeURIComponent(location.hash.slice(1)),exists:!!document.getElementById(${JSON.stringify(id)})})`);
-          if (target.exists && target.hash === id) break;
+          target = await evaluate(`(() => {
+            const target = document.getElementById(${JSON.stringify(id)});
+            return {hash:decodeURIComponent(location.hash.slice(1)),exists:!!target,visible:!!target?.checkVisibility()};
+          })()`);
+          if (target.exists && target.visible && target.hash === id) break;
           await pause(50);
         }
-        if (!target.exists || target.hash !== id) throw new Error(`Evidence navigation failed: ${JSON.stringify({control,target})}`);
+        if (!target.exists || !target.visible || target.hash !== id) throw new Error(`Evidence navigation failed: ${JSON.stringify({control,target})}`);
         actions.push({ text: control.text, action: 'navigated', target: control.href });
       } else if (control.download) {
-        // The bundle owns exact file bytes. Check the browser link resolves to
-        // that retained local file without starting duplicate downloads in CI.
         const file = path.resolve(path.dirname(report), control.href);
         if (path.dirname(file) !== path.dirname(report) || !(await fs.stat(file)).isFile()) throw new Error(`Invalid download: ${control.href}`);
-        actions.push({ text: control.text, action: 'download-target-verified', target: control.href });
+        const downloaded = path.join(downloadsDirectory, path.basename(file));
+        await fs.unlink(downloaded).catch(error => { if (error.code !== 'ENOENT') throw error; });
+        await click(selector);
+        let received;
+        for (let attempt = 0; attempt < 100; attempt++) {
+          try { received = await fs.readFile(downloaded); break; }
+          catch (error) { if (error.code !== 'ENOENT') throw error; }
+          await pause(50);
+        }
+        if (!received || !received.equals(await fs.readFile(file))) throw new Error(`Download bytes differ: ${control.href}`);
+        actions.push({ text: control.text, action: 'downloaded-exact-bytes', target: control.href });
       } else throw new Error(`Unowned interaction: ${control.href}`);
     }
     await evaluate('document.querySelector("details").open = false; document.querySelector("summary").focus()');
@@ -142,7 +164,32 @@ try {
     await call('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Tab', code: 'Tab', windowsVirtualKeyCode: 9 });
     const focused = await evaluate('({tag:document.activeElement.tagName,outline:getComputedStyle(document.activeElement).outlineStyle})');
     if (!['A', 'SUMMARY', 'DIV'].includes(focused.tag) || focused.outline === 'none') throw new Error('Keyboard focus is not visible');
-    interactionEvidence.push({ name, actions, keyboard: 'Enter opens; Tab advances with visible outline' });
+    const contrast = await evaluate(`(() => {
+      const rgb = text => text.match(/[\\d.]+/g).map(Number);
+      const luminance = channels => channels.slice(0,3).map(value => {
+        value /= 255; return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
+      }).reduce((sum,value,index) => sum + value * [.2126,.7152,.0722][index],0);
+      const pairs = new Map();
+      for (const element of document.querySelectorAll('p,li,summary,th,td,dt,dd,a,h1,h2,h3,figcaption,small,code,.meta span')) {
+        if (!element.checkVisibility()) continue;
+        const style = getComputedStyle(element);
+        let background = 'rgb(255,255,255)';
+        for (let parent = element; parent; parent = parent.parentElement) {
+          const candidate = getComputedStyle(parent).backgroundColor;
+          const channels = rgb(candidate);
+          if (channels.length === 3 || channels[3] === 1) { background = candidate; break; }
+          if (channels[3] !== 0) throw new Error('Unmodeled alpha background');
+        }
+        const foreground = luminance(rgb(style.color)), back = luminance(rgb(background));
+        const ratio = (Math.max(foreground,back) + .05) / (Math.min(foreground,back) + .05);
+        const size = parseFloat(style.fontSize), weight = Number(style.fontWeight);
+        const required = size >= 24 || (size >= 18.66 && weight >= 700) ? 3 : 4.5;
+        if (ratio < required) throw new Error('Low contrast: ' + element.textContent.slice(0,80) + ' ratio=' + ratio);
+        pairs.set(style.color + '/' + background,{foreground:style.color,background,ratio});
+      }
+      return Array.from(pairs.values());
+    })()`);
+    interactionEvidence.push({ name, actions, contrast, keyboard: 'Enter opens; Tab advances with visible outline' });
     await evaluate(`document.querySelectorAll('details').forEach((item,index) => item.open = ${JSON.stringify(originalOpen)}[index]); history.replaceState(null,'',location.pathname); document.activeElement.blur(); window.scrollTo(0,0)`);
   }
   if (pageErrors.length) throw new Error(`Browser errors: ${JSON.stringify(pageErrors)}`);
