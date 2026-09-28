@@ -1,0 +1,53 @@
+name: Research report preview
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/modules/analysis/**'
+      - 'src/modules/foundation/**'
+      - 'src/modules/flow/discovery-workspace*'
+      - 'src/platform/artifacts/**'
+      - 'contracts/analysis/**'
+      - 'contracts/foundation/**'
+      - 'contracts/flow/discovery-workspace*'
+      - 'docs/research/report-section-catalog-v1.json'
+      - 'scripts/read-metric-sheet.py'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'migrations/**'
+      - 'scripts/export-source-backed-report.ts'
+      - 'tests/integration/source-backed-report.test.ts'
+      - 'tests/helpers/capture-research-preview.mjs'
+      - '.github/workflows/research-report-preview.yml'
+permissions:
+  contents: read
+concurrency:
+  group: research-preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - name: Exercise persisted synthetic source and actual export CLI
+        env:
+          TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview
+        run: node --import tsx --test tests/integration/source-backed-report.test.ts
+      - name: Capture desktop/mobile and print synthetic PDF on Linux
+        env:
+          TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview
+        run: node tests/helpers/capture-research-preview.mjs
+      - name: Retain synthetic visual evidence for review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-report-synthetic-preview
+          path: ${{ runner.temp }}/research-report-preview
+          if-no-files-found: error
+          retention-days: 7

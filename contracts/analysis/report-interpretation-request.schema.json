@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-interpretation-request.schema.json",
+  "title": "ReportInterpretationRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "semanticVersionId", "packetId", "sectionIds"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "semanticVersionId": { "$ref": "#/$defs/digest" },
+    "packetId": { "$ref": "#/$defs/digest" },
+    "sectionIds": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

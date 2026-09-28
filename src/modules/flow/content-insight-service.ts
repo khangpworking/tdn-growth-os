@@ -23,7 +23,16 @@ import {
   validateContentInsightRevisionRequest,
 } from './validation.js';
 
-export class ContentInsightConflictError extends Error {}
+export type ContentInsightConflictCode = 'state_conflict' | 'integrity_error';
+
+export class ContentInsightConflictError extends Error {
+  readonly code: ContentInsightConflictCode;
+
+  constructor(message: string, code: ContentInsightConflictCode = 'integrity_error') {
+    super(message);
+    this.code = code;
+  }
+}
 
 /** An STP-sourced insight names a locked STP that is missing or belongs to another research product. */
 export class ContentInsightReferenceError extends Error {}
@@ -159,7 +168,7 @@ export class ContentInsightService {
     if (source.kind === 'STP') {
       try { await this.#assertStpSource(input.campaignId, source.lockedStpId); }
       catch (error) {
-        if (error instanceof ContentInsightReferenceError) throw new ContentInsightConflictError(`Insight STP source no longer matches the campaign: ${error.message}`);
+        if (error instanceof ContentInsightReferenceError) throw new ContentInsightConflictError(`Insight STP source no longer matches the campaign: ${error.message}`, 'state_conflict');
         throw error;
       }
     }
@@ -284,15 +293,15 @@ export class ContentInsightService {
   }
 
   #assertWritable(campaignId: string, expectedVersion: number): void {
-    if (this.latestVersion(campaignId) !== expectedVersion) throw new ContentInsightConflictError('Insight version or content drift');
-    if (this.#lock(campaignId)) throw new ContentInsightConflictError('Insight is locked and cannot be revised');
-    if (this.#campaigns.lifecycleState(campaignId).deleted) throw new ContentInsightConflictError('Campaign is deleted and its insight cannot change');
+    if (this.latestVersion(campaignId) !== expectedVersion) throw new ContentInsightConflictError('Insight version or content drift', 'state_conflict');
+    if (this.#lock(campaignId)) throw new ContentInsightConflictError('Insight is locked and cannot be revised', 'state_conflict');
+    if (this.#campaigns.lifecycleState(campaignId).deleted) throw new ContentInsightConflictError('Campaign is deleted and its insight cannot change', 'state_conflict');
   }
 
   #assertLockable(campaignId: string, insightVersion: number, campaignVersion: number): void {
     const latestCampaign = this.#campaigns.campaignVersions(campaignId).at(-1);
-    if (this.latestVersion(campaignId) !== insightVersion || latestCampaign !== campaignVersion) throw new ContentInsightConflictError('Insight or campaign version drift');
-    if (this.#campaigns.lifecycleState(campaignId).deleted) throw new ContentInsightConflictError('Campaign is deleted and its insight cannot be locked');
+    if (this.latestVersion(campaignId) !== insightVersion || latestCampaign !== campaignVersion) throw new ContentInsightConflictError('Insight or campaign version drift', 'state_conflict');
+    if (this.#campaigns.lifecycleState(campaignId).deleted) throw new ContentInsightConflictError('Campaign is deleted and its insight cannot be locked', 'state_conflict');
   }
 
   /** An STP-sourced insight must come from the locked STP of the campaign's own research product. */
@@ -350,12 +359,12 @@ export class ContentInsightService {
 }
 
 function revisionRetry(requestSha256: string, row: InsightRow): ContentInsightExecution {
-  if (row.requestSha256 !== requestSha256) throw new ContentInsightConflictError('Insight version already exists with changed content');
+  if (row.requestSha256 !== requestSha256) throw new ContentInsightConflictError('Insight version already exists with changed content', 'state_conflict');
   return { campaignId: row.campaignId, version: row.version, createdAt: row.createdAt, deduplicated: true, databaseMutations: 0 };
 }
 
 function lockRetry(requestSha256: string, row: LockRow): ContentInsightLockExecution {
-  if (row.requestSha256 !== requestSha256) throw new ContentInsightConflictError('Insight is already locked with changed content');
+  if (row.requestSha256 !== requestSha256) throw new ContentInsightConflictError('Insight is already locked with changed content', 'state_conflict');
   return { campaignId: row.campaignId, insightVersion: row.insightVersion, campaignVersion: row.campaignVersion, lockedAt: row.createdAt, deduplicated: true, databaseMutations: 0 };
 }
 

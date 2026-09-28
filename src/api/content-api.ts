@@ -917,7 +917,7 @@ async function routeOwner(request: IncomingMessage, response: ServerResponse, co
     if (error instanceof ContentCampaignConflictError && /drift|changed content|deleted|restore window/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     if (error instanceof ContentInsightGateError) return sendOwnerError(response, 409, 'conflict', error.reason);
     if (error instanceof ContentInsightReferenceError) return sendOwnerError(response, 400, 'bad_request', 'Invalid insight reference');
-    if (error instanceof ContentInsightConflictError && /drift|changed content|deleted|locked/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
+    if (error instanceof ContentInsightConflictError && error.code === 'state_conflict') return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     if (error instanceof ContentPromptConflictError && /drift|changed content|deleted|restore window/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     if ((error instanceof ContentBrandIdentityConflictError || error instanceof ContentCatalogIdentityConflictError) && /changed content|drift/i.test(error.message)) return sendOwnerError(response, 409, 'conflict', 'Request conflicts with current state');
     return sendOwnerError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');

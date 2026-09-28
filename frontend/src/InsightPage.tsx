@@ -89,6 +89,12 @@ export default function InsightPage(props: InsightPageProps) {
   const appliedBaseRef = useRef<string | null>(null);
   const keepDraftRef = useRef(false);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  const sessionRef = useRef(0);
+  useEffect(() => {
+    const session = ++sessionRef.current;
+    return () => { if (sessionRef.current === session) sessionRef.current += 1; };
+  }, [mode, campaignId]);
+  const isActiveSession = (session: number): boolean => mountedRef.current && sessionRef.current === session;
   const reload = () => setReloadToken((value) => value + 1);
   const reloadKeepingDraft = () => { keepDraftRef.current = true; setNotice(null); reload(); };
 
@@ -154,8 +160,8 @@ export default function InsightPage(props: InsightPageProps) {
   const suggestion = view.stpSuggestion;
   const edit = (field: 'customer' | 'painPoint' | 'insight', value: string) => { if (!pending) setDraft(editInsightDraft(current, field, value)); };
 
-  const fail = (error: unknown, fallback: string) => {
-    if (!mountedRef.current) return;
+  const fail = (error: unknown, fallback: string, session: number) => {
+    if (!isActiveSession(session)) return;
     if (error instanceof OwnerWriteError && error.kind === 'conflict') setNotice({ message: error.message, reload: true });
     else if (error instanceof OwnerWriteError && error.kind === 'connection') setNotice({ message: 'Kết nối không rõ kết quả. Nội dung vẫn được giữ; gửi lại an toàn vì yêu cầu trùng sẽ không tạo bản mới.', reload: false });
     else setNotice({ message: error instanceof OwnerWriteError ? error.message : fallback, reload: false });
@@ -164,6 +170,7 @@ export default function InsightPage(props: InsightPageProps) {
   const save = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (saveReason || !editable) return;
+    const session = sessionRef.current;
     setNotice(null);
     keepDraftRef.current = false;
     if (mode === 'demo') {
@@ -176,14 +183,17 @@ export default function InsightPage(props: InsightPageProps) {
     setPending('save');
     try {
       const receipt = await submitInsightRevision({ campaignId, expectedVersion: latestVersion, insight: insightRequestFromDraft(current), token: props.ownerToken! });
-      props.notify(receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : `Đã lưu Insight phiên bản ${receipt.version}.`);
-      reload();
-    } catch (error) { fail(error, 'Không thể lưu Insight.'); } finally { if (mountedRef.current) setPending(null); }
+      if (isActiveSession(session)) {
+        props.notify(receipt.exactRetry ? 'Yêu cầu đã được ghi trước đó; không tạo bản trùng.' : `Đã lưu Insight phiên bản ${receipt.version}.`);
+        reload();
+      }
+    } catch (error) { fail(error, 'Không thể lưu Insight.', session); } finally { if (isActiveSession(session)) setPending(null); }
   };
 
   const lock = async () => {
     setConfirmingLock(false);
     if (lockReason || !view.latest) return;
+    const session = sessionRef.current;
     setNotice(null);
     if (mode === 'demo') {
       try {
@@ -195,9 +205,11 @@ export default function InsightPage(props: InsightPageProps) {
     setPending('lock');
     try {
       const receipt = await submitInsightLock({ campaignId, insightVersion: view.latest.version, campaignVersion: view.campaignVersion, token: props.ownerToken! });
-      props.notify(receipt.exactRetry ? 'Insight đã được khóa trước đó.' : `Đã khóa Insight v${receipt.insightVersion}.`);
-      reload();
-    } catch (error) { fail(error, 'Không thể khóa Insight.'); } finally { if (mountedRef.current) setPending(null); }
+      if (isActiveSession(session)) {
+        props.notify(receipt.exactRetry ? 'Insight đã được khóa trước đó.' : `Đã khóa Insight v${receipt.insightVersion}.`);
+        reload();
+      }
+    } catch (error) { fail(error, 'Không thể khóa Insight.', session); } finally { if (isActiveSession(session)) setPending(null); }
   };
 
   return <article className="insight-page">
