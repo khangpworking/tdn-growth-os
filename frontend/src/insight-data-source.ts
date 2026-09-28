@@ -53,13 +53,14 @@ export function sameInsightContent(left: InsightDraft, right: InsightDraft): boo
 
 /** Applies the STP suggestion without touching the pain point, which STP does not describe. */
 export function applyStpSuggestion(draft: InsightDraft, suggestion: ContentInsightStpSuggestion): InsightDraft {
-  return { ...draft, customer: suggestion.customer, insight: suggestion.insight, lockedStpId: suggestion.lockedStpId };
+  // Q-I4: only the customer comes from the STP; positioning is shown for reference, never copied into the insight.
+  return { ...draft, customer: suggestion.customer, lockedStpId: suggestion.lockedStpId };
 }
 
-/** Editing the customer or insight away from the applied STP text makes the insight owner-typed again. */
+/** Editing the customer away from the applied STP text makes the insight owner-typed again; pain point and insight are always typed. */
 export function editInsightDraft(draft: InsightDraft, field: 'customer' | 'painPoint' | 'insight', value: string): InsightDraft {
   const next = { ...draft, [field]: value };
-  return field === 'painPoint' ? next : { ...next, lockedStpId: '' };
+  return field === 'customer' ? { ...next, lockedStpId: '' } : next;
 }
 
 export type InsightStage = 'deleted' | 'locked' | 'empty' | 'blocked' | 'lockable';

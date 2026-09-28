@@ -154,7 +154,15 @@ export class ContentInsightService {
     }
     this.#assertLockable(input.campaignId, input.insightVersion, input.campaignVersion);
     const insight = this.#insight(input.campaignId, input.insightVersion)!;
-    await this.readInsight(input.campaignId, input.insightVersion);
+    const source = (await this.readInsight(input.campaignId, input.insightVersion)).insight.source;
+    // The campaign may have been relinked or unlinked after an STP-sourced revision was saved.
+    if (source.kind === 'STP') {
+      try { await this.#assertStpSource(input.campaignId, source.lockedStpId); }
+      catch (error) {
+        if (error instanceof ContentInsightReferenceError) throw new ContentInsightConflictError(`Insight STP source no longer matches the campaign: ${error.message}`);
+        throw error;
+      }
+    }
     const campaign = await this.#campaigns.readCampaign(input.campaignId, input.campaignVersion);
     const campaignArtifactSha256 = this.#campaignArtifactSha256(input.campaignId, input.campaignVersion);
     const b10 = await this.#clearance(campaign.campaign.researchProductWorkspaceId);

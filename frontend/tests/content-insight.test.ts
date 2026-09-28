@@ -99,18 +99,19 @@ async function assertIntegrity(promise: Promise<unknown>): Promise<void> {
   await assert.rejects(promise, (error: unknown) => error instanceof ContentDataSourceError && error.kind === 'integrity');
 }
 
-test('Insight drafts preserve the pain point and clear STP provenance only for edited mapped fields', () => {
+test('Insight drafts apply only the STP customer and clear provenance only when customer changes', () => {
   assert.deepEqual(emptyInsightDraft(), { customer: '', painPoint: '', insight: '', lockedStpId: '' });
   const draft: InsightDraft = { customer: 'Old customer', painPoint: 'Keep this pain', insight: 'Old insight', lockedStpId };
-  assert.deepEqual(applyStpSuggestion(draft, stpSuggestion), {
+  const applied = applyStpSuggestion(draft, stpSuggestion);
+  assert.deepEqual(applied, {
     customer: stpSuggestion.customer,
     painPoint: draft.painPoint,
-    insight: stpSuggestion.insight,
+    insight: draft.insight,
     lockedStpId,
   });
-  assert.equal(editInsightDraft(draft, 'customer', 'New customer').lockedStpId, '');
-  assert.equal(editInsightDraft(draft, 'insight', 'New insight').lockedStpId, '');
-  assert.equal(editInsightDraft(draft, 'painPoint', 'New pain').lockedStpId, lockedStpId);
+  assert.equal(editInsightDraft(applied, 'customer', 'New customer').lockedStpId, '');
+  assert.equal(editInsightDraft(applied, 'insight', 'New insight').lockedStpId, lockedStpId);
+  assert.equal(editInsightDraft(applied, 'painPoint', 'New pain').lockedStpId, lockedStpId);
   assert.deepEqual(draftFromInsight(detail({ latest: { version: 1, insight: { ...typedInsight(), source: { kind: 'STP', lockedStpId } }, createdAt: at } })), {
     customer: typedInsight().customer,
     painPoint: typedInsight().painPoint,

@@ -72,7 +72,7 @@ function InsightSummary({ insight }: { readonly insight: InsightDetail }) {
     <div><dt>Khách hàng mục tiêu</dt><dd>{latest.insight.customer}</dd></div>
     <div><dt>Nỗi đau</dt><dd>{latest.insight.painPoint}</dd></div>
     <div><dt>Insight</dt><dd>{latest.insight.insight}</dd></div>
-    <div><dt>Nguồn</dt><dd>{latest.insight.source.kind === 'STP' ? 'Từ STP đã khóa' : 'Tự nhập'} · v{latest.version}</dd></div>
+    <div><dt>Nguồn</dt><dd>{latest.insight.source.kind === 'STP' ? 'Khách hàng từ STP đã khóa' : 'Tự nhập'} · v{latest.version}</dd></div>
   </dl>;
 }
 
@@ -82,11 +82,15 @@ export default function InsightPage(props: InsightPageProps) {
   const [reloadToken, setReloadToken] = useState(0);
   const [draft, setDraft] = useState<InsightDraft | null>(null);
   const [pending, setPending] = useState<'save' | 'lock' | null>(null);
-  const [notice, setNotice] = useState<{ readonly message: string; readonly reload: boolean } | null>(null);
+  const [notice, setNotice] = useState<{ readonly message: string; readonly reload: boolean; readonly discard?: boolean } | null>(null);
   const [confirmingLock, setConfirmingLock] = useState(false);
   const mountedRef = useRef(true);
+  // The saved state the draft was last taken from, and whether the next newer state must keep the draft (409 reload).
+  const appliedBaseRef = useRef<string | null>(null);
+  const keepDraftRef = useRef(false);
   useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
   const reload = () => setReloadToken((value) => value + 1);
+  const reloadKeepingDraft = () => { keepDraftRef.current = true; setNotice(null); reload(); };
 
   useEffect(() => {
     if (mode === 'demo') {
@@ -108,9 +112,21 @@ export default function InsightPage(props: InsightPageProps) {
 
   const insight = loaded.status === 'ready' ? loaded.insight : null;
   const latestVersion = insight?.latest?.version ?? 0;
+  const baseKey = insight ? `${campaignId}|${latestVersion}|${insight.lock !== undefined}` : null;
   useEffect(() => {
-    if (insight) { setDraft(draftFromInsight(insight)); setNotice(null); }
-  }, [campaignId, latestVersion, insight?.lock !== undefined]);
+    // Runs once the detail is ready, including for a campaign with no Insight yet, and again when the saved state moves.
+    if (!insight || baseKey === appliedBaseRef.current) return;
+    const sameCampaign = appliedBaseRef.current?.startsWith(`${campaignId}|`) ?? false;
+    appliedBaseRef.current = baseKey;
+    if (keepDraftRef.current && sameCampaign && insight.lock === undefined) {
+      keepDraftRef.current = false;
+      setNotice({ message: `Đã tải phiên bản mới nhất (v${latestVersion}). Nội dung bạn đang soạn vẫn được giữ — lưu để tạo phiên bản ${latestVersion + 1}, hoặc bỏ nháp để dùng bản đã lưu.`, reload: false, discard: true });
+      return;
+    }
+    keepDraftRef.current = false;
+    setDraft(draftFromInsight(insight));
+    setNotice(null);
+  }, [baseKey]);
 
   if (loaded.status === 'loading') return <p className="muted">Đang tải Insight…</p>;
   if (loaded.status === 'failed') return <section className="surface surface-pad"><p className="form-error" role="alert">{loaded.message}</p><button className="button" type="button" onClick={reload}>Thử lại</button></section>;
@@ -149,6 +165,7 @@ export default function InsightPage(props: InsightPageProps) {
     event.preventDefault();
     if (saveReason || !editable) return;
     setNotice(null);
+    keepDraftRef.current = false;
     if (mode === 'demo') {
       try {
         props.setDemoInsights(reviseDemoInsight(props.demoInsights, campaignId, latestVersion, current, new Date().toISOString()));
@@ -196,17 +213,18 @@ export default function InsightPage(props: InsightPageProps) {
       <p className="decision-note">Insight đã khóa không thể sửa. Sản phẩm và liên kết nghiên cứu của chiến dịch cũng được giữ cố định; tên và mục tiêu vẫn sửa được.</p>
     </section>}
     {stage === 'deleted' && <section className="surface surface-pad"><InsightSummary insight={view} />{!view.latest && <p className="muted">Chưa có Insight.</p>}</section>}
-    {editable && draft && <form className="brand-form insight-form" onSubmit={(event) => void save(event)} noValidate>
+    {editable && <form className="brand-form insight-form" onSubmit={(event) => void save(event)} noValidate>
       <header className="brand-form-head"><div><h2>{view.latest ? `Sửa Insight · tạo phiên bản ${latestVersion + 1}` : 'Insight đầu tiên'}</h2><p className="muted">{researchName ? `Liên kết sản phẩm nghiên cứu: ${researchName}` : 'Chiến dịch không liên kết sản phẩm nghiên cứu — không cần duyệt B10.'}</p></div></header>
-      {suggestion && <div className="insight-suggestion" role="note"><p><strong>Gợi ý từ STP đã khóa</strong> — điền khách hàng mục tiêu và insight từ định vị. Nỗi đau vẫn do bạn nhập.</p><button className="button" type="button" disabled={pending !== null || !writable || current.lockedStpId === suggestion.lockedStpId} onClick={() => setDraft(applyStpSuggestion(current, suggestion))}>{current.lockedStpId === suggestion.lockedStpId ? 'Đang dùng gợi ý STP' : 'Dùng gợi ý STP'}</button></div>}
+      {suggestion && <div className="insight-suggestion" role="note"><p><strong>Gợi ý từ STP đã khóa</strong> — điền khách hàng mục tiêu từ phân khúc chính. Nỗi đau và insight do bạn nhập; định vị sản phẩm hiện bên dưới để tham khảo.</p><button className="button" type="button" disabled={pending !== null || !writable || current.lockedStpId === suggestion.lockedStpId} onClick={() => setDraft(applyStpSuggestion(current, suggestion))}>{current.lockedStpId === suggestion.lockedStpId ? 'Đang dùng gợi ý STP' : 'Dùng gợi ý STP'}</button></div>}
       <fieldset className="catalog-fields" disabled={pending !== null || !writable}>
         <legend className="visually-hidden">Nội dung Insight</legend>
         <label className="field" htmlFor="insight-customer">Khách hàng mục tiêu<textarea id="insight-customer" className="search" value={current.customer} onChange={(event) => edit('customer', event.target.value)} maxLength={500} rows={2} /></label>
         <label className="field" htmlFor="insight-pain">Nỗi đau<textarea id="insight-pain" className="search" value={current.painPoint} onChange={(event) => edit('painPoint', event.target.value)} maxLength={1000} rows={3} /></label>
         <label className="field" htmlFor="insight-text">Insight<textarea id="insight-text" className="search" value={current.insight} onChange={(event) => edit('insight', event.target.value)} maxLength={2000} rows={5} /></label>
-        <p className="muted">Nguồn: {current.lockedStpId ? 'Từ STP đã khóa' : 'Tự nhập'}</p>
+        {suggestion && suggestion.insight && <div className="insight-reference" role="note"><p className="muted"><strong>Định vị sản phẩm (tham khảo)</strong></p><p>{suggestion.insight}</p></div>}
+        <p className="muted">Nguồn: {current.lockedStpId ? 'Khách hàng từ STP đã khóa' : 'Tự nhập'}</p>
       </fieldset>
-      {notice && <div className="form-error brand-notice" role="alert"><p>{notice.message}</p>{notice.reload && <button className="button" type="button" onClick={reload}>Tải lại</button>}</div>}
+      {notice && <div className="form-error brand-notice" role="alert"><p>{notice.message}</p>{notice.reload && <button className="button" type="button" onClick={reloadKeepingDraft}>Tải lại</button>}{notice.discard && <button className="button" type="button" disabled={pending !== null} onClick={() => { setDraft(draftFromInsight(view)); setNotice(null); }}>Bỏ nháp</button>}</div>}
       <div className="form-actions">
         <button className="button primary" type="submit" disabled={saveReason !== null}>{pending === 'save' ? 'Đang lưu…' : 'Lưu Insight'}</button>
         <button className="button" type="button" disabled={lockReason !== null} onClick={() => setConfirmingLock(true)}>{pending === 'lock' ? 'Đang khóa…' : 'Khóa Insight'}</button>

@@ -1,5 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { act, createElement } from 'react';
+import { tsImport } from 'tsx/esm/api';
+import { setupDom } from './dom';
 import { ContentDataSourceError } from '../src/content-data-source';
 import { OwnerWriteError } from '../src/data-source';
 import {
@@ -47,6 +50,7 @@ const bigA = '66666666-6666-4666-8666-0000000000a1';
 const bigB = '66666666-6666-4666-8666-0000000000a2';
 const angleA1 = '66666666-6666-4666-8666-0000000000b1';
 const angleB1 = '66666666-6666-4666-8666-0000000000b2';
+const angleA2 = '66666666-6666-4666-8666-0000000000b3';
 const tagId = '66666666-6666-4666-8666-0000000000d1';
 const at = '2027-01-01T00:00:00.000Z';
 const later = '2027-01-02T00:00:00.000Z';
@@ -104,10 +108,15 @@ const lockedCampaign: DemoIdeaCampaign = { campaignId, name: 'Synthetic campaign
 test('loadIdeas enforces the closed response, maps 404 to missing and rejects orphan Angles', async () => {
   const valid = ideaList([bigEntry(), angleEntry()]);
   assert.deepEqual(await loadIdeas(campaignId, fixedFetcher(valid)), valid);
+  const hidden = ideaList([bigEntry(), angleEntry({ deleted: true, restorableUntil: later, hiddenByParent: true })]);
+  assert.deepEqual(await loadIdeas(campaignId, fixedFetcher(hidden)), hidden);
   assert.equal(await loadIdeas(campaignId, fixedFetcher({ error: { code: 'not_found' } }, 404)), null);
   await assertIntegrity(loadIdeas(campaignId, fixedFetcher({ ...valid, extra: true })));
   await assertIntegrity(loadIdeas(campaignId, fixedFetcher({ ...valid, ideas: [{ ...angleEntry(), parentIdeaId: bigB }] })));
   await assertIntegrity(loadIdeas(campaignId, fixedFetcher({ ...valid, ideas: [{ ...bigEntry(), purposes: ['EDUCATION'], expression: 'x' }] })));
+  await assertIntegrity(loadIdeas(campaignId, fixedFetcher({ ...valid, ideas: [bigEntry({ deleted: true, restorableUntil: later, hiddenByParent: true }), angleEntry()] })));
+  await assertIntegrity(loadIdeas(campaignId, fixedFetcher({ ...valid, ideas: [bigEntry(), angleEntry({ hiddenByParent: true })] })));
+  await assertIntegrity(loadIdeas(campaignId, fixedFetcher({ ...valid, ideas: [bigEntry(), { ...angleEntry(), hiddenByParent: false } as unknown as IdeaEntry] })));
   await assertIntegrity(loadIdeas(campaignId, fixedFetcher({ ...valid, purposeTags: [{ tagId, label: 'Bad', displayLike: 'EDUCATION', createdAt: at, extra: true }] })));
 });
 
@@ -195,6 +204,19 @@ test('demoIdeaList orders by Big Idea and hides expired deletes and orphan Angle
   assert.equal(list.insightVersion, 1);
 });
 
+test('demo Big Idea deletion derives hidden Angles with the earliest deadline and blocks their state changes', () => {
+  const parent = demoBig(bigA, 1, { developing: true });
+  const ownDeleted = demoAngle(angleA1, bigA, 1, { deleted: { deletedAt: at, restorableUntil: '2027-01-31T00:00:00.000Z' } });
+  const live = demoAngle(angleA2, bigA, 2, { sequence: 2, developing: true, purposes: ['EDUCATION'] });
+  const afterParentDelete = changeDemoIdeaState([parent, ownDeleted, live], { ideaId: bigA, expectedSequence: 0, action: 'DELETE' }, later);
+  const list = demoIdeaList(afterParentDelete, [], lockedCampaign, later);
+  const ownEntry = list.ideas.find((idea) => idea.ideaId === angleA1)!;
+  const liveEntry = list.ideas.find((idea) => idea.ideaId === angleA2)!;
+  assert.deepEqual([ownEntry.deleted, ownEntry.developing, ownEntry.hiddenByParent, ownEntry.restorableUntil], [true, false, true, '2027-01-31T00:00:00.000Z']);
+  assert.deepEqual([liveEntry.deleted, liveEntry.developing, liveEntry.hiddenByParent, liveEntry.restorableUntil], [true, false, true, '2027-02-01T00:00:00.000Z']);
+  assert.throws(() => changeDemoIdeaState(afterParentDelete, { ideaId: angleA2, expectedSequence: 2, action: 'DELETE' }, later), /conflict/);
+});
+
 test('demo generator is deterministic, retries request ids exactly and assigns stable Big Idea/Angle codes', () => {
   const call = { selectionKey: 'system', label: 'Synthetic system', request: { contractVersion: '1.0.0', requestId: 'request-1', kind: 'BIG_IDEA', model: 'gpt-5.6-sol', plannedCallCount: 1, prompt: { source: 'SYSTEM', id: 'system-big-idea-insight', version: 1 } } } as const;
   const first = generateDemoIdea([], lockedCampaign, call, at, bigA);
@@ -259,4 +281,97 @@ test('idea helper projections retain only the requested kind and parent', () => 
   assert.deepEqual(anglesOf(list, bigA).map((idea) => idea.ideaId), [angleA1]);
   assert.deepEqual(developingBigIdeas(ideaList([bigEntry({ developing: true }), bigEntry({ ideaId: bigB, code: 'B', developing: true, deleted: true })])).map((idea) => idea.ideaId), [bigA]);
   assert.deepEqual(IDEA_MODELS.map((model) => model.key), ['gpt-5.6-sol', 'gpt-5.6-luna', 'gemini-3.5-flash-low']);
+});
+
+test('IdeasPage keeps a requested stopped Big Idea explicit and does not show a fallback run form', { concurrency: false }, async () => {
+  const { default: IdeasPage } = await tsImport('../src/IdeasPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/IdeasPage');
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(dom.container);
+  try {
+    await act(async () => {
+      root.render(createElement(IdeasPage, {
+        mode: 'demo', campaignId, kind: 'ANGLE', requestedParentId: bigA, ownerToken: token, writesAvailable: true,
+        demoCampaign: lockedCampaign, demoIdeas: [demoBig(bigA, 1), demoBig(bigB, 2, { developing: true })],
+        setDemoIdeas: () => undefined, demoTags: [], setDemoTags: () => undefined, demoPrompts: demoPromptList([]), notify: () => undefined,
+      }));
+      await Promise.resolve(); await Promise.resolve();
+    });
+    assert.match(dom.container.textContent ?? '', /Big Idea đã chọn không còn đang phát triển/);
+    assert.equal(dom.container.querySelector('form.idea-run'), null);
+  } finally {
+    await act(async () => { root.unmount(); });
+    dom.cleanup();
+  }
+});
+
+test('IdeasPage uses a developing requested Big Idea even when another one is listed first', { concurrency: false }, async () => {
+  const { default: IdeasPage } = await tsImport('../src/IdeasPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/IdeasPage');
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(dom.container);
+  try {
+    await act(async () => {
+      root.render(createElement(IdeasPage, {
+        mode: 'demo', campaignId, kind: 'ANGLE', requestedParentId: bigB, ownerToken: token, writesAvailable: true,
+        demoCampaign: lockedCampaign, demoIdeas: [demoBig(bigA, 1, { developing: true }), demoBig(bigB, 2, { developing: true })],
+        setDemoIdeas: () => undefined, demoTags: [], setDemoTags: () => undefined, demoPrompts: demoPromptList([]), notify: () => undefined,
+      }));
+      await Promise.resolve(); await Promise.resolve();
+    });
+    assert.match(dom.container.textContent ?? '', /Tạo góc cho B/);
+    assert.equal((dom.container.querySelector('#idea-parent') as HTMLSelectElement).value, bigB);
+  } finally {
+    await act(async () => { root.unmount(); });
+    dom.cleanup();
+  }
+});
+
+test('unmounting IdeasPage during a batch run prevents later generate calls', { concurrency: false }, async () => {
+  const { default: IdeasPage } = await tsImport('../src/IdeasPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/IdeasPage');
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(dom.container);
+  const originalFetch = globalThis.fetch;
+  let generateCalls = 0;
+  let finishFirstGenerate: ((value: Response) => void) | undefined;
+  const fetcher: typeof fetch = async (input, init) => {
+    const url = String(input);
+    if (init?.method === 'POST' && url.includes('/owner-api/content/campaigns/')) {
+      generateCalls += 1;
+      return new Promise<Response>((resolve) => { finishFirstGenerate = resolve; });
+    }
+    if (url.endsWith(`/api/content/campaigns/${campaignId}/ideas`)) return response(ideaList([]));
+    if (url.endsWith('/api/content/prompts')) return response(demoPromptList([]));
+    return response({ error: { code: 'not_found' } }, 404);
+  };
+  globalThis.fetch = fetcher;
+  let unmounted = false;
+  try {
+    await act(async () => {
+      root.render(createElement(IdeasPage, {
+        mode: 'real', campaignId, kind: 'BIG_IDEA', requestedParentId: null, ownerToken: token, writesAvailable: true,
+        demoCampaign: null, demoIdeas: [], setDemoIdeas: () => undefined, demoTags: [], setDemoTags: () => undefined,
+        demoPrompts: demoPromptList([]), notify: () => undefined,
+      }));
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    });
+    const form = dom.container.querySelector('form.idea-run') as HTMLFormElement;
+    assert.ok(form);
+    await act(async () => {
+      form.dispatchEvent(new dom.container.ownerDocument.defaultView!.Event('submit', { bubbles: true, cancelable: true }));
+      await Promise.resolve(); await Promise.resolve();
+    });
+    assert.equal(generateCalls, 1);
+    await act(async () => { root.unmount(); });
+    unmounted = true;
+    finishFirstGenerate!(response({ contractVersion: '1.0.0', ideaId: bigA, campaignId, kind: 'BIG_IDEA', code: 'A', attemptId: bigB, createdAt: at, exactRetry: false }, 201));
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    assert.equal(generateCalls, 1);
+  } finally {
+    if (!unmounted) await act(async () => { root.unmount(); });
+    finishFirstGenerate?.(response({ contractVersion: '1.0.0', ideaId: bigA, campaignId, kind: 'BIG_IDEA', code: 'A', attemptId: bigB, createdAt: at, exactRetry: false }, 201));
+    globalThis.fetch = originalFetch;
+    dom.cleanup();
+  }
 });

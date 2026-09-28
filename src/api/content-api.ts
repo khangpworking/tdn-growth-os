@@ -191,7 +191,7 @@ function openResearchReaders(db: BetterSqlite3.Database, artifactStore: ContentA
   return { productReader, stpReader, b10Reader };
 }
 
-/** Pre-fills the insight form from a locked STP: the primary segment is the customer, the positioning statement the insight. */
+/** STP help for the insight form: the primary segment pre-fills the customer; the positioning statement (`insight`) is shown for reference only (Q-I4). */
 function stpSuggestion(locked: LockedStpArtifact): ContentInsightStpSuggestion | undefined {
   const { segments, primaryTargetSegmentKey, positioningStatement } = locked.workingStp.content;
   const primary = segments.find((segment) => segment.key === primaryTargetSegmentKey) ?? segments[0];
