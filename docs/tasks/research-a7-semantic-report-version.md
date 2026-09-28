@@ -54,7 +54,7 @@ it must not mutate this v1 artifact.
   semantics, A5/A6 standalone arithmetic or renderer approval meaning.
 - No production PDF contract. Browser print remains an unapproved rendering.
 
-SQLite persistence is still the next architectural layer, but migration 0029
+SQLite persistence is still the next architectural layer, but migration 0030
 must wait until the Content Studio 0026–0028 sequence is integrated. A7 is
 independent of that sequencing gate and prevents render/export changes from
 being confused with content changes in the meantime.

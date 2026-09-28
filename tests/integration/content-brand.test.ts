@@ -35,7 +35,7 @@ function setup() {
 
 test('migration 0021 creates immutable content brand tables', () => {
   const state = setup();
-  assert.equal(state.migration.currentVersion, 28);
+  assert.equal(state.migration.currentVersion, 30);
   const names = (state.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'flow_content_brand%' ORDER BY name").all() as { name: string }[]).map((row) => row.name);
   assert.deepEqual(names, ['flow_content_brand_revisions', 'flow_content_brands']);
   state.db.close();

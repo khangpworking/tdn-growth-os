@@ -1,6 +1,21 @@
 # Trạng thái hiện tại
 
-## Research A9: deterministic M03/M04 diagnostic charts (draft PR #65; not deployed)
+## Research A10: immutable report-version ledger (local implementation)
+
+- Persists one exact verified source-backed report bundle as an immutable report
+  version with explicit source and artifact membership.
+- Version history is sequential and requires the exact previous semantic content
+  ID. Reads always name a version; no implicit latest selection exists.
+- Replay reopens the exact source package and workspace through their owning
+  readers, reruns deterministic calculations and compares every retained byte.
+- Layer 3 remains `NONE` and layer 4 remains `UNREVIEWED`; framework approval is
+  not treated as report-content approval.
+- Migration 0030 is being developed after the pending Content Studio migrations
+  0026–0029 on a temporary integration branch. It is not deployed or merged.
+- No provider/AI call, fifth section, live import, dashboard mutation or real
+  business decision is included. Linux release verification is still pending.
+
+## Research A9: deterministic M03/M04 diagnostic charts (merged; not deployed)
 
 - The accepted four-layer framework remains authoritative; this slice deepens
   only deterministic layer-two display.
@@ -15,7 +30,8 @@
   call, fifth method, migration, API, approval or live data import is included.
 - Linux full check passed with 486/486 repository tests and the desktop/mobile
   visual preview passed with no page error. Windows tests/build/typecheck were
-  not run by policy. The PR remains draft while A1–A8 dependencies are unmerged.
+  not run by policy. Research A1–A9 are merged on `main`; deployment and live
+  evidence intake remain separate work.
 
 ## Research A8: evidence-bound interpretation contract (draft PR #64; not deployed)
 
@@ -46,8 +62,8 @@
   interpretation is explicitly absent.
 - HTML exposes the content ID and links the exact workspace/export manifest.
   No additional section method, report conclusion or approval is claimed.
-- No migration is added while 0029 remains sequenced after pending Content
-  migrations 0026–0028. Durable SQLite report history, AI interpretation,
+- No migration is added while 0030 remains sequenced after pending Content
+  migrations 0026–0029. Durable SQLite report history, AI interpretation,
   human-review API, dashboard and production PDF remain incomplete.
 - Contract generation succeeded locally. Per project policy no Windows
   test/build/typecheck is run; Linux CI is the delivery gate.
@@ -268,7 +284,7 @@ actual-CLI synthetic desktop/mobile/PDF preview passed, including evidence links
 files, keyboard and contrast. Fresh design review: ship. Antislop is applied
 during design; the approved TDN system is preserved. No local Windows tests,
 build or typecheck were run. No new migration is installed:
-0026–0028 belong to the pending Content Studio stack, with 0029 reserved for
+0026–0029 belong to the pending Content Studio stack, with 0030 reserved for
 report persistence after integration. Normalized-row SQLite persistence, report
 version/history, AI interpretation/review and operator dashboard integration are
 not complete. Do not count 30 represented section states as 30 automated methods.
