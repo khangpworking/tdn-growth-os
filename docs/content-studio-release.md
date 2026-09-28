@@ -52,10 +52,11 @@ The release is accepted when all of these hold on the Fedora operator with fresh
 
 - 048c and 048d are merged into the verified 049 base `cfb234a` (migrations 0023 and 0024). Their older status rows above describe the earlier reconciliation snapshot, not current blockers. 049 is merged (`ff20bbb`; migration 0025 must be applied before deploying a build containing it; no live migration or provider call was made). 050a (draft PR #56), 050b (draft PR #57) and 051 (stacked draft PR) are implemented with provisional owner defaults, awaiting review and owner decisions. 053 is not started and needs separate Controlled-lane authorization for live calls.
 - **Reconciled in 051:** manual editing (“Sửa tay”) and version history/restore of Caption and Poster are built in 051 without AI edit.
-- **Owner decision pending:** before the first live Poster calls (051/053), should reference photos have their metadata (EXIF, including location) stripped? 048b stores uploaded bytes unchanged in private storage. Orchestrator recommendation, not approved: keep the private originals and create a derived, metadata-stripped, orientation-corrected reference with explicit lineage.
+- **Decided (owner, 2026-09-29):** reference photos keep their original bytes, EXIF included; nothing is stripped or derived. Consequence: any metadata in an uploaded photo (for example GPS location) is sent to the image provider with Poster references. Owners who do not want that should remove it before uploading.
 - **Open design point:** catalog items cannot be archived or deleted; the accepted design does not define it. Campaigns pin catalog item versions, so a later archive rule cannot corrupt them. Do not invent it without a decision.
 
 ## 5. Decisions recorded
 
 - 2026-09-25 (owner): AI editing (052 proposals: text diff, side-by-side image) is deferred to a later release and does not gate the first Caption & Poster release.
+- 2026-09-29 (owner): reference photos are kept and sent as uploaded, EXIF included; no stripping or derived copy.
 - 2026-09-25 (owner): reference-image uploads accept PNG and JPEG only, and must contain complete, decodable image data. WebP is rejected until a vetted decoder is chosen; users are asked to re-export as JPEG or PNG.

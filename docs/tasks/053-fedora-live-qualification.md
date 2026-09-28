@@ -15,10 +15,12 @@ Non-goals:
 
 1. PR #68 (provider-model provenance) is merged. The owner has the merge SHA, the migration filename and the schema version (expected `0034_flow_content_ai_provider_model.sql`, v34, unless `main` takes 0034 first).
 2. Linux CI is green on that exact SHA. A run that never started (for example, blocked by GitHub billing) is not green.
-3. The owner has decided the EXIF question from `docs/content-studio-release.md` §4. Until then, the Poster steps (§3.3) use only reference photos the owner has already stripped of metadata, or they are skipped.
+3. EXIF is decided (owner, 2026-09-29): reference photos are sent as uploaded, metadata included. For qualification, use photos whose metadata the owner is content to share with the image providers.
 4. The owner has chosen where the CLIProxy key lives persistently (Task 049 P2 open item 6):
    - **(a)** exported in the private shell that starts the operator, as today;
    - **(b)** a systemd `EnvironmentFile=` outside the repository, mode 600, owned by the operator user.
+
+   **Recommended: (a)**, with the key read without echo so it never enters shell history (`read -rs TDN_CLIPROXY_API_KEY; export TDN_CLIPROXY_API_KEY`). The operator is started by hand today and systemd units are out of scope (runbook, “Deliberately future work”); (b) becomes the right choice when the operator gets a service unit. The owner confirms the choice when authorizing this task.
 
    The owner types the key. The agent never sees, prints or stores it.
 5. A backup of the operator database (`sqlite3 <db> ".backup <file>"`) was taken after the migration step and before the first call.
