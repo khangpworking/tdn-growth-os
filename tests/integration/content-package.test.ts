@@ -98,7 +98,7 @@ test('create and generated part retries are exact and never call the gateway twi
     assert.equal(state.gateway.calls.filter((entry) => entry.operation === 'generateText').length, before);
     assert.equal((await state.packages.readPackage(created.packages[0]!.packageId)).caption.length, 1);
     assert.notEqual(first.attemptId, undefined);
-    await assert.rejects(state.packages.generate({ ...call, requestId: requestId(41) }, 'owner:synthetic'), /Fake creative gateway has no scripted/);
+    await assert.rejects(state.packages.generate({ ...call, requestId: requestId(41) }, 'owner:synthetic'), (error: unknown) => error instanceof CreativeAiError && error.code === 'network_error');
   } finally { state.close(); }
 });
 
@@ -130,7 +130,7 @@ test('the package pin contains every integrity input and the footer remains byte
     if (captionPrompt.source === 'SYSTEM') assert.deepEqual({ id: captionPrompt.id, version: captionPrompt.version, digestLength: captionPrompt.creativeTextSha256.length }, { id: 'system-caption-facebook', version: 1, digestLength: 64 });
     if (posterPrompt.source === 'SYSTEM') assert.deepEqual({ id: posterPrompt.id, version: posterPrompt.version, digestLength: posterPrompt.creativeTextSha256.length }, { id: 'system-poster-b2b-infographic', version: 1, digestLength: 64 });
     const caption = await state.packages.generate(generateRequest(created.packages[0]!.packageId, 'CAPTION', 50), 'owner:synthetic');
-    const textCall = state.gateway.calls.find((entry) => entry.operation === 'generateText');
+    const textCall = state.gateway.calls.filter((entry) => entry.operation === 'generateText').at(-1);
     assert.ok(textCall);
     if (textCall.operation !== 'generateText') throw new Error('Expected a text gateway call');
     const lockedInput = JSON.parse(textCall.request.userInput.replace(/^LOCKED_INPUT_JSON:\n/u, '')) as { context: { campaign: Record<string, unknown>; brand: Record<string, unknown>; writing: Record<string, unknown> }; previous_posts: string[] };
@@ -264,6 +264,8 @@ test('a restart sweep marks a running attempt interrupted and leaves no partial 
   let textCalls = 0;
   let release!: (value: CreativeTextResult) => void;
   const held = new Promise<CreativeTextResult>((resolve) => { release = resolve; });
+  let resolveStarted!: () => void;
+  const started = new Promise<void>((resolve) => { resolveStarted = resolve; });
   const calls: unknown[] = [];
   const gateway = {
     configured: true,
@@ -271,7 +273,10 @@ test('a restart sweep marks a running attempt interrupted and leaves no partial 
     generateText: async () => {
       textCalls += 1;
       if (textCalls < 4) return { text: textCalls === 1 ? '{"concept":"Synthetic Big Idea","expression":"Synthetic expression"}' : textCalls === 2 ? '{"name":"Angle One","concept":"First synthetic angle"}' : '{"name":"Angle Two","concept":"Second synthetic angle"}', latencyMs: 1, usage: { inputTokens: 1, outputTokens: 1 }, providerRequestId: `held-${textCalls}` };
-      if (textCalls === 4) return held;
+      if (textCalls === 4) {
+        resolveStarted();
+        return held;
+      }
       return { text: '{"post":"retry after interruption"}', latencyMs: 1, usage: { inputTokens: 1, outputTokens: 1 }, providerRequestId: 'retry-after-interruption' };
     },
     generateImage: async () => ({ bytes: fixturePhoto, latencyMs: 1, usage: { inputTokens: 1, outputTokens: 1 }, providerRequestId: 'held-image' }),
@@ -281,7 +286,7 @@ test('a restart sweep marks a running attempt interrupted and leaves no partial 
   try {
     const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!]));
     const pending = state.packages.generate(generateRequest(created.packages[0]!.packageId, 'CAPTION', 80), 'owner:synthetic');
-    await new Promise<void>((resolve) => setImmediate(resolve));
+    await started;
     const running = state.db.prepare("SELECT attempt_id attemptId, state FROM flow_content_ai_attempts WHERE target_type = 'content_caption'").get() as { attemptId: string; state: string };
     assert.equal(running.state, 'running');
     assert.equal(state.attempts.sweepInterrupted(new Date('2027-01-02T00:00:00.000Z')), 1);
@@ -303,7 +308,7 @@ test('read and list expose verified package shapes and poster bytes are content-
     await state.packages.generate(generateRequest(created.packages[0]!.packageId, 'CAPTION', 91), 'owner:synthetic');
     const poster = await state.packages.generate(generateRequest(created.packages[0]!.packageId, 'POSTER', 92), 'owner:synthetic');
     const detail = await state.packages.readPackage(created.packages[0]!.packageId);
-    assert.deepEqual(Object.keys(detail).sort(), ['angleId', 'attempts', 'campaignId', 'caption', 'code', 'pin', 'packageId', 'poster', 'state']);
+    assert.deepEqual(Object.keys(detail).sort(), ['angleId', 'attempts', 'campaignId', 'caption', 'code', 'packageId', 'pin', 'poster', 'state']);
     assert.deepEqual(Object.keys(detail.pin).sort(), ['angleId', 'brand', 'campaignId', 'campaignVersion', 'caption', 'contractVersion', 'createdAt', 'display', 'footer', 'insightVersion', 'items', 'packageId', 'poster', 'purposes', 'requestId', 'requestSha256']);
     const image = await state.packages.readPosterImage(detail.packageId, poster.version);
     assert.equal(image.mediaType, 'image/jpeg');
