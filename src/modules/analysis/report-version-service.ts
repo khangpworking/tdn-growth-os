@@ -54,6 +54,11 @@ export interface VerifiedReportArtifact {
   readonly bytes: Buffer;
 }
 
+export interface VerifiedReportInterpretationSource {
+  readonly record: ReportVersionRecord;
+  readonly bundle: SourceBackedReportBundle;
+}
+
 interface SeriesRow {
   readonly reportId: string;
   readonly reportKey: string;
@@ -241,6 +246,15 @@ export class ReportVersionService {
   }
 
   async readVersion(reportId: string, version: number): Promise<ReportVersionRecord> {
+    return (await this.#readVerifiedVersion(reportId, version)).record;
+  }
+
+  /** Replays the exact report version and exposes its verified bundle to layer-three services. */
+  async readInterpretationSource(reportId: string, version: number): Promise<VerifiedReportInterpretationSource> {
+    return this.#readVerifiedVersion(reportId, version);
+  }
+
+  async #readVerifiedVersion(reportId: string, version: number): Promise<VerifiedReportInterpretationSource> {
     assertUuid(reportId, 'reportId');
     assertVersion(version);
     const row = this.#versionById(reportId, version);
@@ -343,7 +357,7 @@ export class ReportVersionService {
       })),
     };
     if (!validateRecord(record)) throw new ReportVersionIntegrityError('Report version projection breaks its contract');
-    return record;
+    return { record, bundle: expected.bundle };
   }
 
   async readHistory(reportId: string): Promise<readonly ReportVersionRecord[]> {
@@ -547,6 +561,9 @@ export class AnalysisReportVersionReader {
   constructor(service: ReportVersionService) { this.#service = service; }
   readVersion(reportId: string, version: number): Promise<ReportVersionRecord> {
     return this.#service.readVersion(reportId, version);
+  }
+  readInterpretationSource(reportId: string, version: number): Promise<VerifiedReportInterpretationSource> {
+    return this.#service.readInterpretationSource(reportId, version);
   }
   readHistory(reportId: string): Promise<readonly ReportVersionRecord[]> {
     return this.#service.readHistory(reportId);

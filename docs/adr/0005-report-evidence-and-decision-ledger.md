@@ -63,6 +63,11 @@ database schema change.
 - Re-running a model may create a new interpretation artifact, but identical
   meaning is compared by a content digest that excludes provider telemetry and
   render bytes.
+- Each retained run is a separate immutable overlay on an explicit base report
+  version. The base version is never rewritten to embed later interpretation;
+  its original `NONE` state remains historically true. Prompt bytes and safe
+  generation metadata are retained for replay, while hidden chain-of-thought
+  and raw provider responses are not.
 
 ## Retrieval and orchestration boundary
 

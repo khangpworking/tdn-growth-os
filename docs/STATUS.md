@@ -1,9 +1,21 @@
 # Trạng thái hiện tại
 
+## Research A13: immutable report interpretation ledger
+
+- Draft PR #70 is open on `feature/research-a13-interpretation-ledger`; exact
+  head Linux check and report preview pass.
+- Retains every validated A8 interpretation against one explicit A10 report
+  version; different model runs never overwrite each other.
+- Replays exact report evidence, prompt bytes, model/configuration, safe
+  user-visible reasoning, citations, assumptions and limitations on every read.
+- Exact retry is mutation-free; reused identity with changed bytes fails closed.
+- A13 adds no provider call, human decision, API/UI, report-method change, live
+  import or deployment. Every retained interpretation remains unapproved.
+
 ## Research A12: exact normalized observations in SQLite
 
-- Draft PR #69 is open on `feature/research-a12-normalized-observations`;
-  exact-head Linux check and report preview pass.
+- Merged through PR #69 at `613d7e0`; exact-head Linux check and report preview
+  passed before merge.
 - Materializes an explicitly selected report version's exact normalized input
   into immutable queryable source and observation rows keyed by its digest.
 - Preserves missing versus zero, exact integer strings, precision, displayed
