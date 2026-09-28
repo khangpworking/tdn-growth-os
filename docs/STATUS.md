@@ -1,5 +1,13 @@
 # Trạng thái hiện tại
 
+## Research A2 — exact Metric source profile (draft PR #54, not deployed)
+
+- Offline XLSX → A1 adapter cho đúng một profile Metric Shopee, dùng manifest scope/period/acquisition rõ ràng, kiểm exact header/hash/row range và ID từ URL.
+- Giữ ô nguồn có kiểu dữ liệu, số nguyên chính xác, missing/zero, doanh thu theo kỳ tách tổng trọn đời; sidecar nhãn phải khớp toàn bộ dữ liệu đã đóng băng.
+- Không có nhãn thì all có thể tính, wide/core bị chặn. Dữ liệu/nhãn lỗi bị từ chối toàn gói kèm locator; không tự sửa hoặc bỏ dòng.
+- Chỉ synthetic acceptance; chưa có manifest thật/transfer Fedora. Không provider/AI/DB/UI/deployment. Xem `docs/tasks/research-a2-source-profile.md`.
+- Implementation `7a3cd2a` đã PASS Linux CI; task nghiệp vụ không thấy material mapping mismatch. SHA cuối và CI tương ứng được ghi trong handoff PR #54. A1 (#52) vẫn là dependency chưa merge; technical independent review/owner merge còn chờ.
+
 ## Research A1 — deterministic normalized Metric draft (local implementation, not deployed)
 
 - Có calculator Box 2 và CLI `research:metric:calculate`: tính all/wide/core, totals/coverage, shop/group concentration, scope sensitivity và top-shop removal bằng số nguyên chính xác; xuất draft JSON/Markdown có nguồn khai báo.

@@ -381,6 +381,10 @@ Không quay lại đào sâu B0, insight, framework versioning, B14, chat AI v�
 
 ## Cách duy trì
 
+### Report automation — deterministic evidence foundation (2026-09-28)
+
+Owner assigns business methodology to task **Review marketing framework files** and code to the TDN task. Numbers and reproducible calculations are application-owned; AI must not invent missing values, periods, entity IDs or source lineage. A1 normalized calculations and A2 exact Metric source mapping are bounded implementation slices, not approval of official market/insight conclusions. A2 requires explicit scope/acquisition declarations and labels bound to source bytes; no implicit UNKNOWN-policy choice for real reports. The current raw profile supports one Metric Shopee export only; incompatible Kalodata/trade/legacy sources require separate future profiles. No live collection is authorized by this decision.
+
 - Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
 - Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.
 - Khi người dùng đổi ý, ghi quyết định mới và lý do thay thế; Git giữ lịch sử.

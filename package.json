@@ -9,6 +9,7 @@
     "node": "24.15.0"
   },
   "scripts": {
+    "research:metric:normalize": "tsx scripts/normalize-metric-workbook.ts",
     "research:metric:calculate": "tsx scripts/calculate-metric-scope.ts",
     "source-package:intake": "tsx scripts/intake-source-package.ts",
     "research:shopee": "tsx scripts/collect-shopee-reviews.ts",

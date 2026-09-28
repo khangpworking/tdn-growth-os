@@ -54,6 +54,11 @@ The exporter opens the database read-only, verifies both Results and their froze
 
 `npm run research:metric:calculate -- <normalized-input.json> <outside-git-bundle-directory>` calculates versioned exact-integer metrics and a Vietnamese draft without AI or database access. Existing identical bundles are verified and reused; changed or corrupt content is never overwritten. This validates normalized input only, not original XLSX cells or business conclusions. See [A1 scope and method](docs/tasks/research-a1-deterministic-metric.md).
 
+## Offline Metric source profile (research A2)
+
+`npm run research:metric:normalize -- <export.xlsx> <manifest.json> <labels.json|-> <outside-git-bundle-directory>`.
+Only the exact `metric-shopee-product-list-sheet1-v1` profile is supported. An explicit period/acquisition manifest is mandatory; no source dates, identities or labels are guessed. Python 3 standard library is required. See [A2 boundary and mapping](docs/tasks/research-a2-source-profile.md). No real-source acceptance or complete report automation is implied.
+
 ## Offline source-package intake
 
 Run `npm run source-package:intake -- <database> <artifact-root> <package-directory> <intake.json> <audit.json> <output.md>` to verify and persist an exact-byte source package and immutable field audit without provider calls. The package directory must exactly match descriptor membership; the report path must be outside this repository and must not already exist. See `docs/tasks/023-source-package-intake.md`.
