@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createElement, act } from 'react';
-import ResearchReportsPanel from '../src/ResearchReportsPanel';
+import { tsImport } from 'tsx/esm/api';
 import { setupDom } from './dom';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -13,6 +13,10 @@ const json = (body: unknown): Response => new Response(JSON.stringify(body), { s
 test('report panel requires an explicit version before exposing the stored report', async () => {
   const dom = setupDom();
   const { createRoot } = await import('react-dom/client');
+  const { default: ResearchReportsPanel } = await tsImport('../src/ResearchReportsPanel.tsx', {
+    parentURL: import.meta.url,
+    tsconfig: 'frontend/tsconfig.json',
+  }) as typeof import('../src/ResearchReportsPanel');
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async (input: string | URL | Request) => {
     const url = String(input);
