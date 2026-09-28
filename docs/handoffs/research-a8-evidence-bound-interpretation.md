@@ -23,7 +23,7 @@
 - `evidenceLogic` is a concise user-visible explanation, not chain-of-thought.
 - No provider call, credential, migration, database row, API, UI, approval,
   source collection or deployment was added.
-- Report persistence migration 0029 still waits for Content Studio migrations
+- Report persistence migration 0030 still waits for Content Studio migrations
   0026 through 0028 to reach the same branch.
 
 ## Verification

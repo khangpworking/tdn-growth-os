@@ -82,3 +82,11 @@ export {
   type ReportInterpretationConfiguration,
   type ReportInterpretationTelemetry,
 } from './report-interpretation.js';
+export {
+  AnalysisReportVersionReader,
+  ReportVersionIdentityConflictError,
+  ReportVersionIntegrityError,
+  ReportVersionService,
+  ReportVersionValidationError,
+  type ReportVersionExecution,
+} from './report-version-service.js';

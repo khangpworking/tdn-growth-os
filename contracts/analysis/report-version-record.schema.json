@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-version-record.schema.json",
+  "title": "ReportVersionRecord",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "reportId", "reportKey", "versionId", "version", "previousSemanticVersionId", "semanticVersionId", "requestSha256", "workspaceId", "workspaceSnapshotSha256", "sourcePackageId", "sourcePackageManifestSha256", "packageContentSha256", "evidenceEnvelopeSha256", "semanticContentSha256", "reviewStateSha256", "interpretationState", "reviewState", "createdAt", "artifacts", "selectedSources"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "reportId": { "type": "string", "format": "uuid" },
+    "reportKey": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+    "versionId": { "type": "string", "format": "uuid" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "previousSemanticVersionId": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+    "semanticVersionId": { "$ref": "#/$defs/digest" },
+    "requestSha256": { "$ref": "#/$defs/digest" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "workspaceSnapshotSha256": { "$ref": "#/$defs/digest" },
+    "sourcePackageId": { "type": "string", "format": "uuid" },
+    "sourcePackageManifestSha256": { "$ref": "#/$defs/digest" },
+    "packageContentSha256": { "$ref": "#/$defs/digest" },
+    "evidenceEnvelopeSha256": { "$ref": "#/$defs/digest" },
+    "semanticContentSha256": { "$ref": "#/$defs/digest" },
+    "reviewStateSha256": { "$ref": "#/$defs/digest" },
+    "interpretationState": { "const": "NONE" },
+    "reviewState": { "const": "UNREVIEWED" },
+    "createdAt": { "type": "string", "format": "date-time" },
+    "artifacts": {
+      "type": "array", "minItems": 1, "maxItems": 40, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["fileName", "sha256", "mediaType", "byteSize"],
+        "properties": {
+          "fileName": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[a-z0-9._-]+$" },
+          "sha256": { "$ref": "#/$defs/digest" },
+          "mediaType": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "byteSize": { "type": "integer", "minimum": 0 }
+        }
+      }
+    },
+    "selectedSources": {
+      "type": "array", "minItems": 2, "maxItems": 3, "uniqueItems": true,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["ordinal", "role", "logicalPath", "sha256"],
+        "properties": {
+          "ordinal": { "type": "integer", "minimum": 0, "maximum": 19 },
+          "role": { "enum": ["workbook", "manifest", "labels"] },
+          "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$" },
+          "sha256": { "$ref": "#/$defs/digest" }
+        }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

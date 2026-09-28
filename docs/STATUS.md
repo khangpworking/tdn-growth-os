@@ -1,11 +1,27 @@
 # Trạng thái hiện tại
 
-## Task 050b — Big Idea và Góc nội dung (Controlled qua fake gateway; nhánh `feature/050b-content-ideas`, xếp chồng lên 050a)
+## Research A10: immutable report-version ledger (draft PR #66)
+
+- Persists one exact verified source-backed report bundle as an immutable report
+  version with explicit source and artifact membership.
+- Version history is sequential and requires the exact previous semantic content
+  ID. Reads always name a version; no implicit latest selection exists.
+- Replay reopens the exact source package and workspace through their owning
+  readers, reruns deterministic calculations and compares every retained byte.
+- Layer 3 remains `NONE` and layer 4 remains `UNREVIEWED`; framework approval is
+  not treated as report-content approval.
+- Migration 0030 follows the merged Content Studio migrations 0028–0029 on
+  current `main`. Exact-head Linux check and report preview passed.
+- No provider/AI call, fifth section, live import, dashboard mutation or real
+  business decision is included. Linux release verification is still pending.
+
+## Task 050b — Big Idea và Góc nội dung
 
 - Bước 2–3 của chiến dịch: từ Insight đã khóa, tạo Big Idea (A, B, …) rồi Góc nội dung (A1, A2, …) cho Big Idea đang phát triển. Mỗi ý là một lần gọi AI qua `CreativeAiGateway`, ghi lại thành attempt 049; chọn prompt thư viện hoặc prompt tự do (lưu được vào thư viện) và mô hình.
 - Phát triển/ngừng, xóa mềm và khôi phục trong 30 ngày, gắn mục đích cho Góc (5 mục đích sẵn có và mục đích riêng). Giới hạn 10 lần gọi mỗi prompt, 100 mỗi lượt (mặc định tạm thời, chờ chủ dự án).
 - Migration 0027 (`flow_content_ideas`, `flow_content_idea_states`, `flow_content_purpose_tags`); `GET /api/content/campaigns/:id/ideas`; OWNER `…/campaigns/:id/ideas`, `…/ideas/:id/state`, `…/purpose-tags`; màn hình `#/content/:id/big-idea` và `#/content/:id/angle`. Chưa cấu hình AI thì OWNER API trả 503. Không gọi provider thật (053) ([brief](tasks/050-content-insight-ideas.md) §8–§13).
-## Task 050a — Insight của chiến dịch (Standard; nhánh `feature/050-content-insight-ideas`, tạm thời)
+
+## Task 050a — Insight của chiến dịch
 
 - Bước 1 của chiến dịch: nhập Khách hàng mục tiêu, Nỗi đau, Insight hoặc lấy gợi ý từ STP đã khóa của sản phẩm nghiên cứu liên kết; mỗi lần lưu là một phiên bản bất biến, gửi lại trùng không tạo bản mới.
 - Khóa Insight: nếu chiến dịch liên kết sản phẩm nghiên cứu thì phải có quyết định B10 hiện hành `APPROVE`; khóa ghi lại quyết định đó (D26/D33). Sau khóa, sản phẩm/gói và liên kết nghiên cứu của chiến dịch cố định; tên và mục tiêu vẫn sửa được (mặc định tạm thời, chờ chủ dự án).
@@ -26,7 +42,8 @@
   call, fifth method, migration, API, approval or live data import is included.
 - Linux full check passed with 486/486 repository tests and the desktop/mobile
   visual preview passed with no page error. Windows tests/build/typecheck were
-  not run by policy. The PR remains draft while A1–A8 dependencies are unmerged.
+  not run by policy. Research A1–A9 are merged on `main`; deployment and live
+  evidence intake remain separate work.
 
 ## Research A8: evidence-bound interpretation contract (draft PR #64; not deployed)
 
@@ -57,8 +74,8 @@
   interpretation is explicitly absent.
 - HTML exposes the content ID and links the exact workspace/export manifest.
   No additional section method, report conclusion or approval is claimed.
-- No migration is added while 0029 remains sequenced after pending Content
-  migrations 0026–0028. Durable SQLite report history, AI interpretation,
+- No migration is added while 0030 remains sequenced after pending Content
+  migrations 0026–0029. Durable SQLite report history, AI interpretation,
   human-review API, dashboard and production PDF remain incomplete.
 - Contract generation succeeded locally. Per project policy no Windows
   test/build/typecheck is run; Linux CI is the delivery gate.
@@ -268,7 +285,7 @@ actual-CLI synthetic desktop/mobile/PDF preview passed, including evidence links
 files, keyboard and contrast. Fresh design review: ship. Antislop is applied
 during design; the approved TDN system is preserved. No local Windows tests,
 build or typecheck were run. No new migration is installed:
-0026–0028 belong to the pending Content Studio stack, with 0029 reserved for
+0026–0029 belong to the pending Content Studio stack, with 0030 reserved for
 report persistence after integration. Normalized-row SQLite persistence, report
 version/history, AI interpretation/review and operator dashboard integration are
 not complete. Do not count 30 represented section states as 30 automated methods.

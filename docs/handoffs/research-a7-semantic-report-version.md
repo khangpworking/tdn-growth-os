@@ -48,7 +48,7 @@ assertion is weakened and no duplicate calculation test is added.
 
 No migration, database mutation, API/UI, AI/provider call, approval action,
 source collection, private data, deployment or production PDF is introduced.
-Migration 0029 report persistence remains sequenced after Content Studio
+Migration 0030 report persistence remains sequenced after Content Studio
 0026–0028. The semantic artifact is a prerequisite for that durable registry,
 not a substitute for it.
 
