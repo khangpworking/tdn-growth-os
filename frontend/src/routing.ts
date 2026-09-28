@@ -16,12 +16,14 @@ export type Route =
   | { readonly kind: 'package-new'; readonly campaignId: string; readonly angleCodes: readonly string[] }
   | { readonly kind: 'package'; readonly campaignId: string; readonly code: string }
   | { readonly kind: 'prompts'; readonly promptType: PromptType; readonly promptRef: string | null }
+  | { readonly kind: 'review-target'; readonly reviewTargetId: string }
   | { readonly kind: 'invalid'; readonly hash: string };
 
 const sections = new Set<ProductSection>(['b8', 'sources', 'history', 'b9', 'b10']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const ANGLE_CODE = /^[A-Z]+[1-9][0-9]*$/;
 const PACKAGE_CODE = /^[A-Z]+[1-9][0-9]*·[1-9][0-9]*$/;
+const DIGEST = /^[0-9a-f]{64}$/;
 
 /** `angles=A1,A2` from the package-new query; null when the query is malformed or names a code twice. */
 function angleCodes(query: string): string[] | null {
@@ -51,6 +53,7 @@ export function parseRoute(hash: string, state: DemoState): Route {
     return query === undefined && PACKAGE_CODE.test(parts[3]!) ? { kind: 'package', campaignId: parts[1]!, code: parts[3]! } : { kind: 'invalid', hash };
   }
   if (query !== undefined) return { kind: 'invalid', hash };
+  if (parts.length === 2 && parts[0] === 'review-targets') return DIGEST.test(parts[1]!) ? { kind: 'review-target', reviewTargetId: parts[1]! } : { kind: 'invalid', hash };
   if (parts.length === 1 && parts[0] === 'brands') return { kind: 'brands' };
   if (parts.length === 2 && parts[0] === 'brands') return UUID.test(parts[1]!) ? { kind: 'brand', brandId: parts[1]! } : { kind: 'invalid', hash };
   if (parts.length === 1 && parts[0] === 'content') return { kind: 'content' };
@@ -109,4 +112,5 @@ export const routeToHash = {
   catalogItem: (brandId: string, itemId: string): string => `#/brands/${encodeURIComponent(brandId)}/products/${encodeURIComponent(itemId)}`,
   market: (marketId: string): string => `#/markets/${encodeURIComponent(marketId)}`,
   product: (marketId: string, productId: string, section: ProductSection = 'b8'): string => `#/markets/${encodeURIComponent(marketId)}/products/${encodeURIComponent(productId)}/${section}`,
+  reviewTarget: (reviewTargetId: string): string => `#/review-targets/${encodeURIComponent(reviewTargetId)}`,
 };

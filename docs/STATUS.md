@@ -1,5 +1,15 @@
 # Trạng thái hiện tại
 
+## Research A20: review-target preparation and inspection UI
+
+- Adds an explicit OWNER preparation form only after one report version and one
+  retained interpretation are selected; intended use is required.
+- Reads the returned A19 target through A18 before opening a stable exact-digest
+  page that separates evidence, calculation, AI interpretation and human
+  decision.
+- The page remains visibly unapproved and has no decision or reviewer control.
+- Draft PR and Linux verification are pending.
+
 ## Research A19: OWNER review-target creation API
 
 - Adds one authenticated local OWNER route for retaining an exact A16 target

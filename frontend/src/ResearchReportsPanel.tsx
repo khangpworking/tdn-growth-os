@@ -11,7 +11,7 @@ import ReportInterpretations from './ReportInterpretations';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
-export default function ResearchReportsPanel({ mode, workspaceId }: { readonly mode: FrontendMode; readonly workspaceId: string }) {
+export default function ResearchReportsPanel({ mode, workspaceId, ownerToken = null, writesAvailable = false, navigate = () => undefined, notify = () => undefined }: { readonly mode: FrontendMode; readonly workspaceId: string; readonly ownerToken?: string | null; readonly writesAvailable?: boolean; readonly navigate?: (hash: string) => void; readonly notify?: (message: string) => void }) {
   const [indexState, setIndexState] = useState<LoadState>('idle');
   const [index, setIndex] = useState<WorkspaceReportIndexResponse | null>(null);
   const [indexError, setIndexError] = useState('');
@@ -117,7 +117,7 @@ export default function ResearchReportsPanel({ mode, workspaceId }: { readonly m
               <a className="button primary" href={reportArtifactUrl(history.reportId, version.version, 'report.html')} target="_blank" rel="noreferrer">Mở report và evidence</a>
               <a className="button" href={reportArtifactUrl(history.reportId, version.version, 'packet.json')}>Tải packet JSON</a>
             </div>
-            <ReportInterpretations key={`${history.reportId}:${version.version}`} reportId={history.reportId} reportVersion={version.version} semanticVersionId={version.semanticVersionId} />
+            <ReportInterpretations key={`${history.reportId}:${version.version}`} reportId={history.reportId} reportVersion={version.version} semanticVersionId={version.semanticVersionId} ownerToken={ownerToken} writesAvailable={writesAvailable} navigate={navigate} notify={notify} />
           </article>}
         </>}
       </div>}

@@ -28,6 +28,9 @@ test('market relationships, search, empty creation and routes use IDs', () => {
   assert.equal(parseRoute(routeToHash.product('collagen', 'adult'), state).kind, 'invalid');
   assert.equal(parseRoute('#/markets/missing', state).kind, 'invalid');
   assert.equal(parseRoute('#/markets/%E0%A4%A', state).kind, 'invalid');
+  const reviewTargetId = 'a'.repeat(64);
+  assert.deepEqual(parseRoute(routeToHash.reviewTarget(reviewTargetId), state), { kind: 'review-target', reviewTargetId });
+  assert.equal(parseRoute('#/review-targets/not-a-digest', state).kind, 'invalid');
 });
 
 test('B8 updates are append-only and isolated by product and market', () => {
