@@ -13,6 +13,7 @@ const contracts = [
   ['analysis', 'report-interpretation-request'],
   ['analysis', 'report-interpretation-output'],
   ['analysis', 'report-interpretation-artifact'],
+  ['analysis', 'report-review-target-create-request'],
   ['analysis', 'report-review-target'],
   ['analysis', 'report-version-create-request'],
   ['analysis', 'report-version-record'],

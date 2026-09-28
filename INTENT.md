@@ -422,6 +422,8 @@ Owner assigns business methodology to task **Review marketing framework files** 
 
 **Exact review-target boundary, 2026-09-28:** before any human-decision action exists, the application may compose a deterministic internal-review inventory from one explicitly named A10 report version and one explicitly named A13 interpretation run. The inventory binds the complete selected-source membership, declared market/channel/period, explicit intended use, exact deterministic calculation/section identities, exact interpretation items/claims and the exact verified `report.html` file shown to the reviewer. It carries unknown geography/source-rights markers and is non-transferable to any other version, run, scope, intended use or render. This boundary records no approval, reviewer, authority, publication right or revocation rule and adds no UI/API, migration or write.
 
+**Review-target retention boundary, 2026-09-28:** the application may retain an A16 target as one immutable canonical artifact and SQLite row, then replay it only by exact target ID through the A10/A13 readers. Exact retry is mutation-free; a different intended use creates a different target and cannot rewrite the first. Retention still records no human decision, reviewer, authority or publication permission. A future decision action must remain separate and is not implied by the existence of a target.
+
 - Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
 - Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.
 - Khi người dùng đổi ý, ghi quyết định mới và lý do thay thế; Git giữ lịch sử.

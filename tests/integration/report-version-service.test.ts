@@ -31,6 +31,11 @@ import {
   ReportInterpretationLedgerValidationError,
 } from '../../src/modules/analysis/report-interpretation-ledger.js';
 import { NormalizedMetricObservationStore } from '../../src/modules/analysis/normalized-metric-observation-store.js';
+import {
+  ReportReviewTargetLedgerIntegrityError,
+  ReportReviewTargetLedgerService,
+  ReportReviewTargetLedgerValidationError,
+} from '../../src/modules/analysis/report-review-target-ledger.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
 import { openDatabase } from '../../src/platform/db/index.js';
@@ -476,6 +481,76 @@ test('retains every evidence-bound interpretation run and replays exact evidence
   );
 });
 
+// Test-authoring gate: this case owns A17 retention and verified replay only.
+// A16 owns composition semantics; A10/A13 own their exact source artifacts.
+test('retains an exact unapproved review target and deduplicates canonical retry', async () => {
+  const state = await fixture();
+  const report = await state.service.createVersion(state.request, state.catalogBytes);
+  const interpretation = await interpretationFixture(state, report);
+  const built = buildEvidenceBoundReportInterpretation({
+    request: interpretation.request,
+    output: interpretation.baseOutput,
+    bundle: interpretation.source.bundle,
+    configuration: interpretation.configuration,
+    now: () => new Date('2026-10-01T04:00:00.000Z'),
+    createId: () => '88888888-8888-4888-8888-888888888888',
+  });
+  const interpretations = new ReportInterpretationLedgerService({
+    db: state.db, artifactStore: state.artifacts, reports: interpretation.reports,
+    now: () => new Date('2026-10-01T05:00:00.000Z'),
+  });
+  await interpretations.persist({
+    reportId: report.reportId,
+    reportVersion: report.version,
+    artifactBytes: built.artifactBytes,
+    promptText: interpretation.promptText,
+  });
+  const targets = new ReportReviewTargetLedgerService({
+    db: state.db,
+    artifactStore: state.artifacts,
+    reports: interpretation.reports,
+    interpretations,
+    now: () => new Date('2026-10-01T06:00:00.000Z'),
+  });
+  const request = {
+    contractVersion: '1.0.0',
+    reportId: report.reportId,
+    reportVersion: report.version,
+    interpretationId: built.artifact.interpretationId,
+    intendedUse: 'Internal market-opportunity review and decision support.',
+  } as const;
+  const first = await targets.create(request);
+  assert.equal(first.deduplicated, false);
+  assert.equal(count(state.db, 'analysis_report_review_targets'), 1n);
+  const changesBeforeRetry = (state.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count;
+  const retry = await targets.create(request);
+  assert.deepEqual(retry, { ...first, deduplicated: true, databaseMutations: 0 });
+  assert.equal((state.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count, changesBeforeRetry);
+  const replay = await targets.read(first.reviewTargetId);
+  assert.equal(replay.target.reviewTargetId, first.reviewTargetId);
+  assert.equal(replay.target.report.semanticVersionId, report.semanticVersionId);
+  assert.equal(replay.target.interpretation.interpretationId, built.artifact.interpretationId);
+  assert.equal(replay.target.approvalScope.intendedUse, request.intendedUse);
+  assert.equal(replay.target.reviewableContent.purpose, 'INTERNAL_REVIEW_ONLY');
+  assert.ok(!('decision' in replay.target));
+
+  const secondUse = await targets.create({ ...request, intendedUse: 'Internal report-method review.' });
+  assert.notEqual(secondUse.reviewTargetId, first.reviewTargetId);
+  assert.equal(count(state.db, 'analysis_report_review_targets'), 2n);
+  await assert.rejects(
+    targets.create({ ...request, reviewer: 'owner:khang' }),
+    ReportReviewTargetLedgerValidationError,
+  );
+  assert.throws(
+    () => state.db.prepare('UPDATE analysis_report_review_targets SET intended_use = ? WHERE review_target_id = ?')
+      .run('changed', first.reviewTargetId),
+    /analysis_report_review_target_immutable/,
+  );
+
+  fs.rmSync(state.artifacts.pathForDigest(first.artifactSha256));
+  await assert.rejects(targets.read(first.reviewTargetId), ReportReviewTargetLedgerIntegrityError);
+});
+
 test('read API lists workspace series, verifies explicit history, and serves only exact member bytes', async () => {
   const state = await fixture();
   const created = await state.service.createVersion(state.request, state.catalogBytes);
@@ -683,6 +758,37 @@ test('upgrades an existing v31 database to v32 exactly once', () => {
   const rerun = openDatabase({ databasePath, migrationsDirectory });
   assert.deepEqual(rerun.migration.applied, []);
   assert.equal(rerun.migration.currentVersion, 32);
+  rerun.db.close();
+});
+
+test('upgrades an existing v32 database to v33 exactly once', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-report-review-target-ledger-migration-'));
+  tempRoots.push(directory);
+  const migrationsDirectory = path.join(directory, 'migrations');
+  fs.mkdirSync(migrationsDirectory);
+  const prior = fs.readdirSync('migrations')
+    .filter(name => /^00(?:0[1-9]|[12][0-9]|3[0-2])_/.test(name))
+    .sort();
+  assert.equal(prior.length, 32);
+  for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(migrationsDirectory, name));
+  const databasePath = path.join(directory, 'report.sqlite');
+  const v32 = openDatabase({ databasePath, migrationsDirectory });
+  assert.equal(v32.migration.currentVersion, 32);
+  v32.db.close();
+
+  fs.copyFileSync(
+    'migrations/0033_analysis_report_review_targets.sql',
+    path.join(migrationsDirectory, '0033_analysis_report_review_targets.sql'),
+  );
+  const v33 = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(v33.migration.applied, [33]);
+  assert.equal(v33.migration.currentVersion, 33);
+  assert.equal(count(v33.db, 'analysis_report_review_targets'), 0n);
+  v33.db.close();
+
+  const rerun = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(rerun.migration.applied, []);
+  assert.equal(rerun.migration.currentVersion, 33);
   rerun.db.close();
 });
 
