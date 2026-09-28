@@ -32,7 +32,7 @@ export const PROMPT_TYPES: readonly { readonly key: PromptType; readonly slug: s
 const MODELS: readonly { readonly key: ContentPromptModel; readonly label: string; readonly image: boolean }[] = [
   { key: 'gpt-5.6-sol', label: 'GPT-5.6 Sol', image: false },
   { key: 'gpt-5.6-luna', label: 'GPT-5.6 Luna', image: false },
-  { key: 'gemini-3.5-flash-low', label: 'Gemini 3.5 Flash Low', image: false },
+  { key: 'gemini-3.5-flash-low', label: 'Gemini 3.8 Flash High', image: false },
   { key: 'gpt-image-2', label: 'GPT Image 2', image: true },
   { key: 'gemini-3.1-flash-image', label: 'Gemini 3.1 Flash Image', image: true },
 ];

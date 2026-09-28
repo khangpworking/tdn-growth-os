@@ -18,14 +18,20 @@ void creativeModelMatchesPromptModel;
 export interface CreativeModelRoute {
   readonly kind: 'text' | 'image';
   readonly family: CreativeEndpointFamily;
-  /** Provisional: equals the enum value until Task 053 verifies the ids CLIProxy exposes. */
+  /** The model id sent to CLIProxy; every attempt records the one it was dispatched to. */
   readonly providerModelId: string;
 }
 
-export const CREATIVE_MODEL_ROUTES: Readonly<Record<CreativeModel, CreativeModelRoute>> = Object.freeze({
+export type CreativeModelRoutes = Readonly<Record<CreativeModel, CreativeModelRoute>>;
+
+/** Safe in a URL path segment and matches the 0034 CHECK on `provider_model`. */
+export const PROVIDER_MODEL_ID = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
+
+export const CREATIVE_MODEL_ROUTES: CreativeModelRoutes = Object.freeze({
   'gpt-5.6-sol': Object.freeze({ kind: 'text', family: 'openai-chat', providerModelId: 'gpt-5.6-sol' }),
   'gpt-5.6-luna': Object.freeze({ kind: 'text', family: 'openai-chat', providerModelId: 'gpt-5.6-luna' }),
-  'gemini-3.5-flash-low': Object.freeze({ kind: 'text', family: 'openai-chat', providerModelId: 'gemini-3.5-flash-low' }),
+  // CLIProxy has no gemini-3.5-flash-low; the product id is kept (0025 CHECK) and routed to the owner's pick (2026-09-28).
+  'gemini-3.5-flash-low': Object.freeze({ kind: 'text', family: 'openai-chat', providerModelId: 'gemini-3.8-flash-high' }),
   'gpt-image-2': Object.freeze({ kind: 'image', family: 'openai-image', providerModelId: 'gpt-image-2' }),
   'gemini-3.1-flash-image': Object.freeze({ kind: 'image', family: 'gemini-image', providerModelId: 'gemini-3.1-flash-image' }),
 });
@@ -91,6 +97,8 @@ export interface CreativeModelAvailability { readonly id: CreativeModel; readonl
 
 export interface CreativeAiGateway {
   readonly configured: boolean;
+  /** The route table this gateway dispatches with; `CREATIVE_MODEL_ROUTES` when absent. */
+  readonly routes?: CreativeModelRoutes;
   generateText(request: CreativeTextRequest): Promise<CreativeTextResult>;
   generateImage(request: CreativeImageRequest): Promise<CreativeImageResult>;
   listModels(): Promise<readonly CreativeModelAvailability[]>;
@@ -133,6 +141,33 @@ export class CreativeAiError extends Error {
 
 export function isCreativeModel(value: unknown): value is CreativeModel {
   return typeof value === 'string' && Object.hasOwn(CREATIVE_MODEL_ROUTES, value);
+}
+
+/**
+ * A route table keeps every product model with its kind and endpoint family; only the provider id may
+ * differ from `CREATIVE_MODEL_ROUTES`. Returns a frozen copy.
+ */
+export function assertCreativeModelRoutes(routes: unknown): CreativeModelRoutes {
+  if (typeof routes !== 'object' || routes === null) throw new TypeError('routes must be an object');
+  const record = routes as Record<string, unknown>;
+  if (Object.keys(record).length !== CREATIVE_MODELS.length) throw new TypeError('routes must list exactly the creative models');
+  const copy = {} as Record<CreativeModel, CreativeModelRoute>;
+  for (const model of CREATIVE_MODELS) {
+    const route = record[model] as Partial<CreativeModelRoute> | undefined;
+    const expected = CREATIVE_MODEL_ROUTES[model];
+    if (!Object.hasOwn(record, model) || typeof route !== 'object' || route === null
+      || route.kind !== expected.kind || route.family !== expected.family
+      || typeof route.providerModelId !== 'string' || !PROVIDER_MODEL_ID.test(route.providerModelId)) {
+      throw new TypeError(`route for ${model} is invalid`);
+    }
+    copy[model] = Object.freeze({ kind: expected.kind, family: expected.family, providerModelId: route.providerModelId });
+  }
+  return Object.freeze(copy);
+}
+
+/** The provider model a gateway dispatches `model` to. */
+export function providerModelFor(gateway: Pick<CreativeAiGateway, 'routes'>, model: CreativeModel): string {
+  return (gateway.routes ?? CREATIVE_MODEL_ROUTES)[model].providerModelId;
 }
 
 export function isCreativeAiErrorCode(value: unknown): value is CreativeAiErrorCode {

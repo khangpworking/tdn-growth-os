@@ -6,7 +6,9 @@ import {
   CREATIVE_IMAGE_FORMATS,
   CREATIVE_MODEL_ROUTES,
   CreativeAiError,
+  PROVIDER_MODEL_ID,
   isCreativeModel,
+  providerModelFor,
   type CreativeAiErrorCode,
   type CreativeAiGateway,
   type CreativeImageRequest,
@@ -47,9 +49,10 @@ export interface ContentAiAttemptInput {
   readonly call: ContentAiCall;
 }
 
+/** `providerModel` is the exact CLIProxy model the call was dispatched to, as recorded on the attempt row. */
 export type ContentAiAttemptOutcome =
-  | { readonly attemptId: string; readonly modality: 'text'; readonly result: CreativeTextResult; readonly parsed?: unknown; readonly outputSha256: string }
-  | { readonly attemptId: string; readonly modality: 'image'; readonly result: CreativeImageResult; readonly image: ContentImageInfo; readonly sizeMatchesFormat: boolean; readonly outputSha256: string };
+  | { readonly attemptId: string; readonly modality: 'text'; readonly providerModel: string; readonly result: CreativeTextResult; readonly parsed?: unknown; readonly outputSha256: string }
+  | { readonly attemptId: string; readonly modality: 'image'; readonly providerModel: string; readonly result: CreativeImageResult; readonly image: ContentImageInfo; readonly sizeMatchesFormat: boolean; readonly outputSha256: string };
 
 export type ContentAiAttemptState = 'running' | 'succeeded' | 'failed' | 'interrupted';
 export type ContentAiAttemptErrorCode = CreativeAiErrorCode | 'persist_failed' | 'interrupted_by_restart';
@@ -61,6 +64,8 @@ export interface ContentAiAttemptRecord {
   readonly targetType: string;
   readonly targetId: string;
   readonly model: CreativeModel;
+  /** Exact provider model dispatched to; null only for rows written before migration 0034. */
+  readonly providerModel: string | null;
   readonly promptRef: string;
   readonly inputBundleSha256: string;
   readonly plannedActionCallCount: number;
@@ -98,6 +103,8 @@ export interface ContentAiAttemptService {
   countRunning(): number;
   sweepInterrupted(now: Date): number;
   list(filter: ContentAiAttemptListFilter): readonly ContentAiAttemptRecord[];
+  /** The provider model `run` will record for `model`; bind it into the input bundle before the attempt. */
+  providerModelFor(model: CreativeModel): string;
 }
 
 /** Thrown when an attempt could not be closed; the row stays `running` until the next executor startup sweep. */
@@ -188,6 +195,10 @@ export function createContentAiAttemptService(options: {
   };
 
   return {
+    providerModelFor(model) {
+      if (!isCreativeModel(model)) throw new TypeError('model must be a creative model');
+      return contentAiProviderModel(gateway, model);
+    },
     async run<S, T>(input: ContentAiAttemptInput, steps: ContentAiPersistSteps<S, T>) {
       // 0. Preflight: nothing is written and nothing is called when this fails.
       if (typeof steps !== 'object' || steps === null || typeof steps.persist !== 'function') throw new TypeError('persist must be a function');
@@ -196,19 +207,20 @@ export function createContentAiAttemptService(options: {
       const validateResponse = assertAttemptInput(input, compileResponseSchema);
       // 1. AI disabled: no row.
       if (!gateway.configured) throw new CreativeAiError('ai_not_configured');
+      const providerModel = contentAiProviderModel(gateway, input.call.request.model);
 
-      // 2. Commit the running row before the call.
+      // 2. Commit the running row before the call, with the provider model this gateway dispatches to.
       const attemptId = newId();
       assertContentUuid(attemptId);
       const createdAt = now();
       try {
         db.prepare(`
           INSERT INTO flow_content_ai_attempts(
-            attempt_id, kind, modality, target_type, target_id, model, prompt_ref, input_bundle_sha256,
+            attempt_id, kind, modality, target_type, target_id, model, provider_model, prompt_ref, input_bundle_sha256,
             planned_action_call_count, state, retry_of, actor_id, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'running', ?, ?, ?)
         `).run(
-          attemptId, input.kind, input.call.modality, input.targetType, input.targetId, input.call.request.model,
+          attemptId, input.kind, input.call.modality, input.targetType, input.targetId, input.call.request.model, providerModel,
           input.promptRef, input.inputBundleSha256, input.plannedActionCallCount, input.retryOf ?? null, input.actorId, createdAt,
         );
       } catch (error) {
@@ -251,7 +263,7 @@ export function createContentAiAttemptService(options: {
           if (validateResponse && (!parsedOk || !validateResponse(parsed))) throw new CreativeAiError('schema_mismatch');
           mediaType = parsedOk ? 'application/json' : 'text/plain';
           outcome = {
-            attemptId, modality: 'text', result: textResult, outputSha256: sha256(bytes),
+            attemptId, modality: 'text', providerModel, result: textResult, outputSha256: sha256(bytes),
             ...(validateResponse ? { parsed } : {}),
           };
         } else {
@@ -267,7 +279,7 @@ export function createContentAiAttemptService(options: {
           const format = CREATIVE_IMAGE_FORMATS[input.call.request.format];
           mediaType = sniffed;
           outcome = {
-            attemptId, modality: 'image', result: imageResult, image,
+            attemptId, modality: 'image', providerModel, result: imageResult, image,
             sizeMatchesFormat: image.width === format.width && image.height === format.height,
             outputSha256: sha256(bytes),
           };
@@ -384,6 +396,16 @@ function assertAttemptInput(
   return compile(call.responseSchema);
 }
 
+/**
+ * The provider model `gateway` dispatches `model` to. Callers that bind it into an input bundle use this
+ * before the attempt; the attempt service records the same value on the row.
+ */
+export function contentAiProviderModel(gateway: Pick<CreativeAiGateway, 'routes'>, model: CreativeModel): string {
+  const providerModel = providerModelFor(gateway, model);
+  if (typeof providerModel !== 'string' || !PROVIDER_MODEL_ID.test(providerModel)) throw new TypeError(`provider model for ${model} is invalid`);
+  return providerModel;
+}
+
 function sniffImage(bytes: Buffer): 'image/png' | 'image/jpeg' | undefined {
   if (bytes.length >= 8 && bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
   if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
@@ -413,7 +435,7 @@ function providerRequestId(value: unknown): string | null {
 
 interface AttemptRow {
   attempt_id: string; kind: 'generate' | 'edit'; modality: 'text' | 'image'; target_type: string; target_id: string;
-  model: CreativeModel; prompt_ref: string; input_bundle_sha256: string; output_sha256: string | null;
+  model: CreativeModel; provider_model: string | null; prompt_ref: string; input_bundle_sha256: string; output_sha256: string | null;
   planned_action_call_count: number | bigint; state: ContentAiAttemptState; error_code: ContentAiAttemptErrorCode | null;
   retry_of: string | null; actor_id: string; created_at: string; closed_at: string | null;
   latency_ms: number | bigint | null; provider_request_id: string | null;
@@ -430,6 +452,7 @@ function toRecord(row: AttemptRow): ContentAiAttemptRecord {
     targetType: row.target_type,
     targetId: row.target_id,
     model: row.model,
+    providerModel: row.provider_model,
     promptRef: row.prompt_ref,
     inputBundleSha256: row.input_bundle_sha256,
     plannedActionCallCount: Number(row.planned_action_call_count),

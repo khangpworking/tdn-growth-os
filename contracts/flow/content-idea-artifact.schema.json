@@ -6,7 +6,7 @@
   "additionalProperties": false,
   "required": [
     "contractVersion", "ideaId", "campaignId", "kind", "insightVersion", "requestId", "requestSha256", "prompt", "model",
-    "systemLayer", "lockedInput", "inputBundleSha256", "attemptId", "outputSha256", "output", "createdAt"
+    "providerModel", "systemLayer", "lockedInput", "inputBundleSha256", "attemptId", "outputSha256", "output", "createdAt"
   ],
   "properties": {
     "contractVersion": { "const": "1.0.0" },
@@ -19,6 +19,7 @@
     "requestSha256": { "$ref": "#/$defs/sha256" },
     "prompt": { "$ref": "#/$defs/promptUsed" },
     "model": { "$ref": "content-idea-generate-request.schema.json#/$defs/model" },
+    "providerModel": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
     "systemLayer": {
       "title": "ContentIdeaSystemLayerRef",
       "type": "object",

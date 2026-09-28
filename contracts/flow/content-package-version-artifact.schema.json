@@ -14,6 +14,7 @@
     "requestId": { "type": "string", "format": "uuid" },
     "requestSha256": { "$ref": "#/$defs/sha256" },
     "attemptId": { "type": "string", "format": "uuid" },
+    "providerModel": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
     "inputBundleSha256": { "$ref": "#/$defs/sha256" },
     "outputSha256": { "$ref": "#/$defs/sha256" },
     "restoredFromVersion": { "type": "integer", "minimum": 1, "maximum": 10000 },

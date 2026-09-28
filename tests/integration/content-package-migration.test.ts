@@ -45,10 +45,10 @@ function setup() {
 
   const attempt = (attemptId: string, targetType: string, targetId: string, modality: 'text' | 'image', model: string) => db.prepare(`
     INSERT INTO flow_content_ai_attempts
-      (attempt_id, kind, modality, target_type, target_id, model, prompt_ref, input_bundle_sha256, output_sha256,
+      (attempt_id, kind, modality, target_type, target_id, model, provider_model, prompt_ref, input_bundle_sha256, output_sha256,
        planned_action_call_count, state, error_code, retry_of, actor_id, created_at, closed_at, latency_ms, provider_request_id, input_tokens, output_tokens)
-    VALUES (?, 'generate', ?, ?, ?, ?, 'synthetic:051', ?, NULL, 1, 'running', NULL, NULL, 'owner:synthetic', ?, NULL, NULL, NULL, NULL, NULL)`)
-    .run(attemptId, modality, targetType, targetId, model, sha('f'), at);
+    VALUES (?, 'generate', ?, ?, ?, ?, ?, 'synthetic:051', ?, NULL, 1, 'running', NULL, NULL, 'owner:synthetic', ?, NULL, NULL, NULL, NULL, NULL)`)
+    .run(attemptId, modality, targetType, targetId, model, model, sha('f'), at);
   attempt(uuid(10), 'content_big_idea', bigIdeaId, 'text', 'gpt-5.6-sol');
   db.prepare(`INSERT INTO flow_content_ideas
     (idea_id, campaign_id, kind, parent_idea_id, ordinal, insight_version, request_id, request_sha256, attempt_id, idea_artifact_sha256, created_at)

@@ -1,5 +1,15 @@
 # Trạng thái hiện tại
 
+## Content AI provider model provenance (draft PR #68)
+
+- Product model `gemini-3.5-flash-low` is routed to CLIProxy `gemini-3.8-flash-high`;
+  the route table lives in `CREATIVE_MODEL_ROUTES` and only provider ids may change.
+- Migration 0034 adds `flow_content_ai_attempts.provider_model`: required on every
+  new attempt, immutable, NULL only for rows written before v34.
+- Idea and GENERATED package-version artifacts carry `providerModel`, and it is part
+  of their input-bundle digests. Replay uses the recorded value and requires the
+  attempt row to match, so a later route change cannot reinterpret history.
+
 ## Research A22: deterministic M02 scope and method account (complete, merged PR #79)
 
 - Upgrades the planning catalog to 0.2.0 only for M02 and emits one canonical
