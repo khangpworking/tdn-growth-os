@@ -198,7 +198,7 @@ export async function routeContentPackageOwner(request: IncomingMessage, respons
     if (error instanceof FlowValidationError) return sendPackageError(response, 400, 'bad_request', 'Invalid request');
     if (error instanceof ContentPackageReferenceError) return sendPackageError(response, 400, 'bad_request', 'Invalid package reference');
     if (error instanceof ContentPackageConflictError) return sendPackageError(response, 409, 'conflict', 'Request conflicts with current state');
-    if (error instanceof CreativeAiError && error.code === 'ai_not_configured') return sendPackageError(response, 503, 'ai_unavailable', CREATIVE_AI_ERROR_MESSAGES.ai_not_configured);
+    if (error instanceof CreativeAiError && error.code === 'ai_not_configured') return sendPackageError(response, 503, 'ai_unavailable', CREATIVE_AI_ERROR_MESSAGES.ai_not_configured, 'ai_not_configured');
     if (error instanceof CreativeAiError) return sendPackageError(response, 502, 'ai_failed', CREATIVE_AI_ERROR_MESSAGES[error.code], error.code);
     return sendPackageError(response, 500, 'integrity_error', 'Stored content data failed integrity verification');
   }
