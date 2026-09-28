@@ -47,6 +47,8 @@ export interface IdeasPageProps {
   readonly mode: 'real' | 'demo';
   readonly campaignId: string;
   readonly kind: IdeaKind;
+  /** Angle step opened from one Big Idea's "Tạo góc nội dung" link; never silently replaced by another Big Idea. */
+  readonly requestedParentId?: string | null;
   readonly ownerToken: string | null;
   readonly writesAvailable: boolean;
   /** Demo campaign with its locked Insight, or null when the demo campaign does not exist. */
@@ -130,7 +132,7 @@ export default function IdeasPage(props: IdeasPageProps) {
   const [picked, setPicked] = useState<Readonly<Record<string, number>>>({});
   const [freestyle, setFreestyle] = useState({ on: false, text: '', count: DEFAULT_COUNT, name: '' });
   const [model, setModel] = useState<IdeaModel>('gpt-5.6-luna');
-  const [parentId, setParentId] = useState<string | null>(null);
+  const [parentId, setParentId] = useState<string | null>(props.requestedParentId ?? null);
   const [run, setRun] = useState<RunState | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [savingPrompt, setSavingPrompt] = useState(false);
@@ -141,7 +143,8 @@ export default function IdeasPage(props: IdeasPageProps) {
   const mountedRef = useRef(true);
   const cancelRef = useRef(false);
   const pickedInitRef = useRef(false);
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  // Leaving the page stops a running batch before its next AI call (the in-flight call still finishes server-side).
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; cancelRef.current = true; }; }, []);
   const reload = () => setReloadToken((value) => value + 1);
 
   useEffect(() => {
@@ -172,7 +175,9 @@ export default function IdeasPage(props: IdeasPageProps) {
   const list = loaded.status === 'ready' ? loaded.list : null;
   const options = promptOptions(loaded.status === 'ready' ? loaded.prompts : null, kind);
   const developing = list ? developingBigIdeas(list) : [];
-  const parent = kind === 'ANGLE' ? developing.find((idea) => idea.ideaId === parentId) ?? developing[0] ?? null : null;
+  // An explicitly chosen Big Idea (route or picker) is kept even when it stops developing; only an unchosen page defaults to the first one.
+  const parent = kind !== 'ANGLE' ? null : parentId !== null ? developing.find((idea) => idea.ideaId === parentId) ?? null : developing[0] ?? null;
+  const parentMissing = kind === 'ANGLE' && parentId !== null && parent === null;
 
   useEffect(() => {
     if (pickedInitRef.current || loaded.status !== 'ready') return;
@@ -216,7 +221,7 @@ export default function IdeasPage(props: IdeasPageProps) {
     let demoIdeas = props.demoIdeas;
     setRun({ calls, done, failures: [], active: true, stopped: null, resumeAt: null });
     for (let index = startAt; index < calls.length; index += 1) {
-      if (cancelRef.current) { stopped = `Đã dừng — còn ${calls.length - index} lần gọi chưa chạy.`; break; }
+      if (cancelRef.current || !mountedRef.current) { stopped = `Đã dừng — còn ${calls.length - index} lần gọi chưa chạy.`; break; }
       const call = calls[index]!;
       try {
         if (mode === 'demo') {
@@ -322,6 +327,9 @@ export default function IdeasPage(props: IdeasPageProps) {
     return Object.fromEntries(Object.entries(current).filter(([entry]) => entry !== key));
   });
 
+  /** Q6: Angles hidden only because this Big Idea is deleted; they come back when it is restored. */
+  const hiddenAngles = (idea: IdeaEntry): number => list.ideas.filter((angle) => angle.parentIdeaId === idea.ideaId && angle.hiddenByParent === true).length;
+
   const ideaCard = (idea: IdeaEntry) => {
     const busy = busyId === idea.ideaId || running || !writable;
     return <li key={idea.ideaId} className={`idea-card${idea.deleted ? ' deleted' : ''}${idea.developing ? ' developing' : ''}`}>
@@ -335,12 +343,14 @@ export default function IdeasPage(props: IdeasPageProps) {
       </header>
       {idea.kind === 'BIG_IDEA' ? idea.expression && <p className="idea-expression">{idea.expression}</p> : <p className="idea-expression">{idea.concept}</p>}
       <p className="muted idea-meta">{modelLabel(idea.model)} · {idea.promptLabel} · {formatDateTime(idea.createdAt)}</p>
-      {idea.deleted ? <div className="idea-actions">
-        <span className="muted">Đã xóa{idea.restorableUntil ? ` · khôi phục được đến ${formatDate(idea.restorableUntil)}` : ''}</span>
+      {idea.hiddenByParent ? <div className="idea-actions">
+        <span className="muted">Ẩn vì Big Idea đã bị xóa — khôi phục Big Idea để hiện lại{idea.restorableUntil ? ` (đến ${formatDate(idea.restorableUntil)})` : ''}</span>
+      </div> : idea.deleted ? <div className="idea-actions">
+        <span className="muted">Đã xóa{idea.restorableUntil ? ` · khôi phục được đến ${formatDate(idea.restorableUntil)}` : ''}{idea.kind === 'BIG_IDEA' && hiddenAngles(idea) > 0 ? ` · ${hiddenAngles(idea)} góc nội dung sẽ hiện lại khi khôi phục` : ''}</span>
         <button className="button" type="button" disabled={busy} onClick={() => void changeState(idea, 'RESTORE')}>Khôi phục</button>
       </div> : idea.kind === 'BIG_IDEA' ? <div className="idea-actions">
         {idea.developing
-          ? <><span className="status-pill good">Đang phát triển</span><button className="button" type="button" disabled={busy} onClick={() => void changeState(idea, 'STOP')}>Ngừng phát triển</button><a className="button" href={routeToHash.campaignAngle(campaignId)}>Tạo góc nội dung</a></>
+          ? <><span className="status-pill good">Đang phát triển</span><button className="button" type="button" disabled={busy} onClick={() => void changeState(idea, 'STOP')}>Ngừng phát triển</button><a className="button" href={routeToHash.campaignAngle(campaignId, idea.ideaId)}>Tạo góc nội dung</a></>
           : <button className="button primary" type="button" disabled={busy} onClick={() => void changeState(idea, 'DEVELOP')}>Phát triển ý này</button>}
       </div> : <div className="idea-purposes">
         <ul className="chip-list" aria-label="Mục đích">{idea.purposes.map((value) => <li key={value} className={`purpose-chip purpose-${(purposeDisplayKind(value, list.purposeTags) ?? 'EDUCATION').toLowerCase()}`}>{purposeLabel(value, list.purposeTags)}</li>)}</ul>
@@ -369,7 +379,8 @@ export default function IdeasPage(props: IdeasPageProps) {
     {list.campaignDeleted && <div className="deleted-banner" role="status"><p>Chiến dịch đã bị xóa. Khôi phục chiến dịch để tiếp tục.</p><a className="button" href={routeToHash.campaign(campaignId)}>Mở chiến dịch</a></div>}
     {!list.insightLocked && !list.campaignDeleted && <div className="snapshot-warning" role="status"><p>Cần khóa Insight trước khi tạo ý tưởng.</p><a className="button" href={routeToHash.campaignInsight(campaignId)}>Mở Insight</a></div>}
     {kind === 'ANGLE' && list.insightLocked && developing.length === 0 && <div className="snapshot-warning" role="status"><p>Chưa có Big Idea nào đang phát triển. Chọn “Phát triển ý này” ở bước Big Idea.</p><a className="button" href={routeToHash.campaignBigIdea(campaignId)}>Mở Big Idea</a></div>}
-    {kind === 'ANGLE' && developing.length > 0 && <label className="field idea-parent" htmlFor="idea-parent">Big Idea đang phát triển<select id="idea-parent" className="search" value={parent?.ideaId ?? ''} disabled={running} onChange={(event) => setParentId(event.target.value)}>{developing.map((idea) => <option key={idea.ideaId} value={idea.ideaId}>{idea.code} · {idea.concept}</option>)}</select></label>}
+    {parentMissing && list.insightLocked && developing.length > 0 && <div className="snapshot-warning" role="alert"><p>Big Idea đã chọn không còn đang phát triển (đã ngừng, bị xóa hoặc không thuộc chiến dịch này). Chọn Big Idea khác để tiếp tục.</p><a className="button" href={routeToHash.campaignBigIdea(campaignId)}>Mở Big Idea</a></div>}
+    {kind === 'ANGLE' && developing.length > 0 && <label className="field idea-parent" htmlFor="idea-parent">Big Idea đang phát triển<select id="idea-parent" className="search" value={parent?.ideaId ?? ''} disabled={running} onChange={(event) => setParentId(event.target.value)}>{!parent && <option value="" disabled>Chọn Big Idea…</option>}{developing.map((idea) => <option key={idea.ideaId} value={idea.ideaId}>{idea.code} · {idea.concept}</option>)}</select></label>}
 
     {list.insightLocked && !list.campaignDeleted && (kind === 'BIG_IDEA' || parent) && <form className="brand-form idea-run" onSubmit={startRun} noValidate>
       <header className="brand-form-head"><div><h2>Tạo {kind === 'BIG_IDEA' ? 'Big Idea' : `góc cho ${parent?.code ?? ''}`}</h2><p className="muted">Insight v{list.insightVersion} · mỗi ý là một lần gọi AI.</p></div></header>

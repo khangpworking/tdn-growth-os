@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
 import type { ContentIdeaArtifact, ContentIdeaOutput, ContentIdeaPromptUsed } from '../../../contracts/flow/content-idea-artifact.generated.js';
 import type { ContentIdeaGenerateRequest, ContentIdeaKind } from '../../../contracts/flow/content-idea-generate-request.generated.js';
@@ -7,6 +7,7 @@ import type { ContentPurposeKind } from '../../../contracts/flow/content-purpose
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../platform/artifacts/index.js';
 import type { ContentAiAttemptService } from './content-ai-attempt-service.js';
 import {
+  assertContentManifest,
   assertContentUuid,
   canonicalBytes,
   canonicalDigest,
@@ -86,6 +87,11 @@ export interface ContentIdeaState {
   readonly expired: boolean;
 }
 
+/** Own state plus deletion inherited from the parent Big Idea (Q6: derived, no cascade rows). */
+export interface ContentIdeaEffectiveState extends ContentIdeaState {
+  readonly hiddenBy?: { readonly ideaId: string; readonly deletedAt: string; readonly restorableUntil: string };
+}
+
 export interface ContentIdeaStateExecution {
   readonly ideaId: string;
   readonly sequence: number;
@@ -115,6 +121,8 @@ export interface ContentIdeaListEntry {
   readonly developing: boolean;
   readonly deleted: boolean;
   readonly restorableUntil?: string;
+  /** Angle hidden because its Big Idea is deleted; it comes back when that Big Idea is restored. */
+  readonly hiddenByParent?: true;
   readonly stateSequence: number;
   readonly purposes: readonly string[];
   readonly model: ContentIdeaGenerateRequest['model'];
@@ -195,6 +203,11 @@ export class ContentIdeaService {
   /**
    * Generates one Big Idea or Angle. The same request id returns the committed idea (exact retry);
    * a request id already running is refused. No database lock is held during the AI call.
+   *
+   * Recovery: the idea id is derived from the request id, so every dispatch for a request is an attempt on
+   * the same ledger target. Before dispatching, a running attempt for that target refuses the call (durable,
+   * unlike the in-process guard), and a failed or interrupted one (e.g. closed by restart recovery) is
+   * chained as `retry_of`; a request id reused with a different input bundle is refused.
    */
   async generate(untrustedInput: unknown, actorId: string): Promise<ContentIdeaExecution> {
     const input = canonicalSnapshot(validateContentIdeaGenerateRequest(untrustedInput));
@@ -218,8 +231,8 @@ export class ContentIdeaService {
     const layer = this.#library.layer(input.kind);
     const userInput = `LOCKED_INPUT_JSON:\n${canonicalBytes(prepared.lockedInput).toString('utf8')}`;
     const inputBundleSha256 = inputBundleDigest(input.kind, layer, prepared.prompt.creativeTextSha256, input.model, userInput);
-    const ideaId = this.#newId();
-    assertContentUuid(ideaId);
+    const ideaId = contentIdeaIdFor(input.requestId);
+    const retryOf = this.#priorAttempt(ideaId, inputBundleSha256);
 
     const { persisted } = await this.#attempts.run<{ stored: StoredArtifact; createdAt: string }, ContentIdeaExecution>({
       kind: 'generate',
@@ -228,6 +241,7 @@ export class ContentIdeaService {
       promptRef: prepared.promptRef,
       inputBundleSha256,
       plannedActionCallCount: input.plannedCallCount,
+      ...(retryOf !== undefined ? { retryOf } : {}),
       actorId,
       call: {
         modality: 'text',
@@ -266,6 +280,19 @@ export class ContentIdeaService {
     return persisted;
   }
 
+  /** The latest earlier attempt for this request's target, to chain as retry_of; refuses a running or mismatched one. */
+  #priorAttempt(ideaId: string, inputBundleSha256: string): string | undefined {
+    const prior = this.#attempts.list({ targetId: ideaId, limit: 200 });
+    if (prior.length === 0) return undefined;
+    if (prior.some((attempt) => attempt.state === 'running')) throw new ContentIdeaConflictError('This generation request is already running');
+    if (prior.some((attempt) => attempt.state === 'succeeded')) throw new ContentIdeaIntegrityError('Generation request has a succeeded attempt but no committed idea');
+    const retried = new Set(prior.map((attempt) => attempt.retryOf));
+    const heads = prior.filter((attempt) => !retried.has(attempt.attemptId));
+    if (heads.length !== 1) throw new ContentIdeaIntegrityError('Generation request attempts do not form one retry chain');
+    if (heads[0]!.inputBundleSha256 !== inputBundleSha256) throw new ContentIdeaConflictError('Request id was reused with a different input; start a new request');
+    return heads[0]!.attemptId;
+  }
+
   async readIdea(ideaId: string): Promise<ContentIdeaArtifact> {
     assertId(ideaId);
     const row = this.#idea(ideaId);
@@ -275,15 +302,19 @@ export class ContentIdeaService {
 
   ideaExists(ideaId: string): boolean { return isUuid(ideaId) && this.#idea(ideaId) !== undefined; }
 
-  /** Ideas of one campaign in code order; expired deletions are left out, restorable ones are flagged. */
+  /**
+   * Ideas of one campaign in code order; expired deletions are left out, restorable ones are flagged.
+   * Angles of a deleted Big Idea are flagged hiddenByParent and share the earliest applicable restore deadline.
+   */
   async listCampaignIdeas(campaignId: string): Promise<ContentIdeaListEntry[]> {
     assertId(campaignId);
     const rows = this.#ideaRows('campaign_id = ?', campaignId);
     const bigIdeaOrdinals = new Map(rows.filter((row) => row.kind === 'BIG_IDEA').map((row) => [row.ideaId, row.ordinal]));
     const entries: { sort: readonly [number, number]; entry: ContentIdeaListEntry }[] = [];
     for (const row of rows) {
-      const state = this.stateOf(row.ideaId);
+      const state = this.effectiveStateOf(row.ideaId);
       if (state.expired) continue;
+      const deadlines = [state.deleted?.restorableUntil, state.hiddenBy?.restorableUntil].filter((value): value is string => value !== undefined).sort();
       const artifact = await this.#verifiedArtifact(row);
       const code = this.#code(row.kind, row.ordinal, row.parentIdeaId);
       const output = artifact.output;
@@ -293,8 +324,9 @@ export class ContentIdeaService {
           ideaId: row.ideaId, kind: row.kind, ...(row.parentIdeaId !== null ? { parentIdeaId: row.parentIdeaId } : {}), code,
           concept: output.concept,
           ...('expression' in output ? { expression: output.expression } : { name: output.name }),
-          developing: state.developing, deleted: state.deleted !== undefined,
-          ...(state.deleted ? { restorableUntil: state.deleted.restorableUntil } : {}),
+          developing: state.developing, deleted: deadlines.length > 0,
+          ...(deadlines.length > 0 ? { restorableUntil: deadlines[0]! } : {}),
+          ...(state.hiddenBy ? { hiddenByParent: true as const } : {}),
           stateSequence: state.sequence, purposes: state.purposes, model: artifact.model, promptLabel: artifact.prompt.name, createdAt: row.createdAt,
         },
       });
@@ -308,6 +340,19 @@ export class ContentIdeaService {
     if (!last.deleted) return { sequence: last.sequence, developing: last.developing, purposes: last.purposes, expired: false };
     const restorableUntil = restoreDeadline(last.createdAt);
     return { sequence: last.sequence, developing: false, purposes: last.purposes, deleted: { deletedAt: last.createdAt, restorableUntil }, expired: this.#now().getTime() > Date.parse(restorableUntil) };
+  }
+
+  /**
+   * Q6: an Angle is effectively deleted while its Big Idea is deleted. Restoring the Big Idea reveals only the
+   * Angles hidden solely by it; an Angle deleted on its own stays deleted. Expiry honours the earliest deadline.
+   */
+  effectiveStateOf(ideaId: string): ContentIdeaEffectiveState {
+    const own = this.stateOf(ideaId);
+    const parentId = this.#idea(ideaId)?.parentIdeaId ?? null;
+    if (parentId === null) return own;
+    const parent = this.stateOf(parentId);
+    if (!parent.deleted) return own;
+    return { ...own, developing: false, hiddenBy: { ideaId: parentId, ...parent.deleted }, expired: own.expired || parent.expired };
   }
 
   /** OWNER develop/stop/delete/restore/purposes on one idea, pinned to the state sequence the caller saw. */
@@ -332,6 +377,7 @@ export class ContentIdeaService {
       const state = this.stateOf(input.ideaId);
       if (state.sequence !== input.expectedSequence) throw new ContentIdeaConflictError('Idea state sequence drift');
       if (this.#campaigns.lifecycleState(idea.campaignId).deleted) throw new ContentIdeaConflictError('Campaign is deleted and its ideas cannot change');
+      if (idea.parentIdeaId !== null && this.stateOf(idea.parentIdeaId).deleted) throw new ContentIdeaConflictError('Parent Big Idea is deleted; restore it first');
       const next = nextState(input.action, state, input.purposes);
       const createdAt = this.#now().toISOString();
       const last = this.#lastState(input.ideaId);
@@ -466,7 +512,20 @@ export class ContentIdeaService {
       !attempt || attempt.state !== 'succeeded' || attempt.outputSha256 !== artifact.outputSha256 || attempt.inputBundleSha256 !== artifact.inputBundleSha256 || attempt.model !== artifact.model
     ) throw new ContentIdeaIntegrityError('Idea artifact does not match immutable metadata');
     try { ideaOutput(artifact.kind, artifact.output); } catch { throw new ContentIdeaIntegrityError('Idea artifact output breaks the idea rules'); }
+    await this.#assertOriginalOutput(artifact);
     return artifact;
+  }
+
+  /** The provider's original output bytes are still stored, registered, and say exactly what the idea artifact embeds. */
+  async #assertOriginalOutput(artifact: ContentIdeaArtifact): Promise<void> {
+    let original: unknown;
+    try {
+      const bytes = await this.#artifacts.read(artifact.outputSha256);
+      if (sha256(bytes) !== artifact.outputSha256) throw new Error('digest');
+      assertContentManifest(this.#db, artifact.outputSha256, bytes.byteLength, 'application/json');
+      original = ideaOutput(artifact.kind, JSON.parse(bytes.toString('utf8')));
+    } catch { throw new ContentIdeaIntegrityError('Original AI output failed verification'); }
+    if (canonicalDigest(original) !== canonicalDigest(artifact.output)) throw new ContentIdeaIntegrityError('Idea artifact output differs from the original AI output');
   }
 
   async #generateRetry(requestSha256: string, row: IdeaRow): Promise<ContentIdeaExecution> {
@@ -520,6 +579,13 @@ export class ContentIdeaService {
   #tagByKey(labelKey: string): ContentPurposeTag | undefined {
     return this.#db.prepare('SELECT tag_id tagId, label, display_like displayLike, created_at createdAt FROM flow_content_purpose_tags WHERE label_key = ?').get(labelKey) as ContentPurposeTag | undefined;
   }
+}
+
+/** Idea id bound to its request id (UUID v8 layout over SHA-256), so a request's attempts share one ledger target across restarts. */
+export function contentIdeaIdFor(requestId: string): string {
+  const hex = createHash('sha256').update(`tdn-growth-os/content-idea/${requestId}`).digest('hex');
+  const variant = ((Number.parseInt(hex[16]!, 16) & 0x3) | 0x8).toString(16);
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-8${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
 /** A, B, …, Z, AA, AB, … (bijective base 26). */
