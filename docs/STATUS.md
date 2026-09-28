@@ -1,9 +1,20 @@
 # Trạng thái hiện tại
 
-## Research A13: immutable report interpretation ledger
+## Research A14: exact-version interpretation read API
 
-- Draft PR #70 is open on `feature/research-a13-interpretation-ledger`; exact
-  head Linux check and report preview pass.
+- In implementation on `feature/research-a14-interpretation-read-api`.
+- Adds list/detail read routes for saved A13 interpretations under one explicit
+  report ID and version; no route infers the latest report or interpretation.
+- Returns only safe generation identity and user-visible evidence-bound content;
+  prompt material, provider request data, usage telemetry and storage metadata
+  stay private.
+- Adds no report write, model call, human decision, UI, migration, methodology,
+  provider collection or deployment.
+
+## Research A13: immutable report interpretation ledger (merged)
+
+- Merged through PR #70 at `b6d2c1e`; exact-head Linux check and report preview
+  passed.
 - Retains every validated A8 interpretation against one explicit A10 report
   version; different model runs never overwrite each other.
 - Replays exact report evidence, prompt bytes, model/configuration, safe
