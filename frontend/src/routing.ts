@@ -12,7 +12,7 @@ export type Route =
   | { readonly kind: 'campaign-new' }
   | { readonly kind: 'campaign'; readonly campaignId: string }
   | { readonly kind: 'campaign-insight'; readonly campaignId: string }
-  | { readonly kind: 'campaign-ideas'; readonly campaignId: string; readonly ideaKind: 'BIG_IDEA' | 'ANGLE' }
+  | { readonly kind: 'campaign-ideas'; readonly campaignId: string; readonly ideaKind: 'BIG_IDEA' | 'ANGLE'; readonly parentIdeaId?: string }
   | { readonly kind: 'package-new'; readonly campaignId: string; readonly angleCodes: readonly string[] }
   | { readonly kind: 'package'; readonly campaignId: string; readonly code: string }
   | { readonly kind: 'prompts'; readonly promptType: PromptType; readonly promptRef: string | null }
@@ -62,6 +62,10 @@ export function parseRoute(hash: string, state: DemoState): Route {
   if (parts.length === 3 && parts[0] === 'content' && (parts[2] === 'big-idea' || parts[2] === 'angle')) {
     return UUID.test(parts[1]!) ? { kind: 'campaign-ideas', campaignId: parts[1]!, ideaKind: parts[2] === 'big-idea' ? 'BIG_IDEA' : 'ANGLE' } : { kind: 'invalid', hash };
   }
+  // The Angle step opened for one specific Big Idea ("Tạo góc nội dung" on that Big Idea).
+  if (parts.length === 4 && parts[0] === 'content' && parts[2] === 'angle') {
+    return UUID.test(parts[1]!) && UUID.test(parts[3]!) ? { kind: 'campaign-ideas', campaignId: parts[1]!, ideaKind: 'ANGLE', parentIdeaId: parts[3]! } : { kind: 'invalid', hash };
+  }
   if (parts[0] === 'prompts' && parts.length <= 3) {
     const promptType = parts.length === 1 ? 'BIG_IDEA' : typeBySlug(parts[1]!);
     const promptRef = parts[2] ?? null;
@@ -97,7 +101,7 @@ export const routeToHash = {
   campaign: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}`,
   campaignInsight: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/insight`,
   campaignBigIdea: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/big-idea`,
-  campaignAngle: (campaignId: string): string => `#/content/${encodeURIComponent(campaignId)}/angle`,
+  campaignAngle: (campaignId: string, bigIdeaId?: string): string => `#/content/${encodeURIComponent(campaignId)}/angle${bigIdeaId ? `/${encodeURIComponent(bigIdeaId)}` : ''}`,
   packageNew: (campaignId: string, angleCodes: readonly string[]): string => `#/content/${encodeURIComponent(campaignId)}/package/new${angleCodes.length ? `?angles=${angleCodes.join(',')}` : ''}`,
   package: (campaignId: string, code: string): string => `#/content/${encodeURIComponent(campaignId)}/package/${encodeURIComponent(code)}`,
   prompts: (promptType: PromptType): string => `#/prompts/${slugOf(promptType)}`,

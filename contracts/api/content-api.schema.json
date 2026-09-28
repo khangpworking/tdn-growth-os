@@ -535,6 +535,7 @@
         "developing": { "type": "boolean" },
         "deleted": { "type": "boolean" },
         "restorableUntil": { "$ref": "#/$defs/dateTime" },
+        "hiddenByParent": { "const": true },
         "stateSequence": { "type": "integer", "minimum": 0 },
         "purposes": { "$ref": "../flow/content-idea-state-request.schema.json#/$defs/purposes" },
         "model": { "$ref": "../flow/content-idea-generate-request.schema.json#/$defs/model" },

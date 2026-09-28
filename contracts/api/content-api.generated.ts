@@ -657,6 +657,7 @@ export interface ContentIdeaListEntry {
   developing: boolean;
   deleted: boolean;
   restorableUntil?: DateTime;
+  hiddenByParent?: true;
   stateSequence: number;
   purposes: ContentIdeaPurposes;
   model: ContentIdeaModel;

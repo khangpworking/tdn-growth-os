@@ -65,7 +65,7 @@ export function purposeDisplayKind(value: string, tags: readonly PurposeTag[]): 
 
 function entryOk(value: unknown): boolean {
   if (!record(value) || !isKind(value.kind)) return false;
-  const optional = (['parentIdeaId', 'restorableUntil'] as const).filter((key) => key in value);
+  const optional = (['hiddenByParent', 'parentIdeaId', 'restorableUntil'] as const).filter((key) => key in value);
   const own = value.kind === 'BIG_IDEA' ? 'expression' : 'name';
   if (!exactKeys(value, ['code', 'concept', 'createdAt', 'deleted', 'developing', 'ideaId', 'kind', 'model', 'promptLabel', 'purposes', 'stateSequence', own, ...optional])) return false;
   const purposes = value.purposes;
@@ -74,6 +74,7 @@ function entryOk(value: unknown): boolean {
     && typeof value.promptLabel === 'string' && dateTime(value.createdAt)
     && (value.kind === 'BIG_IDEA' ? !('parentIdeaId' in value) : uuid(value.parentIdeaId))
     && (value.deleted ? dateTime(value.restorableUntil) && value.developing === false : !('restorableUntil' in value))
+    && (!('hiddenByParent' in value) || (value.hiddenByParent === true && value.kind === 'ANGLE' && value.deleted === true))
     && Array.isArray(purposes) && purposes.length <= MAX_PURPOSES && new Set(purposes).size === purposes.length
     && purposes.every((purpose) => typeof purpose === 'string' && PURPOSE.test(purpose))
     && (value.kind === 'ANGLE' || purposes.length === 0);
@@ -316,12 +317,18 @@ export function demoIdeaList(ideas: readonly DemoIdea[], tags: readonly PurposeT
     campaignDeleted: campaign.deleted,
     insightLocked: campaign.insightVersion !== undefined,
     ...(campaign.insightVersion !== undefined ? { insightVersion: campaign.insightVersion } : {}),
-    ideas: sorted.map((idea): IdeaEntry => ({
-      ideaId: idea.ideaId, kind: idea.kind, ...(idea.parentIdeaId ? { parentIdeaId: idea.parentIdeaId } : {}), code: demoCode(ideas, idea), concept: idea.concept,
-      ...(idea.kind === 'BIG_IDEA' ? { expression: idea.expression ?? '' } : { name: idea.name ?? '' }),
-      developing: idea.developing, deleted: idea.deleted !== undefined, ...(idea.deleted ? { restorableUntil: idea.deleted.restorableUntil } : {}),
-      stateSequence: idea.sequence, purposes: [...idea.purposes] as IdeaEntry['purposes'], model: idea.model, promptLabel: idea.promptLabel, createdAt: idea.createdAt,
-    })),
+    ideas: sorted.map((idea): IdeaEntry => {
+      // Q6: an Angle under a deleted Big Idea is hidden by it (no row of its own); the earliest deadline wins.
+      const hiddenBy = idea.kind === 'ANGLE' ? own.find((parent) => parent.ideaId === idea.parentIdeaId)?.deleted : undefined;
+      const deadlines = [idea.deleted?.restorableUntil, hiddenBy?.restorableUntil].filter((at): at is string => at !== undefined).sort();
+      return {
+        ideaId: idea.ideaId, kind: idea.kind, ...(idea.parentIdeaId ? { parentIdeaId: idea.parentIdeaId } : {}), code: demoCode(ideas, idea), concept: idea.concept,
+        ...(idea.kind === 'BIG_IDEA' ? { expression: idea.expression ?? '' } : { name: idea.name ?? '' }),
+        developing: idea.developing && hiddenBy === undefined, deleted: deadlines.length > 0, ...(deadlines.length > 0 ? { restorableUntil: deadlines[0]! } : {}),
+        ...(hiddenBy !== undefined ? { hiddenByParent: true as const } : {}),
+        stateSequence: idea.sequence, purposes: [...idea.purposes] as IdeaEntry['purposes'], model: idea.model, promptLabel: idea.promptLabel, createdAt: idea.createdAt,
+      };
+    }),
     purposeTags: [...tags],
   };
 }
@@ -358,6 +365,7 @@ export function changeDemoIdeaState(ideas: readonly DemoIdea[], input: { readonl
   return ideas.map((idea) => {
     if (idea.ideaId !== input.ideaId) return idea;
     if (idea.sequence !== input.expectedSequence || expired(idea, now)) throw new Error('Demo idea state conflict');
+    if (idea.parentIdeaId !== undefined && ideas.find((parent) => parent.ideaId === idea.parentIdeaId)?.deleted !== undefined) throw new Error('Demo idea state conflict');
     const deleted = idea.deleted !== undefined;
     const sequence = idea.sequence + 1;
     switch (input.action) {
