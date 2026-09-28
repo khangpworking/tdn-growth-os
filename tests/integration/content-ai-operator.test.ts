@@ -70,7 +70,7 @@ test('an operator database one migration behind fails before serving and writes 
   const priorHead = Number(prior.at(-1)!.slice(0, 4));
   for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(directory, name));
   const state = fixture(false, directory);
-  assert.throws(() => openOperatorApp(state.configuration), new RegExp(`^Database schema is at v${priorHead}; apply migrations up to v${head} before starting$`));
+  assert.throws(() => openOperatorApp(state.configuration), { message: new RegExp(`^Database schema is at v${priorHead}; apply migrations up to v${head} before starting$`) });
   assert.equal(fs.existsSync(`${state.databasePath}.executor.lock`), false);
   const db = new BetterSqlite3(state.databasePath); assert.equal((db.prepare("SELECT count(*) count FROM sqlite_master WHERE name='flow_content_ai_attempts'").get() as { count: number }).count, 0); db.close();
 });
