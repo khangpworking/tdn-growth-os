@@ -682,9 +682,7 @@ export class ContentPackageService {
     if (!row || !versionRow || this.stateOf(packageId).expired) throw new FlowValidationError(`Poster not found: ${packageId}@${version}`);
     const { pin } = await this.#verifiedPackage(row);
     const poster = (await this.#verifiedVersion(versionRow, pin)).poster!;
-    const bytes = await this.#artifacts.read(poster.imageSha256);
-    if (sha256(bytes) !== poster.imageSha256) throw new ContentPackageIntegrityError('Poster image digest mismatch');
-    assertContentManifest(this.#db, poster.imageSha256, bytes.byteLength, poster.mediaType);
+    const bytes = await this.#pinnedBytes(poster.imageSha256, poster.mediaType, 'Poster image');
     return { bytes, mediaType: poster.mediaType };
   }
 
@@ -825,8 +823,31 @@ export class ContentPackageService {
   // ---------------------------------------------------------------------------------------------
   // Verification (fail closed).
 
+  /** Reads and validates a pinned JSON artifact; any failure (missing, tampered, off-contract) is an integrity failure. */
+  async #pinnedArtifact<T>(digest: string, validate: (value: unknown) => T, what: string): Promise<T> {
+    try {
+      return validate(await readCanonicalJsonArtifact(this.#db, this.#artifacts, digest));
+    } catch (error) {
+      if (error instanceof ContentPackageIntegrityError) throw error;
+      throw new ContentPackageIntegrityError(`${what} artifact failed verification`);
+    }
+  }
+
+  /** Reads stored bytes checked against their digest and manifest; any failure is an integrity failure. */
+  async #pinnedBytes(digest: string, mediaType: string, what: string) {
+    try {
+      const bytes = await this.#artifacts.read(digest);
+      if (sha256(bytes) !== digest) throw new ContentPackageIntegrityError(`${what} digest mismatch`);
+      assertContentManifest(this.#db, digest, bytes.byteLength, mediaType);
+      return bytes;
+    } catch (error) {
+      if (error instanceof ContentPackageIntegrityError) throw error;
+      throw new ContentPackageIntegrityError(`${what} failed verification`);
+    }
+  }
+
   async #verifiedPackage(row: PackageRow): Promise<{ pin: ContentPackageArtifact; brand: ContentBrandArtifact }> {
-    const pin = validateContentPackageArtifact(await readCanonicalJsonArtifact(this.#db, this.#artifacts, row.artifactSha256));
+    const pin = await this.#pinnedArtifact(row.artifactSha256, validateContentPackageArtifact, 'Package');
     if (
       pin.packageId !== row.packageId || pin.campaignId !== row.campaignId || pin.angleId !== row.angleId ||
       pin.requestId !== row.requestId || pin.requestSha256 !== row.requestSha256 || pin.createdAt !== row.createdAt ||
@@ -839,7 +860,7 @@ export class ContentPackageService {
   }
 
   async #verifiedVersion(row: VersionRow, knownPin?: ContentPackageArtifact): Promise<ContentPackageVersionArtifact> {
-    const artifact = validateContentPackageVersionArtifact(await readCanonicalJsonArtifact(this.#db, this.#artifacts, row.artifactSha256));
+    const artifact = await this.#pinnedArtifact(row.artifactSha256, validateContentPackageVersionArtifact, 'Package version');
     const fail = (): never => { throw new ContentPackageIntegrityError('Package version does not match immutable metadata'); };
     if (
       artifact.packageId !== row.packageId || artifact.part !== row.part || artifact.version !== row.version || artifact.source !== row.source ||
@@ -862,8 +883,7 @@ export class ContentPackageService {
         if (caption.lockedInput === undefined) fail();
         const layer = this.#library.layer('CAPTION');
         if (captionBundleDigest(layer, pin.caption.prompt.creativeTextSha256, pin.caption.model, lockedUserInput(caption.lockedInput!)) !== artifact.inputBundleSha256) fail();
-        const output = await this.#artifacts.read(artifact.outputSha256!);
-        assertContentManifest(this.#db, artifact.outputSha256!, output.byteLength, 'application/json');
+        const output = await this.#pinnedBytes(artifact.outputSha256!, 'application/json', 'Caption output');
         let post: string;
         try { post = captionPost(JSON.parse(output.toString('utf8'))); } catch { return fail(); }
         if (post !== caption.post) fail();

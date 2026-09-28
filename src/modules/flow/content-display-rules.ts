@@ -56,8 +56,13 @@ export function resolveBrandLevels(rules: ContentBrandArtifact['displayRules'], 
   return levels;
 }
 
+function assertKnownElements(override: object | undefined, allowed: readonly string[]): void {
+  for (const key of Object.keys(override ?? {})) if (!allowed.includes(key)) throw new ContentDisplayRuleError(`Unknown display element: ${key}`);
+}
+
 /** Caption levels: the row override replaces the resolved level element by element. */
 export function resolveCaptionDisplay(levels: ContentBrandLevels, override?: ContentCaptionDisplayOverride): ContentCaptionDisplay {
+  assertKnownElements(override, CAPTION_ELEMENTS);
   const display = {} as Record<(typeof CAPTION_ELEMENTS)[number], ContentBrandVisibility>;
   for (const element of CAPTION_ELEMENTS) display[element] = override?.[element] ?? levels[element];
   return display;
@@ -68,6 +73,7 @@ export function resolveCaptionDisplay(levels: ContentBrandLevels, override?: Con
  * contact; Ẩn off. `includeLogo: false` turns the logo default off. The override is final.
  */
 export function resolvePosterDisplay(levels: ContentBrandLevels, includeLogo: boolean, override?: ContentPosterDisplayOverride): ContentPosterDisplay {
+  assertKnownElements(override, BRAND_ELEMENTS);
   const display = {} as Record<ContentBrandElement, boolean>;
   for (const element of BRAND_ELEMENTS) {
     const level = levels[element];
