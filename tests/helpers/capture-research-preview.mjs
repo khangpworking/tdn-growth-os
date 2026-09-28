@@ -22,6 +22,23 @@ const downloadEvents = [];
 browser.stderr.on('data', chunk => { stderr = (stderr + chunk).slice(-4000); });
 browser.on('error', error => { launchError = error; });
 const pause = milliseconds => new Promise(resolve => setTimeout(resolve, milliseconds));
+const waitForBrowserClose = timeout => new Promise(resolve => {
+  if (browser.exitCode !== null) { resolve(true); return; }
+  let settled = false;
+  let timer;
+  const finish = result => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timer);
+    browser.off('close', closed);
+    resolve(result);
+  };
+  const closed = () => finish(true);
+  browser.once('close', closed);
+  // Close can land between the initial state check and listener registration.
+  if (browser.exitCode !== null) { finish(true); return; }
+  timer = setTimeout(() => finish(false), timeout);
+});
 const call = (method, params = {}) => new Promise((resolve, reject) => {
   const id = ++nextId;
   const timeout = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, 15000);
@@ -236,8 +253,12 @@ try {
 } finally {
   socket?.close();
   for (const item of pending.values()) clearTimeout(item.timeout);
-  browser.kill('SIGTERM');
-  for (let i = 0; i < 40 && browser.exitCode === null && browser.signalCode === null; i++) await pause(100);
-  if (browser.exitCode === null && browser.signalCode === null) { browser.kill('SIGKILL'); await pause(200); }
-  await fs.rm(profile, { recursive: true, force: true });
+  if (browser.exitCode === null) browser.kill('SIGTERM');
+  if (!await waitForBrowserClose(4_000)) {
+    browser.kill('SIGKILL');
+    await waitForBrowserClose(2_000);
+  }
+  // Chrome may finish removing profile files immediately after its process
+  // closes. fs.rm retries only that request-owned temporary directory.
+  await fs.rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
 }
