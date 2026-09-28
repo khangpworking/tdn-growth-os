@@ -71,6 +71,7 @@ function SectionCard({ section }: { readonly section: ReportSectionReadinessEntr
       <List title="Lý do fallback" values={section.fallbackReasons} empty="Catalog chưa khai báo lý do fallback." code />
       <List title="Claim đã tạo" values={section.claimIds} empty="Chưa có claim định lượng." code />
       <List title="Evidence pointer" values={section.contextPointers} empty="Chưa có pointer đủ điều kiện." code />
+      {section.methodArtifact && <section><strong>Hồ sơ phương pháp có cấu trúc</strong><p><code>{section.methodArtifact.fileName}</code></p><p>Output ID · <code>{section.methodArtifact.methodOutputId}</code></p><p>SHA-256 · <code>{section.methodArtifact.sha256}</code></p></section>}
       <section><strong>Điều kiện mở lại</strong><p>{section.reopenCondition}</p></section>
       <small className="section-digest">Section digest · <code>{section.sectionSha256}</code></small>
     </div>

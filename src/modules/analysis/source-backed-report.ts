@@ -17,6 +17,7 @@ import { canonicalJson } from '../foundation/canonical-json.js';
 import { normalizeMetricWorkbook } from './metric-source-profile.js';
 import { createResearchReportPacket } from './versioned-report-packet.js';
 import { buildResearchReportChartData, type ResearchReportChartData } from './research-report-charts.js';
+import { buildM02ScopeMethod } from './m02-scope-method.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -98,6 +99,7 @@ export interface SourceBackedReportEnvelope {
     readonly packetSha256: string;
     readonly chartSha256: string;
     readonly reportSha256: string;
+    readonly m02ScopeMethodSha256?: string;
   };
   readonly limitations: readonly string[];
 }
@@ -301,12 +303,35 @@ export async function buildSourceBackedReport(
   const manifest = selectedFile(sourcePackage, request.manifestPath, 'manifest', JSON_MEDIA_TYPE, 'raw-manifest.json');
   const labels = request.labelsPath === null ? null : selectedFile(sourcePackage, request.labelsPath, 'labels', JSON_MEDIA_TYPE, 'raw-labels.json');
   const normalized = normalizeMetricWorkbook(workbook.file.bytes, manifest.file.bytes, labels?.file.bytes);
-  verifyNormalizedEvidenceFamilies(normalized.input, [workbook, manifest, ...(labels === null ? [] : [labels])]);
+  const selected = [workbook, manifest, ...(labels === null ? [] : [labels])];
+  const selectedSources = selected.map(item => item.provenance);
+  const rawByteMappings = selected.map(item => item.mapping);
+  verifyNormalizedEvidenceFamilies(normalized.input, selected);
   const inputBytes = canonicalBytes(normalized.input);
   const receiptBytes = canonicalBytes(normalized.receipt);
   const resultBytes = canonicalBytes(normalized.result);
   const resultSha256 = sha256(resultBytes);
-  const packetResult = createResearchReportPacket(resultBytes, resultSha256, catalog, request.catalogSha256);
+  let parsedCatalog: unknown;
+  try { parsedCatalog = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(catalog)); }
+  catch { throw new TypeError('catalog: INVALID_JSON_UTF8'); }
+  const m02Enabled = typeof parsedCatalog === 'object' && parsedCatalog !== null &&
+    Array.isArray((parsedCatalog as { sections?: unknown }).sections) &&
+    (parsedCatalog as { sections: Array<{ sectionId?: unknown; methodVersion?: unknown }> }).sections
+      .some(section => section.sectionId === 'M02' && section.methodVersion === '2.0.0');
+  const m02 = m02Enabled
+    ? buildM02ScopeMethod(normalized.input, normalized.result, selectedSources, rawByteMappings)
+    : undefined;
+  const m02Sha256 = m02 === undefined ? undefined : sha256(m02.bytes);
+  const packetResult = createResearchReportPacket(
+    resultBytes,
+    resultSha256,
+    catalog,
+    request.catalogSha256,
+    m02 === undefined || m02Sha256 === undefined ? [] : [{
+      sectionId: 'M02', methodVersion: '2.0.0', fileName: 'm02-scope-method.json',
+      sha256: m02Sha256, methodOutputId: m02.output.methodOutputId,
+    }],
+  );
   const packetBytes = canonicalBytes(packetResult.packet);
   const charts = buildResearchReportChartData(resultBytes, resultSha256, catalog, request.catalogSha256);
   const chartBytes = canonicalBytes(charts);
@@ -321,6 +346,7 @@ export async function buildSourceBackedReport(
     ['packet.json', packetBytes],
     ['charts.json', chartBytes],
     ['report.md', reportBytes],
+    ...(m02 === undefined ? [] : [['m02-scope-method.json', m02.bytes] as const]),
     ['source-package-manifest.json', sourcePackageManifestBytes],
     ['workspace.json', workspaceBytes],
     ['raw-workbook.xlsx', Buffer.from(workbook.file.bytes)],
@@ -337,14 +363,15 @@ export async function buildSourceBackedReport(
       packageId: sourcePackage.packageId, manifestArtifactSha256: sourcePackage.manifestArtifactSha256,
       packageContentSha256: sourcePackage.packageContentSha256, manifest: sourcePackage.manifest,
     },
-    selectedSources: [workbook.provenance, manifest.provenance, ...(labels === null ? [] : [labels.provenance])],
-    rawByteMappings: [workbook.mapping, manifest.mapping, ...(labels === null ? [] : [labels.mapping])],
+    selectedSources,
+    rawByteMappings,
     artifacts: {
       workspaceSnapshotSha256,
       sourcePackageManifestSha256: sourcePackage.manifestArtifactSha256,
       normalizedInputSha256: sha256(inputBytes), receiptSha256: sha256(receiptBytes),
       metricResultSha256: resultSha256, catalogSha256: request.catalogSha256,
       packetSha256: sha256(packetBytes), chartSha256: sha256(chartBytes), reportSha256: sha256(reportBytes),
+      ...(m02Sha256 === undefined ? {} : { m02ScopeMethodSha256: m02Sha256 }),
     },
     limitations: [
       'EXACT_PACKAGE_BYTES_READ_AND_REPARSED_THROUGH_VERIFIED_READERS',

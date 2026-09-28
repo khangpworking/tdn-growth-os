@@ -127,7 +127,16 @@
         "claimIds": { "type": "array", "maxItems": 100, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } },
         "contextPointers": { "type": "array", "maxItems": 10, "uniqueItems": true, "items": { "type": "string", "pattern": "^/", "maxLength": 400 } },
         "blockers": { "type": "array", "maxItems": 50, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 200 } },
-        "sectionSha256": { "$ref": "#/$defs/digest" }
+        "sectionSha256": { "$ref": "#/$defs/digest" },
+        "methodArtifact": {
+          "type": "object", "additionalProperties": false,
+          "required": ["fileName", "sha256", "methodOutputId"],
+          "properties": {
+            "fileName": { "const": "m02-scope-method.json" },
+            "sha256": { "$ref": "#/$defs/digest" },
+            "methodOutputId": { "$ref": "#/$defs/digest" }
+          }
+        }
       }
     },
     "sectionReadiness": {

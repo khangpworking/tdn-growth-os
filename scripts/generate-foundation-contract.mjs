@@ -7,6 +7,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contracts = [
   ['analysis', 'report-section-catalog'],
   ['analysis', 'versioned-report-packet'],
+  ['analysis', 'm02-scope-method'],
   ['analysis', 'source-backed-report-request'],
   ['analysis', 'report-semantic-content'],
   ['analysis', 'report-review-state'],

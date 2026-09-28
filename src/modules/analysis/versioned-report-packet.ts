@@ -26,6 +26,14 @@ const methods: Readonly<Record<string, string>> = {
   M04: 'metric-scope-packet-concentration', M13: 'metric-scope-packet-provenance',
 };
 
+export interface ReportMethodArtifact {
+  readonly sectionId: 'M02';
+  readonly methodVersion: '2.0.0';
+  readonly fileName: 'm02-scope-method.json';
+  readonly sha256: string;
+  readonly methodOutputId: string;
+}
+
 function pinnedJson(bytes: Buffer, expected: string, kind: string): unknown {
   if (bytes.length > 32 * 1024 * 1024 || !/^[0-9a-f]{64}$/.test(expected) || hash(bytes) !== expected) {
     throw new TypeError(`${kind}: SIZE_OR_DIGEST_MISMATCH`);
@@ -35,7 +43,13 @@ function pinnedJson(bytes: Buffer, expected: string, kind: string): unknown {
 }
 
 /** No raw-source authentication or free-text claim intake. Same frozen inputs -> same draft. */
-export function createResearchReportPacket(resultBytes: Buffer, resultSha256: string, catalogBytes: Buffer, catalogSha256: string) {
+export function createResearchReportPacket(
+  resultBytes: Buffer,
+  resultSha256: string,
+  catalogBytes: Buffer,
+  catalogSha256: string,
+  methodArtifacts: readonly ReportMethodArtifact[] = [],
+) {
   const result = pinnedJson(resultBytes, resultSha256, 'result');
   if (!validResult(result)) throw new TypeError('result: INVALID_CONTRACT');
   const replay = calculateMetricScopes(result.input);
@@ -49,13 +63,25 @@ export function createResearchReportPacket(resultBytes: Buffer, resultSha256: st
     const { sectionId } = definition;
     const claimIds: string[] = [], contextPointers: string[] = [], blockers: string[] = [];
     let deliveryState: SectionPacket['deliveryState'] = definition.fallbackState;
-    const supported = methods[sectionId] === definition.methodId && definition.methodVersion === '1.0.0';
+    const m02Artifact = sectionId === 'M02' ? methodArtifacts.find(item => item.sectionId === 'M02') : undefined;
+    const supported = methods[sectionId] === definition.methodId &&
+      (definition.methodVersion === '1.0.0' || (sectionId === 'M02' && definition.methodVersion === '2.0.0'));
     if (!supported) {
       blockers.push(...definition.fallbackReasons);
       if (methods[sectionId]) { deliveryState = 'NOT_IMPLEMENTED'; blockers.push('UNSUPPORTED_SECTION_METHOD_VERSION'); }
     } else {
       deliveryState = 'PARTIAL_DETERMINISTIC_DRAFT';
-      blockers.push('FULL_SECTION_METHOD_NOT_IMPLEMENTED', 'RAW_SOURCE_NOT_REVERIFIED', 'OWNER_REVIEW_REQUIRED');
+      if (sectionId === 'M02' && definition.methodVersion === '2.0.0') {
+        if (!m02Artifact || m02Artifact.methodVersion !== '2.0.0' || !/^[0-9a-f]{64}$/.test(m02Artifact.sha256) ||
+            !/^[0-9a-f]{64}$/.test(m02Artifact.methodOutputId)) {
+          deliveryState = 'BLOCKED';
+          blockers.push('VERIFIED_SOURCE_METHOD_ARTIFACT_REQUIRED');
+        } else {
+          blockers.push('OWNER_REVIEW_REQUIRED');
+        }
+      } else {
+        blockers.push('FULL_SECTION_METHOD_NOT_IMPLEMENTED', 'RAW_SOURCE_NOT_REVERIFIED', 'OWNER_REVIEW_REQUIRED');
+      }
       if (result.input.scope.acquiredAt === null) blockers.push('ACQUISITION_TIME_UNCONFIRMED');
       contextPointers.push('/input/scope');
       if (sectionId === 'M02') contextPointers.push('/input/profileId', '/input/labelCodebookVersion', '/input/wideUnknownPolicy', '/labelIssues');
@@ -99,7 +125,12 @@ export function createResearchReportPacket(resultBytes: Buffer, resultSha256: st
         blockers.push('NO_ELIGIBLE_OBSERVATIONS');
       }
     }
-    const section = { sectionId, deliveryState, claimIds, contextPointers, blockers: [...new Set(blockers)] };
+    const section = {
+      sectionId, deliveryState, claimIds, contextPointers, blockers: [...new Set(blockers)],
+      ...(m02Artifact && definition.methodVersion === '2.0.0' ? { methodArtifact: {
+        fileName: m02Artifact.fileName, sha256: m02Artifact.sha256, methodOutputId: m02Artifact.methodOutputId,
+      } } : {}),
+    };
     return { ...section, sectionSha256: identity({ policyVersion: 'report-packet-a3a-v1', definition,
       metricResultSha256: resultSha256, claims: claims.filter(c => c.sectionId === sectionId), ...section }) };
   });
@@ -141,6 +172,7 @@ function render(packet: VersionedReportPacket, result: MetricScopeOutput): strin
       `Đầu vào yêu cầu (kế hoạch): ${definition.requiredInputs.map(literal).join('; ')}`, '',
       ...section.blockers.map(b => `- Giới hạn / còn thiếu: ${literal(b)}`));
     for (const pointer of section.contextPointers) lines.push(`- Ngữ cảnh trong metric-result.json: ${pointer}`);
+    if (section.methodArtifact) lines.push(`- Hồ sơ phương pháp: ${section.methodArtifact.fileName} · ${section.methodArtifact.sha256} · output ${section.methodArtifact.methodOutputId}`);
     for (const id of section.claimIds) {
       const claim = claims.get(id)!;
       const scope = result.scopes.find(s => s.key === claim.scopeKey)!;
