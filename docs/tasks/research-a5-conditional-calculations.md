@@ -49,6 +49,16 @@ The accepted arithmetic comes from:
 - retained `Economics_Conditional_v13_2026-09-21` artifacts
 - retained `Comparable_Prices_v13_2026-09-21` artifact
 
+Private retained-method checksums (the original files are not published here):
+
+- `Economics_Conditional_v13_2026-09-21.json`: `4ad9dc0f8c7b4590f367d14d596773bbb089f04641eca6247642652721bb1a87`.
+- `TDN_A5_source_bound_narrative_P3_P4_handoff_2026-09-28.md`: `764568efc8b33649348938092183efe7b7fe233b0699b3be2c8462beaf7b8a9b`.
+- `TDN_A5a_consistency_addendum_2026-09-28.md`: `00279e59f7d3e0559c237330e1eb78e6390d077346c4b3c3fa5ba9019608061e`.
+
+These identify the method references inspected, not evidence of current seller
+fees or verified commercial measurements. Their proposed narrative approval
+state machine is not adopted by this arithmetic-only slice.
+
 The retained P3 scenario defines:
 
 ```text

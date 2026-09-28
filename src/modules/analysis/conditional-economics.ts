@@ -227,7 +227,11 @@ function available(
     missingInputs: [],
     heldFixed: [...keys],
     warnings,
-    limitations: [...COMMON_OUTPUT_LIMITATIONS, ...(name === 'contributionPerUnit' ? ['TARGET_COMPARISON_ONLY_WHEN_TARGET_IS_DECLARED'] : ['NOT_A_RECOMMENDATION_OR_OPTIMAL_PRICE'])],
+    limitations: [
+      ...COMMON_OUTPUT_LIMITATIONS,
+      ...(name === 'contributionPerUnit' ? ['TARGET_COMPARISON_ONLY_WHEN_TARGET_IS_DECLARED'] : ['NOT_A_RECOMMENDATION_OR_OPTIMAL_PRICE']),
+      ...(['cmax', 'mmax'].includes(name) ? ['ONE_AT_A_TIME_THRESHOLDS_NOT_JOINTLY_MAXIMIZABLE'] : []),
+    ],
   };
 }
 

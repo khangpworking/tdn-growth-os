@@ -25,6 +25,8 @@ test('independent hand calculation preserves exact conditional outputs and decla
   assert.equal(output(result, 'cmax').displayValue?.value, '82600.00');
   assert.deepEqual(output(result, 'mmax').exactValue, { numerator: '42600', denominator: '1', reduced: true });
   assert.equal(output(result, 'mmax').displayValue?.value, '42600.00');
+  assert.ok(output(result, 'cmax').limitations.includes('ONE_AT_A_TIME_THRESHOLDS_NOT_JOINTLY_MAXIMIZABLE'));
+  assert.ok(output(result, 'mmax').limitations.includes('ONE_AT_A_TIME_THRESHOLDS_NOT_JOINTLY_MAXIMIZABLE'));
   assert.equal(output(result, 'pmin').displayValue?.roundingVersion, 'CEIL_INTEGER_VND_V1');
   assert.equal(output(result, 'cmax').displayValue?.roundingVersion, 'HALF_EVEN_DECIMAL_2_VND_V1');
   assert.equal(result.inputProvenance.cogsPerUnit?.kind, 'OWNER_DECLARED');
@@ -45,6 +47,27 @@ test('processing fee is divided by positive units per order under the same perce
   assert.equal(output(result, 'pmin').displayValue?.value, '115924');
   assert.equal(output(result, 'cmax').displayValue?.value, '84600.00');
   assert.equal(output(result, 'mmax').displayValue?.value, '44600.00');
+});
+
+test('display rounding is half-even while exact values survive beyond Number precision', () => {
+  for (const [price, numerator, display] of [
+    ['100.005', '20001', '100.00'],
+    ['100.015', '20003', '100.02'],
+    ['9007199254740993.015', '1801439850948198603', '9007199254740993.02'],
+  ] as const) {
+    const input = conditionalEconomicsFixture();
+    input.requestedOutputs = ['contributionPerUnit'];
+    input.inputs.pricePerUnit!.value = price;
+    input.inputs.cogsPerUnit!.value = '0';
+    input.inputs.otherVariableCostPerUnit!.value = '0';
+    input.inputs.sharedMarketingPerUnit!.value = '0';
+    input.fees.commissionRate!.value = '0';
+    input.fees.transactionRate!.value = '0';
+    input.fees.processingFeePerOrder!.value = '0';
+    const result = output(calculateConditionalEconomics(input), 'contributionPerUnit');
+    assert.deepEqual(result.exactValue, { numerator, denominator: '200', reduced: true });
+    assert.equal(result.displayValue?.value, display);
+  }
 });
 
 test('requested output selection is explicit: unrequested calculations are omitted', () => {
