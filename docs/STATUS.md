@@ -9,7 +9,9 @@
   filters and progressive disclosure. It explicitly distinguishes catalog
   method metadata from deterministic output.
 - This does not add a section method, chart, interpretation, provider call or
-  human decision. Linux release verification and draft-PR handoff are pending.
+  human decision. Draft PR #78 is open; Linux verification passed with 176/176
+  frontend tests, 583/583 repository tests, strict TypeScript, contract
+  generation, production build and report preview.
 
 ## Research A20: review-target preparation and inspection UI
 

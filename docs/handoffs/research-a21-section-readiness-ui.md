@@ -2,9 +2,8 @@
 
 ## Delivery state
 
-Implementation is prepared on `feature/research-a21-section-readiness-ui`,
-stacked after Research A20. Linux release verification and the draft PR handoff
-are pending.
+Implementation is complete on `feature/research-a21-section-readiness-ui`,
+stacked after Research A20. Draft PR #78 is open against `main`.
 
 ## Implemented scope
 
@@ -27,5 +26,12 @@ approval.
 
 ## Release evidence
 
-Pending Linux CI on the final pushed head. No Windows test, build or typecheck
-is part of this delivery.
+Linux CI passed on implementation head
+`ae1d657fe407adb0a49171335fc95ee8ad207c96`:
+
+- Repository check: <https://github.com/khangpworking/tdn-growth-os/actions/runs/36431280123>
+- Preview check: <https://github.com/khangpworking/tdn-growth-os/actions/runs/36431280176>
+- Frontend: 176/176 tests, strict TypeScript and production build passed.
+- Repository: 583/583 tests, backend typecheck and contract generation passed.
+
+No Windows test, build or typecheck is part of this delivery.
