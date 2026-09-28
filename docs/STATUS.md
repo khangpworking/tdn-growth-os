@@ -221,6 +221,16 @@ inferred. Linux verification is recorded in the A5 handoff and final-head PR
 checks; focused arithmetic review remains a release gate. P4, database
 persistence, operator UI and AI interpretation are not included.
 
+## Research A6 — single-quote tablet arithmetic draft
+
+The next isolated slice adds M08/P4 per-quote VND/explicit-tablet-count
+normalization, not a completed price-comparison section. It preserves declared
+source, pack text, price state, time and identity flags; missing count remains
+unavailable, with no title inference or equal-dose claims. A private offline
+CLI uses the existing immutable publisher. Linux verification is a release
+gate. No comparison groups, ranking, SQLite migration, operator UI, approval,
+provider call or real-data import is included.
+
 ## Task 022 — combined Vietnamese market-and-review evidence report
 
 Implemented a bounded offline composition/export path for an explicitly selected `market_snapshot_v1` Result and adapter3 Shopee review Result. It reuses verified Result/Data Pack/collection readers and Task 021 safe review rendering; performs no analysis/filter execution, provider calls, scraping, migrations, or database writes. Exact integer strings and missing-versus-zero semantics are preserved, while differing/unverified scopes, review date independence, and partial collection limits are explicit. Export is read-only, outside Git, owner-only, deterministic, and refuses overwrite. Acceptance is synthetic and persisted; no private review dataset or fabricated provider lineage is included.
