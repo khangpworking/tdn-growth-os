@@ -2,8 +2,8 @@
 
 ## Delivery state
 
-Implementation is in progress on
-`feature/research-a14-interpretation-read-api`. Linux CI is the release gate.
+Draft PR [#71](https://github.com/khangpworking/tdn-growth-os/pull/71) is open
+on `feature/research-a14-interpretation-read-api`.
 
 ## Implemented scope
 
@@ -22,5 +22,9 @@ or permission to act. No UI or decision workflow is included.
 
 ## Release evidence
 
-Pending exact-head Linux CI and final handoff update. No Windows test, build or
-typecheck is release evidence.
+- Implementation head `1056eac8420082886dab1aa9166a7cd1f8bc3d9a`
+  passed contract generation, strict backend/frontend typechecks, production
+  frontend build, 169/169 frontend tests and 579/579 repository tests in
+  [Linux run 36412793275](https://github.com/khangpworking/tdn-growth-os/actions/runs/36412793275).
+- `git diff --check` passed before commit.
+- No Windows test, build or typecheck is release evidence.

@@ -2,7 +2,8 @@
 
 ## Research A14: exact-version interpretation read API
 
-- In implementation on `feature/research-a14-interpretation-read-api`.
+- Draft PR #71 is open on `feature/research-a14-interpretation-read-api`; the
+  implementation-head Linux check passed.
 - Adds list/detail read routes for saved A13 interpretations under one explicit
   report ID and version; no route infers the latest report or interpretation.
 - Returns only safe generation identity and user-visible evidence-bound content;
