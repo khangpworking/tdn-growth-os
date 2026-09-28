@@ -1,0 +1,217 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/conditional-economics-input.schema.json",
+  "title": "ConditionalEconomicsInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "methodVersion",
+    "scenarioId",
+    "currency",
+    "unitBasis",
+    "requestedOutputs",
+    "feeBasePolicy",
+    "fees",
+    "feeBindings",
+    "inputs",
+    "excludedTerms"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodVersion": { "const": "conditional-economics-v1" },
+    "scenarioId": { "type": "string", "minLength": 1, "maxLength": 160, "pattern": "^[a-z][a-z0-9._-]*$" },
+    "currency": { "const": "VND" },
+    "unitBasis": { "const": "VND_PER_UNIT" },
+    "requestedOutputs": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 4,
+      "uniqueItems": true,
+      "items": { "enum": ["contributionPerUnit", "pmin", "cmax", "mmax"] }
+    },
+    "feeBasePolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["percentageBase", "processingBase"],
+      "properties": {
+        "percentageBase": { "const": "N_TIMES_PRICE_PER_ORDER" },
+        "processingBase": { "const": "PER_DELIVERED_ORDER" }
+      }
+    },
+    "fees": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commissionRate", "transactionRate", "processingFeePerOrder"],
+      "properties": {
+        "commissionRate": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] },
+        "transactionRate": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] },
+        "processingFeePerOrder": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] }
+      }
+    },
+    "feeBindings": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["commissionRate", "transactionRate", "processingFeePerOrder"],
+      "properties": {
+        "commissionRate": { "$ref": "#/$defs/FeeBinding" },
+        "transactionRate": { "$ref": "#/$defs/FeeBinding" },
+        "processingFeePerOrder": { "$ref": "#/$defs/FeeBinding" }
+      }
+    },
+    "inputs": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pricePerUnit",
+        "cogsPerUnit",
+        "otherVariableCostPerUnit",
+        "sharedMarketingPerUnit",
+        "targetContributionPerUnit",
+        "unitsPerOrder"
+      ],
+      "properties": {
+        "pricePerUnit": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] },
+        "cogsPerUnit": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] },
+        "otherVariableCostPerUnit": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] },
+        "sharedMarketingPerUnit": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] },
+        "targetContributionPerUnit": { "anyOf": [{ "$ref": "#/$defs/DecimalInput" }, { "type": "null" }] },
+        "unitsPerOrder": { "anyOf": [{ "$ref": "#/$defs/PositiveIntegerInput" }, { "type": "null" }] }
+      }
+    },
+    "excludedTerms": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sellerBusinessTax",
+        "fixedOverhead",
+        "returnsRefunds",
+        "vouchersDiscounts",
+        "shippingSubsidy",
+        "settlementAdjustments",
+        "affiliateOrOtherFees",
+        "demandConversion",
+        "inventoryCapital"
+      ],
+      "properties": {
+        "sellerBusinessTax": { "$ref": "#/$defs/ExcludedTerm" },
+        "fixedOverhead": { "$ref": "#/$defs/ExcludedTerm" },
+        "returnsRefunds": { "$ref": "#/$defs/ExcludedTerm" },
+        "vouchersDiscounts": { "$ref": "#/$defs/ExcludedTerm" },
+        "shippingSubsidy": { "$ref": "#/$defs/ExcludedTerm" },
+        "settlementAdjustments": { "$ref": "#/$defs/ExcludedTerm" },
+        "affiliateOrOtherFees": { "$ref": "#/$defs/ExcludedTerm" },
+        "demandConversion": { "$ref": "#/$defs/ExcludedTerm" },
+        "inventoryCapital": { "$ref": "#/$defs/ExcludedTerm" }
+      }
+    }
+  },
+  "$defs": {
+    "DecimalString": {
+      "type": "string",
+      "pattern": "^-?(0|[1-9][0-9]{0,39})(\\.[0-9]{1,6})?$"
+    },
+    "NonNegativeDecimalString": {
+      "type": "string",
+      "pattern": "^(0|[1-9][0-9]{0,39})(\\.[0-9]{1,6})?$"
+    },
+    "PositiveIntegerString": {
+      "type": "string",
+      "pattern": "^[1-9][0-9]{0,39}$"
+    },
+    "SourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactSha256", "locator"],
+      "properties": {
+        "artifactSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "Provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "label", "note", "sourceRef"],
+      "properties": {
+        "kind": { "enum": ["SOURCE_DECLARED", "OWNER_DECLARED", "SCENARIO_ASSUMPTION"] },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "note": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "sourceRef": { "anyOf": [{ "$ref": "#/$defs/SourceRef" }, { "type": "null" }] }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "SOURCE_DECLARED" } }, "required": ["kind"] },
+          "then": { "properties": { "sourceRef": { "$ref": "#/$defs/SourceRef" } } }
+        }
+      ]
+    },
+    "DecimalInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "provenance"],
+      "properties": {
+        "value": { "$ref": "#/$defs/DecimalString" },
+        "provenance": { "$ref": "#/$defs/Provenance" }
+      }
+    },
+    "NonNegativeDecimalInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "provenance"],
+      "properties": {
+        "value": { "$ref": "#/$defs/NonNegativeDecimalString" },
+        "provenance": { "$ref": "#/$defs/Provenance" }
+      }
+    },
+    "PositiveIntegerInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "provenance"],
+      "properties": {
+        "value": { "$ref": "#/$defs/PositiveIntegerString" },
+        "provenance": { "$ref": "#/$defs/Provenance" }
+      }
+    },
+    "FeeBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["categoryPath", "bindingState", "provenance"],
+      "properties": {
+        "categoryPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "bindingState": { "enum": ["ASSUMED_EXACT_MATCH", "UNCONFIRMED"] },
+        "provenance": { "$ref": "#/$defs/Provenance" }
+      }
+    },
+    "ExcludedTerm": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "value", "provenance", "note"],
+      "properties": {
+        "status": { "enum": ["NOT_MODELED", "SCENARIO_ASSUMED_ZERO"] },
+        "value": { "anyOf": [{ "$ref": "#/$defs/NonNegativeDecimalInput" }, { "type": "null" }] },
+        "provenance": { "$ref": "#/$defs/Provenance" },
+        "note": { "type": "string", "minLength": 1, "maxLength": 500 }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "status": { "const": "NOT_MODELED" } }, "required": ["status"] },
+          "then": { "properties": { "value": { "type": "null" } } }
+        },
+        {
+          "if": { "properties": { "status": { "const": "SCENARIO_ASSUMED_ZERO" } }, "required": ["status"] },
+          "then": {
+            "required": ["value"],
+            "properties": {
+              "value": {
+                "allOf": [
+                  { "$ref": "#/$defs/NonNegativeDecimalInput" },
+                  { "type": "object", "properties": { "value": { "const": "0" } } }
+                ]
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
