@@ -24,18 +24,26 @@
 
 ## Verification
 
-- `git diff --check`: pending final delivery verification.
+- `git diff --check`: passed.
 - Impeccable/Antislop UI audit: no blocking finding; only pre-existing advisory
   typography/radius tokens were reported and the approved visual system was not
   changed.
 - Independent static review: all pointer, ratio-denominator, visible-value,
   collapsed-disclosure and missing-state findings closed; no release blocker
   remains.
-- Linux full repository check and report preview: pending final delivery
-  verification.
+- Linux full repository check: passed, 486/486 tests, together with contract
+  generation, strict backend/frontend TypeScript, frontend tests and production
+  build ([run 36392797081](https://github.com/khangpworking/tdn-growth-os/actions/runs/36392797081)).
+- Linux report preview: passed at desktop/mobile sizes with no page error,
+  working disclosures/evidence anchors/downloads and acceptable measured
+  contrast ([run 36392797004](https://github.com/khangpworking/tdn-growth-os/actions/runs/36392797004)).
 - Windows tests/build/typecheck: not run by policy.
 
 ## Delivery state
 
-Local implementation is stacked on Research A8. Final commit, draft PR and
-Linux verification links will be recorded after delivery.
+Final implementation head: `7a427d2c94efa67bdf3e231ae1f10973c5c182f3`.
+Draft PR: [#65](https://github.com/khangpworking/tdn-growth-os/pull/65).
+
+The PR is intentionally still draft and unmerged because A9 is stacked on the
+unmerged Research A1–A8 dependency chain. The working tree, remote branch and PR
+head matched when this handoff was prepared.

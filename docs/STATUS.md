@@ -1,6 +1,6 @@
 # Trạng thái hiện tại
 
-## Research A9: deterministic M03/M04 diagnostic charts (local implementation)
+## Research A9: deterministic M03/M04 diagnostic charts (draft PR #65; not deployed)
 
 - The accepted four-layer framework remains authoritative; this slice deepens
   only deterministic layer-two display.
@@ -13,8 +13,9 @@
   missing labels or denominators stay blocked/partial rather than becoming zero.
 - The automated-section count remains 4/30 (M02, M03, M04, M13). No provider/AI
   call, fifth method, migration, API, approval or live data import is included.
-- Linux CI and visual preview remain pending; Windows tests/build/typecheck are
-  not run.
+- Linux full check passed with 486/486 repository tests and the desktop/mobile
+  visual preview passed with no page error. Windows tests/build/typecheck were
+  not run by policy. The PR remains draft while A1–A8 dependencies are unmerged.
 
 ## Research A8: evidence-bound interpretation contract (draft PR #64; not deployed)
 
