@@ -192,7 +192,10 @@ test('keeps missing labels and zero denominators blocked with truthful empty lan
   assert.equal(incompleteChart.scopeSensitivity.state, 'PARTIAL');
   assert.equal(incompleteChart.scopeSensitivity.comparisons[0]!.revenueDelta.value, null);
   assert.ok(incompleteChart.scopeSensitivity.comparisons[0]!.blockers.includes('wide:REVENUE_DELTA_UNAVAILABLE'));
-  assert.equal(incompleteChart.groupComposition.scopes[0]!.state, 'PARTIAL');
+  assert.equal(incompleteChart.groupComposition.state, 'BLOCKED');
+  assert.equal(incompleteChart.groupComposition.scopes[0]!.state, 'BLOCKED');
+  assert.equal(incompleteChart.groupComposition.scopes[0]!.points.length, 0);
+  assert.ok(incompleteChart.groupComposition.scopes[0]!.blockers.includes('all:SECTION_HANDLER_NOT_CHARTABLE'));
   assert.equal(incompleteChart.topShopRemoval.scopes[0]!.point, null);
   assert.ok(incompleteChart.topShopRemoval.scopes[0]!.blockers.includes('all:TOP_SHOP_REMOVAL_UNAVAILABLE'));
 });
