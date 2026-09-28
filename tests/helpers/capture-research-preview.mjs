@@ -158,13 +158,15 @@ try {
           try { received = await fs.readFile(downloaded); break; }
           catch (error) { if (error.code !== 'ENOENT') throw error; }
           // Chromium may open a local JSON file instead of honoring download.
-          // Verify the resource it actually opened, then restore the report.
+          // Verify its visible source text, then restore the report. Local
+          // file responses are not reliably retained by the CDP resource cache.
           if (await evaluate('location.href') === pathToFileURL(file).href) {
-            const tree = await call('Page.getResourceTree');
-            const resource = await call('Page.getResourceContent', { frameId: tree.frameTree.frame.id, url: pathToFileURL(file).href });
-            received = Buffer.from(resource.content, resource.base64Encoded ? 'base64' : 'utf8');
-            opened = true;
-            break;
+            const visibleText = await evaluate('document.readyState === "complete" ? document.querySelector("pre")?.textContent ?? null : null');
+            if (visibleText !== null) {
+              received = Buffer.from(visibleText, 'utf8');
+              opened = true;
+              break;
+            }
           }
           await pause(50);
         }
