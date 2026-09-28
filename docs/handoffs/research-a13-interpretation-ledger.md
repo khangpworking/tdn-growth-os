@@ -2,8 +2,8 @@
 
 ## Delivery state
 
-Implementation is prepared on `feature/research-a13-interpretation-ledger`.
-Draft PR and exact-head Linux evidence will be recorded after publication.
+Draft PR [#70](https://github.com/khangpworking/tdn-growth-os/pull/70) is
+open on `feature/research-a13-interpretation-ledger`.
 
 ## Implemented scope
 
@@ -24,6 +24,12 @@ stored.
 
 ## Release evidence
 
-Pending draft PR and Linux CI. No Windows test, build or typecheck is release
-evidence.
+- Exact implementation head `3229834a4e356d0eb4e267085a3e5727821da9bb`
+  passed the full Linux check with 169/169 frontend and 579/579 repository
+  tests: [run 36409187901](https://github.com/khangpworking/tdn-growth-os/actions/runs/36409187901).
+- Research report preview passed:
+  [run 36409187907](https://github.com/khangpworking/tdn-growth-os/actions/runs/36409187907).
+- Migration 0032 SHA-256 is
+  `3adf69726ef02430431f896e562dfc61d0bd86547c46d380fb2308b27c8f941c`.
+- No Windows test, build or typecheck is release evidence.
 

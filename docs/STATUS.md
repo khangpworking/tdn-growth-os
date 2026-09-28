@@ -2,7 +2,8 @@
 
 ## Research A13: immutable report interpretation ledger
 
-- In implementation on `feature/research-a13-interpretation-ledger`.
+- Draft PR #70 is open on `feature/research-a13-interpretation-ledger`; exact
+  head Linux check and report preview pass.
 - Retains every validated A8 interpretation against one explicit A10 report
   version; different model runs never overwrite each other.
 - Replays exact report evidence, prompt bytes, model/configuration, safe
