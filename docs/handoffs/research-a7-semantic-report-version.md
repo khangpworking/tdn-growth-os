@@ -48,4 +48,3 @@ not a substitute for it.
 
 Implementation is local on `feature/research-a7-semantic-version`. Final commit,
 draft PR, Linux CI and exact handoff evidence will be recorded after delivery.
-
