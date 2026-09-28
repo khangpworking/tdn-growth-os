@@ -116,6 +116,11 @@ material, provider request data, usage telemetry or artifact paths, and they
 create no approval or human decision. See
 [A14 scope](docs/tasks/research-a14-interpretation-read-api.md).
 
+Research A18 adds `GET /api/report-review-targets/:reviewTargetId` for one
+explicit lowercase A17 target digest. It returns the canonical, replay-verified
+A16 target; no list/latest route or human-decision action is included. See
+[A18 scope](docs/tasks/research-a18-review-target-read-api.md).
+
 Research A9 deepens the same deterministic report without adding a section
 method. It renders M03 filter-membership sensitivity and M04 group composition
 and top-shop-removal sensitivity directly from the verified A1 Result. Every

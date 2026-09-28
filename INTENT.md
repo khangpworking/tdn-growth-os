@@ -424,6 +424,8 @@ Owner assigns business methodology to task **Review marketing framework files** 
 
 **Review-target retention boundary, 2026-09-28:** the application may retain an A16 target as one immutable canonical artifact and SQLite row, then replay it only by exact target ID through the A10/A13 readers. Exact retry is mutation-free; a different intended use creates a different target and cannot rewrite the first. Retention still records no human decision, reviewer, authority or publication permission. A future decision action must remain separate and is not implied by the existence of a target.
 
+**Review-target read boundary, 2026-09-28:** the local read-only report API may return one retained A17 target only when the caller supplies its exact lowercase content digest. The response is the canonical A16 target itself after full A10/A13 replay; there is no collection or latest-target route. This inspection path does not create review state, acceptance, rejection, reviewer identity, authority, publication permission or any write. Human-decision semantics and UI/API remain a separate future boundary.
+
 - Sau câu trả lời có quyết định mới, cập nhật đúng mục và ngày; giữ mã Dxx ổn định.
 - Đề xuất chưa xác nhận nằm ở “Chưa chốt”, không ghi thành quyết định.
 - Khi người dùng đổi ý, ghi quyết định mới và lý do thay thế; Git giữ lịch sử.

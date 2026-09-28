@@ -13,17 +13,23 @@ import type {
 } from '../../contracts/api/report-api.generated.js';
 import type { VersionedReportPacket } from '../../contracts/analysis/versioned-report-packet.generated.js';
 import type { ReportVersionRecord } from '../../contracts/analysis/report-version-record.generated.js';
+import type { ReportReviewTarget } from '../../contracts/analysis/report-review-target.generated.js';
 import {
   AnalysisReportInterpretationReader,
   ReportInterpretationLedgerService,
   type VerifiedReportInterpretation,
 } from '../modules/analysis/report-interpretation-ledger.js';
+import {
+  ReportReviewTargetLedgerService,
+  ReportReviewTargetLedgerValidationError,
+} from '../modules/analysis/report-review-target-ledger.js';
 import { AnalysisReportVersionReader, ReportVersionService } from '../modules/analysis/report-version-service.js';
 import { FoundationSourcePackageReader, SourcePackageService } from '../modules/foundation/index.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../modules/flow/index.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/index.js';
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const DIGEST = /^[0-9a-f]{64}$/;
 const FILE_NAME = /^[a-z0-9._-]{1,120}$/;
 
 export interface ReportApiConfiguration {
@@ -60,6 +66,12 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
     const interpretationReader = new AnalysisReportInterpretationReader(new ReportInterpretationLedgerService({
       db, artifactStore: artifacts, reports: reportReader,
     }));
+    const reviewTargets = new ReportReviewTargetLedgerService({
+      db,
+      artifactStore: artifacts,
+      reports: reportReader,
+      interpretations: interpretationReader,
+    });
 
     const index = async (workspaceId: string): Promise<WorkspaceReportIndexResponse | undefined> => {
       try {
@@ -140,9 +152,17 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
         throw error;
       }
     };
+    const reviewTarget = async (reviewTargetId: string): Promise<ReportReviewTarget | undefined> => {
+      try {
+        return (await reviewTargets.read(reviewTargetId)).target;
+      } catch (error) {
+        if (error instanceof ReportReviewTargetLedgerValidationError && /not found/i.test(error.message)) return undefined;
+        throw error;
+      }
+    };
     const artifact = (reportId: string, version: number, fileName: string) => reportReader.readArtifact(reportId, version, fileName);
     const handler = (request: IncomingMessage, response: ServerResponse): void => {
-      void route(request, response, { index, history, interpretations, interpretation, artifact });
+      void route(request, response, { index, history, interpretations, interpretation, reviewTarget, artifact });
     };
     return { handler, diagnostics: () => ({ queryOnly: db.pragma('query_only', { simple: true }) === 1n }), close: () => db.close() };
   } catch (error) {
@@ -165,6 +185,7 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
   history(reportId: string): Promise<ReportHistoryResponse | undefined>;
   interpretations(reportId: string, version: number): Promise<ReportInterpretationIndexResponse | undefined>;
   interpretation(reportId: string, version: number, interpretationId: string): Promise<ReportInterpretationDetailResponse | undefined>;
+  reviewTarget(reviewTargetId: string): Promise<ReportReviewTarget | undefined>;
   artifact(reportId: string, version: number, fileName: string): ReturnType<AnalysisReportVersionReader['readArtifact']>;
 }): Promise<void> {
   try {
@@ -180,6 +201,11 @@ async function route(request: IncomingMessage, response: ServerResponse, methods
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Report ID must be a UUID');
       const result = await methods.history(parts[2]!);
       return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Report series not found');
+    }
+    if (parts.length === 3 && parts[0] === 'api' && parts[1] === 'report-review-targets') {
+      if (!DIGEST.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Review target ID must be a lowercase SHA-256 digest');
+      const result = await methods.reviewTarget(parts[2]!);
+      return result ? sendJson(response, 200, result) : sendError(response, 404, 'not_found', 'Review target not found');
     }
     if (parts.length === 6 && parts[0] === 'api' && parts[1] === 'reports' && parts[3] === 'versions' && parts[5] === 'interpretations') {
       if (!UUID.test(parts[2]!)) return sendError(response, 400, 'bad_request', 'Report ID must be a UUID');
@@ -324,7 +350,7 @@ function sendArtifact(response: ServerResponse, fileName: string, mediaType: str
   response.end(bytes);
 }
 function assertReportTables(db: BetterSqlite3.Database): void {
-  const required = ['artifact_manifests', 'foundation_source_packages', 'foundation_source_package_files', 'flow_discovery_workspaces', 'analysis_report_series', 'analysis_report_versions', 'analysis_report_version_artifacts', 'analysis_report_version_sources', 'analysis_report_interpretation_runs'];
+  const required = ['artifact_manifests', 'foundation_source_packages', 'foundation_source_package_files', 'flow_discovery_workspaces', 'analysis_report_series', 'analysis_report_versions', 'analysis_report_version_artifacts', 'analysis_report_version_sources', 'analysis_report_interpretation_runs', 'analysis_report_review_targets'];
   const rows = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as { name: string }[];
   const names = new Set(rows.map(row => row.name));
   if (required.some(name => !names.has(name))) throw new Error('Database is missing required report tables');
