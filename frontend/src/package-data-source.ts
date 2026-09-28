@@ -128,12 +128,14 @@ function defaultsOk(value: unknown): boolean {
 }
 
 function lifecycleOk(value: Record<string, unknown>): boolean {
-  return typeof value.deleted === 'boolean' && count(value.stateSequence) && (value.deleted ? dateTime(value.restorableUntil) : !('restorableUntil' in value));
+  return typeof value.deleted === 'boolean' && count(value.stateSequence) && (value.deleted ? dateTime(value.restorableUntil) : !('restorableUntil' in value))
+    // Q6: a package hidden by its deleted Angle or Big Idea is reported as deleted and flagged; the flag is never false.
+    && (!('hiddenByParent' in value) || (value.hiddenByParent === true && value.deleted === true));
 }
 
 function entryOk(value: unknown): boolean {
   if (!record(value)) return false;
-  const optional = (['captionPreview', 'restorableUntil'] as const).filter((key) => key in value);
+  const optional = (['captionPreview', 'hiddenByParent', 'restorableUntil'] as const).filter((key) => key in value);
   return exactKeys(value, ['angleId', 'captionVersion', 'code', 'createdAt', 'deleted', 'packageId', 'posterFormat', 'posterVersion', 'stateSequence', ...optional])
     && uuid(value.packageId) && uuid(value.angleId) && typeof value.code === 'string' && PACKAGE_CODE.test(value.code) && lifecycleOk(value)
     && count(value.captionVersion) && count(value.posterVersion) && oneOf(POSTER_FORMATS, value.posterFormat) && dateTime(value.createdAt)
@@ -202,7 +204,7 @@ function attemptOk(value: unknown): boolean {
 export async function loadPackage(packageId: string, fetcher: typeof fetch = fetch): Promise<PackageDetail | null> {
   const value = await readJson(`/api/content/packages/${encodeURIComponent(packageId)}`, fetcher);
   if (value === null) return null;
-  const optional = record(value) && 'restorableUntil' in value ? ['restorableUntil'] : [];
+  const optional = record(value) ? (['hiddenByParent', 'restorableUntil'] as const).filter((key) => key in value) : [];
   if (!record(value) || !exactKeys(value, ['angleId', 'attempts', 'campaignDeleted', 'campaignId', 'campaignName', 'captions', 'code', 'contractVersion', 'createdAt', 'deleted',
     'footer', 'packageId', 'posters', 'settings', 'stateSequence', ...optional])
     || value.contractVersion !== '1.0.0' || value.packageId !== packageId || !uuid(value.campaignId) || !uuid(value.angleId) || typeof value.campaignName !== 'string'
@@ -408,7 +410,7 @@ export async function submitPackageVersion(input: PackageVersionInput & { readon
 export async function submitPackageState(input: { readonly packageId: string; readonly expectedSequence: number; readonly action: 'DELETE' | 'RESTORE'; readonly token: string }, fetcher: typeof fetch = fetch): Promise<OwnerContentPackageStateReceipt> {
   const value = await packageOwnerJson(`/owner-api/content/packages/${encodeURIComponent(input.packageId)}/state`, input.token,
     { contractVersion: '1.0.0', expectedSequence: input.expectedSequence, action: input.action }, fetcher, 'Gói đã thay đổi ở nơi khác. Hãy tải lại.');
-  const optional = record(value) && 'restorableUntil' in value ? ['restorableUntil'] : [];
+  const optional = record(value) ? (['hiddenByParent', 'restorableUntil'] as const).filter((key) => key in value) : [];
   if (!record(value) || !exactKeys(value, ['action', 'contractVersion', 'createdAt', 'exactRetry', 'packageId', 'sequence', ...optional]) || value.contractVersion !== '1.0.0'
     || value.packageId !== input.packageId || value.action !== input.action || value.sequence !== input.expectedSequence + 1 || !dateTime(value.createdAt)
     || typeof value.exactRetry !== 'boolean' || (input.action === 'DELETE') !== ('restorableUntil' in value) || ('restorableUntil' in value && !dateTime(value.restorableUntil))) receiptError();

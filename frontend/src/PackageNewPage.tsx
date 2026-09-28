@@ -233,7 +233,8 @@ export default function PackageNewPage(props: PackageNewPageProps) {
   const createIdRef = useRef<{ readonly body: string; readonly id: string } | null>(null);
   /** Packages whose Caption failed before a connection loss, so a resumed run still skips their Poster. */
   const resumeFailedRef = useRef<ReadonlySet<string>>(new Set());
-  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; }; }, []);
+  // R5: leaving the page stops a running batch after the in-flight call, like pressing Stop.
+  useEffect(() => { mountedRef.current = true; return () => { mountedRef.current = false; cancelRef.current = true; }; }, []);
   const reload = () => setReloadToken((value) => value + 1);
 
   useEffect(() => {

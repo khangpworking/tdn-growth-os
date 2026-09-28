@@ -721,6 +721,7 @@ export interface ContentPackageListEntry {
   code: string;
   deleted: boolean;
   restorableUntil?: DateTime;
+  hiddenByParent?: true;
   stateSequence: number;
   captionVersion: number;
   posterVersion: number;
@@ -738,6 +739,7 @@ export interface ContentPackageDetailResponse {
   code: string;
   deleted: boolean;
   restorableUntil?: DateTime;
+  hiddenByParent?: true;
   stateSequence: number;
   settings: ContentPackageSettingsView;
   footer: string;

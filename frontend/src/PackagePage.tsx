@@ -217,7 +217,8 @@ export default function PackagePage(props: PackagePageProps) {
     </div>
     <CampaignSteps campaignId={campaignId} current={3} />
     {detail.campaignDeleted && <div className="deleted-banner" role="status"><p>Chiến dịch đã bị xóa — gói chỉ còn để xem.</p></div>}
-    {detail.deleted && <div className="deleted-banner" role="status"><p>Gói đã bị xóa{detail.restorableUntil ? ` — khôi phục được đến ${timeLabel(detail.restorableUntil)}` : ''}.</p>
+    {detail.deleted && detail.hiddenByParent && <div className="deleted-banner" role="status"><p>Gói bị ẩn vì góc nội dung hoặc Big Idea đã bị xóa — khôi phục chúng để hiện lại{detail.restorableUntil ? ` (đến ${timeLabel(detail.restorableUntil)})` : ''}.</p></div>}
+    {detail.deleted && !detail.hiddenByParent && <div className="deleted-banner" role="status"><p>Gói đã bị xóa{detail.restorableUntil ? ` — khôi phục được đến ${timeLabel(detail.restorableUntil)}` : ''}.</p>
       <button className="button primary" type="button" disabled={!writable || detail.campaignDeleted || busy !== null} onClick={() => void changeState('RESTORE')}>{busy === 'state:RESTORE' ? 'Đang khôi phục…' : 'Khôi phục gói'}</button></div>}
     {!writable && <p className="decision-note">Cần mở khóa OWNER để tạo, sửa hoặc xóa.</p>}
     {notice && <div className="form-error brand-notice" role="alert"><p>{notice.message}</p>

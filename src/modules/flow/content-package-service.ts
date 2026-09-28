@@ -110,6 +110,8 @@ export interface ContentPackageState {
   readonly sequence: number;
   readonly deleted?: { readonly deletedAt: string; readonly restorableUntil: string };
   readonly expired: boolean;
+  /** Q6: set when the package is hidden because its Angle or that Angle's Big Idea is deleted. */
+  readonly hiddenBy?: { readonly ideaId: string; readonly deletedAt: string; readonly restorableUntil: string };
 }
 
 export interface ContentPackageStateExecution {
@@ -130,6 +132,7 @@ export interface ContentPackageListEntry {
   readonly code: string;
   readonly deleted: boolean;
   readonly restorableUntil?: string;
+  readonly hiddenByParent?: true;
   readonly stateSequence: number;
   readonly captionVersion: number;
   readonly posterVersion: number;
@@ -333,7 +336,7 @@ export class ContentPackageService {
       if (Math.max(...this.#campaigns.campaignVersions(input.campaignId)) !== campaign.version) throw new ContentPackageConflictError('Campaign changed while creating packages');
       const packages: ContentPackageCreated[] = [];
       for (const { artifact, stored } of staged) {
-        if (this.#ideas.stateOf(artifact.angleId).deleted) throw new ContentPackageConflictError('Angle was deleted while creating packages');
+        if (this.#ancestorDeletion(artifact.angleId)) throw new ContentPackageConflictError('Angle was deleted while creating packages');
         const ordinal = this.#nextOrdinal(artifact.angleId);
         registerContentManifest(this.#db, stored, createdAt, 'application/json');
         this.#db.prepare(`
@@ -538,6 +541,28 @@ export class ContentPackageService {
     return { sequence: last.sequence, deleted: { deletedAt: last.createdAt, restorableUntil }, expired: this.#now().getTime() > Date.parse(restorableUntil) };
   }
 
+  /**
+   * Q6 derived deletion: a package is also deleted while its Angle or that Angle's Big Idea is deleted.
+   * No rows are written for it; the earliest deadline wins, and restoring the ancestor brings back only
+   * packages that were hidden by it alone.
+   */
+  effectiveStateOf(packageId: string): ContentPackageState {
+    const own = this.stateOf(packageId);
+    const row = this.#package(packageId);
+    const hiddenBy = row === undefined ? undefined : this.#ancestorDeletion(row.angleId);
+    if (hiddenBy === undefined) return own;
+    const deleted = own.deleted !== undefined && Date.parse(own.deleted.restorableUntil) <= Date.parse(hiddenBy.restorableUntil)
+      ? own.deleted : { deletedAt: hiddenBy.deletedAt, restorableUntil: hiddenBy.restorableUntil };
+    return { sequence: own.sequence, deleted, hiddenBy, expired: this.#now().getTime() > Date.parse(deleted.restorableUntil) };
+  }
+
+  /** The deletion of the Angle, or of its Big Idea, that hides packages under it; the earliest deadline first. */
+  #ancestorDeletion(angleId: string): { ideaId: string; deletedAt: string; restorableUntil: string } | undefined {
+    const angle = this.#ideas.effectiveStateOf(angleId);
+    const candidates = [...(angle.deleted ? [{ ideaId: angleId, ...angle.deleted }] : []), ...(angle.hiddenBy ? [angle.hiddenBy] : [])];
+    return candidates.sort((a, b) => Date.parse(a.restorableUntil) - Date.parse(b.restorableUntil))[0];
+  }
+
   changeState(untrustedInput: unknown): ContentPackageStateExecution {
     const input = canonicalSnapshot(validateContentPackageStateRequest(untrustedInput));
     const requestSha256 = canonicalDigest(input);
@@ -552,6 +577,7 @@ export class ContentPackageService {
       const state = this.stateOf(input.packageId);
       if (state.sequence !== input.expectedSequence) throw new ContentPackageConflictError('Package state sequence drift');
       if (this.#campaigns.lifecycleState(row.campaignId).deleted) throw new ContentPackageConflictError('Campaign is deleted and its packages cannot change');
+      if (this.#ancestorDeletion(row.angleId)) throw new ContentPackageConflictError('The Angle or its Big Idea is deleted; restore it first');
       if (input.action === 'DELETE') {
         if (state.deleted) throw new ContentPackageConflictError('Package is already deleted');
         if (this.#inFlight.has(`${row.packageId}:CAPTION`) || this.#inFlight.has(`${row.packageId}:POSTER`)) throw new ContentPackageConflictError('A generation for this package is running');
@@ -631,18 +657,22 @@ export class ContentPackageService {
     assertId(campaignId);
     const entries: { sort: readonly [string, number]; entry: ContentPackageListEntry }[] = [];
     for (const row of this.#packageRows('campaign_id = ?', campaignId)) {
-      const state = this.stateOf(row.packageId);
+      const state = this.effectiveStateOf(row.packageId);
       if (state.expired) continue;
       const { pin } = await this.#verifiedPackage(row);
       const captionVersion = this.#currentVersion(row.packageId, 'CAPTION');
       const captionRow = this.#versionRow(row.packageId, 'CAPTION', captionVersion);
       const caption = captionRow ? (await this.#verifiedVersion(captionRow, pin)).caption : undefined;
+      // R7: the listed Poster version is exposed only after its image bytes and manifest verify.
+      const posterRow = this.#versionRow(row.packageId, 'POSTER', this.#currentVersion(row.packageId, 'POSTER'));
+      if (posterRow) await this.#verifiedVersion(posterRow, pin);
       const angleCode = this.#angleCode(row.angleId);
       entries.push({
         sort: [angleCode, row.ordinal],
         entry: {
           packageId: row.packageId, angleId: row.angleId, code: `${angleCode}${CODE_SEPARATOR}${row.ordinal}`,
-          deleted: state.deleted !== undefined, ...(state.deleted ? { restorableUntil: state.deleted.restorableUntil } : {}), stateSequence: state.sequence,
+          deleted: state.deleted !== undefined, ...(state.deleted ? { restorableUntil: state.deleted.restorableUntil } : {}),
+          ...(state.hiddenBy ? { hiddenByParent: true as const } : {}), stateSequence: state.sequence,
           captionVersion, posterVersion: this.#currentVersion(row.packageId, 'POSTER'),
           ...(caption ? { captionPreview: [...caption.post].slice(0, 280).join('') } : {}),
           posterFormat: pin.poster.format, createdAt: row.createdAt,
@@ -656,7 +686,7 @@ export class ContentPackageService {
     assertId(packageId);
     const row = this.#package(packageId);
     if (!row) throw new FlowValidationError(`Package not found: ${packageId}`);
-    const state = this.stateOf(packageId);
+    const state = this.effectiveStateOf(packageId);
     if (state.expired) throw new FlowValidationError(`Package not found: ${packageId}`);
     const { pin } = await this.#verifiedPackage(row);
     const parts: Record<ContentPackagePart, ContentPackageVersionArtifact[]> = { CAPTION: [], POSTER: [] };
@@ -679,7 +709,7 @@ export class ContentPackageService {
     if (!Number.isSafeInteger(version) || version < 1) throw new FlowValidationError('version must be a positive integer');
     const row = this.#package(packageId);
     const versionRow = row ? this.#versionRow(packageId, 'POSTER', version) : undefined;
-    if (!row || !versionRow || this.stateOf(packageId).expired) throw new FlowValidationError(`Poster not found: ${packageId}@${version}`);
+    if (!row || !versionRow || this.effectiveStateOf(packageId).expired) throw new FlowValidationError(`Poster not found: ${packageId}@${version}`);
     const { pin } = await this.#verifiedPackage(row);
     const poster = (await this.#verifiedVersion(versionRow, pin)).poster!;
     const bytes = await this.#pinnedBytes(poster.imageSha256, poster.mediaType, 'Poster image');
@@ -698,7 +728,9 @@ export class ContentPackageService {
   }
 
   #assertPackageOpen(row: PackageRow): void {
-    if (this.stateOf(row.packageId).deleted) throw new ContentPackageConflictError('Package is deleted');
+    const state = this.effectiveStateOf(row.packageId);
+    if (state.hiddenBy) throw new ContentPackageConflictError('The Angle or its Big Idea is deleted; restore it first');
+    if (state.deleted) throw new ContentPackageConflictError('Package is deleted');
     if (this.#campaigns.lifecycleState(row.campaignId).deleted) throw new ContentPackageConflictError('Campaign is deleted');
   }
 
@@ -707,8 +739,8 @@ export class ContentPackageService {
     if (!this.#ideas.ideaExists(angleId)) throw new ContentPackageReferenceError(`Angle not found: ${angleId}`);
     const angle = await this.#ideas.readIdea(angleId);
     if (angle.kind !== 'ANGLE' || angle.campaignId !== campaignId) throw new ContentPackageReferenceError(`Angle not found in this campaign: ${angleId}`);
-    const state = this.#ideas.stateOf(angleId);
-    if (state.deleted) throw new ContentPackageConflictError('Angle is deleted');
+    const state = this.#ideas.effectiveStateOf(angleId);
+    if (state.deleted || state.hiddenBy) throw new ContentPackageConflictError('Angle is deleted');
     if (state.purposes.length === 0) throw new ContentPackageReferenceError('An Angle needs at least one purpose before it can be packaged');
     return state.purposes;
   }
@@ -769,7 +801,7 @@ export class ContentPackageService {
       add((await this.#verifiedVersion(versionRow)).caption!.post);
     }
     for (const other of this.#packageRows('angle_id = ?', row.angleId)) {
-      if (other.packageId === row.packageId || this.stateOf(other.packageId).deleted) continue;
+      if (other.packageId === row.packageId || this.effectiveStateOf(other.packageId).deleted) continue;
       const current = this.#versionRow(other.packageId, 'CAPTION', this.#currentVersion(other.packageId, 'CAPTION'));
       if (current) add((await this.#verifiedVersion(current)).caption!.post);
     }
@@ -856,7 +888,25 @@ export class ContentPackageService {
     ) throw new ContentPackageIntegrityError('Package artifact does not match immutable metadata');
     const brand = await this.#brands.readBrand(pin.brand.brandId, pin.brand.version);
     if (captionFooter(brand.profile, pin.display.caption) !== pin.footer) throw new ContentPackageIntegrityError('Package footer does not match the pinned brand');
+    await this.#verifiedPins(pin);
     return { pin, brand };
+  }
+
+  /** R8: the campaign, Insight, catalog items, Angle and Big Idea a package was pinned to still read back and verify. */
+  async #verifiedPins(pin: ContentPackageArtifact): Promise<void> {
+    try {
+      const campaign = await this.#campaigns.readCampaign(pin.campaignId, pin.campaignVersion);
+      if (campaign.brandId !== pin.brand.brandId) throw new ContentPackageIntegrityError('Package brand does not match its pinned campaign');
+      await this.#pinnedFacts(pin.campaignId, pin.campaignVersion, pin.insightVersion, pin.items);
+      const angle = await this.#ideas.readIdea(pin.angleId);
+      // The Angle may predate a relock, so only its identity is pinned, not its Insight version.
+      if (angle.kind !== 'ANGLE' || angle.campaignId !== pin.campaignId || !angle.parentIdeaId) throw new ContentPackageIntegrityError('Package Angle does not match its pins');
+      const bigIdea = await this.#ideas.readIdea(angle.parentIdeaId);
+      if (bigIdea.kind !== 'BIG_IDEA' || bigIdea.campaignId !== pin.campaignId) throw new ContentPackageIntegrityError('Package Big Idea does not match its pins');
+    } catch (error) {
+      if (error instanceof ContentPackageIntegrityError) throw error;
+      throw new ContentPackageIntegrityError('Pinned campaign, Insight, catalog or Angle failed verification');
+    }
   }
 
   async #verifiedVersion(row: VersionRow, knownPin?: ContentPackageArtifact): Promise<ContentPackageVersionArtifact> {
@@ -898,6 +948,8 @@ export class ContentPackageService {
           prepared.promptSha256 !== poster.promptSha256 || prepared.inputBundleSha256 !== artifact.inputBundleSha256 ||
           canonicalDigest(prepared.references) !== canonicalDigest(poster.referenceMediaSha256s)
         ) fail();
+        // R7: the image itself must still match its digest and manifest before the version is exposed.
+        await this.#pinnedBytes(poster.imageSha256, poster.mediaType, 'Poster image');
       }
       return artifact;
     }

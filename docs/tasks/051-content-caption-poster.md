@@ -100,6 +100,20 @@ Each package artifact pins:
 
 Each generated version records its attempt, its input-bundle digest and its output digest. Reads re-verify all of them and fail closed.
 
+Review follow-ups:
+- **R7:** a generated Poster version is exposed only after its image bytes match the stored digest and manifest. This applies to the package detail, the image read and the list, which also verifies the current Poster version.
+- **R8:** every package read re-reads and verifies the pinned campaign version, the catalog item versions, the Insight version, the Angle and its Big Idea. A tampered or missing pinned artifact fails closed as an integrity error.
+- **Restart recovery:** a generation targets one package part and its next version number. It re-checks that number before writing, and a same-request replay returns the committed version. After a restart the interrupted attempt stays visible, and a retry names it in `retryOfAttemptId`, so no version is written twice.
+
+### Derived deletion (Q6, agreed with GPT-6 Astra in debate, not owner-approved)
+
+- A package counts as deleted while it, its Angle or that Angle's Big Idea is deleted. No cascade rows are written.
+- It then shows deleted: true and hiddenByParent: true in the list and detail. The restore deadline is the earliest one that applies.
+- Restoring the Angle or Big Idea brings back only packages hidden by it alone. A package deleted on its own stays deleted.
+- While an ancestor is deleted, every write on the package is rejected with 409, including delete and restore. New packages cannot be created for that Angle.
+- The page shows the reason and no restore button.
+- Demo mode does not model hidden packages.
+
 ## 2. Scope
 
 - **Migration** `0028_flow_content_packages.sql`:
@@ -138,3 +152,8 @@ Each generated version records its attempt, its input-bundle digest and its outp
 4. A batch of N Angles gives exactly N packages. Generating both parts makes exactly 2N attempts. A failure affects only its own attempt, and retry links to it with `retryOf`.
 5. A package pins every input from §1. After a restart, packages show interrupted attempts and never partial versions.
 6. Release criteria 5–7 can be demonstrated with fakes.
+7. Review follow-ups:
+   - R5: leaving the new-package page mid-batch makes no further calls after the in-flight one.
+   - R7: tampered Poster bytes or manifest fail closed in the list and detail.
+   - R8: a tampered pinned campaign, Insight, catalog item or Angle fails closed.
+   - Q6: packages are hidden by Angle or Big Idea deletion; the earliest deadline applies; writes are blocked; restore semantics hold.

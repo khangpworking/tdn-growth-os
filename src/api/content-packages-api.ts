@@ -219,7 +219,8 @@ export function packageDetailView(detail: ContentPackageDetail, campaign: { read
   return {
     contractVersion: '1.0.0', packageId: detail.packageId, campaignId: detail.campaignId, campaignName: campaign.name, campaignDeleted: campaign.deleted,
     angleId: detail.angleId, code: detail.code, deleted: detail.state.deleted !== undefined,
-    ...(detail.state.deleted ? { restorableUntil: detail.state.deleted.restorableUntil } : {}), stateSequence: detail.state.sequence,
+    ...(detail.state.deleted ? { restorableUntil: detail.state.deleted.restorableUntil } : {}),
+    ...(detail.state.hiddenBy ? { hiddenByParent: true as const } : {}), stateSequence: detail.state.sequence,
     settings: {
       brandId: pin.brand.brandId, purposes: [...pin.purposes],
       captionPromptName: pin.caption.prompt.name, captionModel: pin.caption.model, captionStyle: pin.caption.style, captionLength: pin.caption.length,
