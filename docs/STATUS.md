@@ -1,6 +1,20 @@
 # Trạng thái hiện tại
 
-## Research A10: immutable report-version ledger (draft PR #66)
+## Research A12: exact normalized observations in SQLite
+
+- Draft PR #69 is open on `feature/research-a12-normalized-observations`;
+  exact-head Linux check and report preview pass.
+- Materializes an explicitly selected report version's exact normalized input
+  into immutable queryable source and observation rows keyed by its digest.
+- Preserves missing versus zero, exact integer strings, precision, displayed
+  values, labels and evidence locators; every origin remains bound to the exact
+  report and source-package lineage.
+- The content-addressed artifact remains authoritative and every verified read
+  reconstructs the same canonical bytes. No implicit latest selection exists.
+- No new section method, AI interpretation, human decision, API/UI, provider
+  call, live import or deployment is included.
+
+## Research A10: immutable report-version ledger (merged)
 
 - Persists one exact verified source-backed report bundle as an immutable report
   version with explicit source and artifact membership.
@@ -320,17 +334,15 @@ exact artifact/source membership, semantic identity and an explicit
 complete report bytes through verified readers. No live report, AI call, human
 decision or deployment was created.
 
-## Research A11 — verified report read API and operator UI
+## Research A11 — verified report read API and operator UI merged
 
-In progress on `feature/research-a11-report-read-api`. The bounded slice exposes
+PR #67 is merged on `main` at `a7ae29809cb61345d2327c60fbb8787d5da145b3`. The bounded slice exposes
 workspace report series, replay-verified explicit history and exact persisted
 HTML/evidence members through the local query-only operator. The React workspace
 requires explicit series and version choice and shows the current truth:
 4/30 partial deterministic methods, no AI interpretation and no human review.
 This task adds no method, report write, migration, provider call or deployment.
-Normalized rows remain immutable content-addressed artifacts referenced by
-SQLite; row-level normalized-observation persistence remains the next foundation
-slice.
+Normalized row-level SQLite persistence is handled separately by A12.
 
 ## Task 022 — combined Vietnamese market-and-review evidence report
 

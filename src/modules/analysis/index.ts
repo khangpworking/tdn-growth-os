@@ -90,3 +90,9 @@ export {
   ReportVersionValidationError,
   type ReportVersionExecution,
 } from './report-version-service.js';
+export {
+  NormalizedMetricObservationIntegrityError,
+  NormalizedMetricObservationStore,
+  NormalizedMetricObservationValidationError,
+  type NormalizedMetricObservationExecution,
+} from './normalized-metric-observation-store.js';

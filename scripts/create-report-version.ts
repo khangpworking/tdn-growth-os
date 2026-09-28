@@ -9,7 +9,11 @@ import {
   DiscoveryWorkspaceService,
   FlowDiscoveryWorkspaceReader,
 } from '../src/modules/flow/index.js';
-import { ReportVersionService } from '../src/modules/analysis/index.js';
+import {
+  AnalysisReportVersionReader,
+  NormalizedMetricObservationStore,
+  ReportVersionService,
+} from '../src/modules/analysis/index.js';
 import { ContentAddressedArtifactStore } from '../src/platform/artifacts/index.js';
 import { openDatabase } from '../src/platform/db/index.js';
 
@@ -45,8 +49,13 @@ try {
       },
     });
     const execution = await reports.createVersion(request, catalogBytes);
+    const normalized = await new NormalizedMetricObservationStore({
+      db: opened.db,
+      reports: new AnalysisReportVersionReader(reports),
+    }).materializeReportVersion(execution.reportId, execution.version);
     console.log(JSON.stringify({
       ...execution,
+      normalized,
       aiCalls: 0,
       providerCalls: 0,
       interpretationState: 'NONE',

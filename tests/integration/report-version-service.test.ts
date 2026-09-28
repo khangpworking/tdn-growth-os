@@ -17,11 +17,13 @@ import {
   FlowDiscoveryWorkspaceReader,
 } from '../../src/modules/flow/index.js';
 import {
+  AnalysisReportVersionReader,
   ReportVersionIdentityConflictError,
   ReportVersionIntegrityError,
   ReportVersionService,
   ReportVersionValidationError,
 } from '../../src/modules/analysis/report-version-service.js';
+import { NormalizedMetricObservationStore } from '../../src/modules/analysis/normalized-metric-observation-store.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
 import { openDatabase } from '../../src/platform/db/index.js';
@@ -205,6 +207,50 @@ test('persists one exact unreviewed report version and replays it without read-s
   );
 });
 
+test('materializes one immutable row-queryable projection of the exact normalized input', async () => {
+  const state = await fixture();
+  const created = await state.service.createVersion(state.request, state.catalogBytes);
+  const store = new NormalizedMetricObservationStore({
+    db: state.db,
+    reports: new AnalysisReportVersionReader(state.service),
+  });
+
+  const first = await store.materializeReportVersion(created.reportId, created.version);
+  assert.equal(first.deduplicated, false);
+  assert.equal(first.rowCount, 2);
+  assert.equal(first.sourceCount, 2);
+  assert.ok(first.databaseMutations > 0);
+  const verified = await store.readVerifiedForReport(created.reportId, created.version);
+  assert.equal(verified.scope.acquiredAt, '2026-09-16T01:00:00+07:00');
+  assert.deepEqual(verified.records.map(row => [row.units.state, row.units.value, row.units.source.locator]), [
+    ['observed_value', '2', 'Sheet1!D2'],
+    ['observed_zero', '0', 'Sheet1!D3'],
+  ]);
+  assert.deepEqual(
+    state.db.prepare(`
+      SELECT record_index recordIndex, units_state unitsState, units_value unitsValue,
+             units_source_locator unitsSourceLocator
+      FROM analysis_metric_dataset_rows ORDER BY record_index
+    `).all(),
+    [
+      { recordIndex: 0n, unitsState: 'observed_value', unitsValue: '2', unitsSourceLocator: 'Sheet1!D2' },
+      { recordIndex: 1n, unitsState: 'observed_zero', unitsValue: '0', unitsSourceLocator: 'Sheet1!D3' },
+    ],
+  );
+
+  const mutationsBefore = (state.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count;
+  const retry = await store.materializeReportVersion(created.reportId, created.version);
+  const mutationsAfter = (state.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count;
+  assert.equal(retry.normalizedInputSha256, first.normalizedInputSha256);
+  assert.equal(retry.deduplicated, true);
+  assert.equal(retry.databaseMutations, 0);
+  assert.equal(mutationsAfter, mutationsBefore);
+  assert.throws(
+    () => state.db.prepare(`UPDATE analysis_metric_dataset_rows SET units_value = '3' WHERE record_index = 0`).run(),
+    /analysis_metric_dataset_row_immutable/,
+  );
+});
+
 test('requires an explicit semantic predecessor and preserves every historical version', async () => {
   const state = await fixture();
   const first = await state.service.createVersion(state.request, state.catalogBytes);
@@ -338,15 +384,55 @@ test('offline CLI creates the same bounded ledger receipt without AI or provider
   const receipt = JSON.parse(run.stdout) as {
     version: number; deduplicated: boolean; aiCalls: number; providerCalls: number;
     interpretationState: string; reviewState: string;
+    normalized: { normalizedInputSha256: string; rowCount: number; sourceCount: number; deduplicated: boolean };
   };
   assert.deepEqual(
     [receipt.version, receipt.deduplicated, receipt.aiCalls, receipt.providerCalls, receipt.interpretationState, receipt.reviewState],
     [1, false, 0, 0, 'NONE', 'UNREVIEWED'],
   );
+  assert.match(receipt.normalized.normalizedInputSha256, /^[0-9a-f]{64}$/);
+  assert.deepEqual(
+    [receipt.normalized.rowCount, receipt.normalized.sourceCount, receipt.normalized.deduplicated],
+    [2, 2, false],
+  );
 
   const reopened = openDatabase({ databasePath });
   databases.push(reopened.db);
   assert.equal(count(reopened.db, 'analysis_report_versions'), 1n);
+  assert.equal(count(reopened.db, 'analysis_metric_datasets'), 1n);
+  assert.equal(count(reopened.db, 'analysis_metric_dataset_rows'), 2n);
+  assert.equal(count(reopened.db, 'analysis_metric_dataset_origins'), 1n);
+});
+
+test('upgrades an existing v30 database to v31 exactly once', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-normalized-observation-migration-'));
+  tempRoots.push(directory);
+  const migrationsDirectory = path.join(directory, 'migrations');
+  fs.mkdirSync(migrationsDirectory);
+  const prior = fs.readdirSync('migrations')
+    .filter(name => /^00(?:0[1-9]|[12][0-9]|30)_/.test(name))
+    .sort();
+  assert.equal(prior.length, 30);
+  for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(migrationsDirectory, name));
+  const databasePath = path.join(directory, 'report.sqlite');
+  const v30 = openDatabase({ databasePath, migrationsDirectory });
+  assert.equal(v30.migration.currentVersion, 30);
+  v30.db.close();
+
+  fs.copyFileSync(
+    'migrations/0031_analysis_normalized_metric_observations.sql',
+    path.join(migrationsDirectory, '0031_analysis_normalized_metric_observations.sql'),
+  );
+  const v31 = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(v31.migration.applied, [31]);
+  assert.equal(v31.migration.currentVersion, 31);
+  assert.equal(count(v31.db, 'analysis_metric_datasets'), 0n);
+  v31.db.close();
+
+  const rerun = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(rerun.migration.applied, []);
+  assert.equal(rerun.migration.currentVersion, 31);
+  rerun.db.close();
 });
 
 test('upgrades an existing v29 database to v30 exactly once', () => {
