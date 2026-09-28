@@ -91,7 +91,7 @@ async function setup(options: SetupOptions = {}) {
     db: opened.db, artifactStore: artifacts, attempts, campaigns, insights, catalog, prompts, library, now,
     newId: () => ideaIds.shift()!,
   });
-  return { ...opened, root, artifacts, clock, now, brands, catalog, campaigns, insights, prompts, gateway, attempts, ideas };
+  return { ...opened, root, artifacts, clock, now, brands, catalog, campaigns, insights, prompts, library, gateway, attempts, ideas };
 }
 
 async function addLockedCampaign(state: Awaited<ReturnType<typeof setup>>) {
@@ -134,6 +134,7 @@ test('Big Idea generation stores a verified artifact and succeeded text attempt,
   const artifact = await state.ideas.readIdea(first.ideaId);
   assert.deepEqual([artifact.kind, artifact.insightVersion, artifact.output], ['BIG_IDEA', 1, bigOutput('one')]);
   const attempt = state.attempts.list({ targetId: first.ideaId, limit: 10 })[0];
+  assert.ok(attempt);
   assert.deepEqual([attempt.targetType, attempt.modality, attempt.state, attempt.outputSha256 !== null], ['content_big_idea', 'text', 'succeeded', true]);
   assert.match((state.gateway.calls.find((call) => call.operation === 'generateText') as { request: { userInput: string } }).request.userInput, /LOCKED_INPUT_JSON/);
   state.db.close();
@@ -285,6 +286,7 @@ test('aggregate-over-limit output leaves no idea row and closes the audited atte
   await assert.rejects(state.ideas.generate(bigRequest(id(80)), 'owner:050b'));
   assert.equal(count(state.db, 'flow_content_ideas'), 0);
   const attempt = state.attempts.list({ targetType: 'content_big_idea', limit: 10 })[0];
+  assert.ok(attempt);
   assert.equal(attempt.state, 'failed');
   assert.equal(attempt.outputSha256 !== null, true);
   state.db.close();
