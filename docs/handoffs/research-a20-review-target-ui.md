@@ -2,8 +2,8 @@
 
 ## Delivery state
 
-Implementation is being prepared on `feature/research-a20-review-target-ui`,
-stacked after Research A19. Draft PR and Linux verification are pending.
+Implementation is complete on `feature/research-a20-review-target-ui`, stacked
+after Research A19. Draft PR #77 is open against `main` and mergeable.
 
 ## Implemented scope
 
@@ -22,5 +22,11 @@ report. Demo mode does not fabricate targets.
 
 ## Release evidence
 
-Pending Linux CI on the final pushed SHA. No Windows test, build or typecheck is
-part of this delivery.
+Linux CI passed on `af4a5dc2989534f570bf52fcf0068f891aac4f62`:
+
+- Repository check: <https://github.com/khangpworking/tdn-growth-os/actions/runs/36428014460>
+- Preview check: <https://github.com/khangpworking/tdn-growth-os/actions/runs/36428014466>
+- Frontend: 174/174 tests, strict TypeScript and production build passed.
+- Repository: 583/583 tests and contract generation passed.
+
+No Windows test, build or typecheck is part of this delivery.

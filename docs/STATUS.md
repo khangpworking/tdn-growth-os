@@ -8,7 +8,9 @@
   page that separates evidence, calculation, AI interpretation and human
   decision.
 - The page remains visibly unapproved and has no decision or reviewer control.
-- Draft PR and Linux verification are pending.
+- Draft PR #77 is open and mergeable. Final Linux verification passed with
+  174/174 frontend tests, 583/583 repository tests, strict TypeScript, contract
+  generation and the production build.
 
 ## Research A19: OWNER review-target creation API
 
