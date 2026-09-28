@@ -53,7 +53,7 @@ test('report panel requires an explicit version before exposing the stored repor
     const reportLink = dom.container.querySelector('a[href*="report.html"]') as HTMLAnchorElement | null;
     assert.ok(reportLink);
     assert.match(reportLink.getAttribute('href') ?? '', new RegExp(`/api/reports/${reportId}/versions/1/files/report\\.html$`));
-    assert.match(dom.container.textContent ?? '', /4\/30 section/);
+    assert.match(dom.container.textContent ?? '', /4\/30 phần/);
     assert.match(dom.container.textContent ?? '', /Phiên bản báo cáo này chưa có nhận định AI đã lưu/);
   } finally {
     await act(async () => { root.unmount(); });
