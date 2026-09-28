@@ -129,6 +129,7 @@ test('version attempts must match package target id, target type and modality', 
   for (const [index, wrong] of cases.entries()) {
     state.attempt(wrong.id, wrong.targetType, wrong.targetId, wrong.modality, wrong.model);
     assert.throws(() => version(state.db, { packageId: secondPackageId, part: 'CAPTION', version: 1, source: 'GENERATED', attemptId: wrong.id, requestNo: 50 + index }), /flow_content_package_version_attempt_mismatch/);
+    state.db.prepare("UPDATE flow_content_ai_attempts SET state = 'failed', error_code = 'synthetic_mismatch', closed_at = ? WHERE attempt_id = ?").run(at, wrong.id);
   }
   const correctCaption = uuid(60);
   const correctPoster = uuid(61);
