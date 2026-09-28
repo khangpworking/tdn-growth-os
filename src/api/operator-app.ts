@@ -164,7 +164,9 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
 }
 
 function reportApiPath(pathname: string): boolean {
-  return /^\/api\/workspaces\/[^/]+\/reports$/.test(pathname) || /^\/api\/reports(?:\/|$)/.test(pathname);
+  return /^\/api\/workspaces\/[^/]+\/reports$/.test(pathname) ||
+    /^\/api\/reports(?:\/|$)/.test(pathname) ||
+    /^\/api\/report-review-targets\/[^/]+$/.test(pathname);
 }
 
 /**
