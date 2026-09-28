@@ -42,6 +42,9 @@ test('one loopback server serves production files, health, read API, and safely 
     const demo = await fetch(`${origin}/?mode=demo`); assert.equal(demo.status, 200); assert.match(await demo.text(), /doctype html/);
     const health = await fetch(`${origin}/healthz`); assert.deepEqual(await health.json(), { status: 'ok', version: '0.1.0', ownerWritesEnabled: false });
     const portfolio = await fetch(`${origin}/api/workspaces`); assert.equal(portfolio.status, 200); assert.deepEqual(await portfolio.json(), { contractVersion: '1.0.0', workspaces: [] });
+    const missingTarget = await fetch(`${origin}/api/report-review-targets/${'f'.repeat(64)}`);
+    assert.equal(missingTarget.status, 404);
+    assert.deepEqual(await missingTarget.json(), { error: { code: 'not_found', message: 'Review target not found' } });
     const owner = await fetch(`${origin}/owner-api/workspaces`, { method: 'POST' }); assert.equal(owner.status, 403); assert.deepEqual(await owner.json(), { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
     assert.equal((await fetch(`${origin}/api/unknown`)).status, 404); assert.equal((await fetch(`${origin}/owner-api/unknown`)).status, 403);
   });

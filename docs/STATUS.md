@@ -1,5 +1,16 @@
 # Trạng thái hiện tại
 
+## Research A18: exact review-target read API
+
+- Draft PR #75 is open on `feature/research-a18-review-target-read-api`.
+- Adds one read-only route for an explicitly named A17 review-target digest.
+- Every response replays the retained target through the exact A10 report and
+  A13 interpretation readers before returning the canonical A16 contract.
+- There is no list or latest route, review state, decision, reviewer, OWNER
+  mutation, UI, provider call, publication right or deployment in this slice.
+- Linux verification passed with 171/171 frontend and 583/583 repository tests,
+  strict TypeScript, contract generation, production build and report preview.
+
 ## Research A17: immutable review-target ledger
 
 - Persists one canonical A16 target from a closed exact report/version,

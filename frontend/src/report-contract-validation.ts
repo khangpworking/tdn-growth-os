@@ -6,9 +6,11 @@ import type {
   ReportInterpretationIndexResponse,
 } from '../../contracts/api/report-api.generated';
 import reportApiSchema from '../../contracts/api/report-api.schema.json' with { type: 'json' };
+import reportReviewTargetSchema from '../../contracts/analysis/report-review-target.schema.json' with { type: 'json' };
 
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
+ajv.addSchema(reportReviewTargetSchema as AnySchema);
 ajv.addSchema(reportApiSchema as AnySchema);
 
 function requiredSynchronousValidator<T>(schemaRef: string): ValidateFunction<T> {

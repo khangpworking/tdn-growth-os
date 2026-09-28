@@ -572,6 +572,20 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     reportId: created.reportId, reportVersion: created.version,
     artifactBytes: built.artifactBytes, promptText: interpretation.promptText,
   });
+  const targets = new ReportReviewTargetLedgerService({
+    db: state.db,
+    artifactStore: state.artifacts,
+    reports: interpretation.reports,
+    interpretations: ledger,
+    now: () => new Date('2026-10-01T06:00:00.000Z'),
+  });
+  const retainedTarget = await targets.create({
+    contractVersion: '1.0.0',
+    reportId: created.reportId,
+    reportVersion: created.version,
+    interpretationId: persisted.interpretationId,
+    intendedUse: 'Internal market-opportunity review and decision support.',
+  });
   const application = createReportApiServer({ databasePath: state.db.name, artifactRoot: state.artifactRoot });
   await new Promise<void>(resolve => application.server.listen(0, '127.0.0.1', resolve));
   const address = application.server.address();
@@ -638,6 +652,20 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations/99999999-9999-4999-8999-999999999999`)).status, 404);
     assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations/not-a-uuid`)).status, 400);
 
+    const targetResponse = await fetch(`${base}/api/report-review-targets/${retainedTarget.reviewTargetId}`);
+    assert.equal(targetResponse.status, 200);
+    const target = await targetResponse.json() as any;
+    assert.equal(target.reviewTargetId, retainedTarget.reviewTargetId);
+    assert.equal(target.report.versionId, created.versionId);
+    assert.equal(target.interpretation.interpretationId, persisted.interpretationId);
+    assert.equal(target.approvalScope.intendedUse, 'Internal market-opportunity review and decision support.');
+    assert.equal(target.reviewableContent.purpose, 'INTERNAL_REVIEW_ONLY');
+    assert.ok(!('decision' in target));
+    assert.ok(!JSON.stringify(target).includes('private-provider-request'));
+    assert.equal((await fetch(`${base}/api/report-review-targets`)).status, 404);
+    assert.equal((await fetch(`${base}/api/report-review-targets/${'F'.repeat(64)}`)).status, 400);
+    assert.equal((await fetch(`${base}/api/report-review-targets/${'f'.repeat(64)}`)).status, 404);
+
     const expectedHtml = await state.service.readArtifact(created.reportId, 1, 'report.html');
     const htmlResponse = await fetch(`${base}/api/reports/${created.reportId}/versions/1/files/report.html`);
     assert.equal(htmlResponse.status, 200);
@@ -656,6 +684,9 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     const corruptInterpretation = await fetch(`${base}/api/reports/${created.reportId}/versions/1/interpretations/${persisted.interpretationId}`);
     assert.equal(corruptInterpretation.status, 500);
     assert.deepEqual(await corruptInterpretation.json(), { error: { code: 'integrity_error', message: 'Stored report data failed integrity verification' } });
+    const corruptTarget = await fetch(`${base}/api/report-review-targets/${retainedTarget.reviewTargetId}`);
+    assert.equal(corruptTarget.status, 500);
+    assert.deepEqual(await corruptTarget.json(), { error: { code: 'integrity_error', message: 'Stored report data failed integrity verification' } });
   } finally {
     await application.close();
   }
