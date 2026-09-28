@@ -29,4 +29,3 @@ The first Linux check correctly caught an incomplete packet-replay path and one
 fixture expectation. The correction replays the exact method-artifact identity
 through the interpretation boundary and keeps the coverage assertion bound to
 the fixture's actual observation states.
-

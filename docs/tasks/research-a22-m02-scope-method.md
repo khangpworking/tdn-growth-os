@@ -29,4 +29,3 @@ identity.
 - Source-backed integration proving artifact, packet and semantic binding.
 - Exact-version API projection of the method-artifact identity.
 - Linux-only full repository check and report preview.
-
