@@ -1,5 +1,16 @@
 # Trạng thái hiện tại
 
+## Research A16: exact report review target
+
+- Composes one deterministic internal-review target from an explicitly named
+  A10 report version and explicitly named A13 interpretation run; never latest.
+- Binds full source/scope membership, exact calculation and interpretation
+  identities, exact item/claim inventory, intended use and the exact verified
+  `report.html` file the future reviewer sees.
+- The target is internal and unapproved. It adds no human decision, reviewer,
+  publication right, UI/API, migration, model call, data write or deployment.
+- Final draft-PR SHA and Linux verification remain pending.
+
 ## Research A14: exact-version interpretation read API
 
 - Draft PR #71 is open on `feature/research-a14-interpretation-read-api`; the

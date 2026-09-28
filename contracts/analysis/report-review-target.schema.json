@@ -1,0 +1,149 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-review-target.schema.json",
+  "title": "ReportReviewTarget",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "reviewTargetId", "policyVersion", "report", "approvalScope", "renderedReport", "calculation", "interpretation", "reviewableContent", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "reviewTargetId": { "$ref": "#/$defs/digest" },
+    "policyVersion": { "const": "report-review-target-v1" },
+    "report": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reportId", "reportKey", "versionId", "version", "semanticVersionId", "createdAt"],
+      "properties": {
+        "reportId": { "type": "string", "format": "uuid" },
+        "reportKey": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+        "versionId": { "type": "string", "format": "uuid" },
+        "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "semanticVersionId": { "$ref": "#/$defs/digest" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "approvalScope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspaceId", "sourcePackageId", "sourcePackageManifestSha256", "packageContentSha256", "selectedSources", "marketKey", "productKey", "platform", "selection", "start", "end", "periodBasis", "acquiredAt", "geography", "intendedUse", "sourceRights"],
+      "properties": {
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "sourcePackageId": { "type": "string", "format": "uuid" },
+        "sourcePackageManifestSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "selectedSources": {
+          "type": "array", "minItems": 2, "maxItems": 20, "uniqueItems": true,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["ordinal", "role", "logicalPath", "sha256"],
+            "properties": {
+              "ordinal": { "type": "integer", "minimum": 0, "maximum": 19 },
+              "role": { "enum": ["workbook", "manifest", "labels"] },
+              "logicalPath": { "type": "string", "minLength": 1, "maxLength": 512 },
+              "sha256": { "$ref": "#/$defs/digest" }
+            }
+          }
+        },
+        "marketKey": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "productKey": { "type": ["string", "null"], "minLength": 1, "maxLength": 100 },
+        "platform": { "enum": ["shopee", "tiktok"] },
+        "selection": { "enum": ["ON", "OFF", "UNSPECIFIED"] },
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" },
+        "periodBasis": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "acquiredAt": { "type": ["string", "null"], "format": "date-time" },
+        "geography": { "const": "UNSPECIFIED" },
+        "intendedUse": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "sourceRights": { "const": "UNSPECIFIED" }
+      }
+    },
+    "renderedReport": {
+      "type": "object", "additionalProperties": false,
+      "required": ["fileName", "sha256", "mediaType", "byteSize"],
+      "properties": {
+        "fileName": { "const": "report.html" },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "mediaType": { "const": "text/html; charset=utf-8" },
+        "byteSize": { "type": "integer", "minimum": 1, "maximum": 33554432 }
+      }
+    },
+    "calculation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packetId", "packetSha256", "catalogSha256", "resultSha256", "claimsSha256", "packetPolicyVersion", "metricMethodVersion", "metricRounding", "sections"],
+      "properties": {
+        "packetId": { "$ref": "#/$defs/digest" },
+        "packetSha256": { "$ref": "#/$defs/digest" },
+        "catalogSha256": { "$ref": "#/$defs/digest" },
+        "resultSha256": { "$ref": "#/$defs/digest" },
+        "claimsSha256": { "$ref": "#/$defs/digest" },
+        "packetPolicyVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "metricMethodVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "metricRounding": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "sections": {
+          "type": "array", "minItems": 1, "maxItems": 100,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["sectionId", "sectionContentSha256", "deliveryState"],
+            "properties": {
+              "sectionId": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" },
+              "sectionContentSha256": { "$ref": "#/$defs/digest" },
+              "deliveryState": { "enum": ["PARTIAL_DETERMINISTIC_DRAFT", "METHOD_ONLY", "BLOCKED", "MANUAL_REVIEW_REQUIRED", "NOT_IMPLEMENTED"] }
+            }
+          }
+        }
+      }
+    },
+    "interpretation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["interpretationId", "reportVersionId", "sourceSemanticVersionId", "interpretationNumber", "interpretationContentSha256", "artifactSha256", "completedAt", "providerId", "modelId", "promptId", "promptVersion", "promptSha256", "outputSchemaVersion"],
+      "properties": {
+        "interpretationId": { "type": "string", "format": "uuid" },
+        "reportVersionId": { "type": "string", "format": "uuid" },
+        "sourceSemanticVersionId": { "$ref": "#/$defs/digest" },
+        "interpretationNumber": { "type": "integer", "minimum": 1 },
+        "interpretationContentSha256": { "$ref": "#/$defs/digest" },
+        "artifactSha256": { "$ref": "#/$defs/digest" },
+        "completedAt": { "type": "string", "format": "date-time" },
+        "providerId": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "modelId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "promptId": { "type": "string", "minLength": 1, "maxLength": 160 },
+        "promptVersion": { "type": "integer", "minimum": 1 },
+        "promptSha256": { "$ref": "#/$defs/digest" },
+        "outputSchemaVersion": { "const": "1.0.0" }
+      }
+    },
+    "reviewableContent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purpose", "reportSectionIds", "interpretationSectionIds", "interpretationItemIds", "claimIds"],
+      "properties": {
+        "purpose": { "const": "INTERNAL_REVIEW_ONLY" },
+        "reportSectionIds": {
+          "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" }
+        },
+        "interpretationSectionIds": {
+          "type": "array", "minItems": 1, "maxItems": 30, "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" }
+        },
+        "interpretationItemIds": {
+          "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/digest" }
+        },
+        "claimIds": {
+          "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 100 }
+        }
+      }
+    },
+    "limitations": {
+      "type": "array", "minItems": 4, "maxItems": 12, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
