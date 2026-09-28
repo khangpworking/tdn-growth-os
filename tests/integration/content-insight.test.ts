@@ -280,7 +280,7 @@ test('after an Insight lock, campaign name/objective remain editable but items, 
   const state = await setup(); await createCampaign(state); await state.insights.reviseInsight(revision(campaignId, 0)); await state.insights.lockInsight(lock(campaignId, 1, 1));
   const renamed = await state.campaigns.reviseCampaign({ contractVersion: '1.0.0', campaignId, expectedVersion: 1, campaign: campaignContent({ name: 'Tên đã đổi', objective: 'Mục tiêu đã đổi' }) });
   assert.equal(renamed.version, 2);
-  await assert.rejects(state.campaigns.reviseCampaign({ contractVersion: '1.0.0', campaignId, expectedVersion: 2, campaign: campaignContent({ items: [{ itemId: itemA, itemVersion: 2, tierKeys: [] }, { itemId: itemB, itemVersion: 1 }] }) }), ContentCampaignConflictError);
+  await assert.rejects(state.campaigns.reviseCampaign({ contractVersion: '1.0.0', campaignId, expectedVersion: 2, campaign: campaignContent({ items: [{ itemId: itemA, itemVersion: 2, tierKeys: ['go'] }, { itemId: itemB, itemVersion: 1 }] }) }), ContentCampaignConflictError);
   await assert.rejects(state.campaigns.reviseCampaign({ contractVersion: '1.0.0', campaignId, expectedVersion: 2, campaign: campaignContent({ items: [{ itemId: itemB, itemVersion: 1 }] }) }), ContentCampaignConflictError);
   await assert.rejects(state.campaigns.reviseCampaign({ contractVersion: '1.0.0', campaignId, expectedVersion: 2, campaign: campaignContent({ researchProductWorkspaceId: workspaceId }) }), ContentCampaignConflictError);
   assert.deepEqual(state.campaigns.campaignVersions(campaignId), [1, 2]);
