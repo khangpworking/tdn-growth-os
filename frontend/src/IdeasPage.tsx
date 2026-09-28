@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import type { ContentIdeaPromptChoice } from '../../contracts/flow/content-idea-generate-request.generated';
 import { ContentDataSourceError } from './content-data-source';
 import { OwnerWriteError } from './data-source';
+import CampaignSteps from './CampaignSteps';
 import ConfirmDialog from './ConfirmDialog';
 import { generatedPromptKey, loadPrompts, submitPromptCreate, type PromptContent, type PromptList } from './prompt-data-source';
 import {
@@ -41,6 +42,7 @@ import {
   type PurposeKind,
   type PurposeTag,
 } from './idea-data-source';
+import { PACKAGE_BATCH_LIMIT } from './package-data-source';
 import { routeToHash } from './routing';
 
 export interface IdeasPageProps {
@@ -85,7 +87,6 @@ interface RunState {
 
 type StateAction = 'DEVELOP' | 'STOP' | 'DELETE' | 'RESTORE' | 'PURPOSES';
 
-const STEPS = ['Insight', 'Big Idea', 'Góc nội dung', 'Caption & Poster'] as const;
 const FREESTYLE_LABEL = 'Prompt tự do';
 const DEFAULT_COUNT = 3;
 const DEMO_BANNER = 'Chế độ demo — ý tưởng được tạo bằng bộ sinh giả lập và chỉ lưu trong trình duyệt này.';
@@ -111,15 +112,6 @@ function promptOptions(prompts: PromptList | null, kind: IdeaKind): PromptOption
   return [...system, ...own];
 }
 
-function StepIndicator({ campaignId, kind }: { readonly campaignId: string; readonly kind: IdeaKind }) {
-  const current = kind === 'BIG_IDEA' ? 1 : 2;
-  const href = [routeToHash.campaignInsight(campaignId), routeToHash.campaignBigIdea(campaignId), routeToHash.campaignAngle(campaignId)];
-  return <ol className="insight-steps" aria-label="Các bước chiến dịch">{STEPS.map((step, index) => <li key={step} className={index === current ? 'current' : ''} aria-current={index === current ? 'step' : undefined}>
-    {href[index] && index !== current ? <a href={href[index]}><b>{step}</b></a> : <b>{step}</b>}
-    <small>{index < current ? 'Đã qua' : index === current ? 'Đang làm' : index === 3 ? 'Sắp có' : 'Tiếp theo'}</small>
-  </li>)}</ol>;
-}
-
 export default function IdeasPage(props: IdeasPageProps) {
   const { mode, campaignId, kind } = props;
   const [loaded, setLoaded] = useState<Loaded>({ status: 'loading' });
@@ -134,6 +126,8 @@ export default function IdeasPage(props: IdeasPageProps) {
   const [notice, setNotice] = useState<{ readonly message: string; readonly reload: boolean } | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<IdeaEntry | null>(null);
   const [purposeEditor, setPurposeEditor] = useState<string | null>(null);
+  /** Angle codes picked for Caption & Poster, in the order they were ticked. */
+  const [chosen, setChosen] = useState<readonly string[]>([]);
   const [tagDraft, setTagDraft] = useState<{ readonly label: string; readonly displayLike: PurposeKind }>({ label: '', displayLike: 'EDUCATION' });
   const mountedRef = useRef(true);
   const cancelRef = useRef(false);
@@ -339,6 +333,9 @@ export default function IdeasPage(props: IdeasPageProps) {
           ? <><span className="status-pill good">Đang phát triển</span><button className="button" type="button" disabled={busy} onClick={() => void changeState(idea, 'STOP')}>Ngừng phát triển</button><a className="button" href={routeToHash.campaignAngle(campaignId)}>Tạo góc nội dung</a></>
           : <button className="button primary" type="button" disabled={busy} onClick={() => void changeState(idea, 'DEVELOP')}>Phát triển ý này</button>}
       </div> : <div className="idea-purposes">
+        {idea.purposes.length > 0
+          ? <label className="idea-pick" htmlFor={`package-pick-${idea.ideaId}`}><input id={`package-pick-${idea.ideaId}`} type="checkbox" checked={chosen.includes(idea.code)} disabled={!chosen.includes(idea.code) && chosen.length >= PACKAGE_BATCH_LIMIT} onChange={() => setChosen(chosen.includes(idea.code) ? chosen.filter((code) => code !== idea.code) : [...chosen, idea.code])} /> Chọn để tạo Caption & Poster</label>
+          : <p className="muted">Gắn mục đích để tạo Caption & Poster.</p>}
         <ul className="chip-list" aria-label="Mục đích">{idea.purposes.map((value) => <li key={value} className={`purpose-chip purpose-${(purposeDisplayKind(value, list.purposeTags) ?? 'EDUCATION').toLowerCase()}`}>{purposeLabel(value, list.purposeTags)}</li>)}</ul>
         <button className="button" type="button" disabled={busy} aria-expanded={purposeEditor === idea.ideaId} onClick={() => setPurposeEditor(purposeEditor === idea.ideaId ? null : idea.ideaId)}>{idea.purposes.length ? 'Sửa mục đích' : 'Gắn mục đích'}</button>
         {purposeEditor === idea.ideaId && <div className="purpose-editor">
@@ -361,7 +358,7 @@ export default function IdeasPage(props: IdeasPageProps) {
     {mode === 'demo' && <div className="demo-banner" role="note">{DEMO_BANNER}</div>}
     <nav className="crumb" aria-label="Đường dẫn"><a href={routeToHash.content()}>Chiến dịch</a><span aria-hidden="true">/</span><a href={routeToHash.campaign(campaignId)}>{list.campaignName}</a><span aria-hidden="true">/</span><span>{title}</span></nav>
     <div className="heading"><div><h1>{title}</h1><p>{kind === 'BIG_IDEA' ? 'Ý tưởng lớn dẫn dắt cả chiến dịch, sinh từ Insight đã khóa. Chọn ý để phát triển thành các góc nội dung.' : 'Mỗi góc là một cách kể Big Idea cho một mục đích cụ thể.'}</p></div></div>
-    <StepIndicator campaignId={campaignId} kind={kind} />
+    <CampaignSteps campaignId={campaignId} current={kind === 'BIG_IDEA' ? 1 : 2} />
     {list.campaignDeleted && <div className="deleted-banner" role="status"><p>Chiến dịch đã bị xóa. Khôi phục chiến dịch để tiếp tục.</p><a className="button" href={routeToHash.campaign(campaignId)}>Mở chiến dịch</a></div>}
     {!list.insightLocked && !list.campaignDeleted && <div className="snapshot-warning" role="status"><p>Cần khóa Insight trước khi tạo ý tưởng.</p><a className="button" href={routeToHash.campaignInsight(campaignId)}>Mở Insight</a></div>}
     {kind === 'ANGLE' && list.insightLocked && developing.length === 0 && <div className="snapshot-warning" role="status"><p>Chưa có Big Idea nào đang phát triển. Chọn “Phát triển ý này” ở bước Big Idea.</p><a className="button" href={routeToHash.campaignBigIdea(campaignId)}>Mở Big Idea</a></div>}
@@ -411,7 +408,10 @@ export default function IdeasPage(props: IdeasPageProps) {
     {notice && <div className="form-error brand-notice" role="alert"><p>{notice.message}</p>{notice.reload && <button className="button" type="button" onClick={reload}>Tải lại</button>}</div>}
 
     <section aria-labelledby="idea-list-title">
-      <h2 id="idea-list-title">{kind === 'BIG_IDEA' ? `Big Idea (${visible.filter((idea) => !idea.deleted).length})` : parent ? `Góc của ${parent.code} (${visible.filter((idea) => !idea.deleted).length})` : 'Góc nội dung'}</h2>
+      <div className="idea-list-head">
+        <h2 id="idea-list-title">{kind === 'BIG_IDEA' ? `Big Idea (${visible.filter((idea) => !idea.deleted).length})` : parent ? `Góc của ${parent.code} (${visible.filter((idea) => !idea.deleted).length})` : 'Góc nội dung'}</h2>
+        {kind === 'ANGLE' && chosen.length > 0 && <a className="button primary" href={routeToHash.packageNew(campaignId, chosen)}>Tạo Caption & Poster ({chosen.length})</a>}
+      </div>
       {visible.length === 0 ? <p className="muted">Chưa có ý nào. Chọn prompt và bấm “Tạo”.</p> : <ul className="idea-grid">{visible.map(ideaCard)}</ul>}
     </section>
 

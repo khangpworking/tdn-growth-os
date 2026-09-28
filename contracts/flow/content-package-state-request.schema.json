@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-package-state-request.schema.json",
+  "title": "ContentPackageStateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "packageId", "expectedSequence", "action"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "packageId": { "type": "string", "format": "uuid" },
+    "expectedSequence": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 },
+    "action": { "title": "ContentPackageStateAction", "enum": ["DELETE", "RESTORE"] }
+  }
+}

@@ -86,7 +86,20 @@ import contentPurposeTagSchema from '../../../contracts/flow/content-purpose-tag
 import type { ContentPurposeTagRequest } from '../../../contracts/flow/content-purpose-tag-request.generated.js';
 import contentIdeaArtifactSchema from '../../../contracts/flow/content-idea-artifact.schema.json' with { type: 'json' };
 import type { ContentIdeaArtifact } from '../../../contracts/flow/content-idea-artifact.generated.js';
-
+import contentPackageCreateSchema from '../../../contracts/flow/content-package-create-request.schema.json' with { type: 'json' };
+import type { ContentPackageCreateRequest } from '../../../contracts/flow/content-package-create-request.generated.js';
+import contentPackageArtifactSchema from '../../../contracts/flow/content-package-artifact.schema.json' with { type: 'json' };
+import type { ContentPackageArtifact } from '../../../contracts/flow/content-package-artifact.generated.js';
+import contentPackageGenerateSchema from '../../../contracts/flow/content-package-generate-request.schema.json' with { type: 'json' };
+import type { ContentPackageGenerateRequest } from '../../../contracts/flow/content-package-generate-request.generated.js';
+import contentPackageVersionSchema from '../../../contracts/flow/content-package-version-request.schema.json' with { type: 'json' };
+import type { ContentPackageVersionRequest } from '../../../contracts/flow/content-package-version-request.generated.js';
+import contentPackageVersionArtifactSchema from '../../../contracts/flow/content-package-version-artifact.schema.json' with { type: 'json' };
+import type { ContentPackageVersionArtifact } from '../../../contracts/flow/content-package-version-artifact.generated.js';
+import contentPackageStateSchema from '../../../contracts/flow/content-package-state-request.schema.json' with { type: 'json' };
+import type { ContentPackageStateRequest } from '../../../contracts/flow/content-package-state-request.generated.js';
+import contentCampaignDefaultsSchema from '../../../contracts/flow/content-campaign-defaults-request.schema.json' with { type: 'json' };
+import type { ContentCampaignDefaultsRequest } from '../../../contracts/flow/content-campaign-defaults-request.generated.js';
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
@@ -103,6 +116,8 @@ ajv.addSchema(stpContentSchema);
 ajv.addSchema(stpWorkingSaveRequestSchema);
 ajv.addSchema(contentIdeaGenerateSchema);
 ajv.addSchema(contentIdeaStateSchema);
+ajv.addSchema(contentPackageCreateSchema);
+ajv.addSchema(contentPackageGenerateSchema);
 const validateRequest = ajv.getSchema<ApprovedProposalIntakeRequest>(requestSchema.$id)!;
 const validatePlan = ajv.compile<AuthorizedPlan>(planSchema);
 const validateDecision = ajv.compile<GovernedProposalDecision>(decisionSchema);
@@ -145,7 +160,14 @@ const validateContentIdeaGenerate = ajv.getSchema<ContentIdeaGenerateRequest>(co
 const validateContentIdeaState = ajv.getSchema<ContentIdeaStateRequest>(contentIdeaStateSchema.$id)!;
 const validateContentPurposeTag = ajv.compile<ContentPurposeTagRequest>(contentPurposeTagSchema);
 const validateContentIdeaEnvelope = ajv.compile<ContentIdeaArtifact>(contentIdeaArtifactSchema);
-
+// Package schemas reference the idea artifact's prompt definitions, so they compile after it.
+const validateContentPackageCreate = ajv.getSchema<ContentPackageCreateRequest>(contentPackageCreateSchema.$id)!;
+const validateContentPackageEnvelope = ajv.compile<ContentPackageArtifact>(contentPackageArtifactSchema);
+const validateContentPackageGenerate = ajv.getSchema<ContentPackageGenerateRequest>(contentPackageGenerateSchema.$id)!;
+const validateContentPackageVersion = ajv.compile<ContentPackageVersionRequest>(contentPackageVersionSchema);
+const validateContentPackageVersionEnvelope = ajv.compile<ContentPackageVersionArtifact>(contentPackageVersionArtifactSchema);
+const validateContentPackageState = ajv.compile<ContentPackageStateRequest>(contentPackageStateSchema);
+const validateContentCampaignDefaults = ajv.compile<ContentCampaignDefaultsRequest>(contentCampaignDefaultsSchema);
 export class FlowValidationError extends Error {
   readonly details: string;
 
@@ -409,5 +431,40 @@ export function validateContentPurposeTagRequest(value: unknown): ContentPurpose
 
 export function validateContentIdeaArtifact(value: unknown): ContentIdeaArtifact {
   if (!validateContentIdeaEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentIdeaEnvelope.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentPackageCreateRequest(value: unknown): ContentPackageCreateRequest {
+  if (!validateContentPackageCreate(value)) throw new FlowValidationError(ajv.errorsText(validateContentPackageCreate.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentPackageArtifact(value: unknown): ContentPackageArtifact {
+  if (!validateContentPackageEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentPackageEnvelope.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentPackageGenerateRequest(value: unknown): ContentPackageGenerateRequest {
+  if (!validateContentPackageGenerate(value)) throw new FlowValidationError(ajv.errorsText(validateContentPackageGenerate.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentPackageVersionRequest(value: unknown): ContentPackageVersionRequest {
+  if (!validateContentPackageVersion(value)) throw new FlowValidationError(ajv.errorsText(validateContentPackageVersion.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentPackageVersionArtifact(value: unknown): ContentPackageVersionArtifact {
+  if (!validateContentPackageVersionEnvelope(value)) throw new FlowValidationError(ajv.errorsText(validateContentPackageVersionEnvelope.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentPackageStateRequest(value: unknown): ContentPackageStateRequest {
+  if (!validateContentPackageState(value)) throw new FlowValidationError(ajv.errorsText(validateContentPackageState.errors, { separator: '; ' }));
+  return value;
+}
+
+export function validateContentCampaignDefaultsRequest(value: unknown): ContentCampaignDefaultsRequest {
+  if (!validateContentCampaignDefaults(value)) throw new FlowValidationError(ajv.errorsText(validateContentCampaignDefaults.errors, { separator: '; ' }));
   return value;
 }

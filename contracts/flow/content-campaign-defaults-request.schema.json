@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-campaign-defaults-request.schema.json",
+  "title": "ContentCampaignDefaultsRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "campaignId", "expectedVersion", "defaults"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "expectedVersion": { "type": "integer", "minimum": 0, "maximum": 9007199254740990 },
+    "defaults": { "$ref": "#/$defs/defaults" }
+  },
+  "$defs": {
+    "defaults": {
+      "title": "ContentCampaignPackageDefaults",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caption", "poster"],
+      "properties": {
+        "caption": { "$ref": "content-package-create-request.schema.json#/$defs/captionSettings" },
+        "poster": { "$ref": "content-package-create-request.schema.json#/$defs/posterSettings" }
+      }
+    }
+  }
+}

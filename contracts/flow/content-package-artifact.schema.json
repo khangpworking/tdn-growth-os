@@ -1,0 +1,109 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-package-artifact.schema.json",
+  "title": "ContentPackageArtifact",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion", "packageId", "campaignId", "campaignVersion", "angleId", "insightVersion", "brand", "items", "requestId",
+    "requestSha256", "purposes", "display", "caption", "poster", "footer", "createdAt"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "packageId": { "type": "string", "format": "uuid" },
+    "campaignId": { "type": "string", "format": "uuid" },
+    "campaignVersion": { "$ref": "#/$defs/version" },
+    "angleId": { "type": "string", "format": "uuid" },
+    "insightVersion": { "$ref": "#/$defs/version" },
+    "brand": {
+      "title": "ContentPackageBrandRef",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["brandId", "version"],
+      "properties": { "brandId": { "type": "string", "format": "uuid" }, "version": { "$ref": "#/$defs/version" } }
+    },
+    "items": { "type": "array", "items": { "$ref": "#/$defs/item" } },
+    "requestId": { "type": "string", "format": "uuid" },
+    "requestSha256": { "$ref": "#/$defs/sha256" },
+    "purposes": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 60 } },
+    "display": {
+      "title": "ContentPackageDisplay",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["caption", "poster"],
+      "properties": {
+        "caption": {
+          "title": "ContentCaptionDisplay",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "tagline", "hotline", "web", "address"],
+          "properties": {
+            "name": { "$ref": "#/$defs/level" },
+            "tagline": { "$ref": "#/$defs/level" },
+            "hotline": { "$ref": "#/$defs/level" },
+            "web": { "$ref": "#/$defs/level" },
+            "address": { "$ref": "#/$defs/level" }
+          }
+        },
+        "poster": {
+          "title": "ContentPosterDisplay",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["name", "logo", "tagline", "hotline", "web", "address"],
+          "properties": {
+            "name": { "type": "boolean" },
+            "logo": { "type": "boolean" },
+            "tagline": { "type": "boolean" },
+            "hotline": { "type": "boolean" },
+            "web": { "type": "boolean" },
+            "address": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "caption": {
+      "title": "ContentPackageCaptionPin",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt", "model", "style", "length"],
+      "properties": {
+        "prompt": { "$ref": "content-idea-artifact.schema.json#/$defs/promptUsed" },
+        "model": { "$ref": "content-idea-generate-request.schema.json#/$defs/model" },
+        "style": { "$ref": "content-package-create-request.schema.json#/$defs/style" },
+        "length": { "$ref": "content-package-create-request.schema.json#/$defs/length" }
+      }
+    },
+    "poster": {
+      "title": "ContentPackagePosterPin",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["prompt", "model", "format", "referenceMediaSha256s", "includeLogo"],
+      "properties": {
+        "prompt": { "$ref": "content-idea-artifact.schema.json#/$defs/promptUsed" },
+        "model": { "$ref": "content-package-create-request.schema.json#/$defs/imageModel" },
+        "format": { "$ref": "content-package-create-request.schema.json#/$defs/format" },
+        "referenceMediaSha256s": { "type": "array", "items": { "$ref": "#/$defs/sha256" } },
+        "includeLogo": { "type": "boolean" },
+        "logoMediaSha256": { "$ref": "#/$defs/sha256" }
+      }
+    },
+    "footer": { "type": "string", "maxLength": 2000 },
+    "createdAt": { "type": "string", "format": "date-time" }
+  },
+  "$defs": {
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "level": { "$ref": "content-package-create-request.schema.json#/$defs/level" },
+    "item": {
+      "title": "ContentPackageItemRef",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["itemId", "itemVersion"],
+      "properties": {
+        "itemId": { "type": "string", "format": "uuid" },
+        "itemVersion": { "$ref": "#/$defs/version" },
+        "tierKeys": { "type": "array", "items": { "type": "string", "minLength": 1, "maxLength": 64 } }
+      }
+    }
+  }
+}

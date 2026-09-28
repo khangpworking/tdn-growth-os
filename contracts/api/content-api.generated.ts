@@ -12,6 +12,8 @@ export type ContentApiContract =
   | ContentCampaignDetailResponse
   | ContentInsightDetailResponse
   | ContentIdeaListResponse
+  | ContentPackageListResponse
+  | ContentPackageDetailResponse
   | ContentAiStatusResponse
   | ContentApiErrorResponse;
 export type Uuid = string;
@@ -38,6 +40,14 @@ export type ContentIdeaPurposes =
 export type ContentIdeaPurpose = string;
 export type ContentIdeaModel = 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low';
 export type ContentPurposeKind = 'EDUCATION' | 'ENTERTAINMENT' | 'SALES' | 'TRUST' | 'ENGAGEMENT';
+export type ContentPosterFormat = 'square' | 'portrait' | 'story' | 'landscape';
+export type ContentIdeaPromptChoice = ContentIdeaSystemPrompt | ContentIdeaUserPrompt | ContentIdeaFreestylePrompt;
+export type ContentCaptionStyle = 'PROFESSIONAL' | 'FRIENDLY';
+export type ContentCaptionLength = 'SHORT' | 'MEDIUM' | 'LONG';
+export type ContentPosterModel = 'gpt-image-2' | 'gemini-3.1-flash-image';
+export type ContentPosterReferences = string[];
+export type ContentPackageVersionSource = 'GENERATED' | 'MANUAL' | 'RESTORE';
+export type ContentPackagePart = 'CAPTION' | 'POSTER';
 
 export interface ContentBrandListResponse {
   contractVersion: '1.0.0';
@@ -658,6 +668,151 @@ export interface ContentPurposeTagEntry {
   label: string;
   displayLike: ContentPurposeKind;
   createdAt: DateTime;
+}
+export interface ContentPackageListResponse {
+  contractVersion: '1.0.0';
+  campaignId: Uuid;
+  campaignName: string;
+  campaignDeleted: boolean;
+  insightLocked: boolean;
+  defaults?: ContentPackageDefaultsView;
+  packages: ContentPackageListEntry[];
+}
+export interface ContentPackageDefaultsView {
+  version: number;
+  defaults: ContentCampaignPackageDefaults;
+  createdAt: DateTime;
+}
+export interface ContentCampaignPackageDefaults {
+  caption: ContentCaptionSettings;
+  poster: ContentPosterSettings;
+}
+export interface ContentCaptionSettings {
+  prompt: ContentIdeaPromptChoice;
+  model: ContentIdeaModel;
+  style: ContentCaptionStyle;
+  length: ContentCaptionLength;
+}
+export interface ContentIdeaSystemPrompt {
+  source: 'SYSTEM';
+  id: string;
+  version: number;
+}
+export interface ContentIdeaUserPrompt {
+  source: 'USER';
+  promptId: string;
+  version: number;
+}
+export interface ContentIdeaFreestylePrompt {
+  source: 'FREESTYLE';
+  creativeText: string;
+}
+export interface ContentPosterSettings {
+  prompt: ContentIdeaPromptChoice;
+  model: ContentPosterModel;
+  format: ContentPosterFormat;
+  referenceMediaSha256s: ContentPosterReferences;
+  includeLogo: boolean;
+}
+export interface ContentPackageListEntry {
+  packageId: Uuid;
+  angleId: Uuid;
+  code: string;
+  deleted: boolean;
+  restorableUntil?: DateTime;
+  stateSequence: number;
+  captionVersion: number;
+  posterVersion: number;
+  captionPreview?: string;
+  posterFormat: ContentPosterFormat;
+  createdAt: DateTime;
+}
+export interface ContentPackageDetailResponse {
+  contractVersion: '1.0.0';
+  packageId: Uuid;
+  campaignId: Uuid;
+  campaignName: string;
+  campaignDeleted: boolean;
+  angleId: Uuid;
+  code: string;
+  deleted: boolean;
+  restorableUntil?: DateTime;
+  stateSequence: number;
+  settings: ContentPackageSettingsView;
+  footer: string;
+  captions: ContentCaptionVersionView[];
+  posters: ContentPosterVersionView[];
+  attempts: ContentPackageAttemptView[];
+  createdAt: DateTime;
+}
+export interface ContentPackageSettingsView {
+  brandId: Uuid;
+  purposes: string[];
+  captionPromptName: string;
+  captionModel: 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low';
+  captionStyle: 'PROFESSIONAL' | 'FRIENDLY';
+  captionLength: 'SHORT' | 'MEDIUM' | 'LONG';
+  posterPromptName: string;
+  posterModel: 'gpt-image-2' | 'gemini-3.1-flash-image';
+  posterFormat: ContentPosterFormat;
+  includeLogo: boolean;
+  logoMediaSha256?: Sha256;
+  referenceMediaSha256s: Sha256[];
+  captionDisplay: ContentCaptionDisplayView;
+  posterDisplay: ContentPosterDisplayView;
+}
+export interface ContentCaptionDisplayView {
+  name: ContentVisibility;
+  tagline: ContentVisibility;
+  hotline: ContentVisibility;
+  web: ContentVisibility;
+  address: ContentVisibility;
+}
+export interface ContentPosterDisplayView {
+  name: boolean;
+  logo: boolean;
+  tagline: boolean;
+  hotline: boolean;
+  web: boolean;
+  address: boolean;
+}
+export interface ContentCaptionVersionView {
+  version: number;
+  source: ContentPackageVersionSource;
+  attemptId?: Uuid;
+  restoredFromVersion?: number;
+  post: string;
+  footer: string;
+  text: string;
+  factCheck: ContentBrandFactCheckView[];
+  createdAt: DateTime;
+}
+export interface ContentBrandFactCheckView {
+  element: 'name' | 'tagline' | 'hotline' | 'website' | 'fanpage' | 'address' | 'price';
+  state: 'MATCH' | 'NOT_MENTIONED' | 'HIDDEN' | 'MISMATCH';
+  found: string[];
+}
+export interface ContentPosterVersionView {
+  version: number;
+  source: ContentPackageVersionSource;
+  attemptId?: Uuid;
+  restoredFromVersion?: number;
+  mediaType: 'image/png' | 'image/jpeg';
+  width: number;
+  height: number;
+  sizeMatchesFormat: boolean;
+  captionVersion: number;
+  createdAt: DateTime;
+}
+export interface ContentPackageAttemptView {
+  attemptId: Uuid;
+  part: ContentPackagePart;
+  state: string;
+  errorCode: string | null;
+  retryOf: Uuid | null;
+  model: string;
+  createdAt: DateTime;
+  closedAt: DateTime | null;
 }
 export interface ContentAiStatusResponse {
   contractVersion: '1.0.0';

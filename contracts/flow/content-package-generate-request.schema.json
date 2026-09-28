@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/flow/content-package-generate-request.schema.json",
+  "title": "ContentPackageGenerateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "packageId", "requestId", "part", "plannedCallCount"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "packageId": { "type": "string", "format": "uuid" },
+    "requestId": { "type": "string", "format": "uuid" },
+    "part": { "$ref": "#/$defs/part" },
+    "plannedCallCount": { "type": "integer", "minimum": 1, "maximum": 100 },
+    "retryOfAttemptId": { "type": "string", "format": "uuid" }
+  },
+  "$defs": {
+    "part": { "title": "ContentPackagePart", "enum": ["CAPTION", "POSTER"] }
+  }
+}
