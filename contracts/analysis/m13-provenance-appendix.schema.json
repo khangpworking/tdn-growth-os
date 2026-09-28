@@ -1,0 +1,122 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m13-provenance-appendix.schema.json",
+  "title": "M13ProvenanceAppendix",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodOutputId", "methodId", "methodVersion", "sourceVerification", "sourcePackage", "lineage", "sources", "recordLineage", "coverage", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodOutputId": { "$ref": "#/$defs/digest" },
+    "methodId": { "const": "metric-scope-packet-provenance" },
+    "methodVersion": { "const": "2.0.0" },
+    "sourceVerification": { "const": "EXACT_PACKAGE_BYTES_REPLAYED" },
+    "sourcePackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageId", "packageKey", "version", "manifestArtifactSha256", "packageContentSha256", "sourceAcquiredAt", "finalizedAt"],
+      "properties": {
+        "packageId": { "type": "string", "format": "uuid" },
+        "packageKey": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "version": { "type": "integer", "minimum": 1 },
+        "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "sourceAcquiredAt": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+        "finalizedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["normalizedInputSha256", "normalizationReceiptSha256", "metricResultSha256"],
+      "properties": {
+        "normalizedInputSha256": { "$ref": "#/$defs/digest" },
+        "normalizationReceiptSha256": { "$ref": "#/$defs/digest" },
+        "metricResultSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 3,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "logicalPath", "exportPath", "sha256", "byteSize", "mediaType", "evidenceFamily", "representationRole", "independence", "providerProvenance", "provenanceBasis", "period"],
+        "properties": {
+          "role": { "enum": ["workbook", "manifest", "labels"] },
+          "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "exportPath": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "sha256": { "$ref": "#/$defs/digest" },
+          "byteSize": { "type": "integer", "minimum": 0 },
+          "mediaType": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "evidenceFamily": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "representationRole": { "enum": ["primary", "alternate", "structured", "derived"] },
+          "independence": { "enum": ["independent", "non_independent"] },
+          "providerProvenance": { "enum": ["verified", "provider_reported", "operator_supplied_unverified", "synthetic"] },
+          "provenanceBasis": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "period": { "anyOf": [{ "$ref": "#/$defs/period" }, { "type": "null" }] }
+        }
+      }
+    },
+    "recordLineage": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["recordIndex", "recordPointer", "record", "revenue", "units", "label"],
+        "properties": {
+          "recordIndex": { "type": "integer", "minimum": 0, "maximum": 9999 },
+          "recordPointer": { "type": "string", "pattern": "^/records/[0-9]+$", "maxLength": 40 },
+          "record": { "$ref": "#/$defs/evidenceRef" },
+          "revenue": { "$ref": "#/$defs/evidenceRef" },
+          "units": { "$ref": "#/$defs/evidenceRef" },
+          "label": { "anyOf": [{ "$ref": "#/$defs/evidenceRef" }, { "type": "null" }] }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["recordCount", "recordLocatorCount", "revenueLocatorCount", "unitsLocatorCount", "labelLocatorCount", "unlabeledRecordCount"],
+      "properties": {
+        "recordCount": { "$ref": "#/$defs/count" },
+        "recordLocatorCount": { "$ref": "#/$defs/count" },
+        "revenueLocatorCount": { "$ref": "#/$defs/count" },
+        "unitsLocatorCount": { "$ref": "#/$defs/count" },
+        "labelLocatorCount": { "$ref": "#/$defs/count" },
+        "unlabeledRecordCount": { "$ref": "#/$defs/count" }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "count": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" }
+      }
+    },
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceSha256", "locator"],
+      "properties": {
+        "sourceSha256": { "$ref": "#/$defs/digest" },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    }
+  }
+}

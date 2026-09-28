@@ -103,7 +103,7 @@ export interface SectionPacket {
   blockers: string[];
   sectionSha256: string;
   methodArtifact?: {
-    fileName: 'm02-scope-method.json';
+    fileName: 'm02-scope-method.json' | 'm13-provenance-appendix.json';
     sha256: string;
     methodOutputId: string;
   };

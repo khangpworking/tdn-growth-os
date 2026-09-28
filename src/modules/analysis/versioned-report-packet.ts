@@ -26,13 +26,19 @@ const methods: Readonly<Record<string, string>> = {
   M04: 'metric-scope-packet-concentration', M13: 'metric-scope-packet-provenance',
 };
 
-export interface ReportMethodArtifact {
+export type ReportMethodArtifact = {
   readonly sectionId: 'M02';
   readonly methodVersion: '2.0.0';
   readonly fileName: 'm02-scope-method.json';
   readonly sha256: string;
   readonly methodOutputId: string;
-}
+} | {
+  readonly sectionId: 'M13';
+  readonly methodVersion: '2.0.0';
+  readonly fileName: 'm13-provenance-appendix.json';
+  readonly sha256: string;
+  readonly methodOutputId: string;
+};
 
 function pinnedJson(bytes: Buffer, expected: string, kind: string): unknown {
   if (bytes.length > 32 * 1024 * 1024 || !/^[0-9a-f]{64}$/.test(expected) || hash(bytes) !== expected) {
@@ -57,23 +63,35 @@ export function createResearchReportPacket(
   const catalog = pinnedJson(catalogBytes, catalogSha256, 'catalog');
   if (!validCatalog(catalog)) throw new TypeError('catalog: INVALID_CONTRACT');
   if (new Set(catalog.sections.map(s => s.sectionId)).size !== catalog.sections.length) throw new TypeError('catalog: DUPLICATE_SECTION_ID');
+  if (new Set(methodArtifacts.map(item => item.sectionId)).size !== methodArtifacts.length) {
+    throw new TypeError('method artifacts: DUPLICATE_SECTION_ID');
+  }
+  const artifactBySection = new Map(methodArtifacts.map(item => [item.sectionId, item]));
+  for (const artifact of methodArtifacts) {
+    const definition = catalog.sections.find(section => section.sectionId === artifact.sectionId);
+    const expectedFile = artifact.sectionId === 'M02' ? 'm02-scope-method.json' : 'm13-provenance-appendix.json';
+    if (!definition || definition.methodVersion !== artifact.methodVersion || artifact.fileName !== expectedFile) {
+      throw new TypeError('method artifacts: CATALOG_OR_FILE_MISMATCH');
+    }
+  }
 
   const claims: FactObservation[] = [];
   const sections: SectionPacket[] = catalog.sections.map(definition => {
     const { sectionId } = definition;
     const claimIds: string[] = [], contextPointers: string[] = [], blockers: string[] = [];
     let deliveryState: SectionPacket['deliveryState'] = definition.fallbackState;
-    const m02Artifact = sectionId === 'M02' ? methodArtifacts.find(item => item.sectionId === 'M02') : undefined;
+    const methodArtifact = artifactBySection.get(sectionId as ReportMethodArtifact['sectionId']);
     const supported = methods[sectionId] === definition.methodId &&
-      (definition.methodVersion === '1.0.0' || (sectionId === 'M02' && definition.methodVersion === '2.0.0'));
+      (definition.methodVersion === '1.0.0' ||
+        ((sectionId === 'M02' || sectionId === 'M13') && definition.methodVersion === '2.0.0'));
     if (!supported) {
       blockers.push(...definition.fallbackReasons);
       if (methods[sectionId]) { deliveryState = 'NOT_IMPLEMENTED'; blockers.push('UNSUPPORTED_SECTION_METHOD_VERSION'); }
     } else {
       deliveryState = 'PARTIAL_DETERMINISTIC_DRAFT';
-      if (sectionId === 'M02' && definition.methodVersion === '2.0.0') {
-        if (!m02Artifact || m02Artifact.methodVersion !== '2.0.0' || !/^[0-9a-f]{64}$/.test(m02Artifact.sha256) ||
-            !/^[0-9a-f]{64}$/.test(m02Artifact.methodOutputId)) {
+      if ((sectionId === 'M02' || sectionId === 'M13') && definition.methodVersion === '2.0.0') {
+        if (!methodArtifact || methodArtifact.sectionId !== sectionId || methodArtifact.methodVersion !== '2.0.0' ||
+            !/^[0-9a-f]{64}$/.test(methodArtifact.sha256) || !/^[0-9a-f]{64}$/.test(methodArtifact.methodOutputId)) {
           deliveryState = 'BLOCKED';
           blockers.push('VERIFIED_SOURCE_METHOD_ARTIFACT_REQUIRED');
         } else {
@@ -127,8 +145,8 @@ export function createResearchReportPacket(
     }
     const section = {
       sectionId, deliveryState, claimIds, contextPointers, blockers: [...new Set(blockers)],
-      ...(m02Artifact && definition.methodVersion === '2.0.0' ? { methodArtifact: {
-        fileName: m02Artifact.fileName, sha256: m02Artifact.sha256, methodOutputId: m02Artifact.methodOutputId,
+      ...(methodArtifact && definition.methodVersion === '2.0.0' ? { methodArtifact: {
+        fileName: methodArtifact.fileName, sha256: methodArtifact.sha256, methodOutputId: methodArtifact.methodOutputId,
       } } : {}),
     };
     return { ...section, sectionSha256: identity({ policyVersion: 'report-packet-a3a-v1', definition,

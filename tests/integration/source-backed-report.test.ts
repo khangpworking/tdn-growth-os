@@ -214,6 +214,23 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(m02.sourceVerification, 'EXACT_PACKAGE_BYTES_REPLAYED');
   assert.equal(m02.measurement.recordCount, 2);
   assert.equal(m02.measurement.wideUnknownPolicy, 'exclude');
+  const m13 = JSON.parse(first.files.get('m13-provenance-appendix.json')!.toString('utf8')) as {
+    methodOutputId: string;
+    sourcePackage: { packageId: string; manifestArtifactSha256: string };
+    lineage: { normalizedInputSha256: string; normalizationReceiptSha256: string; metricResultSha256: string };
+    coverage: { recordCount: number; recordLocatorCount: number; labelLocatorCount: number };
+  };
+  assert.equal(first.envelope.artifacts.m13ProvenanceAppendixSha256, sha256(first.files.get('m13-provenance-appendix.json')!));
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'M13')?.methodArtifact?.methodOutputId, m13.methodOutputId);
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'M13')?.blockers.includes('FULL_SECTION_METHOD_NOT_IMPLEMENTED'), false);
+  assert.equal(m13.sourcePackage.packageId, state.request.packageId);
+  assert.equal(m13.sourcePackage.manifestArtifactSha256, state.request.packageManifestSha256);
+  assert.equal(m13.lineage.normalizedInputSha256, sha256(first.files.get('normalized-input.json')!));
+  assert.equal(m13.lineage.normalizationReceiptSha256, sha256(first.files.get('receipt.json')!));
+  assert.equal(m13.lineage.metricResultSha256, sha256(first.files.get('metric-result.json')!));
+  assert.equal(m13.coverage.recordCount, 2);
+  assert.equal(m13.coverage.recordLocatorCount, 2);
+  assert.equal(m13.coverage.labelLocatorCount, 0);
   assert.match(first.envelope.limitations.join('\n'), /DO_NOT_AUTHENTICATE_PROVIDER_COLLECTION/);
 
   const second = await buildSourceBackedReport(state.request, state.catalogBytes, state.dependencies);
@@ -321,7 +338,8 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   const expected = [
     'raw-workbook.xlsx', 'raw-manifest.json', 'source-package-manifest.json', 'normalized-input.json',
     'receipt.json', 'metric-result.json', 'charts.json', 'packet.json', 'section-catalog.json', 'workspace.json',
-    'semantic-content.json', 'review-state.json', 'evidence-envelope.json', 'export-manifest.json',
+    'm02-scope-method.json', 'm13-provenance-appendix.json', 'semantic-content.json', 'review-state.json',
+    'evidence-envelope.json', 'export-manifest.json',
   ];
   assert.deepEqual([...new Set(links)].sort(), [...expected].sort());
   for (const link of links) assert.ok(fs.statSync(path.join(output, link)).isFile(), link);
@@ -352,6 +370,8 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   assert.equal(exportManifest.semanticVersionId, summary.semanticVersionId);
   assert.equal(exportManifest.reviewStateSha256, sha256(fs.readFileSync(path.join(output, 'review-state.json'))));
   assert.ok(document.querySelector('#files')?.textContent?.includes(summary.semanticVersionId));
+  assert.ok(document.querySelector('#provenance')?.textContent?.includes('2 dòng chuẩn hóa'));
+  assert.ok(document.querySelector('#provenance a[href="raw-workbook.xlsx"]'));
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-workbook.xlsx')), state.workbook);
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-manifest.json')), state.manifest);
   assert.deepEqual(fs.readFileSync(state.databasePath), databaseBytesBefore);
