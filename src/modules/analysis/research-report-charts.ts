@@ -125,7 +125,7 @@ const exactMethods = {
 
 type SectionSelection =
   | { readonly section: VersionedReportPacket['sections'][number]; readonly exact: true; readonly deliveryState: VersionedReportPacket['sections'][number]['deliveryState'] }
-  | { readonly section: null; readonly exact: false; readonly deliveryState: VersionedReportPacket['sections'][number]['deliveryState'] | null };
+  | { readonly section: VersionedReportPacket['sections'][number] | null; readonly exact: false; readonly deliveryState: VersionedReportPacket['sections'][number]['deliveryState'] | null };
 
 function sectionFor(
   packet: VersionedReportPacket,
@@ -134,9 +134,10 @@ function sectionFor(
   const definition = exactMethods[chart];
   const section = packet.sections.find(candidate => candidate.sectionId === definition.sectionId);
   const catalogDefinition = packet.catalog.sections.find(candidate => candidate.sectionId === definition.sectionId);
-  if (!section || !catalogDefinition || catalogDefinition.methodId !== definition.methodId ||
+  if (!section) return { section: null, exact: false, deliveryState: null };
+  if (!catalogDefinition || catalogDefinition.methodId !== definition.methodId ||
       catalogDefinition.methodVersion !== '1.0.0' || section.deliveryState !== 'PARTIAL_DETERMINISTIC_DRAFT' ||
-      section.claimIds.length === 0) return { section: null, exact: false, deliveryState: section?.deliveryState ?? null };
+      section.claimIds.length === 0) return { section, exact: false, deliveryState: section.deliveryState };
   return { section, exact: true, deliveryState: section.deliveryState };
 }
 
