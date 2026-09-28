@@ -1,6 +1,6 @@
 # Trạng thái hiện tại
 
-## Research A22: deterministic M02 scope and method account (in progress)
+## Research A22: deterministic M02 scope and method account (complete, merged PR #79)
 
 - Upgrades the planning catalog to 0.2.0 only for M02 and emits one canonical
   method account from exact source-package bytes and normalized observations.
@@ -551,3 +551,15 @@ recorded in `docs/handoffs/research-a15-interpretation-dashboard.md`: draft PR
 #72, verified implementation head `c3c2528e839c26d5eaff6e017e26e1cdb55901d0`,
 Linux CI PASS with 171/171 frontend and 579/579 repository tests. No Windows
 test, build or typecheck is release evidence.
+
+## Research A23: M13 deterministic provenance appendix (complete, draft PR #80)
+
+Catalog 0.3.0 gives M13 a canonical source-to-record provenance artifact. It
+binds the exact finalized source package, selected file bytes, normalized input,
+normalization receipt, deterministic calculation and every retained record
+locator into the immutable report identity and visible HTML appendix. This is
+traceability only: it does not authenticate a provider, establish market
+completeness, create AI interpretation or record a human decision. Linux Check
+passed with 176/176 frontend and 587/587 repository tests; the Linux report
+preview also passed. Exact draft-PR evidence is recorded in
+`docs/handoffs/research-a23-m13-provenance.md`.

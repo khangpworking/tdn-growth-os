@@ -10,7 +10,7 @@ import type { VersionedReportPacket } from '../../../contracts/analysis/versione
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { buildReportSemanticContent } from './report-semantic-content.js';
 import type { SourceBackedReportBundle } from './source-backed-report.js';
-import { createResearchReportPacket } from './versioned-report-packet.js';
+import { createResearchReportPacket, type ReportMethodArtifact } from './versioned-report-packet.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -99,8 +99,9 @@ function requiredFile(bundle: SourceBackedReportBundle, name: string): Buffer {
 function assertReplayedPacket(bundle: SourceBackedReportBundle): void {
   let replayed: ReturnType<typeof createResearchReportPacket>;
   try {
-    const methodArtifacts = bundle.packet.sections.flatMap(section => {
-      if (section.methodArtifact === undefined) return [];
+    const methodArtifacts: ReportMethodArtifact[] = [];
+    for (const section of bundle.packet.sections) {
+      if (section.methodArtifact === undefined) continue;
       const bytes = requiredFile(bundle, section.methodArtifact.fileName);
       if (sha256(bytes) !== section.methodArtifact.sha256) {
         throw new TypeError('interpretation source: METHOD_ARTIFACT_DIGEST_MISMATCH');
@@ -109,18 +110,19 @@ function assertReplayedPacket(bundle: SourceBackedReportBundle): void {
       try { artifact = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
       catch { throw new TypeError('interpretation source: METHOD_ARTIFACT_INVALID_JSON_UTF8'); }
       if (artifact === null || typeof artifact !== 'object' ||
-          (artifact as { methodOutputId?: unknown }).methodOutputId !== section.methodArtifact.methodOutputId ||
-          section.sectionId !== 'M02') {
+          (artifact as { methodOutputId?: unknown }).methodOutputId !== section.methodArtifact.methodOutputId) {
         throw new TypeError('interpretation source: METHOD_ARTIFACT_IDENTITY_MISMATCH');
       }
-      return [{
-        sectionId: 'M02' as const,
-        methodVersion: '2.0.0' as const,
-        fileName: section.methodArtifact.fileName,
-        sha256: section.methodArtifact.sha256,
-        methodOutputId: section.methodArtifact.methodOutputId,
-      }];
-    });
+      if (section.sectionId === 'M02' && section.methodArtifact.fileName === 'm02-scope-method.json') methodArtifacts.push({
+        sectionId: 'M02', methodVersion: '2.0.0', fileName: 'm02-scope-method.json',
+        sha256: section.methodArtifact.sha256, methodOutputId: section.methodArtifact.methodOutputId,
+      });
+      else if (section.sectionId === 'M13' && section.methodArtifact.fileName === 'm13-provenance-appendix.json') methodArtifacts.push({
+        sectionId: 'M13', methodVersion: '2.0.0', fileName: 'm13-provenance-appendix.json',
+        sha256: section.methodArtifact.sha256, methodOutputId: section.methodArtifact.methodOutputId,
+      });
+      else throw new TypeError('interpretation source: METHOD_ARTIFACT_SECTION_MISMATCH');
+    }
     replayed = createResearchReportPacket(
       requiredFile(bundle, 'metric-result.json'),
       bundle.envelope.artifacts.metricResultSha256,

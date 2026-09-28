@@ -126,6 +126,7 @@ function semanticSections(bundle: SourceBackedReportBundle): ReportSemanticConte
       contextPointers: section.contextPointers,
       blockers: section.blockers,
       claims,
+      methodArtifact: section.methodArtifact ?? null,
     };
     return {
       sectionId: section.sectionId,
