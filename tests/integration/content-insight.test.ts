@@ -219,6 +219,7 @@ test('an unlinked campaign has no B10 gate; HOLD, REJECT and no decision block l
   const unlinked = await setup({ withB10: false }); await createCampaign(unlinked); await unlinked.insights.reviseInsight(revision(campaignId, 0));
   assert.deepEqual(await unlinked.insights.gate(undefined), { required: false, ready: true });
   await unlinked.insights.lockInsight(lock(campaignId, 1, 1));
+  assert.equal(unlinked.insights.isLocked(campaignId), true);
   unlinked.db.close();
 
   for (const decision of [null, 'HOLD', 'REJECT'] as const) {
@@ -255,6 +256,30 @@ test('locking rejects insight-version and campaign-version drift', async () => {
   const locked = await campaignDrift.insights.lockInsight(lock(campaignId, 1, 2));
   assert.equal(locked.campaignVersion, 2);
   campaignDrift.db.close();
+});
+
+test('an STP-sourced Insight cannot lock after the campaign is relinked or unlinked', async () => {
+  for (const [change, label] of [
+    [campaignContent({ researchProductWorkspaceId: otherWorkspaceId }), 'relinked'],
+    [campaignContent(), 'unlinked'],
+  ] as const) {
+    const state = await setup({ decision: 'APPROVE' });
+    try {
+      await createCampaign(state, { researchProductWorkspaceId: workspaceId });
+      await state.insights.reviseInsight(revision(campaignId, 0, insightContent({ source: { kind: 'STP', lockedStpId } })));
+      await state.campaigns.reviseCampaign({ contractVersion: '1.0.0', campaignId, expectedVersion: 1, campaign: change });
+
+      await assert.rejects(
+        state.insights.lockInsight(lock(campaignId, 1, 2)),
+        (error: unknown) => error instanceof ContentInsightConflictError && /STP source no longer matches/.test(error.message),
+        `Expected an STP source conflict after the campaign was ${label}`,
+      );
+      assert.equal(count(state.db, 'flow_content_insight_locks'), 0);
+      assert.equal(await state.insights.readLock(campaignId), undefined);
+    } finally {
+      state.db.close();
+    }
+  }
 });
 
 test('revision, lock and history reads fail closed when committed artifacts are tampered', async () => {

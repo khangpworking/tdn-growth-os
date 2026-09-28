@@ -24,9 +24,9 @@ Reason: 050a has no AI dependency and fixes the input every generation reads; la
 ## 3. Rules
 
 - **Content.** `customer` ≤ 500, `painPoint` ≤ 1000, `insight` ≤ 2000 characters, trimmed and non-empty. `source` is `TYPED` or `STP` with `lockedStpId`.
-- **STP source.** Allowed only when the campaign links a research product and the id is that product's locked STP. The screen suggests customer = primary target segment label, insight = positioning; the pain point is always typed. Editing the suggested customer or insight turns the source back to `TYPED`; editing the pain point keeps `STP` *(provisional)*.
+- **STP source.** Allowed only when the campaign links a research product and the id is that product's locked STP. The screen pre-fills only the customer (primary target segment label and description); pain point and insight are always typed, and the positioning statement is shown read-only beside the Insight field as a reference. Editing the pre-filled customer turns the source back to `TYPED` *(Q-I4, agreed in review debate; owner confirmation pending)*.
 - **Revision.** `expectedVersion` must equal the latest version (0 for the first). Same request again → exact retry receipt, no new row. Same version with different content → 409. Revisions are refused after lock and on a deleted campaign.
-- **Lock.** Names the Insight version and campaign version it saw; either drifting → 409. Deleted campaign → 409. Linked product without an effective B10 `APPROVE` → 409 with the Vietnamese reason shown on screen (`INSIGHT_GATE_NOT_APPROVED`). No link → no gate. A lock cannot be undone in 050a *(provisional; see §6 Q-I3)*.
+- **Lock.** Names the Insight version and campaign version it saw; either drifting → 409. Deleted campaign → 409. Linked product without an effective B10 `APPROVE` → 409 with the Vietnamese reason shown on screen (`INSIGHT_GATE_NOT_APPROVED`). No link → no gate. Lock also re-checks that an STP-sourced revision still belongs to the campaign's current research product; a relinked or unlinked campaign → 409, save a new revision first. A lock cannot be undone *(provisional; see §6 Q-I3)*.
 - **Campaign pinning after lock** *(provisional)*. Catalog items (with tiers) and the research product link can no longer change; the name and objective can. The lock records its own `campaignVersion`, so later name/objective revisions never change what the lock referenced.
 - **Integrity.** Reads verify every artifact hash; a committed artifact that cannot be reconstructed fails closed. The lock artifact restore needs the B10 reader chain (B7→B10).
 
@@ -47,8 +47,8 @@ Reason: 050a has no AI dependency and fixes the input every generation reads; la
 |---|---|---|
 | Q-I1 | Split 050 into 050a (Insight) and 050b (Big Idea/Angle)? | Yes |
 | Q-I2 | After lock, which campaign fields are pinned? | Items/tiers and research link pinned; name and objective editable |
-| Q-I3 | May the OWNER unlock an Insight (e.g. to fix a typo) once Big Ideas exist? | No unlock in 050a; revisit in 050b if needed |
-| Q-I4 | STP suggestion mapping | Customer = primary target segment label; insight = positioning; pain point typed |
+| Q-I3 | May the OWNER unlock an Insight (e.g. to fix a typo) once Big Ideas exist? | No unlock for launch; recovery before any Big Idea is delete + recreate the campaign. Unlock-before-first-Big-Idea (with lock history and a fresh B10 check) is a post-launch follow-up |
+| Q-I4 | STP suggestion mapping | Customer = primary target segment label (+ description); pain point and insight typed; positioning shown read-only for reference |
 
 ## 7. Tests (owned and run by GPT on Linux CI)
 
