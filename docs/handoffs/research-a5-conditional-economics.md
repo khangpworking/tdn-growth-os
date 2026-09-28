@@ -40,6 +40,11 @@ The subsequent final head adds the one-at-a-time output warning, per-fee base
 validation and a focused half-even/large-integer table. Its final CI and independent-review disposition
 are recorded on PR #61; earlier green evidence does not certify later changes.
 
+The inherited preview helper's Chrome startup wait was made explicitly bounded
+at 30 seconds and now requires a valid published debugger port. A CI runner
+previously exceeded the 10-second startup budget before reaching any report
+assertion. No interaction, contrast or output assertion was weakened.
+
 The pure unit boundary owns arithmetic and missing-input gates. One actual-CLI
 integration test owns input/output wiring, replay, immutable publication and
 Linux permissions. No browser, load, stress or provider test was added for P3.
