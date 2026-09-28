@@ -8,7 +8,8 @@
   row, active manifest and content-addressed bytes.
 - Migration 0033 adds only the target ledger. No decision, reviewer, UI/API,
   provider call, publication right or deployment is included.
-- Draft PR and Linux verification remain pending.
+- Draft PR #74 is open; Linux CI passed on implementation head `ad6109f` with
+  171/171 frontend and 583/583 repository tests plus report preview.
 
 ## Research A16: exact report review target
 
