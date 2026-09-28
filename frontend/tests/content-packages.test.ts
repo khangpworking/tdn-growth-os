@@ -171,6 +171,36 @@ test('package data-source validates strict reads, package blockers, and row-only
   await assert.rejects(loadPackage(built.entry.packageId, async () => json(200, { ...detail, extra: true })), (error: unknown) => error instanceof ContentDataSourceError && error.kind === 'integrity');
 });
 
+test('Q6 package loaders accept hiddenByParent only as true on deleted list entries and details', async () => {
+  const built = packageWithCaption();
+  const list = demoPackageList(built.packages, [], built.context, at);
+  const detail = demoPackageDetail(built.packages, built.entry.packageId, built.context, at);
+  assert.ok(detail);
+  const restorableUntil = '2027-01-31T00:00:00.000Z';
+  const hiddenEntry = { ...list.packages[0]!, deleted: true, restorableUntil, hiddenByParent: true as const };
+  const hiddenList = { ...list, packages: [hiddenEntry] };
+  const hiddenDetail = { ...detail, deleted: true, restorableUntil, hiddenByParent: true as const };
+  assert.deepEqual(await loadPackages(campaignId, async () => json(200, hiddenList)), hiddenList);
+  assert.deepEqual(await loadPackage(built.entry.packageId, async () => json(200, hiddenDetail)), hiddenDetail);
+
+  const { restorableUntil: _entryDeadline, ...entryWithoutDeadline } = hiddenEntry;
+  const invalidLists: unknown[] = [
+    { ...list, packages: [{ ...entryWithoutDeadline, deleted: false, hiddenByParent: true }] },
+    { ...list, packages: [{ ...hiddenEntry, hiddenByParent: false }] },
+  ];
+  const { restorableUntil: _detailDeadline, ...detailWithoutDeadline } = hiddenDetail;
+  const invalidDetails: unknown[] = [
+    { ...detailWithoutDeadline, deleted: false, hiddenByParent: true },
+    { ...hiddenDetail, hiddenByParent: false },
+  ];
+  for (const invalidList of invalidLists) {
+    await assert.rejects(loadPackages(campaignId, async () => json(200, invalidList)), (error: unknown) => error instanceof ContentDataSourceError && error.kind === 'integrity');
+  }
+  for (const invalidDetail of invalidDetails) {
+    await assert.rejects(loadPackage(built.entry.packageId, async () => json(200, invalidDetail)), (error: unknown) => error instanceof ContentDataSourceError && error.kind === 'integrity');
+  }
+});
+
 test('display helpers and manual limits preserve the package display contract', () => {
   assert.deepEqual(purposeKindsOf(['SALES', 'tag:66666666-6666-4666-8666-0000000000f4'], [{ tagId: '66666666-6666-4666-8666-0000000000f4', label: 'Trust tag', displayLike: 'TRUST', createdAt: at }]), ['SALES', 'TRUST']);
   const levels = resolveLevels(DEFAULT_DISPLAY_RULES, ['SALES', 'TRUST']);
@@ -290,6 +320,70 @@ test('PackageNewPage shows the inspector, per-angle editor, batch action, refere
   dom.cleanup();
 });
 
+test('R5: unmounting PackageNewPage during a batch run makes no further create/generate calls', async () => {
+  const { default: PackageNewPage } = await tsImport('../src/PackageNewPage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/PackageNewPage');
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const root = createRoot(dom.container);
+  const originalFetch = globalThis.fetch;
+  const writes: string[] = [];
+  let releaseGenerate: (() => void) | null = null;
+  let unmounted = false;
+  globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    const method = String(init?.method ?? 'GET').toUpperCase();
+    if (method === 'GET') {
+      if (url.endsWith(`/api/content/campaigns/${campaignId}/ideas`)) return json(200, ideas);
+      if (url.endsWith(`/api/content/campaigns/${campaignId}/packages`)) return json(200, demoPackageList([], [], context, at));
+      if (url.endsWith('/api/content/prompts')) return json(200, prompts);
+      return json(500, { error: { code: 'integrity_error', message: 'Synthetic references unavailable' } });
+    }
+    if (url.endsWith(`/owner-api/content/campaigns/${campaignId}/packages`)) {
+      writes.push(url);
+      const body = JSON.parse(String(init?.body)) as { requestId: string };
+      return json(201, { contractVersion: '1.0.0', campaignId, requestId: body.requestId, exactRetry: false, packages: [{ packageId, angleId: angleOneId, code: `A1\u00b71`, createdAt: at }] });
+    }
+    if (url.endsWith(`/owner-api/content/packages/${packageId}/generate`)) {
+      writes.push(url);
+      return new Promise<Response>((resolve) => {
+        releaseGenerate = () => resolve(json(201, { contractVersion: '1.0.0', packageId, part: 'CAPTION', version: 1, attemptId, createdAt: at, exactRetry: false }));
+      });
+    }
+    throw new Error(`Unexpected synthetic fetch: ${method} ${url}`);
+  };
+  try {
+    await act(async () => {
+      root.render(createElement(PackageNewPage, {
+        mode: 'real', campaignId, angleCodes: ['A1'], ownerToken: token, writesAvailable: true,
+        demoContext: null, demoPackages: [], setDemoPackages: () => undefined, demoDefaults: [], setDemoDefaults: () => undefined,
+        demoReferences: null, notify: () => undefined,
+      }));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    const create = [...dom.container.querySelectorAll('button')].find((button) => button.textContent?.includes('Tạo 1 gói')) as HTMLButtonElement | undefined;
+    assert.ok(create);
+    await act(async () => {
+      create.click();
+      for (let index = 0; index < 20 && releaseGenerate === null; index += 1) await Promise.resolve();
+    });
+    assert.ok(releaseGenerate, 'the first generate call is in flight');
+    assert.equal(writes.filter((url) => url.includes('/owner-api/content/packages/') && url.endsWith('/generate')).length, 1);
+
+    await act(async () => { root.unmount(); });
+    unmounted = true;
+    releaseGenerate!();
+    releaseGenerate = null;
+    await act(async () => { for (let index = 0; index < 8; index += 1) await Promise.resolve(); });
+    assert.equal(writes.filter((url) => url.includes('/owner-api/content/packages/') && url.endsWith('/generate')).length, 1);
+    assert.equal(writes.filter((url) => url.endsWith(`/owner-api/content/campaigns/${campaignId}/packages`)).length, 1);
+  } finally {
+    if (releaseGenerate) releaseGenerate();
+    globalThis.fetch = originalFetch;
+    if (!unmounted) await act(async () => { root.unmount(); });
+    dom.cleanup();
+  }
+});
+
 test('PackagePage demo renders caption/footer/fact history and failed-attempt retry, then opens delete confirmation', async () => {
   const { default: PackagePage } = await tsImport('../src/PackagePage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/PackagePage');
   const generated = packageWithCaption();
@@ -318,4 +412,55 @@ test('PackagePage demo renders caption/footer/fact history and failed-attempt re
   assert.ok(dom.container.textContent?.includes('Có thể khôi phục trong 30 ngày.'));
   await act(async () => { root.unmount(); });
   dom.cleanup();
+});
+
+test('Q6 PackagePage shows the ancestor-hidden banner without package restore, while own deletion keeps restore', async () => {
+  const { default: PackagePage } = await tsImport('../src/PackagePage.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/PackagePage');
+  const built = packageWithCaption();
+  const list = demoPackageList(built.packages, [], built.context, at);
+  const detail = demoPackageDetail(built.packages, built.entry.packageId, built.context, at);
+  assert.ok(detail);
+  const restorableUntil = '2027-01-31T00:00:00.000Z';
+  const hiddenList = { ...list, packages: [{ ...list.packages[0]!, deleted: true, restorableUntil, hiddenByParent: true as const }] };
+  const hiddenDetail = { ...detail, deleted: true, restorableUntil, hiddenByParent: true as const };
+  const originalFetch = globalThis.fetch;
+  const hiddenDom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const hiddenRoot = createRoot(hiddenDom.container);
+  let hiddenUnmounted = false;
+  globalThis.fetch = async (input) => String(input).includes('/api/content/campaigns/') ? json(200, hiddenList) : json(200, hiddenDetail);
+  try {
+    await act(async () => {
+      hiddenRoot.render(createElement(PackagePage, {
+        mode: 'real', campaignId, code: built.entry.code, ownerToken: token, writesAvailable: true,
+        demoContext: null, demoPackages: [], setDemoPackages: () => undefined, demoMedia: {}, notify: () => undefined,
+      }));
+      for (let index = 0; index < 8; index += 1) await Promise.resolve();
+    });
+    assert.ok(hiddenDom.container.textContent?.includes('Gói bị ẩn vì góc nội dung hoặc Big Idea đã bị xóa'));
+    assert.equal([...hiddenDom.container.querySelectorAll('button')].some((button) => button.textContent?.includes('Khôi phục gói')), false);
+
+    await act(async () => { hiddenRoot.unmount(); });
+    hiddenUnmounted = true;
+    const deletedPackages = changeDemoPackageState(built.packages, { packageId: built.entry.packageId, expectedSequence: 0, action: 'DELETE' }, at);
+    const plainDom = setupDom();
+    const plainRoot = createRoot(plainDom.container);
+    try {
+      await act(async () => {
+        plainRoot.render(createElement(PackagePage, {
+          mode: 'demo', campaignId, code: built.entry.code, ownerToken: null, writesAvailable: true,
+          demoContext: context, demoPackages: deletedPackages, setDemoPackages: () => undefined, demoMedia: {}, notify: () => undefined,
+        }));
+        for (let index = 0; index < 8; index += 1) await Promise.resolve();
+      });
+      assert.ok([...plainDom.container.querySelectorAll('button')].some((button) => button.textContent?.includes('Khôi phục gói')));
+    } finally {
+      await act(async () => { plainRoot.unmount(); });
+      plainDom.cleanup();
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (!hiddenUnmounted) await act(async () => { hiddenRoot.unmount(); });
+    hiddenDom.cleanup();
+  }
 });

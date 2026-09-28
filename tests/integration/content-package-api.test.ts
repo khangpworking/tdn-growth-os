@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import { once } from 'node:events';
 import http from 'node:http';
@@ -23,6 +24,7 @@ import defaultsSchema from '../../contracts/flow/content-campaign-defaults-reque
 import { openContentOwnerApi, openContentReadApi } from '../../src/api/content-api.js';
 import { createFakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
 import { fixtureAt, fixtureCampaignId, createPackageFixture, imageReply, textReply } from '../helpers/content-package-fixture.js';
+import { fixtureImage } from '../helpers/content-images.js';
 
 const token = 'synthetic-owner-token-051-with-at-least-32-characters';
 const origin = 'http://synthetic-owner.example';
@@ -124,6 +126,95 @@ test('GET package list/detail/poster routes are contract-shaped, fail closed and
     assert.equal((await fetch(`${readServer.base}/api/content/packages/00000000-0000-4000-8000-000000000099`)).status, 404);
     assert.equal((await fetch(`${readServer.base}/api/content/campaigns/not-a-uuid/packages`)).status, 400);
     assert.equal((await fetch(`${readServer.base}/api/content/campaigns/00000000-0000-4000-8000-000000000099/packages`)).status, 404);
+  } finally {
+    await ownerServer.close(); await readServer.close(); owner.close(); read.close(); state.close();
+  }
+});
+
+test('R7 read routes return integrity_error for a tampered generated Poster while the intact package remains readable', async () => {
+  const posterBytes = fixtureImage('photo-b.jpg');
+  const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
+  state.db.close();
+  const gateway = createFakeCreativeGateway({ text: [textReply('{"post":"API integrity caption"}')], image: [imageReply(posterBytes)] });
+  let nextId = 625;
+  const owner = openContentOwnerApi({ databasePath: state.databasePath, artifactRoot: state.artifactRoot, writeEnabled: true, token, allowedOrigin: origin, actorId: 'owner:content-studio', gateway, uuid: () => `05130000-0000-4000-8000-${(nextId++).toString(16).padStart(12, '0')}`, now: () => new Date(fixtureAt) });
+  const read = openContentReadApi({ databasePath: state.databasePath, artifactRoot: state.artifactRoot, now: () => new Date(fixtureAt) });
+  const ownerServer = await listen(owner.handler); const readServer = await listen(read.handler);
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Origin: origin };
+  const integrity = async (response: Response): Promise<void> => {
+    assert.equal(response.status, 500);
+    const body = await response.json() as { error?: { code?: string } };
+    assert.equal(body.error?.code, 'integrity_error');
+  };
+  try {
+    const create = await fetch(`${ownerServer.base}/owner-api/content/campaigns/${fixtureCampaignId}/packages`, { method: 'POST', headers, body: JSON.stringify(ownerCreateBody(fixtureCampaignId, state.angleIds[0]!, packageRequestId(40))) });
+    assert.equal(create.status, 201);
+    const created = await create.json() as { packages: [{ packageId: string }] };
+    const packageId = created.packages[0]!.packageId;
+    const caption = await fetch(`${ownerServer.base}/owner-api/content/packages/${packageId}/generate`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', part: 'CAPTION', plannedCallCount: 2, requestId: packageRequestId(41) }) });
+    assert.equal(caption.status, 201);
+    const poster = await fetch(`${ownerServer.base}/owner-api/content/packages/${packageId}/generate`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', part: 'POSTER', plannedCallCount: 2, requestId: packageRequestId(42) }) });
+    assert.equal(poster.status, 201);
+
+    const intactList = await fetch(`${readServer.base}/api/content/campaigns/${fixtureCampaignId}/packages`);
+    assert.equal(intactList.status, 200);
+    assert.equal((await intactList.json() as { packages: unknown[] }).packages.length, 1);
+    const intactDetail = await fetch(`${readServer.base}/api/content/packages/${packageId}`);
+    assert.equal(intactDetail.status, 200);
+    assert.equal((await intactDetail.json() as { packageId: string }).packageId, packageId);
+    const posterDigest = createHash('sha256').update(posterBytes).digest('hex');
+    fs.writeFileSync(state.artifacts.pathForDigest(posterDigest), Buffer.from('tampered-api-poster'));
+
+    await integrity(await fetch(`${readServer.base}/api/content/campaigns/${fixtureCampaignId}/packages`));
+    await integrity(await fetch(`${readServer.base}/api/content/packages/${packageId}`));
+    await integrity(await fetch(`${readServer.base}/api/content/packages/${packageId}/posters/1`));
+  } finally {
+    await ownerServer.close(); await readServer.close(); owner.close(); read.close(); state.close();
+  }
+});
+
+test('Q6 list/detail responses expose hiddenByParent under the content contract and OWNER writes map to 409 conflicts', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
+  const created = await state.packages.create({
+    contractVersion: '1.0.0', requestId: packageRequestId(50), campaignId: fixtureCampaignId,
+    caption: { prompt: { source: 'SYSTEM', id: 'system-caption-facebook', version: 1 }, model: 'gpt-5.6-sol', style: 'PROFESSIONAL', length: 'MEDIUM' },
+    poster: { prompt: { source: 'SYSTEM', id: 'system-poster-b2b-infographic', version: 1 }, model: 'gpt-image-2', format: 'square', referenceMediaSha256s: [], includeLogo: false },
+    rows: [{ angleId: state.angleIds[0]! }],
+  });
+  const packageId = created.packages[0]!.packageId;
+  state.ideas.changeState({ contractVersion: '1.0.0', ideaId: state.angleIds[0]!, expectedSequence: 1, action: 'DELETE' });
+  state.db.close();
+  const owner = openContentOwnerApi({ databasePath: state.databasePath, artifactRoot: state.artifactRoot, writeEnabled: true, token, allowedOrigin: origin, actorId: 'owner:content-studio', gateway: createFakeCreativeGateway(), uuid: () => packageRequestId(99), now: () => new Date(fixtureAt) });
+  const read = openContentReadApi({ databasePath: state.databasePath, artifactRoot: state.artifactRoot, now: () => new Date(fixtureAt) });
+  const ownerServer = await listen(owner.handler); const readServer = await listen(read.handler);
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Origin: origin };
+  const contracts = validateContracts();
+  const conflict = async (response: Response): Promise<void> => {
+    assert.equal(response.status, 409);
+    const body = await response.json() as { error?: { code?: string } };
+    assert.equal(body.error?.code, 'conflict');
+  };
+  try {
+    const list = await fetch(`${readServer.base}/api/content/campaigns/${fixtureCampaignId}/packages`);
+    assert.equal(list.status, 200);
+    const listBody = await list.json() as { packages: Array<Record<string, unknown>> };
+    assert.equal(contracts.content(listBody), true);
+    assert.equal(listBody.packages[0]!.deleted, true);
+    assert.equal(listBody.packages[0]!.hiddenByParent, true);
+
+    const detail = await fetch(`${readServer.base}/api/content/packages/${packageId}`);
+    assert.equal(detail.status, 200);
+    const detailBody = await detail.json() as Record<string, unknown>;
+    assert.equal(contracts.content(detailBody), true);
+    assert.equal(detailBody.deleted, true);
+    assert.equal(detailBody.hiddenByParent, true);
+
+    await conflict(await fetch(`${ownerServer.base}/owner-api/content/packages/${packageId}/state`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', action: 'DELETE', expectedSequence: 0 }) }));
+    await conflict(await fetch(`${ownerServer.base}/owner-api/content/packages/${packageId}/state`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', action: 'RESTORE', expectedSequence: 0 }) }));
+    await conflict(await fetch(`${ownerServer.base}/owner-api/content/packages/${packageId}/generate`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', part: 'CAPTION', plannedCallCount: 1, requestId: packageRequestId(51) }) }));
+    await conflict(await fetch(`${ownerServer.base}/owner-api/content/packages/${packageId}/versions`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', action: 'MANUAL', expectedVersion: 1, part: 'CAPTION', requestId: packageRequestId(52), post: 'Blocked manual caption' }) }));
+    await conflict(await fetch(`${ownerServer.base}/owner-api/content/packages/${packageId}/versions`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', action: 'RESTORE', expectedVersion: 2, part: 'CAPTION', requestId: packageRequestId(53), restoreVersion: 1 }) }));
+    await conflict(await fetch(`${ownerServer.base}/owner-api/content/campaigns/${fixtureCampaignId}/packages`, { method: 'POST', headers, body: JSON.stringify(ownerCreateBody(fixtureCampaignId, state.angleIds[0]!, packageRequestId(54))) }));
   } finally {
     await ownerServer.close(); await readServer.close(); owner.close(); read.close(); state.close();
   }

@@ -14,12 +14,14 @@ import {
   errorReply,
   fixtureAt,
   fixtureCampaignId,
+  fixtureItemId,
   fixtureLogoSha,
   fixturePhoto,
   fixturePhotoSha,
   imageReply,
   textReply,
 } from '../helpers/content-package-fixture.js';
+import { fixtureImage } from '../helpers/content-images.js';
 
 const requestId = (number: number): string => `05120000-0000-4000-8000-${number.toString(16).padStart(12, '0')}`;
 const sha = (number: number): string => number.toString(16).padStart(2, '0').repeat(32);
@@ -199,6 +201,110 @@ test('delete and restore are append-only, exactly retryable and bounded by 30 da
   } finally { state.close(); }
 });
 
+test('Q6 derived deletion uses the ancestor deadline without writing package state rows', async () => {
+  for (const [label, ancestor] of [
+    ['Angle', 'ANGLE'],
+    ['Big Idea', 'BIG_IDEA'],
+  ] as const) {
+    const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
+    try {
+      const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(label === 'Angle' ? 110 : 111) }));
+      const packageId = created.packages[0]!.packageId;
+      const ancestorId = ancestor === 'ANGLE'
+        ? state.angleIds[0]!
+        : (state.db.prepare("SELECT idea_id ideaId FROM flow_content_ideas WHERE kind = 'BIG_IDEA'").get() as { ideaId: string }).ideaId;
+      const deletion = state.ideas.changeState({ contractVersion: '1.0.0', ideaId: ancestorId, expectedSequence: 1, action: 'DELETE' });
+      const ancestorDeadline = deletion.restorableUntil;
+      assert.ok(ancestorDeadline, `${label} deletion has a restore deadline`);
+      assert.equal((state.db.prepare('SELECT count(*) n FROM flow_content_package_states').get() as { n: bigint }).n, 0n);
+
+      const listed = await state.packages.listCampaignPackages(fixtureCampaignId);
+      assert.equal(listed.length, 1);
+      assert.equal(listed[0]!.deleted, true);
+      assert.equal(listed[0]!.hiddenByParent, true);
+      assert.equal(listed[0]!.restorableUntil, ancestorDeadline);
+
+      const detail = await state.packages.readPackage(packageId);
+      assert.equal(detail.state.sequence, 0);
+      assert.equal(detail.state.hiddenBy?.ideaId, ancestorId);
+      assert.equal(detail.state.deleted?.restorableUntil, ancestorDeadline);
+      assert.equal((state.db.prepare('SELECT count(*) n FROM flow_content_package_states').get() as { n: bigint }).n, 0n);
+    } finally { state.close(); }
+  }
+});
+
+test('Q6 keeps an earlier package deletion after restoring its Angle and revives sibling packages', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
+  try {
+    const first = (await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(120) }))).packages[0]!;
+    const second = (await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(121) }))).packages[0]!;
+    const ownDeletion = state.packages.changeState({ contractVersion: '1.0.0', packageId: first.packageId, action: 'DELETE', expectedSequence: 0 });
+    const ownDeadline = ownDeletion.restorableUntil;
+    assert.ok(ownDeadline);
+
+    state.clock.value = new Date('2027-01-02T00:00:00.000Z');
+    const angleDeletion = state.ideas.changeState({ contractVersion: '1.0.0', ideaId: state.angleIds[0]!, expectedSequence: 1, action: 'DELETE' });
+    const angleDeadline = angleDeletion.restorableUntil;
+    assert.ok(angleDeadline);
+    const hidden = await state.packages.listCampaignPackages(fixtureCampaignId);
+    const hiddenFirst = hidden.find((entry) => entry.packageId === first.packageId)!;
+    const hiddenSecond = hidden.find((entry) => entry.packageId === second.packageId)!;
+    assert.equal(hiddenFirst.deleted, true);
+    assert.equal(hiddenFirst.hiddenByParent, true);
+    assert.equal(hiddenFirst.restorableUntil, ownDeadline);
+    assert.equal(hiddenSecond.deleted, true);
+    assert.equal(hiddenSecond.hiddenByParent, true);
+    assert.equal(hiddenSecond.restorableUntil, angleDeadline);
+
+    state.clock.value = new Date('2027-01-03T00:00:00.000Z');
+    state.ideas.changeState({ contractVersion: '1.0.0', ideaId: state.angleIds[0]!, expectedSequence: 2, action: 'RESTORE' });
+    const restored = await state.packages.listCampaignPackages(fixtureCampaignId);
+    const restoredFirst = restored.find((entry) => entry.packageId === first.packageId)!;
+    const restoredSecond = restored.find((entry) => entry.packageId === second.packageId)!;
+    assert.equal(restoredFirst.deleted, true);
+    assert.equal('hiddenByParent' in restoredFirst, false);
+    assert.equal(restoredFirst.restorableUntil, ownDeadline);
+    assert.equal(restoredSecond.deleted, false);
+    assert.equal('hiddenByParent' in restoredSecond, false);
+    const detail = await state.packages.readPackage(first.packageId);
+    assert.equal(detail.state.hiddenBy, undefined);
+    assert.equal(detail.state.deleted?.restorableUntil, ownDeadline);
+    assert.equal((state.db.prepare('SELECT count(*) n FROM flow_content_package_states').get() as { n: bigint }).n, 1n);
+  } finally { state.close(); }
+});
+
+test('Q6 blocks every package write and package creation while an ancestor is deleted', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [textReply('{"post":"Caption before ancestor deletion"}')], imageAfterIdeas: [] });
+  try {
+    const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(130) }));
+    const packageId = created.packages[0]!.packageId;
+    await state.packages.generate(generateRequest(packageId, 'CAPTION', 131), 'owner:synthetic');
+    await state.packages.changeVersion({ contractVersion: '1.0.0', packageId, part: 'CAPTION', action: 'MANUAL', expectedVersion: 1, requestId: requestId(132), post: 'Manual caption before deletion' });
+    state.ideas.changeState({ contractVersion: '1.0.0', ideaId: state.angleIds[0]!, expectedSequence: 1, action: 'DELETE' });
+
+    assert.throws(() => state.packages.changeState({ contractVersion: '1.0.0', packageId, action: 'DELETE', expectedSequence: 0 }), ContentPackageConflictError);
+    assert.throws(() => state.packages.changeState({ contractVersion: '1.0.0', packageId, action: 'RESTORE', expectedSequence: 0 }), ContentPackageConflictError);
+    await assert.rejects(state.packages.generate(generateRequest(packageId, 'CAPTION', 133), 'owner:synthetic'), ContentPackageConflictError);
+    await assert.rejects(state.packages.changeVersion({ contractVersion: '1.0.0', packageId, part: 'CAPTION', action: 'MANUAL', expectedVersion: 2, requestId: requestId(134), post: 'Blocked manual caption' }), ContentPackageConflictError);
+    await assert.rejects(state.packages.changeVersion({ contractVersion: '1.0.0', packageId, part: 'CAPTION', action: 'RESTORE', expectedVersion: 2, restoreVersion: 1, requestId: requestId(135) }), ContentPackageConflictError);
+    await assert.rejects(state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(136) })), ContentPackageConflictError);
+  } finally { state.close(); }
+});
+
+test('Q6 expired derived deletion is omitted from the list and reads as not found', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
+  try {
+    const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(140) }));
+    const packageId = created.packages[0]!.packageId;
+    const deletion = state.ideas.changeState({ contractVersion: '1.0.0', ideaId: state.angleIds[0]!, expectedSequence: 1, action: 'DELETE' });
+    const deadline = deletion.restorableUntil;
+    assert.ok(deadline);
+    state.clock.value = new Date(Date.parse(deadline) + 1);
+    assert.deepEqual(await state.packages.listCampaignPackages(fixtureCampaignId), []);
+    await assert.rejects(state.packages.readPackage(packageId), /Package not found/);
+  } finally { state.close(); }
+});
+
 test('campaign defaults version and exact retry are independent from package generation', async () => {
   const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
   try {
@@ -319,6 +425,45 @@ test('read and list expose verified package shapes and poster bytes are content-
     assert.equal(fixtureLogoSha.length, 64);
     assert.equal(PACKAGE_BATCH_LIMIT, 20);
   } finally { state.close(); }
+});
+
+test('R7 tampered generated Poster bytes fail closed in detail, image and list', async () => {
+  const posterBytes = fixtureImage('photo-b.jpg');
+  const state = await createPackageFixture({ textAfterIdeas: [textReply('{"post":"Integrity poster caption"}')], imageAfterIdeas: [imageReply(posterBytes)] });
+  try {
+    const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(150) }));
+    const packageId = created.packages[0]!.packageId;
+    await state.packages.generate(generateRequest(packageId, 'CAPTION', 151), 'owner:synthetic');
+    const poster = await state.packages.generate(generateRequest(packageId, 'POSTER', 152), 'owner:synthetic');
+    const intact = await state.packages.readPackage(packageId);
+    assert.equal((await state.packages.listCampaignPackages(fixtureCampaignId)).length, 1);
+    assert.deepEqual((await state.packages.readPosterImage(packageId, poster.version)).bytes, posterBytes);
+
+    const imageSha256 = intact.poster[0]!.poster!.imageSha256;
+    fs.writeFileSync(state.artifacts.pathForDigest(imageSha256), Buffer.from('tampered-generated-poster'));
+    await assert.rejects(state.packages.readPackage(packageId), ContentPackageIntegrityError);
+    await assert.rejects(state.packages.readPosterImage(packageId, poster.version), ContentPackageIntegrityError);
+    await assert.rejects(state.packages.listCampaignPackages(fixtureCampaignId), ContentPackageIntegrityError);
+  } finally { state.close(); }
+});
+
+test('R8 every pinned package input fails closed in detail and list when its artifact is tampered', async () => {
+  for (const [label, digestOf] of [
+    ['campaign version', (state: Awaited<ReturnType<typeof createPackageFixture>>) => (state.db.prepare('SELECT campaign_artifact_sha256 digest FROM flow_content_campaign_revisions WHERE campaign_id = ? AND version = 1').get(fixtureCampaignId) as { digest: string }).digest],
+    ['Insight version', (state: Awaited<ReturnType<typeof createPackageFixture>>) => (state.db.prepare('SELECT insight_artifact_sha256 digest FROM flow_content_insight_revisions WHERE campaign_id = ? AND version = 1').get(fixtureCampaignId) as { digest: string }).digest],
+    ['catalog item version', (state: Awaited<ReturnType<typeof createPackageFixture>>) => (state.db.prepare('SELECT item_artifact_sha256 digest FROM flow_content_catalog_item_revisions WHERE item_id = ? AND version = 1').get(fixtureItemId) as { digest: string }).digest],
+    ['Angle idea', (state: Awaited<ReturnType<typeof createPackageFixture>>) => (state.db.prepare('SELECT idea_artifact_sha256 digest FROM flow_content_ideas WHERE idea_id = ?').get(state.angleIds[0]) as { digest: string }).digest],
+    ['Big Idea idea', (state: Awaited<ReturnType<typeof createPackageFixture>>) => (state.db.prepare("SELECT idea_artifact_sha256 digest FROM flow_content_ideas WHERE kind = 'BIG_IDEA'").get() as { digest: string }).digest],
+  ] as const) {
+    const state = await createPackageFixture({ textAfterIdeas: [], imageAfterIdeas: [] });
+    try {
+      const created = await state.packages.create(createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(160 + label.length) }));
+      const packageId = created.packages[0]!.packageId;
+      fs.writeFileSync(state.artifacts.pathForDigest(digestOf(state)), Buffer.from('{}'));
+      await assert.rejects(state.packages.readPackage(packageId), ContentPackageIntegrityError, label);
+      await assert.rejects(state.packages.listCampaignPackages(fixtureCampaignId), ContentPackageIntegrityError, label);
+    } finally { state.close(); }
+  }
 });
 
 test('missing poster image bytes surface as ContentPackageIntegrityError on image read', async () => {
