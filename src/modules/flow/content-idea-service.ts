@@ -286,13 +286,13 @@ export class ContentIdeaService {
       if (state.expired) continue;
       const artifact = await this.#verifiedArtifact(row);
       const code = this.#code(row.kind, row.ordinal, row.parentIdeaId);
-      const output = artifact.output as Record<string, string>;
+      const output = artifact.output;
       entries.push({
         sort: row.kind === 'BIG_IDEA' ? [row.ordinal, 0] : [bigIdeaOrdinals.get(row.parentIdeaId!) ?? 0, row.ordinal],
         entry: {
           ideaId: row.ideaId, kind: row.kind, ...(row.parentIdeaId !== null ? { parentIdeaId: row.parentIdeaId } : {}), code,
-          concept: output.concept!,
-          ...(row.kind === 'BIG_IDEA' ? { expression: output.expression! } : { name: output.name! }),
+          concept: output.concept,
+          ...('expression' in output ? { expression: output.expression } : { name: output.name }),
           developing: state.developing, deleted: state.deleted !== undefined,
           ...(state.deleted ? { restorableUntil: state.deleted.restorableUntil } : {}),
           stateSequence: state.sequence, purposes: state.purposes, model: artifact.model, promptLabel: artifact.prompt.name, createdAt: row.createdAt,
