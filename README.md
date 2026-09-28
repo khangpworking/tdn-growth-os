@@ -127,6 +127,11 @@ intended use. It prepares an immutable review packet only; it does not record a
 reviewer or decision. See
 [A19 scope](docs/tasks/research-a19-review-target-owner-api.md).
 
+Research A20 adds the local preparation and exact-digest inspection UI. The
+operator confirms one explicit report version, interpretation and intended use;
+the resulting page separates four evidence/decision layers and remains visibly
+unapproved. See [A20 scope](docs/tasks/research-a20-review-target-ui.md).
+
 Research A9 deepens the same deterministic report without adding a section
 method. It renders M03 filter-membership sensitivity and M04 group composition
 and top-shop-removal sensitivity directly from the verified A1 Result. Every

@@ -10,6 +10,7 @@ import {
   loadReportInterpretations,
   WorkspaceDataSourceError,
 } from './data-source';
+import ReportReviewTargetCreatePanel from './ReportReviewTargetCreatePanel';
 
 type LoadState = 'loading' | 'ready' | 'error';
 
@@ -17,9 +18,13 @@ interface Props {
   readonly reportId: string;
   readonly reportVersion: number;
   readonly semanticVersionId: string;
+  readonly ownerToken?: string | null;
+  readonly writesAvailable?: boolean;
+  readonly navigate?: (hash: string) => void;
+  readonly notify?: (message: string) => void;
 }
 
-export default function ReportInterpretations({ reportId, reportVersion, semanticVersionId }: Props) {
+export default function ReportInterpretations({ reportId, reportVersion, semanticVersionId, ownerToken = null, writesAvailable = false, navigate = () => undefined, notify = () => undefined }: Props) {
   const [indexState, setIndexState] = useState<LoadState>('loading');
   const [index, setIndex] = useState<ReportInterpretationIndexResponse | null>(null);
   const [indexError, setIndexError] = useState('');
@@ -115,7 +120,19 @@ export default function ReportInterpretations({ reportId, reportVersion, semanti
         {!selected && <div className="interpretation-prompt"><strong>Chọn một lần diễn giải để đọc.</strong><p>Không có lần nào được ngầm coi là “mới nhất” hoặc chính thức.</p></div>}
         {selected && detailState === 'loading' && <Loading>Đang kiểm tra lại nhận định và các liên kết bằng chứng…</Loading>}
         {selected && detailState === 'error' && <ErrorMessage message={detailError} retry={() => setDetailRetry(value => value + 1)} />}
-        {selected && detailState === 'ready' && detail && <InterpretationDetail value={detail} />}
+        {selected && detailState === 'ready' && detail && <>
+          <InterpretationDetail value={detail} />
+          <ReportReviewTargetCreatePanel
+            reportId={reportId}
+            reportVersion={reportVersion}
+            interpretationId={selected.interpretationId}
+            interpretationNumber={selected.interpretationNumber}
+            ownerToken={ownerToken}
+            writesAvailable={writesAvailable}
+            navigate={navigate}
+            notify={notify}
+          />
+        </>}
       </div>
     </div>}
   </section>;
