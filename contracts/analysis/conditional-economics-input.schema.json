@@ -175,10 +175,11 @@
     "FeeBinding": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["categoryPath", "bindingState", "provenance"],
+      "required": ["categoryPath", "bindingState", "base", "provenance"],
       "properties": {
         "categoryPath": { "type": "string", "minLength": 1, "maxLength": 500 },
         "bindingState": { "enum": ["ASSUMED_EXACT_MATCH", "UNCONFIRMED"] },
+        "base": { "enum": ["N_TIMES_PRICE_PER_ORDER", "SINGLE_UNIT_PRICE_PER_ORDER", "PER_DELIVERED_ORDER", "OTHER_OR_UNCONFIRMED"] },
         "provenance": { "$ref": "#/$defs/Provenance" }
       }
     },

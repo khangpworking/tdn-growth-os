@@ -194,6 +194,12 @@ the minimum inequality. Other VND outputs may use a declared
 `HALF_EVEN_DECIMAL_V1` display scale. Display rounding never replaces the
 exact value.
 
+Canonical input identity means canonical JSON serialization, not numeric
+lexical normalization. For example, `0.155` and `0.1550` have equal arithmetic
+but distinct input digests because the declared strings are preserved. This
+retains the submitted scenario rather than silently rewriting its precision.
+Exact retries and replay require the same declarations.
+
 No hidden zero is permitted. `UNAVAILABLE` has `value = null`, a non-empty
 `missingInputs[]`, and no synthetic numeric display.
 

@@ -145,6 +145,10 @@ function inputProvenance(input: ConditionalEconomicsInput): ConditionalEconomics
 }
 
 function validateDomain(input: ConditionalEconomicsInput): void {
+  for (const [key, binding] of Object.entries(input.feeBindings)) {
+    const requiredBase = key === 'processingFeePerOrder' ? 'PER_DELIVERED_ORDER' : 'N_TIMES_PRICE_PER_ORDER';
+    if (binding.base !== requiredBase) throw new ConditionalEconomicsValidationError(`FEE_BASE_MISMATCH:${key}`);
+  }
   const nonNegativePaths = [
     'inputs.pricePerUnit',
     'inputs.cogsPerUnit',

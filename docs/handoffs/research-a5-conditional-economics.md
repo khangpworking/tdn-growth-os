@@ -13,6 +13,8 @@ is not bypassed. No production deployment or real-seller calculation occurred.
   require M; Pmin does not require an existing P.
 - Explicit fixed fee bases and category declarations, positive integer units
   per order, nonnegative costs/prices and a strictly positive fee denominator.
+  Individual fee bindings must agree with the fixed model; mixed/unknown bases
+  fail with `FEE_BASE_MISMATCH` instead of silently using the model-wide base.
 - Negative contribution/thresholds are preserved with warnings.
 - Exact rational values remain authoritative; display uses versioned half-even
   two-decimal VND rounding, with upward integer rounding for Pmin.
@@ -34,8 +36,8 @@ performed locally; verification is Linux-only.
 Linux Check [36378795592](https://github.com/khangpworking/tdn-growth-os/actions/runs/36378795592)
 at `25f8f4cedb22ce2b219a96d3692bab86233f5981` passed: backend 471/471,
 frontend 125/125, generated contracts, strict types and frontend build.
-The subsequent final head adds the one-at-a-time output warning and a focused
-half-even/large-integer table. Its final CI and independent-review disposition
+The subsequent final head adds the one-at-a-time output warning, per-fee base
+validation and a focused half-even/large-integer table. Its final CI and independent-review disposition
 are recorded on PR #61; earlier green evidence does not certify later changes.
 
 The pure unit boundary owns arithmetic and missing-input gates. One actual-CLI

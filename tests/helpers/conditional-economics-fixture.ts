@@ -14,8 +14,8 @@ function decimal(value: string, kind: Provenance['kind'] = 'SCENARIO_ASSUMPTION'
   return { value, provenance: provenance(kind, label) };
 }
 
-function sourceBinding(label: string, categoryPath: string) {
-  return { categoryPath, bindingState: 'ASSUMED_EXACT_MATCH' as const, provenance: provenance('SOURCE_DECLARED', label) };
+function sourceBinding(label: string, categoryPath: string, base: ConditionalEconomicsInput['feeBindings']['commissionRate']['base']) {
+  return { categoryPath, base, bindingState: 'ASSUMED_EXACT_MATCH' as const, provenance: provenance('SOURCE_DECLARED', label) };
 }
 
 function notModeled(label: string) {
@@ -38,9 +38,9 @@ export function conditionalEconomicsFixture(): ConditionalEconomicsInput {
       processingFeePerOrder: nonNegative('3000', 'SCENARIO_ASSUMPTION', 'processing fee per delivered order'),
     },
     feeBindings: {
-      commissionRate: sourceBinding('commission category rate', '/marketplace/category/food'),
-      transactionRate: sourceBinding('transaction category rate', '/marketplace/category/food'),
-      processingFeePerOrder: sourceBinding('processing fee category rate', '/marketplace/category/food'),
+      commissionRate: sourceBinding('commission category rate', '/marketplace/category/food', 'N_TIMES_PRICE_PER_ORDER'),
+      transactionRate: sourceBinding('transaction category rate', '/marketplace/category/food', 'N_TIMES_PRICE_PER_ORDER'),
+      processingFeePerOrder: sourceBinding('processing fee category rate', '/marketplace/category/food', 'PER_DELIVERED_ORDER'),
     },
     inputs: {
       pricePerUnit: nonNegative('160000', 'OWNER_DECLARED', 'scenario price'),

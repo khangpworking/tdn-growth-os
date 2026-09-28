@@ -114,6 +114,7 @@ export interface FeeBindings {
 export interface FeeBinding {
   categoryPath: string;
   bindingState: 'ASSUMED_EXACT_MATCH' | 'UNCONFIRMED';
+  base: 'N_TIMES_PRICE_PER_ORDER' | 'SINGLE_UNIT_PRICE_PER_ORDER' | 'PER_DELIVERED_ORDER' | 'OTHER_OR_UNCONFIRMED';
   provenance: Provenance;
 }
 export interface SourceRef {

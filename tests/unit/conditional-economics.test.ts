@@ -167,6 +167,11 @@ test('negative prices or costs and a non-positive fee denominator are rejected',
   const unconfirmedCategory = conditionalEconomicsFixture();
   unconfirmedCategory.feeBindings.transactionRate.bindingState = 'UNCONFIRMED';
   assert.throws(() => calculateConditionalEconomics(unconfirmedCategory), /FEE_CATEGORY_UNCONFIRMED/);
+
+  const mixedBases = conditionalEconomicsFixture();
+  mixedBases.inputs.unitsPerOrder!.value = '3';
+  mixedBases.feeBindings.transactionRate.base = 'SINGLE_UNIT_PRICE_PER_ORDER';
+  assert.throws(() => calculateConditionalEconomics(mixedBases), /FEE_BASE_MISMATCH:transactionRate/);
 });
 
 test('canonical input identity supports replay and changes when a declared input changes', () => {
