@@ -63,7 +63,8 @@ test('OWNER preparation sends the exact snapshot, verifies it through GET, then 
   try {
     await act(async () => { root.render(createElement(Panel, { reportId, reportVersion: 1, interpretationId, interpretationNumber: 1, ownerToken: 'owner-token-123456789012345678901', writesAvailable: true, navigate: (hash: string) => navigations.push(hash), notify: () => undefined })); await settle(); });
     const textarea = dom.container.querySelector('textarea') as HTMLTextAreaElement;
-    await act(async () => { textarea.value = intendedUse; textarea.dispatchEvent(new dom.container.ownerDocument.defaultView!.Event('input', { bubbles: true })); await settle(); });
+    const setter = Object.getOwnPropertyDescriptor(textarea.ownerDocument.defaultView!.HTMLTextAreaElement.prototype, 'value')!.set!;
+    await act(async () => { setter.call(textarea, intendedUse); textarea.dispatchEvent(new dom.container.ownerDocument.defaultView!.Event('input', { bubbles: true })); textarea.dispatchEvent(new dom.container.ownerDocument.defaultView!.Event('change', { bubbles: true })); await settle(); });
     const prepare = [...dom.container.querySelectorAll('button')].find(button => button.textContent === 'Chuẩn bị gói review'); assert.ok(prepare); assert.equal(prepare.disabled, false);
     await act(async () => { prepare.click(); await settle(); });
     const confirm = [...dom.container.querySelectorAll('button')].find(button => button.textContent === 'Chuẩn bị đúng snapshot'); assert.ok(confirm);
