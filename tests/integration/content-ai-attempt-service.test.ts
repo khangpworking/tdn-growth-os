@@ -10,7 +10,7 @@ import { createFakeCreativeGateway } from '../../src/platform/ai/fake-creative-g
 import { openDatabase } from '../../src/platform/db/database.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { RequestScopedArtifactStore } from '../../src/api/request-scoped-artifact-store.js';
-import { createContentAiAttemptService, type ContentAiAttemptInput, type ContentAiAttemptOutcome } from '../../src/modules/flow/content-ai-attempt-service.js';
+import { ContentAiAttemptConflictError, createContentAiAttemptService, type ContentAiAttemptInput, type ContentAiAttemptOutcome } from '../../src/modules/flow/content-ai-attempt-service.js';
 import { fixtureImage } from '../helpers/content-images.js';
 
 const SENTINEL = 'content-ai-attempt-sentinel-049';
@@ -104,6 +104,41 @@ test('successful text attempts store exact bytes, register a manifest, persist s
     assert.equal((state.db.prepare('SELECT count(*) count FROM test_domain_writes').get() as { count: bigint }).count, 1n);
     assert.equal(gateway.calls.filter((call) => call.operation === 'generateText').length, 1);
   } finally { state.db.close(); }
+});
+
+test('two service instances share one durable active-target claim and dispatch the provider once', async () => {
+  nextId = 500;
+  let release!: (result: ReturnType<typeof textResult>) => void;
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => { markStarted = resolve; });
+  let firstCalls = 0;
+  const firstGateway: Parameters<typeof createContentAiAttemptService>[0]['gateway'] = {
+    configured: true,
+    generateText: (_request) => {
+      firstCalls += 1;
+      return new Promise<ReturnType<typeof textResult>>((resolve) => { release = resolve; markStarted(); });
+    },
+    generateImage: async () => { throw new Error('unused image call'); },
+    listModels: async () => [],
+  };
+  const first = setup(firstGateway);
+  const secondGateway = createFakeCreativeGateway({ text: [{ result: textResult('second must not run') }] });
+  const second = createContentAiAttemptService({
+    db: first.db, gateway: secondGateway, artifactRoot: first.artifactRoot, clock: () => new Date('2026-09-27T10:00:00.000Z'),
+    newId: () => '00000000-0000-4000-8000-000000000502',
+  });
+  try {
+    const running = first.service.run(input({ targetId: 'shared-target' }), { persist: () => 'first' });
+    await started;
+    await assert.rejects(second.run(input({ targetId: 'shared-target' }), { persist: () => 'second' }), ContentAiAttemptConflictError);
+    assert.equal(secondGateway.calls.filter((call) => call.operation === 'generateText').length, 0);
+    release(textResult('first result'));
+    await running;
+    assert.equal(firstCalls, 1);
+    assert.equal((first.db.prepare("SELECT count(*) count FROM flow_content_ai_attempts WHERE target_id='shared-target'").get() as { count: bigint }).count, 1n);
+  } finally {
+    first.db.close();
+  }
 });
 
 test('provider failures and non-CreativeAiError failures close one safe terminal row without a retry', async () => {
