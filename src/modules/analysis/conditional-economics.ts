@@ -93,7 +93,7 @@ function parseDecimal(value: string): ExactRational {
   if (!match) throw new ConditionalEconomicsValidationError(`INVALID_DECIMAL:${value}`);
   const fraction = match[3] ?? '';
   const scale = 10n ** BigInt(fraction.length);
-  const whole = BigInt(match[2]);
+  const whole = BigInt(match[2]!); // Mandatory integer capture in the matched decimal grammar.
   const fractional = fraction ? BigInt(fraction) : 0n;
   const magnitude = whole * scale + fractional;
   return rational(match[1] === '-' ? -magnitude : magnitude, scale);
@@ -370,4 +370,3 @@ export function replayConditionalEconomics(input: unknown, output: unknown): Con
   if (canonicalJson(expected) !== canonicalJson(output)) throw new ConditionalEconomicsValidationError('CONDITIONAL_ECONOMICS_REPLAY_MISMATCH');
   return JSON.parse(canonicalJson(output)) as ConditionalEconomicsOutput;
 }
-

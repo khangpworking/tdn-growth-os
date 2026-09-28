@@ -157,4 +157,3 @@ test('canonical input identity supports replay and changes when a declared input
   assert.notEqual(first.inputSha256, second.inputSha256);
   assert.throws(() => replayConditionalEconomics(changedInput, first), /CONDITIONAL_ECONOMICS_REPLAY_MISMATCH/);
 });
-
