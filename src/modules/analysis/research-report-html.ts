@@ -1,5 +1,10 @@
 import type { SourceBackedReportBundle } from './source-backed-report.js';
-import type { ResearchChartValue } from './research-report-charts.js';
+import type {
+  ResearchChartValue,
+  ResearchGroupCompositionPoint,
+  ResearchScopeSensitivityComparison,
+  ResearchTopShopRemovalPoint,
+} from './research-report-charts.js';
 
 const escape = (value: unknown): string => String(value).replace(/[&<>"']/g, char => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
@@ -23,6 +28,18 @@ const limitations: Record<string, string> = {
   OWNER_REVIEW_REQUIRED: 'Chưa có quyết định duyệt của chủ sở hữu.',
   OVERLAPPING_SCOPE_MEMBERSHIP_NON_ADDITIVE: 'Các phạm vi có phần giao nhau; không cộng các thanh.',
   CUMULATIVE_TOP_K_SHARES_OVERLAP_NOT_DONUT: 'Top 1 nằm trong Top 3 và Top 10; không cộng các tỷ trọng.',
+  MEMBERSHIP_SENSITIVITY_NOT_GROWTH: 'Đây là độ nhạy khi đổi membership, không phải tăng trưởng theo thời gian.',
+  WITHIN_SCOPE_COMPOSITION_ONLY: 'Tỷ trọng chỉ nằm trong đúng phạm vi đang xem.',
+  GROUP_SHARE_UNAVAILABLE: 'Chưa có mẫu số đủ điều kiện để tính tỷ trọng nhóm.',
+  LEADER_REMOVAL_SENSITIVITY_NOT_FORECAST: 'Bỏ shop đứng đầu chỉ là phép thử độ nhạy, không phải dự báo.',
+  REVENUE_DELTA_UNAVAILABLE: 'Chưa đủ dữ liệu để tính chênh doanh thu giữa hai membership.',
+  UNITS_DELTA_UNAVAILABLE: 'Chưa đủ dữ liệu để tính chênh sản lượng giữa hai membership.',
+  COMPARISONS_UNAVAILABLE: 'Chưa thể so sánh membership khi nhãn chưa đủ điều kiện.',
+  TOP_SHOP_REMOVAL_UNAVAILABLE: 'Chưa có shop đứng đầu đủ điều kiện cho phép thử loại bỏ.',
+  ORIGINAL_REVENUE_UNAVAILABLE: 'Chưa có tổng doanh thu gốc đủ điều kiện.',
+  REMAINING_REVENUE_UNAVAILABLE: 'Không còn doanh thu quan sát đủ điều kiện sau khi bỏ shop đứng đầu.',
+  REMAINING_SHARE_UNAVAILABLE: 'Không thể tính tỷ trọng doanh thu còn lại.',
+  POST_REMOVAL_CONCENTRATION_UNAVAILABLE: 'Không thể tính mức tập trung sau khi bỏ shop đứng đầu.',
   MISSING_REVENUE: 'Thiếu doanh thu ở một số dòng.', MISSING_UNITS: 'Thiếu sản lượng ở một số dòng.',
   NON_EXACT_REVENUE: 'Nguồn có doanh thu làm tròn, ước tính hoặc chưa rõ độ chính xác.',
   NON_EXACT_UNITS: 'Nguồn có sản lượng làm tròn, ước tính hoặc chưa rõ độ chính xác.',
@@ -80,6 +97,11 @@ function shortDate(value: string): string {
   return `${day}/${month}/${year}`;
 }
 
+function absolute(value: string): bigint {
+  const parsed = BigInt(value);
+  return parsed < 0n ? -parsed : parsed;
+}
+
 /** Render only a bundle built through the raw-source verified application boundary. */
 export function renderResearchReportHtml(bundle: SourceBackedReportBundle, semanticVersionId?: string): string {
   const { result, packet, charts, files } = bundle;
@@ -97,6 +119,34 @@ export function renderResearchReportHtml(bundle: SourceBackedReportBundle, seman
     }).join('')}<p class="caption">Cùng kỳ và đơn vị; các phạm vi giao nhau, không cộng lại. Độ dài thanh so với giá trị lớn nhất đang hiển thị.</p></figure>`;
   };
   const concentration = charts.topShopShare.scopes.map(lane => `<figure><figcaption>${scopeName[lane.scopeKey]}</figcaption>${lane.points.length ? lane.points.map(point => `<div class="plot-row"><span>${escape(labels[point.metric])}</span>${factLink(point)}<div class="track" aria-hidden="true"><span style="width:${(point.basisPoints ?? 0) / 100}%"></span></div><small>Mẫu số: ${number(point.denominator!.value, 'VND')} trong phạm vi này.</small></div>`).join('') : `<p class="missing">Chưa thể tính tỷ trọng.</p>${listLimits(lane.blockers)}`}<p class="caption">Thang 0–100%. Tỷ trọng lũy kế, không phải thị phần toàn thị trường.</p></figure>`).join('');
+  const diagnosticLink = (id: string, value: string, unit: string): string =>
+    `<a class="value" href="#diagnostic-${anchor(id)}" aria-label="${escape(`${value} ${unit}. Xem phép tính và membership`)}">${number(value, unit)}</a>`;
+  const evidenceLink = (id: string): string =>
+    `<a class="evidence-jump" href="#diagnostic-${anchor(id)}">Xem toàn bộ căn cứ</a>`;
+  const sensitivityMax = charts.scopeSensitivity.comparisons.reduce((max, comparison) => {
+    const value = comparison.revenueDelta.value;
+    return value !== null && absolute(value) > max ? absolute(value) : max;
+  }, 0n);
+  const sensitivity = charts.scopeSensitivity.comparisons.length
+    ? charts.scopeSensitivity.comparisons.map((comparison, index) => {
+      const id = `scope-${comparison.toScopeKey}-${index}`;
+      const revenue = comparison.revenueDelta.value;
+      const units = comparison.unitsDelta.value;
+      return `<figure><figcaption>ALL → ${comparison.toScopeKey.toUpperCase()}</figcaption><div class="plot-row"><span>Chênh doanh thu do đổi membership</span>${revenue === null ? '<span>Chưa tính được</span>' : diagnosticLink(id, revenue, 'VND')}<div class="track" aria-hidden="true"><span style="width:${revenue === null || sensitivityMax === 0n ? 0 : Number(absolute(revenue) * 10000n / sensitivityMax) / 100}%"></span></div><small>${comparison.removedRecordIndices.length} dòng bị loại khỏi membership · chênh sản lượng ${units === null ? 'chưa tính được' : number(units, 'unit')} · ${evidenceLink(id)}</small></div><p class="caption">Cùng một kỳ đo. Dấu âm chỉ phần quan sát bị loại khỏi membership; không phải tăng trưởng âm.</p>${listLimits([...comparison.limits, ...comparison.blockers])}</figure>`;
+    }).join('')
+    : `<p class="missing">Chưa thể so sánh membership.</p>${listLimits(charts.scopeSensitivity.blockers)}`;
+  const groupComposition = charts.groupComposition.scopes.map(lane => `<figure><figcaption>${scopeName[lane.scopeKey]}</figcaption>${lane.points.length ? lane.points.map((point, index) => {
+    const id = `group-${lane.scopeKey}-${index}`;
+    return `<div class="plot-row"><span>${escape(point.group)} · ${point.listingCount} listing</span>${point.sharePercent === null ? '<span>Chưa tính được tỷ trọng</span>' : diagnosticLink(id, point.sharePercent, 'percent')}<div class="track" aria-hidden="true"><span style="width:${(point.basisPoints ?? 0) / 100}%"></span></div><small>Doanh thu quan sát: ${point.revenueValue === null ? 'thiếu' : number(point.revenueValue, 'VND')} · ${point.recordIndices.length} dòng nguồn · ${evidenceLink(id)}</small></div>`;
+  }).join('') : `<p class="missing">Chưa thể lập cơ cấu nhóm.</p>${listLimits(lane.blockers)}`}<p class="caption">Mỗi biểu đồ dùng mẫu số của đúng phạm vi. ALL/WIDE/CORE giao nhau nên không cộng các tỷ trọng giữa biểu đồ.</p></figure>`).join('');
+  const topShopRemoval = charts.topShopRemoval.scopes.map((lane, index) => {
+    const point = lane.point;
+    if (point === null) return `<figure><figcaption>${scopeName[lane.scopeKey]}</figcaption><p class="missing">Chưa thể chạy phép thử bỏ shop đứng đầu.</p>${listLimits(lane.blockers)}</figure>`;
+    const id = `removal-${lane.scopeKey}-${index}`;
+    const remainingShare = point.remainingRevenueSharePercent;
+    const postRemovalConcentration = point.concentrationAfterRemoval.map(value => `<div class="plot-row"><span>Top ${value.k} trong phần còn lại</span>${value.sharePercent === null ? '<span>Chưa tính được tỷ trọng</span>' : diagnosticLink(id, value.sharePercent, 'percent')}<div class="track" aria-hidden="true"><span style="width:${(value.basisPoints ?? 0) / 100}%"></span></div><small>${value.usedShopCount} shop được dùng trong phép tính này</small></div>`).join('');
+    return `<figure><figcaption>${scopeName[lane.scopeKey]}</figcaption><div class="plot-row"><span>Doanh thu còn lại sau khi bỏ shop đứng đầu</span>${remainingShare === null ? '<span>Chưa tính được tỷ trọng</span>' : diagnosticLink(id, remainingShare, 'percent')}<div class="track" aria-hidden="true"><span style="width:${(point.remainingRevenueShareBasisPoints ?? 0) / 100}%"></span></div><small>${point.remainingRevenueValue === null ? 'Không còn doanh thu quan sát đủ điều kiện' : number(point.remainingRevenueValue, 'VND')} · còn ${point.remainingListingCount} listing · ${evidenceLink(id)}</small></div>${postRemovalConcentration}<p class="caption">Giả lập loại đúng shop đang đứng đầu trong tập quan sát. Tỷ trọng còn lại dùng doanh thu gốc làm mẫu số; Top K được tính lại trong phần còn lại. Không phải dự báo hay khuyến nghị loại shop.</p>${listLimits(point.limits)}</figure>`;
+  }).join('');
   const claims = allPoints.map(point => `<details class="claim"><summary>${escape(labels[point.metric])} · ${scopeName[point.source.scopeKey]} · ${number(point.valueText, point.unit)}</summary><div id="claim-${escape(point.claimId)}"><dl>
     <dt>Nhận diện quan sát</dt><dd><code>${escape(point.claimId)}</code></dd>
     <dt>Phép tính</dt><dd>${escape(result.methodVersion)} · làm tròn ${escape(result.rounding)}</dd>
@@ -107,6 +157,20 @@ export function renderResearchReportHtml(bundle: SourceBackedReportBundle, seman
     <dt>Độ phủ</dt><dd><code>${escape(point.coveragePointer ?? 'Số đếm thành viên; không phải tỷ lệ phủ toàn thị trường')}</code></dd>
     <dt>Digest Result</dt><dd><code>${escape(point.resultSha256)}</code></dd>
     </dl>${listLimits(point.limits)}<p><a href="#charts">Quay về chart</a></p></div></details>`).join('');
+  const sensitivityEvidence = charts.scopeSensitivity.comparisons.map((comparison: ResearchScopeSensitivityComparison, index) => {
+    const id = `diagnostic-scope-${comparison.toScopeKey}-${index}`;
+    return `<details class="claim"><summary id="${escape(id)}">Độ nhạy ALL → ${comparison.toScopeKey.toUpperCase()}</summary><div><dl><dt>Doanh thu chênh</dt><dd>${comparison.revenueDelta.value === null ? 'Chưa tính được' : number(comparison.revenueDelta.value, comparison.revenueDelta.unit)} · <code>${escape(comparison.revenueDelta.pointer)}</code></dd><dt>Sản lượng chênh</dt><dd>${comparison.unitsDelta.value === null ? 'Chưa tính được' : number(comparison.unitsDelta.value, comparison.unitsDelta.unit)} · <code>${escape(comparison.unitsDelta.pointer)}</code></dd><dt>Dòng bị loại</dt><dd>${comparison.removedRecordIndices.join(', ') || 'Không có'} · <code>${escape(comparison.removedRecordIndicesPointer)}</code></dd><dt>Digest Result</dt><dd><code>${escape(comparison.resultSha256)}</code></dd></dl>${listLimits([...comparison.limits, ...comparison.blockers])}<p><a href="#charts">Quay về chart</a></p></div></details>`;
+  }).join('');
+  const groupEvidence = charts.groupComposition.scopes.flatMap(lane => lane.points.map((point: ResearchGroupCompositionPoint, index) => {
+    const id = `diagnostic-group-${point.scopeKey}-${index}`;
+    return `<details class="claim"><summary id="${escape(id)}">Nhóm ${escape(point.group)} · ${scopeName[point.scopeKey]}</summary><div><dl><dt>Nhóm</dt><dd><code>${escape(point.groupPointer)}</code></dd><dt>Listing</dt><dd>${point.listingCount} · <code>${escape(point.listingCountPointer)}</code></dd><dt>Doanh thu</dt><dd>${point.revenueValue === null ? 'Thiếu' : number(point.revenueValue, 'VND')} · <code>${escape(point.revenuePointer)}</code></dd><dt>Tỷ trọng</dt><dd>${point.sharePercent === null ? 'Chưa tính được' : number(point.sharePercent, 'percent')} · <code>${escape(point.sharePointer ?? 'không có mẫu số')}</code></dd><dt>Tử số nhóm</dt><dd>${point.numeratorValue ?? 'Thiếu'} · <code>${escape(point.numeratorPointer ?? 'không có')}</code></dd><dt>Mẫu số phạm vi</dt><dd>${point.denominatorValue ?? 'Thiếu'} · <code>${escape(point.denominatorPointer ?? 'không có')}</code></dd><dt>Dòng thành viên</dt><dd>${point.recordIndices.join(', ') || 'Không có'} · ${point.recordPointers.map(pointer => `<code>${escape(pointer)}</code>`).join(' ')}</dd><dt>Digest Result</dt><dd><code>${escape(point.resultSha256)}</code></dd></dl>${listLimits(point.limits)}<p><a href="#charts">Quay về chart</a></p></div></details>`;
+  }));
+  const removalEvidence = charts.topShopRemoval.scopes.flatMap((lane, index) => {
+    if (lane.point === null) return [];
+    const point: ResearchTopShopRemovalPoint = lane.point;
+    const id = `diagnostic-removal-${point.scopeKey}-${index}`;
+    return [`<details class="claim"><summary id="${escape(id)}">Độ nhạy bỏ shop đứng đầu · ${scopeName[point.scopeKey]}</summary><div><dl><dt>Shop bị bỏ</dt><dd><code>${escape(point.removedShopKey)}</code> · <code>${escape(point.removedShopKeyPointer)}</code></dd><dt>Dòng bị bỏ</dt><dd>${point.removedRecordIndices.join(', ') || 'Không có'} · tập thành viên <code>${escape(point.membershipPointer)}</code> · ${point.removedRecordPointers.map(pointer => `<code>${escape(pointer)}</code>`).join(' ')}</dd><dt>Doanh thu gốc</dt><dd>${number(point.originalRevenueValue, 'VND')} · <code>${escape(point.originalRevenuePointer)}</code></dd><dt>Listing còn lại</dt><dd>${point.remainingListingCount} · <code>${escape(point.remainingListingCountPointer)}</code></dd><dt>Doanh thu còn lại</dt><dd>${point.remainingRevenueValue === null ? 'Thiếu' : number(point.remainingRevenueValue, 'VND')} · <code>${escape(point.remainingRevenuePointer)}</code></dd><dt>Tỷ trọng còn lại / doanh thu gốc</dt><dd>${point.remainingRevenueSharePercent === null ? 'Chưa tính được' : number(point.remainingRevenueSharePercent, 'percent')} · <code>${escape(point.remainingRevenueSharePointer ?? 'không có mẫu số')}</code></dd><dt>Tử số còn lại</dt><dd>${point.remainingRevenueShareNumeratorValue ?? 'Thiếu'} · <code>${escape(point.remainingRevenueShareNumeratorPointer ?? 'không có')}</code></dd><dt>Mẫu số doanh thu gốc</dt><dd>${point.remainingRevenueShareDenominatorValue ?? 'Thiếu'} · <code>${escape(point.remainingRevenueShareDenominatorPointer ?? 'không có')}</code></dd>${point.concentrationAfterRemoval.map(value => `<dt>Top ${value.k} sau loại bỏ</dt><dd>${value.sharePercent === null ? 'Chưa tính được' : number(value.sharePercent, 'percent')} · <code>${escape(value.sharePointer ?? 'không có mẫu số')}</code><br><small>${value.usedShopCount} shop · <code>${escape(value.usedShopCountPointer)}</code>; tử số ${escape(value.numeratorValue ?? 'thiếu')} · <code>${escape(value.numeratorPointer ?? 'không có')}</code>; mẫu số phần còn lại ${escape(value.denominatorValue ?? 'thiếu')} · <code>${escape(value.denominatorPointer ?? 'không có')}</code></small></dd>`).join('')}<dt>Digest Result</dt><dd><code>${escape(point.resultSha256)}</code></dd></dl>${listLimits(point.limits)}<p><a href="#charts">Quay về chart</a></p></div></details>`];
+  }).join('');
   const memberships = result.scopes.map(lane => `<details><summary>${scopeName[lane.key]} · ${lane.recordIndices.length} dòng thành viên${lane.status === 'BLOCKED_LABELS' ? ' · bị chặn bởi nhãn' : ''}</summary><div id="members-${lane.key}"><p>Chỉ số trong dữ liệu chuẩn hóa (bắt đầu từ 0), không phải số dòng Excel.</p><p class="members">${lane.recordIndices.map(index => `<a href="#row-${index}">${index}</a>`).join(' ') || 'Không có thành viên đủ điều kiện.'}</p></div></details>`).join('');
   const observations = result.input.records.map((record, index) => `<tr id="row-${index}"><th scope="row">${index}</th><td>${escape(record.title)}<br><small>shop ${escape(record.shopId)} · listing ${escape(record.listingId)}</small></td><td>${record.revenue.value === null ? 'Thiếu' : number(record.revenue.value, 'VND')}<br><small>${escape(record.revenue.state)} · ${escape(record.revenue.precision)}<br>${escape(record.revenue.source.locator)}</small></td><td>${record.units.value === null ? 'Thiếu' : number(record.units.value, 'unit')}<br><small>${escape(record.units.state)} · ${escape(record.units.precision)}<br>${escape(record.units.source.locator)}</small></td><td>${escape(record.label?.classification ?? 'Chưa có nhãn')}<br><small>${escape(record.source.locator)}</small></td></tr>`).join('');
   const readiness = packet.sections.map(section => {
@@ -132,9 +196,9 @@ h2{font-size:20px}h3,figcaption{font-size:16px}summary{min-height:44px;padding:8
 @media(max-width:700px){.plot-row{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.plot-row .value{justify-self:end;justify-content:flex-end;text-align:right}}
 </style></head><body><a class="skip" href="#charts">Đến số liệu và chart</a><main><header><h1>${escape(workspace.title)} · Báo cáo bằng chứng</h1><p class="status">Bản nháp nội bộ · Chưa duyệt</p><div class="meta"><span>${escape(scope.platform)} · bộ lọc ${escape(scope.selection)}</span><span>Kỳ đo: ${escape(shortDate(scope.start))} → ${escape(shortDate(scope.end))}</span><span>Thu nhận (theo nguồn): ${escape(scope.acquiredAt === null ? 'chưa xác nhận' : shortDate(scope.acquiredAt))}</span></div><details><summary>Thời gian và kiểm tra nguồn</summary><dl><dt>Kỳ đo</dt><dd><code>${escape(scope.start)} / ${escape(scope.end)}</code></dd><dt>Thu nhận</dt><dd><code>${escape(scope.acquiredAt ?? 'chưa xác nhận')}</code></dd><dt>Căn cứ kỳ đo</dt><dd>${escape(scope.periodBasis)}</dd></dl><p>Đã đọc lại các byte nguồn được lưu và tính lại bằng code. Việc này không xác nhận nhà cung cấp, độ đầy đủ thị trường hay tính đúng của nhãn phân loại.</p></details><nav aria-label="Mục báo cáo"><a href="#charts">Chart</a><a href="#readiness">Điều kiện section</a><a href="#claims">Truy nguồn con số</a><a href="#source-rows">Dòng nguồn</a><a href="#files">File và phiên bản</a></nav></header>
 <section class="layer-overview" aria-labelledby="layer-title"><h2 id="layer-title">Bốn lớp bằng chứng</h2><ol class="layers"><li><strong>1 · Nguồn</strong>Giữ file và khai báo gốc.</li><li><strong>2 · Tính toán</strong>Bấm vào số để xem căn cứ.</li><li><strong>3 · Nhận định AI</strong>Chưa tạo.</li><li><strong>4 · Người duyệt</strong>Chưa có quyết định.</li></ol></section>
-<section id="charts"><h2>Số liệu trong phạm vi quan sát</h2><p>Không phải quy mô toàn thị trường. ALL/WIDE/CORE là các tập giao nhau; nhãn thiếu hoặc lỗi sẽ chặn WIDE/CORE. UNKNOWN được ${result.input.wideUnknownPolicy === 'exclude' ? 'giữ để xem nhưng loại khỏi WIDE' : 'tính vào WIDE theo cấu hình của lần chạy này'}.</p><div class="charts">${['revenue', 'units', 'listings', 'shops'].map(metricChart).join('')}</div><h3>Mức tập trung doanh thu theo shop</h3><p>Top 1, Top 3 và Top 10 chứa lẫn nhau, không cộng các tỷ trọng. Chỉ tính khi mẫu số doanh thu đủ điều kiện.</p><div class="charts">${concentration}</div></section>
+<section id="charts"><h2>Số liệu trong phạm vi quan sát</h2><p>Không phải quy mô toàn thị trường. ALL/WIDE/CORE là các tập giao nhau; nhãn thiếu hoặc lỗi sẽ chặn WIDE/CORE. UNKNOWN được ${result.input.wideUnknownPolicy === 'exclude' ? 'giữ để xem nhưng loại khỏi WIDE' : 'tính vào WIDE theo cấu hình của lần chạy này'}.</p><div class="charts">${['revenue', 'units', 'listings', 'shops'].map(metricChart).join('')}</div><h3>Đổi membership làm số quan sát thay đổi thế nào?</h3><p>Cùng một kỳ đo và cùng dữ liệu đầu vào; chỉ thay quy tắc membership. Đây là độ nhạy của bộ lọc, không phải diễn biến hoặc tăng trưởng.</p><div class="charts">${sensitivity}</div><h3>Cơ cấu nhóm trong từng phạm vi</h3><p>Tỷ trọng nhóm được tính lại với mẫu số của đúng phạm vi và giữ liên kết tới từng dòng thành viên.</p><div class="charts">${groupComposition}</div><h3>Mức tập trung doanh thu theo shop</h3><p>Top 1, Top 3 và Top 10 chứa lẫn nhau, không cộng các tỷ trọng. Chỉ tính khi mẫu số doanh thu đủ điều kiện.</p><div class="charts">${concentration}</div><h3>Nếu bỏ shop đứng đầu thì cấu trúc còn lại ra sao?</h3><p>Đây là phép thử độ nhạy trên cùng tập quan sát, không phải dự báo hay khuyến nghị hành động.</p><div class="charts">${topShopRemoval}</div></section>
 <section id="readiness"><h2>Điều kiện của ${packet.sections.length} section</h2><p>Một section có số liệu từng phần không có nghĩa toàn bộ phương pháp đã hoàn thành. Mở từng mục để xem điều kiện còn thiếu.</p><ul>${readinessSummary.map(text => `<li>${escape(text)}</li>`).join('')}</ul>${readiness}</section>
-<section id="claims"><h2>Truy nguồn từng con số</h2><p>Mở một quan sát để xem phương pháp, tập thành viên, mẫu số và vị trí trong Result.</p>${claims}${memberships}</section>
+<section id="claims"><h2>Truy nguồn từng con số</h2><p>Mở một quan sát hoặc diagnostic để xem phương pháp, tập thành viên, mẫu số và vị trí trong Result.</p>${claims}${sensitivityEvidence}${groupEvidence.join('')}${removalEvidence}${memberships}</section>
 <section id="source-rows"><h2>Dòng nguồn đã chuẩn hóa</h2><p>Giá trị thiếu không bằng 0. Ô nguồn dẫn về <a href="raw-workbook.xlsx" download>workbook giữ nguyên byte</a>; <a href="receipt.json" download>biên bản ánh xạ</a> giữ giá trị ô và dấu vết chuẩn hóa.</p><div class="table-wrap" role="region" aria-label="Các dòng nguồn" tabindex="0"><table><thead><tr><th>Index</th><th>Sản phẩm / ID nguồn</th><th>Doanh thu</th><th>Sản lượng</th><th>Phân loại / vị trí</th></tr></thead><tbody>${observations}</tbody></table></div></section>
 <section id="files"><h2>File và phiên bản</h2><ul class="downloads">${downloads}<li><a href="evidence-envelope.json" download>Liên kết nguồn của bản xuất</a></li><li><a href="export-manifest.json" download>Danh mục byte của bản xuất</a></li></ul><details><summary>Nhận diện chính xác</summary><dl>${semanticVersionId ? `<dt>Nội dung</dt><dd><code>${escape(semanticVersionId)}</code></dd>` : ''}<dt>Packet</dt><dd><code>${escape(packet.packetId)}</code></dd><dt>Result</dt><dd><code>${escape(packet.metricResultSha256)}</code></dd><dt>Catalog</dt><dd><code>${escape(packet.catalogSha256)}</code></dd></dl></details><p>ID nội dung chỉ đổi khi nguồn, phép tính, chart hoặc section thay đổi; đổi renderer HTML/PDF không tự biến thành nội dung mới. Trạng thái duyệt được lưu riêng và hiện vẫn là UNREVIEWED.</p><p>Đây là gói nội bộ có dữ liệu nguồn. Không tự động chia sẻ ra ngoài. In / lưu PDF bằng trình duyệt không đồng nghĩa báo cáo đã được duyệt.</p></section><footer>TDN Growth OS · Dữ liệu → phép tính → nhận định → quyết định. Không có lời gọi AI, nhà cung cấp hoặc quyết định kinh doanh nào được thực hiện khi xuất bản nháp này.</footer></main></body></html>\n`;
 }
