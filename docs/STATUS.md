@@ -1,5 +1,22 @@
 # Trạng thái hiện tại
 
+## Research A9: deterministic M03/M04 diagnostic charts (draft PR #65; not deployed)
+
+- The accepted four-layer framework remains authoritative; this slice deepens
+  only deterministic layer-two display.
+- M03 now exposes same-period membership sensitivity from ALL to WIDE/CORE with
+  exact deltas, removed rows and Result pointers. It is explicitly not growth.
+- M04 now exposes within-scope group composition and top-shop-removal
+  sensitivity. Overlapping scopes are not additive, and removal is not a
+  forecast or recommendation.
+- Every diagnostic links to its exact Result digest, pointer and row membership;
+  missing labels or denominators stay blocked/partial rather than becoming zero.
+- The automated-section count remains 4/30 (M02, M03, M04, M13). No provider/AI
+  call, fifth method, migration, API, approval or live data import is included.
+- Linux full check passed with 486/486 repository tests and the desktop/mobile
+  visual preview passed with no page error. Windows tests/build/typecheck were
+  not run by policy. The PR remains draft while A1–A8 dependencies are unmerged.
+
 ## Research A8: evidence-bound interpretation contract (draft PR #64; not deployed)
 
 - Added closed request, untrusted-output and application-owned artifact

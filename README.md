@@ -99,6 +99,13 @@ logic summary, not hidden chain-of-thought, and remains unapproved. A8 does not
 call a provider or persist a report run. See [A8 scope](docs/tasks/research-a8-evidence-bound-interpretation.md)
 and [ADR 0005](docs/adr/0005-report-evidence-and-decision-ledger.md).
 
+Research A9 deepens the same deterministic report without adding a section
+method. It renders M03 filter-membership sensitivity and M04 group composition
+and top-shop-removal sensitivity directly from the verified A1 Result. Every
+diagnostic links to exact pointers and row membership; the UI states that these
+are not growth, additive market segments, forecasts or recommendations. See
+[A9 scope](docs/tasks/research-a9-diagnostic-charts.md).
+
 ## Offline source-package intake
 
 Run `npm run source-package:intake -- <database> <artifact-root> <package-directory> <intake.json> <audit.json> <output.md>` to verify and persist an exact-byte source package and immutable field audit without provider calls. The package directory must exactly match descriptor membership; the report path must be outside this repository and must not already exist. See `docs/tasks/023-source-package-intake.md`.
