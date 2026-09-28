@@ -100,6 +100,7 @@ test('opens a fresh WAL database and a second migration run is idempotent', () =
     { version: 28n },
     { version: 29n },
     { version: 30n },
+    { version: 31n },
   ]);
   second.db.close();
 });
