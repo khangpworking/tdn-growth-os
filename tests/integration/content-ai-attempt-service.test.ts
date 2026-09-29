@@ -96,10 +96,11 @@ test('successful text attempts store exact bytes, register a manifest, persist s
     const expected = createHash('sha256').update(Buffer.from('exact text bytes')).digest('hex');
     assert.equal(result.persisted, 'saved');
     assert.equal(result.outcome.outputSha256, expected);
+    assert.equal(result.outcome.providerModel, 'gpt-5.6-sol');
     assert.equal(fs.readFileSync(outputFile(state.artifactRoot, expected), 'utf8'), 'exact text bytes');
     const attempt = row(state.db, result.outcome.attemptId);
-    assert.deepEqual({ state: attempt.state, error: attempt.error_code, output: attempt.output_sha256, inputTokens: attempt.input_tokens, outputTokens: attempt.output_tokens, provider: attempt.provider_request_id }, {
-      state: 'succeeded', error: null, output: expected, inputTokens: 11n, outputTokens: 5n, provider: 'provider:049',
+    assert.deepEqual({ state: attempt.state, error: attempt.error_code, output: attempt.output_sha256, providerModel: attempt.provider_model, inputTokens: attempt.input_tokens, outputTokens: attempt.output_tokens, provider: attempt.provider_request_id }, {
+      state: 'succeeded', error: null, output: expected, providerModel: 'gpt-5.6-sol', inputTokens: 11n, outputTokens: 5n, provider: 'provider:049',
     });
     assert.equal((state.db.prepare('SELECT count(*) count FROM test_domain_writes').get() as { count: bigint }).count, 1n);
     assert.equal(gateway.calls.filter((call) => call.operation === 'generateText').length, 1);
@@ -405,9 +406,9 @@ test('input-boundary rejection, running count/sweep, and list ordering stay outs
   try {
     await assert.rejects(runText(state, input({ plannedActionCallCount: '3' as never })), /plannedActionCallCount/);
     assert.equal(gateway.calls.length, 0);
-    state.db.prepare(`INSERT INTO flow_content_ai_attempts(attempt_id,kind,modality,target_type,target_id,model,prompt_ref,input_bundle_sha256,planned_action_call_count,state,actor_id,created_at)
-      VALUES (?, 'generate', 'text', 'campaign', 'running-a', 'gpt-5.6-sol', 'prompt:a', ?, 1, 'running', 'owner:local', ?),
-             (?, 'generate', 'text', 'campaign', 'running-b', 'gpt-5.6-sol', 'prompt:b', ?, 1, 'running', 'owner:local', ?)`)
+    state.db.prepare(`INSERT INTO flow_content_ai_attempts(attempt_id,kind,modality,target_type,target_id,model,provider_model,prompt_ref,input_bundle_sha256,planned_action_call_count,state,actor_id,created_at)
+      VALUES (?, 'generate', 'text', 'campaign', 'running-a', 'gpt-5.6-sol', 'gpt-5.6-sol', 'prompt:a', ?, 1, 'running', 'owner:local', ?),
+             (?, 'generate', 'text', 'campaign', 'running-b', 'gpt-5.6-sol', 'gpt-5.6-sol', 'prompt:b', ?, 1, 'running', 'owner:local', ?)`)
       .run('00000000-0000-4000-8000-000000000191', inputSha, '2026-09-27T10:00:00.000Z', '00000000-0000-4000-8000-000000000192', inputSha, '2026-09-27T10:00:01.000Z');
     assert.equal(state.service.countRunning(), 2);
     assert.equal(state.service.sweepInterrupted(new Date('2026-09-27T10:00:02.000Z')), 2);

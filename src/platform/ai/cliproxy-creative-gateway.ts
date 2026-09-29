@@ -4,12 +4,14 @@ import {
   CREATIVE_MODEL_ROUTES,
   CREATIVE_MODELS,
   CreativeAiError,
+  assertCreativeModelRoutes,
   type CreativeAiErrorCode,
   type CreativeAiGateway,
   type CreativeImageRequest,
   type CreativeImageResult,
   type CreativeModel,
   type CreativeModelAvailability,
+  type CreativeModelRoutes,
   type CreativeTextRequest,
   type CreativeTextResult,
   type CreativeUsage,
@@ -324,9 +326,9 @@ function stringifyBody(value: unknown): string {
   }
 }
 
-function routeFor(model: unknown, kind: 'text' | 'image') {
-  if (typeof model !== 'string' || !Object.hasOwn(CREATIVE_MODEL_ROUTES, model)) fail('model_not_allowed');
-  const route = CREATIVE_MODEL_ROUTES[model as CreativeModel];
+function routeFor(routes: CreativeModelRoutes, model: unknown, kind: 'text' | 'image') {
+  if (typeof model !== 'string' || !Object.hasOwn(routes, model)) fail('model_not_allowed');
+  const route = routes[model as CreativeModel];
   if (route.kind !== kind) fail('model_not_allowed');
   return route;
 }
@@ -520,10 +522,11 @@ function makeGeminiBody(request: CreativeImageRequest, references: readonly Buff
 async function generateText(
   request: CreativeTextRequest,
   configuration: CliproxyConfiguration,
+  routes: CreativeModelRoutes,
   transport: typeof fetch,
   now: () => number,
 ): Promise<CreativeTextResult> {
-  const route = routeFor(request?.model, 'text');
+  const route = routeFor(routes, request?.model, 'text');
   const body: Record<string, unknown> = {
     model: route.providerModelId,
     messages: [
@@ -560,10 +563,11 @@ async function generateText(
 async function generateImage(
   request: CreativeImageRequest,
   configuration: CliproxyConfiguration,
+  routes: CreativeModelRoutes,
   transport: typeof fetch,
   now: () => number,
 ): Promise<CreativeImageResult> {
-  const route = routeFor(request?.model, 'image');
+  const route = routeFor(routes, request?.model, 'image');
   const format = CREATIVE_IMAGE_FORMATS[request.format];
   if (!format) fail('request_too_large');
   const references = normalizeReferenceBytes(request);
@@ -647,6 +651,7 @@ async function generateImage(
 
 async function listModels(
   configuration: CliproxyConfiguration,
+  routes: CreativeModelRoutes,
   transport: typeof fetch,
 ): Promise<readonly CreativeModelAvailability[]> {
   const envelope = await requestJson(transport, `${configuration.baseUrl}/v1/models`, {
@@ -658,8 +663,8 @@ async function listModels(
   const providerIds = new Set(data.map((entry) => (entry as Record<string, unknown>).id as string));
   return CREATIVE_MODELS.map((id) => ({
     id,
-    kind: CREATIVE_MODEL_ROUTES[id].kind,
-    available: providerIds.has(CREATIVE_MODEL_ROUTES[id].providerModelId),
+    kind: routes[id].kind,
+    available: providerIds.has(routes[id].providerModelId),
   }));
 }
 
@@ -667,14 +672,18 @@ export function createCliproxyCreativeGateway(options: {
   readonly configuration: CliproxyConfiguration;
   readonly transport?: typeof fetch;
   readonly now?: () => number;
+  /** Defaults to `CREATIVE_MODEL_ROUTES`; only provider ids may differ. */
+  readonly routes?: CreativeModelRoutes;
 }): CreativeAiGateway {
   assertCliproxyConfiguration(options.configuration);
+  const routes = options.routes === undefined ? CREATIVE_MODEL_ROUTES : assertCreativeModelRoutes(options.routes);
   const transport = options.transport ?? fetch;
   const now = options.now ?? (() => Date.now());
   return {
     configured: true,
-    generateText: (request) => safeCall(() => generateText(request, options.configuration, transport, now)),
-    generateImage: (request) => safeCall(() => generateImage(request, options.configuration, transport, now)),
-    listModels: () => safeCall(() => listModels(options.configuration, transport)),
+    routes,
+    generateText: (request) => safeCall(() => generateText(request, options.configuration, routes, transport, now)),
+    generateImage: (request) => safeCall(() => generateImage(request, options.configuration, routes, transport, now)),
+    listModels: () => safeCall(() => listModels(options.configuration, routes, transport)),
   };
 }

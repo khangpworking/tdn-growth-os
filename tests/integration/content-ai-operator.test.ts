@@ -40,8 +40,8 @@ async function serving(configuration: OperatorAppConfiguration, run: (origin: st
 function insertRunning(databasePath: string, attemptId: string, targetId = 'operator-target'): void {
   const db = new BetterSqlite3(databasePath); db.pragma('foreign_keys = ON');
   db.prepare(`INSERT INTO flow_content_ai_attempts
-    (attempt_id, kind, modality, target_type, target_id, model, prompt_ref, input_bundle_sha256, planned_action_call_count, state, actor_id, created_at)
-    VALUES (?, 'generate', 'text', 'campaign', ?, 'gpt-5.6-sol', 'prompt:operator', ?, 1, 'running', 'owner:local', ?)`)
+    (attempt_id, kind, modality, target_type, target_id, model, provider_model, prompt_ref, input_bundle_sha256, planned_action_call_count, state, actor_id, created_at)
+    VALUES (?, 'generate', 'text', 'campaign', ?, 'gpt-5.6-sol', 'gpt-5.6-sol', 'prompt:operator', ?, 1, 'running', 'owner:local', ?)`)
     .run(attemptId, targetId, 'd'.repeat(64), '2026-09-27T10:00:00.000Z');
   db.close();
 }
@@ -127,8 +127,8 @@ test('manual stale-lock removal is the only recovery path; next executor sweeps 
   insertRunning(state.databasePath, runningId);
   const db = new BetterSqlite3(state.databasePath);
   db.prepare(`INSERT INTO flow_content_ai_attempts
-    (attempt_id, kind, modality, target_type, target_id, model, prompt_ref, input_bundle_sha256, planned_action_call_count, state, actor_id, created_at)
-    VALUES (?, 'generate', 'text', 'campaign', 'closed-target', 'gpt-5.6-sol', 'prompt:closed', ?, 1, 'running', 'owner:local', ?)`)
+    (attempt_id, kind, modality, target_type, target_id, model, provider_model, prompt_ref, input_bundle_sha256, planned_action_call_count, state, actor_id, created_at)
+    VALUES (?, 'generate', 'text', 'campaign', 'closed-target', 'gpt-5.6-sol', 'gpt-5.6-sol', 'prompt:closed', ?, 1, 'running', 'owner:local', ?)`)
     .run('00000000-0000-4000-8000-000000000602', 'e'.repeat(64), '2026-09-27T09:00:00.000Z');
   db.prepare("UPDATE flow_content_ai_attempts SET state='interrupted', error_code='interrupted_by_restart', closed_at=? WHERE attempt_id=?")
     .run('2026-09-27T09:01:00.000Z', '00000000-0000-4000-8000-000000000602');

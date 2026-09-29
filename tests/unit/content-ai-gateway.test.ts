@@ -4,6 +4,10 @@ import {
   CREATIVE_AI_ERROR_CODES,
   CREATIVE_AI_ERROR_MESSAGES,
   CreativeAiError,
+  CREATIVE_MODEL_ROUTES,
+  assertCreativeModelRoutes,
+  providerModelFor,
+  type CreativeModelRoutes,
 } from '../../src/platform/ai/creative-ai-gateway.js';
 import {
   createFakeCreativeGateway,
@@ -17,6 +21,10 @@ const textRequest = {
   userInput: 'input',
 };
 
+function mutableRoutes(): Record<string, Record<string, unknown>> {
+  return Object.fromEntries(Object.entries(CREATIVE_MODEL_ROUTES).map(([model, route]) => [model, { ...route }])) as Record<string, Record<string, unknown>>;
+}
+
 test('CreativeAiError has one fixed message per code and never carries a cause', () => {
   for (const code of CREATIVE_AI_ERROR_CODES) {
     const error = new CreativeAiError(code, 502);
@@ -27,6 +35,39 @@ test('CreativeAiError has one fixed message per code and never carries a cause',
     assert.equal(Object.hasOwn(error, 'cause'), false);
     assert.equal(error.cause, undefined);
   }
+});
+
+test('creative model routes require exactly the allowlisted models and preserve kind and family', () => {
+  const missing = mutableRoutes();
+  delete missing['gpt-5.6-sol'];
+  assert.throws(() => assertCreativeModelRoutes(missing), /routes must list exactly the creative models/);
+
+  const extra = mutableRoutes();
+  extra.unexpected = { kind: 'text', family: 'openai-chat', providerModelId: 'unexpected' };
+  assert.throws(() => assertCreativeModelRoutes(extra), /routes must list exactly the creative models/);
+
+  for (const [field, value] of [['kind', 'image'], ['family', 'gemini-image']] as const) {
+    const changed = mutableRoutes();
+    changed['gpt-5.6-sol']![field] = value;
+    assert.throws(() => assertCreativeModelRoutes(changed), /route for gpt-5\.6-sol is invalid/);
+  }
+});
+
+test('creative model routes reject provider ids outside the storage and URL contract', () => {
+  for (const providerModelId of ['bad/id', '', 'a'.repeat(129)]) {
+    const routes = mutableRoutes();
+    routes['gpt-5.6-sol']!.providerModelId = providerModelId;
+    assert.throws(() => assertCreativeModelRoutes(routes), /route for gpt-5\.6-sol is invalid/);
+  }
+});
+
+test('providerModelFor uses the default route table when a gateway has no custom routes', () => {
+  const custom: CreativeModelRoutes = {
+    ...CREATIVE_MODEL_ROUTES,
+    'gemini-3.5-flash-low': { ...CREATIVE_MODEL_ROUTES['gemini-3.5-flash-low'], providerModelId: 'gemini-9.9-flash' },
+  };
+  assert.equal(providerModelFor({}, 'gemini-3.5-flash-low'), 'gemini-3.8-flash-high');
+  assert.equal(providerModelFor({ routes: custom }, 'gemini-3.5-flash-low'), 'gemini-9.9-flash');
 });
 
 test('disabledCreativeGateway reports configuration state and the fixed not-configured error for every operation', async () => {

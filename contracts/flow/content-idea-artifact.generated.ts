@@ -16,6 +16,7 @@ export interface ContentIdeaArtifact {
   requestSha256: string;
   prompt: ContentIdeaPromptUsed;
   model: ContentIdeaModel;
+  providerModel: string;
   systemLayer: ContentIdeaSystemLayerRef;
   lockedInput: {
     [k: string]: unknown;

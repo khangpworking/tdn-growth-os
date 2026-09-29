@@ -281,6 +281,8 @@ test('idea helper projections retain only the requested kind and parent', () => 
   assert.deepEqual(anglesOf(list, bigA).map((idea) => idea.ideaId), [angleA1]);
   assert.deepEqual(developingBigIdeas(ideaList([bigEntry({ developing: true }), bigEntry({ ideaId: bigB, code: 'B', developing: true, deleted: true })])).map((idea) => idea.ideaId), [bigA]);
   assert.deepEqual(IDEA_MODELS.map((model) => model.key), ['gpt-5.6-sol', 'gpt-5.6-luna', 'gemini-3.5-flash-low']);
+  assert.equal(IDEA_MODELS.find((model) => model.key === 'gemini-3.5-flash-low')?.label, 'Gemini 3.8 Flash High');
+  assert.equal(IDEA_MODELS.some((model) => model.label === 'Gemini 3.5 Flash Low'), false);
 });
 
 test('IdeasPage keeps a requested stopped Big Idea explicit and does not show a fallback run form', { concurrency: false }, async () => {

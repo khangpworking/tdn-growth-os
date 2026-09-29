@@ -11,7 +11,9 @@ import {
 } from '../../src/platform/ai/cliproxy-creative-gateway.js';
 import {
   CreativeAiError,
+  CREATIVE_MODEL_ROUTES,
   type CreativeImageRequest,
+  type CreativeModelRoutes,
   type CreativeTextRequest,
 } from '../../src/platform/ai/creative-ai-gateway.js';
 
@@ -148,6 +150,38 @@ test('text requests use the fixed OpenAI envelope, limits, headers, usage and la
   });
 });
 
+test('Gemini text keeps the product model while sending its routed provider model', async () => {
+  const reply = jsonResponse({ id: 'gemini-provider-request-049', choices: [{ message: { content: 'gemini caption' } }] });
+  const state = transportFor([reply.response]);
+  const gateway = createCliproxyCreativeGateway({ configuration, transport: state.transport });
+  const request: CreativeTextRequest = { ...textRequest, model: 'gemini-3.5-flash-low' };
+  const result = await gateway.generateText(request);
+
+  assert.equal(result.text, 'gemini caption');
+  const body = await jsonBody(state.calls[0]!.init);
+  assert.equal(body.model, 'gemini-3.8-flash-high');
+});
+
+test('custom routes send their provider ids in text bodies and Gemini image URL paths', async () => {
+  const routes: CreativeModelRoutes = {
+    ...CREATIVE_MODEL_ROUTES,
+    'gemini-3.5-flash-low': { ...CREATIVE_MODEL_ROUTES['gemini-3.5-flash-low'], providerModelId: 'gemini-9.9-flash' },
+    'gemini-3.1-flash-image': { ...CREATIVE_MODEL_ROUTES['gemini-3.1-flash-image'], providerModelId: 'gemini-9.9-flash-image' },
+  };
+  const state = transportFor([
+    jsonResponse({ choices: [{ message: { content: 'custom route text' } }] }).response,
+    jsonResponse({ candidates: [{ content: { parts: [{ inlineData: { data: Buffer.from('custom route image').toString('base64') } }] } }] }).response,
+  ]);
+  const gateway = createCliproxyCreativeGateway({ configuration, transport: state.transport, routes });
+
+  await gateway.generateText({ ...textRequest, model: 'gemini-3.5-flash-low' });
+  await gateway.generateImage({ model: 'gemini-3.1-flash-image', prompt: 'custom route poster', format: 'square', references: [] });
+
+  const textBody = await jsonBody(state.calls[0]!.init);
+  assert.equal(textBody.model, 'gemini-9.9-flash');
+  assert.equal(state.calls[1]!.url, `${configuration.baseUrl}/v1beta/models/gemini-9.9-flash-image:generateContent`);
+});
+
 test('ordinary non-JSON creative text remains valid', async () => {
   const state = transportFor([jsonResponse({ choices: [{ message: { content: 'a sentence with no JSON contract' } }] }).response]);
   const gateway = createCliproxyCreativeGateway({ configuration, transport: state.transport });
@@ -257,6 +291,28 @@ test('model discovery intersects provider ids with the five allowlisted models',
   ]);
   assert.equal(state.calls[0]!.url, `${configuration.baseUrl}/v1/models`);
   assert.equal(state.calls[0]!.init.method, 'GET');
+});
+
+test('model discovery uses the routed provider id and preserves the other four provider ids', async () => {
+  const routes = [
+    { productId: 'gpt-5.6-sol', providerId: 'gpt-5.6-sol', kind: 'text' },
+    { productId: 'gpt-5.6-luna', providerId: 'gpt-5.6-luna', kind: 'text' },
+    { productId: 'gpt-image-2', providerId: 'gpt-image-2', kind: 'image' },
+    { productId: 'gemini-3.1-flash-image', providerId: 'gemini-3.1-flash-image', kind: 'image' },
+    { productId: 'gemini-3.5-flash-low', providerId: 'gemini-3.8-flash-high', kind: 'text' },
+  ] as const;
+
+  for (const route of routes) {
+    const state = transportFor([jsonResponse({ data: [{ id: route.providerId }] }).response]);
+    const gateway = createCliproxyCreativeGateway({ configuration, transport: state.transport });
+    const models = await gateway.listModels();
+    assert.deepEqual(models.filter((model) => model.available), [{ id: route.productId, kind: route.kind, available: true }], route.productId);
+  }
+
+  const oldIdOnly = transportFor([jsonResponse({ data: [{ id: 'gemini-3.5-flash-low' }] }).response]);
+  const gateway = createCliproxyCreativeGateway({ configuration, transport: oldIdOnly.transport });
+  const models = await gateway.listModels();
+  assert.deepEqual(models.filter((model) => model.available), []);
 });
 
 test('model and request-size validation happens before transport', async () => {

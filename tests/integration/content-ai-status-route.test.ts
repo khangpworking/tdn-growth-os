@@ -8,11 +8,14 @@ import { createRequire } from 'node:module';
 import test from 'node:test';
 import contentApiSchema from '../../contracts/api/content-api.schema.json' with { type: 'json' };
 import { openContentReadApi } from '../../src/api/content-api.js';
+import { createCliproxyCreativeGateway } from '../../src/platform/ai/cliproxy-creative-gateway.js';
 import { openDatabase } from '../../src/platform/db/database.js';
+import { createContentAiStatusSource } from '../../src/modules/flow/content-ai-status.js';
 import type { ContentAiStatus } from '../../src/modules/flow/content-ai-status.js';
 
 const roots: string[] = [];
 const SENTINEL = 'content-ai-status-route-sentinel-049';
+const cliproxyConfiguration = { baseUrl: 'http://127.0.0.1:8317', apiKey: SENTINEL } as const;
 test.afterEach(() => { for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
 
 type JsonSchema = Record<string, unknown>;
@@ -65,6 +68,14 @@ async function listen(handler: http.RequestListener) {
   await once(server, 'listening');
   const address = server.address() as import('node:net').AddressInfo;
   return { server, url: `http://127.0.0.1:${address.port}` };
+}
+
+function providerModels(ids: readonly string[]): typeof fetch {
+  return async (input, init) => {
+    assert.equal(String(input), `${cliproxyConfiguration.baseUrl}/v1/models`);
+    assert.equal(init?.method, 'GET');
+    return new Response(JSON.stringify({ data: ids.map((id) => ({ id })) }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
 }
 
 test('GET /api/content/ai/status returns the closed AJV-valid envelope and non-GET methods stay 405', async () => {
@@ -132,5 +143,32 @@ test('an absent status source is represented as disabled without provider detail
   } finally {
     await new Promise<void>((resolve) => listener.server.close(() => resolve()));
     application.close();
+  }
+});
+
+test('status route maps provider model availability back to the product Gemini id', async () => {
+  const cases = [
+    { label: 'provider route is listed', ids: ['gemini-3.8-flash-high'], available: true },
+    { label: 'old product id is listed alone', ids: ['gemini-3.5-flash-low'], available: false },
+  ] as const;
+
+  for (const scenario of cases) {
+    const state = fixture();
+    const gateway = createCliproxyCreativeGateway({ configuration: cliproxyConfiguration, transport: providerModels(scenario.ids) });
+    const aiStatus = createContentAiStatusSource({ gateway, clock: () => new Date('2026-09-28T10:00:00.000Z') });
+    const application = openContentReadApi({ ...state, aiStatus });
+    const listener = await listen(application.handler);
+    try {
+      const response = await fetch(`${listener.url}/api/content/ai/status`);
+      assert.equal(response.status, 200, scenario.label);
+      const body = await response.json() as { models: Array<{ id: string; kind: string; available: boolean }> };
+      assert.deepEqual(body.models.find((model) => model.id === 'gemini-3.5-flash-low'), {
+        id: 'gemini-3.5-flash-low', kind: 'text', available: scenario.available,
+      }, scenario.label);
+      assert.equal(body.models.some((model) => model.id === 'gemini-3.8-flash-high'), false, scenario.label);
+    } finally {
+      await new Promise<void>((resolve) => listener.server.close(() => resolve()));
+      application.close();
+    }
   }
 });

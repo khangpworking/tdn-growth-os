@@ -233,7 +233,8 @@ export class ContentIdeaService {
     const prepared = await this.#prepare(input, insightVersion);
     const layer = this.#library.layer(input.kind);
     const userInput = `LOCKED_INPUT_JSON:\n${canonicalBytes(prepared.lockedInput).toString('utf8')}`;
-    const inputBundleSha256 = inputBundleDigest(input.kind, layer, prepared.prompt.creativeTextSha256, input.model, userInput);
+    const providerModel = this.#attempts.providerModelFor(input.model);
+    const inputBundleSha256 = inputBundleDigest(input.kind, layer, prepared.prompt.creativeTextSha256, input.model, providerModel, userInput);
     const ideaId = contentIdeaIdFor(input.requestId);
     const retryOf = this.#priorAttempt(ideaId, inputBundleSha256);
 
@@ -254,12 +255,13 @@ export class ContentIdeaService {
     }, {
       stage: async (outcome) => {
         if (outcome.modality !== 'text') throw new ContentIdeaIntegrityError('Idea generation must be a text attempt');
+        if (outcome.providerModel !== providerModel) throw new ContentIdeaIntegrityError('Idea attempt was dispatched to a different provider model');
         const output = ideaOutput(input.kind, outcome.parsed);
         const createdAt = this.#now().toISOString();
         const artifact: ContentIdeaArtifact = {
           contractVersion: '1.0.0', ideaId, campaignId: input.campaignId, kind: input.kind,
           ...(input.parentIdeaId !== undefined ? { parentIdeaId: input.parentIdeaId } : {}),
-          insightVersion: prepared.insightVersion, requestId: input.requestId, requestSha256, prompt: prepared.prompt, model: input.model,
+          insightVersion: prepared.insightVersion, requestId: input.requestId, requestSha256, prompt: prepared.prompt, model: input.model, providerModel,
           systemLayer: { version: layer.version, sha256: layer.sha256 }, lockedInput: prepared.lockedInput, inputBundleSha256,
           attemptId: outcome.attemptId, outputSha256: outcome.outputSha256, output, createdAt,
         };
@@ -514,8 +516,10 @@ export class ContentIdeaService {
       artifact.systemLayer.version !== layer.version ||
       artifact.systemLayer.sha256 !== layer.sha256 ||
       (artifact.prompt.source === 'FREESTYLE' && textDigest(artifact.prompt.creativeText) !== artifact.prompt.creativeTextSha256) ||
-      inputBundleDigest(artifact.kind, layer, artifact.prompt.creativeTextSha256, artifact.model, userInput) !== artifact.inputBundleSha256 ||
-      !attempt || attempt.state !== 'succeeded' || attempt.outputSha256 !== artifact.outputSha256 || attempt.inputBundleSha256 !== artifact.inputBundleSha256 || attempt.model !== artifact.model
+      // The recorded provider model is replayed as-is; the current route table never reinterprets it.
+      inputBundleDigest(artifact.kind, layer, artifact.prompt.creativeTextSha256, artifact.model, artifact.providerModel, userInput) !== artifact.inputBundleSha256 ||
+      !attempt || attempt.state !== 'succeeded' || attempt.outputSha256 !== artifact.outputSha256 || attempt.inputBundleSha256 !== artifact.inputBundleSha256 || attempt.model !== artifact.model ||
+      attempt.providerModel !== artifact.providerModel
     ) throw new ContentIdeaIntegrityError('Idea artifact does not match immutable metadata');
     try { ideaOutput(artifact.kind, artifact.output); } catch { throw new ContentIdeaIntegrityError('Idea artifact output breaks the idea rules'); }
     await this.#assertOriginalOutput(artifact);
@@ -646,8 +650,8 @@ function ideaOutput(kind: ContentIdeaKind, value: unknown): ContentIdeaOutput {
   return output as unknown as ContentIdeaOutput;
 }
 
-function inputBundleDigest(kind: ContentIdeaKind, layer: { readonly version: number; readonly sha256: string }, creativeTextSha256: string, model: string, userInput: string): string {
-  return canonicalDigest({ systemLayer: { type: kind, version: layer.version, sha256: layer.sha256 }, creativeTextSha256, model, userInput });
+function inputBundleDigest(kind: ContentIdeaKind, layer: { readonly version: number; readonly sha256: string }, creativeTextSha256: string, model: string, providerModel: string, userInput: string): string {
+  return canonicalDigest({ systemLayer: { type: kind, version: layer.version, sha256: layer.sha256 }, creativeTextSha256, model, providerModel, userInput });
 }
 
 function textDigest(text: string): string { return sha256(Buffer.from(text, 'utf8')); }

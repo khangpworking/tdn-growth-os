@@ -21,7 +21,7 @@ export type PurposeKind = OwnerContentPurposeKind;
 export const IDEA_MODELS: readonly { readonly key: IdeaModel; readonly label: string }[] = [
   { key: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
   { key: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
-  { key: 'gemini-3.5-flash-low', label: 'Gemini 3.5 Flash Low' },
+  { key: 'gemini-3.5-flash-low', label: 'Gemini 3.8 Flash High' },
 ];
 export const PURPOSE_KINDS: readonly { readonly key: PurposeKind; readonly label: string }[] = [
   { key: 'EDUCATION', label: 'Giáo dục' },

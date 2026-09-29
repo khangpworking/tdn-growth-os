@@ -1,9 +1,11 @@
 import {
   CreativeAiError,
+  assertCreativeModelRoutes,
   type CreativeAiGateway,
   type CreativeImageRequest,
   type CreativeImageResult,
   type CreativeModelAvailability,
+  type CreativeModelRoutes,
   type CreativeTextRequest,
   type CreativeTextResult,
 } from './creative-ai-gateway.js';
@@ -15,6 +17,8 @@ export interface FakeCreativeGatewayScript {
   readonly text?: readonly FakeCreativeReply<CreativeTextResult>[];
   readonly image?: readonly FakeCreativeReply<CreativeImageResult>[];
   readonly models?: readonly FakeCreativeReply<readonly CreativeModelAvailability[]>[];
+  /** Route table the fake reports as dispatched with; `CREATIVE_MODEL_ROUTES` when absent. */
+  readonly routes?: CreativeModelRoutes;
 }
 
 export type FakeCreativeCall =
@@ -40,6 +44,7 @@ export function createFakeCreativeGateway(script: FakeCreativeGatewayScript = {}
   };
   return {
     configured: true,
+    ...(script.routes !== undefined ? { routes: assertCreativeModelRoutes(script.routes) } : {}),
     calls,
     generateText(request) {
       calls.push({ operation: 'generateText', request });

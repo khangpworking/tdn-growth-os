@@ -64,9 +64,9 @@ function insertInsightAndLock(db: ReturnType<typeof openDatabase>['db'], campaig
 function insertAttempt(db: ReturnType<typeof openDatabase>['db'], attemptId: string, targetId: string, targetType: string, number: number): void {
   const inputSha = `${(number % 16).toString(16)}`.repeat(64);
   db.prepare(`INSERT INTO flow_content_ai_attempts(
-    attempt_id, kind, modality, target_type, target_id, model, prompt_ref, input_bundle_sha256,
+    attempt_id, kind, modality, target_type, target_id, model, provider_model, prompt_ref, input_bundle_sha256,
     planned_action_call_count, state, actor_id, created_at
-  ) VALUES (?, 'generate', 'text', ?, ?, 'gpt-5.6-sol', 'system:050b@1', ?, 1, 'running', 'owner:050b', ?)`)
+  ) VALUES (?, 'generate', 'text', ?, ?, 'gpt-5.6-sol', 'gpt-5.6-sol', 'system:050b@1', ?, 1, 'running', 'owner:050b', ?)`) 
     .run(attemptId, targetType, targetId, inputSha, at);
   db.prepare(`UPDATE flow_content_ai_attempts
     SET state='succeeded', output_sha256=?, closed_at=? WHERE attempt_id=?`).run(currentArtifactSha, later, attemptId);

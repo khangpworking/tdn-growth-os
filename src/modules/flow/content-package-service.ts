@@ -202,6 +202,7 @@ interface AttemptRow {
   readonly targetId: string;
   readonly modality: string;
   readonly model: string;
+  readonly providerModel: string | null;
   readonly state: string;
   readonly inputBundleSha256: string;
   readonly outputSha256: string | null;
@@ -415,10 +416,16 @@ export class ContentPackageService {
       this.#insertVersion(staged.artifact, staged.stored.sha256, attemptId);
       return { packageId: row.packageId, part: input.part, version, source: 'GENERATED', attemptId, createdAt: staged.artifact.createdAt, deduplicated: false };
     };
-    const stageArtifact = async (attemptId: string, inputBundleSha256: string, outputSha256: string, body: { caption: ContentCaptionVersionBody } | { poster: ContentPosterVersionBody }) => {
+    const stageArtifact = async (
+      outcome: { readonly attemptId: string; readonly providerModel: string; readonly outputSha256: string },
+      providerModel: string,
+      inputBundleSha256: string,
+      body: { caption: ContentCaptionVersionBody } | { poster: ContentPosterVersionBody },
+    ) => {
+      if (outcome.providerModel !== providerModel) throw new ContentPackageIntegrityError('Package attempt was dispatched to a different provider model');
       const artifact: ContentPackageVersionArtifact = {
         contractVersion: '1.0.0', packageId: row.packageId, part: input.part, version, source: 'GENERATED', requestId: input.requestId, requestSha256,
-        attemptId, inputBundleSha256, outputSha256, ...body, createdAt: this.#now().toISOString(),
+        attemptId: outcome.attemptId, providerModel, inputBundleSha256, outputSha256: outcome.outputSha256, ...body, createdAt: this.#now().toISOString(),
       };
       const stored = await this.#artifacts.put(canonicalBytes(validateContentPackageVersionArtifact(artifact)));
       return { stored, artifact };
@@ -430,7 +437,8 @@ export class ContentPackageService {
       const creativeText = await this.#creativeText(pin.caption.prompt);
       const layer = this.#library.layer('CAPTION');
       const userInput = lockedUserInput(lockedInput);
-      const inputBundleSha256 = captionBundleDigest(layer, pin.caption.prompt.creativeTextSha256, pin.caption.model, userInput);
+      const providerModel = this.#attempts.providerModelFor(pin.caption.model);
+      const inputBundleSha256 = captionBundleDigest(layer, pin.caption.prompt.creativeTextSha256, pin.caption.model, providerModel, userInput);
       const { persisted } = await this.#attempts.run({
         ...common, promptRef: promptRef(pin.caption.prompt), inputBundleSha256,
         call: {
@@ -443,7 +451,7 @@ export class ContentPackageService {
           if (outcome.modality !== 'text') throw new ContentPackageIntegrityError('Caption generation must be a text attempt');
           const post = captionPost(outcome.parsed);
           const factCheck = brandFactCheck({ post, profile: brand.profile, display: pin.display.caption, prices: facts.prices });
-          return stageArtifact(outcome.attemptId, inputBundleSha256, outcome.outputSha256, {
+          return stageArtifact(outcome, providerModel, inputBundleSha256, {
             caption: { lockedInput, post, footer: pin.footer, text: captionText(post, pin.footer), factCheck },
           });
         },
@@ -455,7 +463,8 @@ export class ContentPackageService {
     const captionRow = this.#versionRow(row.packageId, 'CAPTION', this.#currentVersion(row.packageId, 'CAPTION'));
     if (!captionRow) throw new ContentPackageConflictError('Generate the Caption before the Poster');
     const caption = (await this.#verifiedVersion(captionRow, pin)).caption!;
-    const prepared = await this.#posterPrompt(pin, brand, caption.post);
+    const providerModel = this.#attempts.providerModelFor(pin.poster.model);
+    const prepared = await this.#posterPrompt(pin, brand, caption.post, providerModel);
     const references = [];
     for (const mediaSha256 of prepared.references) {
       const { media, bytes } = await this.#media.readMedia(pin.brand.brandId, mediaSha256);
@@ -467,7 +476,7 @@ export class ContentPackageService {
     }, {
       stage: async (outcome) => {
         if (outcome.modality !== 'image') throw new ContentPackageIntegrityError('Poster generation must be an image attempt');
-        return stageArtifact(outcome.attemptId, prepared.inputBundleSha256, outcome.outputSha256, {
+        return stageArtifact(outcome, providerModel, prepared.inputBundleSha256, {
           poster: {
             promptSha256: prepared.promptSha256, imageSha256: outcome.outputSha256, mediaType: outcome.image.mediaType as 'image/png' | 'image/jpeg',
             width: outcome.image.width, height: outcome.image.height, sizeMatchesFormat: outcome.sizeMatchesFormat,
@@ -812,7 +821,7 @@ export class ContentPackageService {
     return posts;
   }
 
-  async #posterPrompt(pin: ContentPackageArtifact, brand: ContentBrandArtifact, captionPost: string): Promise<{ prompt: string; promptSha256: string; references: string[]; inputBundleSha256: string }> {
+  async #posterPrompt(pin: ContentPackageArtifact, brand: ContentBrandArtifact, captionPost: string, providerModel: string): Promise<{ prompt: string; promptSha256: string; references: string[]; inputBundleSha256: string }> {
     const layer = this.#library.layer('POSTER');
     const plan = { photos: pin.poster.referenceMediaSha256s, ...(pin.poster.logoMediaSha256 !== undefined ? { logo: pin.poster.logoMediaSha256 } : {}) };
     const prompt = buildPosterPrompt({
@@ -823,7 +832,7 @@ export class ContentPackageService {
     const references = [...plan.photos, ...(plan.logo !== undefined ? [plan.logo] : [])];
     const inputBundleSha256 = canonicalDigest({
       systemLayer: { type: 'POSTER', version: layer.version, sha256: layer.sha256 }, creativeTextSha256: pin.poster.prompt.creativeTextSha256,
-      model: pin.poster.model, format: pin.poster.format, promptSha256, references,
+      model: pin.poster.model, providerModel, format: pin.poster.format, promptSha256, references,
     });
     return { prompt, promptSha256, references, inputBundleSha256 };
   }
@@ -930,13 +939,16 @@ export class ContentPackageService {
       if (
         !attempt || attempt.state !== 'succeeded' || attempt.targetId !== row.packageId || attempt.targetType !== PACKAGE_TARGET_TYPES[row.part] ||
         attempt.outputSha256 !== artifact.outputSha256 || attempt.inputBundleSha256 !== artifact.inputBundleSha256 ||
-        attempt.model !== (row.part === 'CAPTION' ? pin.caption.model : pin.poster.model)
+        attempt.model !== (row.part === 'CAPTION' ? pin.caption.model : pin.poster.model) ||
+        // The recorded provider model is replayed as-is; the current route table never reinterprets it.
+        artifact.providerModel === undefined || attempt.providerModel !== artifact.providerModel
       ) fail();
+      const providerModel = artifact.providerModel!;
       if (row.part === 'CAPTION') {
         const caption = artifact.caption!;
         if (caption.lockedInput === undefined) fail();
         const layer = this.#library.layer('CAPTION');
-        if (captionBundleDigest(layer, pin.caption.prompt.creativeTextSha256, pin.caption.model, lockedUserInput(caption.lockedInput!)) !== artifact.inputBundleSha256) fail();
+        if (captionBundleDigest(layer, pin.caption.prompt.creativeTextSha256, pin.caption.model, providerModel, lockedUserInput(caption.lockedInput!)) !== artifact.inputBundleSha256) fail();
         const output = await this.#pinnedBytes(artifact.outputSha256!, 'application/json', 'Caption output');
         let post: string;
         try { post = captionPost(JSON.parse(output.toString('utf8'))); } catch { return fail(); }
@@ -947,7 +959,7 @@ export class ContentPackageService {
         const captionRow = this.#versionRow(row.packageId, 'CAPTION', poster.captionVersion) ?? fail();
         const captionVersion = await this.#verifiedVersion(captionRow, pin);
         const brand = await this.#brands.readBrand(pin.brand.brandId, pin.brand.version);
-        const prepared = await this.#posterPrompt(pin, brand, captionVersion.caption!.post);
+        const prepared = await this.#posterPrompt(pin, brand, captionVersion.caption!.post, providerModel);
         if (
           prepared.promptSha256 !== poster.promptSha256 || prepared.inputBundleSha256 !== artifact.inputBundleSha256 ||
           canonicalDigest(prepared.references) !== canonicalDigest(poster.referenceMediaSha256s)
@@ -958,7 +970,7 @@ export class ContentPackageService {
       return artifact;
     }
 
-    if (artifact.attemptId !== undefined || artifact.inputBundleSha256 !== undefined || artifact.outputSha256 !== undefined) fail();
+    if (artifact.attemptId !== undefined || artifact.providerModel !== undefined || artifact.inputBundleSha256 !== undefined || artifact.outputSha256 !== undefined) fail();
     const request: ContentPackageVersionRequest = {
       contractVersion: '1.0.0', packageId: row.packageId, requestId: row.requestId, part: row.part, expectedVersion: row.version - 1, action: row.source as 'MANUAL' | 'RESTORE',
       ...(row.source === 'MANUAL' ? { post: artifact.caption?.post ?? '' } : { restoreVersion: row.restoredFromVersion! }),
@@ -1032,7 +1044,7 @@ export class ContentPackageService {
 
   #attempt(attemptId: string): AttemptRow | undefined {
     return this.#db.prepare(`
-      SELECT attempt_id attemptId, target_type targetType, target_id targetId, modality, model, state, input_bundle_sha256 inputBundleSha256, output_sha256 outputSha256
+      SELECT attempt_id attemptId, target_type targetType, target_id targetId, modality, model, provider_model providerModel, state, input_bundle_sha256 inputBundleSha256, output_sha256 outputSha256
       FROM flow_content_ai_attempts WHERE attempt_id = ?
     `).get(attemptId) as AttemptRow | undefined;
   }
@@ -1083,8 +1095,8 @@ function captionPost(value: unknown): string {
 
 function lockedUserInput(lockedInput: unknown): string { return `LOCKED_INPUT_JSON:\n${canonicalBytes(lockedInput).toString('utf8')}`; }
 
-function captionBundleDigest(layer: { readonly version: number; readonly sha256: string }, creativeTextSha256: string, model: string, userInput: string): string {
-  return canonicalDigest({ systemLayer: { type: 'CAPTION', version: layer.version, sha256: layer.sha256 }, creativeTextSha256, model, userInput });
+function captionBundleDigest(layer: { readonly version: number; readonly sha256: string }, creativeTextSha256: string, model: string, providerModel: string, userInput: string): string {
+  return canonicalDigest({ systemLayer: { type: 'CAPTION', version: layer.version, sha256: layer.sha256 }, creativeTextSha256, model, providerModel, userInput });
 }
 
 function promptRef(prompt: ContentIdeaPromptUsed): string {
