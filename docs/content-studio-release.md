@@ -6,7 +6,7 @@ Updated: 2026-09-29 · Design: [Task 047](tasks/047-content-studio-design.md), [
 
 ## 1. State on main (`2b208cd`, 2026-09-29)
 
-Every build slice of the release is merged. Nothing is deployed, and no real provider call has been made.
+Every build slice of the release is merged. Task 053 live qualification passed on Fedora at `2b208cd` with six real provider calls (2026-09-29). The operator was stopped after the run, and Windows retirement is still pending.
 
 | Slice | PR | Merge | Migrations |
 |---|---|---|---|
