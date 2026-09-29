@@ -130,7 +130,7 @@ export interface ReportSectionReadinessEntry {
   blockers: string[];
   sectionSha256: Digest;
   methodArtifact?: {
-    fileName: 'm02-scope-method.json' | 'm13-provenance-appendix.json';
+    fileName: 'm02-scope-method.json' | 'm08-tablet-quote-method.json' | 'm13-provenance-appendix.json';
     sha256: Digest;
     methodOutputId: Digest;
   };
@@ -268,7 +268,7 @@ export interface ReportReviewTarget {
      */
     selectedSources: {
       ordinal: number;
-      role: 'workbook' | 'manifest' | 'labels';
+      role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
       logicalPath: string;
       sha256: string;
     }[];

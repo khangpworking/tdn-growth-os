@@ -38,13 +38,13 @@
     "sources": {
       "type": "array",
       "minItems": 2,
-      "maxItems": 3,
+      "maxItems": 5,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": ["role", "logicalPath", "exportPath", "sha256", "byteSize", "mediaType", "evidenceFamily", "representationRole", "independence", "providerProvenance", "provenanceBasis", "period"],
         "properties": {
-          "role": { "enum": ["workbook", "manifest", "labels"] },
+          "role": { "enum": ["workbook", "manifest", "labels", "tabletQuoteSource", "tabletQuoteInput"] },
           "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500 },
           "exportPath": { "type": "string", "minLength": 1, "maxLength": 120 },
           "sha256": { "$ref": "#/$defs/digest" },
@@ -105,8 +105,8 @@
       "additionalProperties": false,
       "required": ["start", "end"],
       "properties": {
-        "start": { "type": "string", "format": "date" },
-        "end": { "type": "string", "format": "date" }
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" }
       }
     },
     "evidenceRef": {

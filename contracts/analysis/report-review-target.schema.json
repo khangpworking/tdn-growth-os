@@ -38,7 +38,7 @@
             "required": ["ordinal", "role", "logicalPath", "sha256"],
             "properties": {
               "ordinal": { "type": "integer", "minimum": 0, "maximum": 19 },
-              "role": { "enum": ["workbook", "manifest", "labels"] },
+              "role": { "enum": ["workbook", "manifest", "labels", "tabletQuoteSource", "tabletQuoteInput"] },
               "logicalPath": { "type": "string", "minLength": 1, "maxLength": 512 },
               "sha256": { "$ref": "#/$defs/digest" }
             }

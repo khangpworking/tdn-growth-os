@@ -23,13 +23,20 @@ const hash = (value: Buffer | string): string => createHash('sha256').update(val
 const identity = (value: unknown): string => hash(canonicalJson(value));
 const methods: Readonly<Record<string, string>> = {
   M02: 'metric-scope-packet-context', M03: 'metric-scope-packet-totals',
-  M04: 'metric-scope-packet-concentration', M13: 'metric-scope-packet-provenance',
+  M04: 'metric-scope-packet-concentration', M08: 'tablet-quote-normalization',
+  M13: 'metric-scope-packet-provenance',
 };
 
 export type ReportMethodArtifact = {
   readonly sectionId: 'M02';
   readonly methodVersion: '2.0.0';
   readonly fileName: 'm02-scope-method.json';
+  readonly sha256: string;
+  readonly methodOutputId: string;
+} | {
+  readonly sectionId: 'M08';
+  readonly methodVersion: '2.0.0';
+  readonly fileName: 'm08-tablet-quote-method.json';
   readonly sha256: string;
   readonly methodOutputId: string;
 } | {
@@ -69,7 +76,9 @@ export function createResearchReportPacket(
   const artifactBySection = new Map(methodArtifacts.map(item => [item.sectionId, item]));
   for (const artifact of methodArtifacts) {
     const definition = catalog.sections.find(section => section.sectionId === artifact.sectionId);
-    const expectedFile = artifact.sectionId === 'M02' ? 'm02-scope-method.json' : 'm13-provenance-appendix.json';
+    const expectedFile = artifact.sectionId === 'M02' ? 'm02-scope-method.json'
+      : artifact.sectionId === 'M08' ? 'm08-tablet-quote-method.json'
+        : 'm13-provenance-appendix.json';
     if (!definition || definition.methodVersion !== artifact.methodVersion || artifact.fileName !== expectedFile) {
       throw new TypeError('method artifacts: CATALOG_OR_FILE_MISMATCH');
     }
@@ -83,25 +92,31 @@ export function createResearchReportPacket(
     const methodArtifact = artifactBySection.get(sectionId as ReportMethodArtifact['sectionId']);
     const supported = methods[sectionId] === definition.methodId &&
       (definition.methodVersion === '1.0.0' ||
-        ((sectionId === 'M02' || sectionId === 'M13') && definition.methodVersion === '2.0.0'));
+        ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13') && definition.methodVersion === '2.0.0'));
     if (!supported) {
       blockers.push(...definition.fallbackReasons);
       if (methods[sectionId]) { deliveryState = 'NOT_IMPLEMENTED'; blockers.push('UNSUPPORTED_SECTION_METHOD_VERSION'); }
     } else {
       deliveryState = 'PARTIAL_DETERMINISTIC_DRAFT';
-      if ((sectionId === 'M02' || sectionId === 'M13') && definition.methodVersion === '2.0.0') {
+      if ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13') && definition.methodVersion === '2.0.0') {
         if (!methodArtifact || methodArtifact.sectionId !== sectionId || methodArtifact.methodVersion !== '2.0.0' ||
             !/^[0-9a-f]{64}$/.test(methodArtifact.sha256) || !/^[0-9a-f]{64}$/.test(methodArtifact.methodOutputId)) {
           deliveryState = 'BLOCKED';
-          blockers.push('VERIFIED_SOURCE_METHOD_ARTIFACT_REQUIRED');
+          blockers.push(sectionId === 'M08'
+            ? 'VERIFIED_TABLET_QUOTE_METHOD_ARTIFACT_REQUIRED'
+            : 'VERIFIED_SOURCE_METHOD_ARTIFACT_REQUIRED');
         } else {
           blockers.push('OWNER_REVIEW_REQUIRED');
+          if (sectionId === 'M08') blockers.push(
+            'FULL_M08_UNIT_ECONOMICS_NOT_IMPLEMENTED',
+            'SINGLE_QUOTE_ONLY_NO_COMPARISON_OR_RANKING',
+          );
         }
       } else {
         blockers.push('FULL_SECTION_METHOD_NOT_IMPLEMENTED', 'RAW_SOURCE_NOT_REVERIFIED', 'OWNER_REVIEW_REQUIRED');
       }
-      if (result.input.scope.acquiredAt === null) blockers.push('ACQUISITION_TIME_UNCONFIRMED');
-      contextPointers.push('/input/scope');
+      if (sectionId !== 'M08' && result.input.scope.acquiredAt === null) blockers.push('ACQUISITION_TIME_UNCONFIRMED');
+      if (sectionId !== 'M08') contextPointers.push('/input/scope');
       if (sectionId === 'M02') contextPointers.push('/input/profileId', '/input/labelCodebookVersion', '/input/wideUnknownPolicy', '/labelIssues');
       if (sectionId === 'M13') contextPointers.push('/input/sources', '/input/records');
       if (sectionId === 'M03' || sectionId === 'M04') for (const [i, scope] of result.scopes.entries()) {

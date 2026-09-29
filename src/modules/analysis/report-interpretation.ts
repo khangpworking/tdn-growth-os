@@ -117,6 +117,10 @@ function assertReplayedPacket(bundle: SourceBackedReportBundle): void {
         sectionId: 'M02', methodVersion: '2.0.0', fileName: 'm02-scope-method.json',
         sha256: section.methodArtifact.sha256, methodOutputId: section.methodArtifact.methodOutputId,
       });
+      else if (section.sectionId === 'M08' && section.methodArtifact.fileName === 'm08-tablet-quote-method.json') methodArtifacts.push({
+        sectionId: 'M08', methodVersion: '2.0.0', fileName: 'm08-tablet-quote-method.json',
+        sha256: section.methodArtifact.sha256, methodOutputId: section.methodArtifact.methodOutputId,
+      });
       else if (section.sectionId === 'M13' && section.methodArtifact.fileName === 'm13-provenance-appendix.json') methodArtifacts.push({
         sectionId: 'M13', methodVersion: '2.0.0', fileName: 'm13-provenance-appendix.json',
         sha256: section.methodArtifact.sha256, methodOutputId: section.methodArtifact.methodOutputId,

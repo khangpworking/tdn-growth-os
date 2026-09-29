@@ -39,13 +39,13 @@
       }
     },
     "selectedSources": {
-      "type": "array", "minItems": 2, "maxItems": 3, "uniqueItems": true,
+      "type": "array", "minItems": 2, "maxItems": 5, "uniqueItems": true,
       "items": {
         "type": "object", "additionalProperties": false,
         "required": ["ordinal", "role", "logicalPath", "sha256"],
         "properties": {
           "ordinal": { "type": "integer", "minimum": 0, "maximum": 19 },
-          "role": { "enum": ["workbook", "manifest", "labels"] },
+          "role": { "enum": ["workbook", "manifest", "labels", "tabletQuoteSource", "tabletQuoteInput"] },
           "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$" },
           "sha256": { "$ref": "#/$defs/digest" }
         }

@@ -41,6 +41,7 @@ import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/inde
 import { openDatabase } from '../../src/platform/db/index.js';
 import { createReportApiServer } from '../../src/api/report-api.js';
 import { createOwnerApiServer } from '../../src/api/owner-api.js';
+import { tabletQuoteFixture } from '../helpers/tablet-quote-fixture.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const tempRoots: string[] = [];
@@ -105,6 +106,12 @@ async function fixture() {
   });
   const workbook = workbookFixture();
   const manifest = sourceManifest(workbook);
+  const tabletQuoteSource = canonicalBytes({ quote: { displayedPrice: '240000', packText: '30 tablets' } });
+  const tabletQuote = tabletQuoteFixture();
+  tabletQuote.sourceRef.artifactSha256 = sha256(tabletQuoteSource);
+  tabletQuote.sourceRef.locator = 'json://quote-source#/quote';
+  tabletQuote.priceVnd!.provenance.sourceRef = { ...tabletQuote.sourceRef };
+  const tabletQuoteInput = canonicalBytes(tabletQuote);
   const sourcePackage = await sourcePackages.intake({
     contractVersion: '1.0.0', packageKey: 'metric:synthetic-versioned-report', version: 1,
     sourceAcquiredAt: null, sourceLabel: 'Synthetic versioned report package',
@@ -121,8 +128,25 @@ async function fixture() {
         independence: 'non_independent', providerProvenance: 'synthetic',
         provenanceBasis: 'Generated fixture declaration',
       },
+      {
+        path: 'quote/source.json', sha256: sha256(tabletQuoteSource), byteSize: tabletQuoteSource.length,
+        mediaType: 'application/json', evidenceFamily: 'synthetic-tablet-quote', representationRole: 'primary',
+        independence: 'independent', providerProvenance: 'synthetic',
+        provenanceBasis: 'Generated quote fixture; provider authenticity not established',
+        period: { start: '2026-09-21T00:00:00.000Z', end: '2026-09-21T23:59:59.999Z' },
+      },
+      {
+        path: 'quote/input.json', sha256: sha256(tabletQuoteInput), byteSize: tabletQuoteInput.length,
+        mediaType: 'application/json', evidenceFamily: 'synthetic-tablet-quote', representationRole: 'structured',
+        independence: 'non_independent', providerProvenance: 'synthetic',
+        provenanceBasis: 'Generated canonical quote input',
+        period: { start: '2026-09-21T00:00:00.000Z', end: '2026-09-21T23:59:59.999Z' },
+      },
     ],
-  }, new Map([['metric/workbook.xlsx', workbook], ['metric/manifest.json', manifest]]));
+  }, new Map([
+    ['metric/workbook.xlsx', workbook], ['metric/manifest.json', manifest],
+    ['quote/source.json', tabletQuoteSource], ['quote/input.json', tabletQuoteInput],
+  ]));
   const workspace = await workspaces.createWorkspace({
     contractVersion: '1.0.0', workspaceKey: 'synthetic-versioned-report', title: 'Synthetic report ledger',
   });
@@ -135,6 +159,8 @@ async function fixture() {
     workbookPath: 'metric/workbook.xlsx',
     manifestPath: 'metric/manifest.json',
     labelsPath: null,
+    tabletQuoteSourcePath: 'quote/source.json',
+    tabletQuoteInputPath: 'quote/input.json',
     catalogSha256: sha256(catalogBytes),
   };
   const ids = [
@@ -224,7 +250,12 @@ test('persists one exact unreviewed report version and replays it without read-s
     record.semanticContentSha256,
     record.artifacts.find(item => item.fileName === 'semantic-content.json')?.sha256,
   );
-  assert.equal(record.selectedSources.length, 2);
+  assert.equal(record.selectedSources.length, 4);
+  assert.deepEqual(record.selectedSources.map(source => source.role), [
+    'workbook', 'manifest', 'tabletQuoteSource', 'tabletQuoteInput',
+  ]);
+  assert.equal(count(state.db, 'analysis_report_version_sources'), 2n);
+  assert.equal(count(state.db, 'analysis_report_version_supplemental_sources'), 2n);
   assert.ok(record.artifacts.some(item => item.fileName === 'report.html'));
   assert.ok(record.artifacts.some(item => item.fileName === 'export-manifest.json'));
   assert.ok(record.artifacts.some(item => item.fileName === 'raw-workbook.xlsx'));
@@ -335,6 +366,12 @@ test('requires an explicit semantic predecessor and preserves every historical v
       report_id, version, ordinal, role, logical_path, source_sha256
     ) VALUES (?, 1, 19, 'labels', 'late-labels.json', ?)
   `).run(first.reportId, source.sha256), /source_frozen/);
+  const supplemental = history[0]!.selectedSources[2]!;
+  assert.throws(() => state.db.prepare(`
+    INSERT INTO analysis_report_version_supplemental_sources(
+      report_id, version, ordinal, role, logical_path, source_sha256
+    ) VALUES (?, 1, 18, 'tabletQuoteSource', 'late-quote.json', ?)
+  `).run(first.reportId, supplemental.sha256), /supplemental_source_frozen/);
 });
 
 test('fails closed on changed identity and on a missing immutable artifact', async () => {
@@ -638,8 +675,8 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.deepEqual(history.versions.map((item: any) => item.version), [1]);
     assert.deepEqual(history.versions[0].sectionCounts, {
       total: 30,
-      partialDeterministicDraft: 4,
-      methodOnly: 13,
+      partialDeterministicDraft: 5,
+      methodOnly: 12,
       blocked: 12,
       manualReviewRequired: 1,
       notImplemented: 0,
@@ -867,6 +904,39 @@ test('upgrades an existing v32 database to v33 exactly once', () => {
   const rerun = openDatabase({ databasePath, migrationsDirectory });
   assert.deepEqual(rerun.migration.applied, []);
   assert.equal(rerun.migration.currentVersion, 33);
+  rerun.db.close();
+});
+
+test('upgrades an existing v34 database to v35 without changing prior report versions', () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-report-supplemental-source-migration-'));
+  tempRoots.push(directory);
+  const migrationsDirectory = path.join(directory, 'migrations');
+  fs.mkdirSync(migrationsDirectory);
+  const prior = fs.readdirSync('migrations')
+    .filter(name => /^00(?:0[1-9]|[12][0-9]|3[0-4])_/.test(name))
+    .sort();
+  assert.equal(prior.length, 34);
+  for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(migrationsDirectory, name));
+  const databasePath = path.join(directory, 'report.sqlite');
+  const v34 = openDatabase({ databasePath, migrationsDirectory });
+  assert.equal(v34.migration.currentVersion, 34);
+  v34.db.close();
+
+  fs.copyFileSync(
+    'migrations/0035_analysis_report_supplemental_sources.sql',
+    path.join(migrationsDirectory, '0035_analysis_report_supplemental_sources.sql'),
+  );
+  const v35 = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(v35.migration.applied, [35]);
+  assert.equal(v35.migration.currentVersion, 35);
+  assert.equal(count(v35.db, 'analysis_report_version_supplemental_sources'), 0n);
+  const columns = v35.db.prepare(`PRAGMA table_info('analysis_report_versions')`).all() as Array<{ name: string; dflt_value: string | null }>;
+  assert.deepEqual(columns.find(column => column.name === 'supplemental_source_count')?.dflt_value, '0');
+  v35.db.close();
+
+  const rerun = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(rerun.migration.applied, []);
+  assert.equal(rerun.migration.currentVersion, 35);
   rerun.db.close();
 });
 

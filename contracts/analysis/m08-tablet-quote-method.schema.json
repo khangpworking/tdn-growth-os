@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m08-tablet-quote-method.schema.json",
+  "title": "M08TabletQuoteMethod",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "methodOutputId",
+    "sectionId",
+    "sectionSliceId",
+    "sectionSliceTitle",
+    "methodId",
+    "methodVersion",
+    "normalizerVersion",
+    "sourceVerification",
+    "deliveryState",
+    "approvalState",
+    "evidenceState",
+    "sourceAuthenticity",
+    "sourcePackage",
+    "sources",
+    "lineage",
+    "quote",
+    "limitations"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodOutputId": { "$ref": "#/$defs/digest" },
+    "sectionId": { "const": "M08" },
+    "sectionSliceId": { "const": "M08/P4" },
+    "sectionSliceTitle": { "const": "Chuẩn hóa giá quote viên đơn lẻ" },
+    "methodId": { "const": "tablet-quote-normalization" },
+    "methodVersion": { "const": "2.0.0" },
+    "normalizerVersion": { "const": "tablet-quote-normalization-v1" },
+    "sourceVerification": { "const": "EXACT_PACKAGE_BYTES_REPLAYED" },
+    "deliveryState": { "const": "PARTIAL_DETERMINISTIC_DRAFT" },
+    "approvalState": { "const": "UNREVIEWED" },
+    "evidenceState": { "const": "DECLARED_UNVERIFIED" },
+    "sourceAuthenticity": { "const": "NOT_AUTHENTICATED" },
+    "sourcePackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageId", "packageKey", "version", "manifestArtifactSha256", "packageContentSha256", "sourceAcquiredAt", "finalizedAt"],
+      "properties": {
+        "packageId": { "type": "string", "format": "uuid" },
+        "packageKey": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "version": { "type": "integer", "minimum": 1 },
+        "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "sourceAcquiredAt": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+        "finalizedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 2,
+      "items": { "$ref": "#/$defs/sourceBase" }
+    },
+    "lineage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["rawSourceSha256", "quoteInputRawSha256", "canonicalQuoteInputSha256", "normalizedQuoteOutputSha256"],
+      "properties": {
+        "rawSourceSha256": { "$ref": "#/$defs/digest" },
+        "quoteInputRawSha256": { "$ref": "#/$defs/digest" },
+        "canonicalQuoteInputSha256": { "$ref": "#/$defs/digest" },
+        "normalizedQuoteOutputSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "quote": { "$ref": "tablet-quote-output.schema.json" },
+    "limitations": {
+      "type": "array",
+      "minItems": 8,
+      "maxItems": 16,
+      "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "sourceBase": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["role", "logicalPath", "exportPath", "sha256", "byteSize", "mediaType", "evidenceFamily", "representationRole", "independence", "providerProvenance", "provenanceBasis", "period"],
+      "properties": {
+        "role": { "enum": ["tabletQuoteSource", "tabletQuoteInput"] },
+        "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "exportPath": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "byteSize": { "type": "integer", "minimum": 0 },
+        "mediaType": { "const": "application/json" },
+        "evidenceFamily": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "representationRole": { "enum": ["primary", "alternate", "structured", "derived"] },
+        "independence": { "enum": ["independent", "non_independent"] },
+        "providerProvenance": { "enum": ["verified", "provider_reported", "operator_supplied_unverified", "synthetic"] },
+        "provenanceBasis": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "period": { "anyOf": [{ "$ref": "#/$defs/period" }, { "type": "null" }] }
+      }
+    },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end"],
+      "properties": {
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

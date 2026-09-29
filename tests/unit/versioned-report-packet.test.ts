@@ -24,7 +24,8 @@ test('A3 packages declared scope and exact observed metrics with honest section 
   assert.equal(packet.claims.find(c => c.claimId === 'M04:all:top1')?.value, '81.08');
   assert.equal(packet.sections.find(s => s.sectionId === 'M03')?.deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
   for (const id of ['M10', 'I11']) assert.equal(packet.sections.find(s => s.sectionId === id)?.deliveryState, 'BLOCKED');
-  assert.equal(packet.sections.find(s => s.sectionId === 'M08')?.deliveryState, 'METHOD_ONLY');
+  assert.equal(packet.sections.find(s => s.sectionId === 'M08')?.deliveryState, 'BLOCKED');
+  assert.ok(packet.sections.find(s => s.sectionId === 'M08')?.blockers.includes('VERIFIED_TABLET_QUOTE_METHOD_ARTIFACT_REQUIRED'));
   assert.equal(packet.sections.find(s => s.sectionId === 'I01')?.deliveryState, 'MANUAL_REVIEW_REQUIRED');
   assert.equal(packet.approvalState, 'UNREVIEWED');
   assert.equal(packet.sourceVerification, 'NORMALIZED_INPUT_ONLY');

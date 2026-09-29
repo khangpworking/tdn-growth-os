@@ -25,12 +25,12 @@ export interface M13ProvenanceAppendix {
   };
   /**
    * @minItems 2
-   * @maxItems 3
+   * @maxItems 5
    */
   sources:
     | [
         {
-          role: 'workbook' | 'manifest' | 'labels';
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
           logicalPath: string;
           exportPath: string;
           sha256: Digest;
@@ -44,7 +44,7 @@ export interface M13ProvenanceAppendix {
           period: Period | null;
         },
         {
-          role: 'workbook' | 'manifest' | 'labels';
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
           logicalPath: string;
           exportPath: string;
           sha256: Digest;
@@ -60,7 +60,7 @@ export interface M13ProvenanceAppendix {
       ]
     | [
         {
-          role: 'workbook' | 'manifest' | 'labels';
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
           logicalPath: string;
           exportPath: string;
           sha256: Digest;
@@ -74,7 +74,7 @@ export interface M13ProvenanceAppendix {
           period: Period | null;
         },
         {
-          role: 'workbook' | 'manifest' | 'labels';
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
           logicalPath: string;
           exportPath: string;
           sha256: Digest;
@@ -88,7 +88,137 @@ export interface M13ProvenanceAppendix {
           period: Period | null;
         },
         {
-          role: 'workbook' | 'manifest' | 'labels';
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+      ]
+    | [
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+      ]
+    | [
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
+          logicalPath: string;
+          exportPath: string;
+          sha256: Digest;
+          byteSize: number;
+          mediaType: string;
+          evidenceFamily: string;
+          representationRole: 'primary' | 'alternate' | 'structured' | 'derived';
+          independence: 'independent' | 'non_independent';
+          providerProvenance: 'verified' | 'provider_reported' | 'operator_supplied_unverified' | 'synthetic';
+          provenanceBasis: string;
+          period: Period | null;
+        },
+        {
+          role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
           logicalPath: string;
           exportPath: string;
           sha256: Digest;

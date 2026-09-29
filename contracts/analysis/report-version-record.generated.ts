@@ -34,11 +34,11 @@ export interface ReportVersionRecord {
   }[];
   /**
    * @minItems 2
-   * @maxItems 20
+   * @maxItems 5
    */
   selectedSources: {
     ordinal: number;
-    role: 'workbook' | 'manifest' | 'labels';
+    role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
     logicalPath: string;
     sha256: Digest;
   }[];

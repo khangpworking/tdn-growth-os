@@ -13,6 +13,8 @@
     "workbookPath": { "$ref": "#/$defs/logicalPath" },
     "manifestPath": { "$ref": "#/$defs/logicalPath" },
     "labelsPath": { "anyOf": [{ "$ref": "#/$defs/logicalPath" }, { "type": "null" }] },
+    "tabletQuoteSourcePath": { "anyOf": [{ "$ref": "#/$defs/logicalPath" }, { "type": "null" }] },
+    "tabletQuoteInputPath": { "anyOf": [{ "$ref": "#/$defs/logicalPath" }, { "type": "null" }] },
     "catalogSha256": { "$ref": "#/$defs/digest" }
   },
   "$defs": {

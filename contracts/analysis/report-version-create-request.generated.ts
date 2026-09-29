@@ -19,5 +19,7 @@ export interface SourceBackedReportRequest {
   workbookPath: string;
   manifestPath: string;
   labelsPath: string | null;
+  tabletQuoteSourcePath?: string | null;
+  tabletQuoteInputPath?: string | null;
   catalogSha256: string;
 }

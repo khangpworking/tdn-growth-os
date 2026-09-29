@@ -18,6 +18,7 @@ import { normalizeMetricWorkbook } from './metric-source-profile.js';
 import { createResearchReportPacket } from './versioned-report-packet.js';
 import { buildResearchReportChartData, type ResearchReportChartData } from './research-report-charts.js';
 import { buildM02ScopeMethod } from './m02-scope-method.js';
+import { buildM08TabletQuoteMethod, type M08TabletQuoteSource } from './m08-tablet-quote-method.js';
 import { buildM13ProvenanceAppendix } from './m13-provenance-appendix.js';
 
 const require = createRequire(import.meta.url);
@@ -37,7 +38,7 @@ const JSON_MEDIA_TYPE = 'application/json';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const DIGEST = /^[0-9a-f]{64}$/;
 
-type SourceRole = 'workbook' | 'manifest' | 'labels';
+type SourceRole = 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
 
 export interface SourceBackedReportDependencies {
   readonly sourcePackages: FinalizedSourcePackageReader;
@@ -101,6 +102,7 @@ export interface SourceBackedReportEnvelope {
     readonly chartSha256: string;
     readonly reportSha256: string;
     readonly m02ScopeMethodSha256?: string;
+    readonly m08TabletQuoteMethodSha256?: string;
     readonly m13ProvenanceAppendixSha256?: string;
   };
   readonly limitations: readonly string[];
@@ -271,8 +273,29 @@ function verifyNormalizedEvidenceFamilies(
 }
 
 function ensureDistinct(request: SourceBackedReportRequest): void {
-  const paths = [request.workbookPath, request.manifestPath, ...(request.labelsPath === null ? [] : [request.labelsPath])];
+  const tabletQuoteSourcePath = request.tabletQuoteSourcePath ?? null;
+  const tabletQuoteInputPath = request.tabletQuoteInputPath ?? null;
+  if ((tabletQuoteSourcePath === null) !== (tabletQuoteInputPath === null)) {
+    throw new TypeError('request: TABLET_QUOTE_SOURCE_AND_INPUT_REQUIRED_TOGETHER');
+  }
+  const paths = [request.workbookPath, request.manifestPath, ...(request.labelsPath === null ? [] : [request.labelsPath]),
+    ...(tabletQuoteSourcePath === null ? [] : [tabletQuoteSourcePath, tabletQuoteInputPath!])];
   if (new Set(paths).size !== paths.length) throw new TypeError('request: SELECTED_PATHS_NOT_DISTINCT');
+}
+
+function m08Source(
+  selected: ReturnType<typeof selectedFile>,
+  role: M08TabletQuoteSource['role'],
+  exportPath: M08TabletQuoteSource['exportPath'],
+): M08TabletQuoteSource {
+  return {
+    ...selected.provenance,
+    role,
+    exportPath,
+    mediaType: 'application/json',
+    period: selected.provenance.period ?? null,
+    bytes: Buffer.from(selected.file.bytes),
+  };
 }
 
 function assertGeneratedSize(files: ReadonlyMap<string, Buffer>): void {
@@ -304,11 +327,18 @@ export async function buildSourceBackedReport(
   const workbook = selectedFile(sourcePackage, request.workbookPath, 'workbook', XLSX_MEDIA_TYPE, 'raw-workbook.xlsx');
   const manifest = selectedFile(sourcePackage, request.manifestPath, 'manifest', JSON_MEDIA_TYPE, 'raw-manifest.json');
   const labels = request.labelsPath === null ? null : selectedFile(sourcePackage, request.labelsPath, 'labels', JSON_MEDIA_TYPE, 'raw-labels.json');
+  const tabletQuoteSourcePath = request.tabletQuoteSourcePath ?? null;
+  const tabletQuoteInputPath = request.tabletQuoteInputPath ?? null;
+  const tabletQuoteSource = tabletQuoteSourcePath === null ? null
+    : selectedFile(sourcePackage, tabletQuoteSourcePath, 'tabletQuoteSource', JSON_MEDIA_TYPE, 'raw-tablet-quote-source.json');
+  const tabletQuoteInput = tabletQuoteInputPath === null ? null
+    : selectedFile(sourcePackage, tabletQuoteInputPath, 'tabletQuoteInput', JSON_MEDIA_TYPE, 'raw-tablet-quote-input.json');
   const normalized = normalizeMetricWorkbook(workbook.file.bytes, manifest.file.bytes, labels?.file.bytes);
-  const selected = [workbook, manifest, ...(labels === null ? [] : [labels])];
+  const metricSelected = [workbook, manifest, ...(labels === null ? [] : [labels])];
+  const selected = [...metricSelected, ...(tabletQuoteSource === null ? [] : [tabletQuoteSource, tabletQuoteInput!])];
   const selectedSources = selected.map(item => item.provenance);
   const rawByteMappings = selected.map(item => item.mapping);
-  verifyNormalizedEvidenceFamilies(normalized.input, selected);
+  verifyNormalizedEvidenceFamilies(normalized.input, metricSelected);
   const inputBytes = canonicalBytes(normalized.input);
   const receiptBytes = canonicalBytes(normalized.receipt);
   const resultBytes = canonicalBytes(normalized.result);
@@ -322,11 +352,33 @@ export async function buildSourceBackedReport(
   const methodEnabled = (sectionId: string): boolean => catalogSections !== false &&
     catalogSections.some(section => section.sectionId === sectionId && section.methodVersion === '2.0.0');
   const m02Enabled = methodEnabled('M02');
+  const m08Enabled = methodEnabled('M08');
   const m13Enabled = methodEnabled('M13');
   const m02 = m02Enabled
-    ? buildM02ScopeMethod(normalized.input, normalized.result, selectedSources, rawByteMappings)
+    ? buildM02ScopeMethod(
+      normalized.input,
+      normalized.result,
+      metricSelected.map(item => item.provenance),
+      metricSelected.map(item => item.mapping),
+    )
     : undefined;
   const m02Sha256 = m02 === undefined ? undefined : sha256(m02.bytes);
+  const m08 = m08Enabled && tabletQuoteSource !== null && tabletQuoteInput !== null
+    ? buildM08TabletQuoteMethod(
+      {
+        packageId: sourcePackage.manifest.packageId,
+        packageKey: sourcePackage.manifest.packageKey,
+        version: sourcePackage.manifest.version,
+        manifestArtifactSha256: sourcePackage.manifestArtifactSha256,
+        packageContentSha256: sourcePackage.manifest.packageContentSha256,
+        sourceAcquiredAt: sourcePackage.manifest.sourceAcquiredAt,
+        finalizedAt: sourcePackage.manifest.finalizedAt,
+      },
+      m08Source(tabletQuoteSource, 'tabletQuoteSource', 'raw-tablet-quote-source.json'),
+      m08Source(tabletQuoteInput, 'tabletQuoteInput', 'raw-tablet-quote-input.json'),
+    )
+    : undefined;
+  const m08Sha256 = m08 === undefined ? undefined : sha256(m08.bytes);
   const m13 = m13Enabled ? buildM13ProvenanceAppendix(
     normalized.input,
     sourcePackage.manifest,
@@ -350,6 +402,10 @@ export async function buildSourceBackedReport(
         sectionId: 'M02' as const, methodVersion: '2.0.0' as const, fileName: 'm02-scope-method.json' as const,
         sha256: m02Sha256, methodOutputId: m02.output.methodOutputId,
       }]),
+      ...(m08 === undefined || m08Sha256 === undefined ? [] : [{
+        sectionId: 'M08' as const, methodVersion: '2.0.0' as const, fileName: 'm08-tablet-quote-method.json' as const,
+        sha256: m08Sha256, methodOutputId: m08.output.methodOutputId,
+      }]),
       ...(m13 === undefined || m13Sha256 === undefined ? [] : [{
         sectionId: 'M13' as const, methodVersion: '2.0.0' as const, fileName: 'm13-provenance-appendix.json' as const,
         sha256: m13Sha256, methodOutputId: m13.output.methodOutputId,
@@ -371,12 +427,15 @@ export async function buildSourceBackedReport(
     ['charts.json', chartBytes],
     ['report.md', reportBytes],
     ...(m02 === undefined ? [] : [['m02-scope-method.json', m02.bytes] as const]),
+    ...(m08 === undefined ? [] : [['m08-tablet-quote-method.json', m08.bytes] as const]),
     ...(m13 === undefined ? [] : [['m13-provenance-appendix.json', m13.bytes] as const]),
     ['source-package-manifest.json', sourcePackageManifestBytes],
     ['workspace.json', workspaceBytes],
     ['raw-workbook.xlsx', Buffer.from(workbook.file.bytes)],
     ['raw-manifest.json', Buffer.from(manifest.file.bytes)],
     ...(labels === null ? [] : [['raw-labels.json', Buffer.from(labels.file.bytes)] as const]),
+    ...(tabletQuoteSource === null ? [] : [['raw-tablet-quote-source.json', Buffer.from(tabletQuoteSource.file.bytes)] as const]),
+    ...(tabletQuoteInput === null ? [] : [['raw-tablet-quote-input.json', Buffer.from(tabletQuoteInput.file.bytes)] as const]),
   ]);
   assertGeneratedSize(files);
 
@@ -397,6 +456,7 @@ export async function buildSourceBackedReport(
       metricResultSha256: resultSha256, catalogSha256: request.catalogSha256,
       packetSha256: sha256(packetBytes), chartSha256: sha256(chartBytes), reportSha256: sha256(reportBytes),
       ...(m02Sha256 === undefined ? {} : { m02ScopeMethodSha256: m02Sha256 }),
+      ...(m08Sha256 === undefined ? {} : { m08TabletQuoteMethodSha256: m08Sha256 }),
       ...(m13Sha256 === undefined ? {} : { m13ProvenanceAppendixSha256: m13Sha256 }),
     },
     limitations: [
