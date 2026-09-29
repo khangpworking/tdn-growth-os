@@ -1,6 +1,6 @@
 # Task 053 — Fedora live qualification
 
-Status: **authorized by the owner on 2026-09-29** ([PR #81 comment](https://github.com/khangpworking/tdn-growth-os/pull/81#issuecomment-5885702572)) against `main` `45b51473f837da3855bd1f39ab4845ac610d7e18`, migration `0034_flow_content_ai_provider_model.sql`, schema v34: seven calls, no retry, no §4 restart call, key option (a). Not yet run.
+Status: **target moved to `main` `2b208cdbd59ba6141ddf968c65e184d5122900f5`; awaiting the owner's re-confirmation for that SHA.** The first authorization ([PR #81 comment](https://github.com/khangpworking/tdn-growth-os/pull/81#issuecomment-5885702572), `45b5147`) was used up to deploy and migrate: the Fedora UI rendered blank because the operator CSP blocked the research report validators (Ajv `new Function`), so no provider call was made (0 of 7). PR #84 (`1a4ae1f`) fixed it; PR #83 (`2b208cd`) set release criterion 8 to one Poster reference. Unchanged: migration `0034_flow_content_ai_provider_model.sql`, schema v34 (#83 and #84 add no migration), seven calls, no retry, no §4 restart call, key option (a).
 Lane: **Controlled** (first real provider calls; Task 047 §8, ADR 0003 decision 5, Task 049 §1).
 Owner/worktree: `docs/053-fedora-live-qualification` (this brief); execution happens on the Fedora operator, not in a worktree.
 Goal: prove on the Fedora operator, with fresh data and the smallest number of real calls, that the Caption & Poster release works end to end. Then hand the owner a checklist for retiring the Windows Content Studio.
@@ -23,7 +23,7 @@ Non-goals:
    **Recommended: (a)**, with the key read without echo so it never enters shell history (`read -rs TDN_CLIPROXY_API_KEY; export TDN_CLIPROXY_API_KEY`). The operator is started by hand today and systemd units are out of scope (runbook, “Deliberately future work”); (b) becomes the right choice when the operator gets a service unit. The owner confirms the choice when authorizing this task.
 
    The owner types the key. The agent never sees, prints or stores it.
-5. A backup of the operator database (`sqlite3 <db> ".backup <file>"`) was taken after the migration step and before the first call.
+5. A backup of the operator database (an online backup; Fedora has no `sqlite3` CLI, so the run uses a read-only `better-sqlite3` helper) was taken after the migration step and before the first call.
 
 ## 2. Deploy and migrate (runbook: `docs/runbooks/fedora-local-operator-runtime.md` §2–§4)
 

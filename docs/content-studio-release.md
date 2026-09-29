@@ -4,7 +4,7 @@ Updated: 2026-09-29 · Design: [Task 047](tasks/047-content-studio-design.md), [
 
 **Release milestone:** the OWNER can go through the in-app flow **Brand & catalog → Campaign & Insight → Big Idea → Angle → Caption + Poster**, inside TDN Growth OS on Fedora. There is no Draft step, no video, and no social publishing. Brand management on its own (Task 048) is **not** the milestone.
 
-## 1. State on main (`45b5147`, 2026-09-29)
+## 1. State on main (`2b208cd`, 2026-09-29)
 
 Every build slice of the release is merged. Nothing is deployed, and no real provider call has been made.
 
@@ -20,7 +20,7 @@ Every build slice of the release is merged. Nothing is deployed, and no real pro
 | 050b Big Idea and Angle | #57 | `38681bf` | 0027, 0028 |
 | 051 Caption & Poster | #58 | `e8ca79a` | 0029 |
 
-Migrations 0030–0033 on main belong to the research track, not Content Studio. PR #68 (merged `45b5147`, migration 0034) routes Gemini 3.5 Flash Low to `gemini-3.8-flash-high` and records the provider model on every attempt. No tests, typechecks or builds run on Windows.
+Migrations 0030–0033 on main belong to the research track, not Content Studio. PR #68 (merged `45b5147`, migration 0034) routes Gemini 3.5 Flash Low to `gemini-3.8-flash-high` and records the provider model on every attempt. PR #84 (merged `1a4ae1f`) precompiles the research report validators so the frontend runs under the operator CSP; PR #83 (merged `2b208cd`) sets release criterion 8 to one Poster reference. No tests, typechecks or builds run on Windows.
 
 ## 2. Remaining slices
 
@@ -33,7 +33,7 @@ Migrations 0030–0033 on main belong to the research track, not Content Studio.
 | 050 | Insight (typed, or copied from a locked STP; lock; D26 freeze when linked), Big Idea and Angle generation with the library/freestyle prompt picker (freestyle savable to the library), branch codes A / A1, purpose tags incl. custom, develop/stop, soft delete + 30-day restore ([brief](tasks/050-content-insight-ideas.md)) | 048c, 048d, 049 | **Merged**: 050a PR #56 `1ad3592` (0026), 050b PR #57 `38681bf` (0027, 0028) |
 | 051 | Caption & Poster for one or many Angles: Inspector (“Áp dụng cho tất cả” / “Sửa riêng”), style and length cascade, display-rule resolution, system contact footer, brand-fact checklist, Poster references (product photo first), package view with versions | 050 | **Merged** (PR #58, `e8ca79a`; 0029); manual edit and version restore included; C1–C7 approved by the owner 2026-09-29 ([brief](tasks/051-content-caption-poster.md) §0) |
 | 052 | AI edit proposals (text diff, side-by-side image), manual edit, version restore | 051 | **AI edit deferred to a later release** (owner, 2026-09-25); manual edit and version restore for Caption and Poster shipped in 051 |
-| 053 | Fedora live qualification (Controlled): owner-authorized first real calls, single-reference Poster check per image model (multi-reference needs a code PR first), operator runbook, retire-Windows checklist | 051 | Brief in PR #81; **authorized 2026-09-29** (7 calls, no retry, no restart call); not yet run |
+| 053 | Fedora live qualification (Controlled): owner-authorized first real calls, single-reference Poster check per image model (multi-reference needs a code PR first), operator runbook, retire-Windows checklist | 051 | Brief in PR #81; first run stopped before any call (blank UI, fixed by PR #84); retargeted to `2b208cd`, **awaiting owner re-confirmation** (7 calls, no retry, no restart call) |
 
 Each slice follows AGENTS.md: its own branch, a task brief, focused tests, `npm run check`, a draft PR, and an owner merge.
 
@@ -52,7 +52,7 @@ The release is accepted when all of these hold on the Fedora operator with fresh
 
 ## 4. What blocks the release today
 
-- All build slices are merged (§1). PR #68 merged on 2026-09-29 as `45b5147` (migration 0034, schema v34; Linux CI green on that SHA). 053 is authorized by the owner against those exact values ([PR #81 comment](https://github.com/khangpworking/tdn-growth-os/pull/81#issuecomment-5885702572)).
+- All build slices are merged (§1). PR #68 merged on 2026-09-29 as `45b5147` (migration 0034, schema v34; Linux CI green on that SHA). The first 053 run (authorized against `45b5147`, [PR #81 comment](https://github.com/khangpworking/tdn-growth-os/pull/81#issuecomment-5885702572)) stopped before any provider call: the UI was blank under the operator CSP. PR #84 fixed it. 053 now targets `2b208cd` (Linux CI green; schema still v34) and needs the owner's re-confirmation for that SHA.
 - **Reconciled in 051:** manual editing (“Sửa tay”) and version history/restore of Caption and Poster are built in 051 without AI edit.
 - **Decided (owner, 2026-09-29):** reference photos keep their original bytes, EXIF included; nothing is stripped or derived. Consequence: any metadata in an uploaded photo (for example GPS location) is sent to the image provider with Poster references. Owners who do not want that should remove it before uploading.
 - **Open design point:** catalog items cannot be archived or deleted; the accepted design does not define it. Campaigns pin catalog item versions, so a later archive rule cannot corrupt them. Do not invent it without a decision.

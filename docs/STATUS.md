@@ -1,5 +1,9 @@
 # Trạng thái hiện tại
 
+## Frontend CSP rule (PR #84, merged `1a4ae1f`) — read before any frontend change
+
+The operator app serves the frontend with `script-src 'self'` (no `unsafe-eval`). Code that compiles JavaScript at runtime (`new Function`, `eval`, a browser-side Ajv `compile`/`addSchema`/`getSchema`) throws at import time and blanks every page, Content Studio included. Vite dev and preview send no CSP, so they do not show it. PR #84 moved `frontend/src/report-contract-validation.ts` to validators precompiled by `scripts/generate-report-validators.mjs` (Ajv standalone, run by `frontend:build`/`dev`/`typecheck`/`test`). To validate another schema in the browser, add it to that script and to `frontend/src/generated/report-validators.generated.d.ts`; never import `ajv` from `frontend/src`.
+
 ## Content AI provider model provenance (draft PR #68)
 
 - Product model `gemini-3.5-flash-low` is routed to CLIProxy `gemini-3.8-flash-high`;
