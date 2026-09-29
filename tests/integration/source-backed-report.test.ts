@@ -434,6 +434,7 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   assert.ok(document.querySelector('#provenance a[href="raw-workbook.xlsx"]'));
   assert.ok(document.querySelector('#quote')?.textContent?.includes('8.000,00 VND'));
   assert.ok(document.querySelector('#quote')?.textContent?.includes('không phải chart so sánh'));
+  assert.ok(document.querySelector('#quote')?.textContent?.includes('Số viên trong pack do người vận hành khai báo'));
   assert.ok(document.querySelector('#quote a[href="raw-tablet-quote-source.json"]'));
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-workbook.xlsx')), state.workbook);
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-manifest.json')), state.manifest);
