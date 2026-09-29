@@ -15,7 +15,7 @@ Non-goals:
 
 1. PR #68 (provider-model provenance) is merged. The owner has the merge SHA, the migration filename and the schema version (expected `0034_flow_content_ai_provider_model.sql`, v34, unless `main` takes 0034 first).
 2. Linux CI is green on that exact SHA. A run that never started (for example, blocked by GitHub billing) is not green.
-3. EXIF is decided (owner, 2026-09-29): reference photos are sent as uploaded, metadata included. For qualification, use photos whose metadata the owner is content to share with the image providers.
+3. EXIF is decided (owner, 2026-09-29; this also settles 051 C3): reference photos are sent as uploaded, metadata included. For qualification, use photos whose metadata the owner is content to share with the image providers.
 4. The owner has chosen where the CLIProxy key lives persistently (Task 049 P2 open item 6):
    - **(a)** exported in the private shell that starts the operator, as today;
    - **(b)** a systemd `EnvironmentFile=` outside the repository, mode 600, owned by the operator user.
@@ -42,11 +42,11 @@ The owner creates the fixture data through the UI: one brand with a logo and dis
 | 3.2 | GPT-5.6 Luna | 1 Angle from 3.1 | as 3.1; branch code `A1` |
 | 3.3 | Gemini 3.5 Flash Low | 1 Caption from 3.2 | as 3.1; `providerModel` = `gemini-3.8-flash-high` on the attempt row and in the artifact; contact footer appended by the system |
 | 3.4 | GPT Image 2 | 1 Poster, one reference (product photo) | attempt `succeeded`; image validates; references in the package are exactly the ticked photo |
-| 3.5 | GPT Image 2 | 1 Poster, product photo + logo (+ second photo) | as 3.4, with every reference recorded in order, product photo first |
+| 3.5 | GPT Image 2 | 1 Poster, two product photos and the logo ticked | as 3.4; only the first ticked product photo is sent, and the logo is requested as a text wordmark (051 C4) |
 | 3.6 | Gemini 3.1 Flash Image | 1 Poster, one reference | as 3.4 |
-| 3.7 | Gemini 3.1 Flash Image | 1 Poster, multi-reference as 3.5 | as 3.5 |
+| 3.7 | Gemini 3.1 Flash Image | 1 Poster, ticked as 3.5 | as 3.5 |
 
-The multi-reference result is recorded per image model. If a model rejects or ignores extra references, the release keeps “product photo first if only one reference is accepted” (release criterion 5). The owner then decides whether that model stays selectable for multi-reference Posters. The gateway caps references at 4 (`CLIPROXY_MAX_REFERENCES`).
+The app sends **one** reference per Poster today: `POSTER_MAX_REFERENCES` in `src/modules/flow/content-poster-prompt.ts` is 1 for both image models (051 C4). Steps 3.5 and 3.7 check that fallback; they do not test multiple references. A real multi-reference check first needs a separate code PR that raises that limit for a model (the gateway itself accepts up to 4, `CLIPROXY_MAX_REFERENCES`), and then one extra call per model. Whether to do that is an owner decision tied to C4; until then the release relies on “product photo first if only one reference is accepted” (release criterion 5).
 
 **Evidence recorded per call:** attempt id, product model, provider model, status, duration and output artifact SHA-256. Do not record the generated text or image, prompt text, the key, or request/response bodies.
 
