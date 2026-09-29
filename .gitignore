@@ -1,6 +1,7 @@
 node_modules/
 dist/
 frontend/dist/
+frontend/src/generated/*.js
 build/
 coverage/
 *.tsbuildinfo
