@@ -675,8 +675,8 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.deepEqual(history.versions.map((item: any) => item.version), [1]);
     assert.deepEqual(history.versions[0].sectionCounts, {
       total: 30,
-      partialDeterministicDraft: 4,
-      methodOnly: 13,
+      partialDeterministicDraft: 5,
+      methodOnly: 12,
       blocked: 12,
       manualReviewRequired: 1,
       notImplemented: 0,
