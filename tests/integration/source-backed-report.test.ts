@@ -137,13 +137,13 @@ async function persistedFixture(oversizedMember = false) {
         path: 'quote/source.json', sha256: sha256(tabletQuoteSource), byteSize: tabletQuoteSource.length,
         mediaType: 'application/json', evidenceFamily: 'synthetic-tablet-quote', representationRole: 'primary',
         independence: 'independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic quote source',
-        period: { start: '2026-09-21', end: '2026-09-21' },
+        period: { start: '2026-09-21T00:00:00.000Z', end: '2026-09-21T23:59:59.999Z' },
       },
       {
         path: 'quote/input.json', sha256: sha256(tabletQuoteInput), byteSize: tabletQuoteInput.length,
         mediaType: 'application/json', evidenceFamily: 'synthetic-tablet-quote', representationRole: 'structured',
         independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic canonical quote input',
-        period: { start: '2026-09-21', end: '2026-09-21' },
+        period: { start: '2026-09-21T00:00:00.000Z', end: '2026-09-21T23:59:59.999Z' },
       },
       ...(oversized === null ? [] : [{
         path: 'metric/oversized.bin', sha256: sha256(oversized), byteSize: oversized.length,

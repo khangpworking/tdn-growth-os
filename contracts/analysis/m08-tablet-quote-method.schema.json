@@ -104,8 +104,8 @@
       "additionalProperties": false,
       "required": ["start", "end"],
       "properties": {
-        "start": { "type": "string", "format": "date" },
-        "end": { "type": "string", "format": "date" }
+        "start": { "type": "string", "format": "date-time" },
+        "end": { "type": "string", "format": "date-time" }
       }
     }
   }

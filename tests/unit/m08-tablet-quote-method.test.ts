@@ -33,7 +33,7 @@ function fixture() {
     independence: role === 'tabletQuoteSource' ? 'independent' : 'non_independent',
     providerProvenance: 'synthetic',
     provenanceBasis: 'Synthetic method-contract fixture',
-    period: { start: '2026-09-21', end: '2026-09-21' },
+    period: { start: '2026-09-21T00:00:00.000Z', end: '2026-09-21T23:59:59.999Z' },
     bytes,
   });
   return {
