@@ -1,6 +1,6 @@
 # Task 053 — Fedora live qualification
 
-Status: BRIEF ONLY, **not authorized**. No step below runs until the owner authorizes this task in writing, naming the exact `main` merge SHA, the final migration filename and the schema version it targets.
+Status: **authorized by the owner on 2026-09-29** ([PR #81 comment](https://github.com/khangpworking/tdn-growth-os/pull/81#issuecomment-5885702572)) against `main` `45b51473f837da3855bd1f39ab4845ac610d7e18`, migration `0034_flow_content_ai_provider_model.sql`, schema v34: seven calls, no retry, no §4 restart call, key option (a). Not yet run.
 Lane: **Controlled** (first real provider calls; Task 047 §8, ADR 0003 decision 5, Task 049 §1).
 Owner/worktree: `docs/053-fedora-live-qualification` (this brief); execution happens on the Fedora operator, not in a worktree.
 Goal: prove on the Fedora operator, with fresh data and the smallest number of real calls, that the Caption & Poster release works end to end. Then hand the owner a checklist for retiring the Windows Content Studio.
