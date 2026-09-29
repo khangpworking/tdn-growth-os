@@ -907,36 +907,36 @@ test('upgrades an existing v32 database to v33 exactly once', () => {
   rerun.db.close();
 });
 
-test('upgrades an existing v33 database to v34 without changing prior report versions', () => {
+test('upgrades an existing v34 database to v35 without changing prior report versions', () => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-report-supplemental-source-migration-'));
   tempRoots.push(directory);
   const migrationsDirectory = path.join(directory, 'migrations');
   fs.mkdirSync(migrationsDirectory);
   const prior = fs.readdirSync('migrations')
-    .filter(name => /^00(?:0[1-9]|[12][0-9]|3[0-3])_/.test(name))
+    .filter(name => /^00(?:0[1-9]|[12][0-9]|3[0-4])_/.test(name))
     .sort();
-  assert.equal(prior.length, 33);
+  assert.equal(prior.length, 34);
   for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(migrationsDirectory, name));
   const databasePath = path.join(directory, 'report.sqlite');
-  const v33 = openDatabase({ databasePath, migrationsDirectory });
-  assert.equal(v33.migration.currentVersion, 33);
-  v33.db.close();
+  const v34 = openDatabase({ databasePath, migrationsDirectory });
+  assert.equal(v34.migration.currentVersion, 34);
+  v34.db.close();
 
   fs.copyFileSync(
-    'migrations/0034_analysis_report_supplemental_sources.sql',
-    path.join(migrationsDirectory, '0034_analysis_report_supplemental_sources.sql'),
+    'migrations/0035_analysis_report_supplemental_sources.sql',
+    path.join(migrationsDirectory, '0035_analysis_report_supplemental_sources.sql'),
   );
-  const v34 = openDatabase({ databasePath, migrationsDirectory });
-  assert.deepEqual(v34.migration.applied, [34]);
-  assert.equal(v34.migration.currentVersion, 34);
-  assert.equal(count(v34.db, 'analysis_report_version_supplemental_sources'), 0n);
-  const columns = v34.db.prepare(`PRAGMA table_info('analysis_report_versions')`).all() as Array<{ name: string; dflt_value: string | null }>;
+  const v35 = openDatabase({ databasePath, migrationsDirectory });
+  assert.deepEqual(v35.migration.applied, [35]);
+  assert.equal(v35.migration.currentVersion, 35);
+  assert.equal(count(v35.db, 'analysis_report_version_supplemental_sources'), 0n);
+  const columns = v35.db.prepare(`PRAGMA table_info('analysis_report_versions')`).all() as Array<{ name: string; dflt_value: string | null }>;
   assert.deepEqual(columns.find(column => column.name === 'supplemental_source_count')?.dflt_value, '0');
-  v34.db.close();
+  v35.db.close();
 
   const rerun = openDatabase({ databasePath, migrationsDirectory });
   assert.deepEqual(rerun.migration.applied, []);
-  assert.equal(rerun.migration.currentVersion, 34);
+  assert.equal(rerun.migration.currentVersion, 35);
   rerun.db.close();
 });
 

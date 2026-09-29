@@ -579,7 +579,7 @@ preview also passed. Exact draft-PR evidence is recorded in
 Catalog 0.4.0 materializes the approved tablet-quote normalizer as one partial
 M08/P4 artifact. It binds one raw quote source and one canonical quote input to
 exact source-package bytes, retains arithmetic and trust limits, and renders a
-single-quote evidence panel without comparison or ranking. Migration 0034 adds
+single-quote evidence panel without comparison or ranking. Migration 0035 adds
 a separate two-source supplemental ledger while leaving the original 2-3
 Metric membership and historical rows unchanged. Executable deterministic
 coverage is now 5/30 sections: M02, M03, M04, M08/P4 and M13. Linux CI and

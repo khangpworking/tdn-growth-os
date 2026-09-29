@@ -38,7 +38,7 @@ function setup() {
 
 test('migration 0023 creates immutable prompt tables whose lifecycle alternates within the restore window', async () => {
   const state = setup();
-  assert.equal(state.migration.currentVersion, 34);
+  assert.equal(state.migration.currentVersion, 35);
   await state.prompts.createPrompt(createRequest());
   const insert = state.db.prepare('INSERT INTO flow_content_prompt_lifecycle(prompt_id, sequence, action, created_at) VALUES (?, ?, ?, ?)');
   assert.throws(() => insert.run(ids[0], 1, 'RESTORE', '2027-01-01T00:00:00.000Z'), /not_alternating/);

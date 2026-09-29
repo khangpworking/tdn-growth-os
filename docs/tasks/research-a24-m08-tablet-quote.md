@@ -31,7 +31,7 @@ result in the HTML report.
 
 ## Persistence design
 
-Migration 0034 keeps the original immutable Metric source table and its 2-3
+Migration 0035 keeps the original immutable Metric source table and its 2-3
 source invariant. One separate immutable table retains the exact supplemental
 quote pair in global source order. Existing report rows receive a default zero
 supplemental count and remain replayable without a data rewrite.
