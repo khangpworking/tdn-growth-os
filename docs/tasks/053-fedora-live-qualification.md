@@ -34,7 +34,7 @@ Non-goals:
 
 ## 3. Real calls (budget: 7 calls; nothing retries automatically)
 
-The owner creates the fixture data through the UI: one brand with a logo and display rules; one catalog item with a tier and two product photos, plus a third photo if the multi-reference check needs it; one campaign; one locked insight.
+The owner creates the fixture data through the UI: one brand with a logo and display rules; one catalog item with a tier and two product photos; one campaign; one locked insight.
 
 | # | Model | Call | Pass when |
 |---|---|---|---|
@@ -78,4 +78,4 @@ Release criterion 6 is already covered by CI with fake providers. A live check m
 
 ## 7. Report
 
-The report names the SHA, schema version and date, and gives the §3 evidence table, the multi-reference result per image model, and any stop. It updates `docs/content-studio-release.md` §2 (053 status) and §5 (decisions) in a docs PR.
+The report names the SHA, schema version and date, and gives the §3 evidence table, the single-reference fallback result per image model (3.5, 3.7), and any stop. It updates `docs/content-studio-release.md` §2 (053 status) and §5 (decisions) in a docs PR.
