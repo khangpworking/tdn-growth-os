@@ -20,7 +20,7 @@ const sources = [
     independence: 'non_independent' as const,
     providerProvenance: 'operator_supplied_unverified' as const,
     provenanceBasis: 'Operator-supplied synthetic fixture',
-    period: { start: '2024-08-10', end: '2026-08-10' },
+    period: { start: '2024-08-10T00:00:00.000Z', end: '2026-08-10T23:59:59.999Z' },
   },
   {
     role: 'manifest' as const,
