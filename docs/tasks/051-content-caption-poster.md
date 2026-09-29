@@ -1,6 +1,6 @@
 # Task 051 — Content Studio Caption & Poster
 
-Status: implemented on `feature/051-content-caption-poster`, a draft PR stacked on 050b (`feature/050b-content-ideas`). The C-decisions below are **provisional defaults** that the owner has not yet approved. They are batched for owner review.
+Status: **merged** (PR #58, `e8ca79a`). The owner approved decisions C1–C7 on 2026-09-29; C3 is settled by the EXIF decision recorded in `docs/content-studio-release.md` §4.
 
 Lane: Standard. Fake providers only; the first real calls are in 053.
 
@@ -16,7 +16,7 @@ Non-goals:
 - Live provider calls, and anything on Fedora (053).
 - Queues, background workers or a second runtime.
 
-## 0. Decisions (provisional, owner review pending)
+## 0. Decisions (approved by the owner, 2026-09-29)
 
 - **C1 — Campaign defaults.** “Lưu làm mặc định cho chiến dịch” appends an immutable **campaign defaults revision** (`flow_content_campaign_defaults`). This is not a campaign content revision, so it does not touch the Insight lock pin. A revision stores:
   - the Caption prompt, model, style and length;
@@ -29,8 +29,8 @@ Non-goals:
   - “Tạo lại” appends a `GENERATED` version.
   - Versions are append-only, and the highest version is the current one.
   - A Poster has no manual edit.
-- **C3 — EXIF.** This is the owner decision still pending from the release doc §4. 051 sends stored reference bytes only to fake gateways. Stripping metadata (a derived reference with lineage) blocks 053, not 051.
-- **C4 — Single-reference fallback.** A per-model `maxReferences` constant (`POSTER_MAX_REFERENCES`) is 1 for both image models until 053 verifies more.
+- **C3 — EXIF.** Settled by the owner on 2026-09-29: reference photos are kept and sent as uploaded, metadata included. Nothing is stripped or derived.
+- **C4 — Single-reference fallback.** A per-model `maxReferences` constant (`POSTER_MAX_REFERENCES`) is 1 for both image models. Raising it for a model needs a separate code PR and a live multi-reference check.
   - Product photos come first, then the logo.
   - With one slot, only the first ticked product photo is sent.
   - The logo is then requested as a small text wordmark, never an invented symbol.
