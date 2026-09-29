@@ -483,3 +483,20 @@ Mỗi exact B7 PASS chỉ tạo tối đa một product workspace và mỗi key 
 Frontend production đã build, verified read API, optional OWNER API và health endpoint cùng chạy trên một process/origin loopback; mặc định canonical là `http://127.0.0.1:8787`. Normal mode dùng persisted data; synthetic state chỉ qua `?mode=demo` có nhãn rõ. OWNER writes mặc định tắt; khi bật, token mạnh và actor ID chỉ là local development authorization giữ trong memory/shell, không phải public hoặc production authentication.
 
 Runtime này dành cho một trusted operator trên chính Fedora host: không bind wildcard/LAN, không port-forward hoặc expose internet. Systemd, reverse proxy, TLS, remote/multi-user access, production auth, backup/restore và deployment là future work. Quyết định vận hành này không thay đổi semantics, authority hoặc gate B3–B10.
+
+### D36 — M08/P4 chỉ là một quote viên đơn lẻ có truy xuất nguồn
+
+`tablet-quote-normalization-v1` được phép xuất hiện trong báo cáo dưới lát cắt
+`M08/P4 · Chuẩn hóa giá quote viên đơn lẻ` khi và chỉ khi một raw quote JSON và
+một canonical quote input cùng thuộc đúng source package đã finalized. Hệ thống
+giữ nguyên hai file, exact source locator, trạng thái giá/thời gian/identity,
+phép tính phân số chính xác và hiển thị half-even; tablet count chỉ được dùng
+khi operator khai báo rõ.
+
+Đây vẫn là `SCENARIO`, `UNREVIEWED`, `DECLARED_UNVERIFIED` và
+`NOT_AUTHENTICATED`. Nó không trở thành FactObservation, không vào
+ALL/WIDE/CORE, không so sánh hay xếp hạng sản phẩm, không suy dose equivalence,
+margin hoặc recommendation, và không làm M08 trở thành section unit economics
+hoàn chỉnh. Report version giữ cặp source này trong membership bổ sung riêng,
+không viết lại membership Metric của các report cũ. Thiếu một trong hai source
+thì M08 giữ BLOCKED thay vì tự tạo dữ liệu.

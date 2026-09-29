@@ -1,7 +1,7 @@
 {
   "contractVersion": "1.0.0",
   "catalogId": "market-insight-30-section-catalog-v1",
-  "catalogVersion": "0.3.0",
+  "catalogVersion": "0.4.0",
   "authority": "PLANNING_METADATA_NOT_EXECUTABLE_METHOD",
   "sections": [
     {
@@ -143,20 +143,23 @@
     {
       "sectionId": "M08",
       "title": "Giá và kinh tế đơn vị",
-      "methodId": "planning-m08",
-      "methodVersion": "1.0.0",
+      "methodId": "tablet-quote-normalization",
+      "methodVersion": "2.0.0",
       "historicalTemplateMaturity": "PILOT",
       "moduleIds": [
         "unit-economics"
       ],
       "requiredInputs": [
-        "fee-method-version",
-        "cost-assumptions"
+        "exact-raw-quote-source-and-locator",
+        "canonical-tablet-quote-input",
+        "explicit-price-state-and-observation-time",
+        "optional-owner-declared-tablet-count"
       ],
-      "reopenCondition": "A seller-specific decision has verified costs, payouts, returns, eligibility, and the applicable fee version.",
-      "fallbackState": "METHOD_ONLY",
+      "reopenCondition": "A new exact quote or owner-declared tablet count changes this narrow packaging arithmetic; broader unit economics still requires verified costs, payouts, returns, eligibility, and fee version.",
+      "fallbackState": "BLOCKED",
       "fallbackReasons": [
-        "SELLER_INPUTS_AND_FEE_VERSION_REQUIRED"
+        "VERIFIED_TABLET_QUOTE_METHOD_ARTIFACT_REQUIRED",
+        "FULL_M08_UNIT_ECONOMICS_NOT_IMPLEMENTED"
       ]
     },
     {

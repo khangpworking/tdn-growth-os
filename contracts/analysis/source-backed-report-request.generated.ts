@@ -11,5 +11,7 @@ export interface SourceBackedReportRequest {
   workbookPath: LogicalPath;
   manifestPath: LogicalPath;
   labelsPath: LogicalPath | null;
+  tabletQuoteSourcePath?: LogicalPath | null;
+  tabletQuoteInputPath?: LogicalPath | null;
   catalogSha256: Digest;
 }

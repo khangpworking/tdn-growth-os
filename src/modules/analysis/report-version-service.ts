@@ -86,6 +86,7 @@ interface VersionRow {
   readonly packageContentSha256: string;
   readonly artifactCount: bigint;
   readonly sourceCount: bigint;
+  readonly supplementalSourceCount: bigint;
   readonly interpretationState: 'NONE';
   readonly reviewState: 'UNREVIEWED';
   readonly createdAt: string;
@@ -100,7 +101,7 @@ interface ArtifactRow {
 
 interface SourceRow {
   readonly ordinal: bigint;
-  readonly role: 'workbook' | 'manifest' | 'labels';
+  readonly role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
   readonly logicalPath: string;
   readonly sha256: string;
 }
@@ -200,8 +201,18 @@ export class ReportVersionService {
             report_id, version, ordinal, role, logical_path, source_sha256
           ) VALUES (?, ?, ?, ?, ?, ?)
         `);
+        const insertSupplementalSource = this.#db.prepare(`
+          INSERT INTO analysis_report_version_supplemental_sources(
+            report_id, version, ordinal, role, logical_path, source_sha256
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        let sourceCount = 0;
+        let supplementalSourceCount = 0;
         for (const [ordinal, source] of prepared.bundle.envelope.selectedSources.entries()) {
-          databaseMutations += insertSource.run(
+          const insert = isSupplementalSourceRole(source.role) ? insertSupplementalSource : insertSource;
+          if (isSupplementalSourceRole(source.role)) supplementalSourceCount += 1;
+          else sourceCount += 1;
+          databaseMutations += insert.run(
             reportId, request.version, ordinal, source.role, source.logicalPath, source.sha256,
           ).changes;
         }
@@ -212,8 +223,9 @@ export class ReportVersionService {
             semantic_content_sha256, review_state_sha256,
             workspace_id, workspace_snapshot_sha256, source_package_id,
             source_package_manifest_sha256, package_content_sha256, artifact_count, source_count,
+            supplemental_source_count,
             interpretation_state, review_state, created_at
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NONE', 'UNREVIEWED', ?)
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NONE', 'UNREVIEWED', ?)
         `).run(
           stagedVersionId, reportId, request.version, request.previousSemanticVersionId,
           prepared.semanticVersionId, requestSha256, requestArtifact.sha256, envelope.sha256,
@@ -221,7 +233,7 @@ export class ReportVersionService {
           prepared.bundle.envelope.workspace.snapshotSha256, prepared.bundle.envelope.sourcePackage.packageId,
           prepared.bundle.envelope.sourcePackage.manifestArtifactSha256,
           prepared.bundle.envelope.sourcePackage.packageContentSha256,
-          prepared.stored.size, prepared.bundle.envelope.selectedSources.length, createdAt,
+          prepared.stored.size, sourceCount, supplementalSourceCount, createdAt,
         ).changes;
         result = {
           reportId,
@@ -310,7 +322,7 @@ export class ReportVersionService {
       throw new ReportVersionIntegrityError('Report version predecessor chain is invalid');
     }
     const sources = this.#sourceRows(reportId, version);
-    if (BigInt(sources.length) !== row.sourceCount) {
+    if (BigInt(sources.length) !== row.sourceCount + row.supplementalSourceCount) {
       throw new ReportVersionIntegrityError('Report source membership count mismatch');
     }
     const expectedSources = expected.bundle.envelope.selectedSources.map((source, ordinal) => ({
@@ -550,8 +562,13 @@ export class ReportVersionService {
     return this.#db.prepare(`
       SELECT ordinal, role, logical_path logicalPath, source_sha256 sha256
       FROM analysis_report_version_sources
-      WHERE report_id = ? AND version = ? ORDER BY ordinal
-    `).all(reportId, version) as SourceRow[];
+      WHERE report_id = ? AND version = ?
+      UNION ALL
+      SELECT ordinal, role, logical_path logicalPath, source_sha256 sha256
+      FROM analysis_report_version_supplemental_sources
+      WHERE report_id = ? AND version = ?
+      ORDER BY ordinal
+    `).all(reportId, version, reportId, version) as SourceRow[];
   }
 }
 
@@ -586,8 +603,13 @@ function versionSelect(): string {
     v.workspace_snapshot_sha256 workspaceSnapshotSha256, v.source_package_id sourcePackageId,
     v.source_package_manifest_sha256 sourcePackageManifestSha256, v.package_content_sha256 packageContentSha256,
     v.artifact_count artifactCount, v.source_count sourceCount,
+    v.supplemental_source_count supplementalSourceCount,
     v.interpretation_state interpretationState, v.review_state reviewState, v.created_at createdAt
     FROM analysis_report_versions v JOIN analysis_report_series s ON s.report_id = v.report_id`;
+}
+
+function isSupplementalSourceRole(role: string): role is 'tabletQuoteSource' | 'tabletQuoteInput' {
+  return role === 'tabletQuoteSource' || role === 'tabletQuoteInput';
 }
 
 function requestSnapshot(untrusted: unknown): ReportVersionCreateRequest {

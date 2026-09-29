@@ -268,7 +268,7 @@ export interface ReportReviewTarget {
      */
     selectedSources: {
       ordinal: number;
-      role: 'workbook' | 'manifest' | 'labels';
+      role: 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
       logicalPath: string;
       sha256: string;
     }[];

@@ -23,6 +23,7 @@ import type { ArtifactReadOptions } from '../../src/platform/artifacts/artifact-
 import { openDatabase } from '../../src/platform/db/index.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { buildSourceBackedReport, type SourceBackedReportDependencies } from '../../src/modules/analysis/source-backed-report.js';
+import { tabletQuoteFixture } from '../helpers/tablet-quote-fixture.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 const tempRoots: string[] = [];
@@ -107,6 +108,12 @@ async function persistedFixture(oversizedMember = false) {
   });
   const workbook = workbookFixture();
   const manifest = jsonBytes(sourceManifest(workbook));
+  const tabletQuoteSource = jsonBytes({ quote: { displayedPrice: '240000', packText: '30 tablets' } });
+  const quoteInput = tabletQuoteFixture();
+  quoteInput.sourceRef.artifactSha256 = sha256(tabletQuoteSource);
+  quoteInput.sourceRef.locator = 'json://quote/source.json#/quote';
+  quoteInput.priceVnd!.provenance.sourceRef = { ...quoteInput.sourceRef };
+  const tabletQuoteInput = jsonBytes(quoteInput);
   const oversized = oversizedMember ? Buffer.alloc(readBudget.maxFileBytes + 1, 0x5a) : null;
   const sourcePackage = await sourcePackages.intake({
     contractVersion: '1.0.0',
@@ -126,6 +133,18 @@ async function persistedFixture(oversizedMember = false) {
         mediaType: 'application/json', evidenceFamily: 'synthetic-metric', representationRole: 'derived',
         independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Generated fixture declaration',
       },
+      {
+        path: 'quote/source.json', sha256: sha256(tabletQuoteSource), byteSize: tabletQuoteSource.length,
+        mediaType: 'application/json', evidenceFamily: 'synthetic-tablet-quote', representationRole: 'primary',
+        independence: 'independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic quote source',
+        period: { start: '2026-09-21', end: '2026-09-21' },
+      },
+      {
+        path: 'quote/input.json', sha256: sha256(tabletQuoteInput), byteSize: tabletQuoteInput.length,
+        mediaType: 'application/json', evidenceFamily: 'synthetic-tablet-quote', representationRole: 'structured',
+        independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic canonical quote input',
+        period: { start: '2026-09-21', end: '2026-09-21' },
+      },
       ...(oversized === null ? [] : [{
         path: 'metric/oversized.bin', sha256: sha256(oversized), byteSize: oversized.length,
         mediaType: 'application/octet-stream', evidenceFamily: 'synthetic-metric', representationRole: 'primary',
@@ -134,6 +153,7 @@ async function persistedFixture(oversizedMember = false) {
     ],
   }, new Map([
     ['metric/workbook.xlsx', workbook], ['metric/manifest.json', manifest],
+    ['quote/source.json', tabletQuoteSource], ['quote/input.json', tabletQuoteInput],
     ...(oversized === null ? [] : [['metric/oversized.bin', oversized] as const]),
   ]));
   const workspace = await workspaces.createWorkspace({
@@ -148,6 +168,8 @@ async function persistedFixture(oversizedMember = false) {
     workbookPath: 'metric/workbook.xlsx',
     manifestPath: 'metric/manifest.json',
     labelsPath: null,
+    tabletQuoteSourcePath: 'quote/source.json',
+    tabletQuoteInputPath: 'quote/input.json',
     catalogSha256: sha256(catalogBytes),
   } as const;
   const databasePath = path.join(directory, 'report.sqlite');
@@ -160,7 +182,8 @@ async function persistedFixture(oversizedMember = false) {
     sourcePackages: new FoundationSourcePackageReader(sourcePackages),
     workspaces: new FlowDiscoveryWorkspaceReader(workspaces),
   };
-  return { db: opened.db, artifacts, directory, databasePath, artifactRoot, requestPath, catalogPath, workbook, manifest, request, catalogBytes, dependencies };
+  return { db: opened.db, artifacts, directory, databasePath, artifactRoot, requestPath, catalogPath,
+    workbook, manifest, tabletQuoteSource, tabletQuoteInput, request, catalogBytes, dependencies };
 }
 
 function databaseReadSnapshot(db: ReturnType<typeof openDatabase>['db']): string {
@@ -202,6 +225,8 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(first.envelope.workspace.snapshotSha256, sha256(first.files.get('workspace.json')!));
   assert.deepEqual(first.files.get('raw-workbook.xlsx'), state.workbook);
   assert.deepEqual(first.files.get('raw-manifest.json'), state.manifest);
+  assert.deepEqual(first.files.get('raw-tablet-quote-source.json'), state.tabletQuoteSource);
+  assert.deepEqual(first.files.get('raw-tablet-quote-input.json'), state.tabletQuoteInput);
   assert.equal(first.envelope.rawByteMappings[0]!.rawByteSha256, sha256(state.workbook));
   assert.equal(first.envelope.selectedSources[0]!.providerProvenance, 'synthetic');
   assert.equal(first.envelope.artifacts.packetSha256, sha256(first.files.get('packet.json')!));
@@ -214,6 +239,23 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(m02.sourceVerification, 'EXACT_PACKAGE_BYTES_REPLAYED');
   assert.equal(m02.measurement.recordCount, 2);
   assert.equal(m02.measurement.wideUnknownPolicy, 'exclude');
+  const m08 = JSON.parse(first.files.get('m08-tablet-quote-method.json')!.toString('utf8')) as {
+    methodOutputId: string;
+    sectionSliceId: string;
+    evidenceState: string;
+    sourceAuthenticity: string;
+    sources: Array<{ role: string; sha256: string }>;
+    quote: { pricePerTabletArithmetic: { displayValue: { value: string } | null } };
+  };
+  assert.equal(first.envelope.artifacts.m08TabletQuoteMethodSha256, sha256(first.files.get('m08-tablet-quote-method.json')!));
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'M08')?.methodArtifact?.methodOutputId, m08.methodOutputId);
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'M08')?.deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'M08')?.claimIds.length, 0);
+  assert.equal(m08.sectionSliceId, 'M08/P4');
+  assert.equal(m08.evidenceState, 'DECLARED_UNVERIFIED');
+  assert.equal(m08.sourceAuthenticity, 'NOT_AUTHENTICATED');
+  assert.equal(m08.sources[0]?.sha256, sha256(state.tabletQuoteSource));
+  assert.equal(m08.quote.pricePerTabletArithmetic.displayValue?.value, '8000.00');
   const m13 = JSON.parse(first.files.get('m13-provenance-appendix.json')!.toString('utf8')) as {
     methodOutputId: string;
     sourcePackage: { packageId: string; manifestArtifactSha256: string };
@@ -231,6 +273,7 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(m13.coverage.recordCount, 2);
   assert.equal(m13.coverage.recordLocatorCount, 2);
   assert.equal(m13.coverage.labelLocatorCount, 0);
+  assert.equal(first.envelope.selectedSources.length, 4);
   assert.match(first.envelope.limitations.join('\n'), /DO_NOT_AUTHENTICATE_PROVIDER_COLLECTION/);
 
   const second = await buildSourceBackedReport(state.request, state.catalogBytes, state.dependencies);
@@ -238,6 +281,22 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(second.packet.packetId, first.packet.packetId);
   assert.deepEqual([...second.files.entries()], [...first.files.entries()]);
   assert.equal(databaseReadSnapshot(state.db), before);
+});
+
+test('keeps M08 blocked instead of fabricating a quote when supplemental quote paths are absent', async () => {
+  const state = await persistedFixture();
+  const bundle = await buildSourceBackedReport({
+    ...state.request,
+    tabletQuoteSourcePath: null,
+    tabletQuoteInputPath: null,
+  }, state.catalogBytes, state.dependencies);
+
+  assert.equal(bundle.files.has('m08-tablet-quote-method.json'), false);
+  assert.equal(bundle.files.has('raw-tablet-quote-source.json'), false);
+  assert.equal(bundle.envelope.selectedSources.length, 2);
+  const section = bundle.packet.sections.find(item => item.sectionId === 'M08');
+  assert.equal(section?.deliveryState, 'BLOCKED');
+  assert.ok(section?.blockers.includes('VERIFIED_TABLET_QUOTE_METHOD_ARTIFACT_REQUIRED'));
 });
 
 test('rejects wrong source selectors and corrupt raw bytes before normalization', async () => {
@@ -338,7 +397,8 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   const expected = [
     'raw-workbook.xlsx', 'raw-manifest.json', 'source-package-manifest.json', 'normalized-input.json',
     'receipt.json', 'metric-result.json', 'charts.json', 'packet.json', 'section-catalog.json', 'workspace.json',
-    'm02-scope-method.json', 'm13-provenance-appendix.json', 'semantic-content.json', 'review-state.json',
+    'm02-scope-method.json', 'raw-tablet-quote-source.json', 'raw-tablet-quote-input.json',
+    'm08-tablet-quote-method.json', 'm13-provenance-appendix.json', 'semantic-content.json', 'review-state.json',
     'evidence-envelope.json', 'export-manifest.json',
   ];
   assert.deepEqual([...new Set(links)].sort(), [...expected].sort());
@@ -372,8 +432,13 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   assert.ok(document.querySelector('#files')?.textContent?.includes(summary.semanticVersionId));
   assert.ok(document.querySelector('#provenance')?.textContent?.includes('2 dòng chuẩn hóa'));
   assert.ok(document.querySelector('#provenance a[href="raw-workbook.xlsx"]'));
+  assert.ok(document.querySelector('#quote')?.textContent?.includes('8000,00 VND'));
+  assert.ok(document.querySelector('#quote')?.textContent?.includes('không phải chart so sánh'));
+  assert.ok(document.querySelector('#quote a[href="raw-tablet-quote-source.json"]'));
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-workbook.xlsx')), state.workbook);
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-manifest.json')), state.manifest);
+  assert.deepEqual(fs.readFileSync(path.join(output, 'raw-tablet-quote-source.json')), state.tabletQuoteSource);
+  assert.deepEqual(fs.readFileSync(path.join(output, 'raw-tablet-quote-input.json')), state.tabletQuoteInput);
   assert.deepEqual(fs.readFileSync(state.databasePath), databaseBytesBefore);
   assert.equal(fileTreeSnapshot(state.artifactRoot), artifactBytesBefore);
 

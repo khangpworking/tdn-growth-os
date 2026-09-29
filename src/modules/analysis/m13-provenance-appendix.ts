@@ -36,7 +36,7 @@ export function buildM13ProvenanceAppendix(
 ): { readonly output: M13ProvenanceAppendix; readonly bytes: Buffer } {
   assertDigest(manifestArtifactSha256, 'MANIFEST_ARTIFACT');
   for (const [key, value] of Object.entries(lineage)) assertDigest(value, key.toUpperCase());
-  if (selectedSources.length < 2 || selectedSources.length > 3 || selectedSources.length !== rawByteMappings.length) {
+  if (selectedSources.length < 2 || selectedSources.length > 5 || selectedSources.length !== rawByteMappings.length) {
     throw new TypeError('M13: SOURCE_MEMBERSHIP_MISMATCH');
   }
   const selectedDigests = new Set<string>();
@@ -114,6 +114,7 @@ export function buildM13ProvenanceAppendix(
       'BYTE_VERIFICATION_DOES_NOT_AUTHENTICATE_PROVIDER_COLLECTION',
       'LOCATORS_IDENTIFY_RETAINED_SOURCE_BYTES; THEY_DO_NOT_PROVE_MARKET_COMPLETENESS',
       'UNLABELED_RECORDS_REMAIN_EXPLICIT',
+      'SUPPLEMENTAL_SECTION_ARTIFACTS_RETAIN_THEIR_OWN_NORMALIZATION_LINEAGE',
       'OWNER_REVIEW_REQUIRED_BEFORE_REPORT_USE',
     ],
   };
