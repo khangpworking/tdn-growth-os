@@ -217,6 +217,12 @@ test('demo reset restores the seeded brand and catalog and drops demo prompts', 
 
 test('drafts become trimmed requests; models and limits depend on the type', () => {
   assert.deepEqual(modelsForType('POSTER').map((model) => model.key), ['gpt-image-2', 'gemini-3.1-flash-image']);
+  assert.deepEqual(modelsForType('BIG_IDEA').map(({ key, label }) => ({ key, label })), [
+    { key: 'gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+    { key: 'gpt-5.6-luna', label: 'GPT-5.6 Luna' },
+    { key: 'gemini-3.5-flash-low', label: 'Gemini 3.8 Flash High' },
+  ]);
+  assert.equal(modelsForType('BIG_IDEA').some((model) => model.label === 'Gemini 3.5 Flash Low'), false);
   assert.equal(emptyPromptDraft('POSTER').recommendedModel, 'gpt-image-2');
   const draft = { ...emptyPromptDraft('BIG_IDEA'), name: ' Tết ', creativeText: '  Viết như người con. ', tagsText: 'Tết,  quà tặng , Tết,', description: ' ', demoOutput: ' Kết quả ' };
   assert.deepEqual(promptRequestFromDraft(draft), { name: 'Tết', creativeText: 'Viết như người con.', recommendedModel: 'gpt-5.6-sol', tags: ['Tết', 'quà tặng'], demoOutput: 'Kết quả' });

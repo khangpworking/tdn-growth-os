@@ -122,7 +122,7 @@ export async function createPackageFixture(options: PackageFixtureOptions = {}) 
 
   const packages = new ContentPackageService({ db, artifactStore: artifacts, attempts, campaigns, insights, catalog, prompts, library, brands, media, ideas, now, newId: nextId });
   return {
-    root, databasePath, artifactRoot, db, artifacts, gateway, clock, now, brands, media, catalog, campaigns, insights, ideas, prompts, attempts, packages,
+    root, databasePath, artifactRoot, db, artifacts, gateway, clock, now, brands, media, catalog, campaigns, insights, ideas, prompts, library, attempts, packages,
     angleIds: angles.map((angle) => angle.ideaId), angles,
     close: () => { if (db.open) db.close(); fs.rmSync(root, { recursive: true, force: true }); },
   };

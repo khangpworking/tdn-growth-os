@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import test from 'node:test';
-import { CreativeAiError, type CreativeTextResult } from '../../src/platform/ai/creative-ai-gateway.js';
+import { CREATIVE_MODEL_ROUTES, CreativeAiError, type CreativeModelRoutes, type CreativeTextResult } from '../../src/platform/ai/creative-ai-gateway.js';
+import { createFakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
+import { createContentAiAttemptService } from '../../src/modules/flow/content-ai-attempt-service.js';
 import {
   ContentPackageConflictError,
   ContentPackageIntegrityError,
   ContentPackageReferenceError,
+  ContentPackageService,
   PACKAGE_BATCH_LIMIT,
   PACKAGE_TICKED_REFERENCE_LIMIT,
 } from '../../src/modules/flow/content-package-service.js';
@@ -182,6 +185,57 @@ test('the package pin contains every integrity input and the footer remains byte
     assert.equal(manual.version, 2);
     assert.equal(restored.version, 3);
     await assert.rejects(state.packages.changeVersion({ contractVersion: '1.0.0', packageId: created.packages[0]!.packageId, part: 'CAPTION', action: 'MANUAL', expectedVersion: 1, requestId: requestId(53), post: 'stale' }), ContentPackageConflictError);
+  } finally { state.close(); }
+});
+
+test('generated package versions retain provider provenance across route changes and manual versions omit it', async () => {
+  const state = await createPackageFixture({ textAfterIdeas: [textReply('{"post":"Routed caption"}')], imageAfterIdeas: [imageReply()] });
+  try {
+    const base = createRequest(fixtureCampaignId, [state.angleIds[0]!], { requestId: requestId(170) });
+    const input = {
+      ...base,
+      caption: { ...base.caption, model: 'gemini-3.5-flash-low' as const },
+      poster: { ...base.poster, model: 'gemini-3.1-flash-image' as const },
+    };
+    const created = await state.packages.create(input);
+    const packageId = created.packages[0]!.packageId;
+    const captionExecution = await state.packages.generate(generateRequest(packageId, 'CAPTION', 171), 'owner:synthetic');
+    const posterExecution = await state.packages.generate(generateRequest(packageId, 'POSTER', 172), 'owner:synthetic');
+    const generated = await state.packages.readPackage(packageId);
+    const caption = generated.caption.find((version) => version.version === 1)!;
+    const poster = generated.poster.find((version) => version.version === 1)!;
+    const captionAttempt = state.attempts.list({ targetType: 'content_caption', targetId: packageId, limit: 10 }).find((attempt) => attempt.attemptId === captionExecution.attemptId)!;
+    const posterAttempt = state.attempts.list({ targetType: 'content_poster', targetId: packageId, limit: 10 }).find((attempt) => attempt.attemptId === posterExecution.attemptId)!;
+    assert.deepEqual([caption.providerModel, captionAttempt.providerModel], ['gemini-3.8-flash-high', 'gemini-3.8-flash-high']);
+    assert.deepEqual([poster.providerModel, posterAttempt.providerModel], ['gemini-3.1-flash-image', 'gemini-3.1-flash-image']);
+
+    await state.packages.changeVersion({ contractVersion: '1.0.0', packageId, part: 'CAPTION', action: 'MANUAL', expectedVersion: 1, requestId: requestId(173), post: 'Manual routed caption' });
+    await state.packages.changeVersion({ contractVersion: '1.0.0', packageId, part: 'CAPTION', action: 'RESTORE', expectedVersion: 2, requestId: requestId(174), restoreVersion: 1 });
+    const manualAndRestore = await state.packages.readPackage(packageId);
+    assert.equal('providerModel' in manualAndRestore.caption[1]!, false);
+    assert.equal('providerModel' in manualAndRestore.caption[2]!, false);
+
+    const changedRoutes: CreativeModelRoutes = {
+      ...CREATIVE_MODEL_ROUTES,
+      'gemini-3.5-flash-low': { ...CREATIVE_MODEL_ROUTES['gemini-3.5-flash-low'], providerModelId: 'gemini-9.9-flash' },
+      'gemini-3.1-flash-image': { ...CREATIVE_MODEL_ROUTES['gemini-3.1-flash-image'], providerModelId: 'gemini-9.9-flash-image' },
+    };
+    const changedGateway = createFakeCreativeGateway({ routes: changedRoutes });
+    const changedAttempts = createContentAiAttemptService({
+      db: state.db, gateway: changedGateway, artifactRoot: state.artifactRoot, clock: state.now, newId: () => '05120000-0000-4000-8000-000000009999',
+    });
+    const rebuiltPackages = new ContentPackageService({
+      db: state.db, artifactStore: state.artifacts, attempts: changedAttempts, campaigns: state.campaigns, insights: state.insights,
+      catalog: state.catalog, prompts: state.prompts, library: state.library, brands: state.brands, media: state.media,
+      ideas: state.ideas, now: state.now,
+    });
+    const replayed = await rebuiltPackages.readPackage(packageId);
+    assert.deepEqual([
+      replayed.caption[0]!.providerModel,
+      replayed.poster[0]!.providerModel,
+      changedAttempts.list({ targetType: 'content_caption', targetId: packageId, limit: 10 }).find((attempt) => attempt.attemptId === captionExecution.attemptId)!.providerModel,
+      changedAttempts.list({ targetType: 'content_poster', targetId: packageId, limit: 10 }).find((attempt) => attempt.attemptId === posterExecution.attemptId)!.providerModel,
+    ], ['gemini-3.8-flash-high', 'gemini-3.1-flash-image', 'gemini-3.8-flash-high', 'gemini-3.1-flash-image']);
   } finally { state.close(); }
 });
 

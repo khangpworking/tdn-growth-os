@@ -14,6 +14,7 @@ export interface ContentPackageVersionArtifact {
   requestId: string;
   requestSha256: string;
   attemptId?: string;
+  providerModel?: string;
   inputBundleSha256?: string;
   outputSha256?: string;
   restoredFromVersion?: number;

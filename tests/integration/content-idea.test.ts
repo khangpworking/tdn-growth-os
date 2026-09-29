@@ -5,6 +5,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { createFakeCreativeGateway, type FakeCreativeCall, type FakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
+import { CREATIVE_MODEL_ROUTES, type CreativeModelRoutes } from '../../src/platform/ai/creative-ai-gateway.js';
 import { ContentBrandService } from '../../src/modules/flow/content-brand-service.js';
 import { ContentCampaignService } from '../../src/modules/flow/content-campaign-service.js';
 import { ContentCatalogService } from '../../src/modules/flow/content-catalog-service.js';
@@ -23,6 +24,7 @@ import { ContentInsightService } from '../../src/modules/flow/content-insight-se
 import { ContentPromptLibrary } from '../../src/modules/flow/content-prompt-library.js';
 import { ContentPromptService } from '../../src/modules/flow/content-prompt-service.js';
 import { createContentAiAttemptService } from '../../src/modules/flow/content-ai-attempt-service.js';
+import { canonicalBytes, registerContentManifest } from '../../src/modules/flow/content-artifacts.js';
 import { FlowValidationError } from '../../src/modules/flow/validation.js';
 import { openDatabase } from '../../src/platform/db/database.js';
 
@@ -124,9 +126,9 @@ function count(db: ReturnType<typeof openDatabase>['db'], table: string): number
 const bigOutput = (suffix: string) => ({ concept: `Synthetic concept ${suffix}`, expression: `Synthetic expression ${suffix}` });
 const angleOutput = (suffix: string) => ({ name: `Synthetic angle ${suffix}`, concept: `Synthetic angle concept ${suffix}` });
 
-test('Big Idea generation stores a verified artifact and succeeded text attempt, with exact request retry', async () => {
+test('Big Idea generation preserves the product model in the artifact and attempt, with exact request retry', async () => {
   const state = await setup({ outputs: [bigOutput('one')] });
-  const input = bigRequest(id(10));
+  const input = bigRequest(id(10), { model: 'gemini-3.5-flash-low' });
   const first = await state.ideas.generate(input, 'owner:050b');
   assert.equal(first.ideaId, contentIdeaIdFor(input.requestId));
   assert.deepEqual([first.kind, first.code, first.deduplicated], ['BIG_IDEA', 'A', false]);
@@ -139,8 +141,44 @@ test('Big Idea generation stores a verified artifact and succeeded text attempt,
   assert.deepEqual([artifact.kind, artifact.insightVersion, artifact.output], ['BIG_IDEA', 1, bigOutput('one')]);
   const attempt = state.attempts.list({ targetId: first.ideaId, limit: 10 })[0];
   assert.ok(attempt);
-  assert.deepEqual([attempt.targetType, attempt.modality, attempt.state, attempt.outputSha256 !== null], ['content_big_idea', 'text', 'succeeded', true]);
-  assert.match((state.gateway.calls.find((call) => call.operation === 'generateText') as { request: { userInput: string } }).request.userInput, /LOCKED_INPUT_JSON/);
+  assert.deepEqual([attempt.targetType, attempt.modality, attempt.state, attempt.model, attempt.providerModel, attempt.outputSha256 !== null], ['content_big_idea', 'text', 'succeeded', input.model, 'gemini-3.8-flash-high', true]);
+  const generationCall = state.gateway.calls.find((call) => call.operation === 'generateText') as { request: { model: string; userInput: string } };
+  assert.ok(generationCall);
+  assert.equal(generationCall.request.model, input.model);
+  assert.equal(artifact.model, input.model);
+  assert.equal(artifact.providerModel, 'gemini-3.8-flash-high');
+  assert.match(generationCall.request.userInput, /LOCKED_INPUT_JSON/);
+
+  const replay = await state.ideas.readIdea(first.ideaId);
+  assert.deepEqual([replay.model, replay.providerModel], [input.model, 'gemini-3.8-flash-high']);
+
+  const changedRoutes: CreativeModelRoutes = {
+    ...CREATIVE_MODEL_ROUTES,
+    'gemini-3.5-flash-low': { ...CREATIVE_MODEL_ROUTES['gemini-3.5-flash-low'], providerModelId: 'gemini-9.9-flash' },
+  };
+  const changedGateway = createFakeCreativeGateway({ routes: changedRoutes });
+  const changedAttempts = createContentAiAttemptService({
+    db: state.db, gateway: changedGateway, artifactRoot: path.join(state.root, 'artifacts'), clock: state.now,
+    newId: () => id(9001),
+  });
+  const rebuiltIdeas = new ContentIdeaService({
+    db: state.db, artifactStore: state.artifacts, attempts: changedAttempts, campaigns: state.campaigns, insights: state.insights,
+    catalog: state.catalog, prompts: state.prompts, library: state.library, now: state.now,
+  });
+  const replayedAfterRouteChange = await rebuiltIdeas.readIdea(first.ideaId);
+  const replayedGenerationAfterRouteChange = await rebuiltIdeas.generate(input, 'owner:050b');
+  assert.equal(replayedGenerationAfterRouteChange.deduplicated, true);
+  assert.equal(changedGateway.calls.length, 0);
+  const attemptAfterRouteChange = changedAttempts.list({ targetId: first.ideaId, limit: 10 })[0];
+  assert.ok(attemptAfterRouteChange);
+  assert.deepEqual([replayedAfterRouteChange.providerModel, attemptAfterRouteChange.providerModel], ['gemini-3.8-flash-high', 'gemini-3.8-flash-high']);
+
+  const tamperedArtifact = { ...replayedAfterRouteChange, providerModel: 'gemini-9.9-flash' };
+  const tamperedStored = await state.artifacts.put(canonicalBytes(tamperedArtifact));
+  registerContentManifest(state.db, tamperedStored, state.now().toISOString(), 'application/json');
+  state.db.exec('DROP TRIGGER flow_content_ideas_no_update');
+  state.db.prepare('UPDATE flow_content_ideas SET idea_artifact_sha256 = ? WHERE idea_id = ?').run(tamperedStored.sha256, first.ideaId);
+  await assert.rejects(rebuiltIdeas.readIdea(first.ideaId), ContentIdeaIntegrityError);
   state.db.close();
 });
 

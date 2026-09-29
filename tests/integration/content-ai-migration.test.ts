@@ -32,6 +32,7 @@ type AttemptOverrides = Partial<{
   target_type: string | null;
   target_id: string | null;
   model: string | null;
+  provider_model: string | null;
   prompt_ref: string | null;
   input_bundle_sha256: string | null;
   output_sha256: string | null;
@@ -51,7 +52,7 @@ type AttemptOverrides = Partial<{
 function row(number: number, overrides: AttemptOverrides = {}): Record<string, unknown> {
   return {
     attempt_id: attemptId(number), kind: 'generate', modality: 'text', target_type: 'campaign', target_id: `target-${number}`,
-    model: 'gpt-5.6-sol', prompt_ref: 'prompt:1', input_bundle_sha256: inputSha, output_sha256: null,
+    model: 'gpt-5.6-sol', provider_model: 'gpt-5.6-sol', prompt_ref: 'prompt:1', input_bundle_sha256: inputSha, output_sha256: null,
     planned_action_call_count: 1, state: 'running', error_code: null, retry_of: null, actor_id: 'owner:local',
     created_at: createdAt, closed_at: null, latency_ms: null, provider_request_id: null, input_tokens: null, output_tokens: null,
     ...overrides,
@@ -64,9 +65,9 @@ function insert(db: ReturnType<typeof setup>['db'], values: Record<string, unkno
   db.prepare(sql).run(...columns.map((column) => values[column]));
 }
 
-test('migration 0025/0028 creates the audit table, active-target claim and strict legal output-state matrix', () => {
+test('migration 0025/0028/0034 creates the audit table, active-target claim and strict legal output-state matrix', () => {
   const state = setup();
-  assert.equal(state.migration.currentVersion, 33);
+  assert.equal(state.migration.currentVersion, 34);
   assert.deepEqual(state.db.prepare("SELECT name FROM sqlite_master WHERE type='index' AND name LIKE 'flow_content_ai_attempts%' ORDER BY name").all(), [
     { name: 'flow_content_ai_attempts_active_target' },
     { name: 'flow_content_ai_attempts_by_target' },
@@ -129,8 +130,8 @@ test('direct SQL enforces start-only inserts, duplicate protection, immutable cl
   assert.throws(() => insert(state.db, row(19, { state: 'succeeded', closed_at: closedAt, output_sha256: outputSha })), /flow_content_ai_attempt_must_start_running/);
   assert.throws(() => insert(state.db, row(20, { state: 'running' })), /flow_content_ai_attempt_exists/);
   assert.throws(() => state.db.prepare(`INSERT OR REPLACE INTO flow_content_ai_attempts
-    (attempt_id, kind, modality, target_type, target_id, model, prompt_ref, input_bundle_sha256, planned_action_call_count, state, actor_id, created_at)
-    VALUES (?, 'generate', 'text', 'campaign', 'replacement', 'gpt-5.6-sol', 'prompt:replacement', ?, 1, 'running', 'owner:local', ?)`)
+    (attempt_id, kind, modality, target_type, target_id, model, provider_model, prompt_ref, input_bundle_sha256, planned_action_call_count, state, actor_id, created_at)
+    VALUES (?, 'generate', 'text', 'campaign', 'replacement', 'gpt-5.6-sol', 'gpt-5.6-sol', 'prompt:replacement', ?, 1, 'running', 'owner:local', ?)`)
     .run(attemptId(20), inputSha, createdAt), /flow_content_ai_attempt_exists/);
   assert.deepEqual(state.db.prepare('SELECT * FROM flow_content_ai_attempts WHERE attempt_id=?').get(attemptId(20)), before);
   assert.throws(() => state.db.prepare(`UPDATE flow_content_ai_attempts SET state='running', closed_at=NULL, error_code=NULL, output_sha256=NULL WHERE attempt_id=?`).run(attemptId(20)), /flow_content_ai_attempt_close_invalid/);
@@ -147,6 +148,44 @@ test('direct SQL enforces start-only inserts, duplicate protection, immutable cl
   insert(state.db, row(24, { target_id: 'same-target', retry_of: attemptId(23) }));
   assert.throws(() => state.db.prepare(`UPDATE flow_content_ai_attempts SET state='failed', error_code='network_error', closed_at=?, retry_of=NULL WHERE attempt_id=?`).run(closedAt, attemptId(24)), /flow_content_ai_attempt_close_invalid/);
   state.db.close();
+});
+
+test('migration 0034 requires a valid provider model for new rows and preserves legacy NULL provenance', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-content-ai-provider-model-migration-')); roots.push(root);
+  const directory = path.join(root, 'migrations'); fs.mkdirSync(directory);
+  const prior = fs.readdirSync('migrations').filter((name) => /^00(?:0[1-9]|1[0-9]|2[0-9]|3[0-3])_/.test(name)).sort();
+  assert.equal(prior.length, 33);
+  for (const name of prior) fs.copyFileSync(path.join('migrations', name), path.join(directory, name));
+
+  const databasePath = path.join(root, 'db.sqlite');
+  const v33 = openDatabase({ databasePath, migrationsDirectory: directory });
+  assert.equal(v33.migration.currentVersion, 33);
+  const legacy = row(40);
+  delete legacy.provider_model;
+  insert(v33.db, legacy);
+  v33.db.close();
+
+  fs.copyFileSync('migrations/0034_flow_content_ai_provider_model.sql', path.join(directory, '0034_flow_content_ai_provider_model.sql'));
+  const v34 = openDatabase({ databasePath, migrationsDirectory: directory });
+  assert.deepEqual(v34.migration.applied, [34]);
+  assert.equal(v34.migration.currentVersion, 34);
+  assert.deepEqual(v34.db.prepare('SELECT model, provider_model providerModel FROM flow_content_ai_attempts WHERE attempt_id = ?').get(attemptId(40)), {
+    model: 'gpt-5.6-sol', providerModel: null,
+  });
+
+  const missing = row(41, { target_id: 'missing-provider' });
+  delete missing.provider_model;
+  assert.throws(() => insert(v34.db, missing), /flow_content_ai_attempt_provider_model_required/);
+
+  insert(v34.db, row(42, { target_id: 'immutable-provider' }));
+  assert.throws(() => v34.db.prepare('UPDATE flow_content_ai_attempts SET provider_model = ? WHERE attempt_id = ?').run('gpt-5.6-luna', attemptId(42)), /flow_content_ai_attempt_provider_model_immutable/);
+  assert.throws(() => v34.db.prepare('UPDATE flow_content_ai_attempts SET provider_model = ? WHERE attempt_id = ?').run('gpt-5.6-sol', attemptId(40)), /flow_content_ai_attempt_provider_model_immutable/);
+
+  const invalidProviderModels = [[43, 'bad/id'], [44, ''], [45, 'a'.repeat(129)]] as const;
+  for (const [number, providerModel] of invalidProviderModels) {
+    assert.throws(() => insert(v34.db, row(number, { target_id: `bad-provider-${number}`, provider_model: providerModel })), /CHECK constraint failed/);
+  }
+  v34.db.close();
 });
 
 test('timestamps, identifiers, NULL-safe retry identity, and all retry parent states are guarded at SQL boundaries', () => {

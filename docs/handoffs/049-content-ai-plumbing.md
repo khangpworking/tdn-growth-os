@@ -19,7 +19,7 @@ Evidence: see “Test results” below.
 
 ## To verify in Task 053 (first real calls)
 
-- **Model ids are provisional.** Each route maps the product id to the same provider id (`gpt-5.6-sol`, `gpt-5.6-luna`, `gemini-3.5-flash-low`, `gpt-image-2`, `gemini-3.1-flash-image`). Confirm against CLIProxy's `/v1/models`.
+- **Model ids are provisional.** Each route maps the product id to the same provider id (`gpt-5.6-sol`, `gpt-5.6-luna`, `gemini-3.5-flash-low`, `gpt-image-2`, `gemini-3.1-flash-image`). Verified against the Fedora CLIProxy `/v1/models` on 2026-09-28: all present except `gemini-3.5-flash-low`, which now routes to `gemini-3.8-flash-high` (owner decision; product id unchanged because migration 0025 enforces it). Migration 0034 records the exact provider model on every attempt (`provider_model`, immutable); idea and generated package artifacts carry it and replay verifies it, so a later route change never reinterprets a past attempt. The idea and package-version artifact contracts gained `providerModel` while still at `contractVersion` 1.0.0 (owner decision: unreleased, no persisted artifacts or consumers); 1.0.0 is frozen once PR #68 merges, and any later change needs a new version.
 - **Multi-reference GPT Image 2 edits** send repeated `image[]` fields (`source-<i>.png|jpg`). One reference uses the old runner's single `image` field. The multi-reference form is unverified against CLIProxy.
 - **Gemini auth** sends both `Authorization: Bearer` and `x-goog-api-key`, copied from the old runner. Confirm CLIProxy accepts both.
 - **Decoded image output is capped at 8 MiB** (the old runner allowed 20 MiB) because `inspectContentImage` caps PHOTO images at 8 MiB. Measure real output sizes.

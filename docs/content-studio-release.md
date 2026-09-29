@@ -48,7 +48,7 @@ The release is accepted when all of these hold on the Fedora operator with fresh
 5. **Caption & Poster.** Created for one or many Angles from one screen. Style and length follow the cascade. Display rules resolve with the highest level winning; “Ẩn” values never reach the model. The contact footer is appended by the system. The brand-fact checklist is shown. The Poster uses the ticked product photos and logo as references (product photo first if only one reference is accepted).
 6. **Integrity.** Every package references the exact brand revision, catalog snapshot and prompt versions it used. Every AI call is an attempt record; a restart turns `running` into `interrupted`; nothing retries automatically.
 7. **Safety and scope.** OWNER only; no social publishing, no video, no daily AI limits. Uploaded media is validated and only served back through safe preview headers. Deletes are soft and restorable for 30 days.
-8. **Qualification.** Linux CI green on the release commit. Owner-authorized live checks on Fedora (053) pass for each selected text and image model, including the multi-reference check. The runbook covers migrations 0021+ and the startup sweep.
+8. **Qualification.** Linux CI green on the release commit. Owner-authorized live checks on Fedora (053) pass for each selected text and image model. Posters send one reference (the first ticked product photo); a multi-reference check waits for a later code PR that raises `POSTER_MAX_REFERENCES` (owner, 2026-09-29). The runbook covers migrations 0021+ and the startup sweep.
 
 ## 4. What blocks the release today
 
