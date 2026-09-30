@@ -138,7 +138,7 @@ const integerOf = (text: string): bigint | null => /^-?\d+$/.test(text) ? BigInt
 const basisText = (basisPoints: number): string => `${Math.floor(basisPoints / 100)}.${String(basisPoints % 100).padStart(2, '0')}%`;
 const ratioBasis = (value: bigint, max: bigint): number => max <= 0n || value < 0n ? 0 : Number(value * 10000n / max);
 
-/** A zero or unknown value draws no fill; a positive value always keeps a visible minimum width. */
+/** Zero and unknown draw no fill; positive widths preserve the calculated proportion. */
 function track(basisPoints: number | null, variant = ''): string {
   const fill = basisPoints !== null && Number.isInteger(basisPoints) && basisPoints > 0
     ? `<i style="width:${basisText(Math.min(basisPoints, 10000))}"></i>` : '';

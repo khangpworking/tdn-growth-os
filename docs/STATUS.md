@@ -1,6 +1,6 @@
 # Trạng thái hiện tại
 
-## Research A42: wave 1 implementation, Linux validation pending
+## Research A42: wave 1 implemented and Linux-verified, draft PR #101
 
 The owner requested efficient implementation with the earliest usable web
 release and confirmed Fedora localhost first, domain later. The detailed plan
@@ -15,7 +15,11 @@ presentation dispatch, retained method evidence and content identity.
 All 30 sections are visible, but missing inputs and unimplemented methods
 remain explicit. The four-method descriptor is currently available through
 the report request/CLI, not synthesized or selected by the initial web picker.
-Linux CI and visual acceptance are pending. No Windows execution occurred.
+Linux check 36765488051 passed with 657 backend and 182 frontend tests,
+typechecks, contract checks and build. Browser preview 36765488049 passed;
+independent visual confirmation accepted the four scoped finish corrections.
+Draft PR #101 remains dependent on #100. Live-input acceptance and the
+remaining method waves are not complete. No Windows execution occurred.
 GitHub main and open research PRs were inspected read-only on 2026-10-01.
 No merge, runtime activation, production migration or provider call occurred.
 

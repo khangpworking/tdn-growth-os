@@ -271,3 +271,53 @@ export const REPORT_KIT_RENDERER_VERSION = 'report-kit-html-vi-v1';
 - Scope rules shown on the page: ALL/WIDE/CORE are overlapping filter scopes, not top-shop or origin labels and not additive; ratios need a frozen complete denominator; UNKNOWN is retained and excluded from WIDE per the frozen policy; partial inventories never imply the whole market or causality. No C0-C3/P0-P3, no confidence score, no default KPI values, no journey fill (no journey component exists because there is no source contract).
 
 Static risks, not compiled or run: type errors in the new files; test regexes depend on fixture data; a positive ratio that rounds to 0 basis points draws no fill (the value is still printed); `#charts` exists only when M03 is PARTIAL.
+
+## 11. Finish documentation: approved report extension (2026-10-01)
+
+Static consistency inspection of `report-kit-html.ts`, `report-kit-theme.ts`,
+`report-kit-fonts.ts` and `report-section-pages.ts` confirms the inherited report
+direction: Market keeps navy `#232E7A`, blue `#3F4FC1`, yellow `#FFC800`, white
+sheets and framed chart cards; Insight keeps pale `#F3F6FA`, navy `#0B2A5C`, cyan
+`#059ED9`, orange `#F7931E` and rounded panels. Bundled Montserrat 400/700 covers
+Latin, Latin Extended and Vietnamese; the theme retains its 15px/1.6 body and
+responsive headline scale. These choices carry the owner's approved bulletin
+and insight layouts into the existing retained-report renderer.
+
+The finish preserves that identity with bounded readability and layout changes:
+
+- Cover TOC text uses `#FFDE59`; the Insight header label uses `#B5E8FA` as
+  minimal accessible text variants. The Insight wordmark has a fixed navy
+  backdrop, so its text does not depend on the decorative gradient underneath.
+- At 900px and below, the cover stacks and the blue background belongs to the
+  actual TOC region; diagonal cover decoration is removed. Two-column content
+  uses `minmax(0,1fr)`, cards can shrink with `min-width:0`, and wide evidence
+  tables keep their labelled, keyboard-focusable scroll regions.
+- Proportional and signed bars have no artificial minimum width. Source values
+  remain printed when a small positive ratio rounds to zero basis points;
+  zero and unavailable values do not acquire a fabricated fill.
+- Supporting text inside `dd small` starts on a separate line, matching table
+  metadata and keeping quote values distinct from their exact-value notes.
+
+Source data, item counts and wording may change without filling absent slots,
+inventing chart marks or forcing evidence into fixed page boxes. The existing
+app `DESIGN.md` describes a separate operator-shell context; its tokens and the
+approved report world are not drift to repair or a replacement design system.
+`PRODUCT.md`, `DESIGN.md` and `.impeccable/design.json` remain unchanged. Earlier
+worker notes above remain historical context. This is a source inspection only:
+Linux browser verification of rendering, contrast, keyboard use and responsive
+overflow is pending; no visual PASS is claimed, and no Windows tests, typecheck,
+build or browser verification were run for this finish note.
+
+### Coordinator confirmation after the static note
+
+Linux preview 36765488049 on `a3687fe74591f32fcb31831584f6ab00469d1e24`
+subsequently passed. Independent confirmation reviewed the new desktop/mobile
+captures and scored all four material corrections resolved, with disposition
+`ship` for those fixes. Document widths fit both viewports; metadata and chart
+geometry remain readable and truthful. The lighter text tints and fixed navy
+brand backdrop preserve the approved direction. Gradient readability was
+visually reviewed, not automatically contrast-certified. Interaction evidence
+records no page errors, 343 actions per viewport, exact-byte evidence access,
+keyboard activation and visible focus. Long screenshots are bounded to 8,000px
+and complemented by section captures. See the A42 wave 1 handoff for complete
+check links and release limits. No Windows execution was used.

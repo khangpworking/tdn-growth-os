@@ -320,7 +320,7 @@ vi nghiệp vụ; không thay thế code review, CI hoặc nghiệm thu dữ li�
 Kiểm tra tài liệu xác nhận mỗi ID M01-M13/I01-I17 xuất hiện đúng một lần trong
 bảng phân nhóm, các link nội bộ tồn tại và tám file A41 giữ nguyên hash đã duyệt.
 
-## 13. Wave 1 đang triển khai — 2026-10-01
+## 13. Wave 1 đã triển khai và kiểm tra Linux — 2026-10-01
 
 Một nhánh tích hợp `feature/research-a42-live-report-wave1`, ba lane sở hữu
 file độc lập, không có ba agent cùng sửa một file:
@@ -352,3 +352,11 @@ Không chạy test, typecheck, build hoặc browser trên Windows. Contract gene
 và kiểm tra diff tĩnh được thực hiện ở đây; bằng chứng thực thi lấy từ Linux CI.
 Chưa được merge/deploy chỉ vì agent báo hoàn thành. Fedora localhost phải qua
 release review và quyền activation cho đúng commit, giữ DB/artifacts hiện hữu.
+
+Kết quả wave 1: draft PR #101, phụ thuộc #100. Check Linux 36765488051
+qua 657 backend tests, 182 frontend tests, typecheck/build/contract checks;
+preview 36765488049 qua desktop/mobile và thao tác mở bằng chứng. Independent
+finish review chấp nhận bốn sửa lỗi đã nêu, không đổi thiết kế owner đã duyệt.
+Chi tiết giới hạn và evidence ở `docs/handoffs/research-a42-wave1-integration.md`.
+Wave tiếp theo vẫn phải code hóa qualitative/corpus methods và nối đầu vào thật;
+30 mục có mặt trong HTML không đồng nghĩa 30 mục đã được thực thi.
