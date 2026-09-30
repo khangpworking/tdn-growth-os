@@ -76,13 +76,19 @@ function fixture() {
       { ordinal: 4, role: 'tabletQuoteInput', logicalPath: 'quote/input.json', sha256: digest('quote-input') },
     ],
   };
-  return { record, packet, files };
+  const projection = {
+    state: 'PRESENT' as const,
+    normalizedInputSha256: sha256(inputBytes),
+    rowCount: input.records.length,
+    sourceCount: input.sources.length,
+  };
+  return { record, packet, files, projection };
 }
 
 test('classifies every catalog input with exact evidence, optional semantics and fail-closed corruption', () => {
-  const { record, packet, files } = fixture();
+  const { record, packet, files, projection } = fixture();
   const inputIds = [...new Set(catalog.sections.flatMap(section => section.requiredInputs))];
-  const checks = buildReportInputReadiness(record, packet, inputIds, files);
+  const checks = buildReportInputReadiness(record, packet, inputIds, files, projection);
   const byId = new Map(checks.map(check => [check.inputId, check]));
 
   assert.equal(inputIds.length, 30);
@@ -91,6 +97,10 @@ test('classifies every catalog input with exact evidence, optional semantics and
     kind: 'REPORT_ARTIFACT', locator: 'source-package-manifest.json', sha256: record.sourcePackageManifestSha256,
   }]);
   assert.equal(byId.get('normalized-metric-rows')?.state, 'PRESENT');
+  assert.deepEqual(byId.get('normalized-metric-rows')?.evidenceRefs.map(reference => reference.locator), [
+    'normalized-input.json',
+    `/analysis_metric_dataset_origins/${record.reportId}/${record.version}`,
+  ]);
   assert.equal(byId.get('verified-method-artifacts')?.evidenceRefs.length, 3);
   assert.equal(byId.get('resolved-fact-claim-pointers')?.state, 'PRESENT');
   assert.equal(byId.get('owner-question')?.state, 'ABSENT');
@@ -119,13 +129,19 @@ test('classifies every catalog input with exact evidence, optional semantics and
   const filesWithoutCount = new Map(files).set('m08-tablet-quote-method.json', m08WithoutCount);
   const optional = buildReportInputReadiness(recordWithoutCount, packetWithoutCount, [
     'explicit-price-state-and-observation-time', 'optional-owner-declared-tablet-count',
-  ], filesWithoutCount);
+  ], filesWithoutCount, projection);
   assert.deepEqual(optional.map(check => [check.state, check.blocking, check.codes[0]]), [
     ['ABSENT', true, 'OBSERVATION_TIME_UNKNOWN'],
     ['ABSENT', false, 'OWNER_DECLARED_TABLET_COUNT_NOT_RECORDED'],
   ]);
 
   const corruptFiles = new Map(files).set('m13-provenance-appendix.json', Buffer.from('changed'));
-  assert.equal(buildReportInputReadiness(record, packet, ['verified-locators'], corruptFiles)[0]?.state, 'INVALID');
-  assert.throws(() => buildReportInputReadiness(record, packet, ['future-unregistered-input'], files), /UNKNOWN_INPUT_ID/);
+  assert.equal(buildReportInputReadiness(record, packet, ['verified-locators'], corruptFiles, projection)[0]?.state, 'INVALID');
+  assert.equal(buildReportInputReadiness(record, packet, ['normalized-metric-rows'], files, {
+    state: 'ABSENT', normalizedInputSha256: projection.normalizedInputSha256,
+  })[0]?.codes[0], 'QUERYABLE_NORMALIZED_ROWS_NOT_BOUND');
+  assert.equal(buildReportInputReadiness(record, packet, ['normalized-metric-rows'], files, {
+    state: 'INVALID', normalizedInputSha256: projection.normalizedInputSha256,
+  })[0]?.state, 'INVALID');
+  assert.throws(() => buildReportInputReadiness(record, packet, ['future-unregistered-input'], files, projection), /UNKNOWN_INPUT_ID/);
 });

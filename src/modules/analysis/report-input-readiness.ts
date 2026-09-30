@@ -21,12 +21,18 @@ export interface ReportInputCheck {
   readonly evidenceRefs: readonly ReportInputEvidenceRef[];
 }
 
+export type NormalizedProjectionReadiness =
+  | { readonly state: 'PRESENT'; readonly normalizedInputSha256: string; readonly rowCount: number; readonly sourceCount: number }
+  | { readonly state: 'ABSENT'; readonly normalizedInputSha256: string }
+  | { readonly state: 'INVALID'; readonly normalizedInputSha256: string };
+
 interface ReadinessContext {
   readonly record: ReportVersionRecord;
   readonly packet: VersionedReportPacket;
   readonly artifacts: ReadonlyMap<string, { readonly sha256: string }>;
   readonly files: ReadonlyMap<string, Uint8Array>;
   readonly sections: ReadonlyMap<string, SectionPacket>;
+  readonly normalizedProjection: NormalizedProjectionReadiness;
 }
 
 type Evaluator = (context: ReadinessContext) => ReportInputCheck;
@@ -103,12 +109,25 @@ function normalizedMetricRows(context: ReadinessContext): ReportInputCheck {
   const artifact = artifactCheck(context, 'normalized-input.json');
   if (artifact.state === 'ABSENT') return result('normalized-metric-rows', 'ABSENT', ['NORMALIZED_ROWS_NOT_BOUND']);
   if (artifact.state === 'INVALID') return result('normalized-metric-rows', 'INVALID', ['ARTIFACT_BYTES_MISSING_OR_MISMATCHED'], [artifact.ref]);
+  const projectionRef = recordRef(
+    `/analysis_metric_dataset_origins/${context.record.reportId}/${context.record.version}`,
+    context.normalizedProjection.normalizedInputSha256,
+  );
+  if (context.normalizedProjection.state === 'ABSENT') {
+    return result('normalized-metric-rows', 'ABSENT', ['QUERYABLE_NORMALIZED_ROWS_NOT_BOUND'], [artifact.ref]);
+  }
+  if (context.normalizedProjection.state === 'INVALID') {
+    return result('normalized-metric-rows', 'INVALID', ['QUERYABLE_NORMALIZED_ROWS_INVALID'], [artifact.ref, projectionRef]);
+  }
+  if (context.normalizedProjection.normalizedInputSha256 !== artifact.ref.sha256) {
+    return result('normalized-metric-rows', 'INVALID', ['QUERYABLE_NORMALIZED_ROWS_DIGEST_MISMATCH'], [artifact.ref, projectionRef]);
+  }
   let parsed: unknown;
   try { parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(artifact.bytes)); }
   catch { return result('normalized-metric-rows', 'INVALID', ['NORMALIZED_INPUT_INVALID_JSON'], [artifact.ref]); }
   const contentSha256 = createHash('sha256').update(canonicalJson(parsed)).digest('hex');
   return contentSha256 === context.packet.inputSha256
-    ? result('normalized-metric-rows', 'PRESENT', ['NORMALIZED_ROWS_BOUND'], [artifact.ref])
+    ? result('normalized-metric-rows', 'PRESENT', ['QUERYABLE_NORMALIZED_ROWS_REPLAYED'], [artifact.ref, projectionRef])
     : result('normalized-metric-rows', 'INVALID', ['NORMALIZED_INPUT_CONTENT_DIGEST_MISMATCH'], [artifact.ref]);
 }
 
@@ -243,6 +262,7 @@ export function buildReportInputReadiness(
   packet: VersionedReportPacket,
   requiredInputs: readonly string[],
   files: ReadonlyMap<string, Uint8Array>,
+  normalizedProjection: NormalizedProjectionReadiness,
 ): readonly ReportInputCheck[] {
   const context: ReadinessContext = {
     record,
@@ -250,6 +270,7 @@ export function buildReportInputReadiness(
     artifacts: new Map(record.artifacts.map(artifact => [artifact.fileName, artifact])),
     files,
     sections: new Map(packet.sections.map(section => [section.sectionId, section])),
+    normalizedProjection,
   };
   return requiredInputs.map(inputId => {
     const evaluate = evaluators[inputId];

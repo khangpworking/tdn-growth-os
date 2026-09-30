@@ -642,3 +642,15 @@ are not falsely reported as present. The read API and Vietnamese operator UI
 expose this without a new route, write, provider call, AI call, owner action or
 section. Deterministic coverage remains 7/30; Linux CI and report preview are
 the release gates.
+
+## Research A29: readiness requires the exact SQLite projection (implementation)
+
+The A28 `normalized-metric-rows` prerequisite now depends on A12's verified,
+row-queryable SQLite projection for the exact report ID/version. Artifact bytes
+alone no longer make that input present. A missing dataset origin is `ABSENT`;
+projection, membership, lineage or byte drift is `INVALID`; a valid result
+cites both `normalized-input.json` and its exact dataset-origin record. The
+existing A12 schema and store remain authoritative, so A29 adds no migration,
+second ledger or duplicate row store. Deterministic coverage remains 7/30 and
+no new calculation, section, chart, AI interpretation or human decision is
+created.
