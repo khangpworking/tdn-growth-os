@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m03-factual-narrative.schema.json",
+  "title": "M03FactualNarrative",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "narrativeSha256", "request", "section", "dependencies", "language", "paragraphs", "status"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "narrativeSha256": { "$ref": "#/$defs/digest" },
+    "request": { "$ref": "m03-factual-narrative-request.schema.json" },
+    "section": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sectionId", "title"],
+      "properties": { "sectionId": { "const": "M03" }, "title": { "const": "Quy mô và diễn biến" } }
+    },
+    "dependencies": {
+      "type": "object", "additionalProperties": false,
+      "required": ["envelopeSha256", "metricSetSha256", "chartBundleSha256"],
+      "properties": {
+        "envelopeSha256": { "$ref": "#/$defs/digest" },
+        "metricSetSha256": { "$ref": "#/$defs/digest" },
+        "chartBundleSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "language": { "const": "vi" },
+    "paragraphs": {
+      "type": "array", "minItems": 6, "maxItems": 6,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["paragraphId", "kind", "text", "claimIds", "chartIds"],
+        "properties": {
+          "paragraphId": { "enum": ["scope-all", "scope-wide", "scope-core", "sensitivity-wide", "sensitivity-core", "limitations"] },
+          "kind": { "enum": ["FACT", "CAVEAT"] },
+          "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "claimIds": { "type": "array", "maxItems": 4, "items": { "type": "string", "maxLength": 100 } },
+          "chartIds": {
+            "type": "array", "maxItems": 3,
+            "items": { "enum": ["m03-observed-revenue-by-scope", "m03-observed-units-by-scope", "m03-membership-revenue-sensitivity"] }
+          }
+        }
+      }
+    },
+    "status": { "const": "DETERMINISTIC_FACTUAL_DRAFT_NOT_OWNER_APPROVED" }
+  },
+  "$defs": { "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

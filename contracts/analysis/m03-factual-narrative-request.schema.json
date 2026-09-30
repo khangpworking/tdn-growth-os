@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m03-factual-narrative-request.schema.json",
+  "title": "M03FactualNarrativeRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "sectionId", "rendererProfile", "envelopeSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "sectionId": { "const": "M03" },
+    "rendererProfile": { "const": "m03-factual-narrative-vi-v1" },
+    "envelopeSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

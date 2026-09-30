@@ -704,3 +704,10 @@ facts for a future narrative. Every fact carries an exact value or missing
 state, coverage, membership, pointer and chart reference. No AI or prose runs;
 the envelope only defines what a later author may cite and which unsupported
 claims are forbidden.
+
+## Research A35: deterministic M03 factual narrative (draft)
+
+A35 converts the exact A34 claims into six fixed Vietnamese paragraphs. Every
+numeric token must copy a cited claim value; missing remains missing and observed
+zero remains zero. The output is a deterministic draft, not an AI interpretation
+or OWNER-approved conclusion.

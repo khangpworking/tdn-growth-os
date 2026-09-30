@@ -638,3 +638,11 @@ membership và pointer. Mọi con số trong prose tương lai phải copy và c
 fact. Không cho phép claim về nhân quả, forecast, market share, sức khỏe, so
 sánh khác kỳ hoặc cộng các scope chồng lấp. A34 chưa gọi AI và chưa thay thế
 method nghiệp vụ do owner framework quản lý.
+
+### A35 — Phần factual narrative do code viết, không giao AI
+
+Mô tả số liệu M03 được render deterministic từ claim envelope. Cùng dependency
+bytes và version luôn cho cùng paragraphs. Mọi numeric token phải trùng một
+value của claim được cite; missing dùng câu “chưa đủ dữ liệu để tính”, không đổi
+thành zero. AI về sau chỉ bổ sung lớp interpretation/hypothesis tách biệt theo
+method nghiệp vụ, citation, validator và human review.

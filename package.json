@@ -20,6 +20,7 @@
     "research:metric:m03": "tsx scripts/calculate-m03-section-recipe.ts",
     "research:metric:m03:charts": "tsx scripts/build-m03-chart-bundle.ts",
     "research:metric:m03:evidence": "tsx scripts/build-m03-narrative-evidence.ts",
+    "research:metric:m03:narrative": "tsx scripts/render-m03-factual-narrative.ts",
     "research:metric:calculate": "tsx scripts/calculate-metric-scope.ts",
     "source-package:intake": "tsx scripts/intake-source-package.ts",
     "research:shopee": "tsx scripts/collect-shopee-reviews.ts",
