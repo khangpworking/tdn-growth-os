@@ -6,8 +6,9 @@
 - Parent: Research A27 head `7ccc7db630ca57d100d580083a64a2112ff17e9e`
 - Draft PR: #89 (`main` base for Linux verification; it includes unmerged A27 until PR #88 lands)
 - Implementation head: `882b55fc37b2e2b5b7c386dd1d29b28bbbb5b74c`
-- Linux Check: pending
-- Research report preview: pending
+- Verified implementation head: `e7894bd5eb4deeb4d70b8ca1bb25bb19c84738a4`
+- Linux Check: PASS, run `36675570267` (176/176 frontend and 602/602 repository tests)
+- Research report preview: PASS, run `36675570239` (5/5 focused integration tests, desktop/mobile/PDF artifact retained)
 
 ## Delivered scope
 
@@ -31,11 +32,11 @@
 
 ## Verification
 
-- Unit profile proof: pending Linux CI.
-- Exact-version API integration proof: pending Linux CI.
-- Mounted frontend readiness proof: pending Linux CI.
+- Unit profile proof: PASS in Linux Check.
+- Exact-version API integration proof: PASS in Linux Check.
+- Mounted frontend readiness proof: PASS in Linux Check.
 - Contract generation, strict TypeScript, production build and full repository
-  check: pending Linux CI.
-- Report preview and keyboard/desktop/mobile inspection: pending.
+  check: PASS in run `36675570267`.
+- Report preview and desktop/mobile/PDF capture: PASS in run `36675570239`.
 - Windows tests, builds and typechecks are not run and are not release
   evidence.
