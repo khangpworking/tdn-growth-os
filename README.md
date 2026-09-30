@@ -178,3 +178,14 @@ envelope and factual narrative into a single deterministic, self-contained
 Vietnamese HTML section outside Git. It refuses to overwrite an existing
 output file, writes it owner-only on systems that support file-mode bits,
 and makes zero AI, provider or database calls.
+
+`research:metric:m03:retain -- <database> <artifact-root> <metric-set.json> <metric-set-sha256> <chart-bundle.json> <chart-bundle-sha256> <evidence-envelope.json> <envelope-sha256> <factual-narrative.json> <narrative-sha256> <section-artifact.json> <section-artifact-sha256> <section-artifact.html> <html-sha256>`
+re-verifies the exact A32-A36 dependency chain and HTML bytes, then retains
+the A36 section artifact plus its six exact dependency artifacts as one
+immutable ledger row so a future report-version assembler can replay it
+without recalculating or re-prompting. It is layer-two retention only: no
+report version, interpretation, review target, approval, PDF, UI/API or
+deployment is created. Exact retries of identical bytes are mutation-free;
+reuse of the identity with changed bytes or metadata fails closed. The
+printed receipt never includes local file paths and reports zero AI or
+provider calls.

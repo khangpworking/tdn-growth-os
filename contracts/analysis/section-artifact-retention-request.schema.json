@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/section-artifact-retention-request.schema.json",
+  "title": "SectionArtifactRetentionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "sectionId",
+    "rendererProfile",
+    "metricSetSha256",
+    "chartBundleSha256",
+    "envelopeSha256",
+    "narrativeSha256",
+    "sectionArtifactSha256",
+    "htmlSha256"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "sectionId": { "const": "M03" },
+    "rendererProfile": { "const": "m03-section-artifact-html-vi-v1" },
+    "metricSetSha256": { "$ref": "#/$defs/digest" },
+    "chartBundleSha256": { "$ref": "#/$defs/digest" },
+    "envelopeSha256": { "$ref": "#/$defs/digest" },
+    "narrativeSha256": { "$ref": "#/$defs/digest" },
+    "sectionArtifactSha256": { "$ref": "#/$defs/digest" },
+    "htmlSha256": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}
