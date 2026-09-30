@@ -61,6 +61,27 @@ jobs:
           fi
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "Validation scope: $mode" >> "$GITHUB_STEP_SUMMARY"
+      # Temporary A42 regression proof; remove after recording the Linux run.
+      - name: Prove interrupted-publication regression on the reviewed implementation
+        if: github.event.pull_request.number == 101
+        shell: bash
+        run: |
+          target=src/modules/analysis/report-generation-service.ts
+          backup="$RUNNER_TEMP/a42-fixed-generation-service.ts"
+          log="$RUNNER_TEMP/a42-before-fix.log"
+          cp "$target" "$backup"
+          trap 'cp "$backup" "$target"' EXIT
+          git fetch --no-tags origin eaa79f2f750d2d67ca06b8917e94c2d0a33d462e
+          git show "eaa79f2f750d2d67ca06b8917e94c2d0a33d462e:$target" > "$target"
+          if node --import tsx --test --test-reporter=spec --test-name-pattern='a conflicting retry with unpublished request bytes' tests/integration/report-generation-service.test.ts > "$log" 2>&1; then
+            cat "$log"
+            echo 'Expected the reviewed implementation to violate the no-mutation assertion'
+            exit 1
+          fi
+          cat "$log"
+          grep -F 'A rejected selection must not add intermediate rows, manifests or artifact files' "$log"
+          cp "$backup" "$target"
+          node --import tsx --test --test-reporter=spec --test-name-pattern='a conflicting retry with unpublished request bytes' tests/integration/report-generation-service.test.ts
       - name: Run full integration checks
         if: steps.scope.outputs.mode == 'full'
         run: npm run check

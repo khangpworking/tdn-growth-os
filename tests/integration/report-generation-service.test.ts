@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import test from 'node:test';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { ReportGenerationService, ResearchGenerationIntegrityError } from '../../src/modules/analysis/report-generation-service.js';
-import { ReportVersionService } from '../../src/modules/analysis/report-version-service.js';
+import { ReportVersionService, ReportVersionIdentityConflictError } from '../../src/modules/analysis/report-version-service.js';
 import { SourcePackageService } from '../../src/modules/foundation/index.js';
 import { preparedReportFixture, mutationSnapshot, byteDigest } from '../helpers/prepared-report-fixture.js';
 
@@ -102,4 +102,49 @@ test('source corruption blocks generation without creating a report or replacing
   assert.deepEqual(await fs.readFile(workbook), damaged);
   assert.deepEqual(state.db.prepare('SELECT count(*) count FROM analysis_report_versions').get(), { count: 0n });
   assert.throws(() => new ReportGenerationService({ db: state.db, artifactStore: new RequestScopedArtifactStore(state.artifactRoot), ...state.dependencies, catalogBytes: Buffer.from('{}') }), ResearchGenerationIntegrityError);
+});
+
+test('a conflicting retry with unpublished request bytes cannot retain intermediate evidence, while the original request recovers', async t => {
+  const state = await preparedReportFixture();
+  t.after(state.cleanup);
+  class InterruptedReportPublication extends RequestScopedArtifactStore {
+    override async publishOwned(): Promise<void> {
+      if (state.db.prepare('SELECT report_id FROM analysis_report_versions').get()) {
+        throw new Error('Synthetic interrupted report publication');
+      }
+      await super.publishOwned();
+    }
+  }
+  const interrupted = generation(state, new InterruptedReportPublication(state.artifactRoot));
+  const workspaceId = state.sourceRequest.workspaceId;
+  const choices = (await interrupted.inputs(workspaceId)).choices;
+  const original = choices.find(item => item.workbookPath === 'metric/workbook-alias.xlsx' && item.labelsPath === null)!;
+  const changed = choices.find(item => item.workbookPath === original.workbookPath && item.labelsPath !== null)!;
+  const request = { contractVersion: '1.0.0', workspaceId, selectionId: original.selectionId, requestKey: '5e180210-427b-449f-8e91-bce475caed52' };
+  await assert.rejects(interrupted.create(request), /Synthetic interrupted report publication/);
+  const committed = state.db.prepare(`
+    SELECT report_id reportId, semantic_version_id semanticVersionId, request_artifact_sha256 requestSha256
+    FROM analysis_report_versions
+  `).get() as { reportId: string; semanticVersionId: string; requestSha256: string };
+  assert.ok(committed);
+  await assert.rejects(state.artifacts.read(committed.requestSha256), { code: 'ENOENT' });
+
+  const service = generation(state);
+  const before = mutationSnapshot(state);
+  await assert.rejects(service.create({ ...request, selectionId: changed.selectionId }), ReportVersionIdentityConflictError);
+  assert.deepEqual(mutationSnapshot(state), before, 'A rejected selection must not add intermediate rows, manifests or artifact files');
+  await assert.rejects(state.artifacts.read(committed.requestSha256), { code: 'ENOENT' });
+
+  const recovered = await service.create(request);
+  assert.equal(recovered.reportId, committed.reportId);
+  assert.equal(recovered.semanticVersionId, committed.semanticVersionId);
+  assert.equal(recovered.profile, 'source-backed-v1');
+  assert.equal(recovered.exactRetry, true);
+  const afterRecovery = mutationSnapshot(state);
+  assert.deepEqual(afterRecovery.changes, before.changes);
+  assert.deepEqual(afterRecovery.manifests, before.manifests);
+  const reader = new ReportVersionService({ db: state.db, artifactStore: state.artifacts, dependencies: state.dependencies });
+  const saved = JSON.parse((await reader.readArtifact(recovered.reportId, 1, 'create-request.json')).bytes.toString('utf8'));
+  assert.equal(saved.sourceRequest.workbookPath, original.workbookPath);
+  assert.equal(saved.sourceRequest.labelsPath, null);
 });

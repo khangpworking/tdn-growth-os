@@ -119,11 +119,11 @@ export class ReportGenerationService {
     const reportKey = `web-${request.requestKey}`;
     // Committed retries depend only on their pinned package, never global discovery.
     const existing = this.#db.prepare(`
-      SELECT source_package_id packageId, source_package_manifest_sha256 manifestSha256,
+      SELECT report_id reportId, source_package_id packageId, source_package_manifest_sha256 manifestSha256,
              workspace_id workspaceId, request_artifact_sha256 requestSha256
       FROM analysis_report_versions WHERE report_id =
         (SELECT report_id FROM analysis_report_series WHERE report_key = ?) AND version = 1
-    `).get(reportKey) as { packageId: string; manifestSha256: string; workspaceId: string; requestSha256: string } | undefined;
+    `).get(reportKey) as { reportId: string; packageId: string; manifestSha256: string; workspaceId: string; requestSha256: string } | undefined;
     let choices: readonly ResearchGenerationChoice[];
     if (existing) {
       if (existing.workspaceId !== request.workspaceId) {
@@ -138,7 +138,27 @@ export class ReportGenerationService {
         throw new ResearchGenerationIntegrityError('Committed source identity does not match its retained evidence');
       }
       choices = sourceChoices(source);
-      if (!choices.some(item => item.selectionId === request.selectionId)) {
+      const selected = choices.find(item => item.selectionId === request.selectionId);
+      if (!selected) {
+        throw new ReportVersionIdentityConflictError('Request key is already bound to another source selection');
+      }
+      // Source membership commits with the version even if its request bytes have not been published.
+      const committedSources = this.#db.prepare(`
+        SELECT role, logical_path logicalPath, source_sha256 sha256
+        FROM analysis_report_version_sources WHERE report_id = ? AND version = 1
+        UNION ALL
+        SELECT role, logical_path logicalPath, source_sha256 sha256
+        FROM analysis_report_version_supplemental_sources WHERE report_id = ? AND version = 1
+        ORDER BY role
+      `).all(existing.reportId, existing.reportId);
+      const selectedPaths = {
+        workbook: selected.workbookPath, manifest: selected.manifestPath,
+        ...(selected.labelsPath === null ? {} : { labels: selected.labelsPath }),
+      };
+      const selectedSources = Object.entries(selectedPaths).map(([role, logicalPath]) => ({
+        role, logicalPath, sha256: source.files.find(file => file.path === logicalPath)!.sha256,
+      })).sort((a, b) => a.role < b.role ? -1 : a.role > b.role ? 1 : 0);
+      if (canonicalJson(committedSources) !== canonicalJson(selectedSources)) {
         throw new ReportVersionIdentityConflictError('Request key is already bound to another source selection');
       }
     } else {

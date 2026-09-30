@@ -127,23 +127,33 @@ try {
     const state = JSON.parse(layout.result.value);
     if (state.scroll > state.width) throw new Error(`Horizontal overflow at ${width}: ${JSON.stringify(state)}`);
     const metrics = await call('Page.getLayoutMetrics');
-    const capture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
-      clip: { x: 0, y: 0, width, height: Math.ceil(metrics.cssContentSize.height), scale: 1 } });
-    await fs.writeFile(path.join(root, `${name}.png`), Buffer.from(capture.data, 'base64'), { mode: 0o600 });
+    const capturedHeight = Math.min(8000, Math.ceil(metrics.cssContentSize.height));
+    evidence.push({ name, ...state, height: metrics.cssContentSize.height, capturedHeight });
+    await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
     const first = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     await fs.writeFile(path.join(root, `${name}-first.png`), Buffer.from(first.data, 'base64'), { mode: 0o600 });
+    // Bound raster height for a thirty-section report. All controls are still
+    // exercised below; selected lower sections have separate viewport captures.
+    const capture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
+      clip: { x: 0, y: 0, width, height: capturedHeight, scale: 1 } });
+    await fs.writeFile(path.join(root, `${name}.png`), Buffer.from(capture.data, 'base64'), { mode: 0o600 });
+    for (const id of ['section-M03', 'section-M05', 'section-M07', 'section-I03', 'status']) {
+      const found = await evaluate(`(() => { const section = document.getElementById(${JSON.stringify(id)}); if (!section) return false; section.scrollIntoView({block:'start'}); return true; })()`);
+      if (!found) continue;
+      const sectionCapture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
+      await fs.writeFile(path.join(root, `${name}-${id}.png`), Buffer.from(sectionCapture.data, 'base64'), { mode: 0o600 });
+    }
+    await evaluate('window.scrollTo(0,0)');
     const assembly = await evaluate(`(() => {
       const panel = document.getElementById('assembly');
       if (!panel) return null;
       const rect = panel.getBoundingClientRect();
-      return {x:rect.x + scrollX,y:rect.y + scrollY,width:rect.width,height:rect.height,scale:1};
+      return {x:rect.x + scrollX,y:rect.y + scrollY,width:rect.width,height:Math.min(8000,rect.height),scale:1};
     })()`);
     if (assembly) {
       const panel = await call('Page.captureScreenshot', {format:'png',captureBeyondViewport:true,clip:assembly});
       await fs.writeFile(path.join(root, `${name}-assembly.png`), Buffer.from(panel.data, 'base64'), {mode:0o600});
     }
-    evidence.push({ name, ...state, height: metrics.cssContentSize.height });
-    await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
   }
   for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
