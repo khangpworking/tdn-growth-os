@@ -4,7 +4,8 @@
 
 - Branch: `feature/research-a28-input-readiness-gate`
 - Parent: Research A27 head `7ccc7db630ca57d100d580083a64a2112ff17e9e`
-- Draft PR: pending
+- Draft PR: #89 (`main` base for Linux verification; it includes unmerged A27 until PR #88 lands)
+- Implementation head: `882b55fc37b2e2b5b7c386dd1d29b28bbbb5b74c`
 - Linux Check: pending
 - Research report preview: pending
 
