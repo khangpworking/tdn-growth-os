@@ -21,6 +21,33 @@ const validateResult = ajv.compile<M03VerifiedMetricSet>(resultSchema);
 export class M03SectionRecipeValidationError extends Error {}
 export class M03SectionRecipeIntegrityError extends Error {}
 
+export function verifyM03VerifiedMetricSet(value: unknown, expectedSha256?: string): M03VerifiedMetricSet {
+  if (!validateResult(value)) throw new M03SectionRecipeIntegrityError('M03 metric set breaks its contract');
+  const result = JSON.parse(canonicalJson(value)) as M03VerifiedMetricSet;
+  const { metricSetSha256, ...content } = result;
+  if (digest(Buffer.from(canonicalJson(content), 'utf8')) !== metricSetSha256 ||
+      (expectedSha256 !== undefined && metricSetSha256 !== expectedSha256)) {
+    throw new M03SectionRecipeIntegrityError('M03 metric set identity does not match exact content');
+  }
+  if (result.request.preparationSha256 !== result.preparation.preparationSha256 ||
+      result.request.readinessSha256 !== result.readiness.readinessSha256 ||
+      result.request.catalogSha256 !== result.readiness.catalogSha256 ||
+      result.preparation.normalizedInputValueSha256 !== result.calculation.inputSha256 ||
+      canonicalJson(result.scopes.map(scope => scope.key)) !== canonicalJson(['all', 'wide', 'core']) ||
+      canonicalJson(result.comparisons.map(comparison => comparison.to)) !== canonicalJson(['wide', 'core']) ||
+      canonicalJson(result.limitations) !== canonicalJson([
+        'NORMALIZED_INPUT_ONLY',
+        'MISSING_VALUES_ARE_NOT_ZERO',
+        'ALL_WIDE_CORE_OVERLAP_AND_ARE_NOT_ADDITIVE',
+        'UNKNOWN_IS_RETAINED_IN_ALL_AND_EXCLUDED_FROM_WIDE',
+        'LISTING_IS_NOT_A_UNIQUE_PRODUCT',
+        'MEMBERSHIP_DIFFERENCE_IS_NOT_MARKET_GROWTH_OR_CAUSATION',
+      ])) {
+    throw new M03SectionRecipeIntegrityError('M03 metric set lineage or canonical ordering is inconsistent');
+  }
+  return result;
+}
+
 /**
  * Closed M03 calculation recipe. Chart and narrative consumers must bind to the
  * returned metricSetSha256 instead of recalculating or asking a model for numbers.
@@ -126,7 +153,7 @@ export class M03SectionRecipeService {
     if (!validateResult(result)) {
       throw new M03SectionRecipeIntegrityError(`M03 metric set breaks its contract: ${ajv.errorsText(validateResult.errors)}`);
     }
-    return JSON.parse(canonicalJson(result)) as M03VerifiedMetricSet;
+    return verifyM03VerifiedMetricSet(result, result.metricSetSha256);
   }
 }
 

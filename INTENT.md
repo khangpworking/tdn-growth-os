@@ -621,3 +621,11 @@ Chart và diễn giải AI ở bước sau phải cùng tham chiếu đúng `met
 không được tự tính lại hoặc tạo số mới. UNKNOWN được giữ trong ALL nhưng loại
 khỏi WIDE theo policy có version; ALL/WIDE/CORE chồng lấp và không được cộng.
 Missing không phải zero. Chênh membership không phải tăng trưởng hay nhân quả.
+
+### A33 — ChartSpec phải copy từ exact VerifiedMetricSet
+
+Chart M03 chỉ được tạo sau khi mở và kiểm tra đúng `metricSetSha256`. ChartSpec
+không đọc lại file nguồn, không tự tính lại và không nhận style/instruction tự
+do. Null phải hiển thị là thiếu, không đổi thành zero. ALL/WIDE/CORE không được
+stack hay cộng vì có membership chồng lấp; biểu đồ sensitivity không được gắn
+nhãn tăng trưởng, dự báo hoặc nhân quả.

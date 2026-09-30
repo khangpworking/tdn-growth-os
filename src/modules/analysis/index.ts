@@ -125,7 +125,13 @@ export {
   M03SectionRecipeIntegrityError,
   M03SectionRecipeService,
   M03SectionRecipeValidationError,
+  verifyM03VerifiedMetricSet,
 } from './m03-section-recipe.js';
+export {
+  buildM03ChartBundle,
+  M03ChartBundleIntegrityError,
+  M03ChartBundleValidationError,
+} from './m03-chart-bundle.js';
 export {
   buildReportReviewTarget,
   ReportReviewTargetIntegrityError,

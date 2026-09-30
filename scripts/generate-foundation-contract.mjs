@@ -30,6 +30,8 @@ const contracts = [
   ['analysis', 'metric-preparation-readiness-result'],
   ['analysis', 'm03-section-recipe-request'],
   ['analysis', 'm03-verified-metric-set'],
+  ['analysis', 'm03-chart-bundle-request'],
+  ['analysis', 'm03-chart-bundle'],
   ['analysis', 'metric-scope-input'],
   ['analysis', 'metric-scope-output'],
   ['analysis', 'conditional-economics-input'],

@@ -1,0 +1,114 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m03-chart-bundle.schema.json",
+  "title": "M03ChartBundle",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "chartBundleSha256", "request", "section", "metricSet", "charts", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "chartBundleSha256": { "$ref": "#/$defs/digest" },
+    "request": { "$ref": "m03-chart-bundle-request.schema.json" },
+    "section": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sectionId", "title"],
+      "properties": { "sectionId": { "const": "M03" }, "title": { "const": "Quy mô và diễn biến" } }
+    },
+    "metricSet": {
+      "type": "object", "additionalProperties": false,
+      "required": ["metricSetSha256", "preparationSha256", "readinessSha256", "methodVersion", "rounding"],
+      "properties": {
+        "metricSetSha256": { "$ref": "#/$defs/digest" },
+        "preparationSha256": { "$ref": "#/$defs/digest" },
+        "readinessSha256": { "$ref": "#/$defs/digest" },
+        "methodVersion": { "const": "metric-scope-v1" },
+        "rounding": { "const": "percent-half-even-2-v1" }
+      }
+    },
+    "charts": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": { "oneOf": [{ "$ref": "#/$defs/scopeChart" }, { "$ref": "#/$defs/sensitivityChart" }] }
+    },
+    "limitations": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "enum": [
+          "NULL_VALUES_MUST_RENDER_AS_MISSING_NOT_ZERO",
+          "SCOPES_OVERLAP_AND_MUST_NOT_BE_STACKED_OR_SUMMED",
+          "SENSITIVITY_IS_MEMBERSHIP_DIFFERENCE_NOT_GROWTH"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "scopePoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scope", "value", "observedCount", "missingCount", "nonExactCount", "complete", "recordIndices"],
+      "properties": {
+        "scope": { "enum": ["all", "wide", "core"] },
+        "value": { "anyOf": [{ "type": "string", "pattern": "^(0|[1-9][0-9]{0,49})$" }, { "type": "null" }] },
+        "observedCount": { "type": "integer", "minimum": 0 },
+        "missingCount": { "type": "integer", "minimum": 0 },
+        "nonExactCount": { "type": "integer", "minimum": 0 },
+        "complete": { "type": "boolean" },
+        "recordIndices": { "type": "array", "items": { "type": "integer", "minimum": 0 } }
+      }
+    },
+    "scopeChart": {
+      "type": "object", "additionalProperties": false,
+      "required": ["chartId", "kind", "title", "measure", "unit", "points"],
+      "properties": {
+        "chartId": { "enum": ["m03-observed-revenue-by-scope", "m03-observed-units-by-scope"] },
+        "kind": { "const": "BAR" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "measure": { "enum": ["OBSERVED_REVENUE", "OBSERVED_UNITS"] },
+        "unit": { "enum": ["VND", "UNITS"] },
+        "points": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "$ref": "#/$defs/scopePoint" } }
+      },
+      "allOf": [
+        {
+          "if": { "properties": { "chartId": { "const": "m03-observed-revenue-by-scope" } }, "required": ["chartId"] },
+          "then": {
+            "properties": {
+              "title": { "const": "Doanh thu quan sát theo phạm vi" },
+              "measure": { "const": "OBSERVED_REVENUE" },
+              "unit": { "const": "VND" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "chartId": { "const": "m03-observed-units-by-scope" } }, "required": ["chartId"] },
+          "then": {
+            "properties": {
+              "title": { "const": "Sản lượng quan sát theo phạm vi" },
+              "measure": { "const": "OBSERVED_UNITS" },
+              "unit": { "const": "UNITS" }
+            }
+          }
+        }
+      ]
+    },
+    "sensitivityPoint": {
+      "type": "object", "additionalProperties": false,
+      "required": ["to", "value", "removedRecordIndices"],
+      "properties": {
+        "to": { "enum": ["wide", "core"] },
+        "value": { "anyOf": [{ "type": "string", "pattern": "^-?(0|[1-9][0-9]*)$" }, { "type": "null" }] },
+        "removedRecordIndices": { "type": "array", "items": { "type": "integer", "minimum": 0 } }
+      }
+    },
+    "sensitivityChart": {
+      "type": "object", "additionalProperties": false,
+      "required": ["chartId", "kind", "title", "measure", "unit", "points"],
+      "properties": {
+        "chartId": { "const": "m03-membership-revenue-sensitivity" },
+        "kind": { "const": "DIVERGING_BAR" },
+        "title": { "const": "Độ nhạy doanh thu quan sát theo membership" },
+        "measure": { "const": "REVENUE_DELTA_FROM_ALL" },
+        "unit": { "const": "VND" },
+        "points": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "$ref": "#/$defs/sensitivityPoint" } }
+      }
+    }
+  }
+}
