@@ -1,5 +1,6 @@
 import type { ReportAssemblySnapshot } from '../../../contracts/analysis/report-assembly-snapshot.generated.js';
 import type { DescriptiveMarketMethods } from '../../../contracts/analysis/descriptive-market-methods.generated.js';
+import type { LocatedInsightMethods } from '../../../contracts/analysis/located-insight-methods.generated.js';
 import type { SourceBackedReportBundle } from './source-backed-report.js';
 import type { VerifiedSectionArtifactRetention } from './section-artifact-retention-ledger.js';
 import { renderResearchReportHtml } from './research-report-html.js';
@@ -26,6 +27,7 @@ export interface ReportKitInputs {
   readonly retainedM03?: VerifiedSectionArtifactRetention;
   readonly semanticVersionId?: string;
   readonly descriptiveMethods?: DescriptiveMarketMethods;
+  readonly locatedInsightMethods?: LocatedInsightMethods;
 }
 
 const fail = (code: string): never => { throw new TypeError(`report kit HTML: ${code}`); };
@@ -113,10 +115,11 @@ function cover(inputs: ReportKitInputs, title: string, sections: readonly KitSec
  * `snapshot` and `retainedM03` must be given together (prepared path) or both omitted (source-backed partial path).
  */
 export function renderReportKitHtml(inputs: ReportKitInputs): string {
-  const { bundle, snapshot, retainedM03, descriptiveMethods } = inputs;
+  const { bundle, snapshot, retainedM03, descriptiveMethods, locatedInsightMethods } = inputs;
   if ((snapshot === undefined) !== (retainedM03 === undefined)) fail('SNAPSHOT_AND_RETAINED_M03_MUST_BE_TOGETHER');
   const sections = buildSections(inputs);
-  const ctx: KitContext = { bundle, snapshot, descriptive: descriptiveMethods, sections };
+  const ctx: KitContext = { bundle, snapshot, descriptive: descriptiveMethods, sections,
+    ...(locatedInsightMethods === undefined ? {} : { located: locatedInsightMethods }) };
   const workspace = JSON.parse(bundle.files.get('workspace.json')!.toString('utf8')) as { title: string };
   const market = sections.filter(section => section.sectionId.startsWith('M'));
   const insight = sections.filter(section => !section.sectionId.startsWith('M'));

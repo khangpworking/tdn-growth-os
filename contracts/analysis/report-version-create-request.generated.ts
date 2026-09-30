@@ -6,6 +6,7 @@ export type ReportVersionCreateRequest = {
   contractVersion: '1.0.0';
   reportPresentation?: 'report-kit-v1';
   descriptiveMethodsPath?: string;
+  locatedInsightMethodsPath?: string;
   reportKey: string;
   version: number;
   previousSemanticVersionId: Digest | null;

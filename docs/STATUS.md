@@ -1,5 +1,31 @@
 # Trạng thái hiện tại
 
+## Research A43: wave 2 implementation, Linux verification pending
+
+The A42 successor implements I01, I02, I04-I10 and I13 as bounded methods over
+exact located declarations. It verifies retained source bytes and JSON-pointer
+record text, preserves full context, distinguishes pending coding, and computes
+corpus-only n/N when the frozen membership and coding are complete. I13 is
+literal phrase inventory/counts only, without brand entity resolution or ranking.
+Declared coding provenance does not become authenticated OWNER approval or
+semantic truth merely because a quote resolves.
+
+An optional `locatedInsightMethodsPath`, paired with `report-kit-v1`, connects
+the new methods to existing report services and CLI. One retained bundle holds
+the method output and exact descriptor/source/authority bytes, bound into report
+semantic identity. Old requests omit the supplement and retain their behavior.
+The initial web generation picker does not yet collect these coding inputs.
+
+Three independent lanes covered the methods, counts and release audit. The
+release audit then handed off to the section renderer. The audit found one
+13-PR ancestry chain through #101, not independent changes ready for parallel
+merge. Only migrations 0036 and 0037 differ from current main; the running
+Fedora schema has not been inspected in this task. See
+`docs/handoffs/research-a43-release-dependency-audit.md`.
+
+Pending: final Linux checks, bounded rendered verification and independent
+review. No Windows execution, merge, Fedora activation or provider call.
+
 ## Research A42: wave 1 implemented and Linux-verified, draft PR #101
 
 The owner requested efficient implementation with the earliest usable web

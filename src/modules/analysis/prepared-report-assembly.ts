@@ -18,6 +18,7 @@ import { buildReportAssemblySnapshot } from './report-assembly-snapshot.js';
 import { renderReportAssemblyHtml } from './report-assembly-html.js';
 import { renderReportKitHtml } from './report-kit-html.js';
 import { buildReportDescriptiveExtension } from './report-descriptive-extension.js';
+import { buildReportLocatedInsightExtension } from './report-located-insight-extension.js';
 import { createHash } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -106,6 +107,8 @@ export async function buildPreparedReportAssembly(
   let bundle = await buildSourceBackedReport(request.sourceRequest, catalogBytes, dependencies);
   const descriptive = await buildReportDescriptiveExtension(request.descriptiveMethodsPath, bundle, dependencies.sourcePackages);
   if (descriptive) bundle = { ...bundle, files: new Map([...bundle.files, ...descriptive.files]) };
+  const located = await buildReportLocatedInsightExtension(request.locatedInsightMethodsPath, bundle, dependencies.sourcePackages);
+  if (located) bundle = { ...bundle, files: new Map([...bundle.files, ...located.files]) };
   if (
     preparation.result.workspace.workspaceId !== bundle.envelope.workspace.workspaceId ||
     preparation.result.workspace.snapshotSha256 !== bundle.envelope.workspace.snapshotSha256
@@ -130,6 +133,7 @@ export async function buildPreparedReportAssembly(
   const semantic = buildPreparedReportSemanticContent({
     bundle, preparation, readiness, retainedM03, assemblySha256: assembled.snapshot.assemblySha256,
     ...(descriptive === undefined ? {} : { descriptiveMethodsSha256: createHash('sha256').update(descriptive.bytes).digest('hex') }),
+    ...(located === undefined ? {} : { locatedInsightMethodsSha256: createHash('sha256').update(located.bytes).digest('hex') }),
   });
 
   const renderFiles = new Map(bundle.files);
@@ -140,6 +144,7 @@ export async function buildPreparedReportAssembly(
     bundle: { ...bundle, files: renderFiles },
     snapshot: assembled.snapshot, retainedM03, semanticVersionId: semantic.content.semanticVersionId,
     ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }),
+    ...(located === undefined ? {} : { locatedInsightMethods: located.output }),
   });
 
   return {
