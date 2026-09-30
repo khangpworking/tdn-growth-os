@@ -143,7 +143,7 @@ try {
     const capture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
       clip: { x: 0, y: 0, width, height: capturedHeight, scale: 1 } });
     await fs.writeFile(path.join(root, `${name}.png`), Buffer.from(capture.data, 'base64'), { mode: 0o600 });
-    for (const id of ['section-M02', 'section-M03', 'section-M05', 'section-M07', 'section-M08', 'section-I03', 'status']) {
+    for (const id of ['section-M02', 'section-M03', 'section-M05', 'section-M07', 'section-M08', 'insight', 'section-I03', 'status']) {
       const found = await evaluate(`(() => { const section = document.getElementById(${JSON.stringify(id)}); if (!section) return false; section.scrollIntoView({block:'start'}); return true; })()`);
       if (!found) continue;
       const sectionCapture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
