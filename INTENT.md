@@ -500,3 +500,19 @@ margin hoặc recommendation, và không làm M08 trở thành section unit econ
 hoàn chỉnh. Report version giữ cặp source này trong membership bổ sung riêng,
 không viết lại membership Metric của các report cũ. Thiếu một trong hai source
 thì M08 giữ BLOCKED thay vì tự tạo dữ liệu.
+
+### D37 — I03 ghi lại phương pháp, không tự tạo insight
+
+I03 được phép trở thành `PARTIAL_DETERMINISTIC_DRAFT` khi và chỉ khi báo cáo có
+đúng gói nguồn đã finalized, M02, M13, biên bản chuẩn hóa và kết quả tính khớp
+digest. Artifact I03 giữ tập file nguồn, vai trò/quan hệ bằng chứng, profile chuẩn
+hóa, kỳ đo, chính sách UNKNOWN của WIDE, mẫu số, missing/zero/non-exact, trạng
+thái nhãn và điều kiện tính của ALL/WIDE/CORE. Phạm vi bị chặn phải hiện là bị
+chặn; không dùng số thành viên 0 như một quan sát kinh doanh.
+
+I03 không xác nhận provider, độ đại diện, độ đầy đủ thị trường, tính đúng của kỳ
+đo hoặc nhãn. Nó không chứa kết luận thị trường, insight, recommendation, causal
+claim, effectiveness claim hay approval. Thay đổi source membership, kỳ đo,
+profile/codebook/chính sách nhãn hoặc lỗi replay/locator buộc mở lại phương pháp.
+Đây là lớp phương pháp và provenance phục vụ hai lớp nguồn/tính toán; nhận định
+AI và quyết định người dùng tiếp tục là các artifact riêng.

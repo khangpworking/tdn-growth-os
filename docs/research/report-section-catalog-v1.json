@@ -1,7 +1,7 @@
 {
   "contractVersion": "1.0.0",
   "catalogId": "market-insight-30-section-catalog-v1",
-  "catalogVersion": "0.4.0",
+  "catalogVersion": "0.5.0",
   "authority": "PLANNING_METADATA_NOT_EXECUTABLE_METHOD",
   "sections": [
     {
@@ -301,20 +301,22 @@
     {
       "sectionId": "I03",
       "title": "Phương pháp nghiên cứu",
-      "methodId": "planning-i03",
-      "methodVersion": "1.0.0",
+      "methodId": "metric-research-method-account",
+      "methodVersion": "2.0.0",
       "historicalTemplateMaturity": "PILOT",
       "moduleIds": [
         "source-scope"
       ],
       "requiredInputs": [
-        "source-manifest",
-        "verified-locators"
+        "exact-source-package-lineage",
+        "normalization-receipt",
+        "metric-result",
+        "verified-locators-and-denominators"
       ],
-      "reopenCondition": "A new question needs a measurement frame, sampling logic, and label audit.",
-      "fallbackState": "METHOD_ONLY",
+      "reopenCondition": "Source membership, measurement frame, normalization profile, label policy, or replay and locator integrity changes.",
+      "fallbackState": "BLOCKED",
       "fallbackReasons": [
-        "SOURCE_METHOD_PACKET_REQUIRED"
+        "VERIFIED_RESEARCH_METHOD_ARTIFACT_REQUIRED"
       ]
     },
     {

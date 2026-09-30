@@ -130,7 +130,11 @@ export interface ReportSectionReadinessEntry {
   blockers: string[];
   sectionSha256: Digest;
   methodArtifact?: {
-    fileName: 'm02-scope-method.json' | 'm08-tablet-quote-method.json' | 'm13-provenance-appendix.json';
+    fileName:
+      | 'm02-scope-method.json'
+      | 'm08-tablet-quote-method.json'
+      | 'm13-provenance-appendix.json'
+      | 'i03-research-method.json';
     sha256: Digest;
     methodOutputId: Digest;
   };

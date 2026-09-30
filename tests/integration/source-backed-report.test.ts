@@ -127,11 +127,13 @@ async function persistedFixture(oversizedMember = false) {
         mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         evidenceFamily: 'synthetic-metric', representationRole: 'structured', independence: 'non_independent',
         providerProvenance: 'synthetic', provenanceBasis: 'Generated fixture; not provider evidence',
+        period: { start: '2024-08-10T00:00:00.000Z', end: '2026-08-10T23:59:59.999Z' },
       },
       {
         path: 'metric/manifest.json', sha256: sha256(manifest), byteSize: manifest.length,
         mediaType: 'application/json', evidenceFamily: 'synthetic-metric', representationRole: 'derived',
         independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Generated fixture declaration',
+        period: { start: '2024-08-10T00:00:00.000Z', end: '2026-08-10T23:59:59.999Z' },
       },
       {
         path: 'quote/source.json', sha256: sha256(tabletQuoteSource), byteSize: tabletQuoteSource.length,
@@ -273,6 +275,35 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(m13.coverage.recordCount, 2);
   assert.equal(m13.coverage.recordLocatorCount, 2);
   assert.equal(m13.coverage.labelLocatorCount, 0);
+  const i03 = JSON.parse(first.files.get('i03-research-method.json')!.toString('utf8')) as {
+    methodOutputId: string;
+    sourceVerification: string;
+    sourceInventory: Array<{ role: string; period: { start: string; end: string } | null; m13SourcePointer: string }>;
+    lineage: { m02MethodOutputId: string; m13MethodOutputId: string; normalizedInputSha256: string; normalizationReceiptSha256: string; metricResultSha256: string };
+    coverage: { denominatorRecordCount: number; mappedRecordCount: number; labeledRecordCount: number; unlabeledRecordCount: number };
+    scopeMembership: Array<{ scope: string; status: string; memberCount: number; denominatorRecordCount: number }>;
+    limitations: string[];
+  };
+  assert.equal(first.envelope.artifacts.i03ResearchMethodSha256, sha256(first.files.get('i03-research-method.json')!));
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'I03')?.methodArtifact?.methodOutputId, i03.methodOutputId);
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'I03')?.deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'I03')?.claimIds.length, 0);
+  assert.equal(i03.sourceVerification, 'EXACT_PACKAGE_BYTES_REPLAYED_NOT_PROVIDER_AUTHENTICATED');
+  assert.equal(i03.lineage.m02MethodOutputId, m02.methodOutputId);
+  assert.equal(i03.lineage.m13MethodOutputId, m13.methodOutputId);
+  assert.equal(i03.lineage.normalizedInputSha256, sha256(first.files.get('normalized-input.json')!));
+  assert.equal(i03.lineage.normalizationReceiptSha256, sha256(first.files.get('receipt.json')!));
+  assert.equal(i03.lineage.metricResultSha256, sha256(first.files.get('metric-result.json')!));
+  assert.equal(i03.coverage.denominatorRecordCount, 2);
+  assert.equal(i03.coverage.mappedRecordCount, 2);
+  assert.equal(i03.coverage.labeledRecordCount, 0);
+  assert.equal(i03.coverage.unlabeledRecordCount, 2);
+  assert.equal(i03.sourceInventory.find(source => source.role === 'workbook')?.period?.start, '2024-08-10T00:00:00.000Z');
+  assert.equal(i03.sourceInventory[0]?.m13SourcePointer, '/sources/0');
+  assert.deepEqual(i03.scopeMembership.map(scope => [scope.scope, scope.status, scope.memberCount, scope.denominatorRecordCount]), [
+    ['all', 'CALCULATED', 2, 2], ['wide', 'BLOCKED_LABELS', 0, 2], ['core', 'BLOCKED_LABELS', 0, 2],
+  ]);
+  assert.ok(i03.limitations.includes('NO_MARKET_CONCLUSION_INSIGHT_RECOMMENDATION_CAUSALITY_EFFECTIVENESS_OR_APPROVAL'));
   assert.equal(first.envelope.selectedSources.length, 4);
   assert.match(first.envelope.limitations.join('\n'), /DO_NOT_AUTHENTICATE_PROVIDER_COLLECTION/);
 
@@ -398,7 +429,8 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
     'raw-workbook.xlsx', 'raw-manifest.json', 'source-package-manifest.json', 'normalized-input.json',
     'receipt.json', 'metric-result.json', 'charts.json', 'packet.json', 'section-catalog.json', 'workspace.json',
     'm02-scope-method.json', 'raw-tablet-quote-source.json', 'raw-tablet-quote-input.json',
-    'm08-tablet-quote-method.json', 'm13-provenance-appendix.json', 'semantic-content.json', 'review-state.json',
+    'm08-tablet-quote-method.json', 'm13-provenance-appendix.json', 'i03-research-method.json',
+    'semantic-content.json', 'review-state.json',
     'evidence-envelope.json', 'export-manifest.json',
   ];
   assert.deepEqual([...new Set(links)].sort(), [...expected].sort());
@@ -436,6 +468,10 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   assert.ok(document.querySelector('#quote')?.textContent?.includes('không phải chart so sánh'));
   assert.ok(document.querySelector('#quote')?.textContent?.includes('Số viên trong pack do người vận hành khai báo'));
   assert.ok(document.querySelector('#quote a[href="raw-tablet-quote-source.json"]'));
+  assert.ok(document.querySelector('#method')?.textContent?.includes('Hồ sơ này ghi lại cách nguồn đã chọn được chuẩn hóa và tính toán'));
+  assert.ok(document.querySelector('#method')?.textContent?.includes('Không công bố số thành viên · mẫu số 2 dòng'));
+  assert.ok(document.querySelector('#method')?.textContent?.includes('không tạo kết luận thị trường, insight'));
+  assert.ok(document.querySelector('#method a[href="i03-research-method.json"]'));
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-workbook.xlsx')), state.workbook);
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-manifest.json')), state.manifest);
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-tablet-quote-source.json')), state.tabletQuoteSource);

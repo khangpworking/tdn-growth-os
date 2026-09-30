@@ -20,6 +20,7 @@ import { buildResearchReportChartData, type ResearchReportChartData } from './re
 import { buildM02ScopeMethod } from './m02-scope-method.js';
 import { buildM08TabletQuoteMethod, type M08TabletQuoteSource } from './m08-tablet-quote-method.js';
 import { buildM13ProvenanceAppendix } from './m13-provenance-appendix.js';
+import { buildI03ResearchMethod } from './i03-research-method.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -104,6 +105,7 @@ export interface SourceBackedReportEnvelope {
     readonly m02ScopeMethodSha256?: string;
     readonly m08TabletQuoteMethodSha256?: string;
     readonly m13ProvenanceAppendixSha256?: string;
+    readonly i03ResearchMethodSha256?: string;
   };
   readonly limitations: readonly string[];
 }
@@ -354,6 +356,7 @@ export async function buildSourceBackedReport(
   const m02Enabled = methodEnabled('M02');
   const m08Enabled = methodEnabled('M08');
   const m13Enabled = methodEnabled('M13');
+  const i03Enabled = methodEnabled('I03');
   const m02 = m02Enabled
     ? buildM02ScopeMethod(
       normalized.input,
@@ -392,6 +395,16 @@ export async function buildSourceBackedReport(
     },
   ) : undefined;
   const m13Sha256 = m13 === undefined ? undefined : sha256(m13.bytes);
+  const i03 = i03Enabled && m02 !== undefined && m13 !== undefined ? buildI03ResearchMethod({
+    m02,
+    m13,
+    receipt: normalized.receipt,
+    receiptBytes,
+    result: normalized.result,
+    resultBytes,
+    normalizedInputSha256: sha256(inputBytes),
+  }) : undefined;
+  const i03Sha256 = i03 === undefined ? undefined : sha256(i03.bytes);
   const packetResult = createResearchReportPacket(
     resultBytes,
     resultSha256,
@@ -409,6 +422,10 @@ export async function buildSourceBackedReport(
       ...(m13 === undefined || m13Sha256 === undefined ? [] : [{
         sectionId: 'M13' as const, methodVersion: '2.0.0' as const, fileName: 'm13-provenance-appendix.json' as const,
         sha256: m13Sha256, methodOutputId: m13.output.methodOutputId,
+      }]),
+      ...(i03 === undefined || i03Sha256 === undefined ? [] : [{
+        sectionId: 'I03' as const, methodVersion: '2.0.0' as const, fileName: 'i03-research-method.json' as const,
+        sha256: i03Sha256, methodOutputId: i03.output.methodOutputId,
       }]),
     ],
   );
@@ -429,6 +446,7 @@ export async function buildSourceBackedReport(
     ...(m02 === undefined ? [] : [['m02-scope-method.json', m02.bytes] as const]),
     ...(m08 === undefined ? [] : [['m08-tablet-quote-method.json', m08.bytes] as const]),
     ...(m13 === undefined ? [] : [['m13-provenance-appendix.json', m13.bytes] as const]),
+    ...(i03 === undefined ? [] : [['i03-research-method.json', i03.bytes] as const]),
     ['source-package-manifest.json', sourcePackageManifestBytes],
     ['workspace.json', workspaceBytes],
     ['raw-workbook.xlsx', Buffer.from(workbook.file.bytes)],
@@ -458,6 +476,7 @@ export async function buildSourceBackedReport(
       ...(m02Sha256 === undefined ? {} : { m02ScopeMethodSha256: m02Sha256 }),
       ...(m08Sha256 === undefined ? {} : { m08TabletQuoteMethodSha256: m08Sha256 }),
       ...(m13Sha256 === undefined ? {} : { m13ProvenanceAppendixSha256: m13Sha256 }),
+      ...(i03Sha256 === undefined ? {} : { i03ResearchMethodSha256: i03Sha256 }),
     },
     limitations: [
       'EXACT_PACKAGE_BYTES_READ_AND_REPARSED_THROUGH_VERIFIED_READERS',

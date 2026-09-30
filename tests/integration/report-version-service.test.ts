@@ -675,8 +675,8 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.deepEqual(history.versions.map((item: any) => item.version), [1]);
     assert.deepEqual(history.versions[0].sectionCounts, {
       total: 30,
-      partialDeterministicDraft: 5,
-      methodOnly: 12,
+      partialDeterministicDraft: 6,
+      methodOnly: 11,
       blocked: 12,
       manualReviewRequired: 1,
       notImplemented: 0,
@@ -695,6 +695,8 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.deepEqual([readiness.sections[0].sectionId, readiness.sections.at(-1).sectionId], ['M01', 'I17']);
     assert.equal(readiness.sections.find((section: any) => section.sectionId === 'M03').deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
     assert.ok(readiness.sections.find((section: any) => section.sectionId === 'M03').claimIds.includes('M03:all:revenue'));
+    assert.equal(readiness.sections.find((section: any) => section.sectionId === 'I03').deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
+    assert.deepEqual(readiness.sections.find((section: any) => section.sectionId === 'I03').claimIds, []);
     assert.match(readiness.sections.find((section: any) => section.sectionId === 'M10').reopenCondition, /daily series/i);
     assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/2/sections`)).status, 404);
 

@@ -1,0 +1,143 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/i03-research-method.schema.json",
+  "title": "I03ResearchMethod",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodOutputId", "sectionId", "sectionTitle", "methodId", "methodVersion", "deliveryState", "approvalState", "sourceVerification", "sourcePackage", "lineage", "normalization", "measurementFrame", "sourceInventory", "coverage", "scopeMembership", "limitations", "reopenConditions"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodOutputId": { "$ref": "#/$defs/digest" },
+    "sectionId": { "const": "I03" },
+    "sectionTitle": { "const": "Phương pháp nghiên cứu" },
+    "methodId": { "const": "metric-research-method-account" },
+    "methodVersion": { "const": "2.0.0" },
+    "deliveryState": { "const": "PARTIAL_DETERMINISTIC_DRAFT" },
+    "approvalState": { "const": "UNREVIEWED" },
+    "sourceVerification": { "const": "EXACT_PACKAGE_BYTES_REPLAYED_NOT_PROVIDER_AUTHENTICATED" },
+    "sourcePackage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["packageId", "packageKey", "version", "manifestArtifactSha256", "packageContentSha256", "sourceAcquiredAt", "finalizedAt"],
+      "properties": {
+        "packageId": { "type": "string", "format": "uuid" },
+        "packageKey": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "version": { "type": "integer", "minimum": 1 },
+        "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "sourceAcquiredAt": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+        "finalizedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "lineage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["m02MethodOutputId", "m02ArtifactSha256", "m13MethodOutputId", "m13ArtifactSha256", "normalizedInputSha256", "normalizationReceiptSha256", "metricResultSha256"],
+      "properties": {
+        "m02MethodOutputId": { "$ref": "#/$defs/digest" },
+        "m02ArtifactSha256": { "$ref": "#/$defs/digest" },
+        "m13MethodOutputId": { "$ref": "#/$defs/digest" },
+        "m13ArtifactSha256": { "$ref": "#/$defs/digest" },
+        "normalizedInputSha256": { "$ref": "#/$defs/digest" },
+        "normalizationReceiptSha256": { "$ref": "#/$defs/digest" },
+        "metricResultSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "normalization": {
+      "type": "object", "additionalProperties": false,
+      "required": ["profileId", "profileVersion", "verification", "rowDigestMethod", "numericDisplay", "inputSha256", "provenance"],
+      "properties": {
+        "profileId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "profileVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "verification": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "rowDigestMethod": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "numericDisplay": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "inputSha256": { "$ref": "#/$defs/digest" },
+        "provenance": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "measurementFrame": {
+      "type": "object", "additionalProperties": false,
+      "required": ["scopeKey", "platform", "selection", "start", "end", "periodBasis", "acquiredAt", "currency", "wideUnknownPolicy", "membershipPolicy", "overlapPolicy"],
+      "properties": {
+        "scopeKey": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "platform": { "enum": ["shopee", "tiktok"] },
+        "selection": { "enum": ["ON", "OFF", "UNSPECIFIED"] },
+        "start": { "type": "string", "format": "date" },
+        "end": { "type": "string", "format": "date" },
+        "periodBasis": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "acquiredAt": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+        "currency": { "const": "VND" },
+        "wideUnknownPolicy": { "enum": ["include", "exclude"] },
+        "membershipPolicy": { "const": "ALL_ALL_ROWS; WIDE_EXCLUDES_OUTSIDE_AND_FOLLOWS_UNKNOWN_POLICY; CORE_CORE_CANDIDATE_ONLY" },
+        "overlapPolicy": { "const": "ALL_WIDE_CORE_ARE_NESTED_NON_ADDITIVE_SCOPES" }
+      }
+    },
+    "sourceInventory": {
+      "type": "array", "minItems": 2, "maxItems": 5,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["role", "logicalPath", "exportPath", "sha256", "byteSize", "mediaType", "evidenceFamily", "representationRole", "independence", "providerProvenance", "provenanceBasis", "period", "m13SourcePointer"],
+        "properties": {
+          "role": { "enum": ["workbook", "manifest", "labels", "tabletQuoteSource", "tabletQuoteInput"] },
+          "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+          "exportPath": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "sha256": { "$ref": "#/$defs/digest" },
+          "byteSize": { "type": "integer", "minimum": 0 },
+          "mediaType": { "type": "string", "minLength": 1, "maxLength": 120 },
+          "evidenceFamily": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "representationRole": { "enum": ["primary", "alternate", "structured", "derived"] },
+          "independence": { "enum": ["independent", "non_independent"] },
+          "providerProvenance": { "enum": ["verified", "provider_reported", "operator_supplied_unverified", "synthetic"] },
+          "provenanceBasis": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "period": { "anyOf": [{ "$ref": "#/$defs/period" }, { "type": "null" }] },
+          "m13SourcePointer": { "type": "string", "pattern": "^/sources/[0-4]$" }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object", "additionalProperties": false,
+      "required": ["denominatorRecordCount", "selectedSourceCount", "mappedRecordCount", "recordLocatorCount", "revenueLocatorCount", "unitsLocatorCount", "labelDenominatorCount", "labelLocatorCount", "labeledRecordCount", "unlabeledRecordCount", "unknownLabelCount", "outsideLabelCount", "revenueMissingCount", "revenueObservedZeroCount", "revenueNonExactCount", "unitsMissingCount", "unitsObservedZeroCount", "unitsNonExactCount", "locatorLedgerPointer"],
+      "properties": {
+        "denominatorRecordCount": { "$ref": "#/$defs/count" },
+        "selectedSourceCount": { "$ref": "#/$defs/count" },
+        "mappedRecordCount": { "$ref": "#/$defs/count" },
+        "recordLocatorCount": { "$ref": "#/$defs/count" },
+        "revenueLocatorCount": { "$ref": "#/$defs/count" },
+        "unitsLocatorCount": { "$ref": "#/$defs/count" },
+        "labelDenominatorCount": { "$ref": "#/$defs/count" },
+        "labelLocatorCount": { "$ref": "#/$defs/count" },
+        "labeledRecordCount": { "$ref": "#/$defs/count" },
+        "unlabeledRecordCount": { "$ref": "#/$defs/count" },
+        "unknownLabelCount": { "$ref": "#/$defs/count" },
+        "outsideLabelCount": { "$ref": "#/$defs/count" },
+        "revenueMissingCount": { "$ref": "#/$defs/count" },
+        "revenueObservedZeroCount": { "$ref": "#/$defs/count" },
+        "revenueNonExactCount": { "$ref": "#/$defs/count" },
+        "unitsMissingCount": { "$ref": "#/$defs/count" },
+        "unitsObservedZeroCount": { "$ref": "#/$defs/count" },
+        "unitsNonExactCount": { "$ref": "#/$defs/count" },
+        "locatorLedgerPointer": { "const": "m13-provenance-appendix.json#/recordLineage" }
+      }
+    },
+    "scopeMembership": {
+      "type": "array", "minItems": 3, "maxItems": 3,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["scope", "status", "memberCount", "denominatorRecordCount", "warningCodes"],
+        "properties": {
+          "scope": { "enum": ["all", "wide", "core"] },
+          "status": { "enum": ["CALCULATED", "BLOCKED_LABELS"] },
+          "memberCount": { "$ref": "#/$defs/count" },
+          "denominatorRecordCount": { "$ref": "#/$defs/count" },
+          "warningCodes": { "type": "array", "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 120 } }
+        }
+      }
+    },
+    "limitations": { "type": "array", "minItems": 6, "maxItems": 20, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 240 } },
+    "reopenConditions": { "type": "array", "minItems": 3, "maxItems": 12, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 240 } }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "count": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "period": { "type": "object", "additionalProperties": false, "required": ["start", "end"], "properties": { "start": { "type": "string", "format": "date-time" }, "end": { "type": "string", "format": "date-time" } } }
+  }
+}
