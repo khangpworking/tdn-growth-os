@@ -24,7 +24,7 @@ const identity = (value: unknown): string => hash(canonicalJson(value));
 const methods: Readonly<Record<string, string>> = {
   M02: 'metric-scope-packet-context', M03: 'metric-scope-packet-totals',
   M04: 'metric-scope-packet-concentration', M08: 'tablet-quote-normalization',
-  M13: 'metric-scope-packet-provenance',
+  M13: 'metric-scope-packet-provenance', I03: 'metric-research-method-account',
 };
 
 export type ReportMethodArtifact = {
@@ -45,6 +45,19 @@ export type ReportMethodArtifact = {
   readonly fileName: 'm13-provenance-appendix.json';
   readonly sha256: string;
   readonly methodOutputId: string;
+} | {
+  readonly sectionId: 'I03';
+  readonly methodVersion: '2.0.0';
+  readonly fileName: 'i03-research-method.json';
+  readonly sha256: string;
+  readonly methodOutputId: string;
+};
+
+const artifactFile = (sectionId: ReportMethodArtifact['sectionId']): ReportMethodArtifact['fileName'] => {
+  if (sectionId === 'M02') return 'm02-scope-method.json';
+  if (sectionId === 'M08') return 'm08-tablet-quote-method.json';
+  if (sectionId === 'M13') return 'm13-provenance-appendix.json';
+  return 'i03-research-method.json';
 };
 
 function pinnedJson(bytes: Buffer, expected: string, kind: string): unknown {
@@ -76,9 +89,7 @@ export function createResearchReportPacket(
   const artifactBySection = new Map(methodArtifacts.map(item => [item.sectionId, item]));
   for (const artifact of methodArtifacts) {
     const definition = catalog.sections.find(section => section.sectionId === artifact.sectionId);
-    const expectedFile = artifact.sectionId === 'M02' ? 'm02-scope-method.json'
-      : artifact.sectionId === 'M08' ? 'm08-tablet-quote-method.json'
-        : 'm13-provenance-appendix.json';
+    const expectedFile = artifactFile(artifact.sectionId);
     if (!definition || definition.methodVersion !== artifact.methodVersion || artifact.fileName !== expectedFile) {
       throw new TypeError('method artifacts: CATALOG_OR_FILE_MISMATCH');
     }
@@ -92,19 +103,19 @@ export function createResearchReportPacket(
     const methodArtifact = artifactBySection.get(sectionId as ReportMethodArtifact['sectionId']);
     const supported = methods[sectionId] === definition.methodId &&
       (definition.methodVersion === '1.0.0' ||
-        ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13') && definition.methodVersion === '2.0.0'));
+        ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13' || sectionId === 'I03') && definition.methodVersion === '2.0.0'));
     if (!supported) {
       blockers.push(...definition.fallbackReasons);
       if (methods[sectionId]) { deliveryState = 'NOT_IMPLEMENTED'; blockers.push('UNSUPPORTED_SECTION_METHOD_VERSION'); }
     } else {
       deliveryState = 'PARTIAL_DETERMINISTIC_DRAFT';
-      if ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13') && definition.methodVersion === '2.0.0') {
+      if ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13' || sectionId === 'I03') && definition.methodVersion === '2.0.0') {
         if (!methodArtifact || methodArtifact.sectionId !== sectionId || methodArtifact.methodVersion !== '2.0.0' ||
             !/^[0-9a-f]{64}$/.test(methodArtifact.sha256) || !/^[0-9a-f]{64}$/.test(methodArtifact.methodOutputId)) {
           deliveryState = 'BLOCKED';
-          blockers.push(sectionId === 'M08'
-            ? 'VERIFIED_TABLET_QUOTE_METHOD_ARTIFACT_REQUIRED'
-            : 'VERIFIED_SOURCE_METHOD_ARTIFACT_REQUIRED');
+          blockers.push(sectionId === 'M08' ? 'VERIFIED_TABLET_QUOTE_METHOD_ARTIFACT_REQUIRED'
+            : sectionId === 'I03' ? 'VERIFIED_RESEARCH_METHOD_ARTIFACT_REQUIRED'
+              : 'VERIFIED_SOURCE_METHOD_ARTIFACT_REQUIRED');
         } else {
           blockers.push('OWNER_REVIEW_REQUIRED');
           if (sectionId === 'M08') blockers.push(
@@ -119,6 +130,7 @@ export function createResearchReportPacket(
       if (sectionId !== 'M08') contextPointers.push('/input/scope');
       if (sectionId === 'M02') contextPointers.push('/input/profileId', '/input/labelCodebookVersion', '/input/wideUnknownPolicy', '/labelIssues');
       if (sectionId === 'M13') contextPointers.push('/input/sources', '/input/records');
+      if (sectionId === 'I03') contextPointers.push('/input/profileId', '/input/labelCodebookVersion', '/input/wideUnknownPolicy', '/labelIssues', '/scopes');
       if (sectionId === 'M03' || sectionId === 'M04') for (const [i, scope] of result.scopes.entries()) {
         const base = `/scopes/${i}`;
         if (scope.status === 'BLOCKED_LABELS') { blockers.push(`${scope.key}:BLOCKED_LABELS`); continue; }

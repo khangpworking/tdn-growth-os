@@ -96,7 +96,7 @@
     "count": { "type": "integer", "minimum": 0, "maximum": 10000 },
     "period": {
       "type": "object", "additionalProperties": false, "required": ["start", "end"],
-      "properties": { "start": { "type": "string", "format": "date" }, "end": { "type": "string", "format": "date" } }
+      "properties": { "start": { "type": "string", "format": "date-time" }, "end": { "type": "string", "format": "date-time" } }
     },
     "observationCoverage": {
       "type": "object", "additionalProperties": false,

@@ -10,6 +10,7 @@ const contracts = [
   ['analysis', 'm02-scope-method'],
   ['analysis', 'm08-tablet-quote-method'],
   ['analysis', 'm13-provenance-appendix'],
+  ['analysis', 'i03-research-method'],
   ['analysis', 'source-backed-report-request'],
   ['analysis', 'report-semantic-content'],
   ['analysis', 'report-review-state'],

@@ -10,7 +10,7 @@ const sources = [
   { role: 'workbook' as const, logicalPath: 'metric/workbook.xlsx', exportPath: 'raw-workbook.xlsx', sha256: workbook,
     byteSize: 100, mediaType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', evidenceFamily: 'metric',
     representationRole: 'primary' as const, independence: 'independent' as const, providerProvenance: 'synthetic' as const,
-    provenanceBasis: 'synthetic fixture', period: { start: '2024-01-01', end: '2024-12-31' } },
+    provenanceBasis: 'synthetic fixture', period: { start: '2024-01-01T00:00:00Z', end: '2024-12-31T23:59:59Z' } },
   { role: 'manifest' as const, logicalPath: 'metric/manifest.json', exportPath: 'raw-manifest.json', sha256: manifest,
     byteSize: 50, mediaType: 'application/json', evidenceFamily: 'metric', representationRole: 'structured' as const,
     independence: 'non_independent' as const, providerProvenance: 'synthetic' as const, provenanceBasis: 'synthetic fixture' },

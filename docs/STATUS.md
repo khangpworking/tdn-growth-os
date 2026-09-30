@@ -589,3 +589,15 @@ Metric membership and historical rows unchanged. Executable deterministic
 coverage is now 5/30 sections: M02, M03, M04, M08/P4 and M13. Linux CI and
 preview remain release gates; no real quote, AI interpretation or human
 approval is created by this task.
+
+## Research A25: deterministic I03 research-method account (implementation)
+
+Catalog 0.5.0 materializes I03 from one exact source package, its normalization
+receipt and the M02/M13/calculation chain. The artifact makes selected sources,
+profile, period, explicit denominators, missing/zero/non-exact counts, label
+states and scope blockers visible and replayable. The HTML report shows blocked
+WIDE/CORE as blocked rather than as zero membership. Executable deterministic
+coverage becomes 6/30 sections: M02, M03, M04, M08/P4, M13 and I03. This remains
+an unreviewed method account and creates no market finding, insight,
+recommendation, AI output or human decision. Linux CI and preview remain the
+release gates.
