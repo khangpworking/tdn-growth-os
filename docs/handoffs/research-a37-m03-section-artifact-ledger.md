@@ -22,12 +22,21 @@
   select "latest": callers must supply the exact `sectionArtifactSha256`,
   and `read()` reopens registered bytes, verifies manifest metadata, replays
   the complete A32-A36 chain, and compares exact HTML before returning.
-- Exact retries of identical bytes/identity are mutation-free and return the
-  same identity; reuse of the identity with changed bytes or metadata fails
-  closed with a dedicated conflict error. Failed or losing writes remove
-  only artifacts newly created by that request and not yet registered in
-  `artifact_manifests`; no unrelated canonical artifact is scanned or
-  deleted.
+- Exact retries require every incoming member's exact byte SHA-256 and byte
+  size (metric set, chart bundle, envelope, narrative, receipt, HTML) to
+  match the already retained membership; any changed byte representation
+  fails closed with a dedicated conflict error before any mutation.
+  First-storage rows are inserted from purely in-memory digests/sizes, so
+  the database transaction never performs a filesystem write and a failed
+  transaction needs no artifact cleanup; canonical bytes are published only
+  after a successful commit. A retry whose canonical bytes are genuinely
+  missing (for example a crash between a prior commit and its publish step)
+  narrowly republishes the exact, already byte-verified incoming bytes for
+  that request before completing its full replay verification. No unrelated
+  canonical artifact is ever scanned or deleted.
+- Each six-member buffer is rejected above the 8 MiB bound before JSON
+  parsing or any mutation, and every returned retention record is
+  runtime-validated against its closed JSON Schema before being handed back.
 - Added one offline CLI, `research:metric:m03:retain`, taking an explicit
   database path, artifact root, and the six exact A32-A36/HTML file paths
   plus their declared digests. It performs no AI/provider call, no

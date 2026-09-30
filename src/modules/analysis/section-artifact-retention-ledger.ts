@@ -1,8 +1,8 @@
 import { createHash } from 'node:crypto';
-import fs from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import type Database from 'better-sqlite3';
 import requestSchema from '../../../contracts/analysis/section-artifact-retention-request.schema.json' with { type: 'json' };
+import recordSchema from '../../../contracts/analysis/section-artifact-retention-record.schema.json' with { type: 'json' };
 import type { SectionArtifactRetentionRequest } from '../../../contracts/analysis/section-artifact-retention-request.generated.js';
 import type { SectionArtifactRetentionRecord } from '../../../contracts/analysis/section-artifact-retention-record.generated.js';
 import type { M03VerifiedMetricSet } from '../../../contracts/analysis/m03-verified-metric-set.generated.js';
@@ -10,7 +10,7 @@ import type { M03ChartBundle } from '../../../contracts/analysis/m03-chart-bundl
 import type { M03NarrativeEvidence } from '../../../contracts/analysis/m03-narrative-evidence.generated.js';
 import type { M03FactualNarrative } from '../../../contracts/analysis/m03-factual-narrative.generated.js';
 import type { M03SectionArtifact } from '../../../contracts/analysis/m03-section-artifact.generated.js';
-import { ContentAddressedArtifactStore, type StoredArtifact } from '../../platform/artifacts/index.js';
+import { ContentAddressedArtifactStore } from '../../platform/artifacts/index.js';
 import { withDatabaseMutationMutex } from '../../platform/db/index.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { verifyM03VerifiedMetricSet } from './m03-section-recipe.js';
@@ -23,6 +23,7 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 const validateRequest = ajv.compile<SectionArtifactRetentionRequest>(requestSchema);
+const validateRecord = ajv.compile<SectionArtifactRetentionRecord>(recordSchema);
 
 const JSON_MEDIA = 'application/json';
 const HTML_MEDIA = 'text/html; charset=utf-8';
@@ -90,10 +91,7 @@ interface Row {
   readonly retainedAt: string;
 }
 
-interface CreatedArtifact {
-  readonly stored: StoredArtifact;
-  readonly removeOnFailure: boolean;
-}
+type MemberIdentity = { readonly artifactSha256: string; readonly byteSize: number };
 
 const digest = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
@@ -113,39 +111,36 @@ export class SectionArtifactRetentionLedgerService {
   }
 
   async retain(untrustedRequest: unknown, bytes: SectionArtifactRetentionBytes): Promise<SectionArtifactRetentionExecution> {
+    assertBoundedBytes(bytes);
     const bundle = await this.#verify(untrustedRequest, bytes);
     const existing = this.#row(bundle.artifact.artifactSha256);
     if (existing) return this.#verifiedRetry(existing, bundle, bytes);
 
-    const createdArtifacts: CreatedArtifact[] = [];
-    const stored = await this.#putManyTracked(bytes, createdArtifacts);
+    const digestsByRole = digestsFor(bytes);
     const retainedAt = exactTimestamp(this.#now());
-    let execution: SectionArtifactRetentionExecution;
-    try {
-      execution = await withDatabaseMutationMutex(this.#db, async () => {
-        this.#db.exec('BEGIN IMMEDIATE');
-        try {
-          const raced = this.#row(bundle.artifact.artifactSha256);
-          if (raced) {
-            const retry = await this.#verifiedRetry(raced, bundle, bytes);
-            this.#db.exec('COMMIT');
-            return retry;
-          }
-          let databaseMutations = 0;
-          for (const role of MEMBER_ROLES) databaseMutations += this.#registerArtifact(stored[role], mediaTypeFor(role), retainedAt);
-          databaseMutations += this.#insert(bundle, stored, retainedAt);
-          for (const role of MEMBER_ROLES) databaseMutations += this.#insertMember(bundle.artifact.artifactSha256, role, stored[role].sha256);
+    const execution = await withDatabaseMutationMutex(this.#db, async () => {
+      this.#db.exec('BEGIN IMMEDIATE');
+      try {
+        const raced = this.#row(bundle.artifact.artifactSha256);
+        if (raced) {
+          const retry = await this.#verifiedRetry(raced, bundle, bytes);
           this.#db.exec('COMMIT');
-          return executionFrom(bundle, false, databaseMutations);
-        } catch (error) {
-          if (this.#db.inTransaction) this.#db.exec('ROLLBACK');
-          throw error;
+          return retry;
         }
-      });
-    } catch (error) {
-      await this.#removeUnregisteredArtifacts(createdArtifacts);
-      throw error;
-    }
+        let databaseMutations = 0;
+        for (const role of MEMBER_ROLES) {
+          databaseMutations += this.#registerArtifact(digestsByRole[role], mediaTypeFor(role), retainedAt);
+        }
+        databaseMutations += this.#insert(bundle, retainedAt);
+        for (const role of MEMBER_ROLES) databaseMutations += this.#insertMember(bundle.artifact.artifactSha256, role, digestsByRole[role].artifactSha256);
+        this.#db.exec('COMMIT');
+        return executionFrom(bundle, false, databaseMutations);
+      } catch (error) {
+        if (this.#db.inTransaction) this.#db.exec('ROLLBACK');
+        throw error;
+      }
+    });
+    if (!execution.deduplicated) await this.#publishAll(bytes, digestsByRole);
     const verified = await this.read(execution.sectionArtifactSha256);
     if (!Buffer.from(verified.html, 'utf8').equals(bytes.html)) {
       throw new SectionArtifactRetentionIntegrityError('Persisted section artifact does not match its receipt');
@@ -230,13 +225,19 @@ export class SectionArtifactRetentionLedgerService {
   async #verifiedRetry(
     row: Row, bundle: VerifiedBundle, bytes: SectionArtifactRetentionBytes,
   ): Promise<SectionArtifactRetentionExecution> {
-    const verified = await this.read(row.sectionArtifactSha256);
-    if (!Buffer.from(verified.html, 'utf8').equals(bytes.html) ||
-        canonicalJson(verified.metricSet) !== canonicalJson(bundle.metricSet) ||
-        canonicalJson(verified.chartBundle) !== canonicalJson(bundle.chartBundle) ||
-        canonicalJson(verified.envelope) !== canonicalJson(bundle.envelope) ||
-        canonicalJson(verified.narrative) !== canonicalJson(bundle.narrative)) {
-      throw new SectionArtifactRetentionConflictError('Section artifact identity already retained with changed bytes or metadata');
+    const members = this.#members(row.sectionArtifactSha256);
+    for (const role of MEMBER_ROLES) {
+      const buffer = bytes[roleKey(role)];
+      if (digest(buffer) !== members[role].artifactSha256 || buffer.byteLength !== members[role].byteSize) {
+        throw new SectionArtifactRetentionConflictError(`Section artifact identity already retained with a different ${role} artifact`);
+      }
+    }
+    try {
+      await this.read(row.sectionArtifactSha256);
+    } catch (error) {
+      if (!isMissingArtifactError(error)) throw error;
+      await this.#publishAll(bytes, members);
+      await this.read(row.sectionArtifactSha256);
     }
     return executionFrom(bundle, true, 0);
   }
@@ -281,7 +282,7 @@ export class SectionArtifactRetentionLedgerService {
     ) throw new SectionArtifactRetentionIntegrityError('Section artifact row does not match deterministic replay');
   }
 
-  #insert(bundle: VerifiedBundle, stored: Record<MemberRole, StoredArtifact>, retainedAt: string): number {
+  #insert(bundle: VerifiedBundle, retainedAt: string): number {
     return this.#db.prepare(`
       INSERT INTO analysis_section_artifacts(
         section_artifact_sha256, section_id, renderer_profile, preparation_sha256,
@@ -293,7 +294,7 @@ export class SectionArtifactRetentionLedgerService {
       bundle.metricSet.preparation.preparationSha256,
       bundle.artifact.dependencies.metricSetSha256, bundle.artifact.dependencies.chartBundleSha256,
       bundle.artifact.dependencies.envelopeSha256, bundle.artifact.dependencies.narrativeSha256,
-      stored.html.sha256, bundle.artifact.html.byteSize, retainedAt,
+      bundle.artifact.html.sha256, bundle.artifact.html.byteSize, retainedAt,
     ).changes;
   }
 
@@ -304,47 +305,28 @@ export class SectionArtifactRetentionLedgerService {
     `).run(sectionArtifactSha256, role, artifactSha256).changes;
   }
 
-  async #putManyTracked(
-    bytes: SectionArtifactRetentionBytes, created: CreatedArtifact[],
-  ): Promise<Record<MemberRole, StoredArtifact>> {
-    const entries = await Promise.all(MEMBER_ROLES.map(async role => [role, await this.#putTracked(bytes[roleKey(role)], created)] as const));
-    return Object.fromEntries(entries) as Record<MemberRole, StoredArtifact>;
-  }
-
-  async #putTracked(value: Buffer, created: CreatedArtifact[]): Promise<StoredArtifact> {
-    const sha256 = digest(value);
-    const absolutePath = this.#artifacts.pathForDigest(sha256);
-    const existed = await pathExists(absolutePath);
-    const registered = this.#db.prepare('SELECT 1 found FROM artifact_manifests WHERE sha256 = ?').get(sha256) !== undefined;
-    const stored = await this.#artifacts.put(value);
-    if (!existed) created.push({ stored, removeOnFailure: !registered });
-    return stored;
-  }
-
-  async #removeUnregisteredArtifacts(created: readonly CreatedArtifact[]): Promise<void> {
-    const unique = new Map(created.map(item => [item.stored.sha256, item]));
-    for (const { stored, removeOnFailure } of unique.values()) {
-      if (!removeOnFailure) continue;
-      if (this.#db.prepare('SELECT 1 found FROM artifact_manifests WHERE sha256 = ?').get(stored.sha256)) continue;
-      const retained = await this.#artifacts.read(stored.sha256, { maxBytes: stored.byteSize });
-      if (retained.byteLength !== stored.byteSize || digest(retained) !== stored.sha256) {
-        throw new SectionArtifactRetentionIntegrityError('Section artifact bytes changed before cleanup');
+  async #publishAll(bytes: SectionArtifactRetentionBytes, identities: Record<MemberRole, MemberIdentity>): Promise<void> {
+    for (const role of MEMBER_ROLES) {
+      const buffer = bytes[roleKey(role)];
+      const stored = await this.#artifacts.put(buffer);
+      if (stored.sha256 !== identities[role].artifactSha256 || stored.byteSize !== identities[role].byteSize) {
+        throw new SectionArtifactRetentionIntegrityError(`Published ${role} artifact does not match its declared identity`);
       }
-      await fs.rm(stored.absolutePath);
     }
   }
 
-  #registerArtifact(stored: StoredArtifact, mediaType: string, acquiredAt: string): number {
+  #registerArtifact(identity: MemberIdentity, mediaType: string, acquiredAt: string): number {
+    const relativePath = relativePathFor(identity.artifactSha256);
     const inserted = this.#db.prepare(`
       INSERT INTO artifact_manifests(
         sha256, byte_size, media_type, relative_path, acquired_at,
         contract_version, retention_status, created_at
       ) VALUES (?, ?, ?, ?, ?, '1.0.0', 'active', ?)
       ON CONFLICT(sha256) DO NOTHING
-    `).run(stored.sha256, stored.byteSize, mediaType, stored.relativePath, acquiredAt, acquiredAt);
-    const row = this.#manifestRow(stored.sha256);
-    if (!row || row.byteSize !== BigInt(stored.byteSize) || row.mediaType !== mediaType ||
-        row.relativePath !== stored.relativePath || row.contractVersion !== '1.0.0' || row.retentionStatus !== 'active') {
+    `).run(identity.artifactSha256, identity.byteSize, mediaType, relativePath, acquiredAt, acquiredAt);
+    const row = this.#manifestRow(identity.artifactSha256);
+    if (!row || row.byteSize !== BigInt(identity.byteSize) || row.mediaType !== mediaType ||
+        row.relativePath !== relativePath || row.contractVersion !== '1.0.0' || row.retentionStatus !== 'active') {
       throw new SectionArtifactRetentionConflictError('Section artifact manifest metadata conflict');
     }
     return inserted.changes;
@@ -369,7 +351,7 @@ export class SectionArtifactRetentionLedgerService {
       throw new SectionArtifactRetentionIntegrityError('Section artifact manifest is missing or incompatible');
     }
     const bytes = await this.#artifacts.read(sha256, { maxBytes: MAX_ARTIFACT_BYTES });
-    const expectedPath = `sha256/${sha256.slice(0, 2)}/${sha256}`;
+    const expectedPath = relativePathFor(sha256);
     if (row.byteSize !== BigInt(bytes.byteLength) || row.relativePath !== expectedPath) {
       throw new SectionArtifactRetentionIntegrityError('Section artifact metadata does not match immutable bytes');
     }
@@ -428,7 +410,7 @@ function executionFrom(bundle: VerifiedBundle, deduplicated: boolean, databaseMu
 function recordFrom(
   bundle: VerifiedBundle, members: Record<MemberRole, { artifactSha256: string; byteSize: number }>,
 ): SectionArtifactRetentionRecord {
-  return {
+  const record: SectionArtifactRetentionRecord = {
     contractVersion: '1.0.0',
     sectionArtifactSha256: bundle.artifact.artifactSha256,
     section: { sectionId: 'M03', title: 'Quy mô và diễn biến' },
@@ -449,6 +431,10 @@ function recordFrom(
       html: members.html,
     },
   };
+  if (!validateRecord(record)) {
+    throw new SectionArtifactRetentionIntegrityError(`Section artifact retention record failed schema validation: ${ajv.errorsText(validateRecord.errors)}`);
+  }
+  return record;
 }
 
 function exactTimestamp(now: Date): string {
@@ -456,10 +442,25 @@ function exactTimestamp(now: Date): string {
   return now.toISOString();
 }
 
-async function pathExists(filePath: string): Promise<boolean> {
-  try { await fs.access(filePath); return true; }
-  catch (error) {
-    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
-    throw error;
+function assertBoundedBytes(bytes: SectionArtifactRetentionBytes): void {
+  for (const role of MEMBER_ROLES) {
+    if (bytes[roleKey(role)].byteLength > MAX_ARTIFACT_BYTES) {
+      throw new SectionArtifactRetentionValidationError(`${role} artifact exceeds the maximum retained size`);
+    }
   }
+}
+
+function digestsFor(bytes: SectionArtifactRetentionBytes): Record<MemberRole, MemberIdentity> {
+  return Object.fromEntries(MEMBER_ROLES.map(role => {
+    const buffer = bytes[roleKey(role)];
+    return [role, { artifactSha256: digest(buffer), byteSize: buffer.byteLength }];
+  })) as Record<MemberRole, MemberIdentity>;
+}
+
+function relativePathFor(sha256: string): string {
+  return `sha256/${sha256.slice(0, 2)}/${sha256}`;
+}
+
+function isMissingArtifactError(error: unknown): boolean {
+  return error instanceof Error && (error as NodeJS.ErrnoException).code === 'ENOENT';
 }
