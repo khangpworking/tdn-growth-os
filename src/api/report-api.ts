@@ -161,7 +161,11 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
           ...definition,
           moduleIds: [...definition.moduleIds],
           requiredInputs: [...definition.requiredInputs],
-          inputChecks: buildReportInputReadiness(record, packet, definition.requiredInputs, bundle.files),
+          inputChecks: buildReportInputReadiness(record, packet, definition.requiredInputs, bundle.files).map(check => ({
+            ...check,
+            codes: [...check.codes],
+            evidenceRefs: check.evidenceRefs.map(reference => ({ ...reference })),
+          })),
           fallbackReasons: [...definition.fallbackReasons],
           deliveryState: section.deliveryState,
           claimIds: [...section.claimIds],
