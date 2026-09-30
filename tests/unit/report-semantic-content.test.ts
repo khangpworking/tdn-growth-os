@@ -77,7 +77,8 @@ function fixture(options: {
     },
     computation: {
       inputSha256: digest('input'), methodVersion: 'metric-scope-v1', rounding: 'percent-half-even-2-v1',
-      rendererVersion: options.resultRenderer ?? 'metric-draft-vi-v1', profileId: 'fixture', labelCodebookVersion: 'fixture',
+      rendererVersion: (options.resultRenderer ?? 'metric-draft-vi-v1') as ResearchReportChartData['computation']['rendererVersion'],
+      profileId: 'fixture', labelCodebookVersion: 'fixture',
       wideUnknownPolicy: 'exclude',
     },
     scopeKeys,

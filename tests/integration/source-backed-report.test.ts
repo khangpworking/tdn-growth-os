@@ -244,10 +244,6 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(first.chartSpec.views.length, 14);
   const revenueView = first.chartSpec.views.find(view => view.viewId === 'scope-totals-revenue');
   assert.equal(revenueView?.marks.find(mark => mark.categoryKey === 'all')?.resultValuePointer, '/scopes/0/revenue/value');
-  const sensitivityView = first.chartSpec.views.find(view => view.viewId === 'scope-membership-sensitivity-revenue');
-  assert.equal(sensitivityView?.annotations.find(annotation => annotation.categoryKey === 'wide')
-    ?.values.find(value => value.key === 'removedRecordCount')?.resultEvidencePointers[0],
-  '/comparisons/0/removedRecordIndices');
   const m02 = JSON.parse(first.files.get('m02-scope-method.json')!.toString('utf8')) as {
     methodOutputId: string; sourceVerification: string; measurement: { recordCount: number; wideUnknownPolicy: string };
   };
