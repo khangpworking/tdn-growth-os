@@ -271,7 +271,7 @@ test('Caption provider errors redact key-like text in API and storage and leave 
     const posterBody = { contractVersion: '1.0.0', part: 'POSTER', requestId: id(41), plannedCallCount: 2 };
     const noCaption = await apiJson(owner.handler, 'POST', url, posterBody, token);
     assert.equal(noCaption.status, 409);
-    assert.deepEqual(gateway.calls, []);
+    assert.equal(gateway.calls.length, 0);
 
     const failed = await apiJson(owner.handler, 'POST', url, { contractVersion: '1.0.0', part: 'CAPTION', requestId: id(42), plannedCallCount: 2 }, token);
     assert.equal(failed.status, 502);
