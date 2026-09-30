@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m03-narrative-evidence-request.schema.json",
+  "title": "M03NarrativeEvidenceRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "sectionId", "profile", "metricSetSha256", "chartBundleSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "sectionId": { "const": "M03" },
+    "profile": { "const": "m03-narrative-evidence-v1" },
+    "metricSetSha256": { "$ref": "#/$defs/digest" },
+    "chartBundleSha256": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": { "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

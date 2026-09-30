@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m03-narrative-evidence.schema.json",
+  "title": "M03NarrativeEvidence",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "envelopeSha256", "request", "section", "dependencies", "claims", "authoringRules"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "envelopeSha256": { "$ref": "#/$defs/digest" },
+    "request": { "$ref": "m03-narrative-evidence-request.schema.json" },
+    "section": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sectionId", "title"],
+      "properties": { "sectionId": { "const": "M03" }, "title": { "const": "Quy mô và diễn biến" } }
+    },
+    "dependencies": {
+      "type": "object", "additionalProperties": false,
+      "required": ["preparationSha256", "readinessSha256", "metricSetSha256", "chartBundleSha256"],
+      "properties": {
+        "preparationSha256": { "$ref": "#/$defs/digest" },
+        "readinessSha256": { "$ref": "#/$defs/digest" },
+        "metricSetSha256": { "$ref": "#/$defs/digest" },
+        "chartBundleSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "claims": {
+      "type": "array", "minItems": 16, "maxItems": 16,
+      "items": { "$ref": "#/$defs/claim" }
+    },
+    "authoringRules": {
+      "type": "array", "minItems": 6, "maxItems": 6,
+      "items": {
+        "enum": [
+          "EVERY_NUMBER_MUST_COPY_ONE_CITED_CLAIM_VALUE",
+          "MISSING_MUST_NOT_BE_RENDERED_OR_DESCRIBED_AS_ZERO",
+          "NO_CAUSATION_FORECAST_MARKET_SHARE_OR_HEALTH_CLAIMS",
+          "NO_CROSS_PERIOD_COMPARISON",
+          "NO_ADDITION_OF_OVERLAPPING_SCOPES",
+          "LIMIT_TO_M03_OBSERVED_FACTS_AND_EXPLICIT_LIMITATIONS"
+        ]
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "coverage": {
+      "anyOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["observedCount", "missingCount", "nonExactCount", "complete"],
+          "properties": {
+            "observedCount": { "type": "integer", "minimum": 0 },
+            "missingCount": { "type": "integer", "minimum": 0 },
+            "nonExactCount": { "type": "integer", "minimum": 0 },
+            "complete": { "type": "boolean" }
+          }
+        },
+        { "type": "null" }
+      ]
+    },
+    "claim": {
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "claimId", "statementKind", "metric", "context", "value", "valueState", "unit",
+        "coverage", "recordIndices", "evidencePointer", "chartIds"
+      ],
+      "properties": {
+        "claimId": { "type": "string", "pattern": "^M03:[a-z_]+:[a-zA-Z_]+$", "maxLength": 100 },
+        "statementKind": { "const": "FACT" },
+        "metric": {
+          "enum": ["LISTING_COUNT", "SHOP_COUNT", "OBSERVED_REVENUE", "OBSERVED_UNITS", "REVENUE_MEMBERSHIP_DELTA", "UNITS_MEMBERSHIP_DELTA"]
+        },
+        "context": { "enum": ["all", "wide", "core", "all_to_wide", "all_to_core"] },
+        "value": { "anyOf": [{ "type": "string", "pattern": "^-?(0|[1-9][0-9]*)$" }, { "type": "null" }] },
+        "valueState": { "enum": ["OBSERVED", "MISSING"] },
+        "unit": { "enum": ["LISTINGS", "SHOPS", "VND", "UNITS"] },
+        "coverage": { "$ref": "#/$defs/coverage" },
+        "recordIndices": { "type": "array", "items": { "type": "integer", "minimum": 0 } },
+        "evidencePointer": { "type": "string", "pattern": "^/scopes/[0-2]/|^/comparisons/[0-1]/", "maxLength": 200 },
+        "chartIds": {
+          "type": "array", "maxItems": 3,
+          "items": { "enum": ["m03-observed-revenue-by-scope", "m03-observed-units-by-scope", "m03-membership-revenue-sensitivity"] }
+        }
+      }
+    }
+  }
+}

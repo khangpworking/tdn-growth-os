@@ -163,3 +163,7 @@ identity rather than recalculate values independently.
 `research:metric:m03:charts` verifies that metric-set identity and emits three
 fixed M03 chart-data specs without reopening sources, recalculating or calling
 AI. Rendering is intentionally separate.
+
+`research:metric:m03:evidence` binds the exact metric and chart identities into
+a citation-only fact envelope for a later narrative. It makes no AI call and
+contains no free-form business conclusion.

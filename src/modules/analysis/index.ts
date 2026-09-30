@@ -131,7 +131,13 @@ export {
   buildM03ChartBundle,
   M03ChartBundleIntegrityError,
   M03ChartBundleValidationError,
+  verifyM03ChartBundle,
 } from './m03-chart-bundle.js';
+export {
+  buildM03NarrativeEvidence,
+  M03NarrativeEvidenceIntegrityError,
+  M03NarrativeEvidenceValidationError,
+} from './m03-narrative-evidence.js';
 export {
   buildReportReviewTarget,
   ReportReviewTargetIntegrityError,
