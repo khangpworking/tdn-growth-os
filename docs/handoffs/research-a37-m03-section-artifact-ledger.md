@@ -54,7 +54,40 @@
 This is layer-two retention only: no report version, interpretation, review
 target, human approval, PDF, UI/API, or deployment is created here.
 
-Test design and execution are under Codex ownership per the test-audit gate:
-exactly one service/integration owner test and one CLI/filesystem boundary
-test are pending, along with Linux CI. Windows tests/build/typecheck were
-not run by policy.
+Production correction commit `8a0b7674981845965f081227135fa841f6a8b6f7` closed
+three findings from independent review of implementation head
+`82e417391064f520e27c0dff785b37893b95749a`: exact retries now compare every
+member's exact byte SHA-256/size (not just canonical JSON/HTML), the DB
+transaction stores only in-memory digests so a failed write never deletes a
+canonical artifact (narrow republish-on-retry instead), and all six buffers
+are rejected above the 8 MiB bound before parsing.
+
+Tests were authored and owned by Codex under the test-audit gate, independent
+of the above correction: `tests/integration/section-artifact-retention-ledger.test.ts`
+(commit `5b614e32542fd78766c4490269f28ee0d793a4a2`) is the single
+service/integration owner, covering fresh retention, mutation-free exact
+retry, a byte-changed-representation conflict, the 8 MiB bound rejection,
+missing-canonical-member recovery on retry, and row immutability;
+`tests/integration/section-artifact-retention-cli.test.ts` (same commit) is
+the distinct CLI/filesystem-boundary owner, covering a wrong-digest rejection
+with zero partial writes, a fresh CLI run, an exact CLI retry, and (non-Windows)
+file/database mode bits. Commit `30d51032229061fa3decf05897605666d910525c`
+advanced unrelated pre-existing migration-count expectations in other
+integration tests to account for migration 0037. Neither test commit touches
+production code, contracts, or migrations, and neither performs any AI or
+provider call.
+
+Final head `30d51032229061fa3decf05897605666d910525c` passed Linux CI on both
+required workflows: [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/36708237214)
+(176/176 frontend tests, 615/615 repository tests, contract generation,
+strict TypeScript, production build) and
+[Research report preview](https://github.com/khangpworking/tdn-growth-os/actions/runs/36708237136)
+(no page error). PR #99 is open/draft; it was temporarily retargeted to
+`main` only to trigger these Linux checks and remains stacked logically on
+A36 (draft PR #98). Windows tests, build and typecheck were not run by
+policy.
+
+Remaining scope limits: this slice still creates no report version,
+interpretation, review target, human approval, PDF, UI/API, or deployment;
+it retains section `M03` under renderer profile
+`m03-section-artifact-html-vi-v1` only.
