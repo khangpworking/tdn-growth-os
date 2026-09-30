@@ -3,10 +3,13 @@
 ## Delivery status
 
 - Branch: `feature/research-a27-chart-spec`
-- Draft PR: pending
-- Reviewed implementation SHA: pending
-- Linux Check: pending
-- Research report preview: pending
+- Draft PR: [#88](https://github.com/khangpworking/tdn-growth-os/pull/88)
+- Reviewed implementation SHA:
+  `edf9c874ff90714a33ee6eaab5a4e51953320d65`
+- Linux Check: PASS —
+  [run 36671577825](https://github.com/khangpworking/tdn-growth-os/actions/runs/36671577825)
+- Research report preview: PASS —
+  [run 36671577894](https://github.com/khangpworking/tdn-growth-os/actions/runs/36671577894)
 
 ## Delivered scope
 
@@ -30,5 +33,16 @@
 
 ## Verification
 
-Linux CI and preview evidence will replace the pending fields before owner
-review. Windows tests, builds and typechecks are not release evidence.
+- Contract generation, strict TypeScript, frontend production build and the
+  complete repository check passed on Linux.
+- Frontend tests: 176/176 passed.
+- Repository tests: 601/601 passed.
+- Desktop preview: 1440 px; mobile preview: 390 px; neither produced a page
+  error.
+- The browser walkthrough opened the visible ChartSpec explanation, exercised
+  all internal links and downloaded the exact canonical `chart-spec.json`.
+- Keyboard Enter/Tab behavior and visible focus passed. Recorded text contrast
+  ratios were all at least 5.64:1.
+- `git diff --check` passed.
+- Windows tests, builds and typechecks were not run and are not release
+  evidence.
