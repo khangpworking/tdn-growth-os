@@ -712,7 +712,7 @@ numeric token must copy a cited claim value; missing remains missing and observe
 zero remains zero. The output is a deterministic draft, not an AI interpretation
 or OWNER-approved conclusion.
 
-## Research A36: deterministic M03 section artifact (draft)
+## Research A36: deterministic M03 section artifact (draft PR #98)
 
 A36 composes the exact A32 metric set, A33 chart bundle, A34 evidence
 envelope and A35 factual narrative into one self-contained Vietnamese HTML
@@ -721,4 +721,8 @@ exact lineage; the renderer adds no interpretation beyond what those
 dependencies already contain. The result is a closed, versioned receipt
 binding the renderer profile, exact dependency digests, and the HTML's
 SHA-256/byte size, with a verifier that can replay the full chain from exact
-dependencies.
+dependencies. Draft PR #98 is open; Linux CI passed on implementation head
+`86dd803a49a6dafe444068b7f3851529349296f0` with 176/176 frontend tests,
+612/612 repository tests, contract generation, strict TypeScript, production
+build and the research report preview (no page error). Windows tests, build
+and typecheck were not run by policy.
