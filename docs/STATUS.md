@@ -601,3 +601,16 @@ coverage becomes 6/30 sections: M02, M03, M04, M08/P4, M13 and I03. This remains
 an unreviewed method account and creates no market finding, insight,
 recommendation, AI output or human decision. Linux CI and preview remain the
 release gates.
+
+## Research A26: directional I17 evidence trace (implementation)
+
+Catalog 0.6.0 materializes I17 as a canonical index over the exact source
+package, M02/M08/M13/I03 method artifacts and M03/M04 quantitative claims. Each
+entry resolves the owning artifact and JSON pointer while preserving scope,
+membership, denominator, coverage, missing/zero/UNKNOWN and precision states.
+The final packet binds I17; I17 does not embed the final packet or semantic ID,
+so identity remains directional. Executable deterministic coverage becomes
+7/30 sections: M02, M03, M04, M08/P4, M13, I03 and I17. This is traceability,
+not source authentication, proof, AI interpretation or human approval. Linux
+CI and preview remain release gates; a closed visual ChartSpec is the next
+separate chart-layer increment.

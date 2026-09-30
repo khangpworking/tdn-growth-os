@@ -152,7 +152,7 @@
           "additionalProperties": false,
           "required": ["fileName", "sha256", "methodOutputId"],
           "properties": {
-            "fileName": { "enum": ["m02-scope-method.json", "m08-tablet-quote-method.json", "m13-provenance-appendix.json", "i03-research-method.json"] },
+            "fileName": { "enum": ["m02-scope-method.json", "m08-tablet-quote-method.json", "m13-provenance-appendix.json", "i03-research-method.json", "i17-evidence-trace.json"] },
             "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
             "methodOutputId": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
           }

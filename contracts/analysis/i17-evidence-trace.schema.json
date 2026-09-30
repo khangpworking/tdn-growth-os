@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/i17-evidence-trace.schema.json",
+  "title": "I17EvidenceTrace",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodOutputId", "sectionId", "sectionTitle", "methodId", "methodVersion", "bindingPolicyVersion", "deliveryState", "approvalState", "evidenceState", "upstreamBindingSha256", "upstreamBinding", "summary", "entries", "limitations", "reopenConditions"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodOutputId": { "$ref": "#/$defs/digest" },
+    "sectionId": { "const": "I17" },
+    "sectionTitle": { "const": "Phụ lục và bằng chứng" },
+    "methodId": { "const": "evidence-trace-index" },
+    "methodVersion": { "const": "2.0.0" },
+    "bindingPolicyVersion": { "const": "directional-evidence-trace-v1" },
+    "deliveryState": { "const": "PARTIAL_DETERMINISTIC_DRAFT" },
+    "approvalState": { "const": "UNREVIEWED" },
+    "evidenceState": { "const": "RESOLVED_REFERENCES_NOT_SOURCE_TRUTH" },
+    "upstreamBindingSha256": { "$ref": "#/$defs/digest" },
+    "upstreamBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourcePackage", "catalogSha256", "normalizedInputSha256", "metricResultSha256", "claimSetSha256", "methodArtifacts"],
+      "properties": {
+        "sourcePackage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["packageId", "version", "manifestArtifactSha256", "packageContentSha256"],
+          "properties": {
+            "packageId": { "type": "string", "format": "uuid" },
+            "version": { "type": "integer", "minimum": 1 },
+            "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+            "packageContentSha256": { "$ref": "#/$defs/digest" }
+          }
+        },
+        "catalogSha256": { "$ref": "#/$defs/digest" },
+        "normalizedInputSha256": { "$ref": "#/$defs/digest" },
+        "metricResultSha256": { "$ref": "#/$defs/digest" },
+        "claimSetSha256": { "$ref": "#/$defs/digest" },
+        "methodArtifacts": {
+          "type": "array", "minItems": 3, "maxItems": 4,
+          "items": { "$ref": "#/$defs/methodArtifact" }
+        }
+      }
+    },
+    "summary": {
+      "type": "object", "additionalProperties": false,
+      "required": ["entryCount", "resolvedEntryCount", "unresolvedEntryCount", "referencedArtifactCount", "methodArtifactCount", "claimCount"],
+      "properties": {
+        "entryCount": { "$ref": "#/$defs/count" },
+        "resolvedEntryCount": { "$ref": "#/$defs/count" },
+        "unresolvedEntryCount": { "const": 0 },
+        "referencedArtifactCount": { "$ref": "#/$defs/count" },
+        "methodArtifactCount": { "$ref": "#/$defs/count" },
+        "claimCount": { "$ref": "#/$defs/count" }
+      }
+    },
+    "entries": {
+      "type": "array", "minItems": 1, "maxItems": 120,
+      "items": { "$ref": "#/$defs/entry" }
+    },
+    "limitations": { "type": "array", "minItems": 6, "maxItems": 20, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 240 } },
+    "reopenConditions": { "type": "array", "minItems": 5, "maxItems": 16, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 240 } }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "count": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "pointer": { "type": "string", "pattern": "^(/.*)?$", "maxLength": 500 },
+    "methodArtifact": {
+      "type": "object", "additionalProperties": false,
+      "required": ["sectionId", "fileName", "sha256", "methodOutputId", "methodId", "methodVersion"],
+      "properties": {
+        "sectionId": { "enum": ["M02", "M08", "M13", "I03"] },
+        "fileName": { "enum": ["m02-scope-method.json", "m08-tablet-quote-method.json", "m13-provenance-appendix.json", "i03-research-method.json"] },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "methodOutputId": { "$ref": "#/$defs/digest" },
+        "methodId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "methodVersion": { "const": "2.0.0" }
+      }
+    },
+    "entry": {
+      "type": "object", "additionalProperties": false,
+      "required": ["entryId", "sectionId", "subjectType", "subjectId", "relationType", "resolutionState", "artifactFile", "artifactSha256", "artifactPointer", "supportingPointers", "denominatorPointers", "coveragePointers", "membershipPointers", "scopeKey", "deliveryState", "approvalState", "limitations"],
+      "properties": {
+        "entryId": { "$ref": "#/$defs/digest" },
+        "sectionId": { "enum": ["M02", "M03", "M04", "M08", "M13", "I03"] },
+        "subjectType": { "enum": ["METHOD_ARTIFACT", "FACT_CLAIM"] },
+        "subjectId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "relationType": { "enum": ["TRACE_FOR", "CALCULATION_BASIS"] },
+        "resolutionState": { "const": "RESOLVED" },
+        "artifactFile": { "enum": ["metric-result.json", "m02-scope-method.json", "m08-tablet-quote-method.json", "m13-provenance-appendix.json", "i03-research-method.json"] },
+        "artifactSha256": { "$ref": "#/$defs/digest" },
+        "artifactPointer": { "$ref": "#/$defs/pointer" },
+        "supportingPointers": { "type": "array", "minItems": 1, "maxItems": 8, "uniqueItems": true, "items": { "$ref": "#/$defs/pointer" } },
+        "denominatorPointers": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/pointer" } },
+        "coveragePointers": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/pointer" } },
+        "membershipPointers": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/pointer" } },
+        "scopeKey": { "anyOf": [{ "enum": ["all", "wide", "core"] }, { "type": "null" }] },
+        "deliveryState": { "const": "PARTIAL_DETERMINISTIC_DRAFT" },
+        "approvalState": { "const": "UNREVIEWED" },
+        "limitations": { "type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 300 } }
+      }
+    }
+  }
+}

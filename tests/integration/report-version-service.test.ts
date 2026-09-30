@@ -675,8 +675,8 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.deepEqual(history.versions.map((item: any) => item.version), [1]);
     assert.deepEqual(history.versions[0].sectionCounts, {
       total: 30,
-      partialDeterministicDraft: 6,
-      methodOnly: 11,
+      partialDeterministicDraft: 7,
+      methodOnly: 10,
       blocked: 12,
       manualReviewRequired: 1,
       notImplemented: 0,
@@ -697,6 +697,9 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.ok(readiness.sections.find((section: any) => section.sectionId === 'M03').claimIds.includes('M03:all:revenue'));
     assert.equal(readiness.sections.find((section: any) => section.sectionId === 'I03').deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
     assert.deepEqual(readiness.sections.find((section: any) => section.sectionId === 'I03').claimIds, []);
+    assert.equal(readiness.sections.find((section: any) => section.sectionId === 'I17').deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
+    assert.deepEqual(readiness.sections.find((section: any) => section.sectionId === 'I17').claimIds, []);
+    assert.equal(readiness.sections.find((section: any) => section.sectionId === 'I17').methodArtifact.fileName, 'i17-evidence-trace.json');
     assert.match(readiness.sections.find((section: any) => section.sectionId === 'M10').reopenCondition, /daily series/i);
     assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/2/sections`)).status, 404);
 

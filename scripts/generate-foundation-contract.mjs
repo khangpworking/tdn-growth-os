@@ -11,6 +11,7 @@ const contracts = [
   ['analysis', 'm08-tablet-quote-method'],
   ['analysis', 'm13-provenance-appendix'],
   ['analysis', 'i03-research-method'],
+  ['analysis', 'i17-evidence-trace'],
   ['analysis', 'source-backed-report-request'],
   ['analysis', 'report-semantic-content'],
   ['analysis', 'report-review-state'],
