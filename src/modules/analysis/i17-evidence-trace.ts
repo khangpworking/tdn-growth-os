@@ -57,6 +57,13 @@ function entry<T extends Omit<I17EvidenceTrace['entries'][number], 'entryId'>>(v
   return { ...value, entryId: sha256(canonicalJson(value)) };
 }
 
+function boundedLimitations(values: readonly string[]): I17EvidenceTrace['entries'][number]['limitations'] {
+  if (values.length < 1 || values.length > 20 || new Set(values).size !== values.length) {
+    throw new TypeError('I17: INVALID_ENTRY_LIMITATIONS');
+  }
+  return [...values] as I17EvidenceTrace['entries'][number]['limitations'];
+}
+
 function methodSection(method: MethodInput): UpstreamMethodSection {
   if (method.output.methodId === 'metric-scope-packet-context' && method.fileName === 'm02-scope-method.json') return 'M02';
   if (method.output.methodId === 'tablet-quote-normalization' && method.fileName === 'm08-tablet-quote-method.json') return 'M08';
@@ -91,7 +98,8 @@ function methodEntry(method: MethodInput): I17EvidenceTrace['entries'][number] {
   } as const;
   const denominatorMap = { M02: ['/measurement/recordCount'], M08: ['/quote/packCount'], M13: ['/coverage/recordCount'], I03: ['/coverage/denominatorRecordCount'] } as const;
   for (const pointer of pointerMap[sectionId]) if (atPointer(method.output, pointer) === undefined) throw new TypeError(`I17: UNRESOLVED_METHOD_POINTER:${sectionId}:${pointer}`);
-  const denominatorPointers = denominatorMap[sectionId].filter(pointer => atPointer(method.output, pointer) !== undefined);
+  const denominatorPointer: string = denominatorMap[sectionId][0];
+  const denominatorPointers: [] | [string] = atPointer(method.output, denominatorPointer) === undefined ? [] : [denominatorPointer];
   return entry({
     sectionId,
     subjectType: 'METHOD_ARTIFACT',
@@ -108,7 +116,7 @@ function methodEntry(method: MethodInput): I17EvidenceTrace['entries'][number] {
     scopeKey: null,
     deliveryState: 'PARTIAL_DETERMINISTIC_DRAFT',
     approvalState: 'UNREVIEWED',
-    limitations: [...method.output.limitations],
+    limitations: boundedLimitations(method.output.limitations),
   });
 }
 
@@ -134,7 +142,7 @@ export function buildI17EvidenceTrace(input: I17EvidenceTraceInputs): { readonly
       input.i03.output.lineage.normalizedInputSha256 !== input.m13.output.lineage.normalizedInputSha256 ||
       input.i03.output.lineage.normalizationReceiptSha256 !== input.m13.output.lineage.normalizationReceiptSha256 ||
       input.i03.output.lineage.metricResultSha256 !== input.packet.metricResultSha256 ||
-      input.m13.output.lineage.normalizedInputSha256 !== input.packet.inputSha256 ||
+      input.i03.output.normalization.inputSha256 !== input.packet.inputSha256 ||
       input.m13.output.lineage.metricResultSha256 !== input.packet.metricResultSha256 ||
       (input.m08 !== undefined && canonicalJson(input.m08.output.sourcePackage) !== canonicalJson(input.m13.output.sourcePackage)) ||
       canonicalJson(input.i03.output.sourcePackage) !== canonicalJson(input.m13.output.sourcePackage)) {
@@ -185,7 +193,7 @@ export function buildI17EvidenceTrace(input: I17EvidenceTraceInputs): { readonly
       scopeKey: claim.scopeKey,
       deliveryState: 'PARTIAL_DETERMINISTIC_DRAFT' as const,
       approvalState: 'UNREVIEWED' as const,
-      limitations: [...claim.limitations],
+      limitations: boundedLimitations(claim.limitations),
     });
   });
   const entries = [...methodEntries, ...claimEntries];
