@@ -112,6 +112,7 @@ export interface ResearchScopeSensitivityComparison {
   readonly revenueDelta: { readonly value: string | null; readonly unit: 'VND'; readonly pointer: string };
   readonly unitsDelta: { readonly value: string | null; readonly unit: 'unit'; readonly pointer: string };
   readonly removedRecordIndices: readonly number[];
+  readonly removedRecordCount: number;
   readonly removedRecordIndicesPointer: string;
   readonly period: ResearchChartPeriod;
   readonly blockers: readonly string[];
@@ -523,6 +524,7 @@ function buildScopeSensitivity(
       revenueDelta: { value: comparison.revenueDelta, unit: 'VND', pointer: `/comparisons/${index}/revenueDelta` },
       unitsDelta: { value: comparison.unitsDelta, unit: 'unit', pointer: `/comparisons/${index}/unitsDelta` },
       removedRecordIndices: [...comparison.removedRecordIndices],
+      removedRecordCount: comparison.removedRecordIndices.length,
       removedRecordIndicesPointer: `/comparisons/${index}/removedRecordIndices`,
       period: sourcePeriod(packet),
       blockers: pointBlockers,

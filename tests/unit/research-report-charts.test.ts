@@ -6,11 +6,14 @@ import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { calculateMetricScopes, metricLabelFingerprint } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { buildResearchReportChartData } from '../../src/modules/analysis/research-report-charts.js';
+import { buildResearchChartSpec, verifyResearchChartSpec } from '../../src/modules/analysis/research-chart-spec.js';
+import type { ResearchChartSpec } from '../../contracts/analysis/research-chart-spec.generated.js';
 
 // Test-authoring gate: these tests own the chart builder's public boundary.
 // They protect independently expected scope values and lineage, the credible
 // regressions of plotting blocked denominators/labels, and exact replay
-// rejection; packet tests do not exercise chart selection or chart geometry.
+// rejection. ChartSpec coverage here uniquely owns the ChartData-to-visible-
+// semantics boundary; package tests do not repeat exhaustive pointer mapping.
 const bytes = (value: unknown): Buffer => Buffer.from(canonicalJson(value) + '\n');
 const sha = (value: Buffer): string => createHash('sha256').update(value).digest('hex');
 const pointerValue = (root: unknown, pointer: string): unknown => pointer.slice(1).split('/').reduce<unknown>((current, encoded) => {
@@ -80,10 +83,11 @@ test('builds independent scope totals and cumulative top-shop shares with claim 
     to: value.toScopeKey,
     revenueDelta: value.revenueDelta.value,
     unitsDelta: value.unitsDelta.value,
+    removedCount: value.removedRecordCount,
     removed: value.removedRecordIndices,
   })), [
-    { to: 'wide', revenueDelta: '-10', unitsDelta: '-1', removed: [4] },
-    { to: 'core', revenueDelta: '-35', unitsDelta: '-8', removed: [2, 3, 4] },
+    { to: 'wide', revenueDelta: '-10', unitsDelta: '-1', removedCount: 1, removed: [4] },
+    { to: 'core', revenueDelta: '-35', unitsDelta: '-8', removedCount: 3, removed: [2, 3, 4] },
   ]);
   assert.equal(chart.scopeSensitivity.comparisons[0]!.revenueDelta.pointer, '/comparisons/0/revenueDelta');
   assert.deepEqual(chart.scopeSensitivity.comparisons[0]!.blockers, []);
@@ -134,11 +138,87 @@ test('builds independent scope totals and cumulative top-shop shares with claim 
   assert.ok(coreRemoval.blockers.includes('core:REMAINING_REVENUE_UNAVAILABLE'));
 });
 
+test('materializes and replays the closed ChartSpec with exact evidence pointers', () => {
+  const input = inputs();
+  const chart = buildResearchReportChartData(input.result, input.resultSha256, input.catalog, input.catalogSha256);
+  const chartBytes = bytes(chart);
+  const built = buildResearchChartSpec(chart, chartBytes);
+  assert.deepEqual(built.bytes, bytes(built.spec));
+  const { chartSpecId, ...payload } = built.spec;
+  assert.equal(chartSpecId, sha(Buffer.from(canonicalJson(payload))));
+  assert.deepEqual(built.spec.views.map(view => view.viewId), [
+    'scope-totals-revenue', 'scope-totals-units', 'scope-totals-listings', 'scope-totals-shops',
+    'top-shop-share-all', 'top-shop-share-wide', 'top-shop-share-core',
+    'scope-membership-sensitivity-revenue',
+    'group-composition-all', 'group-composition-wide', 'group-composition-core',
+    'top-shop-removal-all', 'top-shop-removal-wide', 'top-shop-removal-core',
+  ]);
+  assert.deepEqual(built.spec.policies.scopeOrder, ['all', 'wide', 'core']);
+  assert.equal(built.spec.policies.unknownPolicy, 'VISIBLE_AND_INCLUDED_IN_WIDE');
+
+  const revenue = built.spec.views.find(view => view.viewId === 'scope-totals-revenue')!;
+  assert.deepEqual(revenue.marks.map(mark => mark.valueText), ['185', '175', '150']);
+  assert.deepEqual(revenue.axes.category.categoryOrder, ['all', 'wide', 'core']);
+  assert.equal(revenue.axes.value.domainPolicy, 'LOCAL_MAX');
+  const top1 = built.spec.views.find(view => view.viewId === 'top-shop-share-all')!.marks[0]!;
+  assert.equal(top1.claimId, 'M04:all:top1');
+  assert.equal(top1.numeratorPointer, '/scopes/0/concentration/0/share/numerator');
+  assert.equal(top1.denominatorPointer, '/scopes/0/concentration/0/share/denominator');
+  const sensitivity = built.spec.views.find(view => view.viewId === 'scope-membership-sensitivity-revenue')!;
+  assert.equal(sensitivity.axes.value.scale, 'LINEAR_SIGNED_ZERO_CENTERED');
+  assert.deepEqual(sensitivity.annotations[0]!.values.map(value => [value.key, value.valueText]), [
+    ['unitsDelta', '-1'], ['removedRecordCount', '1'],
+  ]);
+  const allGroups = built.spec.views.find(view => view.viewId === 'group-composition-all')!;
+  assert.deepEqual(allGroups.axes.category.categoryOrder, ['G1', 'G2', 'UNKNOWN']);
+  assert.deepEqual(allGroups.annotations[0]!.values.map(value => [value.key, value.valueText]), [
+    ['listingCount', '3'], ['observedRevenue', '135'],
+  ]);
+  const removal = built.spec.views.find(view => view.viewId === 'top-shop-removal-all')!;
+  assert.deepEqual(removal.annotations[0]!.values.map(value => value.key), [
+    'remainingListingCount', 'remainingObservedRevenue',
+  ]);
+  assert.equal(removal.annotations[1]!.values[0]!.key, 'usedShopCount');
+
+  for (const view of built.spec.views) {
+    assert.notEqual(pointerValue(chart, view.sourcePointer), undefined);
+    for (const mark of view.marks) {
+      assert.equal(String(pointerValue(chart, mark.chartDataValuePointer)), mark.valueText);
+      if (mark.chartDataGeometryPointer !== null) assert.notEqual(pointerValue(chart, mark.chartDataGeometryPointer), undefined);
+      if (mark.chartDataMembershipPointer !== null) assert.notEqual(pointerValue(chart, mark.chartDataMembershipPointer), undefined);
+      assert.equal(String(pointerValue(input.resultPayload, mark.resultValuePointer)), mark.valueText);
+      for (const pointer of mark.resultEvidencePointers) assert.notEqual(pointerValue(input.resultPayload, pointer), undefined);
+      if (mark.resultMembershipPointer !== null) assert.notEqual(pointerValue(input.resultPayload, mark.resultMembershipPointer), undefined);
+      if (mark.numeratorPointer !== null) assert.notEqual(pointerValue(input.resultPayload, mark.numeratorPointer), undefined);
+      if (mark.denominatorPointer !== null) assert.notEqual(pointerValue(input.resultPayload, mark.denominatorPointer), undefined);
+    }
+    for (const annotation of view.annotations) for (const value of annotation.values) {
+      assert.equal(String(pointerValue(chart, value.chartDataValuePointer)), value.valueText);
+      if (value.resultValuePointer !== null) {
+        assert.equal(String(pointerValue(input.resultPayload, value.resultValuePointer)), value.valueText);
+      } else {
+        assert.equal(value.derivation, 'ARRAY_LENGTH');
+        assert.equal((pointerValue(input.resultPayload, value.resultEvidencePointers[0]!) as unknown[]).length, Number(value.valueText));
+      }
+      for (const pointer of value.resultEvidencePointers) assert.notEqual(pointerValue(input.resultPayload, pointer), undefined);
+    }
+  }
+  verifyResearchChartSpec(built.spec, chart, chartBytes);
+  assert.throws(() => verifyResearchChartSpec(built.spec, chart, Buffer.from(canonicalJson(chart))), /NONCANONICAL_CHART_DATA/);
+
+  const drifted = JSON.parse(canonicalJson(built.spec)) as ResearchChartSpec;
+  drifted.views[0]!.title = 'Changed presentation meaning';
+  const { chartSpecId: _oldId, ...driftPayload } = drifted;
+  drifted.chartSpecId = sha(Buffer.from(canonicalJson(driftPayload)));
+  assert.throws(() => verifyResearchChartSpec(drifted, chart, chartBytes), /SEMANTIC_DRIFT/);
+});
+
 test('keeps missing labels and zero denominators blocked with truthful empty lanes', () => {
   const missingLabel = metricFixture();
   missingLabel.records[0]!.label = null;
   const missing = inputs(missingLabel);
   const missingChart = buildResearchReportChartData(missing.result, missing.resultSha256, missing.catalog, missing.catalogSha256);
+  const missingSpec = buildResearchChartSpec(missingChart, bytes(missingChart)).spec;
   assert.equal(missingChart.scopeSensitivity.state, 'BLOCKED');
   assert.equal(missingChart.scopeSensitivity.comparisons.length, 0);
   assert.equal(missingChart.groupComposition.state, 'BLOCKED');
@@ -154,6 +234,12 @@ test('keeps missing labels and zero denominators blocked with truthful empty lan
     assert.equal(totals.points.length, 0);
     assert.equal(top.points.length, 0);
   }
+  for (const metric of ['revenue', 'units', 'listings', 'shops']) {
+    const view = missingSpec.views.find(item => item.viewId === `scope-totals-${metric}`)!;
+    assert.deepEqual(view.marks.map(mark => mark.categoryKey), ['all']);
+  }
+  assert.equal(missingSpec.views.filter(view => view.viewId.startsWith('top-shop-share-') && view.viewId !== 'top-shop-share-all').every(view => view.marks.length === 0), true);
+  assert.equal(missingSpec.views.filter(view => view.viewId.startsWith('group-composition-')).every(view => view.marks.length === 0), true);
 
   const zeroRevenue = metricFixture();
   for (const row of zeroRevenue.records) {
@@ -162,6 +248,7 @@ test('keeps missing labels and zero denominators blocked with truthful empty lan
   }
   const zero = inputs(zeroRevenue);
   const zeroChart = buildResearchReportChartData(zero.result, zero.resultSha256, zero.catalog, zero.catalogSha256);
+  const zeroSpec = buildResearchChartSpec(zeroChart, bytes(zeroChart)).spec;
   assert.equal(zeroChart.totals.scopes[0]!.points.find(point => point.metric === 'revenue')?.value, '0');
   assert.equal(zeroChart.topShopShare.state, 'BLOCKED');
   assert.equal(zeroChart.topShopShare.scopes[0]!.points.length, 0);
@@ -176,6 +263,8 @@ test('keeps missing labels and zero denominators blocked with truthful empty lan
   assert.ok(zeroChart.groupComposition.scopes[0]!.blockers.includes('all:SECTION_HANDLER_NOT_CHARTABLE'));
   assert.equal(zeroChart.topShopRemoval.scopes[0]!.state, 'BLOCKED');
   assert.equal(zeroChart.topShopRemoval.scopes[0]!.point, null);
+  assert.deepEqual(zeroSpec.views.find(view => view.viewId === 'scope-totals-revenue')!.marks.map(mark => mark.valueText), ['0', '0', '0']);
+  assert.equal(zeroSpec.views.filter(view => view.viewId.startsWith('top-shop-share-') || view.viewId.startsWith('group-composition-') || view.viewId.startsWith('top-shop-removal-')).every(view => view.marks.length === 0), true);
 
   const incompleteRevenue = metricFixture();
   incompleteRevenue.records[0]!.revenue = {

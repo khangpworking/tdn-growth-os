@@ -540,3 +540,28 @@ human approval. Thay đổi source/digest/locator, normalization, scope/codebook
 UNKNOWN policy, method, claim, denominator hoặc usage-rights buộc mở lại chỉ
 mục. Chart contract, AI interpretation và human decision là các lớp downstream
 riêng; I17 không tự nhận đã hoàn thành chúng.
+
+### D39 — ChartSpec chỉ trình bày số đã tính và phải truy ngược tới evidence
+
+Mỗi biểu đồ M03/M04 phải được materialize từ exact `charts.json` thành một
+`ChartSpec` canonical, versioned và `UNREVIEWED`. Spec đóng băng loại biểu đồ,
+trục, đơn vị, scale, zero baseline, category order, relationship, blocker,
+limitation và từng dấu dữ liệu. Mỗi dấu dữ liệu phải trỏ đồng thời tới giá trị
+trong ChartData và exact Result pointer/evidence pointers; supporting value chỉ
+được phép là giá trị Result trực tiếp hoặc một phép đếm đã được materialize vào
+ChartData với nguồn array Result rõ ràng. Renderer không được tính thêm market
+metric, xếp hạng, kết luận hoặc membership.
+
+Thứ tự phạm vi là `ALL → WIDE → CORE`; ba phạm vi giao nhau và không được cộng.
+Top 1/3/10 là tỷ trọng lũy kế nên không dùng pie, donut hay stacked-parts. Chênh
+ALL→WIDE/CORE là ảnh hưởng của membership trong cùng kỳ đo, không phải growth.
+UNKNOWN tiếp tục hiển thị và tuân theo frozen WIDE policy; missing/blocked không
+được đổi thành zero, còn observed zero phải hiện đúng tại zero baseline. Group
+giữ code-unit order của Result; trên 100 group thì visual fail-closed thay vì
+cắt hoặc gộp âm thầm. CSS, HTML/PDF renderer và responsive layout không đổi
+semantic identity, nhưng thay đổi data, method, scope, ordering, scale, chart
+meaning hoặc pointer buộc mở lại ChartSpec.
+
+ChartSpec là hợp đồng trình bày và truy xuất bằng chứng, không phải một section
+nghiệp vụ mới, AI interpretation, human approval hay bằng chứng về market
+universe. Vì vậy Research A27 giữ coverage ở 7/30 section.

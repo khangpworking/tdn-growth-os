@@ -4,6 +4,8 @@ import test from 'node:test';
 import type { SourceBackedReportBundle } from '../../src/modules/analysis/source-backed-report.js';
 import { buildReportSemanticContent, buildUnreviewedReportState } from '../../src/modules/analysis/report-semantic-content.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import { buildResearchChartSpec } from '../../src/modules/analysis/research-chart-spec.js';
+import type { ResearchReportChartData } from '../../src/modules/analysis/research-report-charts.js';
 
 // Test-authoring gate: this unit owns semantic identity, which the export
 // lifecycle cannot isolate from rendering. It must fail if renderer-only bytes
@@ -47,19 +49,70 @@ function fixture(options: {
     }],
   } as never;
   const packetBytes = canonicalBytes(packet);
-  const charts = {
-    chart: options.chart ?? 'exact',
+  const scopeKeys = ['all', 'wide', 'core'] as const;
+  const blocker = options.chart ?? 'FIXTURE_BLOCKED';
+  const chartLane = (scopeKey: typeof scopeKeys[number]) => ({
+    scopeKey, state: 'BLOCKED' as const, points: [], blockers: [`${scopeKey}:${blocker}`],
+  });
+  const totalPoint = {
+    metric: 'revenue' as const,
+    claimId: 'M03:all:revenue',
+    sectionId: 'M03',
+    resultSha256: metricResultSha256,
+    value: '1', valueText: '1', unit: 'VND' as const, percentText: null, basisPoints: null,
+    source: {
+      scopeKey: 'all' as const, reportScopeKey: 'fixture', platform: 'shopee' as const, selection: 'ON' as const,
+      period: { start: '2026-01-01', end: '2026-01-31', periodBasis: 'Fixture period', acquiredAt: null },
+    },
+    metricPointer: '/result', scopePointer: '/result', membershipPointer: '/result', coveragePointer: null,
+    denominatorPointer: null, numeratorPointer: null, denominator: null, numerator: null, limits: [],
+  };
+  const charts: ResearchReportChartData = {
+    contractVersion: 'research-report-charts-v2',
     approvalState: 'UNREVIEWED',
     resultSha256: metricResultSha256,
     catalogSha256,
+    sourcePeriod: {
+      start: '2026-01-01', end: '2026-01-31', periodBasis: 'Fixture period', acquiredAt: null,
+    },
     computation: {
       inputSha256: digest('input'), methodVersion: 'metric-scope-v1', rounding: 'percent-half-even-2-v1',
       rendererVersion: options.resultRenderer ?? 'metric-draft-vi-v1', profileId: 'fixture', labelCodebookVersion: 'fixture',
       wideUnknownPolicy: 'exclude',
     },
-    points: [{ resultSha256: metricResultSha256, value: '1' }],
-  } as never;
+    scopeKeys,
+    totals: {
+      chartId: 'scope-totals', sectionId: 'M03', sectionDeliveryState: 'PARTIAL_DETERMINISTIC_DRAFT',
+      state: 'PARTIAL', exactMethodHandler: true, relationship: 'OVERLAPPING_NON_ADDITIVE',
+      scopes: [
+        { scopeKey: 'all', state: 'PARTIAL', points: [totalPoint], blockers: [] },
+        chartLane('wide'), chartLane('core'),
+      ],
+      blockers: [blocker],
+    },
+    topShopShare: {
+      chartId: 'top-shop-share', sectionId: 'M04', sectionDeliveryState: null,
+      state: 'BLOCKED', exactMethodHandler: false, relationship: 'CUMULATIVE_OVERLAPPING_NOT_DONUT',
+      scopes: scopeKeys.map(chartLane), blockers: [blocker],
+    },
+    scopeSensitivity: {
+      chartId: 'scope-membership-sensitivity', sectionId: 'M03', state: 'BLOCKED', exactMethodHandler: true,
+      relationship: 'FILTER_MEMBERSHIP_EFFECT_NOT_GROWTH', comparisons: [], blockers: [blocker],
+    },
+    groupComposition: {
+      chartId: 'group-composition', sectionId: 'M04', state: 'BLOCKED', exactMethodHandler: false,
+      relationship: 'WITHIN_SCOPE_COMPOSITION_OVERLAPPING_SCOPES', scopes: scopeKeys.map(chartLane), blockers: [blocker],
+    },
+    topShopRemoval: {
+      chartId: 'top-shop-removal-sensitivity', sectionId: 'M04', state: 'BLOCKED', exactMethodHandler: false,
+      relationship: 'LEADER_REMOVAL_SENSITIVITY_NOT_FORECAST',
+      scopes: scopeKeys.map(scopeKey => ({ scopeKey, state: 'BLOCKED', point: null, blockers: [`${scopeKey}:${blocker}`] })),
+      blockers: [blocker],
+    },
+    blockers: [blocker],
+  };
   const chartBytes = canonicalBytes(charts);
+  const chartSpec = buildResearchChartSpec(charts, chartBytes);
   const envelope = {
     contractVersion: 'source-backed-report-v1',
     request: { catalogSha256 } as never,
@@ -84,6 +137,7 @@ function fixture(options: {
       catalogSha256,
       packetSha256: sha256(packetBytes),
       chartSha256: sha256(chartBytes),
+      chartSpecSha256: sha256(chartSpec.bytes),
       reportSha256: sha256(Buffer.from(options.report ?? 'renderer A')),
     },
     limitations: [],
@@ -94,6 +148,7 @@ function fixture(options: {
     ['normalized-input.json', inputBytes],
     ['metric-result.json', resultBytes],
     ['charts.json', chartBytes],
+    ['chart-spec.json', chartSpec.bytes],
     ['section-catalog.json', catalogBytes],
     ['report.md', Buffer.from(options.report ?? 'renderer A')],
   ]);
@@ -105,6 +160,7 @@ function fixture(options: {
     receipt: {} as never,
     packet,
     charts,
+    chartSpec: chartSpec.spec,
     files,
   };
 }
@@ -117,6 +173,7 @@ test('semantic identity binds exact evidence and calculations but not renderer o
   const { semanticVersionId: _semanticVersionId, ...semanticPayload } = first.content;
   assert.equal(first.content.semanticVersionId, sha256(Buffer.from(canonicalJson(semanticPayload), 'utf8')));
   assert.notEqual(first.content.semanticVersionId, sha256(canonicalBytes(semanticPayload)));
+  assert.match(first.content.calculationLayer.chartSpecContentSha256, /^[0-9a-f]{64}$/);
 
   const rendererOnly = buildReportSemanticContent(fixture({ report: 'renderer B' }));
   assert.equal(rendererOnly.content.semanticVersionId, first.content.semanticVersionId);
@@ -143,6 +200,11 @@ test('semantic identity binds exact evidence and calculations but not renderer o
   const corruptFiles = new Map(corrupt.files);
   corruptFiles.set('charts.json', Buffer.from('{"chart":"tampered"}\n'));
   assert.throws(() => buildReportSemanticContent({ ...corrupt, files: corruptFiles }), /CHART_DIGEST_MISMATCH/);
+
+  const corruptSpec = fixture();
+  const corruptSpecFiles = new Map(corruptSpec.files);
+  corruptSpecFiles.set('chart-spec.json', Buffer.from('{"chartSpecId":"tampered"}\n'));
+  assert.throws(() => buildReportSemanticContent({ ...corruptSpec, files: corruptSpecFiles }), /CHART_SPEC_DIGEST_MISMATCH/);
 
   const mismatchedPacket = fixture();
   assert.throws(() => buildReportSemanticContent({

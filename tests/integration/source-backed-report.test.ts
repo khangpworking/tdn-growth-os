@@ -237,6 +237,17 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(first.envelope.rawByteMappings[0]!.rawByteSha256, sha256(state.workbook));
   assert.equal(first.envelope.selectedSources[0]!.providerProvenance, 'synthetic');
   assert.equal(first.envelope.artifacts.packetSha256, sha256(first.files.get('packet.json')!));
+  assert.equal(first.envelope.artifacts.chartSpecSha256, sha256(first.files.get('chart-spec.json')!));
+  assert.equal(first.chartSpec.chartDataSha256, first.envelope.artifacts.chartSha256);
+  const { chartSpecId, ...chartSpecPayload } = first.chartSpec;
+  assert.equal(chartSpecId, sha256(Buffer.from(canonicalJson(chartSpecPayload), 'utf8')));
+  assert.equal(first.chartSpec.views.length, 14);
+  const revenueView = first.chartSpec.views.find(view => view.viewId === 'scope-totals-revenue');
+  assert.equal(revenueView?.marks.find(mark => mark.categoryKey === 'all')?.resultValuePointer, '/scopes/0/revenue/value');
+  const sensitivityView = first.chartSpec.views.find(view => view.viewId === 'scope-membership-sensitivity-revenue');
+  assert.equal(sensitivityView?.annotations.find(annotation => annotation.categoryKey === 'wide')
+    ?.values.find(value => value.key === 'removedRecordCount')?.resultEvidencePointers[0],
+  '/comparisons/0/removedRecordIndices');
   const m02 = JSON.parse(first.files.get('m02-scope-method.json')!.toString('utf8')) as {
     methodOutputId: string; sourceVerification: string; measurement: { recordCount: number; wideUnknownPolicy: string };
   };
@@ -534,10 +545,15 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   assert.ok(document.querySelector('#charts')?.textContent?.includes('không phải diễn biến hoặc tăng trưởng'));
   assert.ok(document.querySelector('#charts')?.textContent?.includes('Nếu bỏ shop đứng đầu thì cấu trúc còn lại ra sao?'));
   assert.ok(document.getElementById('diagnostic-removal-all-0'));
+  assert.ok(document.querySelector('#chart-spec')?.textContent?.includes('Xem 14 biểu đồ'));
+  assert.ok(document.querySelector('#chart-spec')?.textContent?.includes('Chưa duyệt'));
+  assert.ok(document.querySelector('#chart-spec')?.textContent?.includes('không tạo phép tính'));
+  assert.ok(document.querySelector('#chart-spec')?.textContent?.includes('/totals'));
+  assert.ok(document.querySelector('#chart-spec a[href="chart-spec.json"][download]'));
   const links = [...document.querySelectorAll('a[download]')].map(anchor => anchor.getAttribute('href')).filter((href): href is string => href !== null);
   const expected = [
     'raw-workbook.xlsx', 'raw-manifest.json', 'source-package-manifest.json', 'normalized-input.json',
-    'receipt.json', 'metric-result.json', 'charts.json', 'packet.json', 'section-catalog.json', 'workspace.json',
+    'receipt.json', 'metric-result.json', 'charts.json', 'chart-spec.json', 'packet.json', 'section-catalog.json', 'workspace.json',
     'm02-scope-method.json', 'raw-tablet-quote-source.json', 'raw-tablet-quote-input.json',
     'm08-tablet-quote-method.json', 'm13-provenance-appendix.json', 'i03-research-method.json', 'i17-evidence-trace.json',
     'semantic-content.json', 'review-state.json',

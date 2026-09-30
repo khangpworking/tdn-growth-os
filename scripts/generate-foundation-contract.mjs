@@ -12,6 +12,7 @@ const contracts = [
   ['analysis', 'm13-provenance-appendix'],
   ['analysis', 'i03-research-method'],
   ['analysis', 'i17-evidence-trace'],
+  ['analysis', 'research-chart-spec'],
   ['analysis', 'source-backed-report-request'],
   ['analysis', 'report-semantic-content'],
   ['analysis', 'report-review-state'],

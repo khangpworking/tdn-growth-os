@@ -22,6 +22,8 @@ import { buildM08TabletQuoteMethod, type M08TabletQuoteSource } from './m08-tabl
 import { buildM13ProvenanceAppendix } from './m13-provenance-appendix.js';
 import { buildI03ResearchMethod } from './i03-research-method.js';
 import { buildI17EvidenceTrace } from './i17-evidence-trace.js';
+import { buildResearchChartSpec } from './research-chart-spec.js';
+import type { ResearchChartSpec } from '../../../contracts/analysis/research-chart-spec.generated.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -102,6 +104,7 @@ export interface SourceBackedReportEnvelope {
     readonly catalogSha256: string;
     readonly packetSha256: string;
     readonly chartSha256: string;
+    readonly chartSpecSha256: string;
     readonly reportSha256: string;
     readonly m02ScopeMethodSha256?: string;
     readonly m08TabletQuoteMethodSha256?: string;
@@ -120,6 +123,7 @@ export interface SourceBackedReportBundle {
   readonly receipt: ReturnType<typeof normalizeMetricWorkbook>['receipt'];
   readonly packet: VersionedReportPacket;
   readonly charts: ResearchReportChartData;
+  readonly chartSpec: ResearchChartSpec;
   readonly files: ReadonlyMap<string, Buffer>;
 }
 
@@ -459,6 +463,7 @@ export async function buildSourceBackedReport(
   const packetBytes = canonicalBytes(packetResult.packet);
   const charts = buildResearchReportChartData(resultBytes, resultSha256, catalog, request.catalogSha256);
   const chartBytes = canonicalBytes(charts);
+  const chartSpec = buildResearchChartSpec(charts, chartBytes);
   const reportBytes = Buffer.from(packetResult.report, 'utf8');
   const sourcePackageManifestBytes = canonicalBytes(sourcePackage.manifest, false);
   const workspaceBytes = canonicalBytes(workspace, false);
@@ -469,6 +474,7 @@ export async function buildSourceBackedReport(
     ['section-catalog.json', catalog],
     ['packet.json', packetBytes],
     ['charts.json', chartBytes],
+    ['chart-spec.json', chartSpec.bytes],
     ['report.md', reportBytes],
     ...(m02 === undefined ? [] : [['m02-scope-method.json', m02.bytes] as const]),
     ...(m08 === undefined ? [] : [['m08-tablet-quote-method.json', m08.bytes] as const]),
@@ -500,7 +506,7 @@ export async function buildSourceBackedReport(
       sourcePackageManifestSha256: sourcePackage.manifestArtifactSha256,
       normalizedInputSha256: sha256(inputBytes), receiptSha256: sha256(receiptBytes),
       metricResultSha256: resultSha256, catalogSha256: request.catalogSha256,
-      packetSha256: sha256(packetBytes), chartSha256: sha256(chartBytes), reportSha256: sha256(reportBytes),
+      packetSha256: sha256(packetBytes), chartSha256: sha256(chartBytes), chartSpecSha256: sha256(chartSpec.bytes), reportSha256: sha256(reportBytes),
       ...(m02Sha256 === undefined ? {} : { m02ScopeMethodSha256: m02Sha256 }),
       ...(m08Sha256 === undefined ? {} : { m08TabletQuoteMethodSha256: m08Sha256 }),
       ...(m13Sha256 === undefined ? {} : { m13ProvenanceAppendixSha256: m13Sha256 }),
@@ -517,5 +523,5 @@ export async function buildSourceBackedReport(
   const envelopeBytes = canonicalBytes(envelope);
   if (envelopeBytes.byteLength > MAX_BYTES) throw new TypeError('envelope: SIZE_LIMIT');
   return { envelope, envelopeBytes, input: normalized.input, result: normalized.result, receipt: normalized.receipt,
-    packet: packetResult.packet, charts, files };
+    packet: packetResult.packet, charts, chartSpec: chartSpec.spec, files };
 }

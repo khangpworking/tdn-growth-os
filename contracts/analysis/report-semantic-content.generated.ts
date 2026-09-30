@@ -27,6 +27,7 @@ export interface ReportSemanticContent {
     catalogContentSha256: Digest;
     claimsSha256: Digest;
     chartContentSha256: Digest;
+    chartSpecContentSha256: Digest;
     /**
      * @minItems 1
      * @maxItems 100

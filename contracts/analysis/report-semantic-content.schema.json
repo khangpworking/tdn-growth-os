@@ -28,7 +28,7 @@
     "calculationLayer": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["packetPolicyVersion", "metricMethodVersion", "metricRounding", "normalizedInputSha256", "metricResultContentSha256", "catalogContentSha256", "claimsSha256", "chartContentSha256", "sections"],
+      "required": ["packetPolicyVersion", "metricMethodVersion", "metricRounding", "normalizedInputSha256", "metricResultContentSha256", "catalogContentSha256", "claimsSha256", "chartContentSha256", "chartSpecContentSha256", "sections"],
       "properties": {
         "packetPolicyVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
         "metricMethodVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
@@ -38,6 +38,7 @@
         "catalogContentSha256": { "$ref": "#/$defs/digest" },
         "claimsSha256": { "$ref": "#/$defs/digest" },
         "chartContentSha256": { "$ref": "#/$defs/digest" },
+        "chartSpecContentSha256": { "$ref": "#/$defs/digest" },
         "sections": {
           "type": "array", "minItems": 1, "maxItems": 100,
           "items": {
