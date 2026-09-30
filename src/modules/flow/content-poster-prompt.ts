@@ -21,6 +21,8 @@ const LAYOUT_PROFILES: Readonly<Record<ContentPosterFormat, string>> = {
 };
 
 const PLACEHOLDERS = ['RATIO_LABEL', 'CANVAS_WIDTH', 'CANVAS_HEIGHT', 'LAYOUT_PROFILE', 'CAPTION_CONTENT', 'LOGO_INSTRUCTION', 'BRAND_JSON_LINE'] as const;
+type PosterPlaceholder = (typeof PLACEHOLDERS)[number];
+const PLACEHOLDER_PATTERN = new RegExp(`\\{\\{(${PLACEHOLDERS.join('|')})\\}\\}`, 'gu');
 
 export class ContentPosterPromptError extends Error {}
 
@@ -58,7 +60,7 @@ export function buildPosterPrompt(input: {
   readonly logoOn: boolean;
 }): string {
   const canvas = CREATIVE_IMAGE_FORMATS[input.format];
-  const values: Readonly<Record<(typeof PLACEHOLDERS)[number], string>> = {
+  const values: Readonly<Record<PosterPlaceholder, string>> = {
     RATIO_LABEL: RATIO_LABELS[input.format],
     CANVAS_WIDTH: String(canvas.width),
     CANVAS_HEIGHT: String(canvas.height),
@@ -67,12 +69,17 @@ export function buildPosterPrompt(input: {
     LOGO_INSTRUCTION: logoInstruction(input.plan, input.logoOn),
     BRAND_JSON_LINE: JSON.stringify(input.brandData),
   };
-  let layer = input.layerText;
+  let layerWithoutKnownPlaceholders = input.layerText;
   for (const name of PLACEHOLDERS) {
     const token = `{{${name}}}`;
-    if (!layer.includes(token)) throw new ContentPosterPromptError(`Poster layer is missing ${token}`);
-    layer = layer.split(token).join(values[name]);
+    const occurrences = input.layerText.split(token).length - 1;
+    if (occurrences === 0) throw new ContentPosterPromptError(`Poster layer is missing ${token}`);
+    if (occurrences > 1) throw new ContentPosterPromptError(`Poster layer repeats ${token}`);
+    layerWithoutKnownPlaceholders = layerWithoutKnownPlaceholders.replace(token, '');
   }
-  if (/\{\{[A-Z_]+\}\}/u.test(layer)) throw new ContentPosterPromptError('Poster layer has an unfilled placeholder');
+  if (layerWithoutKnownPlaceholders.includes('{{') || layerWithoutKnownPlaceholders.includes('}}')) {
+    throw new ContentPosterPromptError('Poster layer has an unknown or malformed placeholder');
+  }
+  const layer = input.layerText.replace(PLACEHOLDER_PATTERN, (_token, name: PosterPlaceholder) => values[name]);
   return `${input.creativeText}\n\n${layer}`;
 }
