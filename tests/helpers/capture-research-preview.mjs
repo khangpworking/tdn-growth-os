@@ -125,7 +125,13 @@ try {
     await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
     const layout = await call('Runtime.evaluate', { expression: 'JSON.stringify({width:innerWidth,scroll:document.documentElement.scrollWidth,title:document.title,links:document.querySelectorAll("a.value").length})', returnByValue: true });
     const state = JSON.parse(layout.result.value);
-    if (state.scroll > state.width) throw new Error(`Horizontal overflow at ${width}: ${JSON.stringify(state)}`);
+    if (state.scroll > state.width) {
+      const offenders = await evaluate(`Array.from(document.querySelectorAll('body *')).filter(element => {
+        const rect = element.getBoundingClientRect();
+        return element.checkVisibility() && (rect.right > innerWidth || rect.left < 0) && !element.closest('.table-wrap');
+      }).slice(0,40).map(element => ({tag:element.tagName,id:element.id,className:element.className,text:element.textContent.slice(0,100),width:element.getBoundingClientRect().width,right:element.getBoundingClientRect().right}))`);
+      await fs.writeFile(path.join(root, `${name}-overflow.json`), JSON.stringify({ ...state, offenders }, null, 2), { mode: 0o600 });
+    }
     const metrics = await call('Page.getLayoutMetrics');
     const capturedHeight = Math.min(8000, Math.ceil(metrics.cssContentSize.height));
     evidence.push({ name, ...state, height: metrics.cssContentSize.height, capturedHeight });
@@ -154,6 +160,7 @@ try {
       const panel = await call('Page.captureScreenshot', {format:'png',captureBeyondViewport:true,clip:assembly});
       await fs.writeFile(path.join(root, `${name}-assembly.png`), Buffer.from(panel.data, 'base64'), {mode:0o600});
     }
+    if (state.scroll > state.width) throw new Error(`Horizontal overflow at ${width}: ${JSON.stringify(state)}`);
   }
   for (const [name, width, height] of [['desktop', 1440, 1000], ['mobile', 390, 844]]) {
     await call('Emulation.setDeviceMetricsOverride', { width, height, deviceScaleFactor: 1, mobile: false });
