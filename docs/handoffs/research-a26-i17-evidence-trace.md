@@ -3,10 +3,10 @@
 ## Delivery status
 
 - Branch: `feature/research-a26-i17-evidence-trace`
-- Draft PR: pending
-- Reviewed implementation SHA: pending
-- Linux Check: pending
-- Research report preview: pending
+- Draft PR: #87
+- Reviewed implementation SHA: `e2359d1c5549598ce8146c1d8e2dbdeb4b4405f1`
+- Linux Check: PASS, run `36667463377`
+- Research report preview: PASS, run `36667463380`
 
 ## Delivered
 
@@ -33,5 +33,21 @@
 
 ## Verification
 
-Pending Linux CI and report-preview evidence. No Windows test, build or
-typecheck is release evidence.
+- Linux Check passed contract generation, strict backend/frontend typechecks,
+  frontend production build, 176/176 frontend tests and 600/600 repository
+  tests.
+- The Linux preview exercised the persisted synthetic package and actual export
+  CLI, then retained desktop/mobile screenshots, PDF, exact downloadable
+  artifacts and interaction evidence. I17 navigation, artifact downloads and
+  pointer text were exercised with no page error.
+- Independent contract review found and the implementation closed two issues:
+  method pointers are now visible in HTML, and every method content identity,
+  packet descriptor and normalized/result/source-package lineage is verified
+  before I17 can be emitted.
+- Test-audit kept one behavioral owner at the existing source-backed boundary;
+  no duplicate suite or test-only production seam was added.
+- Impeccable detected no blocking issue in the changed I17 surface. Its five
+  advisories refer to pre-existing report CSS radius/type literals and were not
+  expanded by A26.
+- No Windows test, build or typecheck is release evidence. Windows was used only
+  for contract generation and static diff/JSON inspection.
