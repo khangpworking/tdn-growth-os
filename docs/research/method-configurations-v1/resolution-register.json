@@ -1,0 +1,244 @@
+{
+  "registerVersion": "1.0.0",
+  "purpose": "Planning-only parameter map for the A40 section methods. This file is not a runtime admission contract, execution permission, or owner decision.",
+  "authority": {
+    "sourceBaseline": "A40 docs/research/section-methods-v1/ and its cited code/handoffs",
+    "ownerApproval": "NOT_GRANTED",
+    "businessSessionId": "01a0a8fd-02d2-7e71-ba4c-244930d054bd",
+    "businessReviewDate": "2026-09-30",
+    "businessDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW_RELAYED",
+    "reviewedProfileBytePin": [{"path":"advanced-profile.md","sha256":"c4e0f5fbda7f1afbb47571a384c59e59aa31264b2e5b79a38bce97a30605ba63"},{"path":"market-profile.md","sha256":"ddd4c0dcebc9a07a215646abce5152060f7d0c45c2582676ef84e2eb1ae3d8f7"},{"path":"qualitative-profile.md","sha256":"6bae6b549273d163899c6a342082a84b85a11bffc69ab0d6e34131a311dfaded"},{"path":"synthesis-ai-profile.md","sha256":"5fd879f42d6c9c82cbc87710b69206aaac2fc8d6bac2da18ba158825f910225a"}],
+    "reviewPinStatus": "PROFILE_DIGESTS_PINNED; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+    "reviewNote": "Scoped technical endorsement is not owner approval, input readiness, execution or publication. The exact final packet review receipt is recorded separately in docs/handoffs/research-a41-method-configuration-closure.md; it is required before claiming final review closure.",
+  },
+  "sharedLifecycle": {
+    "implementation": "NOT_IMPLEMENTED_IN_A41",
+    "inputReadiness": "NOT_ASSESSED",
+    "execution": "NOT_RUN",
+    "outputReview": "NO_OUTPUT_PRODUCED",
+    "profileAuthority": "PROPOSED_UNAPPROVED",
+    "allowedClosureLabels": [
+      "INHERITED_WITH_REFERENCE",
+      "BUSINESS_REVIEWED_PROPOSAL",
+      "RUN_INPUT_REQUIRED",
+      "EVIDENCE_REQUIRED",
+      "OWNER_DECISION_REQUIRED",
+      "DEFERRED_ADVANCED_SCOPE"
+    ],
+    "parameterClassificationValues": [
+      "INHERITED_AUTHORITY",
+      "PROPOSED_PROFILE_VALUE",
+      "RUN_INPUT_REQUIRED",
+      "EVIDENCE_REQUIRED",
+      "OWNER_DECISION_REQUIRED",
+      "DEFERRED_ADVANCED_SCOPE",
+      "BUSINESS_REVIEWED_PROPOSAL"
+    ],
+    "dimensionNote": "Parameter classification describes what kind of parameter it is; the group-level businessReviewDisposition, ownerApproval, implementation, inputReadiness and execution fields remain separate. Classification values are not runtime closure or permission labels."
+  },
+  "groups": [
+    {
+      "decisionId": "D01",
+      "sections": ["M05"],
+      "profile": "market-profile.md#d01-m05-demand-related-evidence",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/M05.md", "docs/research/section-methods-v1/common-rules.md", "docs/tasks/research-a40-thirty-section-method-specs.md"],
+      "parameters": [
+        {"id": "D01.P1", "name": "measureIdentity", "classification": "INHERITED_AUTHORITY", "type": "literal source measure + sourceFamily + exact locator + valueState/value/unit/precision", "candidateValue": "Keep the source label verbatim; sales/search/reviews/co-occurrence are not renamed demand.", "requiredFor": "Any M05 claim", "validation": "Source locator resolves; value state and unit match source; retain period/timezone/universe/frame.", "missingBehavior": "No claim-eligible observation; retain an unlocated/missing inventory row only."},
+        {"id": "D01.P2", "name": "additiveAggregation", "classification": "PROPOSED_PROFILE_VALUE", "type": "boolean plus exact aggregation unit/member refs", "candidateValue": "Sum only same measure/unit/period/timezone/universe/frame with explicit additivity and proven disjoint members/windows.", "requiredFor": "M05 subtotal only", "validation": "Check disjointness and completeness; exact sum only; retain partial flag.", "missingBehavior": "Do not sum; keep located rows and emit AGGREGATION_OVERLAP_UNRESOLVED or ADDITIVITY_UNDECLARED."},
+        {"id": "D01.P3", "name": "demandProxyMapping", "classification": "OWNER_DECISION_REQUIRED", "type": "versioned mapping from literal measure/source family to interpretation/scope", "candidateValue": "No proxy mapping by default; no composite score.", "requiredFor": "Derived demand/proxy interpretation, not the canonical title, owner question, or attributed source wording", "validation": "Require named owner and approved revision; match source family, universe, period and unit.", "missingBehavior": "Keep literal measure output; block derived demand interpretation only."},
+        {"id": "D01.P4", "name": "denominator", "classification": "EVIDENCE_REQUIRED", "type": "explicit compatible numerator/denominator refs, unit and period", "candidateValue": "Rate only with same declared universe/unit/period and positive denominator.", "requiredFor": "M05 rate/share", "validation": "Denominator source and scope replay; zero yields null.", "missingBehavior": "No percentage; do not delay literal inventory."}
+      ]
+    },
+    {
+      "decisionId": "D02",
+      "sections": ["M06"],
+      "profile": "market-profile.md#d02-m06-supply-evidence",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/M06.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D02.P1", "name": "sourceObjectClass", "classification": "PROPOSED_PROFILE_VALUE", "type": "enum", "candidateValue": ["OFFER", "SOURCE_STATED_AVAILABILITY", "IMPORT_ENTRY", "MEASURED_QUANTITY", "SOURCE_STATED_CAPACITY", "OTHER_LITERAL"], "requiredFor": "Optional normalized inventory labels", "validation": "Preserve literal wording and attribution; unaccepted taxonomy falls back to OTHER_LITERAL.", "missingBehavior": "Literal source inventory only."},
+        {"id": "D02.P2", "name": "entityIdentity", "classification": "EVIDENCE_REQUIRED", "type": "source-issued key or internal EvidenceRecordRef", "candidateValue": "Without a real stable key, report located records only.", "requiredFor": "Unique offer/product/vendor count or cross-source linkage", "validation": "No identifier minted from text; dedup only exact same digest+locator or real stable key.", "missingBehavior": "uniqueEntityCount=null; no cross-source join."},
+        {"id": "D02.P3", "name": "quantityAggregation", "classification": "PROPOSED_PROFILE_VALUE", "type": "measure/unit/period/aggregationUnit/memberRefs", "candidateValue": "Sum only compatible measured quantities with proven disjointness; no conversion, annualization or cross-object sum.", "requiredFor": "Quantity subtotal", "validation": "Exact unit/period/universe and nonoverlap proof.", "missingBehavior": "Separate partitions; no total."},
+        {"id": "D02.P4", "name": "freshnessAndAvailability", "classification": "OWNER_DECISION_REQUIRED", "type": "source date meaning + reviewed freshness/status rule", "candidateValue": "Source-stated availability only; no default freshness threshold.", "requiredFor": "Current/in-stock/available-supply claim", "validation": "Require exact date semantics and approved status rule.", "missingBehavior": "Keep attributed source statement; no current-supply claim."}
+      ]
+    },
+    {
+      "decisionId": "D03",
+      "sections": ["M07"],
+      "profile": "market-profile.md#d03-m07-competitor-comparison",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/M07.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D03.P1", "name": "peerSet", "classification": "OWNER_DECISION_REQUIRED", "type": "anchorRef + ordered peerRefs + membershipBasis + scope + revision", "candidateValue": "Owner-declared peers only; absent peer set yields unranked mention inventory.", "requiredFor": "Competitor membership/comparison", "validation": "No AI/search co-occurrence peer selection; resolve only through real ID or approved alias.", "missingBehavior": "Inventory candidate references without labeling them competitors."},
+        {"id": "D03.P2", "name": "comparisonCompatibility", "classification": "INHERITED_AUTHORITY", "type": "measure/unit/period/timezone/universe/variant/frame", "candidateValue": "Side-by-side only for exact compatible definitions; otherwise separate cells.", "requiredFor": "Numeric comparison", "validation": "All declared scope dimensions match.", "missingBehavior": "NOT_COMPARABLE; no delta."},
+        {"id": "D03.P3", "name": "signedDifference", "classification": "OWNER_DECISION_REQUIRED", "type": "optional exact arithmetic operation", "candidateValue": "If specifically enabled, peerMinusAnchor = peerValue - anchorValue; no ratio by default.", "requiredFor": "Optional comparison delta", "validation": "Same measure/unit/scope; retain exact value.", "missingBehavior": "Show raw values only."},
+        {"id": "D03.P4", "name": "rankWeightScore", "classification": "DEFERRED_ADVANCED_SCOPE", "type": "owner prioritization policy", "candidateValue": "Disabled; no rank, weight, winner, best/worst or competitive score.", "requiredFor": "Strategic priority claims", "validation": "Would require separate owner policy and review.", "missingBehavior": "UNRANKED."}
+      ]
+    },
+    {
+      "decisionId": "D04",
+      "sections": ["M09"],
+      "profile": "market-profile.md#d04-m09-dated-events-and-possible-drivers",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/M09.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D04.P1", "name": "statementType", "classification": "PROPOSED_PROFILE_VALUE", "type": "enum", "candidateValue": ["DOCUMENTED_EVENT", "SOURCE_STATED_DIRECTION", "CANDIDATE_DRIVER_HYPOTHESIS", "COUNTEREVIDENCE", "UNCLASSIFIED"], "requiredFor": "M09 classified inventory", "validation": "Classify only with exact located statement; keep source claim and hypothesis separate.", "missingBehavior": "UNCLASSIFIED literal record."},
+        {"id": "D04.P2", "name": "dateAndEntity", "classification": "RUN_INPUT_REQUIRED", "type": "publicationDate/eventDate/dateBasis/entityScope/locator", "candidateValue": "Keep publication date and source-claimed event date separate; unknown stays null.", "requiredFor": "Dated event row or scoped link", "validation": "Date meaning and entity basis are source-backed.", "missingBehavior": "Undated/unlinked inventory only."},
+        {"id": "D04.P3", "name": "driverHypothesis", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "mechanism + affectedMetric + exact evidenceRefs", "candidateValue": "Candidate hypothesis requires both mechanism and named affected metric; human review and layer-3 label.", "requiredFor": "Hypothesis candidate only", "validation": "All references resolve; preserve counterevidence and assumptions.", "missingBehavior": "Unclassified note, not driver claim."},
+        {"id": "D04.P4", "name": "riskImpactCausality", "classification": "DEFERRED_ADVANCED_SCOPE", "type": "approved identification/impact/risk policy", "candidateValue": "No probability, impact score, causal effect, risk rank or forecast.", "requiredFor": "Quantified risk/causal claims", "validation": "Requires separate reviewed method and compatible data.", "missingBehavior": "Disabled."}
+      ]
+    },
+    {
+      "decisionId": "D05",
+      "sections": ["M10"],
+      "profile": "advanced-profile.md#d05-m10-forecast-eligibility-and-diagnostic-baseline",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/M10.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D05.P1", "name": "dailySeriesAndSplits", "classification": "RUN_INPUT_REQUIRED", "type": "internalSeriesKey + metric/unit/timezone/universe/date range/train/validation/holdout", "candidateValue": "Derive only an internal artifact key from exact row digests/locators and frozen series definition; not an entity ID.", "requiredFor": "Eligibility gate", "validation": "Reject duplicate dates and incompatible scopes; apply explicit gap policy to every declared split.", "missingBehavior": "Eligibility report BLOCKED; no prediction."},
+        {"id": "D05.P2", "name": "candidateGapRule", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "enum", "candidateValue": "For the unapproved constant baseline candidate, REJECT_ANY_MISSING_OR_UNKNOWN_DAY_IN_TRAIN_OR_HOLDOUT; no imputation.", "requiredFor": "Candidate baseline only", "validation": "Freeze rule before holdout; missing is not zero.", "missingBehavior": "No candidate score."},
+        {"id": "D05.P3", "name": "lastObservedDiagnostic", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "daily series + explicit trainEnd + later holdout H", "candidateValue": "anchor=y[T]; predict constant anchor for each h; MAE=sum(abs(pred-actual))/count(H), exact original unit.", "requiredFor": "Optional diagnostic evaluation after separate approval", "validation": "Observed anchor/actuals, nonoverlapping explicit holdout, no tuning; empty H is null.", "missingBehavior": "No score; do not fill gaps or threshold."},
+        {"id": "D05.P4", "name": "productionForecastPolicy", "classification": "OWNER_DECISION_REQUIRED", "type": "model/baseline/history/horizon/split/gap/error/selection/threshold revision", "candidateValue": "No real model, horizon, minimum history, selection threshold or production forecast is configured.", "requiredFor": "Executable forecast", "validation": "Owner-approved exact policy and validated compatible history required.", "missingBehavior": "FORECAST_BLOCKED; keep gate and proposal distinct."}
+      ]
+    },
+    {
+      "decisionId": "D06",
+      "sections": ["I02", "I04", "I05", "I06", "I07", "I08"],
+      "profile": "qualitative-profile.md#d06-situation-behavior-attitude-journey-reason-and-barrier",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/I02.md", "docs/research/section-methods-v1/sections/I04.md", "docs/research/section-methods-v1/sections/I05.md", "docs/research/section-methods-v1/sections/I06.md", "docs/research/section-methods-v1/sections/I07.md", "docs/research/section-methods-v1/sections/I08.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D06.P1", "name": "contextFields", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "role/situation/task/setting/time with value+locator+state", "candidateValue": "Capture source-stated value only; states SOURCE_STATED, NOT_STATED, UNKNOWN, CONFLICTING, UNLOCATED.", "requiredFor": "Located I02 context record", "validation": "Exact EvidenceRecordRef locator; no inferred demographics/person identity.", "missingBehavior": "Keep state explicit; no segment/persona."},
+        {"id": "D06.P2", "name": "actionAndAttribution", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "eventKind and attribution enums", "candidateValue": "ATTEMPT_REPORTED/ACTION_REPORTED/COMPLETION_REPORTED/NO_ACTION_EXPLICIT/NOT_REPORTED/UNKNOWN; source-logged/self-reported/other-reported/unknown.", "requiredFor": "I04 coding", "validation": "Located explicit event or explicit no-action; preserve attribution.", "missingBehavior": "NOT_REPORTED/UNKNOWN, never inferred no action."},
+        {"id": "D06.P3", "name": "attitudeCode", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "polarity enum + target + attribution + qualifiers", "candidateValue": "POSITIVE, NEGATIVE, MIXED, NEUTRAL, UNCLEAR, NOT_STATED; no star/silence inference.", "requiredFor": "I05 coding", "validation": "Explicit located statement with negation/context retained.", "missingBehavior": "NOT_STATED or UNCLEAR, not neutral."},
+        {"id": "D06.P4", "name": "journeyOrder", "classification": "INHERITED_AUTHORITY", "type": "exact A40 fields for same-record order; source key for cross-record link", "candidateValue": "Same record: SOURCE_EXPLICIT_SAME_RECORD + RECORD_LOCAL + SOURCE_STATED_ORDER. Cross-record only real source-issued episode/event key.", "requiredFor": "I06 ordered record or episode", "validation": "Explicit same-record before/after or real source key/time; no fuzzy joins.", "missingBehavior": "UNRESOLVED order; separate unlinked records."},
+        {"id": "D06.P5", "name": "reasonFacetAndMulticode", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "literal facet + independent polarity/speakerBasis", "candidateValue": "PRICE_COST; ACCESS_AVAILABILITY; FIT_NEED; PRODUCT_ATTRIBUTE; INFORMATION_TRUST; OTHER_EXPLICIT; UNCLEAR. One code per explicit reason clause; preserve AFFIRMED/NEGATED/CONDITIONAL and SELF_STATED/OTHER_REPORTED/SOURCE_ATTRIBUTED/UNKNOWN.", "requiredFor": "I07 stated reason coding", "validation": "Require explicit choice-reason relation; clear literal mapping applies under reviewed codebook; ambiguity goes to adjudication.", "missingBehavior": "No reason inference; retain literal phrase or UNCLEAR."},
+        {"id": "D06.P6", "name": "barrierPair", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "same-record attemptedTask + obstacleClause + literal facet", "candidateValue": "Require explicit attempted task and explicit obstacle in one located record; use mapped barrier facets.", "requiredFor": "I08 barrier code", "validation": "Dissatisfaction alone does not pass the pair test.", "missingBehavior": "No barrier classification."}
+      ]
+    },
+    {
+      "decisionId": "D07",
+      "sections": ["I09", "I10", "I13"],
+      "profile": "qualitative-profile.md#d07-unmet-need-themes-and-brandcompetitor-content",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/I09.md", "docs/research/section-methods-v1/sections/I10.md", "docs/research/section-methods-v1/sections/I13.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D07.P1", "name": "unmetNeedPair", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "desiredStateRef + currentOrFailedStateRef + explicit relation", "candidateValue": "Both states and their gap relation must be in one exact located record.", "requiredFor": "I09 unmet-need candidate", "validation": "Two pointers and linking phrase resolve; source record identity is exact.", "missingBehavior": "DESIRE_ONLY/CURRENT_STATE_ONLY/RELATION_UNCLEAR; not an unmet need."},
+        {"id": "D07.P2", "name": "corpusAndCodebook", "classification": "RUN_INPUT_REQUIRED", "type": "frozen manifest/inclusion/exclusion/unit/codebook revision/locator", "candidateValue": "Source-native record or exact passage chosen before coding; open codes may be frozen in first-locator order.", "requiredFor": "I10 theme counts and I13 content coding", "validation": "Freeze membership/unit/revision; show exclusions, unreadable, uncoded and multicode units.", "missingBehavior": "Located inventory only; no coded count if units/codebook cannot be replayed."},
+        {"id": "D07.P3", "name": "withinCorpusRatio", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "recordsWithCode / allEligibleIncludedRecords", "candidateValue": "Permit n/N only with frozen corpus membership/inclusion/unit/period/frame/codebook and complete denominator with coding dispositions complete; multi-code numerators may overlap.", "requiredFor": "Corpus-record ratio only", "validation": "Label within this corpus; show excluded/unreadable/uncoded/multicode and pending coding. Pending suggestions do not become absent codes or silently change the denominator.", "missingBehavior": "Incomplete coding shows partial accepted-code counts and coverage, no final ratio. Unknown external selection forbids population/customer/sentiment-share/market-rate wording, not a complete corpus ratio."},
+        {"id": "D07.P4", "name": "populationInference", "classification": "DEFERRED_ADVANCED_SCOPE", "type": "population frame + person unit + approved uncertainty method", "candidateValue": "Disabled without probability-relevant population design and separate review.", "requiredFor": "Any population/customer prevalence claim", "validation": "Complete source-supported design and authorized uncertainty method.", "missingBehavior": "No population inference."},
+        {"id": "D07.P5", "name": "brandPeerResolution", "classification": "OWNER_DECISION_REQUIRED", "type": "source-stated brand string + real ID or reviewed alias map; optional owner peer set", "candidateValue": "Unranked mention inventory unless owner declares peer membership.", "requiredFor": "I13 peer/competitor comparison", "validation": "No identity from co-occurrence/text similarity; title remains canonical.", "missingBehavior": "Located mention only; no unique-brand count/rank."}
+      ]
+    },
+    {
+      "decisionId": "D08",
+      "sections": ["I11"],
+      "profile": "advanced-profile.md#d08-i11-owner-defined-group-records",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/I11.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D08.P1", "name": "groupDefinitionAndAssignment", "classification": "OWNER_DECISION_REQUIRED", "type": "versioned group policy + source assignment", "candidateValue": "Owner defines group meaning/overlap; assign only from source-supported value.", "requiredFor": "Group comparison", "validation": "Do not infer group from text/persona; label unassigned UNKNOWN.", "missingBehavior": "Unassigned group inventory only."},
+        {"id": "D08.P2", "name": "denominatorUnit", "classification": "RUN_INPUT_REQUIRED", "type": "LOCATED_RECORD, SOURCE_AGGREGATE or source-identified entity; measure/unit/period/frame", "candidateValue": "Numerator and denominator use the same explicit count unit; raw event counts are not distinct-record/entity rates.", "requiredFor": "Group rate/difference", "validation": "Check unit, scope, period, frame, inclusion and nonzero denominator.", "missingBehavior": "Raw cells only; no rate/difference."},
+        {"id": "D08.P3", "name": "sparseAndInference", "classification": "OWNER_DECISION_REQUIRED", "type": "predeclared output/suppression and uncertainty policy", "candidateValue": "No cutoff or estimator default. Exact cells remain internal descriptive material until release rule is reviewed; no inferential result by default.", "requiredFor": "External/release or inferential group comparison", "validation": "Policy fixed before inspecting values.", "missingBehavior": "Internal descriptive inventory only; no released sparse-cell or significance claim."}
+      ]
+    },
+    {
+      "decisionId": "D09",
+      "sections": ["I12"],
+      "profile": "advanced-profile.md#d09-i12-touchpoint-exposure-and-outcome-separation",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/I12.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D09.P1", "name": "recordType", "classification": "INHERITED_AUTHORITY", "type": "enum", "candidateValue": ["PRESENCE", "EXPOSURE", "OUTCOME"], "requiredFor": "Touchpoint inventory", "validation": "Each type retains its own source locator and unit; no proxy substitution.", "missingBehavior": "Unknown state remains explicit."},
+        {"id": "D09.P2", "name": "unitSubsetRate", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "distinctEligibleUnitsWithAtLeastOneOutcome / distinctEligibleExposedUnits", "candidateValue": "V1 candidate only; exact key or source aggregate, same unit/window, one count per unit; numerator <= denominator.", "requiredFor": "Descriptive linked-unit rate", "validation": "Reject count-unit mismatch or numerator > denominator; raw event ratios stay separate and are not conversion probability.", "missingBehavior": "No rate; retain separate presence/exposure/outcome records."},
+        {"id": "D09.P3", "name": "effectivenessAttribution", "classification": "DEFERRED_ADVANCED_SCOPE", "type": "reviewed existing assignment/design + estimator", "candidateValue": "No causal effect, channel credit, ROI or ranking from touchpoint order/association.", "requiredFor": "Effectiveness claim", "validation": "Separate reviewed design/result required.", "missingBehavior": "Descriptive records only."}
+      ]
+    },
+    {
+      "decisionId": "D10",
+      "sections": ["I16"],
+      "profile": "advanced-profile.md#d10-i16-existing-result-or-design-only-mode",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/I16.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D10.P1", "name": "mode", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "DESIGN_ONLY | EXISTING_RESULT", "candidateValue": "Design returns METHOD_ONLY/NOT_EXECUTED/null results; existing result requires exact retained protocol/data.", "requiredFor": "Any I16 output", "validation": "Never infer execution from design text.", "missingBehavior": "MODE_UNDECLARED or design-only null result."},
+        {"id": "D10.P2", "name": "estimatorAndMissingRule", "classification": "EVIDENCE_REQUIRED", "type": "predeclared protocol estimator + outcome/unit/comparator/assignment/instrumentation/window/exclusions/uncertainty", "candidateValue": "No default estimator or success threshold; compute only the method named in a reviewed existing protocol.", "requiredFor": "Existing result estimate", "validation": "Freeze before outcome review; missing is not zero.", "missingBehavior": "No estimate/lift."},
+        {"id": "D10.P3", "name": "newCollection", "classification": "INHERITED_AUTHORITY", "type": "scope restriction", "candidateValue": "No new survey/interview/recruitment/experiment execution or simulated respondent prerequisite.", "requiredFor": "All I16 scopes", "validation": "Use existing records or an unexecuted design only.", "missingBehavior": "Out of scope; do not request collection."}
+      ]
+    },
+    {
+      "decisionId": "D11",
+      "sections": ["M01", "M11", "M12", "I01", "I14", "I15"],
+      "profile": "synthesis-ai-profile.md#d11-safe-outputs-for-the-six-sections",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/sections/M01.md", "docs/research/section-methods-v1/sections/M11.md", "docs/research/section-methods-v1/sections/M12.md", "docs/research/section-methods-v1/sections/I01.md", "docs/research/section-methods-v1/sections/I14.md", "docs/research/section-methods-v1/sections/I15.md", "docs/research/section-methods-v1/common-rules.md"],
+      "parameters": [
+        {"id": "D11.P1", "name": "ownerBrief", "classification": "RUN_INPUT_REQUIRED", "type": "exact owner question/decision/audience/scope/constraints or UNSET", "candidateValue": "I01 stores owner text exactly; never infer the question or widen scope.", "requiredFor": "Question-linked synthesis/decision packet", "validation": "Pin brief version; unset stays unset.", "missingBehavior": "M01 may show unranked inventory; no decision-oriented synthesis."},
+        {"id": "D11.P2", "name": "evidenceInventory", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "exact eligible claim refs with layers/scope/denominators/limits/conflicts", "candidateValue": "M01 downstream inventory; M11 unranked evidence groups; I14 unranked owner directions; unrelated sections optional.", "requiredFor": "Evidence summary/opportunity packet", "validation": "Exact ref replays; claims grouped only by question/owner labels or canonical section order.", "missingBehavior": "Retain gaps/conflicts; no conclusion/priority."},
+        {"id": "D11.P3", "name": "ownerOptionsAndDecision", "classification": "OWNER_DECISION_REQUIRED", "type": "ownerOptions[] + constraints + separate authorized decision ref", "candidateValue": "I15 and M12 keep ownerOptions empty if none supplied; preferredOption/chosen null until human decision.", "requiredFor": "Strategy/action choice or execution", "validation": "No AI candidate promoted to owner option; button-only B7/B10 remain unchanged.", "missingBehavior": "Open unranked packet; no action."}
+      ]
+    },
+    {
+      "decisionId": "D12",
+      "sections": ["M01", "M11", "M12", "I14", "I15"],
+      "profile": "synthesis-ai-profile.md#d12-proposed-evidence-linked-ai-candidate-contract",
+      "businessReviewDisposition": "SCOPED_TECHNICAL_PROPOSAL_REVIEW; EXACT_PACKET_DISPOSITION_IN_EXTERNAL_HANDOFF",
+      "ownerApproval": "NOT_GRANTED",
+      "implementation": "NOT_IMPLEMENTED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN",
+      "sourceAuthorities": ["docs/research/section-methods-v1/common-rules.md", "docs/research/section-methods-v1/sections/M01.md", "docs/research/section-methods-v1/sections/M09.md", "docs/research/section-methods-v1/sections/M11.md", "docs/research/section-methods-v1/sections/M12.md", "docs/research/section-methods-v1/sections/I02.md", "docs/research/section-methods-v1/sections/I04.md", "docs/research/section-methods-v1/sections/I05.md", "docs/research/section-methods-v1/sections/I06.md", "docs/research/section-methods-v1/sections/I07.md", "docs/research/section-methods-v1/sections/I08.md", "docs/research/section-methods-v1/sections/I09.md", "docs/research/section-methods-v1/sections/I10.md", "docs/research/section-methods-v1/sections/I13.md", "docs/research/section-methods-v1/sections/I14.md", "docs/research/section-methods-v1/sections/I15.md"],
+      "parameters": [
+        {"id": "D12.P1", "name": "candidateTypeAndSection", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "closed enum", "candidateValue": {"SUMMARY_DRAFT": ["M01"], "HYPOTHESIS": ["M11", "I14"], "OPPORTUNITY_DIRECTION": ["M11", "I14"], "STRATEGY_OPTION": ["I15"], "ACTION_OPTION": ["M12"], "DRIVER_HYPOTHESIS": ["M09"], "CODE_SUGGESTION": ["I02", "I04", "I05", "I06", "I07", "I08", "I09", "I10", "I13"]}, "requiredFor": "Optional future AI candidate", "validation": "Schema can reject type/section mismatch.", "missingBehavior": "No candidate artifact."},
+        {"id": "D12.P2", "name": "exactClaimAndNumericBindings", "classification": "BUSINESS_REVIEWED_PROPOSAL", "type": "exact claim refs + structured numeric bindings; for CODE_SUGGESTION also codebook ID/version/dimension/allowed code/exact record span/qualifiers", "candidateValue": "Closed schema checks exact refs/scope and numeric bindings; deterministic renderer inserts values. Code suggestions bind to frozen allowed codes and retain context/negation/condition/hearsay.", "requiredFor": "Candidate with cited evidence/numbers or code suggestion", "validation": "Pointer/integrity checks are not semantic truth; numeric binding must match verified value/unit/scope; invalid codebook or locator fails; ambiguity stays UNRESOLVED.", "missingBehavior": "Structurally invalid candidate stays untrusted; unadjudicated code never enters counts, n/N, groups or synthesis."},
+        {"id": "D12.P3", "name": "semanticReview", "classification": "OWNER_DECISION_REQUIRED", "type": "human review of rationale/assumptions/counterevidence/unknowns/gaps/limits", "candidateValue": "Free prose is untrusted; automated flags are warnings only; code suggestions require human adjudication; driver hypotheses require exact event/counterevidence, scope/entity/metric/mechanism.", "requiredFor": "Any use of candidate text", "validation": "Human checks semantic support, invented constraints/IDs, attribution and action language. Driver candidates cannot claim causality, score, rank or forecast.", "missingBehavior": "HUMAN_REVIEW_REQUIRED; do not promote; accepted codes remain interpretation, not source fact."},
+        {"id": "D12.P4", "name": "retentionAndDisposition", "classification": "PROPOSED_PROFILE_VALUE", "type": "attempt/input/output/prompt/model/config/validator identities plus separate humanDisposition", "candidateValue": "Retain exact attempt bytes; candidateStatus distinct from ACCEPTED/EDITED/REJECTED/DEFERRED/null human disposition; regeneration is a new attempt.", "requiredFor": "Future AI workflow reproducibility", "validation": "Store user-facing rationale only, never hidden chain-of-thought; B7/B10 unchanged.", "missingBehavior": "No replayable AI attempt or human decision."}
+      ]
+    }
+  ]
+}

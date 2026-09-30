@@ -1,0 +1,1052 @@
+{
+  "registryVersion": "1.0.0-draft.1",
+  "authority": "DRAFT_METHOD_SPECIFICATIONS_NOT_RUNTIME_ADMISSION",
+  "baseCommit": "ea38e7f8295c8cbd61ec7776c4363958867c1f10",
+  "catalog": {
+    "id": "market-insight-30-section-catalog-v1",
+    "version": "0.6.0",
+    "path": "docs/research/report-section-catalog-v1.json",
+    "sha256": "926a175fa9104df4cefde799ad601861d94b4e9d4d7fe1dbf7717dc163a8e255"
+  },
+  "commonRulesPath": "common-rules.md",
+  "authorityIndexPath": "authority-index.md",
+  "dependencySemantics": "Only requiredSectionDependencies are mandatory section artifacts. Optional reusable outputs are selected explicitly; absent unrelated sections do not block an inventory. Raw source/protocol/codebook/preparation inputs are specified in each recipe, not replaced by these section edges.",
+  "decisions": [
+    {
+      "id": "D01",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 1,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D02",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 2,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D03",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 3,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D04",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 4,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D05",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 5,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D06",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 6,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D07",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 7,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D08",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 8,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D09",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 9,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D10",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 10,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D11",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 11,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    },
+    {
+      "id": "D12",
+      "path": "index.md#consolidated-owner-decisions",
+      "listItem": 12,
+      "state": "UNRESOLVED_METHOD_OR_OWNER_PARAMETERS",
+      "blocks": "Only the operation requiring the parameter; not all section drafting or raw located inventory."
+    }
+  ],
+  "sections": [
+    {
+      "sectionId": "M01",
+      "title": "Kết luận chính",
+      "catalogOrder": 1,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M01.md",
+      "group": "SYNTHESIS_AND_OWNER",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M02",
+        "M03",
+        "M04",
+        "M05",
+        "M06",
+        "M07",
+        "M08",
+        "M09",
+        "M10",
+        "M11",
+        "M12",
+        "M13",
+        "I01",
+        "I02",
+        "I03",
+        "I04",
+        "I05",
+        "I06",
+        "I07",
+        "I08",
+        "I09",
+        "I10",
+        "I11",
+        "I12",
+        "I13",
+        "I14",
+        "I15",
+        "I16",
+        "I17"
+      ],
+      "openDecisionIds": [
+        "D11",
+        "D12"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "M02",
+      "title": "Phạm vi và phương pháp",
+      "catalogOrder": 2,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M02.md",
+      "group": "EXISTING_BOUNDED",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "EXISTING_APPROVED_SUBSCOPE_ONLY",
+      "existingExecutableSubscope": "A22 scope account",
+      "implementation": "EXISTING_BOUNDED_CODE",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [],
+      "openDecisionIds": [],
+      "authorityReferences": [
+        {
+          "path": "src/modules/analysis/m02-scope-method.ts",
+          "sha256": "2c29e4112b67c329aeee378e6ba941b5fbd1db9a76303ef0aec69fbc6b6221d9"
+        }
+      ]
+    },
+    {
+      "sectionId": "M03",
+      "title": "Quy mô và diễn biến",
+      "catalogOrder": 3,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M03.md",
+      "group": "EXISTING_BOUNDED",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "EXISTING_APPROVED_SUBSCOPE_ONLY",
+      "existingExecutableSubscope": "A32 single-preparation observed totals",
+      "implementation": "EXISTING_BOUNDED_CODE",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [],
+      "openDecisionIds": [],
+      "authorityReferences": [
+        {
+          "path": "src/modules/analysis/m03-section-recipe.ts",
+          "sha256": "bccfeec95f23f0f3da12b3c63a5f266b70c88666a0ae162295cda8a376acdf0e"
+        }
+      ]
+    },
+    {
+      "sectionId": "M04",
+      "title": "Cơ cấu thị trường",
+      "catalogOrder": 4,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M04.md",
+      "group": "EXISTING_BOUNDED",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "EXISTING_APPROVED_SUBSCOPE_ONLY",
+      "existingExecutableSubscope": "MetricScope composition/concentration; A27 views",
+      "implementation": "EXISTING_BOUNDED_CODE",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M03"
+      ],
+      "openDecisionIds": [],
+      "authorityReferences": [
+        {
+          "path": "src/modules/analysis/metric-scope-calculator.ts",
+          "sha256": "0f381cff3e85400c63b4f83a852bd9f62666681d1111301b5bcfc5af366c3f82"
+        }
+      ]
+    },
+    {
+      "sectionId": "M05",
+      "title": "Nhu cầu",
+      "catalogOrder": 5,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M05.md",
+      "group": "ADDITIONAL_MARKET",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M02",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D01"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "M06",
+      "title": "Nguồn cung",
+      "catalogOrder": 6,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M06.md",
+      "group": "ADDITIONAL_MARKET",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M02",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D02"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "M07",
+      "title": "Đối thủ",
+      "catalogOrder": 7,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M07.md",
+      "group": "ADDITIONAL_MARKET",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M02",
+        "M13",
+        "M08"
+      ],
+      "openDecisionIds": [
+        "D03"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "M08",
+      "title": "Giá và kinh tế đơn vị",
+      "catalogOrder": 8,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M08.md",
+      "group": "EXISTING_BOUNDED",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "EXISTING_APPROVED_SUBSCOPE_ONLY",
+      "existingExecutableSubscope": "M08/P4 single-quote packaging arithmetic ONLY",
+      "implementation": "EXISTING_BOUNDED_CODE",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [],
+      "openDecisionIds": [],
+      "authorityReferences": [
+        {
+          "path": "src/modules/analysis/m08-tablet-quote-method.ts",
+          "sha256": "a3913fa5e7e329b05dbd05c1fe96d8d17aa715761c8d038af0871831508ba5dd"
+        }
+      ],
+      "broaderSectionScope": "UNIT_ECONOMICS_UNRESOLVED_NOT_IMPLEMENTED"
+    },
+    {
+      "sectionId": "M09",
+      "title": "Động lực và rủi ro",
+      "catalogOrder": 9,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M09.md",
+      "group": "ADDITIONAL_MARKET",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M02",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D04"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "M10",
+      "title": "Dự báo và kịch bản",
+      "catalogOrder": 10,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M10.md",
+      "group": "ADDITIONAL_MARKET",
+      "specificationCoverage": "DRAFTED_GATE_EVALUATION_AND_UNAPPROVED_BASELINE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M03"
+      ],
+      "openDecisionIds": [
+        "D05"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ],
+      "subscopes": [
+        {
+          "id": "eligibility",
+          "specification": "DRAFTED",
+          "execution": "NOT_RUN"
+        },
+        {
+          "id": "parameterized-evaluation",
+          "specification": "DRAFTED_TEMPLATE",
+          "execution": "BLOCKED_UNAPPROVED_POLICY"
+        },
+        {
+          "id": "last-value-mae-baseline",
+          "specification": "PROPOSED_UNAPPROVED",
+          "execution": "NOT_RUN"
+        },
+        {
+          "id": "production-forecast",
+          "specification": "INCOMPLETE_OWNER_MODEL_POLICY",
+          "execution": "FORECAST_BLOCKED"
+        }
+      ]
+    },
+    {
+      "sectionId": "M11",
+      "title": "Cơ hội",
+      "catalogOrder": 11,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M11.md",
+      "group": "SYNTHESIS_AND_OWNER",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I01",
+        "M05",
+        "M06",
+        "M07",
+        "M09",
+        "I09",
+        "I13",
+        "I16"
+      ],
+      "openDecisionIds": [
+        "D11",
+        "D12"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "M12",
+      "title": "Hành động",
+      "catalogOrder": 12,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M12.md",
+      "group": "SYNTHESIS_AND_OWNER",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I01",
+        "M11",
+        "I14",
+        "I15"
+      ],
+      "openDecisionIds": [
+        "D11",
+        "D12"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "M13",
+      "title": "Phụ lục và truy nguồn",
+      "catalogOrder": 13,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/M13.md",
+      "group": "EXISTING_BOUNDED",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "EXISTING_APPROVED_SUBSCOPE_ONLY",
+      "existingExecutableSubscope": "A23 exact source/record lineage",
+      "implementation": "EXISTING_BOUNDED_CODE",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [],
+      "openDecisionIds": [],
+      "authorityReferences": [
+        {
+          "path": "src/modules/analysis/m13-provenance-appendix.ts",
+          "sha256": "d94431526e575866cdaaf00b3c0da49c14bf0f39fe578da881698f7edfd6eb45"
+        }
+      ]
+    },
+    {
+      "sectionId": "I01",
+      "title": "Câu hỏi kinh doanh",
+      "catalogOrder": 14,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I01.md",
+      "group": "SYNTHESIS_AND_OWNER",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [],
+      "openDecisionIds": [
+        "D11"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I02",
+      "title": "Khách hàng và hoàn cảnh",
+      "catalogOrder": 15,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I02.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M02",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D06"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I03",
+      "title": "Phương pháp nghiên cứu",
+      "catalogOrder": 16,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I03.md",
+      "group": "EXISTING_BOUNDED",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "EXISTING_APPROVED_SUBSCOPE_ONLY",
+      "existingExecutableSubscope": "A25 exact research-method account",
+      "implementation": "EXISTING_BOUNDED_CODE",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [
+        "M02",
+        "M13"
+      ],
+      "optionalSectionDependencies": [],
+      "openDecisionIds": [],
+      "authorityReferences": [
+        {
+          "path": "src/modules/analysis/i03-research-method.ts",
+          "sha256": "af505db0f0307d1e4a92a1ec6688a72dbb67335e17df35b13212124adb9758e3"
+        }
+      ]
+    },
+    {
+      "sectionId": "I04",
+      "title": "Hành vi",
+      "catalogOrder": 17,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I04.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I02",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D06"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I05",
+      "title": "Cảm nhận và thái độ",
+      "catalogOrder": 18,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I05.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I02",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D06"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I06",
+      "title": "Hành trình",
+      "catalogOrder": 19,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I06.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I02",
+        "I04",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D06"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I07",
+      "title": "Lý do lựa chọn",
+      "catalogOrder": 20,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I07.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I02",
+        "I04",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D06"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I08",
+      "title": "Rào cản",
+      "catalogOrder": 21,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I08.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I02",
+        "I04",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D06"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I09",
+      "title": "Nhu cầu chưa được đáp ứng",
+      "catalogOrder": 22,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I09.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I02",
+        "I05",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D07"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I10",
+      "title": "Chủ đề và mối quan tâm",
+      "catalogOrder": 23,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I10.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I02",
+        "I05",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D07"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I11",
+      "title": "Khác biệt giữa các nhóm",
+      "catalogOrder": 24,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I11.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I02",
+        "I16",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D08"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I12",
+      "title": "Điểm tiếp xúc",
+      "catalogOrder": 25,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I12.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I13",
+        "I16",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D09"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I13",
+      "title": "Thương hiệu và đối thủ",
+      "catalogOrder": 26,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I13.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M07",
+        "I10",
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D07"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I14",
+      "title": "Hướng cơ hội",
+      "catalogOrder": 27,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I14.md",
+      "group": "SYNTHESIS_AND_OWNER",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I01",
+        "M11",
+        "I09",
+        "M05",
+        "M06",
+        "M07",
+        "I13",
+        "I16"
+      ],
+      "openDecisionIds": [
+        "D11",
+        "D12"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I15",
+      "title": "Định hướng chiến lược",
+      "catalogOrder": 28,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I15.md",
+      "group": "SYNTHESIS_AND_OWNER",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "I01",
+        "I14",
+        "M11"
+      ],
+      "openDecisionIds": [
+        "D11",
+        "D12"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I16",
+      "title": "Thử nghiệm và đo lường",
+      "catalogOrder": 29,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I16.md",
+      "group": "ADDITIONAL_INSIGHT",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "PROPOSED_NOT_OWNER_APPROVED",
+      "existingExecutableSubscope": null,
+      "implementation": "NEW_CODE_OR_HUMAN_INPUT_REQUIRED",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [],
+      "optionalSectionDependencies": [
+        "M13"
+      ],
+      "openDecisionIds": [
+        "D10"
+      ],
+      "authorityReferences": [
+        {
+          "path": "authority-index.md#business-session-clarification",
+          "sha256": null
+        }
+      ]
+    },
+    {
+      "sectionId": "I17",
+      "title": "Phụ lục và bằng chứng",
+      "catalogOrder": 30,
+      "specVersion": "1.0.0",
+      "recipePath": "sections/I17.md",
+      "group": "EXISTING_BOUNDED",
+      "specificationCoverage": "DRAFTED_FOR_DECLARED_SCOPE",
+      "businessAuthority": "EXISTING_APPROVED_SUBSCOPE_ONLY",
+      "existingExecutableSubscope": "A26 directional evidence trace",
+      "implementation": "EXISTING_BOUNDED_CODE",
+      "inputReadiness": "NOT_ASSESSED",
+      "execution": "NOT_RUN_IN_A40",
+      "outputReview": "NO_OUTPUT_PRODUCED",
+      "recipeBoundaryReview": "BUSINESS_REVIEWED_NOT_POLICY_APPROVAL",
+      "requiredSectionDependencies": [
+        "M02",
+        "M13",
+        "I03"
+      ],
+      "optionalSectionDependencies": [
+        "M08"
+      ],
+      "openDecisionIds": [],
+      "authorityReferences": [
+        {
+          "path": "src/modules/analysis/i17-evidence-trace.ts",
+          "sha256": "27a445d99f3650a12c68437195ae938e814de86cd8ee12135ebc2378c4f56412"
+        }
+      ]
+    }
+  ]
+}
