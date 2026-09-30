@@ -1,4 +1,4 @@
-# A38/A39 integrated delivery: verification checkpoint
+# A38/A39 integrated delivery: draft PR handoff
 
 2026-09-30. Existing draft PR #100, branch
 `feature/research-a38-report-assembly-snapshot`.
@@ -38,7 +38,7 @@ and its identity rules remain unchanged.
   Only exact retries can rebuild genuinely missing members, and only after
   verifying the complete record and membership. Corruption is not overwritten.
 
-## Validation plan and current evidence
+## Validation and evidence
 
 Test-audit assigns one primary owner per behavior: snapshot composition, A10
 integration/replay, and the CLI/filesystem boundary. Existing arithmetic tests
@@ -53,10 +53,47 @@ repository check for this batch because shared registration files changed.
 The preview job exports the actual retained report, captures desktop/mobile,
 checks browser interactions and retains only synthetic visual evidence.
 
-At this checkpoint, no Linux execution result is claimed. No Windows test,
-build or typecheck was run. Static whitespace checks passed; the new HTML
-wrapper's Impeccable detector returned no findings, which is not visual
-acceptance. Final CI and screenshot inspection remain required.
+Code head: `8ede53df54c18ed31c6761b422651403f97c0de2`.
+
+- [Linux Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/36727007911):
+  PASS, 621/621 backend and 176/176 frontend tests, strict typechecks, generated
+  contract drift verification and production frontend build.
+- [Linux preview](https://github.com/khangpworking/tdn-growth-os/actions/runs/36727007917):
+  PASS. The actual retained synthetic report and legacy report were exported.
+  Both 1440 px and 390 px captures were inspected. The prepared report has no
+  horizontal page overflow, 267 verified interactions per viewport, visible
+  keyboard focus, no browser errors and minimum measured text contrast 5.64:1.
+- The initial preview run caught a helper defect: the center of a wrapped
+  inline link's bounding box was whitespace. The helper now clicks an actual
+  text-fragment hit region; navigation and exact downloaded bytes are still
+  asserted. No product assertion was removed or weakened.
+- Synthetic prepared HTML SHA-256 from that preview:
+  `39de09bb5dd80143edc006725eaeb3af9af55b4badee6c6d8f30ec52f6e8bfc8`.
+  The CI artifact is `research-report-synthetic-preview`, directory `assembly`.
+  It includes the report, exact evidence downloads, screenshots and machine
+  readable interaction/visual evidence. Source identities are freshly created
+  synthetic fixture identities, so a new fixture run is not the same pinned
+  input package. Within one retained version, retries and byte replay are exact.
+- Impeccable static detector: no findings on the new wrapper. Antislop design
+  gate: `docs/handoffs/research-a38-design-gate.md`. Two visual inspection rounds
+  used Linux-generated evidence, not a Windows runtime.
+- Independent static re-review: no remaining blockers in exact source binding,
+  ordinary reader reopening, staged artifact cleanup/recovery or navigation.
+- No Windows test, build or typecheck was run. Local contract code generation
+  and Git whitespace checks ran; Linux is authoritative for execution.
+
+## Remaining boundaries and next step
+
+PR #100 is open/draft and stacked on the A37 branch. Complete owner review and
+the prerequisite stack integration before merge. No merge or deployment is
+included. The command is a prepared-input CLI, not a new operator create form.
+New prepared-profile AI interpretation remains deferred. Real-input acceptance
+has not run. M08/P4 needs exact supplementary quote inputs; the other missing
+business inputs and methods are still blockers, not invented content.
+
+The sample has seven partial materializations and 23 without output; none is
+declared a complete business section. Six partial paths remain when the quote
+input is absent. No new business-method approval was inferred from CI success.
 
 No merge, deployment, applied migration change, new dependency, provider call,
 real-data mutation or business approval is authorized by this checkpoint.

@@ -11,9 +11,15 @@ After the Claude lanes reached quota, the owner explicitly authorized GPT to
 take over the remaining production code. Exact selection, standard-reader
 reopening, retained dependency bytes and the assembled HTML path were corrected.
 The HTML keeps charts before expandable technical diagnostics. Independent
-review identified normalized-dataset binding and failed-attempt artifact
-cleanup for correction before Linux acceptance. No completion is claimed yet.
-See `docs/handoffs/research-a38-integration-checkpoint.md` for verification state.
+review findings for normalized-dataset binding and failed-attempt artifact
+cleanup are corrected. Linux Check passed on code head `8ede53d`: 621/621
+backend tests, 176/176 frontend tests, typechecks, contract generation and build.
+Actual retained-report browser acceptance also passed at 1440 and 390 px,
+including evidence navigation, downloads, disclosures, keyboard and contrast.
+Draft PR #100 remains stacked on A37; nothing is merged or deployed. This is an
+integrated partial-report delivery, not completion of all 30 business sections.
+See `docs/handoffs/research-a38-integration-checkpoint.md` and the associated
+design gate for exact evidence and remaining boundaries.
 
 ## Frontend CSP rule (PR #84, merged `1a4ae1f`) — read before any frontend change
 
