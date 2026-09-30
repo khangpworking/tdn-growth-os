@@ -105,7 +105,11 @@ test('located Insight supplement persists exact source bytes and replay with quo
   assert.deepEqual(retained.output.sections.I10.corpora[0]!.counts[0]!.ratio, { numerator: 2, denominator: 3 });
   assert.deepEqual(Buffer.from(retained.descriptor.bytesBase64, 'base64'), state.located.files[0]!.bytes);
   for (const source of state.located.files.slice(1)) {
-    const member = retained.files.find(file => file.logicalPath === source.path)!;
+    // Shared authority bytes may already be retained under the Market package
+    // path. Authority is pinned by digest; declared data sources bind by path.
+    const member = retained.files.find(file => source.evidenceFamily === 'method-authority'
+      ? file.sha256 === source.sha256 : file.logicalPath === source.path);
+    assert.ok(member, `Missing retained bytes: ${source.path}`);
     assert.equal(member.sha256, source.sha256);
     assert.deepEqual(Buffer.from(member.bytesBase64, 'base64'), source.bytes);
   }

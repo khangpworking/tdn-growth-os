@@ -88,7 +88,8 @@ function validateCore(untrusted: unknown): Input {
     if ('start' in object && 'end' in object && 'quote' in object) {
       const text = recordIndex === undefined ? undefined : input.records[recordIndex]?.text;
       if (typeof text !== 'string') fail('UNREADABLE_SPAN_REFERENCE');
-      checkSpan(text, object as Span);
+      // AJV already validated the complete input tree against the closed span schema.
+      checkSpan(text, object as unknown as Span);
     }
     if ('basis' in object && object.basis === 'HUMAN_REVIEWED' && object.adjudication === null) fail('ADJUDICATION_DECLARATION_REQUIRED');
     if ('state' in object && 'span' in object) {

@@ -37,7 +37,8 @@ test('located quote HTML keeps literal source context and does not turn imported
     assert.ok(context.textContent?.includes('/records/0/text'));
     assert.ok(context.textContent?.includes(descriptor.records[0]!.sourceSha256));
     const provenance = quoteRow.querySelector('details');
-    assert.ok(provenance?.textContent?.includes('Hồ sơ khai báo đã được người rà soát'));
+    assert.ok(provenance);
+    assert.ok(provenance.textContent?.includes('Hồ sơ khai báo đã được người rà soát'));
     assert.ok(provenance.textContent?.includes('chưa được xác thực thành phê duyệt'));
   } finally {
     dom.window.close();
