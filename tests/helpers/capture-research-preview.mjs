@@ -85,11 +85,12 @@ try {
   await call('Page.navigate', { url: pathToFileURL(report).href });
   let loaded = false;
   for (let i = 0; i < 100; i++) {
-    const ready = await call('Runtime.evaluate', { expression: 'document.readyState === "complete" && !!document.querySelector("a.value")', returnByValue: true });
+    const ready = await call('Runtime.evaluate', { expression: 'document.readyState === "complete" && !!document.querySelector("main a[download]")', returnByValue: true });
     if (ready.result.value === true) { loaded = true; break; }
     await pause(50);
   }
   if (!loaded) throw new Error('Synthetic report never reached the expected loaded state');
+  await call('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true, returnByValue: true });
   const evaluate = async expression => {
     const response = await call('Runtime.evaluate', { expression, returnByValue: true });
     if (response.exceptionDetails) throw new Error(JSON.stringify(response.exceptionDetails));
@@ -215,7 +216,7 @@ try {
           await call('Page.navigate', { url: pathToFileURL(report).href });
           let restored = false;
           for (let attempt = 0; attempt < 100; attempt++) {
-            restored = await evaluate('document.readyState === "complete" && !!document.querySelector("a.value")');
+            restored = await evaluate('document.readyState === "complete" && !!document.querySelector("main a[download]")');
             if (restored) break;
             await pause(50);
           }
