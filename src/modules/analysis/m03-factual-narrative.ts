@@ -22,6 +22,37 @@ type Claim = M03NarrativeEvidence['claims'][number];
 export class M03FactualNarrativeValidationError extends Error {}
 export class M03FactualNarrativeIntegrityError extends Error {}
 
+export function verifyM03FactualNarrative(
+  value: unknown,
+  expectedSha256?: string,
+  exactEnvelope?: M03NarrativeEvidence,
+  exactMetricSet?: unknown,
+  exactChartBundle?: unknown,
+): M03FactualNarrative {
+  if (!validateResult(value)) throw new M03FactualNarrativeIntegrityError('M03 factual narrative breaks its contract');
+  const result = JSON.parse(canonicalJson(value)) as M03FactualNarrative;
+  const { narrativeSha256, ...content } = result;
+  if (digest(Buffer.from(canonicalJson(content), 'utf8')) !== narrativeSha256 ||
+      (expectedSha256 !== undefined && narrativeSha256 !== expectedSha256)) {
+    throw new M03FactualNarrativeIntegrityError('M03 factual narrative identity does not match exact content');
+  }
+  if (result.request.envelopeSha256 !== result.dependencies.envelopeSha256 ||
+      canonicalJson(result.paragraphs.map(paragraph => paragraph.paragraphId)) !== canonicalJson([
+        'scope-all', 'scope-wide', 'scope-core', 'sensitivity-wide', 'sensitivity-core', 'limitations',
+      ])) {
+    throw new M03FactualNarrativeIntegrityError('M03 factual narrative lineage or canonical ordering is inconsistent');
+  }
+  if (exactEnvelope !== undefined && exactMetricSet !== undefined && exactChartBundle !== undefined) {
+    const replay = renderM03FactualNarrative(result.request, exactEnvelope, exactMetricSet, exactChartBundle);
+    if (canonicalJson(replay) !== canonicalJson(result)) {
+      throw new M03FactualNarrativeIntegrityError('M03 factual narrative does not replay from exact dependencies');
+    }
+  } else if (exactEnvelope !== undefined || exactMetricSet !== undefined || exactChartBundle !== undefined) {
+    throw new M03FactualNarrativeIntegrityError('All exact M03 narrative dependencies are required for replay');
+  }
+  return result;
+}
+
 export function renderM03FactualNarrative(
   untrustedRequest: unknown,
   untrustedEnvelope: unknown,
@@ -70,7 +101,7 @@ export function renderM03FactualNarrative(
   if (!validateResult(result)) {
     throw new M03FactualNarrativeIntegrityError(`M03 factual narrative breaks its contract: ${ajv.errorsText(validateResult.errors)}`);
   }
-  return JSON.parse(canonicalJson(result)) as M03FactualNarrative;
+  return verifyM03FactualNarrative(result, result.narrativeSha256);
 }
 
 function scopeParagraph(envelope: M03NarrativeEvidence, scope: 'all' | 'wide' | 'core', label: 'ALL' | 'WIDE' | 'CORE'): Paragraph {

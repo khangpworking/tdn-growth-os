@@ -143,7 +143,14 @@ export {
   M03FactualNarrativeIntegrityError,
   M03FactualNarrativeValidationError,
   renderM03FactualNarrative,
+  verifyM03FactualNarrative,
 } from './m03-factual-narrative.js';
+export {
+  M03SectionArtifactIntegrityError,
+  M03SectionArtifactValidationError,
+  renderM03SectionArtifact,
+  verifyM03SectionArtifact,
+} from './m03-section-artifact.js';
 export {
   buildReportReviewTarget,
   ReportReviewTargetIntegrityError,

@@ -36,6 +36,8 @@ const contracts = [
   ['analysis', 'm03-narrative-evidence'],
   ['analysis', 'm03-factual-narrative-request'],
   ['analysis', 'm03-factual-narrative'],
+  ['analysis', 'm03-section-artifact-request'],
+  ['analysis', 'm03-section-artifact'],
   ['analysis', 'metric-scope-input'],
   ['analysis', 'metric-scope-output'],
   ['analysis', 'conditional-economics-input'],
