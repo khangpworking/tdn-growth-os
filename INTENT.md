@@ -565,3 +565,20 @@ meaning hoặc pointer buộc mở lại ChartSpec.
 ChartSpec là hợp đồng trình bày và truy xuất bằng chứng, không phải một section
 nghiệp vụ mới, AI interpretation, human approval hay bằng chứng về market
 universe. Vì vậy Research A27 giữ coverage ở 7/30 section.
+
+### D40 — Readiness của section phải chỉ ra từng input và exact evidence
+
+Mỗi section trong catalog phải công khai trạng thái của từng input theo đúng
+thứ tự đã khai báo: `PRESENT`, `ABSENT` hoặc `INVALID`. `PRESENT` chỉ được dùng
+khi exact artifact/record/packet pointer và digest của report version đang xem
+phát lại được; thiếu byte, sai digest hoặc method artifact không khớp là
+`INVALID`, không tự sửa hoặc bỏ qua. Input chưa được cung cấp là `ABSENT`;
+optional input có thể không chặn section nhưng vẫn phải hiện là thiếu.
+
+Profile readiness là closed contract có version và fail-closed với input ID
+chưa đăng ký. Nó không chạy provider, không gọi AI, không tạo dữ liệu, không
+tính thêm metric, không nâng section state và không biến zero thành missing.
+Readiness chỉ trả lời “điều kiện nào đã có và evidence nằm ở đâu”; phép tính,
+ChartSpec, nhận định AI và quyết định người dùng tiếp tục là bốn lớp riêng.
+Với gói calcium hiện tại, gate này không làm tăng coverage: vẫn chỉ 7/30 section
+có deterministic partial draft.

@@ -12,7 +12,11 @@ const json = (body: unknown): Response => new Response(JSON.stringify(body), { s
 const entry = (sectionId: 'M01' | 'M02' | 'I01', state: 'PARTIAL_DETERMINISTIC_DRAFT' | 'BLOCKED' | 'MANUAL_REVIEW_REQUIRED') => ({
   sectionId, title: { M01: 'Kết luận chính', M02: 'Phạm vi và phương pháp', I01: 'Câu hỏi kinh doanh' }[sectionId],
   methodId: `method-${sectionId.toLowerCase()}`, methodVersion: '1.0.0', historicalTemplateMaturity: 'METHOD', moduleIds: ['source-scope'],
-  requiredInputs: ['verified-input'], reopenCondition: 'Có đủ dữ liệu cùng phạm vi và kỳ đo.', fallbackState: state === 'MANUAL_REVIEW_REQUIRED' ? 'MANUAL_REVIEW_REQUIRED' : 'BLOCKED', fallbackReasons: ['INPUT_REQUIRED'],
+  requiredInputs: ['verified-input'], inputChecks: [{
+    inputId: 'verified-input', state: state === 'PARTIAL_DETERMINISTIC_DRAFT' ? 'PRESENT' : state === 'BLOCKED' ? 'ABSENT' : 'INVALID',
+    blocking: state !== 'PARTIAL_DETERMINISTIC_DRAFT', codes: [state === 'PARTIAL_DETERMINISTIC_DRAFT' ? 'EXACT_INPUT_BOUND' : 'INPUT_REQUIRED'],
+    evidenceRefs: state === 'PARTIAL_DETERMINISTIC_DRAFT' ? [{ kind: 'REPORT_ARTIFACT', locator: 'metric-result.json', sha256: '9'.repeat(64) }] : [],
+  }], reopenCondition: 'Có đủ dữ liệu cùng phạm vi và kỳ đo.', fallbackState: state === 'MANUAL_REVIEW_REQUIRED' ? 'MANUAL_REVIEW_REQUIRED' : 'BLOCKED', fallbackReasons: ['INPUT_REQUIRED'],
   deliveryState: state, claimIds: state === 'PARTIAL_DETERMINISTIC_DRAFT' ? ['M01:all:listings'] : [], contextPointers: state === 'PARTIAL_DETERMINISTIC_DRAFT' ? ['/input/scope'] : [], blockers: state === 'PARTIAL_DETERMINISTIC_DRAFT' ? [] : ['INPUT_REQUIRED'], sectionSha256: ({ M01: '1', M02: '2', I01: '3' } as const)[sectionId].repeat(64),
 });
 
@@ -22,7 +26,7 @@ test('section matrix exposes methods, blockers and evidence pointers, then filte
   const { default: Matrix } = await tsImport('../src/ReportSectionReadiness.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/ReportSectionReadiness');
   const originalFetch = globalThis.fetch;
   globalThis.fetch = (async () => json({
-    contractVersion: '1.0.0', reportId, reportVersion: 1, versionId, semanticVersionId,
+    contractVersion: '1.0.0', readinessProfile: 'report-input-readiness-v1', reportId, reportVersion: 1, versionId, semanticVersionId,
     packetId: 'b'.repeat(64), catalogId: 'market-insight-30-section-catalog-v1', catalogVersion: '0.1.0', catalogSha256: 'c'.repeat(64),
     sections: [entry('M01', 'PARTIAL_DETERMINISTIC_DRAFT'), entry('M02', 'BLOCKED'), entry('I01', 'MANUAL_REVIEW_REQUIRED')],
   })) as typeof fetch;
@@ -38,6 +42,11 @@ test('section matrix exposes methods, blockers and evidence pointers, then filte
     assert.doesNotMatch(dom.container.textContent ?? '', /Câu hỏi kinh doanh/);
     const first = dom.container.querySelector('details.readiness-card') as HTMLDetailsElement;
     first.open = true;
+    const input = first.querySelector('details.input-check') as HTMLDetailsElement;
+    input.open = true;
+    assert.match(first.textContent ?? '', /Đã có/);
+    assert.match(first.textContent ?? '', /metric-result\.json/);
+    assert.match(first.textContent ?? '', /999999999999/);
     assert.match(first.textContent ?? '', /M01:all:listings/);
     assert.match(first.textContent ?? '', /\/input\/scope/);
   } finally {

@@ -78,6 +78,7 @@ export interface Artifact {
 }
 export interface ReportSectionReadinessResponse {
   contractVersion: '1.0.0';
+  readinessProfile: 'report-input-readiness-v1';
   reportId: Uuid;
   reportVersion: number;
   versionId: Uuid;
@@ -107,6 +108,10 @@ export interface ReportSectionReadinessEntry {
    * @maxItems 20
    */
   requiredInputs: string[];
+  /**
+   * @maxItems 20
+   */
+  inputChecks: ReportInputReadinessCheck[];
   reopenCondition: string;
   fallbackState: 'BLOCKED' | 'METHOD_ONLY' | 'MANUAL_REVIEW_REQUIRED' | 'NOT_IMPLEMENTED';
   /**
@@ -139,6 +144,25 @@ export interface ReportSectionReadinessEntry {
     sha256: Digest;
     methodOutputId: Digest;
   };
+}
+export interface ReportInputReadinessCheck {
+  inputId: string;
+  state: 'PRESENT' | 'ABSENT' | 'INVALID';
+  blocking: boolean;
+  /**
+   * @minItems 1
+   * @maxItems 10
+   */
+  codes: string[];
+  /**
+   * @maxItems 10
+   */
+  evidenceRefs: ReportInputReadinessEvidenceRef[];
+}
+export interface ReportInputReadinessEvidenceRef {
+  kind: 'PACKET_POINTER' | 'REPORT_ARTIFACT' | 'REPORT_RECORD';
+  locator: string;
+  sha256: Digest;
 }
 export interface ReportInterpretationIndexResponse {
   contractVersion: '1.0.0';

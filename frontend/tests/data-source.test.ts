@@ -69,17 +69,20 @@ test('validates exact-version section readiness and rejects reordered or extende
   const entry = (sectionId: 'M01' | 'I01') => ({
     sectionId, title: sectionId === 'M01' ? 'Kết luận chính' : 'Câu hỏi kinh doanh',
     methodId: `planning-${sectionId.toLowerCase()}`, methodVersion: '1.0.0', historicalTemplateMaturity: 'METHOD',
-    moduleIds: ['bounded-method'], requiredInputs: ['verified-input'], reopenCondition: 'New evidence changes readiness.',
+    moduleIds: ['bounded-method'], requiredInputs: ['verified-input'], inputChecks: [{
+      inputId: 'verified-input', state: 'ABSENT', blocking: true, codes: ['INPUT_REQUIRED'], evidenceRefs: [],
+    }], reopenCondition: 'New evidence changes readiness.',
     fallbackState: 'METHOD_ONLY', fallbackReasons: ['INPUT_REQUIRED'], deliveryState: 'METHOD_ONLY',
     claimIds: [], contextPointers: [], blockers: ['INPUT_REQUIRED'], sectionSha256: sectionId === 'M01' ? '1'.repeat(64) : '2'.repeat(64),
   });
   const response = {
-    contractVersion: '1.0.0', reportId: ids.c1, reportVersion: 1, versionId: ids.d1,
+    contractVersion: '1.0.0', readinessProfile: 'report-input-readiness-v1', reportId: ids.c1, reportVersion: 1, versionId: ids.d1,
     semanticVersionId: 'a'.repeat(64), packetId: 'b'.repeat(64), catalogId: 'catalog-v1', catalogVersion: '0.1.0', catalogSha256: 'c'.repeat(64),
     sections: [entry('M01'), entry('I01')],
   };
   assert.equal((await loadReportSectionReadiness(ids.c1, 1, (async () => json(response)) as typeof fetch)).sections.length, 2);
   await assert.rejects(loadReportSectionReadiness(ids.c1, 1, (async () => json({ ...response, sections: [entry('I01'), entry('M01')] })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
+  await assert.rejects(loadReportSectionReadiness(ids.c1, 1, (async () => json({ ...response, sections: [{ ...entry('M01'), inputChecks: [] }, entry('I01')] })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
   await assert.rejects(loadReportSectionReadiness(ids.c1, 1, (async () => json({ ...response, reviewer: 'owner' })) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
 });
 

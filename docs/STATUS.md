@@ -628,3 +628,17 @@ above 100 categories rather than truncating or ranking silently. This task adds
 no business section, calculation, AI interpretation or human decision, so
 executable deterministic coverage remains 7/30. Linux CI and preview remain
 release gates.
+
+## Research A28: exact-input readiness gate (implementation)
+
+The exact-version 30-section matrix now evaluates every catalog prerequisite
+under the closed `report-input-readiness-v1` profile. Each ordered check is
+`PRESENT`, `ABSENT` or `INVALID`, distinguishes optional absence from a blocker,
+and points to the exact replayed packet, report record or artifact digest when
+evidence exists. Artifact bytes and method-artifact identities must agree;
+unknown future input IDs fail closed. M08 readiness reads the verified method
+artifact so unknown observation time and an absent optional OWNER tablet count
+are not falsely reported as present. The read API and Vietnamese operator UI
+expose this without a new route, write, provider call, AI call, owner action or
+section. Deterministic coverage remains 7/30; Linux CI and report preview are
+the release gates.
