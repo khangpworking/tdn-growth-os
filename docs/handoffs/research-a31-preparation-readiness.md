@@ -4,7 +4,13 @@
 
 - Branch: `feature/research-a31-preparation-readiness`
 - Stacked base: A30 draft PR #92 at `08d9393dee54e614e7a2006122cddb76c46091ef`.
-- Draft PR, final SHA and Linux checks: pending publication.
+- Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/93
+- Verified implementation SHA before this documentation-only update:
+  `34e92dfe27eaac9e49ef29475638ad49ec9c49ae`.
+- Linux repository check: PASS, 606/606 tests:
+  https://github.com/khangpworking/tdn-growth-os/actions/runs/36687713011
+- Linux report preview: PASS:
+  https://github.com/khangpworking/tdn-growth-os/actions/runs/36687712991
 
 ## Implemented
 
@@ -25,4 +31,6 @@ call, database mutation, API, UI or deployment. Readiness is not delivery.
 ## Verification
 
 - Contract generation: completed locally; not Windows release evidence.
-- Linux checks: pending draft PR CI.
+- Linux contract generation, strict TypeScript, frontend checks/build and full
+  repository suite: PASS, 606/606 tests.
+- Linux report preview: PASS.
