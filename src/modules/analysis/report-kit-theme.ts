@@ -115,7 +115,7 @@ caption{text-align:left;padding:0 0 8px;color:var(--mut);font-size:12.5px}
 .need{list-style:none;margin:8px 0 0;padding:0;display:grid;gap:6px}
 .need li{display:flex;gap:10px;align-items:baseline;font-size:13.5px}
 .need li:before{content:"!";flex:none;width:20px;height:20px;border-radius:50%;background:var(--amber);color:var(--deep);font-weight:800;font-size:12px;display:inline-flex;align-items:center;justify-content:center}
-.need li.ok:before{content:"\2713";background:var(--ok-ink);color:#fff}
+.need li.ok:before{content:"✓";background:var(--ok-ink);color:#fff}
 .need li.ok{color:var(--ok-ink)}
 .need small{margin-left:auto;padding-left:8px;text-align:right}
 .limits{margin:8px 0 0;padding-left:20px;max-width:75ch}.limits li{margin:4px 0;overflow-wrap:anywhere}
