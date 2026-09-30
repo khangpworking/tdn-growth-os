@@ -143,7 +143,7 @@ try {
     const capture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
       clip: { x: 0, y: 0, width, height: capturedHeight, scale: 1 } });
     await fs.writeFile(path.join(root, `${name}.png`), Buffer.from(capture.data, 'base64'), { mode: 0o600 });
-    for (const id of ['section-M03', 'section-M05', 'section-M07', 'section-I03', 'status']) {
+    for (const id of ['section-M02', 'section-M03', 'section-M05', 'section-M07', 'section-M08', 'section-I03', 'status']) {
       const found = await evaluate(`(() => { const section = document.getElementById(${JSON.stringify(id)}); if (!section) return false; section.scrollIntoView({block:'start'}); return true; })()`);
       if (!found) continue;
       const sectionCapture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -256,15 +256,31 @@ try {
         value /= 255; return value <= .04045 ? value / 12.92 : ((value + .055) / 1.055) ** 2.4;
       }).reduce((sum,value,index) => sum + value * [.2126,.7152,.0722][index],0);
       const pairs = new Map();
+      const paintedSurfaces = new Map();
       for (const element of document.querySelectorAll('p,li,summary,th,td,dt,dd,a,h1,h2,h3,figcaption,small,code,.meta span')) {
         if (!element.checkVisibility()) continue;
         const style = getComputedStyle(element);
         let background = 'rgb(255,255,255)';
+        let paintedSurface = null;
         for (let parent = element; parent; parent = parent.parentElement) {
-          const candidate = getComputedStyle(parent).backgroundColor;
+          const parentStyle = getComputedStyle(parent);
+          // The solid-color sampler cannot resolve gradients or full-surface
+          // pseudo paint. Retain these for screenshot review, not a false AA pass.
+          const fullPseudo = ['::before','::after'].some(pseudo => {
+            const paint = getComputedStyle(parent,pseudo);
+            return paint.display !== 'none' && paint.content !== 'none' && paint.position === 'absolute' &&
+              paint.top === '0px' && paint.bottom === '0px' && paint.left === '0px' && paint.right === '0px';
+          });
+          if (parentStyle.backgroundImage !== 'none' || fullPseudo) { paintedSurface = parent; break; }
+          const candidate = parentStyle.backgroundColor;
           const channels = rgb(candidate);
           if (channels.length === 3 || channels[3] === 1) { background = candidate; break; }
           if (channels[3] !== 0) throw new Error('Unmodeled alpha background');
+        }
+        if (paintedSurface) {
+          const key = paintedSurface.className + '/' + style.color;
+          paintedSurfaces.set(key,{status:'REQUIRES_VISUAL_REVIEW',surface:paintedSurface.className,foreground:style.color,text:element.textContent.slice(0,80)});
+          continue;
         }
         const foreground = luminance(rgb(style.color)), back = luminance(rgb(background));
         const ratio = (Math.max(foreground,back) + .05) / (Math.min(foreground,back) + .05);
@@ -273,7 +289,7 @@ try {
         if (ratio < required) throw new Error('Low contrast: ' + element.textContent.slice(0,80) + ' ratio=' + ratio);
         pairs.set(style.color + '/' + background,{foreground:style.color,background,ratio});
       }
-      return Array.from(pairs.values());
+      return {solidPairs:Array.from(pairs.values()),paintedSurfaces:Array.from(paintedSurfaces.values())};
     })()`);
     interactionEvidence.push({ name, actions, contrast, keyboard: 'Enter opens; Tab advances with visible outline' });
     await evaluate(`document.querySelectorAll('details').forEach((item,index) => item.open = ${JSON.stringify(originalOpen)}[index]); history.replaceState(null,'',location.pathname); document.activeElement.blur(); window.scrollTo(0,0)`);
