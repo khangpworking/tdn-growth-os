@@ -77,7 +77,8 @@ integration tests to account for migration 0037. Neither test commit touches
 production code, contracts, or migrations, and neither performs any AI or
 provider call.
 
-Final head `30d51032229061fa3decf05897605666d910525c` passed Linux CI on both
+The final implementation-and-test head
+`30d51032229061fa3decf05897605666d910525c` passed Linux CI on both
 required workflows: [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/36708237214)
 (176/176 frontend tests, 615/615 repository tests, contract generation,
 strict TypeScript, production build) and

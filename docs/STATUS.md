@@ -750,7 +750,8 @@ Tests were authored by Codex under the test-audit gate: one service/
 integration owner test and one distinct CLI/filesystem-boundary owner test,
 neither performing any AI or provider call. Draft PR #99 is open (temporarily
 retargeted to `main` to trigger Linux checks; stacked logically on A36 draft
-PR #98). Linux CI passed on final head `30d51032229061fa3decf05897605666d910525c`:
+PR #98). Linux CI passed on the final implementation-and-test head
+`30d51032229061fa3decf05897605666d910525c`:
 [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/36708237214)
 (176/176 frontend tests, 615/615 repository tests, contract generation,
 strict TypeScript, production build) and
