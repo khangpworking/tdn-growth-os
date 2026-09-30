@@ -77,7 +77,7 @@ interface OriginRow {
 
 export class NormalizedMetricObservationStore {
   readonly #db: Database.Database;
-  readonly #reports?: AnalysisReportVersionReader;
+  readonly #reports: AnalysisReportVersionReader | undefined;
 
   constructor(options: { readonly db: Database.Database; readonly reports?: AnalysisReportVersionReader }) {
     this.#db = options.db;
