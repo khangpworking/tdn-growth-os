@@ -4,7 +4,13 @@
 
 - Branch: `feature/research-a30-m03-section-recipe`
 - Base stack head at start: `c65c1dbba3d1110dca4202414ab58eedfa06f7ba`
-- Draft PR, final SHA and Linux checks: pending publication.
+- Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/92
+- Verified implementation SHA before this documentation-only update:
+  `36e07949b115c0ff495a7762418492e1885497f8`.
+- Linux repository check: PASS, 605/605 tests:
+  https://github.com/khangpworking/tdn-growth-os/actions/runs/36685354335
+- Linux report preview: PASS:
+  https://github.com/khangpworking/tdn-growth-os/actions/runs/36685354207
 
 ## Implemented
 
@@ -30,5 +36,7 @@ not yet gate the older direct calculation/report entry points.
 ## Verification
 
 - Contract generation: completed locally; it is not Windows release evidence.
-- `git diff --check`: pending final pass.
-- Linux focused/full checks: pending draft PR CI.
+- `git diff --check`: PASS.
+- Linux contract generation, strict TypeScript, frontend checks/build and full
+  repository suite: PASS, 605/605 tests.
+- Linux report preview: PASS.
