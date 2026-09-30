@@ -56,9 +56,10 @@ test('the kit profile retains a distinct HTML presentation without changing prep
   const service = reportService(state);
   const legacy = await service.createPreparedVersion(preparedRequest(state), state.catalogBytes);
   const oldFiles = await persistedFiles(state, await service.readVersion(legacy.reportId, 1));
-  const request = { ...preparedRequest(state), version: 2, previousSemanticVersionId: legacy.semanticVersionId, reportPresentation: 'report-kit-v1' as const };
+  // Presentation alone is not a new semantic version in the same series.
+  const request = { ...preparedRequest(state), reportKey: 'synthetic-kit-report', reportPresentation: 'report-kit-v1' as const };
   const created = await service.createPreparedVersion(request, state.catalogBytes);
-  const files = await persistedFiles(state, await service.readVersion(created.reportId, 2));
+  const files = await persistedFiles(state, await service.readVersion(created.reportId, 1));
   assert.equal(created.semanticVersionId, legacy.semanticVersionId);
   assert.notDeepEqual(files.get('report.html'), oldFiles.get('report.html'));
   assert.deepEqual(await persistedFiles(state, await service.readVersion(legacy.reportId, 1)), oldFiles);

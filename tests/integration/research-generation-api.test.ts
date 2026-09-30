@@ -36,7 +36,16 @@ test('OWNER source selection creates a retained report and recovers a lost respo
 
   assert.equal((await fetch(inputsUrl)).status, 401);
   assert.equal((await fetch(inputsUrl, { headers: { ...headers, origin: 'https://untrusted.example' } })).status, 403);
-  assert.equal((await fetch(inputsUrl, { headers: { ...headers, host: 'untrusted.example' } })).status, 403);
+  // Node fetch rewrites Host; use the native HTTP client to exercise a real
+  // mismatched authority at the server boundary.
+  const wrongHostStatus = await new Promise<number | undefined>((resolve, reject) => {
+    const request = http.get(inputsUrl, { headers: { ...headers, host: 'untrusted.example' } }, response => {
+      response.resume();
+      response.once('end', () => resolve(response.statusCode));
+    });
+    request.once('error', reject);
+  });
+  assert.equal(wrongHostStatus, 403);
   assert.equal((await fetch(inputsUrl, { method: 'POST', headers })).status, 405);
   assert.equal((await fetch(`${inputsUrl}&workspaceId=${workspaceId}`, { headers })).status, 400);
   const sourceResponse = await fetch(inputsUrl, { headers });

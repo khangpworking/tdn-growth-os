@@ -258,12 +258,12 @@ test('explicit report-kit presentation preserves the legacy version and meaning-
   const state = await fixture();
   const original = await state.service.createVersion(state.request, state.catalogBytes);
   const legacy = await state.service.readArtifact(original.reportId, 1, 'report.html');
-  const request = { ...state.request, version: 2, previousSemanticVersionId: original.semanticVersionId, reportPresentation: 'report-kit-v1' };
+  const request = { ...state.request, reportKey: 'synthetic-kit-report', reportPresentation: 'report-kit-v1' };
   const kit = await state.service.createVersion(request, state.catalogBytes);
   assert.equal(kit.semanticVersionId, original.semanticVersionId);
-  const html = await state.service.readArtifact(kit.reportId, 2, 'report.html');
+  const html = await state.service.readArtifact(kit.reportId, 1, 'report.html');
   assert.notDeepEqual(html.bytes, legacy.bytes);
-  const manifest = JSON.parse((await state.service.readArtifact(kit.reportId, 2, 'export-manifest.json')).bytes.toString('utf8'));
+  const manifest = JSON.parse((await state.service.readArtifact(kit.reportId, 1, 'export-manifest.json')).bytes.toString('utf8'));
   assert.equal(manifest.rendererVersion, 'report-kit-html-vi-v1');
   assert.deepEqual((await state.service.readArtifact(original.reportId, 1, 'report.html')).bytes, legacy.bytes);
   assert.equal((await state.service.createVersion(request, state.catalogBytes)).databaseMutations, 0);
