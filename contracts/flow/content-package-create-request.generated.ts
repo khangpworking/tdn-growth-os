@@ -6,7 +6,8 @@ export type ContentCaptionStyle = 'PROFESSIONAL' | 'FRIENDLY';
 export type ContentCaptionLength = 'SHORT' | 'MEDIUM' | 'LONG';
 export type ContentPosterModel = 'gpt-image-2' | 'gemini-3.1-flash-image';
 export type ContentPosterFormat = 'square' | 'portrait' | 'story' | 'landscape';
-export type ContentPosterReferences = string[];
+export type Sha256 = string;
+export type ContentPosterReferences = Sha256[];
 export type ContentDisplayLevel = 'ALWAYS' | 'OPTIONAL' | 'HIDDEN';
 
 export interface ContentPackageCreateRequest {

@@ -2,6 +2,7 @@
 
 export type ContentPackagePart = 'CAPTION' | 'POSTER';
 export type ContentPackageVersionSource = 'GENERATED' | 'MANUAL' | 'RESTORE';
+export type Sha256 = string;
 export type ContentBrandFactElement = 'name' | 'tagline' | 'hotline' | 'website' | 'fanpage' | 'address' | 'price';
 export type ContentBrandFactState = 'MATCH' | 'NOT_MENTIONED' | 'HIDDEN' | 'MISMATCH';
 
@@ -12,11 +13,11 @@ export interface ContentPackageVersionArtifact {
   version: number;
   source: ContentPackageVersionSource;
   requestId: string;
-  requestSha256: string;
+  requestSha256: Sha256;
   attemptId?: string;
   providerModel?: string;
-  inputBundleSha256?: string;
-  outputSha256?: string;
+  inputBundleSha256?: Sha256;
+  outputSha256?: Sha256;
   restoredFromVersion?: number;
   caption?: ContentCaptionVersionBody;
   poster?: ContentPosterVersionBody;
@@ -37,12 +38,12 @@ export interface ContentBrandFactCheckRow {
   found: string[];
 }
 export interface ContentPosterVersionBody {
-  promptSha256?: string;
-  imageSha256: string;
+  promptSha256?: Sha256;
+  imageSha256: Sha256;
   mediaType: 'image/png' | 'image/jpeg';
   width: number;
   height: number;
   sizeMatchesFormat: boolean;
   captionVersion: number;
-  referenceMediaSha256s: string[];
+  referenceMediaSha256s: Sha256[];
 }

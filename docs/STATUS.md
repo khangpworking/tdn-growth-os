@@ -654,3 +654,18 @@ existing A12 schema and store remain authoritative, so A29 adds no migration,
 second ledger or duplicate row store. Deterministic coverage remains 7/30 and
 no new calculation, section, chart, AI interpretation or human decision is
 created.
+
+## Research A30: pre-report normalized Metric preparation (implementation)
+
+An exact workspace/source-package/file selection can now be normalized and
+materialized into the existing A12 SQLite observation projection before any
+calculation or report exists. The immutable preparation binds the verified
+workspace snapshot, package manifest/content identity, selected workbook,
+manifest and optional labels, canonical normalized input, normalization receipt
+and replayable result artifact. Missing, observed zero, observed value,
+`UNKNOWN` and the version-bound WIDE policy remain distinct. Migration 0036
+adds only the preparation lineage row; normalized rows continue to have one A12
+owner. This task runs no M03 calculation, section recipe, chart, AI,
+interpretation, review or report creation. It does not yet gate the older direct
+calculation/report commands; downstream enforcement is a later slice. Linux CI
+is the release gate.

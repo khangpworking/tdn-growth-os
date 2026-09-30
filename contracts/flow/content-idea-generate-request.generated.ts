@@ -3,6 +3,7 @@
 export type ContentIdeaKind = 'BIG_IDEA' | 'ANGLE';
 export type ContentIdeaModel = 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low';
 export type ContentIdeaPromptChoice = ContentIdeaSystemPrompt | ContentIdeaUserPrompt | ContentIdeaFreestylePrompt;
+
 export interface ContentIdeaGenerateRequest {
   contractVersion: '1.0.0';
   campaignId: string;

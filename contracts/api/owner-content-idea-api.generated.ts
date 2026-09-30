@@ -11,7 +11,8 @@ export type OwnerContentIdeaApiContract =
 export type Uuid = string;
 export type ContentIdeaKind = 'BIG_IDEA' | 'ANGLE';
 export type ContentIdeaModel = 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low';
-export type ContentIdeaPromptChoice = ContentIdeaSystemPrompt | ContentIdeaUserPrompt | ContentIdeaFreestylePrompt;export type OwnerContentIdeaStateAction = 'DEVELOP' | 'STOP' | 'DELETE' | 'RESTORE' | 'PURPOSES';
+export type ContentIdeaPromptChoice = ContentIdeaSystemPrompt | ContentIdeaUserPrompt | ContentIdeaFreestylePrompt;
+export type OwnerContentIdeaStateAction = 'DEVELOP' | 'STOP' | 'DELETE' | 'RESTORE' | 'PURPOSES';
 /**
  * @maxItems 6
  */
@@ -22,8 +23,16 @@ export type ContentIdeaPurposes =
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
-  | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose];
-export type ContentIdeaPurpose = string;export type OwnerContentPurposeKind = 'EDUCATION' | 'ENTERTAINMENT' | 'SALES' | 'TRUST' | 'ENGAGEMENT';
+  | [
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+    ];
+export type ContentIdeaPurpose = string;
+export type OwnerContentPurposeKind = 'EDUCATION' | 'ENTERTAINMENT' | 'SALES' | 'TRUST' | 'ENGAGEMENT';
 export type OwnerContentIdeaAiFailureReason =
   | 'ai_not_configured'
   | 'model_not_allowed'
@@ -44,7 +53,8 @@ export interface OwnerContentIdeaGenerateRequest {
   model: ContentIdeaModel;
   plannedCallCount: number;
   prompt: ContentIdeaPromptChoice;
-}export interface ContentIdeaSystemPrompt {
+}
+export interface ContentIdeaSystemPrompt {
   source: 'SYSTEM';
   id: string;
   version: number;
@@ -57,7 +67,8 @@ export interface ContentIdeaUserPrompt {
 export interface ContentIdeaFreestylePrompt {
   source: 'FREESTYLE';
   creativeText: string;
-}export interface OwnerContentIdeaStateRequest {
+}
+export interface OwnerContentIdeaStateRequest {
   contractVersion: '1.0.0';
   expectedSequence: number;
   action: OwnerContentIdeaStateAction;

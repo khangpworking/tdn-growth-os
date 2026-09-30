@@ -402,6 +402,23 @@ content, container or VM isolation becomes an immediate baseline requirement.
 - Never depend on model re-execution to recreate the original governed record;
   retain the original validated output as an artifact.
 
+### 10.2 Structured report execution
+
+Automated reports are assembled from closed, versioned section recipes rather
+than one unconstrained prompt. The execution order is source preservation,
+input validation and normalization, section readiness, allowlisted
+deterministic calculation, evidence-bound chart and interpretation artifacts,
+validation, human disposition, and versioned presentation.
+
+Charts and narrative inputs for a section must share the same verified metric
+set. An AI model may select an allowlisted recipe or produce a schema-validated
+interpretation, but it may not invent quantitative values or supply arbitrary
+Python/JavaScript for execution. Changing source membership, normalization,
+method, policy, prompt, chart semantics, or human disposition produces a new
+versioned identity. This adopts the useful structured-unit idea from
+"Structured AI Agents for Reliable Visualization Report Generation" while
+rejecting its arbitrary model-generated code path.
+
 ## 11. Authentication, Authorization, and Governance
 
 Cloudflare Tunnel limits public origin exposure. Cloudflare Access establishes

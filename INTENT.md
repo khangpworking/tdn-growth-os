@@ -584,3 +584,21 @@ Readiness chỉ trả lời “điều kiện nào đã có và evidence nằm �
 ChartSpec, nhận định AI và quyết định người dùng tiếp tục là bốn lớp riêng.
 Với gói calcium hiện tại, gate này không làm tăng coverage: vẫn chỉ 7/30 section
 có deterministic partial draft.
+
+### D41 — Chuẩn hóa đầu vào phải hoàn tất trước calculation và report
+
+Một exact Metric source selection phải được chuẩn hóa thành canonical input và
+projection SQLite độc lập trước khi bất kỳ section calculation, chart, AI
+interpretation hoặc report version nào được tạo. Preparation bind đúng ACTIVE
+workspace snapshot, finalized source package, package manifest/content digest,
+workbook, manifest và optional labels path/digest; không chọn `latest` và không
+suy nguồn từ tên file.
+
+Canonical input giữ nguyên `missing`, `observed_zero`, `observed_value`, nhãn
+`UNKNOWN` và frozen WIDE policy. Exact retry không mutation; replay phải mở lại
+source bytes, chạy lại input-only normalization và đối chiếu artifact cùng
+projection SQLite. A30 không chạy M03 hoặc section khác, không tạo claim/chart,
+không gọi AI và không tạo report. Section recipe sau này chỉ được chạy trên exact
+preparation identity này; AI không được sinh rồi thực thi arbitrary code. A30
+mới tạo preparation path và identity, chưa chặn các legacy/direct calculation
+hoặc report command; consumer gate để bắt buộc thứ tự này thuộc lát tiếp theo.

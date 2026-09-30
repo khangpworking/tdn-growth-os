@@ -6,7 +6,7 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeMetricWorkbook, MetricSourceRejection } from '../../src/modules/analysis/metric-source-profile.js';
+import { normalizeMetricWorkbook, normalizeMetricWorkbookInput, MetricSourceRejection } from '../../src/modules/analysis/metric-source-profile.js';
 import { renderMetricScopeDraft } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { createResearchReportPacket } from '../../src/modules/analysis/versioned-report-packet.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
@@ -26,6 +26,17 @@ function manifest(bytes: Buffer) {
     precision: { revenue: 'unknown', units: 'unknown' }, labelCodebookVersion: 'synthetic-v1', wideUnknownPolicy: 'exclude' };
 }
 const normalize = (bytes: Buffer) => normalizeMetricWorkbook(bytes, encode(manifest(bytes)));
+
+test('normalization can finish before the explicit calculation gate without changing input identity', () => {
+  const workbook = fixture();
+  const sourceManifest = encode(manifest(workbook));
+  const prepared = normalizeMetricWorkbookInput(workbook, sourceManifest);
+  const calculated = normalizeMetricWorkbook(workbook, sourceManifest);
+  assert.deepEqual(prepared.input, calculated.input);
+  assert.deepEqual(prepared.receipt, calculated.receipt);
+  assert.equal(prepared.receipt.inputSha256, calculated.result.inputSha256);
+  assert.equal('result' in prepared, false);
+});
 
 test('explicitly unconfirmed acquisition survives workbook intake and report replay without changing measurement dates or totals', () => {
   const bytes = fixture(), knownManifest = manifest(bytes), known = normalize(bytes);
