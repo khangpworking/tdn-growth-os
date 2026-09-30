@@ -107,7 +107,7 @@ export function buildI03ResearchMethod(input: I03ResearchMethodInputs): { readon
       recordLocatorCount: m13.output.coverage.recordLocatorCount,
       revenueLocatorCount: m13.output.coverage.revenueLocatorCount,
       unitsLocatorCount: m13.output.coverage.unitsLocatorCount,
-      labelDenominatorCount: m02.output.measurement.labels.labeled,
+      labelDenominatorCount: denominatorRecordCount,
       labelLocatorCount: m13.output.coverage.labelLocatorCount,
       labeledRecordCount: m02.output.measurement.labels.labeled,
       unlabeledRecordCount: m02.output.measurement.labels.unlabeled,

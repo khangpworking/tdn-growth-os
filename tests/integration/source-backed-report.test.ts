@@ -280,7 +280,7 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
     sourceVerification: string;
     sourceInventory: Array<{ role: string; period: { start: string; end: string } | null; m13SourcePointer: string }>;
     lineage: { m02MethodOutputId: string; m13MethodOutputId: string; normalizedInputSha256: string; normalizationReceiptSha256: string; metricResultSha256: string };
-    coverage: { denominatorRecordCount: number; mappedRecordCount: number; labeledRecordCount: number; unlabeledRecordCount: number };
+    coverage: { denominatorRecordCount: number; mappedRecordCount: number; labelDenominatorCount: number; labeledRecordCount: number; unlabeledRecordCount: number };
     scopeMembership: Array<{ scope: string; status: string; memberCount: number; denominatorRecordCount: number }>;
     limitations: string[];
   };
@@ -296,6 +296,7 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
   assert.equal(i03.lineage.metricResultSha256, sha256(first.files.get('metric-result.json')!));
   assert.equal(i03.coverage.denominatorRecordCount, 2);
   assert.equal(i03.coverage.mappedRecordCount, 2);
+  assert.equal(i03.coverage.labelDenominatorCount, 2);
   assert.equal(i03.coverage.labeledRecordCount, 0);
   assert.equal(i03.coverage.unlabeledRecordCount, 2);
   assert.equal(i03.sourceInventory.find(source => source.role === 'workbook')?.period?.start, '2024-08-10T00:00:00.000Z');
