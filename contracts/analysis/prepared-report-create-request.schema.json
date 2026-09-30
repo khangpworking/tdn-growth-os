@@ -20,8 +20,8 @@
     "readinessSha256": { "$ref": "#/$defs/digest" },
     "sectionArtifactSha256": { "$ref": "#/$defs/digest" }
   },
+  "dependentRequired": { "descriptiveMethodsPath": ["reportPresentation"] },
   "allOf": [
-    { "if": { "required": ["descriptiveMethodsPath"] }, "then": { "required": ["reportPresentation"] } },
     {
       "if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },
       "then": { "properties": { "previousSemanticVersionId": { "type": "null" } } },

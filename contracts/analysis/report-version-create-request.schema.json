@@ -14,8 +14,8 @@
     "previousSemanticVersionId": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
     "sourceRequest": { "$ref": "source-backed-report-request.schema.json" }
   },
+  "dependentRequired": { "descriptiveMethodsPath": ["reportPresentation"] },
   "allOf": [
-    { "if": { "required": ["descriptiveMethodsPath"] }, "then": { "required": ["reportPresentation"] } },
     {
       "if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },
       "then": { "properties": { "previousSemanticVersionId": { "type": "null" } } },

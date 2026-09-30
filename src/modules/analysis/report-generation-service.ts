@@ -115,7 +115,7 @@ export class ReportGenerationService {
 
   async create(untrusted: unknown): Promise<ResearchGenerationReceipt> {
     if (!validateRequest(untrusted)) throw new ResearchGenerationValidationError('Invalid report creation request');
-    const request = structuredClone(untrusted);
+    const request = structuredClone(untrusted as ResearchGenerationRequest);
     const reportKey = `web-${request.requestKey}`;
     // Committed retries depend only on their pinned package, never global discovery.
     const existing = this.#db.prepare(`

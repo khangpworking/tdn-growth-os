@@ -281,7 +281,7 @@ export function buildDescriptiveMarketMethods(untrustedInput: unknown): { output
 /** Recompute all section content, not just its digest, before accepting a retained normalized output. */
 export function verifyDescriptiveMarketMethods(untrustedOutput: unknown): { output: DescriptiveMarketMethods; bytes: Buffer } {
   if (!validateOutput(untrustedOutput)) fail(`INVALID_DESCRIPTIVE_MARKET_OUTPUT:${ajv.errorsText(validateOutput.errors)}`);
-  const rebuilt = buildDescriptiveMarketMethods(untrustedOutput.input);
+  const rebuilt = buildDescriptiveMarketMethods((untrustedOutput as DescriptiveMarketMethods).input);
   if (canonicalJson(untrustedOutput) !== canonicalJson(rebuilt.output)) fail('DESCRIPTIVE_MARKET_REPLAY_MISMATCH');
   return rebuilt;
 }

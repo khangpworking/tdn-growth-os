@@ -17,7 +17,7 @@ function retainedFixture(fixture: Fixture) {
       contractVersion: '1.0.0', packageId: '00000000-0000-4000-8000-000000000001', packageKey: 'synthetic:market-extension',
       version: 1, sourceAcquiredAt: null, sourceLabel: 'Synthetic market declarations',
       finalizedAt: '2026-10-01T00:00:00Z', packageContentSha256: 'b'.repeat(64),
-      files: fixture.files.map(({ bytes: _bytes, ...metadata }) => metadata),
+      files: fixture.files.map(({ bytes: _bytes, ...metadata }) => metadata) as VerifiedFinalizedSourcePackage['manifest']['files'],
     },
     files: fixture.files,
   };
