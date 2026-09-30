@@ -12,6 +12,7 @@ import { openContentOwnerApi, openContentReadApi, type ContentApiApplication } f
 import { openOwnerApi, type OwnerApiApplication } from './owner-api.js';
 import { openWorkspaceApi, type WorkspaceApiApplication } from './workspace-api.js';
 import { openReportApi, type ReportApiApplication } from './report-api.js';
+import { openResearchGenerationApi, type ResearchGenerationApiApplication } from './research-generation-api.js';
 import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from './executor-lock.js';
 
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
@@ -83,6 +84,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   let contentRead: ContentApiApplication | undefined;
   let contentOwner: ContentApiApplication | undefined;
   let reports: ReportApiApplication | undefined;
+  let researchGeneration: ResearchGenerationApiApplication | undefined;
   try {
     // Only an operator with OWNER writes is an executor: it holds the lock and sweeps abandoned attempts. Viewers never write.
     if (configuration.ownerWritesEnabled) lock = acquireExecutorLock(databasePath);
@@ -105,8 +107,13 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
       token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin, gateway,
     });
+    if (configuration.ownerWritesEnabled) researchGeneration = openResearchGenerationApi({
+      databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
+      token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin,
+    });
   } catch (error) {
     let stopped = true;
+    try { researchGeneration?.close(); } catch { stopped = false; }
     try { contentOwner?.close(); } catch { stopped = false; }
     try { contentRead?.close(); } catch { stopped = false; }
     try { reports?.close(); } catch { stopped = false; }
@@ -121,6 +128,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   const contentReadApplication = contentRead!;
   const contentOwnerApplication = contentOwner;
   const reportApplication = reports;
+  const researchGenerationApplication = researchGeneration;
   const server = http.createServer((request, response) => {
     if (!validAuthority(request, authority)) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Invalid Host authority' } });
     const pathname = rawPathname(request.url, authority);
@@ -131,6 +139,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     if (pathname === '/api' || pathname.startsWith('/api/')) return readApplication.handler(request, response);
     if (pathname === '/owner-api' || pathname.startsWith('/owner-api/')) {
       if (!ownerApplication) return sendJson(response, 403, { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
+      if (pathname.startsWith('/owner-api/research-generation/')) return researchGenerationApplication!.handler(request, response);
       if (pathname === '/owner-api/content' || pathname.startsWith('/owner-api/content/')) return contentOwnerApplication!.handler(request, response);
       return ownerApplication.handler(request, response);
     }
@@ -149,6 +158,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
           server.closeIdleConnections();
         });
         try { contentOwnerApplication?.close(); } catch (error) { errors.push(error); }
+        try { researchGenerationApplication?.close(); } catch (error) { errors.push(error); }
         try { contentReadApplication.close(); } catch (error) { errors.push(error); }
         try { reportApplication?.close(); } catch (error) { errors.push(error); }
         try { ownerApplication?.close(); } catch (error) { errors.push(error); }

@@ -8,6 +8,7 @@ import { JSDOM } from 'jsdom';
 import type { PreparedReportCreateRequest } from '../../contracts/analysis/prepared-report-create-request.generated.js';
 import type { PreparedReportSemanticContent } from '../../contracts/analysis/prepared-report-semantic-content.generated.js';
 import type { ReportAssemblySnapshot } from '../../contracts/analysis/report-assembly-snapshot.generated.js';
+import type { DescriptiveMarketMethods } from '../../contracts/analysis/descriptive-market-methods.generated.js';
 import {
   AnalysisReportVersionReader, ReportVersionService, ReportVersionIdentityConflictError, ReportVersionIntegrityError, ReportVersionValidationError,
 } from '../../src/modules/analysis/report-version-service.js';
@@ -15,6 +16,7 @@ import {
   NormalizedMetricObservationStore, type NormalizedMetricObservationExecution,
 } from '../../src/modules/analysis/normalized-metric-observation-store.js';
 import { buildSourceBackedReport } from '../../src/modules/analysis/source-backed-report.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { preparedReportFixture, mutationSnapshot, byteDigest } from '../helpers/prepared-report-fixture.js';
 
 type Fixture = Awaited<ReturnType<typeof preparedReportFixture>>;
@@ -47,6 +49,82 @@ async function persistedFiles(state: Fixture, record: Awaited<ReturnType<ReportV
   }
   return files;
 }
+
+test('the kit profile retains a distinct HTML presentation without changing prepared meaning or older replay', async t => {
+  const state = await preparedReportFixture(true);
+  t.after(state.cleanup);
+  const service = reportService(state);
+  const legacy = await service.createPreparedVersion(preparedRequest(state), state.catalogBytes);
+  const oldFiles = await persistedFiles(state, await service.readVersion(legacy.reportId, 1));
+  const request = { ...preparedRequest(state), version: 2, previousSemanticVersionId: legacy.semanticVersionId, reportPresentation: 'report-kit-v1' as const };
+  const created = await service.createPreparedVersion(request, state.catalogBytes);
+  const files = await persistedFiles(state, await service.readVersion(created.reportId, 2));
+  assert.equal(created.semanticVersionId, legacy.semanticVersionId);
+  assert.notDeepEqual(files.get('report.html'), oldFiles.get('report.html'));
+  assert.deepEqual(await persistedFiles(state, await service.readVersion(legacy.reportId, 1)), oldFiles);
+  assert.equal((await service.createPreparedVersion(request, state.catalogBytes)).databaseMutations, 0);
+  const dom = new JSDOM(files.get('report.html')!.toString('utf8'));
+  try {
+    const ids = [...Array.from({ length: 13 }, (_, n) => `M${String(n + 1).padStart(2, '0')}`), ...Array.from({ length: 17 }, (_, n) => `I${String(n + 1).padStart(2, '0')}`)];
+    for (const id of ids) assert.equal(dom.window.document.querySelectorAll(`#section-${id}`).length, 1, id);
+    assert.equal(dom.window.document.querySelectorAll('script').length, 0);
+  } finally { dom.window.close(); }
+  const preview = process.env.TDN_RESEARCH_KIT_PREVIEW_DIR;
+  if (preview) {
+    assert.ok(path.isAbsolute(preview));
+    await fs.mkdir(preview, { recursive: true, mode: 0o700 });
+    for (const [name, bytes] of files) await fs.writeFile(path.join(preview, name), bytes, { mode: 0o600 });
+  }
+});
+
+test('kit report persists package-bound descriptive output and its semantic digest through mutation-free replay', async t => {
+  const state = await preparedReportFixture(true, true);
+  t.after(state.cleanup);
+  assert.ok(state.descriptive);
+  const request: PreparedReportCreateRequest = {
+    ...preparedRequest(state), reportPresentation: 'report-kit-v1', descriptiveMethodsPath: state.descriptive.logicalPath,
+  };
+  const created = await reportService(state).createPreparedVersion(request, state.catalogBytes);
+  const reader = reportService(state);
+  const beforeReplay = mutationSnapshot(state);
+  const record = await reader.readVersion(created.reportId, 1);
+  const files = await persistedFiles(state, record);
+  assert.ok(record.artifacts.length <= 40, 'The complete persisted report must fit the public artifact limit');
+  assert.deepEqual([...files.keys()].filter(name => name.startsWith('descriptive-')).sort(), [
+    'descriptive-evidence-files.json', 'descriptive-market-input.json', 'descriptive-market-methods.json',
+  ]);
+  assert.deepEqual(files.get('descriptive-market-input.json'), state.descriptive.files.find(file => file.path === request.descriptiveMethodsPath)!.bytes);
+  const methodsBytes = files.get('descriptive-market-methods.json')!;
+  const methods = JSON.parse(methodsBytes.toString('utf8')) as DescriptiveMarketMethods;
+  assert.equal(methods.sections.M05.partitions[0]!.subtotal, '20');
+  assert.deepEqual(methods.input.sourcePackage, {
+    packageId: state.sourceRequest.packageId, version: 1,
+    manifestArtifactSha256: state.sourceRequest.packageManifestSha256,
+    packageContentSha256: state.preparation.result.sourcePackage.packageContentSha256,
+  });
+  const evidence = JSON.parse(files.get('descriptive-evidence-files.json')!.toString('utf8')) as {
+    files: { logicalPath: string; sha256: string; bytesBase64: string }[];
+  };
+  for (const original of state.descriptive.files.filter(file => file.path !== state.descriptive!.logicalPath)) {
+    const retained = evidence.files.find(file => file.logicalPath === original.path);
+    assert.ok(retained, `Missing retained descriptive evidence: ${original.path}`);
+    assert.equal(retained.sha256, original.sha256);
+    assert.deepEqual(Buffer.from(retained.bytesBase64, 'base64'), original.bytes);
+  }
+  const semantic = JSON.parse(files.get('semantic-content.json')!.toString('utf8')) as PreparedReportSemanticContent;
+  assert.equal(semantic.descriptiveMethodsSha256, byteDigest(methodsBytes));
+  const { semanticVersionId, ...payload } = semantic;
+  assert.equal(semanticVersionId, created.semanticVersionId);
+  assert.equal(byteDigest(Buffer.from(canonicalJson(payload), 'utf8')), created.semanticVersionId);
+  const { descriptiveMethodsSha256: _extensionDigest, ...withoutExtension } = payload;
+  assert.notEqual(byteDigest(Buffer.from(canonicalJson(withoutExtension), 'utf8')), created.semanticVersionId);
+  assert.deepEqual(JSON.parse(files.get('create-request.json')!.toString('utf8')), request);
+  assert.deepEqual(await reader.createPreparedVersion(structuredClone(request), Buffer.from(state.catalogBytes)), {
+    ...created, deduplicated: true, databaseMutations: 0,
+  });
+  assert.deepEqual(await persistedFiles(state, await reader.readVersion(created.reportId, 1)), files);
+  assert.deepEqual(mutationSnapshot(state), beforeReplay);
+});
 
 // A10 owns persistence and profile replay; arithmetic and A37 retention remain
 // in their existing owners. This fixture reaches both through real services.

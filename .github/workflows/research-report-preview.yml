@@ -5,6 +5,10 @@ on:
     paths:
       - 'src/modules/analysis/research-report-html.ts'
       - 'src/modules/analysis/report-assembly-*.ts'
+      - 'src/modules/analysis/report-kit-*.ts'
+      - 'src/modules/analysis/report-section-pages.ts'
+      - 'src/modules/analysis/report-version-service.ts'
+      - 'src/modules/analysis/prepared-report-assembly.ts'
       - 'src/modules/analysis/source-backed-report.ts'
       - 'src/modules/analysis/research-report-charts.ts'
       - 'src/modules/analysis/research-chart-spec.ts'
@@ -39,6 +43,7 @@ jobs:
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview
           TDN_RESEARCH_ASSEMBLY_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/assembly
+          TDN_RESEARCH_KIT_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/kit
         run: node --import tsx --test tests/integration/source-backed-report.test.ts tests/integration/prepared-report-version.test.ts
       - name: Capture desktop/mobile and print synthetic PDF on Linux
         env:
@@ -47,6 +52,11 @@ jobs:
       - name: Capture actual assembled report
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/assembly
+          TDN_RESEARCH_PREVIEW_REPORT: report.html
+        run: node tests/helpers/capture-research-preview.mjs
+      - name: Capture the approved report-kit presentation
+        env:
+          TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/kit
           TDN_RESEARCH_PREVIEW_REPORT: report.html
         run: node tests/helpers/capture-research-preview.mjs
       - name: Retain synthetic visual evidence for review

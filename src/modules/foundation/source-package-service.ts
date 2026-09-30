@@ -24,6 +24,13 @@ export interface VerifiedFinalizedSourcePackage {
   readonly files: readonly VerifiedSourcePackageFile[];
 }
 
+export interface FinalizedSourcePackageSummary {
+  readonly packageId: string;
+  readonly manifestArtifactSha256: string;
+  readonly sourceLabel: string;
+  readonly version: number;
+}
+
 export interface SourcePackageReadBudget {
   readonly maxFileBytes: number;
   readonly maxTotalBytes: number;
@@ -104,6 +111,22 @@ export class SourcePackageService {
       return mutations;
     });
     return { packageId, manifestArtifactSha256: manifestStored.sha256, packageContentSha256, deduplicated: false, databaseMutations: transaction() };
+  }
+
+  async listFinalizedSourcePackages(budget?: SourcePackageReadBudget): Promise<readonly FinalizedSourcePackageSummary[]> {
+    const rows = this.#db.prepare('SELECT package_id AS packageId FROM foundation_source_packages WHERE finalized_at IS NOT NULL ORDER BY package_id LIMIT 101').all() as { packageId: string }[];
+    if (rows.length > 100) throw new FoundationValidationError('Source inventory exceeds the local enumeration limit');
+    const summaries: FinalizedSourcePackageSummary[] = [];
+    for (const row of rows) {
+      const verified = await this.readVerified(row.packageId, budget);
+      summaries.push({
+        packageId: verified.packageId,
+        manifestArtifactSha256: verified.manifestArtifactSha256,
+        sourceLabel: verified.manifest.sourceLabel,
+        version: verified.manifest.version,
+      });
+    }
+    return summaries;
   }
 
   async readVerified(packageId: string, budget?: SourcePackageReadBudget): Promise<VerifiedFinalizedSourcePackage> {

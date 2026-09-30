@@ -1,13 +1,21 @@
 # Trạng thái hiện tại
 
-## Research A42: plan for early local web delivery
+## Research A42: wave 1 implementation, Linux validation pending
 
 The owner requested efficient implementation with the earliest usable web
 release and confirmed Fedora localhost first, domain later. The detailed plan
 is `docs/tasks/research-a42-live-report-delivery-plan.vi.md`: integrate the
 existing research stack, expose retained reports, add web generation, and
 deliver approved method families in parallel batches. Two owner-supplied HTML
-designs will guide Market/Insight presentation once their paths are available.
+designs have been received and mapped to a new opt-in report-kit renderer.
+Three independent lanes have implemented the HTML presentation, OWNER web
+generation from retained source packages, and M05/M06/M07/M09 source-bound
+descriptive methods. Root integrated exact version selection, immutable
+presentation dispatch, retained method evidence and content identity.
+All 30 sections are visible, but missing inputs and unimplemented methods
+remain explicit. The four-method descriptor is currently available through
+the report request/CLI, not synthesized or selected by the initial web picker.
+Linux CI and visual acceptance are pending. No Windows execution occurred.
 GitHub main and open research PRs were inspected read-only on 2026-10-01.
 No merge, runtime activation, production migration or provider call occurred.
 

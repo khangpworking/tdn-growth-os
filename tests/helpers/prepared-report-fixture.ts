@@ -22,13 +22,14 @@ import { buildSourceBackedReport } from '../../src/modules/analysis/source-backe
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { tabletQuoteFixture } from './tablet-quote-fixture.js';
+import { descriptiveMarketFixture } from './descriptive-market-fixture.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 export const byteDigest = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const fixtureBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
 
 /** Real preparation and retention, using only generated synthetic sources. */
-export async function preparedReportFixture(withQuote = false) {
+export async function preparedReportFixture(withQuote = false, withDescriptive = false) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-prepared-report-'));
   const databasePath = path.join(directory, 'report.sqlite');
   const { db } = openDatabase({ databasePath });
@@ -79,12 +80,15 @@ export async function preparedReportFixture(withQuote = false) {
       ['metric/manifest.json', manifest], ['metric/labels.json', labels],
       ['quote/source.json', quoteSource], ['quote/input.json', fixtureBytes(quote)],
     ]);
+    const descriptive = withDescriptive ? descriptiveMarketFixture() : null;
+    for (const file of descriptive?.files ?? []) members.set(file.path, file.bytes);
+    const descriptiveMetadata = new Map((descriptive?.files ?? []).map(({ bytes: _bytes, ...metadata }) => [metadata.path, metadata]));
     const packages = new SourcePackageService({ db, artifactStore: artifacts });
     const workspaces = new DiscoveryWorkspaceService({ db, artifactStore: artifacts });
     const sourcePackage = await packages.intake({
       contractVersion: '1.0.0', packageKey: 'metric:synthetic-prepared-report', version: 1,
       sourceAcquiredAt: null, sourceLabel: 'Synthetic integrated report package',
-      files: [...members].map(([logicalPath, bytes]) => ({
+      files: [...members].map(([logicalPath, bytes]) => descriptiveMetadata.get(logicalPath) ?? ({
         path: logicalPath, sha256: byteDigest(bytes), byteSize: bytes.length,
         mediaType: logicalPath.endsWith('.xlsx')
           ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' : 'application/json',
@@ -151,7 +155,7 @@ export async function preparedReportFixture(withQuote = false) {
     const bundle = await buildSourceBackedReport(sourceRequest, catalogBytes, dependencies);
     return {
       directory, databasePath, db, artifacts, artifactRoot, dependencies, preparations, sectionArtifacts,
-      preparation, readiness, retainedM03, sourceRequest, catalogBytes, bundle, cleanup,
+      preparation, readiness, retainedM03, sourceRequest, catalogBytes, bundle, descriptive, cleanup,
     };
   } catch (error) {
     await cleanup();

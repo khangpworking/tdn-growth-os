@@ -42,11 +42,12 @@ export function buildPreparedReportSemanticContent(input: {
   readonly readiness: MetricPreparationReadinessResult;
   readonly retainedM03: VerifiedSectionArtifactRetention;
   readonly assemblySha256: string;
+  readonly descriptiveMethodsSha256?: string;
 }): {
   readonly content: PreparedReportSemanticContent;
   readonly contentBytes: Buffer;
 } {
-  const { bundle, preparation, readiness, retainedM03, assemblySha256 } = input;
+  const { bundle, preparation, readiness, retainedM03, assemblySha256, descriptiveMethodsSha256 } = input;
   assertDigest(assemblySha256, 'ASSEMBLY_SHA256');
 
   if (
@@ -84,6 +85,7 @@ export function buildPreparedReportSemanticContent(input: {
   const payload: SemanticPayload = {
     contractVersion: 'prepared-report-v1',
     policyVersion: 'prepared-report-semantic-content-v1',
+    ...(descriptiveMethodsSha256 === undefined ? {} : { descriptiveMethodsSha256 }),
     sourceLayer: inner.content.sourceLayer,
     calculationLayer: inner.content.calculationLayer,
     preparationLayer: {

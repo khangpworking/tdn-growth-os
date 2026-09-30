@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/descriptive-market-methods.schema.json",
+  "title": "DescriptiveMarketMethods",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "methodVersion", "methodOutputId", "input", "sections", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodId": { "const": "source-bound-descriptive-market" },
+    "methodVersion": { "const": "1.0.0" },
+    "methodOutputId": { "$ref": "#/$defs/digest" },
+    "input": { "$ref": "#/$defs/input" },
+    "sections": {
+      "type": "object", "additionalProperties": false,
+      "required": ["M05", "M06", "M07", "M09"],
+      "properties": {
+        "M05": {
+          "type": "object", "additionalProperties": false,
+          "required": ["locatedRecordCount", "partitions", "blockers"],
+          "properties": {
+            "locatedRecordCount": { "$ref": "#/$defs/count" },
+            "partitions": { "type": "array", "items": { "$ref": "#/$defs/partition" } },
+            "blockers": { "$ref": "#/$defs/blockers" }
+          }
+        },
+        "M06": {
+          "type": "object", "additionalProperties": false,
+          "required": ["locatedRecordCount", "recordPointers", "uniqueEntityCount", "blockers"],
+          "properties": {
+            "locatedRecordCount": { "$ref": "#/$defs/count" },
+            "recordPointers": { "$ref": "#/$defs/pointers" },
+            "uniqueEntityCount": { "type": "null" },
+            "blockers": { "$ref": "#/$defs/blockers" }
+          }
+        },
+        "M07": {
+          "type": "object", "additionalProperties": false,
+          "required": ["mode", "recordPointers", "comparisons", "blockers"],
+          "properties": {
+            "mode": { "enum": ["DECLARED_PEERS_SIDE_BY_SIDE", "UNRANKED_INVENTORY"] },
+            "recordPointers": { "$ref": "#/$defs/pointers" },
+            "comparisons": { "type": "array", "items": { "$ref": "#/$defs/comparison" } },
+            "blockers": { "$ref": "#/$defs/blockers" }
+          }
+        },
+        "M09": {
+          "type": "object", "additionalProperties": false,
+          "required": ["locatedRecordCount", "events", "blockers"],
+          "properties": {
+            "locatedRecordCount": { "$ref": "#/$defs/count" },
+            "events": {
+              "type": "array", "items": {
+                "type": "object", "additionalProperties": false,
+                "required": ["recordPointer", "blockers"],
+                "properties": { "recordPointer": { "$ref": "#/$defs/pointer" }, "blockers": { "$ref": "#/$defs/blockers" } }
+              }
+            },
+            "blockers": { "$ref": "#/$defs/blockers" }
+          }
+        }
+      }
+    },
+    "limitations": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/text" } }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S" },
+    "nullableText": { "anyOf": [{ "$ref": "#/$defs/text" }, { "type": "null" }] },
+    "count": { "type": "integer", "minimum": 0, "maximum": 10000 },
+    "pointer": { "type": "string", "pattern": "^/input/(m05|m06|m07|m09)/[0-9]+$" },
+    "pointers": { "type": "array", "maxItems": 10000, "uniqueItems": true, "items": { "$ref": "#/$defs/pointer" } },
+    "evidenceRef": { "$ref": "./m13-provenance-appendix.schema.json#/$defs/evidenceRef" },
+    "decimal": { "type": "string", "maxLength": 200, "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" },
+    "period": {
+      "title": "MarketObservationPeriod", "type": "object", "additionalProperties": false,
+      "required": ["start", "end", "timezone", "basis"],
+      "properties": {
+        "start": { "type": "string", "format": "date" }, "end": { "type": "string", "format": "date" },
+        "timezone": { "$ref": "#/$defs/text" }, "basis": { "$ref": "#/$defs/text" }
+      }
+    },
+    "scope": {
+      "title": "MarketObservationScope", "type": "object", "additionalProperties": false,
+      "required": ["universe", "geography", "frame", "inclusionRule", "exclusionRule", "variantRule"],
+      "properties": {
+        "universe": { "$ref": "#/$defs/text" }, "geography": { "$ref": "#/$defs/text" },
+        "frame": { "$ref": "#/$defs/text" }, "inclusionRule": { "$ref": "#/$defs/text" },
+        "exclusionRule": { "$ref": "#/$defs/text" }, "variantRule": { "$ref": "#/$defs/text" }
+      }
+    },
+    "value": {
+      "title": "LiteralMarketValue", "type": "object", "additionalProperties": false,
+      "required": ["state", "value", "precision"],
+      "properties": {
+        "state": { "enum": ["missing", "observed_zero", "observed_value", "UNKNOWN"] },
+        "value": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+        "precision": { "enum": ["exact", "non_exact"] }
+      }
+    },
+    "aggregation": {
+      "title": "MarketMemberAggregation", "type": "object", "additionalProperties": false,
+      "required": ["additive", "aggregationUnit", "sourceKeyNamespace", "members", "requiredMemberKeys", "proof"],
+      "properties": {
+        "additive": { "type": "boolean" }, "aggregationUnit": { "$ref": "#/$defs/text" },
+        "sourceKeyNamespace": { "$ref": "#/$defs/text" },
+        "members": {
+          "type": "array", "minItems": 1, "maxItems": 10000,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["sourceKey", "source"],
+            "properties": { "sourceKey": { "$ref": "#/$defs/text" }, "source": { "$ref": "#/$defs/evidenceRef" } }
+          }
+        },
+        "requiredMemberKeys": { "type": "array", "minItems": 1, "maxItems": 10000, "uniqueItems": true, "items": { "$ref": "#/$defs/text" } },
+        "proof": { "$ref": "#/$defs/evidenceRef" }
+      },
+      "description": "Source-issued atomic member keys, never generated from text or locators. Proof must establish additivity, member granularity and complete required membership. Overlapping windows require upstream evidence of atomic disjoint members; v1 never infers disjoint windows."
+    },
+    "observation": {
+      "title": "LiteralMarketObservation", "type": "object", "additionalProperties": false,
+      "required": ["source", "sourceWording", "entityLabel", "measureLiteral", "measureDefinition", "unit", "period", "scope", "observation", "aggregation"],
+      "properties": {
+        "source": { "$ref": "#/$defs/evidenceRef" }, "sourceWording": { "$ref": "#/$defs/text" },
+        "entityLabel": { "$ref": "#/$defs/nullableText" }, "measureLiteral": { "$ref": "#/$defs/text" },
+        "measureDefinition": { "$ref": "#/$defs/text" }, "unit": { "$ref": "#/$defs/nullableText" },
+        "period": { "anyOf": [{ "$ref": "#/$defs/period" }, { "type": "null" }] },
+        "scope": { "$ref": "#/$defs/scope" }, "observation": { "$ref": "#/$defs/value" },
+        "aggregation": { "anyOf": [{ "$ref": "#/$defs/aggregation" }, { "type": "null" }] }
+      }
+    },
+    "supply": {
+      "title": "SourceStatedSupplyRecord", "type": "object", "additionalProperties": false,
+      "required": ["observation", "objectLiteral", "statusLiteral", "dateMeaning"],
+      "properties": {
+        "observation": { "$ref": "#/$defs/observation" }, "objectLiteral": { "$ref": "#/$defs/text" },
+        "statusLiteral": { "$ref": "#/$defs/nullableText" }, "dateMeaning": { "$ref": "#/$defs/text" }
+      }
+    },
+    "peerSet": {
+      "title": "DeclaredMarketPeerSet", "type": "object", "additionalProperties": false,
+      "required": ["anchorRef", "peerRefs", "membershipBasis", "scope", "membershipRevision", "declaration"],
+      "properties": {
+        "anchorRef": { "$ref": "#/$defs/evidenceRef" },
+        "peerRefs": { "type": "array", "minItems": 1, "maxItems": 1000, "uniqueItems": true, "items": { "$ref": "#/$defs/evidenceRef" } },
+        "membershipBasis": { "$ref": "#/$defs/text" }, "scope": { "$ref": "#/$defs/scope" },
+        "membershipRevision": { "$ref": "#/$defs/text" }, "declaration": { "$ref": "#/$defs/evidenceRef" }
+      }
+    },
+    "event": {
+      "title": "AttributedMarketEvent", "type": "object", "additionalProperties": false,
+      "required": ["source", "statementType", "sourceWording", "attribution", "publicationDate", "eventDate", "dateBasis", "namedScope", "targetLink", "affectedMetricLiteral", "conflictRefs"],
+      "properties": {
+        "source": { "$ref": "#/$defs/evidenceRef" },
+        "statementType": { "enum": ["DOCUMENTED_EVENT", "SOURCE_STATED_DIRECTION", "COUNTEREVIDENCE", "UNCLASSIFIED"] },
+        "sourceWording": { "$ref": "#/$defs/text" }, "attribution": { "$ref": "#/$defs/text" },
+        "publicationDate": { "type": ["string", "null"], "format": "date" },
+        "eventDate": { "type": ["string", "null"], "format": "date" },
+        "dateBasis": { "$ref": "#/$defs/text" }, "namedScope": { "$ref": "#/$defs/text" },
+        "targetLink": { "anyOf": [{ "$ref": "#/$defs/evidenceRef" }, { "type": "null" }] },
+        "affectedMetricLiteral": { "$ref": "#/$defs/nullableText" },
+        "conflictRefs": { "type": "array", "maxItems": 1000, "uniqueItems": true, "items": { "$ref": "#/$defs/evidenceRef" } }
+      }
+    },
+    "input": {
+      "title": "DescriptiveMarketInput", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "sourcePackage", "sources", "configuration", "question", "scope", "m05", "m06", "m07", "peerSet", "m09"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "sourcePackage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["packageId", "version", "manifestArtifactSha256", "packageContentSha256"],
+          "properties": {
+            "packageId": { "type": "string", "format": "uuid" }, "version": { "type": "integer", "minimum": 1 },
+            "manifestArtifactSha256": { "$ref": "#/$defs/digest" }, "packageContentSha256": { "$ref": "#/$defs/digest" }
+          }
+        },
+        "sources": {
+          "type": "array", "minItems": 1, "maxItems": 1000,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["logicalPath", "sha256", "evidenceFamily", "providerProvenance"],
+            "properties": {
+              "logicalPath": { "$ref": "#/$defs/text" }, "sha256": { "$ref": "#/$defs/digest" },
+              "evidenceFamily": { "$ref": "#/$defs/text" },
+              "providerProvenance": { "enum": ["verified", "provider_reported", "operator_supplied_unverified", "synthetic"] }
+            }
+          }
+        },
+        "configuration": {
+          "type": "object", "additionalProperties": false,
+          "required": ["profileId", "profileVersion", "policyRevision", "profileSha256", "adoptionSha256", "runConfiguration"],
+          "properties": {
+            "profileId": { "const": "source-bound-descriptive-market-v1" }, "profileVersion": { "const": "1.0.0" },
+            "policyRevision": { "$ref": "#/$defs/text" }, "profileSha256": { "$ref": "#/$defs/digest" },
+            "adoptionSha256": { "$ref": "#/$defs/digest" }, "runConfiguration": { "$ref": "#/$defs/evidenceRef" }
+          }
+        },
+        "question": { "$ref": "#/$defs/text" }, "scope": { "$ref": "#/$defs/scope" },
+        "m05": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/observation" } },
+        "m06": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/supply" } },
+        "m07": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/observation" } },
+        "peerSet": { "anyOf": [{ "$ref": "#/$defs/peerSet" }, { "type": "null" }] },
+        "m09": { "type": "array", "maxItems": 10000, "items": { "$ref": "#/$defs/event" } }
+      }
+    },
+    "blockers": {
+      "type": "array", "uniqueItems": true,
+      "items": { "enum": ["NO_LOCATED_RECORDS", "PERIOD_MISSING", "UNIT_MISSING", "ADDITIVITY_UNDECLARED", "AGGREGATION_OVERLAP_UNRESOLVED", "AGGREGATION_FRAME_INCOMPATIBLE", "MEMBERSHIP_INCOMPLETE", "VALUE_MISSING", "VALUE_UNKNOWN", "NON_EXACT_VALUE", "M07_PEER_SET_UNAPPROVED", "M07_IDENTITY_UNRESOLVED", "M07_PERIOD_INCOMPATIBLE", "M07_UNIVERSE_OR_MEASURE_INCOMPATIBLE", "M09_EVENT_DATE_UNKNOWN", "M09_ENTITY_LINK_UNRESOLVED", "M09_COUNTEREVIDENCE_CONFLICT"] }
+    },
+    "partition": {
+      "title": "LiteralMarketPartition", "type": "object", "additionalProperties": false,
+      "required": ["recordPointers", "measureLiteral", "unit", "period", "scope", "subtotal", "complete", "coverage", "blockers"],
+      "properties": {
+        "recordPointers": { "$ref": "#/$defs/pointers" }, "measureLiteral": { "$ref": "#/$defs/text" },
+        "unit": { "$ref": "#/$defs/nullableText" }, "period": { "anyOf": [{ "$ref": "#/$defs/period" }, { "type": "null" }] },
+        "scope": { "$ref": "#/$defs/scope" }, "subtotal": { "anyOf": [{ "type": "string", "maxLength": 220, "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$" }, { "type": "null" }] },
+        "complete": { "type": "boolean" },
+        "coverage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["observedCount", "zeroCount", "missingCount", "unknownCount", "nonExactCount"],
+          "properties": {
+            "observedCount": { "$ref": "#/$defs/count" }, "zeroCount": { "$ref": "#/$defs/count" },
+            "missingCount": { "$ref": "#/$defs/count" }, "unknownCount": { "$ref": "#/$defs/count" },
+            "nonExactCount": { "$ref": "#/$defs/count" }
+          }
+        },
+        "blockers": { "$ref": "#/$defs/blockers" }
+      }
+    },
+    "comparison": {
+      "title": "DeclaredMarketComparison", "type": "object", "additionalProperties": false,
+      "required": ["anchorRef", "peerRef", "anchorPointer", "peerPointer", "compatibility", "blockers"],
+      "properties": {
+        "anchorRef": { "$ref": "#/$defs/evidenceRef" }, "peerRef": { "$ref": "#/$defs/evidenceRef" },
+        "anchorPointer": { "anyOf": [{ "$ref": "#/$defs/pointer" }, { "type": "null" }] },
+        "peerPointer": { "anyOf": [{ "$ref": "#/$defs/pointer" }, { "type": "null" }] },
+        "compatibility": { "enum": ["COMPARABLE", "NOT_COMPARABLE"] }, "blockers": { "$ref": "#/$defs/blockers" }
+      }
+    }
+  }
+}

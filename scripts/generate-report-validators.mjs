@@ -16,6 +16,7 @@ async function readSchema(relativePath) {
 }
 
 const reportApiSchema = await readSchema('contracts/api/report-api.schema.json');
+const researchGenerationApiSchema = await readSchema('contracts/api/research-generation-api.schema.json');
 const reportReviewTargetSchema = await readSchema('contracts/analysis/report-review-target.schema.json');
 const reportReviewTargetCreateRequestSchema = await readSchema('contracts/analysis/report-review-target-create-request.schema.json');
 const ownerReportReviewTargetApiSchema = await readSchema('contracts/api/owner-report-review-target-api.schema.json');
@@ -25,9 +26,12 @@ addFormats(ajv);
 ajv.addSchema(reportReviewTargetSchema);
 ajv.addSchema(reportReviewTargetCreateRequestSchema);
 ajv.addSchema(reportApiSchema);
+ajv.addSchema(researchGenerationApiSchema);
 ajv.addSchema(ownerReportReviewTargetApiSchema);
 
 const validatorRefs = {
+  researchGenerationInputs: `${researchGenerationApiSchema.$id}#/$defs/inputs`,
+  researchGenerationReceipt: `${researchGenerationApiSchema.$id}#/$defs/receipt`,
   interpretationIndex: `${reportApiSchema.$id}#/$defs/interpretationIndex`,
   interpretationDetail: `${reportApiSchema.$id}#/$defs/interpretationDetail`,
   sectionReadiness: `${reportApiSchema.$id}#/$defs/sectionReadiness`,

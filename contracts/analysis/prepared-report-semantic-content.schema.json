@@ -13,6 +13,7 @@
     "contractVersion": { "const": "prepared-report-v1" },
     "semanticVersionId": { "$ref": "#/$defs/digest" },
     "policyVersion": { "const": "prepared-report-semantic-content-v1" },
+    "descriptiveMethodsSha256": { "$ref": "#/$defs/digest" },
     "sourceLayer": {
       "type": "object",
       "additionalProperties": false,

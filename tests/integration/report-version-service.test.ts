@@ -232,6 +232,43 @@ async function interpretationFixture(
   return { reports, source, promptText, configuration, request, baseOutput };
 }
 
+test('an exact source-backed retry recovers missing publication but never replaces corrupt bytes', async () => {
+  const state = await fixture();
+  const created = await state.service.createVersion(state.request, state.catalogBytes);
+  const record = await state.service.readVersion(created.reportId, 1);
+  const html = record.artifacts.find(item => item.fileName === 'report.html')!;
+  const target = state.artifacts.pathForDigest(html.sha256);
+  const original = await fsp.readFile(target);
+  const before = state.db.prepare('SELECT total_changes() count').get();
+  await fsp.unlink(target);
+  await assert.rejects(state.service.readVersion(created.reportId, 1), ReportVersionIntegrityError);
+  const retried = await state.service.createVersion(state.request, state.catalogBytes);
+  assert.equal(retried.versionId, created.versionId);
+  assert.equal(retried.databaseMutations, 0);
+  assert.equal(retried.deduplicated, true);
+  assert.deepEqual(await fsp.readFile(target), original);
+  assert.deepEqual(state.db.prepare('SELECT total_changes() count').get(), before);
+  await fsp.writeFile(target, 'corrupt publication');
+  await assert.rejects(state.service.createVersion(state.request, state.catalogBytes), ReportVersionIntegrityError);
+  assert.equal(await fsp.readFile(target, 'utf8'), 'corrupt publication');
+  assert.deepEqual(state.db.prepare('SELECT total_changes() count').get(), before);
+});
+
+test('explicit report-kit presentation preserves the legacy version and meaning-bearing identity', async () => {
+  const state = await fixture();
+  const original = await state.service.createVersion(state.request, state.catalogBytes);
+  const legacy = await state.service.readArtifact(original.reportId, 1, 'report.html');
+  const request = { ...state.request, version: 2, previousSemanticVersionId: original.semanticVersionId, reportPresentation: 'report-kit-v1' };
+  const kit = await state.service.createVersion(request, state.catalogBytes);
+  assert.equal(kit.semanticVersionId, original.semanticVersionId);
+  const html = await state.service.readArtifact(kit.reportId, 2, 'report.html');
+  assert.notDeepEqual(html.bytes, legacy.bytes);
+  const manifest = JSON.parse((await state.service.readArtifact(kit.reportId, 2, 'export-manifest.json')).bytes.toString('utf8'));
+  assert.equal(manifest.rendererVersion, 'report-kit-html-vi-v1');
+  assert.deepEqual((await state.service.readArtifact(original.reportId, 1, 'report.html')).bytes, legacy.bytes);
+  assert.equal((await state.service.createVersion(request, state.catalogBytes)).databaseMutations, 0);
+});
+
 test('persists one exact unreviewed report version and replays it without read-side writes', async () => {
   const state = await fixture();
   const created = await state.service.createVersion(state.request, state.catalogBytes);
