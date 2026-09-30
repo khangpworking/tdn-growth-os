@@ -145,6 +145,7 @@ function evaluateInput(inputId: string, preparation: VerifiedMetricInputPreparat
         ? check('INVALID', ['LABEL_DECISIONS_DO_NOT_COVER_REQUIRED_SCOPE'], [labelRef, inputRef])
         : check('PRESENT', ['FROZEN_LABEL_DECISIONS_REPLAYED'], [labelRef, inputRef]);
     }
+  }
 
   const absentCodes: Readonly<Record<string, string>> = {
     'metric-result': 'METRIC_RESULT_NOT_CALCULATED',
