@@ -129,6 +129,10 @@ function assertReplayedPacket(bundle: SourceBackedReportBundle): void {
         sectionId: 'I03', methodVersion: '2.0.0', fileName: 'i03-research-method.json',
         sha256: section.methodArtifact.sha256, methodOutputId: section.methodArtifact.methodOutputId,
       });
+      else if (section.sectionId === 'I17' && section.methodArtifact.fileName === 'i17-evidence-trace.json') methodArtifacts.push({
+        sectionId: 'I17', methodVersion: '2.0.0', fileName: 'i17-evidence-trace.json',
+        sha256: section.methodArtifact.sha256, methodOutputId: section.methodArtifact.methodOutputId,
+      });
       else throw new TypeError('interpretation source: METHOD_ARTIFACT_SECTION_MISMATCH');
     }
     replayed = createResearchReportPacket(

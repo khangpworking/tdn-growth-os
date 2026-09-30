@@ -1,7 +1,7 @@
 {
   "contractVersion": "1.0.0",
   "catalogId": "market-insight-30-section-catalog-v1",
-  "catalogVersion": "0.5.0",
+  "catalogVersion": "0.6.0",
   "authority": "PLANNING_METADATA_NOT_EXECUTABLE_METHOD",
   "sections": [
     {
@@ -580,20 +580,21 @@
     {
       "sectionId": "I17",
       "title": "Phụ lục và bằng chứng",
-      "methodId": "planning-i17",
-      "methodVersion": "1.0.0",
+      "methodId": "evidence-trace-index",
+      "methodVersion": "2.0.0",
       "historicalTemplateMaturity": "PILOT",
       "moduleIds": [
         "source-scope"
       ],
       "requiredInputs": [
-        "source-manifest",
-        "verified-locators"
+        "source-package-manifest",
+        "verified-method-artifacts",
+        "resolved-fact-claim-pointers"
       ],
       "reopenCondition": "A new source, duplicate/error locator, or usage-rights condition changes the evidence appendix.",
-      "fallbackState": "METHOD_ONLY",
+      "fallbackState": "BLOCKED",
       "fallbackReasons": [
-        "EVIDENCE_LEDGER_AND_LOCATORS_REQUIRED"
+        "RESOLVED_EVIDENCE_TRACE_ARTIFACT_REQUIRED"
       ]
     }
   ]

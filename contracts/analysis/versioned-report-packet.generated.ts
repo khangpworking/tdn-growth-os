@@ -107,7 +107,8 @@ export interface SectionPacket {
       | 'm02-scope-method.json'
       | 'm08-tablet-quote-method.json'
       | 'm13-provenance-appendix.json'
-      | 'i03-research-method.json';
+      | 'i03-research-method.json'
+      | 'i17-evidence-trace.json';
     sha256: string;
     methodOutputId: string;
   };

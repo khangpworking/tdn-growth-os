@@ -22,7 +22,12 @@ import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/inde
 import type { ArtifactReadOptions } from '../../src/platform/artifacts/artifact-store.js';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import { buildI17EvidenceTrace } from '../../src/modules/analysis/i17-evidence-trace.js';
 import { buildSourceBackedReport, type SourceBackedReportDependencies } from '../../src/modules/analysis/source-backed-report.js';
+import type { I03ResearchMethod } from '../../contracts/analysis/i03-research-method.generated.js';
+import type { M02ScopeMethod } from '../../contracts/analysis/m02-scope-method.generated.js';
+import type { M08TabletQuoteMethod } from '../../contracts/analysis/m08-tablet-quote-method.generated.js';
+import type { M13ProvenanceAppendix } from '../../contracts/analysis/m13-provenance-appendix.generated.js';
 import { tabletQuoteFixture } from '../helpers/tablet-quote-fixture.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
@@ -305,8 +310,103 @@ test('replays persisted package/workspace bytes into a deterministic evidence en
     ['all', 'CALCULATED', 2, 2], ['wide', 'BLOCKED_LABELS', 0, 2], ['core', 'BLOCKED_LABELS', 0, 2],
   ]);
   assert.ok(i03.limitations.includes('NO_MARKET_CONCLUSION_INSIGHT_RECOMMENDATION_CAUSALITY_EFFECTIVENESS_OR_APPROVAL'));
+  const i17 = JSON.parse(first.files.get('i17-evidence-trace.json')!.toString('utf8')) as {
+    methodOutputId: string;
+    upstreamBindingSha256: string;
+    upstreamBinding: {
+      sourcePackage: { packageId: string; version: number; manifestArtifactSha256: string; packageContentSha256: string };
+      catalogSha256: string;
+      normalizedInputSha256: string;
+      metricResultSha256: string;
+      claimSetSha256: string;
+      methodArtifacts: Array<{ sectionId: string; fileName: string; sha256: string; methodOutputId: string }>;
+    };
+    summary: { entryCount: number; resolvedEntryCount: number; unresolvedEntryCount: number; referencedArtifactCount: number; methodArtifactCount: number; claimCount: number };
+    entries: Array<{
+      sectionId: string; subjectType: string; subjectId: string; relationType: string; artifactFile: string;
+      artifactSha256: string; artifactPointer: string; supportingPointers: string[]; denominatorPointers: string[];
+      coveragePointers: string[]; membershipPointers: string[]; scopeKey: string | null;
+    }>;
+    limitations: string[];
+  };
+  assert.equal(first.envelope.artifacts.i17EvidenceTraceSha256, sha256(first.files.get('i17-evidence-trace.json')!));
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'I17')?.methodArtifact?.methodOutputId, i17.methodOutputId);
+  assert.equal(first.packet.sections.find(section => section.sectionId === 'I17')?.deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
+  assert.deepEqual(first.packet.sections.find(section => section.sectionId === 'I17')?.claimIds, []);
+  assert.equal(i17.upstreamBinding.sourcePackage.packageId, state.request.packageId);
+  assert.equal(i17.upstreamBinding.sourcePackage.version, 1);
+  assert.equal(i17.upstreamBinding.sourcePackage.manifestArtifactSha256, state.request.packageManifestSha256);
+  assert.equal(i17.upstreamBinding.catalogSha256, state.request.catalogSha256);
+  assert.equal(i17.upstreamBinding.normalizedInputSha256, sha256(first.files.get('normalized-input.json')!));
+  assert.equal(i17.upstreamBinding.metricResultSha256, sha256(first.files.get('metric-result.json')!));
+  assert.equal(i17.upstreamBinding.claimSetSha256, sha256(Buffer.from(canonicalJson(first.packet.claims), 'utf8')));
+  assert.equal(i17.upstreamBindingSha256, sha256(Buffer.from(canonicalJson(i17.upstreamBinding), 'utf8')));
+  const { methodOutputId, ...i17Payload } = i17;
+  assert.equal(methodOutputId, sha256(Buffer.from(canonicalJson(i17Payload), 'utf8')));
+  assert.deepEqual(i17.upstreamBinding.methodArtifacts.map(item => [item.sectionId, item.fileName, item.methodOutputId]), [
+    ['M02', 'm02-scope-method.json', m02.methodOutputId],
+    ['M08', 'm08-tablet-quote-method.json', m08.methodOutputId],
+    ['M13', 'm13-provenance-appendix.json', m13.methodOutputId],
+    ['I03', 'i03-research-method.json', i03.methodOutputId],
+  ]);
+  assert.equal(i17.summary.entryCount, 4 + first.packet.claims.length);
+  assert.equal(i17.summary.resolvedEntryCount, i17.summary.entryCount);
+  assert.equal(i17.summary.unresolvedEntryCount, 0);
+  assert.equal(i17.summary.referencedArtifactCount, 5);
+  assert.equal(i17.summary.methodArtifactCount, 4);
+  assert.equal(i17.summary.claimCount, first.packet.claims.length);
+  for (const traceEntry of i17.entries) {
+    const artifactBytes = first.files.get(traceEntry.artifactFile);
+    assert.ok(artifactBytes, traceEntry.artifactFile);
+    assert.equal(traceEntry.artifactSha256, sha256(artifactBytes));
+  }
+  const m08Trace = i17.entries.find(item => item.sectionId === 'M08' && item.subjectType === 'METHOD_ARTIFACT');
+  assert.deepEqual(m08Trace?.denominatorPointers, ['/quote/packCount']);
+  const m13Trace = i17.entries.find(item => item.sectionId === 'M13' && item.subjectType === 'METHOD_ARTIFACT');
+  assert.ok(m13Trace?.supportingPointers.includes('/sources'));
+  const revenueTrace = i17.entries.find(item => item.subjectId === 'M03:all:revenue');
+  assert.equal(revenueTrace?.relationType, 'CALCULATION_BASIS');
+  assert.equal(revenueTrace?.artifactFile, 'metric-result.json');
+  assert.equal(revenueTrace?.artifactSha256, sha256(first.files.get('metric-result.json')!));
+  assert.equal(revenueTrace?.artifactPointer, '/scopes/0/revenue/value');
+  assert.deepEqual(revenueTrace?.supportingPointers, ['/scopes/0/revenue/value', '/input/scope']);
+  assert.deepEqual(revenueTrace?.coveragePointers, ['/scopes/0/revenue']);
+  assert.deepEqual(revenueTrace?.membershipPointers, ['/scopes/0/recordIndices']);
+  const concentrationTrace = i17.entries.find(item => item.subjectId === 'M04:all:top1');
+  assert.deepEqual(concentrationTrace?.denominatorPointers, ['/scopes/0/concentration/0/share/denominator']);
+  assert.equal(concentrationTrace?.scopeKey, 'all');
+  assert.ok(i17.limitations.includes('TRACE_FOR_AND_CALCULATION_BASIS_RELATIONS_DO_NOT_MEAN_VALIDATED_SUPPORT_OR_PROOF'));
+  assert.ok(i17.limitations.includes('RESOLVED_MEANS_THE_POINTER_EXISTS_AND_DOES_NOT_CHANGE_MISSING_OBSERVED_ZERO_UNKNOWN_OR_NONEXACT_STATES'));
+  assert.equal('packetId' in i17, false);
+  assert.equal('semanticVersionId' in i17, false);
   assert.equal(first.envelope.selectedSources.length, 4);
   assert.match(first.envelope.limitations.join('\n'), /DO_NOT_AUTHENTICATE_PROVIDER_COLLECTION/);
+
+  const fullM02 = JSON.parse(first.files.get('m02-scope-method.json')!.toString('utf8')) as M02ScopeMethod;
+  const fullM08 = JSON.parse(first.files.get('m08-tablet-quote-method.json')!.toString('utf8')) as M08TabletQuoteMethod;
+  const fullM13 = JSON.parse(first.files.get('m13-provenance-appendix.json')!.toString('utf8')) as M13ProvenanceAppendix;
+  const fullI03 = JSON.parse(first.files.get('i03-research-method.json')!.toString('utf8')) as I03ResearchMethod;
+  const traceInputs = {
+    packet: first.packet,
+    result: first.result,
+    resultBytes: first.files.get('metric-result.json')!,
+    m02: { output: fullM02, bytes: first.files.get('m02-scope-method.json')!, fileName: 'm02-scope-method.json' as const },
+    m08: { output: fullM08, bytes: first.files.get('m08-tablet-quote-method.json')!, fileName: 'm08-tablet-quote-method.json' as const },
+    m13: { output: fullM13, bytes: first.files.get('m13-provenance-appendix.json')!, fileName: 'm13-provenance-appendix.json' as const },
+    i03: { output: fullI03, bytes: first.files.get('i03-research-method.json')!, fileName: 'i03-research-method.json' as const },
+  };
+  const wrongMethodId = { ...fullM02, methodOutputId: 'f'.repeat(64) };
+  assert.throws(() => buildI17EvidenceTrace({
+    ...traceInputs,
+    m02: { ...traceInputs.m02, output: wrongMethodId, bytes: Buffer.from(`${canonicalJson(wrongMethodId)}\n`, 'utf8') },
+  }), /METHOD_OUTPUT_ID_MISMATCH:M02/);
+  const mismatchedPacket = {
+    ...first.packet,
+    sections: first.packet.sections.map(section => section.sectionId === 'M02' && section.methodArtifact !== undefined
+      ? { ...section, methodArtifact: { ...section.methodArtifact, sha256: 'e'.repeat(64) } }
+      : section),
+  } as typeof first.packet;
+  assert.throws(() => buildI17EvidenceTrace({ ...traceInputs, packet: mismatchedPacket }), /PACKET_METHOD_ARTIFACT_MISMATCH:M02/);
 
   const second = await buildSourceBackedReport(state.request, state.catalogBytes, state.dependencies);
   assert.deepEqual(second.envelopeBytes, first.envelopeBytes);
@@ -329,6 +429,15 @@ test('keeps M08 blocked instead of fabricating a quote when supplemental quote p
   const section = bundle.packet.sections.find(item => item.sectionId === 'M08');
   assert.equal(section?.deliveryState, 'BLOCKED');
   assert.ok(section?.blockers.includes('VERIFIED_TABLET_QUOTE_METHOD_ARTIFACT_REQUIRED'));
+  const trace = JSON.parse(bundle.files.get('i17-evidence-trace.json')!.toString('utf8')) as {
+    summary: { methodArtifactCount: number };
+    upstreamBinding: { methodArtifacts: Array<{ sectionId: string }> };
+    entries: Array<{ sectionId: string }>;
+  };
+  assert.equal(bundle.packet.sections.find(item => item.sectionId === 'I17')?.deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
+  assert.equal(trace.summary.methodArtifactCount, 3);
+  assert.equal(trace.upstreamBinding.methodArtifacts.some(item => item.sectionId === 'M08'), false);
+  assert.equal(trace.entries.some(item => item.sectionId === 'M08'), false);
 });
 
 test('rejects wrong source selectors and corrupt raw bytes before normalization', async () => {
@@ -430,7 +539,7 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
     'raw-workbook.xlsx', 'raw-manifest.json', 'source-package-manifest.json', 'normalized-input.json',
     'receipt.json', 'metric-result.json', 'charts.json', 'packet.json', 'section-catalog.json', 'workspace.json',
     'm02-scope-method.json', 'raw-tablet-quote-source.json', 'raw-tablet-quote-input.json',
-    'm08-tablet-quote-method.json', 'm13-provenance-appendix.json', 'i03-research-method.json',
+    'm08-tablet-quote-method.json', 'm13-provenance-appendix.json', 'i03-research-method.json', 'i17-evidence-trace.json',
     'semantic-content.json', 'review-state.json',
     'evidence-envelope.json', 'export-manifest.json',
   ];
@@ -473,6 +582,11 @@ test('CLI reopens the seeded database read-only, publishes exact links, and esca
   assert.ok(document.querySelector('#method')?.textContent?.includes('Không công bố số thành viên · mẫu số 2 dòng'));
   assert.ok(document.querySelector('#method')?.textContent?.includes('không tạo kết luận thị trường, insight'));
   assert.ok(document.querySelector('#method a[href="i03-research-method.json"]'));
+  assert.ok(document.querySelector('#trace a[href="i17-evidence-trace.json"]'));
+  assert.ok(document.querySelector('#trace')?.textContent?.includes('không có nghĩa bằng chứng đã được xác thực'));
+  assert.ok(document.querySelector('#trace')?.textContent?.includes('/sourcePackage'));
+  assert.ok(document.querySelector('#trace')?.textContent?.includes('/scopes/0/revenue/value'));
+  assert.ok(document.querySelector('#trace')?.textContent?.includes('/scopes/0/concentration/0/share/denominator'));
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-workbook.xlsx')), state.workbook);
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-manifest.json')), state.manifest);
   assert.deepEqual(fs.readFileSync(path.join(output, 'raw-tablet-quote-source.json')), state.tabletQuoteSource);

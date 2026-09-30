@@ -516,3 +516,27 @@ claim, effectiveness claim hay approval. Thay đổi source membership, kỳ đo
 profile/codebook/chính sách nhãn hoặc lỗi replay/locator buộc mở lại phương pháp.
 Đây là lớp phương pháp và provenance phục vụ hai lớp nguồn/tính toán; nhận định
 AI và quyết định người dùng tiếp tục là các artifact riêng.
+
+### D38 — I17 là chỉ mục truy xuất bằng chứng theo một chiều
+
+I17 được phép trở thành `PARTIAL_DETERMINISTIC_DRAFT` khi exact source package,
+catalog, normalized input, metric result, M02/M13/I03, M08 nếu có, và toàn bộ
+M03/M04 FactObservation đều phát lại được. I17 liên kết hồ sơ phương pháp bằng
+`TRACE_FOR` và claim định lượng bằng `CALCULATION_BASIS` tới đúng artifact,
+digest, JSON pointer, scope, membership, denominator và coverage đã tồn tại.
+`RESOLVED` chỉ có nghĩa pointer tồn tại; nó không đổi missing thành zero, xác
+nhận UNKNOWN, nâng độ chính xác, xác thực provider hay chứng minh claim.
+
+M13 tiếp tục sở hữu source inventory, raw-byte lineage và locators. I17 không
+chép lại raw evidence hoặc biến trace thành source truth. Luồng identity chỉ đi
+một chiều: I17 bind exact upstream source/method/calculation inputs; final packet
+bind digest của I17; semantic content bind final packet; report-version ledger
+bind semantic identity. I17 không nhúng final `packetId` hoặc
+`semanticVersionId`, tránh hash vòng tròn.
+
+I17 không tạo conclusion, insight, recommendation, ranking, causality,
+effectiveness, market coverage, provider authenticity, AI interpretation hoặc
+human approval. Thay đổi source/digest/locator, normalization, scope/codebook,
+UNKNOWN policy, method, claim, denominator hoặc usage-rights buộc mở lại chỉ
+mục. Chart contract, AI interpretation và human decision là các lớp downstream
+riêng; I17 không tự nhận đã hoàn thành chúng.

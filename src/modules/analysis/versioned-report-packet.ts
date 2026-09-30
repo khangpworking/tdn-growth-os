@@ -24,7 +24,7 @@ const identity = (value: unknown): string => hash(canonicalJson(value));
 const methods: Readonly<Record<string, string>> = {
   M02: 'metric-scope-packet-context', M03: 'metric-scope-packet-totals',
   M04: 'metric-scope-packet-concentration', M08: 'tablet-quote-normalization',
-  M13: 'metric-scope-packet-provenance', I03: 'metric-research-method-account',
+  M13: 'metric-scope-packet-provenance', I03: 'metric-research-method-account', I17: 'evidence-trace-index',
 };
 
 export type ReportMethodArtifact = {
@@ -51,13 +51,20 @@ export type ReportMethodArtifact = {
   readonly fileName: 'i03-research-method.json';
   readonly sha256: string;
   readonly methodOutputId: string;
+} | {
+  readonly sectionId: 'I17';
+  readonly methodVersion: '2.0.0';
+  readonly fileName: 'i17-evidence-trace.json';
+  readonly sha256: string;
+  readonly methodOutputId: string;
 };
 
 const artifactFile = (sectionId: ReportMethodArtifact['sectionId']): ReportMethodArtifact['fileName'] => {
   if (sectionId === 'M02') return 'm02-scope-method.json';
   if (sectionId === 'M08') return 'm08-tablet-quote-method.json';
   if (sectionId === 'M13') return 'm13-provenance-appendix.json';
-  return 'i03-research-method.json';
+  if (sectionId === 'I03') return 'i03-research-method.json';
+  return 'i17-evidence-trace.json';
 };
 
 function pinnedJson(bytes: Buffer, expected: string, kind: string): unknown {
@@ -103,18 +110,19 @@ export function createResearchReportPacket(
     const methodArtifact = artifactBySection.get(sectionId as ReportMethodArtifact['sectionId']);
     const supported = methods[sectionId] === definition.methodId &&
       (definition.methodVersion === '1.0.0' ||
-        ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13' || sectionId === 'I03') && definition.methodVersion === '2.0.0'));
+        ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13' || sectionId === 'I03' || sectionId === 'I17') && definition.methodVersion === '2.0.0'));
     if (!supported) {
       blockers.push(...definition.fallbackReasons);
       if (methods[sectionId]) { deliveryState = 'NOT_IMPLEMENTED'; blockers.push('UNSUPPORTED_SECTION_METHOD_VERSION'); }
     } else {
       deliveryState = 'PARTIAL_DETERMINISTIC_DRAFT';
-      if ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13' || sectionId === 'I03') && definition.methodVersion === '2.0.0') {
+      if ((sectionId === 'M02' || sectionId === 'M08' || sectionId === 'M13' || sectionId === 'I03' || sectionId === 'I17') && definition.methodVersion === '2.0.0') {
         if (!methodArtifact || methodArtifact.sectionId !== sectionId || methodArtifact.methodVersion !== '2.0.0' ||
             !/^[0-9a-f]{64}$/.test(methodArtifact.sha256) || !/^[0-9a-f]{64}$/.test(methodArtifact.methodOutputId)) {
           deliveryState = 'BLOCKED';
           blockers.push(sectionId === 'M08' ? 'VERIFIED_TABLET_QUOTE_METHOD_ARTIFACT_REQUIRED'
             : sectionId === 'I03' ? 'VERIFIED_RESEARCH_METHOD_ARTIFACT_REQUIRED'
+              : sectionId === 'I17' ? 'RESOLVED_EVIDENCE_TRACE_ARTIFACT_REQUIRED'
               : 'VERIFIED_SOURCE_METHOD_ARTIFACT_REQUIRED');
         } else {
           blockers.push('OWNER_REVIEW_REQUIRED');
