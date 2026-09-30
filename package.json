@@ -13,6 +13,7 @@
     "research:quote:normalize": "tsx scripts/normalize-tablet-quote.ts",
     "research:report:export": "tsx scripts/export-source-backed-report.ts",
     "research:report:version": "tsx scripts/create-report-version.ts",
+    "research:report:assemble": "tsx scripts/assemble-prepared-report.ts",
     "research:report:packet": "tsx scripts/package-research-report.ts",
     "research:metric:normalize": "tsx scripts/normalize-metric-workbook.ts",
     "research:metric:prepare": "tsx scripts/prepare-metric-input.ts",

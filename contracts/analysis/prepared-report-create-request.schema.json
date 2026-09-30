@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/prepared-report-create-request.schema.json",
+  "title": "PreparedReportCreateRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion", "reportKey", "version", "previousSemanticVersionId",
+    "sourceRequest", "preparationSha256", "readinessSha256", "sectionArtifactSha256"
+  ],
+  "properties": {
+    "contractVersion": { "const": "prepared-report-v1" },
+    "reportKey": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9_-]*$" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
+    "previousSemanticVersionId": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+    "sourceRequest": { "$ref": "source-backed-report-request.schema.json" },
+    "preparationSha256": { "$ref": "#/$defs/digest" },
+    "readinessSha256": { "$ref": "#/$defs/digest" },
+    "sectionArtifactSha256": { "$ref": "#/$defs/digest" }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },
+      "then": { "properties": { "previousSemanticVersionId": { "type": "null" } } },
+      "else": { "properties": { "previousSemanticVersionId": { "$ref": "#/$defs/digest" } } }
+    }
+  ],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

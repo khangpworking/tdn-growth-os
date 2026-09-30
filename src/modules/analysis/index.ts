@@ -91,6 +91,18 @@ export {
   type ReportVersionExecution,
 } from './report-version-service.js';
 export {
+  buildPreparedReportAssembly,
+  preparedReportRequestSnapshot,
+  PreparedReportAssemblyIntegrityError,
+  PreparedReportAssemblyValidationError,
+  type PreparedReportAssembly,
+  type PreparedReportAssemblyDependencies,
+  type SectionArtifactRetentionReader,
+} from './prepared-report-assembly.js';
+export {
+  buildPreparedReportSemanticContent,
+} from './prepared-report-semantic-content.js';
+export {
   AnalysisReportInterpretationReader,
   ReportInterpretationLedgerConflictError,
   ReportInterpretationLedgerIntegrityError,

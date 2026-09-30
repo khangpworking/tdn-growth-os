@@ -23,6 +23,8 @@ const contracts = [
   ['analysis', 'report-review-target'],
   ['analysis', 'report-version-create-request'],
   ['analysis', 'report-version-record'],
+  ['analysis', 'prepared-report-create-request'],
+  ['analysis', 'prepared-report-semantic-content'],
   ['analysis', 'metric-source-manifest'],
   ['analysis', 'metric-source-labels'],
   ['analysis', 'metric-input-preparation-request'],
@@ -147,13 +149,14 @@ const contracts = [
   ['flow', 'content-package-version-artifact'],
   ['flow', 'content-package-state-request'],
   ['flow', 'content-campaign-defaults-request'],
+  ['analysis', 'report-assembly-snapshot'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
     // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
-    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api'].includes(contract)
+    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api'].includes(contract)
       ? { ignoreMinAndMaxItems: true }
       : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,

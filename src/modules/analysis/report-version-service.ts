@@ -1,17 +1,34 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import type Database from 'better-sqlite3';
 import requestSchema from '../../../contracts/analysis/report-version-create-request.schema.json' with { type: 'json' };
 import recordSchema from '../../../contracts/analysis/report-version-record.schema.json' with { type: 'json' };
 import sourceRequestSchema from '../../../contracts/analysis/source-backed-report-request.schema.json' with { type: 'json' };
 import type { ReportVersionCreateRequest } from '../../../contracts/analysis/report-version-create-request.generated.js';
 import type { ReportVersionRecord } from '../../../contracts/analysis/report-version-record.generated.js';
+import type { PreparedReportCreateRequest } from '../../../contracts/analysis/prepared-report-create-request.generated.js';
 import { ContentAddressedArtifactStore, type StoredArtifact } from '../../platform/artifacts/index.js';
+import { RequestScopedArtifactStore } from '../../platform/artifacts/request-scoped-artifact-store.js';
 import { withDatabaseMutationMutex } from '../../platform/db/index.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { buildReportSemanticContent, buildUnreviewedReportState } from './report-semantic-content.js';
 import { renderResearchReportHtml } from './research-report-html.js';
 import { buildSourceBackedReport, type SourceBackedReportBundle, type SourceBackedReportDependencies } from './source-backed-report.js';
+import {
+  buildPreparedReportAssembly,
+  preparedReportRequestSnapshot,
+  type SectionArtifactRetentionReader,
+} from './prepared-report-assembly.js';
+import {
+  AnalysisMetricInputPreparationReader,
+  MetricInputPreparationService,
+  type MetricInputPreparationReader,
+} from './metric-input-preparation-service.js';
+import {
+  AnalysisSectionArtifactRetentionReader,
+  SectionArtifactRetentionLedgerService,
+} from './section-artifact-retention-ledger.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -119,9 +136,12 @@ interface PreparedVersion extends BuiltVersion {
 export class ReportVersionService {
   readonly #db: Database.Database;
   readonly #artifacts: ContentAddressedArtifactStore;
+  readonly #preparedArtifacts: RequestScopedArtifactStore;
   readonly #dependencies: SourceBackedReportDependencies;
   readonly #now: () => Date;
   readonly #uuid: () => string;
+  readonly #preparations: MetricInputPreparationReader;
+  readonly #sectionArtifacts: SectionArtifactRetentionReader;
 
   constructor(options: {
     readonly db: Database.Database;
@@ -129,12 +149,27 @@ export class ReportVersionService {
     readonly dependencies: SourceBackedReportDependencies;
     readonly now?: () => Date;
     readonly uuid?: () => string;
+    readonly preparations?: MetricInputPreparationReader;
+    readonly sectionArtifacts?: SectionArtifactRetentionReader;
   }) {
     this.#db = options.db;
     this.#artifacts = options.artifactStore;
+    this.#preparedArtifacts = new RequestScopedArtifactStore(path.dirname(path.dirname(path.dirname(
+      options.artifactStore.pathForDigest('0'.repeat(64)),
+    ))));
     this.#dependencies = options.dependencies;
     this.#now = options.now ?? (() => new Date());
     this.#uuid = options.uuid ?? randomUUID;
+    this.#preparations = options.preparations ?? new AnalysisMetricInputPreparationReader(new MetricInputPreparationService({
+      db: options.db,
+      artifactStore: options.artifactStore,
+      sourcePackages: options.dependencies.sourcePackages,
+      workspaces: options.dependencies.workspaces,
+    }));
+    this.#sectionArtifacts = options.sectionArtifacts ?? new AnalysisSectionArtifactRetentionReader(new SectionArtifactRetentionLedgerService({
+      db: options.db,
+      artifactStore: options.artifactStore,
+    }));
   }
 
   async createVersion(untrusted: unknown, catalogBytes: Buffer): Promise<ReportVersionExecution> {
@@ -142,6 +177,14 @@ export class ReportVersionService {
     const catalogSnapshot = Buffer.from(catalogBytes);
     assertCatalogBytes(request, catalogSnapshot);
     return withDatabaseMutationMutex(this.#db, async () => this.#createValidated(request, catalogSnapshot));
+  }
+
+  /** Creates a version under the prepared-report profile (research A38/A39): replays A30/A31/A37 and reuses buildSourceBackedReport for the remaining six tracks. */
+  async createPreparedVersion(untrusted: unknown, catalogBytes: Buffer): Promise<ReportVersionExecution> {
+    const request = preparedReportRequestSnapshot(untrusted);
+    const catalogSnapshot = Buffer.from(catalogBytes);
+    assertPreparedCatalogBytes(request, catalogSnapshot);
+    return withDatabaseMutationMutex(this.#db, async () => this.#createPreparedValidated(request, catalogSnapshot));
   }
 
   async #createValidated(request: ReportVersionCreateRequest, catalogBytes: Buffer): Promise<ReportVersionExecution> {
@@ -257,6 +300,133 @@ export class ReportVersionService {
     return result;
   }
 
+  async #createPreparedValidated(request: PreparedReportCreateRequest, catalogBytes: Buffer): Promise<ReportVersionExecution> {
+    const requestSha256 = digest(canonicalBytes(request, false));
+    const existing = this.#versionByKey(request.reportKey, request.version);
+    if (existing) return this.#verifiedRetryPrepared(request, catalogBytes, requestSha256, existing);
+
+    const series = this.#seriesByKey(request.reportKey);
+    this.#assertNextVersionPrepared(request, series);
+    const duplicateRequest = series ? this.#versionByRequest(series.reportId, requestSha256) : undefined;
+    if (duplicateRequest) throw new ReportVersionIdentityConflictError('The exact report request already belongs to another version');
+
+    return this.#preparedArtifacts.withOwnership(
+      async () => this.#persistPreparedVersion(request, catalogBytes, requestSha256, series),
+    );
+  }
+
+  async #persistPreparedVersion(
+    request: PreparedReportCreateRequest,
+    catalogBytes: Buffer,
+    requestSha256: string,
+    series: SeriesRow | undefined,
+  ): Promise<ReportVersionExecution> {
+
+    const prepared = await this.#preparePrepared(request, catalogBytes);
+    const createdAt = exactTimestamp(this.#now());
+    const stagedReportId = series?.reportId ?? validUuid(this.#uuid());
+    const stagedVersionId = validUuid(this.#uuid());
+
+    this.#db.exec('BEGIN IMMEDIATE');
+    let result: ReportVersionExecution;
+    try {
+      const concurrentVersion = this.#versionByKey(request.reportKey, request.version);
+      if (concurrentVersion) {
+        if (concurrentVersion.requestSha256 !== requestSha256) {
+          throw new ReportVersionIdentityConflictError('Report version already exists with changed content');
+        }
+        result = execution(concurrentVersion, true, 0);
+      } else {
+        const concurrentSeries = this.#seriesByKey(request.reportKey);
+        this.#assertNextVersionPrepared(request, concurrentSeries);
+        const reportId = concurrentSeries?.reportId ?? stagedReportId;
+        let databaseMutations = 0;
+        if (!concurrentSeries) {
+          databaseMutations += this.#db.prepare(`
+            INSERT INTO analysis_report_series(report_id, report_key, workspace_id, created_at) VALUES (?, ?, ?, ?)
+          `).run(reportId, request.reportKey, request.sourceRequest.workspaceId, createdAt).changes;
+        }
+
+        for (const [name, stored] of prepared.stored) {
+          databaseMutations += this.#registerArtifact(stored, mediaType(name), createdAt);
+        }
+
+        const requestArtifact = requiredStored(prepared.stored, 'create-request.json');
+        const envelope = requiredStored(prepared.stored, 'evidence-envelope.json');
+        const semantic = requiredStored(prepared.stored, 'semantic-content.json');
+        const review = requiredStored(prepared.stored, 'review-state.json');
+        const insertArtifact = this.#db.prepare(`
+          INSERT INTO analysis_report_version_artifacts(
+            report_id, version, file_name, artifact_sha256, media_type, byte_size
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        for (const [name, stored] of [...prepared.stored].sort(([a], [b]) => compare(a, b))) {
+          databaseMutations += insertArtifact.run(reportId, request.version, name, stored.sha256, mediaType(name), stored.byteSize).changes;
+        }
+
+        const insertSource = this.#db.prepare(`
+          INSERT INTO analysis_report_version_sources(
+            report_id, version, ordinal, role, logical_path, source_sha256
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        const insertSupplementalSource = this.#db.prepare(`
+          INSERT INTO analysis_report_version_supplemental_sources(
+            report_id, version, ordinal, role, logical_path, source_sha256
+          ) VALUES (?, ?, ?, ?, ?, ?)
+        `);
+        let sourceCount = 0;
+        let supplementalSourceCount = 0;
+        for (const [ordinal, source] of prepared.bundle.envelope.selectedSources.entries()) {
+          const insert = isSupplementalSourceRole(source.role) ? insertSupplementalSource : insertSource;
+          if (isSupplementalSourceRole(source.role)) supplementalSourceCount += 1;
+          else sourceCount += 1;
+          databaseMutations += insert.run(
+            reportId, request.version, ordinal, source.role, source.logicalPath, source.sha256,
+          ).changes;
+        }
+        databaseMutations += this.#db.prepare(`
+          INSERT INTO analysis_report_versions(
+            version_id, report_id, version, previous_semantic_version_id, semantic_version_id,
+            request_sha256, request_artifact_sha256, evidence_envelope_sha256,
+            semantic_content_sha256, review_state_sha256,
+            workspace_id, workspace_snapshot_sha256, source_package_id,
+            source_package_manifest_sha256, package_content_sha256, artifact_count, source_count,
+            supplemental_source_count,
+            interpretation_state, review_state, created_at
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'NONE', 'UNREVIEWED', ?)
+        `).run(
+          stagedVersionId, reportId, request.version, request.previousSemanticVersionId,
+          prepared.semanticVersionId, requestSha256, requestArtifact.sha256, envelope.sha256,
+          semantic.sha256, review.sha256, prepared.bundle.envelope.workspace.workspaceId,
+          prepared.bundle.envelope.workspace.snapshotSha256, prepared.bundle.envelope.sourcePackage.packageId,
+          prepared.bundle.envelope.sourcePackage.manifestArtifactSha256,
+          prepared.bundle.envelope.sourcePackage.packageContentSha256,
+          prepared.stored.size, sourceCount, supplementalSourceCount, createdAt,
+        ).changes;
+        result = {
+          reportId,
+          versionId: stagedVersionId,
+          version: request.version,
+          semanticVersionId: prepared.semanticVersionId,
+          deduplicated: false,
+          databaseMutations,
+        };
+      }
+      this.#db.exec('COMMIT');
+    } catch (error) {
+      if (this.#db.inTransaction) this.#db.exec('ROLLBACK');
+      throw error;
+    }
+
+    await this.#readVerifiedVersion(result.reportId, result.version, this.#preparedArtifacts);
+    await this.#preparedArtifacts.publishOwned();
+    const verified = await this.readVersion(result.reportId, result.version);
+    if (verified.versionId !== result.versionId || verified.semanticVersionId !== result.semanticVersionId) {
+      throw new ReportVersionIntegrityError('Persisted report version does not match its receipt');
+    }
+    return result;
+  }
+
   async readVersion(reportId: string, version: number): Promise<ReportVersionRecord> {
     return (await this.#readVerifiedVersion(reportId, version)).record;
   }
@@ -266,18 +436,22 @@ export class ReportVersionService {
     return this.#readVerifiedVersion(reportId, version);
   }
 
-  async #readVerifiedVersion(reportId: string, version: number): Promise<VerifiedReportInterpretationSource> {
+  async #readVerifiedVersion(
+    reportId: string,
+    version: number,
+    artifacts: ContentAddressedArtifactStore = this.#artifacts,
+  ): Promise<VerifiedReportInterpretationSource> {
     assertUuid(reportId, 'reportId');
     assertVersion(version);
     const row = this.#versionById(reportId, version);
     if (!row) throw new ReportVersionValidationError('Report version not found');
 
-    const requestBytes = await this.#readRegisteredArtifact(row.requestArtifactSha256, JSON_MEDIA);
-    const request = parseCanonicalRequest(requestBytes);
+    const requestBytes = await this.#readRegisteredArtifact(row.requestArtifactSha256, JSON_MEDIA, artifacts);
+    const parsedRequest = parseCanonicalAnyRequest(requestBytes);
     if (
-      request.reportKey !== row.reportKey || request.version !== Number(row.version) ||
-      request.previousSemanticVersionId !== row.previousSemanticVersionId ||
-      digest(canonicalBytes(request, false)) !== row.requestSha256
+      parsedRequest.request.reportKey !== row.reportKey || parsedRequest.request.version !== Number(row.version) ||
+      parsedRequest.request.previousSemanticVersionId !== row.previousSemanticVersionId ||
+      digest(canonicalBytes(parsedRequest.request, false)) !== row.requestSha256
     ) throw new ReportVersionIntegrityError('Report request does not match immutable metadata');
 
     const artifactRows = this.#artifactRows(reportId, version);
@@ -289,14 +463,16 @@ export class ReportVersionService {
       if (artifact.mediaType !== mediaType(artifact.fileName)) {
         throw new ReportVersionIntegrityError('Report artifact media type does not match its file name');
       }
-      const bytes = await this.#readRegisteredArtifact(artifact.sha256, artifact.mediaType);
+      const bytes = await this.#readRegisteredArtifact(artifact.sha256, artifact.mediaType, artifacts);
       if (BigInt(bytes.byteLength) !== artifact.byteSize) throw new ReportVersionIntegrityError('Report artifact byte size mismatch');
       storedFiles.set(artifact.fileName, bytes);
     }
     const catalogBytes = requiredFile(storedFiles, 'section-catalog.json');
     let expected: BuiltVersion;
     try {
-      expected = await this.#build(request, catalogBytes);
+      expected = parsedRequest.profile === 'v1'
+        ? await this.#build(parsedRequest.request, catalogBytes)
+        : await this.#buildPrepared(parsedRequest.request, catalogBytes);
     } catch (error) {
       if (error instanceof ReportVersionIntegrityError) throw error;
       throw new ReportVersionIntegrityError('Report version cannot be replayed through its owning readers', { cause: error });
@@ -427,6 +603,38 @@ export class ReportVersionService {
     };
   }
 
+  async #verifiedRetryPrepared(
+    request: PreparedReportCreateRequest,
+    catalogBytes: Buffer,
+    requestSha256: string,
+    row: VersionRow,
+  ): Promise<ReportVersionExecution> {
+    if (row.requestSha256 !== requestSha256) {
+      throw new ReportVersionIdentityConflictError('Report version already exists with changed content');
+    }
+    let verified: ReportVersionRecord;
+    try {
+      verified = await this.readVersion(row.reportId, Number(row.version));
+    } catch (error) {
+      if (!(error instanceof ReportVersionIntegrityError) ||
+          !(error.cause instanceof Error) || (error.cause as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      verified = await this.#preparedArtifacts.withOwnership(async () => {
+        await this.#preparePrepared(request, catalogBytes);
+        await this.#readVerifiedVersion(row.reportId, Number(row.version), this.#preparedArtifacts);
+        await this.#preparedArtifacts.publishOwned();
+        return this.readVersion(row.reportId, Number(row.version));
+      });
+    }
+    return {
+      reportId: verified.reportId,
+      versionId: verified.versionId,
+      version: verified.version,
+      semanticVersionId: verified.semanticVersionId,
+      deduplicated: true,
+      databaseMutations: 0,
+    };
+  }
+
   async #build(request: ReportVersionCreateRequest, catalogBytes: Buffer): Promise<BuiltVersion> {
     const bundle = await buildSourceBackedReport(request.sourceRequest, catalogBytes, this.#dependencies);
     const semantic = buildReportSemanticContent(bundle);
@@ -467,7 +675,89 @@ export class ReportVersionService {
     return { ...built, stored };
   }
 
+  async #buildPrepared(request: PreparedReportCreateRequest, catalogBytes: Buffer): Promise<BuiltVersion> {
+    const assembly = await buildPreparedReportAssembly(request, catalogBytes, {
+      ...this.#dependencies,
+      preparations: this.#preparations,
+      sectionArtifacts: this.#sectionArtifacts,
+    });
+    const review = buildUnreviewedReportState(assembly.semanticVersionId);
+    const files = new Map(assembly.bundle.files);
+    files.set('create-request.json', canonicalBytes(request));
+    files.set('evidence-envelope.json', assembly.bundle.envelopeBytes);
+    files.set('semantic-content.json', assembly.semanticContentBytes);
+    files.set('review-state.json', review.stateBytes);
+    files.set('assembly-snapshot.json', assembly.assemblyBytes);
+    files.set('report.html', Buffer.from(assembly.assemblyHtml, 'utf8'));
+    files.set('preparation-result.json', canonicalBytes(assembly.preparation.result));
+    files.set('readiness-result.json', canonicalBytes(assembly.readiness));
+    files.set('retained-section-artifact.json', canonicalBytes(assembly.retainedM03.record));
+    const retainedMembers = [
+      ['metricSet', 'retained-m03-metric-set.json'],
+      ['chartBundle', 'retained-m03-chart-bundle.json'],
+      ['envelope', 'retained-m03-evidence-envelope.json'],
+      ['narrative', 'retained-m03-factual-narrative.json'],
+      ['receipt', 'retained-m03-section-artifact.json'],
+      ['html', 'retained-m03-section.html'],
+    ] as const;
+    for (const [role, name] of retainedMembers) {
+      const member = assembly.retainedM03.record.members[role];
+      const bytes = await this.#readRegisteredArtifact(member.artifactSha256, mediaType(name));
+      if (bytes.byteLength !== member.byteSize) {
+        throw new ReportVersionIntegrityError('Retained M03 member byte size does not match its record');
+      }
+      files.set(name, bytes);
+    }
+    const exportManifest = {
+      contractVersion: 'prepared-report-export-v1',
+      rendererVersion: 'report-assembly-html-vi-v1',
+      approvalState: 'UNREVIEWED',
+      semanticVersionId: assembly.semanticVersionId,
+      reviewStateSha256: digest(review.stateBytes),
+      files: [...files].sort(([left], [right]) => compare(left, right)).map(([name, bytes]) => ({
+        name,
+        byteSize: bytes.byteLength,
+        sha256: digest(bytes),
+      })),
+    };
+    files.set('export-manifest.json', canonicalBytes(exportManifest));
+    if (files.size > 40) throw new ReportVersionValidationError('Prepared report exceeds the artifact count limit');
+    for (const [name, bytes] of files) {
+      if (!/^[a-z0-9._-]{1,120}$/.test(name)) throw new ReportVersionValidationError('Unsafe report artifact name');
+      if (bytes.byteLength > MAX_ARTIFACT_BYTES) throw new ReportVersionValidationError('Report artifact exceeds the size limit');
+    }
+    return { bundle: assembly.bundle, semanticVersionId: assembly.semanticVersionId, files };
+  }
+
+  async #preparePrepared(request: PreparedReportCreateRequest, catalogBytes: Buffer): Promise<PreparedVersion> {
+    const built = await this.#buildPrepared(request, catalogBytes);
+    const stored = new Map<string, StoredArtifact>();
+    for (const [name, bytes] of built.files) {
+      stored.set(name, await this.#preparedArtifacts.put(bytes));
+    }
+    return { ...built, stored };
+  }
+
   #assertNextVersion(request: ReportVersionCreateRequest, series: SeriesRow | undefined): void {
+    if (!series) {
+      if (request.version !== 1 || request.previousSemanticVersionId !== null) {
+        throw new ReportVersionValidationError('A new report series must start at version 1 without a predecessor');
+      }
+      return;
+    }
+    if (series.workspaceId !== request.sourceRequest.workspaceId) {
+      throw new ReportVersionIdentityConflictError('A report series cannot move between discovery workspaces');
+    }
+    const latest = this.#db.prepare(`
+      SELECT version, semantic_version_id semanticVersionId
+      FROM analysis_report_versions WHERE report_id = ? ORDER BY version DESC LIMIT 1
+    `).get(series.reportId) as { version: bigint; semanticVersionId: string } | undefined;
+    if (!latest || request.version !== Number(latest.version) + 1 || request.previousSemanticVersionId !== latest.semanticVersionId) {
+      throw new ReportVersionValidationError('Report version must explicitly continue the current predecessor');
+    }
+  }
+
+  #assertNextVersionPrepared(request: PreparedReportCreateRequest, series: SeriesRow | undefined): void {
     if (!series) {
       if (request.version !== 1 || request.previousSemanticVersionId !== null) {
         throw new ReportVersionValidationError('A new report series must start at version 1 without a predecessor');
@@ -508,7 +798,11 @@ export class ReportVersionService {
     return result.changes;
   }
 
-  async #readRegisteredArtifact(sha256: string, type: string): Promise<Buffer> {
+  async #readRegisteredArtifact(
+    sha256: string,
+    type: string,
+    artifacts: ContentAddressedArtifactStore = this.#artifacts,
+  ): Promise<Buffer> {
     assertDigest(sha256, 'artifactSha256');
     const row = this.#db.prepare(`
       SELECT byte_size byteSize, media_type mediaType, relative_path relativePath,
@@ -518,8 +812,8 @@ export class ReportVersionService {
       byteSize: bigint; mediaType: string; relativePath: string; contractVersion: string; retentionStatus: string;
     } | undefined;
     let bytes: Buffer;
-    try { bytes = await this.#artifacts.read(sha256, { maxBytes: MAX_ARTIFACT_BYTES }); }
-    catch { throw new ReportVersionIntegrityError('Report artifact is missing or corrupt'); }
+    try { bytes = await artifacts.read(sha256, { maxBytes: MAX_ARTIFACT_BYTES }); }
+    catch (error) { throw new ReportVersionIntegrityError('Report artifact is missing or corrupt', { cause: error }); }
     if (!row || row.byteSize !== BigInt(bytes.byteLength) || row.mediaType !== type ||
         row.relativePath !== `sha256/${sha256.slice(0, 2)}/${sha256}` || row.contractVersion !== '1.0.0' ||
         row.retentionStatus !== 'active' || digest(bytes) !== sha256) {
@@ -628,6 +922,15 @@ function assertCatalogBytes(request: ReportVersionCreateRequest, catalogBytes: B
   }
 }
 
+function assertPreparedCatalogBytes(request: PreparedReportCreateRequest, catalogBytes: Buffer): void {
+  if (catalogBytes.byteLength > MAX_ARTIFACT_BYTES) {
+    throw new ReportVersionValidationError('Section catalog exceeds the size limit');
+  }
+  if (digest(catalogBytes) !== request.sourceRequest.catalogSha256) {
+    throw new ReportVersionValidationError('Section catalog bytes do not match the declared digest');
+  }
+}
+
 function parseCanonicalRequest(bytes: Buffer): ReportVersionCreateRequest {
   let parsed: unknown;
   try { parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
@@ -637,6 +940,26 @@ function parseCanonicalRequest(bytes: Buffer): ReportVersionCreateRequest {
   catch (error) { throw new ReportVersionIntegrityError('Report request artifact breaks its contract', { cause: error }); }
   if (!bytes.equals(canonicalBytes(request))) throw new ReportVersionIntegrityError('Report request artifact is not canonical JSON');
   return request;
+}
+
+/**
+ * Dispatches a stored create-request.json to its owning profile by trying the
+ * v1 schema first, then the prepared-report schema. Both are closed contracts
+ * with distinct `contractVersion` consts, so a byte-identical stored request
+ * can only validate against one of them; anything else fails closed.
+ */
+function parseCanonicalAnyRequest(bytes: Buffer):
+  | { readonly profile: 'v1'; readonly request: ReportVersionCreateRequest }
+  | { readonly profile: 'prepared'; readonly request: PreparedReportCreateRequest } {
+  let parsed: unknown;
+  try { parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
+  catch { throw new ReportVersionIntegrityError('Report request artifact is invalid JSON'); }
+  if (validateRequest(parsed)) return { profile: 'v1', request: parseCanonicalRequest(bytes) };
+  let request: PreparedReportCreateRequest;
+  try { request = preparedReportRequestSnapshot(parsed); }
+  catch (error) { throw new ReportVersionIntegrityError('Report request artifact breaks every known contract', { cause: error }); }
+  if (!bytes.equals(canonicalBytes(request))) throw new ReportVersionIntegrityError('Report request artifact is not canonical JSON');
+  return { profile: 'prepared', request };
 }
 
 function assertExactFiles(expected: ReadonlyMap<string, Buffer>, actual: ReadonlyMap<string, Buffer>): void {

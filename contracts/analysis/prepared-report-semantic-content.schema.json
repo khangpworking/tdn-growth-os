@@ -1,0 +1,133 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/prepared-report-semantic-content.schema.json",
+  "title": "PreparedReportSemanticContent",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion", "semanticVersionId", "policyVersion",
+    "sourceLayer", "calculationLayer", "preparationLayer", "readinessLayer",
+    "retainedSectionLayer", "assemblyLayer", "interpretationLayer", "limitations"
+  ],
+  "properties": {
+    "contractVersion": { "const": "prepared-report-v1" },
+    "semanticVersionId": { "$ref": "#/$defs/digest" },
+    "policyVersion": { "const": "prepared-report-semantic-content-v1" },
+    "sourceLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspaceId", "sourceEvidenceSha256", "sourcePackageId", "sourcePackageManifestSha256", "packageContentSha256", "selectedSourceSha256s"],
+      "properties": {
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "sourceEvidenceSha256": { "$ref": "#/$defs/digest" },
+        "sourcePackageId": { "type": "string", "format": "uuid" },
+        "sourcePackageManifestSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "selectedSourceSha256s": {
+          "type": "array", "minItems": 2, "maxItems": 20, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/digest" }
+        }
+      }
+    },
+    "calculationLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packetPolicyVersion", "metricMethodVersion", "metricRounding", "normalizedInputSha256", "metricResultContentSha256", "catalogContentSha256", "claimsSha256", "chartContentSha256", "chartSpecContentSha256", "sections"],
+      "properties": {
+        "packetPolicyVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "metricMethodVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "metricRounding": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "normalizedInputSha256": { "$ref": "#/$defs/digest" },
+        "metricResultContentSha256": { "$ref": "#/$defs/digest" },
+        "catalogContentSha256": { "$ref": "#/$defs/digest" },
+        "claimsSha256": { "$ref": "#/$defs/digest" },
+        "chartContentSha256": { "$ref": "#/$defs/digest" },
+        "chartSpecContentSha256": { "$ref": "#/$defs/digest" },
+        "sections": {
+          "type": "array", "minItems": 1, "maxItems": 100,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["sectionId", "sectionContentSha256", "deliveryState"],
+            "properties": {
+              "sectionId": { "type": "string", "minLength": 1, "maxLength": 10 },
+              "sectionContentSha256": { "$ref": "#/$defs/digest" },
+              "deliveryState": {
+                "enum": ["PARTIAL_DETERMINISTIC_DRAFT", "METHOD_ONLY", "BLOCKED", "MANUAL_REVIEW_REQUIRED", "NOT_IMPLEMENTED"]
+              }
+            }
+          }
+        }
+      }
+    },
+    "preparationLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["preparationSha256", "workspaceId", "sourcePackageId", "sourcePackageManifestSha256", "packageContentSha256", "normalizedInputSha256", "normalizedInputValueSha256", "normalizationReceiptSha256"],
+      "properties": {
+        "preparationSha256": { "$ref": "#/$defs/digest" },
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "sourcePackageId": { "type": "string", "format": "uuid" },
+        "sourcePackageManifestSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "normalizedInputSha256": { "$ref": "#/$defs/digest" },
+        "normalizedInputValueSha256": { "$ref": "#/$defs/digest" },
+        "normalizationReceiptSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "readinessLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["readinessSha256", "readinessProfile", "catalogId", "catalogVersion", "catalogSha256", "totalSections", "readyToCalculate", "blocked", "invalid"],
+      "properties": {
+        "readinessSha256": { "$ref": "#/$defs/digest" },
+        "readinessProfile": { "const": "metric-preparation-readiness-v1" },
+        "catalogId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "catalogVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "catalogSha256": { "$ref": "#/$defs/digest" },
+        "totalSections": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "readyToCalculate": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "blocked": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "invalid": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    },
+    "retainedSectionLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionId", "sectionArtifactSha256", "preparationSha256", "metricSetSha256", "chartBundleSha256", "envelopeSha256", "narrativeSha256", "htmlSha256"],
+      "properties": {
+        "sectionId": { "const": "M03" },
+        "sectionArtifactSha256": { "$ref": "#/$defs/digest" },
+        "preparationSha256": { "$ref": "#/$defs/digest" },
+        "metricSetSha256": { "$ref": "#/$defs/digest" },
+        "chartBundleSha256": { "$ref": "#/$defs/digest" },
+        "envelopeSha256": { "$ref": "#/$defs/digest" },
+        "narrativeSha256": { "$ref": "#/$defs/digest" },
+        "htmlSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "assemblyLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assemblySha256"],
+      "properties": {
+        "assemblySha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "interpretationLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "artifacts"],
+      "properties": {
+        "state": { "const": "NONE" },
+        "artifacts": { "type": "array", "maxItems": 0 }
+      }
+    },
+    "limitations": {
+      "type": "array", "minItems": 2, "maxItems": 20, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

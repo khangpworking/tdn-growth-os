@@ -9,7 +9,11 @@ const root = process.env.TDN_RESEARCH_PREVIEW_DIR;
 if (process.platform !== 'linux' || !process.env.CI || !root || !path.isAbsolute(root)) {
   throw new Error('This capture helper runs only for an explicit Linux CI preview directory');
 }
-const report = path.join(root, 'source-backed-report-fixture', 'report.html');
+const relativeReport = process.env.TDN_RESEARCH_PREVIEW_REPORT ?? 'source-backed-report-fixture/report.html';
+const report = path.resolve(root, relativeReport);
+if (!report.startsWith(path.resolve(root) + path.sep) || path.extname(report) !== '.html') {
+  throw new Error('Preview report must be an HTML file inside the explicit preview directory');
+}
 await fs.access(report);
 const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-research-chrome-'));
 const browser = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu',

@@ -671,7 +671,7 @@ closed. Đây thuần là lớp lưu trữ (layer-two retention): không tạo r
 version, interpretation, review target, quyết định duyệt của con người, PDF,
 UI/API hay deployment nào.
 
-### A38 — Assembly snapshot đóng băng đủ 30 section nhưng chưa tạo report version mới
+### A38 — Assembly snapshot đóng băng đủ 30 section nhưng chưa tạo report version mới (superseded)
 
 A38 tạo một `ReportAssemblySnapshot` canonical từ đúng một A10 report version,
 exact catalog bytes/digest, một A30 preparation, A31 readiness được tính lại từ
@@ -689,3 +689,24 @@ version; A38 không tạo ledger/version sequence thứ hai và không chọn `l
 A39 mới được phép dùng exact snapshot này để tạo version kế tiếp trong ledger
 A10. Khi section hoàn thành sau, hệ thống tạo snapshot và A10 version mới, tuyệt
 đối không sửa snapshot hoặc lịch sử A10 cũ.
+
+### A38/A39 acceleration revision, approved 2026-09-30
+
+Owner approved replacing the JSON-only A38 delivery sequence with one integrated
+prepared-source -> bounded section outputs -> HTML -> immutable A10 version
+batch. Reuse M02/M03/M04/M08-P4/M13/I03/I17; do not count missing prerequisites
+as completed sections. The first report does not require a prior report; later
+versions retain the exact predecessor rule. All 30 readiness/delivery states
+remain explicit, with DRAFT_PARTIAL/NONE/UNREVIEWED authority. Historical v1
+report and section readers remain intact through versioned dispatch. The former
+A38 restriction to M03-only materialization and later separate A39 persistence
+delivery is superseded, not the evidence or immutable-history guarantees.
+
+Implementation proceeds in disjoint Claude lanes; Codex coordinates contracts,
+independent tests, Linux CI and review. No Windows tests/build/typecheck, provider
+calls, deployment or automatic merge. The business-method session remains the
+owner of section methods and claim limits. See research-a38-integrated-report-delivery.md.
+
+After the Claude lanes reached quota, the owner explicitly authorized GPT to
+take over the remaining production code. This changes implementation ownership,
+not the accepted methods, report scope or Linux-only verification constraints.

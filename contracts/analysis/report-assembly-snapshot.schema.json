@@ -1,0 +1,271 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-assembly-snapshot.schema.json",
+  "title": "ReportAssemblySnapshot",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion", "assemblyProfile", "assemblySha256", "lifecycle",
+    "preparationSha256", "readinessSha256", "catalog", "source", "m03", "sections"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "assemblyProfile": { "const": "report-assembly-snapshot-v1" },
+    "assemblySha256": { "$ref": "#/$defs/digest" },
+    "lifecycle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "interpretation", "reviewState", "finalityStatement"],
+      "properties": {
+        "status": { "const": "DRAFT_PARTIAL" },
+        "interpretation": { "const": "NONE" },
+        "reviewState": { "const": "UNREVIEWED" },
+        "finalityStatement": { "const": "NOT_FINAL_NOT_PUBLISHABLE_NOT_COMMERCIAL_READY" }
+      }
+    },
+    "preparationSha256": { "$ref": "#/$defs/digest" },
+    "readinessSha256": { "$ref": "#/$defs/digest" },
+    "catalog": { "$ref": "#/$defs/catalogIdentity" },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId", "workspaceSnapshotSha256", "sourcePackageId", "sourcePackageManifestSha256",
+        "sourcePackageContentSha256", "normalizedInputArtifactSha256", "normalizedInputValueSha256",
+        "scope", "labelPolicy"
+      ],
+      "properties": {
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "workspaceSnapshotSha256": { "$ref": "#/$defs/digest" },
+        "sourcePackageId": { "type": "string", "format": "uuid" },
+        "sourcePackageManifestSha256": { "$ref": "#/$defs/digest" },
+        "sourcePackageContentSha256": { "$ref": "#/$defs/digest" },
+        "normalizedInputArtifactSha256": { "$ref": "#/$defs/digest" },
+        "normalizedInputValueSha256": { "$ref": "#/$defs/digest" },
+        "scope": { "$ref": "#/$defs/scope" },
+        "labelPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["codebookVersion", "wideUnknownPolicy"],
+          "properties": {
+            "codebookVersion": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "wideUnknownPolicy": { "enum": ["include", "exclude"] }
+          }
+        }
+      }
+    },
+    "m03": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionArtifactSha256", "preparationSha256", "readinessSha256", "members", "scopeTotals"],
+      "properties": {
+        "sectionArtifactSha256": { "$ref": "#/$defs/digest" },
+        "preparationSha256": { "$ref": "#/$defs/digest" },
+        "readinessSha256": { "$ref": "#/$defs/digest" },
+        "members": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["metricSet", "chartBundle", "envelope", "narrative", "receipt", "html"],
+          "properties": {
+            "metricSet": { "$ref": "#/$defs/member" },
+            "chartBundle": { "$ref": "#/$defs/member" },
+            "envelope": { "$ref": "#/$defs/member" },
+            "narrative": { "$ref": "#/$defs/member" },
+            "receipt": { "$ref": "#/$defs/member" },
+            "html": { "$ref": "#/$defs/member" }
+          }
+        },
+        "scopeTotals": {
+          "type": "array",
+          "minItems": 3,
+          "maxItems": 3,
+          "items": { "$ref": "#/$defs/scopeTotal" }
+        }
+      }
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 30,
+      "maxItems": 30,
+      "items": { "$ref": "#/$defs/sectionEntry" }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactSha256", "byteSize"],
+      "properties": {
+        "artifactSha256": { "$ref": "#/$defs/digest" },
+        "byteSize": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "catalogIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalogId", "catalogVersion", "sha256"],
+      "properties": {
+        "catalogId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "catalogVersion": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "platform", "selection", "start", "end", "periodBasis"],
+      "properties": {
+        "key": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "platform": { "enum": ["shopee", "tiktok"] },
+        "selection": { "enum": ["ON", "OFF", "UNSPECIFIED"] },
+        "start": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "end": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "periodBasis": { "type": "string", "minLength": 1, "maxLength": 100 }
+      }
+    },
+    "total": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["value", "observedCount", "missingCount", "nonExactCount", "complete"],
+      "properties": {
+        "value": { "anyOf": [{ "type": "string" }, { "type": "null" }] },
+        "observedCount": { "type": "integer", "minimum": 0 },
+        "missingCount": { "type": "integer", "minimum": 0 },
+        "nonExactCount": { "type": "integer", "minimum": 0 },
+        "complete": { "type": "boolean" }
+      }
+    },
+    "scopeTotal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "listingCount", "shopCount", "revenue", "units", "warnings"],
+      "properties": {
+        "key": { "enum": ["all", "wide", "core"] },
+        "listingCount": { "type": "integer", "minimum": 0 },
+        "shopCount": { "type": "integer", "minimum": 0 },
+        "revenue": { "$ref": "#/$defs/total" },
+        "units": { "$ref": "#/$defs/total" },
+        "warnings": {
+          "type": "array", "maxItems": 20,
+          "items": {
+            "enum": [
+              "EMPTY_SCOPE", "MISSING_REVENUE", "MISSING_UNITS", "NON_EXACT_REVENUE",
+              "NON_EXACT_UNITS", "ZERO_REVENUE", "LABELS_REQUIRE_ADJUDICATION"
+            ]
+          }
+        }
+      }
+    },
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "locator", "sha256"],
+      "properties": {
+        "kind": { "enum": ["PREPARATION_RESULT", "NORMALIZED_INPUT", "NORMALIZATION_RECEIPT", "SOURCE_PACKAGE", "SELECTED_SOURCE"] },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "inputCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputId", "state", "blocking", "codes", "evidenceRefs"],
+      "properties": {
+        "inputId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "state": { "enum": ["PRESENT", "ABSENT", "INVALID"] },
+        "blocking": { "type": "boolean" },
+        "codes": {
+          "type": "array", "minItems": 1, "maxItems": 20,
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "evidenceRefs": {
+          "type": "array", "maxItems": 20,
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        }
+      }
+    },
+    "methodArtifactRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "sha256", "methodOutputId"],
+      "properties": {
+        "fileName": {
+          "enum": [
+            "m02-scope-method.json", "m08-tablet-quote-method.json", "m13-provenance-appendix.json",
+            "i03-research-method.json", "i17-evidence-trace.json"
+          ]
+        },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "methodOutputId": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "sectionEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionId", "title", "catalog", "readiness", "materialization", "readinessBlockedWhileMaterialized"],
+      "properties": {
+        "sectionId": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "catalog": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["fallbackState", "fallbackReasons"],
+          "properties": {
+            "fallbackState": { "enum": ["BLOCKED", "METHOD_ONLY", "MANUAL_REVIEW_REQUIRED", "NOT_IMPLEMENTED"] },
+            "fallbackReasons": {
+              "type": "array", "minItems": 1, "maxItems": 20,
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+            }
+          }
+        },
+        "readiness": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "methodId", "methodVersion", "requiredInputs", "blockingCodes", "inputChecks"],
+          "properties": {
+            "state": { "enum": ["READY_TO_CALCULATE", "BLOCKED", "INVALID"] },
+            "methodId": { "type": "string", "minLength": 1, "maxLength": 100 },
+            "methodVersion": { "type": "string", "minLength": 1, "maxLength": 40 },
+            "requiredInputs": {
+              "type": "array", "maxItems": 20,
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+            },
+            "blockingCodes": {
+              "type": "array", "maxItems": 100,
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+            },
+            "inputChecks": {
+              "type": "array", "maxItems": 20,
+              "items": { "$ref": "#/$defs/inputCheck" }
+            }
+          }
+        },
+        "materialization": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deliveryState", "materialized", "claimIds", "contextPointers", "blockers", "sectionSha256", "methodArtifact"],
+          "properties": {
+            "deliveryState": { "enum": ["PARTIAL_DETERMINISTIC_DRAFT", "METHOD_ONLY", "BLOCKED", "MANUAL_REVIEW_REQUIRED", "NOT_IMPLEMENTED"] },
+            "materialized": { "type": "boolean" },
+            "claimIds": {
+              "type": "array", "maxItems": 100,
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+            },
+            "contextPointers": {
+              "type": "array", "maxItems": 10,
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+            },
+            "blockers": {
+              "type": "array", "maxItems": 50,
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+            },
+            "sectionSha256": { "$ref": "#/$defs/digest" },
+            "methodArtifact": { "anyOf": [{ "$ref": "#/$defs/methodArtifactRef" }, { "type": "null" }] }
+          }
+        },
+        "readinessBlockedWhileMaterialized": { "type": "boolean" }
+      }
+    }
+  }
+}

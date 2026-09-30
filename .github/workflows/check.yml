@@ -2,8 +2,10 @@ name: Check
 
 on:
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
     branches:
       - main
+      - 'feature/research-*'
   push:
     branches:
       - main
@@ -32,5 +34,44 @@ jobs:
       - name: Install locked dependencies
         run: npm ci
 
-      - name: Run repository checks
+      - name: Select validation scope
+        id: scope
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.ref }}
+          DRAFT: ${{ github.event.pull_request.draft }}
+          FULL_REQUESTED: ${{ contains(github.event.pull_request.labels.*.name, 'run-full-check') }}
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        shell: bash
+        run: |
+          mode=full
+          if [[ "$EVENT" == pull_request && "$BASE" == feature/research-* && "$DRAFT" == true && "$FULL_REQUESTED" != true ]]; then
+            git fetch --no-tags origin "$BASE_SHA" "$HEAD_SHA"
+            mode=research
+            while IFS= read -r file; do
+              case "$file" in
+                docs/*.md|INTENT.md|README.md) ;;
+                src/modules/analysis/m02-*|src/modules/analysis/m03-*|src/modules/analysis/m08-*|src/modules/analysis/m13-*|src/modules/analysis/i03-*|src/modules/analysis/i17-*|src/modules/analysis/metric-*|src/modules/analysis/report-*|src/modules/analysis/research-report-*|src/modules/analysis/research-chart-spec.ts|src/modules/analysis/source-backed-report.ts|src/modules/analysis/versioned-report-packet.ts|src/modules/analysis/section-artifact-retention-ledger.ts|src/modules/analysis/tablet-quote-normalizer.ts) ;;
+                contracts/analysis/m02-*|contracts/analysis/m03-*|contracts/analysis/m08-*|contracts/analysis/m13-*|contracts/analysis/i03-*|contracts/analysis/i17-*|contracts/analysis/metric-*|contracts/analysis/report-*|contracts/analysis/research-report-*|contracts/analysis/research-chart-*|contracts/analysis/source-backed-report*|contracts/analysis/versioned-report*|contracts/analysis/section-artifact-*|contracts/analysis/tablet-quote-*) ;;
+                tests/unit/metric-*|tests/unit/m02-*|tests/unit/m03-*|tests/unit/m08-*|tests/unit/m13-*|tests/unit/i03-*|tests/unit/i17-*|tests/unit/report-*|tests/unit/research-*|tests/unit/versioned-report*|tests/unit/tablet-quote-*|tests/unit/private-report-bundle*|tests/integration/metric-*|tests/integration/report-*|tests/integration/research-*|tests/integration/source-backed-report*|tests/integration/versioned-report*|tests/integration/section-artifact-*|tests/integration/prepared-report-*|tests/integration/bounded-ai-interpretation*|tests/integration/tablet-quote-*|tests/helpers/prepared-report-fixture.ts|tests/helpers/capture-research-preview.mjs|scripts/assemble-prepared-report.ts|.github/workflows/check.yml|.github/workflows/research-report-preview.yml) ;;
+                *) mode=full ;;
+              esac
+            done < <(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+          fi
+          echo "mode=$mode" >> "$GITHUB_OUTPUT"
+          echo "Validation scope: $mode" >> "$GITHUB_STEP_SUMMARY"
+      - name: Run full integration checks
+        if: steps.scope.outputs.mode == 'full'
         run: npm run check
+      - name: Run research iteration checks
+        if: steps.scope.outputs.mode == 'research'
+        shell: bash
+        run: |
+          npm run contracts:generate
+          npm run typecheck
+          mapfile -t tests < <(find tests/unit tests/integration -maxdepth 1 -name '*.test.ts' | grep -E '/(metric-|m02-|m03-|m08-|m13-|i03-|i17-|report-|research-|source-backed-report|versioned-report|section-artifact-|prepared-report-|bounded-ai-interpretation|tablet-quote-|private-report-bundle)' | sort)
+          test "${#tests[@]}" -gt 0
+          node --import tsx --test "${tests[@]}"
+      - name: Verify generated contracts were committed
+        run: git diff --exit-code -- contracts

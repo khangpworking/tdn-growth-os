@@ -1,5 +1,20 @@
 # Trạng thái hiện tại
 
+## Research A38/A39 integrated delivery (in progress)
+
+Owner approved the 2026-09-30 acceleration revision. Two disjoint Claude lanes
+implement prepared-report/A10 integration and assembly/HTML; Codex owns tests,
+CI and review. The goal is one readable, retained partial report reusing the
+seven bounded M02/M03/M04/M08-P4/M13/I03/I17 paths, with all 30 statuses explicit.
+This supersedes the JSON-only A38 milestone, not historical replay guarantees.
+After the Claude lanes reached quota, the owner explicitly authorized GPT to
+take over the remaining production code. Exact selection, standard-reader
+reopening, retained dependency bytes and the assembled HTML path were corrected.
+The HTML keeps charts before expandable technical diagnostics. Independent
+review identified normalized-dataset binding and failed-attempt artifact
+cleanup for correction before Linux acceptance. No completion is claimed yet.
+See `docs/handoffs/research-a38-integration-checkpoint.md` for verification state.
+
 ## Frontend CSP rule (PR #84, merged `1a4ae1f`) — read before any frontend change
 
 The operator app serves the frontend with `script-src 'self'` (no `unsafe-eval`). Code that compiles JavaScript at runtime (`new Function`, `eval`, a browser-side Ajv `compile`/`addSchema`/`getSchema`) throws at import time and blanks every page, Content Studio included. Vite dev and preview send no CSP, so they do not show it. PR #84 moved `frontend/src/report-contract-validation.ts` to validators precompiled by `scripts/generate-report-validators.mjs` (Ajv standalone, run by `frontend:build`/`dev`/`typecheck`/`test`). To validate another schema in the browser, add it to that script and to `frontend/src/generated/report-validators.generated.d.ts`; never import `ajv` from `frontend/src`.

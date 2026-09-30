@@ -1,5 +1,9 @@
 # Research A38: deterministic 30-section report assembly snapshot
 
+> Superseded by the owner-approved 2026-09-30 acceleration revision in
+> [integrated report delivery](research-a38-integrated-report-delivery.md).
+> Historical specification below is retained for context, not implementation.
+
 ## Objective
 
 Build one canonical `DRAFT_PARTIAL` assembly snapshot from explicitly selected,
