@@ -670,3 +670,22 @@ không tạo mutation; tái dùng identity với bytes hoặc metadata khác s�
 closed. Đây thuần là lớp lưu trữ (layer-two retention): không tạo report
 version, interpretation, review target, quyết định duyệt của con người, PDF,
 UI/API hay deployment nào.
+
+### A38 — Assembly snapshot đóng băng đủ 30 section nhưng chưa tạo report version mới
+
+A38 tạo một `ReportAssemblySnapshot` canonical từ đúng một A10 report version,
+exact catalog bytes/digest, một A30 preparation, A31 readiness được tính lại từ
+chính preparation/catalog đó, và các A37 section artifact được chọn rõ ràng.
+Snapshot phải giữ đúng 30 section theo catalog order; catalog fallback,
+readiness và materialization là ba trạng thái riêng. Section chưa có artifact
+phải hiện `NOT_MATERIALIZED` cùng blocker/missing-input code, không được bỏ qua
+hoặc dùng AI để lấp chỗ trống.
+
+Ở trạng thái hiện tại chỉ M03 có thể được materialize và toàn snapshot chỉ được
+gắn `DRAFT_PARTIAL`, interpretation `NONE`, review `UNREVIEWED`, không final,
+không publishable và không commercial-ready. `assemblySha256` là content
+identity của artifact assembly, không phải A10 report version hay semantic
+version; A38 không tạo ledger/version sequence thứ hai và không chọn `latest`.
+A39 mới được phép dùng exact snapshot này để tạo version kế tiếp trong ledger
+A10. Khi section hoàn thành sau, hệ thống tạo snapshot và A10 version mới, tuyệt
+đối không sửa snapshot hoặc lịch sử A10 cũ.
