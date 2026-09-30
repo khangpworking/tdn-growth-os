@@ -154,3 +154,8 @@ are not growth, additive market segments, forecasts or recommendations. See
 ## Offline source-package intake
 
 Run `npm run source-package:intake -- <database> <artifact-root> <package-directory> <intake.json> <audit.json> <output.md>` to verify and persist an exact-byte source package and immutable field audit without provider calls. The package directory must exactly match descriptor membership; the report path must be outside this repository and must not already exist. See `docs/tasks/023-source-package-intake.md`.
+The pre-report path now has an explicit first calculation gate:
+`research:metric:prepare` → `research:metric:readiness` →
+`research:metric:m03`. The M03 command emits one content-identified verified
+metric set outside Git; later charts and AI narratives must consume that same
+identity rather than recalculate values independently.

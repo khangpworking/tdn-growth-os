@@ -122,6 +122,11 @@ export {
   MetricPreparationReadinessValidationError,
 } from './metric-preparation-readiness.js';
 export {
+  M03SectionRecipeIntegrityError,
+  M03SectionRecipeService,
+  M03SectionRecipeValidationError,
+} from './m03-section-recipe.js';
+export {
   buildReportReviewTarget,
   ReportReviewTargetIntegrityError,
   ReportReviewTargetValidationError,
