@@ -2,6 +2,7 @@
 
 Updated: 2026-10-01. Branch: `feature/research-a45-web-method-inputs`.
 Base: A44 `429d322d4bcf3735a2daaf50838750567cf217cc`, draft PR #103.
+Delivery: [draft PR #104](https://github.com/khangpworking/tdn-growth-os/pull/104).
 This is a stacked draft, not an independent merge or deployment target.
 
 ## Implemented
@@ -44,7 +45,27 @@ upload, provider call, AI inference, approval or real business record is added.
 
 Contract generation and static diff checks are permitted on Windows. Tests,
 typechecks, production builds and browser execution run only on Linux CI.
-Linux results and the exact final head will be recorded after publication.
+Linux Check [36832992394](https://github.com/khangpworking/tdn-growth-os/actions/runs/36832992394)
+passed at executable checkpoint `b59b7ed9b94a08df2040c9b66b00156111ded25e`:
+702 backend tests, 184 frontend tests, generated contracts, typechecks and build.
+The final head and its Check, web-acceptance and normal HTML/PDF preview results
+are pinned together in the final `HANDOFF_TO_CODEX` comment on PR #104. Check
+that exact comment/head before landing; this document does not substitute an
+earlier checkpoint for the final-head release gates.
+
+The source-backed interrupted-publication fixture deliberately omits a method
+packet whose claims bind the different, labeled result. Prepared/API/browser
+acceptance owns the compatible all-three input path; evidence checks were not
+relaxed to repair the fixture. The browser uses accessible report controls and
+waits for the exact version picker, not the unrelated market picker or an
+instantaneous count while history is loading.
+
+Responsive evidence covers 1440px desktop, 768px tablet and 360px mobile. The
+header correction follows the Opus decision in the UX brief section 12; no
+overflow is hidden and all links remain. The empty-table cell returns to normal
+flow. New method selectors and mobile nav links retain 44px minimum targets.
+Navigation-settling changes in the preview helper do not remove source bytes,
+disclosures, download checks, screenshots or the native PDF stream.
 
 ## Remaining boundaries
 

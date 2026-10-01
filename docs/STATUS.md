@@ -1,6 +1,6 @@
 # Trạng thái hiện tại
 
-## Research A45: explicit web method inputs in progress
+## Research A45: explicit web method inputs implemented, draft PR #104
 
 A45 connects the three existing method families to the real report-creation
 form, using explicit none-or-one selections from the same retained package.
@@ -9,12 +9,17 @@ is inventory only; existing consumers still verify exact sources, authority,
 locators and claims. A committed retry must match the immutable complete request
 digest before any preparation or section writes, including interrupted artifact
 publication. No migration, new ledger, upload, AI interpretation or business
-approval is added. Linux CI and actual production-frontend acceptance are pending.
+approval is added. Linux Check 36832992394 passed 702 backend and 184 frontend
+tests, contracts, typechecks and build at `b59b7ed9b94a08df2040c9b66b00156111ded25e`.
+The final browser/release evidence and exact head are pinned in the latest
+handoff comment on PR #104; draft status does not authorize a live release.
 
 The design lane uses Claude Opus 5.5 with `--effort high`; code and logic lanes
 use GPT-5.6 Luna xhigh. Claude Code was updated with owner authorization to
 2.1.286. The approved report layout is preserved; this is an operator-form
 addition, not a report redesign. No Fedora activation is authorized by this work.
+The bounded responsive correction retains every navigation link, wraps the
+header, restores empty-table cell flow and preserves 44px method touch targets.
 
 ## Research A44: wave 3 code and normal HTML/PDF checks pass
 
@@ -34,8 +39,8 @@ without history rewrite. Final A44 head
 (700 backend/182 frontend) and normal Preview 36807920294. PR #103 remains draft.
 
 All 30 sections now have bounded paths across the three waves, not 30 completed
-real-data analyses. A45's explicit-selection web bridge is now being implemented;
-it is not yet verified or deployed.
+real-data analyses. A45's explicit-selection web bridge is implemented in draft
+PR #104; no live-data acceptance or Fedora deployment is established by it.
 Updated worker routing: design/UI/UX uses Opus 5.5 high; code/logic uses
 Luna 5.6 xhigh or Sonnet 5.5 high. The completed A44 workers used Luna xhigh.
 

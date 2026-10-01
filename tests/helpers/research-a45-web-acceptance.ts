@@ -290,15 +290,27 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     const downloaded = await reportEvidenceBytes(origin, receipt.reportId, 'report-method-evidence.json');
     assert.deepEqual(downloaded, persisted.files.get('report-method-evidence.json'));
 
+    await page.getByRole('button', { name: 'Chọn nguồn cho báo cáo khác', exact: true }).click();
+    await page.waitForFunction(() => document.activeElement instanceof HTMLSelectElement &&
+      [...(document.activeElement.labels ?? [])].some(label => label.textContent?.startsWith('Nguồn cho báo cáo')));
+    assert.equal(await page.getByRole('combobox', { name: /^Nguồn cho báo cáo/ }).inputValue(), '',
+      'choosing another report must clear the source and restore keyboard focus');
+    await selectOptionContaining(page.locator('select'), text => text.includes(GOOD_SOURCE) && text.includes(GOOD_LABELS), 'the source after choosing again');
+    await waitForMethodOptions(page);
+    assert.deepEqual(await methodSelects.evaluateAll((items: HTMLSelectElement[]) => items.map(item => item.value)), ['', '', ''],
+      'choosing another report must not carry old method IDs into its draft');
+    assert.equal(reportPosts.length, 1, 'opening another draft must not submit a report');
+
     const postCountBeforeReload = reportPosts.length;
     await page.reload({ waitUntil: 'networkidle' });
     assert.equal(reportPosts.length, postCountBeforeReload, 'reload must not submit another report request');
     const afterReload = await page.locator('body').innerText();
     assert.match(afterReload, /Báo cáo nghiên cứu/);
     const reloadHistoryButton = page.getByRole('button', { name: 'Kiểm tra lịch sử', exact: true }).first();
-    if (await reloadHistoryButton.count()) await reloadHistoryButton.click();
-    const reloadVersionPicker = page.locator('select').filter({ has: page.locator('option[value="1"]') }).last();
-    if (await reloadVersionPicker.count()) await reloadVersionPicker.selectOption('1');
+    await reloadHistoryButton.click();
+    const reloadVersionPicker = page.getByRole('combobox', { name: /^Phiên bản muốn đọc/ });
+    await reloadVersionPicker.waitFor();
+    await reloadVersionPicker.selectOption(String(receipt.version));
     await page.getByRole('heading', { name: new RegExp(`v${receipt.version}`) }).waitFor();
     assert.equal(reportPosts.length, postCountBeforeReload);
     assert.deepEqual(browserErrors, [], `the production browser journey must not emit page or console errors: ${browserErrors.join('; ')}`);

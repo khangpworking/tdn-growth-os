@@ -50,7 +50,7 @@ const waitForBrowserClose = timeout => new Promise(resolve => {
 const call = (method, params = {}, timeoutMs = 15_000) => new Promise((resolve, reject) => {
   const id = ++nextId;
   const timeout = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, timeoutMs);
-  pending.set(id, { resolve, reject, timeout });
+  pending.set(id, { method, resolve, reject, timeout });
   socket.send(JSON.stringify({ id, method, params }));
 });
 const readPdfStream = async (streamHandle, timeoutMs) => {
@@ -130,7 +130,13 @@ try {
         (message.method === 'Log.entryAdded' && message.params.entry.level === 'error')) pageErrors.push(message);
     if (!item) return;
     clearTimeout(item.timeout); pending.delete(message.id);
-    if (message.error) item.reject(new Error(JSON.stringify(message.error))); else item.resolve(message.result);
+    if (message.error) {
+      const error = new Error(`CDP ${item.method} failed (${message.error.code}): ${message.error.message}`);
+      error.cdpMethod = item.method;
+      error.cdpCode = message.error.code;
+      error.cdpMessage = message.error.message;
+      item.reject(error);
+    } else item.resolve(message.result);
   });
   await call('Page.enable');
   await call('Page.bringToFront');
@@ -140,20 +146,37 @@ try {
   const downloadsDirectory = path.join(profile, 'downloads');
   await fs.mkdir(downloadsDirectory, { mode: 0o700 });
   await call('Browser.setDownloadBehavior', { behavior: 'allow', downloadPath: downloadsDirectory, eventsEnabled: true });
-  await call('Page.navigate', { url: pathToFileURL(report).href });
-  let loaded = false;
-  for (let i = 0; i < 100; i++) {
-    const ready = await call('Runtime.evaluate', { expression: 'document.readyState === "complete" && !!document.querySelector("main a[download]")', returnByValue: true });
-    if (ready.result.value === true) { loaded = true; break; }
-    await pause(50);
-  }
-  if (!loaded) throw new Error('Synthetic report never reached the expected loaded state');
-  await call('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true, returnByValue: true });
   const evaluate = async expression => {
     const response = await call('Runtime.evaluate', { expression, returnByValue: true });
     if (response.exceptionDetails) throw new Error(JSON.stringify(response.exceptionDetails));
     return response.result.value;
   };
+  const readAfterNavigation = async expression => {
+    let lastError;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try { return await evaluate(expression); }
+      catch (error) {
+        const isContextSwap = error?.cdpMethod === 'Runtime.evaluate' &&
+          error.cdpCode === -32000 && error.cdpMessage === 'Inspected target navigated or closed';
+        if (!isContextSwap) throw error;
+        lastError = error;
+        if (attempt === 3) {
+          error.navigationReadAttempts = attempt + 1;
+          throw error;
+        }
+        await pause(50);
+      }
+    }
+    throw lastError ?? new Error('Navigation read did not settle');
+  };
+  await call('Page.navigate', { url: pathToFileURL(report).href });
+  let loaded = false;
+  for (let i = 0; i < 100; i++) {
+    if (await readAfterNavigation('document.readyState === "complete" && !!document.querySelector("main a[download]")')) { loaded = true; break; }
+    await pause(50);
+  }
+  if (!loaded) throw new Error('Synthetic report never reached the expected loaded state');
+  await call('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true, returnByValue: true });
   const click = async selector => {
     const point = await evaluate(`(() => {
       const element = document.querySelector(${JSON.stringify(selector)});
@@ -358,7 +381,7 @@ try {
         } else await click(selector);
         let target;
         for (let attempt = 0; attempt < 20; attempt++) {
-          target = await evaluate(`(() => {
+          target = await readAfterNavigation(`(() => {
             const target = document.getElementById(${JSON.stringify(id)});
             return {hash:decodeURIComponent(location.hash.slice(1)),exists:!!target,visible:!!target?.checkVisibility()};
           })()`);
@@ -380,8 +403,8 @@ try {
           // Chromium may open a local JSON file instead of honoring download.
           // Verify its visible source text, then restore the report. Local
           // file responses are not reliably retained by the CDP resource cache.
-          if (await evaluate('location.href') === pathToFileURL(file).href) {
-            const visibleText = await evaluate('document.readyState === "complete" ? document.querySelector("pre")?.textContent ?? null : null');
+          if (await readAfterNavigation('location.href') === pathToFileURL(file).href) {
+            const visibleText = await readAfterNavigation('document.readyState === "complete" ? document.querySelector("pre")?.textContent ?? null : null');
             if (visibleText !== null) {
               received = Buffer.from(visibleText, 'utf8');
               opened = true;
@@ -390,13 +413,13 @@ try {
           }
           await pause(50);
         }
-        if (!received || !received.equals(await fs.readFile(file))) throw new Error(`Download failed: ${JSON.stringify({href:control.href,bytes:received?.length,files:await fs.readdir(downloadsDirectory),url:await evaluate('location.href'),events:downloadEvents,errors:pageErrors})}`);
+        if (!received || !received.equals(await fs.readFile(file))) throw new Error(`Download failed: ${JSON.stringify({href:control.href,bytes:received?.length,files:await fs.readdir(downloadsDirectory),url:await readAfterNavigation('location.href'),events:downloadEvents,errors:pageErrors})}`);
         actions.push({ text: control.text, action: opened ? 'opened-exact-file-bytes' : 'downloaded-exact-bytes', target: control.href });
         if (opened) {
           await call('Page.navigate', { url: pathToFileURL(report).href });
           let restored = false;
           for (let attempt = 0; attempt < 100; attempt++) {
-            restored = await evaluate('document.readyState === "complete" && !!document.querySelector("main a[download]")');
+            restored = await readAfterNavigation('document.readyState === "complete" && !!document.querySelector("main a[download]")');
             if (restored) break;
             await pause(50);
           }
