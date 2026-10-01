@@ -1,7 +1,7 @@
 /* Generated from research-generation-api.schema.json. Do not edit by hand. */
 
 export type ResearchGenerationApiContract =
-  ResearchGenerationRequest | ResearchGenerationInputs | ResearchGenerationReceipt;
+  ResearchGenerationRequest | ResearchGenerationInputs | ResearchGenerationReceipt | ResearchGenerationMethodInputError;
 export type Uuid = string;
 export type Digest = string;
 
@@ -10,6 +10,12 @@ export interface ResearchGenerationRequest {
   workspaceId: Uuid;
   selectionId: Digest;
   requestKey: string;
+  methodSelectionIds?: ResearchGenerationMethodSelectionIds;
+}
+export interface ResearchGenerationMethodSelectionIds {
+  descriptiveMethods: Digest | null;
+  locatedInsightMethods: Digest | null;
+  methodPackets: Digest | null;
 }
 export interface ResearchGenerationInputs {
   contractVersion: '1.0.0';
@@ -34,6 +40,18 @@ export interface ResearchGenerationChoice {
   labelsPath: string | null;
   eligibility: 'VALIDATE_ON_CREATE';
   limitations: string[];
+  methodInputs?: ResearchGenerationMethodInputs;
+}
+export interface ResearchGenerationMethodInputs {
+  descriptiveMethods: ResearchGenerationMethodCandidate[];
+  locatedInsightMethods: ResearchGenerationMethodCandidate[];
+  methodPackets: ResearchGenerationMethodCandidate[];
+}
+export interface ResearchGenerationMethodCandidate {
+  methodSelectionId: Digest;
+  logicalPath: string;
+  eligibility: 'VALIDATE_ON_CREATE';
+  limitations: string[];
 }
 export interface ResearchGenerationReceipt {
   contractVersion: '1.0.0';
@@ -47,4 +65,11 @@ export interface ResearchGenerationReceipt {
   reviewState: 'UNREVIEWED';
   interpretationState: 'NONE';
   limitations: string[];
+}
+export interface ResearchGenerationMethodInputError {
+  error: {
+    code: 'method_input_rejected';
+    message: 'The selected method input does not match its declared evidence; choose another input or none';
+    family: 'descriptiveMethods' | 'locatedInsightMethods' | 'methodPackets';
+  };
 }

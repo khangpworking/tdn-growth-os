@@ -38,6 +38,11 @@ test('one loopback server serves production files, health, read API, and safely 
     const index = await fetch(`${origin}/`); assert.equal(index.status, 200); assert.match(index.headers.get('content-type')!, /^text\/html/); assert.match(await index.text(), /assets\/app\.js/);
     const asset = await fetch(`${origin}/assets/app.js`); assert.equal(asset.status, 200); assert.match(asset.headers.get('content-type')!, /^text\/javascript/);
     const head = await fetch(`${origin}/assets/app.css`, { method: 'HEAD' }); assert.equal(head.status, 200); assert.equal(await head.text(), '');
+    for (const method of ['GET', 'HEAD']) {
+      const favicon = await fetch(`${origin}/favicon.ico`, { method });
+      assert.equal(favicon.status, 204); assert.equal(await favicon.text(), '');
+      assert.equal(favicon.headers.get('x-content-type-options'), 'nosniff');
+    }
     const route = await fetch(`${origin}/market/example`); assert.equal(route.status, 404); assert.doesNotMatch(await route.text(), /doctype html/);
     const demo = await fetch(`${origin}/?mode=demo`); assert.equal(demo.status, 200); assert.match(await demo.text(), /doctype html/);
     const health = await fetch(`${origin}/healthz`); assert.deepEqual(await health.json(), { status: 'ok', version: '0.1.0', ownerWritesEnabled: false });
@@ -69,10 +74,11 @@ test('enabled OWNER handler uses the internally derived same origin and existing
 test('static boundary rejects traversal, encoded separators, maps, directories, unknown assets, and mutation methods', async () => {
   const configuration = fixture(); fs.writeFileSync(path.join(configuration.frontendDist, 'assets', 'app.js.map'), '{}');
   await serve(configuration, async (origin) => {
-    for (const target of ['/assets/missing.js', '/assets/app.js.map', '/assets/', '/..%2fpackage.json', '/%2e%2e/package.json', '/assets%5capp.js']) {
+    for (const target of ['/assets/missing.js', '/missing.ico', '/assets/app.js.map', '/assets/', '/..%2fpackage.json', '/%2e%2e/package.json', '/assets%5capp.js']) {
       const response = await fetch(origin + target); assert.ok([400, 404].includes(response.status), `${target}: ${response.status}`); assert.doesNotMatch(await response.text(), /doctype html/);
     }
     const post = await fetch(`${origin}/`, { method: 'POST' }); assert.equal(post.status, 405); assert.equal(post.headers.get('allow'), 'GET, HEAD');
+    assert.equal((await fetch(`${origin}/favicon.ico`, { method: 'POST' })).status, 405);
     const unknownApi = await fetch(`${origin}/api/not-a-route`); assert.equal(unknownApi.status, 404); assert.match(unknownApi.headers.get('content-type')!, /^application\/json/);
   });
 });

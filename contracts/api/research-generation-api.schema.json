@@ -2,10 +2,26 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/contracts/api/research-generation-api.schema.json",
   "title": "ResearchGenerationApiContract",
-  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/inputs" }, { "$ref": "#/$defs/receipt" }],
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/inputs" }, { "$ref": "#/$defs/receipt" }, { "$ref": "#/$defs/methodInputError" }],
   "$defs": {
     "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "uuid": { "type": "string", "format": "uuid" },
+    "methodInputError": {
+      "title": "ResearchGenerationMethodInputError",
+      "type": "object", "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object", "additionalProperties": false,
+          "required": ["code", "message", "family"],
+          "properties": {
+            "code": { "const": "method_input_rejected" },
+            "message": { "const": "The selected method input does not match its declared evidence; choose another input or none" },
+            "family": { "enum": ["descriptiveMethods", "locatedInsightMethods", "methodPackets"] }
+          }
+        }
+      }
+    },
     "request": {
       "title": "ResearchGenerationRequest",
       "type": "object", "additionalProperties": false,
@@ -14,7 +30,39 @@
         "contractVersion": { "const": "1.0.0" },
         "workspaceId": { "$ref": "#/$defs/uuid" },
         "selectionId": { "$ref": "#/$defs/digest" },
-        "requestKey": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" }
+        "requestKey": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+        "methodSelectionIds": { "$ref": "#/$defs/methodSelectionIds" }
+      }
+    },
+    "methodSelectionIds": {
+      "title": "ResearchGenerationMethodSelectionIds",
+      "type": "object", "additionalProperties": false,
+      "required": ["descriptiveMethods", "locatedInsightMethods", "methodPackets"],
+      "properties": {
+        "descriptiveMethods": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "locatedInsightMethods": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+        "methodPackets": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] }
+      }
+    },
+    "methodCandidate": {
+      "title": "ResearchGenerationMethodCandidate",
+      "type": "object", "additionalProperties": false,
+      "required": ["methodSelectionId", "logicalPath", "eligibility", "limitations"],
+      "properties": {
+        "methodSelectionId": { "$ref": "#/$defs/digest" },
+        "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "eligibility": { "const": "VALIDATE_ON_CREATE" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "methodInputs": {
+      "title": "ResearchGenerationMethodInputs",
+      "type": "object", "additionalProperties": false,
+      "required": ["descriptiveMethods", "locatedInsightMethods", "methodPackets"],
+      "properties": {
+        "descriptiveMethods": { "type": "array", "items": { "$ref": "#/$defs/methodCandidate" } },
+        "locatedInsightMethods": { "type": "array", "items": { "$ref": "#/$defs/methodCandidate" } },
+        "methodPackets": { "type": "array", "items": { "$ref": "#/$defs/methodCandidate" } }
       }
     },
     "choice": {
@@ -37,7 +85,8 @@
         "manifestPath": { "type": "string" },
         "labelsPath": { "type": ["string", "null"] },
         "eligibility": { "const": "VALIDATE_ON_CREATE" },
-        "limitations": { "type": "array", "items": { "type": "string" } }
+        "limitations": { "type": "array", "items": { "type": "string" } },
+        "methodInputs": { "$ref": "#/$defs/methodInputs" }
       }
     },
     "inputs": {

@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import http from 'node:http';
+import fs from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
-import type { ResearchGenerationInputs, ResearchGenerationReceipt } from '../../contracts/api/research-generation-api.generated.js';
+import type { ResearchGenerationInputs, ResearchGenerationMethodCandidate, ResearchGenerationReceipt } from '../../contracts/api/research-generation-api.generated.js';
 import { openResearchGenerationApi, type ResearchGenerationApiApplication } from '../../src/api/research-generation-api.js';
 import { openReportApi } from '../../src/api/report-api.js';
 import { ReportVersionService } from '../../src/modules/analysis/report-version-service.js';
@@ -15,7 +16,7 @@ const requestKey = '83dc02ef-a2c1-40cc-a28e-2c8d7e93bfe5';
 // Owns HTTP admission and the actual web-to-retained-report journey. Arithmetic,
 // section rendering and ledger recovery have their existing owner-boundary tests.
 test('OWNER source selection creates a retained report and recovers a lost response with the same request key', async t => {
-  const state = await preparedReportFixture();
+  const state = await preparedReportFixture(false, true, true, true, true);
   t.after(state.cleanup);
   let app: ResearchGenerationApiApplication;
   const reads = openReportApi({ databasePath: state.databasePath, artifactRoot: state.artifactRoot });
@@ -100,6 +101,40 @@ test('OWNER source selection creates a retained report and recovers a lost respo
   assert.equal(conflict.status, 409);
   assert.deepEqual(mutationSnapshot(state), beforeRetry);
   assert.deepEqual(state.db.prepare('SELECT count(*) count FROM analysis_report_versions').get(), { count: 1n });
+
+  // This boundary owns actionable HTTP errors, not the consumer's claim arithmetic.
+  // Imported mismatches must not be confused with damaged stored bytes.
+  for (const [index, logicalPath] of [state.methods!.sourceDriftPath, state.methods!.claimDriftPath].entries()) {
+    const candidate: ResearchGenerationMethodCandidate = choice.methodInputs!.methodPackets.find(item => item.logicalPath === logicalPath)!;
+    assert.ok(candidate, 'Schema-valid but incompatible inputs must remain explicit candidates');
+    const rejected: Response = await fetch(reportsUrl, { method: 'POST', headers, body: JSON.stringify({
+      ...body, requestKey: `a3c3dc8a-6b8f-4aed-8bea-66bbdcb0740${index}`,
+      methodSelectionIds: { descriptiveMethods: null, locatedInsightMethods: null, methodPackets: candidate.methodSelectionId },
+    }) });
+    assert.equal(rejected.status, 422, await responseDiagnostic(rejected));
+    assert.deepEqual(await rejected.json(), { error: {
+      code: 'method_input_rejected', family: 'methodPackets',
+      message: 'The selected method input does not match its declared evidence; choose another input or none',
+    } });
+    assert.deepEqual(state.db.prepare('SELECT count(*) count FROM analysis_report_versions').get(), { count: 1n });
+  }
+  const semanticCandidate = choice.methodInputs!.methodPackets.find(item => item.logicalPath === state.methods!.semanticInvalidPath);
+  assert.ok(semanticCandidate, 'A schema-valid but semantically invalid decision input must remain an explicit candidate');
+  const semanticRejected = await fetch(reportsUrl, { method: 'POST', headers, body: JSON.stringify({
+    ...body, requestKey: 'a3c3dc8a-6b8f-4aed-8bea-66bbdcb07402',
+    methodSelectionIds: { descriptiveMethods: null, locatedInsightMethods: null, methodPackets: semanticCandidate.methodSelectionId },
+  }) });
+  assert.equal(semanticRejected.status, 422, await responseDiagnostic(semanticRejected));
+  assert.deepEqual(await semanticRejected.json(), { error: {
+    code: 'method_input_rejected', family: 'methodPackets',
+    message: 'The selected method input does not match its declared evidence; choose another input or none',
+  } });
+  assert.deepEqual(state.db.prepare('SELECT count(*) count FROM analysis_report_versions').get(), { count: 1n });
+  const descriptor = state.methods!.files.find(item => item.path === state.methods!.logicalPath)!;
+  await fs.writeFile(state.artifacts.pathForDigest(descriptor.sha256), Buffer.from('synthetic corrupt method bytes'));
+  const corrupted = await fetch(inputsUrl, { headers });
+  assert.equal(corrupted.status, 500);
+  assert.deepEqual(await corrupted.json(), { error: { code: 'integrity_error', message: 'Stored research evidence failed verification' } });
 });
 
 async function responseDiagnostic(response: Response): Promise<string> {

@@ -768,3 +768,16 @@ coordinator and technical advisor. Preserve the approved report presentation;
 this preference does not authorize a redesign. If the requested model is not
 available through the configured runtime, report that limitation rather than
 silently substituting another model. Do not use Astra workers.
+
+### A45 — Explicit method inputs on the report web form, 2026-10-01
+
+Continue the approved report-delivery work with an explicit same-package method
+picker. Each of the three existing families defaults to no supplement; even one
+recognized candidate is never attached automatically. A recognized schema is not
+a compatible, approved or completed analysis. Existing retained-source consumers
+own lineage and claim checks. Requests carry opaque selection IDs, and retries
+must bind the complete resolved request before intermediate writes. Historical
+reports remain immutable. Do not add an upload flow, ledger, migration, AI call
+or business approval to make this bridge work. All execution checks run on Linux;
+Windows is limited to static edits and contract generation. Fedora activation
+and release-chain merges still require separate owner authorization.

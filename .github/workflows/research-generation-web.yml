@@ -1,0 +1,51 @@
+name: Research generation web acceptance
+
+on:
+  pull_request:
+    branches: [main, 'feature/research-*']
+    paths:
+      - 'contracts/api/research-generation-api.*'
+      - 'src/api/research-generation-api.ts'
+      - 'src/modules/analysis/report-generation-service.ts'
+      - 'frontend/src/ResearchReportCreatePanel.tsx'
+      - 'frontend/src/research-generation-client.ts'
+      - 'tests/helpers/research-a45-web-acceptance.ts'
+      - 'tests/helpers/research-generation-web-fixture.ts'
+      - 'tests/helpers/prepared-report-fixture.ts'
+      - '.github/workflows/research-generation-web.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: research-generation-web-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - name: Install pinned browser driver outside the application
+        run: npm install --prefix "${{ runner.temp }}/research-web-tools" --ignore-scripts --no-audit --no-fund --no-save playwright-core@1.63.0
+      - name: Build the actual operator frontend
+        run: npm run frontend:build
+      - name: Exercise explicit method selection through the real local operator
+        env:
+          TDN_RESEARCH_WEB_ACCEPTANCE_DIR: ${{ runner.temp }}/research-generation-web
+          NODE_PATH: ${{ runner.temp }}/research-web-tools/node_modules
+        run: node --import tsx tests/helpers/research-a45-web-acceptance.ts
+      - name: Retain synthetic browser evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: research-generation-web-synthetic
+          path: ${{ runner.temp }}/research-generation-web
+          if-no-files-found: error
+          retention-days: 7

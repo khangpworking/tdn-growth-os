@@ -1,8 +1,17 @@
-import type { ResearchGenerationInputs, ResearchGenerationReceipt, ResearchGenerationRequest } from '../../contracts/api/research-generation-api.generated';
-import { researchGenerationInputs, researchGenerationReceipt } from './generated/report-validators.generated.js';
+import type {
+  ResearchGenerationInputs,
+  ResearchGenerationMethodInputError,
+  ResearchGenerationReceipt,
+  ResearchGenerationRequest,
+} from '../../contracts/api/research-generation-api.generated';
+import {
+  researchGenerationInputs,
+  researchGenerationMethodInputError,
+  researchGenerationReceipt,
+} from './generated/report-validators.generated.js';
 
 export class ResearchGenerationClientError extends Error {
-  constructor(readonly kind: 'authorization' | 'selection' | 'source' | 'integrity' | 'connection', message: string) { super(message); }
+  constructor(readonly kind: 'authorization' | 'selection' | 'source' | 'method' | 'integrity' | 'connection', message: string) { super(message); }
 }
 
 export async function loadResearchGenerationInputs(workspaceId: string, token: string, signal: AbortSignal): Promise<ResearchGenerationInputs> {
@@ -15,6 +24,17 @@ export async function loadResearchGenerationInputs(workspaceId: string, token: s
   const inventory = value as ResearchGenerationInputs;
   if (new Set(inventory.choices.map(choice => choice.selectionId)).size !== inventory.choices.length) {
     throw new ResearchGenerationClientError('integrity', 'Danh sách nguồn có định danh bị trùng.');
+  }
+  for (const choice of inventory.choices) {
+    if (choice.methodInputs === undefined) continue;
+    const methodSelectionIds = [
+      ...choice.methodInputs.descriptiveMethods,
+      ...choice.methodInputs.locatedInsightMethods,
+      ...choice.methodInputs.methodPackets,
+    ].map(candidate => candidate.methodSelectionId);
+    if (new Set(methodSelectionIds).size !== methodSelectionIds.length) {
+      throw new ResearchGenerationClientError('integrity', 'Danh sách hồ sơ phương pháp có định danh bị trùng.');
+    }
   }
   return inventory;
 }
@@ -35,10 +55,29 @@ async function request(url: string, init: RequestInit): Promise<unknown> {
   let response: Response;
   try { response = await fetch(url, { ...init, credentials: 'omit', cache: 'no-store', redirect: 'error' }); }
   catch { throw new ResearchGenerationClientError('connection', 'Chưa kết nối được dịch vụ báo cáo.'); }
+  let value: unknown;
+  try { value = await response.json(); }
+  catch {
+    if (response.ok) throw new ResearchGenerationClientError('integrity', 'Phản hồi báo cáo không phải dữ liệu hợp lệ.');
+    value = null;
+  }
   if (response.status === 401 || response.status === 403) throw new ResearchGenerationClientError('authorization', 'Mở khóa OWNER hợp lệ để tiếp tục.');
   if (response.status === 409) throw new ResearchGenerationClientError('selection', 'Nguồn đã chọn hoặc yêu cầu không còn khớp. Tải lại danh sách nguồn trước khi tạo yêu cầu khác.');
+  if (response.status === 422 && hasErrorCode(value, 'method_input_rejected')) {
+    if (!researchGenerationMethodInputError(value)) throw new ResearchGenerationClientError('integrity', 'Phản hồi báo cáo không phải dữ liệu hợp lệ.');
+    const error = value as ResearchGenerationMethodInputError;
+    const family = error.error.family === 'descriptiveMethods' ? 'Phương pháp mô tả thị trường'
+      : error.error.family === 'locatedInsightMethods' ? 'Phương pháp Insight gắn vị trí bằng chứng'
+        : 'Gói kiểm tra điều kiện và tổng hợp';
+    throw new ResearchGenerationClientError('method', `Hồ sơ phương pháp không khớp với nguồn. Hệ thống đã dừng và chưa tạo báo cáo. Đặt ${family} về Không dùng hoặc chọn hồ sơ khác trong package, rồi tạo yêu cầu mới.`);
+  }
   if (response.status === 400 || response.status === 422) throw new ResearchGenerationClientError('source', 'Nguồn chưa đáp ứng hồ sơ được hỗ trợ. Kiểm tra workbook, kỳ dữ liệu và độ phủ phân loại.');
   if (!response.ok) throw new ResearchGenerationClientError('integrity', 'Bằng chứng lưu trữ chưa vượt qua kiểm tra toàn vẹn.');
-  try { return await response.json(); }
-  catch { throw new ResearchGenerationClientError('integrity', 'Phản hồi báo cáo không phải dữ liệu hợp lệ.'); }
+  return value;
+}
+
+function hasErrorCode(value: unknown, code: string): boolean {
+  if (typeof value !== 'object' || value === null || !('error' in value)) return false;
+  const error = (value as { error?: unknown }).error;
+  return typeof error === 'object' && error !== null && 'code' in error && (error as { code?: unknown }).code === code;
 }
