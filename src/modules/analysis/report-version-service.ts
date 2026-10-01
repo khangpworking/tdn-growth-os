@@ -16,6 +16,7 @@ import { buildReportSemanticContent, buildUnreviewedReportState } from './report
 import { renderResearchReportHtml } from './research-report-html.js';
 import { renderReportKitHtml } from './report-kit-html.js';
 import { buildReportDescriptiveExtension } from './report-descriptive-extension.js';
+import { buildReportLocatedInsightExtension } from './report-located-insight-extension.js';
 import { buildSourceBackedReport, type SourceBackedReportBundle, type SourceBackedReportDependencies } from './source-backed-report.js';
 import {
   buildPreparedReportAssembly,
@@ -655,7 +656,10 @@ export class ReportVersionService {
     let bundle = await buildSourceBackedReport(request.sourceRequest, catalogBytes, this.#dependencies);
     const descriptive = await buildReportDescriptiveExtension(request.descriptiveMethodsPath, bundle, this.#dependencies.sourcePackages);
     if (descriptive) bundle = { ...bundle, files: new Map([...bundle.files, ...descriptive.files]) };
-    const semantic = buildReportSemanticContent(bundle, descriptive === undefined ? undefined : digest(descriptive.bytes));
+    const located = await buildReportLocatedInsightExtension(request.locatedInsightMethodsPath, bundle, this.#dependencies.sourcePackages);
+    if (located) bundle = { ...bundle, files: new Map([...bundle.files, ...located.files]) };
+    const semantic = buildReportSemanticContent(bundle, descriptive === undefined ? undefined : digest(descriptive.bytes),
+      located === undefined ? undefined : digest(located.bytes));
     const review = buildUnreviewedReportState(semantic.content.semanticVersionId);
     const files = new Map(bundle.files);
     files.set('create-request.json', canonicalBytes(request));
@@ -664,7 +668,8 @@ export class ReportVersionService {
     files.set('review-state.json', review.stateBytes);
     const html = request.reportPresentation === 'report-kit-v1'
       ? renderReportKitHtml({ bundle: { ...bundle, files }, semanticVersionId: semantic.content.semanticVersionId,
-        ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }) })
+        ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }),
+        ...(located === undefined ? {} : { locatedInsightMethods: located.output }) })
       : renderResearchReportHtml({ ...bundle, files }, semantic.content.semanticVersionId);
     files.set('report.html', Buffer.from(html, 'utf8'));
     const exportManifest = {

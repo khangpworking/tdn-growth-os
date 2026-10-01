@@ -6,6 +6,7 @@ export type PreparedReportCreateRequest = {
   contractVersion: 'prepared-report-v1';
   reportPresentation?: 'report-kit-v1';
   descriptiveMethodsPath?: string;
+  locatedInsightMethodsPath?: string;
   reportKey: string;
   version: number;
   previousSemanticVersionId: Digest | null;

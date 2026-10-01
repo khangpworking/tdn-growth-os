@@ -43,12 +43,66 @@ const waitForBrowserClose = timeout => new Promise(resolve => {
   if (browser.exitCode !== null) { finish(true); return; }
   timer = setTimeout(() => finish(false), timeout);
 });
-const call = (method, params = {}) => new Promise((resolve, reject) => {
+const call = (method, params = {}, timeoutMs = 15_000) => new Promise((resolve, reject) => {
   const id = ++nextId;
-  const timeout = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, 15000);
+  const timeout = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, timeoutMs);
   pending.set(id, { resolve, reject, timeout });
   socket.send(JSON.stringify({ id, method, params }));
 });
+const readPdfStream = async (streamHandle, timeoutMs) => {
+  const chunks = [];
+  const streamStartedAt = Date.now();
+  const streamDeadline = streamStartedAt + timeoutMs;
+  let streamedBytes = 0;
+  let streamChunks = 0;
+  const headerParts = [];
+  let headerBytes = 0;
+  let streamFinishedAt;
+  let streamCloseError;
+  let failure;
+  try {
+    while (true) {
+      const remaining = streamDeadline - Date.now();
+      if (remaining <= 0) throw new Error('CDP timeout: IO.read PDF stream');
+      const chunk = await call('IO.read', { handle: streamHandle, size: 65536 }, Math.min(5_000, remaining));
+      const bytes = chunk.base64Encoded ? Buffer.from(chunk.data ?? '', 'base64') : Buffer.from(chunk.data ?? '', 'utf8');
+      if (bytes.length) {
+        chunks.push(bytes);
+        streamedBytes += bytes.length;
+        streamChunks++;
+        if (headerBytes < 8) {
+          const part = bytes.subarray(0, 8 - headerBytes);
+          headerParts.push(part);
+          headerBytes += part.length;
+        }
+      }
+      if (chunk.eof) break;
+    }
+    streamFinishedAt = Date.now();
+  } catch (error) {
+    streamFinishedAt = Date.now();
+    failure = error;
+  } finally {
+    try {
+      await call('IO.close', { handle: streamHandle }, 5_000);
+    } catch (error) {
+      streamCloseError = String(error);
+    }
+  }
+  const result = {
+    pdf: Buffer.concat(chunks),
+    streamReadMs: (streamFinishedAt ?? Date.now()) - streamStartedAt,
+    streamChunks,
+    streamedBytes,
+    pdfHeader: headerParts.length ? Buffer.concat(headerParts).toString('ascii') : null,
+    ...(streamCloseError ? { streamCloseError } : {}),
+  };
+  if (failure) {
+    failure.streamResult = result;
+    throw failure;
+  }
+  return result;
+};
 try {
   let port;
   const startupDeadline = Date.now() + 30_000;
@@ -143,7 +197,10 @@ try {
     const capture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true,
       clip: { x: 0, y: 0, width, height: capturedHeight, scale: 1 } });
     await fs.writeFile(path.join(root, `${name}.png`), Buffer.from(capture.data, 'base64'), { mode: 0o600 });
-    for (const id of ['section-M02', 'section-M03', 'section-M05', 'section-M07', 'section-M08', 'insight', 'section-I03', 'status']) {
+    for (const id of ['section-M02', 'section-M03', 'section-M05', 'section-M07', 'section-M08', 'insight', 'section-I03',
+      ...(path.basename(root) === 'located' ? ['section-I05', 'section-I07', 'section-I10', 'section-I13'] : []),
+      ...(path.basename(root) === 'methods' ? ['section-M01', 'section-M10', 'section-M11', 'section-M12',
+        'section-I11', 'section-I12', 'section-I14', 'section-I15', 'section-I16'] : []), 'status']) {
       const found = await evaluate(`(() => { const section = document.getElementById(${JSON.stringify(id)}); if (!section) return false; section.scrollIntoView({block:'start'}); return true; })()`);
       if (!found) continue;
       const sectionCapture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -295,11 +352,66 @@ try {
     await evaluate(`document.querySelectorAll('details').forEach((item,index) => item.open = ${JSON.stringify(originalOpen)}[index]); history.replaceState(null,'',location.pathname); document.activeElement.blur(); window.scrollTo(0,0)`);
   }
   if (pageErrors.length) throw new Error(`Browser errors: ${JSON.stringify(pageErrors)}`);
-  // Expand native disclosures for PDF so evidence is not silently omitted.
-  await call('Runtime.evaluate', { expression: 'document.querySelectorAll("details").forEach(element => element.open = true)' });
-  const pdf = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
-    paperWidth: 8.27, paperHeight: 11.69, marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 });
-  await fs.writeFile(path.join(root, 'synthetic-report.pdf'), Buffer.from(pdf.data, 'base64'), { mode: 0o600 });
+  // Printing starts from a stable desktop layout, not the last mobile/keyboard
+  // inspection. All disclosures remain included in the evidence PDF.
+  await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+  await call('Emulation.setEmulatedMedia', { media: 'print' });
+  await call('Runtime.evaluate', { expression: `document.querySelectorAll('details').forEach(element => element.open = true);
+    document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`, awaitPromise: true });
+  // Retain interaction proof before PDF generation. A print timeout must not
+  // erase the successful desktop/mobile actions and contrast observations.
+  await fs.writeFile(path.join(root, 'interaction-evidence.json'), JSON.stringify({ viewports: interactionEvidence, pageErrors }, null, 2), { mode: 0o600 });
+  const printBefore = await evaluate(`(() => {
+    const details = [...document.querySelectorAll('details')];
+    let nested = 0;
+    for (const element of details) if (element.parentElement?.closest('details')) nested++;
+    return { details: details.length, openDetails: details.filter(element => element.open).length,
+      nestedDetails: nested, scrollHeight: document.documentElement.scrollHeight,
+      bodyTextLength: document.body.innerText.length };
+  })()`);
+  // Diagnostic only: retain the native print DOM so the recorded dimensions
+  // describe the actual HTML artifact that Page.printToPDF receives. The
+  // expanded disclosure tree is a candidate cause, not a proven root cause.
+  const printMetrics = await call('Page.getLayoutMetrics');
+  const pdfDiagnostic = {
+    report: path.relative(root, report),
+    viewport: { width: 1440, height: 1000, deviceScaleFactor: 1 },
+    media: 'print',
+    printBefore,
+    expandedContentSize: printMetrics.cssContentSize,
+    timeoutMs: 60_000,
+    transferMode: 'ReturnAsStream',
+    status: 'started',
+  };
+  await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify(pdfDiagnostic, null, 2), { mode: 0o600 });
+  const printStartedAt = Date.now();
+  let printCallMs;
+  let streamResult;
+  try {
+    const printResult = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
+      transferMode: 'ReturnAsStream', paperWidth: 8.27, paperHeight: 11.69,
+      marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 60_000);
+    printCallMs = Date.now() - printStartedAt;
+    if (!printResult.stream) throw new Error('Page.printToPDF did not return a stream handle');
+    streamResult = await readPdfStream(printResult.stream, 60_000);
+    if (!streamResult.pdfHeader?.startsWith('%PDF-')) throw new Error('PDF stream is not a PDF');
+  } catch (error) {
+    streamResult = streamResult ?? error.streamResult;
+    await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify({ ...pdfDiagnostic,
+      status: 'failed', transferMode: 'ReturnAsStream', printCallMs: printCallMs ?? Date.now() - printStartedAt,
+      ...(streamResult ? { streamReadMs: streamResult.streamReadMs, streamChunks: streamResult.streamChunks,
+        streamedBytes: streamResult.streamedBytes, pdfHeader: streamResult.pdfHeader,
+        ...(streamResult.streamCloseError ? { streamCloseError: streamResult.streamCloseError } : {}) } : {}),
+      error: String(error) }, null, 2), { mode: 0o600 });
+    throw error;
+  }
+  await fs.writeFile(path.join(root, 'synthetic-report.pdf'), streamResult.pdf, { mode: 0o600 });
+  await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify({ ...pdfDiagnostic,
+    status: 'complete', transferMode: 'ReturnAsStream', printCallMs,
+    streamReadMs: streamResult.streamReadMs, streamChunks: streamResult.streamChunks,
+    streamedBytes: streamResult.streamedBytes, pdfHeader: streamResult.pdfHeader,
+    ...(streamResult.streamCloseError ? { streamCloseError: streamResult.streamCloseError } : {}),
+    pdfBytes: streamResult.pdf.length }, null, 2), { mode: 0o600 });
   await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
   await fs.writeFile(path.join(root, 'interaction-evidence.json'), JSON.stringify({ viewports: interactionEvidence, pageErrors }, null, 2), { mode: 0o600 });
 } finally {

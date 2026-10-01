@@ -23,13 +23,14 @@ import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/inde
 import { openDatabase } from '../../src/platform/db/index.js';
 import { tabletQuoteFixture } from './tablet-quote-fixture.js';
 import { descriptiveMarketFixture } from './descriptive-market-fixture.js';
+import { locatedInsightPackageFixture } from './located-insight-package-fixture.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 export const byteDigest = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const fixtureBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
 
 /** Real preparation and retention, using only generated synthetic sources. */
-export async function preparedReportFixture(withQuote = false, withDescriptive = false) {
+export async function preparedReportFixture(withQuote = false, withDescriptive = false, withLocated = false) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-prepared-report-'));
   const databasePath = path.join(directory, 'report.sqlite');
   const { db } = openDatabase({ databasePath });
@@ -81,8 +82,10 @@ export async function preparedReportFixture(withQuote = false, withDescriptive =
       ['quote/source.json', quoteSource], ['quote/input.json', fixtureBytes(quote)],
     ]);
     const descriptive = withDescriptive ? descriptiveMarketFixture() : null;
+    const located = withLocated ? locatedInsightPackageFixture() : null;
     for (const file of descriptive?.files ?? []) members.set(file.path, file.bytes);
-    const descriptiveMetadata = new Map((descriptive?.files ?? []).map(({ bytes: _bytes, ...metadata }) => [metadata.path, metadata]));
+    for (const file of located?.files ?? []) members.set(file.path, file.bytes);
+    const descriptiveMetadata = new Map([...(descriptive?.files ?? []), ...(located?.files ?? [])].map(({ bytes: _bytes, ...metadata }) => [metadata.path, metadata]));
     const packages = new SourcePackageService({ db, artifactStore: artifacts });
     const workspaces = new DiscoveryWorkspaceService({ db, artifactStore: artifacts });
     const sourcePackage = await packages.intake({
@@ -155,7 +158,7 @@ export async function preparedReportFixture(withQuote = false, withDescriptive =
     const bundle = await buildSourceBackedReport(sourceRequest, catalogBytes, dependencies);
     return {
       directory, databasePath, db, artifacts, artifactRoot, dependencies, preparations, sectionArtifacts,
-      preparation, readiness, retainedM03, sourceRequest, catalogBytes, bundle, descriptive, cleanup,
+      preparation, readiness, retainedM03, sourceRequest, catalogBytes, bundle, descriptive, located, cleanup,
     };
   } catch (error) {
     await cleanup();

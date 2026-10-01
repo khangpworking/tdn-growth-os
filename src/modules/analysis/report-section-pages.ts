@@ -1,4 +1,6 @@
 import type { ReportAssemblySnapshot } from '../../../contracts/analysis/report-assembly-snapshot.generated.js';
+import type { LocatedInsightMethods } from '../../../contracts/analysis/located-insight-methods.generated.js';
+import { renderLocatedInsightSection } from './report-located-insight-pages.js';
 import type {
   AttributedMarketEvent,
   DescriptiveMarketMethods,
@@ -40,6 +42,7 @@ export interface KitContext {
   readonly bundle: SourceBackedReportBundle;
   readonly snapshot: ReportAssemblySnapshot | undefined;
   readonly descriptive: DescriptiveMarketMethods | undefined;
+  readonly located?: LocatedInsightMethods;
   readonly sections: readonly KitSection[];
 }
 
@@ -522,6 +525,8 @@ function withDescriptiveNote(section: KitSection, body: string): string {
 }
 
 function bodyFor(ctx: KitContext, section: KitSection): string {
+  const locatedBody = ctx.located === undefined ? undefined : renderLocatedInsightSection(ctx.located, section.sectionId);
+  if (locatedBody !== undefined) return `<p class="sec-note">Hồ sơ định tính được nạp riêng. Trạng thái packet bên trên chưa ghi nhận phần bổ sung này; số mục ở trang tổng quan vẫn theo packet gốc.</p>${locatedBody}`;
   switch (section.sectionId) {
     case 'M02': return m02Body(ctx);
     case 'M03': return section.deliveryState === 'PARTIAL_DETERMINISTIC_DRAFT' ? m03Body(ctx) : requirementBody(section);
@@ -554,5 +559,8 @@ const WIDE_PANELS = new Set(['I03', 'I17']);
 
 export function renderInsightPanel(ctx: KitContext, section: KitSection): string {
   const id = esc(section.sectionId);
-  return `<article class="ip${WIDE_PANELS.has(section.sectionId) ? ' wide' : ''}" id="section-${id}" aria-labelledby="h-${id}"><header class="ph"><div><small>${id}</small><h3 id="h-${id}">${esc(section.title)}</h3></div>${stateChip(section.deliveryState)}</header><p class="sub">${esc(subtitle(section))}</p>${bodyFor(ctx, section)}</article>`;
+  // Located context pairs and corpus tables need readable columns, rather than
+  // being squeezed into the compact cards used for missing-input summaries.
+  const locatedWide = ctx.located !== undefined && ['I02', 'I05', 'I06', 'I07', 'I08', 'I09', 'I10'].includes(section.sectionId);
+  return `<article class="ip${WIDE_PANELS.has(section.sectionId) || locatedWide ? ' wide' : ''}" id="section-${id}" aria-labelledby="h-${id}"><header class="ph"><div><small>${id}</small><h3 id="h-${id}">${esc(section.title)}</h3></div>${stateChip(section.deliveryState)}</header><p class="sub">${esc(subtitle(section))}</p>${bodyFor(ctx, section)}</article>`;
 }

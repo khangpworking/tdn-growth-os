@@ -9,6 +9,7 @@ import type { PreparedReportCreateRequest } from '../../contracts/analysis/prepa
 import type { PreparedReportSemanticContent } from '../../contracts/analysis/prepared-report-semantic-content.generated.js';
 import type { ReportAssemblySnapshot } from '../../contracts/analysis/report-assembly-snapshot.generated.js';
 import type { DescriptiveMarketMethods } from '../../contracts/analysis/descriptive-market-methods.generated.js';
+import type { LocatedInsightMethods } from '../../contracts/analysis/located-insight-methods.generated.js';
 import {
   AnalysisReportVersionReader, ReportVersionService, ReportVersionIdentityConflictError, ReportVersionIntegrityError, ReportVersionValidationError,
 } from '../../src/modules/analysis/report-version-service.js';
@@ -75,6 +76,65 @@ test('the kit profile retains a distinct HTML presentation without changing prep
     assert.ok(path.isAbsolute(preview));
     await fs.mkdir(preview, { recursive: true, mode: 0o700 });
     for (const [name, bytes] of files) await fs.writeFile(path.join(preview, name), bytes, { mode: 0o600 });
+  }
+});
+
+test('located Insight supplement persists exact source bytes and replay with quote and Market supplements within the artifact limit', async t => {
+  const state = await preparedReportFixture(true, true, true);
+  t.after(state.cleanup);
+  assert.ok(state.located && state.descriptive);
+  const service = reportService(state);
+  const baseRequest: PreparedReportCreateRequest = { ...preparedRequest(state), reportPresentation: 'report-kit-v1' };
+  const legacy = await service.createPreparedVersion(baseRequest, state.catalogBytes);
+  const legacyFiles = await persistedFiles(state, await service.readVersion(legacy.reportId, 1));
+  const request: PreparedReportCreateRequest = {
+    ...baseRequest, reportKey: 'synthetic-located-report',
+    descriptiveMethodsPath: state.descriptive.logicalPath, locatedInsightMethodsPath: state.located.logicalPath,
+  };
+  const created = await service.createPreparedVersion(request, state.catalogBytes);
+  const files = await persistedFiles(state, await service.readVersion(created.reportId, 1));
+  assert.ok(files.size <= 40, 'All supplements coexist under the unchanged public artifact limit');
+  assert.ok(files.has('descriptive-market-methods.json'));
+  const bytes = files.get('located-insight-bundle.json')!;
+  const retained = JSON.parse(bytes.toString()) as {
+    output: LocatedInsightMethods; descriptor: { bytesBase64: string };
+    files: { logicalPath: string; bytesBase64: string; sha256: string }[];
+  };
+  assert.deepEqual(retained.output.input, state.located.descriptor);
+  assert.equal(retained.output.sections.I05.recordPolarities[0]!.polarity, 'MIXED');
+  assert.deepEqual(retained.output.sections.I10.corpora[0]!.counts[0]!.ratio, { numerator: 2, denominator: 3 });
+  assert.deepEqual(Buffer.from(retained.descriptor.bytesBase64, 'base64'), state.located.files[0]!.bytes);
+  for (const source of state.located.files.slice(1)) {
+    // Shared authority bytes may already be retained under the Market package
+    // path. Authority is pinned by digest; declared data sources bind by path.
+    const member = retained.files.find(file => source.evidenceFamily === 'method-authority'
+      ? file.sha256 === source.sha256 : file.logicalPath === source.path);
+    assert.ok(member, `Missing retained bytes: ${source.path}`);
+    assert.equal(member.sha256, source.sha256);
+    assert.deepEqual(Buffer.from(member.bytesBase64, 'base64'), source.bytes);
+  }
+  const semantic = JSON.parse(files.get('semantic-content.json')!.toString()) as PreparedReportSemanticContent;
+  assert.equal(semantic.locatedInsightMethodsSha256, byteDigest(bytes));
+  const { semanticVersionId: _id, locatedInsightMethodsSha256: _located, ...withoutLocated } = semantic;
+  assert.notEqual(byteDigest(Buffer.from(canonicalJson(withoutLocated))), created.semanticVersionId);
+  const beforeReplay = mutationSnapshot(state);
+  assert.equal((await service.createPreparedVersion(request, state.catalogBytes)).databaseMutations, 0);
+  assert.deepEqual(await persistedFiles(state, await service.readVersion(created.reportId, 1)), files);
+  assert.deepEqual(await persistedFiles(state, await service.readVersion(legacy.reportId, 1)), legacyFiles);
+  assert.deepEqual(mutationSnapshot(state), beforeReplay);
+  const document = new JSDOM(files.get('report.html')!.toString());
+  try {
+    assert.equal(document.window.document.querySelectorAll('script').length, 0);
+    for (const id of Object.keys(retained.output.sections)) {
+      const section = document.window.document.querySelector(`#section-${id}`)!;
+      assert.ok(section.querySelector('a[href="located-insight-bundle.json"]'), id);
+    }
+  } finally { document.window.close(); }
+  const preview = process.env.TDN_RESEARCH_LOCATED_PREVIEW_DIR;
+  if (preview) {
+    assert.ok(path.isAbsolute(preview));
+    await fs.mkdir(preview, { recursive: true, mode: 0o700 });
+    for (const [name, artifact] of files) await fs.writeFile(path.join(preview, name), artifact, { mode: 0o600 });
   }
 });
 
