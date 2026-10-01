@@ -36,12 +36,17 @@ test('the mounted app automatically unlocks only an explicit local test runtime,
   window.scrollTo = () => undefined;
   let root = createRoot(dom.container);
   let localTest = true;
+  let healthFailure: 'connection' | 'malformed' | null = null;
   let failGrant = false;
   let pendingGrant: ((response: Response) => void) | undefined;
   const requests: string[] = [];
   globalThis.fetch = (async (url, init) => {
     requests.push(`${init?.method ?? 'GET'} ${String(url)}`);
-    if (url === '/healthz') return json({ status: 'ok', version: 'test', ownerWritesEnabled: true, localTestOwner: localTest });
+    if (url === '/healthz') {
+      if (healthFailure === 'connection') throw new Error('Synthetic health connection failure');
+      if (healthFailure === 'malformed') return json({ status: 'invalid' });
+      return json({ status: 'ok', version: 'test', ownerWritesEnabled: true, localTestOwner: localTest });
+    }
     if (url === '/api/workspaces') return json({ contractVersion: '1.0.0', workspaces: [] });
     if (url === '/owner-api/local-test-session') {
       if (failGrant) return json({}, 403);
@@ -88,6 +93,26 @@ test('the mounted app automatically unlocks only an explicit local test runtime,
     await act(async () => { button('Thử mở quyền lại').click(); await settle(); });
     await act(async () => { pendingGrant!(json({ contractVersion: '1.0.0', token })); await settle(); });
     assert.match(dom.container.textContent!, /OWNER tự động/);
+
+    for (const failure of ['connection', 'malformed'] as const) {
+      healthFailure = failure;
+      await remount();
+      assert.match(dom.container.textContent!, /Ghi OWNER hiện không khả dụng/);
+      await act(async () => { button('Create new research').click(); await settle(); });
+      const unsavedTitle = dom.container.querySelector('input[required]') as HTMLInputElement;
+      await act(async () => {
+        Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')!.set!.call(unsavedTitle, 'Giữ bản đang nhập');
+        unsavedTitle.dispatchEvent(new window.Event('input', { bubbles: true }));
+      });
+      assert.equal(button('Tạo workspace trống').disabled, true);
+      assert.ok(button('Kiểm tra quyền lại'), 'failed health must offer in-page authority retry');
+      healthFailure = null;
+      await act(async () => { button('Kiểm tra quyền lại').click(); await settle(); });
+      await act(async () => { pendingGrant!(json({ contractVersion: '1.0.0', token })); await settle(); });
+      assert.equal((dom.container.querySelector('input[required]') as HTMLInputElement).value, 'Giữ bản đang nhập');
+      assert.equal(button('Tạo workspace trống').disabled, false);
+      assert.match(dom.container.textContent!, /OWNER tự động/);
+    }
 
     localTest = false;
     const beforeNormal = requests.length;

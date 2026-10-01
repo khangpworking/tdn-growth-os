@@ -1,13 +1,19 @@
 # Trạng thái hiện tại
 
-## Local OWNER testing convenience (implementation, Linux proof pending)
+## Local OWNER testing convenience (draft PR #105)
 
 Owner-approved optional localhost testing mode removes manual token entry and
 automatically reacquires process-scoped authority on reload. Default/manual
 operation and synthetic demo remain separate. Domain OWNER capabilities,
 B7–B10 policy, confirmations, B9 lock and the executor lock are unchanged.
 No migration, provider call or live Fedora activation is part of this edit.
-See [scope](tasks/local-owner-testing.md) and the local operator runbook.
+Health and session failures keep controls locked and offer an in-page retry
+without discarding unsaved form input. Initial Linux validation passed on
+`d3f1e0661e06830936dd28f0f569686431721eea` (705 repository tests,
+186 frontend tests and production browser acceptance); the subsequent
+failed-health retry correction must also pass both exact-head PR checks before
+merge. See [scope](tasks/local-owner-testing.md),
+[handoff](handoffs/local-owner-testing.md) and the local operator runbook.
 
 ## Research A45: explicit web method inputs implemented, draft PR #104
 

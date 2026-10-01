@@ -29,6 +29,22 @@ jobs:
           node-version: 24.15.0
           cache: npm
       - run: npm ci
+      - name: Prove failed-health retry regression against the reviewed pre-fix page
+        if: github.head_ref == 'feature/local-test-owner-session'
+        shell: bash
+        run: |
+          git fetch origin d3f1e0661e06830936dd28f0f569686431721eea
+          baseline="$RUNNER_TEMP/local-owner-pre-fix"
+          git worktree add --detach "$baseline" d3f1e0661e06830936dd28f0f569686431721eea
+          cp frontend/tests/local-owner-session.test.ts "$baseline/frontend/tests/local-owner-session.test.ts"
+          ln -s "$GITHUB_WORKSPACE/node_modules" "$baseline/node_modules"
+          set +e
+          (cd "$baseline" && node --import tsx --test frontend/tests/local-owner-session.test.ts) > "$RUNNER_TEMP/local-owner-regression.log" 2>&1
+          result=$?
+          set -e
+          git worktree remove --force "$baseline"
+          test "$result" -ne 0
+          grep -F 'failed health must offer in-page authority retry' "$RUNNER_TEMP/local-owner-regression.log"
       - name: Install temporary browser driver
         run: npm install --prefix "${{ runner.temp }}/local-owner-web-tools" --ignore-scripts --no-audit --no-fund --no-save playwright-core@1.63.0
       - run: npm run frontend:build

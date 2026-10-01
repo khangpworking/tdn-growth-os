@@ -17,6 +17,8 @@ not a new authentication system or a change to business authority.
   the database or invoke providers. Protected routes still require a bearer.
 - Automatic access remains in React memory only. Reload obtains access again;
   bootstrap failure leaves controls locked with a retry action, not demo data.
+  Failed health checks also offer retry before the runtime's mode is known;
+  retry does not reload the workspace or discard unsaved form input.
 - Keep the normal unlock form and Lock action outside test mode. In test mode
   show `Test local · OWNER tự động · Thay đổi được lưu thật`; no misleading
   Lock action is shown for a mode that automatically grants access.
@@ -45,6 +47,10 @@ real bundle/runtime integration, one explicit synthetic persisted creation,
 reload, normal-mode restoration and desktop/mobile layout. It does not replay
 the whole business workflow. Existing full Linux Check remains the release
 gate. No tests, typecheck, build or browser execution run on Windows.
+The focused failed-health regression is also run against the reviewed pre-fix
+page in a disposable Linux worktree: it must fail for the missing retry action,
+then pass on the corrected page. That one-off check applies only to this feature
+branch and does not modify the primary runner checkout.
 
 ## UX direction and limits
 
