@@ -16,6 +16,9 @@ import { buildPreparedReportSemanticContent } from './prepared-report-semantic-c
 import { buildUnreviewedReportState } from './report-semantic-content.js';
 import { buildReportAssemblySnapshot } from './report-assembly-snapshot.js';
 import { renderReportAssemblyHtml } from './report-assembly-html.js';
+import { renderReportKitHtml } from './report-kit-html.js';
+import { buildReportDescriptiveExtension } from './report-descriptive-extension.js';
+import { createHash } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -100,7 +103,9 @@ export async function buildPreparedReportAssembly(
     throw new PreparedReportAssemblyValidationError('Retained M03 artifact was not built from the requested preparation');
   }
 
-  const bundle = await buildSourceBackedReport(request.sourceRequest, catalogBytes, dependencies);
+  let bundle = await buildSourceBackedReport(request.sourceRequest, catalogBytes, dependencies);
+  const descriptive = await buildReportDescriptiveExtension(request.descriptiveMethodsPath, bundle, dependencies.sourcePackages);
+  if (descriptive) bundle = { ...bundle, files: new Map([...bundle.files, ...descriptive.files]) };
   if (
     preparation.result.workspace.workspaceId !== bundle.envelope.workspace.workspaceId ||
     preparation.result.workspace.snapshotSha256 !== bundle.envelope.workspace.snapshotSha256
@@ -124,14 +129,17 @@ export async function buildPreparedReportAssembly(
 
   const semantic = buildPreparedReportSemanticContent({
     bundle, preparation, readiness, retainedM03, assemblySha256: assembled.snapshot.assemblySha256,
+    ...(descriptive === undefined ? {} : { descriptiveMethodsSha256: createHash('sha256').update(descriptive.bytes).digest('hex') }),
   });
 
   const renderFiles = new Map(bundle.files);
   renderFiles.set('semantic-content.json', semantic.contentBytes);
   renderFiles.set('review-state.json', buildUnreviewedReportState(semantic.content.semanticVersionId).stateBytes);
-  const assemblyHtml = renderReportAssemblyHtml({
+  const render = request.reportPresentation === 'report-kit-v1' ? renderReportKitHtml : renderReportAssemblyHtml;
+  const assemblyHtml = render({
     bundle: { ...bundle, files: renderFiles },
     snapshot: assembled.snapshot, retainedM03, semanticVersionId: semantic.content.semanticVersionId,
+    ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }),
   });
 
   return {

@@ -9,6 +9,7 @@
     "contractVersion": { "const": "1.0.0" },
     "semanticVersionId": { "$ref": "#/$defs/digest" },
     "policyVersion": { "const": "report-semantic-content-v1" },
+    "descriptiveMethodsSha256": { "$ref": "#/$defs/digest" },
     "sourceLayer": {
       "type": "object",
       "additionalProperties": false,

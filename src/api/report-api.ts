@@ -418,6 +418,9 @@ function sendError(response: ServerResponse, status: number, code: ReportApiErro
 }
 function sendArtifact(response: ServerResponse, fileName: string, mediaType: string, bytes: Buffer): void {
   const inline = fileName === 'report.html';
+  // Only the verified, versioned report-kit document carries bundled data fonts.
+  // Older retained HTML keeps its original policy; neither profile permits scripts.
+  const bundledFonts = inline && bytes.includes(Buffer.from('<meta name="tdn-report-presentation" content="report-kit-v1">'));
   response.writeHead(200, {
     'Content-Type': mediaType,
     'Content-Length': bytes.byteLength,
@@ -426,7 +429,7 @@ function sendArtifact(response: ServerResponse, fileName: string, mediaType: str
     'X-Content-Type-Options': 'nosniff',
     'Referrer-Policy': 'no-referrer',
     ...(inline ? {
-      'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'; frame-ancestors 'self'",
+      'Content-Security-Policy': `default-src 'none'; style-src 'unsafe-inline'; ${bundledFonts ? 'font-src data:; ' : ''}base-uri 'none'; form-action 'none'; frame-ancestors 'self'`,
       'X-Frame-Options': 'SAMEORIGIN',
     } : {}),
   });

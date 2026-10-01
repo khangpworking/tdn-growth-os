@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-generation-api.schema.json",
+  "title": "ResearchGenerationApiContract",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/inputs" }, { "$ref": "#/$defs/receipt" }],
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "request": {
+      "title": "ResearchGenerationRequest",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "selectionId", "requestKey"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "selectionId": { "$ref": "#/$defs/digest" },
+        "requestKey": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" }
+      }
+    },
+    "choice": {
+      "title": "ResearchGenerationChoice",
+      "type": "object", "additionalProperties": false,
+      "required": ["selectionId", "packageId", "packageManifestSha256", "sourceLabel", "packageVersion", "sourceName", "period", "workbookPath", "manifestPath", "labelsPath", "eligibility", "limitations"],
+      "properties": {
+        "selectionId": { "$ref": "#/$defs/digest" },
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "packageManifestSha256": { "$ref": "#/$defs/digest" },
+        "sourceLabel": { "type": "string" },
+        "packageVersion": { "type": "integer", "minimum": 1 },
+        "sourceName": { "type": "string" },
+        "period": {
+          "type": "object", "additionalProperties": false,
+          "required": ["start", "end", "basis"],
+          "properties": { "start": { "type": "string" }, "end": { "type": "string" }, "basis": { "type": "string" } }
+        },
+        "workbookPath": { "type": "string" },
+        "manifestPath": { "type": "string" },
+        "labelsPath": { "type": ["string", "null"] },
+        "eligibility": { "const": "VALIDATE_ON_CREATE" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "inputs": {
+      "title": "ResearchGenerationInputs",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "catalogSha256", "choices"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "catalogSha256": { "$ref": "#/$defs/digest" },
+        "choices": { "type": "array", "items": { "$ref": "#/$defs/choice" } }
+      }
+    },
+    "receipt": {
+      "title": "ResearchGenerationReceipt",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "workspaceId", "reportId", "version", "semanticVersionId", "profile", "exactRetry", "reviewState", "interpretationState", "limitations"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "requestKey": { "$ref": "#/$defs/uuid" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "reportId": { "$ref": "#/$defs/uuid" },
+        "version": { "const": 1 },
+        "semanticVersionId": { "$ref": "#/$defs/digest" },
+        "profile": { "enum": ["prepared-report-v1", "source-backed-v1"] },
+        "exactRetry": { "type": "boolean" },
+        "reviewState": { "const": "UNREVIEWED" },
+        "interpretationState": { "const": "NONE" },
+        "limitations": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

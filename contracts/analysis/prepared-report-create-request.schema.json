@@ -10,6 +10,8 @@
   ],
   "properties": {
     "contractVersion": { "const": "prepared-report-v1" },
+    "reportPresentation": { "const": "report-kit-v1" },
+    "descriptiveMethodsPath": { "type": "string", "minLength": 1, "maxLength": 500 },
     "reportKey": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9_-]*$" },
     "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
     "previousSemanticVersionId": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
@@ -18,6 +20,7 @@
     "readinessSha256": { "$ref": "#/$defs/digest" },
     "sectionArtifactSha256": { "$ref": "#/$defs/digest" }
   },
+  "dependentRequired": { "descriptiveMethodsPath": ["reportPresentation"] },
   "allOf": [
     {
       "if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },

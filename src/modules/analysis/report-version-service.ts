@@ -14,6 +14,8 @@ import { withDatabaseMutationMutex } from '../../platform/db/index.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { buildReportSemanticContent, buildUnreviewedReportState } from './report-semantic-content.js';
 import { renderResearchReportHtml } from './research-report-html.js';
+import { renderReportKitHtml } from './report-kit-html.js';
+import { buildReportDescriptiveExtension } from './report-descriptive-extension.js';
 import { buildSourceBackedReport, type SourceBackedReportBundle, type SourceBackedReportDependencies } from './source-backed-report.js';
 import {
   buildPreparedReportAssembly,
@@ -190,7 +192,7 @@ export class ReportVersionService {
   async #createValidated(request: ReportVersionCreateRequest, catalogBytes: Buffer): Promise<ReportVersionExecution> {
     const requestSha256 = digest(canonicalBytes(request, false));
     const existing = this.#versionByKey(request.reportKey, request.version);
-    if (existing) return this.#verifiedRetry(request, requestSha256, existing);
+    if (existing) return this.#verifiedRetry(request, catalogBytes, requestSha256, existing);
 
     const series = this.#seriesByKey(request.reportKey);
     this.#assertNextVersion(request, series);
@@ -586,13 +588,27 @@ export class ReportVersionService {
 
   async #verifiedRetry(
     request: ReportVersionCreateRequest,
+    catalogBytes: Buffer,
     requestSha256: string,
     row: VersionRow,
   ): Promise<ReportVersionExecution> {
     if (row.requestSha256 !== requestSha256) {
       throw new ReportVersionIdentityConflictError('Report version already exists with changed content');
     }
-    const verified = await this.readVersion(row.reportId, Number(row.version));
+    let verified: ReportVersionRecord;
+    try {
+      verified = await this.readVersion(row.reportId, Number(row.version));
+    } catch (error) {
+      if (!(error instanceof ReportVersionIntegrityError) ||
+          !(error.cause instanceof Error) || (error.cause as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+      verified = await this.#preparedArtifacts.withOwnership(async () => {
+        const rebuilt = await this.#build(request, catalogBytes);
+        for (const bytes of rebuilt.files.values()) await this.#preparedArtifacts.put(bytes);
+        await this.#readVerifiedVersion(row.reportId, Number(row.version), this.#preparedArtifacts);
+        await this.#preparedArtifacts.publishOwned();
+        return this.readVersion(row.reportId, Number(row.version));
+      });
+    }
     return {
       reportId: verified.reportId,
       versionId: verified.versionId,
@@ -636,18 +652,24 @@ export class ReportVersionService {
   }
 
   async #build(request: ReportVersionCreateRequest, catalogBytes: Buffer): Promise<BuiltVersion> {
-    const bundle = await buildSourceBackedReport(request.sourceRequest, catalogBytes, this.#dependencies);
-    const semantic = buildReportSemanticContent(bundle);
+    let bundle = await buildSourceBackedReport(request.sourceRequest, catalogBytes, this.#dependencies);
+    const descriptive = await buildReportDescriptiveExtension(request.descriptiveMethodsPath, bundle, this.#dependencies.sourcePackages);
+    if (descriptive) bundle = { ...bundle, files: new Map([...bundle.files, ...descriptive.files]) };
+    const semantic = buildReportSemanticContent(bundle, descriptive === undefined ? undefined : digest(descriptive.bytes));
     const review = buildUnreviewedReportState(semantic.content.semanticVersionId);
     const files = new Map(bundle.files);
     files.set('create-request.json', canonicalBytes(request));
     files.set('evidence-envelope.json', bundle.envelopeBytes);
     files.set('semantic-content.json', semantic.contentBytes);
     files.set('review-state.json', review.stateBytes);
-    files.set('report.html', Buffer.from(renderResearchReportHtml({ ...bundle, files }, semantic.content.semanticVersionId), 'utf8'));
+    const html = request.reportPresentation === 'report-kit-v1'
+      ? renderReportKitHtml({ bundle: { ...bundle, files }, semanticVersionId: semantic.content.semanticVersionId,
+        ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }) })
+      : renderResearchReportHtml({ ...bundle, files }, semantic.content.semanticVersionId);
+    files.set('report.html', Buffer.from(html, 'utf8'));
     const exportManifest = {
       contractVersion: 'source-backed-export-v1',
-      rendererVersion: 'research-evidence-html-vi-v1',
+      rendererVersion: request.reportPresentation === 'report-kit-v1' ? 'report-kit-html-vi-v1' : 'research-evidence-html-vi-v1',
       approvalState: 'UNREVIEWED',
       packetId: bundle.packet.packetId,
       semanticVersionId: semantic.content.semanticVersionId,
@@ -710,7 +732,7 @@ export class ReportVersionService {
     }
     const exportManifest = {
       contractVersion: 'prepared-report-export-v1',
-      rendererVersion: 'report-assembly-html-vi-v1',
+      rendererVersion: request.reportPresentation === 'report-kit-v1' ? 'report-kit-html-vi-v1' : 'report-assembly-html-vi-v1',
       approvalState: 'UNREVIEWED',
       semanticVersionId: assembly.semanticVersionId,
       reviewStateSha256: digest(review.stateBytes),

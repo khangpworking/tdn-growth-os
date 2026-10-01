@@ -9,3 +9,5 @@ export declare const interpretationDetail: PrecompiledValidator;
 export declare const sectionReadiness: PrecompiledValidator;
 export declare const reviewTarget: PrecompiledValidator;
 export declare const ownerReviewTargetReceipt: PrecompiledValidator;
+export declare const researchGenerationInputs: PrecompiledValidator;
+export declare const researchGenerationReceipt: PrecompiledValidator;

@@ -1,5 +1,72 @@
 # Trạng thái hiện tại
 
+## Research A42: wave 1 implemented and Linux-verified, draft PR #101
+
+The owner requested efficient implementation with the earliest usable web
+release and confirmed Fedora localhost first, domain later. The detailed plan
+is `docs/tasks/research-a42-live-report-delivery-plan.vi.md`: integrate the
+existing research stack, expose retained reports, add web generation, and
+deliver approved method families in parallel batches. Two owner-supplied HTML
+designs have been received and mapped to a new opt-in report-kit renderer.
+Three independent lanes have implemented the HTML presentation, OWNER web
+generation from retained source packages, and M05/M06/M07/M09 source-bound
+descriptive methods. Root integrated exact version selection, immutable
+presentation dispatch, retained method evidence and content identity.
+All 30 sections are visible, but missing inputs and unimplemented methods
+remain explicit. The four-method descriptor is currently available through
+the report request/CLI, not synthesized or selected by the initial web picker.
+Linux check 36765488051 passed with 657 backend and 182 frontend tests,
+typechecks, contract checks and build. Browser preview 36765488049 passed;
+independent visual confirmation accepted the four scoped finish corrections.
+Draft PR #101 remains dependent on #100. Live-input acceptance and the
+remaining method waves are not complete. No Windows execution occurred.
+GitHub main and open research PRs were inspected read-only on 2026-10-01.
+No merge, runtime activation, production migration or provider call occurred.
+
+## Research A41: scoped method configurations adopted 2026-10-01
+
+Codex wrote the closure plan first and delegated the eight-file configuration
+packet to GPT Luna xhigh. The packet under
+`docs/research/method-configurations-v1/` contains 12 configuration groups,
+47 classified parameters and a canonical 30-section matrix. Codex corrected
+the integrated boundaries; Review marketing framework files read all eight
+final files, verified their exact hashes and endorsed the scoped technical
+methods with no remaining material blocker in that scope.
+
+The owner accepted all four recommendations on 2026-10-01 and delegated routine
+technical/business-method finalization to Codex and the business-method session.
+The adoption is recorded in `docs/research/method-configurations-v1-adoption.md`:
+source-bound market descriptions, located qualitative coding/corpus-only ratios,
+optional retained AI candidate design, and deferral of advanced analyses.
+This is scoped adoption, not code implementation, live-input readiness or
+executed report evidence. No runtime or provider was activated. The exact A41
+packet and A40 recipes remain unchanged; INTENT has a dated adoption note.
+Read-only document, JSON, reference, hash and whitespace inspection passed;
+no Windows tests/build/typecheck ran. Exact reviewed bytes and next steps are
+recorded in `docs/handoffs/research-a41-method-configuration-closure.md`.
+
+## Research A40: 30-section method specifications (drafting complete)
+
+Owner requested plan-first method digitization, followed by Luna xhigh authoring.
+The plan is in `docs/tasks/research-a40-thirty-section-method-specs.md`; the
+business-method session found no material omission in the drafting approach.
+All 30 concrete recipe drafts and a machine-readable method index are saved
+under `docs/research/section-methods-v1/`. Luna xhigh authored the recipe bodies;
+Codex integrated and reviewed them. The business-method session reviewed all
+groups and final corrections for procedure shape and claim boundaries, not
+owner approval of new decision policies. Static inspection confirms canonical
+IDs/titles/order, an acyclic dependency graph and 30 matching authority-file
+digests. No Windows tests/build/typecheck or runtime execution occurred.
+
+Seven existing bounded submethods remain partial; 23 additional section recipes
+are proposals. M10 separately lists its gate, evaluation template, unapproved
+baseline example and blocked production forecast. AI candidates remain separate
+from facts and user decisions. Twelve grouped policy/configuration topics remain
+explicit in the historical proposal. A41's dated adoption resolves the four
+recommended policy scopes; required run inputs and deferred advanced choices
+still block only their respective operations. Production code,
+operational catalog, report history and the existing preview are unchanged.
+
 ## Research A38/A39 integrated delivery (in progress)
 
 Owner approved the 2026-09-30 acceleration revision. Two disjoint Claude lanes

@@ -148,3 +148,80 @@ async function settle(): Promise<void> {
   await new Promise(resolve => setTimeout(resolve, 0));
   await Promise.resolve();
 }
+
+test('creation selects the exact receipt version after authoritative refresh and refuses missing or mismatched targets', async t => {
+  for (const outcome of ['matched', 'missing-report', 'mismatched-semantic'] as const) {
+    await t.test(outcome, async () => {
+      const dom = setupDom();
+      const { createRoot } = await import('react-dom/client');
+      const { default: ResearchReportsPanel } = await tsImport('../src/ResearchReportsPanel.tsx', {
+        parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json',
+      }) as typeof import('../src/ResearchReportsPanel');
+      const originalFetch = globalThis.fetch;
+      let created = false;
+      const firstSemantic = outcome === 'mismatched-semantic' ? 'c'.repeat(64) : 'a'.repeat(64);
+      const version = (number: number) => ({
+        versionId: number === 1 ? versionId : '55555555-5555-4555-8555-555555555555',
+        version: number, previousSemanticVersionId: number === 1 ? null : firstSemantic,
+        semanticVersionId: number === 1 ? firstSemantic : 'b'.repeat(64), createdAt: at,
+        status: 'DRAFT', interpretationState: 'NONE', reviewState: 'UNREVIEWED',
+        scope: { key: 'canxi', platform: 'shopee', selection: 'ON', start: '2024-08-10', end: '2026-08-10', periodBasis: 'Synthetic declared period', acquiredAt: null },
+        sectionCounts: { total: 30, partialDeterministicDraft: 4, methodOnly: 13, blocked: 12, manualReviewRequired: 1, notImplemented: 0 },
+        selectedSourceCount: 2,
+        artifacts: [{ fileName: 'report.html', mediaType: 'text/html; charset=utf-8', byteSize: 1200 }],
+      });
+      globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+        const url = String(input);
+        if (url.includes('/research-generation/inputs?')) return json({
+          contractVersion: '1.0.0', workspaceId, catalogSha256: 'd'.repeat(64), choices: [{
+            selectionId: 'e'.repeat(64), packageId: '66666666-6666-4666-8666-666666666666', packageManifestSha256: 'f'.repeat(64),
+            sourceLabel: 'Synthetic report source', packageVersion: 1, sourceName: 'Synthetic workbook',
+            period: { start: '2024-08-10', end: '2026-08-10', basis: 'Synthetic declared period' },
+            workbookPath: 'source.xlsx', manifestPath: 'manifest.json', labelsPath: null,
+            eligibility: 'VALIDATE_ON_CREATE', limitations: ['PARTIAL_REPORT'],
+          }],
+        });
+        if (init?.method === 'POST') {
+          created = true;
+          const body = JSON.parse(String(init.body)) as { requestKey: string };
+          return json({
+            contractVersion: '1.0.0', workspaceId, requestKey: body.requestKey,
+            reportId, version: 1, semanticVersionId: 'a'.repeat(64), profile: 'source-backed-v1',
+            exactRetry: false, reviewState: 'UNREVIEWED', interpretationState: 'NONE', limitations: ['PARTIAL_REPORT'],
+          });
+        }
+        if (url.endsWith('/versions')) return json({ contractVersion: '1.0.0', reportId, reportKey: 'synthetic-created-report', workspaceId, versions: [version(1), version(2)] });
+        if (url.endsWith('/versions/1/interpretations')) return json({ contractVersion: '1.0.0', reportId, reportVersion: 1, interpretations: [] });
+        if (url.endsWith('/sections')) return new Response('{}', { status: 503 });
+        return json({ contractVersion: '1.0.0', workspaceId, reports: created && outcome !== 'missing-report' ? [{ reportId, reportKey: 'synthetic-created-report', createdAt: at }] : [] });
+      }) as typeof fetch;
+      const root = createRoot(dom.container);
+      try {
+        await act(async () => { root.render(createElement(ResearchReportsPanel, { mode: 'real', workspaceId, ownerToken: 'synthetic-owner-token-1234567890-only', writesAvailable: true })); await settle(); });
+        const sourcePicker = dom.container.querySelector('select') as HTMLSelectElement;
+        await act(async () => {
+          sourcePicker.value = 'e'.repeat(64);
+          sourcePicker.dispatchEvent(new window.Event('change', { bubbles: true }));
+          await settle();
+        });
+        await act(async () => {
+          dom.container.querySelector('form')!.dispatchEvent(new window.Event('submit', { bubbles: true, cancelable: true }));
+          await settle();
+        });
+        await act(async () => { await settle(); });
+        const reportLink = dom.container.querySelector('a[href*="report.html"]');
+        if (outcome === 'matched') {
+          assert.equal((dom.container.querySelector(`#report-version-${reportId}`) as HTMLSelectElement).value, '1');
+          assert.equal(reportLink?.getAttribute('href'), `/api/reports/${reportId}/versions/1/files/report.html`);
+          assert.equal(dom.container.querySelector('a[href*="versions/2/files/report.html"]'), null);
+        } else {
+          assert.equal(reportLink, null);
+          assert.match(dom.container.textContent ?? '', outcome === 'missing-report' ? /danh mục chưa có đúng báo cáo vừa lưu/ : /Lịch sử chưa xác nhận đúng phiên bản và nội dung vừa tạo/);
+        }
+      } finally {
+        await act(async () => root.unmount());
+        globalThis.fetch = originalFetch; dom.cleanup();
+      }
+    });
+  }
+});

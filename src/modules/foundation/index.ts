@@ -45,5 +45,5 @@ export {
   type VerifiedShopeeCollection,
 } from './shopee-collection-service.js';
 
-export { SourcePackageService, type SourcePackageIntakeResult, type VerifiedFinalizedSourcePackage, type VerifiedSourcePackageFile } from './source-package-service.js';
+export { SourcePackageService, type SourcePackageIntakeResult, type VerifiedFinalizedSourcePackage, type VerifiedSourcePackageFile, type FinalizedSourcePackageSummary } from './source-package-service.js';
 export { FoundationSourcePackageReader, type FinalizedSourcePackageReader } from './source-package-reader.js';

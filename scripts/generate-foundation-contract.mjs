@@ -6,6 +6,7 @@ import { compileFromFile } from 'json-schema-to-typescript';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contracts = [
   ['analysis', 'report-section-catalog'],
+  ['analysis', 'descriptive-market-methods'],
   ['analysis', 'versioned-report-packet'],
   ['analysis', 'm02-scope-method'],
   ['analysis', 'm08-tablet-quote-method'],
@@ -95,6 +96,7 @@ const contracts = [
   ['api', 'owner-product-workspace-api'],
   ['api', 'content-api'],
   ['api', 'report-api'],
+  ['api', 'research-generation-api'],
   ['api', 'owner-report-review-target-api'],
   ['api', 'owner-content-brand-api'],
   ['api', 'owner-content-catalog-api'],

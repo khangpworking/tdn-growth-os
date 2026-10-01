@@ -710,3 +710,51 @@ owner of section methods and claim limits. See research-a38-integrated-report-de
 After the Claude lanes reached quota, the owner explicitly authorized GPT to
 take over the remaining production code. This changes implementation ownership,
 not the accepted methods, report scope or Linux-only verification constraints.
+
+### A40 — Method specifications for all 30 sections, requested 2026-09-30
+
+The owner requested a written plan followed by Luna xhigh authoring of concrete
+machine-actionable methods for all 30 market/insight sections. Codex coordinates
+technical review; the Review marketing framework files session reviews business
+semantics. This authorizes specification work, not automatic approval of new
+formulas, taxonomies, forecast settings, opportunity rankings or strategy choices.
+
+Track method specification, business approval, code implementation, input
+readiness and executed output separately. Existing seven bounded methods remain
+partial; no new method becomes executable merely because its inputs have a
+readiness gate. Missing owner choices remain explicit while unrelated method
+drafting proceeds. Preserve the four evidence layers and retained, versioned AI
+interpretation; an evidence-linked rationale is not hidden chain-of-thought.
+See `docs/tasks/research-a40-thirty-section-method-specs.md`.
+
+### A41 — Scoped method adoption, approved 2026-10-01
+
+The owner accepted all four reviewed recommendations and delegated routine
+technical/business-method finalization to Codex and Review marketing framework
+files. Adopt source-bound descriptive market v1, the concrete located-evidence
+codebook/literal mappings with complete frozen-corpus ratios, and optional
+retained AI candidate design with separate human semantic disposition. Defer
+production forecasting, population/causal/effectiveness claims and advanced
+scoring; the M10 diagnostic remains a separate proposal.
+
+This acceptance resolves those four choices without further owner questioning.
+It does not make proposal bytes implemented methods or permit provider
+activation, paid collection, deployment, automatic strategy choice or business
+decisions. Required run inputs remain explicit. Preserve the reviewed A41 packet
+and historical A40 authority pins; the new adoption overlay records the change.
+See `docs/research/method-configurations-v1-adoption.md` for exact scope and
+implementation order.
+
+### A42: delivery priority and report presentation, 2026-10-01
+
+The owner requested a detailed, efficient implementation plan prioritizing the
+earliest usable web deployment, and confirmed Fedora localhost first with domain
+access later. The owner has separate desired Market Report and Insight Report
+HTML designs; their paths/assets are still needed for inspection. Use these as
+presentation references without treating sample content as research evidence.
+
+Plan delivery in usable increments: read retained reports on the operator web,
+then create reports from selected retained sources, then expand the approved
+method families. Reuse existing services, report history and the selected stack.
+The plan is `docs/tasks/research-a42-live-report-delivery-plan.vi.md`; this records
+the delivery direction, not an activation or real-data migration performed.
