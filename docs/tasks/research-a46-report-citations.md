@@ -105,4 +105,3 @@ The focused tests protect deterministic numbering, exact retained-ID
 allowlisting, typed XLSX/JSON/PDF locators, and fail-closed PageIndex quote
 verification. They do not retest existing arithmetic, packet construction or
 HTML rendering.
-
