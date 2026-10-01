@@ -97,7 +97,7 @@ not an unlimited polish loop or a whole-application accessibility certification.
   source disclosures keep the claim-to-evidence relationship visible. Existing
   report-kit cover, accent and typography preserve the owner's approved design.
   No new decoration, animation or colour treatment was added.
-- Liveliness PASS: the approved report direction remains ENERGY 2 / RHYTHM 2 /
+- Liveliness PASS: the approved report direction remains ENERGY 1 / RHYTHM 2 /
   MOTION 1. Section hierarchy, restrained accent and evidence-focused tables
   retain the report-kit identity rather than replacing it with a generic layout.
 - Craftsmanship PASS within this surface: bounded inventories, explicit
