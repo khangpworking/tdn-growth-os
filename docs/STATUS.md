@@ -696,3 +696,11 @@ observed revenue, observed units and membership sensitivity. It never reopens
 source data or recalculates values. Null remains missing, overlapping scopes are
 not additive, and sensitivity is not growth. Rendering and narrative remain
 future consumers.
+
+## Research A34: citation-only M03 narrative evidence (draft)
+
+A34 binds exact A32 metric and A33 chart identities into sixteen structured
+facts for a future narrative. Every fact carries an exact value or missing
+state, coverage, membership, pointer and chart reference. No AI or prose runs;
+the envelope only defines what a later author may cite and which unsupported
+claims are forbidden.

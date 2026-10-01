@@ -629,3 +629,12 @@ không đọc lại file nguồn, không tự tính lại và không nhận styl
 do. Null phải hiển thị là thiếu, không đổi thành zero. ALL/WIDE/CORE không được
 stack hay cộng vì có membership chồng lấp; biểu đồ sensitivity không được gắn
 nhãn tăng trưởng, dự báo hoặc nhân quả.
+
+### A34 — AI chỉ nhận citation envelope, chưa được tự do nội suy số
+
+Trước khi gọi AI cho M03, hệ thống phải bind đúng metric set và chart bundle,
+sau đó phát hành danh sách fact có claim ID, value/missing state, unit, coverage,
+membership và pointer. Mọi con số trong prose tương lai phải copy và cite một
+fact. Không cho phép claim về nhân quả, forecast, market share, sức khỏe, so
+sánh khác kỳ hoặc cộng các scope chồng lấp. A34 chưa gọi AI và chưa thay thế
+method nghiệp vụ do owner framework quản lý.

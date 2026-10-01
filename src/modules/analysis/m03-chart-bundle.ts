@@ -18,6 +18,40 @@ const validateResult = ajv.compile<M03ChartBundle>(resultSchema);
 export class M03ChartBundleValidationError extends Error {}
 export class M03ChartBundleIntegrityError extends Error {}
 
+export function verifyM03ChartBundle(
+  value: unknown,
+  expectedSha256?: string,
+  exactMetricSet?: M03VerifiedMetricSet,
+): M03ChartBundle {
+  if (!validateResult(value)) throw new M03ChartBundleIntegrityError('M03 chart bundle breaks its contract');
+  const result = JSON.parse(canonicalJson(value)) as M03ChartBundle;
+  const { chartBundleSha256, ...content } = result;
+  if (digest(Buffer.from(canonicalJson(content), 'utf8')) !== chartBundleSha256 ||
+      (expectedSha256 !== undefined && chartBundleSha256 !== expectedSha256)) {
+    throw new M03ChartBundleIntegrityError('M03 chart bundle identity does not match exact content');
+  }
+  if (result.request.metricSetSha256 !== result.metricSet.metricSetSha256 ||
+      canonicalJson(result.charts.map(chart => chart.chartId)) !== canonicalJson([
+        'm03-observed-revenue-by-scope',
+        'm03-observed-units-by-scope',
+        'm03-membership-revenue-sensitivity',
+      ]) || canonicalJson(result.limitations) !== canonicalJson([
+        'NULL_VALUES_MUST_RENDER_AS_MISSING_NOT_ZERO',
+        'SCOPES_OVERLAP_AND_MUST_NOT_BE_STACKED_OR_SUMMED',
+        'SENSITIVITY_IS_MEMBERSHIP_DIFFERENCE_NOT_GROWTH',
+      ])) {
+    throw new M03ChartBundleIntegrityError('M03 chart bundle lineage or canonical ordering is inconsistent');
+  }
+  if (exactMetricSet !== undefined) {
+    const verifiedMetricSet = verifyM03VerifiedMetricSet(exactMetricSet, result.metricSet.metricSetSha256);
+    const replay = buildM03ChartBundle(result.request, verifiedMetricSet);
+    if (canonicalJson(replay) !== canonicalJson(result)) {
+      throw new M03ChartBundleIntegrityError('M03 chart bundle does not replay from the exact metric set');
+    }
+  }
+  return result;
+}
+
 export function buildM03ChartBundle(untrustedRequest: unknown, untrustedMetricSet: unknown): M03ChartBundle {
   if (!validateRequest(untrustedRequest)) {
     throw new M03ChartBundleValidationError(`Invalid M03 chart request: ${ajv.errorsText(validateRequest.errors)}`);
@@ -72,7 +106,7 @@ export function buildM03ChartBundle(untrustedRequest: unknown, untrustedMetricSe
   if (!validateResult(result)) {
     throw new M03ChartBundleIntegrityError(`M03 chart bundle breaks its contract: ${ajv.errorsText(validateResult.errors)}`);
   }
-  return JSON.parse(canonicalJson(result)) as M03ChartBundle;
+  return verifyM03ChartBundle(result, result.chartBundleSha256);
 }
 
 function scopeChart(metricSet: M03VerifiedMetricSet, measure: 'revenue' | 'units') {
