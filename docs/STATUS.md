@@ -1,5 +1,26 @@
 # Trạng thái hiện tại
 
+## Research A38/A39 integrated delivery (in progress)
+
+Owner approved the 2026-09-30 acceleration revision. Two disjoint Claude lanes
+implement prepared-report/A10 integration and assembly/HTML; Codex owns tests,
+CI and review. The goal is one readable, retained partial report reusing the
+seven bounded M02/M03/M04/M08-P4/M13/I03/I17 paths, with all 30 statuses explicit.
+This supersedes the JSON-only A38 milestone, not historical replay guarantees.
+After the Claude lanes reached quota, the owner explicitly authorized GPT to
+take over the remaining production code. Exact selection, standard-reader
+reopening, retained dependency bytes and the assembled HTML path were corrected.
+The HTML keeps charts before expandable technical diagnostics. Independent
+review findings for normalized-dataset binding and failed-attempt artifact
+cleanup are corrected. Linux Check passed on code head `8ede53d`: 621/621
+backend tests, 176/176 frontend tests, typechecks, contract generation and build.
+Actual retained-report browser acceptance also passed at 1440 and 390 px,
+including evidence navigation, downloads, disclosures, keyboard and contrast.
+Draft PR #100 remains stacked on A37; nothing is merged or deployed. This is an
+integrated partial-report delivery, not completion of all 30 business sections.
+See `docs/handoffs/research-a38-integration-checkpoint.md` and the associated
+design gate for exact evidence and remaining boundaries.
+
 ## Frontend CSP rule (PR #84, merged `1a4ae1f`) — read before any frontend change
 
 The operator app serves the frontend with `script-src 'self'` (no `unsafe-eval`). Code that compiles JavaScript at runtime (`new Function`, `eval`, a browser-side Ajv `compile`/`addSchema`/`getSchema`) throws at import time and blanks every page, Content Studio included. Vite dev and preview send no CSP, so they do not show it. PR #84 moved `frontend/src/report-contract-validation.ts` to validators precompiled by `scripts/generate-report-validators.mjs` (Ajv standalone, run by `frontend:build`/`dev`/`typecheck`/`test`). To validate another schema in the browser, add it to that script and to `frontend/src/generated/report-validators.generated.d.ts`; never import `ajv` from `frontend/src`.

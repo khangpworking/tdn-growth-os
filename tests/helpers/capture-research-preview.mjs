@@ -9,7 +9,11 @@ const root = process.env.TDN_RESEARCH_PREVIEW_DIR;
 if (process.platform !== 'linux' || !process.env.CI || !root || !path.isAbsolute(root)) {
   throw new Error('This capture helper runs only for an explicit Linux CI preview directory');
 }
-const report = path.join(root, 'source-backed-report-fixture', 'report.html');
+const relativeReport = process.env.TDN_RESEARCH_PREVIEW_REPORT ?? 'source-backed-report-fixture/report.html';
+const report = path.resolve(root, relativeReport);
+if (!report.startsWith(path.resolve(root) + path.sep) || path.extname(report) !== '.html') {
+  throw new Error('Preview report must be an HTML file inside the explicit preview directory');
+}
 await fs.access(report);
 const profile = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-research-chrome-'));
 const browser = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--disable-gpu',
@@ -99,11 +103,15 @@ try {
         if (parent.tagName === 'DETAILS' && !(element.tagName === 'SUMMARY' && parent === element.parentElement)) parent.open = true;
       }
       element.scrollIntoView({block:'center'});
-      const rect = element.getBoundingClientRect();
-      const point = {x:rect.x + rect.width / 2,y:rect.y + rect.height / 2};
-      const hit = document.elementFromPoint(point.x,point.y);
-      if (!hit || !(hit === element || element.contains(hit))) throw new Error('Occluded interaction: ' + element.outerHTML + ' hit=' + hit?.outerHTML);
-      return point;
+      // A wrapped inline link has several hit regions. The center of their
+      // combined bounding box can be whitespace outside every text fragment.
+      for (const rect of element.getClientRects()) {
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        const point = {x:rect.x + rect.width / 2,y:rect.y + rect.height / 2};
+        const hit = document.elementFromPoint(point.x,point.y);
+        if (hit && (hit === element || element.contains(hit))) return point;
+      }
+      throw new Error('Occluded interaction: ' + element.outerHTML);
     })()`);
     await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
     await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
@@ -123,6 +131,16 @@ try {
     await fs.writeFile(path.join(root, `${name}.png`), Buffer.from(capture.data, 'base64'), { mode: 0o600 });
     const first = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
     await fs.writeFile(path.join(root, `${name}-first.png`), Buffer.from(first.data, 'base64'), { mode: 0o600 });
+    const assembly = await evaluate(`(() => {
+      const panel = document.getElementById('assembly');
+      if (!panel) return null;
+      const rect = panel.getBoundingClientRect();
+      return {x:rect.x + scrollX,y:rect.y + scrollY,width:rect.width,height:rect.height,scale:1};
+    })()`);
+    if (assembly) {
+      const panel = await call('Page.captureScreenshot', {format:'png',captureBeyondViewport:true,clip:assembly});
+      await fs.writeFile(path.join(root, `${name}-assembly.png`), Buffer.from(panel.data, 'base64'), {mode:0o600});
+    }
     evidence.push({ name, ...state, height: metrics.cssContentSize.height });
     await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
   }

@@ -1,23 +1,23 @@
 name: Research report preview
 on:
   pull_request:
-    branches: [main]
+    branches: [main, 'feature/research-*']
     paths:
-      - 'src/modules/analysis/**'
-      - 'src/modules/foundation/**'
-      - 'src/modules/flow/discovery-workspace*'
-      - 'src/platform/artifacts/**'
-      - 'contracts/analysis/**'
-      - 'contracts/foundation/**'
-      - 'contracts/flow/discovery-workspace*'
+      - 'src/modules/analysis/research-report-html.ts'
+      - 'src/modules/analysis/report-assembly-*.ts'
+      - 'src/modules/analysis/source-backed-report.ts'
+      - 'src/modules/analysis/research-report-charts.ts'
+      - 'src/modules/analysis/research-chart-spec.ts'
+      - 'src/modules/analysis/versioned-report-packet.ts'
       - 'docs/research/report-section-catalog-v1.json'
       - 'scripts/read-metric-sheet.py'
       - 'package.json'
       - 'package-lock.json'
-      - 'migrations/**'
       - 'scripts/export-source-backed-report.ts'
       - 'tests/integration/source-backed-report.test.ts'
       - 'tests/helpers/capture-research-preview.mjs'
+      - 'tests/integration/prepared-report-version.test.ts'
+      - 'tests/helpers/prepared-report-fixture.ts'
       - '.github/workflows/research-report-preview.yml'
 permissions:
   contents: read
@@ -35,13 +35,19 @@ jobs:
           node-version: 24.15.0
           cache: npm
       - run: npm ci
-      - name: Exercise persisted synthetic source and actual export CLI
+      - name: Exercise retained prepared report and legacy export
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview
-        run: node --import tsx --test tests/integration/source-backed-report.test.ts
+          TDN_RESEARCH_ASSEMBLY_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/assembly
+        run: node --import tsx --test tests/integration/source-backed-report.test.ts tests/integration/prepared-report-version.test.ts
       - name: Capture desktop/mobile and print synthetic PDF on Linux
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview
+        run: node tests/helpers/capture-research-preview.mjs
+      - name: Capture actual assembled report
+        env:
+          TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/assembly
+          TDN_RESEARCH_PREVIEW_REPORT: report.html
         run: node tests/helpers/capture-research-preview.mjs
       - name: Retain synthetic visual evidence for review
         if: always()
