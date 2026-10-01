@@ -10,7 +10,7 @@
   ],
   "properties": {
     "contractVersion": { "const": "prepared-report-v1" },
-    "reportPresentation": { "const": "report-kit-v1" },
+    "reportPresentation": { "enum": ["report-kit-v1", "report-kit-citations-v1"] },
     "descriptiveMethodsPath": { "type": "string", "minLength": 1, "maxLength": 500 },
     "locatedInsightMethodsPath": { "type": "string", "minLength": 1, "maxLength": 500 },
     "methodPacketsPath": { "type": "string", "minLength": 1, "maxLength": 500 },

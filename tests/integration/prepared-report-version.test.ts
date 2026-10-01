@@ -79,6 +79,50 @@ test('the kit profile retains a distinct HTML presentation without changing prep
   }
 });
 
+// Owner-boundary coverage for the new presentation: the persisted citation
+// index is part of the immutable artifact set, exact retry is mutation-free,
+// and a separately retained report-kit-v1 version still replays its own bytes.
+test('citation presentation retains citations.json through exact retry while old report-kit replay stays intact', async t => {
+  const state = await preparedReportFixture(true);
+  t.after(state.cleanup);
+  const service = reportService(state);
+  const oldRequest: PreparedReportCreateRequest = {
+    ...preparedRequest(state), reportKey: 'synthetic-old-kit-replay', reportPresentation: 'report-kit-v1',
+  };
+  const citationRequest: PreparedReportCreateRequest = {
+    ...preparedRequest(state), reportKey: 'synthetic-citation-kit', reportPresentation: 'report-kit-citations-v1',
+  };
+  const old = await service.createPreparedVersion(oldRequest, state.catalogBytes);
+  const oldRecord = await service.readVersion(old.reportId, 1);
+  const oldFiles = await persistedFiles(state, oldRecord);
+  const created = await service.createPreparedVersion(citationRequest, state.catalogBytes);
+  const record = await service.readVersion(created.reportId, 1);
+  const files = await persistedFiles(state, record);
+  assert.equal(created.semanticVersionId, old.semanticVersionId);
+  assert.ok(record.artifacts.some(artifact => artifact.fileName === 'citations.json'));
+  const projection = JSON.parse(files.get('citations.json')!.toString('utf8')) as { contractVersion: string; citations: unknown[]; report: { semanticVersionId: string } };
+  assert.equal(projection.contractVersion, 'report-citations-v1');
+  assert.equal(projection.report.semanticVersionId, created.semanticVersionId);
+  assert.ok(projection.citations.length > 0);
+  const citationHtml = files.get('report.html')!.toString('utf8');
+  assert.match(citationHtml, /content="report-kit-citations-v1"/);
+  assert.match(citationHtml, /data-renderer="report-kit-citations-html-vi-v1"/);
+  assert.match(citationHtml, /href="citations\.json" download/);
+  assert.doesNotMatch(citationHtml, /Chưa duyệt thiết kế/);
+  assert.doesNotMatch(citationHtml, /—/);
+  const oldHtml = oldFiles.get('report.html')!.toString('utf8');
+  assert.match(oldHtml, /content="report-kit-v1"/);
+  assert.doesNotMatch(oldHtml, /id="citation-register"/);
+  const beforeRetry = mutationSnapshot(state);
+  assert.deepEqual(await service.createPreparedVersion(structuredClone(citationRequest), state.catalogBytes), {
+    ...created, deduplicated: true, databaseMutations: 0,
+  });
+  assert.deepEqual(await service.readVersion(old.reportId, 1), oldRecord);
+  assert.deepEqual(await service.readVersion(created.reportId, 1), record);
+  assert.deepEqual(await persistedFiles(state, await service.readVersion(created.reportId, 1)), files);
+  assert.deepEqual(mutationSnapshot(state), beforeRetry);
+});
+
 test('located Insight supplement persists exact source bytes and replay with quote and Market supplements within the artifact limit', async t => {
   const state = await preparedReportFixture(true, true, true);
   t.after(state.cleanup);

@@ -1,5 +1,32 @@
 # Trạng thái hiện tại
 
+## Research A46: citation web integration ready for final-head Linux CI
+
+Owner-authorized offline preview adds numbered references to existing retained
+claims, a source register and the approved kit's complete Montserrat faces.
+The owner has authorized additive web integration of the accepted direction.
+The separate citation presentation must not replace historical v1 report bytes.
+Flint remains an isolated, pinned optional compiler with data-loss guards.
+PageIndex retrieval candidates remain separate from evidence authority;
+WeKnora/OpenViking are considered optional future adapters, not installed live.
+Fedora-focused validation passed, and the exact Claude design session returned
+APPROVE_PREVIEW after the documented corrections and APPROVE_INTEGRATED_DESIGN
+for the actual Fedora synthetic production-runtime journey. The full integration
+Linux check passed 712 backend tests; the later semantic-binding correction passed
+the affected 14-test suite and typecheck. Final-head Linux CI and Fedora activation
+remain release gates. This is not a live
+PageIndex/WeKnora/OpenViking stack or proof of completed 30-section reporting.
+See [architecture](research/retrieval-citation-architecture.md),
+[citations](tasks/research-a46-report-citations.md) and
+[Flint](tasks/research-a46-flint-report-audit.md) and
+[validation handoff](handoffs/research-a46-chart-citations.md).
+
+GPT 6.1 comparison: four additional calls consumed the remaining approved
+PageIndex pilot budget (8/8 total). Numeric answers were correct and stable,
+but both models missed the limitation page under selective retrieval. No
+production model replacement was made. See
+[comparison](research/pageindex-gpt61-comparison.md).
+
 ## Local OWNER testing convenience (draft PR #105)
 
 Owner-approved optional localhost testing mode removes manual token entry and

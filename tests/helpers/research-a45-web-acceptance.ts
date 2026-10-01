@@ -22,6 +22,7 @@ const { chromium } = require('playwright-core') as {
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 const FRONTEND_DIST = path.join(ROOT, 'frontend', 'dist');
+const CITATION_PRESENTATION = process.env.TDN_REPORT_PRESENTATION === 'report-kit-citations-v1';
 const GOOD_SOURCE = 'metric/workbook.xlsx';
 const GOOD_LABELS = 'metric/labels.json';
 const GOOD_METHODS = {
@@ -174,7 +175,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     await selectOptionContaining(selects, text => text.includes(GOOD_SOURCE) && text.includes(GOOD_LABELS), 'the explicit Metric source');
     await waitForMethodOptions(page);
 
-    const methodFieldset = page.locator('fieldset.report-method-inputs');
+    const methodFieldset = page.locator('fieldset.report-method-inputs').filter({ has: page.locator('select') });
     await methodFieldset.waitFor();
     for (const label of [
       'Phương pháp mô tả thị trường',
@@ -197,6 +198,9 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     for (const driftPath of DRIFT_METHODS) assert.ok(optionText.some((text: string) => text.includes(driftPath)), `${driftPath} must be visible as an explicit candidate`);
     const selectedText = await selects.evaluateAll((items: HTMLSelectElement[]) => items.map(item => item.selectedOptions[0]?.textContent?.trim() ?? ''));
     for (const logicalPath of Object.values(GOOD_METHODS)) assert.ok(selectedText.some((text: string) => text.includes(logicalPath)), `${logicalPath} must be selected explicitly`);
+    if (CITATION_PRESENTATION) {
+      await page.getByRole('radio', { name: /^Báo cáo có số tham chiếu nguồn/ }).check();
+    }
 
     await page.setViewportSize({ width: 768, height: 1000 });
     const tablet = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
@@ -250,6 +254,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     assert.equal(requestBody.workspaceId, state.sourceRequest.workspaceId);
     assert.equal(typeof requestBody.selectionId, 'string');
     assert.equal(typeof requestBody.requestKey, 'string');
+    assert.equal(requestBody.reportPresentation, CITATION_PRESENTATION ? 'report-kit-citations-v1' : 'report-kit-v1');
     const methodIds = requestBody.methodSelectionIds as Record<string, unknown>;
     assert.ok(methodIds && typeof methodIds === 'object');
     assert.equal(Object.keys(methodIds).sort().join(','), 'descriptiveMethods,locatedInsightMethods,methodPackets');
@@ -271,6 +276,27 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     await reportPage.locator('a[href="report-method-evidence.json"]').first().waitFor({ state: 'attached' });
 
     const persisted = await persistedArtifacts(state, receipt.reportId);
+    if (CITATION_PRESENTATION) {
+      assert.ok(persisted.files.has('citations.json'), 'citation references must be retained with the exact report');
+      assert.deepEqual(await reportEvidenceBytes(origin, receipt.reportId, 'citations.json'), persisted.files.get('citations.json'));
+      assert.match(persisted.files.get('report.html')!.toString('utf8'), /data-renderer="report-kit-citations-html-vi-v1"/);
+      assert.doesNotMatch(persisted.files.get('report.html')!.toString('utf8'), /Chưa duyệt thiết kế/);
+      await reportPage.evaluate(() => document.fonts.ready);
+      const badge = reportPage.locator('.citation-badge').first();
+      await badge.focus();
+      await reportPage.keyboard.press('Enter');
+      await reportPage.locator('.citation-record:target').waitFor();
+      for (const viewport of [{ width: 1440, height: 1000 }, { width: 390, height: 844 }]) {
+        await reportPage.setViewportSize(viewport);
+        await badge.scrollIntoViewIfNeeded();
+        assert.ok(await reportPage.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'report must not overflow');
+        await reportPage.screenshot({ path: path.join(output, `live-citation-report-${viewport.width}.png`) });
+        await badge.click();
+        await reportPage.locator('.citation-record:target').waitFor();
+        await reportPage.screenshot({ path: path.join(output, `live-citation-source-${viewport.width}.png`) });
+      }
+      await fsp.writeFile(path.join(output, 'citations.json'), persisted.files.get('citations.json')!, { mode: 0o600 });
+    }
     const evidence = JSON.parse(persisted.files.get('report-method-evidence.json')!.toString('utf8')) as {
       contractVersion: string;
       descriptor: { logicalPath: string; bytesBase64: string; sha256: string };

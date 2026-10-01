@@ -17,6 +17,7 @@ import { buildUnreviewedReportState } from './report-semantic-content.js';
 import { buildReportAssemblySnapshot } from './report-assembly-snapshot.js';
 import { renderReportAssemblyHtml } from './report-assembly-html.js';
 import { renderReportKitHtml } from './report-kit-html.js';
+import { renderReportCitationHtml } from './report-citation-html.js';
 import { buildReportDescriptiveExtension } from './report-descriptive-extension.js';
 import { buildReportLocatedInsightExtension } from './report-located-insight-extension.js';
 import { buildReportMethodPacketsExtension } from './report-method-packets-extension.js';
@@ -53,6 +54,8 @@ export interface PreparedReportAssembly {
   readonly assemblySnapshot: AssembledSnapshot['snapshot'];
   readonly assemblyBytes: Buffer;
   readonly assemblyHtml: string;
+  /** Canonical citation projection retained only by the citation presentation. */
+  readonly citationProjectionBytes?: Buffer;
   readonly semanticVersionId: string;
   readonly semanticContentBytes: Buffer;
 }
@@ -143,18 +146,29 @@ export async function buildPreparedReportAssembly(
   const renderFiles = new Map(bundle.files);
   renderFiles.set('semantic-content.json', semantic.contentBytes);
   renderFiles.set('review-state.json', buildUnreviewedReportState(semantic.content.semanticVersionId).stateBytes);
-  const render = request.reportPresentation === 'report-kit-v1' ? renderReportKitHtml : renderReportAssemblyHtml;
-  const assemblyHtml = render({
+  const renderInputs = {
     bundle: { ...bundle, files: renderFiles },
     snapshot: assembled.snapshot, retainedM03, semanticVersionId: semantic.content.semanticVersionId,
     ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }),
     ...(located === undefined ? {} : { locatedInsightMethods: located.output }),
     ...(methods === undefined ? {} : { methodPackets: {gates: methods.gates, decisions: methods.decisions} }),
-  });
+  };
+  let assemblyHtml: string;
+  let citationProjectionBytes: Buffer | undefined;
+  if (request.reportPresentation === 'report-kit-citations-v1') {
+    const rendered = renderReportCitationHtml(renderInputs);
+    assemblyHtml = rendered.html;
+    citationProjectionBytes = Buffer.from(`${canonicalJson(rendered.projection)}\n`, 'utf8');
+  } else if (request.reportPresentation === 'report-kit-v1') {
+    assemblyHtml = renderReportKitHtml(renderInputs);
+  } else {
+    assemblyHtml = renderReportAssemblyHtml(renderInputs);
+  }
 
   return {
     request, bundle, preparation, readiness, retainedM03,
     assemblySnapshot: assembled.snapshot, assemblyBytes: assembled.bytes, assemblyHtml,
+    ...(citationProjectionBytes === undefined ? {} : { citationProjectionBytes }),
     semanticVersionId: semantic.content.semanticVersionId, semanticContentBytes: semantic.contentBytes,
   };
 }

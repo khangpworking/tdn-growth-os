@@ -15,6 +15,7 @@ import { canonicalJson } from '../foundation/canonical-json.js';
 import { buildReportSemanticContent, buildUnreviewedReportState } from './report-semantic-content.js';
 import { renderResearchReportHtml } from './research-report-html.js';
 import { renderReportKitHtml } from './report-kit-html.js';
+import { renderReportCitationHtml, REPORT_CITATIONS_RENDERER_VERSION } from './report-citation-html.js';
 import { buildReportDescriptiveExtension } from './report-descriptive-extension.js';
 import { buildReportLocatedInsightExtension } from './report-located-insight-extension.js';
 import { buildReportMethodPacketsExtension } from './report-method-packets-extension.js';
@@ -669,16 +670,24 @@ export class ReportVersionService {
     files.set('evidence-envelope.json', bundle.envelopeBytes);
     files.set('semantic-content.json', semantic.contentBytes);
     files.set('review-state.json', review.stateBytes);
-    const html = request.reportPresentation === 'report-kit-v1'
-      ? renderReportKitHtml({ bundle: { ...bundle, files }, semanticVersionId: semantic.content.semanticVersionId,
-        ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }),
-        ...(located === undefined ? {} : { locatedInsightMethods: located.output }),
-        ...(methods === undefined ? {} : { methodPackets: {gates: methods.gates, decisions: methods.decisions} }) })
-      : renderResearchReportHtml({ ...bundle, files }, semantic.content.semanticVersionId);
+    const renderInputs = { bundle: { ...bundle, files }, semanticVersionId: semantic.content.semanticVersionId,
+      ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }),
+      ...(located === undefined ? {} : { locatedInsightMethods: located.output }),
+      ...(methods === undefined ? {} : { methodPackets: {gates: methods.gates, decisions: methods.decisions} }) };
+    let html: string;
+    if (request.reportPresentation === 'report-kit-citations-v1') {
+      const rendered = renderReportCitationHtml(renderInputs);
+      html = rendered.html;
+      files.set('citations.json', canonicalBytes(rendered.projection));
+    } else if (request.reportPresentation === 'report-kit-v1') {
+      html = renderReportKitHtml(renderInputs);
+    } else {
+      html = renderResearchReportHtml({ ...bundle, files }, semantic.content.semanticVersionId);
+    }
     files.set('report.html', Buffer.from(html, 'utf8'));
     const exportManifest = {
       contractVersion: 'source-backed-export-v1',
-      rendererVersion: request.reportPresentation === 'report-kit-v1' ? 'report-kit-html-vi-v1' : 'research-evidence-html-vi-v1',
+      rendererVersion: rendererVersion(request.reportPresentation, 'source-backed'),
       approvalState: 'UNREVIEWED',
       packetId: bundle.packet.packetId,
       semanticVersionId: semantic.content.semanticVersionId,
@@ -719,6 +728,7 @@ export class ReportVersionService {
     files.set('semantic-content.json', assembly.semanticContentBytes);
     files.set('review-state.json', review.stateBytes);
     files.set('assembly-snapshot.json', assembly.assemblyBytes);
+    if (assembly.citationProjectionBytes !== undefined) files.set('citations.json', assembly.citationProjectionBytes);
     files.set('report.html', Buffer.from(assembly.assemblyHtml, 'utf8'));
     files.set('preparation-result.json', canonicalBytes(assembly.preparation.result));
     files.set('readiness-result.json', canonicalBytes(assembly.readiness));
@@ -741,7 +751,7 @@ export class ReportVersionService {
     }
     const exportManifest = {
       contractVersion: 'prepared-report-export-v1',
-      rendererVersion: request.reportPresentation === 'report-kit-v1' ? 'report-kit-html-vi-v1' : 'report-assembly-html-vi-v1',
+      rendererVersion: rendererVersion(request.reportPresentation, 'prepared'),
       approvalState: 'UNREVIEWED',
       semanticVersionId: assembly.semanticVersionId,
       reviewStateSha256: digest(review.stateBytes),
@@ -1060,6 +1070,15 @@ function mediaType(name: string): string {
   if (name.endsWith('.md')) return 'text/markdown; charset=utf-8';
   if (name.endsWith('.html')) return 'text/html; charset=utf-8';
   throw new ReportVersionValidationError(`Unsupported report artifact media type: ${name}`);
+}
+
+function rendererVersion(
+  presentation: 'report-kit-v1' | 'report-kit-citations-v1' | undefined,
+  profile: 'source-backed' | 'prepared',
+): string {
+  if (presentation === 'report-kit-citations-v1') return REPORT_CITATIONS_RENDERER_VERSION;
+  if (presentation === 'report-kit-v1') return 'report-kit-html-vi-v1';
+  return profile === 'source-backed' ? 'research-evidence-html-vi-v1' : 'report-assembly-html-vi-v1';
 }
 
 function compare(left: string, right: string): number {

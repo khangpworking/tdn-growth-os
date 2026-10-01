@@ -420,7 +420,10 @@ function sendArtifact(response: ServerResponse, fileName: string, mediaType: str
   const inline = fileName === 'report.html';
   // Only the verified, versioned report-kit document carries bundled data fonts.
   // Older retained HTML keeps its original policy; neither profile permits scripts.
-  const bundledFonts = inline && bytes.includes(Buffer.from('<meta name="tdn-report-presentation" content="report-kit-v1">'));
+  const bundledFonts = inline && (
+    bytes.includes(Buffer.from('<meta name="tdn-report-presentation" content="report-kit-v1">')) ||
+    bytes.includes(Buffer.from('<meta name="tdn-report-presentation" content="report-kit-citations-v1">'))
+  );
   response.writeHead(200, {
     'Content-Type': mediaType,
     'Content-Length': bytes.byteLength,
