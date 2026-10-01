@@ -1,6 +1,17 @@
 # Trạng thái hiện tại
 
-## Research A43: wave 2 implementation, Linux verification pending
+## Research A44: wave 3 implementation in progress
+
+The final nine sections are being connected to retained source-bound method
+packets: M10, I11, I12 and I16 expose eligibility/inventory only; M01, M11,
+M12, I14 and I15 expose unranked evidence and owner-declared options. No
+forecast, inferential estimate, AI generation or automatic choice is enabled.
+The new request path combines exact supplement bytes into one evidence bundle
+without raising the existing 40-artifact limit. Linux integration and preview
+verification are pending. Delegated workers in this resumed session use only
+GPT-5.6 Luna xhigh, as requested by the owner.
+
+## Research A43: wave 2 Linux checks pass; PDF preview blocked
 
 The A42 successor implements I01, I02, I04-I10 and I13 as bounded methods over
 exact located declarations. It verifies retained source bytes and JSON-pointer
@@ -23,8 +34,14 @@ merge. Only migrations 0036 and 0037 differ from current main; the running
 Fedora schema has not been inspected in this task. See
 `docs/handoffs/research-a43-release-dependency-audit.md`.
 
-Pending: final Linux checks, bounded rendered verification and independent
-review. No Windows execution, merge, Fedora activation or provider call.
+Linux Check passed on `f0f7243798e33d73ac10b878b0e22106e5bea098`
+(run 36803283100). The corresponding preview run 36803283154 still timed
+out while printing the combined located Insight report. A further native
+print-fragmentation repair at `6583b6d` is awaiting Linux verification. Earlier captures
+showed readable desktop/mobile section layouts after the scoped correction;
+that is not a PDF acceptance pass. The draft PR remains incomplete until
+the print failure is diagnosed and verified. No Windows execution, merge,
+Fedora activation or provider call.
 
 ## Research A42: wave 1 implemented and Linux-verified, draft PR #101
 

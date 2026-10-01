@@ -1,6 +1,8 @@
 import type { ReportAssemblySnapshot } from '../../../contracts/analysis/report-assembly-snapshot.generated.js';
 import type { DescriptiveMarketMethods } from '../../../contracts/analysis/descriptive-market-methods.generated.js';
 import type { LocatedInsightMethods } from '../../../contracts/analysis/located-insight-methods.generated.js';
+import type { BoundedAnalysisGates } from '../../../contracts/analysis/bounded-analysis-gates.generated.js';
+import type { DecisionEvidencePackets } from '../../../contracts/analysis/decision-evidence-packets.generated.js';
 import type { SourceBackedReportBundle } from './source-backed-report.js';
 import type { VerifiedSectionArtifactRetention } from './section-artifact-retention-ledger.js';
 import { renderResearchReportHtml } from './research-report-html.js';
@@ -28,6 +30,7 @@ export interface ReportKitInputs {
   readonly semanticVersionId?: string;
   readonly descriptiveMethods?: DescriptiveMarketMethods;
   readonly locatedInsightMethods?: LocatedInsightMethods;
+  readonly methodPackets?: {readonly gates: BoundedAnalysisGates | undefined; readonly decisions: DecisionEvidencePackets | undefined};
 }
 
 const fail = (code: string): never => { throw new TypeError(`report kit HTML: ${code}`); };
@@ -115,11 +118,12 @@ function cover(inputs: ReportKitInputs, title: string, sections: readonly KitSec
  * `snapshot` and `retainedM03` must be given together (prepared path) or both omitted (source-backed partial path).
  */
 export function renderReportKitHtml(inputs: ReportKitInputs): string {
-  const { bundle, snapshot, retainedM03, descriptiveMethods, locatedInsightMethods } = inputs;
+  const { bundle, snapshot, retainedM03, descriptiveMethods, locatedInsightMethods, methodPackets } = inputs;
   if ((snapshot === undefined) !== (retainedM03 === undefined)) fail('SNAPSHOT_AND_RETAINED_M03_MUST_BE_TOGETHER');
   const sections = buildSections(inputs);
   const ctx: KitContext = { bundle, snapshot, descriptive: descriptiveMethods, sections,
-    ...(locatedInsightMethods === undefined ? {} : { located: locatedInsightMethods }) };
+    ...(locatedInsightMethods === undefined ? {} : { located: locatedInsightMethods }),
+    ...(methodPackets === undefined ? {} : {methodPackets}) };
   const workspace = JSON.parse(bundle.files.get('workspace.json')!.toString('utf8')) as { title: string };
   const market = sections.filter(section => section.sectionId.startsWith('M'));
   const insight = sections.filter(section => !section.sectionId.startsWith('M'));
@@ -127,7 +131,7 @@ export function renderReportKitHtml(inputs: ReportKitInputs): string {
   const appendix = evidenceAppendix(inputs);
   // Expanded evidence tables must fragment across printed pages. Screen
   // layout and requests without located evidence keep their original CSS.
-  const locatedPrint = locatedInsightMethods === undefined ? ''
+  const locatedPrint = locatedInsightMethods === undefined && methodPackets === undefined ? ''
     : '@media print{.ip-grid{display:block}.ip{margin-bottom:16px}.sheet,.ip,.card,.fig,tr{break-inside:auto}details{display:contents}details::details-content{display:contents;content-visibility:visible}details>summary{display:block}}';
 
   return `<!doctype html>

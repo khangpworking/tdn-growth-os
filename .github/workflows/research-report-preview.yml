@@ -11,6 +11,12 @@ on:
       - 'src/modules/analysis/located-insight-methods.ts'
       - 'src/modules/analysis/insight-corpus-counts.ts'
       - 'contracts/analysis/located-insight-methods.*'
+      - 'src/modules/analysis/bounded-analysis-gates.ts'
+      - 'src/modules/analysis/decision-evidence-packets.ts'
+      - 'src/modules/analysis/report-method-packets-*.ts'
+      - 'contracts/analysis/bounded-analysis-gates.*'
+      - 'contracts/analysis/decision-evidence-packets.*'
+      - 'contracts/analysis/report-method-packets-input.*'
       - 'src/modules/analysis/report-version-service.ts'
       - 'src/modules/analysis/prepared-report-assembly.ts'
       - 'src/modules/analysis/source-backed-report.ts'
@@ -27,6 +33,8 @@ on:
       - 'tests/integration/prepared-report-version.test.ts'
       - 'tests/helpers/prepared-report-fixture.ts'
       - 'tests/helpers/located-insight-package-fixture.ts'
+      - 'tests/helpers/report-method-packets-fixture.ts'
+      - 'tests/integration/prepared-report-method-packets.test.ts'
       - '.github/workflows/research-report-preview.yml'
 permissions:
   contents: read
@@ -50,7 +58,8 @@ jobs:
           TDN_RESEARCH_ASSEMBLY_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/assembly
           TDN_RESEARCH_KIT_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/kit
           TDN_RESEARCH_LOCATED_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/located
-        run: node --import tsx --test tests/integration/source-backed-report.test.ts tests/integration/prepared-report-version.test.ts
+          TDN_RESEARCH_METHODS_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/methods
+        run: node --import tsx --test tests/integration/source-backed-report.test.ts tests/integration/prepared-report-version.test.ts tests/integration/prepared-report-method-packets.test.ts
       - name: Capture desktop/mobile and print synthetic PDF on Linux
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview
@@ -68,6 +77,11 @@ jobs:
       - name: Capture located Insight with combined supplements
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/located
+          TDN_RESEARCH_PREVIEW_REPORT: report.html
+        run: node tests/helpers/capture-research-preview.mjs
+      - name: Capture bounded gates and synthesis with all supplements
+        env:
+          TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/methods
           TDN_RESEARCH_PREVIEW_REPORT: report.html
         run: node tests/helpers/capture-research-preview.mjs
       - name: Retain complete synthetic visual evidence for review

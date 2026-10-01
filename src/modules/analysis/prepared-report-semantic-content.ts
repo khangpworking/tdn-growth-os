@@ -44,11 +44,12 @@ export function buildPreparedReportSemanticContent(input: {
   readonly assemblySha256: string;
   readonly descriptiveMethodsSha256?: string;
   readonly locatedInsightMethodsSha256?: string;
+  readonly methodPacketsSha256?: string;
 }): {
   readonly content: PreparedReportSemanticContent;
   readonly contentBytes: Buffer;
 } {
-  const { bundle, preparation, readiness, retainedM03, assemblySha256, descriptiveMethodsSha256, locatedInsightMethodsSha256 } = input;
+  const { bundle, preparation, readiness, retainedM03, assemblySha256, descriptiveMethodsSha256, locatedInsightMethodsSha256, methodPacketsSha256 } = input;
   assertDigest(assemblySha256, 'ASSEMBLY_SHA256');
 
   if (
@@ -88,6 +89,7 @@ export function buildPreparedReportSemanticContent(input: {
     policyVersion: 'prepared-report-semantic-content-v1',
     ...(descriptiveMethodsSha256 === undefined ? {} : { descriptiveMethodsSha256 }),
     ...(locatedInsightMethodsSha256 === undefined ? {} : { locatedInsightMethodsSha256 }),
+    ...(methodPacketsSha256 === undefined ? {} : { methodPacketsSha256 }),
     sourceLayer: inner.content.sourceLayer,
     calculationLayer: inner.content.calculationLayer,
     preparationLayer: {

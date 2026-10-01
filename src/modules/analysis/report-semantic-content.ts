@@ -166,7 +166,7 @@ function semanticSections(bundle: SourceBackedReportBundle): ReportSemanticConte
  * Builds the immutable meaning-bearing identity of one report draft. Renderer
  * bytes and human decisions deliberately remain outside this identity.
  */
-export function buildReportSemanticContent(bundle: SourceBackedReportBundle, descriptiveMethodsSha256?: string, locatedInsightMethodsSha256?: string): {
+export function buildReportSemanticContent(bundle: SourceBackedReportBundle, descriptiveMethodsSha256?: string, locatedInsightMethodsSha256?: string, methodPacketsSha256?: string): {
   readonly content: ReportSemanticContent;
   readonly contentBytes: Buffer;
 } {
@@ -215,6 +215,7 @@ export function buildReportSemanticContent(bundle: SourceBackedReportBundle, des
     policyVersion: 'report-semantic-content-v1',
     ...(descriptiveMethodsSha256 === undefined ? {} : { descriptiveMethodsSha256 }),
     ...(locatedInsightMethodsSha256 === undefined ? {} : { locatedInsightMethodsSha256 }),
+    ...(methodPacketsSha256 === undefined ? {} : { methodPacketsSha256 }),
     sourceLayer: {
       workspaceId: bundle.envelope.workspace.workspaceId,
       sourceEvidenceSha256: identity(sourceEvidenceProjection(bundle, catalogContentSha256)),

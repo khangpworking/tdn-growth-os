@@ -1,0 +1,194 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/decision-evidence-packets.schema.json",
+  "title": "DecisionEvidencePackets",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "methodVersion", "methodOutputId", "input", "inventory", "duplicateReferenceCount", "sections", "limitations"],
+  "properties": {
+    "contractVersion": {"const": "1.0.0"},
+    "methodId": {"const": "decision-evidence-packets"},
+    "methodVersion": {"const": "1.0.0"},
+    "methodOutputId": {"$ref": "#/$defs/digest"},
+    "input": {"$ref": "#/$defs/input"},
+    "inventory": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/inventoryItem"}},
+    "duplicateReferenceCount": {"type": "integer", "minimum": 0},
+    "sections": {
+      "type": "object", "additionalProperties": false,
+      "required": ["M01", "M11", "M12", "I14", "I15"],
+      "properties": {
+        "M01": {
+          "type": "object", "additionalProperties": false,
+          "required": ["claimKeys", "questionClaimKeys", "unassignedClaimKeys", "declaredReviewedClaimKeys", "unreviewedClaimKeys", "excludedClaimKeys", "conclusion", "conclusionState", "decisionSupportStatus", "blockers"],
+          "properties": {
+            "claimKeys": {"$ref": "#/$defs/keys"}, "questionClaimKeys": {"$ref": "#/$defs/keys"},
+            "unassignedClaimKeys": {"$ref": "#/$defs/keys"}, "declaredReviewedClaimKeys": {"$ref": "#/$defs/keys"},
+            "unreviewedClaimKeys": {"$ref": "#/$defs/keys"}, "excludedClaimKeys": {"$ref": "#/$defs/keys"},
+            "conclusion": {"type": "null"}, "conclusionState": {"const": "UNRANKED_INVENTORY"},
+            "decisionSupportStatus": {"const": "HUMAN_REVIEW_REQUIRED"}, "blockers": {"$ref": "#/$defs/strings"}
+          }
+        },
+        "M11": {
+          "type": "object", "additionalProperties": false,
+          "required": ["groups", "unassignedClaimKeys", "priority", "decisionSupportStatus", "blockers"],
+          "properties": {
+            "groups": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/evidenceGroup"}},
+            "unassignedClaimKeys": {"$ref": "#/$defs/keys"}, "priority": {"type": "null"},
+            "decisionSupportStatus": {"const": "HUMAN_REVIEW_REQUIRED"}, "blockers": {"$ref": "#/$defs/strings"}
+          }
+        },
+        "I14": {
+          "type": "object", "additionalProperties": false,
+          "required": ["directions", "unassignedClaimKeys", "ambiguousClaims", "priority", "decisionSupportStatus", "blockers"],
+          "properties": {
+            "directions": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/evidenceGroup"}},
+            "unassignedClaimKeys": {"$ref": "#/$defs/keys"},
+            "ambiguousClaims": {"type": "array", "maxItems": 1000, "items": {
+              "type": "object", "additionalProperties": false, "required": ["claimKey", "directionIndexes"],
+              "properties": {"claimKey": {"$ref": "#/$defs/key"}, "directionIndexes": {"$ref": "#/$defs/indexes"}}
+            }},
+            "priority": {"type": "null"}, "decisionSupportStatus": {"const": "HUMAN_REVIEW_REQUIRED"},
+            "blockers": {"$ref": "#/$defs/strings"}
+          }
+        },
+        "I15": {
+          "type": "object", "additionalProperties": false,
+          "required": ["options", "unassignedClaimKeys", "preferredOption", "decisionSupportStatus", "blockers"],
+          "properties": {
+            "options": {"type": "array", "maxItems": 100, "items": {
+              "type": "object", "additionalProperties": false,
+              "required": ["ownerIndex", "label", "claimKeys", "counterclaimKeys", "excludedClaimKeys", "constraints", "missingEvidence", "priority", "decisionSupportStatus"],
+              "properties": {
+                "ownerIndex": {"$ref": "#/$defs/index"}, "label": {"$ref": "#/$defs/text"},
+                "claimKeys": {"$ref": "#/$defs/keys"}, "counterclaimKeys": {"$ref": "#/$defs/keys"},
+                "excludedClaimKeys": {"$ref": "#/$defs/keys"}, "constraints": {"$ref": "#/$defs/optionConstraints"},
+                "missingEvidence": {"$ref": "#/$defs/strings"}, "priority": {"type": "null"},
+                "decisionSupportStatus": {"const": "HUMAN_REVIEW_REQUIRED"}
+              }
+            }},
+            "unassignedClaimKeys": {"$ref": "#/$defs/keys"}, "preferredOption": {"type": "null"},
+            "decisionSupportStatus": {"const": "HUMAN_REVIEW_REQUIRED"}, "blockers": {"$ref": "#/$defs/strings"}
+          }
+        },
+        "M12": {
+          "type": "object", "additionalProperties": false,
+          "required": ["question", "claimKeys", "ownerOptionIndexes", "constraints", "decisionState", "chosen", "executionAuthorization", "decisionSupportStatus", "blockers"],
+          "properties": {
+            "question": {"$ref": "#/$defs/ownerField"}, "claimKeys": {"$ref": "#/$defs/keys"},
+            "ownerOptionIndexes": {"$ref": "#/$defs/indexes"}, "constraints": {"$ref": "#/$defs/constraints"},
+            "decisionState": {"const": "OPEN"}, "chosen": {"type": "null"}, "executionAuthorization": {"type": "null"},
+            "decisionSupportStatus": {"const": "HUMAN_REVIEW_REQUIRED"}, "blockers": {"$ref": "#/$defs/strings"}
+          }
+        }
+      }
+    },
+    "limitations": {"$ref": "#/$defs/strings"}
+  },
+  "$defs": {
+    "text": {"type": "string", "minLength": 1, "maxLength": 4000},
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "key": {"type": "string", "minLength": 66, "maxLength": 165},
+    "keys": {"type": "array", "maxItems": 1000, "uniqueItems": true, "items": {"$ref": "#/$defs/key"}},
+    "strings": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/text"}},
+    "index": {"type": "integer", "minimum": 0, "maximum": 999},
+    "indexes": {"type": "array", "maxItems": 100, "uniqueItems": true, "items": {"$ref": "#/$defs/index"}},
+    "ownerField": {
+      "type": "object", "additionalProperties": false, "required": ["state", "text"],
+      "properties": {"state": {"enum": ["SUPPLIED", "UNSET"]}, "text": {"anyOf": [{"$ref": "#/$defs/text"}, {"type": "null"}]}}
+    },
+    "optionConstraints": {
+      "type": "object", "additionalProperties": false, "required": ["cost", "capability", "time", "risk"],
+      "properties": {
+        "cost": {"$ref": "#/$defs/ownerField"}, "capability": {"$ref": "#/$defs/ownerField"},
+        "time": {"$ref": "#/$defs/ownerField"}, "risk": {"$ref": "#/$defs/ownerField"}
+      }
+    },
+    "constraints": {
+      "type": "object", "additionalProperties": false,
+      "required": ["cost", "capability", "time", "risk", "accountableRole", "criteria", "reviewTrigger"],
+      "properties": {
+        "cost": {"$ref": "#/$defs/ownerField"}, "capability": {"$ref": "#/$defs/ownerField"},
+        "time": {"$ref": "#/$defs/ownerField"}, "risk": {"$ref": "#/$defs/ownerField"},
+        "accountableRole": {"$ref": "#/$defs/ownerField"}, "criteria": {"$ref": "#/$defs/ownerField"},
+        "reviewTrigger": {"$ref": "#/$defs/ownerField"}
+      }
+    },
+    "claim": {
+      "type": "object", "additionalProperties": false,
+      "required": ["claimKey", "reference", "payload", "reviewDeclaration", "counterclaimKeys"],
+      "properties": {
+        "claimKey": {"$ref": "#/$defs/key"},
+        "reference": {
+          "type": "object", "additionalProperties": false, "required": ["fileName", "sha256", "claimPointer"],
+          "properties": {
+            "fileName": {"const": "metric-result.json"}, "sha256": {"$ref": "#/$defs/digest"},
+            "claimPointer": {"type": "string", "pattern": "^/claims/(0|[1-9][0-9]*)$", "maxLength": 100,
+              "description": "Exact FactObservation pointer in the current verified packet, derived from the referenced metric result bytes. Not a pointer inside metric-result.json."}
+          }
+        },
+        "payload": {"$ref": "./versioned-report-packet.schema.json#/$defs/FactObservation"},
+        "reviewDeclaration": {
+          "type": "object", "additionalProperties": false, "required": ["state", "reason"],
+          "properties": {
+            "state": {"enum": ["UNREVIEWED", "DECLARED_REVIEWED", "EXCLUDED"]},
+            "reason": {"anyOf": [{"$ref": "#/$defs/text"}, {"type": "null"}]}
+          }
+        },
+        "counterclaimKeys": {"$ref": "#/$defs/keys"}
+      }
+    },
+    "ownerGroup": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "claimKeys", "counterclaimKeys", "missingEvidence"],
+      "properties": {
+        "label": {"$ref": "#/$defs/text"}, "claimKeys": {"$ref": "#/$defs/keys"},
+        "counterclaimKeys": {"$ref": "#/$defs/keys"}, "missingEvidence": {"$ref": "#/$defs/strings"}
+      }
+    },
+    "ownerOption": {
+      "type": "object", "additionalProperties": false,
+      "required": ["label", "claimKeys", "counterclaimKeys", "missingEvidence", "constraints"],
+      "properties": {
+        "label": {"$ref": "#/$defs/text"}, "claimKeys": {"$ref": "#/$defs/keys"},
+        "counterclaimKeys": {"$ref": "#/$defs/keys"}, "missingEvidence": {"$ref": "#/$defs/strings"},
+        "constraints": {"$ref": "#/$defs/optionConstraints"}
+      }
+    },
+    "input": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "synthesisProfileSha256", "adoptionSha256", "question", "constraints", "claims", "questionClaimKeys", "ownerHypotheses", "ownerDirections", "ownerOptions"],
+      "properties": {
+        "contractVersion": {"const": "1.0.0"},
+        "synthesisProfileSha256": {"const": "5fd879f42d6c9c82cbc87710b69206aaac2fc8d6bac2da18ba158825f910225a"},
+        "adoptionSha256": {"const": "5c5d1ea4d6d8b8aebfbdc3d92cb51718351890184cc290aac82411722636b7e7"},
+        "question": {"$ref": "#/$defs/ownerField"}, "constraints": {"$ref": "#/$defs/constraints"},
+        "claims": {"type": "array", "maxItems": 1000, "items": {"$ref": "#/$defs/claim"}},
+        "questionClaimKeys": {"$ref": "#/$defs/keys"},
+        "ownerHypotheses": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/ownerGroup"}},
+        "ownerDirections": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/ownerGroup"}},
+        "ownerOptions": {"type": "array", "maxItems": 100, "items": {"$ref": "#/$defs/ownerOption"}}
+      }
+    },
+    "inventoryItem": {
+      "type": "object", "additionalProperties": false,
+      "required": ["claimKey", "inputIndex", "sectionId", "reviewState", "counterclaimKeys", "decisionSupportStatus"],
+      "properties": {
+        "claimKey": {"$ref": "#/$defs/key"}, "inputIndex": {"$ref": "#/$defs/index"},
+        "sectionId": {"type": "string", "pattern": "^(M(0[1-9]|1[0-3])|I(0[1-9]|1[0-7]))$"},
+        "reviewState": {"enum": ["UNREVIEWED", "DECLARED_REVIEWED", "EXCLUDED"]},
+        "counterclaimKeys": {"$ref": "#/$defs/keys"}, "decisionSupportStatus": {"const": "HUMAN_REVIEW_REQUIRED"}
+      }
+    },
+    "evidenceGroup": {
+      "type": "object", "additionalProperties": false,
+      "required": ["basis", "ownerIndex", "label", "claimKeys", "counterclaimKeys", "excludedClaimKeys", "missingEvidence", "priority", "decisionSupportStatus"],
+      "properties": {
+        "basis": {"enum": ["OWNER_DECLARATION", "SOURCE_SECTION"]},
+        "ownerIndex": {"anyOf": [{"$ref": "#/$defs/index"}, {"type": "null"}]}, "label": {"$ref": "#/$defs/text"},
+        "claimKeys": {"$ref": "#/$defs/keys"}, "counterclaimKeys": {"$ref": "#/$defs/keys"},
+        "excludedClaimKeys": {"$ref": "#/$defs/keys"}, "missingEvidence": {"$ref": "#/$defs/strings"},
+        "priority": {"type": "null"}, "decisionSupportStatus": {"const": "HUMAN_REVIEW_REQUIRED"}
+      }
+    }
+  }
+}

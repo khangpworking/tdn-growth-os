@@ -17,6 +17,7 @@ import { renderResearchReportHtml } from './research-report-html.js';
 import { renderReportKitHtml } from './report-kit-html.js';
 import { buildReportDescriptiveExtension } from './report-descriptive-extension.js';
 import { buildReportLocatedInsightExtension } from './report-located-insight-extension.js';
+import { buildReportMethodPacketsExtension } from './report-method-packets-extension.js';
 import { buildSourceBackedReport, type SourceBackedReportBundle, type SourceBackedReportDependencies } from './source-backed-report.js';
 import {
   buildPreparedReportAssembly,
@@ -658,8 +659,10 @@ export class ReportVersionService {
     if (descriptive) bundle = { ...bundle, files: new Map([...bundle.files, ...descriptive.files]) };
     const located = await buildReportLocatedInsightExtension(request.locatedInsightMethodsPath, bundle, this.#dependencies.sourcePackages);
     if (located) bundle = { ...bundle, files: new Map([...bundle.files, ...located.files]) };
+    const methods = await buildReportMethodPacketsExtension(request.methodPacketsPath, bundle, this.#dependencies.sourcePackages);
+    if (methods) bundle = methods.bundle;
     const semantic = buildReportSemanticContent(bundle, descriptive === undefined ? undefined : digest(descriptive.bytes),
-      located === undefined ? undefined : digest(located.bytes));
+      located === undefined ? undefined : digest(located.bytes), methods === undefined ? undefined : digest(methods.bytes));
     const review = buildUnreviewedReportState(semantic.content.semanticVersionId);
     const files = new Map(bundle.files);
     files.set('create-request.json', canonicalBytes(request));
@@ -669,7 +672,8 @@ export class ReportVersionService {
     const html = request.reportPresentation === 'report-kit-v1'
       ? renderReportKitHtml({ bundle: { ...bundle, files }, semanticVersionId: semantic.content.semanticVersionId,
         ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }),
-        ...(located === undefined ? {} : { locatedInsightMethods: located.output }) })
+        ...(located === undefined ? {} : { locatedInsightMethods: located.output }),
+        ...(methods === undefined ? {} : { methodPackets: {gates: methods.gates, decisions: methods.decisions} }) })
       : renderResearchReportHtml({ ...bundle, files }, semantic.content.semanticVersionId);
     files.set('report.html', Buffer.from(html, 'utf8'));
     const exportManifest = {

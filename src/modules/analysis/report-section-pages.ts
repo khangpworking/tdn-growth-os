@@ -1,6 +1,9 @@
 import type { ReportAssemblySnapshot } from '../../../contracts/analysis/report-assembly-snapshot.generated.js';
 import type { LocatedInsightMethods } from '../../../contracts/analysis/located-insight-methods.generated.js';
 import { renderLocatedInsightSection } from './report-located-insight-pages.js';
+import type { BoundedAnalysisGates } from '../../../contracts/analysis/bounded-analysis-gates.generated.js';
+import type { DecisionEvidencePackets } from '../../../contracts/analysis/decision-evidence-packets.generated.js';
+import { renderReportMethodPacketSection } from './report-method-packets-pages.js';
 import type {
   AttributedMarketEvent,
   DescriptiveMarketMethods,
@@ -43,6 +46,7 @@ export interface KitContext {
   readonly snapshot: ReportAssemblySnapshot | undefined;
   readonly descriptive: DescriptiveMarketMethods | undefined;
   readonly located?: LocatedInsightMethods;
+  readonly methodPackets?: {readonly gates: BoundedAnalysisGates | undefined; readonly decisions: DecisionEvidencePackets | undefined};
   readonly sections: readonly KitSection[];
 }
 
@@ -525,6 +529,11 @@ function withDescriptiveNote(section: KitSection, body: string): string {
 }
 
 function bodyFor(ctx: KitContext, section: KitSection): string {
+  const methodBody = ctx.methodPackets === undefined ? undefined : renderReportMethodPacketSection({
+    ...(ctx.methodPackets.gates === undefined ? {} : {gates: ctx.methodPackets.gates}),
+    ...(ctx.methodPackets.decisions === undefined ? {} : {decisions: ctx.methodPackets.decisions}),
+  }, section.sectionId);
+  if (methodBody !== undefined) return `<p class="sec-note">Hồ sơ phương pháp được nạp riêng. Trạng thái và số mục ở trang tổng quan vẫn theo packet gốc, không phải mức hoàn thành của phần bổ sung này.</p>${methodBody}`;
   const locatedBody = ctx.located === undefined ? undefined : renderLocatedInsightSection(ctx.located, section.sectionId);
   if (locatedBody !== undefined) return `<p class="sec-note">Hồ sơ định tính được nạp riêng. Trạng thái packet bên trên chưa ghi nhận phần bổ sung này; số mục ở trang tổng quan vẫn theo packet gốc.</p>${locatedBody}`;
   switch (section.sectionId) {
@@ -562,5 +571,7 @@ export function renderInsightPanel(ctx: KitContext, section: KitSection): string
   // Located context pairs and corpus tables need readable columns, rather than
   // being squeezed into the compact cards used for missing-input summaries.
   const locatedWide = ctx.located !== undefined && ['I02', 'I05', 'I06', 'I07', 'I08', 'I09', 'I10'].includes(section.sectionId);
-  return `<article class="ip${WIDE_PANELS.has(section.sectionId) || locatedWide ? ' wide' : ''}" id="section-${id}" aria-labelledby="h-${id}"><header class="ph"><div><small>${id}</small><h3 id="h-${id}">${esc(section.title)}</h3></div>${stateChip(section.deliveryState)}</header><p class="sub">${esc(subtitle(section))}</p>${bodyFor(ctx, section)}</article>`;
+  const methodWide = (ctx.methodPackets?.gates !== undefined && ['I11', 'I12', 'I16'].includes(section.sectionId))
+    || (ctx.methodPackets?.decisions !== undefined && ['I14', 'I15'].includes(section.sectionId));
+  return `<article class="ip${WIDE_PANELS.has(section.sectionId) || locatedWide || methodWide ? ' wide' : ''}" id="section-${id}" aria-labelledby="h-${id}"><header class="ph"><div><small>${id}</small><h3 id="h-${id}">${esc(section.title)}</h3></div>${stateChip(section.deliveryState)}</header><p class="sub">${esc(subtitle(section))}</p>${bodyFor(ctx, section)}</article>`;
 }

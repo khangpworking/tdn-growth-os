@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/report-method-packets-input.schema.json",
+  "title": "ReportMethodPacketsInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "gates", "decisions"],
+  "properties": {
+    "contractVersion": {"const": "report-method-packets-v1"},
+    "gates": {"anyOf": [{"$ref": "bounded-analysis-gates.schema.json#/$defs/input"}, {"type": "null"}]},
+    "decisions": {"anyOf": [{"$ref": "decision-evidence-packets.schema.json#/$defs/input"}, {"type": "null"}]}
+  }
+}
