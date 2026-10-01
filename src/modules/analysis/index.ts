@@ -168,3 +168,13 @@ export {
   type ReportReviewTargetLedgerExecution,
   type VerifiedReportReviewTarget,
 } from './report-review-target-ledger.js';
+export {
+  AnalysisSectionArtifactRetentionReader,
+  SectionArtifactRetentionConflictError,
+  SectionArtifactRetentionIntegrityError,
+  SectionArtifactRetentionLedgerService,
+  SectionArtifactRetentionValidationError,
+  type SectionArtifactRetentionBytes,
+  type SectionArtifactRetentionExecution,
+  type VerifiedSectionArtifactRetention,
+} from './section-artifact-retention-ledger.js';

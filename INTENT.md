@@ -657,3 +657,16 @@ gói renderer profile, đúng digest của bốn dependency và SHA-256/byte siz
 HTML; verifier có thể phát lại toàn chuỗi từ exact dependencies để phát hiện
 can thiệp. Không UI nào được ngụ ý rằng nội dung do AI tạo ra hoặc đã được
 duyệt.
+
+### A37 — Giữ đúng exact A36 section artifact làm state có thể phát lại, chưa phải report version
+
+A37 chỉ lưu lại một bản ghi bất biến khóa theo đúng exact `artifactSha256` của
+A36, cùng membership xác định cho sáu artifact cần để phát lại nó (A32 metric
+set, A33 chart bundle, A34 evidence envelope, A35 factual narrative, A36
+receipt và HTML). Trước khi ghi, hệ thống phải parse và verify từng JSON
+contract, verify đúng exact digest, gọi lại verifier/renderer A32-A36 với
+đúng exact dependencies, và so khớp byte HTML. Retry với đúng exact bytes
+không tạo mutation; tái dùng identity với bytes hoặc metadata khác sẽ fail
+closed. Đây thuần là lớp lưu trữ (layer-two retention): không tạo report
+version, interpretation, review target, quyết định duyệt của con người, PDF,
+UI/API hay deployment nào.

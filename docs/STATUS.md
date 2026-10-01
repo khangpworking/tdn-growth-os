@@ -726,3 +726,34 @@ dependencies. Draft PR #98 is open; Linux CI passed on implementation head
 612/612 repository tests, contract generation, strict TypeScript, production
 build and the research report preview (no page error). Windows tests, build
 and typecheck were not run by policy.
+
+## Research A37: immutable M03 section-artifact retention ledger (draft PR #99)
+
+A37 retains one exact, verified A36 section artifact as immutable, replayable
+application state, keyed by its own `artifactSha256`, together with
+deterministic membership for the exact six artifacts required to replay it
+(A32 metric set, A33 chart bundle, A34 evidence envelope, A35 factual
+narrative, A36 receipt and HTML). Before any durable registration it parses
+and verifies every JSON contract, verifies exact digests, replays the full
+A32-A36 chain via the existing verifiers/renderer, and compares exact HTML
+bytes. Exact retries of identical bytes/identity are mutation-free; reuse of
+the identity with changed bytes or metadata fails closed, and failed writes
+leave no finalized row, member, active manifest or orphan canonical artifact.
+Membership is immutable after finalization via the same repository/trigger
+patterns already used elsewhere in the codebase. The one offline CLI takes
+explicit database, artifact-root and dependency file paths plus their
+declared digests; it never infers "latest", never calculates or calls AI/
+provider, and its printed receipt never includes local file paths. This is
+layer-two retention only: it does not create a report version,
+interpretation, review target, human approval, PDF, UI/API or deployment.
+Tests were authored by Codex under the test-audit gate: one service/
+integration owner test and one distinct CLI/filesystem-boundary owner test,
+neither performing any AI or provider call. Draft PR #99 is open (temporarily
+retargeted to `main` to trigger Linux checks; stacked logically on A36 draft
+PR #98). Linux CI passed on the final implementation-and-test head
+`30d51032229061fa3decf05897605666d910525c`:
+[Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/36708237214)
+(176/176 frontend tests, 615/615 repository tests, contract generation,
+strict TypeScript, production build) and
+[Research report preview](https://github.com/khangpworking/tdn-growth-os/actions/runs/36708237136)
+(no page error). Windows tests, build and typecheck were not run by policy.
