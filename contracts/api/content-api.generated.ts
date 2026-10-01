@@ -36,16 +36,24 @@ export type ContentIdeaPurposes =
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
-  | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose];
+  | [
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+    ];
 export type ContentIdeaPurpose = string;
 export type ContentIdeaModel = 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low';
 export type ContentPurposeKind = 'EDUCATION' | 'ENTERTAINMENT' | 'SALES' | 'TRUST' | 'ENGAGEMENT';
-export type ContentPosterFormat = 'square' | 'portrait' | 'story' | 'landscape';
 export type ContentIdeaPromptChoice = ContentIdeaSystemPrompt | ContentIdeaUserPrompt | ContentIdeaFreestylePrompt;
 export type ContentCaptionStyle = 'PROFESSIONAL' | 'FRIENDLY';
 export type ContentCaptionLength = 'SHORT' | 'MEDIUM' | 'LONG';
 export type ContentPosterModel = 'gpt-image-2' | 'gemini-3.1-flash-image';
+export type ContentPosterFormat = 'square' | 'portrait' | 'story' | 'landscape';
 export type ContentPosterReferences = string[];
+export type ContentPosterFormat1 = 'square' | 'portrait' | 'story' | 'landscape';
 export type ContentPackageVersionSource = 'GENERATED' | 'MANUAL' | 'RESTORE';
 export type ContentPackagePart = 'CAPTION' | 'POSTER';
 
@@ -726,7 +734,7 @@ export interface ContentPackageListEntry {
   captionVersion: number;
   posterVersion: number;
   captionPreview?: string;
-  posterFormat: ContentPosterFormat;
+  posterFormat: ContentPosterFormat1;
   createdAt: DateTime;
 }
 export interface ContentPackageDetailResponse {
@@ -757,7 +765,7 @@ export interface ContentPackageSettingsView {
   captionLength: 'SHORT' | 'MEDIUM' | 'LONG';
   posterPromptName: string;
   posterModel: 'gpt-image-2' | 'gemini-3.1-flash-image';
-  posterFormat: ContentPosterFormat;
+  posterFormat: ContentPosterFormat1;
   includeLogo: boolean;
   logoMediaSha256?: Sha256;
   referenceMediaSha256s: Sha256[];

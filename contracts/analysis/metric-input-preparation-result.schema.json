@@ -1,0 +1,108 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/metric-input-preparation-result.schema.json",
+  "title": "MetricInputPreparationResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "preparationSha256",
+    "request",
+    "requestSha256",
+    "workspace",
+    "sourcePackage",
+    "selectedSources",
+    "normalizedInput",
+    "normalizationReceiptSha256"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "preparationSha256": { "$ref": "#/$defs/digest" },
+    "request": { "$ref": "metric-input-preparation-request.schema.json" },
+    "requestSha256": { "$ref": "#/$defs/digest" },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspaceId", "state", "snapshotSha256"],
+      "properties": {
+        "workspaceId": { "type": "string", "format": "uuid" },
+        "state": { "const": "ACTIVE" },
+        "snapshotSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "sourcePackage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageId", "manifestArtifactSha256", "packageContentSha256"],
+      "properties": {
+        "packageId": { "type": "string", "format": "uuid" },
+        "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "selectedSources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workbook", "manifest", "labels"],
+      "properties": {
+        "workbook": { "$ref": "#/$defs/workbookSource" },
+        "manifest": { "$ref": "#/$defs/manifestSource" },
+        "labels": { "anyOf": [{ "$ref": "#/$defs/labelsSource" }, { "type": "null" }] }
+      }
+    },
+    "normalizedInput": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["artifactSha256", "valueSha256", "sourceCount", "rowCount"],
+      "properties": {
+        "artifactSha256": { "$ref": "#/$defs/digest" },
+        "valueSha256": { "$ref": "#/$defs/digest" },
+        "sourceCount": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "rowCount": { "type": "integer", "minimum": 0, "maximum": 10000 }
+      }
+    },
+    "normalizationReceiptSha256": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "baseSource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "role", "logicalPath", "sha256", "byteSize", "mediaType",
+        "evidenceFamily", "representationRole", "independence",
+        "providerProvenance", "provenanceBasis"
+      ],
+      "properties": {
+        "role": { "enum": ["workbook", "manifest", "labels"] },
+        "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "byteSize": { "type": "integer", "minimum": 0, "maximum": 33554432 },
+        "mediaType": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "evidenceFamily": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "representationRole": { "enum": ["primary", "alternate", "structured", "derived"] },
+        "independence": { "enum": ["independent", "non_independent"] },
+        "providerProvenance": { "enum": ["verified", "provider_reported", "operator_supplied_unverified", "synthetic"] },
+        "provenanceBasis": { "type": "string", "minLength": 1, "maxLength": 1000 }
+      }
+    },
+    "workbookSource": {
+      "allOf": [
+        { "$ref": "#/$defs/baseSource" },
+        { "type": "object", "properties": { "role": { "const": "workbook" } } }
+      ]
+    },
+    "manifestSource": {
+      "allOf": [
+        { "$ref": "#/$defs/baseSource" },
+        { "type": "object", "properties": { "role": { "const": "manifest" } } }
+      ]
+    },
+    "labelsSource": {
+      "allOf": [
+        { "$ref": "#/$defs/baseSource" },
+        { "type": "object", "properties": { "role": { "const": "labels" } } }
+      ]
+    }
+  }
+}

@@ -108,6 +108,15 @@ export {
   type VerifiedNormalizedMetricProjection,
 } from './normalized-metric-observation-store.js';
 export {
+  AnalysisMetricInputPreparationReader,
+  MetricInputPreparationIntegrityError,
+  MetricInputPreparationService,
+  MetricInputPreparationValidationError,
+  type MetricInputPreparationExecution,
+  type MetricInputPreparationReader,
+  type VerifiedMetricInputPreparation,
+} from './metric-input-preparation-service.js';
+export {
   buildReportReviewTarget,
   ReportReviewTargetIntegrityError,
   ReportReviewTargetValidationError,

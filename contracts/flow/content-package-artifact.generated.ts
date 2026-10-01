@@ -1,7 +1,10 @@
 /* Generated from content-package-artifact.schema.json. Do not edit by hand. */
 
+export type Version = number;
+export type Sha256 = string;
 export type ContentDisplayLevel = 'ALWAYS' | 'OPTIONAL' | 'HIDDEN';
-export type ContentIdeaPromptUsed = ContentIdeaSystemPromptUsed | ContentIdeaUserPromptUsed | ContentIdeaFreestylePromptUsed;
+export type ContentIdeaPromptUsed =
+  ContentIdeaSystemPromptUsed | ContentIdeaUserPromptUsed | ContentIdeaFreestylePromptUsed;
 export type ContentIdeaModel = 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low';
 export type ContentCaptionStyle = 'PROFESSIONAL' | 'FRIENDLY';
 export type ContentCaptionLength = 'SHORT' | 'MEDIUM' | 'LONG';
@@ -12,13 +15,13 @@ export interface ContentPackageArtifact {
   contractVersion: '1.0.0';
   packageId: string;
   campaignId: string;
-  campaignVersion: number;
+  campaignVersion: Version;
   angleId: string;
-  insightVersion: number;
+  insightVersion: Version;
   brand: ContentPackageBrandRef;
   items: ContentPackageItemRef[];
   requestId: string;
-  requestSha256: string;
+  requestSha256: Sha256;
   purposes: string[];
   display: ContentPackageDisplay;
   caption: ContentPackageCaptionPin;
@@ -28,11 +31,11 @@ export interface ContentPackageArtifact {
 }
 export interface ContentPackageBrandRef {
   brandId: string;
-  version: number;
+  version: Version;
 }
 export interface ContentPackageItemRef {
   itemId: string;
-  itemVersion: number;
+  itemVersion: Version;
   tierKeys?: string[];
 }
 export interface ContentPackageDisplay {
@@ -84,7 +87,7 @@ export interface ContentPackagePosterPin {
   prompt: ContentIdeaPromptUsed;
   model: ContentPosterModel;
   format: ContentPosterFormat;
-  referenceMediaSha256s: string[];
+  referenceMediaSha256s: Sha256[];
   includeLogo: boolean;
-  logoMediaSha256?: string;
+  logoMediaSha256?: Sha256;
 }

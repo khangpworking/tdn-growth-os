@@ -24,7 +24,8 @@ export function metricLabelFingerprint(platform: MetricScopeInput['scope']['plat
   return sha({ platform, shopId: row.shopId, listingId: row.listingId, title: row.title, category: row.category });
 }
 
-function validate(value: unknown): MetricScopeInput {
+/** Validate and freeze normalized input without executing any market calculation. */
+export function validateMetricScopeInput(value: unknown): MetricScopeInput {
   if (!validateInput(value)) throw new TypeError(`Invalid normalized Metric input: ${ajv.errorsText(validateInput.errors)}`);
   const input = value as MetricScopeInput;
   if (input.scope.start > input.scope.end) throw new TypeError('Reporting period is reversed');
@@ -116,7 +117,7 @@ function comparison(all: Scope, selected: Scope): MetricScopeOutput['comparisons
 }
 
 export function calculateMetricScopes(value: unknown): MetricScopeOutput {
-  const input = validate(value);
+  const input = validateMetricScopeInput(value);
   const labelIssues: MetricScopeOutput['labelIssues'] = [];
   input.records.forEach((row, i) => {
     const reason = !row.label ? 'MISSING_LABEL' : row.label.contentSha256 !== metricLabelFingerprint(input.scope.platform, row) ? 'STALE_LABEL' : row.label.methodVersion !== input.labelCodebookVersion ? 'CODEBOOK_MISMATCH' : null;

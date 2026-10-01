@@ -7,6 +7,7 @@ export type ContentCaptionLength = 'SHORT' | 'MEDIUM' | 'LONG';
 export type ContentPosterModel = 'gpt-image-2' | 'gemini-3.1-flash-image';
 export type ContentPosterFormat = 'square' | 'portrait' | 'story' | 'landscape';
 export type ContentPosterReferences = string[];
+
 export interface ContentCampaignDefaultsRequest {
   contractVersion: '1.0.0';
   campaignId: string;

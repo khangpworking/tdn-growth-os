@@ -44,6 +44,12 @@ const DIGEST = /^[0-9a-f]{64}$/;
 
 type SourceRole = 'workbook' | 'manifest' | 'labels' | 'tabletQuoteSource' | 'tabletQuoteInput';
 
+export interface MetricSourceSelectionIdentity {
+  readonly workspaceId: string;
+  readonly packageId: string;
+  readonly packageManifestSha256: string;
+}
+
 export interface SourceBackedReportDependencies {
   readonly sourcePackages: FinalizedSourcePackageReader;
   readonly workspaces: DiscoveryWorkspaceReader;
@@ -170,9 +176,9 @@ function packageContentDigest(files: readonly SourcePackageManifest['files'][num
   return sha256(Buffer.from(canonicalJson(membership), 'utf8'));
 }
 
-function verifyPackage(
+export function verifyFinalizedMetricSourcePackage(
   value: VerifiedFinalizedSourcePackage,
-  request: SourceBackedReportRequest,
+  request: MetricSourceSelectionIdentity,
 ): void {
   if (!value || typeof value !== 'object') throw new TypeError('package: INVALID_READER_RESULT');
   validateSourcePackageManifest(value.manifest);
@@ -218,7 +224,7 @@ function verifyPackage(
   }
 }
 
-function verifyWorkspace(value: DiscoveryWorkspaceArtifact, request: SourceBackedReportRequest): string {
+export function verifyActiveMetricWorkspace(value: DiscoveryWorkspaceArtifact, request: MetricSourceSelectionIdentity): string {
   validateDiscoveryWorkspaceArtifact(value);
   if (!value || typeof value !== 'object' || value.workspaceId !== request.workspaceId || value.state !== 'ACTIVE') {
     throw new TypeError('workspace: ID_OR_STATE_MISMATCH');
@@ -239,7 +245,7 @@ function verifyWorkspace(value: DiscoveryWorkspaceArtifact, request: SourceBacke
   return sha256(bytes);
 }
 
-function selectedFile(
+export function selectMetricSourceFile(
   pkg: VerifiedFinalizedSourcePackage,
   logicalPath: string,
   role: SourceRole,
@@ -267,7 +273,7 @@ function selectedFile(
   return { file, provenance, mapping };
 }
 
-function verifyNormalizedEvidenceFamilies(
+export function verifyNormalizedMetricEvidenceFamilies(
   input: MetricScopeInput,
   selected: readonly { readonly file: VerifiedSourcePackageFile; readonly provenance: SourceBackedSourceProvenance }[],
 ): void {
@@ -280,7 +286,7 @@ function verifyNormalizedEvidenceFamilies(
   }
 }
 
-function ensureDistinct(request: SourceBackedReportRequest): void {
+export function ensureDistinctMetricSourcePaths(request: Pick<SourceBackedReportRequest, 'workbookPath' | 'manifestPath' | 'labelsPath' | 'tabletQuoteSourcePath' | 'tabletQuoteInputPath'>): void {
   const tabletQuoteSourcePath = request.tabletQuoteSourcePath ?? null;
   const tabletQuoteInputPath = request.tabletQuoteInputPath ?? null;
   if ((tabletQuoteSourcePath === null) !== (tabletQuoteInputPath === null)) {
@@ -292,7 +298,7 @@ function ensureDistinct(request: SourceBackedReportRequest): void {
 }
 
 function m08Source(
-  selected: ReturnType<typeof selectedFile>,
+  selected: ReturnType<typeof selectMetricSourceFile>,
   role: M08TabletQuoteSource['role'],
   exportPath: M08TabletQuoteSource['exportPath'],
 ): M08TabletQuoteSource {
@@ -321,7 +327,7 @@ export async function buildSourceBackedReport(
   dependencies: SourceBackedReportDependencies,
 ): Promise<SourceBackedReportBundle> {
   const request = requestSnapshot(untrustedRequest);
-  ensureDistinct(request);
+  ensureDistinctMetricSourcePaths(request);
   if (catalogBytes.byteLength > MAX_BYTES) throw new TypeError('catalog: SIZE_LIMIT');
   if (sha256(catalogBytes) !== request.catalogSha256) throw new TypeError('catalog: DIGEST_MISMATCH');
   const catalog = cloneBytes(catalogBytes, 'catalog');
@@ -329,24 +335,24 @@ export async function buildSourceBackedReport(
     dependencies.workspaces.readVerifiedWorkspace(request.workspaceId),
     dependencies.sourcePackages.readFinalizedSourcePackage(request.packageId, SOURCE_BACKED_REPORT_READ_BUDGET),
   ]);
-  const workspaceSnapshotSha256 = verifyWorkspace(workspace, request);
-  verifyPackage(sourcePackage, request);
+  const workspaceSnapshotSha256 = verifyActiveMetricWorkspace(workspace, request);
+  verifyFinalizedMetricSourcePackage(sourcePackage, request);
 
-  const workbook = selectedFile(sourcePackage, request.workbookPath, 'workbook', XLSX_MEDIA_TYPE, 'raw-workbook.xlsx');
-  const manifest = selectedFile(sourcePackage, request.manifestPath, 'manifest', JSON_MEDIA_TYPE, 'raw-manifest.json');
-  const labels = request.labelsPath === null ? null : selectedFile(sourcePackage, request.labelsPath, 'labels', JSON_MEDIA_TYPE, 'raw-labels.json');
+  const workbook = selectMetricSourceFile(sourcePackage, request.workbookPath, 'workbook', XLSX_MEDIA_TYPE, 'raw-workbook.xlsx');
+  const manifest = selectMetricSourceFile(sourcePackage, request.manifestPath, 'manifest', JSON_MEDIA_TYPE, 'raw-manifest.json');
+  const labels = request.labelsPath === null ? null : selectMetricSourceFile(sourcePackage, request.labelsPath, 'labels', JSON_MEDIA_TYPE, 'raw-labels.json');
   const tabletQuoteSourcePath = request.tabletQuoteSourcePath ?? null;
   const tabletQuoteInputPath = request.tabletQuoteInputPath ?? null;
   const tabletQuoteSource = tabletQuoteSourcePath === null ? null
-    : selectedFile(sourcePackage, tabletQuoteSourcePath, 'tabletQuoteSource', JSON_MEDIA_TYPE, 'raw-tablet-quote-source.json');
+    : selectMetricSourceFile(sourcePackage, tabletQuoteSourcePath, 'tabletQuoteSource', JSON_MEDIA_TYPE, 'raw-tablet-quote-source.json');
   const tabletQuoteInput = tabletQuoteInputPath === null ? null
-    : selectedFile(sourcePackage, tabletQuoteInputPath, 'tabletQuoteInput', JSON_MEDIA_TYPE, 'raw-tablet-quote-input.json');
+    : selectMetricSourceFile(sourcePackage, tabletQuoteInputPath, 'tabletQuoteInput', JSON_MEDIA_TYPE, 'raw-tablet-quote-input.json');
   const normalized = normalizeMetricWorkbook(workbook.file.bytes, manifest.file.bytes, labels?.file.bytes);
   const metricSelected = [workbook, manifest, ...(labels === null ? [] : [labels])];
   const selected = [...metricSelected, ...(tabletQuoteSource === null ? [] : [tabletQuoteSource, tabletQuoteInput!])];
   const selectedSources = selected.map(item => item.provenance);
   const rawByteMappings = selected.map(item => item.mapping);
-  verifyNormalizedEvidenceFamilies(normalized.input, metricSelected);
+  verifyNormalizedMetricEvidenceFamilies(normalized.input, metricSelected);
   const inputBytes = canonicalBytes(normalized.input);
   const receiptBytes = canonicalBytes(normalized.receipt);
   const resultBytes = canonicalBytes(normalized.result);

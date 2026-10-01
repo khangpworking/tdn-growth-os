@@ -57,6 +57,8 @@ The exporter opens the database read-only, verifies both Results and their froze
 ## Offline Metric source profile (research A2)
 
 `npm run research:metric:normalize -- <export.xlsx> <manifest.json> <labels.json|-> <outside-git-bundle-directory>`.
+
+`npm run research:metric:prepare -- <database.sqlite> <artifact-root> <request.json>` verifies an exact finalized source package and ACTIVE discovery workspace, normalizes the selected Metric workbook/manifest/optional labels, and freezes the canonical input plus its queryable SQLite projection before calculation. It performs no market calculation, report generation, AI or provider call.
 Only the exact `metric-shopee-product-list-sheet1-v1` profile is supported. An explicit period/acquisition manifest is mandatory; no source dates, identities or labels are guessed. Python 3 standard library is required. See [A2 boundary and mapping](docs/tasks/research-a2-source-profile.md). No real-source acceptance or complete report automation is implied.
 
 ## Offline versioned report packet (research A3a)

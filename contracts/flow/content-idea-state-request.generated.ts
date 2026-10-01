@@ -11,8 +11,16 @@ export type ContentIdeaPurposes =
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
   | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose]
-  | [ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose, ContentIdeaPurpose];
+  | [
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+      ContentIdeaPurpose,
+    ];
 export type ContentIdeaPurpose = string;
+
 export interface ContentIdeaStateRequest {
   contractVersion: '1.0.0';
   ideaId: string;

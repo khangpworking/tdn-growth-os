@@ -1,7 +1,9 @@
 /* Generated from content-idea-artifact.schema.json. Do not edit by hand. */
 
 export type ContentIdeaKind = 'BIG_IDEA' | 'ANGLE';
-export type ContentIdeaPromptUsed = ContentIdeaSystemPromptUsed | ContentIdeaUserPromptUsed | ContentIdeaFreestylePromptUsed;
+export type Sha256 = string;
+export type ContentIdeaPromptUsed =
+  ContentIdeaSystemPromptUsed | ContentIdeaUserPromptUsed | ContentIdeaFreestylePromptUsed;
 export type ContentIdeaModel = 'gpt-5.6-sol' | 'gpt-5.6-luna' | 'gemini-3.5-flash-low';
 export type ContentIdeaOutput = ContentBigIdeaOutput | ContentAngleOutput;
 
@@ -13,7 +15,7 @@ export interface ContentIdeaArtifact {
   parentIdeaId?: string;
   insightVersion: number;
   requestId: string;
-  requestSha256: string;
+  requestSha256: Sha256;
   prompt: ContentIdeaPromptUsed;
   model: ContentIdeaModel;
   providerModel: string;
@@ -21,9 +23,9 @@ export interface ContentIdeaArtifact {
   lockedInput: {
     [k: string]: unknown;
   };
-  inputBundleSha256: string;
+  inputBundleSha256: Sha256;
   attemptId: string;
-  outputSha256: string;
+  outputSha256: Sha256;
   output: ContentIdeaOutput;
   createdAt: string;
 }
@@ -32,24 +34,24 @@ export interface ContentIdeaSystemPromptUsed {
   id: string;
   version: number;
   name: string;
-  creativeTextSha256: string;
+  creativeTextSha256: Sha256;
 }
 export interface ContentIdeaUserPromptUsed {
   source: 'USER';
   promptId: string;
   version: number;
   name: string;
-  creativeTextSha256: string;
+  creativeTextSha256: Sha256;
 }
 export interface ContentIdeaFreestylePromptUsed {
   source: 'FREESTYLE';
   name: string;
-  creativeTextSha256: string;
+  creativeTextSha256: Sha256;
   creativeText: string;
 }
 export interface ContentIdeaSystemLayerRef {
   version: number;
-  sha256: string;
+  sha256: Sha256;
 }
 export interface ContentBigIdeaOutput {
   concept: string;

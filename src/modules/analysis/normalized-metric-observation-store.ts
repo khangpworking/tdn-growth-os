@@ -1,19 +1,11 @@
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
 import type Database from 'better-sqlite3';
-import inputSchema from '../../../contracts/analysis/metric-scope-input.schema.json' with { type: 'json' };
 import type { MetricScopeInput } from '../../../contracts/analysis/metric-scope-input.generated.js';
 import { withDatabaseMutationMutex } from '../../platform/db/index.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
-import { calculateMetricScopes } from './metric-scope-calculator.js';
+import { validateMetricScopeInput } from './metric-scope-calculator.js';
 import type { AnalysisReportVersionReader } from './report-version-service.js';
 
-const require = createRequire(import.meta.url);
-const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
-const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
-const ajv = new Ajv2020({ strict: true, allErrors: true });
-addFormats(ajv);
-const validateInput = ajv.compile<MetricScopeInput>(inputSchema);
 const DIGEST = /^[0-9a-f]{64}$/;
 
 export class NormalizedMetricObservationIntegrityError extends Error {}
@@ -85,15 +77,16 @@ interface OriginRow {
 
 export class NormalizedMetricObservationStore {
   readonly #db: Database.Database;
-  readonly #reports: AnalysisReportVersionReader;
+  readonly #reports: AnalysisReportVersionReader | undefined;
 
-  constructor(options: { readonly db: Database.Database; readonly reports: AnalysisReportVersionReader }) {
+  constructor(options: { readonly db: Database.Database; readonly reports?: AnalysisReportVersionReader }) {
     this.#db = options.db;
     this.#reports = options.reports;
   }
 
   async materializeReportVersion(reportId: string, version: number): Promise<NormalizedMetricObservationExecution> {
-    const artifact = await this.#reports.readArtifact(reportId, version, 'normalized-input.json');
+    const reports = this.#requireReports();
+    const artifact = await reports.readArtifact(reportId, version, 'normalized-input.json');
     const input = parseCanonicalInput(artifact.bytes);
     const sha256 = digest(artifact.bytes);
     if (artifact.record.artifacts.find(item => item.fileName === 'normalized-input.json')?.sha256 !== sha256) {
@@ -145,7 +138,8 @@ export class NormalizedMetricObservationStore {
   }
 
   async readVerifiedProjectionForReport(reportId: string, version: number): Promise<VerifiedNormalizedMetricProjection> {
-    const artifact = await this.#reports.readArtifact(reportId, version, 'normalized-input.json');
+    const reports = this.#requireReports();
+    const artifact = await reports.readArtifact(reportId, version, 'normalized-input.json');
     const sha256 = digest(artifact.bytes);
     const origin = this.#origin(reportId, version);
     if (!origin) {
@@ -156,6 +150,40 @@ export class NormalizedMetricObservationStore {
     this.#assertExactProjection(sha256, input, artifact.bytes);
     return {
       normalizedInputSha256: sha256,
+      rowCount: input.records.length,
+      sourceCount: input.sources.length,
+      input: structuredClone(input),
+    };
+  }
+
+  /** Caller-owned transaction seam for a pre-report normalized preparation. */
+  materializeCanonicalInputInTransaction(bytes: Buffer): NormalizedMetricObservationExecution {
+    if (!this.#db.inTransaction) {
+      throw new NormalizedMetricObservationValidationError('Normalized projection materialization requires an active transaction');
+    }
+    const input = parseCanonicalInput(bytes);
+    const sha256 = digest(bytes);
+    const existing = this.#dataset(sha256);
+    if (existing) this.#assertExactProjection(sha256, input, bytes);
+    const databaseMutations = existing ? 0 : this.#insertProjection(sha256, input);
+    return {
+      normalizedInputSha256: sha256,
+      rowCount: input.records.length,
+      sourceCount: input.sources.length,
+      deduplicated: existing !== undefined,
+      databaseMutations,
+    };
+  }
+
+  readVerifiedProjection(normalizedInputSha256: string, bytes: Buffer): VerifiedNormalizedMetricProjection {
+    assertDigest(normalizedInputSha256);
+    if (digest(bytes) !== normalizedInputSha256) {
+      throw new NormalizedMetricObservationIntegrityError('Normalized input bytes do not match their artifact identity');
+    }
+    const input = parseCanonicalInput(bytes);
+    this.#assertExactProjection(normalizedInputSha256, input, bytes);
+    return {
+      normalizedInputSha256,
       rowCount: input.records.length,
       sourceCount: input.sources.length,
       input: structuredClone(input),
@@ -286,10 +314,8 @@ export class NormalizedMetricObservationStore {
       labelCodebookVersion: dataset.labelCodebookVersion,
       wideUnknownPolicy: dataset.wideUnknownPolicy,
     };
-    if (!validateInput(input)) throw new NormalizedMetricObservationIntegrityError('Queryable normalized rows break the input contract');
-    try { calculateMetricScopes(input); }
-    catch { throw new NormalizedMetricObservationIntegrityError('Queryable normalized rows break calculation invariants'); }
-    return input;
+    try { return validateMetricScopeInput(input); }
+    catch { throw new NormalizedMetricObservationIntegrityError('Queryable normalized rows break normalized-input invariants'); }
   }
 
   #dataset(sha256: string): DatasetRow | undefined {
@@ -322,17 +348,22 @@ export class NormalizedMetricObservationStore {
       origin.packageContentSha256 !== record.packageContentSha256
     ) throw new NormalizedMetricObservationIntegrityError('Normalized dataset origin does not match the report lineage');
   }
+
+  #requireReports(): AnalysisReportVersionReader {
+    if (!this.#reports) throw new NormalizedMetricObservationValidationError('A report reader is required for report-origin replay');
+    return this.#reports;
+  }
 }
 
 function parseCanonicalInput(bytes: Buffer): MetricScopeInput {
   let value: unknown;
   try { value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
   catch { throw new NormalizedMetricObservationIntegrityError('Normalized input is not valid UTF-8 JSON'); }
-  if (!validateInput(value)) throw new NormalizedMetricObservationIntegrityError('Normalized input breaks its contract');
-  try { calculateMetricScopes(value); }
-  catch { throw new NormalizedMetricObservationIntegrityError('Normalized input breaks its calculation invariants'); }
-  if (!canonicalBytes(value).equals(bytes)) throw new NormalizedMetricObservationIntegrityError('Normalized input is not canonical JSON');
-  return value;
+  let input: MetricScopeInput;
+  try { input = validateMetricScopeInput(value); }
+  catch { throw new NormalizedMetricObservationIntegrityError('Normalized input breaks normalized-input invariants'); }
+  if (!canonicalBytes(input).equals(bytes)) throw new NormalizedMetricObservationIntegrityError('Normalized input is not canonical JSON');
+  return input;
 }
 
 function digest(bytes: Uint8Array): string {

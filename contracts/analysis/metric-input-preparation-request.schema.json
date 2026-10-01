@@ -1,0 +1,34 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/metric-input-preparation-request.schema.json",
+  "title": "MetricInputPreparationRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "workspaceId",
+    "packageId",
+    "packageManifestSha256",
+    "workbookPath",
+    "manifestPath",
+    "labelsPath"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "packageId": { "type": "string", "format": "uuid" },
+    "packageManifestSha256": { "$ref": "#/$defs/digest" },
+    "workbookPath": { "$ref": "#/$defs/logicalPath" },
+    "manifestPath": { "$ref": "#/$defs/logicalPath" },
+    "labelsPath": { "anyOf": [{ "$ref": "#/$defs/logicalPath" }, { "type": "null" }] }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "logicalPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$"
+    }
+  }
+}

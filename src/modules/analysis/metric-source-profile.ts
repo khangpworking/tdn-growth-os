@@ -8,7 +8,7 @@ import inputSchema from '../../../contracts/analysis/metric-scope-input.schema.j
 import type { MetricSourceManifest } from '../../../contracts/analysis/metric-source-manifest.generated.js';
 import type { MetricSourceLabels } from '../../../contracts/analysis/metric-source-labels.generated.js';
 import type { MetricScopeInput, Observation } from '../../../contracts/analysis/metric-scope-input.generated.js';
-import { calculateMetricScopes, metricLabelFingerprint } from './metric-scope-calculator.js';
+import { calculateMetricScopes, metricLabelFingerprint, validateMetricScopeInput } from './metric-scope-calculator.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 
 const require = createRequire(import.meta.url);
@@ -77,8 +77,12 @@ function integer(cell: Cell, locator: string): string | null {
   return digits;
 }
 
-/** Exact-byte, one-profile normalization; source text remains inert. No provider/DB/AI. */
-export function normalizeMetricWorkbook(workbook: Buffer, manifestBytes: Buffer, labelBytes?: Buffer) {
+/**
+ * Exact-byte, one-profile normalization without running a market calculation.
+ * Source text remains inert. The returned input is ready for schema/readiness
+ * checks and can be calculated only after the caller's explicit gate.
+ */
+export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Buffer, labelBytes?: Buffer) {
   const manifest = json(manifestBytes, 'manifest');
   if (!validateManifest(manifest)) reject('manifest', 'INVALID_MANIFEST');
   if (manifest.scope.platform !== 'shopee' || manifest.scope.start > manifest.scope.end) reject('manifest/scope', 'SCOPE_PERIOD_MISMATCH');
@@ -152,14 +156,24 @@ export function normalizeMetricWorkbook(workbook: Buffer, manifestBytes: Buffer,
     input.sources.push({ sha256: labelSha256!, label: 'Frozen classification sidecar', representationRole: 'derived',
       evidenceFamily: manifest.source.evidenceFamily, provenanceBasis: labels.provenanceBasis });
   }
-  // A1 owns normalized schema, arithmetic, missing/zero and scope policy validation.
-  const result = calculateMetricScopes(input);
-  return { input, result, receipt: {
+  const verifiedInput = validateMetricScopeInput(input);
+  const inputSha256 = jsonHash(verifiedInput);
+  return { input: verifiedInput, receipt: {
     contractVersion: '1.0.0', profileId: manifest.profileId, profileVersion: manifest.profileVersion,
     verification: 'EXACT_WORKBOOK_MAPPING_WITH_DECLARED_SCOPE', sourceSha256, manifestSha256, labelSha256,
     headerSha256: manifest.source.headerSha256, rowDigestMethod: 'canonical-typed-cells-v1',
     numericDisplay: 'OOXML lexical value; Excel rendered formatting is not reproduced',
     provenance: 'Operator supplied; byte verification does not authenticate provider collection, periods or adjudication.',
-    inputSha256: result.inputSha256, evidence,
+    inputSha256, evidence,
   } };
+}
+
+/** Backward-compatible A1 path: normalize first, then run the approved metric calculation. */
+export function normalizeMetricWorkbook(workbook: Buffer, manifestBytes: Buffer, labelBytes?: Buffer) {
+  const normalized = normalizeMetricWorkbookInput(workbook, manifestBytes, labelBytes);
+  const result = calculateMetricScopes(normalized.input);
+  if (result.inputSha256 !== normalized.receipt.inputSha256) {
+    throw new TypeError('Normalized input identity drifted before calculation');
+  }
+  return { ...normalized, result };
 }
