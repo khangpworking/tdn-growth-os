@@ -1,17 +1,27 @@
 # Trạng thái hiện tại
 
-## Research A44: wave 3 implementation in progress
+## Research A44: wave 3 code and normal HTML/PDF checks pass
 
 The final nine sections are being connected to retained source-bound method
 packets: M10, I11, I12 and I16 expose eligibility/inventory only; M01, M11,
 M12, I14 and I15 expose unranked evidence and owner-declared options. No
 forecast, inferential estimate, AI generation or automatic choice is enabled.
 The new request path combines exact supplement bytes into one evidence bundle
-without raising the existing 40-artifact limit. Linux integration and preview
-verification are pending. Delegated workers in this resumed session use only
-GPT-5.6 Luna xhigh, as requested by the owner.
+without raising the existing 40-artifact limit. At executable checkpoint
+`85bcd45`, Linux Check 36807287223 passes 700 backend/182 frontend tests plus
+contracts, typechecks and build; normal Preview 36807287213 passes all five
+HTML/PDF captures. Native PDF stream transfer fixes the capture failure without
+discarding evidence. The mobile correction keeps wide tables readable inside
+their own scroll regions. A43's independently verified backport is integrated
+without history rewrite. Final documentation-head CI is still a release gate.
 
-## Research A43: wave 2 Linux checks pass; PDF preview blocked
+All 30 sections now have bounded paths across the three waves, not 30 completed
+real-data analyses. The web picker still lacks optional method inputs; A45's
+explicit-selection bridge is proposed in its task plan, not implemented.
+Updated worker routing: design/UI/UX uses Opus 5.5 high; code/logic uses
+Luna 5.6 xhigh or Sonnet 5.5 high. The completed A44 workers used Luna xhigh.
+
+## Research A43: wave 2 Linux checks and native PDF preview pass
 
 The A42 successor implements I01, I02, I04-I10 and I13 as bounded methods over
 exact located declarations. It verifies retained source bytes and JSON-pointer
@@ -34,14 +44,14 @@ merge. Only migrations 0036 and 0037 differ from current main; the running
 Fedora schema has not been inspected in this task. See
 `docs/handoffs/research-a43-release-dependency-audit.md`.
 
-Linux Check passed on `f0f7243798e33d73ac10b878b0e22106e5bea098`
-(run 36803283100). The corresponding preview run 36803283154 still timed
-out while printing the combined located Insight report. A further native
-print-fragmentation repair at `6583b6d` is awaiting Linux verification. Earlier captures
-showed readable desktop/mobile section layouts after the scoped correction;
-that is not a PDF acceptance pass. The draft PR remains incomplete until
-the print failure is diagnosed and verified. No Windows execution, merge,
-Fedora activation or provider call.
+The earlier base64 PDF capture timed out at `f0f7243` and `6583b6d`; CSS
+fragmentation changes were insufficient. A bounded native stream repair at
+`f4381a6256cef8bf3732244fbb0273016d977390` now independently passes Linux
+Check 36807465344 (677 backend/182 frontend) and normal Preview 36807465348,
+including the full located report PDF. Native HTML and evidence are retained.
+This does not establish a specific Chrome/Node root cause or real-data
+methodological acceptance. PR #102 remains draft; no Windows execution,
+owner merge, Fedora activation or provider call occurred.
 
 ## Research A42: wave 1 implemented and Linux-verified, draft PR #101
 
