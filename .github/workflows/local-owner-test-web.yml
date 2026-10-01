@@ -44,7 +44,10 @@ jobs:
           set -e
           git worktree remove --force "$baseline"
           test "$result" -ne 0
-          grep -F 'failed health must offer in-page authority retry' "$RUNNER_TEMP/local-owner-regression.log"
+          if ! grep -F 'failed health must offer in-page authority retry' "$RUNNER_TEMP/local-owner-regression.log"; then
+            tail -n 100 "$RUNNER_TEMP/local-owner-regression.log"
+            exit 1
+          fi
       - name: Install temporary browser driver
         run: npm install --prefix "${{ runner.temp }}/local-owner-web-tools" --ignore-scripts --no-audit --no-fund --no-save playwright-core@1.63.0
       - run: npm run frontend:build

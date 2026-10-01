@@ -98,6 +98,7 @@ test('the mounted app automatically unlocks only an explicit local test runtime,
       healthFailure = failure;
       await remount();
       assert.match(dom.container.textContent!, /Ghi OWNER hiện không khả dụng/);
+      assert.equal(dom.container.querySelector('#owner-token'), null, 'failed health must not show manual unlock');
       await act(async () => { button('Create new research').click(); await settle(); });
       const unsavedTitle = dom.container.querySelector('input[required]') as HTMLInputElement;
       await act(async () => {
