@@ -54,11 +54,13 @@ const quote = (span: Span | null): string => span === null ? '<span>Chưa có đ
 const field = (value: Field): string => `${value.span === null ? '' : `${quote(value.span)}<br>`}<small>${label(value.state)}</small>`;
 const textOrUnset = (value: string | null): string => value === null ? 'Chưa khai báo' : esc(value);
 const definition = (name: string, html: string): string => `<dt>${esc(name)}</dt><dd>${html}</dd>`;
+// Table cells cannot afford the theme's separate 120px label column.
+const nestedDefinitions = '<dl style="grid-template-columns:minmax(0,1fr);gap:4px">';
 
 function provenance(value: Provenance): string {
   const basis = value.basis === 'PENDING_AI' ? 'Gợi ý AI đang chờ xử lý'
     : value.basis === 'HUMAN_REVIEWED' ? 'Hồ sơ khai báo đã được người rà soát' : 'Mã hóa do hồ sơ khai báo';
-  return `<details><summary>Nguồn gốc mã hóa</summary><p>${basis}. Khai báo này chưa được xác thực thành phê duyệt.</p><dl>${definition('Vai trò người mã hóa', esc(value.coderRole))}${definition('Ghi chú phân xử', textOrUnset(value.adjudication))}${definition('Bất đồng còn lại', textOrUnset(value.disagreement))}</dl></details>`;
+  return `<details><summary>Nguồn gốc mã hóa</summary><p>${basis}. Khai báo này chưa được xác thực thành phê duyệt.</p>${nestedDefinitions}${definition('Vai trò người mã hóa', esc(value.coderRole))}${definition('Ghi chú phân xử', textOrUnset(value.adjudication))}${definition('Bất đồng còn lại', textOrUnset(value.disagreement))}</dl></details>`;
 }
 
 function source(ctx: RenderContext, recordIndex: number): string {
@@ -76,7 +78,7 @@ function annotationContext(ctx: RenderContext, row: Annotation): string {
 
 function relation(value: Relation | null): string {
   return value === null ? '<p>Chưa có đoạn nguồn nêu quan hệ giữa hai phần.</p>'
-    : `<dl>${definition('Đoạn nối quan hệ', quote(value.link))}</dl><details><summary>Ngữ cảnh của quan hệ trong cùng bản ghi</summary><p>${quote(value.context)}</p></details>`;
+    : `${nestedDefinitions}${definition('Đoạn nối quan hệ', quote(value.link))}</dl><details><summary>Ngữ cảnh của quan hệ trong cùng bản ghi</summary><p>${quote(value.context)}</p></details>`;
 }
 
 function originalRecords(ctx: RenderContext): string {
@@ -109,7 +111,7 @@ function annotationRow(ctx: RenderContext, sectionId: LocatedId, pointer: string
   switch (sectionId) {
     case 'I02': {
       const row = locatedAt(input.i02, pointer, '/input/i02/'); annotation = row;
-      body = `<dl>${definition('Vai trò', field(row.role))}${definition('Hoàn cảnh', field(row.situation))}${definition('Việc cần làm', field(row.task))}${definition('Bối cảnh', field(row.setting))}${definition('Thời gian', field(row.time))}</dl>`;
+      body = `${nestedDefinitions}${definition('Vai trò', field(row.role))}${definition('Hoàn cảnh', field(row.situation))}${definition('Việc cần làm', field(row.task))}${definition('Bối cảnh', field(row.setting))}${definition('Thời gian', field(row.time))}</dl>`;
       break;
     }
     case 'I04': {
@@ -119,31 +121,31 @@ function annotationRow(ctx: RenderContext, sectionId: LocatedId, pointer: string
     }
     case 'I05': {
       const row = locatedAt(input.i05, pointer, '/input/i05/'); annotation = row;
-      body = `<p>${quote(row.span)}</p><p><b>${label(row.polarity)}</b></p><dl>${definition('Đối tượng được nói tới', field(row.target))}${definition('Người phát biểu', field(row.speakerAttribution))}</dl>`;
+      body = `<p>${quote(row.span)}</p><p><b>${label(row.polarity)}</b></p>${nestedDefinitions}${definition('Đối tượng được nói tới', field(row.target))}${definition('Người phát biểu', field(row.speakerAttribution))}</dl>`;
       break;
     }
     case 'I06': {
       const row = locatedAt(input.i06, pointer, '/input/i06/'); annotation = row;
       const ordered = ctx.output.sections.I06.sequences.some(item => item.annotationPointer === pointer);
       body = ordered ? `<p>Thứ tự do nguồn nêu trong cùng bản ghi:</p><ol><li>${quote(row.firstEvent)}</li><li>${quote(row.secondEvent)}</li></ol>`
-        : `<p><b>Chưa xác lập thứ tự.</b></p><dl>${definition('Sự kiện thứ nhất trong khai báo', quote(row.firstEvent))}${definition('Sự kiện thứ hai trong khai báo', quote(row.secondEvent))}</dl>`;
+        : `<p><b>Chưa xác lập thứ tự.</b></p>${nestedDefinitions}${definition('Sự kiện thứ nhất trong khai báo', quote(row.firstEvent))}${definition('Sự kiện thứ hai trong khai báo', quote(row.secondEvent))}</dl>`;
       body += relation(row.relation);
       break;
     }
     case 'I07': {
       const row = locatedAt(input.i07, pointer, '/input/i07/'); annotation = row;
-      body = `<dl>${definition('Lựa chọn được nêu', quote(row.choiceText))}${definition('Mệnh đề lý do', quote(row.reasonClause))}${definition('Nhóm lý do khai báo', label(row.reasonFacet))}${definition('Cách nêu lý do', label(row.reasonPolarity))}${definition('Cơ sở lời nói', label(row.speakerBasis))}${definition('Kết quả được nêu', field(row.resultState))}</dl>${relation(row.relation)}`;
+      body = `${nestedDefinitions}${definition('Lựa chọn được nêu', quote(row.choiceText))}${definition('Mệnh đề lý do', quote(row.reasonClause))}${definition('Nhóm lý do khai báo', label(row.reasonFacet))}${definition('Cách nêu lý do', label(row.reasonPolarity))}${definition('Cơ sở lời nói', label(row.speakerBasis))}${definition('Kết quả được nêu', field(row.resultState))}</dl>${relation(row.relation)}`;
       break;
     }
     case 'I08': {
       const row = locatedAt(input.i08, pointer, '/input/i08/'); annotation = row;
-      body = `<dl>${definition('Việc định làm hoặc đã thử', quote(row.attemptedTask))}${definition('Mệnh đề trở ngại', quote(row.obstacleClause))}${definition('Nhóm rào cản khai báo', label(row.barrierFacet))}${definition('Tình trạng giải quyết', field(row.resolutionState))}</dl>${relation(row.relation)}`;
+      body = `${nestedDefinitions}${definition('Việc định làm hoặc đã thử', quote(row.attemptedTask))}${definition('Mệnh đề trở ngại', quote(row.obstacleClause))}${definition('Nhóm rào cản khai báo', label(row.barrierFacet))}${definition('Tình trạng giải quyết', field(row.resolutionState))}</dl>${relation(row.relation)}`;
       break;
     }
     case 'I09': {
       const row = locatedAt(input.i09, pointer, '/input/i09/'); annotation = row;
       const candidate = ctx.output.sections.I09.candidates.find(item => item.annotationPointer === pointer);
-      body = `<p><b>${candidate ? label(candidate.state) : 'Mã hóa đang chờ xử lý'}</b></p><dl>${definition('Mong muốn', quote(row.desiredState))}${definition('Hiện trạng', quote(row.currentState))}${definition('Cách xoay xở được nêu', field(row.workaround))}</dl>${relation(row.relation)}<p class="sec-note">${candidate === undefined ? 'Chờ xử lý mã hóa; chưa đưa ra ứng viên từ chú giải này.' : candidate.unmetNeedCandidate ? 'Ứng viên nhu cầu chưa đáp ứng từ cặp chênh lệch đã khai báo; cần xem xét ý nghĩa trong nguồn.' : 'Chưa đủ cặp chênh lệch để ghi nhận ứng viên nhu cầu chưa đáp ứng.'}</p>`;
+      body = `<p><b>${candidate ? label(candidate.state) : 'Mã hóa đang chờ xử lý'}</b></p>${nestedDefinitions}${definition('Mong muốn', quote(row.desiredState))}${definition('Hiện trạng', quote(row.currentState))}${definition('Cách xoay xở được nêu', field(row.workaround))}</dl>${relation(row.relation)}<p class="sec-note">${candidate === undefined ? 'Chờ xử lý mã hóa; chưa đưa ra ứng viên từ chú giải này.' : candidate.unmetNeedCandidate ? 'Ứng viên nhu cầu chưa đáp ứng từ cặp chênh lệch đã khai báo; cần xem xét ý nghĩa trong nguồn.' : 'Chưa đủ cặp chênh lệch để ghi nhận ứng viên nhu cầu chưa đáp ứng.'}</p>`;
       break;
     }
   }

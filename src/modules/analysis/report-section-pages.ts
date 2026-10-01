@@ -559,5 +559,8 @@ const WIDE_PANELS = new Set(['I03', 'I17']);
 
 export function renderInsightPanel(ctx: KitContext, section: KitSection): string {
   const id = esc(section.sectionId);
-  return `<article class="ip${WIDE_PANELS.has(section.sectionId) ? ' wide' : ''}" id="section-${id}" aria-labelledby="h-${id}"><header class="ph"><div><small>${id}</small><h3 id="h-${id}">${esc(section.title)}</h3></div>${stateChip(section.deliveryState)}</header><p class="sub">${esc(subtitle(section))}</p>${bodyFor(ctx, section)}</article>`;
+  // Located context pairs and corpus tables need readable columns, rather than
+  // being squeezed into the compact cards used for missing-input summaries.
+  const locatedWide = ctx.located !== undefined && ['I02', 'I05', 'I06', 'I07', 'I08', 'I09', 'I10'].includes(section.sectionId);
+  return `<article class="ip${WIDE_PANELS.has(section.sectionId) || locatedWide ? ' wide' : ''}" id="section-${id}" aria-labelledby="h-${id}"><header class="ph"><div><small>${id}</small><h3 id="h-${id}">${esc(section.title)}</h3></div>${stateChip(section.deliveryState)}</header><p class="sub">${esc(subtitle(section))}</p>${bodyFor(ctx, section)}</article>`;
 }

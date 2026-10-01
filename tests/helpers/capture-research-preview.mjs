@@ -43,9 +43,9 @@ const waitForBrowserClose = timeout => new Promise(resolve => {
   if (browser.exitCode !== null) { finish(true); return; }
   timer = setTimeout(() => finish(false), timeout);
 });
-const call = (method, params = {}) => new Promise((resolve, reject) => {
+const call = (method, params = {}, timeoutMs = 15_000) => new Promise((resolve, reject) => {
   const id = ++nextId;
-  const timeout = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, 15000);
+  const timeout = setTimeout(() => { pending.delete(id); reject(new Error(`CDP timeout: ${method}`)); }, timeoutMs);
   pending.set(id, { resolve, reject, timeout });
   socket.send(JSON.stringify({ id, method, params }));
 });
@@ -296,10 +296,14 @@ try {
     await evaluate(`document.querySelectorAll('details').forEach((item,index) => item.open = ${JSON.stringify(originalOpen)}[index]); history.replaceState(null,'',location.pathname); document.activeElement.blur(); window.scrollTo(0,0)`);
   }
   if (pageErrors.length) throw new Error(`Browser errors: ${JSON.stringify(pageErrors)}`);
-  // Expand native disclosures for PDF so evidence is not silently omitted.
-  await call('Runtime.evaluate', { expression: 'document.querySelectorAll("details").forEach(element => element.open = true)' });
+  // Printing starts from a stable desktop layout, not the last mobile/keyboard
+  // inspection. All disclosures remain included in the evidence PDF.
+  await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
+  await call('Emulation.setEmulatedMedia', { media: 'print' });
+  await call('Runtime.evaluate', { expression: `document.querySelectorAll('details').forEach(element => element.open = true);
+    document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`, awaitPromise: true });
   const pdf = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
-    paperWidth: 8.27, paperHeight: 11.69, marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 });
+    paperWidth: 8.27, paperHeight: 11.69, marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 60_000);
   await fs.writeFile(path.join(root, 'synthetic-report.pdf'), Buffer.from(pdf.data, 'base64'), { mode: 0o600 });
   await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
   await fs.writeFile(path.join(root, 'interaction-evidence.json'), JSON.stringify({ viewports: interactionEvidence, pageErrors }, null, 2), { mode: 0o600 });
