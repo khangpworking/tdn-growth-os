@@ -1,0 +1,1204 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/bounded-analysis-gates.schema.json",
+  "title": "BoundedAnalysisGates",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "methodId",
+    "methodVersion",
+    "methodOutputId",
+    "input",
+    "sections",
+    "limitations"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "1.0.0"
+    },
+    "methodId": {
+      "const": "bounded-analysis-gates"
+    },
+    "methodVersion": {
+      "const": "1.0.0"
+    },
+    "methodOutputId": {
+      "$ref": "#/$defs/digest"
+    },
+    "input": {
+      "$ref": "#/$defs/input"
+    },
+    "sections": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "M10",
+        "I11",
+        "I12",
+        "I16"
+      ],
+      "properties": {
+        "M10": {
+          "$ref": "#/$defs/m10Output"
+        },
+        "I11": {
+          "$ref": "#/$defs/i11Output"
+        },
+        "I12": {
+          "$ref": "#/$defs/i12Output"
+        },
+        "I16": {
+          "$ref": "#/$defs/i16Output"
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    }
+  },
+  "$defs": {
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "pattern": "\\S"
+    },
+    "nullableText": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logicalPath",
+        "sha256",
+        "locator"
+      ],
+      "properties": {
+        "logicalPath": {
+          "$ref": "#/$defs/text"
+        },
+        "sha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "locator": {
+          "type": "string",
+          "pattern": "^(?:/(?:[^~/]|~[01])*)*$",
+          "maxLength": 2000
+        }
+      }
+    },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "$ref": "#/$defs/date"
+        },
+        "end": {
+          "$ref": "#/$defs/date"
+        }
+      }
+    },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "value"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "observed_value",
+            "observed_zero",
+            "missing",
+            "UNKNOWN"
+          ]
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^-?(0|[1-9][0-9]*)(\\.[0-9]+)?$",
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "measure",
+        "unit",
+        "period",
+        "timezone",
+        "universe",
+        "frame",
+        "inclusionRule"
+      ],
+      "properties": {
+        "measure": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "unit": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/period"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "timezone": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "universe": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "frame": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "inclusionRule": {
+          "$ref": "#/$defs/nullableText"
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "configuration",
+        "m10",
+        "i11",
+        "i12",
+        "i16"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "configuration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "advancedProfileSha256",
+            "adoptionSha256"
+          ],
+          "properties": {
+            "advancedProfileSha256": {
+              "const": "c4e0f5fbda7f1afbb47571a384c59e59aa31264b2e5b79a38bce97a30605ba63"
+            },
+            "adoptionSha256": {
+              "const": "5c5d1ea4d6d8b8aebfbdc3d92cb51718351890184cc290aac82411722636b7e7"
+            }
+          }
+        },
+        "m10": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source",
+                "series"
+              ],
+              "properties": {
+                "source": {
+                  "$ref": "#/$defs/source"
+                },
+                "series": {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "source",
+                      "entityLiteral",
+                      "metric",
+                      "unit",
+                      "timezone",
+                      "dailyBoundary",
+                      "universe",
+                      "frame",
+                      "aggregationRule",
+                      "period",
+                      "rows",
+                      "splits",
+                      "policy"
+                    ],
+                    "properties": {
+                      "source": {
+                        "$ref": "#/$defs/source"
+                      },
+                      "entityLiteral": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "metric": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "unit": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "timezone": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "dailyBoundary": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "universe": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "frame": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "aggregationRule": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "period": {
+                        "$ref": "#/$defs/period"
+                      },
+                      "rows": {
+                        "type": "array",
+                        "maxItems": 10000,
+                        "items": {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "source",
+                            "date",
+                            "observation"
+                          ],
+                          "properties": {
+                            "source": {
+                              "$ref": "#/$defs/source"
+                            },
+                            "date": {
+                              "$ref": "#/$defs/date"
+                            },
+                            "observation": {
+                              "$ref": "#/$defs/value"
+                            }
+                          }
+                        }
+                      },
+                      "splits": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "train",
+                          "validation",
+                          "holdout"
+                        ],
+                        "properties": {
+                          "train": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/$defs/period"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "validation": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/$defs/period"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "holdout": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/$defs/period"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "policy": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "revision",
+                          "modelId",
+                          "baselineId",
+                          "historyMinimumDays",
+                          "horizonDays",
+                          "gapPolicy",
+                          "errorMetric",
+                          "selectionRule",
+                          "refitRule"
+                        ],
+                        "properties": {
+                          "revision": {
+                            "$ref": "#/$defs/nullableText"
+                          },
+                          "modelId": {
+                            "$ref": "#/$defs/nullableText"
+                          },
+                          "baselineId": {
+                            "$ref": "#/$defs/nullableText"
+                          },
+                          "historyMinimumDays": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "horizonDays": {
+                            "anyOf": [
+                              {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 10000
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          },
+                          "gapPolicy": {
+                            "$ref": "#/$defs/nullableText"
+                          },
+                          "errorMetric": {
+                            "$ref": "#/$defs/nullableText"
+                          },
+                          "selectionRule": {
+                            "$ref": "#/$defs/nullableText"
+                          },
+                          "refitRule": {
+                            "$ref": "#/$defs/nullableText"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "i11": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source",
+                "groupPolicy",
+                "cells"
+              ],
+              "properties": {
+                "source": {
+                  "$ref": "#/$defs/source"
+                },
+                "groupPolicy": {
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "source",
+                        "revision",
+                        "groups",
+                        "overlap",
+                        "exhaustiveness",
+                        "suppressionRule"
+                      ],
+                      "properties": {
+                        "source": {
+                          "$ref": "#/$defs/source"
+                        },
+                        "revision": {
+                          "$ref": "#/$defs/text"
+                        },
+                        "groups": {
+                          "type": "array",
+                          "maxItems": 10000,
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "label",
+                              "source"
+                            ],
+                            "properties": {
+                              "label": {
+                                "$ref": "#/$defs/text"
+                              },
+                              "source": {
+                                "$ref": "#/$defs/source"
+                              }
+                            }
+                          }
+                        },
+                        "overlap": {
+                          "enum": [
+                            "DISJOINT",
+                            "OVERLAPPING",
+                            "UNKNOWN"
+                          ]
+                        },
+                        "exhaustiveness": {
+                          "enum": [
+                            "EXHAUSTIVE",
+                            "NON_EXHAUSTIVE",
+                            "UNKNOWN"
+                          ]
+                        },
+                        "suppressionRule": {
+                          "$ref": "#/$defs/nullableText"
+                        }
+                      }
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "cells": {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "source",
+                      "group",
+                      "assignment",
+                      "countUnit",
+                      "identityEvidence",
+                      "scope",
+                      "numerator",
+                      "denominator"
+                    ],
+                    "properties": {
+                      "source": {
+                        "$ref": "#/$defs/source"
+                      },
+                      "group": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "assignment": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "state",
+                          "source"
+                        ],
+                        "properties": {
+                          "state": {
+                            "enum": [
+                              "SOURCE_ASSIGNED",
+                              "UNKNOWN"
+                            ]
+                          },
+                          "source": {
+                            "anyOf": [
+                              {
+                                "$ref": "#/$defs/source"
+                              },
+                              {
+                                "type": "null"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "countUnit": {
+                        "enum": [
+                          "LOCATED_RECORD",
+                          "SOURCE_AGGREGATE",
+                          "SOURCE_IDENTIFIED_ENTITY"
+                        ]
+                      },
+                      "identityEvidence": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/$defs/source"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "scope": {
+                        "$ref": "#/$defs/scope"
+                      },
+                      "numerator": {
+                        "$ref": "#/$defs/value"
+                      },
+                      "denominator": {
+                        "$ref": "#/$defs/value"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "i12": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source",
+                "records"
+              ],
+              "properties": {
+                "source": {
+                  "$ref": "#/$defs/source"
+                },
+                "records": {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "source",
+                      "kind",
+                      "touchpoint",
+                      "channel",
+                      "date",
+                      "attribution",
+                      "scope",
+                      "window",
+                      "observation"
+                    ],
+                    "properties": {
+                      "source": {
+                        "$ref": "#/$defs/source"
+                      },
+                      "kind": {
+                        "enum": [
+                          "PRESENCE",
+                          "EXPOSURE",
+                          "OUTCOME"
+                        ]
+                      },
+                      "touchpoint": {
+                        "$ref": "#/$defs/text"
+                      },
+                      "channel": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "date": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/$defs/date"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      },
+                      "attribution": {
+                        "$ref": "#/$defs/text"
+                      },
+                      "scope": {
+                        "$ref": "#/$defs/scope"
+                      },
+                      "window": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "observation": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/$defs/value"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "i16": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "source",
+                "mode",
+                "protocolRef",
+                "fields",
+                "outcomes"
+              ],
+              "properties": {
+                "source": {
+                  "$ref": "#/$defs/source"
+                },
+                "mode": {
+                  "enum": [
+                    "DESIGN_ONLY",
+                    "EXISTING_RESULT"
+                  ]
+                },
+                "protocolRef": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/source"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "fields": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "question",
+                    "assignmentMechanism",
+                    "assignmentUnit",
+                    "treatment",
+                    "comparator",
+                    "eligibility",
+                    "instrumentation",
+                    "outcome",
+                    "unit",
+                    "window",
+                    "exclusions",
+                    "attrition",
+                    "estimator",
+                    "missingRule",
+                    "uncertaintyRule",
+                    "decisionRule"
+                  ],
+                  "properties": {
+                    "question": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "assignmentMechanism": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "assignmentUnit": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "treatment": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "comparator": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "eligibility": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "instrumentation": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "outcome": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "unit": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "window": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "exclusions": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "attrition": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "estimator": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "missingRule": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "uncertaintyRule": {
+                      "$ref": "#/$defs/nullableText"
+                    },
+                    "decisionRule": {
+                      "$ref": "#/$defs/nullableText"
+                    }
+                  }
+                },
+                "outcomes": {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "source",
+                      "arm",
+                      "assignmentUnit",
+                      "outcome",
+                      "unit",
+                      "window",
+                      "observation",
+                      "denominator"
+                    ],
+                    "properties": {
+                      "source": {
+                        "$ref": "#/$defs/source"
+                      },
+                      "arm": {
+                        "enum": [
+                          "TREATMENT",
+                          "COMPARATOR",
+                          "UNKNOWN"
+                        ]
+                      },
+                      "assignmentUnit": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "outcome": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "unit": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "window": {
+                        "$ref": "#/$defs/nullableText"
+                      },
+                      "observation": {
+                        "$ref": "#/$defs/value"
+                      },
+                      "denominator": {
+                        "$ref": "#/$defs/value"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "m10Output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "partitions",
+        "forecasts",
+        "errorMetrics",
+        "baselineEvaluation",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "const": "BLOCKED"
+        },
+        "partitions": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "seriesPointer",
+              "recordPointers",
+              "missingCalendarDates",
+              "missingValueDates",
+              "unknownValueDates",
+              "observedZeroDates",
+              "splitStatus",
+              "structurallyComplete",
+              "blockers"
+            ],
+            "properties": {
+              "seriesPointer": {
+                "$ref": "#/$defs/text"
+              },
+              "recordPointers": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              },
+              "missingCalendarDates": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/date"
+                }
+              },
+              "missingValueDates": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/date"
+                }
+              },
+              "unknownValueDates": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/date"
+                }
+              },
+              "observedZeroDates": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/date"
+                }
+              },
+              "splitStatus": {
+                "enum": [
+                  "VALID",
+                  "INVALID",
+                  "MISSING"
+                ]
+              },
+              "structurallyComplete": {
+                "type": "boolean"
+              },
+              "blockers": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              }
+            }
+          }
+        },
+        "forecasts": {
+          "type": "null"
+        },
+        "errorMetrics": {
+          "type": "null"
+        },
+        "baselineEvaluation": {
+          "type": "null"
+        },
+        "blockers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "i11Output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "partitions",
+        "rates",
+        "differences",
+        "publicationStatus",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "const": "INTERNAL_INVENTORY"
+        },
+        "partitions": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "cellPointers",
+              "groupOrder",
+              "unknownAssignmentPointers",
+              "blockers"
+            ],
+            "properties": {
+              "cellPointers": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              },
+              "groupOrder": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              },
+              "unknownAssignmentPointers": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              },
+              "blockers": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              }
+            }
+          }
+        },
+        "rates": {
+          "type": "null"
+        },
+        "differences": {
+          "type": "null"
+        },
+        "publicationStatus": {
+          "const": "NOT_AUTHORIZED"
+        },
+        "blockers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "i12Output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "presencePointers",
+        "exposurePointers",
+        "outcomePointers",
+        "partitions",
+        "joins",
+        "rates",
+        "effectiveness",
+        "blockers"
+      ],
+      "properties": {
+        "status": {
+          "const": "SEPARATE_INVENTORIES"
+        },
+        "presencePointers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "exposurePointers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "outcomePointers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "partitions": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "recordPointers",
+              "blockers"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "PRESENCE",
+                  "EXPOSURE",
+                  "OUTCOME"
+                ]
+              },
+              "recordPointers": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              },
+              "blockers": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "$ref": "#/$defs/text"
+                }
+              }
+            }
+          }
+        },
+        "joins": {
+          "type": "null"
+        },
+        "rates": {
+          "type": "null"
+        },
+        "effectiveness": {
+          "type": "null"
+        },
+        "blockers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "i16Output": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "status",
+        "executionState",
+        "structurallyComplete",
+        "protocolPointer",
+        "outcomePointers",
+        "missingFields",
+        "incompatibleOutcomePointers",
+        "estimate",
+        "uncertainty",
+        "blockers"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "DESIGN_ONLY",
+            "EXISTING_RESULT",
+            null
+          ]
+        },
+        "status": {
+          "enum": [
+            "METHOD_ONLY",
+            "ELIGIBILITY_ONLY",
+            "BLOCKED"
+          ]
+        },
+        "executionState": {
+          "const": "NOT_EXECUTED"
+        },
+        "structurallyComplete": {
+          "type": "boolean"
+        },
+        "protocolPointer": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "outcomePointers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "missingFields": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "incompatibleOutcomePointers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "estimate": {
+          "type": "null"
+        },
+        "uncertainty": {
+          "type": "null"
+        },
+        "blockers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    }
+  }
+}

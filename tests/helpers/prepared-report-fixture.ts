@@ -12,6 +12,8 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { MetricInputPreparationService } from '../../src/modules/analysis/metric-input-preparation-service.js';
 import { MetricPreparationReadinessService } from '../../src/modules/analysis/metric-preparation-readiness.js';
 import { normalizeMetricWorkbookInput } from '../../src/modules/analysis/metric-source-profile.js';
+import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
+import { createResearchReportPacket } from '../../src/modules/analysis/versioned-report-packet.js';
 import { M03SectionRecipeService } from '../../src/modules/analysis/m03-section-recipe.js';
 import { buildM03ChartBundle } from '../../src/modules/analysis/m03-chart-bundle.js';
 import { buildM03NarrativeEvidence } from '../../src/modules/analysis/m03-narrative-evidence.js';
@@ -24,13 +26,14 @@ import { openDatabase } from '../../src/platform/db/index.js';
 import { tabletQuoteFixture } from './tablet-quote-fixture.js';
 import { descriptiveMarketFixture } from './descriptive-market-fixture.js';
 import { locatedInsightPackageFixture } from './located-insight-package-fixture.js';
+import { reportMethodPacketsFixture } from './report-method-packets-fixture.js';
 
 const root = fileURLToPath(new URL('../../', import.meta.url));
 export const byteDigest = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const fixtureBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
 
 /** Real preparation and retention, using only generated synthetic sources. */
-export async function preparedReportFixture(withQuote = false, withDescriptive = false, withLocated = false) {
+export async function preparedReportFixture(withQuote = false, withDescriptive = false, withLocated = false, withMethods = false) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-prepared-report-'));
   const databasePath = path.join(directory, 'report.sqlite');
   const { db } = openDatabase({ databasePath });
@@ -62,6 +65,8 @@ export async function preparedReportFixture(withQuote = false, withDescriptive =
       precision: { revenue: 'unknown', units: 'unknown' },
       labelCodebookVersion: 'synthetic-prepared-v1', wideUnknownPolicy: 'exclude',
     });
+    const catalogBytes = fs.readFileSync(path.join(root, 'docs/research/report-section-catalog-v1.json'));
+    const catalogSha256 = byteDigest(catalogBytes);
     const normalized = normalizeMetricWorkbookInput(workbook, manifest);
     const labels = fixtureBytes({
       contractVersion: '1.0.0', sourceSha256: byteDigest(workbook), codebookVersion: 'synthetic-prepared-v1',
@@ -83,9 +88,23 @@ export async function preparedReportFixture(withQuote = false, withDescriptive =
     ]);
     const descriptive = withDescriptive ? descriptiveMarketFixture() : null;
     const located = withLocated ? locatedInsightPackageFixture() : null;
+    const methods = withMethods ? (() => {
+      const normalizedWithLabels = normalizeMetricWorkbookInput(workbook, manifest, labels);
+      const result = calculateMetricScopes(normalizedWithLabels.input);
+      const resultBytes = fixtureBytes(result);
+      const resultSha256 = byteDigest(resultBytes);
+      // Claims bind the exact retained metric-result bytes. Packet metadata can
+      // still gain package-bound method artifacts after package intake without
+      // creating a descriptor/packet digest cycle.
+      const claimPacket = createResearchReportPacket(resultBytes, resultSha256, catalogBytes, catalogSha256).packet;
+      return reportMethodPacketsFixture(claimPacket, resultSha256);
+    })() : null;
     for (const file of descriptive?.files ?? []) members.set(file.path, file.bytes);
     for (const file of located?.files ?? []) members.set(file.path, file.bytes);
-    const descriptiveMetadata = new Map([...(descriptive?.files ?? []), ...(located?.files ?? [])].map(({ bytes: _bytes, ...metadata }) => [metadata.path, metadata]));
+    for (const file of methods?.files ?? []) members.set(file.path, file.bytes);
+    const descriptiveMetadata = new Map([
+      ...(descriptive?.files ?? []), ...(located?.files ?? []), ...(methods?.files ?? []),
+    ].map(({ bytes: _bytes, ...metadata }) => [metadata.path, metadata]));
     const packages = new SourcePackageService({ db, artifactStore: artifacts });
     const workspaces = new DiscoveryWorkspaceService({ db, artifactStore: artifacts });
     const sourcePackage = await packages.intake({
@@ -118,8 +137,6 @@ export async function preparedReportFixture(withQuote = false, withDescriptive =
     };
     const prepared = await preparations.prepare(preparationRequest);
     const preparation = await preparations.readVerified(prepared.preparationSha256);
-    const catalogBytes = fs.readFileSync(path.join(root, 'docs/research/report-section-catalog-v1.json'));
-    const catalogSha256 = byteDigest(catalogBytes);
     const readiness = await new MetricPreparationReadinessService(preparations).evaluate(prepared.preparationSha256, catalogBytes, catalogSha256);
     const metricSet = await new M03SectionRecipeService(preparations).calculate({
       contractVersion: '1.0.0', sectionId: 'M03', recipeId: 'm03-scope-totals', recipeVersion: '1.0.0',
@@ -158,7 +175,7 @@ export async function preparedReportFixture(withQuote = false, withDescriptive =
     const bundle = await buildSourceBackedReport(sourceRequest, catalogBytes, dependencies);
     return {
       directory, databasePath, db, artifacts, artifactRoot, dependencies, preparations, sectionArtifacts,
-      preparation, readiness, retainedM03, sourceRequest, catalogBytes, bundle, descriptive, located, cleanup,
+      preparation, readiness, retainedM03, sourceRequest, catalogBytes, bundle, descriptive, located, methods, cleanup,
     };
   } catch (error) {
     await cleanup();

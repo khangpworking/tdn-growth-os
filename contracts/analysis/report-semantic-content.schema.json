@@ -11,6 +11,7 @@
     "policyVersion": { "const": "report-semantic-content-v1" },
     "descriptiveMethodsSha256": { "$ref": "#/$defs/digest" },
     "locatedInsightMethodsSha256": { "$ref": "#/$defs/digest" },
+    "methodPacketsSha256": { "$ref": "#/$defs/digest" },
     "sourceLayer": {
       "type": "object",
       "additionalProperties": false,

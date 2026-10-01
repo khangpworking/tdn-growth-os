@@ -10,12 +10,13 @@
     "reportPresentation": { "const": "report-kit-v1" },
     "descriptiveMethodsPath": { "type": "string", "minLength": 1, "maxLength": 500 },
     "locatedInsightMethodsPath": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "methodPacketsPath": { "type": "string", "minLength": 1, "maxLength": 500 },
     "reportKey": { "type": "string", "minLength": 3, "maxLength": 128, "pattern": "^[a-z0-9][a-z0-9_-]*$" },
     "version": { "type": "integer", "minimum": 1, "maximum": 10000 },
     "previousSemanticVersionId": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
     "sourceRequest": { "$ref": "source-backed-report-request.schema.json" }
   },
-  "dependentRequired": { "descriptiveMethodsPath": ["reportPresentation"], "locatedInsightMethodsPath": ["reportPresentation"] },
+  "dependentRequired": { "descriptiveMethodsPath": ["reportPresentation"], "locatedInsightMethodsPath": ["reportPresentation"], "methodPacketsPath": ["reportPresentation"] },
   "allOf": [
     {
       "if": { "properties": { "version": { "const": 1 } }, "required": ["version"] },

@@ -758,3 +758,13 @@ then create reports from selected retained sources, then expand the approved
 method families. Reuse existing services, report history and the selected stack.
 The plan is `docs/tasks/research-a42-live-report-delivery-plan.vi.md`; this records
 the delivery direction, not an activation or real-data migration performed.
+
+### Agent assignment preference, updated 2026-10-01
+
+The owner requested Claude Opus 5.5 with high thinking for delegated design,
+UI and UX work. Pure code and logic may be delegated to GPT-5.6 Luna with
+xhigh thinking or Claude Sonnet 5.5 with high thinking. Codex remains the
+coordinator and technical advisor. Preserve the approved report presentation;
+this preference does not authorize a redesign. If the requested model is not
+available through the configured runtime, report that limitation rather than
+silently substituting another model. Do not use Astra workers.

@@ -8,6 +8,7 @@ export interface ReportSemanticContent {
   policyVersion: 'report-semantic-content-v1';
   descriptiveMethodsSha256?: Digest;
   locatedInsightMethodsSha256?: Digest;
+  methodPacketsSha256?: Digest;
   sourceLayer: {
     workspaceId: string;
     sourceEvidenceSha256: Digest;

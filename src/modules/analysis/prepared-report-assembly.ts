@@ -19,6 +19,7 @@ import { renderReportAssemblyHtml } from './report-assembly-html.js';
 import { renderReportKitHtml } from './report-kit-html.js';
 import { buildReportDescriptiveExtension } from './report-descriptive-extension.js';
 import { buildReportLocatedInsightExtension } from './report-located-insight-extension.js';
+import { buildReportMethodPacketsExtension } from './report-method-packets-extension.js';
 import { createHash } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
@@ -109,6 +110,8 @@ export async function buildPreparedReportAssembly(
   if (descriptive) bundle = { ...bundle, files: new Map([...bundle.files, ...descriptive.files]) };
   const located = await buildReportLocatedInsightExtension(request.locatedInsightMethodsPath, bundle, dependencies.sourcePackages);
   if (located) bundle = { ...bundle, files: new Map([...bundle.files, ...located.files]) };
+  const methods = await buildReportMethodPacketsExtension(request.methodPacketsPath, bundle, dependencies.sourcePackages);
+  if (methods) bundle = methods.bundle;
   if (
     preparation.result.workspace.workspaceId !== bundle.envelope.workspace.workspaceId ||
     preparation.result.workspace.snapshotSha256 !== bundle.envelope.workspace.snapshotSha256
@@ -134,6 +137,7 @@ export async function buildPreparedReportAssembly(
     bundle, preparation, readiness, retainedM03, assemblySha256: assembled.snapshot.assemblySha256,
     ...(descriptive === undefined ? {} : { descriptiveMethodsSha256: createHash('sha256').update(descriptive.bytes).digest('hex') }),
     ...(located === undefined ? {} : { locatedInsightMethodsSha256: createHash('sha256').update(located.bytes).digest('hex') }),
+    ...(methods === undefined ? {} : { methodPacketsSha256: createHash('sha256').update(methods.bytes).digest('hex') }),
   });
 
   const renderFiles = new Map(bundle.files);
@@ -145,6 +149,7 @@ export async function buildPreparedReportAssembly(
     snapshot: assembled.snapshot, retainedM03, semanticVersionId: semantic.content.semanticVersionId,
     ...(descriptive === undefined ? {} : { descriptiveMethods: descriptive.output }),
     ...(located === undefined ? {} : { locatedInsightMethods: located.output }),
+    ...(methods === undefined ? {} : { methodPackets: {gates: methods.gates, decisions: methods.decisions} }),
   });
 
   return {
