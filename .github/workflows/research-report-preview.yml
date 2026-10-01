@@ -94,7 +94,7 @@ jobs:
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/located
           TDN_RESEARCH_PREVIEW_REPORT: report.html
-          TDN_RESEARCH_PRINT_DIAGNOSTIC: table-flow
+          TDN_RESEARCH_PRINT_DIAGNOSTIC: native-stream
         run: node tests/helpers/capture-research-preview.mjs
       - name: Retain complete synthetic visual evidence for review
         if: always()

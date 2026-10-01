@@ -133,9 +133,13 @@ export function renderReportKitHtml(inputs: ReportKitInputs): string {
   // layout and requests without located evidence keep their original CSS.
   const locatedPrint = locatedInsightMethods === undefined && methodPackets === undefined ? ''
     : '@media print{.ip-grid{display:block}.ip{margin-bottom:16px}.sheet,.ip,.card,.fig,tr{break-inside:auto}details{display:contents}details::details-content{display:contents;content-visibility:visible}details>summary{display:block}}';
+  // Three-column method inventories retain readable columns in their labelled
+  // scroll regions on phones. This does not impose a minimum width on print.
+  const methodMobile = methodPackets === undefined ? ''
+    : '@media screen and (max-width:560px){table.method-wide{min-width:620px}}';
 
   return `<!doctype html>
-<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="tdn-report-presentation" content="report-kit-v1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"><title>${esc(workspace.title)} · Báo cáo TDN</title><style>${reportKitFontCss()}${REPORT_KIT_CSS}${locatedPrint}</style></head><body data-renderer="${REPORT_KIT_RENDERER_VERSION}"><a class="skip" href="#market">Đến nội dung báo cáo</a>
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="tdn-report-presentation" content="report-kit-v1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"><title>${esc(workspace.title)} · Báo cáo TDN</title><style>${reportKitFontCss()}${REPORT_KIT_CSS}${locatedPrint}${methodMobile}</style></head><body data-renderer="${REPORT_KIT_RENDERER_VERSION}"><a class="skip" href="#market">Đến nội dung báo cáo</a>
 <main>
 ${cover(inputs, workspace.title, sections)}
 <ul class="jump" aria-label="Chuyển nhanh"><li><a href="#market">Bản tin thị trường</a></li><li><a href="#insight">Insight</a></li><li><a href="#status">Trạng thái ${sections.length} mục</a></li><li><a href="#appendix">Phụ lục bằng chứng</a></li></ul>

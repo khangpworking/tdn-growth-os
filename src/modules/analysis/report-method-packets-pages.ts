@@ -21,7 +21,7 @@ function list(values: readonly string[], empty = 'Không có mục được ghi 
   return values.length ? `<ul class="limits">${values.slice(0, LIMIT).map(value => `<li>${esc(value)}</li>`).join('')}</ul>${clipNote(values.length)}` : `<p>${esc(empty)}</p>`;
 }
 function table(caption: string, headings: readonly string[], rows: readonly string[], total = rows.length): string {
-  return `<div class="table-wrap" role="region" aria-label="${esc(caption)}" tabindex="0"><table class="obs"><caption>${esc(caption)}</caption><thead><tr>${headings.map(heading => `<th scope="col">${esc(heading)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>${clipNote(total)}`;
+  return `<div class="table-wrap" role="region" aria-label="${esc(caption)}" tabindex="0"><table class="obs${headings.length > 2 ? ' method-wide' : ''}"><caption>${esc(caption)}</caption><thead><tr>${headings.map(heading => `<th scope="col">${esc(heading)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>${clipNote(total)}`;
 }
 function at<T>(rows: readonly T[], pointer: string, prefix: string): T {
   const suffix = pointer.startsWith(prefix) ? pointer.slice(prefix.length) : '';

@@ -15,7 +15,7 @@ if (!report.startsWith(path.resolve(root) + path.sep) || path.extname(report) !=
   throw new Error('Preview report must be an HTML file inside the explicit preview directory');
 }
 const printDiagnostic = process.env.TDN_RESEARCH_PRINT_DIAGNOSTIC;
-if (printDiagnostic !== undefined && printDiagnostic !== 'table-flow') {
+if (printDiagnostic !== undefined && !['table-flow', 'native-stream'].includes(printDiagnostic)) {
   throw new Error('Unsupported TDN_RESEARCH_PRINT_DIAGNOSTIC value');
 }
 await fs.access(report);
@@ -121,7 +121,8 @@ try {
     await call('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
     await call('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
   };
-  if (printDiagnostic === 'table-flow') {
+  if (printDiagnostic === 'table-flow' || printDiagnostic === 'native-stream') {
+    const nativeStream = printDiagnostic === 'native-stream';
     await call('Emulation.setDeviceMetricsOverride', { width: 1440, height: 1000, deviceScaleFactor: 1, mobile: false });
     await call('Emulation.setEmulatedMedia', { media: 'print' });
     const diagnosticCss = '@media print{.ip table,.ip tbody,.ip tr,.ip th,.ip td{display:block !important}}';
@@ -145,37 +146,108 @@ try {
       };
     })()`;
     const nativeDomState = await evaluate(domStateExpression);
-    await call('Runtime.evaluate', { expression: `(() => {
-      const style = document.createElement('style');
-      style.textContent = ${JSON.stringify(diagnosticCss)};
-      document.head.append(style);
-      return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    })()`, awaitPromise: true });
-    const tableFlowDomState = await evaluate(domStateExpression);
+    let tableFlowDomState = null;
+    if (!nativeStream) {
+      await call('Runtime.evaluate', { expression: `(() => {
+        const style = document.createElement('style');
+        style.textContent = ${JSON.stringify(diagnosticCss)};
+        document.head.append(style);
+        return new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      })()`, awaitPromise: true });
+      tableFlowDomState = await evaluate(domStateExpression);
+    }
     const printMetrics = await call('Page.getLayoutMetrics');
     const diagnostic = {
-      mode: 'table-flow',
+      mode: printDiagnostic,
       report: path.relative(root, report),
       viewport: { width: 1440, height: 1000, deviceScaleFactor: 1 },
       media: 'print',
-      css: diagnosticCss,
-      domState: { beforeStyle: nativeDomState, afterStyle: tableFlowDomState },
-      expandedContentSize: printMetrics.cssContentSize,
+      ...(nativeStream ? { css: null, transferMode: 'ReturnAsStream' } : { css: diagnosticCss }),
+      domState: nativeStream ? { native: nativeDomState } : { beforeStyle: nativeDomState, afterStyle: tableFlowDomState },
+      beforePrintMetrics: printMetrics.cssContentSize,
+      ...(nativeStream ? {} : { expandedContentSize: printMetrics.cssContentSize }),
       timeoutMs: 20_000,
       status: 'started',
     };
-    const diagnosticJson = path.join(root, 'diagnostic-table-flow.json');
+    const diagnosticJson = path.join(root, `diagnostic-${printDiagnostic}.json`);
     await fs.writeFile(diagnosticJson, JSON.stringify(diagnostic, null, 2), { mode: 0o600 });
-    try {
-      const pdf = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
-        paperWidth: 8.27, paperHeight: 11.69, marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 20_000);
-      await fs.writeFile(path.join(root, 'diagnostic-table-flow.pdf'), Buffer.from(pdf.data, 'base64'), { mode: 0o600 });
-      await fs.writeFile(diagnosticJson, JSON.stringify({ ...diagnostic,
-        status: 'complete', pdfBytes: Buffer.byteLength(pdf.data, 'base64') }, null, 2), { mode: 0o600 });
-    } catch (error) {
-      await fs.writeFile(diagnosticJson, JSON.stringify({ ...diagnostic,
-        status: 'failed', error: String(error) }, null, 2), { mode: 0o600 });
-      throw error;
+    if (!nativeStream) {
+      try {
+        const pdf = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
+          paperWidth: 8.27, paperHeight: 11.69, marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 20_000);
+        await fs.writeFile(path.join(root, 'diagnostic-table-flow.pdf'), Buffer.from(pdf.data, 'base64'), { mode: 0o600 });
+        await fs.writeFile(diagnosticJson, JSON.stringify({ ...diagnostic,
+          status: 'complete', pdfBytes: Buffer.byteLength(pdf.data, 'base64') }, null, 2), { mode: 0o600 });
+      } catch (error) {
+        await fs.writeFile(diagnosticJson, JSON.stringify({ ...diagnostic,
+          status: 'failed', error: String(error) }, null, 2), { mode: 0o600 });
+        throw error;
+      }
+    } else {
+      const printStartedAt = Date.now();
+      const timings = { printCallMs: null, streamReadMs: null };
+      const chunks = [];
+      let streamHandle;
+      let streamedBytes = 0;
+      let streamChunks = 0;
+      let pdfHeader;
+      let streamCloseError;
+      let streamStartedAt;
+      let failure;
+      try {
+        const result = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
+          transferMode: 'ReturnAsStream', paperWidth: 8.27, paperHeight: 11.69,
+          marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 20_000);
+        timings.printCallMs = Date.now() - printStartedAt;
+        streamHandle = result.stream;
+        if (!streamHandle) throw new Error('Page.printToPDF did not return a stream handle');
+        streamStartedAt = Date.now();
+        const streamDeadline = streamStartedAt + 20_000;
+        while (true) {
+          const remaining = streamDeadline - Date.now();
+          if (remaining <= 0) throw new Error('CDP timeout: IO.read diagnostic stream');
+          const chunk = await call('IO.read', { handle: streamHandle, size: 65536 }, Math.min(5_000, remaining));
+          const bytes = chunk.base64Encoded ? Buffer.from(chunk.data ?? '', 'base64') : Buffer.from(chunk.data ?? '', 'utf8');
+          if (bytes.length) {
+            chunks.push(bytes);
+            streamedBytes += bytes.length;
+            streamChunks++;
+            if (pdfHeader === undefined) pdfHeader = bytes.subarray(0, 8).toString('ascii');
+          }
+          if (chunk.eof) break;
+        }
+        if (!pdfHeader?.startsWith('%PDF-')) throw new Error('Diagnostic stream is not a PDF');
+        timings.streamReadMs = Date.now() - streamStartedAt;
+      } catch (error) {
+        if (timings.printCallMs === null) timings.printCallMs = Date.now() - printStartedAt;
+        if (streamStartedAt !== undefined && timings.streamReadMs === null) timings.streamReadMs = Date.now() - streamStartedAt;
+        failure = error;
+      } finally {
+        if (streamHandle) {
+          try {
+            await call('IO.close', { handle: streamHandle }, 5_000);
+          } catch (error) {
+            streamCloseError = String(error);
+          }
+        }
+      }
+      const output = {
+        ...diagnostic,
+        status: failure ? 'failed' : 'complete',
+        timings,
+        streamChunks,
+        streamedBytes,
+        pdfHeader: pdfHeader ?? null,
+        ...(streamCloseError ? { streamCloseError } : {}),
+        ...(failure ? { error: String(failure) } : {}),
+      };
+      if (!failure) {
+        const pdf = Buffer.concat(chunks);
+        await fs.writeFile(path.join(root, 'diagnostic-native-stream.pdf'), pdf, { mode: 0o600 });
+        output.pdfBytes = pdf.length;
+      }
+      await fs.writeFile(diagnosticJson, JSON.stringify(output, null, 2), { mode: 0o600 });
+      if (failure) throw failure;
     }
   } else {
   // One browser boundary owns native disclosure, navigation and keyboard proof.

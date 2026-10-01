@@ -58,6 +58,15 @@ table-flow rule, and writes `diagnostic-table-flow.json` plus
 PDF, visual evidence, or interaction evidence files; the 20-second diagnostic
 print remains failure-propagating.
 
+It also supports `TDN_RESEARCH_PRINT_DIAGNOSTIC=native-stream` for the next
+bounded probe. That mode injects no CSS and removes no DOM nodes, uses
+`Page.printToPDF` with `transferMode: ReturnAsStream`, bounds each `IO.read`
+chunk and the stream read, closes the returned stream, and writes only
+`diagnostic-native-stream.json` plus `diagnostic-native-stream.pdf` on success.
+The diagnostic records pre-print metrics, print-call versus stream-read
+timings, streamed bytes/chunks, and the PDF header; a print-call timeout is
+recorded and propagated without retry.
+
 ## Coordinator proposal
 
 The earlier `details`/`details::details-content` flattening proposal and the
