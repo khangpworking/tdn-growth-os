@@ -602,3 +602,13 @@ không gọi AI và không tạo report. Section recipe sau này chỉ được 
 preparation identity này; AI không được sinh rồi thực thi arbitrary code. A30
 mới tạo preparation path và identity, chưa chặn các legacy/direct calculation
 hoặc report command; consumer gate để bắt buộc thứ tự này thuộc lát tiếp theo.
+
+### D42 — Readiness trước calculation phải bind exact preparation
+
+Readiness trước report phải mở lại đúng `preparationSha256` và đúng catalog
+bytes/digest, sau đó phân loại từng prerequisite là `PRESENT`, `ABSENT` hoặc
+`INVALID`. Một section chỉ `READY_TO_CALCULATE` khi mọi input bắt buộc đã có;
+trạng thái này không có nghĩa section đã được tính, viết, duyệt hoặc chấp nhận.
+`UNKNOWN` là một quyết định nhãn hợp lệ để người dùng nhìn thấy, còn việc có
+được đưa vào WIDE hay không tiếp tục theo frozen policy của preparation. A31
+không tính WIDE, không sinh chart/narrative và không gọi AI.

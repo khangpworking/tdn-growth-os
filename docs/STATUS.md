@@ -669,3 +669,14 @@ owner. This task runs no M03 calculation, section recipe, chart, AI,
 interpretation, review or report creation. It does not yet gate the older direct
 calculation/report commands; downstream enforcement is a later slice. Linux CI
 is the release gate.
+
+## Research A31: preparation-bound 30-section readiness (implementation)
+
+One exact A30 preparation and exact catalog bytes now produce a deterministic,
+closed readiness result before calculation. Every distinct catalog input is
+classified as present, absent or invalid with exact evidence references, and
+all 30 sections are classified as ready to calculate, blocked or invalid.
+Complete frozen labels may retain `UNKNOWN`; the preparation's WIDE policy is
+not changed or executed. In the synthetic owner test, only M02, M03, M04 and
+M13 are ready for a future calculation. A31 adds no calculation, report,
+database mutation, AI interpretation, human review, API or UI.

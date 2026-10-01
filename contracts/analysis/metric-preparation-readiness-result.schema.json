@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/metric-preparation-readiness-result.schema.json",
+  "title": "MetricPreparationReadinessResult",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion", "readinessProfile", "readinessSha256", "preparationSha256",
+    "catalog", "inputs", "sections", "summary"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "readinessProfile": { "const": "metric-preparation-readiness-v1" },
+    "readinessSha256": { "$ref": "#/$defs/digest" },
+    "preparationSha256": { "$ref": "#/$defs/digest" },
+    "catalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["catalogId", "catalogVersion", "sha256"],
+      "properties": {
+        "catalogId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "catalogVersion": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "maxItems": 200,
+      "items": { "$ref": "#/$defs/inputCheck" }
+    },
+    "sections": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 100,
+      "items": { "$ref": "#/$defs/sectionReadiness" }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["totalSections", "readyToCalculate", "blocked", "invalid"],
+      "properties": {
+        "totalSections": { "type": "integer", "minimum": 1, "maximum": 100 },
+        "readyToCalculate": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "blocked": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "invalid": { "type": "integer", "minimum": 0, "maximum": 100 }
+      }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "evidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "locator", "sha256"],
+      "properties": {
+        "kind": { "enum": ["PREPARATION_RESULT", "NORMALIZED_INPUT", "NORMALIZATION_RECEIPT", "SOURCE_PACKAGE", "SELECTED_SOURCE"] },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 1000 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "inputCheck": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["inputId", "state", "blocking", "codes", "evidenceRefs"],
+      "properties": {
+        "inputId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "state": { "enum": ["PRESENT", "ABSENT", "INVALID"] },
+        "blocking": { "type": "boolean" },
+        "codes": {
+          "type": "array", "minItems": 1, "maxItems": 20,
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "evidenceRefs": {
+          "type": "array", "maxItems": 20,
+          "items": { "$ref": "#/$defs/evidenceRef" }
+        }
+      }
+    },
+    "sectionReadiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sectionId", "title", "methodId", "methodVersion", "state", "requiredInputs", "blockingCodes"],
+      "properties": {
+        "sectionId": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "methodId": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "methodVersion": { "type": "string", "minLength": 1, "maxLength": 40 },
+        "state": { "enum": ["READY_TO_CALCULATE", "BLOCKED", "INVALID"] },
+        "requiredInputs": {
+          "type": "array", "maxItems": 20,
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        },
+        "blockingCodes": {
+          "type": "array", "maxItems": 100,
+          "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+        }
+      }
+    }
+  }
+}

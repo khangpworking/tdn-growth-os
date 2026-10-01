@@ -27,6 +27,7 @@ const contracts = [
   ['analysis', 'metric-source-labels'],
   ['analysis', 'metric-input-preparation-request'],
   ['analysis', 'metric-input-preparation-result'],
+  ['analysis', 'metric-preparation-readiness-result'],
   ['analysis', 'metric-scope-input'],
   ['analysis', 'metric-scope-output'],
   ['analysis', 'conditional-economics-input'],
