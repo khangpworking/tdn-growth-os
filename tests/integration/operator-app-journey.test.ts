@@ -47,7 +47,7 @@ test('Task045 disposable one-origin production runtime completes the authoritati
   try {
     assert.equal(application.origin, `http://127.0.0.1:${fixture.port}`); assert.ok(fixture.port > 0);
     await staticSurface(application.origin);
-    assert.deepEqual(await jsonGet(application.origin, '/healthz'), { status: 'ok', version: 'task045-smoke', ownerWritesEnabled: true });
+    assert.deepEqual(await jsonGet(application.origin, '/healthz'), { status: 'ok', version: 'task045-smoke', ownerWritesEnabled: true, localTestOwner: false });
     assert.deepEqual(await jsonGet(application.origin, '/api/workspaces'), { contractVersion: '1.0.0', workspaces: [] });
 
     const denied = await postJson(application.origin, '/owner-api/workspaces', workspaceBody, false);
@@ -125,7 +125,7 @@ test('Task045 disabled runtime keeps static/read/health and safe 403 byte-stable
   const fixture = await disposableOperatorFixture(false); const before = digest(fixture.databasePath); const application = await startOperator(fixture.configuration);
   try {
     await staticSurface(application.origin);
-    assert.deepEqual(await jsonGet(application.origin, '/healthz'), { status: 'ok', version: 'task045-smoke', ownerWritesEnabled: false });
+    assert.deepEqual(await jsonGet(application.origin, '/healthz'), { status: 'ok', version: 'task045-smoke', ownerWritesEnabled: false, localTestOwner: false });
     assert.deepEqual(await jsonGet(application.origin, '/api/workspaces'), { contractVersion: '1.0.0', workspaces: [] });
     const first = await fetch(application.origin + '/owner-api/workspaces', { method: 'POST' }); const bytes = await first.text();
     const second = await fetch(application.origin + '/owner-api/anything', { method: 'POST', body: 'ignored' });
@@ -160,7 +160,7 @@ test('Task045 launcher handles SIGTERM without leaking credentials, paths, or it
       new Promise<void>((resolve) => child.stdout.on('data', () => { if (stdout.includes('Operator app listening on')) resolve(); })),
       new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`launcher timeout: ${stderr}`)), 10_000)),
     ]);
-    assert.deepEqual(await jsonGet(`http://127.0.0.1:${fixture.port}`, '/healthz'), { status: 'ok', version: fs.readFileSync('VERSION', 'utf8').trim(), ownerWritesEnabled: true });
+    assert.deepEqual(await jsonGet(`http://127.0.0.1:${fixture.port}`, '/healthz'), { status: 'ok', version: fs.readFileSync('VERSION', 'utf8').trim(), ownerWritesEnabled: true, localTestOwner: false });
     assert.equal(child.kill('SIGTERM'), true);
     const [code, signal] = await once(child, 'exit') as [number | null, NodeJS.Signals | null];
     assert.equal(code, 0); assert.equal(signal, null); await assertPortClosed(fixture.port);

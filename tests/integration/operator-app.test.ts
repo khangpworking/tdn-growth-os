@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { once } from 'node:events';
+import { request as httpRequest } from 'node:http';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -178,8 +179,14 @@ test('opt-in local OWNER session issues one ephemeral token and preserves the no
     const ownerGetWithoutOrigin = await fetch(`${application.origin}/owner-api/research-generation/inputs?workspaceId=${createdReceipt.workspaceId}`, { headers: { authorization: `Bearer ${issued.token}` } });
     assert.equal(ownerGetWithoutOrigin.status, 200, 'same-origin safe OWNER reads may omit Origin');
 
-    const wrongHost = await fetch(`${application.origin}/owner-api/local-test-session`, { method: 'POST', headers: { ...headers, host: `127.0.0.1:${localConfiguration.port + 1}` }, body: '{}' });
-    assert.equal(wrongHost.status, 400);
+    // fetch may replace Host with the URL authority; send the actual mismatched wire header.
+    const wrongHostStatus = await new Promise<number>((resolve, reject) => {
+      const request = httpRequest(`${application.origin}/owner-api/local-test-session`, {
+        method: 'POST', headers: { ...headers, host: `127.0.0.1:${localConfiguration.port + 1}`, 'content-length': '2' },
+      }, (response) => { response.resume(); response.on('end', () => resolve(response.statusCode!)); });
+      request.on('error', reject); request.end('{}');
+    });
+    assert.equal(wrongHostStatus, 400);
   } finally { await application.close(); }
 });
 
