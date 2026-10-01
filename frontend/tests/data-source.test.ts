@@ -480,11 +480,14 @@ test('Task045 health availability uses relative /healthz and accepts only the cl
   assert.deepEqual(observedInit, { headers: { Accept: 'application/json' } });
   assert.deepEqual(available, { status: 'ok', version: '0.1.0', ownerWritesEnabled: true });
   assert.equal((await loadFrontendAvailability((async () => json({ status: 'ok', version: '0.1.0', ownerWritesEnabled: false })) as typeof fetch)).ownerWritesEnabled, false);
+  assert.equal((await loadFrontendAvailability((async () => json({ status: 'ok', version: '0.1.0', ownerWritesEnabled: true, localTestOwner: true })) as typeof fetch)).localTestOwner, true);
   for (const malformed of [
     { status: 'down', version: '0.1.0', ownerWritesEnabled: true },
     { status: 'ok', version: '', ownerWritesEnabled: true },
     { status: 'ok', version: '0.1.0', ownerWritesEnabled: 'true' },
     { status: 'ok', version: '0.1.0', ownerWritesEnabled: true, extra: true },
+    { status: 'ok', version: '0.1.0', ownerWritesEnabled: true, localTestOwner: 'true' },
+    { status: 'ok', version: '0.1.0', ownerWritesEnabled: false, localTestOwner: true },
   ]) await assert.rejects(loadFrontendAvailability((async () => json(malformed)) as typeof fetch), (error) => error instanceof WorkspaceDataSourceError && error.kind === 'integrity');
 });
 

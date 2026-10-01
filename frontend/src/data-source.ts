@@ -12,7 +12,7 @@ import type {
 import { isReportInterpretationDetailResponse, isReportInterpretationIndexResponse, isReportSectionReadinessResponse } from './report-contract-validation';
 
 export type FrontendMode = 'real' | 'demo';
-export interface FrontendAvailability { readonly status: 'ok'; readonly version: string; readonly ownerWritesEnabled: boolean }
+export interface FrontendAvailability { readonly status: 'ok'; readonly version: string; readonly ownerWritesEnabled: boolean; readonly localTestOwner?: boolean }
 export type LoadFailure = 'connection' | 'integrity';
 export class WorkspaceDataSourceError extends Error {
   constructor(readonly kind: LoadFailure, message: string) { super(message); }
@@ -33,10 +33,28 @@ export async function loadFrontendAvailability(fetcher: typeof fetch = fetch): P
   let value: unknown;
   try { value = await response.json(); }
   catch { throw new WorkspaceDataSourceError('integrity', 'Trạng thái OWNER không phải JSON hợp lệ.'); }
-  if (!record(value) || Object.keys(value).sort().join(',') !== 'ownerWritesEnabled,status,version' || value.status !== 'ok' || !text(value.version) || typeof value.ownerWritesEnabled !== 'boolean') {
+  if (!record(value) || !['ownerWritesEnabled,status,version', 'localTestOwner,ownerWritesEnabled,status,version'].includes(Object.keys(value).sort().join(',')) || value.status !== 'ok' || !text(value.version) || typeof value.ownerWritesEnabled !== 'boolean' || ('localTestOwner' in value && (typeof value.localTestOwner !== 'boolean' || (value.localTestOwner && !value.ownerWritesEnabled)))) {
     throw new WorkspaceDataSourceError('integrity', 'Trạng thái OWNER không đúng contract.');
   }
   return value as unknown as FrontendAvailability;
+}
+
+export async function loadLocalTestOwnerSession(fetcher: typeof fetch = fetch): Promise<string> {
+  let response: Response;
+  try {
+    response = await fetcher('/owner-api/local-test-session', {
+      method: 'POST', credentials: 'omit', cache: 'no-store',
+      headers: { Accept: 'application/json', 'Content-Type': 'application/json' }, body: '{}',
+    });
+  } catch { throw new WorkspaceDataSourceError('connection', 'Không thể mở quyền test local. Hãy thử lại.'); }
+  if (!response.ok) throw new WorkspaceDataSourceError('connection', 'Không thể mở quyền test local. Hãy kiểm tra runtime rồi thử lại.');
+  let value: unknown;
+  try { value = await response.json(); }
+  catch { throw new WorkspaceDataSourceError('integrity', 'Phiên test local không hợp lệ.'); }
+  if (!record(value) || Object.keys(value).sort().join(',') !== 'contractVersion,token' || value.contractVersion !== '1.0.0' || typeof value.token !== 'string' || !/^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/.test(value.token)) {
+    throw new WorkspaceDataSourceError('integrity', 'Phiên test local không hợp lệ.');
+  }
+  return value.token;
 }
 
 export async function loadWorkspaceReportIndex(workspaceId: string, fetcher: typeof fetch = fetch): Promise<WorkspaceReportIndexResponse> {

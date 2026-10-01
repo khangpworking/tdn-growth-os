@@ -45,11 +45,14 @@ test('one loopback server serves production files, health, read API, and safely 
     }
     const route = await fetch(`${origin}/market/example`); assert.equal(route.status, 404); assert.doesNotMatch(await route.text(), /doctype html/);
     const demo = await fetch(`${origin}/?mode=demo`); assert.equal(demo.status, 200); assert.match(await demo.text(), /doctype html/);
-    const health = await fetch(`${origin}/healthz`); assert.deepEqual(await health.json(), { status: 'ok', version: '0.1.0', ownerWritesEnabled: false });
+    const health = await fetch(`${origin}/healthz`); assert.deepEqual(await health.json(), { status: 'ok', version: '0.1.0', ownerWritesEnabled: false, localTestOwner: false });
     const portfolio = await fetch(`${origin}/api/workspaces`); assert.equal(portfolio.status, 200); assert.deepEqual(await portfolio.json(), { contractVersion: '1.0.0', workspaces: [] });
     const missingTarget = await fetch(`${origin}/api/report-review-targets/${'f'.repeat(64)}`);
     assert.equal(missingTarget.status, 404);
     assert.deepEqual(await missingTarget.json(), { error: { code: 'not_found', message: 'Review target not found' } });
+    const localSession = await fetch(`${origin}/owner-api/local-test-session`, { method: 'POST', headers: { origin, 'content-type': 'application/json' }, body: '{}' });
+    assert.equal(localSession.status, 403);
+    assert.deepEqual(await localSession.json(), { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
     const owner = await fetch(`${origin}/owner-api/workspaces`, { method: 'POST' }); assert.equal(owner.status, 403); assert.deepEqual(await owner.json(), { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
     assert.equal((await fetch(`${origin}/api/unknown`)).status, 404); assert.equal((await fetch(`${origin}/owner-api/unknown`)).status, 403);
   });
@@ -67,7 +70,10 @@ test('enabled OWNER handler uses the internally derived same origin and existing
     assert.equal(unauthorized.status, 401);
     const wrongOrigin = await fetch(`${actual}/owner-api/workspaces`, { method: 'POST', headers: { origin: 'http://127.0.0.1:9999' } });
     assert.equal(wrongOrigin.status, 403);
-    const health = await fetch(`${actual}/healthz`); assert.deepEqual(await health.json(), { status: 'ok', version: '0.1.0', ownerWritesEnabled: true });
+    const health = await fetch(`${actual}/healthz`); assert.deepEqual(await health.json(), { status: 'ok', version: '0.1.0', ownerWritesEnabled: true, localTestOwner: false });
+    const grant = await fetch(`${actual}/owner-api/local-test-session`, { method: 'POST', headers: { origin: actual, 'content-type': 'application/json' }, body: '{}' });
+    assert.equal(grant.status, 403, 'enabled manual OWNER mode must not grant automatic access');
+    assert.doesNotMatch(await grant.text(), /strong-owner-token/);
   } finally { await application.close(); }
 });
 
@@ -97,4 +103,93 @@ test('configuration is validated before opening or listening and never requires 
   fs.writeFileSync(path.join(configuration.frontendDist, 'index.html'), '<script src="./../assets/app.js"></script>');
   assert.throws(() => operatorAppConfigurationFromEnvironment(base, defaults), /missing or escaping asset/);
   assert.equal('TDN_OWNER_API_ALLOWED_ORIGIN' in operatorAppConfigurationFromEnvironment(base, { ...defaults, frontendDist: fixture().frontendDist }), false);
+});
+
+test('opt-in local OWNER session issues one ephemeral token and preserves the normal OWNER boundary', async () => {
+  const configuration = fixture(true);
+  const localConfiguration: OperatorAppConfiguration = { ...configuration, localTestOwner: true };
+  const before = digest(configuration.databasePath);
+  const application = openOperatorApp(localConfiguration);
+  application.server.listen(localConfiguration.port, localConfiguration.host); await once(application.server, 'listening');
+  try {
+    const health = await fetch(`${application.origin}/healthz`);
+    assert.deepEqual(await health.json(), { status: 'ok', version: '0.1.0', ownerWritesEnabled: true, localTestOwner: true });
+
+    const session = (init: RequestInit = {}) => fetch(`${application.origin}/owner-api/local-test-session`, {
+      ...init,
+      headers: { 'content-type': 'application/json', origin: application.origin, ...(init.headers ?? {}) },
+    });
+    const missingOrigin = await fetch(`${application.origin}/owner-api/local-test-session`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
+    assert.equal(missingOrigin.status, 403);
+    for (const init of [
+      { headers: { origin: 'http://127.0.0.1:1' } },
+      { headers: { 'sec-fetch-site': 'cross-site' } },
+      { headers: { 'x-forwarded-host': application.origin } },
+    ]) {
+      const response = await session({ method: 'POST', body: '{}', ...init });
+      assert.equal(response.status, 403);
+      assert.doesNotMatch(await response.text(), /strong-owner-token/);
+    }
+    for (const method of ['GET', 'OPTIONS']) {
+      const response = await session({ method });
+      assert.equal(response.status, 405);
+      assert.equal(await response.text(), JSON.stringify({ error: { code: 'method_not_allowed', message: 'Only POST is supported' } }));
+    }
+    const badBody = await session({ method: 'POST', body: '{"unexpected":true}' });
+    assert.equal(badBody.status, 400);
+    const oversized = await session({ method: 'POST', body: JSON.stringify({ padding: 'x'.repeat(1024) }) });
+    assert.equal(oversized.status, 400);
+    const badContentType = await fetch(`${application.origin}/owner-api/local-test-session`, {
+      method: 'POST', headers: { origin: application.origin, 'content-type': 'text/plain' }, body: '{}',
+    });
+    assert.equal(badContentType.status, 400);
+
+    const first = await session({ method: 'POST', body: '{}' });
+    assert.equal(first.status, 200);
+    assert.equal(first.headers.get('cache-control'), 'no-store');
+    assert.equal(first.headers.get('access-control-allow-origin'), null);
+    const issued = await first.json() as { contractVersion: string; token: string };
+    assert.deepEqual(Object.keys(issued).sort(), ['contractVersion', 'token']);
+    assert.equal(issued.contractVersion, '1.0.0');
+    assert.match(issued.token, /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/);
+    assert.notEqual(issued.token, localConfiguration.ownerToken);
+    assert.equal(digest(configuration.databasePath), before, 'issuing a local session does not mutate the database');
+
+    const second = await session({ method: 'POST', body: '{}' });
+    assert.deepEqual(await second.json(), issued, 'one app instance reuses its process-scoped session token');
+
+    const headers = { origin: application.origin, 'content-type': 'application/json' };
+    const ownerMissingOrigin = await fetch(`${application.origin}/owner-api/workspaces`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${issued.token}` }, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'missing-origin', title: 'Denied' }) });
+    assert.equal(ownerMissingOrigin.status, 403, 'local mode requires Origin on mutating OWNER routes');
+    const ownerCrossSite = await fetch(`${application.origin}/owner-api/workspaces`, { method: 'POST', headers: { ...headers, authorization: `Bearer ${issued.token}`, 'sec-fetch-site': 'cross-site' }, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'cross-site', title: 'Denied' }) });
+    assert.equal(ownerCrossSite.status, 403, 'local mode rejects cross-site OWNER routes');
+    const ownerForwarded = await fetch(`${application.origin}/owner-api/workspaces`, { method: 'POST', headers: { ...headers, authorization: `Bearer ${issued.token}`, 'x-forwarded-for': '127.0.0.1' }, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'forwarded', title: 'Denied' }) });
+    assert.equal(ownerForwarded.status, 403, 'local mode rejects proxied OWNER routes');
+    const ownerGetWrongOrigin = await fetch(`${application.origin}/owner-api/research-generation/inputs?workspaceId=${'f'.repeat(64)}`, { headers: { authorization: `Bearer ${issued.token}`, origin: 'http://127.0.0.1:1' } });
+    assert.equal(ownerGetWrongOrigin.status, 403, 'a supplied wrong Origin is denied on safe OWNER reads');
+    const persistent = await fetch(`${application.origin}/owner-api/workspaces`, { method: 'POST', headers: { ...headers, authorization: `Bearer ${localConfiguration.ownerToken}` }, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'local-session', title: 'Local session' }) });
+    assert.equal(persistent.status, 401, 'configured persistent token is not accepted in local test mode');
+    const missing = await fetch(`${application.origin}/owner-api/workspaces`, { method: 'POST', headers, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'local-session', title: 'Local session' }) });
+    assert.equal(missing.status, 401, 'OWNER routes still require a bearer token');
+    const created = await fetch(`${application.origin}/owner-api/workspaces`, { method: 'POST', headers: { ...headers, authorization: `Bearer ${issued.token}` }, body: JSON.stringify({ contractVersion: '1.0.0', workspaceKey: 'local-session', title: 'Local session' }) });
+    assert.equal(created.status, 201);
+    const createdReceipt = await created.json() as { workspaceId: string; workspaceKey: string };
+    assert.equal(createdReceipt.workspaceKey, 'local-session');
+    const ownerGetWithoutOrigin = await fetch(`${application.origin}/owner-api/research-generation/inputs?workspaceId=${createdReceipt.workspaceId}`, { headers: { authorization: `Bearer ${issued.token}` } });
+    assert.equal(ownerGetWithoutOrigin.status, 200, 'same-origin safe OWNER reads may omit Origin');
+
+    const wrongHost = await fetch(`${application.origin}/owner-api/local-test-session`, { method: 'POST', headers: { ...headers, host: `127.0.0.1:${localConfiguration.port + 1}` }, body: '{}' });
+    assert.equal(wrongHost.status, 400);
+  } finally { await application.close(); }
+});
+
+test('local OWNER mode requires enabled writes and the environment switch is exact', () => {
+  const configuration = fixture();
+  const defaults = { frontendDist: configuration.frontendDist, version: '0.1.0' };
+  const base = { TDN_WORKSPACE_DB: configuration.databasePath, TDN_ARTIFACT_ROOT: configuration.artifactRoot };
+  assert.throws(() => operatorAppConfigurationFromEnvironment({ ...base, TDN_OWNER_API_LOCAL_TEST: 'yes' }, defaults), /exactly true or false/);
+  assert.throws(() => operatorAppConfigurationFromEnvironment({ ...base, TDN_OWNER_API_LOCAL_TEST: 'true' }, defaults), /requires OWNER writes/);
+  const enabled = operatorAppConfigurationFromEnvironment({ ...base, TDN_OWNER_API_ENABLED: 'true', TDN_OWNER_API_LOCAL_TEST: 'true', TDN_OWNER_API_ACTOR_ID: 'owner:local' }, defaults);
+  assert.equal(enabled.localTestOwner, true);
+  assert.equal(enabled.ownerToken, undefined);
 });

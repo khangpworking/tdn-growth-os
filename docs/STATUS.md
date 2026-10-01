@@ -1,5 +1,14 @@
 # Trạng thái hiện tại
 
+## Local OWNER testing convenience (implementation, Linux proof pending)
+
+Owner-approved optional localhost testing mode removes manual token entry and
+automatically reacquires process-scoped authority on reload. Default/manual
+operation and synthetic demo remain separate. Domain OWNER capabilities,
+B7–B10 policy, confirmations, B9 lock and the executor lock are unchanged.
+No migration, provider call or live Fedora activation is part of this edit.
+See [scope](tasks/local-owner-testing.md) and the local operator runbook.
+
 ## Research A45: explicit web method inputs implemented, draft PR #104
 
 A45 connects the three existing method families to the real report-creation

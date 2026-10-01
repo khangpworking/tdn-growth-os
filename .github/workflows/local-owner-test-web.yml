@@ -1,0 +1,47 @@
+name: Local OWNER testing acceptance
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/api/operator-app.ts'
+      - 'frontend/src/App.tsx'
+      - 'frontend/src/data-source.ts'
+      - 'frontend/tests/local-owner-session.test.ts'
+      - 'tests/helpers/local-owner-web-acceptance.ts'
+      - '.github/workflows/local-owner-test-web.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: local-owner-test-web-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 24.15.0
+          cache: npm
+      - run: npm ci
+      - name: Install temporary browser driver
+        run: npm install --prefix "${{ runner.temp }}/local-owner-web-tools" --ignore-scripts --no-audit --no-fund --no-save playwright-core@1.63.0
+      - run: npm run frontend:build
+      - name: Exercise local test OWNER in the production browser
+        env:
+          TDN_LOCAL_OWNER_WEB_DIR: ${{ runner.temp }}/local-owner-web
+          NODE_PATH: ${{ runner.temp }}/local-owner-web-tools/node_modules
+        run: node --import tsx tests/helpers/local-owner-web-acceptance.ts
+      - name: Retain synthetic acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: local-owner-test-web-synthetic
+          path: ${{ runner.temp }}/local-owner-web
+          if-no-files-found: warn
+          retention-days: 7

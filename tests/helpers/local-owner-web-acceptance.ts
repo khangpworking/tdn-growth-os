@@ -1,0 +1,66 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import path from 'node:path';
+import { createRequire } from 'node:module';
+import { assertPortClosed, disposableOperatorFixture, startOperator } from './disposable-operator-runtime.js';
+
+const require = createRequire(import.meta.url);
+const { chromium } = require('playwright-core') as { chromium: { launch(options: Record<string, unknown>): Promise<any> } };
+const output = process.env.TDN_LOCAL_OWNER_WEB_DIR;
+if (!output || !path.isAbsolute(output)) throw new Error('TDN_LOCAL_OWNER_WEB_DIR must be an absolute runner-owned output directory');
+if (process.platform === 'win32') throw new Error('Run this acceptance only on Linux');
+await fs.mkdir(output, { mode: 0o700 });
+const fixture = await disposableOperatorFixture(true);
+let app: Awaited<ReturnType<typeof startOperator>> | undefined;
+let browser: any;
+try {
+  app = await startOperator({ ...fixture.configuration, localTestOwner: true });
+  browser = await chromium.launch({ executablePath: process.env.TDN_BROWSER_EXECUTABLE ?? '/usr/bin/google-chrome', headless: true });
+  const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  const errors: string[] = [];
+  const writes: string[] = [];
+  page.on('pageerror', (error: Error) => errors.push(error.message));
+  page.on('console', (message: any) => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('request', (request: any) => { if (request.method() === 'POST') writes.push(new URL(request.url()).pathname); });
+  await page.goto(app.origin);
+  await page.getByText('Test local · OWNER tự động · Thay đổi được lưu thật', { exact: true }).waitFor();
+  assert.equal(await page.locator('#owner-token').count(), 0);
+  assert.deepEqual(writes, ['/owner-api/local-test-session'], 'page boot must not make a business or provider write');
+  await page.getByRole('button', { name: 'Create new research', exact: true }).click();
+  await page.getByLabel('Tên thị trường hoặc cơ hội').fill('Synthetic local OWNER acceptance');
+  assert.equal(await page.getByRole('button', { name: 'Tạo workspace trống', exact: true }).isEnabled(), true);
+  await page.screenshot({ path: path.join(output, 'local-owner-desktop.png'), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, 'test banner and form must fit mobile');
+  await page.screenshot({ path: path.join(output, 'local-owner-mobile.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Tạo workspace trống', exact: true }).click();
+  await page.getByRole('heading', { name: 'Synthetic local OWNER acceptance', exact: true }).waitFor();
+  assert.deepEqual(writes, ['/owner-api/local-test-session', '/owner-api/workspaces']);
+  await page.reload();
+  await page.getByText('Test local · OWNER tự động · Thay đổi được lưu thật', { exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Synthetic local OWNER acceptance', exact: true }).waitFor();
+  assert.deepEqual(writes, ['/owner-api/local-test-session', '/owner-api/workspaces', '/owner-api/local-test-session']);
+  assert.deepEqual(await page.evaluate(() => ({ local: localStorage.length, session: sessionStorage.length, cookies: document.cookie })), { local: 0, session: 0, cookies: '' });
+  const beforeDemo = writes.length;
+  await page.goto(`${app.origin}/?mode=demo#/`);
+  await page.getByRole('button', { name: 'Đặt lại demo', exact: true }).waitFor();
+  assert.equal(writes.length, beforeDemo, 'demo must not request OWNER authority');
+
+  await app.close();
+  await assertPortClosed(fixture.port);
+  app = await startOperator(fixture.configuration);
+  await page.goto(app.origin);
+  await page.locator('#owner-token').waitFor();
+  await page.getByRole('button', { name: 'Create new research', exact: true }).click();
+  await page.getByLabel('Tên thị trường hoặc cơ hội').fill('Not submitted');
+  assert.equal(await page.getByRole('button', { name: 'Tạo workspace trống', exact: true }).isDisabled(), true);
+  assert.equal(writes.length, beforeDemo, 'turning test mode off restores manual unlock without a grant');
+  await page.screenshot({ path: path.join(output, 'normal-owner-locked.png'), fullPage: true });
+  assert.deepEqual(errors, []);
+  await fs.writeFile(path.join(output, 'acceptance.json'), JSON.stringify({ status: 'PASS', writes, errors, checks: ['automatic OWNER without token entry', 'one explicit synthetic workspace write', 'reload retains data and reacquires authority', 'no browser credential persistence', 'demo isolated', 'normal mode locked', 'desktop and mobile without overflow'] }, null, 2), { mode: 0o600 });
+} finally {
+  await browser?.close();
+  await app?.close();
+  await assertPortClosed(fixture.port);
+  await fs.rm(fixture.root, { recursive: true, force: true });
+}

@@ -14,6 +14,7 @@ export async function main(): Promise<void> {
     application.server.listen(configuration.port, configuration.host);
     await once(application.server, 'listening');
     process.stdout.write(`Operator app listening on ${application.origin}; OWNER writes ${configuration.ownerWritesEnabled ? 'enabled' : 'disabled'}\n`);
+    if (configuration.localTestOwner) process.stdout.write('Local testing OWNER auto-access enabled; persisted changes are real. Do not expose this runtime through a proxy, tunnel, LAN or domain.\n');
   } catch (error) {
     if (application) await application.close().catch(() => undefined);
     throw error;
