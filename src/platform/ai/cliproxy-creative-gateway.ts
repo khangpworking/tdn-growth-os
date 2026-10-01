@@ -479,7 +479,7 @@ function referenceFilename(mediaType: string, index: number, multiple: boolean):
   return multiple ? `source-${index + 1}.${extension}` : `source.${extension}`;
 }
 
-function makeGptEditForm(request: CreativeImageRequest, references: readonly Buffer[], format: { readonly gptSize: string }): FormData {
+function makeGptEditForm(request: CreativeImageRequest, providerModelId: string, references: readonly Buffer[], format: { readonly gptSize: string }): FormData {
   const form = new FormData();
   const multiple = references.length > 1;
   for (let index = 0; index < references.length; index += 1) {
@@ -489,7 +489,7 @@ function makeGptEditForm(request: CreativeImageRequest, references: readonly Buf
     form.append(field, blob, referenceFilename(reference.mediaType, index, multiple));
   }
   form.append('prompt', request.prompt);
-  form.append('model', request.model);
+  form.append('model', providerModelId);
   form.append('n', '1');
   form.append('size', format.gptSize);
   form.append('response_format', 'b64_json');
@@ -596,7 +596,7 @@ async function generateImage(
         body: bodyText,
       }, timeoutMs, responseBytes, configuration.apiKey);
     } else {
-      const form = makeGptEditForm(request, references, format);
+      const form = makeGptEditForm(request, route.providerModelId, references, format);
       const url = `${configuration.baseUrl}/v1/images/edits`;
       if (await formDataBytes(form, url) > CLIPROXY_GPT_IMAGE_REQUEST_BYTES) fail('request_too_large');
       envelope = await requestJson(transport, url, {

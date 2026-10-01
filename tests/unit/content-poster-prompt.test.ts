@@ -27,14 +27,34 @@ test('poster prompt fills every layer placeholder with pinned values', () => {
   assert.match(prompt, /1088x1360/);
   assert.match(prompt, /"Caption text"/);
   assert.match(prompt, /Synthetic Brand/);
-  assert.doesNotMatch(prompt, /\{\{[A-Z_]+\}\}/u);
 });
 
-test('missing or unfilled placeholders fail with ContentPosterPromptError', () => {
-  assert.throws(() => buildPosterPrompt({
-    creativeText: 'x', layerText: layer.replace('{{CAPTION_CONTENT}}', ''), format: 'square', captionPost: 'x', brandData: {}, plan: { photos: [] }, logoOn: false,
-  }), ContentPosterPromptError);
-  assert.throws(() => buildPosterPrompt({
-    creativeText: 'x', layerText: `${layer} {{NOT_FILLED}}`, format: 'square', captionPost: 'x', brandData: {}, plan: { photos: [] }, logoOn: false,
-  }), ContentPosterPromptError);
+test('poster prompt preserves template-like caption and brand data byte-for-byte', () => {
+  const captionPost = 'Giữ nguyên {{LOGO_INSTRUCTION}}, {{PROMO_CODE}}, dấu ", gạch \\ và emoji 🐈\nDòng hai';
+  const brandName = 'Nhãn {{RATIO_LABEL}} {{PROMO_CODE}}';
+  const prompt = buildPosterPrompt({
+    creativeText: 'Make a synthetic poster.', layerText: layer, format: 'square', captionPost,
+    brandData: { brand_name: brandName }, plan: { photos: [] }, logoOn: false,
+  });
+  assert.ok(prompt.includes(JSON.stringify(captionPost)));
+  assert.ok(prompt.includes(JSON.stringify({ brand_name: brandName })));
+});
+
+test('missing, repeated, unknown or malformed layer placeholders fail before rendering data', () => {
+  const invalidLayers = [
+    layer.replace('{{CAPTION_CONTENT}}', ''),
+    `${layer} {{CAPTION_CONTENT}}`,
+    `${layer} {{NOT_FILLED}}`,
+    `${layer} {{lowercase}}`,
+    `${layer} {{NOT-FILLED}}`,
+    `${layer} {{A1}}`,
+    `${layer} {{ NOT_FILLED }}`,
+    `${layer} {{NOT_CLOSED`,
+    `${layer} NOT_OPEN}}`,
+  ];
+  for (const layerText of invalidLayers) {
+    assert.throws(() => buildPosterPrompt({
+      creativeText: 'x', layerText, format: 'square', captionPost: '{{PROMO_CODE}}', brandData: {}, plan: { photos: [] }, logoOn: false,
+    }), ContentPosterPromptError);
+  }
 });
