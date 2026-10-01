@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m03-chart-bundle-request.schema.json",
+  "title": "M03ChartBundleRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "sectionId", "chartProfile", "metricSetSha256"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "sectionId": { "const": "M03" },
+    "chartProfile": { "const": "m03-chart-profile-v1" },
+    "metricSetSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

@@ -159,3 +159,7 @@ The pre-report path now has an explicit first calculation gate:
 `research:metric:m03`. The M03 command emits one content-identified verified
 metric set outside Git; later charts and AI narratives must consume that same
 identity rather than recalculate values independently.
+
+`research:metric:m03:charts` verifies that metric-set identity and emits three
+fixed M03 chart-data specs without reopening sources, recalculating or calling
+AI. Rendering is intentionally separate.

@@ -688,3 +688,11 @@ readiness. It produces a deterministic M03 metric set with exact source,
 membership, completeness, policy and method lineage. Future chart and narrative
 consumers must bind to the same `metricSetSha256`. It adds no chart, AI, report
 version, human decision, migration or database write.
+
+## Research A33: M03 chart bundle from exact metric-set identity (draft)
+
+A33 projects one verified A32 metric set into three fixed chart-data specs for
+observed revenue, observed units and membership sensitivity. It never reopens
+source data or recalculates values. Null remains missing, overlapping scopes are
+not additive, and sensitivity is not growth. Rendering and narrative remain
+future consumers.
