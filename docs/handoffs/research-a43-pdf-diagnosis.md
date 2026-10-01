@@ -125,3 +125,18 @@ allows the normal located and methods previews to produce valid PDFs while
 retaining complete text/evidence and all existing screen controls. No local
 Windows test, typecheck, build, or browser execution is evidence for this
 diagnosis; no renderer-owned print CSS change is part of this repair.
+
+## Native stream follow-up, 2026-10-01
+
+A44's failure-only native-stream probe on run 36806030239 printed the exact
+located HTML with no CSS injection or DOM removal: 153 open disclosures,
+33 nested, 70,032 CSS px and 110,375 body-text characters. Print took 2,271 ms;
+50 bounded chunks yielded 3,246,674 bytes in 138 ms with `%PDF-1.4` header.
+This supports a transport-path repair, not a proven Chrome or Node root cause.
+
+The normal acceptance helper now uses `ReturnAsStream`, retaining the original
+60-second print-call bound. It bounds individual and aggregate stream reads,
+closes the stream in `finally`, validates the concatenated PDF header and writes
+the same normal outputs. It does not replace HTML, discard evidence, change
+renderer CSS or retry a failed print. A43's own Linux acceptance remains pending;
+the successful A44 diagnostic is not substituted for that gate.
