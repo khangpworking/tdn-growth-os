@@ -4,6 +4,7 @@ import requestSchema from '../../../contracts/analysis/m03-narrative-evidence-re
 import resultSchema from '../../../contracts/analysis/m03-narrative-evidence.schema.json' with { type: 'json' };
 import type { M03NarrativeEvidenceRequest } from '../../../contracts/analysis/m03-narrative-evidence-request.generated.js';
 import type { M03NarrativeEvidence } from '../../../contracts/analysis/m03-narrative-evidence.generated.js';
+import type { M03ChartBundle } from '../../../contracts/analysis/m03-chart-bundle.generated.js';
 import type { M03VerifiedMetricSet } from '../../../contracts/analysis/m03-verified-metric-set.generated.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import { verifyM03ChartBundle } from './m03-chart-bundle.js';
@@ -19,6 +20,51 @@ type Claim = M03NarrativeEvidence['claims'][number];
 
 export class M03NarrativeEvidenceValidationError extends Error {}
 export class M03NarrativeEvidenceIntegrityError extends Error {}
+
+export function verifyM03NarrativeEvidence(
+  value: unknown,
+  expectedSha256?: string,
+  exactMetricSet?: M03VerifiedMetricSet,
+  exactChartBundle?: M03ChartBundle,
+): M03NarrativeEvidence {
+  if (!validateResult(value)) throw new M03NarrativeEvidenceIntegrityError('M03 narrative evidence breaks its contract');
+  const result = JSON.parse(canonicalJson(value)) as M03NarrativeEvidence;
+  const { envelopeSha256, ...content } = result;
+  if (digest(Buffer.from(canonicalJson(content), 'utf8')) !== envelopeSha256 ||
+      (expectedSha256 !== undefined && envelopeSha256 !== expectedSha256)) {
+    throw new M03NarrativeEvidenceIntegrityError('M03 narrative evidence identity does not match exact content');
+  }
+  const expectedClaimIds = [
+    ...['all', 'wide', 'core'].flatMap(scope => [
+      `M03:${scope}:listing_count`, `M03:${scope}:shop_count`,
+      `M03:${scope}:observed_revenue`, `M03:${scope}:observed_units`,
+    ]),
+    'M03:all_to_wide:revenue_membership_delta', 'M03:all_to_wide:units_membership_delta',
+    'M03:all_to_core:revenue_membership_delta', 'M03:all_to_core:units_membership_delta',
+  ];
+  if (result.request.metricSetSha256 !== result.dependencies.metricSetSha256 ||
+      result.request.chartBundleSha256 !== result.dependencies.chartBundleSha256 ||
+      canonicalJson(result.claims.map(claim => claim.claimId)) !== canonicalJson(expectedClaimIds) ||
+      canonicalJson(result.authoringRules) !== canonicalJson([
+        'EVERY_NUMBER_MUST_COPY_ONE_CITED_CLAIM_VALUE',
+        'MISSING_MUST_NOT_BE_RENDERED_OR_DESCRIBED_AS_ZERO',
+        'NO_CAUSATION_FORECAST_MARKET_SHARE_OR_HEALTH_CLAIMS',
+        'NO_CROSS_PERIOD_COMPARISON',
+        'NO_ADDITION_OF_OVERLAPPING_SCOPES',
+        'LIMIT_TO_M03_OBSERVED_FACTS_AND_EXPLICIT_LIMITATIONS',
+      ])) {
+    throw new M03NarrativeEvidenceIntegrityError('M03 narrative evidence lineage or canonical ordering is inconsistent');
+  }
+  if (exactMetricSet !== undefined && exactChartBundle !== undefined) {
+    const replay = buildM03NarrativeEvidence(result.request, exactMetricSet, exactChartBundle);
+    if (canonicalJson(replay) !== canonicalJson(result)) {
+      throw new M03NarrativeEvidenceIntegrityError('M03 narrative evidence does not replay from exact dependencies');
+    }
+  } else if (exactMetricSet !== undefined || exactChartBundle !== undefined) {
+    throw new M03NarrativeEvidenceIntegrityError('Both exact M03 dependencies are required for replay');
+  }
+  return result;
+}
 
 export function buildM03NarrativeEvidence(
   untrustedRequest: unknown,
@@ -74,7 +120,7 @@ export function buildM03NarrativeEvidence(
   if (!validateResult(result)) {
     throw new M03NarrativeEvidenceIntegrityError(`M03 narrative evidence breaks its contract: ${ajv.errorsText(validateResult.errors)}`);
   }
-  return JSON.parse(canonicalJson(result)) as M03NarrativeEvidence;
+  return verifyM03NarrativeEvidence(result, result.envelopeSha256);
 }
 
 function countClaim(

@@ -167,3 +167,7 @@ AI. Rendering is intentionally separate.
 `research:metric:m03:evidence` binds the exact metric and chart identities into
 a citation-only fact envelope for a later narrative. It makes no AI call and
 contains no free-form business conclusion.
+
+`research:metric:m03:narrative` replays the exact dependency chain and renders
+stable Vietnamese factual paragraphs without AI. The output remains an
+unapproved draft.

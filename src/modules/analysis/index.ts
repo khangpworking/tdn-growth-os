@@ -137,7 +137,13 @@ export {
   buildM03NarrativeEvidence,
   M03NarrativeEvidenceIntegrityError,
   M03NarrativeEvidenceValidationError,
+  verifyM03NarrativeEvidence,
 } from './m03-narrative-evidence.js';
+export {
+  M03FactualNarrativeIntegrityError,
+  M03FactualNarrativeValidationError,
+  renderM03FactualNarrative,
+} from './m03-factual-narrative.js';
 export {
   buildReportReviewTarget,
   ReportReviewTargetIntegrityError,
