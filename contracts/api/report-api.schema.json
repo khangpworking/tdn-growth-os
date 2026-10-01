@@ -111,7 +111,7 @@
       "title": "ReportSectionReadinessEntry",
       "type": "object",
       "additionalProperties": false,
-      "required": ["sectionId", "title", "methodId", "methodVersion", "historicalTemplateMaturity", "moduleIds", "requiredInputs", "reopenCondition", "fallbackState", "fallbackReasons", "deliveryState", "claimIds", "contextPointers", "blockers", "sectionSha256"],
+      "required": ["sectionId", "title", "methodId", "methodVersion", "historicalTemplateMaturity", "moduleIds", "requiredInputs", "inputChecks", "reopenCondition", "fallbackState", "fallbackReasons", "deliveryState", "claimIds", "contextPointers", "blockers", "sectionSha256"],
       "properties": {
         "sectionId": { "type": "string", "pattern": "^[MI][0-9]{2,3}$" },
         "title": { "type": "string", "minLength": 1, "maxLength": 200 },
@@ -120,6 +120,10 @@
         "historicalTemplateMaturity": { "enum": ["PILOT", "SYNTHESIS", "METHOD", "SCENARIO"] },
         "moduleIds": { "type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 100 } },
         "requiredInputs": { "type": "array", "maxItems": 20, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 200 } },
+        "inputChecks": {
+          "type": "array", "maxItems": 20,
+          "items": { "$ref": "#/$defs/inputReadinessCheck" }
+        },
         "reopenCondition": { "type": "string", "minLength": 1, "maxLength": 2000 },
         "fallbackState": { "enum": ["BLOCKED", "METHOD_ONLY", "MANUAL_REVIEW_REQUIRED", "NOT_IMPLEMENTED"] },
         "fallbackReasons": { "type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 200 } },
@@ -143,9 +147,10 @@
       "title": "ReportSectionReadinessResponse",
       "type": "object",
       "additionalProperties": false,
-      "required": ["contractVersion", "reportId", "reportVersion", "versionId", "semanticVersionId", "packetId", "catalogId", "catalogVersion", "catalogSha256", "sections"],
+      "required": ["contractVersion", "readinessProfile", "reportId", "reportVersion", "versionId", "semanticVersionId", "packetId", "catalogId", "catalogVersion", "catalogSha256", "sections"],
       "properties": {
         "contractVersion": { "const": "1.0.0" },
+        "readinessProfile": { "const": "report-input-readiness-v1" },
         "reportId": { "$ref": "#/$defs/uuid" },
         "reportVersion": { "type": "integer", "minimum": 1, "maximum": 10000 },
         "versionId": { "$ref": "#/$defs/uuid" },
@@ -155,6 +160,28 @@
         "catalogVersion": { "type": "string", "minLength": 1, "maxLength": 40 },
         "catalogSha256": { "$ref": "#/$defs/digest" },
         "sections": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/sectionReadinessEntry" } }
+      }
+    },
+    "inputReadinessEvidenceRef": {
+      "title": "ReportInputReadinessEvidenceRef",
+      "type": "object", "additionalProperties": false,
+      "required": ["kind", "locator", "sha256"],
+      "properties": {
+        "kind": { "enum": ["PACKET_POINTER", "REPORT_ARTIFACT", "REPORT_RECORD"] },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 400 },
+        "sha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "inputReadinessCheck": {
+      "title": "ReportInputReadinessCheck",
+      "type": "object", "additionalProperties": false,
+      "required": ["inputId", "state", "blocking", "codes", "evidenceRefs"],
+      "properties": {
+        "inputId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "state": { "enum": ["PRESENT", "ABSENT", "INVALID"] },
+        "blocking": { "type": "boolean" },
+        "codes": { "type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": { "type": "string", "minLength": 1, "maxLength": 200 } },
+        "evidenceRefs": { "type": "array", "maxItems": 10, "items": { "$ref": "#/$defs/inputReadinessEvidenceRef" } }
       }
     },
     "interpretationSummary": {

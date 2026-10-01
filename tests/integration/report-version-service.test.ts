@@ -687,6 +687,7 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     const readinessResponse = await fetch(`${base}/api/reports/${created.reportId}/versions/1/sections`);
     assert.equal(readinessResponse.status, 200);
     const readiness = await readinessResponse.json() as any;
+    assert.equal(readiness.readinessProfile, 'report-input-readiness-v1');
     assert.equal(readiness.reportId, created.reportId);
     assert.equal(readiness.reportVersion, 1);
     assert.equal(readiness.versionId, created.versionId);
@@ -700,6 +701,16 @@ test('read API lists workspace series, verifies explicit history, and serves onl
     assert.equal(readiness.sections.find((section: any) => section.sectionId === 'I17').deliveryState, 'PARTIAL_DETERMINISTIC_DRAFT');
     assert.deepEqual(readiness.sections.find((section: any) => section.sectionId === 'I17').claimIds, []);
     assert.equal(readiness.sections.find((section: any) => section.sectionId === 'I17').methodArtifact.fileName, 'i17-evidence-trace.json');
+    const byInput = (sectionId: string, inputId: string) => readiness.sections
+      .find((section: any) => section.sectionId === sectionId).inputChecks
+      .find((check: any) => check.inputId === inputId);
+    assert.equal(byInput('M03', 'normalized-metric-rows').state, 'PRESENT');
+    assert.deepEqual(byInput('M03', 'normalized-metric-rows').evidenceRefs.map((reference: any) => reference.locator), ['normalized-input.json']);
+    assert.equal(byInput('M05', 'domain-specific-evidence').state, 'ABSENT');
+    assert.equal(byInput('M05', 'domain-specific-evidence').blocking, true);
+    assert.equal(byInput('M08', 'explicit-price-state-and-observation-time').state, 'PRESENT');
+    assert.equal(byInput('M08', 'optional-owner-declared-tablet-count').blocking, false);
+    assert.equal(byInput('M01', 'owner-review').state, 'ABSENT');
     assert.match(readiness.sections.find((section: any) => section.sectionId === 'M10').reopenCondition, /daily series/i);
     assert.equal((await fetch(`${base}/api/reports/${created.reportId}/versions/2/sections`)).status, 404);
 

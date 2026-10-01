@@ -24,7 +24,8 @@ import {
   ReportReviewTargetLedgerService,
   ReportReviewTargetLedgerValidationError,
 } from '../modules/analysis/report-review-target-ledger.js';
-import { AnalysisReportVersionReader, ReportVersionService } from '../modules/analysis/report-version-service.js';
+import { buildReportInputReadiness, REPORT_INPUT_READINESS_PROFILE } from '../modules/analysis/report-input-readiness.js';
+import { AnalysisReportVersionReader, ReportVersionService, type VerifiedReportInterpretationSource } from '../modules/analysis/report-version-service.js';
 import { FoundationSourcePackageReader, SourcePackageService } from '../modules/foundation/index.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../modules/flow/index.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/index.js';
@@ -141,13 +142,14 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
       reportId: string,
       version: number,
     ): Promise<ReportSectionReadinessResponse | undefined> => {
-      let record: ReportVersionRecord;
-      try { record = await reportReader.readVersion(reportId, version); }
+      let verified: VerifiedReportInterpretationSource;
+      try { verified = await reportReader.readInterpretationSource(reportId, version); }
       catch (error) {
         if (/not found/i.test((error as Error).message)) return undefined;
         throw error;
       }
-      const packet = parsePacket((await reportReader.readArtifact(reportId, version, 'packet.json')).bytes);
+      const { record, bundle } = verified;
+      const packet = bundle.packet;
       const packets = new Map(packet.sections.map(section => [section.sectionId, section]));
       if (packets.size !== packet.sections.length || packet.catalog.sections.length !== packet.sections.length) {
         throw new Error('Report packet and section catalog membership differ');
@@ -159,6 +161,11 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
           ...definition,
           moduleIds: [...definition.moduleIds],
           requiredInputs: [...definition.requiredInputs],
+          inputChecks: buildReportInputReadiness(record, packet, definition.requiredInputs, bundle.files).map(check => ({
+            ...check,
+            codes: [...check.codes],
+            evidenceRefs: check.evidenceRefs.map(reference => ({ ...reference })),
+          })),
           fallbackReasons: [...definition.fallbackReasons],
           deliveryState: section.deliveryState,
           claimIds: [...section.claimIds],
@@ -169,7 +176,8 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
         };
       });
       return {
-        contractVersion: '1.0.0', reportId, reportVersion: version,
+        contractVersion: '1.0.0', readinessProfile: REPORT_INPUT_READINESS_PROFILE,
+        reportId, reportVersion: version,
         versionId: record.versionId, semanticVersionId: record.semanticVersionId,
         packetId: packet.packetId, catalogId: packet.catalog.catalogId,
         catalogVersion: packet.catalog.catalogVersion, catalogSha256: packet.catalogSha256,

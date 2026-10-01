@@ -95,6 +95,10 @@ export async function loadReportSectionReadiness(reportId: string, reportVersion
     if (section.sectionId.startsWith('M')) ordered = !insightStarted && number === expectedMarket++;
     else { insightStarted = true; ordered = number === expectedInsight++; }
     if (seen.has(section.sectionId) || !ordered) invalid('Ma trận section bị lặp hoặc không theo thứ tự catalog.');
+    if (section.requiredInputs.length !== section.inputChecks.length ||
+        section.requiredInputs.some((inputId, index) => section.inputChecks[index]?.inputId !== inputId)) {
+      invalid('Kết quả kiểm tra input không khớp thứ tự điều kiện của catalog.');
+    }
     seen.add(section.sectionId);
   }
   return value;
