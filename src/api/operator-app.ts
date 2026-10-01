@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import http, { type IncomingMessage, type ServerResponse } from 'node:http';
 import path from 'node:path';
+import { randomBytes } from 'node:crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { cliproxyConfigurationFromEnvironment, assertCliproxyConfiguration, type CliproxyConfiguration } from '../platform/ai/cliproxy-configuration.js';
 import { createCliproxyCreativeGateway } from '../platform/ai/cliproxy-creative-gateway.js';
@@ -17,6 +18,8 @@ import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from '.
 
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
 const ACTOR = /^[a-z][a-z0-9:_-]{2,119}$/;
+const LOCAL_TEST_SESSION_MAX_BODY_BYTES = 1024;
+const LOCAL_TEST_SESSION_CONTRACT_VERSION = '1.0.0';
 const MIME_TYPES: Readonly<Record<string, string>> = {
   '.css': 'text/css; charset=utf-8', '.html': 'text/html; charset=utf-8', '.ico': 'image/x-icon',
   '.jpeg': 'image/jpeg', '.jpg': 'image/jpeg', '.js': 'text/javascript; charset=utf-8',
@@ -35,6 +38,8 @@ export interface OperatorAppConfiguration {
   readonly host: '127.0.0.1' | '::1';
   readonly port: number;
   readonly ownerWritesEnabled: boolean;
+  /** Optional Fedora/localhost-only testing mode; omitted means false. */
+  readonly localTestOwner?: boolean;
   readonly ownerToken?: string;
   readonly ownerActorId?: string;
   /** Loopback CLIProxy for Content Studio AI; absent means AI is off. */
@@ -56,6 +61,8 @@ export function operatorAppConfigurationFromEnvironment(
 ): OperatorAppConfiguration {
   const enabled = environment.TDN_OWNER_API_ENABLED;
   if (enabled !== undefined && enabled !== 'true' && enabled !== 'false') throw new TypeError('TDN_OWNER_API_ENABLED must be exactly true or false');
+  const localTest = environment.TDN_OWNER_API_LOCAL_TEST;
+  if (localTest !== undefined && localTest !== 'true' && localTest !== 'false') throw new TypeError('TDN_OWNER_API_LOCAL_TEST must be exactly true or false');
   const rawPort = environment.TDN_OPERATOR_APP_PORT ?? '8787';
   if (!/^[1-9]\d{0,4}$/.test(rawPort)) throw new TypeError('TDN_OPERATOR_APP_PORT must be an integer from 1 to 65535');
   const cliproxy = cliproxyConfigurationFromEnvironment(environment);
@@ -64,6 +71,7 @@ export function operatorAppConfigurationFromEnvironment(
     frontendDist: defaults.frontendDist, version: defaults.version,
     host: (environment.TDN_OPERATOR_APP_HOST ?? '127.0.0.1') as '127.0.0.1' | '::1',
     port: Number(rawPort), ownerWritesEnabled: enabled === 'true',
+    ...(localTest === 'true' ? { localTestOwner: true } : {}),
     ...(environment.TDN_OWNER_API_TOKEN === undefined ? {} : { ownerToken: environment.TDN_OWNER_API_TOKEN }),
     ...(environment.TDN_OWNER_API_ACTOR_ID === undefined ? {} : { ownerActorId: environment.TDN_OWNER_API_ACTOR_ID }),
     ...(cliproxy === undefined ? {} : { cliproxy }),
@@ -74,8 +82,13 @@ export function operatorAppConfigurationFromEnvironment(
 
 export function openOperatorApp(configuration: OperatorAppConfiguration, dependencies: OperatorAppDependencies = {}): OperatorAppApplication {
   const frontend = validateConfiguration(configuration);
+  const localTestOwner = configuration.localTestOwner === true;
   const origin = operatorOrigin(configuration.host, configuration.port);
   const authority = origin.slice('http://'.length);
+  // This token exists only for this app instance. It is never read from or written to
+  // persistent configuration, HTML, health output, logs, or the database.
+  const ownerToken = localTestOwner ? `local-test-1-${randomBytes(32).toString('base64url')}` : configuration.ownerToken!;
+  const localTestSessionToken = localTestOwner ? ownerToken : undefined;
   const clock = dependencies.clock ?? (() => new Date());
   const databasePath = canonicalDatabasePath(configuration.databasePath);
   let lock: ExecutorLock | undefined;
@@ -101,15 +114,15 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     contentRead = openContentReadApi({ databasePath, artifactRoot: configuration.artifactRoot, aiStatus });
     if (configuration.ownerWritesEnabled) owner = openOwnerApi({
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
-      token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin,
+      token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
     });
     if (configuration.ownerWritesEnabled) contentOwner = openContentOwnerApi({
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
-      token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin, gateway,
+      token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin, gateway,
     });
     if (configuration.ownerWritesEnabled) researchGeneration = openResearchGenerationApi({
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
-      token: configuration.ownerToken!, actorId: configuration.ownerActorId!, allowedOrigin: origin,
+      token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
     });
   } catch (error) {
     let stopped = true;
@@ -133,11 +146,13 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     if (!validAuthority(request, authority)) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Invalid Host authority' } });
     const pathname = rawPathname(request.url, authority);
     if (pathname === null) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Malformed request URL' } });
-    if (pathname === '/healthz') return health(request, response, configuration.version, configuration.ownerWritesEnabled);
+    if (pathname === '/healthz') return health(request, response, configuration.version, configuration.ownerWritesEnabled, localTestOwner);
     if (pathname === '/api/content' || pathname.startsWith('/api/content/')) return contentReadApplication.handler(request, response);
     if (reportApplication && reportApiPath(pathname)) return reportApplication.handler(request, response);
     if (pathname === '/api' || pathname.startsWith('/api/')) return readApplication.handler(request, response);
     if (pathname === '/owner-api' || pathname.startsWith('/owner-api/')) {
+      if (localTestOwner && !localTestOwnerRequestAllowed(request, origin)) return sendJson(response, 403, { error: { code: 'forbidden', message: 'Local OWNER requests must be same-origin and direct' } });
+      if (pathname === '/owner-api/local-test-session') return localTestSession(request, response, origin, localTestSessionToken);
       if (!ownerApplication) return sendJson(response, 403, { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
       if (pathname.startsWith('/owner-api/research-generation/')) return researchGenerationApplication!.handler(request, response);
       if (pathname === '/owner-api/content' || pathname.startsWith('/owner-api/content/')) return contentOwnerApplication!.handler(request, response);
@@ -220,7 +235,8 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.host !== '127.0.0.1' && configuration.host !== '::1') throw new TypeError('TDN_OPERATOR_APP_HOST must be exactly 127.0.0.1 or ::1');
   if (!Number.isSafeInteger(configuration.port) || configuration.port < 1 || configuration.port > 65535) throw new TypeError('TDN_OPERATOR_APP_PORT must be an integer from 1 to 65535');
   if (!configuration.version || /[\r\n]/.test(configuration.version)) throw new TypeError('Application version is invalid');
-  if (configuration.ownerWritesEnabled && (!configuration.ownerToken || !TOKEN.test(configuration.ownerToken))) throw new TypeError('TDN_OWNER_API_TOKEN must be a strong 32-512 character token containing letters and digits when OWNER writes are enabled');
+  if (configuration.localTestOwner === true && !configuration.ownerWritesEnabled) throw new TypeError('TDN_OWNER_API_LOCAL_TEST requires OWNER writes to be enabled');
+  if (configuration.ownerWritesEnabled && configuration.localTestOwner !== true && (!configuration.ownerToken || !TOKEN.test(configuration.ownerToken))) throw new TypeError('TDN_OWNER_API_TOKEN must be a strong 32-512 character token containing letters and digits when OWNER writes are enabled');
   if (configuration.ownerWritesEnabled && (!configuration.ownerActorId || !ACTOR.test(configuration.ownerActorId))) throw new TypeError('TDN_OWNER_API_ACTOR_ID is required and invalid when OWNER writes are enabled');
   if (configuration.cliproxy !== undefined) assertCliproxyConfiguration(configuration.cliproxy);
   return preloadFrontend(configuration.frontendDist);
@@ -294,9 +310,58 @@ function rawPathname(raw: string | undefined, authority: string): string | null 
     return url.pathname;
   } catch { return null; }
 }
-function health(request: IncomingMessage, response: ServerResponse, version: string, enabled: boolean): void {
+function health(request: IncomingMessage, response: ServerResponse, version: string, enabled: boolean, localTestOwner: boolean): void {
   if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return sendJson(response, 405, { error: { code: 'method_not_allowed', message: 'Only GET is supported' } }); }
-  sendJson(response, 200, { status: 'ok', version, ownerWritesEnabled: enabled });
+  sendJson(response, 200, { status: 'ok', version, ownerWritesEnabled: enabled, localTestOwner });
+}
+
+function localTestSession(request: IncomingMessage, response: ServerResponse, allowedOrigin: string, token: string | undefined): void {
+  if (token === undefined) return sendJson(response, 403, { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
+  if (request.method !== 'POST') { response.setHeader('Allow', 'POST'); return sendJson(response, 405, { error: { code: 'method_not_allowed', message: 'Only POST is supported' } }); }
+  if (singleHeader(request.headers.origin) !== allowedOrigin) return sendJson(response, 403, { error: { code: 'forbidden', message: 'Origin is not allowed' } });
+  const fetchSite = singleHeader(request.headers['sec-fetch-site']);
+  if (fetchSite !== undefined && fetchSite.split(',').some((value) => value.trim().toLowerCase() === 'cross-site')) return sendJson(response, 403, { error: { code: 'forbidden', message: 'Cross-site requests are not allowed' } });
+  if (hasProxyForwardedHeaders(request)) return sendJson(response, 403, { error: { code: 'forbidden', message: 'Proxy forwarded headers are not allowed' } });
+  if (singleHeader(request.headers['content-type']) !== 'application/json') return sendJson(response, 400, { error: { code: 'bad_request', message: 'Content-Type must be application/json' } });
+  void readLocalTestSessionBody(request).then((body) => {
+    if (!isEmptyJsonObject(body)) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Request body must be {}' } });
+    return sendJson(response, 200, { contractVersion: LOCAL_TEST_SESSION_CONTRACT_VERSION, token });
+  }).catch(() => sendJson(response, 400, { error: { code: 'bad_request', message: 'Request body must be a bounded JSON object' } }));
+}
+
+function singleHeader(value: string | string[] | undefined): string | undefined { return typeof value === 'string' ? value : undefined; }
+function localTestOwnerRequestAllowed(request: IncomingMessage, allowedOrigin: string): boolean {
+  const origin = singleHeader(request.headers.origin);
+  if (origin !== undefined && origin !== allowedOrigin) return false;
+  // Browsers normally omit Origin on same-origin safe GETs. Mutating routes and
+  // the session grant must carry the exact origin; safe reads may omit it.
+  if (request.method !== 'GET' && request.method !== 'HEAD' && origin !== allowedOrigin) return false;
+  const fetchSite = singleHeader(request.headers['sec-fetch-site']);
+  if (fetchSite !== undefined && fetchSite.split(',').some((value) => value.trim().toLowerCase() === 'cross-site')) return false;
+  return !hasProxyForwardedHeaders(request);
+}
+function hasProxyForwardedHeaders(request: IncomingMessage): boolean {
+  return Object.keys(request.headers).some((name) => name === 'forwarded' || name.startsWith('x-forwarded-'));
+}
+async function readLocalTestSessionBody(request: IncomingMessage): Promise<unknown> {
+  const declared = request.headers['content-length'];
+  if (declared !== undefined && (typeof declared !== 'string' || !/^\d+$/.test(declared) || Number(declared) > LOCAL_TEST_SESSION_MAX_BODY_BYTES)) {
+    request.resume();
+    throw new Error('Invalid or oversized request body');
+  }
+  const chunks: Buffer[] = []; let size = 0;
+  for await (const chunk of request) {
+    const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    size += bytes.length;
+    if (size > LOCAL_TEST_SESSION_MAX_BODY_BYTES) { request.resume(); throw new Error('Oversized request body'); }
+    chunks.push(bytes);
+  }
+  let parsed: unknown;
+  try { parsed = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new Error('Invalid JSON'); }
+  return parsed;
+}
+function isEmptyJsonObject(value: unknown): value is Record<string, never> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).length === 0;
 }
 function serveStatic(request: IncomingMessage, response: ServerResponse, pathname: string, files: StaticFiles): void {
   if (request.method !== 'GET' && request.method !== 'HEAD') { response.setHeader('Allow', 'GET, HEAD'); return sendText(response, 405, 'Method not allowed'); }

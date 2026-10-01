@@ -78,6 +78,37 @@ export TDN_OWNER_API_ACTOR_ID='<valid-local-owner-actor-id>'
 
 The token is a local development authorization gate, not production authentication. The actor ID must match `[a-z][a-z0-9:_-]{2,119}`. Never use `0.0.0.0`, a LAN address, a public hostname, or port forwarding.
 
+### Local testing without token entry (explicit opt-in)
+
+Only for direct browser access on the same Fedora machine:
+
+```bash
+export TDN_OWNER_API_ENABLED='true'
+export TDN_OWNER_API_LOCAL_TEST='true'
+export TDN_OWNER_API_ACTOR_ID='<existing-valid-local-owner-actor-id>'
+```
+
+Keep the existing database/artifact/loopback configuration. This mode generates
+a process-scoped credential; no token paste is required on the web and no
+persistent token is exposed to it. The browser reacquires authority on reload.
+The banner says `Test local · OWNER tự động · Thay đổi được lưu thật`.
+Changes persist in the configured database; this is not synthetic demo mode.
+Business prerequisites, explicit confirmations and the executor lock remain.
+Opening the page does not run AI or spend money. If AI is configured, a later
+explicit generation action can still call it under its separate authorization.
+
+Do not expose this mode through LAN, proxy, tunnel, forwarding, Cloudflare or
+domain access. Host, Origin and forwarded-header rejection do not prove that
+an intentionally configured tunnel cannot strip or replace those headers.
+Keep the existing private token file for return to normal mode, but do not
+read, print, commit or copy it into browser storage.
+
+To restore manual unlock, set `TDN_OWNER_API_LOCAL_TEST='false'` (or unset it),
+restore the existing private `TDN_OWNER_API_TOKEN` configuration, and restart
+the operator through the approved activation procedure. An already running
+process does not change mode merely because another shell exports the flag.
+See [scope and acceptance](../tasks/local-owner-testing.md).
+
 ### Content Studio AI (optional, Task 049)
 
 AI is off unless both CLIProxy variables are exported in the same private shell, like the OWNER token:

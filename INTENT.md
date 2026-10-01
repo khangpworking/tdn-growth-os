@@ -781,3 +781,26 @@ reports remain immutable. Do not add an upload flow, ledger, migration, AI call
 or business approval to make this bridge work. All execution checks run on Linux;
 Windows is limited to static edits and contract generation. Fedora activation
 and release-chain merges still require separate owner authorization.
+
+### Local testing OWNER convenience, approved 2026-10-01
+
+The owner approved removing repeated manual token entry for Fedora localhost
+testing. Add an explicit, default-off `TDN_OWNER_API_LOCAL_TEST=true` mode to
+the integrated operator only; it also requires OWNER writes enabled and the
+existing server-owned actor. The frontend automatically obtains a
+process-scoped bearer through an exact-origin local bootstrap, keeps it only
+in React memory, and reacquires it on reload. Never expose the configured
+persistent token or save credentials in browser storage, HTML, logs or Git.
+
+Keep the approved visual identity and visibly distinguish local testing from
+synthetic demo and normal manually unlocked operation. Changes in this mode
+are persisted real changes. Do not silently attach sources, create decisions,
+call AI/providers or spend money when opening the page. Retain all domain
+OWNER capabilities, B7–B10 prerequisites, confirmations, immutable lineage,
+irreversible B9 locking and the single-executor database lock. Do not expose
+this mode through LAN, forwarding, Cloudflare, proxy or domain access; OAuth
+and production multi-user authorization remain future work.
+
+This approval authorizes the scoped implementation and Linux validation. It
+does not authorize changing live Fedora data or activation during unsaved
+operator work. See `docs/tasks/local-owner-testing.md` and the runbook.
