@@ -128,7 +128,7 @@ export function renderReportKitHtml(inputs: ReportKitInputs): string {
   // Expanded evidence tables must fragment across printed pages. Screen
   // layout and requests without located evidence keep their original CSS.
   const locatedPrint = locatedInsightMethods === undefined ? ''
-    : '@media print{.ip-grid{display:block}.ip{break-inside:auto;margin-bottom:16px}.ip tr{break-inside:auto}details{display:contents}details::details-content{display:contents;content-visibility:visible}details>summary{display:block}}';
+    : '@media print{.ip-grid{display:block}.ip{margin-bottom:16px}.sheet,.ip,.card,.fig,tr{break-inside:auto}details{display:contents}details::details-content{display:contents;content-visibility:visible}details>summary{display:block}}';
 
   return `<!doctype html>
 <html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="tdn-report-presentation" content="report-kit-v1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; base-uri 'none'; form-action 'none'"><title>${esc(workspace.title)} · Báo cáo TDN</title><style>${reportKitFontCss()}${REPORT_KIT_CSS}${locatedPrint}</style></head><body data-renderer="${REPORT_KIT_RENDERER_VERSION}"><a class="skip" href="#market">Đến nội dung báo cáo</a>
