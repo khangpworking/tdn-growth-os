@@ -176,7 +176,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
       'Phương pháp mô tả thị trường',
       'Phương pháp Insight gắn vị trí bằng chứng',
       'Gói kiểm tra điều kiện và tổng hợp',
-    ]) await methodFieldset.getByText(label, { exact: true }).waitFor();
+    ]) await methodFieldset.getByRole('combobox', { name: new RegExp(`^${label}`) }).waitFor();
     const methodSelects = methodFieldset.locator('select');
     assert.equal(await methodSelects.count(), 3, 'the loaded inventory must expose three method-family pickers');
     const defaults = await methodSelects.evaluateAll((items: HTMLSelectElement[]) => items.map(item => ({ value: item.value, firstOption: item.options[0]?.textContent?.trim() ?? '' })));

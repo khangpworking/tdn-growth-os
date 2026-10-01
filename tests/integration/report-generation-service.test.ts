@@ -159,11 +159,12 @@ test('method input inventory is explicit and selected descriptors reach the reta
   assert.deepEqual(Object.keys(choice.methodInputs!).sort(), ['descriptiveMethods', 'locatedInsightMethods', 'methodPackets']);
   assert.equal(choice.methodInputs!.descriptiveMethods.length, 1);
   assert.equal(choice.methodInputs!.locatedInsightMethods.length, 1);
-  assert.equal(choice.methodInputs!.methodPackets.length, 1);
+  const methodPacket = choice.methodInputs!.methodPackets.find(item => item.logicalPath === state.methods!.logicalPath)!;
+  assert.ok(methodPacket, 'Choose the exact valid descriptor rather than the first schema-valid candidate');
   const methodSelectionIds = {
     descriptiveMethods: choice.methodInputs!.descriptiveMethods[0]!.methodSelectionId,
     locatedInsightMethods: choice.methodInputs!.locatedInsightMethods[0]!.methodSelectionId,
-    methodPackets: choice.methodInputs!.methodPackets[0]!.methodSelectionId,
+    methodPackets: methodPacket.methodSelectionId,
   };
   const legacyReceipt = await service.create({
     contractVersion: '1.0.0' as const, workspaceId, selectionId: choice.selectionId,
@@ -191,7 +192,7 @@ test('method input inventory is explicit and selected descriptors reach the reta
   const saved = JSON.parse((await reader.readArtifact(receipt.reportId, 1, 'create-request.json')).bytes.toString('utf8')) as Record<string, unknown>;
   assert.equal(saved.descriptiveMethodsPath, choice.methodInputs!.descriptiveMethods[0]!.logicalPath);
   assert.equal(saved.locatedInsightMethodsPath, choice.methodInputs!.locatedInsightMethods[0]!.logicalPath);
-  assert.equal(saved.methodPacketsPath, choice.methodInputs!.methodPackets[0]!.logicalPath);
+  assert.equal(saved.methodPacketsPath, state.methods!.logicalPath);
 });
 
 test('changed method selection conflicts before writes while missing request publication recovers the exact request', async t => {
@@ -214,7 +215,7 @@ test('changed method selection conflicts before writes while missing request pub
     requestKey: 'b99469c1-47ac-4bf5-8f28-5c2168f170ad', methodSelectionIds: {
       descriptiveMethods: methodInputs.descriptiveMethods[0]!.methodSelectionId,
       locatedInsightMethods: methodInputs.locatedInsightMethods[0]!.methodSelectionId,
-      methodPackets: methodInputs.methodPackets[0]!.methodSelectionId,
+      methodPackets: methodInputs.methodPackets.find(item => item.logicalPath === state.methods!.logicalPath)!.methodSelectionId,
     },
   };
   await assert.rejects(interrupted.create(request), /Synthetic interrupted method report publication/);
