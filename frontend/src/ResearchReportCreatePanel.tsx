@@ -23,6 +23,13 @@ const METHOD_FAMILIES = [
 ] as const;
 type MethodFamily = typeof METHOD_FAMILIES[number]['key'];
 type MethodIds = ResearchGenerationMethodSelectionIds;
+type ReportPresentation = NonNullable<ResearchGenerationRequest['reportPresentation']>;
+
+const DEFAULT_PRESENTATION: ReportPresentation = 'report-kit-v1';
+const REPORT_PRESENTATIONS: readonly { readonly value: ReportPresentation; readonly label: string; readonly hint: string }[] = [
+  { value: 'report-kit-v1', label: 'Báo cáo chuẩn', hint: 'Cách trình bày Thị trường và Insight đang dùng, không có số tham chiếu.' },
+  { value: 'report-kit-citations-v1', label: 'Báo cáo có số tham chiếu nguồn', hint: 'Cùng cách trình bày Thị trường và Insight, thêm số [1], [2] cạnh dữ kiện đã lưu nguồn. Bấm số để xem kết quả tính đã lưu và vị trí dòng/ô trong file nguồn. Dữ kiện chưa đủ nguồn thì không có số; không thêm số liệu hay nhận định AI.' },
+];
 
 const LIMITATION_COPY: Record<string, string> = {
   SCHEMA_VALIDATED_ONLY: 'Hệ thống mới nhận ra đúng loại hồ sơ, chưa xác nhận hồ sơ phù hợp với bộ dữ liệu này.',
@@ -47,6 +54,7 @@ interface ReportRequestSnapshot {
   readonly period: string;
   readonly families: Readonly<Record<MethodFamily, string | null>>;
   readonly includeMethodInputs: boolean;
+  readonly presentation: ReportPresentation;
 }
 
 export default function ResearchReportCreatePanel({ workspaceId, ownerToken, writesAvailable, onCreated }: ResearchReportCreatePanelProps) {
@@ -60,6 +68,7 @@ export default function ResearchReportCreatePanel({ workspaceId, ownerToken, wri
   const [selectionId, setSelectionId] = useState('');
   const [methodIds, setMethodIds] = useState<MethodIds>(emptyMethodIds);
   const [methodAnnouncement, setMethodAnnouncement] = useState('');
+  const [presentation, setPresentation] = useState<ReportPresentation>(DEFAULT_PRESENTATION);
   const [status, setStatus] = useState<'idle' | 'pending' | 'error' | 'done'>('idle');
   const [failure, setFailure] = useState<ResearchGenerationClientError | null>(null);
   const [receipt, setReceipt] = useState<ResearchGenerationReceipt | null>(null);
@@ -78,7 +87,7 @@ export default function ResearchReportCreatePanel({ workspaceId, ownerToken, wri
     if (priorWorkspace.current !== workspaceId) {
       priorWorkspace.current = workspaceId;
       operation.current = null; operationDisplay.current = null; busy.current = false;
-      setSelectionId(''); setMethodIds(emptyMethodIds()); setMethodAnnouncement(''); setStatus('idle'); setFailure(null); setReceipt(null);
+      setSelectionId(''); setMethodIds(emptyMethodIds()); setMethodAnnouncement(''); setPresentation(DEFAULT_PRESENTATION); setStatus('idle'); setFailure(null); setReceipt(null);
     }
     setInventory(null); setLoadError('');
     if (!writesAvailable || !ownerToken) { setLoadState('idle'); return; }
@@ -145,6 +154,7 @@ export default function ResearchReportCreatePanel({ workspaceId, ownerToken, wri
       const methodSelectionIds = includeMethodInputs ? Object.freeze({ ...methodIds }) as MethodIds : undefined;
       operation.current = Object.freeze({
         contractVersion: '1.0.0', workspaceId, selectionId: selected!.selectionId, requestKey: crypto.randomUUID(),
+        reportPresentation: presentation,
         ...(methodSelectionIds ? { methodSelectionIds } : {}),
       }) as ResearchGenerationRequest;
       operationDisplay.current = Object.freeze({
@@ -155,6 +165,7 @@ export default function ResearchReportCreatePanel({ workspaceId, ownerToken, wri
           return [family.key, candidate?.logicalPath ?? null];
         }))) as Readonly<Record<MethodFamily, string | null>>,
         includeMethodInputs,
+        presentation,
       });
     }
     const body = operation.current;
@@ -183,7 +194,7 @@ export default function ResearchReportCreatePanel({ workspaceId, ownerToken, wri
 
   function chooseAgain() {
     if (busy.current) return;
-    operation.current = null; operationDisplay.current = null; setSelectionId(''); setMethodIds(emptyMethodIds()); setMethodAnnouncement(''); setStatus('idle'); setFailure(null); setReceipt(null);
+    operation.current = null; operationDisplay.current = null; setSelectionId(''); setMethodIds(emptyMethodIds()); setMethodAnnouncement(''); setPresentation(DEFAULT_PRESENTATION); setStatus('idle'); setFailure(null); setReceipt(null);
     focusSourceAfterReload.current = true;
     setReload(value => value + 1);
   }
@@ -223,6 +234,21 @@ export default function ResearchReportCreatePanel({ workspaceId, ownerToken, wri
     </fieldset>;
   }
 
+  function renderPresentation() {
+    return <fieldset className="report-method-inputs">
+      <legend>Cách trình bày báo cáo</legend>
+      {REPORT_PRESENTATIONS.map(option => {
+        const hintId = `${id}-${option.value}-hint`;
+        return <label className="report-presentation-option" key={option.value}>
+          <input type="radio" name={`${id}-presentation`} value={option.value} checked={presentation === option.value} disabled={lockedOperation} aria-describedby={hintId} onChange={() => setPresentation(option.value)} />
+          <strong>{option.label}</strong>
+          <small id={hintId}>{option.hint}</small>
+        </label>;
+      })}
+      <p className="report-limit">Chỉ áp dụng cho báo cáo tạo lần này. Các phiên bản đã lưu giữ nguyên cách trình bày lúc tạo và không được vẽ lại.</p>
+    </fieldset>;
+  }
+
   const snapshot = operationDisplay.current;
   return <section className="report-version-summary" aria-labelledby={`${id}-title`}>
     <h4 id={`${id}-title`}>Tạo báo cáo mới</h4>
@@ -247,15 +273,17 @@ export default function ResearchReportCreatePanel({ workspaceId, ownerToken, wri
               <p>Chưa chọn báo giá theo viên. Báo cáo chưa có nhận định AI và chưa được duyệt.</p>
             </div>}
             {renderMethodInputs()}
+            {renderPresentation()}
             {(status !== 'error' || retryable) && <div className="report-actions"><button className="button primary" type="submit" disabled={status === 'pending' || status === 'done' || (!selected && !operation.current)}>{status === 'pending' ? 'Đang tạo báo cáo…' : status === 'error' ? 'Thử lại cùng yêu cầu' : 'Tạo báo cáo mới'}</button></div>}
           </form>}
         </>}
-    {snapshot?.includeMethodInputs && <div className="report-request-snapshot report-version-summary" aria-labelledby={`${id}-request-title`}>
+    {snapshot && (snapshot.includeMethodInputs || snapshot.presentation !== DEFAULT_PRESENTATION) && <div className="report-request-snapshot report-version-summary" aria-labelledby={`${id}-request-title`}>
       <h5 id={`${id}-request-title`}>Yêu cầu đã gửi</h5>
       <dl>
         <div><dt>Nguồn</dt><dd>{snapshot.source}</dd></div>
         <div><dt>Kỳ dữ liệu</dt><dd>{snapshot.period}</dd></div>
-        {METHOD_FAMILIES.map(family => <div key={family.key}><dt>{family.label}</dt><dd>{snapshot.includeMethodInputs ? (snapshot.families[family.key] ?? 'Không dùng') : 'Không dùng'}</dd></div>)}
+        <div><dt>Cách trình bày</dt><dd>{REPORT_PRESENTATIONS.find(option => option.value === snapshot.presentation)!.label}</dd></div>
+        {snapshot.includeMethodInputs && METHOD_FAMILIES.map(family => <div key={family.key}><dt>{family.label}</dt><dd>{snapshot.families[family.key] ?? 'Không dùng'}</dd></div>)}
       </dl>
     </div>}
     {status === 'pending' && <p className="report-prompt" role="status">{snapshot?.includeMethodInputs ? 'Đang xác minh nguồn, hồ sơ đã chọn và lưu báo cáo. Chỉ gửi một yêu cầu; thao tác này không gọi AI.' : 'Đang xác minh nguồn và lưu báo cáo. Chỉ gửi một yêu cầu; thao tác này không gọi AI.'}</p>}

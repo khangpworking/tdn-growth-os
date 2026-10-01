@@ -4,7 +4,7 @@ export type ReportVersionCreateRequest = {
   [k: string]: unknown;
 } & {
   contractVersion: '1.0.0';
-  reportPresentation?: 'report-kit-v1';
+  reportPresentation?: 'report-kit-v1' | 'report-kit-citations-v1';
   descriptiveMethodsPath?: string;
   locatedInsightMethodsPath?: string;
   methodPacketsPath?: string;

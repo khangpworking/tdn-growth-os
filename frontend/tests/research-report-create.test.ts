@@ -104,6 +104,7 @@ test('creation requires explicit selection, suppresses duplicate submits and ret
     assert.match(dom.container.textContent ?? '', /2026-08-17/);
     await act(async () => { submit(dom.container); submit(dom.container); await settle(); });
     assert.equal(posts.length, 1);
+    assert.equal(posts[0]!.reportPresentation, 'report-kit-v1');
     assert.equal((dom.container.querySelector('select') as HTMLSelectElement).disabled, true);
     await act(async () => { rejectFirst(new Error('Synthetic lost response')); await settle(); });
     assert.match(dom.container.textContent ?? '', /Yêu cầu và nguồn đang được giữ nguyên/);
@@ -155,6 +156,40 @@ test('method inputs default to none, clear when the source changes, and freeze s
     assert.doesNotMatch(JSON.stringify(posts[0]), /methods\/descriptive\.json/);
     assert.match(dom.container.textContent ?? '', /Yêu cầu đã gửi/);
     assert.match(dom.container.textContent ?? '', /methods\/descriptive\.json/);
+  } finally {
+    await act(async () => root.unmount());
+    globalThis.fetch = originalFetch; dom.cleanup();
+  }
+});
+
+test('the citation presentation is an explicit opt-in that is sent for the new version and locked while it is created', async () => {
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const { default: Panel } = await tsImport('../src/ResearchReportCreatePanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/ResearchReportCreatePanel');
+  const originalFetch = globalThis.fetch;
+  const posts: ResearchGenerationRequest[] = [];
+  let resolvePost!: (response: Response) => void;
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    if (init?.method !== 'POST') return json(inventory());
+    posts.push(JSON.parse(String(init.body)) as ResearchGenerationRequest);
+    return new Promise<Response>(resolve => { resolvePost = resolve; });
+  }) as typeof fetch;
+  const root = createRoot(dom.container);
+  const presentation = (value: string) => dom.container.querySelector(`input[type="radio"][value="${value}"]`) as HTMLInputElement;
+  try {
+    await act(async () => { root.render(createElement(Panel, { workspaceId, ownerToken: token, writesAvailable: true, onCreated: () => undefined })); await settle(); });
+    await choose(dom.container);
+    assert.equal(presentation('report-kit-v1').checked, true);
+    assert.equal(presentation('report-kit-citations-v1').checked, false);
+    await act(async () => { presentation('report-kit-citations-v1').click(); await settle(); });
+    await act(async () => { submit(dom.container); await settle(); });
+    assert.equal(posts.length, 1);
+    assert.equal(posts[0]!.reportPresentation, 'report-kit-citations-v1');
+    assert.equal(presentation('report-kit-v1').disabled, true);
+    assert.equal(presentation('report-kit-citations-v1').disabled, true);
+    assert.match(dom.container.textContent ?? '', /Yêu cầu đã gửi.*Cách trình bày.*Báo cáo có số tham chiếu nguồn/);
+    await act(async () => { resolvePost(json(receipt(posts[0]!))); await settle(); });
+    assert.match(dom.container.textContent ?? '', /Đã lưu báo cáo v1/);
   } finally {
     await act(async () => root.unmount());
     globalThis.fetch = originalFetch; dom.cleanup();

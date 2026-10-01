@@ -144,6 +144,7 @@ export class ReportGenerationService {
   async create(untrusted: unknown): Promise<ResearchGenerationReceipt> {
     if (!validateRequest(untrusted)) throw new ResearchGenerationValidationError('Invalid report creation request');
     const request = structuredClone(untrusted as ResearchGenerationRequest);
+    const reportPresentation = request.reportPresentation ?? 'report-kit-v1';
     const reportKey = `web-${request.requestKey}`;
     // Committed retries depend only on their pinned package, never global discovery.
     const existing = this.#db.prepare(`
@@ -218,7 +219,7 @@ export class ReportGenerationService {
           existing.workspaceId !== request.workspaceId) {
         throw new ReportVersionIdentityConflictError('Request key is already bound to another source selection');
       }
-      await this.#assertExistingRequestIdentity(existing, reportKey, sourceRequest, methodPaths);
+      await this.#assertExistingRequestIdentity(existing, reportKey, sourceRequest, methodPaths, reportPresentation);
     }
 
     const prepared = await this.#artifacts.withOwnership(async () => {
@@ -237,14 +238,14 @@ export class ReportGenerationService {
     if (m03Ready) {
       const sectionArtifactSha256 = await this.#retainM03(prepared.preparationSha256, readiness.readinessSha256);
       execution = await this.#reports.createPreparedVersion({
-        contractVersion: 'prepared-report-v1', reportPresentation: 'report-kit-v1', reportKey, version: 1, previousSemanticVersionId: null,
+        contractVersion: 'prepared-report-v1', reportPresentation, reportKey, version: 1, previousSemanticVersionId: null,
         ...methodPaths, sourceRequest, preparationSha256: prepared.preparationSha256,
         readinessSha256: readiness.readinessSha256, sectionArtifactSha256,
       }, this.#catalog);
     } else {
       execution = await this.#artifacts.withOwnership(async () => {
         const result = await this.#reports.createVersion({
-          contractVersion: '1.0.0', reportPresentation: 'report-kit-v1', reportKey, version: 1, previousSemanticVersionId: null,
+          contractVersion: '1.0.0', reportPresentation, reportKey, version: 1, previousSemanticVersionId: null,
           ...methodPaths, sourceRequest,
         }, this.#catalog);
         await this.#artifacts.publishOwned();
@@ -272,6 +273,7 @@ export class ReportGenerationService {
     reportKey: string,
     sourceRequest: WebSourceRequest,
     methodPaths: MethodPaths,
+    reportPresentation: ResearchGenerationRequest['reportPresentation'],
   ): Promise<void> {
     const assemblyMembership = this.#db.prepare(`
       SELECT file_name fileName FROM analysis_report_version_artifacts
@@ -282,7 +284,7 @@ export class ReportGenerationService {
     }
 
     const base = {
-      reportPresentation: 'report-kit-v1' as const, reportKey, version: Number(existing.version),
+      reportPresentation: reportPresentation ?? 'report-kit-v1', reportKey, version: Number(existing.version),
       previousSemanticVersionId: existing.previousSemanticVersionId, ...methodPaths, sourceRequest,
     };
     let expected: Record<string, unknown>;

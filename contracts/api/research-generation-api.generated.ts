@@ -10,6 +10,7 @@ export interface ResearchGenerationRequest {
   workspaceId: Uuid;
   selectionId: Digest;
   requestKey: string;
+  reportPresentation?: 'report-kit-v1' | 'report-kit-citations-v1';
   methodSelectionIds?: ResearchGenerationMethodSelectionIds;
 }
 export interface ResearchGenerationMethodSelectionIds {

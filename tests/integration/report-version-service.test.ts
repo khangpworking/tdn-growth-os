@@ -270,6 +270,23 @@ test('explicit report-kit presentation preserves the legacy version and meaning-
   assert.equal((await state.service.createVersion(request, state.catalogBytes)).databaseMutations, 0);
 });
 
+test('source-backed citation versions retain exact semantic references and replay without mutation', async () => {
+  const state = await fixture();
+  const request = { ...state.request, reportPresentation: 'report-kit-citations-v1' };
+  const created = await state.service.createVersion(request, state.catalogBytes);
+  const projection = JSON.parse((await state.service.readArtifact(created.reportId, 1, 'citations.json')).bytes.toString('utf8'));
+  assert.equal(projection.report.semanticVersionId, created.semanticVersionId);
+  assert.ok(projection.citations.length > 0);
+  assert.ok(projection.citations.every((entry: { reportSemanticVersionId: string }) => entry.reportSemanticVersionId === created.semanticVersionId));
+  const html = await state.service.readArtifact(created.reportId, 1, 'report.html');
+  assert.match(html.bytes.toString('utf8'), /data-renderer="report-kit-citations-html-vi-v1"/);
+  const changes = state.db.prepare('SELECT total_changes() count').get();
+  const retry = await state.service.createVersion(request, state.catalogBytes);
+  assert.equal(retry.databaseMutations, 0);
+  assert.deepEqual(state.db.prepare('SELECT total_changes() count').get(), changes);
+  assert.deepEqual((await state.service.readArtifact(created.reportId, 1, 'report.html')).bytes, html.bytes);
+});
+
 test('persists one exact unreviewed report version and replays it without read-side writes', async () => {
   const state = await fixture();
   const created = await state.service.createVersion(state.request, state.catalogBytes);

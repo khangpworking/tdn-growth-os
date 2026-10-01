@@ -804,3 +804,44 @@ and production multi-user authorization remain future work.
 This approval authorizes the scoped implementation and Linux validation. It
 does not authorize changing live Fedora data or activation during unsaved
 operator work. See `docs/tasks/local-owner-testing.md` and the runbook.
+
+### Report design judge, chart audit and citations, approved 2026-10-01
+
+The owner authorized three coordinated workstreams: the existing Claude Code
+session **Competitor mockup report design** judges Market/Insight report
+presentation; Flint is evaluated as an offline chart compiler/auditor; and
+TDN adds deterministic numbered citations to retained source/calculation
+evidence. New report presentation must pass that Claude design review and then
+the owner's final approval before live activation. Preserve the already
+approved Vietdata/YouNet ECI direction rather than redesigning it.
+
+Source evidence, reproducible calculations, AI interpretations and human
+decisions remain distinct. PageIndex may propose document locations, not
+authorize claims; an external quote-verifier attestation must not be described
+as independent byte extraction by a projection adapter. Keep unrelated
+retrieval candidates out of supporting references. WeKnora and OpenViking are
+optional future retrieval/context experiments, not mandatory runtime services
+or authoritative replacements for TDN SQLite and retained artifacts.
+
+This slice produces an unreviewed offline preview under a separate renderer
+identity. Historical v1 rendering and font bytes stay unchanged. No new model
+calls, live source import, production records, migration or deployment are
+implied. See `docs/research/retrieval-citation-architecture.md`.
+
+### Additive citation release and conditional model selection, 2026-10-01
+
+The owner authorized parallel Claude Opus 5.5 high UI work and Luna 5.6 coding
+to bring the approved citation direction into the Fedora localhost web. New
+versions may explicitly select `report-kit-citations-v1`; old presentation
+identities, stored bytes and immutable replay must remain unchanged. This is
+source/calculation presentation, not a new AI conclusion, provider call,
+PageIndex chat feature, cloud upload, domain deployment or source import.
+
+The owner also authorized GPT 6.1 versus Luna on the same pilot fixture, with
+replacement conditional on improved results. The exact CLIProxy route tested
+was `gpt-6.1-sol`. Both models missed the selective limitation-page citation,
+so the replacement condition was not met despite GPT 6.1's observed faster
+responses and byte-stable repeat. No unrelated production model changes are
+authorized by this experiment. The eight-call pilot budget is exhausted;
+further model experiments need a new explicit budget. Hidden chain-of-thought
+is not retained as evidence. See `docs/research/pageindex-gpt61-comparison.md`.
