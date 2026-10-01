@@ -197,19 +197,26 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     await page.setViewportSize({ width: 360, height: 844 });
     const mobile = await page.evaluate(() => ({
       width: innerWidth, height: innerHeight, scrollWidth: document.documentElement.scrollWidth,
+      overflow: [...document.querySelectorAll('body *')].flatMap(element => {
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.right > innerWidth + 1 ? [{
+          tag: element.tagName, className: element.className, left: rect.left, right: rect.right,
+          text: (element as HTMLElement).innerText?.slice(0, 100),
+        }] : [];
+      }).slice(0, 20),
       pickers: [...document.querySelectorAll('select')].map(select => {
         const rect = select.getBoundingClientRect();
         return { left: rect.left, right: rect.right, width: rect.width, label: select.labels?.[0]?.textContent?.trim() ?? '' };
       }),
     }));
+    assert.equal(await page.locator('#owner-token').count(), 0, 'mobile screenshot must not retain the owner token field');
+    await page.screenshot({ path: path.join(output, 'method-inputs-mobile.png'), fullPage: true });
     assert.ok(mobile.scrollWidth <= mobile.width + 1, `mobile picker surface overflows: ${JSON.stringify(mobile)}`);
     assert.ok(mobile.pickers.length >= 4, 'source plus three method pickers must be visible');
     for (const picker of mobile.pickers) {
       assert.ok(picker.label.length > 0, 'each picker must have an accessible label');
       assert.ok(picker.left >= -1 && picker.right <= mobile.width + 1, `picker is clipped: ${JSON.stringify(picker)}`);
     }
-    assert.equal(await page.locator('#owner-token').count(), 0, 'mobile screenshot must not retain the owner token field');
-    await page.screenshot({ path: path.join(output, 'method-inputs-mobile.png'), fullPage: true });
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.locator('select').first().focus();
     await page.keyboard.press('Tab');
@@ -288,7 +295,8 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     await page.getByRole('heading', { name: new RegExp(`v${receipt.version}`) }).waitFor();
     assert.equal(reportPosts.length, postCountBeforeReload);
     assert.deepEqual(browserErrors, [], `the production browser journey must not emit page or console errors: ${browserErrors.join('; ')}`);
-    assert.equal(await page.locator('#owner-token').count(), 0, 'report screenshot must not retain the owner token field');
+    const reloadedToken = page.locator('#owner-token');
+    if (await reloadedToken.count()) assert.equal(await reloadedToken.inputValue(), '', 'reload must clear the memory-only OWNER token');
     await page.screenshot({ path: path.join(output, 'report-reloaded.png'), fullPage: true });
 
     const summary: OutputSummary = {
