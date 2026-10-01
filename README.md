@@ -171,3 +171,10 @@ contains no free-form business conclusion.
 `research:metric:m03:narrative` replays the exact dependency chain and renders
 stable Vietnamese factual paragraphs without AI. The output remains an
 unapproved draft.
+
+`research:metric:m03:section -- <metric-set.json> <metric-set-sha256> <chart-bundle.json> <chart-bundle-sha256> <evidence-envelope.json> <envelope-sha256> <factual-narrative.json> <narrative-sha256> <outside-output.html>`
+composes the exact, verified A32-A35 metric set, chart bundle, evidence
+envelope and factual narrative into a single deterministic, self-contained
+Vietnamese HTML section outside Git. It refuses to overwrite an existing
+output file, writes it owner-only on systems that support file-mode bits,
+and makes zero AI, provider or database calls.

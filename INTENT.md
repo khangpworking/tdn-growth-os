@@ -646,3 +646,14 @@ bytes và version luôn cho cùng paragraphs. Mọi numeric token phải trùng 
 value của claim được cite; missing dùng câu “chưa đủ dữ liệu để tính”, không đổi
 thành zero. AI về sau chỉ bổ sung lớp interpretation/hypothesis tách biệt theo
 method nghiệp vụ, citation, validator và human review.
+
+### A36 — Section artifact ghép đúng exact A32–A35, không tự sinh nội dung
+
+M03 section artifact chỉ được render sau khi phát lại đúng exact metric set,
+chart bundle, evidence envelope và factual narrative qua verifier của từng
+bước. HTML tự chứa (không script, không tài nguyên ngoài, khóa CSP); cùng
+dependency bytes và renderer profile luôn cho cùng byte HTML. Receipt đóng
+gói renderer profile, đúng digest của bốn dependency và SHA-256/byte size của
+HTML; verifier có thể phát lại toàn chuỗi từ exact dependencies để phát hiện
+can thiệp. Không UI nào được ngụ ý rằng nội dung do AI tạo ra hoặc đã được
+duyệt.
