@@ -309,7 +309,8 @@ function serveStatic(request: IncomingMessage, response: ServerResponse, pathnam
   // Browsers request this implicitly; no approved tab icon is shipped yet.
   if (!file && key === '/favicon.ico') {
     response.writeHead(204, staticHeaders({ 'Cache-Control': 'no-cache' }));
-    return response.end();
+    response.end();
+    return;
   }
   if (!file) return sendText(response, 404, 'Not found');
   response.writeHead(200, staticHeaders({ 'Content-Type': file.mime, 'Content-Length': String(file.bytes.length), 'Cache-Control': file.mime.startsWith('text/html') ? 'no-cache' : 'public, max-age=3600' }));
