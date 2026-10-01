@@ -306,6 +306,11 @@ function serveStatic(request: IncomingMessage, response: ServerResponse, pathnam
   const key = decoded === '/' ? '/index.html' : decoded;
   if (key !== '/index.html' && key.endsWith('/')) return sendText(response, 404, 'Not found');
   const file = files.get(key);
+  // Browsers request this implicitly; no approved tab icon is shipped yet.
+  if (!file && key === '/favicon.ico') {
+    response.writeHead(204, staticHeaders({ 'Cache-Control': 'no-cache' }));
+    return response.end();
+  }
   if (!file) return sendText(response, 404, 'Not found');
   response.writeHead(200, staticHeaders({ 'Content-Type': file.mime, 'Content-Length': String(file.bytes.length), 'Cache-Control': file.mime.startsWith('text/html') ? 'no-cache' : 'public, max-age=3600' }));
   response.end(request.method === 'HEAD' ? undefined : file.bytes);

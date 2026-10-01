@@ -67,6 +67,14 @@ flow. New method selectors and mobile nav links retain 44px minimum targets.
 Navigation-settling changes in the preview helper do not remove source bytes,
 disclosures, download checks, screenshots or the native PDF stream.
 
+Linux browser diagnostics identified an implicit `/favicon.ico` request as the
+remaining console 404. The static server now explicitly returns empty 204 for
+that missing icon only, with the existing security headers and GET/HEAD gate.
+Other missing assets remain 404; an actual preloaded icon still takes priority.
+No icon artwork or index-reference validation exception was introduced. The
+existing HTTP static-boundary tests cover absence, unrelated missing icons and
+mutation rejection; the browser console assertion remains unchanged.
+
 ## Remaining boundaries
 
 Synthetic acceptance establishes code and transport behavior, not the accuracy
