@@ -67,12 +67,24 @@ The diagnostic records pre-print metrics, print-call versus stream-read
 timings, streamed bytes/chunks, and the PDF header; a print-call timeout is
 recorded and propagated without retry.
 
+The located native-stream probe then completed on the unchanged HTML with
+153 open disclosures, 33 nested, 70,032 CSS px, and loaded fonts: the print
+call took 2,271 ms, stream reading 138 ms, 50 chunks yielded 3,246,674 bytes,
+and the concatenated header was `%PDF-1.4`. The normal base64 return path had
+timed out on the same print state. Normal acceptance therefore now uses
+`ReturnAsStream` with the original 60-second `Page.printToPDF` bound, bounded
+chunk reads, final `IO.close`, and `%PDF-` validation while retaining the
+existing PDF/evidence outputs. This is a bounded transport-path repair; it
+does not prove whether the old timeout was in Chrome rendering, CDP return
+serialization, or Node-side base64 handling.
+
 ## Coordinator proposal
 
 The earlier `details`/`details::details-content` flattening proposal and the
 broader `.sheet,.ip,.card,.fig,tr{break-inside:auto}` proposal have both now
-been exercised by Linux CI and were insufficient. Do not apply another
-unbounded production CSS tweak before the bounded table-flow experiment below.
+been exercised by Linux CI and were insufficient. The bounded table-flow
+experiment also timed out, while native stream transport succeeded; no
+production CSS/content change is warranted by these results.
 
 The helper also captures the methods preview's approved section targets:
 `M01`, `M10`, `M11`, `M12`, `I11`, `I12`, `I14`, `I15`, and `I16`.
@@ -89,14 +101,11 @@ the same 60-second `Page.printToPDF` timeout. This rules out the global row
 break constraint as a sufficient repair; do not make a third production CSS
 guess from this evidence.
 
-## Next bounded diagnostic
+## Completed bounded diagnostics
 
-Keep the acceptance helper and its original native HTML print attempt
-unchanged. In a failed-preview-only diagnostic, launch a fresh Chrome against
-the saved `located/report.html`, open the same 153 disclosures, enable print
-media, await fonts, and record `Page.getLayoutMetrics()` plus
-`document.fonts.status`. Then run one bounded (20-second) table-flow probe
-with only this transient print rule injected into that fresh page:
+The failed-preview-only table-flow probe launched fresh Chrome against the
+saved `located/report.html`, opened all 153 disclosures, enabled print media,
+awaited fonts, and injected only this transient rule:
 
 ```css
 @media print {
@@ -104,19 +113,15 @@ with only this transient print rule injected into that fresh page:
 }
 ```
 
-The probe must retain the original DOM, all text, links, IDs, and evidence;
-write a separate `pdf-diagnostic-table-flow.json` with the rule, counts,
-metrics, CDP status/error, and PDF byte count; and never replace or count as
-the acceptance PDF. A successful probe isolates table fragmentation as the
-blocking path. If it also times out, repeat only in a fresh page with the
-same native HTML and a stream-mode `Page.printToPDF` response to distinguish
-renderer/layout work from base64 transfer; a print-call timeout still points
-to rendering rather than transport. This gives a bounded decision tree before
-any further production change.
+It retained the original DOM, text, links, IDs, and evidence, but timed out
+at 20 seconds after layout expanded to 73,187 CSS px. The subsequent native
+stream probe succeeded on the unmodified print DOM, so no further CSS/content
+experiment is justified by this evidence.
 
 ## Validation boundary
 
-Static review only. Linux CI must establish whether the unchanged HTML plus a
-renderer-owned print rule allows the full located and methods reports to
-produce valid PDFs while retaining complete text/evidence. No local Windows
-test, typecheck, build, or browser execution is evidence for this diagnosis.
+Static review only. Linux CI must establish whether the transport-path repair
+allows the normal located and methods previews to produce valid PDFs while
+retaining complete text/evidence and all existing screen controls. No local
+Windows test, typecheck, build, or browser execution is evidence for this
+diagnosis; no renderer-owned print CSS change is part of this repair.
