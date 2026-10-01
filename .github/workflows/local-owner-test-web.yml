@@ -38,6 +38,7 @@ jobs:
           git worktree add --detach "$baseline" d3f1e0661e06830936dd28f0f569686431721eea
           cp frontend/tests/local-owner-session.test.ts "$baseline/frontend/tests/local-owner-session.test.ts"
           ln -s "$GITHUB_WORKSPACE/node_modules" "$baseline/node_modules"
+          (cd "$baseline" && npm run frontend:validators)
           set +e
           (cd "$baseline" && node --import tsx --test frontend/tests/local-owner-session.test.ts) > "$RUNNER_TEMP/local-owner-regression.log" 2>&1
           result=$?
