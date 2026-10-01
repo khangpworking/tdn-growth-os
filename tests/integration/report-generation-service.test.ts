@@ -148,3 +148,88 @@ test('a conflicting retry with unpublished request bytes cannot retain intermedi
   assert.equal(saved.sourceRequest.workbookPath, original.workbookPath);
   assert.equal(saved.sourceRequest.labelsPath, null);
 });
+
+test('method input inventory is explicit and selected descriptors reach the retained request', async t => {
+  const state = await preparedReportFixture(false, true, true, true);
+  t.after(state.cleanup);
+  const service = generation(state);
+  const workspaceId = state.sourceRequest.workspaceId;
+  const choice = (await service.inputs(workspaceId)).choices.find(item => item.labelsPath !== null)!;
+  assert.ok(choice.methodInputs);
+  assert.deepEqual(Object.keys(choice.methodInputs!).sort(), ['descriptiveMethods', 'locatedInsightMethods', 'methodPackets']);
+  assert.equal(choice.methodInputs!.descriptiveMethods.length, 1);
+  assert.equal(choice.methodInputs!.locatedInsightMethods.length, 1);
+  assert.equal(choice.methodInputs!.methodPackets.length, 1);
+  const methodSelectionIds = {
+    descriptiveMethods: choice.methodInputs!.descriptiveMethods[0]!.methodSelectionId,
+    locatedInsightMethods: choice.methodInputs!.locatedInsightMethods[0]!.methodSelectionId,
+    methodPackets: choice.methodInputs!.methodPackets[0]!.methodSelectionId,
+  };
+  const legacyReceipt = await service.create({
+    contractVersion: '1.0.0' as const, workspaceId, selectionId: choice.selectionId,
+    requestKey: 'd1e22c92-3cf4-43f6-a170-6efde5d0da27',
+  });
+  const legacyReader = new ReportVersionService({ db: state.db, artifactStore: state.artifacts, dependencies: state.dependencies });
+  const legacySaved = JSON.parse((await legacyReader.readArtifact(legacyReceipt.reportId, 1, 'create-request.json')).bytes.toString('utf8')) as Record<string, unknown>;
+  assert.equal(Object.hasOwn(legacySaved, 'descriptiveMethodsPath'), false);
+  assert.equal(Object.hasOwn(legacySaved, 'locatedInsightMethodsPath'), false);
+  assert.equal(Object.hasOwn(legacySaved, 'methodPacketsPath'), false);
+  const beforeEmptyRetry = mutationSnapshot(state);
+  const emptyRetry = await service.create({
+    contractVersion: '1.0.0' as const, workspaceId, selectionId: choice.selectionId,
+    requestKey: 'd1e22c92-3cf4-43f6-a170-6efde5d0da27',
+    methodSelectionIds: { descriptiveMethods: null, locatedInsightMethods: null, methodPackets: null },
+  });
+  assert.deepEqual(emptyRetry, { ...legacyReceipt, exactRetry: true });
+  assert.deepEqual(mutationSnapshot(state), beforeEmptyRetry);
+  const request = {
+    contractVersion: '1.0.0' as const, workspaceId, selectionId: choice.selectionId,
+    requestKey: 'c84a4e54-8f2d-4df6-9e99-01a2cbdab2c7', methodSelectionIds,
+  };
+  const receipt = await service.create(request);
+  const reader = new ReportVersionService({ db: state.db, artifactStore: state.artifacts, dependencies: state.dependencies });
+  const saved = JSON.parse((await reader.readArtifact(receipt.reportId, 1, 'create-request.json')).bytes.toString('utf8')) as Record<string, unknown>;
+  assert.equal(saved.descriptiveMethodsPath, choice.methodInputs!.descriptiveMethods[0]!.logicalPath);
+  assert.equal(saved.locatedInsightMethodsPath, choice.methodInputs!.locatedInsightMethods[0]!.logicalPath);
+  assert.equal(saved.methodPacketsPath, choice.methodInputs!.methodPackets[0]!.logicalPath);
+});
+
+test('changed method selection conflicts before writes while missing request publication recovers the exact request', async t => {
+  const state = await preparedReportFixture(false, true, true, true);
+  t.after(state.cleanup);
+  class InterruptedReportPublication extends RequestScopedArtifactStore {
+    override async publishOwned(): Promise<void> {
+      if (state.db.prepare('SELECT report_id FROM analysis_report_versions').get()) {
+        throw new Error('Synthetic interrupted method report publication');
+      }
+      await super.publishOwned();
+    }
+  }
+  const interrupted = generation(state, new InterruptedReportPublication(state.artifactRoot));
+  const workspaceId = state.sourceRequest.workspaceId;
+  const choice = (await interrupted.inputs(workspaceId)).choices.find(item => item.labelsPath === null)!;
+  const methodInputs = choice.methodInputs!;
+  const request = {
+    contractVersion: '1.0.0' as const, workspaceId, selectionId: choice.selectionId,
+    requestKey: 'b99469c1-47ac-4bf5-8f28-5c2168f170ad', methodSelectionIds: {
+      descriptiveMethods: methodInputs.descriptiveMethods[0]!.methodSelectionId,
+      locatedInsightMethods: methodInputs.locatedInsightMethods[0]!.methodSelectionId,
+      methodPackets: methodInputs.methodPackets[0]!.methodSelectionId,
+    },
+  };
+  await assert.rejects(interrupted.create(request), /Synthetic interrupted method report publication/);
+  const committed = state.db.prepare(`
+    SELECT request_sha256 canonicalRequestSha256, request_artifact_sha256 requestArtifactSha256
+    FROM analysis_report_versions
+  `).get() as { canonicalRequestSha256: string; requestArtifactSha256: string };
+  assert.ok(committed);
+  await assert.rejects(state.artifacts.read(committed.requestArtifactSha256), { code: 'ENOENT' });
+  const beforeConflict = mutationSnapshot(state);
+  const { methodSelectionIds: _discarded, ...legacyRequest } = request;
+  await assert.rejects(generation(state).create(legacyRequest), ReportVersionIdentityConflictError);
+  assert.deepEqual(mutationSnapshot(state), beforeConflict);
+  const recovered = await generation(state).create(request);
+  assert.equal(recovered.exactRetry, true);
+  assert.equal(recovered.profile, 'source-backed-v1');
+  assert.equal((await generation(state).create(request)).exactRetry, true);
+});

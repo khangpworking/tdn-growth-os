@@ -32,6 +32,7 @@ ajv.addSchema(ownerReportReviewTargetApiSchema);
 const validatorRefs = {
   researchGenerationInputs: `${researchGenerationApiSchema.$id}#/$defs/inputs`,
   researchGenerationReceipt: `${researchGenerationApiSchema.$id}#/$defs/receipt`,
+  researchGenerationMethodInputError: `${researchGenerationApiSchema.$id}#/$defs/methodInputError`,
   interpretationIndex: `${reportApiSchema.$id}#/$defs/interpretationIndex`,
   interpretationDetail: `${reportApiSchema.$id}#/$defs/interpretationDetail`,
   sectionReadiness: `${reportApiSchema.$id}#/$defs/sectionReadiness`,

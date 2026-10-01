@@ -16,6 +16,7 @@ const GATE_SOURCE_PATH = 'method-packets/gate-source.json';
 const DESCRIPTOR_PATH = 'method-packets/input.json';
 const SOURCE_DRIFT_PATH = 'method-packets/input-source-drift.json';
 const CLAIM_DRIFT_PATH = 'method-packets/input-claim-drift.json';
+const SEMANTIC_INVALID_PATH = 'method-packets/input-semantic-invalid.json';
 const ADVANCED_PROFILE_PATH = 'method-packets/advanced-profile.md';
 const SYNTHESIS_PROFILE_PATH = 'method-packets/synthesis-ai-profile.md';
 const ADOPTION_PATH = 'method-packets/adoption.md';
@@ -53,10 +54,11 @@ function file(
 }
 
 /** Synthetic package-bound method inputs. Claims bind exact metric-result bytes. */
-export function reportMethodPacketsFixture(packet?: VersionedReportPacket, metricResultSha256?: string): {
+export function reportMethodPacketsFixture(packet?: VersionedReportPacket, metricResultSha256?: string, includeSemanticInvalid = false): {
   logicalPath: string;
   sourceDriftPath: string;
   claimDriftPath: string;
+  semanticInvalidPath: string;
   gateSourcePath: string;
   descriptor: Input;
   files: VerifiedSourcePackageFile[];
@@ -79,6 +81,10 @@ export function reportMethodPacketsFixture(packet?: VersionedReportPacket, metri
     claim.payload.value = typeof claim.payload.value === 'number'
       ? claim.payload.value + 1 : claim.payload.value === '999' ? '998' : '999';
   }
+  const semanticInvalid = structuredClone(descriptor);
+  if (semanticInvalid.decisions) {
+    semanticInvalid.decisions.question = { state: 'UNSET', text: 'Synthetic invalid supplied text' };
+  }
 
   const advancedProfile = readFileSync(new URL('../../docs/research/method-configurations-v1/advanced-profile.md', import.meta.url));
   const synthesisProfile = readFileSync(new URL('../../docs/research/method-configurations-v1/synthesis-ai-profile.md', import.meta.url));
@@ -88,12 +94,13 @@ export function reportMethodPacketsFixture(packet?: VersionedReportPacket, metri
     file(GATE_SOURCE_PATH, gateSourceBytes, 'synthetic-gate-source'),
     file(SOURCE_DRIFT_PATH, json(sourceDrift), 'normalized-method-packets-input'),
     file(CLAIM_DRIFT_PATH, json(claimDrift), 'normalized-method-packets-input'),
+    ...(includeSemanticInvalid ? [file(SEMANTIC_INVALID_PATH, json(semanticInvalid), 'normalized-method-packets-input')] : []),
     file(ADVANCED_PROFILE_PATH, advancedProfile, 'method-authority', 'text/markdown'),
     file(SYNTHESIS_PROFILE_PATH, synthesisProfile, 'method-authority', 'text/markdown'),
     file(ADOPTION_PATH, adoption, 'method-authority', 'text/markdown'),
   ];
   return {
     logicalPath: DESCRIPTOR_PATH, sourceDriftPath: SOURCE_DRIFT_PATH, claimDriftPath: CLAIM_DRIFT_PATH,
-    gateSourcePath: GATE_SOURCE_PATH, descriptor, files,
+    semanticInvalidPath: SEMANTIC_INVALID_PATH, gateSourcePath: GATE_SOURCE_PATH, descriptor, files,
   };
 }

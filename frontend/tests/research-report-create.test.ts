@@ -3,6 +3,7 @@ import test from 'node:test';
 import { act, createElement } from 'react';
 import { tsImport } from 'tsx/esm/api';
 import type { ResearchGenerationInputs, ResearchGenerationReceipt, ResearchGenerationRequest } from '../../contracts/api/research-generation-api.generated';
+import { createResearchReport, loadResearchGenerationInputs } from '../src/research-generation-client';
 import { setupDom } from './dom';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -29,11 +30,45 @@ function receipt(request: ResearchGenerationRequest): ResearchGenerationReceipt 
     limitations: ['PARTIAL_REPORT', 'M03_PREPARED_METHOD_NOT_EXECUTED'],
   };
 }
+const methodCandidateIds = {
+  descriptiveMethods: 'e'.repeat(64),
+  locatedInsightMethods: 'f'.repeat(64),
+  methodPackets: '1'.repeat(64),
+};
+function inventoryWithMethods(): ResearchGenerationInputs {
+  const value = inventory();
+  const base = value.choices[0]!;
+  const methodInputs = () => ({
+    descriptiveMethods: [{ methodSelectionId: methodCandidateIds.descriptiveMethods, logicalPath: 'methods/descriptive.json', eligibility: 'VALIDATE_ON_CREATE' as const, limitations: ['SCHEMA_VALIDATED_ONLY'] }],
+    locatedInsightMethods: [{ methodSelectionId: methodCandidateIds.locatedInsightMethods, logicalPath: 'methods/located.json', eligibility: 'VALIDATE_ON_CREATE' as const, limitations: ['PACKAGE_RELATION_NOT_DECLARED'] }],
+    methodPackets: [{ methodSelectionId: methodCandidateIds.methodPackets, logicalPath: 'methods/packets.json', eligibility: 'VALIDATE_ON_CREATE' as const, limitations: ['CONSUMER_VALIDATION_ON_CREATE'] }],
+  });
+  return { ...value, choices: [
+    { ...base, methodInputs: methodInputs() },
+    { ...base, selectionId: 'a'.repeat(64), sourceLabel: 'Nguồn thử nghiệm khác', workbookPath: 'metric/other.xlsx', methodInputs: methodInputs() },
+  ] };
+}
 async function settle() { await new Promise(resolve => setTimeout(resolve, 0)); }
 async function choose(container: HTMLElement) {
   const select = container.querySelector('select')!;
   await act(async () => {
     select.value = 'b'.repeat(64);
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await settle();
+  });
+}
+async function chooseValue(container: HTMLElement, selector: string, value: string) {
+  const select = container.querySelector(selector) as HTMLSelectElement;
+  await act(async () => {
+    select.value = value;
+    select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    await settle();
+  });
+}
+async function chooseMethod(container: HTMLElement, index: number, value: string) {
+  const select = container.querySelectorAll('fieldset select')[index] as HTMLSelectElement;
+  await act(async () => {
+    select.value = value;
     select.dispatchEvent(new window.Event('change', { bubbles: true }));
     await settle();
   });
@@ -85,6 +120,47 @@ test('creation requires explicit selection, suppresses duplicate submits and ret
   }
 });
 
+test('method inputs default to none, clear when the source changes, and freeze selected IDs and display paths together', async () => {
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const { default: Panel } = await tsImport('../src/ResearchReportCreatePanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/ResearchReportCreatePanel');
+  const originalFetch = globalThis.fetch;
+  const posts: ResearchGenerationRequest[] = [];
+  globalThis.fetch = (async (_url: string | URL | Request, init?: RequestInit) => {
+    if (init?.method !== 'POST') return json(inventoryWithMethods());
+    const body = JSON.parse(String(init.body)) as ResearchGenerationRequest;
+    posts.push(body);
+    return json(receipt(body));
+  }) as typeof fetch;
+  const root = createRoot(dom.container);
+  try {
+    await act(async () => { root.render(createElement(Panel, { workspaceId, ownerToken: token, writesAvailable: true, onCreated: () => undefined })); await settle(); });
+    await chooseValue(dom.container, 'select', 'b'.repeat(64));
+    const methodSelects = dom.container.querySelectorAll('fieldset select');
+    assert.equal(methodSelects.length, 3);
+    assert.deepEqual([...methodSelects].map(select => (select as HTMLSelectElement).value), ['', '', '']);
+    await chooseMethod(dom.container, 0, methodCandidateIds.descriptiveMethods);
+    await chooseValue(dom.container, 'select', 'a'.repeat(64));
+    assert.deepEqual([...dom.container.querySelectorAll('fieldset select')].map(select => (select as HTMLSelectElement).value), ['', '', '']);
+    assert.match(dom.container.textContent ?? '', /Đã đặt lại hồ sơ phương pháp về Không dùng/);
+    await chooseValue(dom.container, 'select', 'b'.repeat(64));
+    await chooseMethod(dom.container, 0, methodCandidateIds.descriptiveMethods);
+    await act(async () => { submit(dom.container); await settle(); });
+    assert.equal(posts.length, 1);
+    assert.deepEqual(posts[0]!.methodSelectionIds, {
+      descriptiveMethods: methodCandidateIds.descriptiveMethods,
+      locatedInsightMethods: null,
+      methodPackets: null,
+    });
+    assert.doesNotMatch(JSON.stringify(posts[0]), /methods\/descriptive\.json/);
+    assert.match(dom.container.textContent ?? '', /Yêu cầu đã gửi/);
+    assert.match(dom.container.textContent ?? '', /methods\/descriptive\.json/);
+  } finally {
+    await act(async () => root.unmount());
+    globalThis.fetch = originalFetch; dom.cleanup();
+  }
+});
+
 test('locked OWNER sends no request and stale completion cannot refresh another workspace or an unmounted panel', async () => {
   const dom = setupDom();
   const { createRoot } = await import('react-dom/client');
@@ -121,5 +197,32 @@ test('locked OWNER sends no request and stale completion cannot refresh another 
   } finally {
     if (!unmounted) await act(async () => root.unmount());
     globalThis.fetch = originalFetch; dom.cleanup();
+  }
+});
+
+test('method inventory IDs are unique within one choice, shared package IDs remain valid, and a closed method error maps to the method state', async () => {
+  const originalFetch = globalThis.fetch;
+  try {
+    globalThis.fetch = (async () => json(inventoryWithMethods())) as typeof fetch;
+    const valid = await loadResearchGenerationInputs(workspaceId, token, new AbortController().signal);
+    assert.equal(valid.choices.length, 2);
+    const duplicate = inventoryWithMethods();
+    duplicate.choices[0]!.methodInputs!.locatedInsightMethods[0] = duplicate.choices[0]!.methodInputs!.descriptiveMethods[0]!;
+    globalThis.fetch = (async () => json(duplicate)) as typeof fetch;
+    await assert.rejects(
+      () => loadResearchGenerationInputs(workspaceId, token, new AbortController().signal),
+      error => error instanceof Error && error.message === 'Danh sách hồ sơ phương pháp có định danh bị trùng.',
+    );
+    globalThis.fetch = (async () => new Response(JSON.stringify({ error: {
+      code: 'method_input_rejected',
+      family: 'locatedInsightMethods',
+      message: 'The selected method input does not match its declared evidence; choose another input or none',
+    } }), { status: 422, headers: { 'content-type': 'application/json' } })) as typeof fetch;
+    await assert.rejects(
+      () => createResearchReport({ contractVersion: '1.0.0', workspaceId, selectionId: 'b'.repeat(64), requestKey: 'request-key' }, token),
+      error => error instanceof Error && error.message.includes('Phương pháp Insight gắn vị trí bằng chứng') && !error.message.includes('toàn vẹn'),
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });

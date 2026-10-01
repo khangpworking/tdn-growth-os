@@ -33,7 +33,7 @@ export const byteDigest = (bytes: Uint8Array): string => createHash('sha256').up
 const fixtureBytes = (value: unknown): Buffer => Buffer.from(`${canonicalJson(value)}\n`, 'utf8');
 
 /** Real preparation and retention, using only generated synthetic sources. */
-export async function preparedReportFixture(withQuote = false, withDescriptive = false, withLocated = false, withMethods = false) {
+export async function preparedReportFixture(withQuote = false, withDescriptive = false, withLocated = false, withMethods = false, withSemanticInvalidMethods = false) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-prepared-report-'));
   const databasePath = path.join(directory, 'report.sqlite');
   const { db } = openDatabase({ databasePath });
@@ -97,7 +97,7 @@ export async function preparedReportFixture(withQuote = false, withDescriptive =
       // still gain package-bound method artifacts after package intake without
       // creating a descriptor/packet digest cycle.
       const claimPacket = createResearchReportPacket(resultBytes, resultSha256, catalogBytes, catalogSha256).packet;
-      return reportMethodPacketsFixture(claimPacket, resultSha256);
+      return reportMethodPacketsFixture(claimPacket, resultSha256, withSemanticInvalidMethods);
     })() : null;
     for (const file of descriptive?.files ?? []) members.set(file.path, file.bytes);
     for (const file of located?.files ?? []) members.set(file.path, file.bytes);

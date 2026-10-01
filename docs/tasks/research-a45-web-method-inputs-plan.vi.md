@@ -1,7 +1,7 @@
 # A45 đề xuất: chọn hồ sơ phương pháp khi tạo báo cáo trên web
 
-Ngày: 2026-10-01. Đây là kế hoạch kỹ thuật sau A44, chưa phải chức năng đã chạy
-hoặc một thay đổi nghiệp vụ đã được triển khai.
+Ngày: 2026-10-01. Đang triển khai theo yêu cầu tiếp tục của owner. Đây chưa phải
+chức năng đã nghiệm thu hoặc một thay đổi nghiệp vụ đã được triển khai trên Fedora.
 
 ## Khoảng trống đã xác minh
 
@@ -68,6 +68,6 @@ khi có package thực đúng profile và đủ descriptor, không dùng synthet
 tuyên bố đã tự động hóa toàn bộ 30 section trên dữ liệu canxi.
 
 L0/L1 theo A42 có thể phát hành trước phần chọn supplement nếu owner duyệt
-merge/activation. A43/A44 còn gate PDF riêng; không che một gate đỏ để gọi
-toàn stack đã sẵn sàng. Trước activation phải xác minh lại main, ancestry,
+merge/activation. Gate PDF thường của A43/A44 đã pass trên Linux tại head cuối;
+A45 vẫn cần gate riêng cho form web thật. Trước activation phải xác minh lại main, ancestry,
 runtime/schema Fedora, backup và rollback theo runbook đã có.
