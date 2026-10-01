@@ -224,9 +224,10 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     const methodTargetHeights = await methodSelects.evaluateAll((items: HTMLSelectElement[]) => items.map(item => item.getBoundingClientRect().height));
     assert.ok(methodTargetHeights.every((height: number) => height >= 44), 'new method selectors must retain 44px minimum touch targets');
     await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.locator('select').first().focus();
+    await page.getByRole('combobox', { name: /^Nguồn cho báo cáo/ }).focus();
     await page.keyboard.press('Tab');
-    assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'SELECT', 'keyboard traversal must reach the next picker');
+    assert.equal(await methodSelects.first().evaluate((element: HTMLSelectElement) => element === document.activeElement), true,
+      'keyboard traversal from the report source must reach its first method picker');
     assert.equal(await page.locator('#owner-token').count(), 0, 'desktop screenshot must not retain the owner token field');
     await page.screenshot({ path: path.join(output, 'method-inputs-desktop.png'), fullPage: true });
 
