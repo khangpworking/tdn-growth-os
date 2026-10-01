@@ -311,7 +311,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     const reloadVersionPicker = page.getByRole('combobox', { name: /^Phiên bản muốn đọc/ });
     await reloadVersionPicker.waitFor();
     await reloadVersionPicker.selectOption(String(receipt.version));
-    await page.getByRole('heading', { name: new RegExp(`v${receipt.version}`) }).waitFor();
+    await page.getByRole('heading', { name: `web-${receipt.requestKey} · v${receipt.version}`, exact: true }).waitFor();
     assert.equal(reportPosts.length, postCountBeforeReload);
     assert.deepEqual(browserErrors, [], `the production browser journey must not emit page or console errors: ${browserErrors.join('; ')}`);
     const reloadedToken = page.locator('#owner-token');
