@@ -49,6 +49,60 @@ const call = (method, params = {}, timeoutMs = 15_000) => new Promise((resolve, 
   pending.set(id, { resolve, reject, timeout });
   socket.send(JSON.stringify({ id, method, params }));
 });
+const readPdfStream = async (streamHandle, timeoutMs) => {
+  const chunks = [];
+  const streamStartedAt = Date.now();
+  const streamDeadline = streamStartedAt + timeoutMs;
+  let streamedBytes = 0;
+  let streamChunks = 0;
+  const headerParts = [];
+  let headerBytes = 0;
+  let streamFinishedAt;
+  let streamCloseError;
+  let failure;
+  try {
+    while (true) {
+      const remaining = streamDeadline - Date.now();
+      if (remaining <= 0) throw new Error('CDP timeout: IO.read PDF stream');
+      const chunk = await call('IO.read', { handle: streamHandle, size: 65536 }, Math.min(5_000, remaining));
+      const bytes = chunk.base64Encoded ? Buffer.from(chunk.data ?? '', 'base64') : Buffer.from(chunk.data ?? '', 'utf8');
+      if (bytes.length) {
+        chunks.push(bytes);
+        streamedBytes += bytes.length;
+        streamChunks++;
+        if (headerBytes < 8) {
+          const part = bytes.subarray(0, 8 - headerBytes);
+          headerParts.push(part);
+          headerBytes += part.length;
+        }
+      }
+      if (chunk.eof) break;
+    }
+    streamFinishedAt = Date.now();
+  } catch (error) {
+    streamFinishedAt = Date.now();
+    failure = error;
+  } finally {
+    try {
+      await call('IO.close', { handle: streamHandle }, 5_000);
+    } catch (error) {
+      streamCloseError = String(error);
+    }
+  }
+  const result = {
+    pdf: Buffer.concat(chunks),
+    streamReadMs: (streamFinishedAt ?? Date.now()) - streamStartedAt,
+    streamChunks,
+    streamedBytes,
+    pdfHeader: headerParts.length ? Buffer.concat(headerParts).toString('ascii') : null,
+    ...(streamCloseError ? { streamCloseError } : {}),
+  };
+  if (failure) {
+    failure.streamResult = result;
+    throw failure;
+  }
+  return result;
+};
 try {
   let port;
   const startupDeadline = Date.now() + 30_000;
@@ -326,21 +380,38 @@ try {
     printBefore,
     expandedContentSize: printMetrics.cssContentSize,
     timeoutMs: 60_000,
+    transferMode: 'ReturnAsStream',
     status: 'started',
   };
   await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify(pdfDiagnostic, null, 2), { mode: 0o600 });
-  let pdf;
+  const printStartedAt = Date.now();
+  let printCallMs;
+  let streamResult;
   try {
-    pdf = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
-      paperWidth: 8.27, paperHeight: 11.69, marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 60_000);
+    const printResult = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
+      transferMode: 'ReturnAsStream', paperWidth: 8.27, paperHeight: 11.69,
+      marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 60_000);
+    printCallMs = Date.now() - printStartedAt;
+    if (!printResult.stream) throw new Error('Page.printToPDF did not return a stream handle');
+    streamResult = await readPdfStream(printResult.stream, 60_000);
+    if (!streamResult.pdfHeader?.startsWith('%PDF-')) throw new Error('PDF stream is not a PDF');
   } catch (error) {
+    streamResult = streamResult ?? error.streamResult;
     await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify({ ...pdfDiagnostic,
-      status: 'failed', error: String(error) }, null, 2), { mode: 0o600 });
+      status: 'failed', transferMode: 'ReturnAsStream', printCallMs: printCallMs ?? Date.now() - printStartedAt,
+      ...(streamResult ? { streamReadMs: streamResult.streamReadMs, streamChunks: streamResult.streamChunks,
+        streamedBytes: streamResult.streamedBytes, pdfHeader: streamResult.pdfHeader,
+        ...(streamResult.streamCloseError ? { streamCloseError: streamResult.streamCloseError } : {}) } : {}),
+      error: String(error) }, null, 2), { mode: 0o600 });
     throw error;
   }
-  await fs.writeFile(path.join(root, 'synthetic-report.pdf'), Buffer.from(pdf.data, 'base64'), { mode: 0o600 });
+  await fs.writeFile(path.join(root, 'synthetic-report.pdf'), streamResult.pdf, { mode: 0o600 });
   await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify({ ...pdfDiagnostic,
-    status: 'complete', pdfBytes: Buffer.byteLength(pdf.data, 'base64') }, null, 2), { mode: 0o600 });
+    status: 'complete', transferMode: 'ReturnAsStream', printCallMs,
+    streamReadMs: streamResult.streamReadMs, streamChunks: streamResult.streamChunks,
+    streamedBytes: streamResult.streamedBytes, pdfHeader: streamResult.pdfHeader,
+    ...(streamResult.streamCloseError ? { streamCloseError: streamResult.streamCloseError } : {}),
+    pdfBytes: streamResult.pdf.length }, null, 2), { mode: 0o600 });
   await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
   await fs.writeFile(path.join(root, 'interaction-evidence.json'), JSON.stringify({ viewports: interactionEvidence, pageErrors }, null, 2), { mode: 0o600 });
 } finally {
