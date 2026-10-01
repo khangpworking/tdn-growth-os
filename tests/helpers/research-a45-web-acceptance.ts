@@ -131,6 +131,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
   let page: any;
   let reportPage: any;
   const reportPosts: string[] = [];
+  const failedReads: { readonly path: string; readonly status: number }[] = [];
   try {
     const token = randomBytes(32).toString('hex');
     const port = await reserveLoopbackPort();
@@ -148,7 +149,10 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     const browserErrors: string[] = [];
     page.on('pageerror', (error: any) => browserErrors.push(error.message));
     page.on('console', (message: any) => {
-      if (message.type() === 'error') browserErrors.push(message.text());
+      if (message.type() === 'error') browserErrors.push(`${message.text()} [${message.location().url ?? ''}]`);
+    });
+    page.on('response', (response: any) => {
+      if (response.status() >= 400) failedReads.push({ path: new URL(response.url()).pathname, status: response.status() });
     });
     page.on('request', (request: any) => {
       if (request.method() === 'POST' && request.url().endsWith('/owner-api/research-generation/reports')) {
@@ -313,7 +317,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     await reloadVersionPicker.selectOption(String(receipt.version));
     await page.getByRole('heading', { name: `web-${receipt.requestKey} · v${receipt.version}`, exact: true }).waitFor();
     assert.equal(reportPosts.length, postCountBeforeReload);
-    assert.deepEqual(browserErrors, [], `the production browser journey must not emit page or console errors: ${browserErrors.join('; ')}`);
+    assert.deepEqual(browserErrors, [], `the production browser journey must not emit page or console errors: ${browserErrors.join('; ')}; failed reads: ${JSON.stringify(failedReads)}`);
     const reloadedToken = page.locator('#owner-token');
     if (await reloadedToken.count()) assert.equal(await reloadedToken.inputValue(), '', 'reload must clear the memory-only OWNER token');
     await page.screenshot({ path: path.join(output, 'report-reloaded.png'), fullPage: true });
@@ -331,7 +335,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
   } catch (error) {
     const bodyText = page ? await page.locator('body').innerText().catch(() => '') : '';
     await fsp.writeFile(path.join(output, 'failure.json'), JSON.stringify({
-      message: error instanceof Error ? error.message : 'Browser acceptance failed', bodyText,
+      message: error instanceof Error ? error.message : 'Browser acceptance failed', bodyText, failedReads,
     }, null, 2), { mode: 0o600 });
     throw error;
   } finally {
