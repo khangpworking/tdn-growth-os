@@ -53,6 +53,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Exercise retained prepared report and legacy export
+        id: exports
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview
           TDN_RESEARCH_ASSEMBLY_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/assembly
@@ -75,14 +76,25 @@ jobs:
           TDN_RESEARCH_PREVIEW_REPORT: report.html
         run: node tests/helpers/capture-research-preview.mjs
       - name: Capture located Insight with combined supplements
+        id: located
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/located
           TDN_RESEARCH_PREVIEW_REPORT: report.html
         run: node tests/helpers/capture-research-preview.mjs
       - name: Capture bounded gates and synthesis with all supplements
+        # A preceding PDF failure must not erase independent A44 HTML evidence.
+        # The original failed step still fails this job; this is not a bypass.
+        if: always() && steps.exports.outcome == 'success'
         env:
           TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/methods
           TDN_RESEARCH_PREVIEW_REPORT: report.html
+        run: node tests/helpers/capture-research-preview.mjs
+      - name: Diagnose failed located print without replacing acceptance evidence
+        if: failure() && steps.located.outcome == 'failure'
+        env:
+          TDN_RESEARCH_PREVIEW_DIR: ${{ runner.temp }}/research-report-preview/located
+          TDN_RESEARCH_PREVIEW_REPORT: report.html
+          TDN_RESEARCH_PRINT_DIAGNOSTIC: table-flow
         run: node tests/helpers/capture-research-preview.mjs
       - name: Retain complete synthetic visual evidence for review
         if: always()

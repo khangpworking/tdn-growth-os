@@ -163,7 +163,7 @@ test('I16 design remains unexecuted and existing result data only receive struct
   assert.equal(method.executionState, 'NOT_EXECUTED');
   assert.equal(method.estimate, null);
   assert.equal(method.uncertainty, null);
-  assert.deepEqual(method.missingFields, ['attrition', 'estimator', 'missingRule', 'uncertaintyRule', 'decisionRule']);
+  assert.deepEqual(method.missingFields, ['attrition', 'decisionRule', 'estimator', 'missingRule', 'uncertaintyRule']);
   const existing = existingResult();
   const result = buildBoundedAnalysisGates(existing).output.sections.I16;
   assert.equal(result.status, 'ELIGIBILITY_ONLY');

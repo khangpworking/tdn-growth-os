@@ -49,27 +49,61 @@ saved HTML DOM unchanged to the single bounded `Page.printToPDF` call. A
 timeout now leaves the interaction evidence and diagnostic artifact available
 for CI review, then still fails the job.
 
+The helper also has an explicit Linux-only
+`TDN_RESEARCH_PRINT_DIAGNOSTIC=table-flow` mode for a failure-only workflow
+step. It reuses the existing Chrome/CDP harness, skips screenshots and
+interaction work, opens the native disclosures, injects only the transient
+table-flow rule, and writes `diagnostic-table-flow.json` plus
+`diagnostic-table-flow.pdf`. It never writes or replaces the normal synthetic
+PDF, visual evidence, or interaction evidence files; the 20-second diagnostic
+print remains failure-propagating.
+
 ## Coordinator proposal
 
-Do not re-apply the `details`/`details::details-content` flattening proposal:
-it was present in the failed Linux artifact and did not prevent the timeout.
-The next smallest production experiment should target print fragmentation
-without changing the delivered DOM: remove the global `tr{break-inside:avoid}`
-constraint from the print rule (or scope `tr{break-inside:auto}` to every
-print table, including the appendix), while retaining all rows and evidence.
-The located insight rows already have a narrower override, but the global
-constraint still applies to appendix and other non-`.ip` tables. This is a
-bounded hypothesis to verify in Linux CI, not a claim that the 70,032px size
-is a hard Chromium ceiling. Keep the 60-second timeout and require the full
-located PDF plus the existing screenshot/interaction evidence.
-
-The coordinator's next native print change broadens `break-inside:auto` to
-`.sheet,.ip,.card,.fig,tr` on the optional located/method surface. This removes
-the remaining whole-card and row avoidance constraints without dropping nodes,
-source text or table semantics. Its effectiveness remains pending Linux CI.
+The earlier `details`/`details::details-content` flattening proposal and the
+broader `.sheet,.ip,.card,.fig,tr{break-inside:auto}` proposal have both now
+been exercised by Linux CI and were insufficient. Do not apply another
+unbounded production CSS tweak before the bounded table-flow experiment below.
 
 The helper also captures the methods preview's approved section targets:
 `M01`, `M10`, `M11`, `M12`, `I11`, `I12`, `I14`, `I15`, and `I16`.
+
+## Follow-up CI evidence
+
+PR 102 head `6583b6dd1fbed70bc5d41d1fb81dc287ba62a4e2` changed the optional
+print rule to `break-inside:auto` for `.sheet`, `.ip`, `.card`, `.fig`, and
+`tr`. Preview run `36804289859` still failed only in the located capture;
+root, assembly, kit, and evidence-retention steps passed. Its located artifact
+contains that `tr` override, yet the native print diagnostic is unchanged:
+153 open details, 33 nested, 70,032 CSS px, 110,375 body-text characters, and
+the same 60-second `Page.printToPDF` timeout. This rules out the global row
+break constraint as a sufficient repair; do not make a third production CSS
+guess from this evidence.
+
+## Next bounded diagnostic
+
+Keep the acceptance helper and its original native HTML print attempt
+unchanged. In a failed-preview-only diagnostic, launch a fresh Chrome against
+the saved `located/report.html`, open the same 153 disclosures, enable print
+media, await fonts, and record `Page.getLayoutMetrics()` plus
+`document.fonts.status`. Then run one bounded (20-second) table-flow probe
+with only this transient print rule injected into that fresh page:
+
+```css
+@media print {
+  .ip table, .ip tbody, .ip tr, .ip th, .ip td { display: block !important; }
+}
+```
+
+The probe must retain the original DOM, all text, links, IDs, and evidence;
+write a separate `pdf-diagnostic-table-flow.json` with the rule, counts,
+metrics, CDP status/error, and PDF byte count; and never replace or count as
+the acceptance PDF. A successful probe isolates table fragmentation as the
+blocking path. If it also times out, repeat only in a fresh page with the
+same native HTML and a stream-mode `Page.printToPDF` response to distinguish
+renderer/layout work from base64 transfer; a print-call timeout still points
+to rendering rather than transport. This gives a bounded decision tree before
+any further production change.
 
 ## Validation boundary
 
