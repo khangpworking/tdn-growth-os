@@ -27,7 +27,8 @@ export function decisionEvidencePacketsFixture(packet?: VersionedReportPacket, m
     question: unset(), constraints: { ...constraints(), accountableRole: unset(), criteria: unset(), reviewTrigger: unset() },
     claims: packet.claims.map((payload, index) => ({
       claimKey: `${payload.claimId}@${digest}`, reference: { fileName: 'metric-result.json', sha256: digest, claimPointer: `/claims/${index}` },
-      payload: structuredClone(payload), reviewDeclaration: { state: 'UNREVIEWED', reason: null }, counterclaimKeys: [],
+      payload: structuredClone(payload) as Input['claims'][number]['payload'],
+      reviewDeclaration: { state: 'UNREVIEWED', reason: null }, counterclaimKeys: [],
     })),
     questionClaimKeys: [], ownerHypotheses: [], ownerDirections: [], ownerOptions: [],
   };

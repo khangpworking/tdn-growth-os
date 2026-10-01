@@ -67,8 +67,9 @@ export function validateBoundedAnalysisGatesInput(untrusted: unknown): Input {
       if (path.startsWith('/') || path.includes('\\') || /^[a-z]:/i.test(path) ||
         path.split('/').some(part => part === '' || part === '.' || part === '..')) fail('INVALID_SOURCE_LOGICAL_PATH');
     }
-    if ('start' in object && 'end' in object) calendar(object as Period);
-    if ('state' in object && 'value' in object) validateObservation(object as Observation);
+    // AJV above has checked these closed field shapes before recursive checks.
+    if ('start' in object && 'end' in object) calendar(object as unknown as Period);
+    if ('state' in object && 'value' in object) validateObservation(object as unknown as Observation);
     if (typeof object.timezone === 'string') validateTimezone(object.timezone);
     Object.values(object).forEach(check);
   }

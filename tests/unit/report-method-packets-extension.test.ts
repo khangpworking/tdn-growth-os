@@ -20,12 +20,13 @@ function boundary() {
   const packet = createResearchReportPacket(resultBytes, sha(resultBytes), catalogBytes, sha(catalogBytes)).packet;
   const packetBytes = bytesOf(packet);
   const fixture = reportMethodPacketsFixture(packet, sha(resultBytes));
+  const metadata = fixture.files.map(({bytes: _bytes, ...file}) => file);
   const retained: VerifiedFinalizedSourcePackage = {
     packageId: '00000000-0000-4000-8000-000000000001', manifestArtifactSha256: 'a'.repeat(64), packageContentSha256: 'b'.repeat(64),
     manifest: {
       contractVersion: '1.0.0', packageId: '00000000-0000-4000-8000-000000000001', packageKey: 'synthetic:methods', version: 1,
       sourceAcquiredAt: null, sourceLabel: 'Synthetic method source declarations', finalizedAt: '2026-10-01T00:00:00Z', packageContentSha256: 'b'.repeat(64),
-      files: fixture.files.map(({bytes: _bytes, ...metadata}) => metadata),
+      files: [metadata[0]!, ...metadata.slice(1)],
     }, files: fixture.files,
   };
   // The reader-consumer boundary owns byte/pointer authentication. Real intake,
@@ -77,9 +78,10 @@ test('method supplement rejects package drift, corrupted bytes and absent adopte
   }), /METHOD_PACKET_AUTHORITY_MISSING/);
   for (const change of ['result-bytes', 'packet-object', 'result-lineage'] as const) {
     const changed = boundary();
-    if (change === 'result-bytes') changed.bundle.files.set('metric-result.json', Buffer.from('{}\n'));
     if (change === 'packet-object') changed.bundle.packet.claims[0]!.value = '999999';
-    const bundle = change === 'result-lineage'
+    const bundle = change === 'result-bytes'
+      ? {...changed.bundle, files: new Map([...changed.bundle.files, ['metric-result.json', Buffer.from('{}\n')]])}
+      : change === 'result-lineage'
       ? {...changed.bundle, envelope: {...changed.bundle.envelope, artifacts: {...changed.bundle.envelope.artifacts, metricResultSha256: 'f'.repeat(64)}}}
       : changed.bundle;
     await assert.rejects(buildReportMethodPacketsExtension(changed.fixture.logicalPath, bundle, changed.reader),
