@@ -128,6 +128,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
   const state = await preparedReportFixture(false, true, true, true);
   let application: ReturnType<typeof openOperatorApp> | undefined;
   let browser: any;
+  let page: any;
   let reportPage: any;
   const reportPosts: string[] = [];
   try {
@@ -143,7 +144,7 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     const origin = application.origin;
     browser = await chromium.launch({ executablePath: process.env.TDN_BROWSER_EXECUTABLE ?? '/usr/bin/google-chrome', headless: true });
     const context = await browser.newContext({ acceptDownloads: true, reducedMotion: 'reduce', viewport: { width: 1440, height: 1000 } });
-    const page = await context.newPage();
+    page = await context.newPage();
     const browserErrors: string[] = [];
     page.on('pageerror', (error: any) => browserErrors.push(error.message));
     page.on('console', (message: any) => {
@@ -161,6 +162,9 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     await page.getByRole('button', { name: 'Mở khóa', exact: true }).click();
     await page.getByRole('heading', { name: 'Tạo báo cáo mới', exact: true }).waitFor();
     await page.locator('select').first().waitFor();
+    await page.waitForFunction((paths: readonly string[]) =>
+      [...document.querySelectorAll('option')].some(option => paths.every(value => (option.textContent ?? '').includes(value))),
+    [GOOD_SOURCE, GOOD_LABELS], { timeout: 15_000 });
 
     const selects = page.locator('select');
     await selectOptionContaining(selects, text => text.includes(GOOD_SOURCE) && text.includes(GOOD_LABELS), 'the explicit Metric source');
@@ -186,9 +190,9 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
       await selectOptionContaining(selects, text => text.includes(logicalPath), `${family} method input`);
     }
     const optionText = await page.locator('option').allTextContents();
-    for (const driftPath of DRIFT_METHODS) assert.ok(optionText.some(text => text.includes(driftPath)), `${driftPath} must be visible as an explicit candidate`);
+    for (const driftPath of DRIFT_METHODS) assert.ok(optionText.some((text: string) => text.includes(driftPath)), `${driftPath} must be visible as an explicit candidate`);
     const selectedText = await selects.evaluateAll((items: HTMLSelectElement[]) => items.map(item => item.selectedOptions[0]?.textContent?.trim() ?? ''));
-    for (const logicalPath of Object.values(GOOD_METHODS)) assert.ok(selectedText.some(text => text.includes(logicalPath)), `${logicalPath} must be selected explicitly`);
+    for (const logicalPath of Object.values(GOOD_METHODS)) assert.ok(selectedText.some((text: string) => text.includes(logicalPath)), `${logicalPath} must be selected explicitly`);
 
     await page.setViewportSize({ width: 360, height: 844 });
     const mobile = await page.evaluate(() => ({
@@ -297,6 +301,12 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     };
     await fsp.writeFile(path.join(output, 'summary.json'), JSON.stringify(summary, null, 2), { mode: 0o600 });
     return summary;
+  } catch (error) {
+    const bodyText = page ? await page.locator('body').innerText().catch(() => '') : '';
+    await fsp.writeFile(path.join(output, 'failure.json'), JSON.stringify({
+      message: error instanceof Error ? error.message : 'Browser acceptance failed', bodyText,
+    }, null, 2), { mode: 0o600 });
+    throw error;
   } finally {
     if (reportPage) await reportPage.close().catch(() => undefined);
     if (browser) await browser.close().catch(() => undefined);

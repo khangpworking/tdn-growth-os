@@ -4,7 +4,7 @@ import http from 'node:http';
 import fs from 'node:fs/promises';
 import type { AddressInfo } from 'node:net';
 import test from 'node:test';
-import type { ResearchGenerationInputs, ResearchGenerationReceipt } from '../../contracts/api/research-generation-api.generated.js';
+import type { ResearchGenerationInputs, ResearchGenerationMethodCandidate, ResearchGenerationReceipt } from '../../contracts/api/research-generation-api.generated.js';
 import { openResearchGenerationApi, type ResearchGenerationApiApplication } from '../../src/api/research-generation-api.js';
 import { openReportApi } from '../../src/api/report-api.js';
 import { ReportVersionService } from '../../src/modules/analysis/report-version-service.js';
@@ -105,9 +105,9 @@ test('OWNER source selection creates a retained report and recovers a lost respo
   // This boundary owns actionable HTTP errors, not the consumer's claim arithmetic.
   // Imported mismatches must not be confused with damaged stored bytes.
   for (const [index, logicalPath] of [state.methods!.sourceDriftPath, state.methods!.claimDriftPath].entries()) {
-    const candidate = choice.methodInputs!.methodPackets.find(item => item.logicalPath === logicalPath)!;
+    const candidate: ResearchGenerationMethodCandidate = choice.methodInputs!.methodPackets.find(item => item.logicalPath === logicalPath)!;
     assert.ok(candidate, 'Schema-valid but incompatible inputs must remain explicit candidates');
-    const rejected = await fetch(reportsUrl, { method: 'POST', headers, body: JSON.stringify({
+    const rejected: Response = await fetch(reportsUrl, { method: 'POST', headers, body: JSON.stringify({
       ...body, requestKey: `a3c3dc8a-6b8f-4aed-8bea-66bbdcb0740${index}`,
       methodSelectionIds: { descriptiveMethods: null, locatedInsightMethods: null, methodPackets: candidate.methodSelectionId },
     }) });
