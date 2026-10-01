@@ -105,6 +105,7 @@ export {
   NormalizedMetricObservationStore,
   NormalizedMetricObservationValidationError,
   type NormalizedMetricObservationExecution,
+  type VerifiedNormalizedMetricProjection,
 } from './normalized-metric-observation-store.js';
 export {
   buildReportReviewTarget,

@@ -27,6 +27,13 @@ export interface NormalizedMetricObservationExecution {
   readonly databaseMutations: number;
 }
 
+export interface VerifiedNormalizedMetricProjection {
+  readonly normalizedInputSha256: string;
+  readonly rowCount: number;
+  readonly sourceCount: number;
+  readonly input: MetricScopeInput;
+}
+
 interface DatasetRow {
   normalizedInputSha256: string;
   contractVersion: '1.0.0';
@@ -134,6 +141,10 @@ export class NormalizedMetricObservationStore {
   }
 
   async readVerifiedForReport(reportId: string, version: number): Promise<MetricScopeInput> {
+    return (await this.readVerifiedProjectionForReport(reportId, version)).input;
+  }
+
+  async readVerifiedProjectionForReport(reportId: string, version: number): Promise<VerifiedNormalizedMetricProjection> {
     const artifact = await this.#reports.readArtifact(reportId, version, 'normalized-input.json');
     const sha256 = digest(artifact.bytes);
     const origin = this.#origin(reportId, version);
@@ -143,7 +154,12 @@ export class NormalizedMetricObservationStore {
     this.#assertOrigin(origin, artifact.record, sha256);
     const input = parseCanonicalInput(artifact.bytes);
     this.#assertExactProjection(sha256, input, artifact.bytes);
-    return structuredClone(input);
+    return {
+      normalizedInputSha256: sha256,
+      rowCount: input.records.length,
+      sourceCount: input.sources.length,
+      input: structuredClone(input),
+    };
   }
 
   #insertProjection(sha256: string, input: MetricScopeInput): number {
@@ -206,7 +222,7 @@ export class NormalizedMetricObservationStore {
 
   #reconstruct(sha256: string): MetricScopeInput {
     const dataset = this.#dataset(sha256);
-    if (!dataset) throw new NormalizedMetricObservationValidationError('Normalized dataset not found');
+    if (!dataset) throw new NormalizedMetricObservationIntegrityError('Normalized dataset projection is missing');
     const sources = this.#db.prepare(`
       SELECT ordinal, source_sha256 sha256, label, representation_role representationRole,
              evidence_family evidenceFamily, provenance_basis provenanceBasis

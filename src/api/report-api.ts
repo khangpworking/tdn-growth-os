@@ -25,6 +25,12 @@ import {
   ReportReviewTargetLedgerValidationError,
 } from '../modules/analysis/report-review-target-ledger.js';
 import { buildReportInputReadiness, REPORT_INPUT_READINESS_PROFILE } from '../modules/analysis/report-input-readiness.js';
+import type { NormalizedProjectionReadiness } from '../modules/analysis/report-input-readiness.js';
+import {
+  NormalizedMetricObservationIntegrityError,
+  NormalizedMetricObservationStore,
+  NormalizedMetricObservationValidationError,
+} from '../modules/analysis/normalized-metric-observation-store.js';
 import { AnalysisReportVersionReader, ReportVersionService, type VerifiedReportInterpretationSource } from '../modules/analysis/report-version-service.js';
 import { FoundationSourcePackageReader, SourcePackageService } from '../modules/foundation/index.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../modules/flow/index.js';
@@ -65,6 +71,7 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
       },
     });
     const reportReader = new AnalysisReportVersionReader(reportService);
+    const normalizedObservations = new NormalizedMetricObservationStore({ db, reports: reportReader });
     const interpretationReader = new AnalysisReportInterpretationReader(new ReportInterpretationLedgerService({
       db, artifactStore: artifacts, reports: reportReader,
     }));
@@ -150,6 +157,26 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
       }
       const { record, bundle } = verified;
       const packet = bundle.packet;
+      const normalizedMember = record.artifacts.find(artifact => artifact.fileName === 'normalized-input.json');
+      if (normalizedMember === undefined) throw new Error('Report version is missing normalized input identity');
+      let normalizedProjection: NormalizedProjectionReadiness;
+      try {
+        const projection = await normalizedObservations.readVerifiedProjectionForReport(reportId, version);
+        normalizedProjection = {
+          state: 'PRESENT',
+          normalizedInputSha256: projection.normalizedInputSha256,
+          rowCount: projection.rowCount,
+          sourceCount: projection.sourceCount,
+        };
+      } catch (error) {
+        if (error instanceof NormalizedMetricObservationValidationError) {
+          normalizedProjection = { state: 'ABSENT', normalizedInputSha256: normalizedMember.sha256 };
+        } else if (error instanceof NormalizedMetricObservationIntegrityError) {
+          normalizedProjection = { state: 'INVALID', normalizedInputSha256: normalizedMember.sha256 };
+        } else {
+          throw error;
+        }
+      }
       const packets = new Map(packet.sections.map(section => [section.sectionId, section]));
       if (packets.size !== packet.sections.length || packet.catalog.sections.length !== packet.sections.length) {
         throw new Error('Report packet and section catalog membership differ');
@@ -161,7 +188,7 @@ export function openReportApi(configuration: ReportApiConfiguration): ReportApiA
           ...definition,
           moduleIds: [...definition.moduleIds],
           requiredInputs: [...definition.requiredInputs],
-          inputChecks: buildReportInputReadiness(record, packet, definition.requiredInputs, bundle.files).map(check => ({
+          inputChecks: buildReportInputReadiness(record, packet, definition.requiredInputs, bundle.files, normalizedProjection).map(check => ({
             ...check,
             codes: [...check.codes],
             evidenceRefs: check.evidenceRefs.map(reference => ({ ...reference })),
@@ -406,7 +433,7 @@ function sendArtifact(response: ServerResponse, fileName: string, mediaType: str
   response.end(bytes);
 }
 function assertReportTables(db: BetterSqlite3.Database): void {
-  const required = ['artifact_manifests', 'foundation_source_packages', 'foundation_source_package_files', 'flow_discovery_workspaces', 'analysis_report_series', 'analysis_report_versions', 'analysis_report_version_artifacts', 'analysis_report_version_sources', 'analysis_report_interpretation_runs', 'analysis_report_review_targets'];
+  const required = ['artifact_manifests', 'foundation_source_packages', 'foundation_source_package_files', 'flow_discovery_workspaces', 'analysis_report_series', 'analysis_report_versions', 'analysis_report_version_artifacts', 'analysis_report_version_sources', 'analysis_metric_datasets', 'analysis_metric_dataset_sources', 'analysis_metric_dataset_rows', 'analysis_metric_dataset_origins', 'analysis_report_interpretation_runs', 'analysis_report_review_targets'];
   const rows = db.prepare(`SELECT name FROM sqlite_master WHERE type='table'`).all() as { name: string }[];
   const names = new Set(rows.map(row => row.name));
   if (required.some(name => !names.has(name))) throw new Error('Database is missing required report tables');

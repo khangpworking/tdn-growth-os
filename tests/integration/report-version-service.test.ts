@@ -592,6 +592,10 @@ test('retains an exact unapproved review target and deduplicates canonical retry
 test('read API lists workspace series, verifies explicit history, and serves only exact member bytes', async () => {
   const state = await fixture();
   const created = await state.service.createVersion(state.request, state.catalogBytes);
+  await new NormalizedMetricObservationStore({
+    db: state.db,
+    reports: new AnalysisReportVersionReader(state.service),
+  }).materializeReportVersion(created.reportId, created.version);
   const interpretation = await interpretationFixture(state, created);
   const built = buildEvidenceBoundReportInterpretation({
     request: interpretation.request,
@@ -705,7 +709,10 @@ test('read API lists workspace series, verifies explicit history, and serves onl
       .find((section: any) => section.sectionId === sectionId).inputChecks
       .find((check: any) => check.inputId === inputId);
     assert.equal(byInput('M03', 'normalized-metric-rows').state, 'PRESENT');
-    assert.deepEqual(byInput('M03', 'normalized-metric-rows').evidenceRefs.map((reference: any) => reference.locator), ['normalized-input.json']);
+    assert.deepEqual(byInput('M03', 'normalized-metric-rows').evidenceRefs.map((reference: any) => reference.locator), [
+      'normalized-input.json',
+      `/analysis_metric_dataset_origins/${created.reportId}/1`,
+    ]);
     assert.equal(byInput('M05', 'domain-specific-evidence').state, 'ABSENT');
     assert.equal(byInput('M05', 'domain-specific-evidence').blocking, true);
     assert.equal(byInput('M08', 'explicit-price-state-and-observation-time').state, 'PRESENT');
