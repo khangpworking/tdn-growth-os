@@ -6,6 +6,7 @@ import type { ReportReviewState } from '../../../contracts/analysis/report-revie
 import type { ReportSemanticContent } from '../../../contracts/analysis/report-semantic-content.generated.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import type { SourceBackedReportBundle } from './source-backed-report.js';
+import { verifyResearchChartSpec } from './research-chart-spec.js';
 
 type SemanticPayload = Omit<ReportSemanticContent, 'semanticVersionId'>;
 
@@ -110,6 +111,31 @@ function chartContentProjection(
   );
 }
 
+function chartSpecContentProjection(
+  bundle: SourceBackedReportBundle,
+  chartContentSha256: string,
+  resultContentSha256: string,
+  catalogContentSha256: string,
+): unknown {
+  const { chartSpecId, chartDataSha256, ...spec } = bundle.chartSpec;
+  if (chartDataSha256 !== bundle.envelope.artifacts.chartSha256) {
+    throw new TypeError('semantic content: CHART_SPEC_DATA_DIGEST_MISMATCH');
+  }
+  const payload = { chartDataSha256, ...spec };
+  if (chartSpecId !== identity(payload)) throw new TypeError('semantic content: CHART_SPEC_ID_MISMATCH');
+  const contentViews = spec.views.map(view => ({
+    ...view,
+    marks: view.marks.map(({ markId: _markId, ...item }) => item),
+  }));
+  return normalizedLineageDigests(
+    { ...spec, views: contentViews, chartDataContentSha256: chartContentSha256 },
+    bundle.packet.metricResultSha256,
+    resultContentSha256,
+    bundle.packet.catalogSha256,
+    catalogContentSha256,
+  );
+}
+
 function semanticSections(bundle: SourceBackedReportBundle): ReportSemanticContent['calculationLayer']['sections'] {
   return bundle.packet.sections.map(section => {
     const definition = bundle.packet.catalog.sections.find(item => item.sectionId === section.sectionId);
@@ -148,17 +174,21 @@ export function buildReportSemanticContent(bundle: SourceBackedReportBundle): {
   const inputBytes = requiredFile(bundle, 'normalized-input.json');
   const resultBytes = requiredFile(bundle, 'metric-result.json');
   const chartBytes = requiredFile(bundle, 'charts.json');
+  const chartSpecBytes = requiredFile(bundle, 'chart-spec.json');
   const catalogBytes = requiredFile(bundle, 'section-catalog.json');
   assertDigest(digest(packetBytes), bundle.envelope.artifacts.packetSha256, 'PACKET');
   assertDigest(digest(inputBytes), bundle.envelope.artifacts.normalizedInputSha256, 'NORMALIZED_INPUT');
   assertDigest(digest(resultBytes), bundle.envelope.artifacts.metricResultSha256, 'METRIC_RESULT');
   assertDigest(digest(chartBytes), bundle.envelope.artifacts.chartSha256, 'CHART');
+  assertDigest(digest(chartSpecBytes), bundle.envelope.artifacts.chartSpecSha256, 'CHART_SPEC');
   assertDigest(digest(catalogBytes), bundle.packet.catalogSha256, 'CATALOG');
   assertCanonicalBytes(bundle.envelopeBytes, bundle.envelope, 'ENVELOPE');
   assertCanonicalBytes(packetBytes, bundle.packet, 'PACKET');
   assertCanonicalBytes(inputBytes, bundle.input, 'NORMALIZED_INPUT');
   assertCanonicalBytes(resultBytes, bundle.result, 'METRIC_RESULT');
   assertCanonicalBytes(chartBytes, bundle.charts, 'CHART');
+  assertCanonicalBytes(chartSpecBytes, bundle.chartSpec, 'CHART_SPEC');
+  verifyResearchChartSpec(bundle.chartSpec, bundle.charts, chartBytes);
   assertJsonMeaning(catalogBytes, bundle.packet.catalog, 'CATALOG');
   assertDigest(bundle.packet.metricResultSha256, bundle.charts.resultSha256, 'RESULT_CHART_BINDING');
   assertDigest(bundle.packet.catalogSha256, bundle.charts.catalogSha256, 'CATALOG_CHART_BINDING');
@@ -179,6 +209,7 @@ export function buildReportSemanticContent(bundle: SourceBackedReportBundle): {
   if (selectedSourceSha256s.length < 2) throw new TypeError('semantic content: INSUFFICIENT_SOURCE_MEMBERSHIP');
   const resultContentSha256 = identity(resultContentProjection(bundle));
   const catalogContentSha256 = identity(bundle.packet.catalog);
+  const chartContentSha256 = identity(chartContentProjection(bundle, resultContentSha256, catalogContentSha256));
   const payload: SemanticPayload = {
     contractVersion: '1.0.0',
     policyVersion: 'report-semantic-content-v1',
@@ -198,7 +229,10 @@ export function buildReportSemanticContent(bundle: SourceBackedReportBundle): {
       metricResultContentSha256: resultContentSha256,
       catalogContentSha256,
       claimsSha256: identity(bundle.packet.claims),
-      chartContentSha256: identity(chartContentProjection(bundle, resultContentSha256, catalogContentSha256)),
+      chartContentSha256,
+      chartSpecContentSha256: identity(chartSpecContentProjection(
+        bundle, chartContentSha256, resultContentSha256, catalogContentSha256,
+      )),
       sections: semanticSections(bundle),
     },
     interpretationLayer: { state: 'NONE', artifacts: [] },

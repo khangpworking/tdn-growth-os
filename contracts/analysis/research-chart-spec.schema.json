@@ -1,0 +1,172 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/research-chart-spec.schema.json",
+  "title": "ResearchChartSpec",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "chartSpecId", "methodId", "methodVersion", "chartDataSha256", "chartDataContractVersion", "approvalState", "policies", "views", "limitations", "reopenConditions"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "chartSpecId": { "$ref": "#/$defs/digest" },
+    "methodId": { "const": "evidence-bound-chart-spec" },
+    "methodVersion": { "const": "1.0.0" },
+    "chartDataSha256": { "$ref": "#/$defs/digest" },
+    "chartDataContractVersion": { "const": "research-report-charts-v2" },
+    "approvalState": { "const": "UNREVIEWED" },
+    "policies": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scopeOrder", "scopeRelationship", "missingValuePolicy", "observedZeroPolicy", "unknownPolicy", "percentScale", "nonPercentScale", "signedDeltaScale", "crossPanelComparability"],
+      "properties": {
+        "scopeOrder": { "const": ["all", "wide", "core"] },
+        "scopeRelationship": { "const": "OVERLAPPING_NON_ADDITIVE" },
+        "missingValuePolicy": { "const": "BLOCK_OR_UNAVAILABLE_NEVER_ZERO_IMPUTATION" },
+        "observedZeroPolicy": { "const": "VISIBLE_EXACT_ZERO_AT_ZERO_BASELINE" },
+        "unknownPolicy": { "enum": ["VISIBLE_AND_EXCLUDED_FROM_WIDE", "VISIBLE_AND_INCLUDED_IN_WIDE"] },
+        "percentScale": { "const": "LINEAR_ZERO_TO_100" },
+        "nonPercentScale": { "const": "LINEAR_ZERO_BASELINE" },
+        "signedDeltaScale": { "const": "LINEAR_SIGNED_WITH_VISIBLE_ZERO" },
+        "crossPanelComparability": { "const": "LOCAL_MAX_GEOMETRY_NOT_CROSS_PANEL_COMPARABLE" }
+      }
+    },
+    "views": {
+      "type": "array", "minItems": 1, "maxItems": 20,
+      "items": { "$ref": "#/$defs/view" }
+    },
+    "limitations": {
+      "type": "array", "minItems": 6, "maxItems": 20, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+    },
+    "reopenConditions": {
+      "type": "array", "minItems": 5, "maxItems": 20, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+    }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "pointer": { "type": "string", "pattern": "^/", "minLength": 1, "maxLength": 300 },
+    "view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["viewId", "sourceChartId", "sourcePointer", "sectionId", "title", "state", "markType", "orientation", "axes", "relationship", "marks", "annotations", "blockers", "limitations"],
+      "properties": {
+        "viewId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{1,99}$" },
+        "sourceChartId": { "enum": ["scope-totals", "top-shop-share", "scope-membership-sensitivity", "group-composition", "top-shop-removal-sensitivity"] },
+        "sourcePointer": { "$ref": "#/$defs/pointer" },
+        "sectionId": { "enum": ["M03", "M04"] },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "state": { "enum": ["READY", "PARTIAL", "BLOCKED", "EMPTY"] },
+        "markType": { "const": "HORIZONTAL_BAR" },
+        "orientation": { "const": "HORIZONTAL" },
+        "axes": { "$ref": "#/$defs/axes" },
+        "relationship": { "enum": ["OVERLAPPING_NON_ADDITIVE", "CUMULATIVE_OVERLAPPING_NOT_DONUT", "FILTER_MEMBERSHIP_EFFECT_NOT_GROWTH", "WITHIN_SCOPE_COMPOSITION_OVERLAPPING_SCOPES", "LEADER_REMOVAL_SENSITIVITY_NOT_FORECAST"] },
+        "marks": {
+          "type": "array", "maxItems": 100,
+          "items": { "$ref": "#/$defs/mark" }
+        },
+        "annotations": {
+          "type": "array", "maxItems": 100,
+          "items": { "$ref": "#/$defs/annotation" }
+        },
+        "blockers": {
+          "type": "array", "maxItems": 50, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+        },
+        "limitations": {
+          "type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1, "maxLength": 300 }
+        }
+      }
+    },
+    "axes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["category", "value"],
+      "properties": {
+        "category": {
+          "type": "object", "additionalProperties": false,
+          "required": ["orientation", "orderPolicy", "categoryOrder"],
+          "properties": {
+            "orientation": { "const": "VERTICAL" },
+            "orderPolicy": { "enum": ["FIXED_SCOPE_ORDER", "FIXED_TOP_K_ORDER", "FIXED_WIDE_CORE_ORDER", "SOURCE_GROUP_KEY_ORDER", "FIXED_REMOVAL_METRIC_ORDER"] },
+            "categoryOrder": {
+              "type": "array", "maxItems": 100, "uniqueItems": true,
+              "items": { "type": "string", "minLength": 1, "maxLength": 200 }
+            }
+          }
+        },
+        "value": {
+          "type": "object", "additionalProperties": false,
+          "required": ["orientation", "unit", "scale", "zeroBaseline", "domainPolicy", "geometryPolicy"],
+          "properties": {
+            "orientation": { "const": "HORIZONTAL" },
+            "unit": { "enum": ["VND", "unit", "listing", "shop", "percent"] },
+            "scale": { "enum": ["LINEAR_ZERO_TO_LOCAL_MAX", "LINEAR_ZERO_TO_100", "LINEAR_SIGNED_ZERO_CENTERED"] },
+            "zeroBaseline": { "const": true },
+            "domainPolicy": { "enum": ["LOCAL_MAX", "FIXED_0_100", "SYMMETRIC_LOCAL_MAX_ABSOLUTE"] },
+            "geometryPolicy": { "enum": ["SOURCE_BASIS_POINTS", "LOCAL_MAX_EXACT_VALUE", "LOCAL_MAX_ABSOLUTE_SIGNED_VALUE"] }
+          }
+        }
+      }
+    },
+    "mark": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["markId", "seriesKey", "categoryKey", "valueText", "unit", "chartDataValuePointer", "chartDataGeometryPointer", "chartDataMembershipPointer", "claimId", "resultSha256", "resultValuePointer", "resultMembershipPointer", "numeratorPointer", "denominatorPointer", "resultEvidencePointers"],
+      "properties": {
+        "markId": { "$ref": "#/$defs/digest" },
+        "seriesKey": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "categoryKey": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "valueText": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "unit": { "enum": ["VND", "unit", "listing", "shop", "percent"] },
+        "chartDataValuePointer": { "$ref": "#/$defs/pointer" },
+        "chartDataGeometryPointer": { "oneOf": [{ "$ref": "#/$defs/pointer" }, { "type": "null" }] },
+        "chartDataMembershipPointer": { "oneOf": [{ "$ref": "#/$defs/pointer" }, { "type": "null" }] },
+        "claimId": { "oneOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }] },
+        "resultSha256": { "$ref": "#/$defs/digest" },
+        "resultValuePointer": { "$ref": "#/$defs/pointer" },
+        "resultMembershipPointer": { "oneOf": [{ "$ref": "#/$defs/pointer" }, { "type": "null" }] },
+        "numeratorPointer": { "oneOf": [{ "$ref": "#/$defs/pointer" }, { "type": "null" }] },
+        "denominatorPointer": { "oneOf": [{ "$ref": "#/$defs/pointer" }, { "type": "null" }] },
+        "resultEvidencePointers": {
+          "type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/pointer" }
+        }
+      }
+    },
+    "annotation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["categoryKey", "values"],
+      "properties": {
+        "categoryKey": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "values": {
+          "type": "array", "minItems": 1, "maxItems": 4,
+          "items": { "$ref": "#/$defs/supportingValue" }
+        }
+      }
+    },
+    "supportingValue": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["key", "valueText", "unit", "derivation", "chartDataValuePointer", "resultValuePointer", "resultEvidencePointers"],
+      "properties": {
+        "key": { "enum": ["unitsDelta", "removedRecordCount", "listingCount", "observedRevenue", "remainingListingCount", "remainingObservedRevenue", "usedShopCount"] },
+        "valueText": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "unit": { "enum": ["VND", "unit", "listing", "shop", "record"] },
+        "derivation": { "enum": ["DIRECT", "ARRAY_LENGTH"] },
+        "chartDataValuePointer": { "$ref": "#/$defs/pointer" },
+        "resultValuePointer": {
+          "anyOf": [
+            { "$ref": "#/$defs/pointer" },
+            { "type": "null" }
+          ]
+        },
+        "resultEvidencePointers": {
+          "type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true,
+          "items": { "$ref": "#/$defs/pointer" }
+        }
+      }
+    }
+  }
+}

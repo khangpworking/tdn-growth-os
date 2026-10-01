@@ -6,6 +6,7 @@ import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
 import { buildEvidenceBoundReportInterpretation } from '../../src/modules/analysis/report-interpretation.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { buildResearchReportChartData } from '../../src/modules/analysis/research-report-charts.js';
+import { buildResearchChartSpec } from '../../src/modules/analysis/research-chart-spec.js';
 import { buildReportSemanticContent } from '../../src/modules/analysis/report-semantic-content.js';
 import type { SourceBackedReportBundle } from '../../src/modules/analysis/source-backed-report.js';
 import { createResearchReportPacket } from '../../src/modules/analysis/versioned-report-packet.js';
@@ -29,6 +30,7 @@ function fixture(): SourceBackedReportBundle {
   const packetBytes = canonicalBytes(packet);
   const charts = buildResearchReportChartData(resultBytes, metricResultSha256, catalogBytes, catalogSha256);
   const chartBytes = canonicalBytes(charts);
+  const chartSpec = buildResearchChartSpec(charts, chartBytes);
   const envelope = {
     contractVersion: 'source-backed-report-v1',
     request: { catalogSha256 } as never,
@@ -46,6 +48,7 @@ function fixture(): SourceBackedReportBundle {
       workspaceSnapshotSha256: digest('workspace'), sourcePackageManifestSha256: digest('manifest'),
       normalizedInputSha256: sha256(inputBytes), receiptSha256: digest('receipt'), metricResultSha256,
       catalogSha256, packetSha256: sha256(packetBytes), chartSha256: sha256(chartBytes),
+      chartSpecSha256: sha256(chartSpec.bytes),
       reportSha256: digest('report'),
     },
     limitations: [],
@@ -55,6 +58,7 @@ function fixture(): SourceBackedReportBundle {
     ['normalized-input.json', inputBytes],
     ['metric-result.json', resultBytes],
     ['charts.json', chartBytes],
+    ['chart-spec.json', chartSpec.bytes],
     ['section-catalog.json', catalogBytes],
     ['report.md', Buffer.from('renderer')],
   ]);
@@ -66,6 +70,7 @@ function fixture(): SourceBackedReportBundle {
     receipt: {} as never,
     packet,
     charts,
+    chartSpec: chartSpec.spec,
     files,
   };
 }

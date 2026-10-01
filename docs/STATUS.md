@@ -614,3 +614,17 @@ so identity remains directional. Executable deterministic coverage becomes
 not source authentication, proof, AI interpretation or human approval. Linux
 CI and preview remain release gates; a closed visual ChartSpec is the next
 separate chart-layer increment.
+
+## Research A27: evidence-bound ChartSpec (implementation)
+
+A closed canonical ChartSpec now sits between deterministic ChartData and the
+report renderer. Its exact fourteen M03/M04 views freeze chart type, axis,
+scale, unit, zero baseline, ordering, relationship and missing/zero/UNKNOWN
+semantics. Every visible mark binds exact ChartData and Result/evidence
+pointers; supporting counts are materialized before presentation. The HTML
+renderer validates the complete view set and exposes the contract as a visible,
+downloadable, unreviewed artifact. High-cardinality group visuals fail closed
+above 100 categories rather than truncating or ranking silently. This task adds
+no business section, calculation, AI interpretation or human decision, so
+executable deterministic coverage remains 7/30. Linux CI and preview remain
+release gates.
