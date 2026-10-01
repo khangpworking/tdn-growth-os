@@ -215,7 +215,9 @@ test('changed method selection conflicts before writes while missing request pub
     requestKey: 'b99469c1-47ac-4bf5-8f28-5c2168f170ad', methodSelectionIds: {
       descriptiveMethods: methodInputs.descriptiveMethods[0]!.methodSelectionId,
       locatedInsightMethods: methodInputs.locatedInsightMethods[0]!.methodSelectionId,
-      methodPackets: methodInputs.methodPackets.find(item => item.logicalPath === state.methods!.logicalPath)!.methodSelectionId,
+      // The method-packet claims are pinned to the labeled calculateMetricScopes result;
+      // this source-backed request intentionally carries only its compatible inputs.
+      methodPackets: null,
     },
   };
   await assert.rejects(interrupted.create(request), /Synthetic interrupted method report publication/);

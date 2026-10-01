@@ -194,6 +194,10 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
     const selectedText = await selects.evaluateAll((items: HTMLSelectElement[]) => items.map(item => item.selectedOptions[0]?.textContent?.trim() ?? ''));
     for (const logicalPath of Object.values(GOOD_METHODS)) assert.ok(selectedText.some((text: string) => text.includes(logicalPath)), `${logicalPath} must be selected explicitly`);
 
+    await page.setViewportSize({ width: 768, height: 1000 });
+    const tablet = await page.evaluate(() => ({ width: innerWidth, scrollWidth: document.documentElement.scrollWidth }));
+    await page.screenshot({ path: path.join(output, 'method-inputs-tablet.png'), fullPage: true });
+    assert.ok(tablet.scrollWidth <= tablet.width + 1, `tablet navigation overflows: ${JSON.stringify(tablet)}`);
     await page.setViewportSize({ width: 360, height: 844 });
     const mobile = await page.evaluate(() => ({
       width: innerWidth, height: innerHeight, scrollWidth: document.documentElement.scrollWidth,
@@ -217,6 +221,8 @@ async function runResearchA45WebAcceptance(): Promise<OutputSummary> {
       assert.ok(picker.label.length > 0, 'each picker must have an accessible label');
       assert.ok(picker.left >= -1 && picker.right <= mobile.width + 1, `picker is clipped: ${JSON.stringify(picker)}`);
     }
+    const methodTargetHeights = await methodSelects.evaluateAll((items: HTMLSelectElement[]) => items.map(item => item.getBoundingClientRect().height));
+    assert.ok(methodTargetHeights.every((height: number) => height >= 44), 'new method selectors must retain 44px minimum touch targets');
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.locator('select').first().focus();
     await page.keyboard.press('Tab');

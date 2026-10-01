@@ -198,3 +198,45 @@ the bounded family hints; receipt text does not claim every selected method ran.
 These are code-level resolutions, not additional owner business decisions.
 Linux execution and presentation evidence are recorded in the A45 handoff,
 not inferred from this design brief.
+
+## 12. Responsive correction: top bar and empty product table at 360px
+
+Status: static decision, 2026-10-01. Inputs: `frontend/src/styles.css`, the top bar markup in `frontend/src/App.tsx`, and the Linux artifacts `research-a45-web-failure-2083cc5/failure.json` and `method-inputs-mobile.png`. No browser, build or test ran on Windows. Widths below are estimates, except where they come from `failure.json`.
+
+Finding:
+
+- The three method selects, the source select and the market picker all fit (right edge at most 346 of 360). Sections 2, 6 and 7 need no change.
+- Top bar: `.topbar` is a single flex row that never wraps. At 360px the brand shrinks to about 106px, each nav link breaks onto two lines, and the nav still ends at 405.67px. `.owner` follows at 421.67 to 445.27px (`scrollWidth` 445). Nothing in the bar can shrink further.
+- Empty product table: the visible collision is not caused by `.tools` (at ≤650px it already stacks the heading over a full-width search). The cause is the empty-state cell. At ≤650px, `.table td:last-child{position:absolute;right:16px;bottom:18px}` also matches the only cell `<td colSpan={3}>` of the empty row. That takes `.empty` out of flow, so the row collapses to its 36px padding and the message is drawn upward over the heading and search. The market list escapes this through `.market-table .table td:last-child{position:static}`. The product table in `MarketWorkspace` does not have that class.
+
+Decision: two declaration groups, no new classes or markup.
+
+```css
+/* in the existing @media(max-width:900px) rule (line 39); replaces .topnav{margin-left:12px} */
+.topbar{flex-wrap:wrap;row-gap:10px}
+.brand{flex:1 1 auto;min-width:0}
+.owner{flex:none;white-space:nowrap}
+.topnav{order:3;flex:1 0 100%;flex-wrap:wrap;margin:0}
+.topnav a{white-space:nowrap}
+
+/* in an existing @media(max-width:650px) rule */
+.table td[colspan]:last-child{position:static}
+```
+
+Resulting layout:
+
+- Row 1: brand on the left, **Chủ dự án** on the right. They need about 230px of the 328px available at 360px.
+- Row 2: all four nav links, in DOM order and full width. Each link label stays on one line. At 360px, Thị trường / Nội dung / Thương hiệu share a line and Thư viện prompt wraps to a second line. Wider phones and tablets fit all four on one line. The widest link is about 110px, so this still fits at 320px.
+- `order:3` changes only the visual position of the nav relative to `.owner`. `.owner` is a non-focusable `<div>`, so tab order and reading order of interactive elements are unchanged.
+- The rule goes at ≤900px rather than ≤650px. By estimate, the single row overflows from 651px up to roughly 800px as well (brand about 230px plus the 13px nav at about 390px plus the owner with its icon at about 94px). Putting it in the breakpoint that already adjusts `.topnav` closes that range without adding a breakpoint.
+- The empty cell returns to normal flow. `.empty` keeps its own centred text and padding, so the heading, search and empty message stack in that order. The selector matches only full-row `td` cells: the market empty row is already static, and the Brands `colSpan` is a `th` in `.rules-table`. Populated product rows keep the absolutely positioned "Mở hồ sơ" cell.
+
+Retained: brand mark and both brand lines, all four links with `aria-current`, the OWNER indicator text, existing colours, radii, link pills, the 650px font and padding steps, and the demo bar. Not done: no hidden or clipped overflow, no `overflow-x` scroller on the nav, no menu or disclosure, no new control or page, and no change to the browser overflow assertion or its 360px viewport.
+
+Evidence still required (Linux gate, not here): the existing 360px assertion passes with `scrollWidth` ≤ 360 and no entry for `.topnav`, its links or `.owner`. Screenshots at 360px show the two-row top bar and an empty product table with the heading, search and message stacked without overlap. Also check one screenshot at about 768px for the mid-range estimate. The transient OWNER toast in `method-inputs-mobile.png` is fixed-position status feedback and is out of scope.
+
+Implementation accessibility guard: the mobile nav links retain their padding
+and use centred inline-flex alignment with a 44px minimum height. The three new
+method selects also have a 44px minimum height. These are touch-target minimums,
+not a change to the approved visual direction. The existing Linux browser
+journey owns the 360px and 768px overflow evidence and the method target check.
