@@ -162,24 +162,32 @@ test('Gemini text keeps the product model while sending its routed provider mode
   assert.equal(body.model, 'gemini-3.8-flash-high');
 });
 
-test('custom routes send their provider ids in text bodies and Gemini image URL paths', async () => {
+test('custom routes send their provider ids in text and image requests', async () => {
   const routes: CreativeModelRoutes = {
     ...CREATIVE_MODEL_ROUTES,
     'gemini-3.5-flash-low': { ...CREATIVE_MODEL_ROUTES['gemini-3.5-flash-low'], providerModelId: 'gemini-9.9-flash' },
+    'gpt-image-2': { ...CREATIVE_MODEL_ROUTES['gpt-image-2'], providerModelId: 'gpt-image-provider-v2' },
     'gemini-3.1-flash-image': { ...CREATIVE_MODEL_ROUTES['gemini-3.1-flash-image'], providerModelId: 'gemini-9.9-flash-image' },
   };
   const state = transportFor([
     jsonResponse({ choices: [{ message: { content: 'custom route text' } }] }).response,
-    jsonResponse({ candidates: [{ content: { parts: [{ inlineData: { data: Buffer.from('custom route image').toString('base64') } }] } }] }).response,
+    jsonResponse({ data: [{ b64_json: Buffer.from('custom route GPT image').toString('base64') }] }).response,
+    jsonResponse({ candidates: [{ content: { parts: [{ inlineData: { data: Buffer.from('custom route Gemini image').toString('base64') } }] } }] }).response,
   ]);
   const gateway = createCliproxyCreativeGateway({ configuration, transport: state.transport, routes });
 
   await gateway.generateText({ ...textRequest, model: 'gemini-3.5-flash-low' });
+  await gateway.generateImage({
+    model: 'gpt-image-2', prompt: 'custom routed edit', format: 'square',
+    references: [{ bytes: Buffer.from('source'), mediaType: 'image/png' }],
+  });
   await gateway.generateImage({ model: 'gemini-3.1-flash-image', prompt: 'custom route poster', format: 'square', references: [] });
 
   const textBody = await jsonBody(state.calls[0]!.init);
   assert.equal(textBody.model, 'gemini-9.9-flash');
-  assert.equal(state.calls[1]!.url, `${configuration.baseUrl}/v1beta/models/gemini-9.9-flash-image:generateContent`);
+  const gptEditEntries = await formEntries(state.calls[1]!.init);
+  assert.equal(gptEditEntries.find((entry) => entry.name === 'model')?.value, 'gpt-image-provider-v2');
+  assert.equal(state.calls[2]!.url, `${configuration.baseUrl}/v1beta/models/gemini-9.9-flash-image:generateContent`);
 });
 
 test('ordinary non-JSON creative text remains valid', async () => {
