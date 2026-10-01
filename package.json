@@ -9,6 +9,7 @@
     "node": "24.15.0"
   },
   "scripts": {
+    "media:r2:archive": "tsx scripts/archive-media-r2.ts",
     "research:economics:calculate": "tsx scripts/calculate-conditional-economics.ts",
     "research:quote:normalize": "tsx scripts/normalize-tablet-quote.ts",
     "research:report:export": "tsx scripts/export-source-backed-report.ts",
@@ -47,6 +48,7 @@
     "check": "npm run contracts:generate && npm run typecheck && npm run frontend:typecheck && npm run frontend:build && npm run frontend:test && npm test"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1144.0",
     "ajv": "8.20.0",
     "ajv-formats": "3.0.1",
     "better-sqlite3": "12.11.1",

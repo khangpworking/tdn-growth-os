@@ -1,5 +1,16 @@
 # Trạng thái hiện tại
 
+## Private R2 media archive: implementation, not activated
+
+Optional `media:r2:archive` copies one explicitly selected active retained
+PNG/JPEG to the private `tdn-media` bucket, with conditional creation and full
+remote-byte verification. SQLite and local files remain authoritative. No web
+mirroring, public URL, migration, deletion or real-data transfer is introduced.
+Fedora Node 24.15.0 strict typecheck and 11/11 affected tests passed. Dedicated
+S3 credentials, final-head CI/review and scoped live verification remain
+activation gates. See
+[scope and operation](tasks/r2-private-media-archive.md).
+
 ## Research A46: citation web integration ready for final-head Linux CI
 
 Owner-authorized offline preview adds numbered references to existing retained
