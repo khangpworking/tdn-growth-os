@@ -506,4 +506,3 @@ export function buildReportCitationProjection(options: {
 /** Alias kept explicit for callers that describe this as a preview adapter. */
 export const buildReportCitationPreview = buildReportCitationProjection;
 export const projectReportCitations = buildReportCitationProjection;
-
