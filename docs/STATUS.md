@@ -680,3 +680,11 @@ Complete frozen labels may retain `UNKNOWN`; the preparation's WIDE policy is
 not changed or executed. In the synthetic owner test, only M02, M03, M04 and
 M13 are ready for a future calculation. A31 adds no calculation, report,
 database mutation, AI interpretation, human review, API or UI.
+
+## Research A32: closed M03 recipe and verified metric set (draft)
+
+A32 is the first calculation consumer gated by A30 preparation and A31
+readiness. It produces a deterministic M03 metric set with exact source,
+membership, completeness, policy and method lineage. Future chart and narrative
+consumers must bind to the same `metricSetSha256`. It adds no chart, AI, report
+version, human decision, migration or database write.

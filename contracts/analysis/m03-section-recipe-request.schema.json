@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/m03-section-recipe-request.schema.json",
+  "title": "M03SectionRecipeRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion", "sectionId", "recipeId", "recipeVersion",
+    "preparationSha256", "catalogSha256", "readinessSha256"
+  ],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "sectionId": { "const": "M03" },
+    "recipeId": { "const": "m03-scope-totals" },
+    "recipeVersion": { "const": "1.0.0" },
+    "preparationSha256": { "$ref": "#/$defs/digest" },
+    "catalogSha256": { "$ref": "#/$defs/digest" },
+    "readinessSha256": { "$ref": "#/$defs/digest" }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+  }
+}

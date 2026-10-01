@@ -612,3 +612,12 @@ trạng thái này không có nghĩa section đã được tính, viết, duyệ
 `UNKNOWN` là một quyết định nhãn hợp lệ để người dùng nhìn thấy, còn việc có
 được đưa vào WIDE hay không tiếp tục theo frozen policy của preparation. A31
 không tính WIDE, không sinh chart/narrative và không gọi AI.
+
+### A32 — SectionRecipe và VerifiedMetricSet đầu tiên
+
+M03 dùng một recipe đóng, chỉ chạy sau khi exact A30 preparation và exact A31
+readiness được phát lại. Kết quả là `VerifiedMetricSet` bất biến theo nội dung.
+Chart và diễn giải AI ở bước sau phải cùng tham chiếu đúng `metricSetSha256`,
+không được tự tính lại hoặc tạo số mới. UNKNOWN được giữ trong ALL nhưng loại
+khỏi WIDE theo policy có version; ALL/WIDE/CORE chồng lấp và không được cộng.
+Missing không phải zero. Chênh membership không phải tăng trưởng hay nhân quả.
