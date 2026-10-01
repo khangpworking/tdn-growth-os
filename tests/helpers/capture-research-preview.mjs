@@ -144,7 +144,9 @@ try {
       clip: { x: 0, y: 0, width, height: capturedHeight, scale: 1 } });
     await fs.writeFile(path.join(root, `${name}.png`), Buffer.from(capture.data, 'base64'), { mode: 0o600 });
     for (const id of ['section-M02', 'section-M03', 'section-M05', 'section-M07', 'section-M08', 'insight', 'section-I03',
-      ...(path.basename(root) === 'located' ? ['section-I05', 'section-I07', 'section-I10', 'section-I13'] : []), 'status']) {
+      ...(path.basename(root) === 'located' ? ['section-I05', 'section-I07', 'section-I10', 'section-I13'] : []),
+      ...(path.basename(root) === 'methods' ? ['section-M01', 'section-M10', 'section-M11', 'section-M12',
+        'section-I11', 'section-I12', 'section-I14', 'section-I15', 'section-I16'] : []), 'status']) {
       const found = await evaluate(`(() => { const section = document.getElementById(${JSON.stringify(id)}); if (!section) return false; section.scrollIntoView({block:'start'}); return true; })()`);
       if (!found) continue;
       const sectionCapture = await call('Page.captureScreenshot', { format: 'png', captureBeyondViewport: false });
@@ -302,9 +304,43 @@ try {
   await call('Emulation.setEmulatedMedia', { media: 'print' });
   await call('Runtime.evaluate', { expression: `document.querySelectorAll('details').forEach(element => element.open = true);
     document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))`, awaitPromise: true });
-  const pdf = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
-    paperWidth: 8.27, paperHeight: 11.69, marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 60_000);
+  // Retain interaction proof before PDF generation. A print timeout must not
+  // erase the successful desktop/mobile actions and contrast observations.
+  await fs.writeFile(path.join(root, 'interaction-evidence.json'), JSON.stringify({ viewports: interactionEvidence, pageErrors }, null, 2), { mode: 0o600 });
+  const printBefore = await evaluate(`(() => {
+    const details = [...document.querySelectorAll('details')];
+    let nested = 0;
+    for (const element of details) if (element.parentElement?.closest('details')) nested++;
+    return { details: details.length, openDetails: details.filter(element => element.open).length,
+      nestedDetails: nested, scrollHeight: document.documentElement.scrollHeight,
+      bodyTextLength: document.body.innerText.length };
+  })()`);
+  // Diagnostic only: retain the native print DOM so the recorded dimensions
+  // describe the actual HTML artifact that Page.printToPDF receives. The
+  // expanded disclosure tree is a candidate cause, not a proven root cause.
+  const printMetrics = await call('Page.getLayoutMetrics');
+  const pdfDiagnostic = {
+    report: path.relative(root, report),
+    viewport: { width: 1440, height: 1000, deviceScaleFactor: 1 },
+    media: 'print',
+    printBefore,
+    expandedContentSize: printMetrics.cssContentSize,
+    timeoutMs: 60_000,
+    status: 'started',
+  };
+  await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify(pdfDiagnostic, null, 2), { mode: 0o600 });
+  let pdf;
+  try {
+    pdf = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true,
+      paperWidth: 8.27, paperHeight: 11.69, marginTop: .4, marginBottom: .4, marginLeft: .4, marginRight: .4 }, 60_000);
+  } catch (error) {
+    await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify({ ...pdfDiagnostic,
+      status: 'failed', error: String(error) }, null, 2), { mode: 0o600 });
+    throw error;
+  }
   await fs.writeFile(path.join(root, 'synthetic-report.pdf'), Buffer.from(pdf.data, 'base64'), { mode: 0o600 });
+  await fs.writeFile(path.join(root, 'pdf-diagnostic.json'), JSON.stringify({ ...pdfDiagnostic,
+    status: 'complete', pdfBytes: Buffer.byteLength(pdf.data, 'base64') }, null, 2), { mode: 0o600 });
   await fs.writeFile(path.join(root, 'visual-evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
   await fs.writeFile(path.join(root, 'interaction-evidence.json'), JSON.stringify({ viewports: interactionEvidence, pageErrors }, null, 2), { mode: 0o600 });
 } finally {
