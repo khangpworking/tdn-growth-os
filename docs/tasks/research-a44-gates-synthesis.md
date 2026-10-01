@@ -42,9 +42,10 @@ the nine A40 recipes. Missing run inputs block only the affected output.
 - A free worker performs independent review after implementation.
 
 At most three workers beside the coordinator. No worker commits or pushes.
-Owner's resumed-session constraint: delegated models are limited to
-Claude Sonnet 5.5 high or GPT-5.6 Luna xhigh. The three resumed lanes use
-GPT-5.6 Luna xhigh; do not substitute Astra or another model.
+The three resumed code/review lanes use GPT-5.6 Luna xhigh. The owner's
+2026-10-01 assignment update routes delegated design/UI/UX work to Claude
+Opus 5.5 high, and code/logic to Claude Sonnet 5.5 high or GPT-5.6 Luna xhigh.
+Do not substitute Astra or silently replace an unavailable requested model.
 No Windows tests, typechecks, builds or browser execution. Use Linux CI.
 
 Report integration reuses the existing ledger and exact retry/replay boundary.
