@@ -1,5 +1,9 @@
 # Automated research v1: implementation handoff
 
+Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/109
+
+Implementation commit: `9d840784c0746b83275cc6afa24eae1c4b94de22`, based on main `2f47e119fa68d540ab01e314af6284dec5786ae7`. Subsequent delivery-documentation commits do not imply activation. Use the exact final PR head and its CI when reviewing or preparing a release.
+
 ## Scope
 
 This is the ADR 0011 thin vertical slice, not an assertion that all 30 sections are automated. It adds an explicit owner-started run, bounded quick product discovery, one immutable scope confirmation, durable progress, cancellation, raw-source lineage, and two independent frozen draft outputs. Country is Vietnam. Requested annual/custom dates remain visible and are never silently replaced by a provider's query window.

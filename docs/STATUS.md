@@ -10,8 +10,8 @@ GPT-5.6-luna xhigh lanes to take over. The frontend, durable lifecycle,
 provider binding, HTTP routes and separate retained HTML/PDF outputs are
 implemented. Isolated Linux full verification passed 745 backend and 194
 frontend tests, contract checks, typechecks and build. The production-bundle
-browser journey passed desktop/mobile and reload persistence. Draft-PR
-publication is in progress; final Claude design-session approval, owner review
+browser journey passed desktop/mobile and reload persistence. [Draft PR #109](https://github.com/khangpworking/tdn-growth-os/pull/109)
+is published; final Claude design-session approval, owner review
 and activation are still separate gates. No
 live research, provider call, business decision, deployment or live migration
 has occurred in this task.
