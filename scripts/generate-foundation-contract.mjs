@@ -35,6 +35,7 @@ const contracts = [
   ['analysis', 'prepared-report-semantic-content'],
   ['analysis', 'metric-source-manifest'],
   ['analysis', 'metric-source-labels'],
+  ['analysis', 'automation-metric-source'],
   ['analysis', 'metric-input-preparation-request'],
   ['analysis', 'metric-input-preparation-result'],
   ['analysis', 'metric-preparation-readiness-result'],

@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-metric-source.schema.json",
+  "title": "AutomationMetricSource",
+  "description": "Explicit operator attachment of one retained Metric export to one confirmed research run. Binding only; not provider authenticity, filter, category or coverage proof.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion", "runId", "workspaceId", "runBindingSha256", "keyword",
+    "workbookPath", "manifestPath", "labelsPath", "sourceContextPath"
+  ],
+  "properties": {
+    "contractVersion": { "const": "automation-metric-source-v1" },
+    "runId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "runBindingSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "keyword": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "workbookPath": { "$ref": "#/$defs/logicalPath" },
+    "manifestPath": { "$ref": "#/$defs/logicalPath" },
+    "labelsPath": { "type": "null", "description": "v1 admits no classification sidecar; WIDE/CORE stay blocked." },
+    "sourceContextPath": { "$ref": "#/$defs/logicalPath" }
+  },
+  "$defs": {
+    "logicalPath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500,
+      "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$"
+    }
+  }
+}

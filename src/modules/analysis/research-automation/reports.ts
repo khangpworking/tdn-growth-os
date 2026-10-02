@@ -3,6 +3,8 @@ import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/de
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import { reviewCorpusSection } from './review-corpus-report.js';
 import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import type { AutomationMetricMethodSnapshot } from './metric-method-bridge.js';
+import { metricMethodSection } from './metric-method-report.js';
 import type { AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
 import type { NativeSourceReviewSnapshot } from './native-source-review-bridge.js';
 import { renderLocatedInsightSection } from '../report-located-insight-pages.js';
@@ -32,6 +34,8 @@ export interface AutomationReportInput {
   readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
+  readonly metricMethods?: AutomationMetricMethodSnapshot;
+  readonly metricMethodsFailure?: 'METRIC_METHOD_FAILED';
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
 interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
@@ -154,6 +158,15 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
           unresolvedPointers: located.projection.pending.flatMap((row, index) => row.family === section.sectionId ? [`/projection/pending/${index}`] : []), blockers: result.blockers },
       };
     }
+    if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return {
+      sectionId: section.sectionId, title: section.title, state: 'SOURCE_TABLE', rows: [],
+      method: input.metricMethods.result.methodVersion,
+      explanation: 'Nguồn Metric gốc đã được chuẩn hóa và tính theo công thức đã chốt. Đây là tổng và độ tập trung trong mẫu xuất theo keyword; chưa phải thị trường đã phân loại hoặc mục phân tích hoàn chỉnh.',
+    };
+    if (kind === 'MARKET' && input.metricMethodsFailure && (section.sectionId === 'M03' || section.sectionId === 'M04')) return {
+      sectionId: section.sectionId, title: section.title, state: 'BLOCKED', rows: [], method: 'metric-scope-v1',
+      explanation: 'Gói Metric được gắn với lượt này chưa vượt qua kiểm tra nguồn, kỳ hoặc phương pháp. Không dùng số liệu chưa xác minh; cần sửa gói đầu vào cho lượt mới. Không tự gọi lại nguồn.',
+    };
     if (kind === 'MARKET' && input.marketInventory && (section.sectionId === 'M03' || section.sectionId === 'M08')) return {
       sectionId: section.sectionId, title: section.title, state: 'SOURCE_TABLE', rows: [],
       method: section.sectionId === 'M03' ? 'source-compatible-temporal-v1@1.0.0' : 'generic-quote-unit-v1@1.0.0',
@@ -196,7 +209,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     contextSections: ids('SOURCE_CONTEXT').length, sourceTableSections: ids('SOURCE_TABLE').length, blockedSections: ids('BLOCKED').length,
   };
   const semantic = {
-    contractVersion: 'research-automation-report-v1', rendererVersion: 'automation-report-kit-v6', kind, state: 'PARTIAL_UNREVIEWED_DRAFT',
+    contractVersion: 'research-automation-report-v1', rendererVersion: 'automation-report-kit-v7', kind, state: 'PARTIAL_UNREVIEWED_DRAFT',
     runId: input.run.runId, workspaceId: input.run.workspaceId, createdAt: input.run.createdAt,
     keyword: input.start.keyword, country: input.start.country, requestedPeriod: input.start.requestedPeriod,
     scope: input.scope, scopeApplication: 'OWNER_CONTEXT_ONLY_SOURCE_FILTER_MAPPING_PENDING', coverage: input.run.coverage, usage: input.run.usage,
@@ -205,7 +218,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       ...(input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
       ...(input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
       ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
-      ...(input.descriptiveMethodFailure ? { descriptiveMethodFailure: input.descriptiveMethodFailure } : {}) } : {}), completion,
+      ...(input.descriptiveMethodFailure ? { descriptiveMethodFailure: input.descriptiveMethodFailure } : {}),
+      metricMethods: input.metricMethods ?? null, ...(input.metricMethodsFailure ? { metricMethodsFailure: input.metricMethodsFailure } : {}) } : {}), completion,
   };
   const title = kind === 'MARKET' ? 'Báo cáo thị trường' : 'Báo cáo insight';
   const period = `${input.start.requestedPeriod.startDate} đến ${input.start.requestedPeriod.endDate} · ${input.start.requestedPeriod.dayCount} ngày`;
@@ -218,6 +232,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const methodIds = completion.boundedMethodOutputSectionIds;
   const emptyIds = completion.boundedMethodNoUsableRecordSectionIds;
   const headline = [
+    kind === 'MARKET' && input.metricMethods ? 'Đã tính tổng và độ tập trung từ các dòng Metric gốc của đúng lượt này. Mẫu theo keyword chưa được phân loại thành thị trường; không đánh dấu M03/M04 hoàn chỉnh.' : '',
     kind === 'MARKET' && input.descriptiveMethodFailure ? 'Chưa tính được các mục mô tả thị trường vì đầu vào hoặc phương pháp không vượt qua kiểm tra. Bản nháp này chỉ giữ ngữ cảnh và dấu vết nguồn. Cần kiểm tra lỗi trước khi tạo phiên bản mới; không tự động gọi lại nguồn.' : '',
     `Mục phân tích hoàn chỉnh: ${completion.completedAnalyticalSections}.`,
     kind === 'MARKET' ? descriptive ? `Kết quả phương pháp mô tả có giới hạn, chưa duyệt: ${methodIds.length} mục${methodIds.length ? ` (${methodIds.join(', ')})` : ''}.` : input.descriptiveMethodFailure ? '' : 'Phương pháp mô tả thị trường chưa được nối vào lượt này.' : '',
@@ -227,6 +242,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     'Ngữ cảnh, bảng nguồn, kết quả phương pháp từng phần và tệp PDF không đồng nghĩa với phân tích hoàn chỉnh.',
   ].filter(Boolean).join(' ');
   const appendix = (sectionId: string): string => {
+    if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
+      if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId) + (sectionId === 'M03' && input.marketInventory ? '<h3>Kalodata: bằng chứng riêng, không cộng vào Metric</h3>' + marketInventorySection(input.marketInventory, sectionId) : '');
+      if (input.metricMethodsFailure) return '<p class="warning">Chưa tính được từ gói Metric gắn với lượt này. Kiểm tra nguồn, kỳ đo và liên kết phạm vi trước khi tạo lượt mới. Mã đối chiếu: METRIC_METHOD_FAILED.</p>';
+    }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
       if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra. Mã MARKET_INVENTORY_FAILED; không tự gọi lại nguồn.</p>';

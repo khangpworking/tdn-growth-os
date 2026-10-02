@@ -1,5 +1,30 @@
 # Trạng thái hiện tại
 
+## Metric source-to-method automation checkpoint (2026-10-03, draft PR #110)
+
+Claude Opus 5.5 high implemented the independent Metric bridge; GPT integrated
+and audited it. REPORTS now consumes an explicitly confirmed-run-bound original
+workbook through existing preparation/readiness/calculation services and freezes
+the complete output with exact original bytes and schemas. M03/M04 show bounded
+ALL sample totals and concentration, not classified market-section completion.
+Historical report reads verify frozen bytes without Python, current methods,
+providers or writes. An audit regression closed late rejection of out-of-request
+periods before preparation writes.
+
+Linux affected checks passed 35 with one optional browser test skipped and zero
+failures. The full isolated Linux check passed 870 backend tests (one optional
+browser skip) and 196 frontend tests, plus contract generation, both typechecks
+and the production build. Separate real Chromium offline acceptance generated both Market and
+Insight web/PDF from the 223-listing, 127-shop original sample and the 62-row
+retained native review source. No new provider/model call, runtime data mutation,
+migration or deployment occurred. WIDE/CORE remain blocked pending business
+scope/codebook and real frozen classification evidence. Remaining sections and
+final Claude/owner report approval are still open; no 30-section completion claim.
+Desktop/mobile checks and PDF text/contact-sheet inspection were completed;
+the latest focus checks passed after the mobile chart-label repair. Exact-head
+release CI is recorded in the PR handoff, not inferred from the earlier head.
+See the [Metric method bridge handoff](handoffs/research-automation-metric-method-bridge.md).
+
 ## Metric original-export checkpoint (2026-10-03, draft PR #110)
 
 GPT continues implementation while Claude quota is unavailable. A genuine
@@ -8,7 +33,7 @@ The separately declared v2 profile now normalizes it without repairing raw
 cells or weakening the legacy profile. Linux affected checks passed 19/19,
 backend TypeScript passed, and the actual offline CLI accepted 223 records
 with zero database mutations and no model/provider invocation by the CLI.
-Exact-head CI for this profile change is not yet verified.
+Exact-head Check 37042736552 and preview 37042736776 passed on dea282a.
 
 The source is a bounded keyword-selected sample, includes nonfood records,
 and ends before the requested report period. No classifications were assigned;
@@ -17,8 +42,8 @@ and commercial precision are not. The UI acquisition's point/cost usage is
 unknown, not zero. Original files, audit metadata and generated results are
 private and outside Git.
 
-Next: confirmed-run attachment and frozen full Metric outputs for M03/M04.
-This export is not yet consumed by the automated web report. No migration,
+The subsequent checkpoint above connects confirmed-run attachment and frozen
+full Metric output into the automation code; live deployment remains separate. No migration,
 deployment or active-runtime data change occurred. See the
 [profile v2 handoff](handoffs/research-metric-export-profile-v2.md).
 

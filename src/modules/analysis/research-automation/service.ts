@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
 import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import { AutomationMetricMethodBridge, type AutomationMetricMethodSnapshot } from './metric-method-bridge.js';
 import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
 import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot } from './native-source-review-bridge.js';
 import { AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory } from './exact-shopee-bridge.js';
@@ -76,6 +77,8 @@ export interface ResearchAutomationReportInput {
   readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
+  readonly metricMethods?: AutomationMetricMethodSnapshot;
+  readonly metricMethodsFailure?: 'METRIC_METHOD_FAILED';
 }
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
@@ -148,6 +151,7 @@ export class ResearchAutomationService {
   readonly #nativeReviews: AutomationNativeSourceReviewBridge;
   readonly #shopee: AutomationExactShopeeBridge;
   readonly #marketInventory: AutomationMarketMethodBridge;
+  readonly #metricMethods: AutomationMetricMethodBridge;
   readonly #active = new Map<string, AbortController>();
 
   constructor(options: ResearchAutomationServiceOptions) {
@@ -164,6 +168,7 @@ export class ResearchAutomationService {
     this.#nativeReviews = new AutomationNativeSourceReviewBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#shopee = new AutomationExactShopeeBridge(this.#db, this.#artifacts, options.shopeeCollectorFactory);
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+    this.#metricMethods = new AutomationMetricMethodBridge({ db: this.#db, artifactStore: this.#artifacts, workspaces: this.#workspaces, now: this.#now });
   }
 
   /** Explicit owner start. Workspace verification happens before any artifact or DB write. */
@@ -351,6 +356,14 @@ export class ResearchAutomationService {
       if (kind !== 'MARKET' || !frozen?.scopeSha) throw new ResearchAutomationIntegrityError('Stored Market inventory lacks scope.');
       await this.#marketInventory.verify(semantic.marketInventory, { runId, start: await this.#readStartSnapshot(frozen.startSha, workspaceId),
         scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), collection: await this.#stepDocument(runId, 'COLLECTION'), captures: await this.#captureRecords(runId) });
+    }
+    if (semantic.metricMethods !== undefined && semantic.metricMethods !== null) {
+      const frozen = this.#current(runId);
+      if (kind !== 'MARKET' || !frozen?.scopeSha || !frozen.scopeConfirmedAt)
+        throw new ResearchAutomationIntegrityError('Stored Metric methods lack their exact confirmed run.');
+      await this.#metricMethods.verify(semantic.metricMethods, { runId,
+        start: await this.#readStartSnapshot(frozen.startSha, workspaceId),
+        scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt });
     }
     const sha = pdf ? output.pdfSha! : output.htmlSha;
     const bytes = await this.#readArtifact(sha, pdf ? 64 * 1024 * 1024 : MAX_HTML_BYTES, pdf ? 'application/pdf' : 'text/html; charset=utf-8');
@@ -547,6 +560,8 @@ export class ResearchAutomationService {
       let descriptiveMethodFailure: 'DESCRIPTIVE_METHOD_FAILED' | undefined;
       let marketInventory: AutomationMarketMethodSnapshot | undefined;
       let marketInventoryFailure: 'MARKET_INVENTORY_FAILED' | undefined;
+      let metricMethods: AutomationMetricMethodSnapshot | undefined;
+      let metricMethodsFailure: 'METRIC_METHOD_FAILED' | undefined;
       let reviewCorpus: ResearchReviewCorpus | undefined;
       let reviewCorpusFailure: 'REVIEW_CORPUS_FAILED' | undefined;
       let locatedReview: AutomationLocatedReviewSnapshot | undefined;
@@ -568,6 +583,11 @@ export class ResearchAutomationService {
         }
       }
       if (start.reports.includes('MARKET')) {
+        try {
+          if (!fresh.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Metric methods require confirmed scope.');
+          metricMethods = await this.#metricMethods.execute({ runId: fresh.runId, start, scope,
+            scopeConfirmedAt: fresh.scopeConfirmedAt }, controller.signal);
+        } catch { controller.signal.throwIfAborted(); metricMethodsFailure = 'METRIC_METHOD_FAILED'; }
         try { marketInventory = await this.#marketInventory.execute({ runId: fresh.runId, start, scope, collection, captures }, controller.signal); }
         catch { controller.signal.throwIfAborted(); marketInventoryFailure = 'MARKET_INVENTORY_FAILED'; }
         try { descriptiveMethods = await this.#methods.execute({ runId: fresh.runId, start, scope, collection, captures }, controller.signal); }
@@ -592,6 +612,8 @@ export class ResearchAutomationService {
           ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
           ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
           ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
+          ...(kind === 'MARKET' && metricMethods ? { metricMethods } : {}),
+          ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
         };
         const render = async () => {
           const rendered = this.#renderer ? await this.#renderer(input, kind, controller.signal) : defaultRenderedReport(input, kind);
@@ -608,7 +630,9 @@ export class ResearchAutomationService {
             ...(kind === 'INSIGHT' && input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
             ...(kind === 'INSIGHT' && input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}),
             ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
-            ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}) };
+            ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
+            ...(kind === 'MARKET' ? { metricMethods: metricMethods ?? null } : {}),
+            ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}) };
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
           return { rendered, semanticBytes, html };
