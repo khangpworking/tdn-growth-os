@@ -127,6 +127,8 @@ async function print(html: Buffer, executable: string, signal: AbortSignal): Pro
     await call('Page.setDocumentContent', { frameId: tree.frameTree.frame.id, html: html.toString('utf8') });
     // Bundled data-URL fonts: wait for layout readiness without executing document scripts.
     await call('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true, returnByValue: true });
+    // Paper has no disclosure control; print the retained context and pending evidence too.
+    await call('Runtime.evaluate', { expression: 'document.querySelectorAll("details").forEach(item => { item.open = true; })' });
     const result = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true, transferMode: 'ReturnAsStream' });
     if (!result.stream) throw new Error('PDF stream unavailable');
     const chunks: Buffer[] = [];

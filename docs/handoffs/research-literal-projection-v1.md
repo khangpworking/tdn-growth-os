@@ -49,13 +49,79 @@ mapping, reading-scope admission, or package/authority binding. Synthetic
 expectations are explicit; no production-only test flag or export was added.
 No Windows test, build or typecheck was run.
 
+## Automation v2 integration
+
+New genuine exact-review runs retain an `automation-located-review-snapshot-v2`
+overlay, with the original v1 proposal as an unchanged dependency. Writer and
+replay bind the adopted policy and exact accepted projector/wrapper bytes.
+Historical v1 replay remains proposal-only; opening a saved report does not
+rerun today's semantic parser, projector or provider. Current structural corpus
+mapping and verified Foundation readers are still replay dependencies; this
+is not an archived runtime.
+
+Insight I02/I04/I05/I07/I08 render admitted source declarations or an explicit
+no-usable-record state, together with the complete retained pending sidecar.
+The page shows at most 20 pending items per family and says when more remain
+in the saved method package. Annotation-only pending counts are not shown as
+if they covered the separate reading diagnostics. Analytical completion stays
+zero. The automation page does not offer an unavailable bundle download.
+
+The shared Located renderer keeps its existing bundle download by default for
+callers that supply that file. Automation explicitly suppresses the link and
+uses real source disclosure anchors. The local Chromium PDF renderer opens
+all disclosures for print: paper includes original context, provenance and
+pending evidence instead of displaying summaries alone.
+
+Independent read-only GPT code review found no actionable finding in v2
+binding, v1 replay compatibility, source escaping or declaration/pending display.
+The affected Linux tests passed 17, with one optional Chromium test skipped;
+strict TypeScript passed after the guarded nonempty manifest tuple correction.
+One complete isolated Linux check passed 855/855 backend with Chromium enabled,
+plus 196 frontend tests, both typechecks, generated contracts and build. The
+subsequent pending-count copy clarification passed the final focused check and
+synthetic paired-report acceptance. Final-head CI is pending; those edits are
+not falsely attributed to the earlier full run.
+
+## Design verification boundary
+
+The accepted report-kit fonts, palette and layout are preserved. ENERGY 1,
+RHYTHM 2 and MOTION 1 remain unchanged. Tables and original quotations are used
+because these declarations have no valid denominator for a chart. Amber means
+partial evidence, not a new product decision. Native disclosure controls keep
+technical diagnostics secondary while retaining them in the PDF.
+
+Impeccable's static detector reports only the pre-existing 26px heading outside
+the older app design ramp; no report typography was changed to satisfy an
+unrelated app baseline. Final desktop/mobile and PDF inspection is recorded
+with the private acceptance proof. No new asset or design-world replacement was
+introduced. Claude quota is unavailable; GPT takes over verification without
+claiming Claude final design approval or owner final approval.
+
+Final isolated acceptance at `synthetic-paired-reports-sw17uq` produced separate
+Market and Insight HTML/PDF files. Saved reads made zero provider calls and zero
+database mutations. Desktop 1440x1000 and mobile 390x844 had no page overflow;
+all 19 source anchors and 13 disclosures worked, with visible keyboard focus.
+Rendered PDF pages retained source context and pending diagnostics, including
+the quoted-text abstention. Private screenshots and receipts remain outside Git.
+These are synthetic transport fixtures, not the three real-case final reports.
+
+Delivery gate for this bounded change:
+
+- Hard gates PASS: escaped quotations, real anchors/disclosures, no dead bundle
+  link, no fabricated completion; Linux build and browser proof above.
+- Purpose PASS: tables preserve exact declarations without an unsupported
+  chart denominator; disclosures separate reading context from the main result.
+- Liveliness PASS: the accepted report-kit identity and 1/2/1 dials are retained.
+- Craft PASS: partial/empty/pending states, responsive reading, keyboard focus
+  and paper context verified. No new assets or replacement design were added.
+
 ## Still open
 
-Final-head CI must be recorded after the new code is stable. Existing automation
-snapshots remain proposal-only: new declaration
-projection is not yet wired to production run/report delivery. That integration
-must version authority and preserve historical reads instead of rewriting v1.
-Dami's native SourcePackage cannot masquerade as a Zen corpus to achieve it.
+Final-head CI must be recorded after the integration code is stable. Dami's
+native SourcePackage automation connection is distinct from the genuine
+exact-review path and remains open. It cannot masquerade as a Zen corpus.
+Thermos/fan review source acquisition, verified market measurement operands,
+remaining section adapters and complete 30-section acceptance remain open.
 
 No completed section, final ratio, accuracy, source authenticity, annual/category
 coverage, Claude design approval or owner final-report approval is claimed.

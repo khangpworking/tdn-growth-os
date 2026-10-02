@@ -1,5 +1,30 @@
 # Trạng thái hiện tại
 
+## Adopted declaration delivery checkpoint (2026-10-02, draft PR #110)
+
+Published projection checkpoint `9c760b3b5f4cc92b2a51cb2d68f929baf9b86f26`
+passed exact-head [Linux CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37030852858).
+The next integration retains a separate v2 run-bound overlay and the unchanged
+v1 proposal, then renders eligible source declarations and pending diagnostics
+in Insight sections without promoting analytical completion. Historical v1 and
+v2 replay use retained semantic results, not today's literal rules/projector.
+The PDF export expands source and pending disclosures for paper.
+
+Independent code audit found no actionable finding. Linux affected proof is
+17 passed, 0 failed, 1 optional Chromium skip, plus TypeScript. A complete
+isolated check with Chromium enabled passed 855/855 backend and 196 frontend,
+contracts, typechecks and production build. A later pending-count clarification
+passed the final affected check (17 passed, one optional Chromium skip) and
+paired web/PDF acceptance before publication; do not treat the earlier complete
+check as proof of those final edited bytes. Final-head Linux CI is pending.
+
+Claude quota is unavailable. GPT is taking over code and visual verification,
+but Claude final design approval and owner final-report approval are not claimed.
+The native Dami source-package automation connection, thermos/fan review sources,
+verified market operands and remaining section adapters are still open. No
+merge, active-runtime update, new provider call or real business decision occurred.
+See [v2 integration and proof](handoffs/research-literal-projection-v1.md).
+
 ## Literal review/source-failure checkpoint (2026-10-02, draft PR #110)
 
 Published checkpoint `38c881020b141a209ea1208f8096be64ab34abb0` retains an exact source-bound literal-coding proposal in

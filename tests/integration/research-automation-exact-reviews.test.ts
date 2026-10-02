@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { createRequire } from 'node:module';
+import { JSDOM } from 'jsdom';
 import apiSchema from '../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
@@ -13,6 +14,9 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { FixtureShopeeCollector, CollectionPendingError } from '../../src/platform/collectors/apify-shopee.js';
 import type { ShopeeCollectorFactory } from '../../src/modules/analysis/research-automation/exact-shopee-bridge.js';
 import { MAX_HTML_BYTES } from '../../src/modules/analysis/research-automation/model.js';
+import { AutomationLocatedReviewBridge } from '../../src/modules/analysis/research-automation/located-review-bridge.js';
+import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -49,7 +53,8 @@ async function fixture(t: TestContext, factory?: ShopeeCollectorFactory, oversiz
 test('explicit listing scope flows through collection and frozen corpus to both reports without a discovery substitute', async t => {
   let calls = 0;
   const raw = Buffer.from(JSON.stringify([
-    { shopId: '78085196', itemId: '17678138164', reviewId: 'synthetic-1', comment: 'Thạch giòn, ăn với sữa chua. <script>bad()</script>', ratingStar: 9, author: 'Do not project me' },
+    { shopId: '78085196', itemId: '17678138164', reviewId: 'synthetic-1', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 9, author: 'Do not project me' },
+    { shopId: '78085196', itemId: '17678138164', reviewId: 'synthetic-2', comment: '“Tôi đã mua sản phẩm. <script>bad()</script>”', ratingStar: 5 },
     { shopId: '99', itemId: '1', reviewId: 'foreign', comment: 'Wrong product', ratingStar: 5 },
   ]));
   const state = await fixture(t, () => ({ requestsIssued: () => 0, collector: { mode: 'fixture', collect: async (...args) => { calls++; return new FixtureShopeeCollector(raw).collect(...args); } } }));
@@ -65,26 +70,74 @@ test('explicit listing scope flows through collection and frozen corpus to both 
   assert.deepEqual(ready.definition?.exactShopeeUrls, [url]);
   assert.ok(ready.outputs?.market && ready.outputs.insight);
   const semantic = JSON.parse((await state.artifacts.read(ready.outputs.insight.versionId)).toString());
-  assert.equal(semantic.reviewCorpus.coverage.rawRows, 2);
+  assert.equal(semantic.reviewCorpus.coverage.rawRows, 3);
   assert.equal(semantic.reviewCorpus.coverage.invalidRatingRawRows, 1);
   assert.equal(semantic.reviewCorpus.coverage.quarantinedRawRows, 1);
   assert.equal(semantic.reviewCorpus.codingState, 'NOT_CODED');
-  assert.equal(semantic.locatedReview.authorityState, 'RULE_PROPOSAL_ONLY');
-  assert.deepEqual(semantic.locatedReview.output.input.i04, [], 'unreviewed rules do not admit action findings');
-  const coding = JSON.parse((await state.artifacts.read(semantic.locatedReview.codingSha256)).toString());
+  assert.equal(semantic.locatedReview.contractVersion, 'automation-located-review-snapshot-v2');
+  assert.equal(semantic.locatedReview.authorityState, 'ADOPTED_FOR_SOURCE_BOUND_DECLARATIONS');
+  assert.equal(semantic.locatedReview.proposal.contractVersion, 'automation-located-review-snapshot-v1');
+  assert.equal(semantic.locatedReview.proposal.authorityState, 'RULE_PROPOSAL_ONLY');
+  assert.deepEqual(semantic.locatedReview.proposal.output.input.i04, [], 'the original proposal is retained without analytical admission');
+  assert.deepEqual(semantic.locatedReview.output.input.i04.map((row: { span: { quote: string }; provenance: { basis: string } }) =>
+    [row.span.quote, row.provenance.basis]), [['Tôi đã dùng sản phẩm', 'DECLARED']]);
+  assert.ok(semantic.locatedReview.projection.pending.some((row: { reason: string }) => row.reason === 'QUOTED_TEXT_SCOPE'));
+  const coding = JSON.parse((await state.artifacts.read(semantic.locatedReview.proposal.codingSha256)).toString());
   assert.equal(coding.executionAuthority, 'NONE_RULE_PROPOSAL_ONLY');
   assert.equal(coding.corpus.corpusId, semantic.reviewCorpus.corpusId);
   assert.equal(coding.coverage.quarantinedUnits, 1);
   assert.equal(semantic.completion.completedAnalyticalSections, 0);
   const before = state.db.prepare('SELECT total_changes() n').get();
+  const packages = new SourcePackageService({ db: state.db, artifactStore: state.artifacts, now });
+  const original = await packages.readVerified(semantic.locatedReview.proposal.sourcePackage.packageId);
+  const originalInput = JSON.parse(original.files.find(row => row.path === 'normalized/run.json')!.bytes.toString());
+  const { contractVersion: _version, authorityState: _authority, ...frozenInput } = originalInput;
+  const bridge = new AutomationLocatedReviewBridge({ db: state.db, artifactStore: state.artifacts, now });
+  assert.deepEqual(await bridge.verify(semantic.locatedReview.proposal, frozenInput), semantic.locatedReview.proposal,
+    'historical v1 reads preserve the actual retained proposal without projection');
+  const proposalOutput = original.files.find(row => row.path === 'methods/located-output.json')!;
+  assert.equal(proposalOutput.bytes.toString(), `${canonicalJson(semantic.locatedReview.proposal.output)}\n`);
+  const overlay = await packages.readVerified(semantic.locatedReview.sourcePackage.packageId);
+  for (const file of original.files) {
+    const copied = overlay.files.find(row => row.path === file.path)!;
+    assert.deepEqual(copied, file, 'v2 retains original proposal bytes and metadata exactly');
+  }
+  assert.deepEqual(await bridge.verify(semantic.locatedReview, frozenInput), semantic.locatedReview);
+  for (const mutate of [
+    (value: typeof semantic.locatedReview) => { value.projection.pending[0].reason = 'changed'; },
+    (value: typeof semantic.locatedReview) => { value.output.input.i04[0].span.quote = 'invented action'; },
+    (value: typeof semantic.locatedReview) => { value.projectionId = 'f'.repeat(64); },
+    (value: typeof semantic.locatedReview) => { value.sourcePackage.packageContentSha256 = 'f'.repeat(64); },
+  ]) {
+    const changed = structuredClone(semantic.locatedReview); mutate(changed);
+    await assert.rejects(bridge.verify(changed, frozenInput), /Located projection/, 'replay binds sidecar, output and package identities');
+  }
   const report = await state.service.readReport(workspaceId, runId, 'INSIGHT');
   const html = report.bytes.toString();
-  assert.match(html, /Thạch giòn/);
+  assert.match(html, /Tôi đã dùng sản phẩm/);
   assert.match(html, /&lt;script&gt;bad\(\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /Do not project me|<script>/);
   assert.match(html, /Tách riêng/);
   assert.match(html, /Chưa coding/);
-  assert.match(html, /Bộ quy tắc chưa được duyệt/);
+  const dom = new JSDOM(html);
+  try {
+    const document = dom.window.document;
+    const behavior = document.getElementById('I04')!;
+    assert.equal(behavior.querySelector('tbody q')?.textContent, 'Tôi đã dùng sản phẩm',
+      'admitted source words render in their analytical section, not only the raw appendix');
+    assert.match(behavior.textContent!, /Mã hóa lời nguồn · Kết quả từng phần/);
+    assert.match(behavior.textContent!, /khai báo được đưa vào, thuộc 1 bản ghi nguồn/);
+    assert.match(behavior.textContent!, /QUOTED_TEXT_SCOPE/);
+    assert.doesNotMatch(behavior.textContent!, /0 chú giải đang chờ xử lý/,
+      'the annotation-only pending count must not contradict the retained reading sidecar');
+    assert.doesNotMatch(document.getElementById('I05')!.textContent!, /Mã hóa lời nguồn · Kết quả từng phần/);
+    assert.equal(document.querySelector('a[href="located-insight-bundle.json"]'), null,
+      'automation must not advertise a bundle file it does not serve');
+    assert.match(document.querySelector('#sections > .warning')!.textContent!, /Mục phân tích hoàn chỉnh: 0/);
+    assert.equal(document.querySelectorAll('script, img, [onerror]').length, 0);
+    for (const link of behavior.querySelectorAll<HTMLAnchorElement>('a[href^="#"]'))
+      assert.ok(document.getElementById(link.getAttribute('href')!.slice(1)), 'every source disclosure link resolves');
+  } finally { dom.window.close(); }
   assert.deepEqual((await state.service.readReport(workspaceId, runId, 'INSIGHT')).bytes, report.bytes);
   assert.deepEqual(state.db.prepare('SELECT total_changes() n').get(), before);
   assert.equal(calls, 1);
