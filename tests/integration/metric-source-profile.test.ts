@@ -27,6 +27,45 @@ function manifest(bytes: Buffer) {
 }
 const normalize = (bytes: Buffer) => normalizeMetricWorkbook(bytes, encode(manifest(bytes)));
 
+test('explicit v2 maps current export IDs and missing inline cells while v1 remains strict', () => {
+  const headers = ['Tên sản phẩm', 'Link sản phẩm', 'Giá', 'Số đã bán', 'Doanh thu', 'Thương hiệu',
+    'Giá phân loại cao nhất', 'Giá phân loại nhỏ nhất', 'Link shop', 'Mã sản phẩm', 'Ngành hàng',
+    'Ngành hàng cấp 1', 'Ngành hàng cấp 2', 'Ngành hàng cấp 3', 'Ngày bắt đầu bán', 'Thumbnail',
+    'Tên shop', 'Tổng doanh số', 'Tổng số đánh giá', 'Tổng số đã bán'];
+  const v2Manifest = (b: Buffer) => ({ ...manifest(b), profileId: 'metric-shopee-product-list-sheet1-v2', profileVersion: '2.0.0',
+    source: { ...manifest(b).source, headerSha256: createHash('sha256').update(canonicalJson(headers)).digest('hex') } });
+  const cells = { B2: { value: 'https://shopee.vn/Canxi-vien-i.10.101' }, D2: { type: 'inlineStr', emptyInline: true },
+    N2: { type: 'inlineStr', emptyInline: true }, E2: { type: 'n', value: '9007199254740993' } };
+  const bytes = fixture({ profile: 'v2', cells });
+  const parsed = normalizeMetricWorkbook(bytes, encode(v2Manifest(bytes)));
+  assert.deepEqual(parsed.input.records.map(r => [r.shopId, r.listingId, r.category]), [['10', '101', 'Supplements'], ['20', '102', 'Supplements']]);
+  assert.equal(parsed.input.records[0]!.units.state, 'missing');
+  assert.equal(parsed.input.records[1]!.units.state, 'observed_zero');
+  assert.equal(parsed.input.records[0]!.revenue.source.locator, 'Sheet1!E2');
+  assert.equal(parsed.receipt.evidence[0]!.cells[13]!.rawType, 'inlineStr');
+  assert.equal(parsed.result.scopes[0].revenue.value, '9007199254741043');
+  assert.equal(parsed.result.scopes[1].status, 'BLOCKED_LABELS');
+  assert.deepEqual(normalizeMetricWorkbook(bytes, encode(v2Manifest(bytes))), parsed);
+  for (const [changes, locator, code] of [
+    [{ I2: { value: 'https://shopee.vn/shop/999' } }, 'Sheet1!I2', 'SHOP_ID_MISMATCH'],
+    [{ J2: { value: '1__999__10' } }, 'Sheet1!J2', 'COMPOSITE_ID_MISMATCH'],
+    [{ B2: { value: 'https://shopee.vn/canxi-i.10.101?redirect=999' } }, 'Sheet1!B2', 'PRODUCT_URL_SHAPE'],
+    [{ E1: { value: 'Tổng doanh số' } }, 'Sheet1!A1:T1', 'HEADER_MISMATCH'],
+    [{ N2: { type: 'inlineStr', duplicateInline: true } }, 'Sheet1!N2', 'AMBIGUOUS_INLINE_STRING'],
+  ] as const) {
+    const bad = fixture({ profile: 'v2', cells: { ...cells, ...changes } });
+    assert.throws(() => normalizeMetricWorkbook(bad, encode(v2Manifest(bad))),
+      e => e instanceof MetricSourceRejection && e.locator === locator && e.code === code);
+  }
+  assert.throws(() => normalizeMetricWorkbook(bytes, encode({ ...v2Manifest(bytes), profileVersion: '1.0.0' })), /INVALID_MANIFEST/);
+  const old = fixture({ cells: { N2: { type: 'inlineStr', emptyInline: true } } });
+  assert.throws(() => normalize(old), /AMBIGUOUS_INLINE_STRING/);
+  const oldSlug = fixture({ cells: { B2: cells.B2 } });
+  assert.throws(() => normalize(oldSlug), /PRODUCT_URL_SHAPE/);
+  const reorderedWithoutEmpty = fixture({ profile: 'v2' });
+  assert.throws(() => normalize(reorderedWithoutEmpty), /HEADER_MISMATCH/);
+});
+
 test('normalization can finish before the explicit calculation gate without changing input identity', () => {
   const workbook = fixture();
   const sourceManifest = encode(manifest(workbook));

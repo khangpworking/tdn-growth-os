@@ -24,6 +24,7 @@ const jsonHash = (v: unknown): string => hash(canonicalJson(v));
 const HEADERS = ['Tên sản phẩm', 'Link sản phẩm', 'Giá', 'Số đã bán', 'Doanh thu', 'Ngành hàng', 'Thương hiệu',
   'Giá phân loại cao nhất', 'Giá phân loại nhỏ nhất', 'Link shop', 'Mã sản phẩm', 'Ngành hàng cấp 1', 'Ngành hàng cấp 2',
   'Ngành hàng cấp 3', 'Ngày bắt đầu bán', 'Thumbnail', 'Tên shop', 'Tổng doanh số', 'Tổng số đánh giá', 'Tổng số đã bán'];
+const V2_HEADERS = [...HEADERS.slice(0, 5), ...HEADERS.slice(6, 11), HEADERS[5]!, ...HEADERS.slice(11)];
 type Cell = { type: string; value: string | null; style: string | null; rawType: string | null; rawValue: string | null; numberFormatId: string };
 type RawRow = { row: number; cells: Cell[] };
 
@@ -37,9 +38,9 @@ function json(bytes: Buffer, locator: string): unknown {
   catch { return reject(locator, 'INVALID_JSON_UTF8'); }
 }
 
-function readSheet(bytes: Buffer): RawRow[] {
+function readSheet(bytes: Buffer, allowEmptyInline: boolean): RawRow[] {
   if (bytes.length > 32 * 1024 * 1024) reject('workbook', 'WORKBOOK_SIZE_LIMIT');
-  const run = spawnSync('python3', ['-I', fileURLToPath(new URL('../../../scripts/read-metric-sheet.py', import.meta.url))],
+  const run = spawnSync('python3', ['-I', fileURLToPath(new URL('../../../scripts/read-metric-sheet.py', import.meta.url)), ...(allowEmptyInline ? ['--empty-inline-blank'] : [])],
     { input: bytes, timeout: 30_000, maxBuffer: 64 * 1024 * 1024, shell: false, windowsHide: true });
   if (run.error) reject('workbook', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT');
   if (run.status !== 0) {
@@ -88,10 +89,11 @@ export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Bu
   if (manifest.scope.platform !== 'shopee' || manifest.scope.start > manifest.scope.end) reject('manifest/scope', 'SCOPE_PERIOD_MISMATCH');
   const sourceSha256 = hash(workbook), manifestSha256 = hash(manifestBytes);
   if (sourceSha256 !== manifest.source.sha256) reject('workbook', 'SOURCE_HASH_MISMATCH');
-  const rows = readSheet(workbook);
+  const v2 = manifest.profileId === 'metric-shopee-product-list-sheet1-v2';
+  const rows = readSheet(workbook, v2);
   const header = rows[0];
   if (!header || header.row !== 1 || header.cells.some(c => c.type !== 'text') ||
-      canonicalJson(header.cells.map(c => c.value)) !== canonicalJson(HEADERS) ||
+      canonicalJson(header.cells.map(c => c.value)) !== canonicalJson(v2 ? V2_HEADERS : HEADERS) ||
       jsonHash(header.cells.map(c => c.value)) !== manifest.source.headerSha256) reject('Sheet1!A1:T1', 'HEADER_MISMATCH');
   if (rows.length !== manifest.source.lastRow || rows.some((r, i) => r.row !== i + 1)) reject('Sheet1', 'ROW_RANGE_MISMATCH');
   const input: MetricScopeInput = {
@@ -112,11 +114,12 @@ export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Bu
       if (cell.type !== 'text' || !cell.value?.trim()) reject(ref(String.fromCharCode(65 + index)).locator, 'REQUIRED_TEXT');
       return cell.value;
     };
-    const url = text(1), match = /^https:\/\/shopee\.vn\/product\/([1-9][0-9]{0,127})\/([1-9][0-9]{0,127})$/.exec(url);
+    const url = text(1), match = /^https:\/\/shopee\.vn\/product\/([1-9][0-9]{0,127})\/([1-9][0-9]{0,127})$/.exec(url)
+      ?? (v2 ? /^https:\/\/shopee\.vn\/[^/?#]+-i\.([1-9][0-9]{0,127})\.([1-9][0-9]{0,127})$/.exec(url) : null);
     if (!match) reject(ref('B').locator, 'PRODUCT_URL_SHAPE');
     const shopId = match[1]!, listingId = match[2]!;
-    if (text(9) !== `https://shopee.vn/shop/${shopId}`) reject(ref('J').locator, 'SHOP_ID_MISMATCH');
-    if (text(10) !== `1__${listingId}__${shopId}`) reject(ref('K').locator, 'COMPOSITE_ID_MISMATCH');
+    if (text(v2 ? 8 : 9) !== `https://shopee.vn/shop/${shopId}`) reject(ref(v2 ? 'I' : 'J').locator, 'SHOP_ID_MISMATCH');
+    if (text(v2 ? 9 : 10) !== `1__${listingId}__${shopId}`) reject(ref(v2 ? 'J' : 'K').locator, 'COMPOSITE_ID_MISMATCH');
     const key = `${shopId}/${listingId}`;
     if (seen.has(key)) reject(ref('B').locator, 'DUPLICATE_LISTING');
     seen.add(key);

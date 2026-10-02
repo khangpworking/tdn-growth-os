@@ -143,9 +143,13 @@ def read_workbook(data):
                         reject('Sheet1!' + ref, 'SHARED_STRING_INDEX')
                     value, typ = shared[int(value)], 'text'
                 elif typ == 'inlineStr':
-                    if vals or len(inlines) != 1:
+                    if (sys.argv[1:] == ['--empty-inline-blank'] and not vals and not inlines
+                            and not len(cell) and not (cell.text or '').strip()):
+                        value, typ = None, 'blank'
+                    elif vals or len(inlines) != 1:
                         reject('Sheet1!' + ref, 'AMBIGUOUS_INLINE_STRING')
-                    value, typ = rich_text(inlines[0], 'Sheet1!' + ref), 'text'
+                    else:
+                        value, typ = rich_text(inlines[0], 'Sheet1!' + ref), 'text'
                 elif typ == 'n':
                     typ = 'number' if value is not None else 'blank'
                 elif typ in ('b', 'e', 'str', 'd'):
