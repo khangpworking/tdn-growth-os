@@ -1,0 +1,33 @@
+{
+  "policyRevision": "literal-source-bound-v1",
+  "authorityState": "ADOPTED_FOR_SOURCE_BOUND_DECLARATIONS",
+  "acceptanceTurnId": "01a0fd40-445d-7fe3-a8bf-3679bd9aa61f",
+  "adoptionTurnId": "01a0fd49-67c4-7240-a1b0-5dadbdd84b52",
+  "businessThreadId": "01a0a8fd-02d2-7e71-ba4c-244930d054bd",
+  "acceptedTuple": {
+    "rulesSha256": "a3c5536187322c669dc591cef697fdf832a26546cf8626f5c3b86ac003f30d82",
+    "semanticsSha256": "ae653fadb81d1a8823efb3fff32266e23087d5f43ff6e3a508be71fa74eacd3b",
+    "parserSha256": "1eae3adc45fcb7190dcdb543e9bb55c01388c175dfe64f54dd3ba09acfbfbc2b",
+    "adapterSha256": "10a376b346e0354625803c69f1591e0c8aa8b80cbd5488cb44a62656b43449ba"
+  },
+  "gates": {
+    "eligible": "INCLUDED_AND_ELIGIBLE_ONLY",
+    "evidence": "EXACT_ORIGINAL_TEXT_UTF16_SPANS",
+    "ambiguity": "BLOCK_AFFECTED_READING_NOT_UNRELATED_FAMILY_OR_CLAUSE",
+    "unknownScope": "BLOCK_AFFECTED_RECORD_FAMILY_OR_SHARED_RECORD",
+    "noRuleMatch": "INCOMPLETE_COVERAGE_NOT_COUNTEREVIDENCE",
+    "nonNfc": "BLOCK_RECORD",
+    "provenance": "DECLARED_NOT_HUMAN_REVIEWED",
+    "output": "PARTIAL_WITH_PENDING_SIDECAR",
+    "denominator": "SOURCE_LOCATED_RECORDS_NOT_UNIQUE_PEOPLE_OR_PREVALENCE"
+  },
+  "excludedAuthority": [
+    "SOURCE_AUTHENTICATION",
+    "CATEGORY_ANNUAL_PERSON_ADMISSION",
+    "FINAL_CODE_RATIOS_WHILE_CODING_INCOMPLETE",
+    "SECTION_COMPLETION",
+    "FINAL_REPORT_APPROVAL",
+    "COMMERCIAL_PUBLICATION",
+    "DEPLOYMENT"
+  ]
+}

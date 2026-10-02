@@ -11,6 +11,7 @@ import { FoundationSourcePackageReader } from '../../src/modules/foundation/sour
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { readLiteralReviewRulesV1 } from '../../src/modules/analysis/research-automation/literal-review-coding.js';
 import { buildSourcePackageLiteralReviewDiagnostics } from '../../src/modules/analysis/research-automation/source-package-literal-review-adapter.js';
+import { buildSourcePackageLiteralReviewProjection } from '../../src/modules/analysis/research-automation/source-package-literal-review-projection.js';
 import { locatedInsightFixture, locatedSpan } from '../helpers/located-insight-fixture.js';
 
 const sha = (bytes: Buffer): string => createHash('sha256').update(bytes).digest('hex');
@@ -115,4 +116,31 @@ test('SourcePackage diagnostics reject mismatched identity, self-consistent inve
       eventKind: 'ACTION_REPORTED', attribution: 'SELF_REPORTED' }];
   });
   await assert.rejects(buildSourcePackageLiteralReviewDiagnostics(annotated, state.reader, rules), /LITERAL_DIAGNOSTICS_REQUIRE_UNANNOTATED_INPUT/);
+});
+
+test('SourcePackage declaration overlay binds adopted bytes while preserving diagnostic authority, raw evidence and pending coverage', async t => {
+  const state = await fixture(t);
+  const input = await state.intake();
+  const before = state.db.prepare('SELECT total_changes() n').get();
+  const projected = await buildSourcePackageLiteralReviewProjection(input, state.reader, rules);
+  assert.deepEqual(state.db.prepare('SELECT total_changes() n').get(), before);
+  assert.equal(projected.output.authorityState, 'ADOPTED_FOR_SOURCE_BOUND_DECLARATIONS');
+  assert.equal(projected.output.sectionState, 'PARTIAL');
+  assert.equal(projected.locatedOutput.input.i04.length, 1);
+  assert.equal(projected.locatedOutput.input.i04[0]!.provenance.basis, 'DECLARED');
+  assert.equal(projected.locatedOutput.input.i04[0]!.span.quote, 'Tôi đã dùng quạt');
+  assert.deepEqual(projected.locatedOutput.input.records, state.descriptor.records);
+  assert.deepEqual(projected.output.projection.pending, projected.diagnostics.diagnostics.pending);
+  assert.equal(projected.diagnostics.authorityState, 'RULE_PROPOSAL_ONLY');
+  assert.equal(projected.diagnostics.diagnostics.executionAuthority, 'NONE_RULE_PROPOSAL_ONLY');
+  const policy = projected.files.get('authority/literal-review-projection-policy-v1.json')!;
+  assert.equal(sha(policy), projected.output.policySha256);
+  assert.equal(projected.output.codingSha256, sha(projected.files.get('methods/literal-located-diagnostics.json')!));
+  assert.deepEqual((await buildSourcePackageLiteralReviewProjection(input, state.reader, rules)).bytes, projected.bytes);
+  const { projectionId, ...body } = projected.output;
+  assert.equal(sha(Buffer.from(canonicalJson(body))), projectionId);
+  const changedRules = Buffer.concat([rules, Buffer.from('\n')]);
+  // Valid equivalent JSON is still not the exact adopted rule bytes.
+  await assert.rejects(
+    buildSourcePackageLiteralReviewProjection(input, state.reader, changedRules), /LITERAL_PROJECTION_ACCEPTED_TUPLE_MISMATCH/);
 });

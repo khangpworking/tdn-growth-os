@@ -217,3 +217,56 @@ customer prevalence, annual/category evidence or section completion.
 
 This admission made zero provider calls and no live runtime writes. It did not
 turn the captured shop-sweep subset into complete product history.
+
+### Private production-mapped source version 3
+
+The pure Dami mapper now validates digest/size/media type, bounded UTF-8 JSON,
+exact review row type, safe shop/item IDs and actual comment pointers. It
+preserves native cmtid, rating_star type, review_date, ctime, collected_at and
+model_name metadata without replacing event time with acquisition. Conflicting
+native IDs quarantine all affected rows; equal duplicates remain separate
+located records, not unique people.
+
+Three owner-boundary mapper tests and two existing SourcePackage adapter tests
+passed on isolated Linux (5/5), and strict TypeScript passed. Actual source v3
+retains the mapper's exact source bytes and the original v2 dependency. It
+keeps 62 rows, 20 INCLUDED readable comments and original dates. Source v1/v2
+remain unchanged; immediate v3 retry added zero mutations.
+
+- Mapper SHA-256: `8533b496163822cc00be21bddad0ed1db9462f1de8c8bdba7c7907287507f94a`
+- v3 content SHA-256: `95258666832aec9bedd7e7358e6dec21eaa4d515c88bbdfa3953ba207c361399`
+- v3 manifest SHA-256: `5f22931c323f041b9f69c7b6994808696fbfab85badcabf679b7143d880d3da1`
+- Mapping artifact SHA-256: `a654446f9c551f4816cc13df61b6c8d640c5272dd4fb5558d434907ee4ae3d12`
+- Private receipt SHA-256: `28bf857b3ea2f3333240b11844bbab97aed35eb823fa47d77e1007f40b085360`
+
+No new provider call, report annotation, annual/category admission or live
+runtime write was made. This is transport mapping evidence, not source
+authentication or completed Insight analysis.
+
+### Source-bound declaration overlay from version 3
+
+The separately versioned `literal-source-bound-v1` overlay was executed through
+the production SourcePackage projection wrapper and retained by Foundation in
+the isolated private acceptance store. It preserved original source v3 and the
+proposal-only diagnostic artifact. Exact retry added zero mutations; replay
+matched prepared bytes and the existing Located source verifier validated the
+projected descriptor against original source pointers.
+
+The adopted reading-scope gate admits one I04 declaration from one record and
+three I05 declarations from two records. These are four source-bound candidate
+readings across three records, not four completed analyses or unique people.
+All 100 pending diagnostic items remain in the sidecar. Output is PARTIAL,
+with no final ratios, authenticity, annual/category or final report approval.
+
+- Policy SHA-256: `ba676c8e9e89f7ba0f05ec6157b82414524f6af48697900afe61ac7e0dc64f42`
+- Overlay package content SHA-256: `4c0684cccf0e7bae3be0afd8aa661fb15f0dc842f55482dcb00befd529c93c06`
+- Overlay manifest SHA-256: `ca558e9ca63bb97b95fc128591bacc52d5b84a23c7e9ac70e93626771d115f00`
+- Overlay artifact SHA-256: `cbe5965a9aeacdb5ee5302e921fe7677d1c84346a47b6235187eedb49a1116a1`
+- Private receipt SHA-256: `90b4f9ae3de6112af3af2f6b07ce215e9f58fab4bbfc51f53bc28341615ac33c`
+
+Linux mapper/projection/SourcePackage owner-boundary proof passed 9/9 and strict
+TypeScript passed. The policy is adopted; this exact implementation subsequently
+received business ACCEPT in turn `01a0fd52-5299-78b2-9510-257b2636a5b9` and an
+independent static code audit with no actionable finding. These reviews did not
+read private raw data or rerun tests. No provider call or live-runtime write was
+made. Automation run/UI wiring remains a separate integration step.

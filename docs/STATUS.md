@@ -1,8 +1,8 @@
 # Trạng thái hiện tại
 
-## Literal review/source-failure checkpoint (2026-10-02, uncommitted)
+## Literal review/source-failure checkpoint (2026-10-02, draft PR #110)
 
-The working tree now retains an exact source-bound literal-coding proposal in
+Published checkpoint `38c881020b141a209ea1208f8096be64ab34abb0` retains an exact source-bound literal-coding proposal in
 a real immutable Foundation package. Parser/rule/semantics/schema bytes are
 frozen with the corpus and output. No candidate is admitted to report findings;
 historical reads verify retained bytes without today's parser or provider.
@@ -29,14 +29,23 @@ original date strings without automatic annual/category admission. The new
 SourcePackage adapter retained proposal-only diagnostics for 20 readable
 comments, with zero report annotations and exact retry mutations. The bounded
 grammar's earlier exact tuple received business ACCEPT; the new extraction and
-admission/render policy are under scoped review. Production automation intake
+admission/render policy received scoped ACCEPT and delegated adoption in
+business turns `01a0fd40-445d-7fe3-a8bf-3679bd9aa61f` and
+`01a0fd49-67c4-7240-a1b0-5dadbdd84b52`. The separately versioned source-bound
+projection implementation received business ACCEPT in turn
+`01a0fd52-5299-78b2-9510-257b2636a5b9` and independent code audit with no actionable
+finding. Its Linux full check passed 854 backend, 0 failed, 1 skipped, plus
+frontend/contracts/typechecks/build. Actual private v3 source execution admitted
+one I04 and three I05 source-bound declarations, retaining all 100 pending
+diagnostics, PARTIAL status and unchanged original source versions. No final
+ratio, section completion or verified behavior is claimed. Production automation intake
 for this alternative source remains open. See
 [implementation and proof](handoffs/research-literal-review-coding-v1.md) and
 [source/cost inventory](handoffs/research-source-inventory-20261002.md).
 
 ## Published checkpoint and independent source inventory (2026-10-02)
 
-Draft PR #110 pins the reviewed remediation code at
+An earlier draft PR #110 checkpoint pinned reviewed remediation code at
 `53538fc095ffd092e5f36647b2098ed9c11398bb`; exact-head Linux CI passed in
 [run 37011129241](https://github.com/khangpworking/tdn-growth-os/actions/runs/37011129241).
 It remains unmerged and is not activated on Fedora.

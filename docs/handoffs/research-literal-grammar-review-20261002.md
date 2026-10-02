@@ -64,5 +64,36 @@ missing-ID rows and duplicate/conflicting IDs. Focused Linux owner/sibling tests
 passed 18/18; the full post-extraction check passed 847 backend, 0 failed,
 1 skipped, and 196 frontend plus contracts/typechecks/build. Independent static
 code review found no blocking finding. These are engineering proofs, not an
-automatic extension of semantic ACCEPT. A scoped business review of the new
-tuple and admission/render policy is pending.
+automatic extension of semantic ACCEPT. The business session subsequently
+returned scoped ACCEPT for this exact four-file tuple in turn
+`01a0fd40-445d-7fe3-a8bf-3679bd9aa61f`. It inspected the extraction and adapter
+but did not rerun the engineering checks or open private raw evidence.
+
+## Source-bound projection policy adoption
+
+In turn `01a0fd49-67c4-7240-a1b0-5dadbdd84b52`, the business session confirmed
+`literal-source-bound-v1` as `ADOPTED_FOR_SOURCE_BOUND_DECLARATIONS` under the
+existing A41 owner delegation. This approves the bounded policy, not projection
+code that had not yet been reviewed.
+
+The implementation must bind the exact accepted tuple above, policy version
+and bytes, native SourcePackage/descriptor hashes and codingId in a separate
+overlay. The historical grammar/rules/brief/adapter proposal labels and bytes
+remain unchanged. No generated annotation becomes HUMAN_REVIEWED.
+
+Only INCLUDED/ELIGIBLE source-bound candidates with matching original quotes
+and UTF-16 offsets can be admitted. Same-reading conflicts and overlapping
+ambiguity remain diagnostic. Pending from unrelated clauses or families does
+not veto a usable candidate. Unknown-scope ambiguity blocks its affected
+record/family; NON_NFC_TEXT blocks the record. NO_RULE_MATCH reports incomplete
+coverage, not evidence against an otherwise valid reading.
+
+Projection preserves DECLARED attribution, qualifiers, counterevidence,
+UNKNOWN and pending sidecars. Useful I04/I05 statements remain PARTIAL. Counts
+refer to retained spans and source-located records, not unique people,
+prevalence, accuracy or final ratios while coding is incomplete. Empty
+counterevidence means no counterevidence was encoded, not that none exists.
+
+No additional row labels or questionnaire are required. This adoption excludes
+source authentication, category/annual/person admission, completed sections,
+final report approval, commercial publication and deployment.
