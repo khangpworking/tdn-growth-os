@@ -184,6 +184,26 @@ test('source binding sorts observed windows and marks holes or unexecuted window
   });
 });
 
+test('source binding observes only successful or empty windows and marks failed evidence incomplete', async () => {
+  const capture = syntheticRankCapture();
+  const coverage: QuickSearchResult['coverage'] = [{
+    provider: 'KALODATA', operation: 'PRODUCT_PERIOD_DETAIL', status: 'PARTIAL', semantics: 'PRODUCT_PERIOD_WINDOWS',
+    requestedPeriod: { startDate: '2026-01-01', endDate: '2026-04-29' }, truncated: false,
+    queryWindows: [
+      { window: { startDate: '2026-01-01', endDate: '2026-01-30' }, productRef: 'kalodata:101', status: 'OK', captureIds: [capture.captureId], rows: 1, truncated: false },
+      { window: { startDate: '2026-01-31', endDate: '2026-02-28' }, productRef: 'kalodata:101', status: 'EMPTY', captureIds: [capture.captureId], rows: 0, truncated: false },
+      { window: { startDate: '2026-03-01', endDate: '2026-03-30' }, productRef: 'kalodata:101', status: 'FAILED', captureIds: [capture.captureId], rows: null, truncated: false },
+      { window: { startDate: '2026-03-31', endDate: '2026-04-29' }, productRef: 'kalodata:101', status: 'AMBIGUOUS_NO_RETRY', captureIds: [capture.captureId], rows: null, truncated: false },
+    ],
+    continuation: { required: false, remainingWindows: [], remainingProductRefs: [] }, limitations: [],
+  }];
+  const provider = bindResearchAutomationProvider(syntheticBindingProvider(syntheticQuickResult(syntheticCard(capture.captureId), [capture], coverage)));
+  const result = await provider.quickSearch(quickInput());
+  assert.deepEqual(result.step.coverage[0], {
+    provider: 'kalodata', dataset: 'product_period_detail', state: 'PARTIAL', observedStartDate: '2026-01-01', observedEndDate: '2026-02-28', truncated: true, note: null,
+  });
+});
+
 test('Kalodata collection splits exact requested periods and only sums one product after complete windows', async () => {
   let balanceCalls = 0;
   const seen: Record<string, unknown>[] = [];
@@ -258,6 +278,20 @@ test('SerpApi current discovery maps organic results, strips the key from captur
   assert.deepEqual(result.captures[0]?.responseBytes, Buffer.from(raw));
   assert.equal(result.productObservations.length, 0);
   assert.equal(result.productPeriodSummaries.length, 0);
+});
+
+test('SerpApi bounds returned organic rows at the requested result limit', async () => {
+  const organicResults = Array.from({ length: 11 }, (_, index) => ({
+    position: index + 1, title: `Result ${index + 1}`, link: `https://example.test/${index + 1}`,
+  }));
+  const registry = createResearchAutomationProviderRegistry({
+    kalodataSecretKey: null, serpApiKey: 'synthetic-serp-key', apifyTokenConfigured: false,
+  }, transport(async () => response({ organic_results: organicResults })));
+  const result = await registry.get('SERPAPI').collect(collectInput());
+  assert.equal(result.status, 'SUCCEEDED');
+  assert.equal(result.webResults.length, 10);
+  assert.equal(result.coverage[0]?.truncated, true);
+  assert.equal(result.coverage[0]?.queryWindows[0]?.rows, 10);
 });
 
 test('an aborted SerpApi call records ambiguous usage and does not retry', async () => {

@@ -54,3 +54,30 @@ The final credential-echo inspection additionally found JSON Unicode-escaped sec
 No Windows tests, build or typecheck were run. No live provider calls, real business records, running-operator restart, merge or deployment occurred.
 
 Claude “Competitor mockup report design” audits only the rendered Market/Insight report design (web/PDF), followed by owner acceptance of those reports. It does not approve the automated-research application UI, execution architecture or whole feature. Code review, application UI feedback and owner merge/deployment authorization remain separate; a code/test pass does not substitute for report-design acceptance.
+
+## Owner-authorized pre-merge review (2026-10-02)
+
+The owner authorized merge if code review passes. Root and three rotated Luna
+review lanes inspected lifecycle/persistence, provider/evidence/report boundaries,
+and API/UI authorization and async behavior. Five findings required correction:
+
+1. Shutdown could miss a source operation still reading its request artifact and
+   let a provider call start after the stop request.
+2. Provider cancellation or interruption left downstream steps pending on a
+   terminal run.
+3. Failure inside the final report transaction left the run rendering instead of
+   recording failure; the transaction must publish neither report partially.
+4. Failed or ambiguous source windows incorrectly extended observed coverage.
+5. SerpApi normalized every returned organic row instead of enforcing its
+   requested ten-result bound.
+
+The tests-first Linux run reproduced all five findings through six failing
+assertions/cases (14 passed, 6 failed). After correction, backend typecheck and
+all 27 affected lifecycle/provider/report/API tests passed, with local Chromium
+configured and no skipped tests. Raw-source tables now call their dates query
+periods rather than observed coverage, including a plain-language warning.
+No Windows execution, live provider call, runtime restart or authoritative
+database write was used. Exact final-head CI is recorded in the PR review handoff.
+
+Execution mechanics are now numbered ADR 0006 to avoid colliding with the
+pre-existing ADR 0005 report-evidence ledger; that accepted ledger is unchanged.

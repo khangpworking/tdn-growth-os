@@ -211,10 +211,16 @@ export class ResearchAutomationService {
         } else if (current.status === 'RENDERING') {
           this.#transition(runId, current.revision, 'CANCELLED', acceptedAt);
           this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='CANCELLED',message_code='CANCELLED_BY_OWNER',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state IN ('QUEUED','RUNNING')`).run(acceptedAt, runId);
+          this.#skipPendingSteps(runId, acceptedAt);
         } else {
           this.#transition(runId, current.revision, 'CANCELLED', acceptedAt);
-          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='CANCELLED',message_code='CANCELLED_BY_OWNER',finished_at=? WHERE run_id=? AND state IN ('QUEUED','PENDING')`).run(acceptedAt, runId);
-          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',message_code='SKIPPED_AFTER_STOP',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state='PENDING'`).run(acceptedAt, runId);
+          const queuedStep = current.status === 'QUICK_SEARCH_QUEUED' ? 'QUICK_SEARCH' : current.status === 'COLLECTION_QUEUED' ? 'COLLECTION' : null;
+          if (queuedStep) {
+            this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='CANCELLED',message_code='CANCELLED_BY_OWNER',finished_at=? WHERE run_id=? AND step_id=? AND state='QUEUED'`).run(acceptedAt, runId, queuedStep);
+          } else {
+            this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='CANCELLED',message_code='CANCELLED_BY_OWNER',finished_at=? WHERE run_id=? AND state='RUNNING'`).run(acceptedAt, runId);
+          }
+          this.#skipPendingSteps(runId, acceptedAt);
         }
         this.#db.prepare(`INSERT INTO analysis_research_automation_requests(request_key,run_id,request_kind,request_sha256,accepted_at) VALUES (?,?,?,?,?)`)
           .run(input.requestKey, runId, 'CANCEL', requestSha, acceptedAt);
@@ -290,6 +296,7 @@ export class ResearchAutomationService {
           } else {
             this.#transition(row.runId, toNumber(row.revision), 'INTERRUPTED', at);
             this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='INTERRUPTED',message_code='INTERRUPTED_DURING_PROVIDER_OPERATION',finished_at=? WHERE run_id=? AND state IN ('RUNNING','QUEUED')`).run(at, row.runId);
+            this.#skipPendingSteps(row.runId, at);
           }
         }
       })();
@@ -307,6 +314,7 @@ export class ResearchAutomationService {
           if (!row || TERMINAL_STATUSES.has(row.status)) continue;
           this.#transition(runId, toNumber(row.revision), 'INTERRUPTED', at);
           this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='INTERRUPTED',message_code='OPERATOR_STOPPED',finished_at=? WHERE run_id=? AND state IN ('RUNNING','QUEUED')`).run(at, runId);
+          this.#skipPendingSteps(runId, at);
         }
       })();
     });
@@ -321,34 +329,45 @@ export class ResearchAutomationService {
   }
 
   async #executeSource(row: RunRow, stepId: SourceStepId, externalSignal?: AbortSignal): Promise<boolean> {
-    if (!this.#source) {
-      await this.#settleUnavailable(row, stepId);
-      return true;
-    }
-    const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
-    const scope = row.scopeSha ? await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId) : null;
-    const at = this.#now().toISOString();
     const controller = new AbortController();
     this.#active.set(row.runId, controller);
     const onAbort = () => controller.abort();
     externalSignal?.addEventListener('abort', onAbort, { once: true });
+    if (externalSignal?.aborted) controller.abort();
     try {
+      const source = this.#source;
+      if (!source) {
+        if (!controller.signal.aborted) await this.#settleUnavailable(row, stepId);
+        return true;
+      }
+      const start = await this.#readStartSnapshot(row.startSha, row.workspaceId);
+      const scope = row.scopeSha ? await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, row.runId) : null;
+      if (controller.signal.aborted) return false;
+      const expectedStatus = stepId === 'QUICK_SEARCH' ? 'QUICK_SEARCH_QUEUED' : 'COLLECTION_QUEUED';
+      const beforeClaim = this.#current(row.runId);
+      if (!beforeClaim || beforeClaim.status !== expectedStatus) return false;
+      const at = this.#now().toISOString();
       let claimed = false;
       await withDatabaseMutationMutex(this.#db, async () => {
+        if (controller.signal.aborted) return;
         const current = this.#current(row.runId);
-        if (!current || current.status !== (stepId === 'QUICK_SEARCH' ? 'QUICK_SEARCH_QUEUED' : 'COLLECTION_QUEUED')) return;
+        if (!current || current.status !== expectedStatus) return;
         this.#transition(row.runId, toNumber(current.revision), stepId === 'QUICK_SEARCH' ? 'QUICK_SEARCH_RUNNING' : 'COLLECTING', at);
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='RUNNING',started_at=?,message_code=NULL WHERE run_id=? AND step_id=?`).run(at, row.runId, stepId);
         claimed = true;
       });
       if (!claimed) return false;
+      if (controller.signal.aborted) {
+        await this.#settleSourceFailure(row.runId, stepId, 'CANCELLED_DURING_PROVIDER_OPERATION', 'CANCELLED');
+        return true;
+      }
       const input = stepId === 'QUICK_SEARCH'
         ? ({ runId: row.runId, mode: start.mode, keyword: start.keyword, description: start.description, requestedPeriod: start.requestedPeriod, country: 'VN', asOf: row.createdAt } satisfies QuickSearchInput)
         : ({ runId: row.runId, mode: start.mode, keyword: start.keyword, requestedPeriod: start.requestedPeriod, country: 'VN', selectedProductRefs: scope?.selectedProductIds ?? [], peerProductRefs: scope?.peerProductIds ?? [] } satisfies CollectInput);
       let result: BoundQuickSearchResult | BoundCollectResult;
       try {
         const options: ProviderCallOptions = { signal: controller.signal };
-        result = stepId === 'QUICK_SEARCH' ? await this.#source.quickSearch(input as QuickSearchInput, options) : await this.#source.collect(input as CollectInput, options);
+        result = stepId === 'QUICK_SEARCH' ? await source.quickSearch(input as QuickSearchInput, options) : await source.collect(input as CollectInput, options);
       } catch {
         await this.#settleSourceFailure(row.runId, stepId, controller.signal.aborted ? 'CANCELLED_DURING_PROVIDER_OPERATION' : 'PROVIDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
         return true;
@@ -417,21 +436,32 @@ export class ResearchAutomationService {
     const beforeSave = this.#current(row.runId);
     if (!beforeSave || TERMINAL_STATUSES.has(beforeSave.status)) return true;
     const finished = this.#now().toISOString();
-    await withDatabaseMutationMutex(this.#db, async () => {
-      this.#db.transaction(() => {
+    try {
+      await withDatabaseMutationMutex(this.#db, async () => {
+        this.#db.transaction(() => {
+          const current = this.#current(row.runId);
+          if (!current || TERMINAL_STATUSES.has(current.status)) return;
+          for (const output of outputArtifacts) {
+            this.#registerManifest(output.semantic, 'application/json', finished);
+            this.#registerManifest(output.html, 'text/html; charset=utf-8', finished);
+            if (output.pdf) this.#registerManifest(output.pdf, 'application/pdf', finished);
+            this.#db.prepare(`INSERT INTO analysis_research_automation_outputs(run_id,report_kind,version_sha256,html_sha256,pdf_sha256,pdf_unavailable_code,created_at) VALUES (?,?,?,?,?,?,?)`)
+              .run(row.runId, output.kind, output.semantic.sha256, output.html.sha256, output.pdf?.sha256 ?? null, output.pdf ? null : output.pdfCode, finished);
+          }
+          this.#transition(row.runId, toNumber(current.revision), 'DRAFT_READY', finished);
+          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state='RUNNING'`).run(finished, row.runId);
+        })();
+      });
+    } catch (error) {
+      try {
         const current = this.#current(row.runId);
-        if (!current || TERMINAL_STATUSES.has(current.status)) return;
-        for (const output of outputArtifacts) {
-          this.#registerManifest(output.semantic, 'application/json', finished);
-          this.#registerManifest(output.html, 'text/html; charset=utf-8', finished);
-          if (output.pdf) this.#registerManifest(output.pdf, 'application/pdf', finished);
-          this.#db.prepare(`INSERT INTO analysis_research_automation_outputs(run_id,report_kind,version_sha256,html_sha256,pdf_sha256,pdf_unavailable_code,created_at) VALUES (?,?,?,?,?,?,?)`)
-            .run(row.runId, output.kind, output.semantic.sha256, output.html.sha256, output.pdf?.sha256 ?? null, output.pdf ? null : output.pdfCode, finished);
-        }
-        this.#transition(row.runId, toNumber(current.revision), 'DRAFT_READY', finished);
-        this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state='RUNNING'`).run(finished, row.runId);
-      })();
-    });
+        if (!current || TERMINAL_STATUSES.has(current.status)) return true;
+        await this.#settleSourceFailure(row.runId, 'REPORTS', 'REPORT_RENDER_FAILED', 'FAILED');
+        return true;
+      } catch (settlementError) {
+        throw new AggregateError([error, settlementError], 'Report publication failed and the run could not be settled.');
+      }
+    }
     return true;
     } finally {
       externalSignal?.removeEventListener('abort', onAbort);
@@ -477,7 +507,7 @@ export class ResearchAutomationService {
           .run(outcome, code, resultArtifact.sha256, finished, runId, stepId);
         if (outcome === 'CANCELLED') {
           this.#transition(runId, toNumber(current.revision), 'CANCELLED', finished);
-          this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',message_code='SKIPPED_AFTER_STOP',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state IN ('PENDING','QUEUED')`).run(finished, runId);
+          this.#skipPendingSteps(runId, finished);
         } else if (stepId === 'QUICK_SEARCH') {
           this.#transition(runId, toNumber(current.revision), 'AWAITING_SCOPE', finished);
         } else {
@@ -494,9 +524,12 @@ export class ResearchAutomationService {
     const artifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
+        const current = this.#current(row.runId);
+        const expectedStatus = stepId === 'QUICK_SEARCH' ? 'QUICK_SEARCH_QUEUED' : 'COLLECTION_QUEUED';
+        if (!current || current.status !== expectedStatus) return;
         this.#registerManifest(artifact, 'application/vnd.tdn.research-automation.step+json', at);
-        const current = this.#current(row.runId); if (!current) return;
-        this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='UNAVAILABLE',message_code='PROVIDER_NOT_CONFIGURED',result_sha256=?,finished_at=? WHERE run_id=? AND step_id=? AND state IN ('QUEUED','RUNNING')`).run(artifact.sha256, at, row.runId, stepId);
+        const updated = this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='UNAVAILABLE',message_code='PROVIDER_NOT_CONFIGURED',result_sha256=?,finished_at=? WHERE run_id=? AND step_id=? AND state IN ('QUEUED','RUNNING')`).run(artifact.sha256, at, row.runId, stepId);
+        if (updated.changes !== 1) return;
         if (stepId === 'QUICK_SEARCH') this.#transition(row.runId, toNumber(current.revision), 'AWAITING_SCOPE', at);
         else { this.#transition(row.runId, toNumber(current.revision), 'RENDERING', at); this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='QUEUED' WHERE run_id=? AND step_id='REPORTS'`).run(row.runId); }
       })();
@@ -512,6 +545,7 @@ export class ResearchAutomationService {
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,message_code=?,finished_at=? WHERE run_id=? AND step_id=? AND state='RUNNING'`).run(state, code, at, runId, stepId);
         if (state === 'CANCELLED') {
           this.#transition(runId, toNumber(current.revision), 'CANCELLED', at);
+          this.#skipPendingSteps(runId, at);
           return;
         }
         if (stepId === 'QUICK_SEARCH') {
@@ -526,6 +560,10 @@ export class ResearchAutomationService {
         this.#transition(runId, toNumber(current.revision), 'FAILED', at);
       })();
     });
+  }
+
+  #skipPendingSteps(runId: string, at: string): void {
+    this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',message_code='SKIPPED_AFTER_STOP',finished_at=? WHERE run_id=? AND state IN ('PENDING','QUEUED')`).run(at, runId);
   }
 
   #persistUsage(runId: string, stepId: SourceStepId, result: { readonly provider: string; readonly usage: { readonly requestsIssued: number; readonly paidRequestsIssued: number; readonly ambiguousPaidRequests: number; readonly credits: { readonly status: string; readonly consumed?: number } } }, at: string): void {

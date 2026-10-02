@@ -33,7 +33,7 @@ const LIMITATIONS = [
   'RESULT_URLS_ARE_PROVIDER_REPORTED',
 ] as const;
 
-type SearchPayload = { readonly results: readonly WebDiscoveryResult[]; readonly invalidRows: number };
+type SearchPayload = { readonly results: readonly WebDiscoveryResult[]; readonly invalidRows: number; readonly truncated: boolean };
 
 function unsupportedCoverage(operation: ProviderCoverage['operation'], requestedPeriod: DateWindow | null): ProviderCoverage {
   return {
@@ -58,7 +58,9 @@ function parseResults(data: unknown, retrievedAt: string, captureId: string): Se
   if (!isRecord(data) || !Array.isArray(data.organic_results)) return undefined;
   const results: WebDiscoveryResult[] = [];
   let invalidRows = 0;
-  for (const [index, row] of data.organic_results.entries()) {
+  const rows = data.organic_results;
+  const truncated = rows.length > SERPAPI_LIMITS.maxResults;
+  for (const [index, row] of rows.slice(0, SERPAPI_LIMITS.maxResults).entries()) {
     if (!isRecord(row)) { invalidRows++; continue; }
     const position = typeof row.position === 'number' && Number.isSafeInteger(row.position) && row.position > 0
       ? row.position : index + 1;
@@ -73,7 +75,7 @@ function parseResults(data: unknown, retrievedAt: string, captureId: string): Se
       semantics: 'CURRENT_WEB_SNAPSHOT_NOT_PERIOD_EVIDENCE',
     });
   }
-  return { results, invalidRows };
+  return { results, invalidRows, truncated };
 }
 
 export function createSerpApiProvider(apiKey: string | null, transport: ProviderTransport): ResearchAutomationProvider {
@@ -169,7 +171,7 @@ export function createSerpApiProvider(apiKey: string | null, transport: Provider
       capture.outcome === 'OK' ? (payload?.results.length ? 'OK' : 'EMPTY')
         : isAmbiguous(capture.outcome) ? 'AMBIGUOUS_NO_RETRY'
           : 'FAILED';
-    const truncated = (payload?.results.length ?? 0) >= SERPAPI_LIMITS.maxResults;
+    const truncated = payload?.truncated === true || (payload?.results.length ?? 0) >= SERPAPI_LIMITS.maxResults;
     const coverageStatus: ProviderCoverage['status'] = options.signal?.aborted ? 'CANCELLED'
       : queryStatus === 'OK' || queryStatus === 'EMPTY' ? 'QUERIES_COMPLETE' : 'FAILED';
     const coverage = searchCoverage(requestedPeriod, coverageStatus, {

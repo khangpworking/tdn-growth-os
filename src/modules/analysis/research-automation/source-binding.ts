@@ -120,9 +120,12 @@ function toCoverage(value: {
   readonly queryWindows: readonly { readonly window: DateWindow | null; readonly status: string }[];
   readonly limitations: readonly string[];
 }): import('../../../../contracts/api/research-automation-api.generated.js').ResearchAutomationCoverageSource {
-  const notRun = value.queryWindows.some((item) => item.status === 'NOT_RUN_BOUND' || item.status === 'NOT_RUN_CANCELLED');
-  const dates = value.queryWindows.filter((item) => !item.status.startsWith('NOT_RUN_')).map((item) => item.window).filter((item): item is DateWindow => item !== null).sort(compareWindows);
-  const incomplete = notRun || hasDateHole(dates);
+  // Only a successful or explicitly empty response is an observation. Failed,
+  // ambiguous and unexecuted windows still describe attempted scope, but must
+  // not extend the observed evidence period.
+  const dates = value.queryWindows.filter((item) => item.status === 'OK' || item.status === 'EMPTY')
+    .map((item) => item.window).filter((item): item is DateWindow => item !== null).sort(compareWindows);
+  const incomplete = value.queryWindows.some((item) => item.status !== 'OK' && item.status !== 'EMPTY') || hasDateHole(dates);
   return {
     provider: value.provider.toLowerCase(),
     dataset: value.operation.toLowerCase(),

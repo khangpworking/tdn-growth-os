@@ -1,6 +1,7 @@
-# ADR 0005: Research automation execution boundary
+# ADR 0006: Research automation execution boundary
 
-Status: Proposed pending owner review
+Status: Implemented for the owner-authorized v1 slice. The owner authorized
+merge subject to code review on 2026-10-02; activation remains separate.
 
 ## Context
 

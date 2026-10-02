@@ -22,6 +22,14 @@ cards; unsupported coverage must remain explicit. Separate Market/Insight web
 and PDF outputs must use frozen semantic content. This entry is progress, not
 an assertion that all sources or all 30 methods have completed automation.
 
+The owner authorized merge after code review on 2026-10-02. A rotated root/Luna
+review identified and repaired shutdown admission, terminal downstream-step
+settlement, report-publication failure handling, observed-window coverage and
+the SerpApi response bound. Linux regressions demonstrated RED before the
+repairs and GREEN afterward; backend typecheck and 27/27 affected tests passed,
+including real two-PDF generation. Final-head CI and merge outcome belong to
+PR #109. Live activation and rendered-report design approval remain separate.
+
 ## Private R2 media mirror: active on Fedora localhost (2026-10-02)
 
 Optional `media:r2:archive` copies one explicitly selected active retained

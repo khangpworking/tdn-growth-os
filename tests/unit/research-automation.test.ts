@@ -13,6 +13,7 @@ import {
   type AutomationSourcePort,
   type ResearchAutomationReportRenderer,
 } from '../../src/modules/analysis/research-automation/index.js';
+import type { ResearchAutomationRun } from '../../contracts/api/research-automation-api.generated.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -43,10 +44,10 @@ function syntheticSource(): AutomationSourcePort {
   };
 }
 
-async function fixture(renderer?: ResearchAutomationReportRenderer, source: AutomationSourcePort = syntheticSource()) {
+async function fixture(renderer?: ResearchAutomationReportRenderer, source: AutomationSourcePort = syntheticSource(), artifactStore?: ContentAddressedArtifactStore) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-research-automation-'));
   const db = openDatabase({ databasePath: path.join(root, 'db.sqlite'), now: () => new Date('2026-10-02T00:00:00.000Z') }).db;
-  const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
+  const artifacts = artifactStore ?? new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   const discoveries = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now: () => new Date('2026-10-01T00:00:00.000Z') });
   await discoveries.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'research-automation', title: 'Synthetic discovery workspace' });
   const service = new ResearchAutomationService({
@@ -56,8 +57,8 @@ async function fixture(renderer?: ResearchAutomationReportRenderer, source: Auto
   return { root, db, service };
 }
 
-async function waitFor(service: ResearchAutomationService, workspace: string, run: string, status: string, worker?: ResearchAutomationWorker): Promise<any> {
-  let latest: any;
+async function waitFor(service: ResearchAutomationService, workspace: string, run: string, status: ResearchAutomationRun['status'], worker?: ResearchAutomationWorker): Promise<ResearchAutomationRun> {
+  let latest: ResearchAutomationRun | undefined;
   for (let index = 0; index < 100; index += 1) {
     const value = await service.getRun(workspace, run); latest = value;
     if (worker?.lastError !== undefined) throw worker.lastError;
@@ -95,8 +96,10 @@ test('worker persists raw captures and reaches an immutable partial draft after 
     assert.equal(confirmed.run.status, 'COLLECTION_QUEUED');
     worker.wake();
     const ready = await waitFor(state.service, workspaceId, runId, 'DRAFT_READY', worker);
-    assert.equal(ready.outputs.market.web, true);
-    assert.equal(ready.outputs.market.pdf.available, false);
+    const market = ready.outputs?.market;
+    assert.ok(market);
+    assert.equal(market.web, true);
+    assert.equal(market.pdf.available, false);
     const captureCount = (state.db.prepare('SELECT count(*) AS count FROM analysis_research_automation_captures WHERE run_id=?').get(runId) as { count: bigint }).count;
     assert.equal(captureCount, 2n);
     const html = await state.service.readReport(workspaceId, runId, 'MARKET');
@@ -139,6 +142,45 @@ test('cancelling a delayed renderer closes the reports step and never publishes 
     assert.equal(final.outputs, undefined);
   } finally {
     releaseRenderer();
+    await worker.close();
+    state.db.close();
+    await fs.rm(state.root, { recursive: true, force: true });
+  }
+});
+
+test('cancelling an in-flight provider settles all downstream steps as skipped', async () => {
+  let providerStarted!: () => void;
+  const started = new Promise<void>((resolve) => { providerStarted = resolve; });
+  const base = syntheticSource();
+  const source: AutomationSourcePort = {
+    id: base.id,
+    async quickSearch(input, options) {
+      providerStarted();
+      await new Promise<never>((_resolve, reject) => {
+        options?.signal?.addEventListener('abort', () => reject(new Error('synthetic provider abort')), { once: true });
+      });
+      return base.quickSearch(input, options);
+    },
+    collect: base.collect,
+  };
+  const state = await fixture(undefined, source);
+  const worker = new ResearchAutomationWorker({ service: state.service, db: state.db });
+  try {
+    await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '12121212-1212-4121-8121-121212121212', mode: 'PRODUCT', keyword: 'calcium', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
+    await worker.start();
+    await waitFor(state.service, workspaceId, runId, 'QUICK_SEARCH_RUNNING', worker);
+    await started;
+    const running = await state.service.getRun(workspaceId, runId);
+    const cancelled = await state.service.cancel(workspaceId, runId, { contractVersion: 'research-automation-cancel-v1', requestKey: '13131313-1313-4131-8131-131313131313', expectedRevision: running.revision });
+    assert.equal(cancelled.run.status, 'CANCELLING');
+    const final = await waitFor(state.service, workspaceId, runId, 'CANCELLED', worker);
+    const steps = new Map(final.steps.map((step) => [step.stepId, step]));
+    assert.equal(steps.get('QUICK_SEARCH')?.state, 'CANCELLED');
+    assert.equal(steps.get('COLLECTION')?.state, 'SKIPPED');
+    assert.equal(steps.get('COLLECTION')?.code, 'SKIPPED_AFTER_STOP');
+    assert.equal(steps.get('REPORTS')?.state, 'SKIPPED');
+    assert.equal(steps.get('REPORTS')?.code, 'SKIPPED_AFTER_STOP');
+  } finally {
     await worker.close();
     state.db.close();
     await fs.rm(state.root, { recursive: true, force: true });
@@ -203,6 +245,12 @@ test('worker close interrupts an in-flight provider once and restart does not re
     assert.equal(providerCalls, 1);
     const final = await state.service.getRun(workspaceId, runId);
     assert.equal(final.status, 'INTERRUPTED');
+    const steps = new Map(final.steps.map((step) => [step.stepId, step]));
+    assert.equal(steps.get('QUICK_SEARCH')?.state, 'INTERRUPTED');
+    assert.equal(steps.get('COLLECTION')?.state, 'SKIPPED');
+    assert.equal(steps.get('COLLECTION')?.code, 'SKIPPED_AFTER_STOP');
+    assert.equal(steps.get('REPORTS')?.state, 'SKIPPED');
+    assert.equal(steps.get('REPORTS')?.code, 'SKIPPED_AFTER_STOP');
     assert.equal((state.db.prepare('SELECT count(*) AS count FROM analysis_research_automation_captures WHERE run_id=?').get(runId) as { count: bigint }).count, 1n);
     assert.equal((state.db.prepare("SELECT cost_state AS state FROM analysis_research_automation_usage WHERE run_id=?").get(runId) as { state: string }).state, 'UNKNOWN');
     await restarted.close();
@@ -212,5 +260,87 @@ test('worker close interrupts an in-flight provider once and restart does not re
     if (restarted) await restarted.close();
     state.db.close();
     await fs.rm(state.root, { recursive: true, force: true });
+  }
+});
+
+test('report publication transaction failure settles the run without partial outputs', async () => {
+  const state = await fixture();
+  try {
+    await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '14141414-1414-4141-8141-141414141414', mode: 'PRODUCT', keyword: 'calcium', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET', 'INSIGHT'] });
+    assert.equal(await state.service.processNext(), true);
+    const awaiting = await state.service.getRun(workspaceId, runId);
+    await state.service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1', requestKey: '15151515-1515-4151-8151-151515151515', expectedRevision: awaiting.revision, definition: 'Vietnam calcium products', includeTerms: ['calcium'], excludeTerms: [], selectedProductIds: [cardId], peerProductIds: [cardId] });
+    assert.equal(await state.service.processNext(), true);
+    state.db.exec(`CREATE TRIGGER synthetic_output_publication_failure
+      BEFORE INSERT ON analysis_research_automation_outputs
+      WHEN NEW.report_kind = 'INSIGHT'
+      BEGIN
+        SELECT RAISE(ABORT, 'synthetic output publication failure');
+      END;`);
+
+    await state.service.processNext();
+
+    const failed = await state.service.getRun(workspaceId, runId);
+    assert.equal(failed.status, 'FAILED');
+    assert.equal(failed.steps.find((step) => step.stepId === 'REPORTS')?.state, 'FAILED');
+    assert.equal(failed.steps.find((step) => step.stepId === 'REPORTS')?.code, 'REPORT_RENDER_FAILED');
+    assert.equal((state.db.prepare('SELECT count(*) AS count FROM analysis_research_automation_outputs WHERE run_id=?').get(runId) as { count: bigint }).count, 0n);
+  } finally {
+    state.db.close();
+    await fs.rm(state.root, { recursive: true, force: true });
+  }
+});
+
+test('worker close during artifact read prevents a provider claim', async () => {
+  let readStarted!: () => void;
+  let releaseRead!: () => void;
+  const started = new Promise<void>((resolve) => { readStarted = resolve; });
+  const release = new Promise<void>((resolve) => { releaseRead = resolve; });
+  class DelayedArtifactStore extends ContentAddressedArtifactStore {
+    #delay = false;
+
+    arm(): void {
+      this.#delay = true;
+    }
+
+    override async read(sha256: string, options?: { readonly maxBytes?: number }): Promise<Buffer> {
+      if (this.#delay) {
+        this.#delay = false;
+        readStarted();
+        await release;
+      }
+      return super.read(sha256, options);
+    }
+  }
+  const base = syntheticSource();
+  let providerCalls = 0;
+  const source: AutomationSourcePort = {
+    id: base.id,
+    async quickSearch(input, options) {
+      providerCalls += 1;
+      return base.quickSearch(input, options);
+    },
+    collect: base.collect,
+  };
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-research-automation-artifact-read-'));
+  const artifacts = new DelayedArtifactStore(path.join(root, 'artifacts'));
+  const state = await fixture(undefined, source, artifacts);
+  const worker = new ResearchAutomationWorker({ service: state.service, db: state.db });
+  try {
+    await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '16161616-1616-4161-8161-161616161616', mode: 'PRODUCT', keyword: 'calcium', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
+    artifacts.arm();
+    await worker.start();
+    await started;
+    const closing = worker.close();
+    releaseRead();
+    await closing;
+    assert.equal(providerCalls, 0);
+    assert.equal((await state.service.getRun(workspaceId, runId)).status, 'INTERRUPTED');
+  } finally {
+    releaseRead();
+    await worker.close();
+    state.db.close();
+    await fs.rm(state.root, { recursive: true, force: true });
+    await fs.rm(root, { recursive: true, force: true });
   }
 });
