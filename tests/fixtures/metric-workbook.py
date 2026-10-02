@@ -15,6 +15,8 @@ rows = [headers, ['Synthetic A', 'https://shopee.vn/product/10/101', '900', '2',
         ['Synthetic B', 'https://shopee.vn/product/20/102', '800', '0', '50', 'Health', 'Brand', '', '',
          'https://shopee.vn/shop/20', '1__102__20', 'Health', 'Supplements', '', '2020-01-01', '', 'Shop', '88888', '4', '444']]
 shared = []
+if config.get('profile') == 'v2':
+    rows = [r[:5] + r[6:11] + [r[5]] + r[11:] for r in rows]
 shared_xml = []
 row_xml = []
 for r, values in enumerate(rows, 1):
@@ -32,7 +34,7 @@ for r, values in enumerate(rows, 1):
             shared_xml.append(spec.get('richXml', '<t>' + escape(value) + '</t>'))
             contents = '<v>' + str(len(shared) - 1) + '</v>'
         elif typ == 'inlineStr':
-            contents = '<is>' + spec.get('richXml', '<t>' + escape(value) + '</t>') + '</is>'
+            contents = '' if spec.get('emptyInline') else '<is>' + spec.get('richXml', '<t>' + escape(value) + '</t>') + '</is>'
             if spec.get('duplicateInline'):
                 contents += '<is><t>900</t></is>'
         else:

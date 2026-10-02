@@ -1,5 +1,30 @@
 # Trạng thái hiện tại
 
+## Controlled calcium source collection and Metric v2 compatibility (2026-10-02)
+
+Owner-authorized collection retained 32 exact-byte files privately on Fedora,
+using the existing source-package service and verified zero-mutation retry.
+Metric export contains 224 Shopee rows for 2026-08-30 through 2026-09-28;
+Kalodata returned 200 keyword-ranked TikTok rows (187 unique product IDs),
+without a verified category match. Six SerpApi requests returned trend, related
+query, news and current shopping evidence with distinct periods.
+The original Shopee Actor failed with zero rows; one separate shop-sweep Actor
+returned 143 selected-listing reviews. Its different sampling method remains
+explicit; the unchanged filter retained 12 for reading, not an accuracy result.
+Known Apify charge is USD 0.52637, plus 0.2 Kalodata credits and six SerpApi
+search credits; no USD conversion or subscription attribution is established.
+
+The narrow repair adds explicit Metric v2 mapping while preserving v1 replay.
+Linux validation passed 723 backend tests, frontend checks/build and the
+nine-test normalizer boundary. The new regression fails on pre-fix production
+with INVALID_MANIFEST and passes after the repair. Original export bytes are
+unchanged. A private Metric-only citation preview represents all 30 sections,
+but only six contain partial deterministic drafts; the other providers are not
+yet materialized into those sections. There is no completed 30-section report,
+new live report record, AI call, migration or runtime activation in this work.
+See [task](tasks/controlled-canxi-metric-v2.md) and
+[handoff](handoffs/controlled-canxi-metric-v2.md).
+
 ## Private R2 media mirror: active on Fedora localhost (2026-10-02)
 
 Optional `media:r2:archive` copies one explicitly selected active retained
