@@ -200,3 +200,26 @@ test('local OWNER mode requires enabled writes and the environment switch is exa
   assert.equal(enabled.localTestOwner, true);
   assert.equal(enabled.ownerToken, undefined);
 });
+
+test('R2 operator configuration is explicit and health exposes only non-secret mirror status', async () => {
+  const configuration = fixture(true);
+  const defaults = { frontendDist: configuration.frontendDist, version: '0.1.0' };
+  const env = {
+    TDN_WORKSPACE_DB: configuration.databasePath, TDN_ARTIFACT_ROOT: configuration.artifactRoot,
+    TDN_OPERATOR_APP_PORT: String(configuration.port), TDN_OWNER_API_ENABLED: 'true',
+    TDN_OWNER_API_ACTOR_ID: configuration.ownerActorId, TDN_OWNER_API_TOKEN: configuration.ownerToken,
+    TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: 'a'.repeat(32), TDN_R2_ACCESS_KEY_ID: 'b'.repeat(32),
+    TDN_R2_SECRET_ACCESS_KEY: 'c'.repeat(64), TDN_R2_BUCKET: 'tdn-media', UNRELATED_SECRET: 'never-copy-this',
+  };
+  assert.throws(() => operatorAppConfigurationFromEnvironment({ ...env, TDN_R2_ENABLED: 'yes' }, defaults), /exactly true or false/);
+  assert.throws(() => operatorAppConfigurationFromEnvironment({ ...env, TDN_OWNER_API_ENABLED: 'false' }, defaults), /requires OWNER writes/);
+  const parsed = operatorAppConfigurationFromEnvironment(env, defaults);
+  assert.deepEqual(Object.keys(parsed.r2!).sort(), ['TDN_R2_ACCESS_KEY_ID', 'TDN_R2_ACCOUNT_ID', 'TDN_R2_BUCKET', 'TDN_R2_ENABLED', 'TDN_R2_SECRET_ACCESS_KEY']);
+  await serve(parsed, async (base) => {
+    const response = await fetch(`${base}/healthz`);
+    assert.deepEqual(await response.json(), {
+      status: 'ok', version: '0.1.0', ownerWritesEnabled: true, localTestOwner: false,
+      mediaArchive: { mode: 'private-r2', lastCopy: 'not_attempted', failedCopyAttemptsSinceStart: 0 },
+    });
+  });
+});

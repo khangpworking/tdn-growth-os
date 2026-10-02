@@ -14,6 +14,7 @@ import { registerContentManifest } from '../../src/modules/flow/content-artifact
 import { syntheticPng } from '../helpers/content-images.js';
 import { openContentOwnerApi, openContentReadApi } from '../../src/api/content-api.js';
 import { createFakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
+import { ContentMediaMirror } from '../../src/api/content-media-mirror.js';
 import { createPackageFixture, fixtureBrandId, fixtureCampaignId, imageReply, textReply } from '../helpers/content-package-fixture.js';
 
 const ownerToken = 'synthetic-r2-owner-token-with-32-characters-123';
@@ -32,6 +33,7 @@ async function fixture() {
   let puts = 0;
   let fail = false;
   let corrupt = false;
+  let beforeGet: (() => Promise<void>) | undefined;
   const server = http.createServer(async (req, res) => {
     requests++;
     if (req.method === 'PUT') puts++;
@@ -46,6 +48,7 @@ async function fixture() {
       objects.set(key, { bytes: Buffer.concat(chunks), type: String(req.headers['content-type']) });
       res.writeHead(200); res.end(); return;
     }
+    await beforeGet?.();
     const object = objects.get(key);
     if (!object) { res.writeHead(404); res.end(); return; }
     res.writeHead(200, { 'content-type': object.type, 'content-length': object.bytes.length });
@@ -65,6 +68,7 @@ async function fixture() {
     archive: new R2MediaArchive(client, 'tdn-media'), objects,
     get requests() { return requests; }, get puts() { return puts; },
     set fail(value: boolean) { fail = value; }, set corrupt(value: boolean) { corrupt = value; },
+    set beforeGet(value: (() => Promise<void>) | undefined) { beforeGet = value; },
     async close() { client.destroy(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); },
   };
 }
@@ -167,6 +171,7 @@ test('web uploads copy only committed media; R2 failure preserves local success 
     const retry = await fetch(url, { method: 'POST', headers, body: new Uint8Array(bytes) });
     assert.equal(retry.status, 200); assert.equal((await retry.json() as { exactRetry: boolean }).exactRetry, true);
     assert.equal(owner.mediaArchiveStatus!().lastCopy, 'verified');
+    assert.equal(owner.mediaArchiveStatus!().failedCopyAttemptsSinceStart, 1, 'a successful repair never erases the earlier failure signal');
     assert.deepEqual(local.db.prepare('SELECT (SELECT count(*) FROM flow_content_media) media, (SELECT count(*) FROM artifact_manifests) manifests').get(), counts);
     assert.deepEqual([...remote.objects.values()][0]!.bytes, bytes);
     assert.equal(remote.objects.size, 1, 'existing fixture images were not backfilled');
@@ -200,4 +205,25 @@ test('web poster generation mirrors the exact committed image; retry never gener
     assert.deepEqual(local.db.prepare('SELECT count(*) n FROM flow_content_ai_attempts').get(), attempts);
     assert.equal(owner.mediaArchiveStatus!().lastCopy, 'verified');
   } finally { await writer.close(); owner.close(); local.close(); await remote.close(); }
+});
+
+test('mirror drain waits for an in-flight verification even without a connected HTTP client', async () => {
+  const remote = await fixture(); const local = await createPackageFixture();
+  let release!: () => void; let observed!: () => void;
+  const waiting = new Promise<void>(resolve => { release = resolve; });
+  const entered = new Promise<void>(resolve => { observed = resolve; });
+  remote.beforeGet = async () => { observed(); await waiting; };
+  try {
+    const bytes = syntheticPng(); const artifact = await local.artifacts.put(bytes);
+    registerContentManifest(local.db, artifact, '2026-10-02T00:00:00.000Z', 'image/png');
+    const mirror = new ContentMediaMirror(local.db, local.artifactRoot, remote.archive);
+    const copy = mirror.copy(artifact.sha256);
+    await entered;
+    let drained = false;
+    const drain = mirror.drain().then(() => { drained = true; });
+    await new Promise(resolve => setImmediate(resolve));
+    assert.equal(drained, false, 'shutdown cannot close SQLite/SDK during verification');
+    release(); await copy; await drain;
+    assert.equal(drained, true); assert.equal(mirror.status.lastCopy, 'verified');
+  } finally { release(); local.close(); await remote.close(); }
 });

@@ -54,7 +54,10 @@ five environment fields mirrors new logo/photo uploads and generated posters.
 The successful local receipt remains successful if R2 fails. A sanitized log
 warning and `/healthz.mediaArchive.lastCopy` report `failed`; `verified` means
 the last completed copy passed download verification, not that all historical
-files are archived. Status is process-local and resets to `not_attempted` on
+files are archived. `failedCopyAttemptsSinceStart` is cumulative, remains
+visible after a successful copy, and is not a count of unresolved images.
+The private log records the exact failed digest for the repair command.
+Status is process-local and resets to `not_attempted` on
 restart. No credentials, endpoints or object paths are exposed there.
 
 R2 cannot be enabled on a read-only operator. Browser previews keep using

@@ -144,7 +144,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     try { reports?.close(); } catch { stopped = false; }
     try { owner?.close(); } catch { stopped = false; }
     try { read?.close(); } catch { stopped = false; }
-    r2?.close();
+    try { r2?.close(); } catch { stopped = false; }
     if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
     throw error;
   }
@@ -185,6 +185,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
           server.close((error) => { if (error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING') errors.push(error); resolve(); });
           server.closeIdleConnections();
         });
+        try { await contentOwnerApplication?.drainMediaArchive?.(); } catch (error) { errors.push(error); }
         try { contentOwnerApplication?.close(); } catch (error) { errors.push(error); }
         try { researchGenerationApplication?.close(); } catch (error) { errors.push(error); }
         try { contentReadApplication.close(); } catch (error) { errors.push(error); }

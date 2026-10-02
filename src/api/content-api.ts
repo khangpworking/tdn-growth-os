@@ -156,6 +156,7 @@ export interface ContentOwnerApiConfiguration extends OwnerHttpConfiguration {
 export interface ContentApiApplication {
   readonly handler: (request: IncomingMessage, response: ServerResponse) => void;
   readonly mediaArchiveStatus?: () => ContentMediaMirror['status'];
+  readonly drainMediaArchive?: () => Promise<void>;
   close(): void;
 }
 
@@ -867,7 +868,7 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
     };
 
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers, ideaWriters, packageWriters); };
-    return { handler, ...(mirror ? { mediaArchiveStatus: () => mirror.status } : {}), close: () => db.close() };
+    return { handler, ...(mirror ? { mediaArchiveStatus: () => mirror.status, drainMediaArchive: () => mirror.drain() } : {}), close: () => db.close() };
   } catch (error) {
     db.close();
     throw error;

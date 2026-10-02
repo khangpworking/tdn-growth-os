@@ -29,6 +29,11 @@ Node `24.15.0`, lockfile install, strict backend typecheck: PASS.
 Focused archive plus existing image-inspector tests: **11/11 PASS**.
 Web follow-up: strict backend typecheck and focused SDK/HTTP upload/poster,
 catalog/package API and operator runtime tests: **28/28 PASS** on Fedora.
+Review follow-up: mirror failures are traceable by exact digest in private
+logs; a cumulative failure counter survives later successful copies. Explicit
+drain also waits for copies whose HTTP client has disconnected before closing
+SQLite/SDK. Config/health and drain behavior have focused regression coverage.
+Latest Fedora strict typecheck and R2/operator tests: **14/14 PASS**.
 Test authoring follows test-audit: the two new HTTP tests own post-commit web
 wiring and failure/retry semantics, rather than repeating SDK/image decoding.
 The first run exposed a test-server counting error: its failure response
@@ -53,8 +58,11 @@ silently upgraded as part of this storage feature.
 
 Dedicated bucket-scoped S3 credentials were transferred privately to Fedora
 without exposing values in chat or Git. Wrangler OAuth was not reused.
-The owner authorized web activation and confirmed edits are saved. At this
-commit, no real R2 request, upload or runtime restart has yet occurred.
+The owner authorized web activation and confirmed edits are saved. A bounded
+synthetic live check successfully created and byte-verified one 219-byte PNG;
+the exact retry verified the same object. No real-data transfer, AI provider
+call or authoritative business write occurred. Runtime activation still waits
+for final-head review/CI at this commit.
 
 Before Fedora activation: review/final-head CI, install the approved release
 separately from the active runtime, configure private credentials and authorize
