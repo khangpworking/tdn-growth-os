@@ -1,5 +1,35 @@
 # Trạng thái hiện tại
 
+## Automated research v1: GPT/Luna integration and release verification (2026-10-02)
+
+The owner approved implementation of the reviewed prototype and parallel
+Claude Opus 5.5 high work. An isolated branch from main `2f47e11` contains the
+decision snapshot under [research automation](research-automation/README.md).
+After Claude stopped at quota, the owner authorized GPT and three
+GPT-5.6-luna xhigh lanes to take over. The frontend, durable lifecycle,
+provider binding, HTTP routes and separate retained HTML/PDF outputs are
+implemented. Isolated Linux full verification passed 745 backend and 194
+frontend tests, contract checks, typechecks and build. The production-bundle
+browser journey passed desktop/mobile and reload persistence. [Draft PR #109](https://github.com/khangpworking/tdn-growth-os/pull/109)
+is published. The designated Claude session audits only rendered Market/Insight
+reports, not the automation application UI or whole feature. Report-design
+acceptance, code/owner review and activation are separate. No
+live research, provider call, business decision, deployment or live migration
+has occurred in this task.
+
+The requested scope supports annual periods, Vietnam and real source product
+cards; unsupported coverage must remain explicit. Separate Market/Insight web
+and PDF outputs must use frozen semantic content. This entry is progress, not
+an assertion that all sources or all 30 methods have completed automation.
+
+The owner authorized merge after code review on 2026-10-02. A rotated root/Luna
+review identified and repaired shutdown admission, terminal downstream-step
+settlement, report-publication failure handling, observed-window coverage and
+the SerpApi response bound. Linux regressions demonstrated RED before the
+repairs and GREEN afterward; backend typecheck and 27/27 affected tests passed,
+including real two-PDF generation. Final-head CI and merge outcome belong to
+PR #109. Live activation and rendered-report design approval remain separate.
+
 ## Private R2 media mirror: active on Fedora localhost (2026-10-02)
 
 Optional `media:r2:archive` copies one explicitly selected active retained

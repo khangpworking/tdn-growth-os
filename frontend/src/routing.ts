@@ -4,6 +4,7 @@ import { slugOf, typeBySlug, type PromptType } from './prompt-data-source';
 export type Route =
   | { readonly kind: 'portfolio' }
   | { readonly kind: 'market'; readonly marketId: string }
+  | { readonly kind: 'research'; readonly marketId: string; readonly runId: string | null }
   | { readonly kind: 'product'; readonly marketId: string; readonly productId: string; readonly section: ProductSection }
   | { readonly kind: 'brands' }
   | { readonly kind: 'brand'; readonly brandId: string }
@@ -44,6 +45,12 @@ export function parseRoute(hash: string, state: DemoState): Route {
     parts = normalized.split('/').filter(Boolean).map((part) => decodeURIComponent(part));
   } catch {
     return { kind: 'invalid', hash };
+  }
+  if ((parts.length === 3 || parts.length === 4) && parts[0] === 'markets' && parts[2] === 'research') {
+    if (query !== undefined || !parts[1]) return { kind: 'invalid', hash };
+    return parts.length === 3
+      ? { kind: 'research', marketId: parts[1]!, runId: null }
+      : UUID.test(parts[3]!) ? { kind: 'research', marketId: parts[1]!, runId: parts[3]! } : { kind: 'invalid', hash };
   }
   if (parts.length === 4 && parts[0] === 'content' && parts[2] === 'package' && UUID.test(parts[1]!)) {
     if (parts[3] === 'new') {
@@ -111,6 +118,7 @@ export const routeToHash = {
   prompt: (promptType: PromptType, promptRef: string): string => `#/prompts/${slugOf(promptType)}/${encodeURIComponent(promptRef)}`,
   catalogItem: (brandId: string, itemId: string): string => `#/brands/${encodeURIComponent(brandId)}/products/${encodeURIComponent(itemId)}`,
   market: (marketId: string): string => `#/markets/${encodeURIComponent(marketId)}`,
+  research: (marketId: string, runId: string | null = null): string => `#/markets/${encodeURIComponent(marketId)}/research${runId ? `/${encodeURIComponent(runId)}` : ''}`,
   product: (marketId: string, productId: string, section: ProductSection = 'b8'): string => `#/markets/${encodeURIComponent(marketId)}/products/${encodeURIComponent(productId)}/${section}`,
   reviewTarget: (reviewTargetId: string): string => `#/review-targets/${encodeURIComponent(reviewTargetId)}`,
 };

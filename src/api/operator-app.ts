@@ -16,6 +16,8 @@ import { openReportApi, type ReportApiApplication } from './report-api.js';
 import { openResearchGenerationApi, type ResearchGenerationApiApplication } from './research-generation-api.js';
 import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from './executor-lock.js';
 import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js';
+import { openResearchAutomationApi, researchAutomationApiPath, type ResearchAutomationApiApplication } from './research-automation-api.js';
+import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProviderConfig } from '../modules/analysis/research-automation/providers.js';
 
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
 const ACTOR = /^[a-z][a-z0-9:_-]{2,119}$/;
@@ -47,6 +49,9 @@ export interface OperatorAppConfiguration {
   readonly cliproxy?: CliproxyConfiguration;
   /** Only the five explicit R2 configuration fields; never exposed in health output. */
   readonly r2?: NodeJS.ProcessEnv;
+  readonly researchProviders?: ResearchAutomationProviderConfig;
+  /** Explicit local Chromium executable; absence leaves web drafts usable without PDF. */
+  readonly researchPdfExecutablePath?: string;
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -79,6 +84,8 @@ export function operatorAppConfigurationFromEnvironment(
     ...(environment.TDN_OWNER_API_TOKEN === undefined ? {} : { ownerToken: environment.TDN_OWNER_API_TOKEN }),
     ...(environment.TDN_OWNER_API_ACTOR_ID === undefined ? {} : { ownerActorId: environment.TDN_OWNER_API_ACTOR_ID }),
     ...(cliproxy === undefined ? {} : { cliproxy }),
+    ...(!environment.TDN_KALODATA_SECRET_KEY && !environment.TDN_SERPAPI_API_KEY && !environment.TDN_APIFY_TOKEN ? {} : { researchProviders: researchAutomationProviderConfigFromEnv(environment) }),
+    ...(environment.TDN_RESEARCH_PDF_CHROMIUM === undefined ? {} : { researchPdfExecutablePath: environment.TDN_RESEARCH_PDF_CHROMIUM }),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
@@ -107,6 +114,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   let contentOwner: ContentApiApplication | undefined;
   let reports: ReportApiApplication | undefined;
   let researchGeneration: ResearchGenerationApiApplication | undefined;
+  let researchAutomation: ResearchAutomationApiApplication | undefined;
   let r2: ReturnType<typeof createR2MediaArchive> | undefined;
   try {
     if (configuration.r2) r2 = createR2MediaArchive(configuration.r2);
@@ -136,6 +144,15 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
       token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
     });
+    researchAutomation = openResearchAutomationApi({
+      databasePath, artifactRoot: configuration.artifactRoot, origin,
+      ...(configuration.researchProviders ? { providers: configuration.researchProviders } : {}),
+      ...(configuration.researchPdfExecutablePath ? { pdfExecutablePath: configuration.researchPdfExecutablePath } : {}),
+      ...(configuration.ownerWritesEnabled ? { owner: {
+        databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
+        token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
+      } } : {}),
+    });
   } catch (error) {
     let stopped = true;
     try { researchGeneration?.close(); } catch { stopped = false; }
@@ -155,6 +172,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   const contentOwnerApplication = contentOwner;
   const reportApplication = reports;
   const researchGenerationApplication = researchGeneration;
+  const researchAutomationApplication = researchAutomation;
   const server = http.createServer((request, response) => {
     if (!validAuthority(request, authority)) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Invalid Host authority' } });
     const pathname = rawPathname(request.url, authority);
@@ -162,11 +180,13 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     if (pathname === '/healthz') return health(request, response, configuration.version, configuration.ownerWritesEnabled, localTestOwner, contentOwnerApplication?.mediaArchiveStatus?.());
     if (pathname === '/api/content' || pathname.startsWith('/api/content/')) return contentReadApplication.handler(request, response);
     if (reportApplication && reportApiPath(pathname)) return reportApplication.handler(request, response);
+    if (pathname.startsWith('/api/') && researchAutomationApiPath(pathname)) return researchAutomationApplication.handler(request, response);
     if (pathname === '/api' || pathname.startsWith('/api/')) return readApplication.handler(request, response);
     if (pathname === '/owner-api' || pathname.startsWith('/owner-api/')) {
       if (localTestOwner && !localTestOwnerRequestAllowed(request, origin)) return sendJson(response, 403, { error: { code: 'forbidden', message: 'Local OWNER requests must be same-origin and direct' } });
       if (pathname === '/owner-api/local-test-session') return localTestSession(request, response, origin, localTestSessionToken);
       if (!ownerApplication) return sendJson(response, 403, { error: { code: 'forbidden', message: 'OWNER writes are disabled' } });
+      if (researchAutomationApiPath(pathname)) return researchAutomationApplication.handler(request, response);
       if (pathname.startsWith('/owner-api/research-generation/')) return researchGenerationApplication!.handler(request, response);
       if (pathname === '/owner-api/content' || pathname.startsWith('/owner-api/content/')) return contentOwnerApplication!.handler(request, response);
       return ownerApplication.handler(request, response);
@@ -186,6 +206,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
           server.closeIdleConnections();
         });
         try { await contentOwnerApplication?.drainMediaArchive?.(); } catch (error) { errors.push(error); }
+        try { await researchAutomationApplication.close(); } catch (error) { errors.push(error); }
         try { contentOwnerApplication?.close(); } catch (error) { errors.push(error); }
         try { researchGenerationApplication?.close(); } catch (error) { errors.push(error); }
         try { contentReadApplication.close(); } catch (error) { errors.push(error); }
@@ -397,6 +418,6 @@ function serveStatic(request: IncomingMessage, response: ServerResponse, pathnam
   response.writeHead(200, staticHeaders({ 'Content-Type': file.mime, 'Content-Length': String(file.bytes.length), 'Cache-Control': file.mime.startsWith('text/html') ? 'no-cache' : 'public, max-age=3600' }));
   response.end(request.method === 'HEAD' ? undefined : file.bytes);
 }
-function staticHeaders(extra: Record<string, string>): Record<string, string> { return { ...extra, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" }; }
+function staticHeaders(extra: Record<string, string>): Record<string, string> { return { ...extra, 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer', 'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.ibyteimg.com https://*.byteimg.com https://*.tiktokcdn.com https://*.ttwstatic.com; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'" }; }
 function sendJson(response: ServerResponse, status: number, body: unknown): void { const bytes = Buffer.from(JSON.stringify(body)); response.writeHead(status, staticHeaders({ 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': String(bytes.length), 'Cache-Control': 'no-store' })); response.end(bytes); }
 function sendText(response: ServerResponse, status: number, body: string): void { const bytes = Buffer.from(body); response.writeHead(status, staticHeaders({ 'Content-Type': 'text/plain; charset=utf-8', 'Content-Length': String(bytes.length), 'Cache-Control': 'no-store' })); response.end(bytes); }

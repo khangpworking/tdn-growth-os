@@ -4,6 +4,10 @@ export interface PrecompiledValidator {
   errors?: unknown[] | null;
 }
 
+export declare const researchAutomationRun: PrecompiledValidator;
+export declare const researchAutomationRunList: PrecompiledValidator;
+export declare const researchAutomationReceipt: PrecompiledValidator;
+
 export declare const interpretationIndex: PrecompiledValidator;
 export declare const interpretationDetail: PrecompiledValidator;
 export declare const sectionReadiness: PrecompiledValidator;
