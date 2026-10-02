@@ -41,6 +41,7 @@ const limitationLabels: Readonly<Record<string, string>> = {
   OPERATOR_STOPPED: 'Operator đã dừng khi nguồn đang chạy; không tự chạy lại.',
   EXECUTOR_RESTARTED: 'Operator đã khởi động lại khi nguồn đang chạy; không tự chạy lại.',
   SKIPPED_AFTER_STOP: 'Bước này không chạy vì bước trước đã dừng.',
+  NO_APPROVED_PRODUCT_REFS: 'Không có sản phẩm nào được duyệt nên chưa thu thập chi tiết sản phẩm theo kỳ.',
 };
 
 export function runPhase(status: ResearchAutomationRun['status'] | string): RunPhase { return phaseByStatus[status] ?? 'running'; }

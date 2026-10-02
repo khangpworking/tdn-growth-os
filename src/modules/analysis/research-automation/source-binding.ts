@@ -9,7 +9,7 @@ import type {
   ResearchAutomationProvider,
 } from './providers.js';
 import type { ResearchAutomationProductCard } from '../../../../contracts/api/research-automation-api.generated.js';
-import { ResearchAutomationProviderOutputError, type SourceLimitation, type StepResultDocument } from './model.js';
+import { message, ResearchAutomationProviderOutputError, type SourceLimitation, type SourceStepId, type StepResultDocument, type TypedComparable } from './model.js';
 import type { DateWindow } from './providers.js';
 
 /** The backend-facing source port. Provider-specific credentials and transport stay behind this port. */
@@ -39,12 +39,29 @@ export function bindResearchAutomationProvider(provider: ResearchAutomationProvi
     id: provider.id,
     async quickSearch(input, options) {
       const result = await provider.quickSearch(input, options);
-      return { result, step: quickSearchStep(input.runId, result) };
+      try { return { result, step: quickSearchStep(input.runId, result) }; }
+      catch (error) {
+        if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
+        return { result, step: invalidProviderStep(input.runId, 'QUICK_SEARCH') };
+      }
     },
     async collect(input, options) {
       const result = await provider.collect(input, options);
-      return { result, step: collectStep(input.runId, result) };
+      try { return { result, step: collectStep(input.runId, result) }; }
+      catch (error) {
+        if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
+        return { result, step: invalidProviderStep(input.runId, 'COLLECTION') };
+      }
     },
+  };
+}
+
+/** Rejects normalized projections without losing the completed provider exchange. */
+export function invalidProviderStep(runId: string, stepId: SourceStepId): StepResultDocument {
+  return {
+    contractVersion: 'research-automation-step-result-v1', runId, stepId, outcome: 'FAILED',
+    productCards: [], comparables: [], coverage: [],
+    limitations: [{ code: 'PROVIDER_OUTPUT_INVALID', provider: null, message: message('PROVIDER_OUTPUT_INVALID') }],
   };
 }
 
@@ -62,19 +79,44 @@ function quickSearchStep(runId: string, result: QuickSearchResult): StepResultDo
 }
 
 function collectStep(runId: string, result: CollectResult): StepResultDocument {
+  const comparables: TypedComparable[] = [];
+  const limitations = result.limitations.map((code) => limitation(code, result.provider));
+  const seen = new Set<string>();
+  for (const observation of result.productObservations) {
+    const captureIndex = result.captures.findIndex(capture => capture.captureId === observation.captureId);
+    const capture = result.captures[captureIndex];
+    if (result.provider !== 'KALODATA' || observation.currency !== 'VND' ||
+        !capture || capture.provider !== result.provider || capture.operation !== 'kalodata.product.detail' ||
+        capture.outcome !== 'OK' || capture.productRef !== observation.productRef ||
+        capture.queryWindow?.startDate !== observation.window.startDate || capture.queryWindow.endDate !== observation.window.endDate ||
+        observation.window.startDate < result.requestedPeriod.startDate || observation.window.endDate > result.requestedPeriod.endDate) {
+      throw new ResearchAutomationProviderOutputError('Product observation is missing compatible source capture lineage.');
+    }
+    for (const [metric, value] of [['GMV_VND', observation.revenue], ['UNITS_SOLD', observation.salesVolume]] as const) {
+      if (value === null) continue;
+      // Preserve each source window, not the provider's floating-point period
+      // sum. This keeps one exact capture reference per observation.
+      if (!Number.isFinite(value) || value < 0 || value > Number.MAX_SAFE_INTEGER ||
+          (metric === 'UNITS_SOLD' && !Number.isSafeInteger(value)) || !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(String(value))) {
+        limitations.push(limitation('METRIC_OUTSIDE_SUPPORTED_DECIMAL_RANGE', result.provider));
+        continue;
+      }
+      const key = JSON.stringify([observation.productRef, metric, observation.window]);
+      if (seen.has(key)) throw new ResearchAutomationProviderOutputError('Duplicate product metric window.');
+      seen.add(key);
+      comparables.push({ productId: observation.productRef, provider: result.provider.toLowerCase(), metric, value: String(value), window: observation.window, captureIndex });
+    }
+  }
   return {
     contractVersion: 'research-automation-step-result-v1',
     runId,
     stepId: 'COLLECTION',
     outcome: internalOutcome(result.status),
     productCards: [],
-    // A period sum spans several raw captures, while the backend's compact
-    // comparable contract accepts one capture index. Keep this empty until a
-    // renderer can carry every contributing capture and a verified metric unit.
-    comparables: [],
+    comparables,
     coverage: result.coverage.map(toCoverage),
     limitations: [
-      ...result.limitations.map((code) => limitation(code, result.provider)),
+      ...limitations,
       ...result.webResults.map((value) => limitation(value.semantics, 'SERPAPI')),
     ],
   };

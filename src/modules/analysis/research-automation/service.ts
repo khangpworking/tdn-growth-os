@@ -1,5 +1,11 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type Database from 'better-sqlite3';
+import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
+import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
+import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import { AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory } from './exact-shopee-bridge.js';
+import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
+import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import type {
   ResearchAutomationCancelRequest,
   ResearchAutomationConfirmRequest,
@@ -21,6 +27,7 @@ import type {
   QuickSearchInput,
 } from './providers.js';
 import {
+  invalidProviderStep,
   type AutomationSourcePort,
   type BoundCollectResult,
   type BoundQuickSearchResult,
@@ -56,6 +63,12 @@ export interface ResearchAutomationReportInput {
   readonly scope: ScopeSnapshot;
   readonly collection: StepResultDocument | null;
   readonly captures: readonly CaptureRecord[];
+  readonly descriptiveMethods?: DescriptiveMarketMethods;
+  readonly descriptiveMethodFailure?: 'DESCRIPTIVE_METHOD_FAILED';
+  readonly reviewCorpus?: ResearchReviewCorpus;
+  readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
+  readonly marketInventory?: AutomationMarketMethodSnapshot;
+  readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
 }
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
@@ -82,6 +95,7 @@ export interface ResearchAutomationServiceOptions {
   readonly now?: () => Date;
   readonly uuid?: () => string;
   readonly actorId?: string;
+  readonly shopeeCollectorFactory?: ShopeeCollectorFactory;
 }
 
 export interface ResearchAutomationReadReport {
@@ -100,6 +114,11 @@ interface StepRow { runId: string; stepId: StepId; state: ResearchAutomationRun[
 interface CaptureRow { stepId: SourceStepId; ordinal: bigint | number; artifactSha: string; mediaType: string; provider: string; operation: string; retrievedAt: string; windowStart: string | null; windowEnd: string | null; truncated: number | bigint }
 interface UsageRow { stepId: SourceStepId; ordinal: bigint | number; provider: string; operation: string; requestCount: bigint | number; costState: 'KNOWN' | 'UNKNOWN'; costUnit: 'USD' | 'CREDITS' | null; costAmount: string | null }
 interface OutputRow { reportKind: 'MARKET' | 'INSIGHT'; versionSha: string; htmlSha: string; pdfSha: string | null; pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }
+interface PersistableSourceResult {
+  readonly unsettledProvider?: string;
+  result: BoundQuickSearchResult['result'] | BoundCollectResult['result'] | null;
+  step: StepResultDocument;
+}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -117,6 +136,9 @@ export class ResearchAutomationService {
   readonly #now: () => Date;
   readonly #uuid: () => string;
   readonly #actorId: string;
+  readonly #methods: AutomationDescriptiveMethodBridge;
+  readonly #shopee: AutomationExactShopeeBridge;
+  readonly #marketInventory: AutomationMarketMethodBridge;
   readonly #active = new Map<string, AbortController>();
 
   constructor(options: ResearchAutomationServiceOptions) {
@@ -128,6 +150,9 @@ export class ResearchAutomationService {
     this.#now = options.now ?? (() => new Date());
     this.#uuid = options.uuid ?? randomUUID;
     this.#actorId = options.actorId ?? 'research-automation-worker';
+    this.#methods = new AutomationDescriptiveMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+    this.#shopee = new AutomationExactShopeeBridge(this.#db, this.#artifacts, options.shopeeCollectorFactory);
+    this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
   }
 
   /** Explicit owner start. Workspace verification happens before any artifact or DB write. */
@@ -180,7 +205,8 @@ export class ResearchAutomationService {
       }
       const confirmedAt = this.#now().toISOString();
       const scope: ScopeSnapshot = { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: input.definition,
-        includeTerms: [...input.includeTerms], excludeTerms: [...input.excludeTerms], selectedProductIds: [...input.selectedProductIds], peerProductIds: [...input.peerProductIds] };
+        includeTerms: [...input.includeTerms], excludeTerms: [...input.excludeTerms], selectedProductIds: [...input.selectedProductIds], peerProductIds: [...input.peerProductIds],
+        ...(input.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...input.exactShopeeUrls] } : {}) };
       const stored = await this.#putJson(scope, confirmedAt);
       this.#db.transaction(() => {
         this.#registerManifest(stored, 'application/json', confirmedAt);
@@ -266,6 +292,30 @@ export class ResearchAutomationService {
     if (semantic.contractVersion !== 'research-automation-report-v1' || semantic.runId !== runId || semantic.workspaceId !== workspaceId || semantic.kind !== kind) {
       throw new ResearchAutomationIntegrityError('Stored report semantic artifact has inconsistent identity.');
     }
+    if (semantic.descriptiveMethods !== undefined && semantic.descriptiveMethods !== null) {
+      const frozen = this.#current(runId);
+      if (!frozen?.scopeSha) throw new ResearchAutomationIntegrityError('Stored method output lacks its frozen scope.');
+      await this.#methods.verify(semantic.descriptiveMethods, {
+        runId,
+        start: await this.#readStartSnapshot(frozen.startSha, workspaceId),
+        scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId),
+        collection: await this.#stepDocument(runId, 'COLLECTION'),
+        captures: await this.#captureRecords(runId),
+      });
+    }
+    if (semantic.reviewCorpus !== undefined && semantic.reviewCorpus !== null) {
+      const frozen = this.#current(runId);
+      const collection = await this.#stepDocument(runId, 'COLLECTION');
+      if (kind !== 'INSIGHT' || !frozen?.scopeSha || !frozen.scopeConfirmedAt || !collection?.exactShopee) throw new ResearchAutomationIntegrityError('Stored corpus lacks exact run lineage.');
+      await this.#shopee.verifyCorpus(semantic.reviewCorpus, collection.exactShopee, { runId,
+        start: await this.#readStartSnapshot(frozen.startSha, workspaceId), scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt });
+    }
+    if (semantic.marketInventory !== undefined && semantic.marketInventory !== null) {
+      const frozen = this.#current(runId);
+      if (kind !== 'MARKET' || !frozen?.scopeSha) throw new ResearchAutomationIntegrityError('Stored Market inventory lacks scope.');
+      await this.#marketInventory.verify(semantic.marketInventory, { runId, start: await this.#readStartSnapshot(frozen.startSha, workspaceId),
+        scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), collection: await this.#stepDocument(runId, 'COLLECTION'), captures: await this.#captureRecords(runId) });
+    }
     const sha = pdf ? output.pdfSha! : output.htmlSha;
     const bytes = await this.#readArtifact(sha, pdf ? 64 * 1024 * 1024 : MAX_HTML_BYTES, pdf ? 'application/pdf' : 'text/html; charset=utf-8');
     if (pdf && !bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new ResearchAutomationIntegrityError('Stored PDF has an invalid header.');
@@ -336,7 +386,7 @@ export class ResearchAutomationService {
     if (externalSignal?.aborted) controller.abort();
     try {
       const source = this.#source;
-      if (!source) {
+      if (!source && stepId === 'QUICK_SEARCH') {
         if (!controller.signal.aborted) await this.#settleUnavailable(row, stepId);
         return true;
       }
@@ -361,19 +411,35 @@ export class ResearchAutomationService {
         await this.#settleSourceFailure(row.runId, stepId, 'CANCELLED_DURING_PROVIDER_OPERATION', 'CANCELLED');
         return true;
       }
+      if (stepId === 'COLLECTION' && !scope?.selectedProductIds.length && !scope?.peerProductIds.length && !scope?.exactShopeeUrls?.length) {
+        // An explicit "none" selection still yields a draft, but nothing was
+        // requested, so the step must not read as a successful collection.
+        await this.#settleSourceFailure(row.runId, stepId, 'NO_APPROVED_PRODUCT_REFS', 'SKIPPED');
+        return true;
+      }
       const input = stepId === 'QUICK_SEARCH'
         ? ({ runId: row.runId, mode: start.mode, keyword: start.keyword, description: start.description, requestedPeriod: start.requestedPeriod, country: 'VN', asOf: row.createdAt } satisfies QuickSearchInput)
         : ({ runId: row.runId, mode: start.mode, keyword: start.keyword, requestedPeriod: start.requestedPeriod, country: 'VN', selectedProductRefs: scope?.selectedProductIds ?? [], peerProductRefs: scope?.peerProductIds ?? [] } satisfies CollectInput);
-      let result: BoundQuickSearchResult | BoundCollectResult;
+      let result: PersistableSourceResult;
       try {
         const options: ProviderCallOptions = { signal: controller.signal };
-        result = stepId === 'QUICK_SEARCH' ? await source.quickSearch(input as QuickSearchInput, options) : await source.collect(input as CollectInput, options);
+        result = stepId === 'QUICK_SEARCH' ? await source!.quickSearch(input as QuickSearchInput, options)
+          : source && (scope?.selectedProductIds.length || scope?.peerProductIds.length) ? await source.collect(input as CollectInput, options)
+          : { result: null, step: { contractVersion: 'research-automation-step-result-v1', runId: row.runId, stepId,
+            outcome: 'UNAVAILABLE', productCards: [], comparables: [], coverage: [], limitations: [] } };
       } catch {
-        await this.#settleSourceFailure(row.runId, stepId, controller.signal.aborted ? 'CANCELLED_DURING_PROVIDER_OPERATION' : 'PROVIDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
-        return true;
+        if (stepId !== 'COLLECTION' || !scope?.exactShopeeUrls?.length || controller.signal.aborted) {
+          await this.#settleSourceFailure(row.runId, stepId, controller.signal.aborted ? 'CANCELLED_DURING_PROVIDER_OPERATION' : 'PROVIDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
+          return true;
+        }
+        result = { result: null, unsettledProvider: source!.id.toLowerCase(), step: { ...invalidProviderStep(row.runId, stepId), limitations: [{ code: 'PROVIDER_FAILED', provider: source!.id.toLowerCase(), message: 'Lượt nguồn chưa có biên nhận hoàn tất. Số request và chi phí chưa đối soát; tổng request chỉ gồm các lượt đã ghi nhận.' }] } };
+      }
+      let exact: ExactShopeeAttempt | undefined;
+      if (stepId === 'COLLECTION' && scope?.exactShopeeUrls?.length && !controller.signal.aborted) {
+        exact = await this.#shopee.collect({ runId: row.runId, start, scope, scopeConfirmedAt: row.scopeConfirmedAt! }, controller.signal);
       }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -392,14 +458,22 @@ export class ResearchAutomationService {
     this.#active.set(row.runId, controller);
     const onAbort = () => controller.abort();
     externalSignal?.addEventListener('abort', onAbort, { once: true });
+    if (externalSignal?.aborted) controller.abort();
     try {
     const at = this.#now().toISOString();
+    let claimed = false;
     await withDatabaseMutationMutex(this.#db, async () => {
       const fresh = this.#current(row.runId);
       if (!fresh || fresh.status !== 'RENDERING') return;
       this.#transition(row.runId, toNumber(fresh.revision), 'RENDERING', at);
       this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='RUNNING',started_at=?,message_code=NULL WHERE run_id=? AND step_id='REPORTS' AND state='QUEUED'`).run(at, row.runId);
+      claimed = true;
     });
+    if (!claimed) return false;
+    if (controller.signal.aborted) {
+      await this.#settleSourceFailure(row.runId, 'REPORTS', 'CANCELLED_DURING_REPORT_RENDERING', 'CANCELLED');
+      return true;
+    }
     const fresh = this.#current(row.runId);
     if (!fresh) return false;
     const start = await this.#readStartSnapshot(fresh.startSha, fresh.workspaceId);
@@ -408,14 +482,65 @@ export class ResearchAutomationService {
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
     const captures = await this.#captureRecords(fresh.runId);
-    const input: ResearchAutomationReportInput = { run, start, scope, collection, captures };
     const outputArtifacts: Array<{ kind: 'MARKET' | 'INSIGHT'; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
     try {
+      controller.signal.throwIfAborted();
+      let descriptiveMethods: DescriptiveMarketMethods | undefined;
+      let descriptiveMethodFailure: 'DESCRIPTIVE_METHOD_FAILED' | undefined;
+      let marketInventory: AutomationMarketMethodSnapshot | undefined;
+      let marketInventoryFailure: 'MARKET_INVENTORY_FAILED' | undefined;
+      let reviewCorpus: ResearchReviewCorpus | undefined;
+      let reviewCorpusFailure: 'REVIEW_CORPUS_FAILED' | undefined;
+      if (start.reports.includes('INSIGHT') && collection?.exactShopee) {
+        try { reviewCorpus = await this.#shopee.corpus(collection.exactShopee, { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt! }); }
+        catch { controller.signal.throwIfAborted(); reviewCorpusFailure = 'REVIEW_CORPUS_FAILED'; }
+      }
+      if (start.reports.includes('MARKET')) {
+        try { marketInventory = await this.#marketInventory.execute({ runId: fresh.runId, start, scope, collection, captures }, controller.signal); }
+        catch { controller.signal.throwIfAborted(); marketInventoryFailure = 'MARKET_INVENTORY_FAILED'; }
+        try { descriptiveMethods = await this.#methods.execute({ runId: fresh.runId, start, scope, collection, captures }, controller.signal); }
+        catch {
+          controller.signal.throwIfAborted();
+          // Preserve source-backed drafts and the independent Insight report.
+          // Failed admission must not fall back to presenting unchecked numbers.
+          descriptiveMethodFailure = 'DESCRIPTIVE_METHOD_FAILED';
+        }
+      }
       for (const kind of start.reports) {
         if (controller.signal.aborted) throw new Error('aborted');
-        const rendered = this.#renderer ? await this.#renderer(input, kind, controller.signal) : defaultRenderedReport(input, kind);
-        const semanticBytes = Buffer.from(canonicalJson(rendered.semantic), 'utf8');
-        const html = Buffer.from(rendered.html);
+        let input: ResearchAutomationReportInput = { run, start, scope, captures,
+          collection: kind === 'MARKET' && descriptiveMethodFailure && collection ? { ...collection, comparables: [] } : collection,
+          ...(kind === 'MARKET' && descriptiveMethods ? { descriptiveMethods } : {}),
+          ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
+          ...(kind === 'INSIGHT' && reviewCorpus ? { reviewCorpus } : {}),
+          ...(kind === 'INSIGHT' && reviewCorpusFailure ? { reviewCorpusFailure } : {}),
+          ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
+          ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
+        };
+        const render = async () => {
+          const rendered = this.#renderer ? await this.#renderer(input, kind, controller.signal) : defaultRenderedReport(input, kind);
+          controller.signal.throwIfAborted();
+          if (typeof rendered.semantic !== 'object' || rendered.semantic === null || Array.isArray(rendered.semantic)) throw new ResearchAutomationIntegrityError('Research report semantic output is not an object.');
+          // Method persistence is owned here, not delegated to an optional presentation adapter.
+          const reportSemantic = { ...rendered.semantic, ...(kind === 'MARKET' && descriptiveMethods ? { descriptiveMethods } : {}),
+            ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
+            ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null } : {}),
+            ...(kind === 'INSIGHT' && input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}),
+            ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
+            ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}) };
+          const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
+          const html = Buffer.from(rendered.html);
+          return { rendered, semanticBytes, html };
+        };
+        let prepared = await render();
+        if (kind === 'INSIGHT' && input.reviewCorpus && (prepared.semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || prepared.html.byteLength > MAX_HTML_BYTES)) {
+          // Keep the entire admitted raw collection. Do not truncate quotes or
+          // fail the independent Market report because this view is too large.
+          const { reviewCorpus: _oversizedCorpus, ...withoutCorpus } = input;
+          input = { ...withoutCorpus, reviewCorpusFailure: 'REVIEW_CORPUS_REPORT_TOO_LARGE' };
+          prepared = await render();
+        }
+        const { rendered, semanticBytes, html } = prepared;
         if (semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || html.byteLength > MAX_HTML_BYTES) throw new ResearchAutomationIntegrityError('Research report output exceeds its bound.');
         const semantic = await this.#artifacts.put(semanticBytes);
         const htmlArtifact = await this.#artifacts.put(html);
@@ -430,7 +555,7 @@ export class ResearchAutomationService {
     } catch {
       const current = this.#current(row.runId);
       if (!current || TERMINAL_STATUSES.has(current.status)) return true;
-      await this.#settleSourceFailure(row.runId, 'REPORTS', 'REPORT_RENDER_FAILED', 'FAILED');
+      await this.#settleSourceFailure(row.runId, 'REPORTS', controller.signal.aborted ? 'CANCELLED_DURING_REPORT_RENDERING' : 'REPORT_RENDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
       return true;
     }
     const beforeSave = this.#current(row.runId);
@@ -441,6 +566,7 @@ export class ResearchAutomationService {
         this.#db.transaction(() => {
           const current = this.#current(row.runId);
           if (!current || TERMINAL_STATUSES.has(current.status)) return;
+          controller.signal.throwIfAborted();
           for (const output of outputArtifacts) {
             this.#registerManifest(output.semantic, 'application/json', finished);
             this.#registerManifest(output.html, 'text/html; charset=utf-8', finished);
@@ -456,7 +582,7 @@ export class ResearchAutomationService {
       try {
         const current = this.#current(row.runId);
         if (!current || TERMINAL_STATUSES.has(current.status)) return true;
-        await this.#settleSourceFailure(row.runId, 'REPORTS', 'REPORT_RENDER_FAILED', 'FAILED');
+        await this.#settleSourceFailure(row.runId, 'REPORTS', controller.signal.aborted ? 'CANCELLED_DURING_REPORT_RENDERING' : 'REPORT_RENDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
         return true;
       } catch (settlementError) {
         throw new AggregateError([error, settlementError], 'Report publication failed and the run could not be settled.');
@@ -469,23 +595,45 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: BoundQuickSearchResult | BoundCollectResult, aborted: boolean): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt): Promise<void> {
     const result = bound.result;
-    const step = bound.step;
+    let step = bound.step;
     const now = this.#now().toISOString();
-    try { assertStepDocument(step, runId, stepId); } catch { throw new ResearchAutomationProviderOutputError('Provider returned an invalid step result.'); }
-    if (!Array.isArray(result.captures) || result.captures.length > MAX_CAPTURES_PER_STEP) throw new ResearchAutomationProviderOutputError('Provider returned too many captures.');
     const captures: Array<{ row: CaptureRecord; artifact: StoredArtifact }> = [];
-    for (const [ordinal, capture] of result.captures.entries()) {
-      if ((capture.requestBodyBytes?.byteLength ?? 0) > MAX_CAPTURE_BYTES || (capture.responseBytes?.byteLength ?? 0) > MAX_CAPTURE_BYTES) throw new ResearchAutomationProviderOutputError('Provider capture exceeds its retention bound.');
-      const body = captureEnvelope(capture);
-      if (body.byteLength > MAX_CAPTURE_ENVELOPE_BYTES) throw new ResearchAutomationProviderOutputError('Provider capture envelope exceeds its retention bound.');
+    let envelopes: Array<{ capture: NonNullable<PersistableSourceResult['result']>['captures'][number]; body: Buffer }> = [];
+    try {
+      if (result && (!Array.isArray(result.captures) || result.captures.length > MAX_CAPTURES_PER_STEP)) throw new ResearchAutomationProviderOutputError('Provider returned too many captures.');
+      envelopes = (result?.captures ?? []).map(capture => {
+        if ((capture.requestBodyBytes?.byteLength ?? 0) > MAX_CAPTURE_BYTES || (capture.responseBytes?.byteLength ?? 0) > MAX_CAPTURE_BYTES) throw new ResearchAutomationProviderOutputError('Provider capture exceeds its retention bound.');
+        const body = captureEnvelope(capture);
+        if (body.byteLength > MAX_CAPTURE_ENVELOPE_BYTES) throw new ResearchAutomationProviderOutputError('Provider capture envelope exceeds its retention bound.');
+        return { capture, body };
+      });
+    } catch (error) {
+      if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
+      // Reject this source as a whole, not an arbitrary truncated prefix. The
+      // independent exact collection and its cost receipt must still survive.
+      step = invalidProviderStep(runId, stepId);
+    }
+    for (const [ordinal, { capture, body }] of envelopes.entries()) {
       const artifact = await this.#artifacts.put(body);
       captures.push({ row: {
         stepId, ordinal, artifactSha256: artifact.sha256, mediaType: 'application/vnd.tdn.research-automation.capture+json', provider: capture.provider.toLowerCase(),
         operation: capture.operation.toLowerCase(), retrievedAt: capture.completedAt, window: capture.queryWindow, truncated: false,
       }, artifact });
     }
+    try {
+      assertStepDocument(step, runId, stepId);
+      assertCaptureLineage(step, captures.map(value => value.row));
+    } catch {
+      // Retain the bounded exchange and usage even when its normalized output
+      // cannot be admitted. No invalid observation enters a report.
+      step = invalidProviderStep(runId, stepId);
+    }
+    if (exact) step = { ...step,
+      outcome: exact.reference ? (step.outcome === 'SUCCEEDED' && exact.coverage.state === 'COLLECTED' ? 'SUCCEEDED' : 'PARTIAL') : step.outcome === 'SUCCEEDED' ? 'PARTIAL' : (exact.coverage.state === 'FAILED' || exact.coverage.state === 'CANCELLED') ? exact.coverage.state : step.outcome,
+      coverage: [...step.coverage, exact.coverage], limitations: [...step.limitations, exact.limitation],
+      ...(exact.reference ? { exactShopee: exact.reference } : {}) };
     const resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
@@ -493,15 +641,20 @@ export class ResearchAutomationService {
         this.#registerManifest(resultArtifact, 'application/vnd.tdn.research-automation.step+json', now);
         for (const value of captures) this.#db.prepare(`INSERT INTO analysis_research_automation_captures(run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,window_start,window_end,truncated,retained_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
           .run(runId, stepId, value.row.ordinal, value.row.artifactSha256, value.row.mediaType, value.row.provider, value.row.operation, value.row.retrievedAt, value.row.window?.startDate ?? null, value.row.window?.endDate ?? null, value.row.truncated ? 1 : 0, now);
-        this.#persistUsage(runId, stepId, result, now);
+        if (result) this.#persistUsage(runId, stepId, result, now);
+        else if (bound.unsettledProvider) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,0,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, bound.unsettledProvider, now);
+        if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
+          .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
         if (!current) throw new ResearchAutomationIntegrityError('Run disappeared while saving source output.');
         // close()/restart may have already settled this run as INTERRUPTED.
         // Keep the exact late capture and usage rows, but never reopen a
         // terminal run or mutate its interrupted step.
         if (TERMINAL_STATUSES.has(current.status)) return;
-        const outcome = aborted || result.status === 'CANCELLED' || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
-        const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED' ? 'PROVIDER_FAILED' : null;
+        const outcome = aborted || result?.status === 'CANCELLED' || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
+        const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
+          ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID' : 'PROVIDER_FAILED' : null;
         const finished = this.#now().toISOString();
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state=?,message_code=?,result_sha256=?,finished_at=? WHERE run_id=? AND step_id=? AND state='RUNNING'`)
           .run(outcome, code, resultArtifact.sha256, finished, runId, stepId);
@@ -536,7 +689,7 @@ export class ResearchAutomationService {
     });
   }
 
-  async #settleSourceFailure(runId: string, stepId: SourceStepId | 'REPORTS', code: string, state: 'FAILED' | 'CANCELLED'): Promise<void> {
+  async #settleSourceFailure(runId: string, stepId: SourceStepId | 'REPORTS', code: string, state: 'FAILED' | 'CANCELLED' | 'SKIPPED'): Promise<void> {
     const at = this.#now().toISOString();
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
@@ -605,7 +758,7 @@ export class ResearchAutomationService {
     return {
       contractVersion: 'research-automation-run-v1', runId: row.runId, workspaceId: row.workspaceId, revision: toNumber(row.revision), status: row.status, country: 'VN', mode: row.mode, keyword: row.keyword,
       description: start.description, interview: start.interview, requestedPeriod: start.requestedPeriod, reports: start.reports as ResearchAutomationRun['reports'],
-      definition: scope ? { definition: scope.definition, includeTerms: [...scope.includeTerms], excludeTerms: [...scope.excludeTerms], selectedProductIds: [...scope.selectedProductIds], peerProductIds: [...scope.peerProductIds], confirmedAt: row.scopeConfirmedAt! } : null,
+      definition: scope ? { definition: scope.definition, includeTerms: [...scope.includeTerms], excludeTerms: [...scope.excludeTerms], selectedProductIds: [...scope.selectedProductIds], peerProductIds: [...scope.peerProductIds], confirmedAt: row.scopeConfirmedAt!, ...(scope.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...scope.exactShopeeUrls] } : {}) } : null,
       productCards: [...cards], coverage: { requestedPeriod: start.requestedPeriod, sources: [...coverageSources] }, usage: { entries: usageEntries, requestCount: usageEntries.reduce((total, value) => total + value.requestCount, 0), knownCosts: knownCosts.slice(0, 2), hasUnknownCost: usageEntries.some((value) => value.cost.state === 'UNKNOWN') },
       steps: steps.map((value) => ({ stepId: value.stepId, state: value.state, code: value.code, message: value.code ? safeStepMessage(value.code) : null, startedAt: value.startedAt, finishedAt: value.finishedAt })), blockers,
       ...(outputs ? { outputs } : {}), createdAt: row.createdAt, updatedAt: row.updatedAt,
@@ -692,6 +845,12 @@ export class ResearchAutomationService {
   async #readStepDocument(sha: string, runId: string, stepId: StepId): Promise<StepResultDocument> {
     const value = await this.#readJson<StepResultDocument>(sha, MAX_JSON_ARTIFACT_BYTES, 'application/vnd.tdn.research-automation.step+json');
     assertStepDocument(value, runId, stepId);
+    if (value.exactShopee) {
+      const row = this.#current(runId);
+      if (stepId !== 'COLLECTION' || !row?.scopeSha || !row.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Review source lacks confirmed scope.');
+      await this.#shopee.read(value.exactShopee, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId),
+        scope: await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, runId), scopeConfirmedAt: row.scopeConfirmedAt });
+    }
     return value;
   }
   async #readJson<T>(sha: string, maxBytes: number, mediaType: string): Promise<T> {
@@ -724,12 +883,17 @@ function assertScopeSnapshot(value: unknown, workspaceId: string, runId: string)
       !stringArray(value.excludeTerms, 30, 80) || !stringArray(value.selectedProductIds, 4, 160) || !stringArray(value.peerProductIds, 8, 160)) {
     throw new ResearchAutomationIntegrityError('Stored scope snapshot has inconsistent identity.');
   }
+  if (value.exactShopeeUrls !== undefined) {
+    try { validateExactUrls(value.exactShopeeUrls); } catch { throw new ResearchAutomationIntegrityError('Stored exact listing scope is invalid.'); }
+  }
 }
 
 function assertStepDocument(value: unknown, runId: string, stepId: StepId): asserts value is StepResultDocument {
   const outcomes = new Set(['SUCCEEDED', 'PARTIAL', 'UNAVAILABLE', 'FAILED', 'CANCELLED', 'INTERRUPTED']);
   if (!isRecord(value) || value.contractVersion !== 'research-automation-step-result-v1' || value.runId !== runId || value.stepId !== stepId || !outcomes.has(String(value.outcome)) ||
       !Array.isArray(value.productCards) || !Array.isArray(value.comparables) || !Array.isArray(value.coverage) || !Array.isArray(value.limitations)) throw new ResearchAutomationIntegrityError('Stored step result has inconsistent identity.');
+  if (value.exactShopee !== undefined && (!isRecord(value.exactShopee) || !UUID.test(String(value.exactShopee.collectionId)) ||
+      !/^[a-f0-9]{64}$/.test(String(value.exactShopee.collectionSha256)) || !/^[a-f0-9]{64}$/.test(String(value.exactShopee.requestSha256)))) throw new ResearchAutomationIntegrityError('Stored exact collection reference is invalid.');
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
         typeof comparable.value !== 'string' || !isRecord(comparable.window) || typeof comparable.window.startDate !== 'string' || typeof comparable.window.endDate !== 'string' ||
@@ -744,10 +908,11 @@ function assertCaptureEnvelope(value: Record<string, unknown>, row: CaptureRow):
 }
 
 function assertCaptureLineage(document: StepResultDocument, captures: readonly CaptureRecord[]): void {
-  const stepCaptures = captures.filter((capture) => capture.stepId === document.stepId);
+  const stepCaptures = new Map(captures.filter((capture) => capture.stepId === document.stepId).map(capture => [capture.ordinal, capture]));
   for (const comparable of document.comparables) {
-    const capture = stepCaptures[comparable.captureIndex];
-    if (!capture || capture.truncated || capture.provider !== comparable.provider.toLowerCase()) throw new ResearchAutomationIntegrityError('Stored comparable references an incompatible capture.');
+    const capture = stepCaptures.get(comparable.captureIndex);
+    if (!capture || capture.truncated || capture.provider !== comparable.provider.toLowerCase() ||
+        capture.window?.startDate !== comparable.window.startDate || capture.window.endDate !== comparable.window.endDate) throw new ResearchAutomationIntegrityError('Stored comparable references an incompatible capture.');
   }
 }
 
@@ -771,7 +936,16 @@ function validateStart(value: unknown): ResearchAutomationStartRequest {
   if (object.interview !== undefined) output.interview = validateInterview(object.interview);
   return output;
 }
-function validateConfirm(value: unknown): ResearchAutomationConfirmRequest { const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'expectedRevision', 'definition', 'includeTerms', 'excludeTerms', 'selectedProductIds', 'peerProductIds']); if (object.contractVersion !== 'research-automation-confirm-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Number.isSafeInteger(object.expectedRevision) || object.expectedRevision < 1) throw new ResearchAutomationValidationError('Invalid scope confirmation request.'); return { contractVersion: 'research-automation-confirm-v1', requestKey: object.requestKey, expectedRevision: object.expectedRevision, definition: text(object.definition, 2000, true), includeTerms: terms(object.includeTerms), excludeTerms: terms(object.excludeTerms), selectedProductIds: productIds(object.selectedProductIds, 4), peerProductIds: productIds(object.peerProductIds, 8) }; }
+function validateConfirm(value: unknown): ResearchAutomationConfirmRequest { const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'expectedRevision', 'definition', 'includeTerms', 'excludeTerms', 'selectedProductIds', 'peerProductIds', 'exactShopeeUrls']); if (object.contractVersion !== 'research-automation-confirm-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Number.isSafeInteger(object.expectedRevision) || object.expectedRevision < 1) throw new ResearchAutomationValidationError('Invalid scope confirmation request.'); return { contractVersion: 'research-automation-confirm-v1', requestKey: object.requestKey, expectedRevision: object.expectedRevision, definition: text(object.definition, 2000, true), includeTerms: terms(object.includeTerms), excludeTerms: terms(object.excludeTerms), selectedProductIds: productIds(object.selectedProductIds, 4), peerProductIds: productIds(object.peerProductIds, 8), ...(object.exactShopeeUrls !== undefined ? { exactShopeeUrls: validateExactUrls(object.exactShopeeUrls) } : {}) }; }
+function validateExactUrls(value: unknown): string[] {
+  if (!Array.isArray(value) || value.length > 5) throw new ResearchAutomationValidationError('Choose up to five exact Shopee product URLs.');
+  const urls = value.map(item => text(item, 2000));
+  if (!urls.length) return [];
+  try { selectExactShopeeListings({ contractVersion: '2.0.0', runKey: 'scope-validation', topic: 'URL validation', selectionBasis: 'OWNER_EXACT_URL',
+    source: { label: 'Scope validation only', acquiredAt: '2026-01-01T00:00:00.000Z' }, productUrls: urls }); }
+  catch { throw new ResearchAutomationValidationError('Use distinct https://shopee.vn product links containing shop and item IDs.'); }
+  return urls;
+}
 function validateCancel(value: unknown): ResearchAutomationCancelRequest { const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'expectedRevision']); if (object.contractVersion !== 'research-automation-cancel-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Number.isSafeInteger(object.expectedRevision) || object.expectedRevision < 1) throw new ResearchAutomationValidationError('Invalid cancellation request.'); return { contractVersion: 'research-automation-cancel-v1', requestKey: object.requestKey, expectedRevision: object.expectedRevision }; }
 function validatePeriod(value: unknown): { startDate: string; endDate: string } { const object = plain(value); keys(object, ['startDate', 'endDate']); if (typeof object.startDate !== 'string' || typeof object.endDate !== 'string' || !DATE.test(object.startDate) || !DATE.test(object.endDate) || !validDate(object.startDate) || !validDate(object.endDate)) throw new ResearchAutomationValidationError('Research period must use valid calendar dates.'); const days = inclusiveDays(object as { startDate: string; endDate: string }); if (days < 1 || days > 1096 || object.endDate > todayVN()) throw new ResearchAutomationValidationError('Research period is out of bounds.'); return { startDate: object.startDate, endDate: object.endDate }; }
 function validateReports(value: unknown): ResearchAutomationStartRequest['reports'] { if (!Array.isArray(value) || (value.length !== 1 && value.length !== 2) || value.some((item) => item !== 'MARKET' && item !== 'INSIGHT') || new Set(value).size !== value.length || (value.length === 2 && (value[0] !== 'MARKET' || value[1] !== 'INSIGHT'))) throw new ResearchAutomationValidationError('Choose MARKET, INSIGHT, or both in that order.'); return value as ResearchAutomationStartRequest['reports']; }

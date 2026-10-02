@@ -12,6 +12,7 @@ import { ApifyShopeeCollector, FixtureShopeeCollector, CollectionPendingError } 
 import { ShopeeCollectionService } from '../../src/modules/foundation/shopee-collection-service.js';
 import { ShopeeReviewAnalysisService } from '../../src/modules/analysis/shopee-review-service.js';
 import { digest, jsonBytes, parseJsonBytes, selectShopeeListings, validateListingRequest } from '../../src/modules/foundation/shopee-selection.js';
+import { selectExactShopeeListings, validateExactShopeeRequest } from '../../src/modules/foundation/shopee-exact-selection.js';
 
 const requestBytes = await fs.readFile('tests/fixtures/shopee-listings.synthetic.json');
 const reviewBytes = await fs.readFile('tests/fixtures/shopee-reviews.synthetic.json');
@@ -127,6 +128,63 @@ test('015 fixture → raw SQLite lineage → Python filter → repeat replay wit
   } finally { db.close(); }
 });
 
+test('exact URL intake preserves owner identity and raw evidence without revenue or calcium reinterpretation', async () => {
+  const directory = await root();
+  const { db } = openDatabase({ databasePath: path.join(directory, 'test.sqlite') });
+  try {
+    const artifacts = new ContentAddressedArtifactStore(path.join(directory, 'artifacts'));
+    const foundation = new ShopeeCollectionService(db, artifacts);
+    const originalUrl = 'https://shopee.vn/Thach-dua-Minh-Chau-i.78085196.17678138164?extraParams=%7B%22display_model_id%22%3A107006692820%7D';
+    const request = validateExactShopeeRequest({ contractVersion: '2.0.0', runKey: 'synthetic-exact-jelly', topic: 'Synthetic exact URL intake',
+      selectionBasis: 'OWNER_EXACT_URL', source: { label: 'Synthetic owner request', acquiredAt: '2026-10-02T00:00:00.000Z' }, productUrls: [originalUrl] });
+    const selection = selectExactShopeeListings(request);
+    assert.deepEqual(selection.selected, [{ platform: 'shopee', shopId: '78085196', itemId: '17678138164',
+      productUrl: 'https://shopee.vn/product/78085196/17678138164', submittedUrl: originalUrl }]);
+    const raw = jsonBytes([{ shopId: '78085196', itemId: '17678138164', reviewId: 'synthetic-1', comment: 'Synthetic useful review' },
+      { unexpected: 'Retain malformed raw row' },
+      { shopId: '999', itemId: '888', reviewId: 'synthetic-unselected', comment: 'Not admitted by this selection' }]);
+    const input = await new FixtureShopeeCollector(raw).collect(selection.selected);
+    const bytes = jsonBytes(request);
+    const [saved, concurrent] = await Promise.all([foundation.saveExact(bytes, input), foundation.saveExact(bytes, input)]);
+    assert.equal(saved.packet.collectionId, concurrent.packet.collectionId);
+    assert.equal(saved.packet.contractVersion, '2.0.0');
+    assert.equal(saved.packet.selectionBasis, 'OWNER_EXACT_URL');
+    assert.equal(saved.request.productUrls[0], originalUrl);
+    assert.equal('period' in saved.request, false);
+    assert.equal('periodRevenueVnd' in saved.packet.selected[0]!, false);
+    assert.deepEqual(saved.pages[0]!.bytes, raw);
+    assert.equal((await foundation.readExact(saved.packet.collectionId)).sha256, saved.sha256);
+    const before = db.prepare('SELECT total_changes() AS count').get();
+    assert.equal((await foundation.saveExact(bytes, input)).packet.collectionId, saved.packet.collectionId);
+    assert.equal((await foundation.existingExact(bytes, 'fixture'))?.sha256, saved.sha256);
+    assert.deepEqual(db.prepare('SELECT total_changes() AS count').get(), before);
+    await assert.rejects(foundation.read(saved.packet.collectionId), /not a revenue-ranked/);
+    await assert.rejects(foundation.save(bytes, input), /Invalid listing request/);
+    await assert.rejects(foundation.existingExact(jsonBytes({ ...request, topic: 'changed' }), 'fixture'), /different input bytes/);
+    await assert.rejects(foundation.saveExact(bytes, { ...input, pages: [{ bytes: jsonBytes([]), offset: 0 }] }), /different collection evidence/);
+    await assert.rejects(foundation.saveExact(jsonBytes({ ...request, runKey: 'synthetic-wrong-actor' }), { ...input,
+      actor: { ...input.actor, inputSha256: '0'.repeat(64) } }), /Collector input does not match/);
+    assert.equal((db.prepare('SELECT count(*) AS count FROM foundation_shopee_collections').get() as { count: bigint }).count, 1n);
+    assert.equal((db.prepare('SELECT count(*) AS count FROM analysis_shopee_review_results').get() as { count: bigint }).count, 0n);
+    await fs.writeFile(artifacts.pathForDigest(saved.packet.pages[0]!.sha256), 'corrupt');
+    await assert.rejects(foundation.readExact(saved.packet.collectionId), /digest mismatch/);
+  } finally { db.close(); }
+});
+
+test('exact URL selection rejects unsafe or duplicate identities instead of falling back to similar products', () => {
+  const base = { contractVersion: '2.0.0', runKey: 'synthetic-exact-invalid', topic: 'Synthetic URL admission', selectionBasis: 'OWNER_EXACT_URL',
+    source: { label: 'Synthetic owner request', acquiredAt: '2026-10-02T00:00:00.000Z' }, productUrls: ['https://shopee.vn/product/78085196/17678138164'] };
+  for (const url of ['http://shopee.vn/product/78085196/17678138164', 'https://shopee.vn.evil.example/product/78085196/17678138164',
+    'https://user:password@shopee.vn/product/78085196/17678138164', 'https://shopee.vn/product/78085196/17678138164#fragment',
+    'https://www.tiktok.com/product/17678138164', 'https://shopee.vn/search?keyword=jelly', 'https://shopee.vn/product/0/1',
+    'https://shopee.vn/product/123456789012345678901/1']) {
+    assert.throws(() => selectExactShopeeListings(validateExactShopeeRequest({ ...base, productUrls: [url] })), /Exact Shopee|exact Shopee/);
+  }
+  assert.throws(() => selectExactShopeeListings(validateExactShopeeRequest({ ...base,
+    productUrls: [...base.productUrls, 'https://www.shopee.vn/different-title-i.78085196.17678138164?tracking=x'] })), /Duplicate exact Shopee/);
+  assert.throws(() => validateExactShopeeRequest({ ...base, periodRevenueVnd: '0' }), /Invalid exact/);
+});
+
 test('015 rejects incoherent live collector provenance before writes', async () => {
   const directory = await root();
   const { db } = openDatabase({ databasePath: path.join(directory, 'test.sqlite') });
@@ -181,12 +239,115 @@ const respond = (value: unknown, headers?: HeadersInit): Response => new Respons
   status: 200, ...(headers ? { headers } : {}),
 });
 
+test('opt-in Apify journal retains unverified exact pages when Foundation rejects provider metadata', async t => {
+  for (const mode of ['paid run', 'cancelled partial return', 'existing run'] as const) await t.test(mode, async () => {
+    const directory = await root();
+    const request = validateExactShopeeRequest({ contractVersion: '2.0.0', runKey: 'synthetic-retained-return',
+      topic: 'Synthetic rejected provider metadata', selectionBasis: 'OWNER_EXACT_URL',
+      source: { label: 'Synthetic owner request', acquiredAt: '2026-10-02T00:00:00.000Z' },
+      productUrls: ['https://shopee.vn/product/11/101'] });
+    const bytes = jsonBytes(request);
+    const selected = selectExactShopeeListings(request).selected;
+    const controller = new AbortController();
+    const raw = Buffer.from('[\n' + Array.from({ length: mode === 'cancelled partial return' ? 100 : 2 },
+      (_, index) => JSON.stringify({ shopId: '11', itemId: '101', reviewId: index + 1, comment: 'Synthetic review ' + index }))
+      .join(',\n') + '\n]\n');
+    let requests = 0;
+    let posts = 0;
+    let datasetReads = 0;
+    const collector = new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 1, journalRoot: directory,
+      retainReturnedPages: true,
+      ...(mode === 'existing run' ? { existingRun: { runId: 'RUN1', datasetId: 'DATA1' } } : {}),
+      fetch: async (url, init) => {
+        requests++;
+        if (init?.method === 'POST') { posts++; return respond(runResponse('SUCCEEDED', 0.125, 1)); }
+        const endpoint = new URL(String(url));
+        if (endpoint.pathname.includes('/actor-runs/')) return respond(runResponse('SUCCEEDED', 0.125, 1));
+        if (endpoint.pathname.includes('/key-value-stores/')) return respond({
+          startUrls: selected.map(row => ({ url: row.productUrl })), maxReviewsPerProduct: 500,
+          starFilter: 'all', contentFilter: 'with comments',
+        });
+        datasetReads++;
+        if (datasetReads === 2) { controller.abort(); throw new Error('Synthetic cancelled later page'); }
+        return new Response(Uint8Array.from(raw), { headers: { 'x-apify-pagination-total': '1' } });
+      },
+    });
+    const collected = await collector.collect(selected, digest(bytes), request.runKey, controller.signal);
+    const { db } = openDatabase({ databasePath: path.join(directory, 'test.sqlite') });
+    try {
+      const foundation = new ShopeeCollectionService(db, new ContentAddressedArtifactStore(path.join(directory, 'artifacts')));
+      await assert.rejects(foundation.saveExact(bytes, collected), /Provider total is below fetched rows/);
+      assert.equal((db.prepare('SELECT count(*) AS count FROM foundation_shopee_collections').get() as { count: bigint }).count, 0n);
+      assert.equal((db.prepare('SELECT count(*) AS count FROM artifact_manifests').get() as { count: bigint }).count, 0n);
+    } finally { db.close(); }
+    const retainedDirectory = path.join(directory, request.runKey, 'returned-pages');
+    const files = await fs.readdir(retainedDirectory);
+    const snapshots = files.filter(file => file.startsWith('snapshot-'));
+    assert.equal(snapshots.length, 1);
+    const receiptBytes = await fs.readFile(path.join(retainedDirectory, snapshots[0]!));
+    const receipt = JSON.parse(receiptBytes.toString('utf8'));
+    assert.equal(receipt.admission, 'UNVERIFIED');
+    assert.equal(receipt.requestSha256, digest(bytes));
+    assert.equal(receipt.runKey, request.runKey);
+    assert.deepEqual(receipt.pages, [{ file: `page-${digest(raw)}.json`, sha256: digest(raw), byteSize: raw.length, offset: 0 }]);
+    assert.deepEqual(await fs.readFile(path.join(retainedDirectory, receipt.pages[0].file)), raw);
+    assert.deepEqual(receipt.actor, collected.actor);
+    assert.deepEqual(receipt.warnings, collected.warnings);
+    assert.equal(receiptBytes.includes(Buffer.from('SECRET')), false);
+    assert.equal(posts, mode === 'existing run' ? 0 : 1);
+    assert.equal(datasetReads, mode === 'cancelled partial return' ? 2 : 1);
+    if (mode === 'cancelled partial return') {
+      assert.equal(collected.actor.stopReason, 'dataset_read_failed');
+      assert.equal(collected.actor.status, 'SUCCEEDED');
+      assert.equal(collected.actor.usageTotalUsd, 0.125);
+      assert.ok(receipt.warnings.includes('collection_cancelled_locally_provider_status_unchanged'));
+    }
+    if (process.platform !== 'win32') {
+      assert.equal((await fs.stat(retainedDirectory)).mode & 0o777, 0o700);
+      for (const file of files) assert.equal((await fs.stat(path.join(retainedDirectory, file))).mode & 0o777, 0o600);
+    }
+    const before = requests;
+    await assert.rejects(collector.collect(selected, digest(bytes), request.runKey), /reconcile retained snapshot/);
+    assert.equal(requests, before, 'A full retained journal stops a further attempt before provider work');
+    assert.deepEqual(await fs.readFile(path.join(retainedDirectory, snapshots[0]!)), receiptBytes);
+    assert.deepEqual(await fs.readFile(path.join(retainedDirectory, receipt.pages[0].file)), raw);
+  });
+});
+
+test('opt-in Apify page journal verifies interrupted-write collisions and preserves changed bytes independently', async t => {
+  for (const corrupt of [false, true]) await t.test(corrupt ? 'corrupt same-digest collision' : 'identical and changed pages', async () => {
+    const directory = await root();
+    const selected = selectedFixture().slice(0, 1);
+    const runKey = fixtureRequest().runKey;
+    const retainedDirectory = path.join(directory, runKey, 'returned-pages');
+    await fs.mkdir(retainedDirectory, { recursive: true, mode: 0o700 });
+    const raw = Buffer.from('[ { "reviewId": "synthetic-current" } ]\n');
+    const older = Buffer.from('[ { "reviewId": "synthetic-prior" } ]\n');
+    await fs.writeFile(path.join(retainedDirectory, `page-${digest(older)}.json`), older, { mode: 0o600 });
+    const existingPath = path.join(retainedDirectory, `page-${digest(raw)}.json`);
+    const existingBytes = corrupt ? Buffer.from('synthetic corruption') : raw;
+    await fs.writeFile(existingPath, existingBytes, { mode: 0o600 });
+    const collector = new ApifyShopeeCollector({ token: 'SECRET', maxChargeUsd: 1, journalRoot: directory,
+      retainReturnedPages: true, fetch: async (_url, init) => init?.method === 'POST'
+        ? respond(runResponse()) : new Response(Uint8Array.from(raw)) });
+    if (corrupt) await assert.rejects(collector.collect(selected, digest(requestBytes), runKey), /journal digest mismatch/);
+    else {
+      const collected = await collector.collect(selected, digest(requestBytes), runKey);
+      assert.deepEqual(collected.pages[0]!.bytes, raw);
+      assert.equal((await fs.readdir(retainedDirectory)).filter(file => file.startsWith('snapshot-')).length, 1);
+    }
+    assert.deepEqual(await fs.readFile(existingPath), existingBytes, 'A collision is never overwritten');
+    assert.deepEqual(await fs.readFile(path.join(retainedDirectory, `page-${digest(older)}.json`)), older);
+  });
+});
+
 test('015 Apify: fixed actor, auth header, charge cap, pagination and same-receipt resume without POST', async () => {
   const directory = await root();
   let posts = 0;
   let pages = 0;
   const offsets: string[] = [];
-  const selected = selectShopeeListings(fixtureRequest()).selected.slice(0, 1);
+  const selected = selectShopeeListings(fixtureRequest()).selected.slice(0, 1)
+    .map(({ platform, shopId, itemId, productUrl }) => ({ platform, shopId, itemId, productUrl }));
   const fake: typeof fetch = async (url, init) => {
     const endpoint = new URL(String(url));
     assert.equal(endpoint.origin, 'https://api.apify.com');
@@ -242,6 +403,103 @@ test('015 ambiguous POST is never retried, secrets not surfaced, lock removed', 
   await assert.rejects(() => collector.collect(selected, 'b'.repeat(64), fixtureRequest().runKey), /identity or budget conflict/);
   assert.equal(calls, 1);
   assert.equal((await fs.readdir(path.join(directory, fixtureRequest().runKey))).includes('active.lock'), false);
+});
+
+test('Apify cancellation stops new work while preserving paid journal and completed dataset pages', async t => {
+  for (const timing of ['before start', 'paid POST', 'poll wait', 'dataset read'] as const) await t.test(timing, async () => {
+    const directory = await root();
+    const controller = new AbortController();
+    const selected = selectedFixture().slice(0, 1)
+      .map(({ platform, shopId, itemId, productUrl }) => ({ platform, shopId, itemId, productUrl }));
+    const firstPage = jsonBytes(Array.from({ length: 100 }, (_, index) => ({
+      reviewId: index + 1, shopId: selected[0]!.shopId, itemId: selected[0]!.itemId,
+      ratingStar: 5, comment: 'Synthetic returned review ' + index,
+    })));
+    let posts = 0;
+    let polls = 0;
+    let datasetReads = 0;
+    let transportAborted = false;
+    let waitAborted = false;
+    let faultDelivered = false;
+    const collector = new ApifyShopeeCollector({
+      token: 'SECRET', maxChargeUsd: 1, journalRoot: directory, maxPolls: 1,
+      sleep: async (_ms, signal) => {
+        if (timing === 'poll wait' && !faultDelivered) {
+          faultDelivered = true;
+          controller.abort();
+          waitAborted = signal?.aborted === true;
+        }
+      },
+      fetch: async (url, init) => {
+        const endpoint = new URL(String(url));
+        if (init?.method === 'POST') {
+          posts += 1;
+          if (timing === 'paid POST' && !faultDelivered) {
+            faultDelivered = true;
+            controller.abort();
+            transportAborted = init.signal?.aborted === true;
+            throw new Error('SECRET synthetic cancelled paid exchange');
+          }
+          return respond(runResponse(timing === 'poll wait' ? 'RUNNING' : 'SUCCEEDED', 0.125));
+        }
+        if (endpoint.pathname.includes('/actor-runs/')) {
+          polls += 1;
+          return respond(runResponse('SUCCEEDED', 0.125));
+        }
+        datasetReads += 1;
+        if (timing === 'dataset read') {
+          if (endpoint.searchParams.get('offset') === '0') return new Response(Uint8Array.from(firstPage));
+          if (!faultDelivered) {
+            faultDelivered = true;
+            controller.abort();
+            transportAborted = init?.signal?.aborted === true;
+            throw new Error('SECRET synthetic cancelled dataset exchange');
+          }
+        }
+        return respond([]);
+      },
+    });
+    const receiptDirectory = path.join(directory, fixtureRequest().runKey);
+    if (timing === 'before start') controller.abort();
+    if (timing === 'dataset read') {
+      const partial = await collector.collect(selected, digest(requestBytes), fixtureRequest().runKey, controller.signal);
+      assert.equal(transportAborted, true);
+      assert.equal(partial.pages.length, 1);
+      assert.deepEqual(partial.pages[0]!.bytes, firstPage);
+      assert.equal(partial.pages[0]!.offset, 0);
+      assert.equal(partial.actor.status, 'SUCCEEDED', 'Local cancellation does not prove the Actor was aborted');
+      assert.equal(partial.actor.usageTotalUsd, 0.125);
+      assert.equal(partial.actor.stopReason, 'dataset_read_failed');
+      assert.deepEqual(partial.warnings, ['dataset_read_failed', 'collection_cancelled_locally_provider_status_unchanged']);
+      assert.equal(datasetReads, 2, 'No further page is requested after abort');
+    } else {
+      await assert.rejects(() => collector.collect(selected, digest(requestBytes), fixtureRequest().runKey, controller.signal),
+        error => error instanceof CollectionPendingError && !error.message.includes('SECRET'));
+    }
+    assert.equal((await fs.readdir(directory)).some(name => name === fixtureRequest().runKey), timing !== 'before start');
+    if (timing === 'before start') {
+      assert.equal(posts + polls + datasetReads, 0);
+    } else {
+      const files = await fs.readdir(receiptDirectory);
+      assert.ok(files.includes('start.json'));
+      assert.equal(files.includes('active.lock'), false);
+      assert.equal(files.includes('run.json'), timing !== 'paid POST');
+    }
+    if (timing === 'paid POST') {
+      assert.equal(transportAborted, true);
+      await assert.rejects(() => collector.collect(selected, digest(requestBytes), fixtureRequest().runKey), /outcome unknown/);
+      assert.equal(posts, 1, 'An aborted paid POST must not be replaced automatically');
+    } else {
+      if (timing === 'poll wait') {
+        assert.equal(waitAborted, true);
+        assert.equal(polls + datasetReads, 0, 'An aborted polling wait must not start the next GET');
+      }
+      const resumed = await collector.collect(selected, digest(requestBytes), fixtureRequest().runKey);
+      assert.equal(posts, 1, 'Resume reads the recorded run rather than starting a second one');
+      assert.equal(resumed.actor.runId, 'RUN1');
+      if (timing === 'dataset read') assert.deepEqual(resumed.pages[0]!.bytes, firstPage);
+    }
+  });
 });
 
 test('015 dataset pagination failure preserves earlier pages and explicit partial provenance', async () => {

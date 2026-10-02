@@ -1,5 +1,65 @@
 # Trạng thái hiện tại
 
+## Parallel Market / Insight integration checkpoint (2026-10-02, unreleased)
+
+The approved remediation plan now runs source/method integration in parallel,
+with one owner for the automation service/API/UI. The working tree connects:
+
+- M03/M08: verified Kalodata detail captures → immutable Foundation package →
+  frozen temporal/quote inventory → retained Market report. Unknown measurement
+  semantics still block annual aggregation, growth and unit-price calculations.
+- Insight: explicitly confirmed exact Shopee URLs → existing Foundation exact
+  collection → generic raw review corpus → I03 coverage and I17 source quotes.
+  No calcium-only filter, inferred variant, coded theme or customer prevalence.
+- Optional URL scope input and confirmation; missing source configuration and
+  ambiguous collection are explicit. A token alone does not enable paid review
+  collection; the optional per-run collector cap must also be configured.
+
+Independent Claude review identified API naming, failed-source status and raw
+retention issues; those were corrected with regression proof. Source failures
+are isolated, unknown charges remain unknown, and oversized quote views no longer
+discard the independent Market output. One final Linux full check passed **838
+backend and 196 frontend tests**, contracts, both typechecks and production build.
+A paired synthetic worker run exported both HTML/PDF reports, with no source calls
+or DB writes during replay. This is not live collection, final design approval,
+published-head CI or activation evidence. The previous 804/195 full check below
+belongs to the earlier source snapshot.
+Zero broad analytical sections are certified complete; located Insight coding,
+scope admission, Metric input attachment and remaining section adapters are still
+required. No live runtime, provider, schema or historical-report changes occurred.
+
+## Real-world automation repair in progress (2026-10-02)
+
+The three real-world cases exposed a Vietnam-region parser rejection and a
+second data-loss boundary between provider observations and report inputs.
+The fix branch restores window-bound values and truthful no-product/coverage
+states, with offline retained-response replay and Linux validation. This does
+not complete the 30 analytical sections. Wave 1 now connects verified raw
+Kalodata exchanges through real Foundation source-package intake to existing
+M05/M06 descriptive methods and unranked M07 inventory, with retained replay.
+M09 executes with an explicit empty result when no events exist; it is not
+counted as analytical completion. Compatible Insight evidence and the remaining
+method paths are still pending. See [wave 1 evidence](handoffs/research-remediation-wave1.md),
+[30-section plan](tasks/research-30-section-remediation-plan.vi.md) and
+[repair and remaining work](tasks/research-real-world-data-repair.md).
+The independent Claude review was collected and its package-inventory,
+historical-read, method-isolation and paid-capture-retention findings were
+addressed, with Linux regression/negative-control proof. The business session's
+next-method proposal has a [bounded implementation disposition](research/remediation-contract-review-v1.md);
+generic M08 arithmetic now has offline implementation proof (5/5 Linux tests).
+Exact Shopee URL intake v2 also passed its owning Linux suite (27/27), preserving
+legacy calcium behavior and without fabricated revenue/period fields. These
+are prerequisites, not live automation wiring or completed sections. M03 temporal
+operations now have a separate offline implementation with 6/6 Linux tests.
+Business review found two M08 linkage/unit gaps; both were corrected with focused
+Linux proof and negative controls. A subsequent Claude review's denominator,
+capture-ordinal and failure-copy findings were corrected. The business session
+accepted operation-local denominator clarification 1.1 and statically re-reviewed
+its implementation. Final isolated Linux verification passed 804 backend and 195
+frontend tests, contract generation, typechecks and production build. This is
+unpublished working-tree proof, not final-head GitHub CI or 30-section completion.
+No live deployment or historical report replacement has occurred.
+
 ## Automated research v1: GPT/Luna integration and release verification (2026-10-02)
 
 The owner approved implementation of the reviewed prototype and parallel

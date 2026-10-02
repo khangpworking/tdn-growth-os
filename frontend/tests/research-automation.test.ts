@@ -156,3 +156,73 @@ test('a late successful start response cannot navigate after the editor is unmou
     dom.cleanup();
   }
 });
+
+test('scope cards show the observed quick-search dates as a recent discovery window, not the requested period', async () => {
+  const dom = setupDom();
+  const { createRoot } = await import('react-dom/client');
+  const { default: ScopeConfirm } = await tsImport('../src/research-automation/ScopeConfirm.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/ScopeConfirm');
+  const run: ResearchAutomationRun = { ...successfulRun(), status: 'AWAITING_SCOPE', productCards: [{
+    productId: 'kalodata:101', provider: 'kalodata', sourceProductId: '101', role: 'PRINCIPAL', title: 'Đồ chơi gỗ tổng hợp',
+    sourceUrl: null, imageUrl: null, description: null, descriptionState: 'EMPTY',
+    observedWindow: { startDate: '2026-09-02', endDate: '2026-10-01', label: 'QUICK_SEARCH_RECENT_WINDOW' }, retrievedAt: '2026-10-02T00:00:00.000Z',
+  }] };
+  const root = createRoot(dom.container);
+  try {
+    await act(async () => { root.render(createElement(ScopeConfirm, { run, ownerToken: token, writesAvailable: true, onConfirmed: () => undefined, onConflict: () => undefined })); });
+    const text = dom.container.textContent ?? '';
+    assert.ok(text.includes('Kỳ tìm nhanh gần đây'));
+    assert.ok(text.includes('02/09/2026 → 01/10/2026'));
+    assert.ok(text.includes('không chứng minh dữ liệu cho kỳ nghiên cứu 365 ngày'));
+    assert.equal(text.includes('QUICK_SEARCH_RECENT_WINDOW'), false);
+  } finally {
+    await act(async () => root.unmount());
+    dom.cleanup();
+  }
+});
+
+// UI owns explicit confirmation and field-to-request delivery; service tests
+// own source retention and listing identity verification.
+test('exact Shopee scope blocks duplicate links and sends only after explicit confirmation without requiring discovery cards', async () => {
+  const dom = setupDom();
+  const originalFetch = globalThis.fetch;
+  const bodies: Record<string, unknown>[] = [];
+  const { createRoot } = await import('react-dom/client');
+  const { default: ScopeConfirm } = await tsImport('../src/research-automation/ScopeConfirm.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/ScopeConfirm');
+  const root = createRoot(dom.container);
+  let confirmed = 0;
+  globalThis.fetch = (async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+    return new Response(successfulReceipt(), { status: 202, headers: { 'Content-Type': 'application/json' } });
+  }) as typeof fetch;
+  const fill = async (id: string, value: string) => {
+    const field = dom.container.querySelector<HTMLTextAreaElement>(`#${id}`);
+    assert.ok(field);
+    const setter = Object.getOwnPropertyDescriptor(field.ownerDocument.defaultView!.HTMLTextAreaElement.prototype, 'value')!.set!;
+    await act(async () => { setter.call(field, value); field.dispatchEvent(new field.ownerDocument.defaultView!.Event('input', { bubbles: true })); });
+  };
+  const approve = () => [...dom.container.querySelectorAll('button')].find(button => button.textContent === 'Duyệt định nghĩa')!;
+  const listing = 'https://shopee.vn/product/78085196/17678138164';
+  try {
+    await act(async () => root.render(createElement(ScopeConfirm, { run: { ...successfulRun(), status: 'AWAITING_SCOPE' }, ownerToken: token, writesAvailable: true, onConfirmed: () => { confirmed++; }, onConflict: () => assert.fail('unexpected conflict') })));
+    await fill('ra-definition', 'Thạch dừa đúng listing đã chọn');
+    await fill('ra-exact-urls', `${listing}\nhttps://shopee.vn/alias-i.78085196.17678138164`);
+    assert.equal(approve().disabled, true);
+    assert.match(dom.container.textContent ?? '', /cùng một listing/);
+    await fill('ra-exact-urls', listing);
+    assert.equal(approve().disabled, false);
+    assert.equal(bodies.length, 0);
+    await act(async () => approve().click());
+    const dialog = document.querySelector('[role="dialog"]');
+    assert.ok(dialog);
+    assert.match(dialog.textContent ?? '', /17678138164/);
+    assert.equal(bodies.length, 0);
+    const submit = [...dialog.querySelectorAll('button')].find(button => button.textContent === 'Xác nhận và bắt đầu');
+    assert.ok(submit);
+    await act(async () => submit.click());
+    assert.equal(bodies.length, 1);
+    assert.deepEqual(bodies[0]?.exactShopeeUrls, [listing]);
+    assert.deepEqual(bodies[0]?.selectedProductIds, []);
+    assert.deepEqual(bodies[0]?.peerProductIds, []);
+    assert.equal(confirmed, 1);
+  } finally { await act(async () => root.unmount()); globalThis.fetch = originalFetch; dom.cleanup(); }
+});
