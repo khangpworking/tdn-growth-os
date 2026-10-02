@@ -12,6 +12,7 @@ import { bindResearchAutomationProvider } from '../modules/analysis/research-aut
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
 import { buildResearchAutomationReport } from '../modules/analysis/research-automation/reports.js';
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
+import { ApifyShopeeCollector } from '../platform/collectors/apify-shopee.js';
 import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../modules/analysis/research-automation/model.js';
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
@@ -80,6 +81,15 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected),
+        ...(configuration.providers?.apifyReviews ? { shopeeCollectorFactory: () => {
+          let requests = 0;
+          const config = configuration.providers!.apifyReviews!;
+          // Cover the actor's 300-second timeout plus a small terminal-state
+          // margin. This polls the same run; it never retries a paid POST.
+          return { requestsIssued: () => requests, collector: new ApifyShopeeCollector({ token: config.token, maxChargeUsd: config.maxChargeUsd, maxPolls: 155, retainReturnedPages: true,
+            journalRoot: path.join(path.dirname(path.resolve(configuration.databasePath)), 'research-automation-apify-journal'), contentFilter: 'all',
+            fetch: async (input, init) => { requests++; return fetch(input, init); } }) };
+        } } : {}),
         renderer: async (input, kind, signal) => {
           const report = buildResearchAutomationReport(input, kind);
           if (!pdf) return { ...report, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' };

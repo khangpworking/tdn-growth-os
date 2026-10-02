@@ -14,6 +14,9 @@ const contracts = [
   ['analysis', 'versioned-report-packet'],
   ['analysis', 'm02-scope-method'],
   ['analysis', 'm08-tablet-quote-method'],
+  ['analysis', 'generic-quote-unit'],
+  ['analysis', 'temporal-window-method'],
+  ['analysis', 'research-review-corpus'],
   ['analysis', 'm13-provenance-appendix'],
   ['analysis', 'i03-research-method'],
   ['analysis', 'i17-evidence-trace'],
@@ -32,6 +35,7 @@ const contracts = [
   ['analysis', 'prepared-report-semantic-content'],
   ['analysis', 'metric-source-manifest'],
   ['analysis', 'metric-source-labels'],
+  ['analysis', 'automation-metric-source'],
   ['analysis', 'metric-input-preparation-request'],
   ['analysis', 'metric-input-preparation-result'],
   ['analysis', 'metric-preparation-readiness-result'],
@@ -55,6 +59,8 @@ const contracts = [
   ['analysis', 'tablet-quote-output'],
   ['foundation', 'shopee-listing-request'],
   ['foundation', 'shopee-collection'],
+  ['foundation', 'shopee-exact-request'],
+  ['foundation', 'shopee-exact-collection'],
   ['foundation', 'apify-shopee-rows'],
   ['analysis', 'shopee-review-result'],
   ['foundation', 'manual-observation'],
@@ -163,7 +169,7 @@ for (const [module, contract] of contracts) {
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
     // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
-    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api'].includes(contract)
+    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api', 'generic-quote-unit', 'temporal-window-method', 'research-review-corpus', 'shopee-exact-request', 'shopee-exact-collection'].includes(contract)
       ? { ignoreMinAndMaxItems: true }
       : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,

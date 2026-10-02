@@ -2,6 +2,7 @@ import type {
   ResearchAutomationCoverageSource, ResearchAutomationInterview, ResearchAutomationMode, ResearchAutomationProductCard,
   ResearchAutomationReportKind, ResearchAutomationRunStatus, ResearchAutomationStepState,
 } from '../../../../contracts/api/research-automation-api.generated.js';
+import type { NativeSourceReviewReference } from './native-source-review-bridge.js';
 
 export type StepId = 'QUICK_SEARCH' | 'COLLECTION' | 'REPORTS';
 export type SourceStepId = Exclude<StepId, 'REPORTS'>;
@@ -45,6 +46,8 @@ export interface ScopeSnapshot {
   readonly excludeTerms: readonly string[];
   readonly selectedProductIds: readonly string[];
   readonly peerProductIds: readonly string[];
+  /** Owner-selected listing URLs, absent on historical runs. */
+  readonly exactShopeeUrls?: readonly string[];
 }
 
 export interface SourceLimitation {
@@ -74,6 +77,13 @@ export interface StepResultDocument {
   readonly comparables: readonly TypedComparable[];
   readonly coverage: readonly ResearchAutomationCoverageSource[];
   readonly limitations: readonly SourceLimitation[];
+  readonly exactShopee?: {
+    readonly collectionId: string;
+    readonly collectionSha256: string;
+    readonly requestSha256: string;
+  };
+  /** A reused native capture, never projected as a new provider collection. */
+  readonly nativeReview?: NativeSourceReviewReference;
 }
 
 export interface CaptureRecord {
@@ -100,6 +110,7 @@ export const MESSAGES: Readonly<Record<string, string>> = {
   OPERATOR_STOPPED: 'The operator stopped during a provider operation. It was not retried automatically; start a new run to collect again. Provider captures returned before the stop are preserved; an in-flight response may be unavailable.',
   EXECUTOR_RESTARTED: 'The operator restarted during a provider operation. It was not retried automatically; start a new run to collect again.',
   SKIPPED_AFTER_STOP: 'Not run because an earlier step stopped the run.',
+  NO_APPROVED_PRODUCT_REFS: 'No product was approved for collection, so no product period detail was requested or collected.',
   REPORT_RENDER_FAILED: 'Draft rendering failed; collected data and raw captures are preserved.',
   INTERRUPTED_DURING_PROVIDER_OPERATION: 'A paid provider operation was interrupted. It was not retried automatically; captures returned before interruption are preserved and an in-flight response may be unavailable.',
   USAGE_UNKNOWN: 'At least one provider operation ended without a settled usage receipt; its cost is unknown, not zero.',

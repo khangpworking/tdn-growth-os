@@ -114,7 +114,11 @@ export class SourcePackageService {
   }
 
   async listFinalizedSourcePackages(budget?: SourcePackageReadBudget): Promise<readonly FinalizedSourcePackageSummary[]> {
-    const rows = this.#db.prepare('SELECT package_id AS packageId FROM foundation_source_packages WHERE finalized_at IS NOT NULL ORDER BY package_id LIMIT 101').all() as { packageId: string }[];
+    // The reserved automation-method: namespace contains internal run bundles,
+    // excluded before manual inventory counting/reads. Exact-ID replay still verifies them.
+    const rows = this.#db.prepare(`SELECT package_id AS packageId FROM foundation_source_packages
+      WHERE finalized_at IS NOT NULL AND package_key NOT GLOB 'automation-method:*'
+      ORDER BY package_id LIMIT 101`).all() as { packageId: string }[];
     if (rows.length > 100) throw new FoundationValidationError('Source inventory exceeds the local enumeration limit');
     const summaries: FinalizedSourcePackageSummary[] = [];
     for (const row of rows) {

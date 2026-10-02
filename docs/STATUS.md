@@ -1,5 +1,223 @@
 # Trạng thái hiện tại
 
+## Metric source-to-method automation checkpoint (2026-10-03, draft PR #110)
+
+Claude Opus 5.5 high implemented the independent Metric bridge; GPT integrated
+and audited it. REPORTS now consumes an explicitly confirmed-run-bound original
+workbook through existing preparation/readiness/calculation services and freezes
+the complete output with exact original bytes and schemas. M03/M04 show bounded
+ALL sample totals and concentration, not classified market-section completion.
+Historical report reads verify frozen bytes without Python, current methods,
+providers or writes. An audit regression closed late rejection of out-of-request
+periods before preparation writes.
+
+Linux affected checks passed 35 with one optional browser test skipped and zero
+failures. The full isolated Linux check passed 870 backend tests (one optional
+browser skip) and 196 frontend tests, plus contract generation, both typechecks
+and the production build. Separate real Chromium offline acceptance generated both Market and
+Insight web/PDF from the 223-listing, 127-shop original sample and the 62-row
+retained native review source. No new provider/model call, runtime data mutation,
+migration or deployment occurred. WIDE/CORE remain blocked pending business
+scope/codebook and real frozen classification evidence. Remaining sections and
+final Claude/owner report approval are still open; no 30-section completion claim.
+Desktop/mobile checks and PDF text/contact-sheet inspection were completed;
+the latest focus checks passed after the mobile chart-label repair. Exact-head
+release CI is recorded in the PR handoff, not inferred from the earlier head.
+See the [Metric method bridge handoff](handoffs/research-automation-metric-method-bridge.md).
+
+## Metric original-export checkpoint (2026-10-03, draft PR #110)
+
+GPT continues implementation while Claude quota is unavailable. A genuine
+Metric Shopee export exposed a changed 20-column header and slug product URLs.
+The separately declared v2 profile now normalizes it without repairing raw
+cells or weakening the legacy profile. Linux affected checks passed 19/19,
+backend TypeScript passed, and the actual offline CLI accepted 223 records
+with zero database mutations and no model/provider invocation by the CLI.
+Exact-head Check 37042736552 and preview 37042736776 passed on dea282a.
+
+The source is a bounded keyword-selected sample, includes nonfood records,
+and ends before the requested report period. No classifications were assigned;
+WIDE/CORE remain blocked. Exact listing IDs are verified but pack-size identity
+and commercial precision are not. The UI acquisition's point/cost usage is
+unknown, not zero. Original files, audit metadata and generated results are
+private and outside Git.
+
+The subsequent checkpoint above connects confirmed-run attachment and frozen
+full Metric output into the automation code; live deployment remains separate. No migration,
+deployment or active-runtime data change occurred. See the
+[profile v2 handoff](handoffs/research-metric-export-profile-v2.md).
+
+## Native review automation checkpoint (2026-10-03, draft PR #110)
+
+The retained Dami native SourcePackage now connects to exact-listing automation
+without fabricating Zen lineage or a new provider receipt. The internal resolver
+binds exact shop/item IDs, source/descriptor/capture bytes and confirmed run
+scope. Multiple matching originals block automatic reuse rather than selecting
+the latest or silently recollecting. Frozen replay verifies retained outputs
+without executing today's semantic mapper, parser or projector.
+
+Independent review found no remaining actionable issue. Linux affected proof
+passed 17/17 and TypeScript; the full isolated Linux check passed 864/864 backend,
+196 frontend, contract generation, both typechecks and the production build.
+The actual retained Thạch dừa capture passed an isolated-copy automation journey:
+62 rows, 20 INCLUDED, one I04 and three I05 source declarations, all 100 pending
+diagnostics retained, separate Market/Insight web and PDF files. Saved reads made
+zero provider calls and database mutations. No new provider cost was incurred.
+This is PARTIAL source-bound output, not a completed analytical section or a
+complete 30-section report. Published native head
+`ecfa251d605a99a42f3569e4a109c06e64d2695e` passed
+[exact-head CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37038843045).
+
+Claude quota is unavailable; GPT takes over implementation and verification.
+Claude final design approval and owner final-report approval remain outstanding.
+No active operator data, runtime, migration, provider or business decision was
+changed. See [native integration handoff](handoffs/research-native-review-automation.md).
+
+## Adopted declaration delivery checkpoint (2026-10-02, draft PR #110)
+
+Published projection checkpoint `9c760b3b5f4cc92b2a51cb2d68f929baf9b86f26`
+passed exact-head [Linux CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37030852858).
+The next integration retains a separate v2 run-bound overlay and the unchanged
+v1 proposal, then renders eligible source declarations and pending diagnostics
+in Insight sections without promoting analytical completion. Historical v1 and
+v2 replay use retained semantic results, not today's literal rules/projector.
+The PDF export expands source and pending disclosures for paper.
+
+Independent code audit found no actionable finding. Linux affected proof is
+17 passed, 0 failed, 1 optional Chromium skip, plus TypeScript. A complete
+isolated check with Chromium enabled passed 855/855 backend and 196 frontend,
+contracts, typechecks and production build. A later pending-count clarification
+passed the final affected check (17 passed, one optional Chromium skip) and
+paired web/PDF acceptance before publication; do not treat the earlier complete
+check as proof of those final edited bytes. Published integration
+`8c60beffc3caa91d4f4598ac3c3b124e8c41a871` passed exact-head
+[Linux CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37034798142):
+854 backend passed, 0 failed, 1 optional Chromium skip, plus the other check stages.
+
+Claude quota is unavailable. GPT is taking over code and visual verification,
+but Claude final design approval and owner final-report approval are not claimed.
+The native Dami connection advanced in the checkpoint above; thermos/fan review
+sources, verified market operands and remaining section adapters are still open. No
+merge, active-runtime update, new provider call or real business decision occurred.
+See [v2 integration and proof](handoffs/research-literal-projection-v1.md).
+
+## Literal review/source-failure checkpoint (2026-10-02, draft PR #110)
+
+Published checkpoint `38c881020b141a209ea1208f8096be64ab34abb0` retains an exact source-bound literal-coding proposal in
+a real immutable Foundation package. Parser/rule/semantics/schema bytes are
+frozen with the corpus and output. No candidate is admitted to report findings;
+historical reads verify retained bytes without today's parser or provider.
+Insight keeps method-proposal and source-failure guidance. A failed Actor with
+zero rows is no longer treated as successful empty collection.
+
+The final accepted grammar tuple passed a full Linux check (845 backend passed,
+0 failed, 1 skipped; 196 frontend passed). A subsequent shared-engine extraction
+preserved original corpus output bytes across four Foundation synthetic cases.
+Its final Linux check passed 847 backend tests, 0 failed, 1 skipped, plus
+frontend tests/build, contract generation and both typechecks. Focused
+SourcePackage/coding/integration proof is 18/18. Independent static review found
+no blocking issue in this scope; this is not an accuracy or source-authentication
+certification.
+Synthetic normal and failed-Actor journeys passed paired web/PDF export and
+desktop/mobile checks. No full-final-byte CI, 30-section completion, Claude
+design approval, merge or active-runtime update is claimed.
+
+Two deliberate real Actor probes reported USD 0.013 total: Zen failed with zero
+rows; Dami returned 62 exact-listing rows including 20 readable comments. The
+Dami capture is retained privately as its own verified SourcePackage, not a
+Zen collection or complete review history. Version 2 preserves the provider's
+original date strings without automatic annual/category admission. The new
+SourcePackage adapter retained proposal-only diagnostics for 20 readable
+comments, with zero report annotations and exact retry mutations. The bounded
+grammar's earlier exact tuple received business ACCEPT; the new extraction and
+admission/render policy received scoped ACCEPT and delegated adoption in
+business turns `01a0fd40-445d-7fe3-a8bf-3679bd9aa61f` and
+`01a0fd49-67c4-7240-a1b0-5dadbdd84b52`. The separately versioned source-bound
+projection implementation received business ACCEPT in turn
+`01a0fd52-5299-78b2-9510-257b2636a5b9` and independent code audit with no actionable
+finding. Its Linux full check passed 854 backend, 0 failed, 1 skipped, plus
+frontend/contracts/typechecks/build. Actual private v3 source execution admitted
+one I04 and three I05 source-bound declarations, retaining all 100 pending
+diagnostics, PARTIAL status and unchanged original source versions. No final
+ratio, section completion or verified behavior is claimed. Production automation intake
+for this alternative source remains open. See
+[implementation and proof](handoffs/research-literal-review-coding-v1.md) and
+[source/cost inventory](handoffs/research-source-inventory-20261002.md).
+
+## Published checkpoint and independent source inventory (2026-10-02)
+
+An earlier draft PR #110 checkpoint pinned reviewed remediation code at
+`53538fc095ffd092e5f36647b2098ed9c11398bb`; exact-head Linux CI passed in
+[run 37011129241](https://github.com/khangpworking/tdn-growth-os/actions/runs/37011129241).
+It remains unmerged and is not activated on Fedora.
+Parallel read-only inventory reverified all 103 original three-case captures
+and responses. They are Kalodata only; the original audit store has no review
+collection. A separately inspected legacy operator collection contains an empty
+raw page. These checks do not establish absence in every other private store.
+See [source inventory and independent plan review](handoffs/research-source-inventory-20261002.md).
+Claude's new content-acceptance matrix is a proposal under independent review,
+not a completed-section or deployment claim.
+
+## Parallel Market / Insight integration checkpoint (2026-10-02, unreleased)
+
+The approved remediation plan now runs source/method integration in parallel,
+with one owner for the automation service/API/UI. The working tree connects:
+
+- M03/M08: verified Kalodata detail captures → immutable Foundation package →
+  frozen temporal/quote inventory → retained Market report. Unknown measurement
+  semantics still block annual aggregation, growth and unit-price calculations.
+- Insight: explicitly confirmed exact Shopee URLs → existing Foundation exact
+  collection → generic raw review corpus → I03 coverage and I17 source quotes.
+  No calcium-only filter, inferred variant, coded theme or customer prevalence.
+- Optional URL scope input and confirmation; missing source configuration and
+  ambiguous collection are explicit. A token alone does not enable paid review
+  collection; the optional per-run collector cap must also be configured.
+
+Independent Claude review identified API naming, failed-source status and raw
+retention issues; those were corrected with regression proof. Source failures
+are isolated, unknown charges remain unknown, and oversized quote views no longer
+discard the independent Market output. One final Linux full check passed **838
+backend and 196 frontend tests**, contracts, both typechecks and production build.
+A paired synthetic worker run exported both HTML/PDF reports, with no source calls
+or DB writes during replay. This is not live collection, final design approval,
+published-head CI or activation evidence. The previous 804/195 full check below
+belongs to the earlier source snapshot.
+Zero broad analytical sections are certified complete; located Insight coding,
+scope admission, Metric input attachment and remaining section adapters are still
+required. No live runtime, provider, schema or historical-report changes occurred.
+
+## Real-world automation repair in progress (2026-10-02)
+
+The three real-world cases exposed a Vietnam-region parser rejection and a
+second data-loss boundary between provider observations and report inputs.
+The fix branch restores window-bound values and truthful no-product/coverage
+states, with offline retained-response replay and Linux validation. This does
+not complete the 30 analytical sections. Wave 1 now connects verified raw
+Kalodata exchanges through real Foundation source-package intake to existing
+M05/M06 descriptive methods and unranked M07 inventory, with retained replay.
+M09 executes with an explicit empty result when no events exist; it is not
+counted as analytical completion. Compatible Insight evidence and the remaining
+method paths are still pending. See [wave 1 evidence](handoffs/research-remediation-wave1.md),
+[30-section plan](tasks/research-30-section-remediation-plan.vi.md) and
+[repair and remaining work](tasks/research-real-world-data-repair.md).
+The independent Claude review was collected and its package-inventory,
+historical-read, method-isolation and paid-capture-retention findings were
+addressed, with Linux regression/negative-control proof. The business session's
+next-method proposal has a [bounded implementation disposition](research/remediation-contract-review-v1.md);
+generic M08 arithmetic now has offline implementation proof (5/5 Linux tests).
+Exact Shopee URL intake v2 also passed its owning Linux suite (27/27), preserving
+legacy calcium behavior and without fabricated revenue/period fields. These
+are prerequisites, not live automation wiring or completed sections. M03 temporal
+operations now have a separate offline implementation with 6/6 Linux tests.
+Business review found two M08 linkage/unit gaps; both were corrected with focused
+Linux proof and negative controls. A subsequent Claude review's denominator,
+capture-ordinal and failure-copy findings were corrected. The business session
+accepted operation-local denominator clarification 1.1 and statically re-reviewed
+its implementation. Final isolated Linux verification passed 804 backend and 195
+frontend tests, contract generation, typechecks and production build. This is
+unpublished working-tree proof, not final-head GitHub CI or 30-section completion.
+No live deployment or historical report replacement has occurred.
+
 ## Automated research v1: GPT/Luna integration and release verification (2026-10-02)
 
 The owner approved implementation of the reviewed prototype and parallel

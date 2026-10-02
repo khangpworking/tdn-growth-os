@@ -1,7 +1,19 @@
 import fs from 'node:fs';
+import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
+import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
+import { reviewCorpusSection } from './review-corpus-report.js';
+import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import type { AutomationMetricMethodSnapshot } from './metric-method-bridge.js';
+import { metricMethodSection } from './metric-method-report.js';
+import type { AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
+import type { NativeSourceReviewSnapshot } from './native-source-review-bridge.js';
+import { renderLocatedInsightSection } from '../report-located-insight-pages.js';
+import type { LiteralFamily } from './literal-review-coding.js';
+import { marketInventorySection } from './market-inventory-report.js';
 import type { ResearchAutomationRun } from '../../../../contracts/api/research-automation-api.generated.js';
 import { REPORT_KIT_CSS } from '../report-kit-theme.js';
 import { reportKitFontCss } from '../report-kit-fonts.js';
+import { describeDescriptiveSection, descriptiveAppendix, escapeHtml, isDescriptiveSectionId, type DescriptiveSectionView } from './descriptive-report.js';
 import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, TypedComparable } from './model.js';
 
 export interface AutomationReportInput {
@@ -10,11 +22,52 @@ export interface AutomationReportInput {
   readonly scope: ScopeSnapshot;
   readonly collection: StepResultDocument | null;
   readonly captures: readonly CaptureRecord[];
+  /** Produced and verified by the production service; absent for runs without a connected descriptive method. */
+  readonly descriptiveMethods?: DescriptiveMarketMethods;
+  readonly descriptiveMethodFailure?: 'DESCRIPTIVE_METHOD_FAILED';
+  readonly reviewCorpus?: ResearchReviewCorpus;
+  readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
+  readonly locatedReview?: AutomationLocatedReviewSnapshot;
+  readonly nativeReview?: NativeSourceReviewSnapshot;
+  readonly nativeReviewFallback?: Pick<NativeSourceReviewSnapshot, 'sourcePackage'>;
+  readonly nativeReviewFailure?: 'NATIVE_REVIEW_METHOD_FAILED' | 'NATIVE_REVIEW_REPORT_TOO_LARGE';
+  readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
+  readonly marketInventory?: AutomationMarketMethodSnapshot;
+  readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
+  readonly metricMethods?: AutomationMetricMethodSnapshot;
+  readonly metricMethodsFailure?: 'METRIC_METHOD_FAILED';
 }
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
-interface DraftSection { sectionId: string; title: string; state: 'SOURCE_CONTEXT' | 'SOURCE_TABLE' | 'BLOCKED'; method: string; explanation: string; rows: readonly TypedComparable[] }
+interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
+interface DraftSection { sectionId: string; title: string; state: 'SOURCE_CONTEXT' | 'SOURCE_TABLE' | 'METHOD_OUTPUT' | 'METHOD_NO_USABLE_RECORDS' | 'BLOCKED'; method: string; explanation: string; rows: readonly TypedComparable[]; methodOutput?: MethodOutputRef }
 const catalog = JSON.parse(fs.readFileSync(new URL('../../../../docs/research/report-section-catalog-v1.json', import.meta.url), 'utf8')) as { sections: CatalogSection[] };
-const escape = (value: unknown): string => String(value).replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]!);
+const escape = escapeHtml;
+const literalFamilies: readonly LiteralFamily[] = ['I02', 'I04', 'I05', 'I07', 'I08'];
+const isLiteralFamily = (id: string): id is LiteralFamily => literalFamilies.some(family => family === id);
+
+type DeclarationSnapshot = Extract<AutomationLocatedReviewSnapshot, { contractVersion: 'automation-located-review-snapshot-v2' }> | NativeSourceReviewSnapshot;
+function literalPendingSection(snapshot: DeclarationSnapshot, family: LiteralFamily): { notice: string; details: string } {
+  const pending = snapshot.projection.pending.filter(row => row.family === family);
+  const blocked = snapshot.projection.blocked.filter(row => row.family === family);
+  const coverage = snapshot.projection.coverage.families[family];
+  const notice = `<p class="warning">Kết quả từng phần: ${coverage.admittedCandidates} khai báo được đưa vào, thuộc ${coverage.admittedRecords} bản ghi nguồn; ${pending.length} mục còn chờ xử lý. Đây không phải số người hoặc tỷ lệ của thị trường. Chưa tìm thấy mẫu phù hợp với quy tắc không có nghĩa là nguồn phủ nhận hành vi hay cảm nhận đó.</p>`;
+  if (pending.length === 0 && blocked.length === 0) return { notice, details: '' };
+  const rows = pending.slice(0, 20).map(row => {
+    const record = snapshot.output.input.records[row.recordIndex]!;
+    return `<tr><td>${row.span ? `<q style="white-space:pre-wrap">${escape(row.span.quote)}</q>` : 'Chưa xác lập đoạn đọc; giữ nguyên toàn văn trong hồ sơ nguồn.'}</td><td>${escape(record.sourceAttribution)}<br><code>${escape(record.locator)}</code>${row.trigger ? `<details><summary>Từ đánh dấu, không thay thế đoạn đọc</summary><q style="white-space:pre-wrap">${escape(row.trigger.quote)}</q></details>` : ''}</td><td><code>${escape(row.reason)}</code></td></tr>`;
+  }).join('');
+  return { notice, details: `<details><summary>Xem phần còn chờ xử lý (${pending.length})</summary><p>Phần này chưa được đưa vào kết quả mã hóa. ${blocked.length} khai báo ứng viên bị giữ lại theo quy tắc đọc; con số này không cộng với số mục chờ thành số review.</p>${rows ? `<div class="table-wrap" role="region" aria-label="Các đoạn nguồn còn chờ xử lý" tabindex="0"><table><caption>Đoạn nguồn chưa đủ điều kiện mã hóa</caption><thead><tr><th scope="col">Đoạn đọc</th><th scope="col">Vị trí nguồn</th><th scope="col">Mã đối chiếu</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}${pending.length > 20 ? `<p>Trang này hiển thị 20 trong ${pending.length} mục chờ theo thứ tự nguồn. Toàn bộ được giữ trong hồ sơ phương pháp đã lưu.</p>` : ''}</details>` };
+}
+
+function nativeReviewContext(snapshot: NativeSourceReviewSnapshot, sectionId: 'I03' | 'I17'): string {
+  const records = snapshot.output.input.records;
+  const counts = (disposition: string): number => records.filter(record => record.disposition === disposition).length;
+  const selected = snapshot.nativeSource.selected;
+  const summary = `<h3>Nguồn review native đã lưu</h3><dl><dt>Nguồn</dt><dd>Dami · Tập con review của listing Shopee</dd><dt>Listing đã chọn</dt><dd>Shop ${escape(selected.shopId)} · Sản phẩm ${escape(selected.itemId)}</dd><dt>Thời điểm thu nguồn</dt><dd>${escape(snapshot.nativeSource.sourcePackage.manifest.sourceAcquiredAt ?? 'Chưa khai báo')}</dd><dt>Độ phủ bản ghi</dt><dd>${records.length} dòng nguồn: ${counts('INCLUDED')} đưa vào đọc, ${counts('EXCLUDED')} loại khỏi đọc, ${counts('UNREADABLE')} không đọc được.</dd></dl><p class="warning">Đây là bản thu có sẵn, không phải lượt gọi nhà cung cấp mới. ID listing khớp cấu trúc; chưa xác thực tác giả, biến thể hay toàn bộ lịch sử review. Ngày nguồn không tự xác lập độ phủ kỳ báo cáo. Số dòng không phải số người. Nguồn này không được đổi thành collection Zen.</p>`;
+  if (sectionId === 'I03') return summary;
+  const rows = records.map(record => `<tr><td><code>${escape(record.locator)}</code><br>${escape(record.sourceAttribution)}</td><td>${record.text === null ? 'Không có văn bản đọc được' : `<q style="white-space:pre-wrap">${escape(record.text)}</q>`}</td><td>${escape(record.disposition)}${record.dispositionReason ? `<br>${escape(record.dispositionReason)}` : ''}<br>${record.timeText === null ? 'Ngày nguồn chưa có' : escape(record.timeText)}</td></tr>`).join('');
+  return summary + `<details><summary>Toàn văn và trạng thái ${records.length} dòng nguồn</summary><div class="table-wrap" role="region" aria-label="Review native và vị trí nguồn" tabindex="0"><table><caption>Đọc nguồn nguyên văn, không suy ra tỷ lệ khách hàng</caption><thead><tr><th scope="col">Vị trí nguồn</th><th scope="col">Văn bản nguồn</th><th scope="col">Trạng thái đọc / Ngày nguồn</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
+}
 const inputLabels: Readonly<Record<string, string>> = {
   'validated-metrics': 'số liệu đã kiểm tra', 'source-bound-claims': 'nhận định có tham chiếu nguồn', 'owner-review': 'duyệt của người dùng',
   'source-manifest': 'bản kê nguồn', 'source-package-manifest': 'bản kê gói nguồn', 'verified-locators': 'vị trí bằng chứng đã xác minh',
@@ -30,50 +83,193 @@ const inputLabels: Readonly<Record<string, string>> = {
   'optional-owner-declared-tablet-count': 'số viên do người dùng khai báo nếu có', 'verified-locators-and-denominators': 'vị trí bằng chứng và mẫu số đã xác minh',
 };
 
+function collectionCaptureMap(input: AutomationReportInput): ReadonlyMap<number, CaptureRecord> {
+  const captures = new Map<number, CaptureRecord>();
+  for (const capture of input.captures) {
+    if (capture.stepId !== 'COLLECTION') continue;
+    if (!Number.isSafeInteger(capture.ordinal) || capture.ordinal < 0 || captures.has(capture.ordinal)) throw new Error('Report capture ordinal mismatch');
+    captures.set(capture.ordinal, capture);
+  }
+  return captures;
+}
+
+function observedRows(input: AutomationReportInput, captures: ReadonlyMap<number, CaptureRecord>): readonly TypedComparable[] {
+  const selected = new Set([...input.scope.selectedProductIds, ...input.scope.peerProductIds]);
+  return (input.collection?.comparables ?? []).filter(row => {
+    const capture = captures.get(row.captureIndex);
+    return selected.has(row.productId) && /^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(row.value) &&
+      capture?.provider === row.provider && !capture.truncated &&
+      capture.window?.startDate === row.window.startDate && capture.window.endDate === row.window.endDate &&
+      row.window.startDate <= row.window.endDate && row.window.startDate >= input.start.requestedPeriod.startDate && row.window.endDate <= input.start.requestedPeriod.endDate;
+  });
+}
+
+function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>): string {
+  if (!rows.length) return '';
+  return `<div class="table-wrap"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th>Sản phẩm nguồn</th><th>Phép đo / đơn vị</th><th>Giá trị nguồn</th><th>Kỳ đo</th><th>Bản thu nguồn</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escape(row.productId)}</td><td>${escape(row.provider)} · ${escape(row.metric)}</td><td>${escape(row.value)}</td><td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td><td><code>${escape(captures.get(row.captureIndex)!.artifactSha256)}</code></td></tr>`).join('')}</tbody></table></div>`;
+}
+
 /** Deliberately narrower than the complete M07 method: no universe, share or rank inference. */
-function peerEvidence(input: AutomationReportInput): readonly TypedComparable[] {
+function peerEvidence(input: AutomationReportInput, captures: ReadonlyMap<number, CaptureRecord>): readonly TypedComparable[] {
   const peers = input.scope.peerProductIds;
   if (peers.length < 2 || input.collection === null) return [];
-  const collectionCaptures = input.captures.filter(capture => capture.stepId === 'COLLECTION');
   const candidates = input.collection.comparables.filter(row => peers.includes(row.productId));
-  for (const first of candidates) {
-    const matches = candidates.filter(row => row.provider === first.provider && row.metric === first.metric && row.window.startDate === first.window.startDate && row.window.endDate === first.window.endDate);
-    if (matches.length !== peers.length || !peers.every(id => matches.filter(row => row.productId === id).length === 1)) continue;
-    if (!matches.every(row => /^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(row.value) && collectionCaptures[row.captureIndex]?.provider === row.provider && !collectionCaptures[row.captureIndex]?.truncated)) continue;
-    return peers.map(id => matches.find(row => row.productId === id)!);
+  const groups = new Map<string, TypedComparable[]>();
+  for (const row of candidates) {
+    const key = JSON.stringify([row.provider, row.metric, row.window.startDate, row.window.endDate]);
+    groups.set(key, [...(groups.get(key) ?? []), row]);
   }
-  return [];
+  return [...groups.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).flatMap(([, matches]) => {
+    if (matches.length !== peers.length || !peers.every(id => matches.filter(row => row.productId === id).length === 1)) return [];
+    if (!matches.every(row => {
+      const capture = captures.get(row.captureIndex);
+      return /^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(row.value) && capture?.provider === row.provider && !capture.truncated &&
+        capture.window?.startDate === row.window.startDate && capture.window.endDate === row.window.endDate &&
+        row.window.startDate <= row.window.endDate && row.window.startDate >= input.start.requestedPeriod.startDate && row.window.endDate <= input.start.requestedPeriod.endDate;
+    })) return [];
+    return peers.map(id => matches.find(row => row.productId === id)!);
+  });
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
   if (input.run.runId !== input.scope.runId || input.run.workspaceId !== input.start.workspaceId || input.run.workspaceId !== input.scope.workspaceId) throw new Error('Report lineage mismatch');
-  const evidence = peerEvidence(input);
+  if (input.collection && (input.collection.runId !== input.run.runId || input.collection.stepId !== 'COLLECTION')) throw new Error('Report collection lineage mismatch');
+  const captures = collectionCaptureMap(input);
+  const evidence = peerEvidence(input, captures);
+  const observations = observedRows(input, captures);
   const prefix = kind === 'MARKET' ? 'M' : 'I';
   const contextSections = kind === 'MARKET' ? ['M02', 'M13'] : ['I01', 'I03', 'I17'];
+  const descriptive = kind === 'MARKET' ? input.descriptiveMethods : undefined;
+  if (input.nativeReview && (input.locatedReview || input.reviewCorpus)) throw new Error('Native and exact-collection review lineage cannot be substituted');
+  const located = kind === 'INSIGHT' ? input.nativeReview ?? (input.locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? input.locatedReview : undefined) : undefined;
+  const views = new Map<string, DescriptiveSectionView>();
+  const locatedViews = new Map<string, string>();
   const sections: DraftSection[] = catalog.sections.filter(section => section.sectionId.startsWith(prefix)).map(section => {
+    if (located && isLiteralFamily(section.sectionId)) {
+      const result = located.output.sections[section.sectionId];
+      const pending = literalPendingSection(located, section.sectionId);
+      locatedViews.set(section.sectionId, pending.notice + renderLocatedInsightSection(located.output, section.sectionId, { bundleDownload: false, showAnnotationPendingCount: false })! + pending.details);
+      return {
+        sectionId: section.sectionId, title: section.title,
+        state: result.annotationPointers.length ? 'METHOD_OUTPUT' : 'METHOD_NO_USABLE_RECORDS', rows: [],
+        method: `literal-source-bound-v1/${located.output.methodId}@${located.output.methodVersion}`,
+        explanation: 'Khai báo bám sát lời nguồn được đưa vào theo quy tắc đã duyệt cho phạm vi hẹp. Giữ nguyên lời kể, điều chưa rõ và các phần chờ xử lý; chưa phải kết luận insight hoặc mục phân tích hoàn chỉnh.',
+        methodOutput: { methodOutputId: located.output.methodOutputId, locatedRecordCount: result.locatedRecordCount,
+          unresolvedPointers: located.projection.pending.flatMap((row, index) => row.family === section.sectionId ? [`/projection/pending/${index}`] : []), blockers: result.blockers },
+      };
+    }
+    if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return {
+      sectionId: section.sectionId, title: section.title, state: 'SOURCE_TABLE', rows: [],
+      method: input.metricMethods.result.methodVersion,
+      explanation: 'Nguồn Metric gốc đã được chuẩn hóa và tính theo công thức đã chốt. Đây là tổng và độ tập trung trong mẫu xuất theo keyword; chưa phải thị trường đã phân loại hoặc mục phân tích hoàn chỉnh.',
+    };
+    if (kind === 'MARKET' && input.metricMethodsFailure && (section.sectionId === 'M03' || section.sectionId === 'M04')) return {
+      sectionId: section.sectionId, title: section.title, state: 'BLOCKED', rows: [], method: 'metric-scope-v1',
+      explanation: 'Gói Metric được gắn với lượt này chưa vượt qua kiểm tra nguồn, kỳ hoặc phương pháp. Không dùng số liệu chưa xác minh; cần sửa gói đầu vào cho lượt mới. Không tự gọi lại nguồn.',
+    };
+    if (kind === 'MARKET' && input.marketInventory && (section.sectionId === 'M03' || section.sectionId === 'M08')) return {
+      sectionId: section.sectionId, title: section.title, state: 'SOURCE_TABLE', rows: [],
+      method: section.sectionId === 'M03' ? 'source-compatible-temporal-v1@1.0.0' : 'generic-quote-unit-v1@1.0.0',
+      explanation: 'Phương pháp đã lập inventory từ nguồn đã lưu; các phép tính vẫn bị chặn vì thiếu điều kiện nguồn. Chưa phải kết quả phân tích hoàn chỉnh.',
+    };
     if (contextSections.includes(section.sectionId)) return {
-      sectionId: section.sectionId, title: section.title, state: 'SOURCE_CONTEXT', method: 'automation-source-context-v1', rows: [],
+      sectionId: section.sectionId, title: section.title, state: 'SOURCE_CONTEXT', method: 'automation-source-context-v1', rows: section.sectionId === 'M13' ? observations : [],
       explanation: section.sectionId === 'I01' ? 'Brief do hệ thống ghi lại từ phạm vi đã xác nhận; không phải nhận định AI hay insight đã duyệt.' : 'Phạm vi yêu cầu, độ phủ thực tế và dấu vết nguồn của lượt này. Không thay thế phương pháp tính chuyên biệt của từng mục.',
+    };
+    const view = descriptive && isDescriptiveSectionId(section.sectionId) ? describeDescriptiveSection(descriptive, section.sectionId) : undefined;
+    if (view) views.set(section.sectionId, view);
+    const methodOutput = view && descriptive ? { methodOutputId: descriptive.methodOutputId, locatedRecordCount: view.locatedRecordCount, unresolvedPointers: view.unresolvedPointers, blockers: view.blockers } : undefined;
+    if (view?.usable && methodOutput) return {
+      sectionId: section.sectionId, title: section.title, state: 'METHOD_OUTPUT', method: `${descriptive!.methodId}@${descriptive!.methodVersion}`, rows: [], methodOutput,
+      explanation: 'Kết quả phương pháp mô tả có giới hạn từ gói nguồn đã lưu. Phương pháp đã chạy, nhưng mục này chưa phải phân tích hoàn chỉnh và chưa được duyệt.',
     };
     if (section.sectionId === 'M07' && evidence.length > 0) return {
       sectionId: section.sectionId, title: section.title, state: 'SOURCE_TABLE', method: 'automation-explicit-peer-evidence-v1', rows: evidence,
       explanation: 'Bảng quan sát cho nhóm sản phẩm đối chiếu được chọn rõ ràng, cùng nguồn, đơn vị và kỳ đo. Không đại diện toàn thị trường; chưa thực hiện đầy đủ phương pháp M07.',
     };
-    return { sectionId: section.sectionId, title: section.title, state: 'BLOCKED', method: `${section.methodId}@${section.methodVersion}`, rows: [], explanation: `Chưa có bộ đầu vào đã xác minh và kết quả phương pháp cho mục này. Cần: ${section.requiredInputs.map(id => inputLabels[id] ?? id).join(', ')}. Không suy diễn từ ảnh chụp sản phẩm hoặc kết quả tìm kiếm.` };
+    if (methodOutput) return {
+      sectionId: section.sectionId, title: section.title, state: 'METHOD_NO_USABLE_RECORDS', method: `${descriptive!.methodId}@${descriptive!.methodVersion}`, rows: [], methodOutput,
+      explanation: `Phương pháp mô tả đã chạy nhưng không có bản ghi nguồn dùng được cho mục này. Đây không phải kết quả bằng 0. Mục vẫn cần: ${section.requiredInputs.map(id => inputLabels[id] ?? id).join(', ')}.`,
+    };
+    if (kind === 'MARKET' && input.descriptiveMethodFailure && isDescriptiveSectionId(section.sectionId)) return {
+      sectionId: section.sectionId, title: section.title, state: 'BLOCKED', method: `${section.methodId}@${section.methodVersion}`, rows: [],
+      explanation: 'Đã thử chạy phương pháp mô tả nhưng đầu vào hoặc phương pháp không vượt qua kiểm tra. Không có kết quả dùng được cho mục này; xem mã lỗi và dấu vết nguồn tại phụ lục M13. Không tự động gọi lại nguồn.',
+    };
+    if (kind === 'MARKET' && input.marketInventoryFailure && (section.sectionId === 'M03' || section.sectionId === 'M08')) return {
+      sectionId: section.sectionId, title: section.title, state: 'BLOCKED', method: `${section.methodId}@${section.methodVersion}`, rows: [],
+      explanation: 'Phương pháp đã được nối nhưng dữ liệu nguồn không vượt qua kiểm tra inventory. Chưa có kết quả được xác minh; không tự gọi lại nguồn.',
+    };
+    return { sectionId: section.sectionId, title: section.title, state: 'BLOCKED', method: `${section.methodId}@${section.methodVersion}`, rows: [], explanation: `Chưa nối phương pháp của mục này vào luồng tự động. Đầu vào còn phải được kiểm tra theo hợp đồng: ${section.requiredInputs.map(id => inputLabels[id] ?? id).join(', ')}. Số liệu sản phẩm đã thu được giữ trong phụ lục báo cáo thị trường; không đủ để tự suy ra quy mô thị trường hoặc insight khách hàng.` };
   });
+  const ids = (state: DraftSection['state']): string[] => sections.filter(section => section.state === state).map(section => section.sectionId);
+  const completion = {
+    completedAnalyticalSections: 0,
+    boundedMethodOutputSections: ids('METHOD_OUTPUT').length, boundedMethodOutputSectionIds: ids('METHOD_OUTPUT'),
+    boundedMethodNoUsableRecordSectionIds: ids('METHOD_NO_USABLE_RECORDS'),
+    contextSections: ids('SOURCE_CONTEXT').length, sourceTableSections: ids('SOURCE_TABLE').length, blockedSections: ids('BLOCKED').length,
+  };
   const semantic = {
-    contractVersion: 'research-automation-report-v1', rendererVersion: 'automation-report-kit-v1', kind, state: 'PARTIAL_UNREVIEWED_DRAFT',
+    contractVersion: 'research-automation-report-v1', rendererVersion: 'automation-report-kit-v7', kind, state: 'PARTIAL_UNREVIEWED_DRAFT',
     runId: input.run.runId, workspaceId: input.run.workspaceId, createdAt: input.run.createdAt,
     keyword: input.start.keyword, country: input.start.country, requestedPeriod: input.start.requestedPeriod,
     scope: input.scope, scopeApplication: 'OWNER_CONTEXT_ONLY_SOURCE_FILTER_MAPPING_PENDING', coverage: input.run.coverage, usage: input.run.usage,
     collectionOutcome: input.collection?.outcome ?? null, limitations: input.collection?.limitations ?? [],
-    captures: input.captures, sections,
+    captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, locatedReview: input.locatedReview ?? null, nativeReview: input.nativeReview ?? null,
+      ...(input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
+      ...(input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
+      ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
+      ...(input.descriptiveMethodFailure ? { descriptiveMethodFailure: input.descriptiveMethodFailure } : {}),
+      metricMethods: input.metricMethods ?? null, ...(input.metricMethodsFailure ? { metricMethodsFailure: input.metricMethodsFailure } : {}) } : {}), completion,
   };
   const title = kind === 'MARKET' ? 'Báo cáo thị trường' : 'Báo cáo insight';
   const period = `${input.start.requestedPeriod.startDate} đến ${input.start.requestedPeriod.endDate} · ${input.start.requestedPeriod.dayCount} ngày`;
   const sourceTable = `<p>Kỳ truy vấn là khoảng ngày đã gửi tới nguồn, không chứng minh đã thu đủ dữ liệu.</p><div class="table-wrap"><table><thead><tr><th>Nguồn / thao tác</th><th>Kỳ truy vấn</th><th>Lượt gọi kết thúc</th><th>Dấu vết</th></tr></thead><tbody>${input.captures.map(capture => `<tr><td>${escape(capture.provider)}<br>${escape(capture.operation)}</td><td>${capture.window ? escape(`${capture.window.startDate} đến ${capture.window.endDate}`) : 'Không áp dụng kỳ truy vấn'}</td><td>${escape(capture.retrievedAt)}</td><td><code>${escape(capture.artifactSha256)}</code>${capture.truncated ? '<br>Bản thu bị cắt; không dùng để tính' : ''}</td></tr>`).join('') || '<tr><td colspan="4">Chưa có bản thu nguồn.</td></tr>'}</tbody></table></div>`;
   const scope = `<dl><dt>Thị trường</dt><dd>Việt Nam</dd><dt>Định nghĩa đã xác nhận</dt><dd>${escape(input.scope.definition)}</dd><dt>Kỳ báo cáo yêu cầu</dt><dd>${escape(period)}</dd><dt>Điều kiện bao gồm</dt><dd>${escape(input.scope.includeTerms.join(', ') || 'Không thêm điều kiện')}</dd><dt>Điều kiện loại trừ</dt><dd>${escape(input.scope.excludeTerms.join(', ') || 'Không thêm điều kiện')}</dd></dl><p class="warning">Điều kiện trên là ý định nghiên cứu đã lưu. Chưa xác nhận các truy vấn nguồn áp dụng đầy đủ điều kiện này; chưa phân loại CORE/WIDE. Kỳ yêu cầu không chứng minh mọi nguồn có đủ dữ liệu trong kỳ này. Kết quả tìm kiếm hiện tại và danh sách top sản phẩm không phải tổng doanh số thị trường.</p>`;
-  const body = sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${section.state === 'BLOCKED' ? 'Chưa đủ dữ liệu / phương pháp' : section.state === 'SOURCE_TABLE' ? 'Bảng bằng chứng · Chưa duyệt' : 'Ngữ cảnh nguồn · Chưa duyệt'}</span></header><p>${escape(section.explanation)}</p>${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable : ''}${section.rows.length ? `<div class="table-wrap"><table><thead><tr><th>Sản phẩm nguồn</th><th>Phép đo / đơn vị</th><th>Giá trị nguồn</th><th>Kỳ đo</th></tr></thead><tbody>${section.rows.map(row => `<tr><td>${escape(row.productId)}</td><td>${escape(row.provider)} · ${escape(row.metric)}</td><td>${escape(row.value)}</td><td>${escape(row.window.startDate)} — ${escape(row.window.endDate)}</td></tr>`).join('')}</tbody></table></div>` : ''}<p><small>Phương pháp: ${escape(section.method)}</small></p></section>`).join('');
-  const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${escape(title)} · ${escape(input.start.keyword)}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div><p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${escape(input.start.keyword)}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>Chỉ ${sections.filter(section => section.state !== 'BLOCKED').length}/${sections.length} mục có ngữ cảnh hoặc bảng nguồn; không tuyên bố báo cáo hoàn chỉnh.</span></div></div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${body}</div><footer><p>Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này. Không có dữ liệu không đồng nghĩa với giá trị bằng 0.</p></footer></main></body></html>`;
+  const stateLabel: Readonly<Record<DraftSection['state'], string>> = {
+    BLOCKED: 'Chưa đủ dữ liệu / phương pháp', SOURCE_TABLE: 'Bảng bằng chứng · Chưa duyệt', SOURCE_CONTEXT: 'Ngữ cảnh nguồn · Chưa duyệt',
+    METHOD_OUTPUT: kind === 'INSIGHT' ? 'Mã hóa lời nguồn · Kết quả từng phần' : 'Kết quả phương pháp mô tả · Chưa phải phân tích hoàn chỉnh', METHOD_NO_USABLE_RECORDS: 'Phương pháp đã chạy · Không có bản ghi dùng được',
+  };
+  const methodIds = completion.boundedMethodOutputSectionIds;
+  const emptyIds = completion.boundedMethodNoUsableRecordSectionIds;
+  const headline = [
+    kind === 'MARKET' && input.metricMethods ? 'Đã tính tổng và độ tập trung từ các dòng Metric gốc của đúng lượt này. Mẫu theo keyword chưa được phân loại thành thị trường; không đánh dấu M03/M04 hoàn chỉnh.' : '',
+    kind === 'MARKET' && input.descriptiveMethodFailure ? 'Chưa tính được các mục mô tả thị trường vì đầu vào hoặc phương pháp không vượt qua kiểm tra. Bản nháp này chỉ giữ ngữ cảnh và dấu vết nguồn. Cần kiểm tra lỗi trước khi tạo phiên bản mới; không tự động gọi lại nguồn.' : '',
+    `Mục phân tích hoàn chỉnh: ${completion.completedAnalyticalSections}.`,
+    kind === 'MARKET' ? descriptive ? `Kết quả phương pháp mô tả có giới hạn, chưa duyệt: ${methodIds.length} mục${methodIds.length ? ` (${methodIds.join(', ')})` : ''}.` : input.descriptiveMethodFailure ? '' : 'Phương pháp mô tả thị trường chưa được nối vào lượt này.' : '',
+    located ? `Mã hóa lời nguồn có giới hạn: ${methodIds.length} mục${methodIds.length ? ` (${methodIds.join(', ')})` : ''}. ${located.projection.pending.length} mục chờ xử lý vẫn được giữ riêng. Chưa có kết luận hoặc tỷ lệ đại diện thị trường.` : '',
+    emptyIds.length ? `Phương pháp đã chạy nhưng không có bản ghi dùng được: ${emptyIds.join(', ')}.` : '',
+    `Ngữ cảnh hoặc bảng nguồn: ${completion.contextSections + completion.sourceTableSections} mục. Chưa có kết quả: ${completion.blockedSections + emptyIds.length} mục.`,
+    'Ngữ cảnh, bảng nguồn, kết quả phương pháp từng phần và tệp PDF không đồng nghĩa với phân tích hoàn chỉnh.',
+  ].filter(Boolean).join(' ');
+  const appendix = (sectionId: string): string => {
+    if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
+      if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId) + (sectionId === 'M03' && input.marketInventory ? '<h3>Kalodata: bằng chứng riêng, không cộng vào Metric</h3>' + marketInventorySection(input.marketInventory, sectionId) : '');
+      if (input.metricMethodsFailure) return '<p class="warning">Chưa tính được từ gói Metric gắn với lượt này. Kiểm tra nguồn, kỳ đo và liên kết phạm vi trước khi tạo lượt mới. Mã đối chiếu: METRIC_METHOD_FAILED.</p>';
+    }
+    if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
+      if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId);
+      if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra. Mã MARKET_INVENTORY_FAILED; không tự gọi lại nguồn.</p>';
+    }
+    if (kind === 'MARKET' && sectionId === 'M13') return descriptiveAppendix(descriptive, input.descriptiveMethodFailure);
+    if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
+      const codingNotice = located
+        ? `<p class="warning">Đã áp dụng quy tắc đã duyệt để đưa các khai báo rõ nghĩa vào phạm vi hẹp, có vị trí nguyên văn. ${located.projection.pending.length} mục còn chờ được giữ cùng bản đề xuất ban đầu; không tính thành mục phân tích hoàn chỉnh. Khi mở lại, hệ thống đọc kết quả đã lưu, không chạy lại parser hoặc gọi nguồn.</p>`
+        : input.locatedReview
+          ? '<p class="warning">Bản này giữ đề xuất coding cùng phiên bản quy tắc và vị trí nguyên văn, chưa đưa ứng viên vào kết quả. Báo cáo cũ giữ nguyên bằng chứng và trạng thái đã lưu; không tự áp dụng quy tắc mới hoặc chạy lại parser khi mở.</p>'
+        : input.locatedReviewFailure
+          ? '<p class="warning">Dữ liệu review gốc vẫn được giữ, nhưng bước lưu đề xuất coding chưa vượt qua kiểm tra. Mã LOCATED_REVIEW_METHOD_FAILED; không dùng đề xuất chưa xác minh hoặc tự thu lại nguồn.</p>' : '';
+      if (input.nativeReview) return codingNotice + nativeReviewContext(input.nativeReview, sectionId);
+      if (input.collection?.nativeReview) return `<p class="warning">Nguồn review native của đúng listing đã được gắn và giữ nguyên. ${input.nativeReviewFailure === 'NATIVE_REVIEW_REPORT_TOO_LARGE'
+        ? 'Phần quote và phương pháp vượt giới hạn bản hiển thị này. Mã NATIVE_REVIEW_REPORT_TOO_LARGE; toàn bộ dữ liệu và pending vẫn có trong gói phương pháp đã lưu, không cắt ngắn hoặc tự thu lại.'
+        : 'Bước mã hóa chưa vượt qua kiểm tra. Mã NATIVE_REVIEW_METHOD_FAILED; chưa đưa khai báo vào kết quả. Cần kiểm tra phương pháp, không thêm lại link hoặc tự gọi lại nguồn.'}</p>`;
+      if (input.reviewCorpus) return codingNotice + reviewCorpusSection(input.reviewCorpus, sectionId);
+      if (input.reviewCorpusFailure === 'REVIEW_CORPUS_REPORT_TOO_LARGE') return '<p class="warning">Collection gốc vẫn được giữ đầy đủ nhưng phần quote vượt giới hạn kích thước báo cáo. Mã REVIEW_CORPUS_REPORT_TOO_LARGE; chưa đưa quote vào bản này, không cắt ngắn dữ liệu hoặc tự thu lại. Cần xuất phần bằng chứng theo trang ở bước xử lý tiếp theo.</p>';
+      if (input.reviewCorpusFailure) return '<p class="warning">Đã lưu collection nhưng corpus không vượt qua kiểm tra. Cần kiểm tra REVIEW_CORPUS_FAILED; không tự thu lại và không dùng dữ liệu chưa xác minh.</p>';
+      return '<p>Chưa có corpus review gắn với lượt này. Thêm link Shopee chính xác ở bước duyệt phạm vi của lượt mới, rồi kiểm tra trạng thái nguồn. Không thay bằng review của sản phẩm gần giống.</p>';
+    }
+    return '';
+  };
+  const body = `<p class="warning">${escape(headline)}</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p>${escape(section.explanation)}</p>${section.state === 'METHOD_OUTPUT' || section.state === 'METHOD_NO_USABLE_RECORDS' ? locatedViews.get(section.sectionId) ?? views.get(section.sectionId)!.html : ''}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable : ''}${observationTable(section.rows, captures)}${appendix(section.sectionId)}<p><small>Phương pháp: ${escape(section.method)}</small></p></section>`).join('');
+  const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${escape(title)} · ${escape(input.start.keyword)}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div><p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${escape(input.start.keyword)}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>Chỉ ${sections.filter(section => section.state === 'SOURCE_CONTEXT' || section.state === 'SOURCE_TABLE' || section.state === 'METHOD_OUTPUT').length}/${sections.length} mục có ${kind === 'MARKET' ? 'kết quả phương pháp mô tả, ' : ''}ngữ cảnh hoặc bảng nguồn; không tuyên bố báo cáo hoàn chỉnh.</span></div></div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${body}</div><footer><p>Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này. Không có dữ liệu không đồng nghĩa với giá trị bằng 0.</p></footer></main></body></html>`;
   return { semantic, html: Buffer.from(html, 'utf8') };
 }

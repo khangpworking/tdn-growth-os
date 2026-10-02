@@ -24,6 +24,10 @@ export type ResearchAutomationReports = ResearchAutomationReportKind[];
 export type Text200 = string;
 export type Term = string;
 export type ProductId = string;
+/**
+ * @maxItems 5
+ */
+export type ExactShopeeUrls = string[];
 export type Uuid = string;
 export type ResearchAutomationRunStatus =
   | 'QUICK_SEARCH_QUEUED'
@@ -106,6 +110,7 @@ export interface ResearchAutomationConfirmRequest {
    * @maxItems 8
    */
   peerProductIds: ProductId[];
+  exactShopeeUrls?: ExactShopeeUrls;
 }
 export interface ResearchAutomationCancelRequest {
   contractVersion: 'research-automation-cancel-v1';
@@ -172,6 +177,7 @@ export interface ResearchAutomationConfirmedScope {
    */
   peerProductIds: ProductId[];
   confirmedAt: Timestamp;
+  exactShopeeUrls?: ExactShopeeUrls;
 }
 export interface ResearchAutomationProductCard {
   productId: ProductId;

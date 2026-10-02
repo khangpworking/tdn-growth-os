@@ -285,3 +285,18 @@ export function verifyDescriptiveMarketMethods(untrustedOutput: unknown): { outp
   if (canonicalJson(untrustedOutput) !== canonicalJson(rebuilt.output)) fail('DESCRIPTIVE_MARKET_REPLAY_MISMATCH');
   return rebuilt;
 }
+
+/**
+ * Verify a previously committed v1 snapshot without executing today's method.
+ * Only callers that also verify the owning immutable report and retained source
+ * package may use this. New/imported calculations still require full replay.
+ */
+export function verifyDescriptiveMarketSnapshot(untrustedOutput: unknown): DescriptiveMarketMethods {
+  if (!validateOutput(untrustedOutput)) fail(`INVALID_DESCRIPTIVE_MARKET_OUTPUT:${ajv.errorsText(validateOutput.errors)}`);
+  const serialized = canonicalJson(untrustedOutput);
+  if (Buffer.byteLength(serialized) > MAX_BYTES) fail('OUTPUT_TOO_LARGE');
+  const output = JSON.parse(serialized) as DescriptiveMarketMethods;
+  const { methodOutputId, ...body } = output;
+  if (createHash('sha256').update(canonicalJson(body)).digest('hex') !== methodOutputId) fail('DESCRIPTIVE_MARKET_SNAPSHOT_DIGEST_MISMATCH');
+  return output;
+}

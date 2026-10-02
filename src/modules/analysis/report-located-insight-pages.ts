@@ -6,7 +6,7 @@ type Input = LocatedInsightMethods['input'];
 type LocatedId = 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09';
 type Annotation = Input['i02'][number] | Input['i04'][number] | Input['i05'][number]
   | Input['i06'][number] | Input['i07'][number] | Input['i08'][number] | Input['i09'][number];
-type RenderContext = { output: LocatedInsightMethods; sectionId: string; records: Set<number> };
+type RenderContext = { output: LocatedInsightMethods; sectionId: string; records: Set<number>; bundleDownload: boolean; showAnnotationPendingCount: boolean };
 
 const PAGE_LIMIT = 20;
 const esc = (value: string | number): string => String(value).replace(/[&<>"']/g, character => ({
@@ -41,8 +41,8 @@ function locatedAt<T>(rows: readonly T[], pointer: string, prefix: string): T {
   return row;
 }
 
-function sliceNote(total: number, noun: string): string {
-  return total <= PAGE_LIMIT ? '' : `<p class="sec-note">Đang hiển thị ${PAGE_LIMIT} trong ${total} ${esc(noun)}, theo thứ tự của hồ sơ. Phần còn lại nằm trong bản tải đầy đủ. ${download}.</p>`;
+function sliceNote(ctx: RenderContext, total: number, noun: string): string {
+  return total <= PAGE_LIMIT ? '' : `<p class="sec-note">Đang hiển thị ${PAGE_LIMIT} trong ${total} ${esc(noun)}, theo thứ tự của hồ sơ. ${ctx.bundleDownload ? `Phần còn lại nằm trong bản tải đầy đủ. ${download}.` : 'Phần còn lại được giữ trong hồ sơ phương pháp đã lưu; trang này không hiển thị toàn bộ.'}</p>`;
 }
 
 function table(caption: string, headings: readonly string[], rows: readonly string[]): string {
@@ -91,7 +91,7 @@ function originalRecords(ctx: RenderContext): string {
 }
 
 function footer(ctx: RenderContext, blockers: readonly string[]): string {
-  return `${originalRecords(ctx)}<p class="sec-note">Các bản ghi và khai báo mã hóa có vị trí nguồn; vị trí đúng chưa chứng minh cách hiểu đúng hoặc quyền phê duyệt. ${download}.</p><details><summary>Giới hạn và thông tin đối chiếu</summary><p>Đơn vị là bản ghi định vị trong hồ sơ này. Không suy rộng thành số người, tỷ lệ dân số hay thị phần.</p><dl>${definition('Bộ mã', esc(ctx.output.input.codebookId))}${definition('Quy tắc đưa vào', esc(ctx.output.input.inclusionRule))}${definition('Quy tắc phân xử', esc(ctx.output.input.adjudicationRule))}${definition('Mã kết quả', `<code>${esc(ctx.output.methodOutputId)}</code>`)}</dl>${blockers.length ? `<p>Điều kiện còn thiếu hoặc cần xử lý:</p><ul class="limits">${blockers.map(code => `<li><code>${esc(code)}</code></li>`).join('')}</ul>` : ''}<ul class="limits">${ctx.output.limitations.map(item => `<li><code>${esc(item)}</code></li>`).join('')}</ul></details>`;
+  return `${originalRecords(ctx)}<p class="sec-note">Các bản ghi và khai báo mã hóa có vị trí nguồn; vị trí đúng chưa chứng minh cách hiểu đúng hoặc quyền phê duyệt. ${ctx.bundleDownload ? `${download}.` : 'Hồ sơ đầy đủ được giữ cùng kết quả phương pháp đã lưu.'}</p><details><summary>Giới hạn và thông tin đối chiếu</summary><p>Đơn vị là bản ghi định vị trong hồ sơ này. Không suy rộng thành số người, tỷ lệ dân số hay thị phần.</p><dl>${definition('Bộ mã', esc(ctx.output.input.codebookId))}${definition('Quy tắc đưa vào', esc(ctx.output.input.inclusionRule))}${definition('Quy tắc phân xử', esc(ctx.output.input.adjudicationRule))}${definition('Mã kết quả', `<code>${esc(ctx.output.methodOutputId)}</code>`)}</dl>${blockers.length ? `<p>Điều kiện còn thiếu hoặc cần xử lý:</p><ul class="limits">${blockers.map(code => `<li><code>${esc(code)}</code></li>`).join('')}</ul>` : ''}<ul class="limits">${ctx.output.limitations.map(item => `<li><code>${esc(item)}</code></li>`).join('')}</ul></details>`;
 }
 
 function briefBody(ctx: RenderContext): string {
@@ -164,20 +164,20 @@ const SECTION_LEAD: Readonly<Record<LocatedId, string>> = {
 
 function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
   const section = ctx.output.sections[sectionId];
-  let body = `<p class="sec-note">${SECTION_LEAD[sectionId]}</p><p>${section.locatedRecordCount} bản ghi có mã hóa được hồ sơ đưa vào kết quả; ${section.pendingAnnotationPointers.length} chú giải đang chờ xử lý. Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
+  let body = `<p class="sec-note">${SECTION_LEAD[sectionId]}</p><p>${section.locatedRecordCount} bản ghi có mã hóa được hồ sơ đưa vào kết quả${ctx.showAnnotationPendingCount ? `; ${section.pendingAnnotationPointers.length} chú giải đang chờ xử lý` : ''}. Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
   if (sectionId === 'I05' && ctx.output.sections.I05.recordPolarities.length) {
     const polarities = ctx.output.sections.I05.recordPolarities;
     body += table('Sắc thái theo bản ghi, không quy đổi thành tỷ lệ', ['Bản ghi nguồn', 'Sắc thái khai báo'], polarities.slice(0, PAGE_LIMIT).map(item => {
       locatedAt(ctx.output.input.records, item.recordPointer, '/input/records/');
       const index = Number(item.recordPointer.slice('/input/records/'.length));
       return `<tr><td>${source(ctx, index)}</td><td>${label(item.polarity)}</td></tr>`;
-    })) + sliceNote(polarities.length, 'bản ghi');
+    })) + sliceNote(ctx, polarities.length, 'bản ghi');
   }
   body += section.annotationPointers.length === 0
     ? '<p>Chưa có chú giải được đưa vào kết quả cho mục này. Cần bổ sung mã hóa có vị trí nguồn và xử lý các mục đang chờ.</p>'
-    : table('Chú giải được hồ sơ đưa vào kết quả', ['Nội dung và mã hóa', 'Nguồn và ngữ cảnh'], section.annotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer))) + sliceNote(section.annotationPointers.length, 'chú giải');
+    : table('Chú giải được hồ sơ đưa vào kết quả', ['Nội dung và mã hóa', 'Nguồn và ngữ cảnh'], section.annotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer))) + sliceNote(ctx, section.annotationPointers.length, 'chú giải');
   if (section.pendingAnnotationPointers.length) {
-    body += `<details><summary>Chú giải đang chờ xử lý (${section.pendingAnnotationPointers.length})</summary><p>Gợi ý AI hoặc bất đồng chưa phân xử được giữ riêng, chưa đưa vào kết quả mã hóa.</p>${table('Chú giải đang chờ, chưa đưa vào kết quả', ['Nội dung đề xuất', 'Nguồn và điều còn chờ'], section.pendingAnnotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer)))}${sliceNote(section.pendingAnnotationPointers.length, 'chú giải đang chờ')}</details>`;
+    body += `<details><summary>Chú giải đang chờ xử lý (${section.pendingAnnotationPointers.length})</summary><p>Gợi ý AI hoặc bất đồng chưa phân xử được giữ riêng, chưa đưa vào kết quả mã hóa.</p>${table('Chú giải đang chờ, chưa đưa vào kết quả', ['Nội dung đề xuất', 'Nguồn và điều còn chờ'], section.pendingAnnotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer)))}${sliceNote(ctx, section.pendingAnnotationPointers.length, 'chú giải đang chờ')}</details>`;
   }
   return body + footer(ctx, section.blockers);
 }
@@ -192,7 +192,7 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
         const item = locatedAt(ctx.output.input.i13Mentions, pointer, '/input/i13Mentions/');
         return `<tr><td>${quote(item.span)}</td><td>${source(ctx, item.recordIndex)}${provenance(item.provenance)}</td></tr>`;
       });
-      return table(pending ? 'Cụm nhắc đang chờ xử lý' : 'Cụm nhắc nguyên văn, không xếp hạng', ['Cụm được nhắc', 'Nguồn và lời quy thuộc'], rows) + sliceNote(pointers.length, 'cụm nhắc');
+      return table(pending ? 'Cụm nhắc đang chờ xử lý' : 'Cụm nhắc nguyên văn, không xếp hạng', ['Cụm được nhắc', 'Nguồn và lời quy thuộc'], rows) + sliceNote(ctx, pointers.length, 'cụm nhắc');
     };
     body += section.mentionPointers.length ? mentions(section.mentionPointers, false) : '<p>Chưa có cụm nhắc nguyên văn được đưa vào danh mục.</p>';
     body += `<p>${section.pendingMentionPointers.length} cụm nhắc đang chờ xử lý.</p>`;
@@ -221,20 +221,20 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
         const assignment = locatedAt(corpus.assignments, pointer, `/input/corpora/${result.corpusIndex}/assignments/`);
         return `<li>${quote(assignment.span)}${source(ctx, assignment.recordIndex)}${provenance(assignment.provenance)}</li>`;
       }).join('');
-      const evidence = refs ? `<details><summary>Đoạn nguồn cho mã này</summary><ul class="limits">${refs}</ul>${sliceNote(count.annotationPointers.length, 'chú giải nguồn')}</details>` : '';
+      const evidence = refs ? `<details><summary>Đoạn nguồn cho mã này</summary><ul class="limits">${refs}</ul>${sliceNote(ctx, count.annotationPointers.length, 'chú giải nguồn')}</details>` : '';
       const ratio = complete && count.ratio !== null ? `${count.ratio.numerator}/${count.ratio.denominator}` : 'Chưa công bố';
       return `<tr><th scope="row">${esc(code.label)}<small>Mã: ${esc(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${esc(code.phrase)}</small>` : ''}</th><td>${count.recordCount}${evidence}</td><td>${ratio}</td></tr>`;
     });
-    body += table(complete ? 'Số bản ghi theo mã trong tập đã chốt' : 'Số bản ghi đã mã hóa, còn một phần', ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], rows) + sliceNote(result.counts.length, 'mã');
+    body += table(complete ? 'Số bản ghi theo mã trong tập đã chốt' : 'Số bản ghi đã mã hóa, còn một phần', ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], rows) + sliceNote(ctx, result.counts.length, 'mã');
     body += `<p class="sec-note">${corpus.multiCode ? 'Một bản ghi có thể mang nhiều mã; không cộng các n hoặc tỷ lệ thành 100%.' : 'Hồ sơ khai báo mỗi bản ghi có tối đa một mã.'} Thứ tự theo bộ mã, không phải thứ hạng hay mức ưu tiên.</p>`;
     if (result.blockers.length) body += `<details><summary>Điều kiện còn thiếu của tập bản ghi</summary><ul class="limits">${result.blockers.map(code => `<li><code>${esc(code)}</code></li>`).join('')}</ul></details>`;
   }
-  return body + sliceNote(section.corpora.length, 'tập bản ghi') + footer(ctx, section.blockers);
+  return body + sliceNote(ctx, section.corpora.length, 'tập bản ghi') + footer(ctx, section.blockers);
 }
 
 /** Render verified located-method output only; the caller retains the old path when the optional bundle is absent. */
-export function renderLocatedInsightSection(output: LocatedInsightMethods, sectionId: string): string | undefined {
-  const ctx: RenderContext = { output, sectionId, records: new Set() };
+export function renderLocatedInsightSection(output: LocatedInsightMethods, sectionId: string, options: { bundleDownload?: boolean; showAnnotationPendingCount?: boolean } = {}): string | undefined {
+  const ctx: RenderContext = { output, sectionId, records: new Set(), bundleDownload: options.bundleDownload !== false, showAnnotationPendingCount: options.showAnnotationPendingCount !== false };
   switch (sectionId) {
     case 'I01': return briefBody(ctx);
     case 'I02': case 'I04': case 'I05': case 'I06': case 'I07': case 'I08': case 'I09': return locatedBody(ctx, sectionId);

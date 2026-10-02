@@ -90,8 +90,13 @@
         "includeTerms": { "type": "array", "items": { "$ref": "#/$defs/term" }, "maxItems": 30, "uniqueItems": true },
         "excludeTerms": { "type": "array", "items": { "$ref": "#/$defs/term" }, "maxItems": 30, "uniqueItems": true },
         "selectedProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 4, "uniqueItems": true },
-        "peerProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 8, "uniqueItems": true }
+        "peerProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 8, "uniqueItems": true },
+        "exactShopeeUrls": { "$ref": "#/$defs/exactShopeeUrls" }
       }
+    },
+    "exactShopeeUrls": {
+      "type": "array", "maxItems": 5, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 2000 }
     },
     "cancelRequest": {
       "title": "ResearchAutomationCancelRequest",
@@ -165,7 +170,8 @@
         "excludeTerms": { "type": "array", "items": { "$ref": "#/$defs/term" }, "maxItems": 30 },
         "selectedProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 4 },
         "peerProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 8 },
-        "confirmedAt": { "$ref": "#/$defs/timestamp" }
+        "confirmedAt": { "$ref": "#/$defs/timestamp" },
+        "exactShopeeUrls": { "$ref": "#/$defs/exactShopeeUrls" }
       }
     },
     "coverageSource": {

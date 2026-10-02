@@ -7,8 +7,8 @@
   "required": ["contractVersion", "profileId", "profileVersion", "source", "scope", "precision", "labelCodebookVersion", "wideUnknownPolicy"],
   "properties": {
     "contractVersion": {"const": "1.0.0"},
-    "profileId": {"const": "metric-shopee-product-list-sheet1-v1"},
-    "profileVersion": {"const": "1.0.0"},
+    "profileId": {"enum": ["metric-shopee-product-list-sheet1-v1", "metric-shopee-product-list-sheet1-v2"]},
+    "profileVersion": {"enum": ["1.0.0", "2.0.0"]},
     "source": {
       "type": "object", "additionalProperties": false,
       "required": ["sha256", "label", "provenanceBasis", "evidenceFamily", "sheetName", "headerSha256", "lastRow"],
@@ -18,7 +18,7 @@
         "provenanceBasis": {"type": "string", "minLength": 1, "maxLength": 1000},
         "evidenceFamily": {"type": "string", "minLength": 1, "maxLength": 200},
         "sheetName": {"const": "Sheet1"},
-        "headerSha256": {"const": "8c2bdf296db44d3ab32e4e67908a0385cc34960717270a38ae05e325f5127bba"},
+        "headerSha256": {"enum": ["8c2bdf296db44d3ab32e4e67908a0385cc34960717270a38ae05e325f5127bba", "b5b493190917fac69bd1e2cf1aa618aae175a7fd314ec635e44bcf29aab6f7ac"]},
         "lastRow": {"type": "integer", "minimum": 2, "maximum": 10001}
       }
     },
@@ -32,5 +32,21 @@
     },
     "labelCodebookVersion": {"$ref": "metric-scope-input.schema.json#/properties/labelCodebookVersion"},
     "wideUnknownPolicy": {"$ref": "metric-scope-input.schema.json#/properties/wideUnknownPolicy"}
-  }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"profileId": {"const": "metric-shopee-product-list-sheet1-v1"}}},
+      "then": {"properties": {
+        "profileVersion": {"const": "1.0.0"},
+        "source": {"type": "object", "properties": {"headerSha256": {"const": "8c2bdf296db44d3ab32e4e67908a0385cc34960717270a38ae05e325f5127bba"}}}
+      }}
+    },
+    {
+      "if": {"properties": {"profileId": {"const": "metric-shopee-product-list-sheet1-v2"}}},
+      "then": {"properties": {
+        "profileVersion": {"const": "2.0.0"},
+        "source": {"type": "object", "properties": {"headerSha256": {"const": "b5b493190917fac69bd1e2cf1aa618aae175a7fd314ec635e44bcf29aab6f7ac"}}}
+      }}
+    }
+  ]
 }

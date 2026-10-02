@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { openDatabase } from '../../src/platform/db/index.js';
+import { withDatabaseMutationMutex } from '../../src/platform/db/database-mutation-mutex.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import {
@@ -111,6 +112,32 @@ test('worker persists raw captures and reaches an immutable partial draft after 
   }
 });
 
+test('an explicit no-product scope drafts without requesting or claiming product period collection', async () => {
+  const source = syntheticSource();
+  let collectCalls = 0;
+  const state = await fixture(undefined, { ...source, collect: (input, options) => { collectCalls += 1; return source.collect(input, options); } });
+  const worker = new ResearchAutomationWorker({ service: state.service, db: state.db });
+  try {
+    await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '16161616-1616-4161-8161-161616161616', mode: 'PRODUCT', keyword: 'calcium', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
+    await worker.start();
+    const awaiting = await waitFor(state.service, workspaceId, runId, 'AWAITING_SCOPE', worker);
+    await state.service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1', requestKey: '17171717-1717-4171-8171-171717171717', expectedRevision: awaiting.revision, definition: 'Exact listing not among the cards', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] });
+    worker.wake();
+    const ready = await waitFor(state.service, workspaceId, runId, 'DRAFT_READY', worker);
+    assert.equal(collectCalls, 0);
+    const collection = ready.steps.find((step) => step.stepId === 'COLLECTION');
+    assert.equal(collection?.state, 'SKIPPED');
+    assert.equal(collection?.code, 'NO_APPROVED_PRODUCT_REFS');
+    assert.deepEqual(ready.coverage.sources.filter((value) => value.state === 'COLLECTED').map((value) => value.dataset), ['quick_search_product_cards']);
+    assert.equal(ready.usage.entries.some((entry) => entry.stepId === 'COLLECTION'), false);
+    assert.ok(ready.outputs?.market);
+  } finally {
+    await worker.close();
+    state.db.close();
+    await fs.rm(state.root, { recursive: true, force: true });
+  }
+});
+
 test('cancelling a delayed renderer closes the reports step and never publishes a draft', async () => {
   let rendererStarted!: () => void;
   let releaseRenderer!: () => void;
@@ -146,6 +173,88 @@ test('cancelling a delayed renderer closes the reports step and never publishes 
     state.db.close();
     await fs.rm(state.root, { recursive: true, force: true });
   }
+});
+
+test('external report aborts settle cancellation without publishing at every boundary', async t => {
+  for (const timing of ['before reports', 'last renderer', 'waiting publication'] as const) await t.test(timing, async () => {
+    const controller = new AbortController();
+    const artifactRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-report-abort-'));
+    const html = Buffer.from('<html><body>MARKET</body></html>');
+    let reportReads = 0;
+    let reporting = false;
+    let rendererCalls = 0;
+    let reportStored!: () => void;
+    const stored = new Promise<void>(resolve => { reportStored = resolve; });
+    let lockAcquired!: () => void;
+    const acquired = new Promise<void>(resolve => { lockAcquired = resolve; });
+    let releasePublication!: () => void;
+    const release = new Promise<void>(resolve => { releasePublication = resolve; });
+    let publicationLock: Promise<void> | undefined;
+    let processing: Promise<boolean> | undefined;
+    class ObservedArtifactStore extends ContentAddressedArtifactStore {
+      override async read(sha256: string, options?: { readonly maxBytes?: number }): Promise<Buffer> {
+        if (reporting) reportReads += 1;
+        return super.read(sha256, options);
+      }
+      override async put(bytes: Uint8Array) {
+        const artifact = await super.put(bytes);
+        if (reporting && Buffer.from(bytes).equals(html)) reportStored();
+        return artifact;
+      }
+    }
+    const artifacts = new ObservedArtifactStore(artifactRoot);
+    const state = await fixture(async (input, kind) => {
+      rendererCalls += 1;
+      if (timing === 'last renderer') controller.abort();
+      if (timing === 'waiting publication') {
+        publicationLock = withDatabaseMutationMutex(state.db, async () => {
+          lockAcquired();
+          await release;
+        });
+        await acquired;
+      }
+      // Deliberately returns successfully even when the supplied signal aborted.
+      return { semantic: { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId }, html };
+    }, syntheticSource(), artifacts);
+    try {
+      await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '18181818-1818-4181-8181-181818181818', mode: 'PRODUCT', keyword: 'calcium', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
+      assert.equal(await state.service.processNext(), true);
+      const awaiting = await state.service.getRun(workspaceId, runId);
+      await state.service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1', requestKey: '19191919-1919-4191-8191-191919191919', expectedRevision: awaiting.revision, definition: 'Vietnam calcium products', includeTerms: ['calcium'], excludeTerms: [], selectedProductIds: [cardId], peerProductIds: [] });
+      assert.equal(await state.service.processNext(), true);
+      assert.equal((await state.service.getRun(workspaceId, runId)).status, 'RENDERING');
+      reporting = true;
+      if (timing === 'before reports') controller.abort();
+      processing = state.service.processNext(controller.signal);
+      if (timing === 'waiting publication') {
+        await stored;
+        // The final CAS write has completed; let its continuation queue publication
+        // behind the held real mutation mutex before delivering the abort.
+        await new Promise<void>(resolve => setImmediate(resolve));
+        assert.equal((state.db.prepare('SELECT count(*) AS count FROM analysis_research_automation_outputs WHERE run_id=?').get(runId) as { count: bigint }).count, 0n);
+        controller.abort();
+        releasePublication();
+      }
+      assert.equal(await processing, true);
+      await publicationLock;
+      if (timing === 'before reports') assert.equal(reportReads, 0, 'An already-aborted report must not start reading method inputs');
+      assert.equal(rendererCalls, timing === 'before reports' ? 0 : 1);
+      const cancelled = await state.service.getRun(workspaceId, runId);
+      assert.equal(cancelled.status, 'CANCELLED');
+      assert.equal(cancelled.steps.find(step => step.stepId === 'REPORTS')?.state, 'CANCELLED');
+      assert.equal(cancelled.steps.find(step => step.stepId === 'REPORTS')?.code, 'CANCELLED_DURING_REPORT_RENDERING');
+      assert.equal(cancelled.outputs, undefined);
+      assert.equal((state.db.prepare('SELECT count(*) AS count FROM analysis_research_automation_outputs WHERE run_id=?').get(runId) as { count: bigint }).count, 0n);
+      assert.equal((state.db.prepare('SELECT count(*) AS count FROM foundation_source_packages').get() as { count: bigint }).count, 0n);
+    } finally {
+      releasePublication();
+      await processing;
+      await publicationLock;
+      state.db.close();
+      await fs.rm(state.root, { recursive: true, force: true });
+      await fs.rm(artifactRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 test('cancelling an in-flight provider settles all downstream steps as skipped', async () => {

@@ -43,6 +43,7 @@ export {
   ShopeeCollectionService,
   type ShopeeCollectionReader,
   type VerifiedShopeeCollection,
+  type VerifiedExactShopeeCollection,
 } from './shopee-collection-service.js';
 
 export { SourcePackageService, type SourcePackageIntakeResult, type VerifiedFinalizedSourcePackage, type VerifiedSourcePackageFile, type FinalizedSourcePackageSummary } from './source-package-service.js';

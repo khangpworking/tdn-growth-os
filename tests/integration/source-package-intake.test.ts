@@ -8,6 +8,7 @@ import { afterEach, test } from 'node:test';
 import { SourcePackageService, FoundationSourcePackageReader, FoundationValidationError } from '../../src/modules/foundation/index.js';
 import { SourcePackageFieldAuditService, AnalysisValidationError } from '../../src/modules/analysis/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
+import { ArtifactIntegrityError } from '../../src/platform/artifacts/artifact-store.js';
 import { openDatabase } from '../../src/platform/db/index.js';
 const roots:string[]=[];afterEach(async()=>Promise.all(roots.splice(0).map(root=>fsp.rm(root,{recursive:true,force:true}))));
 const digest=(bytes:Uint8Array)=>createHash('sha256').update(bytes).digest('hex');
@@ -48,4 +49,55 @@ test('later package versions safely reuse raw artifacts acquired at the first fi
   assert.equal((state.db.prepare('SELECT count(*) AS count FROM foundation_source_packages').get() as {count:bigint}).count,2n);
   assert.equal((state.db.prepare('SELECT count(*) AS count FROM artifact_manifests').get() as {count:bigint}).count,4n);
   state.db.close();
+});
+
+test('manual source inventory excludes internal method packages before verification and its ordinary-package limit', async () => {
+  const state = setup();
+  try {
+    const data = fixture();
+    const supplied = new Map([['metric/page.html', data.html], ['metric/data.json', data.json]]);
+    const reader = new FoundationSourcePackageReader(state.packages);
+    const ordinary = await state.packages.intake(data.input, supplied);
+    const nearPrefix = await state.packages.intake({ ...data.input, packageKey: 'automation-methodology:ordinary' }, supplied);
+    const embeddedName = await state.packages.intake({ ...data.input, packageKey: 'manual:automation-method-ordinary' }, supplied);
+    const internal = [];
+    for (let index = 0; index < 101; index += 1) {
+      internal.push(await state.packages.intake({
+        ...data.input,
+        packageKey: `automation-method:11111111-1111-4111-8111-${String(index).padStart(12, '0')}-descriptive-v1`,
+      }, supplied));
+    }
+
+    const expectedIds = [ordinary.packageId, nearPrefix.packageId, embeddedName.packageId].sort();
+    const inventory = await reader.listFinalizedSourcePackages();
+    assert.deepEqual(inventory.map(item => item.packageId), expectedIds);
+    assert.equal((await reader.readFinalizedSourcePackage(internal[0]!.packageId)).manifest.packageKey,
+      'automation-method:11111111-1111-4111-8111-000000000000-descriptive-v1');
+
+    // An internal bundle must never be read for manual selection; direct replay
+    // still rejects the same damaged retained evidence.
+    const internalManifestPath = state.store.pathForDigest(internal[0]!.manifestArtifactSha256);
+    const internalManifest = await fsp.readFile(internalManifestPath);
+    internalManifest[internalManifest.length - 1] = 32;
+    await fsp.writeFile(internalManifestPath, internalManifest);
+    assert.deepEqual((await reader.listFinalizedSourcePackages()).map(item => item.packageId), expectedIds);
+    await assert.rejects(reader.readFinalizedSourcePackage(internal[0]!.packageId), ArtifactIntegrityError);
+
+    const ordinarySourcePath = state.store.pathForDigest(digest(data.html));
+    const damagedSource = Buffer.from(data.html);
+    damagedSource[0] = 32;
+    await fsp.writeFile(ordinarySourcePath, damagedSource);
+    await assert.rejects(reader.listFinalizedSourcePackages(), ArtifactIntegrityError);
+    await fsp.writeFile(ordinarySourcePath, data.html);
+
+    for (let index = 3; index < 100; index += 1) {
+      await state.packages.intake({ ...data.input, packageKey: `metric:inventory-${index}` }, supplied);
+    }
+    assert.equal((await reader.listFinalizedSourcePackages()).length, 100);
+    await state.packages.intake({ ...data.input, packageKey: 'metric:inventory-overflow' }, supplied);
+    await assert.rejects(reader.listFinalizedSourcePackages(), (error: unknown) =>
+      error instanceof FoundationValidationError && /enumeration limit/.test(error.message));
+  } finally {
+    state.db.close();
+  }
 });

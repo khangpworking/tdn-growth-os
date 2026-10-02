@@ -3,7 +3,7 @@ import fs from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import type { ShopeeCollection } from '../../../contracts/foundation/shopee-collection.generated.js';
-import { jsonBytes, parseJsonBytes, shopeeUrlMatches, type SelectedListing } from '../../modules/foundation/shopee-selection.js';
+import { jsonBytes, parseJsonBytes, shopeeUrlMatches } from '../../modules/foundation/shopee-selection.js';
 
 export const SHOPEE_ACTOR = 'zen-studio/shopee-product-reviews-scraper';
 export interface CollectedPages {
@@ -20,6 +20,12 @@ export const FIXED_SHOPEE_SETTINGS = Object.freeze({
   contentFilter: 'with comments' as const,
 });
 export type ShopeeContentFilter = 'all' | 'with comments';
+export interface ShopeeTransportListing {
+  readonly platform: 'shopee';
+  readonly productUrl: string;
+  readonly shopId: string;
+  readonly itemId: string;
+}
 
 function validateMaxReviewsPerProduct(value: number): number {
   if (!Number.isSafeInteger(value) || value < 1 || value > PRODUCTION_MAX_REVIEWS_PER_PRODUCT) {
@@ -29,13 +35,14 @@ function validateMaxReviewsPerProduct(value: number): number {
 }
 export interface ShopeeCollector {
   readonly mode: 'fixture' | 'live';
-  collect(selected: SelectedListing[], requestSha256: string, runKey: string): Promise<CollectedPages>;
+  collect(selected: readonly ShopeeTransportListing[], requestSha256: string, runKey: string, signal?: AbortSignal): Promise<CollectedPages>;
 }
 
 export class FixtureShopeeCollector implements ShopeeCollector {
   readonly mode = 'fixture' as const;
   constructor(readonly bytes: Buffer) {}
-  async collect(selected: SelectedListing[]): Promise<CollectedPages> {
+  async collect(selected: readonly ShopeeTransportListing[], _requestSha256?: string, _runKey?: string, signal?: AbortSignal): Promise<CollectedPages> {
+    checkCancellation(signal);
     const value = parseJsonBytes(this.bytes);
     const maximum = selected.length * PRODUCTION_MAX_REVIEWS_PER_PRODUCT;
     if (!Array.isArray(value) || value.length > maximum) {
@@ -57,12 +64,13 @@ export class CollectionPendingError extends Error {}
 export class ApifyShopeeCollector implements ShopeeCollector {
   readonly mode = 'live' as const;
   readonly #fetch: typeof fetch;
-  readonly #sleep: (ms: number) => Promise<unknown>;
+  readonly #sleep: (ms: number, signal?: AbortSignal) => Promise<unknown>;
   constructor(readonly options: {
     token: string; maxChargeUsd: number; journalRoot: string; maxReviewsPerProduct?: number;
     contentFilter?: ShopeeContentFilter;
+    retainReturnedPages?: boolean;
     existingRun?: { runId: string; datasetId: string };
-    fetch?: typeof fetch; sleep?: (ms: number) => Promise<unknown>; maxPolls?: number;
+    fetch?: typeof fetch; sleep?: (ms: number, signal?: AbortSignal) => Promise<unknown>; maxPolls?: number;
   }) {
     if (!options.token.trim() || !Number.isFinite(options.maxChargeUsd) || options.maxChargeUsd <= 0) {
       throw new Error('Live collection requires token and a positive approved charge cap');
@@ -78,27 +86,21 @@ export class ApifyShopeeCollector implements ShopeeCollector {
       throw new Error('Invalid existing Apify run identity');
     }
     this.#fetch = options.fetch ?? fetch;
-    this.#sleep = options.sleep ?? delay;
+    this.#sleep = options.sleep ?? ((ms, signal) => delay(ms, undefined, signal ? { signal } : {}));
   }
 
-  async collect(selected: SelectedListing[], requestSha256: string, runKey: string): Promise<CollectedPages> {
+  async collect(selected: readonly ShopeeTransportListing[], requestSha256: string, runKey: string, signal?: AbortSignal): Promise<CollectedPages> {
+    checkCancellation(signal);
     if (!/^[a-f0-9]{64}$/.test(requestSha256) || !/^[a-z0-9][a-z0-9-]{2,79}$/.test(runKey) || selected.length < 1 || selected.length > 5 ||
-        selected.some(row => !shopeeUrlMatches(row))) throw new Error('Invalid bounded Shopee selection');
+        selected.some(row => row.platform !== 'shopee' || !shopeeUrlMatches(row))) throw new Error('Invalid bounded Shopee selection');
     const maxReviewsPerProduct = validateMaxReviewsPerProduct(
       this.options.maxReviewsPerProduct ?? PRODUCTION_MAX_REVIEWS_PER_PRODUCT,
     );
     const contentFilter = this.options.contentFilter ?? FIXED_SHOPEE_SETTINGS.contentFilter;
     const input = shopeeActorInput(selected, maxReviewsPerProduct, contentFilter);
-    if (this.options.existingRun) {
-      const run = parseRun(parseJsonBytes((await this.#request('/actor-runs/' + this.options.existingRun.runId)).bytes));
-      if (run.id !== this.options.existingRun.runId || run.defaultDatasetId !== this.options.existingRun.datasetId ||
-          run.maxTotalChargeUsd !== this.options.maxChargeUsd || run.defaultKeyValueStoreId === null) {
-        throw new Error('Existing run identity or approved charge cap mismatch');
-      }
-      const providerInput = parseJsonBytes((await this.#request(
-        '/key-value-stores/' + run.defaultKeyValueStoreId + '/records/INPUT')).bytes);
-      if (!jsonBytes(providerInput).equals(jsonBytes(input))) throw new Error('Existing run input mismatch');
-      return this.#finishCollection(run, selected, input, maxReviewsPerProduct, contentFilter);
+    if (this.options.existingRun && !this.options.retainReturnedPages) {
+      const run = await this.#existingRun(input, signal);
+      return this.#finishCollection(run, selected, input, maxReviewsPerProduct, contentFilter, signal);
     }
     // Stable runKey prevents changed input/formatting from bypassing an uncertain start.
     const journalRoot = path.resolve(this.options.journalRoot);
@@ -115,41 +117,66 @@ export class ApifyShopeeCollector implements ShopeeCollector {
     try {
       const startPath = path.join(directory, 'start.json');
       const runPath = path.join(directory, 'run.json');
-      const identity = { runKey, requestSha256, input, maxChargeUsd: this.options.maxChargeUsd };
+      const identity = { runKey, requestSha256, input, maxChargeUsd: this.options.maxChargeUsd,
+        ...(this.options.existingRun ? { existingRun: this.options.existingRun } : {}) };
       const prior = await readOptional(startPath);
+      if (prior && !jsonBytes(parseJsonBytes(prior)).equals(jsonBytes(identity))) throw new Error('Receipt identity or budget conflict');
+      const retainedDirectory = this.options.retainReturnedPages ? await prepareReturnedPages(directory) : undefined;
       let run: Run;
-      if (prior) {
-        if (!jsonBytes(parseJsonBytes(prior)).equals(jsonBytes(identity))) throw new Error('Receipt identity or budget conflict');
+      if (this.options.existingRun) {
+        if (!prior) await writeReceipt(startPath, jsonBytes(identity));
+        run = await this.#existingRun(input, signal);
+        if (!await readOptional(runPath)) await writeReceipt(runPath, jsonBytes({ data: run }));
+      } else if (prior) {
         const runBytes = await readOptional(runPath);
         if (!runBytes) throw new CollectionPendingError('Start outcome unknown; inspect Apify manually. No second run was started');
         run = parseRun(parseJsonBytes(runBytes));
       } else {
+        checkCancellation(signal);
         // Persist intent before spending, including across process crashes.
         await writeReceipt(startPath, jsonBytes(identity));
         try {
           const query = new URLSearchParams({ timeout: '300', maxTotalChargeUsd: String(this.options.maxChargeUsd) });
           run = parseRun(parseJsonBytes((await this.#request(
             '/actors/zen-studio~shopee-product-reviews-scraper/runs?' + query,
-            { method: 'POST', body: JSON.stringify(input) })).bytes));
+            { method: 'POST', body: JSON.stringify(input) }, false, signal)).bytes));
           await writeReceipt(runPath, jsonBytes({ data: run }));
         } catch {
           throw new CollectionPendingError('Start outcome unknown; inspect Apify manually. No automatic POST retry');
         }
       }
-      return await this.#finishCollection(run, selected, input, maxReviewsPerProduct, contentFilter);
+      const collected = await this.#finishCollection(run, selected, input, maxReviewsPerProduct, contentFilter, signal);
+      if (retainedDirectory) await retainReturnedPages(retainedDirectory, requestSha256, runKey, collected);
+      return collected;
     } finally {
       await lock.close();
       await fs.unlink(lockPath);
     }
   }
 
-  async #finishCollection(run: Run, selected: SelectedListing[], input: ReturnType<typeof shopeeActorInput>,
-    maxReviewsPerProduct: number, contentFilter: ShopeeContentFilter): Promise<CollectedPages> {
+  async #existingRun(input: ReturnType<typeof shopeeActorInput>, signal?: AbortSignal): Promise<Run> {
+    const existing = this.options.existingRun!;
+    const run = parseRun(parseJsonBytes((await this.#request('/actor-runs/' + existing.runId, {}, false, signal)).bytes));
+    if (run.id !== existing.runId || run.defaultDatasetId !== existing.datasetId ||
+        run.maxTotalChargeUsd !== this.options.maxChargeUsd || run.defaultKeyValueStoreId === null) {
+      throw new Error('Existing run identity or approved charge cap mismatch');
+    }
+    const providerInput = parseJsonBytes((await this.#request(
+      '/key-value-stores/' + run.defaultKeyValueStoreId + '/records/INPUT', {}, false, signal)).bytes);
+    if (!jsonBytes(providerInput).equals(jsonBytes(input))) throw new Error('Existing run input mismatch');
+    return run;
+  }
+
+  async #finishCollection(run: Run, selected: readonly ShopeeTransportListing[], input: ReturnType<typeof shopeeActorInput>,
+    maxReviewsPerProduct: number, contentFilter: ShopeeContentFilter, signal?: AbortSignal): Promise<CollectedPages> {
       const terminal = new Set(['SUCCEEDED', 'FAILED', 'TIMED-OUT', 'ABORTED']);
       const polls = this.options.maxPolls ?? 30;
       for (let index = 0; !terminal.has(run.status) && index < polls; index++) {
-        await this.#sleep(2000);
-        const next = parseRun(parseJsonBytes((await this.#request('/actor-runs/' + run.id)).bytes));
+        checkCancellation(signal);
+        try { await this.#sleep(2000, signal); }
+        catch (error) { checkCancellation(signal); throw error; }
+        checkCancellation(signal);
+        const next = parseRun(parseJsonBytes((await this.#request('/actor-runs/' + run.id, {}, false, signal)).bytes));
         if (next.id !== run.id || next.defaultDatasetId !== run.defaultDatasetId) throw new Error('Run identity drift');
         run = next;
       }
@@ -162,10 +189,11 @@ export class ApifyShopeeCollector implements ShopeeCollector {
       let readFailed = false;
       let providerTotalRows: number | null = null;
       while (offset < maximum) {
+        if (signal?.aborted) { readFailed = true; break; }
         const limit = Math.min(100, maximum - offset);
         const query = new URLSearchParams({ format: 'json', clean: 'false', offset: String(offset), limit: String(limit) });
         try {
-          const response = await this.#request('/datasets/' + run.defaultDatasetId + '/items?' + query, {}, true);
+          const response = await this.#request('/datasets/' + run.defaultDatasetId + '/items?' + query, {}, true, signal);
           const bytes = response.bytes;
           if (response.providerTotalRows !== null) {
             if (providerTotalRows !== null && providerTotalRows !== response.providerTotalRows) throw new Error('Dataset total drift');
@@ -184,6 +212,8 @@ export class ApifyShopeeCollector implements ShopeeCollector {
       const terminalReason = run.status === 'FAILED' ? 'actor_terminal_failed' as const
         : run.status === 'TIMED-OUT' ? 'actor_terminal_timed-out' as const
         : run.status === 'ABORTED' ? 'actor_terminal_aborted' as const : null;
+      const cancelled = signal?.aborted === true;
+      if (cancelled) readFailed = true;
       return { mode: 'live', actor: {
         actorId: SHOPEE_ACTOR, settings: { maxReviewsPerProduct, starFilter: 'all', contentFilter,
           maxChargeUsd: this.options.maxChargeUsd },
@@ -192,13 +222,16 @@ export class ApifyShopeeCollector implements ShopeeCollector {
         retrievedAt: new Date().toISOString(), providerTotalRows, usageTotalUsd: run.usageTotalUsd,
         stopReason: terminalReason ?? (readFailed ? 'dataset_read_failed'
           : exhausted ? 'dataset_exhausted' : 'collection_limit_reached'),
-      }, warnings: terminalReason ? [terminalReason] : readFailed ? ['dataset_read_failed'] : [], pages };
+      }, warnings: [...(terminalReason ? [terminalReason] : readFailed ? ['dataset_read_failed'] : []),
+        ...(cancelled ? ['collection_cancelled_locally_provider_status_unchanged'] : [])], pages };
   }
 
-  async #request(endpoint: string, init: RequestInit = {}, captureTotal = false): Promise<{ bytes: Buffer; providerTotalRows: number | null }> {
+  async #request(endpoint: string, init: RequestInit = {}, captureTotal = false, signal?: AbortSignal): Promise<{ bytes: Buffer; providerTotalRows: number | null }> {
+    checkCancellation(signal);
     try {
+      const timeout = AbortSignal.timeout(30_000);
       const response = await this.#fetch('https://api.apify.com/v2' + endpoint, {
-        ...init, redirect: 'error', signal: AbortSignal.timeout(30_000),
+        ...init, redirect: 'error', signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
         headers: { Authorization: 'Bearer ' + this.options.token, 'Content-Type': 'application/json' },
       });
       if (!response.ok || !response.body) throw new Error('Provider request failed');
@@ -226,10 +259,15 @@ export class ApifyShopeeCollector implements ShopeeCollector {
       }
       return { bytes: Buffer.concat(chunks), providerTotalRows };
     } catch {
+      checkCancellation(signal);
       // Do not print provider bodies, token-bearing URLs, or transport error details.
       throw new Error('Apify request failed or exceeded limits; resume the same request, not a new paid run');
     }
   }
+}
+
+function checkCancellation(signal?: AbortSignal): void {
+  if (signal?.aborted) throw new CollectionPendingError('Collection cancelled locally; a started Actor run may still be active. Resume only the same request and approved budget');
 }
 
 interface Run {
@@ -263,6 +301,65 @@ async function writeReceipt(file: string, bytes: Buffer): Promise<void> {
   await syncDirectory(path.dirname(file));
 }
 
+// One returned snapshot per run; a further attempt requires manual reconciliation.
+const MAX_RETURNED_PAGES = 25;
+const MAX_RETURNED_PAGE_BYTES = 8 * 1024 * 1024;
+async function prepareReturnedPages(runDirectory: string): Promise<string> {
+  const directory = path.join(runDirectory, 'returned-pages');
+  await ensureDirectory(directory);
+  await fs.chmod(directory, 0o700);
+  const entries = await fs.readdir(directory);
+  let snapshots = 0;
+  let pages = 0;
+  for (const name of entries) {
+    const metadata = await fs.lstat(path.join(directory, name));
+    if (!metadata.isFile()) throw new Error('Invalid returned-page journal entry');
+    if (/^snapshot-[a-f0-9]{64}\.json$/.test(name)) {
+      snapshots++;
+      if (metadata.size > 64 * 1024) throw new Error('Returned-page receipt exceeds limits');
+    } else if (/^page-[a-f0-9]{64}\.json$/.test(name) && metadata.size <= MAX_RETURNED_PAGE_BYTES) {
+      pages++;
+    } else throw new Error('Invalid returned-page journal entry');
+  }
+  if (snapshots > 0 || pages > MAX_RETURNED_PAGES) {
+    throw new CollectionPendingError('Returned-page journal is full; reconcile retained snapshot before collecting again');
+  }
+  return directory;
+}
+
+async function retainReturnedPages(directory: string, requestSha256: string, runKey: string, collected: CollectedPages): Promise<void> {
+  if (collected.pages.length > MAX_RETURNED_PAGES || collected.pages.some(page => page.bytes.length > MAX_RETURNED_PAGE_BYTES)) {
+    throw new Error('Returned pages exceed journal limits');
+  }
+  const files = new Set(await fs.readdir(directory));
+  for (const page of collected.pages) files.add(`page-${createHash('sha256').update(page.bytes).digest('hex')}.json`);
+  if (files.size > MAX_RETURNED_PAGES) throw new CollectionPendingError('Returned-page journal is full; reconcile retained pages before collecting again');
+  const pages = [];
+  for (const page of collected.pages) {
+    const sha256 = createHash('sha256').update(page.bytes).digest('hex');
+    const file = `page-${sha256}.json`;
+    await writeOrVerifyReceipt(path.join(directory, file), page.bytes);
+    pages.push({ file, sha256, byteSize: page.bytes.length, offset: page.offset });
+  }
+  const receipt = jsonBytes({ receiptVersion: '1.0.0', admission: 'UNVERIFIED', requestSha256, runKey,
+    mode: collected.mode, actor: collected.actor, warnings: collected.warnings, pages });
+  const sha256 = createHash('sha256').update(receipt).digest('hex');
+  await writeOrVerifyReceipt(path.join(directory, `snapshot-${sha256}.json`), receipt);
+}
+
+async function writeOrVerifyReceipt(file: string, bytes: Buffer): Promise<void> {
+  const prior = await readOptional(file);
+  if (prior) {
+    if (!prior.equals(bytes)) throw new Error('Returned-page journal digest mismatch');
+    await fs.chmod(file, 0o600);
+    const handle = await fs.open(file, 'r');
+    try { await handle.sync(); } finally { await handle.close(); }
+    await syncDirectory(path.dirname(file));
+    return;
+  }
+  await writeReceipt(file, bytes);
+}
+
 async function syncDirectory(directoryPath: string): Promise<void> {
   const directory = await fs.open(directoryPath, 'r');
   try { await directory.sync(); } finally { await directory.close(); }
@@ -285,7 +382,7 @@ async function ensureDirectory(directoryPath: string): Promise<void> {
   await syncDirectory(parent);
 }
 
-export function shopeeActorInput(selected: readonly SelectedListing[],
+export function shopeeActorInput(selected: readonly ShopeeTransportListing[],
   maxReviewsPerProduct: number = PRODUCTION_MAX_REVIEWS_PER_PRODUCT,
   contentFilter: ShopeeContentFilter = FIXED_SHOPEE_SETTINGS.contentFilter): {
     startUrls: { url: string }[];
@@ -298,7 +395,7 @@ export function shopeeActorInput(selected: readonly SelectedListing[],
     maxReviewsPerProduct: validateMaxReviewsPerProduct(maxReviewsPerProduct), starFilter: 'all', contentFilter };
 }
 
-export function shopeeActorInputSha256(selected: readonly SelectedListing[],
+export function shopeeActorInputSha256(selected: readonly ShopeeTransportListing[],
   maxReviewsPerProduct: number = PRODUCTION_MAX_REVIEWS_PER_PRODUCT,
   contentFilter: ShopeeContentFilter = FIXED_SHOPEE_SETTINGS.contentFilter): string {
   return createHash('sha256').update(jsonBytes(shopeeActorInput(selected, maxReviewsPerProduct, contentFilter))).digest('hex');

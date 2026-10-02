@@ -342,6 +342,8 @@ export interface ResearchAutomationProviderConfig {
   readonly serpApiKey: string | null;
   /** Presence only matters for the capability report; no Apify operation is wired here. */
   readonly apifyTokenConfigured: boolean;
+  /** Separate opt-in for exact-listing reviews; presence of a token alone does not enable spending. */
+  readonly apifyReviews?: { readonly token: string; readonly maxChargeUsd: number };
 }
 
 export class ProviderConfigurationError extends Error {
@@ -358,10 +360,15 @@ function credential(value: string | undefined, name: string): string | null {
 
 /** Reads credentials from server environment only. Error messages name the variable, never the value. */
 export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv): ResearchAutomationProviderConfig {
+  const token = credential(env[PROVIDER_CREDENTIAL_ENV.APIFY_SHOPEE], PROVIDER_CREDENTIAL_ENV.APIFY_SHOPEE);
+  const capValue = env.TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD;
+  const cap = capValue ? Number(capValue) : null;
+  if (capValue && (!token || cap === null || !Number.isFinite(cap) || cap <= 0 || cap > 10000)) throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD requires an approved positive cap and APIFY token');
   return {
     kalodataSecretKey: credential(env[PROVIDER_CREDENTIAL_ENV.KALODATA], PROVIDER_CREDENTIAL_ENV.KALODATA),
     serpApiKey: credential(env[PROVIDER_CREDENTIAL_ENV.SERPAPI], PROVIDER_CREDENTIAL_ENV.SERPAPI),
-    apifyTokenConfigured: credential(env[PROVIDER_CREDENTIAL_ENV.APIFY_SHOPEE], PROVIDER_CREDENTIAL_ENV.APIFY_SHOPEE) !== null,
+    apifyTokenConfigured: token !== null,
+    ...(token && cap !== null ? { apifyReviews: { token, maxChargeUsd: cap } } : {}),
   };
 }
 
