@@ -862,3 +862,38 @@ local deletion or R2-primary storage is implied. The owner confirmed edits
 were saved before restart. Live activation preserves the existing data, local
 OWNER testing mode and AI configuration, with private recovery and code-only
 rollback. See `docs/tasks/r2-private-media-archive.md`.
+
+### Automated research: owner-approved v1 implementation, 2026-10-02
+
+The owner authorized code implementation and parallel Claude Opus 5.5 high
+work from the reviewed automation prototype. Preserve the accepted decision
+records under `docs/research-automation/adr/`; ADR 0015 supersedes the earlier
+mandatory monetary-cap wording, not the evidence or human-scope boundaries.
+
+V1 supports Vietnam. Default requested duration is 365 inclusive days, with
+30/90/180-day, 24-month, calendar-year and exact custom intervals. Resolve
+presets to explicit frozen dates; requested scope and observed source coverage
+remain different facts. Never silently shorten the requested period or treat
+truncated monthly rankings as a complete annual market total.
+
+Real provider product cards retain their source identity, image/description
+availability and listing link. Choosing a card identifies intended-product
+closeness; it does not approve a peer set or any B7–B10 action. Keep one
+explicit scope confirmation before full collection and separate M07 peer
+selection. Unknown evidence remains inspectable but does not count in WIDE.
+
+Explicit owner-started in-scope research prioritizes sufficient evidence with
+no owner monetary ceiling. Finite operations, provider quotas, rate limits,
+cancellation, actual usage and reconciliation of ambiguous paid starts remain
+required. Neither viewing a page nor typing starts paid collection.
+
+Market and Insight use separate web views and separate PDFs of their saved
+semantic content. Export does not regenerate analysis. Missing source fields,
+unsupported connectors or method prerequisites produce truthful partial
+drafts and named section blockers. Generic research must not automatically
+inherit the historical calcium review filter or tablet-unit method.
+
+This authorization covers implementation and isolated Linux validation. No
+live Fedora migration, restart, deployment, real run or business approval is
+implied. Report design still requires the established Claude judge and then
+owner acceptance. Existing report paths and immutable history stay intact.

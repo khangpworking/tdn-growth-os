@@ -55,11 +55,11 @@ function setup(): {
 
 test('opens a fresh WAL database and a second migration run is idempotent', () => {
   const first = setup();
-  assert.deepEqual(first.migrationApplied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]);
+  assert.deepEqual(first.migrationApplied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]);
   assert.equal(first.db.pragma('journal_mode', { simple: true }), 'wal');
   assert.equal(first.db.pragma('foreign_keys', { simple: true }), 1n);
   assert.equal(first.db.pragma('busy_timeout', { simple: true }), 5000n);
-  assert.equal(first.db.pragma('user_version', { simple: true }), 37n);
+  assert.equal(first.db.pragma('user_version', { simple: true }), 38n);
   const databasePath = first.db.name;
   if (process.platform !== 'win32') {
     assert.equal(fs.statSync(databasePath).mode & 0o777, 0o600);
@@ -68,7 +68,7 @@ test('opens a fresh WAL database and a second migration run is idempotent', () =
 
   const second = openDatabase({ databasePath });
   assert.deepEqual(second.migration.applied, []);
-  assert.equal(second.migration.currentVersion, 37);
+  assert.equal(second.migration.currentVersion, 38);
   assert.deepEqual(second.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all(), [
     { version: 1n },
     { version: 2n },
@@ -107,8 +107,36 @@ test('opens a fresh WAL database and a second migration run is idempotent', () =
     { version: 35n },
     { version: 36n },
     { version: 37n },
+    { version: 38n },
   ]);
   second.db.close();
+});
+
+test('migration 0038 upgrades a version-37 database once and reruns idempotently', () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-foundation-0038-'));
+  roots.push(root);
+  const priorDirectory = path.join(root, 'migrations-v37');
+  fs.mkdirSync(priorDirectory);
+  for (const name of fs.readdirSync('migrations').filter((candidate) => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 37).sort()) {
+    fs.copyFileSync(path.join('migrations', name), path.join(priorDirectory, name));
+  }
+  const databasePath = path.join(root, 'runtime', 'foundation.sqlite');
+  const version37 = openDatabase({ databasePath, migrationsDirectory: priorDirectory });
+  assert.equal(version37.migration.currentVersion, 37);
+  assert.equal(version37.db.pragma('user_version', { simple: true }), 37n);
+  version37.db.close();
+
+  const upgraded = openDatabase({ databasePath });
+  assert.deepEqual(upgraded.migration.applied, [38]);
+  assert.equal(upgraded.migration.currentVersion, 38);
+  assert.equal(upgraded.db.pragma('user_version', { simple: true }), 38n);
+  assert.ok(upgraded.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='analysis_research_automation_runs'").get());
+  upgraded.db.close();
+
+  const rerun = openDatabase({ databasePath });
+  assert.deepEqual(rerun.migration.applied, []);
+  assert.equal(rerun.migration.currentVersion, 38);
+  rerun.db.close();
 });
 
 test('AJV rejects missing required input and SQLite rejects invalid foreign keys', async () => {

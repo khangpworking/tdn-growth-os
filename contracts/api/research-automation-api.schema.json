@@ -1,0 +1,366 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-automation-api.schema.json",
+  "title": "ResearchAutomationApiContract",
+  "oneOf": [
+    { "$ref": "#/$defs/startRequest" },
+    { "$ref": "#/$defs/confirmRequest" },
+    { "$ref": "#/$defs/cancelRequest" },
+    { "$ref": "#/$defs/run" },
+    { "$ref": "#/$defs/runList" },
+    { "$ref": "#/$defs/receipt" },
+    { "$ref": "#/$defs/error" }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+    "requestKey": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "date": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])-(0[1-9]|[12][0-9]|3[01])$" },
+    "timestamp": { "type": "string", "minLength": 20, "maxLength": 40 },
+    "text120": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$" },
+    "text200": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$" },
+    "longText": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*\\S[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$" },
+    "term": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$" },
+    "productId": { "type": "string", "minLength": 3, "maxLength": 160, "pattern": "^[a-z0-9-]{1,40}:[A-Za-z0-9._~-]{1,118}$" },
+    "provider": { "type": "string", "pattern": "^[a-z0-9-]{1,40}$" },
+    "operation": { "type": "string", "pattern": "^[a-z0-9./_-]{1,80}$" },
+    "code": { "type": "string", "pattern": "^[A-Z0-9_]{1,80}$" },
+    "httpsUrl": { "type": "string", "maxLength": 2048, "pattern": "^https://[^\\s\"'<>\\\\]+$" },
+    "mode": { "title": "ResearchAutomationMode", "enum": ["PRODUCT", "CATEGORY"] },
+    "reportKind": { "title": "ResearchAutomationReportKind", "enum": ["MARKET", "INSIGHT"] },
+    "reports": {
+      "title": "ResearchAutomationReports",
+      "description": "Exactly ['MARKET'], ['INSIGHT'] or ['MARKET','INSIGHT'] in that order; the service rejects any other order.",
+      "type": "array", "items": { "$ref": "#/$defs/reportKind" }, "minItems": 1, "maxItems": 2, "uniqueItems": true
+    },
+    "requestedPeriodInput": {
+      "title": "ResearchAutomationRequestedPeriodInput",
+      "type": "object", "additionalProperties": false,
+      "required": ["startDate", "endDate"],
+      "properties": {
+        "startDate": { "$ref": "#/$defs/date" },
+        "endDate": { "$ref": "#/$defs/date" }
+      }
+    },
+    "requestedPeriod": {
+      "title": "ResearchAutomationRequestedPeriod",
+      "type": "object", "additionalProperties": false,
+      "required": ["startDate", "endDate", "dayCount"],
+      "properties": {
+        "startDate": { "$ref": "#/$defs/date" },
+        "endDate": { "$ref": "#/$defs/date" },
+        "dayCount": { "type": "integer", "minimum": 1, "maximum": 1096 }
+      }
+    },
+    "interview": {
+      "title": "ResearchAutomationInterview",
+      "type": "object", "additionalProperties": false,
+      "properties": {
+        "productType": { "$ref": "#/$defs/text200" },
+        "audience": { "$ref": "#/$defs/text200" },
+        "useCase": { "$ref": "#/$defs/text200" },
+        "priceRange": { "$ref": "#/$defs/text200" },
+        "knownProduct": { "$ref": "#/$defs/text200" }
+      }
+    },
+    "startRequest": {
+      "title": "ResearchAutomationStartRequest",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "mode", "keyword", "requestedPeriod", "reports"],
+      "properties": {
+        "contractVersion": { "const": "research-automation-start-v1" },
+        "requestKey": { "$ref": "#/$defs/requestKey" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "keyword": { "$ref": "#/$defs/text120" },
+        "description": { "$ref": "#/$defs/longText" },
+        "requestedPeriod": { "$ref": "#/$defs/requestedPeriodInput" },
+        "reports": { "$ref": "#/$defs/reports" },
+        "interview": { "$ref": "#/$defs/interview" }
+      }
+    },
+    "confirmRequest": {
+      "title": "ResearchAutomationConfirmRequest",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "expectedRevision", "definition", "includeTerms", "excludeTerms", "selectedProductIds", "peerProductIds"],
+      "properties": {
+        "contractVersion": { "const": "research-automation-confirm-v1" },
+        "requestKey": { "$ref": "#/$defs/requestKey" },
+        "expectedRevision": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "definition": { "$ref": "#/$defs/longText" },
+        "includeTerms": { "type": "array", "items": { "$ref": "#/$defs/term" }, "maxItems": 30, "uniqueItems": true },
+        "excludeTerms": { "type": "array", "items": { "$ref": "#/$defs/term" }, "maxItems": 30, "uniqueItems": true },
+        "selectedProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 4, "uniqueItems": true },
+        "peerProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 8, "uniqueItems": true }
+      }
+    },
+    "cancelRequest": {
+      "title": "ResearchAutomationCancelRequest",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "expectedRevision"],
+      "properties": {
+        "contractVersion": { "const": "research-automation-cancel-v1" },
+        "requestKey": { "$ref": "#/$defs/requestKey" },
+        "expectedRevision": { "type": "integer", "minimum": 1, "maximum": 1000000 }
+      }
+    },
+    "runStatus": {
+      "title": "ResearchAutomationRunStatus",
+      "enum": [
+        "QUICK_SEARCH_QUEUED", "QUICK_SEARCH_RUNNING", "AWAITING_SCOPE", "COLLECTION_QUEUED", "COLLECTING",
+        "RENDERING", "CANCELLING", "DRAFT_READY", "FAILED", "CANCELLED", "INTERRUPTED"
+      ]
+    },
+    "stepState": {
+      "title": "ResearchAutomationStepState",
+      "enum": ["PENDING", "QUEUED", "RUNNING", "SUCCEEDED", "PARTIAL", "UNAVAILABLE", "FAILED", "CANCELLED", "INTERRUPTED", "SKIPPED"]
+    },
+    "step": {
+      "title": "ResearchAutomationStep",
+      "type": "object", "additionalProperties": false,
+      "required": ["stepId", "state", "code", "message", "startedAt", "finishedAt"],
+      "properties": {
+        "stepId": { "enum": ["QUICK_SEARCH", "COLLECTION", "REPORTS"] },
+        "state": { "$ref": "#/$defs/stepState" },
+        "code": { "anyOf": [{ "$ref": "#/$defs/code" }, { "type": "null" }] },
+        "message": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 400 }, { "type": "null" }] },
+        "startedAt": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "finishedAt": { "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+      }
+    },
+    "observedWindow": {
+      "title": "ResearchAutomationObservedWindow",
+      "type": "object", "additionalProperties": false,
+      "required": ["startDate", "endDate", "label"],
+      "properties": {
+        "startDate": { "$ref": "#/$defs/date" },
+        "endDate": { "$ref": "#/$defs/date" },
+        "label": { "type": "string", "minLength": 1, "maxLength": 200 }
+      }
+    },
+    "productCard": {
+      "title": "ResearchAutomationProductCard",
+      "type": "object", "additionalProperties": false,
+      "required": ["productId", "provider", "sourceProductId", "role", "title", "sourceUrl", "imageUrl", "description", "descriptionState", "observedWindow", "retrievedAt"],
+      "properties": {
+        "productId": { "$ref": "#/$defs/productId" },
+        "provider": { "$ref": "#/$defs/provider" },
+        "sourceProductId": { "type": "string", "pattern": "^[A-Za-z0-9._~-]{1,118}$" },
+        "role": { "enum": ["PRINCIPAL", "EXPLORATION"] },
+        "title": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 500 }, { "type": "null" }] },
+        "sourceUrl": { "anyOf": [{ "$ref": "#/$defs/httpsUrl" }, { "type": "null" }] },
+        "imageUrl": { "anyOf": [{ "$ref": "#/$defs/httpsUrl" }, { "type": "null" }] },
+        "description": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 5000 }, { "type": "null" }] },
+        "descriptionState": { "enum": ["PRESENT", "EMPTY", "UNAVAILABLE"] },
+        "observedWindow": { "anyOf": [{ "$ref": "#/$defs/observedWindow" }, { "type": "null" }] },
+        "retrievedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "definition": {
+      "title": "ResearchAutomationConfirmedScope",
+      "type": "object", "additionalProperties": false,
+      "required": ["definition", "includeTerms", "excludeTerms", "selectedProductIds", "peerProductIds", "confirmedAt"],
+      "properties": {
+        "definition": { "$ref": "#/$defs/longText" },
+        "includeTerms": { "type": "array", "items": { "$ref": "#/$defs/term" }, "maxItems": 30 },
+        "excludeTerms": { "type": "array", "items": { "$ref": "#/$defs/term" }, "maxItems": 30 },
+        "selectedProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 4 },
+        "peerProductIds": { "type": "array", "items": { "$ref": "#/$defs/productId" }, "maxItems": 8 },
+        "confirmedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "coverageSource": {
+      "title": "ResearchAutomationCoverageSource",
+      "type": "object", "additionalProperties": false,
+      "required": ["provider", "dataset", "state", "observedStartDate", "observedEndDate", "truncated", "note"],
+      "properties": {
+        "provider": { "$ref": "#/$defs/provider" },
+        "dataset": { "$ref": "#/$defs/operation" },
+        "state": { "enum": ["COLLECTED", "PARTIAL", "WAITING_FOR_INPUT", "UNSUPPORTED", "UNAVAILABLE", "FAILED", "CANCELLED"] },
+        "observedStartDate": { "anyOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] },
+        "observedEndDate": { "anyOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] },
+        "truncated": { "type": "boolean" },
+        "note": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 400 }, { "type": "null" }] }
+      }
+    },
+    "coverage": {
+      "title": "ResearchAutomationCoverage",
+      "type": "object", "additionalProperties": false,
+      "required": ["requestedPeriod", "sources"],
+      "properties": {
+        "requestedPeriod": { "$ref": "#/$defs/requestedPeriod" },
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/coverageSource" }, "maxItems": 64 }
+      }
+    },
+    "cost": {
+      "title": "ResearchAutomationCost",
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false, "required": ["state", "unit", "amount"],
+          "properties": {
+            "state": { "const": "KNOWN" },
+            "unit": { "enum": ["USD", "CREDITS"] },
+            "amount": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,15})(\\.[0-9]{1,12})?$" }
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false, "required": ["state"],
+          "properties": { "state": { "const": "UNKNOWN" } }
+        }
+      ]
+    },
+    "usageEntry": {
+      "title": "ResearchAutomationUsageEntry",
+      "type": "object", "additionalProperties": false,
+      "required": ["stepId", "provider", "operation", "requestCount", "cost"],
+      "properties": {
+        "stepId": { "enum": ["QUICK_SEARCH", "COLLECTION"] },
+        "provider": { "$ref": "#/$defs/provider" },
+        "operation": { "$ref": "#/$defs/operation" },
+        "requestCount": { "type": "integer", "minimum": 0 },
+        "cost": { "$ref": "#/$defs/cost" }
+      }
+    },
+    "usage": {
+      "title": "ResearchAutomationUsage",
+      "type": "object", "additionalProperties": false,
+      "required": ["entries", "requestCount", "knownCosts", "hasUnknownCost"],
+      "properties": {
+        "entries": { "type": "array", "items": { "$ref": "#/$defs/usageEntry" }, "maxItems": 512 },
+        "requestCount": { "type": "integer", "minimum": 0 },
+        "knownCosts": {
+          "type": "array", "maxItems": 2,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["unit", "amount"],
+            "properties": {
+              "unit": { "enum": ["USD", "CREDITS"] },
+              "amount": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,15})(\\.[0-9]{1,12})?$" }
+            }
+          }
+        },
+        "hasUnknownCost": { "type": "boolean" }
+      }
+    },
+    "blocker": {
+      "title": "ResearchAutomationBlocker",
+      "type": "object", "additionalProperties": false,
+      "required": ["code", "scope", "provider", "message"],
+      "properties": {
+        "code": { "$ref": "#/$defs/code" },
+        "scope": { "enum": ["RUN", "SOURCE"] },
+        "provider": { "anyOf": [{ "$ref": "#/$defs/provider" }, { "type": "null" }] },
+        "message": { "type": "string", "minLength": 1, "maxLength": 400 }
+      }
+    },
+    "output": {
+      "title": "ResearchAutomationOutput",
+      "type": "object", "additionalProperties": false,
+      "required": ["versionId", "web", "pdf"],
+      "properties": {
+        "versionId": { "$ref": "#/$defs/digest" },
+        "web": { "const": true },
+        "pdf": {
+          "type": "object", "additionalProperties": false,
+          "required": ["available", "reason"],
+          "properties": {
+            "available": { "type": "boolean" },
+            "reason": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }] }
+          }
+        }
+      }
+    },
+    "run": {
+      "title": "ResearchAutomationRun",
+      "type": "object", "additionalProperties": false,
+      "required": [
+        "contractVersion", "runId", "workspaceId", "revision", "status", "country", "mode", "keyword", "description", "interview",
+        "requestedPeriod", "reports", "definition", "productCards", "coverage", "usage", "steps", "blockers", "createdAt", "updatedAt"
+      ],
+      "properties": {
+        "contractVersion": { "const": "research-automation-run-v1" },
+        "runId": { "$ref": "#/$defs/uuid" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "status": { "$ref": "#/$defs/runStatus" },
+        "country": { "const": "VN" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "keyword": { "$ref": "#/$defs/text120" },
+        "description": { "anyOf": [{ "$ref": "#/$defs/longText" }, { "type": "null" }] },
+        "interview": { "anyOf": [{ "$ref": "#/$defs/interview" }, { "type": "null" }] },
+        "requestedPeriod": { "$ref": "#/$defs/requestedPeriod" },
+        "reports": { "$ref": "#/$defs/reports" },
+        "definition": { "anyOf": [{ "$ref": "#/$defs/definition" }, { "type": "null" }] },
+        "productCards": { "type": "array", "items": { "$ref": "#/$defs/productCard" }, "maxItems": 24 },
+        "coverage": { "$ref": "#/$defs/coverage" },
+        "usage": { "$ref": "#/$defs/usage" },
+        "steps": { "type": "array", "items": { "$ref": "#/$defs/step" }, "minItems": 3, "maxItems": 3 },
+        "blockers": { "type": "array", "items": { "$ref": "#/$defs/blocker" }, "maxItems": 64 },
+        "outputs": {
+          "type": "object", "additionalProperties": false,
+          "properties": {
+            "market": { "$ref": "#/$defs/output" },
+            "insight": { "$ref": "#/$defs/output" }
+          }
+        },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "runSummary": {
+      "title": "ResearchAutomationRunSummary",
+      "type": "object", "additionalProperties": false,
+      "required": ["runId", "revision", "status", "mode", "keyword", "requestedPeriod", "reports", "createdAt", "updatedAt"],
+      "properties": {
+        "runId": { "$ref": "#/$defs/uuid" },
+        "revision": { "type": "integer", "minimum": 1 },
+        "status": { "$ref": "#/$defs/runStatus" },
+        "mode": { "$ref": "#/$defs/mode" },
+        "keyword": { "$ref": "#/$defs/text120" },
+        "requestedPeriod": { "$ref": "#/$defs/requestedPeriod" },
+        "reports": { "$ref": "#/$defs/reports" },
+        "createdAt": { "$ref": "#/$defs/timestamp" },
+        "updatedAt": { "$ref": "#/$defs/timestamp" }
+      }
+    },
+    "runList": {
+      "title": "ResearchAutomationRunList",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "runs"],
+      "properties": {
+        "contractVersion": { "const": "research-automation-run-list-v1" },
+        "workspaceId": { "$ref": "#/$defs/uuid" },
+        "runs": { "type": "array", "items": { "$ref": "#/$defs/runSummary" }, "maxItems": 50 }
+      }
+    },
+    "receipt": {
+      "title": "ResearchAutomationMutationReceipt",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "exactRetry", "run"],
+      "properties": {
+        "contractVersion": { "const": "research-automation-receipt-v1" },
+        "exactRetry": { "type": "boolean" },
+        "run": { "$ref": "#/$defs/run" }
+      }
+    },
+    "error": {
+      "title": "ResearchAutomationError",
+      "type": "object", "additionalProperties": false,
+      "required": ["error"],
+      "properties": {
+        "error": {
+          "type": "object", "additionalProperties": false,
+          "required": ["code", "message"],
+          "properties": {
+            "code": {
+              "enum": [
+                "bad_request", "unauthorized", "forbidden", "not_found", "workspace_not_found", "run_not_found",
+                "report_not_available", "pdf_not_available", "method_not_allowed", "request_key_conflict", "revision_conflict",
+                "invalid_state", "payload_too_large", "integrity_error", "service_unavailable"
+              ]
+            },
+            "message": { "type": "string", "minLength": 1, "maxLength": 300 }
+          }
+        }
+      }
+    }
+  }
+}

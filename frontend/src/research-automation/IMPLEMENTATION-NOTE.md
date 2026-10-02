@@ -1,0 +1,7 @@
+# Research automation frontend slice
+
+The surface keeps the approved dossier composition: navy / blue-grey canvas, a six-step left rail, focused white work area, and a right-hand facts inspector. The research editor is local until the explicit “Bắt đầu tìm nhanh” action; category interview answers may remain unknown, Vietnam is fixed, and the 365-day preset resolves to visible inclusive dates.
+
+The real route is `#/markets/<workspaceId>/research` (new editor) or `#/markets/<workspaceId>/research/<runId>` (reloadable run). Mutations validate the generated receipt envelope and use a stable request key while the same body is retried. The run view polls only non-terminal server states and aborts polling on unmount or workspace/run change. Market and Insight links remain separate, and PDF availability/reasons come from the frozen run projection.
+
+Linux QA passed: generated standalone validators, frontend typecheck/build and 194 frontend tests; production-browser acceptance covered desktop and mobile, persistence after reload and demo isolation. Provider images still depend on the operator CSP allowlist; invalid/non-HTTPS links show a visible unavailable state. Repeated blockers are grouped without losing their per-scope evidence, and raw identifiers remain in collapsed technical details. Final design approval remains with the designated Claude design session and then the owner.

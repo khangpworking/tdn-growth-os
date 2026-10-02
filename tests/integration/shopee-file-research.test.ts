@@ -394,8 +394,8 @@ test('015 version 10 database upgrades remaining migrations and reruns idempoten
   assert.equal(old.db.pragma('user_version', { simple: true }), 10n);
   old.db.close();
   const next = openDatabase({ databasePath });
-  assert.deepEqual(next.migration.applied, [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37]);
-  assert.equal(next.db.pragma('user_version', { simple: true }), 37n);
+  assert.deepEqual(next.migration.applied, [11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]);
+  assert.equal(next.db.pragma('user_version', { simple: true }), 38n);
   assert.throws(() => next.db.prepare(`INSERT INTO analysis_shopee_review_results
     (collection_id, filter_sha256, artifact_sha256, created_at) VALUES (?, ?, ?, ?)`)
     .run('00000000-0000-4000-8000-000000000000', 'a'.repeat(64), 'b'.repeat(64), '2026-09-15T00:00:00.000Z'), /FOREIGN KEY/);

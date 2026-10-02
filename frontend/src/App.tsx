@@ -32,6 +32,7 @@ import { demoIdeaList, type DemoIdea, type DemoIdeaCampaign, type PurposeTag } f
 import PackageNewPage, { demoReferencePhotos } from './PackageNewPage';
 import PackagePage from './PackagePage';
 import ResearchReportsPanel from './ResearchReportsPanel';
+import ResearchAutomationPage from './research-automation/ResearchAutomationPage';
 import ReportReviewTargetPage from './ReportReviewTargetPage';
 import type { DemoPackage, DemoPackageContext, DemoPackageDefaults } from './package-data-source';
 import type { DemoInsight, DemoResearchProduct } from './insight-data-source';
@@ -162,7 +163,7 @@ function MarketWorkspace({ state, market, mode, ownerToken, writesAvailable, rel
   const states = products.flatMap((product) => Object.values(product.states));
   const totals = { PASS: states.filter((value) => value === 'PASS').length, HOLD: states.filter((value) => value === 'HOLD').length, REJECT: states.filter((value) => value === 'REJECT').length, NONE: states.filter((value) => value === 'NONE').length };
   const distribution: readonly LaneState[] = ['PASS', 'HOLD', 'REJECT', 'NONE'];
-  return <><MarketNavigation state={state} marketId={market.id} /><div className="heading"><div><h1>{market.name}</h1><p>Nghiên cứu chung, rổ cơ hội và hồ sơ sản phẩm của thị trường này.</p></div><Badge state="NONE">{products.length} workspace sản phẩm</Badge></div>
+  return <><MarketNavigation state={state} marketId={market.id} /><div className="heading"><div><h1>{market.name}</h1><p>Nghiên cứu chung, rổ cơ hội và hồ sơ sản phẩm của thị trường này.</p></div><div className="heading-actions"><Badge state="NONE">{products.length} workspace sản phẩm</Badge><button type="button" className="button primary" onClick={() => navigate(routeToHash.research(market.id))}>Nghiên cứu tự động</button></div></div>
     <Stats items={[
       { label: 'Workspace sản phẩm', value: products.length, note: 'Tách biệt sau B7' },
       { label: 'Lane chưa đạt', value: states.length - totals.PASS, note: `Trong ${states.length} lane B8` },
@@ -337,7 +338,7 @@ export default function App() {
     return () => { active = false; };
   }, [mode, ownerAccessAttempt]);
   useEffect(() => { if (ownerAvailability !== 'available') { setOwnerToken(null); setTokenDraft(''); } }, [ownerAvailability]);
-  useEffect(() => { main.current?.focus(); window.scrollTo(0, 0); }, [route.kind, route.kind === 'market' ? route.marketId : route.kind === 'product' ? `${route.productId}-${route.section}` : route.kind === 'review-target' ? route.reviewTargetId : '']);
+  useEffect(() => { main.current?.focus(); window.scrollTo(0, 0); }, [route.kind, route.kind === 'market' || route.kind === 'research' ? `${route.marketId}-${route.kind === 'research' ? route.runId ?? 'new' : ''}` : route.kind === 'product' ? `${route.productId}-${route.section}` : route.kind === 'review-target' ? route.reviewTargetId : '']);
   const reset = () => {
     dispatch({ type: 'reset' });
     const seeded = seedDemoContent(mode);
@@ -360,6 +361,7 @@ export default function App() {
   else if (route.kind === 'package') content = <PackagePage key={`${route.campaignId}-${route.code}`} mode={mode} campaignId={route.campaignId} code={route.code} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoContext={demoPackageContext} demoPackages={demoPackages} setDemoPackages={setDemoPackages} demoMedia={demoMedia} notify={notify} />;
   else if (route.kind === 'brands' || route.kind === 'brand' || route.kind === 'catalog') content = <BrandsPage mode={mode} brandId={route.kind === 'brands' ? null : route.brandId} view={route.kind === 'catalog' ? 'catalog' : 'profile'} itemId={route.kind === 'catalog' ? route.itemId : null} ownerToken={ownerToken} writesAvailable={mode === 'demo' || ownerAvailability === 'available'} demoBrands={demoBrands} setDemoBrands={setDemoBrands} demoItems={demoItems} setDemoItems={setDemoItems} demoMedia={demoMedia} addDemoMedia={(mediaSha256, dataUrl) => setDemoMedia((prior) => ({ ...prior, [mediaSha256]: dataUrl }))} navigate={navigate} notify={notify} />;
   else if (route.kind === 'review-target') content = <ReportReviewTargetPage mode={mode} reviewTargetId={route.reviewTargetId} navigate={navigate} />;
+  else if (route.kind === 'research') content = <ResearchAutomationPage key={`${route.marketId}:${route.runId ?? 'new'}:${mode}`} mode={mode} workspaceId={route.marketId} runId={route.runId} ownerToken={ownerToken} writesAvailable={mode === 'real' && ownerAvailability === 'available'} navigate={navigate} notify={notify} />;
   else if (mode === 'real' && loadState === 'loading') content = <ScenarioPreview scenario="loading" restore={() => undefined} />;
   else if (mode === 'real' && loadState !== 'ready') content = <div className="surface error"><h1>{loadState === 'integrity' ? 'Dữ liệu không vượt qua kiểm tra toàn vẹn' : 'Không thể kết nối API workspace'}</h1><p>{loadState === 'integrity' ? 'Ứng dụng đã đóng an toàn, không hiển thị dữ liệu một phần.' : 'Hãy kiểm tra API nội bộ và tải lại trang. Dữ liệu demo không được tự động thay thế.'}</p><a className="button" href="?mode=demo#/">Mở demo rõ nhãn</a></div>;
   else if (scenario !== 'normal' && route.kind !== 'product' && route.kind !== 'invalid') content = <ScenarioPreview scenario={scenario} restore={() => setScenario('normal')} />;

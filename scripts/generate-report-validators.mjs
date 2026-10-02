@@ -17,6 +17,7 @@ async function readSchema(relativePath) {
 
 const reportApiSchema = await readSchema('contracts/api/report-api.schema.json');
 const researchGenerationApiSchema = await readSchema('contracts/api/research-generation-api.schema.json');
+const researchAutomationApiSchema = await readSchema('contracts/api/research-automation-api.schema.json');
 const reportReviewTargetSchema = await readSchema('contracts/analysis/report-review-target.schema.json');
 const reportReviewTargetCreateRequestSchema = await readSchema('contracts/analysis/report-review-target-create-request.schema.json');
 const ownerReportReviewTargetApiSchema = await readSchema('contracts/api/owner-report-review-target-api.schema.json');
@@ -27,9 +28,13 @@ ajv.addSchema(reportReviewTargetSchema);
 ajv.addSchema(reportReviewTargetCreateRequestSchema);
 ajv.addSchema(reportApiSchema);
 ajv.addSchema(researchGenerationApiSchema);
+ajv.addSchema(researchAutomationApiSchema);
 ajv.addSchema(ownerReportReviewTargetApiSchema);
 
 const validatorRefs = {
+  researchAutomationRun: `${researchAutomationApiSchema.$id}#/$defs/run`,
+  researchAutomationRunList: `${researchAutomationApiSchema.$id}#/$defs/runList`,
+  researchAutomationReceipt: `${researchAutomationApiSchema.$id}#/$defs/receipt`,
   researchGenerationInputs: `${researchGenerationApiSchema.$id}#/$defs/inputs`,
   researchGenerationReceipt: `${researchGenerationApiSchema.$id}#/$defs/receipt`,
   researchGenerationMethodInputError: `${researchGenerationApiSchema.$id}#/$defs/methodInputError`,
