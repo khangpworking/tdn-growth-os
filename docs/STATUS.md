@@ -1,5 +1,27 @@
 # Trạng thái hiện tại
 
+## Metric original-export checkpoint (2026-10-03, draft PR #110)
+
+GPT continues implementation while Claude quota is unavailable. A genuine
+Metric Shopee export exposed a changed 20-column header and slug product URLs.
+The separately declared v2 profile now normalizes it without repairing raw
+cells or weakening the legacy profile. Linux affected checks passed 19/19,
+backend TypeScript passed, and the actual offline CLI accepted 223 records
+with zero database mutations and no model/provider invocation by the CLI.
+Exact-head CI for this profile change is not yet verified.
+
+The source is a bounded keyword-selected sample, includes nonfood records,
+and ends before the requested report period. No classifications were assigned;
+WIDE/CORE remain blocked. Exact listing IDs are verified but pack-size identity
+and commercial precision are not. The UI acquisition's point/cost usage is
+unknown, not zero. Original files, audit metadata and generated results are
+private and outside Git.
+
+Next: confirmed-run attachment and frozen full Metric outputs for M03/M04.
+This export is not yet consumed by the automated web report. No migration,
+deployment or active-runtime data change occurred. See the
+[profile v2 handoff](handoffs/research-metric-export-profile-v2.md).
+
 ## Native review automation checkpoint (2026-10-03, draft PR #110)
 
 The retained Dami native SourcePackage now connects to exact-listing automation
@@ -17,7 +39,9 @@ The actual retained Thạch dừa capture passed an isolated-copy automation jou
 diagnostics retained, separate Market/Insight web and PDF files. Saved reads made
 zero provider calls and database mutations. No new provider cost was incurred.
 This is PARTIAL source-bound output, not a completed analytical section or a
-complete 30-section report. Final-head CI for this new slice is pending.
+complete 30-section report. Published native head
+`ecfa251d605a99a42f3569e4a109c06e64d2695e` passed
+[exact-head CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37038843045).
 
 Claude quota is unavailable; GPT takes over implementation and verification.
 Claude final design approval and owner final-report approval remain outstanding.

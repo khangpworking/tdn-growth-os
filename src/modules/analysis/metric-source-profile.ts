@@ -21,9 +21,13 @@ const validateManifest = ajv.compile<MetricSourceManifest>(manifestSchema);
 const validateLabels = ajv.compile<MetricSourceLabels>(labelsSchema);
 const hash = (bytes: Buffer | string): string => createHash('sha256').update(bytes).digest('hex');
 const jsonHash = (v: unknown): string => hash(canonicalJson(v));
-const HEADERS = ['Tên sản phẩm', 'Link sản phẩm', 'Giá', 'Số đã bán', 'Doanh thu', 'Ngành hàng', 'Thương hiệu',
+const LEGACY_HEADERS = ['Tên sản phẩm', 'Link sản phẩm', 'Giá', 'Số đã bán', 'Doanh thu', 'Ngành hàng', 'Thương hiệu',
   'Giá phân loại cao nhất', 'Giá phân loại nhỏ nhất', 'Link shop', 'Mã sản phẩm', 'Ngành hàng cấp 1', 'Ngành hàng cấp 2',
   'Ngành hàng cấp 3', 'Ngày bắt đầu bán', 'Thumbnail', 'Tên shop', 'Tổng doanh số', 'Tổng số đánh giá', 'Tổng số đã bán'];
+// A separately declared export profile, not an auto-detected or repaired legacy workbook.
+const CURRENT_HEADERS = ['Tên sản phẩm', 'Link sản phẩm', 'Giá', 'Số đã bán', 'Doanh thu', 'Thương hiệu',
+  'Giá phân loại cao nhất', 'Giá phân loại nhỏ nhất', 'Link shop', 'Mã sản phẩm', 'Ngành hàng', 'Ngành hàng cấp 1',
+  'Ngành hàng cấp 2', 'Ngành hàng cấp 3', 'Ngày bắt đầu bán', 'Thumbnail', 'Tên shop', 'Tổng doanh số', 'Tổng số đánh giá', 'Tổng số đã bán'];
 type Cell = { type: string; value: string | null; style: string | null; rawType: string | null; rawValue: string | null; numberFormatId: string };
 type RawRow = { row: number; cells: Cell[] };
 
@@ -88,10 +92,12 @@ export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Bu
   if (manifest.scope.platform !== 'shopee' || manifest.scope.start > manifest.scope.end) reject('manifest/scope', 'SCOPE_PERIOD_MISMATCH');
   const sourceSha256 = hash(workbook), manifestSha256 = hash(manifestBytes);
   if (sourceSha256 !== manifest.source.sha256) reject('workbook', 'SOURCE_HASH_MISMATCH');
+  const headers = manifest.profileId === 'metric-shopee-product-list-sheet1-v2' ? CURRENT_HEADERS : LEGACY_HEADERS;
+  const shopColumn = headers.indexOf('Link shop'), compositeColumn = headers.indexOf('Mã sản phẩm');
   const rows = readSheet(workbook);
   const header = rows[0];
   if (!header || header.row !== 1 || header.cells.some(c => c.type !== 'text') ||
-      canonicalJson(header.cells.map(c => c.value)) !== canonicalJson(HEADERS) ||
+      canonicalJson(header.cells.map(c => c.value)) !== canonicalJson(headers) ||
       jsonHash(header.cells.map(c => c.value)) !== manifest.source.headerSha256) reject('Sheet1!A1:T1', 'HEADER_MISMATCH');
   if (rows.length !== manifest.source.lastRow || rows.some((r, i) => r.row !== i + 1)) reject('Sheet1', 'ROW_RANGE_MISMATCH');
   const input: MetricScopeInput = {
@@ -112,11 +118,13 @@ export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Bu
       if (cell.type !== 'text' || !cell.value?.trim()) reject(ref(String.fromCharCode(65 + index)).locator, 'REQUIRED_TEXT');
       return cell.value;
     };
-    const url = text(1), match = /^https:\/\/shopee\.vn\/product\/([1-9][0-9]{0,127})\/([1-9][0-9]{0,127})$/.exec(url);
+    const url = text(1), match = /^https:\/\/shopee\.vn\/product\/([1-9][0-9]{0,127})\/([1-9][0-9]{0,127})$/.exec(url) ??
+      (manifest.profileId === 'metric-shopee-product-list-sheet1-v2'
+        ? /^https:\/\/shopee\.vn\/[^/?#]+-i\.([1-9][0-9]{0,127})\.([1-9][0-9]{0,127})$/.exec(url) : null);
     if (!match) reject(ref('B').locator, 'PRODUCT_URL_SHAPE');
     const shopId = match[1]!, listingId = match[2]!;
-    if (text(9) !== `https://shopee.vn/shop/${shopId}`) reject(ref('J').locator, 'SHOP_ID_MISMATCH');
-    if (text(10) !== `1__${listingId}__${shopId}`) reject(ref('K').locator, 'COMPOSITE_ID_MISMATCH');
+    if (text(shopColumn) !== `https://shopee.vn/shop/${shopId}`) reject(ref(String.fromCharCode(65 + shopColumn)).locator, 'SHOP_ID_MISMATCH');
+    if (text(compositeColumn) !== `1__${listingId}__${shopId}`) reject(ref(String.fromCharCode(65 + compositeColumn)).locator, 'COMPOSITE_ID_MISMATCH');
     const key = `${shopId}/${listingId}`;
     if (seen.has(key)) reject(ref('B').locator, 'DUPLICATE_LISTING');
     seen.add(key);
