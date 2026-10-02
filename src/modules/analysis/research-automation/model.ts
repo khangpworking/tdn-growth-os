@@ -2,6 +2,7 @@ import type {
   ResearchAutomationCoverageSource, ResearchAutomationInterview, ResearchAutomationMode, ResearchAutomationProductCard,
   ResearchAutomationReportKind, ResearchAutomationRunStatus, ResearchAutomationStepState,
 } from '../../../../contracts/api/research-automation-api.generated.js';
+import type { NativeSourceReviewReference } from './native-source-review-bridge.js';
 
 export type StepId = 'QUICK_SEARCH' | 'COLLECTION' | 'REPORTS';
 export type SourceStepId = Exclude<StepId, 'REPORTS'>;
@@ -81,6 +82,8 @@ export interface StepResultDocument {
     readonly collectionSha256: string;
     readonly requestSha256: string;
   };
+  /** A reused native capture, never projected as a new provider collection. */
+  readonly nativeReview?: NativeSourceReviewReference;
 }
 
 export interface CaptureRecord {

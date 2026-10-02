@@ -4,6 +4,7 @@ import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/de
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
 import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
+import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot } from './native-source-review-bridge.js';
 import { AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory } from './exact-shopee-bridge.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
@@ -69,6 +70,9 @@ export interface ResearchAutomationReportInput {
   readonly reviewCorpus?: ResearchReviewCorpus;
   readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
   readonly locatedReview?: AutomationLocatedReviewSnapshot;
+  readonly nativeReview?: NativeSourceReviewSnapshot;
+  readonly nativeReviewFallback?: Pick<NativeSourceReviewSnapshot, 'sourcePackage'>;
+  readonly nativeReviewFailure?: 'NATIVE_REVIEW_METHOD_FAILED' | 'NATIVE_REVIEW_REPORT_TOO_LARGE';
   readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
@@ -141,6 +145,7 @@ export class ResearchAutomationService {
   readonly #actorId: string;
   readonly #methods: AutomationDescriptiveMethodBridge;
   readonly #locatedReviews: AutomationLocatedReviewBridge;
+  readonly #nativeReviews: AutomationNativeSourceReviewBridge;
   readonly #shopee: AutomationExactShopeeBridge;
   readonly #marketInventory: AutomationMarketMethodBridge;
   readonly #active = new Map<string, AbortController>();
@@ -156,6 +161,7 @@ export class ResearchAutomationService {
     this.#actorId = options.actorId ?? 'research-automation-worker';
     this.#methods = new AutomationDescriptiveMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#locatedReviews = new AutomationLocatedReviewBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+    this.#nativeReviews = new AutomationNativeSourceReviewBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#shopee = new AutomationExactShopeeBridge(this.#db, this.#artifacts, options.shopeeCollectorFactory);
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
   }
@@ -324,6 +330,22 @@ export class ResearchAutomationService {
         start: await this.#readStartSnapshot(frozen.startSha, workspaceId), scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId),
         scopeConfirmedAt: frozen.scopeConfirmedAt });
     }
+    if ((semantic.nativeReview !== undefined && semantic.nativeReview !== null) || semantic.nativeReviewFallback) {
+      const frozen = this.#current(runId);
+      const collection = await this.#stepDocument(runId, 'COLLECTION');
+      if (kind !== 'INSIGHT' || semantic.reviewCorpus || semantic.locatedReview || !frozen?.scopeSha ||
+          !frozen.scopeConfirmedAt || !collection?.nativeReview || collection.exactShopee)
+        throw new ResearchAutomationIntegrityError('Stored native review lacks its distinct source and frozen run.');
+      const input = { runId,
+        start: await this.#readStartSnapshot(frozen.startSha, workspaceId),
+        scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt };
+      if (semantic.nativeReviewFallback) {
+        if (semantic.nativeReview || !isRecord(semantic.nativeReviewFallback) || !isRecord(semantic.nativeReviewFallback.sourcePackage) ||
+            semantic.nativeReviewFailure !== 'NATIVE_REVIEW_REPORT_TOO_LARGE')
+          throw new ResearchAutomationIntegrityError('Stored native fallback identity is invalid.');
+        await this.#nativeReviews.readSnapshot(semantic.nativeReviewFallback.sourcePackage as NativeSourceReviewSnapshot['sourcePackage'], collection.nativeReview, input);
+      } else await this.#nativeReviews.verify(semantic.nativeReview, collection.nativeReview, input);
+    }
     if (semantic.marketInventory !== undefined && semantic.marketInventory !== null) {
       const frozen = this.#current(runId);
       if (kind !== 'MARKET' || !frozen?.scopeSha) throw new ResearchAutomationIntegrityError('Stored Market inventory lacks scope.');
@@ -450,7 +472,29 @@ export class ResearchAutomationService {
       }
       let exact: ExactShopeeAttempt | undefined;
       if (stepId === 'COLLECTION' && scope?.exactShopeeUrls?.length && !controller.signal.aborted) {
-        exact = await this.#shopee.collect({ runId: row.runId, start, scope, scopeConfirmedAt: row.scopeConfirmedAt! }, controller.signal);
+        const frozenInput = { runId: row.runId, start, scope, scopeConfirmedAt: row.scopeConfirmedAt! };
+        let resolution: Awaited<ReturnType<AutomationNativeSourceReviewBridge['resolve']>> | undefined;
+        try { resolution = await this.#nativeReviews.resolve(frozenInput); }
+        catch {
+          if (!controller.signal.aborted) result.step = nativeSourceBlocked(result.step, 'SOURCE_PACKAGE_RESOLUTION_FAILED');
+        }
+        if (resolution?.state === 'RESOLVED') {
+          try {
+            const retained = await this.#nativeReviews.readReference(resolution.reference, frozenInput);
+            result.step = { ...result.step, outcome: 'PARTIAL', nativeReview: resolution.reference,
+              coverage: [...result.step.coverage, { provider: 'apify-dami', dataset: 'retained-listing-review-subset', state: 'PARTIAL',
+                observedStartDate: null, observedEndDate: null, truncated: false,
+                note: `Đã gắn bản thu review có sẵn của đúng listing. Thời điểm thu nguồn: ${retained.manifest.sourceAcquiredAt ?? 'chưa khai báo'}. Không gọi lại nhà cung cấp; chưa xác minh đủ lịch sử hoặc kỳ báo cáo.` }],
+              limitations: [...result.step.limitations, { provider: 'apify-dami', code: 'NATIVE_REVIEW_CAPTURE_REUSED',
+                message: 'Nguồn Dami được giữ độc lập. Listing khớp cấu trúc, không xác thực tác giả, biến thể hoặc toàn bộ lịch sử; không có lượt thu hay chi phí mới cho việc gắn nguồn.' }] };
+          } catch {
+            if (!controller.signal.aborted) result.step = nativeSourceBlocked(result.step, 'SOURCE_PACKAGE_RESOLUTION_FAILED');
+          }
+        } else if (resolution?.state === 'NONE' && !controller.signal.aborted) {
+          exact = await this.#shopee.collect(frozenInput, controller.signal);
+        } else if (resolution && !controller.signal.aborted) {
+          result.step = nativeSourceBlocked(result.step, resolution.state === 'AMBIGUOUS' ? 'NATIVE_SOURCE_AMBIGUOUS' : 'NATIVE_SOURCE_SCOPE_UNSUPPORTED');
+        }
       }
       try {
         await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact);
@@ -506,7 +550,14 @@ export class ResearchAutomationService {
       let reviewCorpus: ResearchReviewCorpus | undefined;
       let reviewCorpusFailure: 'REVIEW_CORPUS_FAILED' | undefined;
       let locatedReview: AutomationLocatedReviewSnapshot | undefined;
+      let nativeReview: NativeSourceReviewSnapshot | undefined;
+      let nativeReviewFailure: 'NATIVE_REVIEW_METHOD_FAILED' | undefined;
       let locatedReviewFailure: 'LOCATED_REVIEW_METHOD_FAILED' | undefined;
+      if (start.reports.includes('INSIGHT') && collection?.nativeReview) {
+        try { nativeReview = await this.#nativeReviews.execute(collection.nativeReview, { runId: fresh.runId, start, scope,
+          scopeConfirmedAt: fresh.scopeConfirmedAt! }, controller.signal); }
+        catch { controller.signal.throwIfAborted(); nativeReviewFailure = 'NATIVE_REVIEW_METHOD_FAILED'; }
+      }
       if (start.reports.includes('INSIGHT') && collection?.exactShopee) {
         try { reviewCorpus = await this.#shopee.corpus(collection.exactShopee, { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt! }); }
         catch { controller.signal.throwIfAborted(); reviewCorpusFailure = 'REVIEW_CORPUS_FAILED'; }
@@ -536,6 +587,8 @@ export class ResearchAutomationService {
           ...(kind === 'INSIGHT' && reviewCorpus ? { reviewCorpus } : {}),
           ...(kind === 'INSIGHT' && reviewCorpusFailure ? { reviewCorpusFailure } : {}),
           ...(kind === 'INSIGHT' && locatedReview ? { locatedReview } : {}),
+          ...(kind === 'INSIGHT' && nativeReview ? { nativeReview } : {}),
+          ...(kind === 'INSIGHT' && nativeReviewFailure ? { nativeReviewFailure } : {}),
           ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
           ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
           ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
@@ -550,6 +603,9 @@ export class ResearchAutomationService {
             ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null } : {}),
             ...(kind === 'INSIGHT' && input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}),
             ...(kind === 'INSIGHT' ? { locatedReview: input.locatedReview ?? null } : {}),
+            ...(kind === 'INSIGHT' ? { nativeReview: input.nativeReview ?? null } : {}),
+            ...(kind === 'INSIGHT' && input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
+            ...(kind === 'INSIGHT' && input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
             ...(kind === 'INSIGHT' && input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}),
             ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
             ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}) };
@@ -563,6 +619,12 @@ export class ResearchAutomationService {
           // fail the independent Market report because this view is too large.
           const { reviewCorpus: _oversizedCorpus, locatedReview: _oversizedLocated, ...withoutCorpus } = input;
           input = { ...withoutCorpus, reviewCorpusFailure: 'REVIEW_CORPUS_REPORT_TOO_LARGE' };
+          prepared = await render();
+        }
+        if (kind === 'INSIGHT' && input.nativeReview && (prepared.semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || prepared.html.byteLength > MAX_HTML_BYTES)) {
+          const { nativeReview: oversizedNative, ...withoutNative } = input;
+          input = { ...withoutNative, nativeReviewFallback: { sourcePackage: oversizedNative.sourcePackage },
+            nativeReviewFailure: 'NATIVE_REVIEW_REPORT_TOO_LARGE' };
           prepared = await render();
         }
         const { rendered, semanticBytes, html } = prepared;
@@ -623,6 +685,8 @@ export class ResearchAutomationService {
   async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt): Promise<void> {
     const result = bound.result;
     let step = bound.step;
+    const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
+    const nativeLimitations = bound.step.limitations.filter(value => value.provider === 'apify-dami');
     const now = this.#now().toISOString();
     const captures: Array<{ row: CaptureRecord; artifact: StoredArtifact }> = [];
     let envelopes: Array<{ capture: NonNullable<PersistableSourceResult['result']>['captures'][number]; body: Buffer }> = [];
@@ -655,6 +719,11 @@ export class ResearchAutomationService {
       // cannot be admitted. No invalid observation enters a report.
       step = invalidProviderStep(runId, stepId);
     }
+    if (nativeCoverage.length) step = { ...step,
+      outcome: bound.step.nativeReview || step.outcome === 'SUCCEEDED' || step.outcome === 'PARTIAL' ? 'PARTIAL' : 'FAILED',
+      ...(bound.step.nativeReview ? { nativeReview: bound.step.nativeReview } : {}),
+      coverage: [...step.coverage.filter(value => value.provider !== 'apify-dami'), ...nativeCoverage],
+      limitations: [...step.limitations.filter(value => value.provider !== 'apify-dami'), ...nativeLimitations] };
     if (exact) step = { ...step,
       outcome: exact.coverage.state === 'FAILED' || exact.coverage.state === 'CANCELLED'
         ? step.outcome === 'SUCCEEDED' || step.outcome === 'PARTIAL' ? 'PARTIAL' : exact.coverage.state
@@ -878,6 +947,13 @@ export class ResearchAutomationService {
       await this.#shopee.read(value.exactShopee, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId),
         scope: await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, runId), scopeConfirmedAt: row.scopeConfirmedAt });
     }
+    if (value.nativeReview) {
+      const row = this.#current(runId);
+      if (stepId !== 'COLLECTION' || value.exactShopee || !row?.scopeSha || !row.scopeConfirmedAt)
+        throw new ResearchAutomationIntegrityError('Native review source lacks separate confirmed scope.');
+      await this.#nativeReviews.readReference(value.nativeReview, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId),
+        scope: await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, runId), scopeConfirmedAt: row.scopeConfirmedAt });
+    }
     return value;
   }
   async #readJson<T>(sha: string, maxBytes: number, mediaType: string): Promise<T> {
@@ -890,6 +966,18 @@ export class ResearchAutomationService {
     return value as T;
   }
   #validUuid(): string { const id = this.#uuid(); assertUuid(id); return id; }
+}
+
+function nativeSourceBlocked(step: StepResultDocument, code: 'SOURCE_PACKAGE_RESOLUTION_FAILED' | 'NATIVE_SOURCE_AMBIGUOUS' | 'NATIVE_SOURCE_SCOPE_UNSUPPORTED'): StepResultDocument {
+  const note = code === 'NATIVE_SOURCE_AMBIGUOUS'
+    ? 'Có nhiều bản thu native của listing này, chưa có lựa chọn nguồn duy nhất. Không tự chọn bản mới nhất hoặc gọi lại nhà cung cấp.'
+    : code === 'NATIVE_SOURCE_SCOPE_UNSUPPORTED'
+      ? 'Luồng nguồn native hiện chỉ gắn một listing chính xác mỗi lượt. Không tự chọn một listing trong phạm vi nhiều listing.'
+      : 'Danh mục nguồn đã lưu không vượt qua kiểm tra. Chưa gắn review; cần kiểm tra nguồn, không tự thu lại bằng nguồn khác.';
+  return { ...step, outcome: step.outcome === 'SUCCEEDED' || step.outcome === 'PARTIAL' ? 'PARTIAL' : 'FAILED',
+    coverage: [...step.coverage, { provider: 'apify-dami', dataset: 'retained-listing-review-subset', state: 'FAILED',
+      observedStartDate: null, observedEndDate: null, truncated: false, note }],
+    limitations: [...step.limitations, { provider: 'apify-dami', code, message: note }] };
 }
 
 function assertStartSnapshot(value: unknown, workspaceId: string): asserts value is StartSnapshot {
@@ -921,6 +1009,10 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
       !Array.isArray(value.productCards) || !Array.isArray(value.comparables) || !Array.isArray(value.coverage) || !Array.isArray(value.limitations)) throw new ResearchAutomationIntegrityError('Stored step result has inconsistent identity.');
   if (value.exactShopee !== undefined && (!isRecord(value.exactShopee) || !UUID.test(String(value.exactShopee.collectionId)) ||
       !/^[a-f0-9]{64}$/.test(String(value.exactShopee.collectionSha256)) || !/^[a-f0-9]{64}$/.test(String(value.exactShopee.requestSha256)))) throw new ResearchAutomationIntegrityError('Stored exact collection reference is invalid.');
+  if (value.nativeReview !== undefined && (value.exactShopee !== undefined || !isRecord(value.nativeReview) ||
+      value.nativeReview.contractVersion !== 'automation-native-review-reference-v1' || value.nativeReview.runId !== runId ||
+      stepId !== 'COLLECTION' || !/^[a-f0-9]{64}$/.test(String(value.nativeReview.bindingSha256))))
+    throw new ResearchAutomationIntegrityError('Stored native source reference is invalid.');
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
         typeof comparable.value !== 'string' || !isRecord(comparable.window) || typeof comparable.window.startDate !== 'string' || typeof comparable.window.endDate !== 'string' ||

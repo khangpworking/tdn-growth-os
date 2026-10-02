@@ -1,5 +1,29 @@
 # Trạng thái hiện tại
 
+## Native review automation checkpoint (2026-10-03, draft PR #110)
+
+The retained Dami native SourcePackage now connects to exact-listing automation
+without fabricating Zen lineage or a new provider receipt. The internal resolver
+binds exact shop/item IDs, source/descriptor/capture bytes and confirmed run
+scope. Multiple matching originals block automatic reuse rather than selecting
+the latest or silently recollecting. Frozen replay verifies retained outputs
+without executing today's semantic mapper, parser or projector.
+
+Independent review found no remaining actionable issue. Linux affected proof
+passed 17/17 and TypeScript; the full isolated Linux check passed 864/864 backend,
+196 frontend, contract generation, both typechecks and the production build.
+The actual retained Thạch dừa capture passed an isolated-copy automation journey:
+62 rows, 20 INCLUDED, one I04 and three I05 source declarations, all 100 pending
+diagnostics retained, separate Market/Insight web and PDF files. Saved reads made
+zero provider calls and database mutations. No new provider cost was incurred.
+This is PARTIAL source-bound output, not a completed analytical section or a
+complete 30-section report. Final-head CI for this new slice is pending.
+
+Claude quota is unavailable; GPT takes over implementation and verification.
+Claude final design approval and owner final-report approval remain outstanding.
+No active operator data, runtime, migration, provider or business decision was
+changed. See [native integration handoff](handoffs/research-native-review-automation.md).
+
 ## Adopted declaration delivery checkpoint (2026-10-02, draft PR #110)
 
 Published projection checkpoint `9c760b3b5f4cc92b2a51cb2d68f929baf9b86f26`
@@ -16,12 +40,15 @@ isolated check with Chromium enabled passed 855/855 backend and 196 frontend,
 contracts, typechecks and production build. A later pending-count clarification
 passed the final affected check (17 passed, one optional Chromium skip) and
 paired web/PDF acceptance before publication; do not treat the earlier complete
-check as proof of those final edited bytes. Final-head Linux CI is pending.
+check as proof of those final edited bytes. Published integration
+`8c60beffc3caa91d4f4598ac3c3b124e8c41a871` passed exact-head
+[Linux CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37034798142):
+854 backend passed, 0 failed, 1 optional Chromium skip, plus the other check stages.
 
 Claude quota is unavailable. GPT is taking over code and visual verification,
 but Claude final design approval and owner final-report approval are not claimed.
-The native Dami source-package automation connection, thermos/fan review sources,
-verified market operands and remaining section adapters are still open. No
+The native Dami connection advanced in the checkpoint above; thermos/fan review
+sources, verified market operands and remaining section adapters are still open. No
 merge, active-runtime update, new provider call or real business decision occurred.
 See [v2 integration and proof](handoffs/research-literal-projection-v1.md).
 

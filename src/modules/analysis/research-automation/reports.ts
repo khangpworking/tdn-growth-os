@@ -4,6 +4,7 @@ import type { ResearchReviewCorpus } from '../../../../contracts/analysis/resear
 import { reviewCorpusSection } from './review-corpus-report.js';
 import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import type { AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
+import type { NativeSourceReviewSnapshot } from './native-source-review-bridge.js';
 import { renderLocatedInsightSection } from '../report-located-insight-pages.js';
 import type { LiteralFamily } from './literal-review-coding.js';
 import { marketInventorySection } from './market-inventory-report.js';
@@ -25,6 +26,9 @@ export interface AutomationReportInput {
   readonly reviewCorpus?: ResearchReviewCorpus;
   readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
   readonly locatedReview?: AutomationLocatedReviewSnapshot;
+  readonly nativeReview?: NativeSourceReviewSnapshot;
+  readonly nativeReviewFallback?: Pick<NativeSourceReviewSnapshot, 'sourcePackage'>;
+  readonly nativeReviewFailure?: 'NATIVE_REVIEW_METHOD_FAILED' | 'NATIVE_REVIEW_REPORT_TOO_LARGE';
   readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
@@ -37,7 +41,8 @@ const escape = escapeHtml;
 const literalFamilies: readonly LiteralFamily[] = ['I02', 'I04', 'I05', 'I07', 'I08'];
 const isLiteralFamily = (id: string): id is LiteralFamily => literalFamilies.some(family => family === id);
 
-function literalPendingSection(snapshot: Extract<AutomationLocatedReviewSnapshot, { contractVersion: 'automation-located-review-snapshot-v2' }>, family: LiteralFamily): { notice: string; details: string } {
+type DeclarationSnapshot = Extract<AutomationLocatedReviewSnapshot, { contractVersion: 'automation-located-review-snapshot-v2' }> | NativeSourceReviewSnapshot;
+function literalPendingSection(snapshot: DeclarationSnapshot, family: LiteralFamily): { notice: string; details: string } {
   const pending = snapshot.projection.pending.filter(row => row.family === family);
   const blocked = snapshot.projection.blocked.filter(row => row.family === family);
   const coverage = snapshot.projection.coverage.families[family];
@@ -48,6 +53,16 @@ function literalPendingSection(snapshot: Extract<AutomationLocatedReviewSnapshot
     return `<tr><td>${row.span ? `<q style="white-space:pre-wrap">${escape(row.span.quote)}</q>` : 'Chưa xác lập đoạn đọc; giữ nguyên toàn văn trong hồ sơ nguồn.'}</td><td>${escape(record.sourceAttribution)}<br><code>${escape(record.locator)}</code>${row.trigger ? `<details><summary>Từ đánh dấu, không thay thế đoạn đọc</summary><q style="white-space:pre-wrap">${escape(row.trigger.quote)}</q></details>` : ''}</td><td><code>${escape(row.reason)}</code></td></tr>`;
   }).join('');
   return { notice, details: `<details><summary>Xem phần còn chờ xử lý (${pending.length})</summary><p>Phần này chưa được đưa vào kết quả mã hóa. ${blocked.length} khai báo ứng viên bị giữ lại theo quy tắc đọc; con số này không cộng với số mục chờ thành số review.</p>${rows ? `<div class="table-wrap" role="region" aria-label="Các đoạn nguồn còn chờ xử lý" tabindex="0"><table><caption>Đoạn nguồn chưa đủ điều kiện mã hóa</caption><thead><tr><th scope="col">Đoạn đọc</th><th scope="col">Vị trí nguồn</th><th scope="col">Mã đối chiếu</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}${pending.length > 20 ? `<p>Trang này hiển thị 20 trong ${pending.length} mục chờ theo thứ tự nguồn. Toàn bộ được giữ trong hồ sơ phương pháp đã lưu.</p>` : ''}</details>` };
+}
+
+function nativeReviewContext(snapshot: NativeSourceReviewSnapshot, sectionId: 'I03' | 'I17'): string {
+  const records = snapshot.output.input.records;
+  const counts = (disposition: string): number => records.filter(record => record.disposition === disposition).length;
+  const selected = snapshot.nativeSource.selected;
+  const summary = `<h3>Nguồn review native đã lưu</h3><dl><dt>Nguồn</dt><dd>Dami · Tập con review của listing Shopee</dd><dt>Listing đã chọn</dt><dd>Shop ${escape(selected.shopId)} · Sản phẩm ${escape(selected.itemId)}</dd><dt>Thời điểm thu nguồn</dt><dd>${escape(snapshot.nativeSource.sourcePackage.manifest.sourceAcquiredAt ?? 'Chưa khai báo')}</dd><dt>Độ phủ bản ghi</dt><dd>${records.length} dòng nguồn: ${counts('INCLUDED')} đưa vào đọc, ${counts('EXCLUDED')} loại khỏi đọc, ${counts('UNREADABLE')} không đọc được.</dd></dl><p class="warning">Đây là bản thu có sẵn, không phải lượt gọi nhà cung cấp mới. ID listing khớp cấu trúc; chưa xác thực tác giả, biến thể hay toàn bộ lịch sử review. Ngày nguồn không tự xác lập độ phủ kỳ báo cáo. Số dòng không phải số người. Nguồn này không được đổi thành collection Zen.</p>`;
+  if (sectionId === 'I03') return summary;
+  const rows = records.map(record => `<tr><td><code>${escape(record.locator)}</code><br>${escape(record.sourceAttribution)}</td><td>${record.text === null ? 'Không có văn bản đọc được' : `<q style="white-space:pre-wrap">${escape(record.text)}</q>`}</td><td>${escape(record.disposition)}${record.dispositionReason ? `<br>${escape(record.dispositionReason)}` : ''}<br>${record.timeText === null ? 'Ngày nguồn chưa có' : escape(record.timeText)}</td></tr>`).join('');
+  return summary + `<details><summary>Toàn văn và trạng thái ${records.length} dòng nguồn</summary><div class="table-wrap" role="region" aria-label="Review native và vị trí nguồn" tabindex="0"><table><caption>Đọc nguồn nguyên văn, không suy ra tỷ lệ khách hàng</caption><thead><tr><th scope="col">Vị trí nguồn</th><th scope="col">Văn bản nguồn</th><th scope="col">Trạng thái đọc / Ngày nguồn</th></tr></thead><tbody>${rows}</tbody></table></div></details>`;
 }
 const inputLabels: Readonly<Record<string, string>> = {
   'validated-metrics': 'số liệu đã kiểm tra', 'source-bound-claims': 'nhận định có tham chiếu nguồn', 'owner-review': 'duyệt của người dùng',
@@ -121,7 +136,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const prefix = kind === 'MARKET' ? 'M' : 'I';
   const contextSections = kind === 'MARKET' ? ['M02', 'M13'] : ['I01', 'I03', 'I17'];
   const descriptive = kind === 'MARKET' ? input.descriptiveMethods : undefined;
-  const located = kind === 'INSIGHT' && input.locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? input.locatedReview : undefined;
+  if (input.nativeReview && (input.locatedReview || input.reviewCorpus)) throw new Error('Native and exact-collection review lineage cannot be substituted');
+  const located = kind === 'INSIGHT' ? input.nativeReview ?? (input.locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? input.locatedReview : undefined) : undefined;
   const views = new Map<string, DescriptiveSectionView>();
   const locatedViews = new Map<string, string>();
   const sections: DraftSection[] = catalog.sections.filter(section => section.sectionId.startsWith(prefix)).map(section => {
@@ -180,12 +196,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     contextSections: ids('SOURCE_CONTEXT').length, sourceTableSections: ids('SOURCE_TABLE').length, blockedSections: ids('BLOCKED').length,
   };
   const semantic = {
-    contractVersion: 'research-automation-report-v1', rendererVersion: 'automation-report-kit-v5', kind, state: 'PARTIAL_UNREVIEWED_DRAFT',
+    contractVersion: 'research-automation-report-v1', rendererVersion: 'automation-report-kit-v6', kind, state: 'PARTIAL_UNREVIEWED_DRAFT',
     runId: input.run.runId, workspaceId: input.run.workspaceId, createdAt: input.run.createdAt,
     keyword: input.start.keyword, country: input.start.country, requestedPeriod: input.start.requestedPeriod,
     scope: input.scope, scopeApplication: 'OWNER_CONTEXT_ONLY_SOURCE_FILTER_MAPPING_PENDING', coverage: input.run.coverage, usage: input.run.usage,
     collectionOutcome: input.collection?.outcome ?? null, limitations: input.collection?.limitations ?? [],
-    captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, locatedReview: input.locatedReview ?? null,
+    captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, locatedReview: input.locatedReview ?? null, nativeReview: input.nativeReview ?? null,
+      ...(input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
+      ...(input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
       ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
       ...(input.descriptiveMethodFailure ? { descriptiveMethodFailure: input.descriptiveMethodFailure } : {}) } : {}), completion,
   };
@@ -221,6 +239,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
           ? '<p class="warning">Bản này giữ đề xuất coding cùng phiên bản quy tắc và vị trí nguyên văn, chưa đưa ứng viên vào kết quả. Báo cáo cũ giữ nguyên bằng chứng và trạng thái đã lưu; không tự áp dụng quy tắc mới hoặc chạy lại parser khi mở.</p>'
         : input.locatedReviewFailure
           ? '<p class="warning">Dữ liệu review gốc vẫn được giữ, nhưng bước lưu đề xuất coding chưa vượt qua kiểm tra. Mã LOCATED_REVIEW_METHOD_FAILED; không dùng đề xuất chưa xác minh hoặc tự thu lại nguồn.</p>' : '';
+      if (input.nativeReview) return codingNotice + nativeReviewContext(input.nativeReview, sectionId);
+      if (input.collection?.nativeReview) return `<p class="warning">Nguồn review native của đúng listing đã được gắn và giữ nguyên. ${input.nativeReviewFailure === 'NATIVE_REVIEW_REPORT_TOO_LARGE'
+        ? 'Phần quote và phương pháp vượt giới hạn bản hiển thị này. Mã NATIVE_REVIEW_REPORT_TOO_LARGE; toàn bộ dữ liệu và pending vẫn có trong gói phương pháp đã lưu, không cắt ngắn hoặc tự thu lại.'
+        : 'Bước mã hóa chưa vượt qua kiểm tra. Mã NATIVE_REVIEW_METHOD_FAILED; chưa đưa khai báo vào kết quả. Cần kiểm tra phương pháp, không thêm lại link hoặc tự gọi lại nguồn.'}</p>`;
       if (input.reviewCorpus) return codingNotice + reviewCorpusSection(input.reviewCorpus, sectionId);
       if (input.reviewCorpusFailure === 'REVIEW_CORPUS_REPORT_TOO_LARGE') return '<p class="warning">Collection gốc vẫn được giữ đầy đủ nhưng phần quote vượt giới hạn kích thước báo cáo. Mã REVIEW_CORPUS_REPORT_TOO_LARGE; chưa đưa quote vào bản này, không cắt ngắn dữ liệu hoặc tự thu lại. Cần xuất phần bằng chứng theo trang ở bước xử lý tiếp theo.</p>';
       if (input.reviewCorpusFailure) return '<p class="warning">Đã lưu collection nhưng corpus không vượt qua kiểm tra. Cần kiểm tra REVIEW_CORPUS_FAILED; không tự thu lại và không dùng dữ liệu chưa xác minh.</p>';

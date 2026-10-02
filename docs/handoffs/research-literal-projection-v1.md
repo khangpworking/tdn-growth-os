@@ -79,8 +79,11 @@ strict TypeScript passed after the guarded nonempty manifest tuple correction.
 One complete isolated Linux check passed 855/855 backend with Chromium enabled,
 plus 196 frontend tests, both typechecks, generated contracts and build. The
 subsequent pending-count copy clarification passed the final focused check and
-synthetic paired-report acceptance. Final-head CI is pending; those edits are
-not falsely attributed to the earlier full run.
+synthetic paired-report acceptance. Published final head
+`8c60beffc3caa91d4f4598ac3c3b124e8c41a871` passed exact-head
+[Linux CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37034798142)
+with 854 backend passed, zero failed and one optional Chromium skip. Those edits
+are not falsely attributed to the earlier full run.
 
 ## Design verification boundary
 
@@ -117,9 +120,9 @@ Delivery gate for this bounded change:
 
 ## Still open
 
-Final-head CI must be recorded after the integration code is stable. Dami's
-native SourcePackage automation connection is distinct from the genuine
-exact-review path and remains open. It cannot masquerade as a Zen corpus.
+Final-head CI for the integration above is recorded. Dami's native SourcePackage
+connection advanced in the separate [native handoff](research-native-review-automation.md).
+It is distinct from the genuine exact-review path and cannot masquerade as a Zen corpus.
 Thermos/fan review source acquisition, verified market measurement operands,
 remaining section adapters and complete 30-section acceptance remain open.
 
