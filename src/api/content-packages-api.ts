@@ -89,6 +89,7 @@ export function createContentPackageOwnerWriters(dependencies: {
   readonly integrity: <T>(operation: () => Promise<T>) => Promise<T>;
   /** Verifies the campaign's revision chain and its Insight chain and lock. */
   readonly verifyCampaignInputs: (campaignId: string) => Promise<void>;
+  readonly mirrorImage?: (sha256: string) => Promise<void>;
 }): ContentPackageOwnerWriters {
   const { db, packages, ideas, campaigns, integrity, verifyCampaignInputs } = dependencies;
   const verifyPackage = (packageId: string) => integrity(() => packages.readPackage(packageId));
@@ -132,6 +133,7 @@ export function createContentPackageOwnerWriters(dependencies: {
       const verified = await verifyPackage(packageId);
       const version = (result.part === 'CAPTION' ? verified.caption : verified.poster).find((item) => item.version === result.version);
       if (!version || version.attemptId === undefined || version.attemptId !== result.attemptId) throw new Error('Generated version is missing after commit');
+      if (result.part === 'POSTER' && version.poster) await dependencies.mirrorImage?.(version.poster.imageSha256);
       return {
         contractVersion: '1.0.0', packageId, part: result.part, version: result.version, attemptId: version.attemptId,
         createdAt: version.createdAt, exactRetry: result.deduplicated,

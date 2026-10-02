@@ -15,6 +15,7 @@ import { openWorkspaceApi, type WorkspaceApiApplication } from './workspace-api.
 import { openReportApi, type ReportApiApplication } from './report-api.js';
 import { openResearchGenerationApi, type ResearchGenerationApiApplication } from './research-generation-api.js';
 import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from './executor-lock.js';
+import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js';
 
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
 const ACTOR = /^[a-z][a-z0-9:_-]{2,119}$/;
@@ -44,6 +45,8 @@ export interface OperatorAppConfiguration {
   readonly ownerActorId?: string;
   /** Loopback CLIProxy for Content Studio AI; absent means AI is off. */
   readonly cliproxy?: CliproxyConfiguration;
+  /** Only the five explicit R2 configuration fields; never exposed in health output. */
+  readonly r2?: NodeJS.ProcessEnv;
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -66,6 +69,7 @@ export function operatorAppConfigurationFromEnvironment(
   const rawPort = environment.TDN_OPERATOR_APP_PORT ?? '8787';
   if (!/^[1-9]\d{0,4}$/.test(rawPort)) throw new TypeError('TDN_OPERATOR_APP_PORT must be an integer from 1 to 65535');
   const cliproxy = cliproxyConfigurationFromEnvironment(environment);
+  if (environment.TDN_R2_ENABLED !== undefined && !['true', 'false'].includes(environment.TDN_R2_ENABLED)) throw new TypeError('TDN_R2_ENABLED must be exactly true or false');
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -75,6 +79,11 @@ export function operatorAppConfigurationFromEnvironment(
     ...(environment.TDN_OWNER_API_TOKEN === undefined ? {} : { ownerToken: environment.TDN_OWNER_API_TOKEN }),
     ...(environment.TDN_OWNER_API_ACTOR_ID === undefined ? {} : { ownerActorId: environment.TDN_OWNER_API_ACTOR_ID }),
     ...(cliproxy === undefined ? {} : { cliproxy }),
+    ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
+      TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
+      TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
+      TDN_R2_SECRET_ACCESS_KEY: environment.TDN_R2_SECRET_ACCESS_KEY, TDN_R2_BUCKET: environment.TDN_R2_BUCKET,
+    } }),
   };
   validateConfiguration(configuration);
   return configuration;
@@ -98,7 +107,9 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
   let contentOwner: ContentApiApplication | undefined;
   let reports: ReportApiApplication | undefined;
   let researchGeneration: ResearchGenerationApiApplication | undefined;
+  let r2: ReturnType<typeof createR2MediaArchive> | undefined;
   try {
+    if (configuration.r2) r2 = createR2MediaArchive(configuration.r2);
     // Only an operator with OWNER writes is an executor: it holds the lock and sweeps abandoned attempts. Viewers never write.
     if (configuration.ownerWritesEnabled) lock = acquireExecutorLock(databasePath);
     prepareDatabase(databasePath, configuration.artifactRoot, configuration.ownerWritesEnabled, clock);
@@ -119,6 +130,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     if (configuration.ownerWritesEnabled) contentOwner = openContentOwnerApi({
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
       token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin, gateway,
+      ...(r2 ? { mediaArchive: r2.archive } : {}),
     });
     if (configuration.ownerWritesEnabled) researchGeneration = openResearchGenerationApi({
       databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
@@ -132,6 +144,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     try { reports?.close(); } catch { stopped = false; }
     try { owner?.close(); } catch { stopped = false; }
     try { read?.close(); } catch { stopped = false; }
+    r2?.close();
     if (stopped) { try { lock?.release(); } catch { /* preserve startup failure; the lock stays for manual recovery */ } }
     throw error;
   }
@@ -146,7 +159,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
     if (!validAuthority(request, authority)) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Invalid Host authority' } });
     const pathname = rawPathname(request.url, authority);
     if (pathname === null) return sendJson(response, 400, { error: { code: 'bad_request', message: 'Malformed request URL' } });
-    if (pathname === '/healthz') return health(request, response, configuration.version, configuration.ownerWritesEnabled, localTestOwner);
+    if (pathname === '/healthz') return health(request, response, configuration.version, configuration.ownerWritesEnabled, localTestOwner, contentOwnerApplication?.mediaArchiveStatus?.());
     if (pathname === '/api/content' || pathname.startsWith('/api/content/')) return contentReadApplication.handler(request, response);
     if (reportApplication && reportApiPath(pathname)) return reportApplication.handler(request, response);
     if (pathname === '/api' || pathname.startsWith('/api/')) return readApplication.handler(request, response);
@@ -178,6 +191,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
         try { reportApplication?.close(); } catch (error) { errors.push(error); }
         try { ownerApplication?.close(); } catch (error) { errors.push(error); }
         try { readApplication.close(); } catch (error) { errors.push(error); }
+        try { r2?.close(); } catch (error) { errors.push(error); }
         // Executor authority is released only after a clean stop; an uncertain shutdown keeps the lock.
         if (errors.length === 0) { try { executorLock?.release(); } catch (error) { errors.push(error); } }
         if (errors.length === 1) throw errors[0];
@@ -239,6 +253,7 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.ownerWritesEnabled && configuration.localTestOwner !== true && (!configuration.ownerToken || !TOKEN.test(configuration.ownerToken))) throw new TypeError('TDN_OWNER_API_TOKEN must be a strong 32-512 character token containing letters and digits when OWNER writes are enabled');
   if (configuration.ownerWritesEnabled && (!configuration.ownerActorId || !ACTOR.test(configuration.ownerActorId))) throw new TypeError('TDN_OWNER_API_ACTOR_ID is required and invalid when OWNER writes are enabled');
   if (configuration.cliproxy !== undefined) assertCliproxyConfiguration(configuration.cliproxy);
+  if (configuration.r2 && !configuration.ownerWritesEnabled) throw new TypeError('R2 mirroring requires OWNER writes to be enabled');
   return preloadFrontend(configuration.frontendDist);
 }
 
@@ -310,9 +325,9 @@ function rawPathname(raw: string | undefined, authority: string): string | null 
     return url.pathname;
   } catch { return null; }
 }
-function health(request: IncomingMessage, response: ServerResponse, version: string, enabled: boolean, localTestOwner: boolean): void {
+function health(request: IncomingMessage, response: ServerResponse, version: string, enabled: boolean, localTestOwner: boolean, mediaArchive?: { mode: 'private-r2'; lastCopy: string }): void {
   if (request.method !== 'GET') { response.setHeader('Allow', 'GET'); return sendJson(response, 405, { error: { code: 'method_not_allowed', message: 'Only GET is supported' } }); }
-  sendJson(response, 200, { status: 'ok', version, ownerWritesEnabled: enabled, localTestOwner });
+  sendJson(response, 200, { status: 'ok', version, ownerWritesEnabled: enabled, localTestOwner, ...(mediaArchive ? { mediaArchive } : {}) });
 }
 
 function localTestSession(request: IncomingMessage, response: ServerResponse, allowedOrigin: string, token: string | undefined): void {

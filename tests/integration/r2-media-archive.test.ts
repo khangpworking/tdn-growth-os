@@ -12,6 +12,19 @@ import { openDatabase } from '../../src/platform/db/index.js';
 import { archiveRetainedMedia } from '../../src/modules/flow/retained-media-archive.js';
 import { registerContentManifest } from '../../src/modules/flow/content-artifacts.js';
 import { syntheticPng } from '../helpers/content-images.js';
+import { openContentOwnerApi, openContentReadApi } from '../../src/api/content-api.js';
+import { createFakeCreativeGateway } from '../../src/platform/ai/fake-creative-gateway.js';
+import { createPackageFixture, fixtureBrandId, fixtureCampaignId, imageReply, textReply } from '../helpers/content-package-fixture.js';
+
+const ownerToken = 'synthetic-r2-owner-token-with-32-characters-123';
+const origin = 'http://127.0.0.1:5173';
+const ownerHeaders = { authorization: `Bearer ${ownerToken}`, origin, 'content-type': 'application/json' };
+async function serve(handler: http.RequestListener) {
+  const server = http.createServer(handler);
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address(); assert.ok(address && typeof address !== 'string');
+  return { base: `http://127.0.0.1:${address.port}`, close: () => new Promise<void>(resolve => server.close(() => resolve())) };
+}
 
 async function fixture() {
   const objects = new Map<string, { bytes: Buffer; type: string }>();
@@ -124,4 +137,67 @@ test('production archive is opt-in, bucket-restricted and rejects endpoint-like 
   }
   const connection = createR2MediaArchive(env);
   connection.close();
+});
+
+test('web uploads copy only committed media; R2 failure preserves local success and exact retry repairs the copy', async () => {
+  const remote = await fixture();
+  const local = await createPackageFixture();
+  const owner = openContentOwnerApi({ ...local, writeEnabled: true, token: ownerToken, allowedOrigin: origin, actorId: 'owner:synthetic', mediaArchive: remote.archive });
+  const read = openContentReadApi(local);
+  const writer = await serve(owner.handler); const reader = await serve(read.handler);
+  try {
+    const bytes = syntheticPng(128, 64);
+    const url = `${writer.base}/owner-api/content/brands/${fixtureBrandId}/media/photo`;
+    const headers = { ...ownerHeaders, 'content-type': 'image/png' };
+    assert.equal((await fetch(url, { method: 'POST', headers: { ...headers, authorization: 'Bearer wrong' }, body: new Uint8Array(bytes) })).status, 401);
+    assert.equal((await fetch(url, { method: 'POST', headers, body: 'not an image' })).status, 400);
+    assert.equal(remote.requests, 0);
+    remote.fail = true;
+    const created = await fetch(url, { method: 'POST', headers, body: new Uint8Array(bytes) });
+    assert.equal(created.status, 201);
+    const receipt = await created.json() as { mediaSha256: string; exactRetry: boolean };
+    assert.equal(receipt.mediaSha256, hash(bytes)); assert.equal(receipt.exactRetry, false);
+    assert.equal(owner.mediaArchiveStatus!().lastCopy, 'failed');
+    assert.equal(remote.puts, 1);
+    const counts = local.db.prepare('SELECT (SELECT count(*) FROM flow_content_media) media, (SELECT count(*) FROM artifact_manifests) manifests').get();
+    const preview = await fetch(`${reader.base}/api/content/brands/${fixtureBrandId}/media/${receipt.mediaSha256}`);
+    assert.equal(preview.status, 200); assert.deepEqual(Buffer.from(await preview.arrayBuffer()), bytes);
+    assert.equal(remote.requests, 1, 'read API never initiates an archive copy');
+    remote.fail = false;
+    const retry = await fetch(url, { method: 'POST', headers, body: new Uint8Array(bytes) });
+    assert.equal(retry.status, 200); assert.equal((await retry.json() as { exactRetry: boolean }).exactRetry, true);
+    assert.equal(owner.mediaArchiveStatus!().lastCopy, 'verified');
+    assert.deepEqual(local.db.prepare('SELECT (SELECT count(*) FROM flow_content_media) media, (SELECT count(*) FROM artifact_manifests) manifests').get(), counts);
+    assert.deepEqual([...remote.objects.values()][0]!.bytes, bytes);
+    assert.equal(remote.objects.size, 1, 'existing fixture images were not backfilled');
+  } finally { await writer.close(); await reader.close(); owner.close(); read.close(); local.close(); await remote.close(); }
+});
+
+test('web poster generation mirrors the exact committed image; retry never generates another image', async () => {
+  const remote = await fixture(); const local = await createPackageFixture();
+  const gateway = createFakeCreativeGateway({ text: [textReply('{"post":"Synthetic R2 caption"}')], image: [imageReply()] });
+  const owner = openContentOwnerApi({ ...local, writeEnabled: true, token: ownerToken, allowedOrigin: origin, actorId: 'owner:synthetic', gateway, mediaArchive: remote.archive });
+  const writer = await serve(owner.handler);
+  const post = (url: string, body: unknown) => fetch(`${writer.base}${url}`, { method: 'POST', headers: ownerHeaders, body: JSON.stringify(body) });
+  try {
+    const created = await post(`/owner-api/content/campaigns/${fixtureCampaignId}/packages`, {
+      contractVersion: '1.0.0', requestId: '71000000-0000-4000-8000-000000000001', rows: [{ angleId: local.angleIds[0] }],
+      caption: { prompt: { source: 'SYSTEM', id: 'system-caption-facebook', version: 1 }, model: 'gpt-5.6-sol', style: 'PROFESSIONAL', length: 'MEDIUM' },
+      poster: { prompt: { source: 'SYSTEM', id: 'system-poster-b2b-infographic', version: 1 }, model: 'gpt-image-2', format: 'square', referenceMediaSha256s: [], includeLogo: false },
+    });
+    assert.equal(created.status, 201);
+    const { packages } = await created.json() as { packages: { packageId: string }[] };
+    const url = `/owner-api/content/packages/${packages[0]!.packageId}/generate`;
+    assert.equal((await post(url, { contractVersion: '1.0.0', part: 'CAPTION', plannedCallCount: 2, requestId: '71000000-0000-4000-8000-000000000002' })).status, 201);
+    assert.equal(remote.requests, 0, 'caption has no media copy');
+    const body = { contractVersion: '1.0.0', part: 'POSTER', plannedCallCount: 2, requestId: '71000000-0000-4000-8000-000000000003' };
+    assert.equal((await post(url, body)).status, 201);
+    const { bytes } = await local.packages.readPosterImage(packages[0]!.packageId, 1);
+    assert.deepEqual([...remote.objects.values()][0]!.bytes, bytes);
+    const attempts = local.db.prepare('SELECT count(*) n FROM flow_content_ai_attempts').get();
+    assert.equal((await post(url, body)).status, 200);
+    assert.equal(remote.objects.size, 1);
+    assert.deepEqual(local.db.prepare('SELECT count(*) n FROM flow_content_ai_attempts').get(), attempts);
+    assert.equal(owner.mediaArchiveStatus!().lastCopy, 'verified');
+  } finally { await writer.close(); owner.close(); local.close(); await remote.close(); }
 });

@@ -1,14 +1,16 @@
 # Trạng thái hiện tại
 
-## Private R2 media archive: implementation, not activated
+## Private R2 media mirror: preparing Fedora activation
 
 Optional `media:r2:archive` copies one explicitly selected active retained
 PNG/JPEG to the private `tdn-media` bucket, with conditional creation and full
-remote-byte verification. SQLite and local files remain authoritative. No web
-mirroring, public URL, migration, deletion or real-data transfer is introduced.
-Fedora Node 24.15.0 strict typecheck and 11/11 affected tests passed. Dedicated
-S3 credentials, final-head CI/review and scoped live verification remain
-activation gates. See
+remote-byte verification. Owner-authorized web wiring now mirrors new uploads
+and generated posters after verified local commit, outside the write mutex.
+Local receipts/previews survive R2 failure; safe health status reports the last
+copy outcome. SQLite/local files stay authoritative. No public URL, migration,
+historical backfill or deletion. Dedicated S3 credentials are privately stored
+on Fedora. Final-head Linux checks, independent review and activation checks
+remain required. See
 [scope and operation](tasks/r2-private-media-archive.md).
 
 ## Research A46: citation web integration ready for final-head Linux CI

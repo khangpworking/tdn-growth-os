@@ -13,8 +13,13 @@ Branch: `feature/r2-private-media`.
   bytes and MIME on both creation and conflict retry. No delete/list/bulk calls.
 - Derives the official account endpoint, uses explicit bucket-scoped S3
   credentials, disables SDK retries and sanitizes errors.
-- Documents operator configuration, limits, remote-only partial outcomes and
-  deferred web/CDN integration.
+- OWNER-authorized web mirroring copies new logos/photos and generated posters
+  after verified local commit. Network work stays outside the database mutex.
+- Graceful operator shutdown waits for requests before destroying the SDK.
+- Failed copies preserve successful local receipts/previews and report safe
+  process-local health status and a sanitized warning. Exact upload/generation
+  retry repairs the copy without another business record or AI call.
+- Historical backfill and public CDN remain deferred.
 
 ## Evidence
 
@@ -22,6 +27,10 @@ Isolated Fedora validation checkout:
 `/home/pkhang/.nanobot/workspace/tdn-r2-validation-20261002`.
 Node `24.15.0`, lockfile install, strict backend typecheck: PASS.
 Focused archive plus existing image-inspector tests: **11/11 PASS**.
+Web follow-up: strict backend typecheck and focused SDK/HTTP upload/poster,
+catalog/package API and operator runtime tests: **28/28 PASS** on Fedora.
+Test authoring follows test-audit: the two new HTTP tests own post-commit web
+wiring and failure/retry semantics, rather than repeating SDK/image decoding.
 The first run exposed a test-server counting error: its failure response
 occurred before the PUT counter increment. The counter now observes requests
 before responding; assertions and production behavior were not weakened.
@@ -42,15 +51,15 @@ silently upgraded as part of this storage feature.
 
 ## Pending and next action
 
-No real R2 request or upload occurred. Wrangler OAuth is not reused. Dedicated
-S3 credentials are missing; owner was asked to create Object Read & Write
-credentials for `tdn-media` only without pasting secrets into chat.
+Dedicated bucket-scoped S3 credentials were transferred privately to Fedora
+without exposing values in chat or Git. Wrangler OAuth was not reused.
+The owner authorized web activation and confirmed edits are saved. At this
+commit, no real R2 request, upload or runtime restart has yet occurred.
 
 Before Fedora activation: review/final-head CI, install the approved release
 separately from the active runtime, configure private credentials and authorize
-a bounded synthetic live verification. Do not bulk-copy real files or restart
-the operator merely to test the optional command.
+a bounded synthetic live verification. Do not bulk-copy historical real files.
 
-No UI/CDN, public URL, CORS, lifecycle rule, deletion, migration, business write,
-provider collection, historical transfer or live operator change. Automatic
-web mirroring and PDF/video support are not delivered by this slice.
+No UI redesign, public CDN/URL, CORS, lifecycle rule, deletion, migration,
+provider collection or historical transfer. PDF/video support, R2-primary
+storage and recovery downloads are not delivered by this slice.
