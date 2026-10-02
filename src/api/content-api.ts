@@ -107,6 +107,8 @@ import {
   type ContentPackageOwnerWriters,
 } from './content-packages-api.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
+import { ContentMediaMirror } from './content-media-mirror.js';
+import type { R2MediaArchive } from '../platform/artifacts/r2-media-archive.js';
 import {
   assertOwnerHttpConfiguration,
   EmptyBodyError,
@@ -149,9 +151,12 @@ export interface ContentOwnerApiConfiguration extends OwnerHttpConfiguration {
   readonly uuid?: () => string;
   /** Content Studio AI; absent means AI is not configured and generation answers `ai_unavailable`. */
   readonly gateway?: CreativeAiGateway;
+  readonly mediaArchive?: R2MediaArchive;
 }
 export interface ContentApiApplication {
   readonly handler: (request: IncomingMessage, response: ServerResponse) => void;
+  readonly mediaArchiveStatus?: () => ContentMediaMirror['status'];
+  readonly drainMediaArchive?: () => Promise<void>;
   close(): void;
 }
 
@@ -709,7 +714,10 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
       ...(configuration.now ? { now: configuration.now } : {}),
       ...(configuration.uuid ? { newId: configuration.uuid } : {}),
     });
-    const packageWriters = createContentPackageOwnerWriters({ db, packages, ideas, campaigns, integrity, verifyCampaignInputs });
+    const mirror = configuration.mediaArchive ? new ContentMediaMirror(db, configuration.artifactRoot, configuration.mediaArchive) : undefined;
+    const packageWriters = createContentPackageOwnerWriters({ db, packages, ideas, campaigns, integrity, verifyCampaignInputs,
+      ...(mirror ? { mirrorImage: (sha256: string) => mirror.copy(sha256) } : {}),
+    });
     const assertPromptReferences = (type: ContentPromptType, prompt: ContentPromptContent, lineage: ContentPromptLineage | undefined) => {
       try { assertContentPromptContent(type, prompt); } catch { throw new InvalidPromptRequestError(); }
       if (!lineage) return;
@@ -749,8 +757,11 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
         return {
           contractVersion: '1.0.0', brandId, mediaKind: kind, mediaSha256: result.mediaSha256, mediaType: result.mediaType,
           width: result.width, height: result.height, byteSize: result.byteSize, exactRetry: result.exactRetry,
-        };
-      })),
+        } satisfies OwnerContentMediaReceipt;
+      })).then(async (receipt) => {
+        await mirror?.copy(receipt.mediaSha256);
+        return receipt;
+      }),
       item: (serviceRequest, brandId, itemId) => withDatabaseMutationMutex(db, () => artifacts.withOwnership(async () => {
         if (!brandExists.get(brandId)) throw new UnknownBrandError();
         if (itemId !== undefined && catalog.itemBrand(itemId) !== brandId) throw new UnknownItemError();
@@ -857,7 +868,7 @@ export function openContentOwnerApi(configuration: ContentOwnerApiConfiguration)
     };
 
     const handler = (request: IncomingMessage, response: ServerResponse): void => { void routeOwner(request, response, configuration, writers, ideaWriters, packageWriters); };
-    return { handler, close: () => db.close() };
+    return { handler, ...(mirror ? { mediaArchiveStatus: () => mirror.status, drainMediaArchive: () => mirror.drain() } : {}), close: () => db.close() };
   } catch (error) {
     db.close();
     throw error;

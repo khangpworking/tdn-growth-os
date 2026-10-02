@@ -1,5 +1,23 @@
 # Trạng thái hiện tại
 
+## Private R2 media mirror: active on Fedora localhost (2026-10-02)
+
+Optional `media:r2:archive` copies one explicitly selected active retained
+PNG/JPEG to the private `tdn-media` bucket, with conditional creation and full
+remote-byte verification. Owner-authorized web wiring now mirrors new uploads
+and generated posters after verified local commit, outside the write mutex.
+Local receipts/previews survive R2 failure; safe health status reports the last
+copy outcome. SQLite/local files stay authoritative. No public URL, migration,
+historical backfill or deletion. Dedicated S3 credentials are privately stored
+on Fedora. Reviewed runtime commit `c68e1c9d6a78b06573f9f6c65b29066a1e89c717`
+is active on `127.0.0.1:8787`. Linux CI passed 722 backend and 187 frontend
+tests plus build/typechecks; Claude follow-up found no blocking defects.
+Actual S3 and integrated web checks verified one synthetic 219-byte image.
+All 105 business rows, 46 artifact files and schema 37 were preserved across
+activation. PR #107 remains draft/unmerged; this is owner-authorized local
+testing activation, not a public/CDN release. See
+[scope and operation](tasks/r2-private-media-archive.md).
+
 ## Research A46: citation web integration ready for final-head Linux CI
 
 Owner-authorized offline preview adds numbered references to existing retained

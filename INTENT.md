@@ -845,3 +845,20 @@ responses and byte-stable repeat. No unrelated production model changes are
 authorized by this experiment. The eight-call pilot budget is exhausted;
 further model experiments need a new explicit budget. Hidden chain-of-thought
 is not retained as evidence. See `docs/research/pageindex-gpt61-comparison.md`.
+
+### Private R2 web media mirror, 2026-10-02
+
+The owner authorized enabling R2 on the Fedora localhost web after privately
+configuring bucket-scoped S3 credentials. New Content Studio logo/photo uploads
+and generated posters are copied to private `tdn-media` only after verified
+local commit. SQLite and local artifacts remain authoritative, and browser
+previews continue through the existing local API. Remote failures must not
+undo a local success or trigger another AI generation. Exact retries and the
+explicit digest command can repair failed copies. Failure digests stay in
+private logs; safe process-local health counters do not claim full coverage.
+
+No historical backfill, PDF/video support, public URL/CDN, CORS, domain, Worker,
+local deletion or R2-primary storage is implied. The owner confirmed edits
+were saved before restart. Live activation preserves the existing data, local
+OWNER testing mode and AI configuration, with private recovery and code-only
+rollback. See `docs/tasks/r2-private-media-archive.md`.
