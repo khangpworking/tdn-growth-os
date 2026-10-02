@@ -53,4 +53,4 @@ The final credential-echo inspection additionally found JSON Unicode-escaped sec
 
 No Windows tests, build or typecheck were run. No live provider calls, real business records, running-operator restart, merge or deployment occurred.
 
-Final report design approval remains with the Claude “Competitor mockup report design” session, then the owner. A code/test pass does not substitute for that approval.
+Claude “Competitor mockup report design” audits only the rendered Market/Insight report design (web/PDF), followed by owner acceptance of those reports. It does not approve the automated-research application UI, execution architecture or whole feature. Code review, application UI feedback and owner merge/deployment authorization remain separate; a code/test pass does not substitute for report-design acceptance.

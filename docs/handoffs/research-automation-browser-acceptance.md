@@ -43,4 +43,4 @@ Files: `research-editor-desktop.png`, `research-scope-empty-desktop.png`, `resea
 
 This no-provider journey does not prove paid-provider availability, live card quality, or completed analytical methods. Synthetic provider/API tests own normalized card and exact evidence-binding behavior. PDF-enabled backend integration tests separately verify two actual PDFs; the browser walkthrough intentionally verifies missing-renderer UX.
 
-Final report design review remains with Claude “Competitor mockup report design”, then the owner. Browser functionality is not that approval.
+Claude “Competitor mockup report design” reviews only the rendered Market/Insight reports (web/PDF), then the owner accepts those report designs. The session is not an audit/approval gate for the automation application UI or whole feature. Browser functionality is not report-design approval.

@@ -897,3 +897,9 @@ This authorization covers implementation and isolated Linux validation. No
 live Fedora migration, restart, deployment, real run or business approval is
 implied. Report design still requires the established Claude judge and then
 owner acceptance. Existing report paths and immutable history stay intact.
+
+Owner clarification, 2026-10-02: Claude session “Competitor mockup report design”
+audits only the rendered Market and Insight reports (web/PDF). It is not an
+approval gate for the automated-research application UI, execution architecture
+or the whole feature. Keep report-design acceptance separate from application
+UI feedback, code review and owner merge/deployment authorization.

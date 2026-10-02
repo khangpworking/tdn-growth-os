@@ -11,8 +11,9 @@ provider binding, HTTP routes and separate retained HTML/PDF outputs are
 implemented. Isolated Linux full verification passed 745 backend and 194
 frontend tests, contract checks, typechecks and build. The production-bundle
 browser journey passed desktop/mobile and reload persistence. [Draft PR #109](https://github.com/khangpworking/tdn-growth-os/pull/109)
-is published; final Claude design-session approval, owner review
-and activation are still separate gates. No
+is published. The designated Claude session audits only rendered Market/Insight
+reports, not the automation application UI or whole feature. Report-design
+acceptance, code/owner review and activation are separate. No
 live research, provider call, business decision, deployment or live migration
 has occurred in this task.
 

@@ -1,6 +1,6 @@
 # Research automation v1 backend slice
 
-Status: implemented on the draft branch; Linux integration passed. Exact-head PR CI, final design review and owner approval remain release gates.
+Status: implemented on the draft branch; Linux integration passed. Exact-head PR CI and owner merge/deployment approval remain separate from rendered-report design acceptance. The designated Claude judge audits Market/Insight reports only, not the automation application UI or whole feature.
 
 This task adds the smallest durable execution path for an explicitly owner-started
 Vietnam research run:
