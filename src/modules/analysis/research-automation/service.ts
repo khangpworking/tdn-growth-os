@@ -3,6 +3,7 @@ import type Database from 'better-sqlite3';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
 import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
 import { AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory } from './exact-shopee-bridge.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
@@ -67,6 +68,8 @@ export interface ResearchAutomationReportInput {
   readonly descriptiveMethodFailure?: 'DESCRIPTIVE_METHOD_FAILED';
   readonly reviewCorpus?: ResearchReviewCorpus;
   readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
+  readonly locatedReview?: AutomationLocatedReviewSnapshot;
+  readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
 }
@@ -137,6 +140,7 @@ export class ResearchAutomationService {
   readonly #uuid: () => string;
   readonly #actorId: string;
   readonly #methods: AutomationDescriptiveMethodBridge;
+  readonly #locatedReviews: AutomationLocatedReviewBridge;
   readonly #shopee: AutomationExactShopeeBridge;
   readonly #marketInventory: AutomationMarketMethodBridge;
   readonly #active = new Map<string, AbortController>();
@@ -151,6 +155,7 @@ export class ResearchAutomationService {
     this.#uuid = options.uuid ?? randomUUID;
     this.#actorId = options.actorId ?? 'research-automation-worker';
     this.#methods = new AutomationDescriptiveMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+    this.#locatedReviews = new AutomationLocatedReviewBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#shopee = new AutomationExactShopeeBridge(this.#db, this.#artifacts, options.shopeeCollectorFactory);
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
   }
@@ -309,6 +314,15 @@ export class ResearchAutomationService {
       if (kind !== 'INSIGHT' || !frozen?.scopeSha || !frozen.scopeConfirmedAt || !collection?.exactShopee) throw new ResearchAutomationIntegrityError('Stored corpus lacks exact run lineage.');
       await this.#shopee.verifyCorpus(semantic.reviewCorpus, collection.exactShopee, { runId,
         start: await this.#readStartSnapshot(frozen.startSha, workspaceId), scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt });
+    }
+    if (semantic.locatedReview !== undefined && semantic.locatedReview !== null) {
+      const frozen = this.#current(runId);
+      const collection = await this.#stepDocument(runId, 'COLLECTION');
+      if (kind !== 'INSIGHT' || !semantic.reviewCorpus || !frozen?.scopeSha || !frozen.scopeConfirmedAt || !collection?.exactShopee)
+        throw new ResearchAutomationIntegrityError('Stored located review lacks its verified source and frozen run.');
+      await this.#locatedReviews.verify(semantic.locatedReview, { runId, reference: collection.exactShopee,
+        start: await this.#readStartSnapshot(frozen.startSha, workspaceId), scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId),
+        scopeConfirmedAt: frozen.scopeConfirmedAt });
     }
     if (semantic.marketInventory !== undefined && semantic.marketInventory !== null) {
       const frozen = this.#current(runId);
@@ -491,9 +505,16 @@ export class ResearchAutomationService {
       let marketInventoryFailure: 'MARKET_INVENTORY_FAILED' | undefined;
       let reviewCorpus: ResearchReviewCorpus | undefined;
       let reviewCorpusFailure: 'REVIEW_CORPUS_FAILED' | undefined;
+      let locatedReview: AutomationLocatedReviewSnapshot | undefined;
+      let locatedReviewFailure: 'LOCATED_REVIEW_METHOD_FAILED' | undefined;
       if (start.reports.includes('INSIGHT') && collection?.exactShopee) {
         try { reviewCorpus = await this.#shopee.corpus(collection.exactShopee, { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt! }); }
         catch { controller.signal.throwIfAborted(); reviewCorpusFailure = 'REVIEW_CORPUS_FAILED'; }
+        if (reviewCorpus) {
+          try { locatedReview = await this.#locatedReviews.execute({ runId: fresh.runId, start, scope,
+            scopeConfirmedAt: fresh.scopeConfirmedAt!, reference: collection.exactShopee }, controller.signal); }
+          catch { controller.signal.throwIfAborted(); locatedReviewFailure = 'LOCATED_REVIEW_METHOD_FAILED'; }
+        }
       }
       if (start.reports.includes('MARKET')) {
         try { marketInventory = await this.#marketInventory.execute({ runId: fresh.runId, start, scope, collection, captures }, controller.signal); }
@@ -514,6 +535,8 @@ export class ResearchAutomationService {
           ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
           ...(kind === 'INSIGHT' && reviewCorpus ? { reviewCorpus } : {}),
           ...(kind === 'INSIGHT' && reviewCorpusFailure ? { reviewCorpusFailure } : {}),
+          ...(kind === 'INSIGHT' && locatedReview ? { locatedReview } : {}),
+          ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
           ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
           ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
         };
@@ -526,6 +549,8 @@ export class ResearchAutomationService {
             ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
             ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null } : {}),
             ...(kind === 'INSIGHT' && input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}),
+            ...(kind === 'INSIGHT' ? { locatedReview: input.locatedReview ?? null } : {}),
+            ...(kind === 'INSIGHT' && input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}),
             ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
             ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}) };
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
@@ -536,7 +561,7 @@ export class ResearchAutomationService {
         if (kind === 'INSIGHT' && input.reviewCorpus && (prepared.semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || prepared.html.byteLength > MAX_HTML_BYTES)) {
           // Keep the entire admitted raw collection. Do not truncate quotes or
           // fail the independent Market report because this view is too large.
-          const { reviewCorpus: _oversizedCorpus, ...withoutCorpus } = input;
+          const { reviewCorpus: _oversizedCorpus, locatedReview: _oversizedLocated, ...withoutCorpus } = input;
           input = { ...withoutCorpus, reviewCorpusFailure: 'REVIEW_CORPUS_REPORT_TOO_LARGE' };
           prepared = await render();
         }
@@ -631,7 +656,9 @@ export class ResearchAutomationService {
       step = invalidProviderStep(runId, stepId);
     }
     if (exact) step = { ...step,
-      outcome: exact.reference ? (step.outcome === 'SUCCEEDED' && exact.coverage.state === 'COLLECTED' ? 'SUCCEEDED' : 'PARTIAL') : step.outcome === 'SUCCEEDED' ? 'PARTIAL' : (exact.coverage.state === 'FAILED' || exact.coverage.state === 'CANCELLED') ? exact.coverage.state : step.outcome,
+      outcome: exact.coverage.state === 'FAILED' || exact.coverage.state === 'CANCELLED'
+        ? step.outcome === 'SUCCEEDED' || step.outcome === 'PARTIAL' ? 'PARTIAL' : exact.coverage.state
+        : exact.reference ? (step.outcome === 'SUCCEEDED' && exact.coverage.state === 'COLLECTED' ? 'SUCCEEDED' : 'PARTIAL') : step.outcome === 'SUCCEEDED' ? 'PARTIAL' : step.outcome,
       coverage: [...step.coverage, exact.coverage], limitations: [...step.limitations, exact.limitation],
       ...(exact.reference ? { exactShopee: exact.reference } : {}) };
     const resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));

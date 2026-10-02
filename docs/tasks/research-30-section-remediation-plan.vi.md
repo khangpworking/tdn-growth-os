@@ -15,6 +15,22 @@ Theo dõi thực thi: [inventory 30 phương pháp](../research/automation-metho
 
 Session **Review marketing framework files** xác nhận cầu nối raw Kalodata → gói nguồn thật → M05/M06 và M07 inventory không xếp hạng nằm trong A41. Mỗi observation phải giữ capture digest, field pointer, query window, mapping revision và trạng thái giá trị. Gói JSON chuẩn hóa không tự chứng minh timezone, additivity, category hay peer membership. M03 nhiều kỳ/tăng trưởng, M08 giá theo đơn vị ngoài dạng viên và đầu vào synthesis ngoài FACT packet cần contract phiên bản mới; không chuyển coding/hypothesis thành FACT để vượt kiểm tra. Thạch dừa cần đúng listing Shopee đã yêu cầu, không thay bằng sản phẩm TikTok gần giống. Các điều kiện này bổ sung chi tiết triển khai, không thay các giới hạn bên dưới.
 
+### Phụ lục 2026-10-02: chốt nghiệm thu nội dung trước khi code tiếp (checkpoint `53538fc`)
+
+Bổ sung, không thay các mục lịch sử bên dưới. Đây là đề xuất của Claude chờ GPT audit, chưa phải nghiệm thu.
+
+- Ma trận 30 section, điều kiện tối thiểu cho từng case và hành động tiếp theo nằm ở [research-content-acceptance-v1.md](research-content-acceptance-v1.md). Mẫu số vẫn là 30.
+- Phân loại theo dõi thêm `EVIDENCE_MISSING/SEMANTICS_UNVERIFIED` (có nguồn nhưng thiếu nghĩa/trường/quan hệ được chứng minh) và `OWNER_DECISION` (chỉ cho quyền, scope/peer/brief chưa xác định hoặc kích hoạt mới). `INTEGRATION_MISSING` ở trên được đọc là `MAPPING_OR_INTEGRATION_MISSING`. Không đổi enum API.
+- Bằng chứng đã kiểm tra chỉ đọc: cả ba case chỉ có capture Kalodata, chụp ở baseline `9355f57` trước khi có exact URL intake. Thạch dừa không chọn sản phẩm nào, không có collection. Bình giữ nhiệt và Quạt có M05/M06/M07 giới hạn từ ba sản phẩm do auditor chọn. Không case nào có corpus review thật trong các artifact đã xem. Nguồn ở nơi khác: NOT_VERIFIED.
+- Việc code tiếp đề xuất là ngày review và trạng thái trong kỳ/ngoài kỳ/chưa rõ ngày cho corpus (C1). Việc này chờ kiểm tra chỉ đọc RC-1 để xác định đúng trường ngày; không đoán tên trường. I04 chưa được chọn vì chưa có corpus thật và bảng rule chưa pin.
+
+GPT audit sau kiểm kê nguồn: C1 chưa được giao triển khai. Chưa tìm thấy page
+Task 016 trong các kho đã kiểm tra; collection cũ đã đọc không có dòng review.
+Ngày chưa rõ chỉ chặn kết luận theo kỳ và WIDE, không chặn toàn bộ phân tích
+định tính có gắn nhãn bối cảnh. Việc tìm listing cho case từ khóa vẫn do hệ
+thống hỗ trợ; M07 inventory chưa hoàn thành câu hỏi so sánh peer. Xem
+[kết quả kiểm kê độc lập](../handoffs/research-source-inventory-20261002.md).
+
 Phạm vi: Market M01-M13 và Insight I01-I17 trong tính năng Nghiên cứu tự động. Giữ thiết kế báo cáo đã duyệt, hai web view và hai PDF riêng của cùng một phiên bản dữ liệu bất biến. Không thay Content Studio hoặc chính sách B7-B10.
 
 ## 1. Vấn đề và kết quả phải đạt

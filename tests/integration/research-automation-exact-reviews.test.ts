@@ -69,6 +69,12 @@ test('explicit listing scope flows through collection and frozen corpus to both 
   assert.equal(semantic.reviewCorpus.coverage.invalidRatingRawRows, 1);
   assert.equal(semantic.reviewCorpus.coverage.quarantinedRawRows, 1);
   assert.equal(semantic.reviewCorpus.codingState, 'NOT_CODED');
+  assert.equal(semantic.locatedReview.authorityState, 'RULE_PROPOSAL_ONLY');
+  assert.deepEqual(semantic.locatedReview.output.input.i04, [], 'unreviewed rules do not admit action findings');
+  const coding = JSON.parse((await state.artifacts.read(semantic.locatedReview.codingSha256)).toString());
+  assert.equal(coding.executionAuthority, 'NONE_RULE_PROPOSAL_ONLY');
+  assert.equal(coding.corpus.corpusId, semantic.reviewCorpus.corpusId);
+  assert.equal(coding.coverage.quarantinedUnits, 1);
   assert.equal(semantic.completion.completedAnalyticalSections, 0);
   const before = state.db.prepare('SELECT total_changes() n').get();
   const report = await state.service.readReport(workspaceId, runId, 'INSIGHT');
@@ -78,6 +84,7 @@ test('explicit listing scope flows through collection and frozen corpus to both 
   assert.doesNotMatch(html, /Do not project me|<script>/);
   assert.match(html, /Tách riêng/);
   assert.match(html, /Chưa coding/);
+  assert.match(html, /Bộ quy tắc chưa được duyệt/);
   assert.deepEqual((await state.service.readReport(workspaceId, runId, 'INSIGHT')).bytes, report.bytes);
   assert.deepEqual(state.db.prepare('SELECT total_changes() n').get(), before);
   assert.equal(calls, 1);
@@ -124,4 +131,33 @@ test('an oversized quote view preserves the independent Market report and full r
   const pageSha = (await import('node:crypto')).createHash('sha256').update(raw).digest('hex');
   assert.deepEqual(await state.artifacts.read(pageSha), raw);
   assert.equal(calls, 1);
+});
+
+test('a terminal Actor failure is not an empty-review success and any returned rows remain available without recollection', async t => {
+  for (const returnedRows of [0, 1]) await t.test(`${returnedRows} retained rows`, async sub => {
+    let calls = 0;
+    const raw = Buffer.from(JSON.stringify(returnedRows ? [{ shopId: '78085196', itemId: '17678138164', comment: 'Đã ăn với sữa chua.', ratingStar: 5 }] : []));
+    const state = await fixture(sub, () => ({ requestsIssued: () => calls, collector: { mode: 'fixture', collect: async (...args) => {
+      calls++;
+      const collected = await new FixtureShopeeCollector(raw).collect(...args);
+      return { ...collected, actor: { ...collected.actor, status: 'FAILED', stopReason: 'actor_terminal_failed', usageTotalUsd: 0.008 }, warnings: ['actor_terminal_failed'] };
+    } } }));
+    await state.service.confirmScope(workspaceId, runId, state.confirm);
+    await state.service.processNext(); await state.service.processNext();
+    const ready = await state.service.getRun(workspaceId, runId);
+    assertRunContract(ready);
+    assert.equal(ready.steps.find(row => row.stepId === 'COLLECTION')?.state, returnedRows ? 'PARTIAL' : 'FAILED');
+    assert.equal(ready.coverage.sources.find(row => row.provider === 'apify-shopee')?.state, returnedRows ? 'PARTIAL' : 'FAILED');
+    assert.ok(ready.blockers.some(row => row.code === 'EXACT_SHOPEE_ACTOR_FAILED'));
+    assert.ok(ready.outputs?.market && ready.outputs.insight);
+    const semantic = JSON.parse((await state.artifacts.read(ready.outputs.insight.versionId)).toString());
+    assert.equal(semantic.reviewCorpus.coverage.rawRows, returnedRows);
+    assert.equal(semantic.reviewCorpus.capture.actorStatus, 'FAILED');
+    assert.equal(semantic.completion.completedAnalyticalSections, 0);
+    const report = await state.service.readReport(workspaceId, runId, 'INSIGHT');
+    assert.match(report.bytes.toString(), /lỗi|thất bại/);
+    await state.service.readReport(workspaceId, runId, 'MARKET');
+    assert.equal(await state.service.processNext(), false);
+    assert.equal(calls, 1);
+  });
 });

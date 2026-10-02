@@ -29,6 +29,16 @@ See [temporal method](../tasks/research-temporal-window-method-v1.md).
 
 ## Current remediation checkpoint (unreleased, 2026-10-02)
 
+**Later literal checkpoint:** the automation now retains source-bound coding
+diagnostics through `AutomationLocatedReviewBridge`, and historical reads
+verify frozen bytes without current semantic recoding. Report annotation arrays
+remain empty; this is not usable I02/I04/I05/I07/I08 findings or completion.
+The genuine SourcePackage adapter supports private non-Zen diagnostics and
+preserves original source dates, but its production automation intake is still
+open. See [literal handoff](../handoffs/research-literal-review-coding-v1.md) and
+[source inventory](../handoffs/research-source-inventory-20261002.md). The
+chronological paragraphs below retain their original checkpoint counts.
+
 The earlier addenda describe prerequisites at their original checkpoints. The
 current working tree now binds M03/M08 **inventory only** to verified Kalodata
 captures and retains their frozen input/output in the Market report. It also

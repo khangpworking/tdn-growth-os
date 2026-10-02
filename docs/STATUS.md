@@ -1,5 +1,53 @@
 # Trạng thái hiện tại
 
+## Literal review/source-failure checkpoint (2026-10-02, uncommitted)
+
+The working tree now retains an exact source-bound literal-coding proposal in
+a real immutable Foundation package. Parser/rule/semantics/schema bytes are
+frozen with the corpus and output. No candidate is admitted to report findings;
+historical reads verify retained bytes without today's parser or provider.
+Insight keeps method-proposal and source-failure guidance. A failed Actor with
+zero rows is no longer treated as successful empty collection.
+
+The final accepted grammar tuple passed a full Linux check (845 backend passed,
+0 failed, 1 skipped; 196 frontend passed). A subsequent shared-engine extraction
+preserved original corpus output bytes across four Foundation synthetic cases.
+Its final Linux check passed 847 backend tests, 0 failed, 1 skipped, plus
+frontend tests/build, contract generation and both typechecks. Focused
+SourcePackage/coding/integration proof is 18/18. Independent static review found
+no blocking issue in this scope; this is not an accuracy or source-authentication
+certification.
+Synthetic normal and failed-Actor journeys passed paired web/PDF export and
+desktop/mobile checks. No full-final-byte CI, 30-section completion, Claude
+design approval, merge or active-runtime update is claimed.
+
+Two deliberate real Actor probes reported USD 0.013 total: Zen failed with zero
+rows; Dami returned 62 exact-listing rows including 20 readable comments. The
+Dami capture is retained privately as its own verified SourcePackage, not a
+Zen collection or complete review history. Version 2 preserves the provider's
+original date strings without automatic annual/category admission. The new
+SourcePackage adapter retained proposal-only diagnostics for 20 readable
+comments, with zero report annotations and exact retry mutations. The bounded
+grammar's earlier exact tuple received business ACCEPT; the new extraction and
+admission/render policy are under scoped review. Production automation intake
+for this alternative source remains open. See
+[implementation and proof](handoffs/research-literal-review-coding-v1.md) and
+[source/cost inventory](handoffs/research-source-inventory-20261002.md).
+
+## Published checkpoint and independent source inventory (2026-10-02)
+
+Draft PR #110 pins the reviewed remediation code at
+`53538fc095ffd092e5f36647b2098ed9c11398bb`; exact-head Linux CI passed in
+[run 37011129241](https://github.com/khangpworking/tdn-growth-os/actions/runs/37011129241).
+It remains unmerged and is not activated on Fedora.
+Parallel read-only inventory reverified all 103 original three-case captures
+and responses. They are Kalodata only; the original audit store has no review
+collection. A separately inspected legacy operator collection contains an empty
+raw page. These checks do not establish absence in every other private store.
+See [source inventory and independent plan review](handoffs/research-source-inventory-20261002.md).
+Claude's new content-acceptance matrix is a proposal under independent review,
+not a completed-section or deployment claim.
+
 ## Parallel Market / Insight integration checkpoint (2026-10-02, unreleased)
 
 The approved remediation plan now runs source/method integration in parallel,

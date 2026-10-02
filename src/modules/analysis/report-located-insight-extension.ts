@@ -45,8 +45,17 @@ export async function buildReportLocatedInsightExtension(
   bundle: SourceBackedReportBundle,
   sourcePackages: FinalizedSourcePackageReader,
 ) {
+  return buildPackageLocatedInsightExtension(logicalPath, bundle.envelope?.sourcePackage, sourcePackages);
+}
+
+/** Review-only packages use the same evidence verification without a Metric envelope. */
+export async function buildPackageLocatedInsightExtension(
+  logicalPath: string | undefined,
+  identity: SourceBackedReportBundle['envelope']['sourcePackage'] | undefined,
+  sourcePackages: FinalizedSourcePackageReader,
+) {
   if (logicalPath === undefined) return undefined;
-  const identity = bundle.envelope.sourcePackage;
+  if (!identity) fail('LOCATED_PACKAGE_IDENTITY_REQUIRED');
   const retained = await sourcePackages.readFinalizedSourcePackage(identity.packageId, {
     maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024,
   });

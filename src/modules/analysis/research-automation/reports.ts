@@ -3,6 +3,7 @@ import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/de
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import { reviewCorpusSection } from './review-corpus-report.js';
 import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
+import type { AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
 import { marketInventorySection } from './market-inventory-report.js';
 import type { ResearchAutomationRun } from '../../../../contracts/api/research-automation-api.generated.js';
 import { REPORT_KIT_CSS } from '../report-kit-theme.js';
@@ -21,6 +22,8 @@ export interface AutomationReportInput {
   readonly descriptiveMethodFailure?: 'DESCRIPTIVE_METHOD_FAILED';
   readonly reviewCorpus?: ResearchReviewCorpus;
   readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
+  readonly locatedReview?: AutomationLocatedReviewSnapshot;
+  readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
 }
@@ -150,7 +153,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     keyword: input.start.keyword, country: input.start.country, requestedPeriod: input.start.requestedPeriod,
     scope: input.scope, scopeApplication: 'OWNER_CONTEXT_ONLY_SOURCE_FILTER_MAPPING_PENDING', coverage: input.run.coverage, usage: input.run.usage,
     collectionOutcome: input.collection?.outcome ?? null, limitations: input.collection?.limitations ?? [],
-    captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
+    captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, locatedReview: input.locatedReview ?? null,
+      ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
       ...(input.descriptiveMethodFailure ? { descriptiveMethodFailure: input.descriptiveMethodFailure } : {}) } : {}), completion,
   };
   const title = kind === 'MARKET' ? 'Báo cáo thị trường' : 'Báo cáo insight';
@@ -178,7 +182,11 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     }
     if (kind === 'MARKET' && sectionId === 'M13') return descriptiveAppendix(descriptive, input.descriptiveMethodFailure);
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
-      if (input.reviewCorpus) return reviewCorpusSection(input.reviewCorpus, sectionId);
+      const codingNotice = input.locatedReview
+        ? '<p class="warning">Đã lưu đề xuất coding cùng phiên bản quy tắc và vị trí nguyên văn. Bộ quy tắc chưa được duyệt nên đề xuất chưa được dùng làm kết luận hoặc tính vào số mục hoàn thành. Báo cáo cũ giữ nguyên bằng chứng và kết quả đã lưu, không chạy lại parser khi mở.</p>'
+        : input.locatedReviewFailure
+          ? '<p class="warning">Dữ liệu review gốc vẫn được giữ, nhưng bước lưu đề xuất coding chưa vượt qua kiểm tra. Mã LOCATED_REVIEW_METHOD_FAILED; không dùng đề xuất chưa xác minh hoặc tự thu lại nguồn.</p>' : '';
+      if (input.reviewCorpus) return codingNotice + reviewCorpusSection(input.reviewCorpus, sectionId);
       if (input.reviewCorpusFailure === 'REVIEW_CORPUS_REPORT_TOO_LARGE') return '<p class="warning">Collection gốc vẫn được giữ đầy đủ nhưng phần quote vượt giới hạn kích thước báo cáo. Mã REVIEW_CORPUS_REPORT_TOO_LARGE; chưa đưa quote vào bản này, không cắt ngắn dữ liệu hoặc tự thu lại. Cần xuất phần bằng chứng theo trang ở bước xử lý tiếp theo.</p>';
       if (input.reviewCorpusFailure) return '<p class="warning">Đã lưu collection nhưng corpus không vượt qua kiểm tra. Cần kiểm tra REVIEW_CORPUS_FAILED; không tự thu lại và không dùng dữ liệu chưa xác minh.</p>';
       return '<p>Chưa có corpus review gắn với lượt này. Thêm link Shopee chính xác ở bước duyệt phạm vi của lượt mới, rồi kiểm tra trạng thái nguồn. Không thay bằng review của sản phẩm gần giống.</p>';
