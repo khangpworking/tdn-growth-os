@@ -462,7 +462,7 @@ test('three industries classify a new report from complete selected acceptance w
       assert.equal(newMarket.status, 200, await newMarket.clone().text());
       const classifiedHtml = await newMarket.text();
       assert.match(classifiedHtml, /Đã phân loại đủ 2 dòng/);
-      assert.match(classifiedHtml, /WIDE loại OUTSIDE và UNKNOWN/);
+      assert.match(classifiedHtml, /phạm vi rộng \(WIDE\) loại hàng ngoài phạm vi \(OUTSIDE\) và chưa rõ \(UNKNOWN\)/);
       assert.match(classifiedHtml, /CORE: cấu trúc trong mẫu đã phân loại/);
       assert.doesNotMatch(classifiedHtml, /chưa phân loại CORE\/WIDE/i);
       const calculationDb = new BetterSqlite3(fixture.databasePath, { readonly: true });
