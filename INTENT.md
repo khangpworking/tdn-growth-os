@@ -235,7 +235,7 @@ Chủ dự án làm rõ:
 
 Tài liệu đã kiểm tra: [CloakBrowser](https://github.com/CloakHQ/cloakbrowser), [Apify API](https://docs.apify.com/api/v2), [SerpApi engines](https://serpapi.com/search-engine-apis). CloakBrowser có wrapper Python/JavaScript kiểu Playwright; điều này không chứng minh đăng nhập Google/KaloData/Metric trên Fedora đã chạy được. Apify có luồng chạy Actor và lấy dataset; SerpApi liệt kê Trends, News và Shopping.
 
-Đã đọc toàn bộ file `C:/Users/Admin/Desktop/shopee_review_filter.py`, chưa chạy hoặc sửa. Script nhận bảng Markdown rồi xuất JSON kept/removed; không phải Apify connector. Tái sử dụng được chuẩn hóa tiếng Việt, tách guided fields/metadata, phân loại noise/signal, lý do loại và xếp hạng review. Đây là heuristic chuyên canxi, không phải fact-check hoặc thang E0–E5.
+Đã đọc toàn bộ file `shopee_review_filter.py` (bản cục bộ của chủ dự án, ngoài repo), chưa chạy hoặc sửa. Script nhận bảng Markdown rồi xuất JSON kept/removed; không phải Apify connector. Tái sử dụng được chuẩn hóa tiếng Việt, tách guided fields/metadata, phân loại noise/signal, lý do loại và xếp hạng review. Đây là heuristic chuyên canxi, không phải fact-check hoặc thang E0–E5.
 
 Các điểm cần xử lý khi tích hợp, chưa phải thay đổi đã làm:
 
@@ -260,7 +260,7 @@ Tài liệu yêu cầu `startUrls`; có `starFilter`, `contentFilter`, `maxRevie
 
 Chủ dự án xác nhận thường lấy URL Shopee từ mục “Sản phẩm bán chạy” của Metric. Đây là đường tìm sản phẩm đầu vào cho Actor reviews, không cần mặc định thêm Actor tìm kiếm sản phẩm riêng.
 
-Đã kiểm tra phần này trong `C:/Users/Admin/Downloads/TDN Research Pipeline - canxi calcium - 2026-08-14/metric html version.html`: có tên sản phẩm, gian hàng, giá, rating, số đánh giá, doanh số/sản lượng theo kỳ và tổng; giao diện lưu đang chọn “Tổng doanh số”, “Giảm dần”, 20 sản phẩm/trang. Danh sách có dữ liệu đa nền tảng; cần chọn đúng sản phẩm Shopee trước khi gửi Actor.
+Đã kiểm tra phần này trong bản HTML lưu trang Metric của pipeline canxi ngày 2026-08-14 (tệp cục bộ của chủ dự án, ngoài repo): có tên sản phẩm, gian hàng, giá, rating, số đánh giá, doanh số/sản lượng theo kỳ và tổng; giao diện lưu đang chọn “Tổng doanh số”, “Giảm dần”, 20 sản phẩm/trang. Danh sách có dữ liệu đa nền tảng; cần chọn đúng sản phẩm Shopee trước khi gửi Actor.
 
 Chủ dự án làm rõ: đây là HTML tải xuống, không phải trang live; trên phiên web Metric có thể click vào sản phẩm. Việc không tìm thấy href/URL Shopee trong bản lưu không chứng minh trang live thiếu đường truy cập sản phẩm.
 
@@ -903,3 +903,21 @@ audits only the rendered Market and Insight reports (web/PDF). It is not an
 approval gate for the automated-research application UI, execution architecture
 or the whole feature. Keep report-design acceptance separate from application
 UI feedback, code review and owner merge/deployment authorization.
+
+### Automated research source timing, owner-approved 2026-10-03
+
+Sources selected for the first report are verified and frozen together with
+the explicit scope confirmation. Preparing an upload alone is not admission
+and does not start a provider call. Preserve existing free reuse of retained
+evidence that matches the exact selected listing and confirmed scope.
+
+Sources added after confirmation belong to an explicit supplemental report
+version. They never alter the first version, including while its worker is
+queued or running. Preserve both original Market and Insight outputs and
+select the same exact version for web and PDF. Changing the scope requires a
+new research run, not an attachment correction. The owner approved this policy
+with “Duyệt cách đề xuất”. It does not approve code, real source acceptance,
+paid recollection, migration on the live database or Fedora activation.
+
+See `docs/tasks/research-source-attachment-and-resume-design.md` for the
+implementation state and recovery boundaries.
