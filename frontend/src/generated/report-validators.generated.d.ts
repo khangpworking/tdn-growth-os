@@ -7,6 +7,7 @@ export interface PrecompiledValidator {
 export declare const researchAutomationRun: PrecompiledValidator;
 export declare const researchAutomationRunList: PrecompiledValidator;
 export declare const researchAutomationReceipt: PrecompiledValidator;
+export declare const researchAutomationSourceStatus: PrecompiledValidator;
 export declare const researchAutomationMetricPrepared: PrecompiledValidator;
 export declare const researchAutomationMetricPreparedList: PrecompiledValidator;
 export declare const supplementalSourcePrepare: PrecompiledValidator;

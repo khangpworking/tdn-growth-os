@@ -150,6 +150,8 @@ export interface ResearchAutomationReportInput {
 }
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
+export type ResearchAutomationSourceActivityKey = 'kalodata' | 'serpapi' | 'apify-shopee' | 'metric';
+export interface ResearchAutomationSourceActivity { readonly lastDataAt: string | null; readonly dataCount: number; readonly lastUsageAt: string | null }
 
 export interface ResearchAutomationRenderedReport {
   readonly semantic: unknown;
@@ -600,6 +602,27 @@ export class ResearchAutomationService {
       requestedPeriod: { startDate: String(row.periodStart), endDate: String(row.periodEnd), dayCount: inclusiveDays({ startDate: String(row.periodStart), endDate: String(row.periodEnd) }) },
       reports: String(row.reports).split(',') as ResearchAutomationRun['reports'], createdAt: String(row.createdAt), updatedAt: String(row.updatedAt),
     })) };
+  }
+
+  /** Stored history per source for the status board. Reads rows only; never calls a provider. */
+  async readSourceActivity(workspaceId: string): Promise<Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity>> {
+    assertUuid(workspaceId);
+    await this.#readWorkspace(workspaceId);
+    const activity = Object.fromEntries((['kalodata', 'serpapi', 'apify-shopee', 'metric'] as const)
+      .map(key => [key, { lastDataAt: null, dataCount: 0, lastUsageAt: null }])) as Record<ResearchAutomationSourceActivityKey, { lastDataAt: string | null; dataCount: number; lastUsageAt: string | null }>;
+    const captures = this.#db.prepare(`SELECT c.provider provider,MAX(c.retrieved_at) lastAt,COUNT(*) total FROM analysis_research_automation_captures c
+      JOIN analysis_research_automation_runs r ON r.run_id=c.run_id WHERE r.workspace_id=? AND c.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY c.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string; total: bigint | number }>;
+    for (const row of captures) { activity[row.provider].lastDataAt = row.lastAt; activity[row.provider].dataCount = toNumber(row.total); }
+    const usage = this.#db.prepare(`SELECT u.provider provider,MAX(u.recorded_at) lastAt FROM analysis_research_automation_usage u
+      JOIN analysis_research_automation_runs r ON r.run_id=u.run_id WHERE r.workspace_id=? AND u.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY u.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string }>;
+    for (const row of usage) activity[row.provider].lastUsageAt = row.lastAt;
+    // Metric workbooks are owner uploads stored as finalized attachment packages keyed `automation-upload:<runId>-…`.
+    const metric = this.#db.prepare(`SELECT MAX(p.finalized_at) lastAt,COUNT(*) total FROM foundation_source_packages p
+      JOIN foundation_source_attachment_origins o ON o.package_id=p.package_id
+      JOIN analysis_research_automation_runs r ON substr(p.package_key,1,55)='automation-upload:'||r.run_id||'-'
+      WHERE r.workspace_id=? AND p.finalized_at IS NOT NULL AND o.origin_kind='AUTOMATION_ATTACHMENT'`).get(workspaceId) as { lastAt: string | null; total: bigint | number };
+    activity.metric.lastDataAt = metric.lastAt; activity.metric.dataCount = toNumber(metric.total);
+    return activity;
   }
 
   async getRun(workspaceId: string, runId: string): Promise<ResearchAutomationRun> {

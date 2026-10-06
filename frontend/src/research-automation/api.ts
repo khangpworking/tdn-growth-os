@@ -11,7 +11,9 @@ import type {
 import type { ResearchAutomationSourceConfirmRequest } from '../../../contracts/api/research-automation-source-api.generated';
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricEntry, ResearchAutomationPreparedMetricList } from '../../../contracts/api/research-automation-metric-intake-api.generated';
 import type { ResearchAutomationSupplementalPrepareRequest, ResearchAutomationSupplementalPrepareReceipt, ResearchAutomationSupplementalPreparedList } from '../../../contracts/api/research-automation-supplemental-intake-api.generated';
+import type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry } from '../../../contracts/api/research-automation-source-status-api.generated';
 import { supplementalSourcePrepare, supplementalSourcePrepared, supplementalSourcePreparedList } from '../generated/report-validators.generated.js';
+import { researchAutomationSourceStatus } from '../generated/report-validators.generated.js';
 import { researchAutomationReceipt, researchAutomationRun, researchAutomationRunList, researchAutomationMetricPrepared, researchAutomationMetricPreparedList } from '../generated/report-validators.generated.js';
 
 export type { ResearchAutomationRun, ResearchAutomationRunList };
@@ -20,6 +22,7 @@ export type ResearchAutomationConfirmBody = ResearchAutomationConfirmRequest | R
 export type { ResearchAutomationSourceConfirmRequest, ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricEntry };
 export type { ResearchAutomationSupplementalPrepareRequest, ResearchAutomationSupplementalPrepareReceipt };
 export type { ResearchAutomationSupplementalPreparedList };
+export type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry };
 export type ResearchAutomationCancelBody = ResearchAutomationCancelRequest;
 export type ResearchAutomationReceipt = ResearchAutomationMutationReceipt;
 export type ResearchAutomationInterview = NonNullable<ResearchAutomationStartRequest['interview']>;
@@ -39,6 +42,15 @@ export async function loadRuns(workspaceId: string, signal: AbortSignal): Promis
     throw new ResearchAutomationError('integrity', 'Lịch sử nghiên cứu không đúng workspace đang xem.');
   }
   return value as ResearchAutomationRunList;
+}
+
+/** Configuration and stored history only; the server never calls a provider to answer this. */
+export async function loadSourceStatus(workspaceId: string, signal: AbortSignal): Promise<ResearchAutomationSourceStatus> {
+  const value = await request(`/api/workspaces/${encodeURIComponent(workspaceId)}/research-automation/source-status`, { headers: { Accept: 'application/json' }, signal });
+  if (!researchAutomationSourceStatus(value) || (value as ResearchAutomationSourceStatus).workspaceId !== workspaceId) {
+    throw new ResearchAutomationError('integrity', 'Trạng thái nguồn dữ liệu không đúng workspace đang xem.');
+  }
+  return value as ResearchAutomationSourceStatus;
 }
 
 export async function loadRun(workspaceId: string, runId: string, signal: AbortSignal): Promise<ResearchAutomationRun> {

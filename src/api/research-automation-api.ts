@@ -23,6 +23,8 @@ import insightCodingSchema from '../../contracts/analysis/automation-insight-cod
 import insightCodingApiSchema from '../../contracts/api/research-automation-insight-coding-api.schema.json' with { type: 'json' };
 import insightModelSchema from '../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
 import insightModelApiSchema from '../../contracts/api/research-automation-insight-model-api.schema.json' with { type: 'json' };
+import sourceStatusSchema from '../../contracts/api/research-automation-source-status-api.schema.json' with { type: 'json' };
+import { buildResearchAutomationSourceStatus } from '../modules/analysis/research-automation/source-status.js';
 import type { ResearchInsightModelResponse } from '../../contracts/api/research-automation-insight-model-api.generated.js';
 import type { InsightModelConfiguration } from '../modules/analysis/research-automation/insight-model-execution.js';
 import { AutomationSynthesisExecutionError } from '../modules/analysis/research-automation/synthesis-execution.js';
@@ -88,6 +90,7 @@ ajv.addSchema(boundedRevisionRequestSchema);
 ajv.addSchema(quoteRevisionRequestSchema);
 ajv.addSchema(locatedInsightSchema); ajv.addSchema(insightSelectionSchema); ajv.addSchema(insightCodingSchema); ajv.addSchema(insightCodingApiSchema);
 ajv.addSchema(insightModelSchema); ajv.addSchema(insightModelApiSchema);
+ajv.addSchema(sourceStatusSchema);
 const validates = {
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }] }),
@@ -117,7 +120,11 @@ const validates = {
   insightView: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/view` }),
   insightModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/request` }),
   insightModelResponse: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/response` }),
+  sourceStatus: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/status` }),
 };
+// Keep in step with the executor wiring below: the run source is KALODATA, Shopee reviews go
+// through the Apify collector when its cap is configured, and web search is not called by runs yet.
+const SOURCES_WIRED_INTO_RUNS = { kalodata: true, serpapi: false, apifyShopee: true } as const;
 const insightWrites = {
   'insight-coding-adoptions': { kind: 'ADOPTION', validate: validates.insightAdopt },
   'insight-coding-proposals': { kind: 'PROPOSAL', validate: validates.insightPropose },
@@ -234,6 +241,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     if (!raw.startsWith('/') || raw.startsWith('//') || raw.includes('#') || raw.includes('%')) return fail(response, 400, 'bad_request', 'Malformed request route');
     const url = new URL(raw, origin);
     if (url.search) return fail(response, 400, 'bad_request', 'Query parameters are not supported');
+    const statusMatch = /^\/api\/workspaces\/([0-9a-f-]{36})\/research-automation\/source-status$/.exec(url.pathname);
+    if (statusMatch) return sourceStatus(request, response, statusMatch[1]!);
     const match = /^\/(api|owner-api)\/workspaces\/([0-9a-f-]{36})\/research-automation\/runs(?:\/([0-9a-f-]{36})(?:\/(.+))?)?$/.exec(url.pathname);
     if (!match) return fail(response, 404, 'not_found', 'Route not found');
     const [, prefix, workspaceId, runId, action] = match;
@@ -479,6 +488,24 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         return fail(response, 400, 'source_input_rejected', 'The workbook does not match a supported source profile');
       if (error instanceof PayloadTooLargeError) return fail(response, 413, 'payload_too_large', 'Request body exceeds the limit');
       if (error instanceof ResearchAutomationValidationError || error instanceof EmptyBodyError) return fail(response, 400, 'bad_request', 'Research request failed validation');
+      return fail(response, 500, 'integrity_error', 'Stored research evidence failed verification');
+    }
+  }
+
+  /** Read-only board: configuration flags plus stored history. Never pings a provider, so it never spends money. */
+  async function sourceStatus(request: IncomingMessage, response: ServerResponse, workspaceId: string): Promise<void> {
+    response.setHeader('Allow', 'GET');
+    if (request.method !== 'GET') return fail(response, 405, 'method_not_allowed', 'Method is not supported');
+    try {
+      const result = buildResearchAutomationSourceStatus({
+        workspaceId, checkedAt: new Date().toISOString(), executorEnabled: Boolean(writeService), providers: configuration.providers,
+        wired: SOURCES_WIRED_INTO_RUNS, activity: await readService.readSourceActivity(workspaceId),
+      });
+      if (!validates.sourceStatus(result)) throw new Error('Source status projection failed validation');
+      return sendApiJson(response, 200, result);
+    } catch (error) {
+      if (error instanceof ResearchAutomationNotFoundError) return fail(response, 404, error.code, 'Research record or output was not found');
+      if (error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', 'Research request failed validation');
       return fail(response, 500, 'integrity_error', 'Stored research evidence failed verification');
     }
   }
