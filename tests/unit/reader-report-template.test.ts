@@ -7,7 +7,7 @@ import test from 'node:test';
 import type { ReaderReportInput } from '../../contracts/analysis/reader-report-input.generated.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/index.js';
 import {
-  READER_SECTION_ANCHORS, buildMarketReport, computeReaderReportData, lint, publishReaderReport, visibleText,
+  READER_SECTION_ANCHORS, buildMarketReport, computeReaderReportData, lint, publishReaderReport, readerWebResults, visibleText,
 } from '../../src/modules/analysis/reader-report/index.js';
 
 type P = 'shopee' | 'tiktok';
@@ -87,6 +87,37 @@ test('approved profile and missing signals or benchmark still render', async () 
     assert.ok(pub.lint.every(l => l.ok), JSON.stringify(pub.lint.filter(l => !l.ok)));
     assert.doesNotMatch(r.html, /Bảng 8\.2|Hình 5\.1/);
     assert.match(visibleText(r.html), /đã được chủ duyệt/);
+  });
+});
+
+test('web search results render as an appendix table that passes every gate and links nowhere', async () => {
+  await withStore(async store => {
+    const at = '2026-10-01T18:30:00.000Z';
+    const webResults = [
+      { position: 2, title: 'Bình giữ nhiệt <b>mẫu mới</b>', url: 'https://example.test/b?x=1&y=2', snippet: 'Đánh giá "thật"', retrievedAt: at },
+      { position: 1, title: 'Hướng dẫn chọn bình', url: 'https://example.test/a', snippet: null, retrievedAt: at },
+      { position: 3, title: 'Bình rẻ nhất', url: 'http://example.test/plain', snippet: null, retrievedAt: at },
+      { position: 4, title: 'Thị phần bình 2026', url: 'https://example.test/share', snippet: null, retrievedAt: at },
+      { position: 5, title: 'Xem Bảng 3 ở đây', url: 'https://example.test/table', snippet: null, retrievedAt: at },
+      { position: 6, title: 'Bình Kalodata', url: 'https://example.test/provider', snippet: null, retrievedAt: at },
+      { position: 7, title: 'Bình', url: 'https://example.test/c', snippet: 'giá {{x}}', retrievedAt: at },
+    ];
+    assert.deepEqual(readerWebResults(webResults).map(w => w.position), [1, 2], 'unsafe or gate-tripping results are dropped, not edited');
+    const r = await buildMarketReport(computeReaderReportData(input()), { ...options, webResults });
+    const pub = await publishReaderReport(store, { html: r.html, narrator: r.narrator, extraOk: r.extraOk });
+    assert.ok(pub.lint.every(x => x.ok), JSON.stringify(pub.lint.filter(x => !x.ok)));
+    assert.deepEqual(r.webResults.map(w => w.position), [1, 2]);
+    const vis = visibleText(r.html);
+    assert.match(vis, /Bảng PL\.3/);
+    assert.match(vis, /Kết quả tìm kiếm Google tại Việt Nam cho từ khóa của báo cáo, thu ngày 02\/10\/2026/, 'retrieval day is shown in Vietnam time');
+    assert.ok(r.html.includes('Bình giữ nhiệt &lt;b&gt;mẫu mới&lt;/b&gt;'), 'titles are escaped');
+    assert.ok(r.html.includes('https://example.test/b?x=1&amp;y=2'));
+    assert.doesNotMatch(r.html, /href="https?:|src="https?:/);
+    assert.doesNotMatch(vis, /SerpApi|Kalodata/i);
+
+    const none = await buildMarketReport(computeReaderReportData(input()), options);
+    assert.doesNotMatch(none.html, /Bảng PL\.3|Kết quả tìm kiếm Google/);
+    assert.deepEqual(none.webResults, []);
   });
 });
 

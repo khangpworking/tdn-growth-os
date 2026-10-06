@@ -121,6 +121,8 @@ test('source status reports configuration and workspace history without exposing
     assert.deepEqual(sources.KALODATA, { source: 'KALODATA', state: 'READY', credential: 'CONFIGURED', wiredIntoRuns: true, paid: true,
       lastDataAt: '2026-02-03T00:00:00.000Z', dataCount: 2, lastUsageAt: '2026-02-03T00:00:01.000Z' });
     assert.equal(sources.SERPAPI.credential, 'CONFIGURED');
+    assert.equal(sources.SERPAPI.state, 'READY');
+    assert.equal(sources.SERPAPI.wiredIntoRuns, true);
     assert.equal(sources.SERPAPI.dataCount, 0, 'Another workspace history is not counted');
     assert.equal(sources.SERPAPI.lastUsageAt, null);
     // A token without a spending cap never starts a paid collection.

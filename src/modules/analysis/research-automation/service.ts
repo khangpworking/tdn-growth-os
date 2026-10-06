@@ -99,6 +99,7 @@ import {
   MAX_CAPTURES_PER_STEP,
   MAX_JSON_ARTIFACT_BYTES,
   MAX_PDF_BYTES,
+  MAX_WEB_RESULTS,
   RUN_LIST_LIMIT,
   STEP_IDS,
   TERMINAL_STATUSES,
@@ -172,6 +173,8 @@ export interface ResearchAutomationServiceOptions {
   readonly artifactStore: ContentAddressedArtifactStore;
   readonly workspaceReader: DiscoveryWorkspaceReader;
   readonly source?: AutomationSourcePort;
+  /** Optional web search, run once per collection beside the product source. */
+  readonly webSource?: AutomationSourcePort;
   readonly renderer?: ResearchAutomationReportRenderer;
   readonly now?: () => Date;
   readonly uuid?: () => string;
@@ -217,6 +220,10 @@ interface PersistableSourceResult {
   step: StepResultDocument;
 }
 
+/** The independent web-search lane of one collection; its usage is recorded at ordinal 2. */
+type WebSearchAttempt = { readonly bound: BoundCollectResult } | { readonly failedProvider: string };
+const WEB_USAGE_ORDINAL = 2;
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const REQUEST_KEY = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
@@ -246,6 +253,7 @@ export class ResearchAutomationService {
   readonly #artifacts: ContentAddressedArtifactStore;
   readonly #workspaces: DiscoveryWorkspaceReader;
   readonly #source: AutomationSourcePort | undefined;
+  readonly #webSource: AutomationSourcePort | undefined;
   readonly #renderer: ResearchAutomationReportRenderer | undefined;
   readonly #now: () => Date;
   readonly #uuid: () => string;
@@ -274,6 +282,7 @@ export class ResearchAutomationService {
     this.#artifacts = options.artifactStore;
     this.#workspaces = options.workspaceReader;
     this.#source = options.source;
+    this.#webSource = options.webSource;
     this.#renderer = options.renderer;
     this.#now = options.now ?? (() => new Date());
     this.#uuid = options.uuid ?? randomUUID;
@@ -458,7 +467,10 @@ export class ResearchAutomationService {
     const source = await reader.readFinalizedSourcePackage(packageId, { maxFileBytes: MAX_METRIC_UPLOAD_BYTES, maxTotalBytes: MAX_METRIC_UPLOAD_BYTES + 64 * 1024 });
     const workbook = source.files.find(file => file.path === 'metric/export.xlsx');
     if (!workbook) throw new ResearchAutomationIntegrityError('Prepared product-list workbook is missing.');
+    const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
+    const webResults = collection?.resultSha ? (await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION')).webResults ?? [] : [];
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic,
+      webResults: webResults.map(({ position, title, url, snippet, retrievedAt }) => ({ position, title, url, snippet, retrievedAt })),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
@@ -1265,7 +1277,8 @@ export class ResearchAutomationService {
         await this.#settleSourceFailure(row.runId, stepId, 'CANCELLED_DURING_PROVIDER_OPERATION', 'CANCELLED');
         return true;
       }
-      if (stepId === 'COLLECTION' && !scope?.selectedProductIds.length && !scope?.peerProductIds.length && !scope?.exactShopeeUrls?.length) {
+      const noProductRefs = !scope?.selectedProductIds.length && !scope?.peerProductIds.length && !scope?.exactShopeeUrls?.length;
+      if (stepId === 'COLLECTION' && noProductRefs && !this.#webSource) {
         // An explicit "none" selection still yields a draft, but nothing was
         // requested, so the step must not read as a successful collection.
         await this.#settleSourceFailure(row.runId, stepId, 'NO_APPROVED_PRODUCT_REFS', 'SKIPPED');
@@ -1280,9 +1293,11 @@ export class ResearchAutomationService {
         result = stepId === 'QUICK_SEARCH' ? await source!.quickSearch(input as QuickSearchInput, options)
           : source && (scope?.selectedProductIds.length || scope?.peerProductIds.length) ? await source.collect(input as CollectInput, options)
           : { result: null, step: { contractVersion: 'research-automation-step-result-v1', runId: row.runId, stepId,
-            outcome: 'UNAVAILABLE', productCards: [], comparables: [], coverage: [], limitations: [] } };
+            outcome: 'UNAVAILABLE', productCards: [], comparables: [], coverage: [],
+            // Only reachable with a web source: the web lane runs, product detail stays unrequested.
+            limitations: noProductRefs ? [{ code: 'NO_APPROVED_PRODUCT_REFS', provider: null, message: message('NO_APPROVED_PRODUCT_REFS') }] : [] } };
       } catch {
-        if (stepId !== 'COLLECTION' || !scope?.exactShopeeUrls?.length || controller.signal.aborted) {
+        if (stepId !== 'COLLECTION' || (!scope?.exactShopeeUrls?.length && !this.#webSource) || controller.signal.aborted) {
           await this.#settleSourceFailure(row.runId, stepId, controller.signal.aborted ? 'CANCELLED_DURING_PROVIDER_OPERATION' : 'PROVIDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
           return true;
         }
@@ -1319,8 +1334,13 @@ export class ResearchAutomationService {
           result.step = nativeSourceBlocked(result.step, resolution.state === 'AMBIGUOUS' ? 'NATIVE_SOURCE_AMBIGUOUS' : 'NATIVE_SOURCE_SCOPE_UNSUPPORTED');
         }
       }
+      let web: WebSearchAttempt | undefined;
+      if (stepId === 'COLLECTION' && this.#webSource && !controller.signal.aborted) {
+        try { web = { bound: await this.#webSource.collect(input as CollectInput, { signal: controller.signal }) }; }
+        catch { web = { failedProvider: this.#webSource.id.toLowerCase() }; }
+      }
       try {
-        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact);
+        await this.#persistSourceResult(row.runId, stepId, result, controller.signal.aborted, exact, web);
       } catch (error) {
         if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
         await this.#settleSourceFailure(row.runId, stepId, 'PROVIDER_OUTPUT_INVALID', 'FAILED');
@@ -1689,35 +1709,30 @@ export class ResearchAutomationService {
     }
   }
 
-  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt): Promise<void> {
+  async #persistSourceResult(runId: string, stepId: SourceStepId, bound: PersistableSourceResult, aborted: boolean, exact?: ExactShopeeAttempt, web?: WebSearchAttempt): Promise<void> {
     const result = bound.result;
     let step = bound.step;
     const nativeCoverage = bound.step.coverage.filter(value => value.provider === 'apify-dami');
     const nativeLimitations = bound.step.limitations.filter(value => value.provider === 'apify-dami');
     const now = this.#now().toISOString();
     const captures: Array<{ row: CaptureRecord; artifact: StoredArtifact }> = [];
-    let envelopes: Array<{ capture: NonNullable<PersistableSourceResult['result']>['captures'][number]; body: Buffer }> = [];
-    try {
-      if (result && (!Array.isArray(result.captures) || result.captures.length > MAX_CAPTURES_PER_STEP)) throw new ResearchAutomationProviderOutputError('Provider returned too many captures.');
-      envelopes = (result?.captures ?? []).map(capture => {
-        if ((capture.requestBodyBytes?.byteLength ?? 0) > MAX_CAPTURE_BYTES || (capture.responseBytes?.byteLength ?? 0) > MAX_CAPTURE_BYTES) throw new ResearchAutomationProviderOutputError('Provider capture exceeds its retention bound.');
-        const body = captureEnvelope(capture);
-        if (body.byteLength > MAX_CAPTURE_ENVELOPE_BYTES) throw new ResearchAutomationProviderOutputError('Provider capture envelope exceeds its retention bound.');
-        return { capture, body };
-      });
-    } catch (error) {
-      if (!(error instanceof ResearchAutomationProviderOutputError)) throw error;
+    let envelopes = captureEnvelopes(result);
+    if (!envelopes) {
       // Reject this source as a whole, not an arbitrary truncated prefix. The
       // independent exact collection and its cost receipt must still survive.
+      envelopes = [];
       step = invalidProviderStep(runId, stepId);
     }
-    for (const [ordinal, { capture, body }] of envelopes.entries()) {
-      const artifact = await this.#artifacts.put(body);
-      captures.push({ row: {
-        stepId, ordinal, artifactSha256: artifact.sha256, mediaType: 'application/vnd.tdn.research-automation.capture+json', provider: capture.provider.toLowerCase(),
-        operation: capture.operation.toLowerCase(), retrievedAt: capture.completedAt, window: capture.queryWindow, truncated: false,
-      }, artifact });
-    }
+    const putCaptures = async (values: NonNullable<ReturnType<typeof captureEnvelopes>>): Promise<void> => {
+      for (const { capture, body } of values) {
+        const artifact = await this.#artifacts.put(body);
+        captures.push({ row: {
+          stepId, ordinal: captures.length, artifactSha256: artifact.sha256, mediaType: 'application/vnd.tdn.research-automation.capture+json', provider: capture.provider.toLowerCase(),
+          operation: capture.operation.toLowerCase(), retrievedAt: capture.completedAt, window: capture.queryWindow, truncated: false,
+        }, artifact });
+      }
+    };
+    await putCaptures(envelopes);
     try {
       assertStepDocument(step, runId, stepId);
       assertCaptureLineage(step, captures.map(value => value.row));
@@ -1725,6 +1740,28 @@ export class ResearchAutomationService {
       // Retain the bounded exchange and usage even when its normalized output
       // cannot be admitted. No invalid observation enters a report.
       step = invalidProviderStep(runId, stepId);
+    }
+    // Web captures follow the product source's captures, so existing
+    // comparable indexes stay valid and web results are offset past them.
+    let webStep: StepResultDocument | undefined;
+    if (web && 'bound' in web) {
+      const offset = captures.length;
+      const webEnvelopes = captureEnvelopes(web.bound.result);
+      await putCaptures(webEnvelopes ?? []);
+      const provider = web.bound.result.provider.toLowerCase();
+      const shifted = { ...web.bound.step, ...(web.bound.step.webResults ? { webResults: web.bound.step.webResults.map(value => ({ ...value, captureIndex: value.captureIndex + offset })) } : {}) };
+      try {
+        if (!webEnvelopes) throw new ResearchAutomationProviderOutputError('Web search capture exceeds its retention bound.');
+        assertStepDocument(shifted, runId, stepId);
+        assertCaptureLineage(shifted, captures.map(value => value.row));
+        webStep = shifted;
+      } catch {
+        webStep = { ...invalidProviderStep(runId, stepId), limitations: [{ code: 'PROVIDER_OUTPUT_INVALID', provider, message: message('PROVIDER_OUTPUT_INVALID') }] };
+      }
+    } else if (web) {
+      webStep = { ...invalidProviderStep(runId, stepId),
+        coverage: [{ provider: web.failedProvider, dataset: 'web_discovery_current', state: 'FAILED', observedStartDate: null, observedEndDate: null, truncated: false, note: null }],
+        limitations: [{ code: 'PROVIDER_FAILED', provider: web.failedProvider, message: message('PROVIDER_FAILED') }] };
     }
     if (nativeCoverage.length) step = { ...step,
       outcome: bound.step.nativeReview || step.outcome === 'SUCCEEDED' || step.outcome === 'PARTIAL' ? 'PARTIAL' : 'FAILED',
@@ -1737,6 +1774,18 @@ export class ResearchAutomationService {
         : exact.reference ? (step.outcome === 'SUCCEEDED' && exact.coverage.state === 'COLLECTED' ? 'SUCCEEDED' : 'PARTIAL') : step.outcome === 'SUCCEEDED' ? 'PARTIAL' : step.outcome,
       coverage: [...step.coverage, exact.coverage], limitations: [...step.limitations, exact.limitation],
       ...(exact.reference ? { exactShopee: exact.reference } : {}) };
+    if (webStep) {
+      // Without any product-source attempt the web lane alone decides the outcome.
+      const productAttempted = result !== null || bound.unsettledProvider !== undefined || exact !== undefined || nativeCoverage.length > 0;
+      const useful = (value: StepResultDocument['outcome']) => value === 'SUCCEEDED' || value === 'PARTIAL';
+      step = { ...step,
+        outcome: !productAttempted ? webStep.outcome
+          : step.outcome === 'SUCCEEDED' && webStep.outcome === 'SUCCEEDED' ? 'SUCCEEDED'
+            : useful(step.outcome) || useful(webStep.outcome) ? 'PARTIAL' : step.outcome,
+        coverage: [...step.coverage, ...webStep.coverage], limitations: [...step.limitations, ...webStep.limitations],
+        ...(webStep.webResults?.length ? { webResults: webStep.webResults } : {}) };
+    }
+    const webResult = web && 'bound' in web ? web.bound.result : null;
     const resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
@@ -1747,6 +1796,9 @@ export class ResearchAutomationService {
         if (result) this.#persistUsage(runId, stepId, result, now);
         else if (bound.unsettledProvider) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,0,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
           .run(runId, stepId, bound.unsettledProvider, now);
+        if (webResult) this.#persistUsage(runId, stepId, webResult, now, WEB_USAGE_ORDINAL);
+        else if (web && 'failedProvider' in web) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,'unsettled-collection',0,'UNKNOWN',NULL,NULL,?)`)
+          .run(runId, stepId, WEB_USAGE_ORDINAL, web.failedProvider, now);
         if (exact) this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,1,'apify-shopee','reviews',?,?,?,?,?)`)
           .run(runId, stepId, exact.requestsIssued, exact.costUsd === null ? 'UNKNOWN' : 'KNOWN', exact.costUsd === null ? null : 'USD', exact.costUsd, now);
         const current = this.#current(runId);
@@ -1755,7 +1807,7 @@ export class ResearchAutomationService {
         // Keep the exact late capture and usage rows, but never reopen a
         // terminal run or mutate its interrupted step.
         if (TERMINAL_STATUSES.has(current.status)) return;
-        const outcome = aborted || result?.status === 'CANCELLED' || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
+        const outcome = aborted || result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' || current.status === 'CANCELLING' ? 'CANCELLED' : step.outcome;
         const code = outcome === 'CANCELLED' ? 'CANCELLED_DURING_PROVIDER_OPERATION' : outcome === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : outcome === 'FAILED'
           ? step.limitations.some(value => value.code === 'PROVIDER_OUTPUT_INVALID') ? 'PROVIDER_OUTPUT_INVALID' : 'PROVIDER_FAILED' : null;
         const finished = this.#now().toISOString();
@@ -1822,7 +1874,7 @@ export class ResearchAutomationService {
     this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SKIPPED',message_code='SKIPPED_AFTER_STOP',finished_at=? WHERE run_id=? AND state IN ('PENDING','QUEUED')`).run(at, runId);
   }
 
-  #persistUsage(runId: string, stepId: SourceStepId, result: { readonly provider: string; readonly usage: { readonly requestsIssued: number; readonly paidRequestsIssued: number; readonly ambiguousPaidRequests: number; readonly credits: { readonly status: string; readonly consumed?: number } } }, at: string): void {
+  #persistUsage(runId: string, stepId: SourceStepId, result: { readonly provider: string; readonly usage: { readonly requestsIssued: number; readonly paidRequestsIssued: number; readonly ambiguousPaidRequests: number; readonly credits: { readonly status: string; readonly consumed?: number } } }, at: string, ordinal = 0): void {
     const provider = result.provider.toLowerCase();
     // Usage is an aggregate across the provider call; attributing it to the
     // first capture would mislabel a credit-balance request as the run cost.
@@ -1836,7 +1888,7 @@ export class ResearchAutomationService {
     const costUnit = noPaidUsage ? 'CREDITS' : null;
     const costAmount = noPaidUsage ? '0' : null;
     this.#db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,cost_unit,cost_amount,recorded_at) VALUES (?,?,?,?,?,?,?,?,?,?)`)
-      .run(runId, stepId, 0, provider, operation, usage.requestsIssued, costState, costUnit, costAmount, at);
+      .run(runId, stepId, ordinal, provider, operation, usage.requestsIssued, costState, costUnit, costAmount, at);
   }
 
   async #projection(row: RunRow): Promise<ResearchAutomationRun> {
@@ -2247,6 +2299,14 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
       value.nativeReview.contractVersion !== 'automation-native-review-reference-v1' || value.nativeReview.runId !== runId ||
       stepId !== 'COLLECTION' || !/^[a-f0-9]{64}$/.test(String(value.nativeReview.bindingSha256))))
     throw new ResearchAutomationIntegrityError('Stored native source reference is invalid.');
+  if (value.webResults !== undefined && (stepId !== 'COLLECTION' || !Array.isArray(value.webResults) || value.webResults.length > MAX_WEB_RESULTS ||
+      value.webResults.some(item => !isRecord(item) || !Number.isSafeInteger(item.position) || item.position < 1 ||
+        typeof item.title !== 'string' || item.title.length < 1 || item.title.length > 300 ||
+        typeof item.url !== 'string' || item.url.length > 2000 || !item.url.startsWith('https://') ||
+        (item.snippet !== null && (typeof item.snippet !== 'string' || item.snippet.length > 1000)) ||
+        typeof item.retrievedAt !== 'string' || !Number.isFinite(Date.parse(item.retrievedAt)) ||
+        !Number.isSafeInteger(item.captureIndex) || item.captureIndex < 0)))
+    throw new ResearchAutomationIntegrityError('Stored web results are invalid.');
   for (const comparable of value.comparables) {
     if (!isRecord(comparable) || typeof comparable.productId !== 'string' || typeof comparable.provider !== 'string' || (comparable.metric !== 'GMV_VND' && comparable.metric !== 'UNITS_SOLD') ||
         typeof comparable.value !== 'string' || !isRecord(comparable.window) || typeof comparable.window.startDate !== 'string' || typeof comparable.window.endDate !== 'string' ||
@@ -2267,6 +2327,23 @@ function assertCaptureLineage(document: StepResultDocument, captures: readonly C
     if (!capture || capture.truncated || capture.provider !== comparable.provider.toLowerCase() ||
         capture.window?.startDate !== comparable.window.startDate || capture.window.endDate !== comparable.window.endDate) throw new ResearchAutomationIntegrityError('Stored comparable references an incompatible capture.');
   }
+  for (const result of document.webResults ?? []) {
+    const capture = stepCaptures.get(result.captureIndex);
+    if (!capture || capture.truncated || capture.retrievedAt !== result.retrievedAt) throw new ResearchAutomationIntegrityError('Stored web result references an incompatible capture.');
+  }
+}
+
+/** Bounded capture envelopes of one source result; null rejects the source as a whole. */
+function captureEnvelopes(result: PersistableSourceResult['result']): Array<{ capture: ProviderRawCapture; body: Buffer }> | null {
+  if (result && (!Array.isArray(result.captures) || result.captures.length > MAX_CAPTURES_PER_STEP)) return null;
+  const out: Array<{ capture: ProviderRawCapture; body: Buffer }> = [];
+  for (const capture of result?.captures ?? []) {
+    if ((capture.requestBodyBytes?.byteLength ?? 0) > MAX_CAPTURE_BYTES || (capture.responseBytes?.byteLength ?? 0) > MAX_CAPTURE_BYTES) return null;
+    const body = captureEnvelope(capture);
+    if (body.byteLength > MAX_CAPTURE_ENVELOPE_BYTES) return null;
+    out.push({ capture, body });
+  }
+  return out;
 }
 
 function sameWindow(value: unknown, start: string | null, end: string | null): boolean {

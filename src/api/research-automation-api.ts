@@ -141,8 +141,9 @@ function readerCsp(html: Buffer): string {
   return hashes.length ? `${REPORT_CSP}; script-src ${[...new Set(hashes)].join(' ')}` : REPORT_CSP;
 }
 // Keep in step with the executor wiring below: the run source is KALODATA, Shopee reviews go
-// through the Apify collector when its cap is configured, and web search is not called by runs yet.
-const SOURCES_WIRED_INTO_RUNS = { kalodata: true, serpapi: false, apifyShopee: true } as const;
+// through the Apify collector when its cap is configured, and web search runs beside the product
+// source whenever its key is configured.
+const SOURCES_WIRED_INTO_RUNS = { kalodata: true, serpapi: true, apifyShopee: true } as const;
 const insightWrites = {
   'insight-coding-adoptions': { kind: 'ADOPTION', validate: validates.insightAdopt },
   'insight-coding-proposals': { kind: 'PROPOSAL', validate: validates.insightPropose },
@@ -202,12 +203,13 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       writer = new BetterSqlite3(path.resolve(configuration.databasePath), { fileMustExist: true });
       writer.pragma('foreign_keys = ON'); writer.pragma('busy_timeout = 5000'); writer.defaultSafeIntegers(true);
       const registry = createResearchAutomationProviderRegistry(configuration.providers ?? { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false }, transport);
-      // A web-search snapshot is not a substitute for product-period evidence.
       const selected = registry.get('KALODATA');
+      // Web search runs beside the product source, only when its key is set on the server.
+      const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
-        actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected),
+        actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
         decisionSynthesisAi,
         ...(configuration.providers?.apifyReviews ? { shopeeCollectorFactory: () => {

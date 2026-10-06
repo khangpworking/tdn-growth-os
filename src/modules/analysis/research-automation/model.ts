@@ -67,6 +67,18 @@ export interface TypedComparable {
   readonly captureIndex: number;
 }
 
+export const MAX_WEB_RESULTS = 20;
+
+/** One organic web search result as returned at retrieval time; captureIndex locates its raw response. */
+export interface StepWebResult {
+  readonly position: number;
+  readonly title: string;
+  readonly url: string;
+  readonly snippet: string | null;
+  readonly retrievedAt: string;
+  readonly captureIndex: number;
+}
+
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
   readonly contractVersion: 'research-automation-step-result-v1';
@@ -77,6 +89,8 @@ export interface StepResultDocument {
   readonly comparables: readonly TypedComparable[];
   readonly coverage: readonly ResearchAutomationCoverageSource[];
   readonly limitations: readonly SourceLimitation[];
+  /** Web search results of the collection step; absent on runs without a web source. */
+  readonly webResults?: readonly StepWebResult[];
   readonly exactShopee?: {
     readonly collectionId: string;
     readonly collectionSha256: string;
