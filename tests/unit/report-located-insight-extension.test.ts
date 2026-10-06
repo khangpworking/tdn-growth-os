@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createHash } from 'node:crypto';
 import type { VerifiedFinalizedSourcePackage } from '../../src/modules/foundation/source-package-service.js';
 import type { SourceBackedReportBundle } from '../../src/modules/analysis/source-backed-report.js';
-import { buildReportLocatedInsightExtension } from '../../src/modules/analysis/report-located-insight-extension.js';
+import { buildPackageLocatedInsightExtension, buildReportLocatedInsightExtension } from '../../src/modules/analysis/report-located-insight-extension.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { locatedInsightPackageFixture } from '../helpers/located-insight-package-fixture.js';
 
@@ -43,6 +43,9 @@ test('located extension is absent without a reader call and retains the exact se
   assert.equal(result.files.size, 1);
   assert.deepEqual(JSON.parse(result.bytes.toString()).output.input, fixture.descriptor);
   assert.deepEqual((await buildReportLocatedInsightExtension(fixture.logicalPath, bundle, reader))!.bytes, result.bytes);
+  const reviewOnly = (await buildPackageLocatedInsightExtension(fixture.logicalPath, bundle.envelope.sourcePackage, reader))!;
+  assert.deepEqual(reviewOnly.bytes, result.bytes);
+  await assert.rejects(buildPackageLocatedInsightExtension(fixture.logicalPath, undefined, reader), /LOCATED_PACKAGE_IDENTITY_REQUIRED/);
 });
 
 test('located supplement rejects mismatched package identity, corrupted source bytes and missing adopted authority', async () => {

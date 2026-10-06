@@ -2,7 +2,7 @@
 
 ## Review boundary
 
-This is an ordinary `Read`-mode extension of the approved TDN overview → detail visual language, not a redesign. The inspected implementation is [research-report-html.ts](../../src/modules/analysis/research-report-html.ts), with the generated Linux preview package in `C:\Users\Admin\Documents\Codex\2026-08-27\cou\artifacts\research-a4-preview-edf5bff\`. The preview is a static, source-backed synthetic report: it is unreviewed, carries no AI interpretation or human decision, and is not an approved report or deployed route.
+This is an ordinary `Read`-mode extension of the approved TDN overview → detail visual language, not a redesign. The inspected implementation is [research-report-html.ts](../../src/modules/analysis/research-report-html.ts), with the generated Linux preview package in `<private path, withheld>`. The preview is a static, source-backed synthetic report: it is unreviewed, carries no AI interpretation or human decision, and is not an approved report or deployed route.
 
 Review disposition: **ship after the bounded corrections represented by the inspected artifact**. The finish criteria are evidence disclosure, mobile first-viewport usability, teal focus treatment, and 44px numeric-link targets. No Windows build, test, typecheck, app run, or code change was performed for this verification.
 

@@ -251,6 +251,13 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
           usage: emptyUsage('KALODATA'), captures: [] };
       }
       const refs = [...roles.keys()];
+      if (refs.length === 0) {
+        // No approved product means no request was made; this is not an empty provider response.
+        return { ...base, status: 'WAITING_FOR_INPUT', productObservations: [], productPeriodSummaries: [],
+          coverage: [unavailableCoverage('KALODATA', 'PRODUCT_PERIOD_DETAIL', 'WAITING_FOR_INPUT', requestedPeriod,
+            ['NO_APPROVED_PRODUCT_REFS', ...COLLECT_LIMITATIONS])],
+          usage: emptyUsage('KALODATA'), captures: [] };
+      }
       const periodWindows = splitPeriodIntoWindows(requestedPeriod, KALODATA_LIMITS.rankWindowMaxDays);
       const plan = refs.slice(0, KALODATA_LIMITS.maxCollectProducts)
         .flatMap(ref => periodWindows.map(window => ({ ref, window })));
@@ -282,7 +289,7 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
       const skippedRefs = refs.slice(KALODATA_LIMITS.maxCollectProducts);
       const pending = windows.filter(row => row.status.startsWith('NOT_RUN') || row.status === 'AMBIGUOUS_NO_RETRY');
       const cancelled = options.signal?.aborted === true;
-      const status: CoverageStatus = refs.length === 0 ? 'EMPTY' : skippedRefs.length || notRun.length
+      const status: CoverageStatus = skippedRefs.length || notRun.length
         ? (windows.some(row => row.status === 'OK') ? 'PARTIAL' : coverageStatus(windows, cancelled) === 'FAILED' ? 'FAILED' : 'PARTIAL')
         : coverageStatus(windows, cancelled);
       const coverage: ProviderCoverage = {
@@ -293,12 +300,12 @@ export function createKalodataProvider(secretKey: string | null, transport: Prov
           remainingWindows: uniqueWindows(pending.map(row => row.window!)),
           remainingProductRefs: [...new Set([...pending.map(row => row.productRef!), ...skippedRefs])],
         },
-        limitations: refs.length ? [...COLLECT_LIMITATIONS] : [...COLLECT_LIMITATIONS, 'NO_APPROVED_PRODUCT_REFS'],
+        limitations: [...COLLECT_LIMITATIONS],
       };
       const summaries = refs.map(ref => summary(ref, roles.get(ref)!, requestedPeriod, periodWindows.length,
         windows.filter(row => row.productRef === ref), observations.filter(row => row.productRef === ref)));
       const usage = log.usage(await credits(log, secretKey, options, before));
-      return { ...base, status: refs.length ? runStatusFromCoverage([status], cancelled) : 'SUCCEEDED',
+      return { ...base, status: runStatusFromCoverage([status], cancelled),
         productObservations: observations, productPeriodSummaries: summaries, coverage: [coverage], usage,
         captures: log.captures };
     },
@@ -319,7 +326,10 @@ interface DetailRecord {
 function parseDetail(data: unknown, expectedId: string): { record: DetailRecord | null } | undefined {
   if (data === null || data === undefined) return { record: null };
   if (!isRecord(data) || data.product_id !== expectedId) return undefined;
-  if (data.product_region !== undefined && data.product_region !== null && data.product_region !== 'VN') return undefined;
+  // Detail responses spell the requested VN region in lowercase ("vn"); ASCII
+  // case is the only normalization, every other region is still rejected.
+  const region = data.product_region;
+  if (region !== undefined && region !== null && !(typeof region === 'string' && /^vn$/i.test(region))) return undefined;
   const id = (value: unknown) => typeof value === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(value) ? value : null;
   let descriptionText: DetailRecord['descriptionText'] = null;
   let status: CardDescription['status'];

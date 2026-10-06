@@ -1,4 +1,8 @@
 import { JSDOM } from 'jsdom';
+import { register } from 'node:module';
+
+// Mounted pages may import scoped CSS. Node exercises behavior; the browser verifies actual styles.
+register('data:text/javascript,' + encodeURIComponent("export async function load(url, context, next) { return new URL(url).pathname.endsWith('.css') ? { format: 'module', source: '', shortCircuit: true } : next(url, context); }"));
 
 export function setupDom() {
   const dom = new JSDOM('<!doctype html><html><body></body></html>', { url: 'http://localhost/', pretendToBeVisual: true });

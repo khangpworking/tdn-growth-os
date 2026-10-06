@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-insight-model.schema.json",
+  "title": "AutomationInsightModel",
+  "oneOf": [
+    { "$ref": "#/$defs/request" }, { "$ref": "#/$defs/source" },
+    { "$ref": "#/$defs/input" }, { "$ref": "#/$defs/prompt" }, { "$ref": "#/$defs/configuration" }
+  ],
+  "$defs": {
+    "request": {
+      "title": "InsightModelRequest", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "adoptionId", "previousProposalId", "recordIndexes"],
+      "properties": {
+        "contractVersion": { "const": "insight-model-request-v1" },
+        "requestKey": { "type": "string", "format": "uuid" },
+        "adoptionId": { "type": "string", "format": "uuid" },
+        "previousProposalId": { "anyOf": [{ "type": "string", "format": "uuid" }, { "type": "null" }] },
+        "recordIndexes": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "type": "integer", "minimum": 0 } }
+      }
+    },
+    "source": {
+      "title": "InsightModelSource", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "request", "binding", "adoptionSha256", "actorId", "input"],
+      "properties": {
+        "contractVersion": { "const": "insight-model-source-v1" },
+        "request": { "$ref": "#/$defs/request" },
+        "binding": { "$ref": "automation-insight-coding.schema.json#/$defs/binding" },
+        "adoptionSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "actorId": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "input": { "$ref": "located-insight-methods.schema.json#/$defs/input" }
+      }
+    },
+    "input": {
+      "title": "InsightModelInput", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "question", "inclusionRule", "adjudicationRule", "records", "corpora"],
+      "properties": {
+        "contractVersion": { "const": "insight-model-input-v1" },
+        "question": { "type": ["string", "null"] }, "inclusionRule": { "type": "string" }, "adjudicationRule": { "type": "string" },
+        "records": { "type": "array", "maxItems": 100, "items": {
+          "type": "object", "additionalProperties": false, "required": ["recordIndex", "record"],
+          "properties": { "recordIndex": { "type": "integer", "minimum": 0 }, "record": { "$ref": "located-insight-methods.schema.json#/$defs/record" } }
+        } },
+        "corpora": { "type": "array", "maxItems": 100, "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["corpusIndex", "sectionId", "recordIndexes", "multiCode", "codes"],
+          "properties": {
+            "corpusIndex": { "type": "integer", "minimum": 0 }, "sectionId": { "enum": ["I10", "I13"] },
+            "recordIndexes": { "type": "array", "items": { "type": "integer", "minimum": 0 } }, "multiCode": { "type": "boolean" },
+            "codes": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["code", "label", "phrase"],
+              "properties": { "code": { "type": "string" }, "label": { "type": "string" }, "phrase": { "type": "string" } }
+            } }
+          }
+        } }
+      }
+    },
+    "prompt": {
+      "title": "InsightModelPrompt", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "systemText"],
+      "properties": { "contractVersion": { "const": "insight-model-prompt-v1" }, "systemText": { "type": "string", "minLength": 1 } }
+    },
+    "configuration": {
+      "title": "InsightModelConfiguration", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "providerId", "modelId", "temperature", "maxOutputTokens", "timeoutMs", "maxResponseBytes"],
+      "properties": {
+        "contractVersion": { "const": "insight-model-configuration-v1" },
+        "providerId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$" },
+        "modelId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+        "temperature": { "anyOf": [{ "type": "number", "minimum": 0, "maximum": 2 }, { "type": "null" }] },
+        "maxOutputTokens": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 600000 },
+        "maxResponseBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+      }
+    }
+  }
+}

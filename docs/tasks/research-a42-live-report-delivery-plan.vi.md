@@ -285,7 +285,7 @@ không bắt buộc đổi runtime, database hoặc frontend stack.
 
 ## 11. Những đầu vào đang chờ
 
-- Đã nhận `C:/Users/Admin/Documents/Codex/2026-09-16/t-i/report-kit/AGENT_HANDOFF.md`
+- Đã nhận `<private path on the owner machine, withheld>`
   cùng hai template Market/Insight và tài sản tham chiếu. Owner đã chấp nhận
   giao diện; không mở lại vòng chọn thiết kế. Source kit giữ nguyên, chỉ lấy
   ngôn ngữ trình bày, không lấy số liệu mẫu làm evidence.

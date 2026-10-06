@@ -36,6 +36,13 @@ test('located quote HTML keeps literal source context and does not turn imported
     assert.equal(context.querySelector('div')?.textContent, descriptor.records[0]!.text);
     assert.ok(context.textContent?.includes('/records/0/text'));
     assert.ok(context.textContent?.includes(descriptor.records[0]!.sourceSha256));
+    // Page numbering is 1-based while method pointers are 0-based; the page must say so.
+    assert.equal(context.querySelector('summary')?.textContent?.startsWith('Bản ghi 1:'), true);
+    assert.ok([...document.querySelectorAll('p')].some(paragraph => paragraph.textContent?.includes('Bản ghi N ứng với chỉ số N − 1')));
+    const limits = [...document.querySelectorAll('ul.limits li')];
+    assert.deepEqual(limits.filter(item => item.querySelector('code')).map(item => item.querySelector('code')!.textContent),
+      [...output.sections.I04.blockers, ...output.limitations]);
+    assert.ok(limits.some(item => item.querySelector('code + small')?.textContent), 'internal codes need a Vietnamese gloss beside the raw code');
     const provenance = quoteRow.querySelector('details');
     assert.ok(provenance);
     assert.ok(provenance.textContent?.includes('Hồ sơ khai báo đã được người rà soát'));

@@ -27,6 +27,51 @@ function manifest(bytes: Buffer) {
 }
 const normalize = (bytes: Buffer) => normalizeMetricWorkbook(bytes, encode(manifest(bytes)));
 
+function currentManifest(bytes: Buffer) {
+  return { ...manifest(bytes), profileId: 'metric-shopee-product-list-sheet1-v2', profileVersion: '2.0.0',
+    source: { ...manifest(bytes).source, headerSha256: 'b5b493190917fac69bd1e2cf1aa618aae175a7fd314ec635e44bcf29aab6f7ac' } };
+}
+
+test('Metric v2 maps the declared reordered export without changing metrics, IDs or source-cell evidence', () => {
+  const bytes = fixture({ profile: 'v2' });
+  const parsed = normalizeMetricWorkbook(bytes, encode(currentManifest(bytes)));
+  assert.equal(parsed.input.profileId, 'metric-shopee-product-list-sheet1-v2');
+  assert.equal(parsed.receipt.profileVersion, '2.0.0');
+  assert.deepEqual(parsed.input.records.map(r => [r.shopId, r.listingId, r.category, r.revenue.value, r.units.value]),
+    [['10', '101', 'Supplements', '100', '2'], ['20', '102', 'Supplements', '50', '0']]);
+  assert.equal(parsed.input.records[0]!.revenue.source.locator, 'Sheet1!E2');
+  assert.equal(parsed.input.records[0]!.units.source.locator, 'Sheet1!D2');
+  assert.equal(parsed.receipt.evidence[0]!.cells[8]!.value, 'https://shopee.vn/shop/10');
+  assert.equal(parsed.receipt.evidence[0]!.cells[9]!.value, '1__101__10');
+  assert.equal(parsed.receipt.evidence[0]!.cells[17]!.value, '99999');
+  assert.equal(parsed.result.scopes[0].revenue.value, '150');
+  assert.equal(parsed.result.scopes[1].status, 'BLOCKED_LABELS');
+});
+
+test('Metric profile declarations cannot authorize a different header order or cross-pair version and header identity', () => {
+  const current = fixture({ profile: 'v2' }), legacy = fixture();
+  for (const [bytes, declaration] of [[current, manifest(current)], [legacy, currentManifest(legacy)]] as const) {
+    assert.throws(() => normalizeMetricWorkbook(bytes, encode(declaration)), /HEADER_MISMATCH/);
+  }
+  const declaration = currentManifest(current);
+  for (const bad of [
+    { ...declaration, profileVersion: '1.0.0' },
+    { ...declaration, source: { ...declaration.source, headerSha256: manifest(current).source.headerSha256 } },
+    { ...declaration, profileId: 'metric-unknown-profile' },
+  ]) assert.throws(() => normalizeMetricWorkbook(current, encode(bad)), /INVALID_MANIFEST/);
+  for (const [column, value, rejectedColumn, code] of [
+    ['I2', 'https://shopee.vn/shop/999', 'I2', 'SHOP_ID_MISMATCH'],
+    ['J2', '1__999__10', 'J2', 'COMPOSITE_ID_MISMATCH'],
+    ['B2', 'https://shopee.vn.attacker.example/synthetic-a-i.10.101', 'B2', 'PRODUCT_URL_SHAPE'],
+    ['B2', 'https://shopee.vn/synthetic-a-i.10.101?shop=999', 'B2', 'PRODUCT_URL_SHAPE'],
+    ['B2', 'https://shopee.vn/synthetic-a-i.999.101', 'I2', 'SHOP_ID_MISMATCH'],
+  ] as const) {
+    const bytes = fixture({ profile: 'v2', cells: { [column]: { value } } });
+    assert.throws(() => normalizeMetricWorkbook(bytes, encode(currentManifest(bytes))),
+      e => e instanceof MetricSourceRejection && e.locator === `Sheet1!${rejectedColumn}` && e.code === code);
+  }
+});
+
 test('normalization can finish before the explicit calculation gate without changing input identity', () => {
   const workbook = fixture();
   const sourceManifest = encode(manifest(workbook));

@@ -10,7 +10,7 @@ after desktop/mobile screenshots and interactions have completed. The latest
 Linux preview run is CI run `36803283154` for head
 `f0f7243798e33d73ac10b878b0e22106e5bea098` (the companion check run
 `36803283100` passed). Its uploaded artifact is
-`C:/Users/Admin/Documents/Codex/2026-08-27/cou/artifacts/ci36803283154-diagnosis/artifact/research-report-synthetic-preview/located/report.html`.
+`<private path on the owner machine, withheld>`.
 Its pre-print diagnostic reports 153 `details`/`summary` pairs (33 nested),
 all 153 open, 70,032 CSS px of expanded print layout, and 110,375 characters
 of body text before the 60-second call. The call failed with

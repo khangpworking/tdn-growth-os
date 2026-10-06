@@ -112,3 +112,23 @@
 @media(max-width:1100px){.ra-dossier{grid-template-columns:190px minmax(0,1fr)}.ra-inspector{grid-column:1/-1;border-left:0;border-top:1px solid var(--line);display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}.ra-inspector>h2,.ra-inspector>h3,.ra-inspector>.status-pill,.ra-inspector>.ra-muted,.ra-inspector>.button{grid-column:1/-1}.ra-inspector>.ra-kv{grid-template-columns:repeat(2,minmax(0,1fr))}.ra-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:650px){.ra-dossier{display:block;border-radius:14px}.ra-side{border-right:0;border-bottom:1px solid var(--line);padding:14px}.ra-steps-nav ol{display:flex!important;gap:4px;overflow-x:auto}.ra-steps-nav li{flex:0 0 150px}.ra-main{padding:20px 16px}.ra-inspector{display:block;padding:18px 16px}.ra-inspector>*+*{margin-top:12px}.ra-inspector .ra-kv{display:grid;grid-template-columns:1fr}.ra-page-head{display:block}.ra-environment{display:inline-flex;margin-top:12px}.ra-question-input{display:grid}.ra-dates,.ra-two,.ra-kv.wide,.ra-outputs{grid-template-columns:1fr}.ra-count{white-space:normal}.ra-cards{grid-template-columns:1fr}.ra-card{grid-template-columns:110px minmax(0,1fr);grid-template-rows:auto auto}.ra-card .ra-thumb{grid-row:1/3;height:100%;aspect-ratio:auto}.ra-card-body{padding:12px}.ra-card>.button{grid-column:2;margin:0 12px 12px}.ra-history-list li{grid-template-columns:minmax(0,1fr) auto}.ra-history-list li>.button{grid-column:1/-1;justify-self:start}.ra-source-list article{grid-template-columns:1fr}.ra-run-steps li>*,.ra-source-list article>*,.ra-blockers li>*,.ra-output>*{min-width:0;max-width:100%}.ra-run-steps li>*:last-child,.ra-source-list article p,.ra-blockers li>div,.ra-output>p{overflow-wrap:anywhere}.ra-run-steps code,.ra-blockers code,.ra-output code{overflow-wrap:anywhere;word-break:break-word}}
 @media(prefers-reduced-motion:reduce){.ra-card,.ra-live,.ra-steps-nav li button{transition:none!important}.ra-word{animation:none!important}}
+.ra-source-panel details{margin-top:16px}.ra-source-panel fieldset{display:grid;gap:12px;margin:16px 0;padding:0;border:0;min-width:0}.ra-source-panel fieldset legend{margin-bottom:12px;font-size:13px;font-weight:650}.ra-source-panel :is(input,select,button,summary){min-height:44px}.ra-source-panel summary{display:list-item;align-content:center}.ra-source-panel .ra-two{margin-top:0}.ra-source-panel .ra-actions{margin-top:12px}
+.ra-classification{display:grid;gap:14px;margin-top:24px;padding-top:20px;border-top:1px solid var(--line);min-width:0}
+.ra-classification h4,.ra-classification h5{margin:0;color:var(--ink)}
+.ra-classification p{margin:0;max-width:72ch;overflow-wrap:anywhere}
+.ra-classification dd{margin:4px 0 14px;white-space:pre-wrap;overflow-wrap:anywhere}
+.ra-classification-rows,.ra-classification-confirm{list-style:none;padding:0;margin:0}
+.ra-classification-rows>li,.ra-classification-confirm>li{padding:16px 0;border-bottom:1px solid var(--line);display:grid;gap:8px;overflow-wrap:anywhere}
+.ra-classification-choice{display:flex;align-items:center;gap:10px;font-size:14px;min-height:44px}
+.ra-classification-choice input{accent-color:var(--teal);width:18px;height:18px;flex-shrink:0;margin-top:3px}
+.ra-classification-fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ra-rule-form fieldset{border:0;padding:0;margin:0;display:grid;gap:14px;min-width:0}
+.ra-rule-form legend{font-weight:700;margin-bottom:14px}
+.ra-rule-group{display:grid;gap:10px;padding:14px 0;border-top:1px solid var(--line)}
+.ra-classification .button,.ra-rule-form .button{justify-self:start;white-space:normal;text-align:left;min-height:44px}
+.ra-classification .ra-field,.ra-classification summary{min-height:44px}
+.ra-classification summary{align-content:center}
+.ra-ai-activity>summary{min-height:44px;align-content:center;cursor:pointer}.ra-ai-activity .ra-kv{margin-top:8px}
+.ra-classification .confirm-dialog{max-height:calc(100dvh - 40px);overflow:auto}
+.ra-classification-dialog-body{max-height:calc(100dvh - 240px);overflow:auto;overscroll-behavior:contain}
+@media(max-width:650px){.ra-classification-fields{grid-template-columns:1fr}.ra-classification-choice{font-size:14px}}

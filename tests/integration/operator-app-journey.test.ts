@@ -156,9 +156,10 @@ test('Task045 launcher handles SIGTERM without leaking credentials, paths, or it
   child.stdout.setEncoding('utf8'); child.stderr.setEncoding('utf8');
   child.stdout.on('data', (chunk: string) => { stdout += chunk; }); child.stderr.on('data', (chunk: string) => { stderr += chunk; });
   try {
+    // tsx compiles the whole app on start; under the parallel suite that can pass 10 s.
     await Promise.race([
       new Promise<void>((resolve) => child.stdout.on('data', () => { if (stdout.includes('Operator app listening on')) resolve(); })),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`launcher timeout: ${stderr}`)), 10_000)),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`launcher timeout: ${stderr}`)), 30_000)),
     ]);
     assert.deepEqual(await jsonGet(`http://127.0.0.1:${fixture.port}`, '/healthz'), { status: 'ok', version: fs.readFileSync('VERSION', 'utf8').trim(), ownerWritesEnabled: true, localTestOwner: false });
     assert.equal(child.kill('SIGTERM'), true);

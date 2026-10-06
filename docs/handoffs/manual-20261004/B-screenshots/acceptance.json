@@ -1,0 +1,34 @@
+{
+  "synthetic": true,
+  "providerCalls": 0,
+  "modelCalls": 0,
+  "evidence": [
+    {
+      "family": "QUOTE",
+      "uploaded": true,
+      "reloadedUnselected": true,
+      "explicitRevision": true,
+      "frozenPredecessor": true,
+      "cancelWrites": 0,
+      "viewUnchanged": true
+    },
+    {
+      "family": "BOUNDED",
+      "uploaded": true,
+      "reloadedUnselected": true,
+      "explicitRevision": true,
+      "frozenPredecessor": true,
+      "cancelWrites": 0,
+      "viewUnchanged": true
+    }
+  ],
+  "errors": [],
+  "externalRequests": [],
+  "health": {
+    "status": "ok",
+    "version": "task045-smoke",
+    "ownerWritesEnabled": true,
+    "localTestOwner": true
+  },
+  "originalRetained": true
+}

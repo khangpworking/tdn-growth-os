@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-automation-source-api.schema.json",
+  "title": "ResearchAutomationSourceConfirmRequest",
+  "description": "Source-bound confirmation v2. Preparation supplies a package ID, never caller-authored content identities or provider authority. This confirmation contract is not a file upload or late-supplement command.",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "requestKey", "expectedRevision", "definition", "includeTerms", "excludeTerms", "selectedProductIds", "peerProductIds", "sources"],
+  "properties": {
+    "contractVersion": { "const": "research-automation-confirm-v2" },
+    "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+    "expectedRevision": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+    "definition": { "$ref": "research-automation-api.schema.json#/$defs/longText" },
+    "includeTerms": { "type": "array", "items": { "$ref": "research-automation-api.schema.json#/$defs/term" }, "maxItems": 30, "uniqueItems": true },
+    "excludeTerms": { "type": "array", "items": { "$ref": "research-automation-api.schema.json#/$defs/term" }, "maxItems": 30, "uniqueItems": true },
+    "selectedProductIds": { "type": "array", "items": { "$ref": "research-automation-api.schema.json#/$defs/productId" }, "maxItems": 4, "uniqueItems": true },
+    "peerProductIds": { "type": "array", "items": { "$ref": "research-automation-api.schema.json#/$defs/productId" }, "maxItems": 8, "uniqueItems": true },
+    "exactShopeeUrls": { "$ref": "research-automation-api.schema.json#/$defs/exactShopeeUrls" },
+    "sources": { "type": "object", "additionalProperties": false, "required": ["metric", "nativeReview"], "properties": {
+      "metric": { "oneOf": [
+        { "type": "object", "additionalProperties": false, "required": ["decision", "packageId"], "properties": { "decision": { "const": "USE_PREPARED" }, "packageId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" } } },
+        { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "enum": ["ABSENT", "SKIPPED"] } } }
+      ] },
+      "nativeReview": { "enum": ["AUTO_REUSE", "SKIP"] }
+    } }
+  }
+}

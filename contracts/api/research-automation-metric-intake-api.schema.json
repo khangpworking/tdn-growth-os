@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-automation-metric-intake-api.schema.json",
+  "title": "ResearchAutomationMetricIntakeApi",
+  "description": "Multipart metadata and safe receipt for a bounded operator-supplied original export. This prepares an exact source, not scope confirmation, provider authentication or report execution.",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/receipt" }, { "$ref": "#/$defs/preparedList" }],
+  "$defs": {
+    "request": {
+      "title": "ResearchAutomationMetricPrepareRequest",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "expectedRevision", "scope", "sourceLabel", "sourceContext", "measurementPeriod", "selection", "acquiredAt", "precision"],
+      "properties": {
+        "contractVersion": { "const": "automation-metric-prepare-v1" },
+        "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+        "expectedRevision": { "type": "integer", "minimum": 1, "maximum": 1000000 },
+        "scope": { "$ref": "#/$defs/scope" },
+        "sourceLabel": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+        "sourceContext": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S" },
+        "measurementPeriod": { "type": "object", "additionalProperties": false, "required": ["startDate", "endDate", "basis"], "properties": {
+          "startDate": { "type": "string", "format": "date" },
+          "endDate": { "type": "string", "format": "date" },
+          "basis": { "type": "string", "minLength": 1, "maxLength": 1000, "pattern": "\\S" }
+        } },
+        "selection": { "enum": ["ON", "OFF", "UNSPECIFIED"] },
+        "acquiredAt": { "type": ["string", "null"], "format": "date-time" },
+        "precision": { "type": "object", "additionalProperties": false, "required": ["revenue", "units"], "properties": {
+          "revenue": { "enum": ["exact", "display_rounded", "estimated", "unknown"] },
+          "units": { "enum": ["exact", "display_rounded", "estimated", "unknown"] }
+        } }
+      }
+    },
+    "scope": {
+      "title": "ResearchAutomationPreparedScope",
+      "type": "object", "additionalProperties": false,
+      "required": ["definition", "includeTerms", "excludeTerms", "selectedProductIds", "peerProductIds"],
+      "properties": {
+        "definition": { "$ref": "research-automation-api.schema.json#/$defs/longText" },
+        "includeTerms": { "type": "array", "maxItems": 30, "uniqueItems": true, "items": { "$ref": "research-automation-api.schema.json#/$defs/term" } },
+        "excludeTerms": { "type": "array", "maxItems": 30, "uniqueItems": true, "items": { "$ref": "research-automation-api.schema.json#/$defs/term" } },
+        "selectedProductIds": { "type": "array", "maxItems": 4, "uniqueItems": true, "items": { "$ref": "research-automation-api.schema.json#/$defs/productId" } },
+        "peerProductIds": { "type": "array", "maxItems": 8, "uniqueItems": true, "items": { "$ref": "research-automation-api.schema.json#/$defs/productId" } },
+        "exactShopeeUrls": { "$ref": "research-automation-api.schema.json#/$defs/exactShopeeUrls" }
+      }
+    },
+    "preparedList": {
+      "title": "ResearchAutomationPreparedMetricList",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "runId", "sources"],
+      "properties": {
+        "contractVersion": { "const": "automation-prepared-metric-list-v1" },
+        "workspaceId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "runId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "sources": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/preparedEntry" } }
+      }
+    },
+    "preparedEntry": {
+      "title": "ResearchAutomationPreparedMetricEntry",
+      "type": "object", "additionalProperties": false,
+      "required": ["packageId", "recordCount", "request", "provenance"],
+      "properties": {
+        "packageId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "recordCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "request": { "$ref": "#/$defs/request" },
+        "provenance": { "const": "OPERATOR_SUPPLIED_UNVERIFIED" }
+      }
+    },
+    "receipt": {
+      "title": "ResearchAutomationMetricPrepareReceipt",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "packageId", "state", "exactRetry", "recordCount", "sourceLabel", "measurementPeriod", "acquiredAt", "provenance"],
+      "properties": {
+        "contractVersion": { "const": "automation-metric-prepared-v1" },
+        "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+        "packageId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "state": { "const": "PREPARED_NOT_ADMITTED" },
+        "exactRetry": { "type": "boolean" },
+        "recordCount": { "type": "integer", "minimum": 1, "maximum": 10000 },
+        "sourceLabel": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "measurementPeriod": { "type": "object", "additionalProperties": false, "required": ["startDate", "endDate", "basis"], "properties": {
+          "startDate": { "type": "string", "format": "date" }, "endDate": { "type": "string", "format": "date" },
+          "basis": { "type": "string", "minLength": 1, "maxLength": 1000 }
+        } },
+        "acquiredAt": { "type": ["string", "null"], "format": "date-time" },
+        "provenance": { "const": "OPERATOR_SUPPLIED_UNVERIFIED" }
+      }
+    }
+  }
+}

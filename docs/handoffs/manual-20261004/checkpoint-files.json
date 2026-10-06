@@ -1,0 +1,26 @@
+{
+  "recordedDate": "2026-10-04",
+  "timezone": "Asia/Bangkok",
+  "repositoryDirectory": "C:/Users/Admin/Documents/Codex/2026-08-27/cou/work/research-automation-v1",
+  "branch": "fix/research-real-world-audit",
+  "head": "0116091fd5dc0902594f92d969dfb3ee0732c9c8",
+  "scope": "Selected current working-tree files, including uncommitted/untracked implementation. This is not a full repository snapshot or a release commit.",
+  "files": [
+    {"path":"src/modules/analysis/research-automation/supplemental-source-intake.ts","sha256":"7a41499c16d7d4355979da6cf975b4a25689604ffab5781c1b47b5323e60774c"},
+    {"path":"src/modules/analysis/research-automation/supplemental-source-inventory.ts","sha256":"b1f374388080e3925664e953a4804c37933683271ec18795226e0845471d0bc4"},
+    {"path":"contracts/api/research-automation-supplemental-intake-api.schema.json","sha256":"f80534b32793be014225ac2b0f851139ad88b3ac506479922c78745be1acdc4b"},
+    {"path":"contracts/api/research-automation-supplemental-intake-api.generated.ts","sha256":"f4faf9d3ed035e45b0634d1dd6b15bdcdbed2da01a87ae71b834631cc42dc67c"},
+    {"path":"src/modules/analysis/research-automation/service.ts","sha256":"9b7b827381a158a076e77206646566c4308404e4e1e4e0f4cdbeccfba16c9475"},
+    {"path":"src/api/research-automation-api.ts","sha256":"b2a1fa56da96e0473aa2b9696414a0ff63297b029ca87815eac6e9dc4b2ae461"},
+    {"path":"frontend/src/research-automation/api.ts","sha256":"f66f810ae87251e73c1cb5f2f677d7867f3d01575730be43d33ddbc999ca9d6b"},
+    {"path":"frontend/src/research-automation/ReportVersionsPanel.tsx","sha256":"b2695c148a9bd8bc82850900c3e082e8db521e6af1ae5397b96119d75a059834"},
+    {"path":"frontend/src/research-automation/report-revisions-api.ts","sha256":"b5e5b8e4e9d62a6a061bc480ea2fb34c7bec148724f2976f80f896443abfff87"},
+    {"path":"src/modules/analysis/research-automation/insight-model-execution.ts","sha256":"8c8380963b19ebe715f7807045ec3fe75c2fed13e2c2fd05804130cd9454a4ae"},
+    {"path":"src/modules/analysis/research-automation/semantic-coding-response.ts","sha256":"638d45982f6d6ad15888f293ff942340d8ac6e6ef068886cffae5030adbd8df1"},
+    {"path":"scripts/generate-foundation-contract.mjs","sha256":"6c3a8f9ea6bb331814dde4756f0df81fd2bbb48cf43a31ad0c3f15ab8c325967"},
+    {"path":"scripts/generate-report-validators.mjs","sha256":"e5a2e29222b6b197f5d42be13a2c8706d484aacae5dab0854081094ad2cb9f8b"},
+    {"path":"tests/integration/research-automation-supplemental-intake.test.ts","sha256":"ce1fbf69958a48fa672a05ec27c7fe915cc76c6cf0c6591bf437d6e5c0f60998"},
+    {"path":"tests/integration/research-automation-api.test.ts","sha256":"2ddb9f72c54b21f38368baa6c5f36643b5a08cf3b469b496ef2f42352b860e94"},
+    {"path":"frontend/tests/research-supplemental-source-api.test.ts","sha256":"ac7e007640e030d4d8b6c41a9f3c04f8e61bbb7f9b66d6cf8c9137e087bbfaeb"}
+  ]
+}

@@ -13,6 +13,11 @@ export class RequestScopedArtifactStore extends ContentAddressedArtifactStore {
 
   constructor(root: string) { super(root); this.#root = path.resolve(root); }
 
+  /** Owners that recover registered bytes must never fall through to a plain canonical write. */
+  assertOwnership(): void {
+    if (!this.#scope.getStore()) throw new Error('No request-scoped artifact operation is active');
+  }
+
   async withOwnership<T>(operation: () => Promise<T>): Promise<T> {
     const parent = path.join(this.#root, '.owner-api-requests');
     await fs.mkdir(parent, { recursive: true, mode: 0o700 });

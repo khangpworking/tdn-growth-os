@@ -11,7 +11,7 @@ Một đường chạy: nguồn/manual input → raw artifact + metadata → pro
 
 - ARCHITECTURE.md, AGENTS.md, docs/PLAN_VI.md.
 - references/data-warehouse-master-handoff.html: inventory field, không phải schema bắt buộc.
-- Source cũ: C:/Users/Admin/Documents/tdn-pipeline và worktree Content Studio liên quan; đọc chọn lọc package, SQLite và migration code. Kiểm tra trạng thái source trước khi tái sử dụng; không suy ra source đang chạy từ branch.
+- Source cũ: <private path on the owner machine, withheld> và worktree Content Studio liên quan; đọc chọn lọc package, SQLite và migration code. Kiểm tra trạng thái source trước khi tái sử dụng; không suy ra source đang chạy từ branch.
 
 ## Owned paths
 

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-classified-metric.schema.json",
+  "title": "AutomationClassifiedMetricSnapshot",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "binding", "selection", "proofSha256", "result"],
+  "properties": {
+    "contractVersion": { "const": "automation-classified-metric-v1" },
+    "binding": { "$ref": "automation-metric-membership.schema.json#/$defs/binding" },
+    "selection": { "$ref": "automation-classified-report-revision.schema.json#/$defs/selection" },
+    "proofSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "result": { "$ref": "metric-scope-output.schema.json" }
+  }
+}

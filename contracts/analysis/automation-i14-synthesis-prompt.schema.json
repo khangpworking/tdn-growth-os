@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-i14-synthesis-prompt.schema.json",
+  "title": "AutomationI14SynthesisPrompt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "promptId", "promptVersion", "inputContract", "responseContract", "systemText"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodId": { "const": "automation-i14-synthesis-prompt" },
+    "promptId": { "const": "automation-i14-synthesis" },
+    "promptVersion": { "const": "1.0.0" },
+    "inputContract": {
+      "description": "The user message is the exact retained input artifact bytes of this contract.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion"],
+      "properties": {
+        "methodId": { "const": "automation-i14-synthesis-input" },
+        "methodVersion": { "const": "1.0.0" }
+      }
+    },
+    "responseContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion", "shape"],
+      "properties": {
+        "methodId": { "const": "automation-i14-candidates" },
+        "methodVersion": { "const": "1.0.0" },
+        "shape": { "const": "JSON_OBJECT_WITH_ONLY_AI_CANDIDATES" }
+      }
+    },
+    "systemText": {
+      "description": "The retained prompt must require support-record counterevidence quotes to be acknowledged without duplicating the claim id in counterevidenceRefs.",
+      "type": "string", "minLength": 1, "maxLength": 16000, "pattern": "\\S"
+    }
+  }
+}

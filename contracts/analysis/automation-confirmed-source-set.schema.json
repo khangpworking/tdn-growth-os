@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-confirmed-source-set.schema.json",
+  "title": "AutomationConfirmedSourceSet",
+  "description": "Immutable first-version inputs frozen with confirmation. Admission is not provider authentication, labels acceptance or complete coverage. Native NONE retains the original explicitly approved collection path; SKIPPED never collects reviews.",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "runId", "workspaceId", "executionId", "startSha256", "scopeSha256", "requestSha256", "confirmedAt", "metric", "nativeReview"],
+  "properties": {
+    "contractVersion": { "const": "automation-confirmed-source-set-v1" },
+    "runId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "executionId": { "type": "string", "format": "uuid" },
+    "startSha256": { "$ref": "#/$defs/digest" },
+    "scopeSha256": { "$ref": "#/$defs/digest" },
+    "requestSha256": { "$ref": "#/$defs/digest" },
+    "confirmedAt": { "type": "string", "format": "date-time" },
+    "metric": { "oneOf": [
+      { "type": "object", "additionalProperties": false, "required": ["decision", "sourcePackage"], "properties": {
+        "decision": { "const": "ADMITTED" }, "sourcePackage": { "$ref": "#/$defs/sourceIdentity" } } },
+      { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "enum": ["ABSENT", "SKIPPED"] } } }
+    ] },
+    "nativeReview": { "oneOf": [
+      { "type": "object", "additionalProperties": false, "required": ["decision", "referenceSha256"], "properties": {
+        "decision": { "const": "RESOLVED" }, "referenceSha256": { "$ref": "#/$defs/digest" } } },
+      { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "enum": ["NONE", "SKIPPED"] } } }
+    ] }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "sourceIdentity": { "type": "object", "additionalProperties": false, "required": ["packageId", "manifestArtifactSha256", "packageContentSha256"], "properties": {
+      "packageId": { "type": "string", "format": "uuid" },
+      "manifestArtifactSha256": { "$ref": "#/$defs/digest" }, "packageContentSha256": { "$ref": "#/$defs/digest" }
+    } }
+  }
+}

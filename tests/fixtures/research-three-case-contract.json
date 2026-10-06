@@ -1,0 +1,76 @@
+{
+  "fixtureRevision": "three-case-owner-contract-v1",
+  "evidenceStatus": "SYNTHETIC_NOT_PROVIDER_COLLECTION_NOT_OWNER_ACCEPTANCE",
+  "requestedPeriod": { "startDate": "2025-10-01", "endDate": "2026-09-30" },
+  "expectedQueryWindows": [
+    ["2025-10-01", "2025-10-30"],
+    ["2025-10-31", "2025-11-29"],
+    ["2025-11-30", "2025-12-29"],
+    ["2025-12-30", "2026-01-28"],
+    ["2026-01-29", "2026-02-27"],
+    ["2026-02-28", "2026-03-29"],
+    ["2026-03-30", "2026-04-28"],
+    ["2026-04-29", "2026-05-28"],
+    ["2026-05-29", "2026-06-27"],
+    ["2026-06-28", "2026-07-27"],
+    ["2026-07-28", "2026-08-26"],
+    ["2026-08-27", "2026-09-25"],
+    ["2026-09-26", "2026-09-30"]
+  ],
+  "cases": [
+    {
+      "id": "J", "keyword": "Thạch dừa", "mode": "PRODUCT",
+      "runId": "22222222-2222-4222-8222-222222222221",
+      "startKey": "33333333-3333-4333-8333-333333333331",
+      "confirmKey": "44444444-4444-4444-8444-444444444441",
+      "marketProductId": "101", "marketProductName": "Mẫu giả lập thạch dừa trên TikTok",
+      "nativeListing": { "shopId": "78085196", "itemId": "17678138164" },
+      "detailFields": { "revenue": 0, "sales_volumn": 7, "unit_price": 40900 },
+      "reviewText": "Tôi đã dùng thạch dừa.",
+      "quotedReviewText": "“Tôi đã dùng thạch dừa.”",
+      "expected": {
+        "revenue": "0", "revenueState": "observed_zero", "units": "7", "unitsState": "observed_value",
+        "queryWindowCount": 13, "m05ObservationCount": 26,
+        "i04Quote": "Tôi đã dùng thạch dừa", "i04EventKind": "ACTION_REPORTED",
+        "rawReviewRows": 3, "readableReviewRows": 2, "i04LocatedRecords": 1,
+        "marketCheckpointSection": "M05", "insightCheckpointSection": "I04"
+      }
+    },
+    {
+      "id": "T", "keyword": "Bình giữ nhiệt", "mode": "CATEGORY",
+      "runId": "22222222-2222-4222-8222-222222222222",
+      "startKey": "33333333-3333-4333-8333-333333333332",
+      "confirmKey": "44444444-4444-4444-8444-444444444442",
+      "marketProductId": "202", "marketProductName": "Mẫu giả lập bình giữ nhiệt trên TikTok",
+      "nativeListing": { "shopId": "90000002", "itemId": "900000002" },
+      "detailFields": { "revenue": 2500.25, "sales_volumn": 0, "unit_price": 125000 },
+      "reviewText": "Tôi đã dùng bình giữ nhiệt.",
+      "quotedReviewText": "“Tôi đã dùng bình giữ nhiệt.”",
+      "expected": {
+        "revenue": "2500.25", "revenueState": "observed_value", "units": "0", "unitsState": "observed_zero",
+        "queryWindowCount": 13, "m05ObservationCount": 26,
+        "i04Quote": "Tôi đã dùng bình giữ nhiệt", "i04EventKind": "ACTION_REPORTED",
+        "rawReviewRows": 3, "readableReviewRows": 2, "i04LocatedRecords": 1,
+        "marketCheckpointSection": "M05", "insightCheckpointSection": "I04"
+      }
+    },
+    {
+      "id": "F", "keyword": "Quạt cầm tay", "mode": "CATEGORY",
+      "runId": "22222222-2222-4222-8222-222222222223",
+      "startKey": "33333333-3333-4333-8333-333333333333",
+      "confirmKey": "44444444-4444-4444-8444-444444444443",
+      "marketProductId": "303", "marketProductName": "Mẫu giả lập quạt cầm tay trên TikTok",
+      "nativeListing": { "shopId": "90000003", "itemId": "900000003" },
+      "detailFields": { "revenue": 900, "sales_volumn": 12, "unit_price": 69900 },
+      "reviewText": "Tôi đã dùng quạt cầm tay.",
+      "quotedReviewText": "“Tôi đã dùng quạt cầm tay.”",
+      "expected": {
+        "revenue": "900", "revenueState": "observed_value", "units": "12", "unitsState": "observed_value",
+        "queryWindowCount": 13, "m05ObservationCount": 26,
+        "i04Quote": "Tôi đã dùng quạt cầm tay", "i04EventKind": "ACTION_REPORTED",
+        "rawReviewRows": 3, "readableReviewRows": 2, "i04LocatedRecords": 1,
+        "marketCheckpointSection": "M05", "insightCheckpointSection": "I04"
+      }
+    }
+  ]
+}

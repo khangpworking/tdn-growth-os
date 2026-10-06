@@ -24,6 +24,10 @@ export type ResearchAutomationReports = ResearchAutomationReportKind[];
 export type Text200 = string;
 export type Term = string;
 export type ProductId = string;
+/**
+ * @maxItems 5
+ */
+export type ExactShopeeUrls = string[];
 export type Uuid = string;
 export type ResearchAutomationRunStatus =
   | 'QUICK_SEARCH_QUEUED'
@@ -106,6 +110,7 @@ export interface ResearchAutomationConfirmRequest {
    * @maxItems 8
    */
   peerProductIds: ProductId[];
+  exactShopeeUrls?: ExactShopeeUrls;
 }
 export interface ResearchAutomationCancelRequest {
   contractVersion: 'research-automation-cancel-v1';
@@ -132,6 +137,7 @@ export interface ResearchAutomationRun {
   productCards: ResearchAutomationProductCard[];
   coverage: ResearchAutomationCoverage;
   usage: ResearchAutomationUsage;
+  aiActivity?: ResearchAutomationAiActivity;
   /**
    * @minItems 3
    * @maxItems 3
@@ -172,6 +178,7 @@ export interface ResearchAutomationConfirmedScope {
    */
   peerProductIds: ProductId[];
   confirmedAt: Timestamp;
+  exactShopeeUrls?: ExactShopeeUrls;
 }
 export interface ResearchAutomationProductCard {
   productId: ProductId;
@@ -228,6 +235,36 @@ export interface ResearchAutomationUsageEntry {
   operation: Operation;
   requestCount: number;
   cost: ResearchAutomationCost;
+}
+/**
+ * Recorded section activity across the initial run and all report revisions, not billed provider requests or business completion. Each field is absent when no execution was prepared; older servers may only supply I14.
+ */
+export interface ResearchAutomationAiActivity {
+  m11?: I14;
+  m12?: I14;
+  i15?: I14;
+  i14?: I14;
+}
+export interface I14 {
+  states: {
+    prepared: number;
+    dispatching: number;
+    completed: number;
+    dispatchUnknown: number;
+  };
+  /**
+   * Local response-validation outcomes, not business approval.
+   */
+  outcomes: {
+    valid: number;
+    invalid: number;
+  };
+  /**
+   * UNKNOWN after any dispatch claim, including an uncertain outcome. No provider usage or billing receipt is available.
+   */
+  billing: {
+    state: 'NOT_DISPATCHED' | 'UNKNOWN';
+  };
 }
 export interface ResearchAutomationStep {
   stepId: 'QUICK_SEARCH' | 'COLLECTION' | 'REPORTS';

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-metric-source-v2.schema.json",
+  "title": "AutomationMetricSourceV2",
+  "description": "Prepared exact-byte operator export bound to one run and proposed scope before confirmation. runBindingSha256 hashes {runId,start,scope}, not a future confirmation timestamp. This does not authenticate provider, filters, category or measurement dates.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "runId", "workspaceId", "runBindingSha256", "keyword", "workbookPath", "manifestPath", "labelsPath", "sourceContextPath"],
+  "properties": {
+    "contractVersion": { "const": "automation-metric-source-v2" },
+    "runId": { "type": "string", "format": "uuid" },
+    "workspaceId": { "type": "string", "format": "uuid" },
+    "runBindingSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "keyword": { "type": "string", "minLength": 1, "maxLength": 120 },
+    "workbookPath": { "$ref": "#/$defs/logicalPath" },
+    "manifestPath": { "$ref": "#/$defs/logicalPath" },
+    "labelsPath": { "type": "null", "description": "Classification is separate; this original-export binding accepts no labels." },
+    "sourceContextPath": { "$ref": "#/$defs/logicalPath" }
+  },
+  "$defs": {
+    "logicalPath": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$" }
+  }
+}
