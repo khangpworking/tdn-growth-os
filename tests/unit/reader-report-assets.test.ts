@@ -39,6 +39,7 @@ test('profile is stored canonically and read back verified', async t => {
   const reordered = { signals: p.signals, rules: p.rules, non: p.non, core: p.core, short: p.short, segments: p.segments, status: p.status, product: p.product, slug: p.slug };
   assert.equal((await storeReaderProfile(store, reordered)).sha256, first.sha256, 'Key order does not change the sha');
   assert.equal((await storeReaderProfile(store, { ...profile(), status: 'approved' })).status, 'approved');
+  assert.equal(first.artifact.sha256, first.sha256);
 
   const broken = { ...profile(), rules: [{ seg: 'Z9', when: {} }] };
   assert.throws(() => verifyReaderProfile(broken), /nhóm Z9 chưa khai báo trong profile/);
@@ -57,7 +58,8 @@ test('cover images are recognised by their bytes, bounded and paired with a lice
   const store = await storeFor(t);
   for (const [bytes, mime] of [[JPEG, 'image/jpeg'], [PNG, 'image/png'], [WEBP, 'image/webp']] as const) {
     const stored = await storeCoverImage(store, bytes, { licence: 'CC0', credit: 'Ảnh tự chụp' });
-    assert.equal(stored.mime, mime);
+    assert.notEqual(stored.coverSha256, stored.imageSha256);
+    assert.deepEqual([stored.image.sha256, stored.sidecar.sha256], [stored.imageSha256, stored.coverSha256]);
     assert.notEqual(stored.coverSha256, stored.imageSha256);
     const loaded = await loadCoverImage(store, stored.coverSha256);
     assert.equal(loaded.mime, mime);

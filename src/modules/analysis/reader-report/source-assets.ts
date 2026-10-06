@@ -1,5 +1,5 @@
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
-import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/index.js';
+import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/index.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { ReaderReportInputError, verifyReaderProfile } from './build.js';
 import type { CoverImage } from './layout.js';
@@ -15,7 +15,8 @@ export class ReaderAssetError extends Error {
 
 export type ReaderProfile = ReaderReportInput['profile'];
 export type CoverLicence = 'CC0' | 'public-domain' | 'owner-supplied';
-export type StoredCoverImage = { coverSha256: string; imageSha256: string; mime: CoverImage['mime'] };
+/** `image` and `sidecar` are the stored artifacts, for callers that register manifests. */
+export type StoredCoverImage = { coverSha256: string; imageSha256: string; mime: CoverImage['mime']; image: StoredArtifact; sidecar: StoredArtifact };
 
 const PROFILE_CONTRACT = 'reader-profile-v1';
 const COVER_CONTRACT = 'reader-cover-v1';
@@ -34,10 +35,10 @@ function verifiedProfile(value: unknown): ReaderProfile {
 }
 
 /** Stores the canonical profile; the same profile with keys in another order yields the same sha. */
-export async function storeReaderProfile(store: ContentAddressedArtifactStore, profile: unknown): Promise<{ sha256: string; status: ReaderProfile['status'] }> {
+export async function storeReaderProfile(store: ContentAddressedArtifactStore, profile: unknown): Promise<{ sha256: string; status: ReaderProfile['status']; artifact: StoredArtifact }> {
   const verified = verifiedProfile(profile);
   const stored = await store.put(Buffer.from(canonicalJson({ contractVersion: PROFILE_CONTRACT, profile: verified }), 'utf8'));
-  return { sha256: stored.sha256, status: verified.status };
+  return { sha256: stored.sha256, status: verified.status, artifact: stored };
 }
 
 export async function loadReaderProfile(store: ContentAddressedArtifactStore, sha256: string): Promise<ReaderProfile> {
@@ -72,7 +73,7 @@ export async function storeCoverImage(
     contractVersion: COVER_CONTRACT, imageSha256: image.sha256, mime, byteLength: bytes.byteLength, licence: meta.licence,
     ...(meta.credit === undefined ? {} : { credit: meta.credit }),
   }), 'utf8'));
-  return { coverSha256: sidecar.sha256, imageSha256: image.sha256, mime };
+  return { coverSha256: sidecar.sha256, imageSha256: image.sha256, mime, image, sidecar };
 }
 
 export async function loadCoverImage(store: ContentAddressedArtifactStore, coverSha256: string): Promise<CoverImage> {
