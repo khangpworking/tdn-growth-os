@@ -157,6 +157,7 @@ const contracts = [
   ['flow', 'content-package-state-request'],
   ['flow', 'content-campaign-defaults-request'],
   ['analysis', 'report-assembly-snapshot'],
+  ['analysis', 'reader-report-input'],
 ];
 for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
