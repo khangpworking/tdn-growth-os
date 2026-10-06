@@ -28,6 +28,47 @@ const LEGACY_HEADERS = ['Tên sản phẩm', 'Link sản phẩm', 'Giá', 'Số 
 const CURRENT_HEADERS = ['Tên sản phẩm', 'Link sản phẩm', 'Giá', 'Số đã bán', 'Doanh thu', 'Thương hiệu',
   'Giá phân loại cao nhất', 'Giá phân loại nhỏ nhất', 'Link shop', 'Mã sản phẩm', 'Ngành hàng', 'Ngành hàng cấp 1',
   'Ngành hàng cấp 2', 'Ngành hàng cấp 3', 'Ngày bắt đầu bán', 'Thumbnail', 'Tên shop', 'Tổng doanh số', 'Tổng số đánh giá', 'Tổng số đã bán'];
+type Platform = MetricScopeInput['scope']['platform'];
+type ListingIdentity = { shopId: string; listingId: string };
+const V1 = 'metric-shopee-product-list-sheet1-v1', V2 = 'metric-shopee-product-list-sheet1-v2', V3 = 'metric-marketplace-product-list-sheet1-v3';
+const ID = '([1-9][0-9]{0,127})';
+const SHOPEE_PRODUCT = new RegExp(`^https://shopee\\.vn/product/${ID}/${ID}$`);
+const SHOPEE_SLUG_PRODUCT = new RegExp(`^https://shopee\\.vn/[^/?#]+-i\\.${ID}\\.${ID}$`);
+const TIKTOK_PRODUCT = new RegExp(`^https://shop-vn\\.tiktok\\.com/pdp/${ID}$`);
+const TIKTOK_SHOP = new RegExp(`^https://short\\.metric\\.vn/shop/8__${ID}$`);
+/**
+ * Combined-export platform rules keyed by the `Mã sản phẩm` prefix. Each rule
+ * reads the listing from the product URL, the shop from the product or shop URL,
+ * and states the exact composite id the export must carry.
+ */
+const PLATFORM_RULES: Readonly<Record<string, {
+  platform: Platform;
+  product(url: string, slugUrls: boolean): { listingId: string; shopId: string | null } | null;
+  shop(url: string, fromProduct: string | null): string | null;
+  composite(id: ListingIdentity): string;
+}>> = {
+  '1': {
+    platform: 'shopee',
+    product(url, slugUrls) {
+      const match = SHOPEE_PRODUCT.exec(url) ?? (slugUrls ? SHOPEE_SLUG_PRODUCT.exec(url) : null);
+      return match ? { shopId: match[1]!, listingId: match[2]! } : null;
+    },
+    shop: (url, fromProduct) => fromProduct !== null && url === `https://shopee.vn/shop/${fromProduct}` ? fromProduct : null,
+    composite: ({ shopId, listingId }) => `1__${listingId}__${shopId}`,
+  },
+  '8': {
+    platform: 'tiktok',
+    product(url) {
+      const match = TIKTOK_PRODUCT.exec(url);
+      return match ? { shopId: null, listingId: match[1]! } : null;
+    },
+    shop: url => TIKTOK_SHOP.exec(url)?.[1] ?? null,
+    composite: ({ listingId }) => `8__${listingId}`,
+  },
+};
+const PLATFORMS = Object.values(PLATFORM_RULES).map(rule => rule.platform);
+const prefixOf = (composite: string): string => composite.split('__', 1)[0]!;
+type PlatformRows = NonNullable<MetricSourceManifest['platformRows']>;
 type Cell = { type: string; value: string | null; style: string | null; rawType: string | null; rawValue: string | null; numberFormatId: string };
 type RawRow = { row: number; cells: Cell[] };
 
@@ -58,7 +99,7 @@ function readSheet(bytes: Buffer): RawRow[] {
 /** Exact observed header/profile for upload preparation, never a repair or a market calculation. */
 export function inspectMetricWorkbookProfile(workbook: Buffer): {
   profileId: MetricSourceManifest['profileId']; profileVersion: MetricSourceManifest['profileVersion'];
-  headerSha256: MetricSourceManifest['source']['headerSha256']; lastRow: number;
+  headerSha256: MetricSourceManifest['source']['headerSha256']; lastRow: number; platformRows?: PlatformRows;
 } {
   const rows = readSheet(workbook);
   const header = rows[0];
@@ -68,9 +109,27 @@ export function inspectMetricWorkbookProfile(workbook: Buffer): {
   const current = canonicalJson(values) === canonicalJson(CURRENT_HEADERS);
   if (!legacy && !current) reject('Sheet1!A1:T1', 'HEADER_MISMATCH');
   if (rows.length < 2 || rows.length > 10001 || rows.some((row, index) => row.row !== index + 1)) reject('Sheet1', 'ROW_RANGE_MISMATCH');
-  return { profileId: current ? 'metric-shopee-product-list-sheet1-v2' : 'metric-shopee-product-list-sheet1-v1',
-    profileVersion: current ? '2.0.0' : '1.0.0', headerSha256: jsonHash(values) as MetricSourceManifest['source']['headerSha256'], lastRow: rows.length };
+  const headerSha256 = jsonHash(values) as MetricSourceManifest['source']['headerSha256'];
+  if (!current) return { profileId: V1, profileVersion: '1.0.0', headerSha256, lastRow: rows.length };
+  // A v2-header file with any known non-Shopee prefix is the combined v3 export; every prefix must then be known.
+  const composite = CURRENT_HEADERS.indexOf('Mã sản phẩm');
+  const prefixes = rows.slice(1).map(row => {
+    const cell = row.cells[composite];
+    return { row: row.row, prefix: cell?.type === 'text' && cell.value ? prefixOf(cell.value) : null };
+  });
+  if (!prefixes.some(({ prefix }) => prefix !== null && prefix !== '1' && PLATFORM_RULES[prefix])) {
+    return { profileId: V2, profileVersion: '2.0.0', headerSha256, lastRow: rows.length };
+  }
+  const platformRows: PlatformRows = {};
+  for (const { row, prefix } of prefixes) {
+    const rule = prefix === null ? undefined : PLATFORM_RULES[prefix];
+    if (!rule) reject(`Sheet1!${column(composite)}${row}`, 'UNKNOWN_PLATFORM_PREFIX');
+    platformRows[rule.platform] = (platformRows[rule.platform] ?? 0) + 1;
+  }
+  return { profileId: V3, profileVersion: '3.0.0', headerSha256, lastRow: rows.length, platformRows };
 }
+
+const column = (index: number): string => String.fromCharCode(65 + index);
 
 // Exact base-10 conversion from OOXML numeric lexical values; never Number(value).
 function integer(cell: Cell, locator: string): string | null {
@@ -106,10 +165,11 @@ function integer(cell: Cell, locator: string): string | null {
 export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Buffer, labelBytes?: Buffer) {
   const manifest = json(manifestBytes, 'manifest');
   if (!validateManifest(manifest)) reject('manifest', 'INVALID_MANIFEST');
-  if (manifest.scope.platform !== 'shopee' || manifest.scope.start > manifest.scope.end) reject('manifest/scope', 'SCOPE_PERIOD_MISMATCH');
+  const combined = manifest.profileId === V3, selected = manifest.scope.platform;
+  if ((!combined && selected !== 'shopee') || manifest.scope.start > manifest.scope.end) reject('manifest/scope', 'SCOPE_PERIOD_MISMATCH');
   const sourceSha256 = hash(workbook), manifestSha256 = hash(manifestBytes);
   if (sourceSha256 !== manifest.source.sha256) reject('workbook', 'SOURCE_HASH_MISMATCH');
-  const headers = manifest.profileId === 'metric-shopee-product-list-sheet1-v2' ? CURRENT_HEADERS : LEGACY_HEADERS;
+  const headers = manifest.profileId === V1 ? LEGACY_HEADERS : CURRENT_HEADERS;
   const shopColumn = headers.indexOf('Link shop'), compositeColumn = headers.indexOf('Mã sản phẩm');
   const rows = readSheet(workbook);
   const header = rows[0];
@@ -128,25 +188,29 @@ export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Bu
     ], records: [],
   };
   const seen = new Set<string>();
-  const evidence = rows.slice(1).map(raw => {
+  const counts = new Map<Platform, number>();
+  // Every row is checked, including rows of the other marketplace; only the selected platform becomes records.
+  const evidence = rows.slice(1).flatMap(raw => {
     const ref = (column: string) => ({ sourceSha256, locator: `Sheet1!${column}${raw.row}` });
     const text = (index: number): string => {
       const cell = raw.cells[index]!;
-      if (cell.type !== 'text' || !cell.value?.trim()) reject(ref(String.fromCharCode(65 + index)).locator, 'REQUIRED_TEXT');
+      if (cell.type !== 'text' || !cell.value?.trim()) reject(ref(column(index)).locator, 'REQUIRED_TEXT');
       return cell.value;
     };
-    const url = text(1), match = /^https:\/\/shopee\.vn\/product\/([1-9][0-9]{0,127})\/([1-9][0-9]{0,127})$/.exec(url) ??
-      (manifest.profileId === 'metric-shopee-product-list-sheet1-v2'
-        ? /^https:\/\/shopee\.vn\/[^/?#]+-i\.([1-9][0-9]{0,127})\.([1-9][0-9]{0,127})$/.exec(url) : null);
-    if (!match) reject(ref('B').locator, 'PRODUCT_URL_SHAPE');
-    const shopId = match[1]!, listingId = match[2]!;
-    if (text(shopColumn) !== `https://shopee.vn/shop/${shopId}`) reject(ref(String.fromCharCode(65 + shopColumn)).locator, 'SHOP_ID_MISMATCH');
-    if (text(compositeColumn) !== `1__${listingId}__${shopId}`) reject(ref(String.fromCharCode(65 + compositeColumn)).locator, 'COMPOSITE_ID_MISMATCH');
-    const key = `${shopId}/${listingId}`;
+    const rule = combined ? PLATFORM_RULES[prefixOf(text(compositeColumn))] : PLATFORM_RULES['1'];
+    if (!rule) return reject(ref(column(compositeColumn)).locator, 'UNKNOWN_PLATFORM_PREFIX');
+    const product = rule.product(text(1), manifest.profileId !== V1);
+    if (!product) return reject(ref('B').locator, 'PRODUCT_URL_SHAPE');
+    const shopId = rule.shop(text(shopColumn), product.shopId);
+    if (shopId === null) return reject(ref(column(shopColumn)).locator, 'SHOP_ID_MISMATCH');
+    const listingId = product.listingId;
+    if (text(compositeColumn) !== rule.composite({ shopId, listingId })) reject(ref(column(compositeColumn)).locator, 'COMPOSITE_ID_MISMATCH');
+    const key = canonicalJson([rule.platform, shopId, listingId]);
     if (seen.has(key)) reject(ref('B').locator, 'DUPLICATE_LISTING');
     seen.add(key);
+    counts.set(rule.platform, (counts.get(rule.platform) ?? 0) + 1);
     const observe = (index: number, kind: 'revenue' | 'units'): Observation => {
-      const source = ref(String.fromCharCode(65 + index));
+      const source = ref(column(index));
       const value = integer(raw.cells[index]!, source.locator);
       return { state: value === null ? 'missing' : value === '0' ? 'observed_zero' : 'observed_value', value,
         precision: manifest.precision[kind], source, displayedValue: raw.cells[index]!.value };
@@ -154,13 +218,20 @@ export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Bu
     const record: MetricScopeInput['records'][number] = {
       shopId, listingId, title: text(0), category: text(12), source: { sourceSha256, locator: `Sheet1!A${raw.row}:T${raw.row}` },
       revenue: observe(4, 'revenue'), units: observe(3, 'units'), label: null,
-      measurement: { profileId: manifest.profileId, scopeKey: manifest.scope.key, platform: 'shopee',
+      measurement: { profileId: manifest.profileId, scopeKey: manifest.scope.key, platform: selected,
         selection: manifest.scope.selection, start: manifest.scope.start, end: manifest.scope.end, currency: 'VND' },
     };
+    if (rule.platform !== selected) return [];
     input.records.push(record);
-    return { row: raw.row, rowSha256: jsonHash(raw.cells), cells: raw.cells,
-      contentSha256: metricLabelFingerprint('shopee', record), shopId, listingId, locator: record.source.locator };
+    return [{ row: raw.row, rowSha256: jsonHash(raw.cells), cells: raw.cells,
+      contentSha256: metricLabelFingerprint(selected, record), shopId, listingId, locator: record.source.locator }];
   });
+  if (combined) {
+    if (PLATFORMS.some(platform => (counts.get(platform) ?? 0) !== (manifest.platformRows?.[platform] ?? 0))) {
+      reject('manifest/platformRows', 'PLATFORM_ROW_COUNT_MISMATCH');
+    }
+    if (evidence.length === 0) reject('manifest/scope', 'EMPTY_PLATFORM_SCOPE');
+  }
   const labelSha256 = labelBytes ? hash(labelBytes) : null;
   if (labelBytes) {
     const labels = json(labelBytes, 'labels');
@@ -168,9 +239,11 @@ export function normalizeMetricWorkbookInput(workbook: Buffer, manifestBytes: Bu
     if (labels.sourceSha256 !== sourceSha256 || labels.codebookVersion !== manifest.labelCodebookVersion) reject('labels', 'LABEL_SOURCE_OR_CODEBOOK_MISMATCH');
     if (labels.rows.length !== evidence.length) reject('labels/rows', 'LABEL_COVERAGE_MISMATCH');
     const applied = new Set<number>();
+    // Labels address real Sheet1 row numbers; a combined file skips the other marketplace's rows.
+    const byRow = new Map(evidence.map((row, index) => [row.row, { row, record: input.records[index] }]));
     labels.rows.forEach((label, i) => {
       const locator = `/rows/${i}`;
-      const row = evidence[label.row - 2], record = input.records[label.row - 2];
+      const hit = byRow.get(label.row), row = hit?.row, record = hit?.record;
       if (!row || !record || applied.has(label.row)) reject(locator, 'LABEL_DUPLICATE_OR_EXTRA_ROW');
       if (label.rowSha256 !== row.rowSha256 || label.shopId !== row.shopId || label.listingId !== row.listingId ||
           label.contentSha256 !== row.contentSha256 || label.methodVersion !== manifest.labelCodebookVersion) reject(locator, 'STALE_OR_MISMATCHED_LABEL');
