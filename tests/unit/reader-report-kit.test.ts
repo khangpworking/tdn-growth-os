@@ -122,12 +122,29 @@ test('F0 flags CSS that loads remote files, not the same words in escaped page t
   assert.equal(f0('<div style="background:url(&quot;//example.test/x.png&quot;)"></div>'), false);
   assert.equal(f0("<style>@import 'https://example.test/a.css';</style>"), false);
   assert.equal(f0('<style>.a{background:url(data:image/png;base64,AAAA)}</style><div style="background-image:url(\'data:image/jpeg;base64,AAAA\')"></div>'), true);
+  // Style attributes in any quoting, and encoded addresses, are read as the browser reads them.
+  assert.equal(f0("<div style='background:url(https://example.test/x.png)'></div>"), false);
+  assert.equal(f0('<div style=background:url(//example.test/x.png)></div>'), false);
+  assert.equal(f0('<div style="background:url(&#x2F;&#x2F;example.test/x.png)"></div>'), false);
+  assert.equal(f0('<style>.a{background:url(\\2f\\2f example.test/x.png)}</style>'), false);
+  assert.equal(f0('<style>.a{background:image-set("https://example.test/x.png" 1x)}</style>'), false);
+  assert.equal(f0("<img src='//example.test/x.png'>"), false);
+  assert.equal(f0('<img src=https://example.test/x.png>'), false);
+  assert.equal(f0('<img src="\\\\example.test/x.png">'), false);
+  assert.equal(f0('<img srcset="https://example.test/x.png 2x">'), false);
+  assert.equal(f0('<svg><use xlink:href="https://example.test/s.svg#i"/></svg>'), false);
+  // The same characters in escaped page text load nothing.
+  assert.equal(f0(`<p>${esc("Mẹo: style='background:url(https://example.test/x.png)' và src=//cdn.test/a.js")}</p>`), true);
+  // A link the reader clicks loads nothing; anything else that fetches still fails.
   assert.equal(f0('<a href="https://example.test/a?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">Bài viết</a>'), true, 'a link the reader clicks loads nothing');
+  assert.equal(f0("<a href='//example.test/a'>Bài viết</a>"), true);
   assert.equal(f0('<img alt="" src="https://example.test/x.png">'), false);
   assert.equal(f0('<svg><image href="https://example.test/x.png"/></svg>'), false);
   assert.equal(f0('<svg><use xlink:href="//example.test/s.svg#i"/></svg>'), false);
   assert.equal(f0('<a href="https://example.test/" ping="https://track.test/">x</a>'), false);
+  assert.equal(f0('<a href="https://example.test/" style=background:url(//example.test/x.png)>x</a>'), false);
   assert.equal(f0('<iframe src="https://example.test/"></iframe>'), false);
+  assert.equal(f0('<video poster="https://example.test/x.png"></video>'), false);
 });
 
 test('quoted web text is exempt from the wording rules but never from the provider-name rule', () => {
