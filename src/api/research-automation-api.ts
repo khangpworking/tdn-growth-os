@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import BetterSqlite3 from 'better-sqlite3';
 import AjvModule from 'ajv/dist/2020.js';
@@ -23,6 +24,8 @@ import insightCodingSchema from '../../contracts/analysis/automation-insight-cod
 import insightCodingApiSchema from '../../contracts/api/research-automation-insight-coding-api.schema.json' with { type: 'json' };
 import insightModelSchema from '../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
 import insightModelApiSchema from '../../contracts/api/research-automation-insight-model-api.schema.json' with { type: 'json' };
+import readerInputSchema from '../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
+import readerApiSchema from '../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import type { ResearchInsightModelResponse } from '../../contracts/api/research-automation-insight-model-api.generated.js';
 import type { InsightModelConfiguration } from '../modules/analysis/research-automation/insight-model-execution.js';
 import { AutomationSynthesisExecutionError } from '../modules/analysis/research-automation/synthesis-execution.js';
@@ -88,6 +91,7 @@ ajv.addSchema(boundedRevisionRequestSchema);
 ajv.addSchema(quoteRevisionRequestSchema);
 ajv.addSchema(locatedInsightSchema); ajv.addSchema(insightSelectionSchema); ajv.addSchema(insightCodingSchema); ajv.addSchema(insightCodingApiSchema);
 ajv.addSchema(insightModelSchema); ajv.addSchema(insightModelApiSchema);
+ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
 const validates = {
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }] }),
@@ -117,7 +121,21 @@ const validates = {
   insightView: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/view` }),
   insightModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/request` }),
   insightModelResponse: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/response` }),
+  readerBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildRequest` }),
+  readerBuildReceipt: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildReceipt` }),
+  readerDecision: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionRequest` }),
+  readerDecisionReceipt: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionReceipt` }),
+  readerList: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/list` }),
 };
+/** Inline JSON body of a reader build: profile, declared source and an optional inline cover image. */
+const MAX_READER_BUILD_BYTES = 4 * 1024 * 1024 + 512 * 1024;
+const REPORT_CSP = "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'";
+/** The reader page keeps its own small inline scripts (appendix filter); only their exact hashes may run. */
+function readerCsp(html: Buffer): string {
+  const hashes = [...html.toString('utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)]
+    .map(m => `'sha256-${createHash('sha256').update(m[1]!, 'utf8').digest('base64')}'`);
+  return hashes.length ? `${REPORT_CSP}; script-src ${[...new Set(hashes)].join(' ')}` : REPORT_CSP;
+}
 const insightWrites = {
   'insight-coding-adoptions': { kind: 'ADOPTION', validate: validates.insightAdopt },
   'insight-coding-proposals': { kind: 'PROPOSAL', validate: validates.insightPropose },
@@ -248,12 +266,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const insightRead = /^insight-coding\/([0-9a-f]{64})$/.exec(action ?? '');
     const insightWrite = action !== undefined && Object.hasOwn(insightWrites, action) ? insightWrites[action as keyof typeof insightWrites] : undefined;
     const insightModelWrite = action === 'insight-coding-model-proposals';
+    const readerHtml = /^reader-reports\/([0-9a-f-]{36})\/html$/.exec(action ?? '');
+    const readerAction = action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml);
     const report = originalReport?.[1] ?? versionReport?.[2];
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel)
-      : !action || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
+      ? !runId || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel) || action === 'reader-reports' || action === 'reader-reports/decisions'
+      : !action || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -285,6 +305,18 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           const result = await readService.readInsightCoding(workspaceId!, runId, insightRead[1]!);
           if (!validates.insightView(result)) throw new Error('Insight coding projection failed validation');
           return sendApiJson(response, 200, result);
+        }
+        if (action === 'reader-reports') {
+          const result = await readService.listReaderReports(workspaceId!, runId);
+          if (!validates.readerList(result)) throw new Error('Reader report list failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (readerHtml) {
+          // Owner reader page only; the automated draft stays behind its own routes.
+          const page = await readService.readReaderReport(workspaceId!, runId, readerHtml[1]!);
+          response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': page.bytes.length, 'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': readerCsp(page.bytes) });
+          response.end(page.bytes); return;
         }
         if (action === 'metric-rule-adoptions' || metricRuleRead) {
           const result = metricRuleRead ? await readService.getMetricRuleAdoption(workspaceId!, runId, metricRuleRead[1]!)
@@ -321,7 +353,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         }
         if (!report) return sendApiJson(response, 200, await readService.getRun(workspaceId!, runId));
         const output = await readService.readReport(workspaceId!, runId, report === 'market' ? 'MARKET' : 'INSIGHT', Boolean(pdfSuffix), versionReport?.[1]);
-        response.writeHead(200, { 'Content-Type': output.mediaType, 'Content-Length': output.bytes.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'", ...(pdfSuffix ? { 'Content-Disposition': `attachment; filename="${report}-report.pdf"` } : {}) });
+        response.writeHead(200, { 'Content-Type': output.mediaType, 'Content-Length': output.bytes.length, 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': REPORT_CSP, ...(pdfSuffix ? { 'Content-Disposition': `attachment; filename="${report}-report.pdf"` } : {}) });
         response.end(output.bytes); return;
       }
       await ready;
@@ -377,13 +409,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (singleHeader(request.headers['content-type']) !== 'application/json') return fail(response, 400, 'bad_request', 'Content-Type must be application/json');
       let body: unknown;
       // Only Insight coding carries source spans; its cap equals the owner's canonical request bound.
-      try { body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, insightWrite ? MAX_INSIGHT_CODING_BYTES : 16 * 1024))); }
+      try { body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, insightWrite ? MAX_INSIGHT_CODING_BYTES : action === 'reader-reports' ? MAX_READER_BUILD_BYTES : 16 * 1024))); }
       catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Request body must be valid UTF-8 JSON'); }
       const validate = !runId ? validates.start : action === 'confirm-scope' ? validates.confirm
         : insightModelWrite ? validates.insightModelRequest
         : insightWrite ? insightWrite.validate
         : membershipWrite ? action === 'metric-membership-proposals' ? validates.membershipPropose : validates.membershipAccept
         : action === 'metric-rule-adoptions' ? validates.metricRuleAdopt
+        : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
         : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
       if (insightModelWrite) {
@@ -446,6 +479,18 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         // Coding evidence is not report admission, regeneration or provider dispatch.
         return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
+      if (action === 'reader-reports' || action === 'reader-reports/decisions') {
+        const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
+        if (action === 'reader-reports') {
+          const receipt = await writeService!.buildReaderReport(workspaceId!, runId!, body, owner);
+          if (!validates.readerBuildReceipt(receipt)) throw new Error('Reader build receipt failed validation');
+          // Building restates a finished draft: no wake, provider request or draft change.
+          return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+        }
+        const receipt = await writeService!.decideReaderReport(workspaceId!, runId!, body, owner);
+        if (!validates.readerDecisionReceipt(receipt)) throw new Error('Reader decision receipt failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
       if (action === 'metric-rule-adoptions') {
         const receipt = await writeService!.adoptMetricRule(workspaceId!, runId!, body, { actorId: configuration.owner!.actorId, role: 'OWNER' });
         if (!validates.metricRuleReceipt(receipt)) throw new Error('Rule adoption receipt failed validation');
@@ -471,7 +516,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (error instanceof TypeError && ['INSIGHT_MODEL_RECORD_NOT_ELIGIBLE', 'INSIGHT_MODEL_INPUT_TOO_LARGE'].includes(error.message))
         return fail(response, 400, 'bad_request', 'Research model batch failed validation');
       if (error instanceof ResearchAutomationNotFoundError) return fail(response, 404, error.code, 'Research record or output was not found');
-      if (error instanceof ResearchAutomationConflictError) return fail(response, 409, error.code, 'Research state changed; refresh before submitting');
+      // Reader messages are fixed plain-Vietnamese text written by the service, never source content.
+      if (error instanceof ResearchAutomationConflictError) return fail(response, 409, error.code, readerAction ? error.message : 'Research state changed; refresh before submitting');
+      if (readerAction && error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', error.message);
       if (error instanceof SourcePackageRequestConflictError)
         return fail(response, 409, 'request_key_conflict', 'This upload identity is already bound to different content');
       if (error instanceof SupplementalSourceRejection) return fail(response, 400, 'source_input_rejected', 'The source package does not match a supported method profile');

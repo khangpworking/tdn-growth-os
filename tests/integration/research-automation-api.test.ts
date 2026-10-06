@@ -1566,3 +1566,87 @@ test('OWNER Insight coding round-trips over HTTP with exact source context, retr
     assert.deepEqual(codingRows(), rowsBefore);
   });
 });
+
+// Reader routes: the OWNER sees one reader page per build and decides on it; the page is served
+// with a CSP that admits only its own inline scripts, and refusals come back in plain Vietnamese.
+test('reader report routes build, serve and decide one OWNER reader page without touching the draft', async () => {
+  const fixture = await createFixture();
+  const generated = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], { input: JSON.stringify({ profile: 'v2' }), maxBuffer: 4 * 1024 * 1024 });
+  assert.equal(generated.status, 0, generated.stderr.toString());
+  await withApi(fixture, true, async base => {
+    const awaiting = await startAndWaitForScope(base, '91919191-9191-4191-8191-919191919191');
+    const runRoot = (api: 'api' | 'owner-api') => `${base}/${api}/workspaces/${workspaceId}/research-automation/runs/${awaiting.runId}`;
+    const { contractVersion: _v, requestKey: _k, expectedRevision: _r, ...scope } = confirmBody('92929292-9292-4292-8292-929292929292', awaiting.revision);
+    const form = new FormData();
+    form.set('metadata', JSON.stringify({ contractVersion: 'automation-metric-prepare-v1', requestKey: '93939393-9393-4393-8393-939393939393', expectedRevision: awaiting.revision,
+      scope, sourceLabel: 'Synthetic operator export', sourceContext: 'Keyword export; filters not independently verified.',
+      measurementPeriod: { startDate: '2026-01-01', endDate: '2026-01-29', basis: 'Operator-declared export range, not authenticated' },
+      selection: 'UNSPECIFIED', acquiredAt: null, precision: { revenue: 'unknown', units: 'unknown' } }));
+    form.set('workbook', new Blob([new Uint8Array(generated.stdout)]), 'export.xlsx');
+    const uploaded = await fetch(`${runRoot('owner-api')}/sources/metric`, { method: 'POST', headers: { Origin: base, Authorization: `Bearer ${ownerToken}` }, body: form });
+    assert.equal(uploaded.status, 201, await uploaded.clone().text());
+    const packageId = (await readJson(uploaded)).packageId as string;
+    const confirmed = await fetch(`${runRoot('owner-api')}/confirm-scope`, { method: 'POST', headers: ownerHeaders(base), body: JSON.stringify({
+      ...confirmBody('94949494-9494-4494-8494-949494949494', awaiting.revision), contractVersion: 'research-automation-confirm-v2',
+      sources: { metric: { decision: 'USE_PREPARED', packageId }, nativeReview: 'SKIP' } }) });
+    assert.equal(confirmed.status, 202, await confirmed.clone().text());
+    const ready = await waitForRun(base, awaiting.runId, run => run.status === 'DRAFT_READY');
+    const draftHtml = await (await fetch(`${runRoot('api')}/reports/market`)).text();
+    const before = databaseDigest(fixture.databasePath);
+
+    const empty = await readJson(await fetch(`${runRoot('api')}/reader-reports`));
+    assert.deepEqual(empty, { contractVersion: 'reader-report-list-v1', workspaceId, runId: awaiting.runId, revisions: [] });
+    assert.equal(databaseDigest(fixture.databasePath), before, 'listing never writes');
+    const build = (requestKey: string, start = '2026-01-01') => ({ contractVersion: 'reader-report-build-v1', requestKey, metricPackageId: packageId, platforms: ['shopee'],
+      profile: { slug: 'synthetic-earbuds', product: 'Tai nghe thử', status: 'proposed', segments: { S1: 'Tai nghe', N1: 'Khác' }, short: { S1: 'Tai nghe' },
+        core: ['S1'], non: ['N1'], rules: [{ seg: 'S1', when: {} }], signals: [] },
+      cover: null, source: { measurementPeriod: { start, end: '2026-01-29' }, rowCap: 5000,
+        displayedHeadlines: { revenueVnd: 200, soldListings: 2, shops: 2, units: 4 }, platformBreakdown: { shopee: { displayedRevenueVnd: 200 } } } });
+    const post = (action: string, body: unknown, authorized = true) => fetch(`${runRoot('owner-api')}/${action}`,
+      { method: 'POST', headers: ownerHeaders(base, authorized), body: JSON.stringify(body) });
+
+    assert.equal((await post('reader-reports', build('reader-build-01'), false)).status, 401);
+    const badPeriod = await post('reader-reports', build('reader-build-02', '2025-12-31'));
+    assert.equal(badPeriod.status, 400);
+    assert.equal((await readJson(badPeriod)).error.message, 'Kỳ số liệu khai báo khác kỳ của tệp đã gắn vào lượt.');
+    const created = await post('reader-reports', build('reader-build-01'));
+    assert.equal(created.status, 201, await created.clone().text());
+    const receipt = await readJson(created);
+    assert.equal(receipt.revision.state, 'PENDING_OWNER_REVIEW');
+    const retried = await post('reader-reports', build('reader-build-01'));
+    assert.equal(retried.status, 200);
+    assert.deepEqual(await readJson(retried), { ...receipt, exactRetry: true });
+    assert.deepEqual((await readJson(await fetch(`${runRoot('api')}/reader-reports`))).revisions, [receipt.revision]);
+
+    const page = await fetch(`${runRoot('api')}/reader-reports/${receipt.revision.revisionId}/html`);
+    assert.equal(page.status, 200);
+    assert.equal(page.headers.get('content-type'), 'text/html; charset=utf-8');
+    assert.equal(page.headers.get('x-content-type-options'), 'nosniff');
+    const html = Buffer.from(await page.arrayBuffer());
+    assert.equal(createHash('sha256').update(html).digest('hex'), receipt.revision.htmlSha256);
+    const csp = page.headers.get('content-security-policy')!;
+    assert.match(csp, /^default-src 'none';/);
+    const scripts = [...html.toString('utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)];
+    for (const script of scripts) assert.ok(csp.includes(`'sha256-${createHash('sha256').update(script[1]!, 'utf8').digest('base64')}'`), 'each inline script is admitted by hash');
+    if (!scripts.length) assert.doesNotMatch(csp, /script-src/);
+    assert.doesNotMatch(csp, /script-src[^;]*unsafe/);
+    assert.equal((await fetch(`${runRoot('api')}/reader-reports/99999999-9999-4999-8999-999999999999/html`)).status, 404);
+
+    const decision = { contractVersion: 'reader-report-decision-v1', requestKey: 'reader-decide-01', revisionId: receipt.revision.revisionId, decision: 'APPROVED', reason: null };
+    assert.equal((await post('reader-reports/decisions', decision, false)).status, 401);
+    const decided = await post('reader-reports/decisions', decision);
+    assert.equal(decided.status, 201, await decided.clone().text());
+    assert.equal((await readJson(decided)).revision.state, 'APPROVED');
+    assert.equal((await post('reader-reports/decisions', decision)).status, 200);
+    const again = await post('reader-reports/decisions', { ...decision, requestKey: 'reader-decide-02' });
+    assert.equal(again.status, 409);
+    assert.equal((await readJson(again)).error.message, 'Bản đọc này đã có quyết định.');
+    const afterApproval = await post('reader-reports', build('reader-build-03'));
+    assert.equal(afterApproval.status, 409);
+    assert.equal((await readJson(afterApproval)).error.message, 'Bản đọc mới nhất đã được chủ duyệt.');
+
+    assert.deepEqual(await getRun(base, awaiting.runId), ready, 'reader pages never change the run');
+    assert.equal(await (await fetch(`${runRoot('api')}/reports/market`)).text(), draftHtml, 'the automated draft is unchanged');
+    assert.equal(captureCount(fixture.databasePath), 0, 'no provider capture');
+  });
+});

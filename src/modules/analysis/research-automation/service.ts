@@ -44,6 +44,7 @@ import { AutomationMetricMembership, type MetricMembershipContext } from './metr
 import { AutomationInsightCoding, type InsightSourceContext } from './insight-coding.js';
 import type { AutomationMetricRuleAdoptionList, AutomationMetricRuleAdoptionReceipt } from '../../../../contracts/analysis/automation-metric-rule-adoption.generated.js';
 import { readPreparedMetricSources } from './metric-source-inventory.js';
+import { AutomationReaderReports, type ReaderDraftContext, type ReaderRowsReader } from './reader-report-revisions.js';
 import { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { SourcePackageService } from '../../foundation/source-package-service.js';
 import { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
@@ -180,6 +181,10 @@ export interface ResearchAutomationServiceOptions {
   readonly i14SynthesisAi?: AutomationI14ExecutionRequest['ai'];
   /** Each additional section is separately opted in; I14 configuration grants no extra calls. */
   readonly decisionSynthesisAi?: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionRequest['ai']>>;
+  /** Reader page charts: false keeps the hand-drawn SVG fallback only. */
+  readonly readerReportFlint?: boolean;
+  /** Test seam for reader rows; defaults to the prepared product-list workbook reader. */
+  readonly readerRows?: ReaderRowsReader;
 }
 
 export interface ResearchAutomationReadReport {
@@ -252,6 +257,7 @@ export class ResearchAutomationService {
   readonly #metricIntake: AutomationMetricSourceIntake | undefined;
   readonly #supplementalIntake: AutomationSupplementalSourceIntake | undefined;
   readonly #metricRules: AutomationMetricRuleAdoptions;
+  readonly #readerReports: AutomationReaderReports;
   readonly #metricMembership: AutomationMetricMembership;
   readonly #insightCoding: AutomationInsightCoding;
   readonly #classifiedMetric: AutomationClassifiedMetric;
@@ -287,6 +293,9 @@ export class ResearchAutomationService {
     if (options.metricAttachmentStore) this.#metricIntake = new AutomationMetricSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     if (options.metricAttachmentStore) this.#supplementalIntake = new AutomationSupplementalSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     this.#metricRules = new AutomationMetricRuleAdoptions(this.#db, this.#artifacts, options.metricAttachmentStore, this.#now);
+    this.#readerReports = new AutomationReaderReports(this.#db, this.#artifacts, this.#now, {
+      ...(options.readerReportFlint === undefined ? {} : { flint: options.readerReportFlint }),
+      ...(options.readerRows ? { rows: options.readerRows } : {}) });
     this.#metricMembership = new AutomationMetricMembership({ db: this.#db, artifacts: this.#artifacts, now: this.#now,
       ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}),
       context: (workspaceId, runId, pairId, adoptionId) => this.#metricMembershipContext(workspaceId, runId, pairId, adoptionId),
@@ -408,6 +417,47 @@ export class ResearchAutomationService {
     const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
     return { contractVersion: 'automation-prepared-metric-list-v1', workspaceId, runId,
       sources: await readPreparedMetricSources(reader, this.#metricMethods, { runId, start }, validateMetricPrepare) };
+  }
+
+  /** OWNER reader page from the latest verified market draft and one prepared product-list file of this run. */
+  async buildReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    assertUuid(workspaceId); assertUuid(runId);
+    const packageId = (value as { metricPackageId?: unknown } | null)?.metricPackageId;
+    if (typeof packageId !== 'string') throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc không hợp lệ.');
+    return withDatabaseMutationMutex(this.#db, async () =>
+      this.#readerReports.build(await this.#readerContext(workspaceId, runId, packageId), value, actor));
+  }
+  async decideReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    await this.getRun(workspaceId, runId);
+    return withDatabaseMutationMutex(this.#db, async () => this.#readerReports.decide({ workspaceId, runId }, value, actor));
+  }
+  async listReaderReports(workspaceId: string, runId: string) {
+    await this.getRun(workspaceId, runId);
+    return this.#readerReports.list({ workspaceId, runId });
+  }
+  async readReaderReport(workspaceId: string, runId: string, revisionId: string) {
+    assertUuid(revisionId);
+    await this.getRun(workspaceId, runId);
+    return this.#readerReports.html({ workspaceId, runId }, revisionId);
+  }
+  async #readerContext(workspaceId: string, runId: string, packageId: string): Promise<ReaderDraftContext> {
+    const run = await this.getRun(workspaceId, runId);
+    if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+    const pairs = await this.listReportVersions(workspaceId, runId);
+    const latest = pairs.at(-1);
+    const market = latest?.outputs.find(output => output.kind === 'MARKET');
+    if (!latest || !market) throw new ResearchAutomationStateError('Lượt này chưa có bản nháp thị trường.');
+    // Full verification of the exact draft pair before its semantic content is restated.
+    const verified = await this.readReport(workspaceId, runId, 'MARKET', false, latest.pairId);
+    const marketSemantic = await this.#readJson<Record<string, unknown>>(verified.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const prepared = (await this.listPreparedMetricSources(workspaceId, runId)).sources.find(source => source.packageId === packageId);
+    if (!prepared) throw new ResearchAutomationValidationError('Tệp danh sách sản phẩm này không thuộc lượt research.');
+    const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    const source = await reader.readFinalizedSourcePackage(packageId, { maxFileBytes: MAX_METRIC_UPLOAD_BYTES, maxTotalBytes: MAX_METRIC_UPLOAD_BYTES + 64 * 1024 });
+    const workbook = source.files.find(file => file.path === 'metric/export.xlsx');
+    if (!workbook) throw new ResearchAutomationIntegrityError('Prepared product-list workbook is missing.');
+    return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic,
+      metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
   async listPreparedSupplementalSources(workspaceId: string, runId: string): Promise<ResearchAutomationSupplementalPreparedList> {
