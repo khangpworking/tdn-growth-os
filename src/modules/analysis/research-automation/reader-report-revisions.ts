@@ -12,8 +12,8 @@ import type { ReaderReportInput } from '../../../../contracts/analysis/reader-re
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import {
-  buildMarketReport, computeReaderReportData, publishReaderReport, ReaderReportGateError, ReaderReportInputError,
-  type CoverImage, type ReaderPlatform,
+  buildMarketReport, computeReaderReportData, publishReaderReport, ReaderAssetError, ReaderReportGateError, ReaderReportInputError,
+  storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type StoredCoverImage,
 } from '../reader-report/index.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
@@ -76,13 +76,6 @@ interface RevisionRow {
 const SELECT = `SELECT v.*, d.decision, d.request_key decision_request_key, d.reason, d.actor_id decision_actor_id, d.decided_at
   FROM analysis_reader_report_revisions v LEFT JOIN analysis_reader_report_decisions d ON d.revision_id = v.revision_id`;
 
-function coverMime(bytes: Buffer): CoverImage['mime'] {
-  if (bytes.length > 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'image/jpeg';
-  if (bytes.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
-  if (bytes.subarray(0, 4).toString('latin1') === 'RIFF' && bytes.subarray(8, 12).toString('latin1') === 'WEBP') return 'image/webp';
-  throw new ResearchAutomationValidationError('Ảnh bìa phải là JPEG, PNG hoặc WebP.');
-}
-
 /** dd/mm/yyyy in Vietnam time, shown in the reader footer only. */
 const builtOn = (at: Date): string => new Date(at.getTime() + 7 * 3_600_000).toISOString().slice(0, 10).split('-').reverse().join('/');
 
@@ -127,21 +120,32 @@ export class AutomationReaderReports {
     try { data = computeReaderReportData(input); }
     catch (error) { if (error instanceof ReaderReportInputError) throw new ResearchAutomationValidationError(error.message); throw error; }
 
-    const coverBytes = request.cover ? Buffer.from(request.cover.imageBase64, 'base64') : null;
-    const cover: CoverImage | null = coverBytes ? { bytes: coverBytes, mime: coverMime(coverBytes) } : null;
+    // Cover photo and profile are stored as artifacts first: the page is built only from stored, checked bytes.
+    let stored: StoredCoverImage | null = null, coverBytes: Buffer | null = null;
+    if (request.cover) {
+      coverBytes = Buffer.from(request.cover.imageBase64, 'base64');
+      try {
+        stored = await storeCoverImage(this.artifacts, coverBytes,
+          { licence: request.cover.licence, ...(request.cover.credit === undefined ? {} : { credit: request.cover.credit }) });
+      } catch (error) {
+        if (error instanceof ReaderAssetError) throw new ResearchAutomationValidationError(`Ảnh bìa không dùng được: ${error.message}.`);
+        throw error;
+      }
+    }
+    const cover: CoverImage | null = stored && coverBytes ? { bytes: coverBytes, mime: stored.mime } : null;
     const limitations = readerLimitationsFromDraft(context.marketSemantic, request.profile.status);
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true });
     let published;
     try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk }); }
     catch (error) { if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(error.message); throw error; }
-    const profile = await this.artifacts.put(json(request.profile));
-    const coverArtifact = coverBytes ? await this.artifacts.put(coverBytes) : null;
+    const profile = (await storeReaderProfile(this.artifacts, request.profile)).artifact;
     const record = await this.artifacts.put(json({
       contractVersion: 'reader-report-build-record-v1', builderVersion: READER_BUILDER_VERSION, revisionId,
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
       requestSha256: requestSha, profileSha256: profile.sha256, input, limitations,
-      cover: cover && coverArtifact && request.cover ? { sha256: coverArtifact.sha256, mime: cover.mime, licence: request.cover.licence, credit: request.cover.credit ?? null } : null,
+      cover: stored && request.cover ? { sha256: stored.coverSha256, imageSha256: stored.imageSha256, mime: stored.mime,
+        licence: request.cover.licence, credit: request.cover.credit ?? null } : null,
       charts: built.charts, htmlSha256: published.html.sha256, actorId: actor.actorId, createdAt,
     }));
 
@@ -155,13 +159,13 @@ export class AutomationReaderReports {
       }
       this.#manifest(published.html, 'text/html; charset=utf-8', createdAt);
       for (const a of [published.metrics, published.claims, profile, record]) this.#manifest(a, 'application/json', createdAt);
-      if (coverArtifact && cover) this.#manifest(coverArtifact, cover.mime, createdAt);
+      if (stored) { this.#manifest(stored.image, stored.mime, createdAt); this.#manifest(stored.sidecar, 'application/json', createdAt); }
       const next = Number((this.db.prepare('SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=?').get(context.runId) as { n: number | bigint }).n);
       this.db.prepare(`INSERT INTO analysis_reader_report_revisions(revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,
         draft_pair_id,metric_package_id,platforms,profile_status,input_sha256,profile_sha256,cover_sha256,html_sha256,metrics_sha256,claims_sha256,
         builder_version,actor_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         revisionId, context.workspaceId, context.runId, next, request.requestKey, requestSha, context.draftPairId, request.metricPackageId,
-        platforms.join(','), request.profile.status, record.sha256, profile.sha256, coverArtifact?.sha256 ?? null,
+        platforms.join(','), request.profile.status, record.sha256, profile.sha256, stored?.coverSha256 ?? null,
         published.html.sha256, published.metrics.sha256, published.claims.sha256, READER_BUILDER_VERSION, actor.actorId, createdAt);
       this.db.exec('COMMIT');
     } catch (error) {

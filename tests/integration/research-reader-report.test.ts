@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -163,4 +164,19 @@ test('limits carried from the draft are restated in plain words without section 
   ]);
   assert.deepEqual(readerLimitationsFromDraft({ sections: [], collectionOutcome: 'SUCCEEDED', limitations: [] }, 'approved'), []);
   assert.doesNotMatch(lines.join(' '), /M\d\d/);
+});
+
+test('reader build stores the cover photo with its licence sidecar and refuses a non-photo cover', async t => {
+  const f = await readyRun(t);
+  const png = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.alloc(24, 7)]);
+  const svg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg"></svg>', 'utf8');
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId,
+    f.build('10000000-0000-4000-8000-000000000c01', { cover: { imageBase64: svg.toString('base64'), licence: 'CC0' } }), owner), /Ảnh bìa không dùng được/);
+  const built = await f.service.buildReaderReport(workspaceId, runId,
+    f.build('10000000-0000-4000-8000-000000000c02', { cover: { imageBase64: png.toString('base64'), licence: 'owner-supplied', credit: 'Ảnh của chủ' } }), owner);
+  const row = f.db.prepare('SELECT cover_sha256 FROM analysis_reader_report_revisions WHERE revision_id=?').get(built.revision.revisionId) as { cover_sha256: string };
+  const media = (sha: string) => (f.db.prepare('SELECT media_type FROM artifact_manifests WHERE sha256=?').get(sha) as { media_type: string } | undefined)?.media_type;
+  assert.equal(media(row.cover_sha256), 'application/json', 'the revision names the licence sidecar');
+  assert.equal(media(createHash('sha256').update(png).digest('hex')), 'image/png');
+  assert.match((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8'), /data:image\/png;base64,/);
 });
