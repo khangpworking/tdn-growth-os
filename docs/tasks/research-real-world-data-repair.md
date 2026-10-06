@@ -65,7 +65,7 @@ Isolated Fedora, Node 24.15.0. No Windows tests/typechecks/builds.
 - Replay is a new private diagnostic projection, not a mutation or upgrade
   of the original run or a new provider acquisition.
 
-Private validation root: `/home/pkhang/.cache/tdn-research-fix-WziQpJ/`.
+Private validation root: `<private path on the test host, withheld>`.
 Original evidence remains in its original private audit directory, outside Git.
 
 ### Rendered diagnostic projection

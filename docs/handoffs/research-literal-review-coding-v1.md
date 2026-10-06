@@ -83,7 +83,7 @@ regressions and the actual automation service for failed-source/report replay;
 there are no new test-only production exports or source-text assertions.
 
 Private synthetic proof directories on Fedora:
-`/home/pkhang/.cache/tdn-content-slice-20261002-D2sz8L/synthetic-paired-reports-D3XV7u`
+`<private path on the test host, withheld>`
 and `synthetic-paired-reports-nskh3D` under the same parent. They contain
 synthetic databases, outputs and screenshots, not real provider evidence.
 No generated output or private review text is committed.

@@ -134,7 +134,7 @@ The verified package preserved every byte and an exact retry had zero mutations.
 It contains **zero semantic annotations** and is not wired into the live report.
 
 Private evidence (Fedora, owner-only, outside Git):
-`/home/pkhang/.cache/tdn-content-slice-20261002-D2sz8L/evidence/jelly-alternative-dami-v1/`.
+`<private path on the test host, withheld>`.
 
 - Raw dataset SHA-256: `d64c61171e6e15a5e103f342a7f37674dc399cbe88ed3781cedfd98a19da10a6`
 - Capture receipt SHA-256: `a05c5a86dcc47d8940fc1ab445aaeca64b1b0887fa82ee4f2f839f6771c6a2ad`
