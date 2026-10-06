@@ -37,6 +37,8 @@ const insightCodingApiSchema = await readSchema('contracts/api/research-automati
 const insightModelSchema = await readSchema('contracts/analysis/automation-insight-model.schema.json');
 const insightModelApiSchema = await readSchema('contracts/api/research-automation-insight-model-api.schema.json');
 const insightRevisionSchema = await readSchema('contracts/analysis/automation-insight-report-revision.schema.json');
+const readerInputSchema = await readSchema('contracts/analysis/reader-report-input.schema.json');
+const readerApiSchema = await readSchema('contracts/api/research-automation-reader-report-api.schema.json');
 const reportReviewTargetSchema = await readSchema('contracts/analysis/report-review-target.schema.json');
 const reportReviewTargetCreateRequestSchema = await readSchema('contracts/analysis/report-review-target-create-request.schema.json');
 const ownerReportReviewTargetApiSchema = await readSchema('contracts/api/owner-report-review-target-api.schema.json');
@@ -67,6 +69,8 @@ ajv.addSchema(insightCodingApiSchema);
 ajv.addSchema(insightModelSchema);
 ajv.addSchema(insightModelApiSchema);
 ajv.addSchema(insightRevisionSchema);
+ajv.addSchema(readerInputSchema);
+ajv.addSchema(readerApiSchema);
 ajv.addSchema(ownerReportReviewTargetApiSchema);
 
 const validatorRefs = {
@@ -93,6 +97,9 @@ const validatorRefs = {
   insightModelRequest: `${insightModelApiSchema.$id}#/$defs/request`,
   insightModelResponse: `${insightModelApiSchema.$id}#/$defs/response`,
   insightReportRevision: insightRevisionSchema.$id,
+  readerReportList: `${readerApiSchema.$id}#/$defs/list`,
+  readerReportDecision: `${readerApiSchema.$id}#/$defs/decisionRequest`,
+  readerReportDecisionReceipt: `${readerApiSchema.$id}#/$defs/decisionReceipt`,
   researchAutomationRun: `${researchAutomationApiSchema.$id}#/$defs/run`,
   researchAutomationRunList: `${researchAutomationApiSchema.$id}#/$defs/runList`,
   researchAutomationReceipt: `${researchAutomationApiSchema.$id}#/$defs/receipt`,

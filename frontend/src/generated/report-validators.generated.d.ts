@@ -38,6 +38,9 @@ export declare const insightCodingView: PrecompiledValidator;
 export declare const insightModelRequest: PrecompiledValidator;
 export declare const insightModelResponse: PrecompiledValidator;
 export declare const insightReportRevision: PrecompiledValidator;
+export declare const readerReportList: PrecompiledValidator;
+export declare const readerReportDecision: PrecompiledValidator;
+export declare const readerReportDecisionReceipt: PrecompiledValidator;
 
 export declare const interpretationIndex: PrecompiledValidator;
 export declare const interpretationDetail: PrecompiledValidator;
