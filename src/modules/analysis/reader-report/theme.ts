@@ -43,7 +43,7 @@ span.n{display:block;text-align:right;font-variant-numeric:tabular-nums;white-sp
 .scope>div{border:1px solid var(--line);border-radius:10px;padding:10px 14px}.scope span{display:block;font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.04em}.scope b{display:block;font-size:15px}.scope small{color:var(--mute)}
 .steps li,.trend li,.notes li{margin:5px 0}.keys small{color:var(--acc);white-space:nowrap}
 footer{color:var(--mute);font-size:13px;margin-top:30px}
-@media print{body{background:#fff}section,.box{break-inside:avoid}nav.toc{display:none}.ex table{min-width:0;width:100%}.ex td:last-child{min-width:0}}
+@media print{body{background:#fff}section,.box{break-inside:avoid}nav.toc{display:none}.ex table{min-width:0;width:100%}.ex td:last-child{min-width:0}table{font-size:12px}th,td{padding:4px 5px}td{overflow-wrap:anywhere}th span.n{white-space:normal}}
 `;
 export const CSS_COVER = `
 .cover{position:relative;isolation:isolate;display:flex;flex-direction:column;justify-content:flex-end;min-height:clamp(520px,80vh,700px);color:#fff;background:#0b2620 center 62%/cover no-repeat}
