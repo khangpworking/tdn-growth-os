@@ -4,8 +4,11 @@ export type MetricSourceManifest = {
   [k: string]: unknown;
 } & {
   contractVersion: '1.0.0';
-  profileId: 'metric-shopee-product-list-sheet1-v1' | 'metric-shopee-product-list-sheet1-v2';
-  profileVersion: '1.0.0' | '2.0.0';
+  profileId:
+    | 'metric-shopee-product-list-sheet1-v1'
+    | 'metric-shopee-product-list-sheet1-v2'
+    | 'metric-marketplace-product-list-sheet1-v3';
+  profileVersion: '1.0.0' | '2.0.0' | '3.0.0';
   source: {
     sha256: string;
     label: string;
@@ -24,6 +27,13 @@ export type MetricSourceManifest = {
   };
   labelCodebookVersion: string;
   wideUnknownPolicy: 'include' | 'exclude';
+  /**
+   * Combined v3 export only: data-row count per marketplace, by the product-id prefix.
+   */
+  platformRows?: {
+    shopee?: number;
+    tiktok?: number;
+  };
 };
 
 export interface Scope {

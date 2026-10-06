@@ -37,6 +37,7 @@ export class AutomationMetricSourceIntake {
         start: input.measurementPeriod.startDate, end: input.measurementPeriod.endDate,
         periodBasis: input.measurementPeriod.basis, acquiredAt: input.acquiredAt },
       precision: input.precision, labelCodebookVersion: 'unassigned-v1', wideUnknownPolicy: 'exclude',
+      ...(observed.platformRows ? { platformRows: observed.platformRows } : {}),
     };
     // Exact structural validation without preparation rows, labels or calculation.
     normalizeMetricWorkbookInput(workbook, json(manifest));

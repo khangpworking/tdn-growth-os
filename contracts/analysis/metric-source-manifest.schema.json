@@ -7,8 +7,8 @@
   "required": ["contractVersion", "profileId", "profileVersion", "source", "scope", "precision", "labelCodebookVersion", "wideUnknownPolicy"],
   "properties": {
     "contractVersion": {"const": "1.0.0"},
-    "profileId": {"enum": ["metric-shopee-product-list-sheet1-v1", "metric-shopee-product-list-sheet1-v2"]},
-    "profileVersion": {"enum": ["1.0.0", "2.0.0"]},
+    "profileId": {"enum": ["metric-shopee-product-list-sheet1-v1", "metric-shopee-product-list-sheet1-v2", "metric-marketplace-product-list-sheet1-v3"]},
+    "profileVersion": {"enum": ["1.0.0", "2.0.0", "3.0.0"]},
     "source": {
       "type": "object", "additionalProperties": false,
       "required": ["sha256", "label", "provenanceBasis", "evidenceFamily", "sheetName", "headerSha256", "lastRow"],
@@ -31,7 +31,15 @@
       }
     },
     "labelCodebookVersion": {"$ref": "metric-scope-input.schema.json#/properties/labelCodebookVersion"},
-    "wideUnknownPolicy": {"$ref": "metric-scope-input.schema.json#/properties/wideUnknownPolicy"}
+    "wideUnknownPolicy": {"$ref": "metric-scope-input.schema.json#/properties/wideUnknownPolicy"},
+    "platformRows": {
+      "description": "Combined v3 export only: data-row count per marketplace, by the product-id prefix.",
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "shopee": {"type": "integer", "minimum": 0},
+        "tiktok": {"type": "integer", "minimum": 0}
+      }
+    }
   },
   "allOf": [
     {
@@ -39,12 +47,19 @@
       "then": {"properties": {
         "profileVersion": {"const": "1.0.0"},
         "source": {"type": "object", "properties": {"headerSha256": {"const": "8c2bdf296db44d3ab32e4e67908a0385cc34960717270a38ae05e325f5127bba"}}}
-      }}
+      }, "not": {"properties": {"platformRows": true}, "required": ["platformRows"]}}
     },
     {
       "if": {"properties": {"profileId": {"const": "metric-shopee-product-list-sheet1-v2"}}},
       "then": {"properties": {
         "profileVersion": {"const": "2.0.0"},
+        "source": {"type": "object", "properties": {"headerSha256": {"const": "b5b493190917fac69bd1e2cf1aa618aae175a7fd314ec635e44bcf29aab6f7ac"}}}
+      }, "not": {"properties": {"platformRows": true}, "required": ["platformRows"]}}
+    },
+    {
+      "if": {"properties": {"profileId": {"const": "metric-marketplace-product-list-sheet1-v3"}}},
+      "then": {"required": ["platformRows"], "properties": {
+        "profileVersion": {"const": "3.0.0"},
         "source": {"type": "object", "properties": {"headerSha256": {"const": "b5b493190917fac69bd1e2cf1aa618aae175a7fd314ec635e44bcf29aab6f7ac"}}}
       }}
     }
