@@ -246,6 +246,44 @@
         "hasUnknownCost": { "type": "boolean" }
       }
     },
+    "aiActivity": {
+      "title": "ResearchAutomationAiActivity",
+      "description": "Recorded section activity across the initial run and all report revisions, not billed provider requests or business completion. Each field is absent when no execution was prepared; older servers may only supply I14.",
+      "type": "object", "additionalProperties": false, "minProperties": 1,
+      "properties": {
+        "m11": { "$ref": "#/$defs/aiActivity/properties/i14" },
+        "m12": { "$ref": "#/$defs/aiActivity/properties/i14" },
+        "i15": { "$ref": "#/$defs/aiActivity/properties/i14" },
+        "i14": {
+          "type": "object", "additionalProperties": false, "required": ["states", "outcomes", "billing"],
+          "properties": {
+            "states": {
+              "type": "object", "additionalProperties": false,
+              "required": ["prepared", "dispatching", "completed", "dispatchUnknown"],
+              "properties": {
+                "prepared": { "type": "integer", "minimum": 0 },
+                "dispatching": { "type": "integer", "minimum": 0 },
+                "completed": { "type": "integer", "minimum": 0 },
+                "dispatchUnknown": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "outcomes": {
+              "description": "Local response-validation outcomes, not business approval.",
+              "type": "object", "additionalProperties": false, "required": ["valid", "invalid"],
+              "properties": {
+                "valid": { "type": "integer", "minimum": 0 },
+                "invalid": { "type": "integer", "minimum": 0 }
+              }
+            },
+            "billing": {
+              "description": "UNKNOWN after any dispatch claim, including an uncertain outcome. No provider usage or billing receipt is available.",
+              "type": "object", "additionalProperties": false, "required": ["state"],
+              "properties": { "state": { "enum": ["NOT_DISPATCHED", "UNKNOWN"] } }
+            }
+          }
+        }
+      }
+    },
     "blocker": {
       "title": "ResearchAutomationBlocker",
       "type": "object", "additionalProperties": false,
@@ -298,6 +336,7 @@
         "productCards": { "type": "array", "items": { "$ref": "#/$defs/productCard" }, "maxItems": 24 },
         "coverage": { "$ref": "#/$defs/coverage" },
         "usage": { "$ref": "#/$defs/usage" },
+        "aiActivity": { "$ref": "#/$defs/aiActivity" },
         "steps": { "type": "array", "items": { "$ref": "#/$defs/step" }, "minItems": 3, "maxItems": 3 },
         "blockers": { "type": "array", "items": { "$ref": "#/$defs/blocker" }, "maxItems": 64 },
         "outputs": {

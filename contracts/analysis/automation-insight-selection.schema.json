@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-insight-selection.schema.json",
+  "title": "AutomationInsightSelection",
+  "description": "Exact indexes within one immutable located Insight proposal. Selection is not authenticated acceptance; the owning receipt must bind the proposal and adoption separately.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "i06", "i09", "i13Mentions", "corpora"],
+  "properties": {
+    "contractVersion": { "enum": ["automation-insight-selection-v1", "automation-insight-selection-v2"] },
+    "i02": { "$ref": "#/$defs/indexes" },
+    "i04": { "$ref": "#/$defs/indexes" },
+    "i05": { "$ref": "#/$defs/indexes" },
+    "i07": { "$ref": "#/$defs/indexes" },
+    "i08": { "$ref": "#/$defs/indexes" },
+    "i06": { "$ref": "#/$defs/indexes" },
+    "i09": { "$ref": "#/$defs/indexes" },
+    "i13Mentions": { "$ref": "#/$defs/indexes" },
+    "corpora": {
+      "type": "array", "maxItems": 100,
+      "items": {
+        "title": "InsightCorpusSelection", "type": "object", "additionalProperties": false,
+        "required": ["corpusIndex", "assignments", "dispositions"],
+        "properties": {
+          "corpusIndex": { "$ref": "#/$defs/index" },
+          "assignments": { "$ref": "#/$defs/indexes" },
+          "dispositions": { "$ref": "#/$defs/indexes" }
+        }
+      }
+    }
+  },
+  "if": { "properties": { "contractVersion": { "const": "automation-insight-selection-v2" } } },
+  "then": { "properties": { "i02": true, "i04": true, "i05": true, "i07": true, "i08": true }, "required": ["i02", "i04", "i05", "i07", "i08"] },
+  "else": { "properties": { "i02": false, "i04": false, "i05": false, "i07": false, "i08": false } },
+  "$defs": {
+    "index": { "type": "integer", "minimum": 0, "maximum": 9999 },
+    "indexes": { "type": "array", "maxItems": 10000, "uniqueItems": true, "items": { "$ref": "#/$defs/index" } }
+  }
+}

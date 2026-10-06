@@ -181,13 +181,38 @@ export class AutomationLocatedReviewBridge {
 
   /** Reads retained bytes and schema only; no current parser, rule file, calculator or provider. */
   async verify(untrusted: unknown, input: Input): Promise<AutomationLocatedReviewSnapshot> {
+    if (!untrusted || typeof untrusted !== 'object' || Array.isArray(untrusted) || json(untrusted).length > MAX_JSON_ARTIFACT_BYTES)
+      integrity('Located review snapshot is invalid.');
     if (untrusted && typeof untrusted === 'object' && 'contractVersion' in untrusted &&
         untrusted.contractVersion === 'automation-located-review-snapshot-v2') return this.#verifyProjection(untrusted, input);
     return this.#verifyProposal(untrusted, input);
   }
 
+  async readSnapshot(sourcePackage: AutomationLocatedReviewAdoptedSnapshot['sourcePackage'], input: Input): Promise<AutomationLocatedReviewAdoptedSnapshot> {
+    const retained = await this.#packages.readVerified(sourcePackage.packageId, BUDGET);
+    if (canonicalJson(sourcePackage) !== canonicalJson(packageIdentity(retained)))
+      integrity('Located declaration fallback package identity differs.');
+    const projection = parse(retained, PROJECTION) as ProjectionDocument;
+    const snapshot: AutomationLocatedReviewAdoptedSnapshot = {
+      contractVersion: 'automation-located-review-snapshot-v2',
+      runId: input.runId,
+      authorityState: 'ADOPTED_FOR_SOURCE_BOUND_DECLARATIONS',
+      proposal: parse(retained, PROPOSAL) as AutomationLocatedReviewProposalSnapshot,
+      sourcePackage,
+      projectionSha256: file(retained, PROJECTION).sha256,
+      projectionId: projection.projectionId,
+      policySha256: projection.policySha256,
+      projection: projection.projection,
+      output: parse(retained, PROJECTION_OUTPUT) as LocatedInsightMethods,
+    };
+    // The retained package is the bounded source of truth. Existing projection
+    // verification replays only frozen identities and bytes; it does not run
+    // the current parser, rules, model, or provider.
+    return this.#verifyProjection(snapshot, input);
+  }
+
   async #verifyProposal(untrusted: unknown, input: Input): Promise<AutomationLocatedReviewProposalSnapshot> {
-    if (!untrusted || typeof untrusted !== 'object' || Array.isArray(untrusted) || json(untrusted).length > MAX_JSON_ARTIFACT_BYTES)
+    if (!untrusted || typeof untrusted !== 'object' || Array.isArray(untrusted))
       integrity('Located review snapshot is invalid.');
     const snapshot = untrusted as AutomationLocatedReviewProposalSnapshot;
     if (Object.keys(snapshot).sort().join(',') !== 'authorityState,codingId,codingSha256,contractVersion,output,rulesSha256,runId,sourcePackage' ||
@@ -230,7 +255,7 @@ export class AutomationLocatedReviewBridge {
   }
 
   async #verifyProjection(untrusted: unknown, input: Input): Promise<AutomationLocatedReviewAdoptedSnapshot> {
-    if (!untrusted || typeof untrusted !== 'object' || Array.isArray(untrusted) || json(untrusted).length > MAX_JSON_ARTIFACT_BYTES)
+    if (!untrusted || typeof untrusted !== 'object' || Array.isArray(untrusted))
       integrity('Located projection snapshot is invalid.');
     const snapshot = untrusted as AutomationLocatedReviewAdoptedSnapshot;
     if (Object.keys(snapshot).sort().join(',') !== 'authorityState,contractVersion,output,policySha256,projection,projectionId,projectionSha256,proposal,runId,sourcePackage' ||

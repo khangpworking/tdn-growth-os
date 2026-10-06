@@ -1,0 +1,1277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-decision-packets.schema.json",
+  "title": "AutomationDecisionPackets",
+  "description": "Source-neutral M11/I15/M12 deterministic packets and their separate optional retained AI candidate envelopes. Structural and reference validation does not verify semantic truth or authenticate raw sources.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/packet"
+    },
+    {
+      "$ref": "#/$defs/candidates"
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 4000,
+      "pattern": "\\S"
+    },
+    "aiText": {
+      "description": "Untrusted layer-3 draft text. It must contain a non-space character and no Unicode number character; numeric facts stay application-owned claim bindings.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^\\P{N}*[^\\s\\p{N}]\\P{N}*$"
+    },
+    "unset": {
+      "description": "An owner input that was not supplied. This version admits no owner-authored value; AI output cannot complete it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "text"
+      ],
+      "properties": {
+        "state": {
+          "const": "UNSET"
+        },
+        "text": {
+          "type": "null"
+        }
+      }
+    },
+    "emptyOwnerList": {
+      "description": "Owner-authored entries. Always empty in this version; AI candidates never populate it.",
+      "type": "array",
+      "maxItems": 0,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "sourceClaimsBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "methodId",
+        "methodVersion",
+        "claimsSha256"
+      ],
+      "properties": {
+        "methodId": {
+          "const": "automation-source-claims"
+        },
+        "methodVersion": {
+          "const": "1.0.0"
+        },
+        "claimsSha256": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "admissionBinding": {
+      "description": "The exact I14 use-context admission rebuilt from the same claims. It is the CURRENT support adapter: its I02 anchors are the only claims this version lets a candidate cite as support. That is a temporary adapter coverage limit, not the business eligibility rule.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "methodId",
+        "methodVersion",
+        "admissionSha256"
+      ],
+      "properties": {
+        "methodId": {
+          "const": "automation-i14-evidence-admission"
+        },
+        "methodVersion": {
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
+        },
+        "admissionSha256": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "synthesisProfileSha256",
+        "adoptionSha256",
+        "policyRevision"
+      ],
+      "properties": {
+        "synthesisProfileSha256": {
+          "const": "5fd879f42d6c9c82cbc87710b69206aaac2fc8d6bac2da18ba158825f910225a"
+        },
+        "adoptionSha256": {
+          "const": "5c5d1ea4d6d8b8aebfbdc3d92cb51718351890184cc290aac82411722636b7e7"
+        },
+        "policyRevision": {
+          "const": "a41-source-neutral-decision-packets-v1"
+        }
+      }
+    },
+    "ownerQuestion": {
+      "$ref": "#/$defs/unset"
+    },
+    "packetItem": {
+      "title": "DecisionPacketItem",
+      "description": "A reference to one verified upstream claim; never a new fact. Statements, spans, values and bindings stay in the referenced claims artifact.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimId",
+        "sectionId",
+        "basis",
+        "evidenceKind",
+        "currentAdapterSupport",
+        "currentAdapterReason",
+        "encodedCounterevidenceSpans",
+        "encodedQualifierSpans"
+      ],
+      "properties": {
+        "claimId": {
+          "$ref": "#/$defs/digest"
+        },
+        "sectionId": {
+          "enum": [
+            "M05",
+            "I02",
+            "I04"
+          ]
+        },
+        "basis": {
+          "enum": [
+            "SOURCE_OBSERVED",
+            "DECLARED"
+          ]
+        },
+        "evidenceKind": {
+          "enum": [
+            "SOURCE_OBSERVATION",
+            "SELF_REPORTED_DECLARATION"
+          ]
+        },
+        "currentAdapterSupport": {
+          "description": "Whether the CURRENT I14 adapter admits the claim as candidate support. NOT_ADMITTED_BY_CURRENT_ADAPTER is adapter coverage, not a business finding that the claim cannot support a candidate.",
+          "enum": [
+            "USE_CONTEXT_ANCHOR",
+            "NOT_ADMITTED_BY_CURRENT_ADAPTER",
+            "OBSERVED_LITERAL",
+            "BEHAVIOR_WITH_USE_CONTEXT"
+          ]
+        },
+        "currentAdapterReason": {
+          "description": "The exact I14 unassigned reason, or null for an anchor. M05 and I04 reasons record what the current adapter does not encode.",
+          "anyOf": [
+            {
+              "enum": [
+                "NOT_A_LOCATED_DECLARATION",
+                "I04_BEHAVIOR_ALONE_IS_NOT_USE_CONTEXT",
+                "NO_SOURCE_STATED_USE_CONTEXT_FIELD",
+                "CONTEXT_FIELD_CONFLICTING",
+                "CONTEXT_QUALIFIER_SEMANTICS_NOT_ENCODED",
+                "OBSERVATION_IDENTIFICATION_INCOMPLETE",
+                "BEHAVIOR_CONTEXT_NOT_ADMITTED"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "encodedCounterevidenceSpans": {
+          "description": "Count of COUNTEREVIDENCE spans encoded on the claim. Zero means none encoded, not that none exists.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "encodedQualifierSpans": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contextClaimRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20000,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/digest"
+          }
+        }
+      }
+    },
+    "packetItems": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": {
+        "$ref": "#/$defs/packetItem"
+      }
+    },
+    "evidenceGaps": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "OWNER_QUESTION_UNSET",
+          "NO_ELIGIBLE_UPSTREAM_CLAIMS",
+          "NO_SOURCE_OBSERVATION_CLAIMS",
+          "NO_LOCATED_DECLARATION_CLAIMS",
+          "NO_ADMISSIBLE_SOURCE_STATED_USE_CONTEXT",
+          "CROSS_CLAIM_COUNTEREVIDENCE_NOT_ASSIGNED_WITHOUT_OWNER_HYPOTHESIS",
+          "UPSTREAM_CLAIM_ADAPTERS_LIMITED_TO_M05_I02_I04",
+          "SUPPORT_ADAPTER_COVERS_ONLY_I02_SOURCE_STATED_USE_CONTEXT",
+          "NO_ADMISSIBLE_DECISION_SUPPORT",
+          "SUPPORT_ADAPTER_ADMITS_LITERAL_OBSERVATIONS_AND_CONTAINED_BEHAVIOR_NOT_VERIFIED_PATTERNS"
+        ]
+      }
+    },
+    "candidateEligibility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule",
+        "status",
+        "insufficientEvidence"
+      ],
+      "properties": {
+        "rule": {
+          "enum": [
+            "CURRENT_ADAPTER_I14_SOURCE_STATED_USE_CONTEXT_ANCHORS_V1",
+            "LITERAL_OBSERVATION_AND_SOURCE_CONTEXT_DRAFT_SUPPORT_V2"
+          ]
+        },
+        "status": {
+          "enum": [
+            "SUPPORT_ANCHORS_AVAILABLE",
+            "INSUFFICIENT_EVIDENCE"
+          ]
+        },
+        "insufficientEvidence": {
+          "anyOf": [
+            {
+              "enum": [
+                "NO_ADMISSIBLE_SOURCE_STATED_USE_CONTEXT",
+                "NO_ADMISSIBLE_DECISION_SUPPORT"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "m11Packet": {
+      "title": "AutomationM11DecisionPacket",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "methodId",
+        "methodVersion",
+        "sectionId",
+        "runId",
+        "workspaceId",
+        "scopeSha256",
+        "sourceClaims",
+        "useContextAdmission",
+        "authority",
+        "ownerQuestion",
+        "ownerConstraints",
+        "ordering",
+        "status",
+        "insufficientEvidence",
+        "items",
+        "evidenceGaps",
+        "candidateEligibility",
+        "opportunity",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "methodId": {
+          "const": "automation-decision-packet"
+        },
+        "methodVersion": {
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
+        },
+        "sectionId": {
+          "const": "M11"
+        },
+        "runId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "scopeSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceClaims": {
+          "$ref": "#/$defs/sourceClaimsBinding"
+        },
+        "useContextAdmission": {
+          "$ref": "#/$defs/admissionBinding"
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "ownerQuestion": {
+          "$ref": "#/$defs/ownerQuestion"
+        },
+        "ownerConstraints": {
+          "$ref": "#/$defs/emptyOwnerList"
+        },
+        "ordering": {
+          "const": "CATALOG_SECTION_ORDER_M05_I02_I04_UNRANKED"
+        },
+        "status": {
+          "enum": [
+            "UNRANKED_EVIDENCE_INVENTORY",
+            "INSUFFICIENT_EVIDENCE"
+          ]
+        },
+        "insufficientEvidence": {
+          "anyOf": [
+            {
+              "const": "NO_ELIGIBLE_UPSTREAM_CLAIMS"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "items": {
+          "$ref": "#/$defs/packetItems"
+        },
+        "evidenceGaps": {
+          "$ref": "#/$defs/evidenceGaps"
+        },
+        "candidateEligibility": {
+          "$ref": "#/$defs/candidateEligibility"
+        },
+        "opportunity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ownerHypotheses",
+            "opportunityDefinition",
+            "size",
+            "weights",
+            "risk",
+            "expectedReturn",
+            "priority"
+          ],
+          "properties": {
+            "ownerHypotheses": {
+              "$ref": "#/$defs/emptyOwnerList"
+            },
+            "opportunityDefinition": {
+              "$ref": "#/$defs/unset"
+            },
+            "size": {
+              "$ref": "#/$defs/unset"
+            },
+            "weights": {
+              "$ref": "#/$defs/unset"
+            },
+            "risk": {
+              "$ref": "#/$defs/unset"
+            },
+            "expectedReturn": {
+              "$ref": "#/$defs/unset"
+            },
+            "priority": {
+              "type": "null"
+            }
+          }
+        },
+        "limitations": {
+          "$ref": "#/$defs/limitations"
+        }
+      }
+    },
+    "i15Packet": {
+      "title": "AutomationI15DecisionPacket",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "methodId",
+        "methodVersion",
+        "sectionId",
+        "runId",
+        "workspaceId",
+        "scopeSha256",
+        "sourceClaims",
+        "useContextAdmission",
+        "authority",
+        "ownerQuestion",
+        "ownerConstraints",
+        "ordering",
+        "status",
+        "insufficientEvidence",
+        "items",
+        "evidenceGaps",
+        "candidateEligibility",
+        "strategy",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "methodId": {
+          "const": "automation-decision-packet"
+        },
+        "methodVersion": {
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
+        },
+        "sectionId": {
+          "const": "I15"
+        },
+        "runId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "scopeSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceClaims": {
+          "$ref": "#/$defs/sourceClaimsBinding"
+        },
+        "useContextAdmission": {
+          "$ref": "#/$defs/admissionBinding"
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "ownerQuestion": {
+          "$ref": "#/$defs/ownerQuestion"
+        },
+        "ownerConstraints": {
+          "$ref": "#/$defs/emptyOwnerList"
+        },
+        "ordering": {
+          "const": "CATALOG_SECTION_ORDER_M05_I02_I04_UNRANKED"
+        },
+        "status": {
+          "enum": [
+            "UNRANKED_EVIDENCE_INVENTORY",
+            "INSUFFICIENT_EVIDENCE"
+          ]
+        },
+        "insufficientEvidence": {
+          "anyOf": [
+            {
+              "const": "NO_ELIGIBLE_UPSTREAM_CLAIMS"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "items": {
+          "$ref": "#/$defs/packetItems"
+        },
+        "evidenceGaps": {
+          "$ref": "#/$defs/evidenceGaps"
+        },
+        "candidateEligibility": {
+          "$ref": "#/$defs/candidateEligibility"
+        },
+        "strategy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ownerOptions",
+            "objective",
+            "horizon",
+            "riskAppetite",
+            "tradeOffWeights",
+            "capability",
+            "cost",
+            "reviewTrigger",
+            "preferredOption"
+          ],
+          "properties": {
+            "ownerOptions": {
+              "$ref": "#/$defs/emptyOwnerList"
+            },
+            "objective": {
+              "$ref": "#/$defs/unset"
+            },
+            "horizon": {
+              "$ref": "#/$defs/unset"
+            },
+            "riskAppetite": {
+              "$ref": "#/$defs/unset"
+            },
+            "tradeOffWeights": {
+              "$ref": "#/$defs/unset"
+            },
+            "capability": {
+              "$ref": "#/$defs/unset"
+            },
+            "cost": {
+              "$ref": "#/$defs/unset"
+            },
+            "reviewTrigger": {
+              "$ref": "#/$defs/unset"
+            },
+            "preferredOption": {
+              "type": "null"
+            }
+          }
+        },
+        "limitations": {
+          "$ref": "#/$defs/limitations"
+        }
+      }
+    },
+    "m12Packet": {
+      "title": "AutomationM12DecisionPacket",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "methodId",
+        "methodVersion",
+        "sectionId",
+        "runId",
+        "workspaceId",
+        "scopeSha256",
+        "sourceClaims",
+        "useContextAdmission",
+        "authority",
+        "ownerQuestion",
+        "ownerConstraints",
+        "ordering",
+        "status",
+        "insufficientEvidence",
+        "items",
+        "evidenceGaps",
+        "candidateEligibility",
+        "action",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "methodId": {
+          "const": "automation-decision-packet"
+        },
+        "methodVersion": {
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
+        },
+        "sectionId": {
+          "const": "M12"
+        },
+        "runId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "scopeSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceClaims": {
+          "$ref": "#/$defs/sourceClaimsBinding"
+        },
+        "useContextAdmission": {
+          "$ref": "#/$defs/admissionBinding"
+        },
+        "authority": {
+          "$ref": "#/$defs/authority"
+        },
+        "ownerQuestion": {
+          "$ref": "#/$defs/ownerQuestion"
+        },
+        "ownerConstraints": {
+          "$ref": "#/$defs/emptyOwnerList"
+        },
+        "ordering": {
+          "const": "CATALOG_SECTION_ORDER_M05_I02_I04_UNRANKED"
+        },
+        "status": {
+          "enum": [
+            "UNRANKED_EVIDENCE_INVENTORY",
+            "INSUFFICIENT_EVIDENCE"
+          ]
+        },
+        "insufficientEvidence": {
+          "anyOf": [
+            {
+              "const": "NO_ELIGIBLE_UPSTREAM_CLAIMS"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "items": {
+          "$ref": "#/$defs/packetItems"
+        },
+        "evidenceGaps": {
+          "$ref": "#/$defs/evidenceGaps"
+        },
+        "candidateEligibility": {
+          "$ref": "#/$defs/candidateEligibility"
+        },
+        "action": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decisionState",
+            "ownerOptions",
+            "accountableOwner",
+            "budget",
+            "capability",
+            "risk",
+            "criteria",
+            "timing",
+            "chosen",
+            "executionAuthorization"
+          ],
+          "properties": {
+            "decisionState": {
+              "const": "OPEN"
+            },
+            "ownerOptions": {
+              "$ref": "#/$defs/emptyOwnerList"
+            },
+            "accountableOwner": {
+              "$ref": "#/$defs/unset"
+            },
+            "budget": {
+              "$ref": "#/$defs/unset"
+            },
+            "capability": {
+              "$ref": "#/$defs/unset"
+            },
+            "risk": {
+              "$ref": "#/$defs/unset"
+            },
+            "criteria": {
+              "$ref": "#/$defs/unset"
+            },
+            "timing": {
+              "$ref": "#/$defs/unset"
+            },
+            "chosen": {
+              "type": "null"
+            },
+            "executionAuthorization": {
+              "type": "null"
+            }
+          }
+        },
+        "limitations": {
+          "$ref": "#/$defs/limitations"
+        }
+      }
+    },
+    "packet": {
+      "title": "AutomationDecisionPacket",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/m11Packet"
+        },
+        {
+          "$ref": "#/$defs/i15Packet"
+        },
+        {
+          "$ref": "#/$defs/m12Packet"
+        }
+      ]
+    },
+    "supportRefs": {
+      "description": "Exact upstream claim ids that the CURRENT adapter admits as use-context anchors of the bound packet. Candidate ids or indexes are not evidence.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/digest"
+      }
+    },
+    "counterevidenceRefs": {
+      "description": "Exact upstream claim ids of the bound packet proposed as counterevidence. Each needs exactly one counterevidenceRelations entry. Empty means none was supplied, not that no counterevidence exists.",
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/digest"
+      }
+    },
+    "requiredAiTexts": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/aiText"
+      }
+    },
+    "optionalAiTexts": {
+      "type": "array",
+      "maxItems": 10,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/aiText"
+      }
+    },
+    "counterevidenceRelation": {
+      "title": "DecisionCounterevidenceRelation",
+      "description": "A PROPOSED layer-3 draft saying how one referenced upstream claim may counter this candidate. It is not a verified counterclaim, a new source claim or owner input. Only the claim reference and the exact target binding are machine-checked. Whether the claim counters the target, and every compatibility statement, are unverified human-review drafts, not machine proof.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "claimRef",
+        "relationType",
+        "relationStatus",
+        "layer",
+        "counteredTarget",
+        "compatibility",
+        "inferentialLimitations"
+      ],
+      "properties": {
+        "claimRef": {
+          "description": "Exactly one entry of this candidate's counterevidenceRefs, unchanged.",
+          "$ref": "#/$defs/digest"
+        },
+        "relationType": {
+          "const": "PROPOSED_COUNTEREVIDENCE"
+        },
+        "relationStatus": {
+          "const": "HUMAN_REVIEW_REQUIRED"
+        },
+        "layer": {
+          "const": 3
+        },
+        "counteredTarget": {
+          "description": "The candidate assertion or assumption this claim may counter, copied exactly from this candidate's text or one of its assumptions.",
+          "$ref": "#/$defs/aiText"
+        },
+        "compatibility": {
+          "description": "Draft statement per dimension of whether the referenced claim and the countered target concern a compatible entity, measure, unit, period, scope and denominator, or the explicit unresolved mismatch. Unverified; not machine proof.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "entity",
+            "measure",
+            "unit",
+            "period",
+            "scope",
+            "denominator"
+          ],
+          "properties": {
+            "entity": {
+              "$ref": "#/$defs/aiText"
+            },
+            "measure": {
+              "$ref": "#/$defs/aiText"
+            },
+            "unit": {
+              "$ref": "#/$defs/aiText"
+            },
+            "period": {
+              "$ref": "#/$defs/aiText"
+            },
+            "scope": {
+              "$ref": "#/$defs/aiText"
+            },
+            "denominator": {
+              "$ref": "#/$defs/aiText"
+            }
+          }
+        },
+        "inferentialLimitations": {
+          "$ref": "#/$defs/requiredAiTexts"
+        }
+      }
+    },
+    "counterevidenceRelations": {
+      "description": "Exactly one relation per distinct counterevidenceRefs entry. A claim without a retained relation is separate context, not counterevidence.",
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": {
+        "$ref": "#/$defs/counterevidenceRelation"
+      }
+    },
+    "hypothesisCandidate": {
+      "title": "DecisionHypothesisCandidate",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateType",
+        "candidateStatus",
+        "layer",
+        "text",
+        "conciseEvidenceLinkedRationale",
+        "citedClaimRefs",
+        "counterevidenceRefs",
+        "counterevidenceRelations",
+        "assumptions",
+        "unknowns",
+        "evidenceGaps",
+        "limitations"
+      ],
+      "properties": {
+        "candidateType": {
+          "enum": [
+            "HYPOTHESIS",
+            "OPPORTUNITY_DIRECTION"
+          ]
+        },
+        "candidateStatus": {
+          "const": "HUMAN_REVIEW_REQUIRED"
+        },
+        "layer": {
+          "const": 3
+        },
+        "text": {
+          "$ref": "#/$defs/aiText"
+        },
+        "conciseEvidenceLinkedRationale": {
+          "$ref": "#/$defs/aiText"
+        },
+        "citedClaimRefs": {
+          "$ref": "#/$defs/supportRefs"
+        },
+        "counterevidenceRefs": {
+          "$ref": "#/$defs/counterevidenceRefs"
+        },
+        "counterevidenceRelations": {
+          "$ref": "#/$defs/counterevidenceRelations"
+        },
+        "assumptions": {
+          "$ref": "#/$defs/requiredAiTexts"
+        },
+        "unknowns": {
+          "$ref": "#/$defs/optionalAiTexts"
+        },
+        "evidenceGaps": {
+          "$ref": "#/$defs/optionalAiTexts"
+        },
+        "limitations": {
+          "$ref": "#/$defs/requiredAiTexts"
+        }
+      }
+    },
+    "strategyOptionCandidate": {
+      "title": "DecisionStrategyOptionCandidate",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateType",
+        "candidateStatus",
+        "layer",
+        "text",
+        "conciseEvidenceLinkedRationale",
+        "citedClaimRefs",
+        "counterevidenceRefs",
+        "counterevidenceRelations",
+        "conditions",
+        "assumptions",
+        "unknowns",
+        "evidenceGaps",
+        "limitations"
+      ],
+      "properties": {
+        "candidateType": {
+          "const": "STRATEGY_OPTION"
+        },
+        "candidateStatus": {
+          "const": "HUMAN_REVIEW_REQUIRED"
+        },
+        "layer": {
+          "const": 3
+        },
+        "text": {
+          "$ref": "#/$defs/aiText"
+        },
+        "conciseEvidenceLinkedRationale": {
+          "$ref": "#/$defs/aiText"
+        },
+        "citedClaimRefs": {
+          "$ref": "#/$defs/supportRefs"
+        },
+        "counterevidenceRefs": {
+          "$ref": "#/$defs/counterevidenceRefs"
+        },
+        "counterevidenceRelations": {
+          "$ref": "#/$defs/counterevidenceRelations"
+        },
+        "conditions": {
+          "description": "Conditions the option depends on while owner objective, cost, capability and horizon remain unknown. Not a feasibility or preference assertion.",
+          "$ref": "#/$defs/requiredAiTexts"
+        },
+        "assumptions": {
+          "$ref": "#/$defs/requiredAiTexts"
+        },
+        "unknowns": {
+          "$ref": "#/$defs/optionalAiTexts"
+        },
+        "evidenceGaps": {
+          "$ref": "#/$defs/optionalAiTexts"
+        },
+        "limitations": {
+          "$ref": "#/$defs/requiredAiTexts"
+        }
+      }
+    },
+    "actionOptionCandidate": {
+      "title": "DecisionActionOptionCandidate",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "candidateType",
+        "candidateStatus",
+        "layer",
+        "text",
+        "conciseEvidenceLinkedRationale",
+        "citedClaimRefs",
+        "counterevidenceRefs",
+        "counterevidenceRelations",
+        "prerequisites",
+        "assumptions",
+        "unknowns",
+        "evidenceGaps",
+        "limitations"
+      ],
+      "properties": {
+        "candidateType": {
+          "const": "ACTION_OPTION"
+        },
+        "candidateStatus": {
+          "const": "HUMAN_REVIEW_REQUIRED"
+        },
+        "layer": {
+          "const": 3
+        },
+        "text": {
+          "$ref": "#/$defs/aiText"
+        },
+        "conciseEvidenceLinkedRationale": {
+          "$ref": "#/$defs/aiText"
+        },
+        "citedClaimRefs": {
+          "$ref": "#/$defs/supportRefs"
+        },
+        "counterevidenceRefs": {
+          "$ref": "#/$defs/counterevidenceRefs"
+        },
+        "counterevidenceRelations": {
+          "$ref": "#/$defs/counterevidenceRelations"
+        },
+        "prerequisites": {
+          "description": "What must be true or decided before the proposed operation could be considered. No actor, budget, deadline, choice or execution is assigned.",
+          "$ref": "#/$defs/requiredAiTexts"
+        },
+        "assumptions": {
+          "$ref": "#/$defs/requiredAiTexts"
+        },
+        "unknowns": {
+          "$ref": "#/$defs/optionalAiTexts"
+        },
+        "evidenceGaps": {
+          "$ref": "#/$defs/optionalAiTexts"
+        },
+        "limitations": {
+          "$ref": "#/$defs/requiredAiTexts"
+        }
+      }
+    },
+    "packetBinding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "methodId",
+        "methodVersion",
+        "packetSha256"
+      ],
+      "properties": {
+        "methodId": {
+          "const": "automation-decision-packet"
+        },
+        "methodVersion": {
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
+        },
+        "packetSha256": {
+          "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "candidateInsufficientEvidence": {
+      "anyOf": [
+        {
+          "enum": [
+            "NO_ADMISSIBLE_SOURCE_STATED_USE_CONTEXT",
+            "NO_ADMISSIBLE_DECISION_SUPPORT"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "structural",
+        "semantic"
+      ],
+      "properties": {
+        "structural": {
+          "const": "SCHEMA_AND_REFERENCES_PASSED"
+        },
+        "semantic": {
+          "const": "NOT_VERIFIED_HUMAN_REVIEW_REQUIRED"
+        }
+      }
+    },
+    "m11Candidates": {
+      "title": "AutomationM11DecisionCandidates",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "methodId",
+        "methodVersion",
+        "sectionId",
+        "runId",
+        "workspaceId",
+        "scopeSha256",
+        "packet",
+        "insufficientEvidence",
+        "aiCandidates",
+        "validation",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "methodId": {
+          "const": "automation-decision-candidates"
+        },
+        "methodVersion": {
+          "const": "1.0.0"
+        },
+        "sectionId": {
+          "const": "M11"
+        },
+        "runId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "scopeSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "packet": {
+          "$ref": "#/$defs/packetBinding"
+        },
+        "insufficientEvidence": {
+          "$ref": "#/$defs/candidateInsufficientEvidence"
+        },
+        "aiCandidates": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/hypothesisCandidate"
+          }
+        },
+        "validation": {
+          "$ref": "#/$defs/validation"
+        },
+        "limitations": {
+          "$ref": "#/$defs/limitations"
+        }
+      }
+    },
+    "i15Candidates": {
+      "title": "AutomationI15DecisionCandidates",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "methodId",
+        "methodVersion",
+        "sectionId",
+        "runId",
+        "workspaceId",
+        "scopeSha256",
+        "packet",
+        "insufficientEvidence",
+        "aiCandidates",
+        "validation",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "methodId": {
+          "const": "automation-decision-candidates"
+        },
+        "methodVersion": {
+          "const": "1.0.0"
+        },
+        "sectionId": {
+          "const": "I15"
+        },
+        "runId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "scopeSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "packet": {
+          "$ref": "#/$defs/packetBinding"
+        },
+        "insufficientEvidence": {
+          "$ref": "#/$defs/candidateInsufficientEvidence"
+        },
+        "aiCandidates": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/strategyOptionCandidate"
+          }
+        },
+        "validation": {
+          "$ref": "#/$defs/validation"
+        },
+        "limitations": {
+          "$ref": "#/$defs/limitations"
+        }
+      }
+    },
+    "m12Candidates": {
+      "title": "AutomationM12DecisionCandidates",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "methodId",
+        "methodVersion",
+        "sectionId",
+        "runId",
+        "workspaceId",
+        "scopeSha256",
+        "packet",
+        "insufficientEvidence",
+        "aiCandidates",
+        "validation",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "methodId": {
+          "const": "automation-decision-candidates"
+        },
+        "methodVersion": {
+          "const": "1.0.0"
+        },
+        "sectionId": {
+          "const": "M12"
+        },
+        "runId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "scopeSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "packet": {
+          "$ref": "#/$defs/packetBinding"
+        },
+        "insufficientEvidence": {
+          "$ref": "#/$defs/candidateInsufficientEvidence"
+        },
+        "aiCandidates": {
+          "type": "array",
+          "maxItems": 20,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/actionOptionCandidate"
+          }
+        },
+        "validation": {
+          "$ref": "#/$defs/validation"
+        },
+        "limitations": {
+          "$ref": "#/$defs/limitations"
+        }
+      }
+    },
+    "candidates": {
+      "title": "AutomationDecisionCandidates",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/m11Candidates"
+        },
+        {
+          "$ref": "#/$defs/i15Candidates"
+        },
+        {
+          "$ref": "#/$defs/m12Candidates"
+        }
+      ]
+    }
+  }
+}

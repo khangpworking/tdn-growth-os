@@ -1,11 +1,67 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
+import automationApiSchema from '../../../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
+import sourceConfirmSchema from '../../../../contracts/api/research-automation-source-api.schema.json' with { type: 'json' };
+import sourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set.schema.json' with { type: 'json' };
+import revisionSchema from '../../../../contracts/analysis/automation-report-revision.schema.json' with { type: 'json' };
+import classifiedRevisionSchema from '../../../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
+import insightRevisionSchema from '../../../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+import boundedRevisionSchema from '../../../../contracts/analysis/automation-bounded-report-revision.schema.json' with { type: 'json' };
+import type { AutomationBoundedReportRevisionRequest } from '../../../../contracts/analysis/automation-bounded-report-revision.generated.js';
+import type { AutomationBoundedMethodSnapshot } from '../../../../contracts/analysis/automation-bounded-method-snapshot.generated.js';
+import { buildAutomationBoundedMethods, verifyAutomationBoundedMethods } from './bounded-methods.js';
+import quoteRevisionSchema from '../../../../contracts/analysis/automation-quote-report-revision.schema.json' with { type: 'json' };
+import type { AutomationQuoteReportRevisionRequest } from '../../../../contracts/analysis/automation-quote-report-revision.generated.js';
+import type { AutomationQuoteMethodSnapshot } from '../../../../contracts/analysis/automation-quote-method-snapshot.generated.js';
+import { buildAutomationQuoteMethods, verifyAutomationQuoteMethods } from './quote-methods.js';
+import type { AutomationDecisionPacket } from '../../../../contracts/analysis/automation-decision-packets.generated.js';
+import { buildAutomationDecisionPacket, verifyAutomationDecisionPacket, type AutomationDecisionPacketInput, type AutomationDecisionSectionId } from './decision-packets.js';
+import { AutomationDecisionSynthesisExecutions, type AutomationDecisionExecutionRequest, type AutomationDecisionExecutionOutcome } from './decision-synthesis-execution.js';
+import type { AutomationInsightReportRevisionRequest } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
+import type { AutomationInsightCodingSnapshot } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
+import type { AutomationClassifiedReportRevisionRequest } from '../../../../contracts/analysis/automation-classified-report-revision.generated.js';
+import type { AutomationClassifiedMetricSnapshot } from '../../../../contracts/analysis/automation-classified-metric.generated.js';
+import { AutomationClassifiedMetric } from './classified-metric.js';
+import metricIntakeSchema from '../../../../contracts/api/research-automation-metric-intake-api.schema.json' with { type: 'json' };
+import supplementalIntakeSchema from '../../../../contracts/api/research-automation-supplemental-intake-api.schema.json' with { type: 'json' };
+import foundationIntakeSchema from '../../../../contracts/foundation/source-package-intake-request.schema.json' with { type: 'json' };
+import type { ResearchAutomationSupplementalPrepareRequest, ResearchAutomationSupplementalPrepareReceipt, ResearchAutomationSupplementalPreparedList } from '../../../../contracts/api/research-automation-supplemental-intake-api.generated.js';
+import { AutomationSupplementalSourceIntake } from './supplemental-source-intake.js';
+import { readPreparedSupplementalSources, verifyPreparedSupplementalSource } from './supplemental-source-inventory.js';
+import m01ReferenceSchema from '../../../../contracts/analysis/automation-m01-inventory-reference.schema.json' with { type: 'json' };
+import type { AutomationM01InventoryReference } from '../../../../contracts/analysis/automation-m01-inventory-reference.generated.js';
+import type { AutomationM01EvidenceInventory } from '../../../../contracts/analysis/automation-m01-evidence-inventory.generated.js';
+import { buildAutomationM01EvidenceInventory, MAX_M01_EVIDENCE_INVENTORY_BYTES } from './m01-evidence-inventory.js';
+import i14ReferenceSchema from '../../../../contracts/analysis/automation-i14-admission-reference.schema.json' with { type: 'json' };
+import type { AutomationI14AdmissionReference } from '../../../../contracts/analysis/automation-i14-admission-reference.generated.js';
+import type { AutomationI14EvidenceAdmission } from '../../../../contracts/analysis/automation-i14-evidence-admission.generated.js';
+import { automationI14AdmissionVersion, buildAutomationI14EvidenceAdmission, MAX_I14_EVIDENCE_ADMISSION_BYTES } from './i14-evidence-admission.js';
+import { AutomationI14SynthesisExecutions, type AutomationI14ExecutionRequest, type AutomationI14ExecutionOutcome, type AutomationI14ExecutionParent } from './i14-synthesis-execution.js';
+import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricList } from '../../../../contracts/api/research-automation-metric-intake-api.generated.js';
+import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
+import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
+import { AutomationMetricMembership, type MetricMembershipContext } from './metric-membership.js';
+import { AutomationInsightCoding, type InsightSourceContext } from './insight-coding.js';
+import type { AutomationMetricRuleAdoptionList, AutomationMetricRuleAdoptionReceipt } from '../../../../contracts/analysis/automation-metric-rule-adoption.generated.js';
+import { readPreparedMetricSources } from './metric-source-inventory.js';
+import { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
+import { SourcePackageService } from '../../foundation/source-package-service.js';
+import { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
+import type { AutomationReportRevisionRequest as SourceReportRevisionRequest } from '../../../../contracts/analysis/automation-report-revision.generated.js';
+type AutomationReportRevisionRequest = SourceReportRevisionRequest | AutomationClassifiedReportRevisionRequest | AutomationInsightReportRevisionRequest | AutomationBoundedReportRevisionRequest | AutomationQuoteReportRevisionRequest;
+import type { ResearchAutomationReportPair, ResearchAutomationRevisionReceipt } from '../../../../contracts/api/research-automation-revision-api.generated.js';
+export type { ResearchAutomationReportPair, ResearchAutomationRevisionReceipt } from '../../../../contracts/api/research-automation-revision-api.generated.js';
+import type { AutomationConfirmedSourceSet } from '../../../../contracts/analysis/automation-confirmed-source-set.generated.js';
+import type { ResearchAutomationSourceConfirmRequest } from '../../../../contracts/api/research-automation-source-api.generated.js';
 import type Database from 'better-sqlite3';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
 import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
-import { AutomationMetricMethodBridge, type AutomationMetricMethodSnapshot } from './metric-method-bridge.js';
+import { AutomationMetricMethodBridge, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
-import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot } from './native-source-review-bridge.js';
+import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot, type NativeSourceReviewReference } from './native-source-review-bridge.js';
+import { buildAutomationSourceClaims, validateAutomationSourceClaimsReference, MAX_SOURCE_CLAIMS_BYTES } from './source-claims.js';
+import type { AutomationSourceClaims } from '../../../../contracts/analysis/automation-source-claims.generated.js';
 import { AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory } from './exact-shopee-bridge.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
@@ -66,11 +122,19 @@ export interface ResearchAutomationReportInput {
   readonly scope: ScopeSnapshot;
   readonly collection: StepResultDocument | null;
   readonly captures: readonly CaptureRecord[];
+  readonly sourceClaims?: AutomationSourceClaims;
+  readonly decisionPackets?: readonly AutomationDecisionPacket[];
+  readonly decisionSourceClaims?: AutomationSourceClaims;
+  readonly decisionSynthesis?: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionOutcome>>;
+  readonly m01Inventory?: AutomationM01EvidenceInventory;
+  readonly i14Admission?: AutomationI14EvidenceAdmission;
+  readonly i14Synthesis?: AutomationI14ExecutionOutcome;
   readonly descriptiveMethods?: DescriptiveMarketMethods;
   readonly descriptiveMethodFailure?: 'DESCRIPTIVE_METHOD_FAILED';
   readonly reviewCorpus?: ResearchReviewCorpus;
   readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
   readonly locatedReview?: AutomationLocatedReviewSnapshot;
+  readonly locatedReviewFallback?: { readonly sourcePackage: Extract<AutomationLocatedReviewSnapshot, { contractVersion: 'automation-located-review-snapshot-v2' }>['sourcePackage'] };
   readonly nativeReview?: NativeSourceReviewSnapshot;
   readonly nativeReviewFallback?: Pick<NativeSourceReviewSnapshot, 'sourcePackage'>;
   readonly nativeReviewFailure?: 'NATIVE_REVIEW_METHOD_FAILED' | 'NATIVE_REVIEW_REPORT_TOO_LARGE';
@@ -78,7 +142,11 @@ export interface ResearchAutomationReportInput {
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
   readonly metricMethods?: AutomationMetricMethodSnapshot;
-  readonly metricMethodsFailure?: 'METRIC_METHOD_FAILED';
+  readonly metricClassified?: AutomationClassifiedMetricSnapshot;
+  readonly insightCoding?: AutomationInsightCodingSnapshot;
+  readonly boundedMethods?: AutomationBoundedMethodSnapshot;
+  readonly quoteMethods?: AutomationQuoteMethodSnapshot;
+  readonly metricMethodsFailure?: MetricMethodFailureCode;
 }
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
@@ -106,6 +174,12 @@ export interface ResearchAutomationServiceOptions {
   readonly uuid?: () => string;
   readonly actorId?: string;
   readonly shopeeCollectorFactory?: ShopeeCollectorFactory;
+  /** Request-owned staging for explicit source intake and rule adoption. Never used by report workers. */
+  readonly metricAttachmentStore?: RequestScopedArtifactStore;
+  /** Explicit Analysis-owned transport. No provider is activated by default. */
+  readonly i14SynthesisAi?: AutomationI14ExecutionRequest['ai'];
+  /** Each additional section is separately opted in; I14 configuration grants no extra calls. */
+  readonly decisionSynthesisAi?: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionRequest['ai']>>;
 }
 
 export interface ResearchAutomationReadReport {
@@ -119,11 +193,17 @@ interface RunRow {
   runId: string; workspaceId: string; revision: bigint | number; status: ResearchAutomationRun['status']; mode: ResearchAutomationRun['mode'];
   keyword: string; periodStart: string; periodEnd: string; reports: string; startSha: string; scopeSha: string | null;
   scopeConfirmedAt: string | null; actorId: string; createdAt: string; updatedAt: string;
+  sourceSetSha: string | null;
 }
 interface StepRow { runId: string; stepId: StepId; state: ResearchAutomationRun['steps'][number]['state']; code: string | null; resultSha: string | null; startedAt: string | null; finishedAt: string | null }
 interface CaptureRow { stepId: SourceStepId; ordinal: bigint | number; artifactSha: string; mediaType: string; provider: string; operation: string; retrievedAt: string; windowStart: string | null; windowEnd: string | null; truncated: number | bigint }
 interface UsageRow { stepId: SourceStepId; ordinal: bigint | number; provider: string; operation: string; requestCount: bigint | number; costState: 'KNOWN' | 'UNKNOWN'; costUnit: 'USD' | 'CREDITS' | null; costAmount: string | null }
 interface OutputRow { reportKind: 'MARKET' | 'INSIGHT'; versionSha: string; htmlSha: string; pdfSha: string | null; pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }
+interface AttemptRow {
+  attemptId: string; runId: string; attemptNumber: number | bigint; previousPairId: string;
+  requestSha: string; sourceSetSha: string; state: 'QUEUED' | 'RUNNING' | 'COMMITTED' | 'FAILED' | 'CANCELLED';
+  versionNumber: number | bigint | null; pairId: string | null; createdAt: string;
+}
 interface PersistableSourceResult {
   readonly unsettledProvider?: string;
   result: BoundQuickSearchResult['result'] | BoundCollectResult['result'] | null;
@@ -136,6 +216,23 @@ const DATE = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
 const CONTROL = /[\u0000-\u001f\u007f]/;
 const LONG_CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
 const MAX_BODY_TEXT = 2_000;
+const require = createRequire(import.meta.url);
+const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
+const sourceAjv = new Ajv2020({ strict: true, allErrors: true });
+addFormats(sourceAjv);
+sourceAjv.addSchema(automationApiSchema);
+const validateSourceConfirm = sourceAjv.compile<ResearchAutomationSourceConfirmRequest>(sourceConfirmSchema);
+const validateSourceSet = sourceAjv.compile<AutomationConfirmedSourceSet>(sourceSetSchema);
+sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchema); sourceAjv.addSchema(insightRevisionSchema); sourceAjv.addSchema(boundedRevisionSchema); sourceAjv.addSchema(quoteRevisionSchema);
+const validateRevision = sourceAjv.compile<AutomationReportRevisionRequest>({ oneOf: [{ $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
+const validateM01Reference = sourceAjv.compile<AutomationM01InventoryReference>(m01ReferenceSchema);
+const validateI14Reference = sourceAjv.compile<AutomationI14AdmissionReference>(i14ReferenceSchema);
+sourceAjv.addSchema(metricIntakeSchema);
+const validateMetricPrepare = sourceAjv.compile<ResearchAutomationMetricPrepareRequest>({ $ref: `${metricIntakeSchema.$id}#/$defs/request` });
+sourceAjv.addSchema([foundationIntakeSchema, supplementalIntakeSchema]);
+const validateSupplementalPrepare = sourceAjv.compile<ResearchAutomationSupplementalPrepareRequest>({ $ref: `${supplementalIntakeSchema.$id}#/$defs/request` });
+interface FrozenSources { sha256: string; value: AutomationConfirmedSourceSet; nativeReference?: NativeSourceReviewReference }
 
 export class ResearchAutomationService {
   readonly #db: Database.Database;
@@ -152,6 +249,16 @@ export class ResearchAutomationService {
   readonly #shopee: AutomationExactShopeeBridge;
   readonly #marketInventory: AutomationMarketMethodBridge;
   readonly #metricMethods: AutomationMetricMethodBridge;
+  readonly #metricIntake: AutomationMetricSourceIntake | undefined;
+  readonly #supplementalIntake: AutomationSupplementalSourceIntake | undefined;
+  readonly #metricRules: AutomationMetricRuleAdoptions;
+  readonly #metricMembership: AutomationMetricMembership;
+  readonly #insightCoding: AutomationInsightCoding;
+  readonly #classifiedMetric: AutomationClassifiedMetric;
+  readonly #i14Executions: AutomationI14SynthesisExecutions;
+  readonly #i14Ai: AutomationI14ExecutionRequest['ai'];
+  readonly #decisionExecutions: Record<AutomationDecisionSectionId, AutomationDecisionSynthesisExecutions>;
+  readonly #decisionAi: NonNullable<ResearchAutomationServiceOptions['decisionSynthesisAi']>;
   readonly #active = new Map<string, AbortController>();
 
   constructor(options: ResearchAutomationServiceOptions) {
@@ -163,12 +270,44 @@ export class ResearchAutomationService {
     this.#now = options.now ?? (() => new Date());
     this.#uuid = options.uuid ?? randomUUID;
     this.#actorId = options.actorId ?? 'research-automation-worker';
+    this.#i14Executions = new AutomationI14SynthesisExecutions({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+    this.#i14Ai = options.i14SynthesisAi ?? null;
+    this.#decisionAi = options.decisionSynthesisAi ?? {};
+    this.#decisionExecutions = {
+      M11: new AutomationDecisionSynthesisExecutions({ db: this.#db, artifactStore: this.#artifacts, now: this.#now, sectionId: 'M11' }),
+      M12: new AutomationDecisionSynthesisExecutions({ db: this.#db, artifactStore: this.#artifacts, now: this.#now, sectionId: 'M12' }),
+      I15: new AutomationDecisionSynthesisExecutions({ db: this.#db, artifactStore: this.#artifacts, now: this.#now, sectionId: 'I15' }),
+    };
     this.#methods = new AutomationDescriptiveMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#locatedReviews = new AutomationLocatedReviewBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#nativeReviews = new AutomationNativeSourceReviewBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#shopee = new AutomationExactShopeeBridge(this.#db, this.#artifacts, options.shopeeCollectorFactory);
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#metricMethods = new AutomationMetricMethodBridge({ db: this.#db, artifactStore: this.#artifacts, workspaces: this.#workspaces, now: this.#now });
+    if (options.metricAttachmentStore) this.#metricIntake = new AutomationMetricSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
+    if (options.metricAttachmentStore) this.#supplementalIntake = new AutomationSupplementalSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
+    this.#metricRules = new AutomationMetricRuleAdoptions(this.#db, this.#artifacts, options.metricAttachmentStore, this.#now);
+    this.#metricMembership = new AutomationMetricMembership({ db: this.#db, artifacts: this.#artifacts, now: this.#now,
+      ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}),
+      context: (workspaceId, runId, pairId, adoptionId) => this.#metricMembershipContext(workspaceId, runId, pairId, adoptionId),
+      assertCurrent: async context => {
+        const { workspaceId, runId, pairId, adoptionId } = context.binding;
+        const versions = await this.listReportVersions(workspaceId, runId);
+        const rules = await this.listMetricRuleAdoptions(workspaceId, runId);
+        if (versions.at(-1)?.pairId !== pairId || rules.adoptions.some(item => item.adoptionId !== adoptionId &&
+            item.rulebook.ruleId === context.adoption.request.rulebook.ruleId && item.rulebook.revision > context.adoption.request.rulebook.revision))
+          throw new ResearchAutomationConflictError('revision_conflict', 'The report or rule revision changed before assignment acceptance.');
+      },
+    });
+    this.#classifiedMetric = new AutomationClassifiedMetric(this.#metricMembership);
+    this.#insightCoding = new AutomationInsightCoding({ db: this.#db, artifacts: this.#artifacts, now: this.#now,
+      ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}),
+      context: (workspaceId, runId, pairId) => this.readInsightSourceContext(workspaceId, runId, pairId),
+      assertCurrent: async binding => {
+        if ((await this.listReportVersions(binding.workspaceId, binding.runId)).at(-1)?.pairId !== binding.pairId)
+          throw new ResearchAutomationConflictError('revision_conflict', 'The Insight report changed before coding confirmation.');
+      },
+    });
   }
 
   /** Explicit owner start. Workspace verification happens before any artifact or DB write. */
@@ -206,8 +345,150 @@ export class ResearchAutomationService {
     });
   }
 
+  /** An inert prepared export. The next confirmation/revision must explicitly select its exact package ID. */
+  async prepareMetricSource(workspaceId: string, runId: string, value: unknown, bytes: Uint8Array): Promise<ResearchAutomationMetricPrepareReceipt> {
+    assertUuid(workspaceId); assertUuid(runId);
+    if (!validateMetricPrepare(value) || !REQUEST_KEY.test(value.requestKey)) throw new ResearchAutomationValidationError('Invalid source preparation request.');
+    if (bytes.byteLength < 1 || bytes.byteLength > MAX_METRIC_UPLOAD_BYTES) throw new ResearchAutomationValidationError('Workbook size is outside the bounded upload profile.');
+    const input = JSON.parse(canonicalJson(value)) as ResearchAutomationMetricPrepareRequest;
+    const workbook = Buffer.from(bytes);
+    const period = input.measurementPeriod;
+    if (period.startDate > period.endDate) throw new ResearchAutomationValidationError('Source period is invalid.');
+    const declaration = validateConfirm({ ...input.scope, contractVersion: 'research-automation-confirm-v1', requestKey: input.requestKey, expectedRevision: input.expectedRevision });
+    const { contractVersion: _version, requestKey: _key, expectedRevision: _revision, ...normalizedScope } = declaration;
+    input.scope = normalizedScope;
+    if (!this.#metricIntake) throw new ResearchAutomationStateError('Source upload is unavailable on this handle.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const current = await this.#requireRun(workspaceId, runId);
+      const prior = this.#metricIntake!.hasRequest(runId, input.requestKey);
+      if (!prior && current.revision !== input.expectedRevision) throw new ResearchAutomationConflictError('revision_conflict', 'The run changed before source preparation.');
+      const row = this.#current(runId)!;
+      const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+      if (period.startDate < start.requestedPeriod.startDate || period.endDate > start.requestedPeriod.endDate)
+        throw new ResearchAutomationValidationError('The declared source period must lie within the research period.');
+      const scope: ScopeSnapshot = { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, ...normalizedScope };
+      if (row.scopeSha) {
+        if (canonicalJson(scope) !== canonicalJson(await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId)))
+          throw new ResearchAutomationConflictError('revision_conflict', 'Changing confirmed scope requires a new research run.');
+        if (!prior && ['FAILED', 'CANCELLED', 'INTERRUPTED'].includes(current.status)) throw new ResearchAutomationStateError('This terminal run cannot receive a new prepared source.');
+      } else {
+        if (!prior && current.status !== 'AWAITING_SCOPE') throw new ResearchAutomationStateError('Prepare sources while the run is awaiting scope.');
+        for (const id of [...scope.selectedProductIds, ...scope.peerProductIds]) if (!current.productCards.some(card => card.productId === id))
+          throw new ResearchAutomationValidationError('Source scope products must belong to this run.');
+      }
+      return this.#metricIntake!.prepare(input, workbook, { runId, start, scope });
+    });
+  }
+
+  /** Supplemental uploads bind to the immutable confirmed scope, never to a client-authored run identity. */
+  async prepareSupplementalSource(workspaceId: string, runId: string, value: unknown,
+    files: ReadonlyMap<string, Uint8Array>): Promise<ResearchAutomationSupplementalPrepareReceipt> {
+    assertUuid(workspaceId); assertUuid(runId);
+    if (!validateSupplementalPrepare(value) || !REQUEST_KEY.test(value.requestKey)) throw new ResearchAutomationValidationError('Invalid supplemental preparation request.');
+    const input = JSON.parse(canonicalJson(value)) as ResearchAutomationSupplementalPrepareRequest;
+    const retainedFiles = new Map([...files].map(([file, bytes]) => [file, Buffer.from(bytes)]));
+    if (!this.#supplementalIntake) throw new ResearchAutomationStateError('Source upload is unavailable on this handle.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const current = await this.#requireRun(workspaceId, runId);
+      const prior = this.#supplementalIntake!.hasRequest(runId, input.family, input.requestKey);
+      if (!prior && current.status !== 'DRAFT_READY') throw new ResearchAutomationConflictError('revision_conflict', 'Prepare supplemental sources after the original reports are available.');
+      const row = this.#current(runId)!;
+      if (!row.scopeSha) throw new ResearchAutomationConflictError('revision_conflict', 'A confirmed scope is required.');
+      const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+      const scope = await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+      return this.#supplementalIntake!.prepare(input, retainedFiles, { runId, start, scope });
+    });
+  }
+
+  async listPreparedMetricSources(workspaceId: string, runId: string): Promise<ResearchAutomationPreparedMetricList> {
+    assertUuid(workspaceId); assertUuid(runId);
+    await this.#requireRun(workspaceId, runId);
+    const row = this.#current(runId)!;
+    const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+    const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    return { contractVersion: 'automation-prepared-metric-list-v1', workspaceId, runId,
+      sources: await readPreparedMetricSources(reader, this.#metricMethods, { runId, start }, validateMetricPrepare) };
+  }
+
+  async listPreparedSupplementalSources(workspaceId: string, runId: string): Promise<ResearchAutomationSupplementalPreparedList> {
+    assertUuid(workspaceId); assertUuid(runId);
+    await this.#requireRun(workspaceId, runId);
+    const row = this.#current(runId)!;
+    if (!row.scopeSha) return { contractVersion: 'automation-supplemental-prepared-list-v1', workspaceId, runId, packages: [] };
+    const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+    const scope = await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+    return readPreparedSupplementalSources(this.#boundedSourceReader(), { runId, start, scope });
+  }
+
+  async adoptMetricRule(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<AutomationMetricRuleAdoptionReceipt> {
+    return withDatabaseMutationMutex(this.#db, async () => this.#metricRules.adopt(await this.#metricRuleBinding(workspaceId, runId), value, actor));
+  }
+
+  async proposeMetricMembership(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    const result = await this.#metricMembership.propose(workspaceId, runId, value, actor);
+    return { contractVersion: 'metric-membership-mutation-v1' as const, kind: 'PROPOSAL' as const, id: result.evidence.proposalId, exactRetry: result.exactRetry };
+  }
+
+  async acceptMetricMembership(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    const result = await this.#metricMembership.accept(workspaceId, runId, value, actor);
+    return { contractVersion: 'metric-membership-mutation-v1' as const, kind: 'ACCEPTANCE' as const, id: result.evidence.receiptId, exactRetry: result.exactRetry };
+  }
+
+  async readMetricMembership(workspaceId: string, runId: string, pairId: string, adoptionId: string) {
+    return this.#metricMembership.review(workspaceId, runId, pairId, adoptionId);
+  }
+
+  async readMetricMembershipProposal(workspaceId: string, runId: string, proposalId: string) {
+    const value = await this.#metricMembership.readProposal(proposalId, workspaceId, runId);
+    return { contractVersion: 'metric-membership-proposal-view-v1' as const, proposalId, workspaceId, runId,
+      pairId: value.binding.pairId, adoptionId: value.binding.adoptionId, createdAt: value.createdAt, assignments: value.request.assignments };
+  }
+
+  async readMetricMembershipReceipt(workspaceId: string, runId: string, receiptId: string) {
+    const value = await this.#metricMembership.readReceipt(receiptId, workspaceId, runId);
+    return { contractVersion: 'metric-membership-acceptance-view-v1' as const, receiptId, workspaceId, runId,
+      proposalId: value.request.proposalId, acceptedAt: value.acceptedAt, selectedRecordKeys: value.request.selectedRecordKeys };
+  }
+
+  async #metricMembershipContext(workspaceId: string, runId: string, pairId: string, adoptionId: string): Promise<MetricMembershipContext> {
+    assertUuid(adoptionId);
+    if (!/^[0-9a-f]{64}$/.test(pairId)) throw new ResearchAutomationValidationError('Invalid exact report pair.');
+    const ruleBinding = await this.#metricRuleBinding(workspaceId, runId);
+    const adoption = await this.#metricRules.read(ruleBinding, adoptionId);
+    // This reuses the owning historical report reader, including exact source/method verification.
+    const report = await this.readReport(workspaceId, runId, 'MARKET', false, pairId);
+    const semantic = await this.#readJson<Record<string, unknown>>(report.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!semantic.metricMethods) throw new ResearchAutomationConflictError('invalid_state', 'This exact report has no verified Metric preparation.');
+    const methods = semantic.metricMethods as AutomationMetricMethodSnapshot;
+    return { binding: { workspaceId, runId, pairId, adoptionId, adoptionSha256: digest(adoption),
+      preparationSha256: methods.preparation.preparationSha256, inputSha256: methods.preparation.normalizedInput.valueSha256,
+      sourcePackageId: methods.originalSourcePackage.packageId, scopeSha256: ruleBinding.scopeSha256 }, input: methods.result.input, adoption };
+  }
+
+  async listMetricRuleAdoptions(workspaceId: string, runId: string): Promise<AutomationMetricRuleAdoptionList> {
+    const binding = await this.#metricRuleBinding(workspaceId, runId);
+    return { contractVersion: 'automation-metric-rule-list-v1', workspaceId, runId, adoptions: await this.#metricRules.list(binding) };
+  }
+
+  async getMetricRuleAdoption(workspaceId: string, runId: string, adoptionId: string): Promise<AutomationMetricRuleAdoptionReceipt> {
+    assertUuid(adoptionId);
+    const artifact = await this.#metricRules.read(await this.#metricRuleBinding(workspaceId, runId), adoptionId);
+    return { contractVersion: 'automation-metric-rule-receipt-v1', adoptionId, workspaceId, runId,
+      adoptedAt: artifact.adoptedAt, rulebook: artifact.request.rulebook, exactRetry: false };
+  }
+
+  async #metricRuleBinding(workspaceId: string, runId: string): Promise<MetricRuleBinding> {
+    assertUuid(workspaceId); assertUuid(runId);
+    await this.#requireRun(workspaceId, runId);
+    const row = this.#current(runId)!;
+    if (!row.scopeSha || !row.scopeConfirmedAt) throw new ResearchAutomationStateError('Confirm the research scope before adopting Metric rules.');
+    await this.#readStartSnapshot(row.startSha, workspaceId);
+    await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+    return { workspaceId, runId, startSha256: row.startSha, scopeSha256: row.scopeSha };
+  }
+
   async confirmScope(workspaceId: string, runId: string, value: unknown): Promise<ResearchAutomationMutationReceipt> {
-    const input = validateConfirm(value);
+    const input = validateScopeConfirmation(value);
     assertUuid(workspaceId); assertUuid(runId);
     const requestSha = digest({ kind: 'CONFIRM', workspaceId, runId, input });
     return withDatabaseMutationMutex(this.#db, async () => {
@@ -223,15 +504,51 @@ export class ResearchAutomationService {
       const scope: ScopeSnapshot = { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: input.definition,
         includeTerms: [...input.includeTerms], excludeTerms: [...input.excludeTerms], selectedProductIds: [...input.selectedProductIds], peerProductIds: [...input.peerProductIds],
         ...(input.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...input.exactShopeeUrls] } : {}) };
+      const row = this.#current(runId)!;
+      const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+      const bound = { runId, start, scope, scopeConfirmedAt: confirmedAt };
+      let metric: AutomationConfirmedSourceSet['metric'] | undefined;
+      let native: AutomationConfirmedSourceSet['nativeReview'] | undefined;
+      let referenceArtifact: StoredArtifact | undefined;
+      if (input.contractVersion === 'research-automation-confirm-v2') {
+        metric = input.sources.metric.decision === 'USE_PREPARED'
+          ? { decision: 'ADMITTED', sourcePackage: await this.#metricMethods.inspectPrepared(bound, input.sources.metric.packageId) }
+          : { decision: input.sources.metric.decision };
+        if (input.sources.nativeReview === 'SKIP') native = { decision: 'SKIPPED' };
+        else {
+          const resolved = await this.#nativeReviews.resolve(bound);
+          if (resolved.state === 'AMBIGUOUS' || resolved.state === 'UNSUPPORTED_SCOPE')
+            throw new ResearchAutomationValidationError('Choose an unambiguous supported retained review scope before confirmation.');
+          if (resolved.state === 'RESOLVED') {
+            await this.#nativeReviews.readReference(resolved.reference, bound);
+            referenceArtifact = await this.#putJson(resolved.reference, confirmedAt);
+            native = { decision: 'RESOLVED', referenceSha256: referenceArtifact.sha256 };
+          } else native = { decision: 'NONE' };
+        }
+      }
       const stored = await this.#putJson(scope, confirmedAt);
+      const sourceSet: AutomationConfirmedSourceSet | undefined = metric && native ? {
+        contractVersion: 'automation-confirmed-source-set-v1', runId, workspaceId, executionId: randomUUID(),
+        startSha256: row.startSha, scopeSha256: stored.sha256, requestSha256: requestSha, confirmedAt, metric, nativeReview: native,
+      } : undefined;
+      if (sourceSet && !validateSourceSet(sourceSet)) throw new ResearchAutomationIntegrityError('Confirmed source set is invalid.');
+      const sourceSetArtifact = sourceSet ? await this.#putJson(sourceSet, confirmedAt) : undefined;
       this.#db.transaction(() => {
         this.#registerManifest(stored, 'application/json', confirmedAt);
-        this.#db.prepare(`UPDATE analysis_research_automation_runs SET revision=revision+1,status='COLLECTION_QUEUED',scope_request_sha256=?,scope_confirmed_at=?,updated_at=? WHERE run_id=? AND revision=?`)
-          .run(stored.sha256, confirmedAt, confirmedAt, runId, input.expectedRevision);
+        if (sourceSetArtifact) this.#registerManifest(sourceSetArtifact, 'application/json', confirmedAt);
+        const change = this.#db.prepare(`UPDATE analysis_research_automation_runs SET revision=revision+1,status='COLLECTION_QUEUED',scope_request_sha256=?,scope_confirmed_at=?,updated_at=?,confirmed_source_set_sha256=? WHERE run_id=? AND revision=? AND status='AWAITING_SCOPE'`)
+          .run(stored.sha256, confirmedAt, confirmedAt, sourceSetArtifact?.sha256 ?? null, runId, input.expectedRevision);
+        if (change.changes !== 1) throw new ResearchAutomationConflictError('revision_conflict', 'The run changed; reload it before confirming scope.');
         this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='QUEUED' WHERE run_id=? AND step_id='COLLECTION'`).run(runId);
         this.#db.prepare(`INSERT INTO analysis_research_automation_requests(request_key,run_id,request_kind,request_sha256,accepted_at) VALUES (?,?,?,?,?)`)
           .run(input.requestKey, runId, 'CONFIRM', requestSha, confirmedAt);
-      })();
+        if (sourceSet && sourceSetArtifact) {
+          if (referenceArtifact) this.#registerManifest(referenceArtifact, 'application/json', confirmedAt);
+          this.#registerManifest(sourceSetArtifact, 'application/json', confirmedAt);
+          this.#db.prepare(`INSERT INTO analysis_research_automation_source_sets(run_id,execution_id,source_set_sha256,request_key,request_sha256,start_sha256,scope_sha256,confirmed_at) VALUES (?,?,?,?,?,?,?,?)`)
+            .run(runId, sourceSet.executionId, sourceSetArtifact.sha256, input.requestKey, requestSha, row.startSha, stored.sha256, confirmedAt);
+        }
+      }).immediate();
       return { contractVersion: 'research-automation-receipt-v1', exactRetry: false, run: await this.getRun(workspaceId, runId) };
     });
   }
@@ -288,7 +605,7 @@ export class ResearchAutomationService {
   async getRun(workspaceId: string, runId: string): Promise<ResearchAutomationRun> {
     assertUuid(workspaceId); assertUuid(runId);
     const row = this.#db.prepare(`SELECT run_id runId,workspace_id workspaceId,revision,status,mode,keyword,period_start periodStart,period_end periodEnd,reports,
-      start_request_sha256 startSha,scope_request_sha256 scopeSha,scope_confirmed_at scopeConfirmedAt,actor_id actorId,created_at createdAt,updated_at updatedAt
+      start_request_sha256 startSha,scope_request_sha256 scopeSha,scope_confirmed_at scopeConfirmedAt,confirmed_source_set_sha256 sourceSetSha,actor_id actorId,created_at createdAt,updated_at updatedAt
       FROM analysis_research_automation_runs WHERE run_id=? AND workspace_id=?`).get(runId, workspaceId) as RunRow | undefined;
     if (!row) {
       await this.#readWorkspace(workspaceId);
@@ -297,9 +614,228 @@ export class ResearchAutomationService {
     return this.#projection(row);
   }
 
-  async readReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf = false): Promise<ResearchAutomationReadReport> {
+  async listReportVersions(workspaceId: string, runId: string): Promise<readonly ResearchAutomationReportPair[]> {
+    await this.getRun(workspaceId, runId);
+    const run = this.#current(runId)!;
+    const original = this.#originalPair(run);
+    if (!original) return [];
+    const result: ResearchAutomationReportPair[] = [original];
+    const attempts = this.#db.prepare(`SELECT attempt_id attemptId FROM analysis_research_automation_attempts WHERE run_id=? AND state='COMMITTED' ORDER BY version_number`).all(runId) as { attemptId: string }[];
+    let previous = original.pairId;
+    for (const item of attempts) {
+      const attempt = this.#attempt(item.attemptId)!;
+      if (attempt.previousPairId !== previous || toNumber(attempt.versionNumber!) !== result.length + 1)
+        throw new ResearchAutomationIntegrityError('Report revision chain is inconsistent.');
+      const pair = await this.#readAttemptPair(run, attempt);
+      result.push(pair); previous = pair.pairId;
+    }
+    return result;
+  }
+
+  async getReportRevision(workspaceId: string, runId: string, attemptId: string): Promise<ResearchAutomationRevisionReceipt> {
+    assertUuid(attemptId);
+    await this.getRun(workspaceId, runId);
+    const run = this.#current(runId)!;
+    const attempt = this.#attempt(attemptId);
+    if (!attempt || attempt.runId !== runId) throw new ResearchAutomationNotFoundError('report_not_available', 'Report revision not found.');
+    await this.#readAttemptSources(run, attempt);
+    this.#previousAttempt(run, attempt);
+    if (attempt.state === 'COMMITTED') await this.#readAttemptPair(run, attempt);
+    return revisionReceipt(attempt, false);
+  }
+
+  /** Durable restoration of active/settled attempts, independent of browser memory. */
+  async listReportAttempts(workspaceId: string, runId: string): Promise<readonly ResearchAutomationRevisionReceipt[]> {
+    await this.getRun(workspaceId, runId);
+    const identities = this.#db.prepare(`SELECT attempt_id attemptId FROM analysis_research_automation_attempts WHERE run_id=? ORDER BY attempt_number LIMIT 101`)
+      .all(runId) as { attemptId: string }[];
+    if (identities.length > 100) throw new ResearchAutomationValidationError('Report attempt inventory exceeds the supported read bound.');
+    const receipts: ResearchAutomationRevisionReceipt[] = [];
+    for (const identity of identities) {
+      const receipt = await this.getReportRevision(workspaceId, runId, identity.attemptId);
+      if (receipt.attemptNumber !== receipts.length + 1) throw new ResearchAutomationIntegrityError('Report attempt sequence is inconsistent.');
+      receipts.push(receipt);
+    }
+    if (receipts.filter(receipt => receipt.state === 'QUEUED' || receipt.state === 'RUNNING').length > 1)
+      throw new ResearchAutomationIntegrityError('Multiple report attempts are active.');
+    return receipts;
+  }
+
+  /** Supplemental rendering never performs source collection or changes the original run. */
+  async requestReportRevision(workspaceId: string, runId: string, value: unknown): Promise<ResearchAutomationRevisionReceipt> {
+    if (!validateRevision(value) || !REQUEST_KEY.test(value.requestKey))
+      throw new ResearchAutomationValidationError('Report revision request is invalid.');
+    const input: AutomationReportRevisionRequest = JSON.parse(canonicalJson(value));
+    if ('acceptedMetric' in input) input.acceptedMetric.receiptIds.sort();
+    if ('acceptedInsight' in input) input.acceptedInsight.receiptIds.sort();
+    const requestSha = digest(input);
+    return withDatabaseMutationMutex(this.#db, async () => {
+      await this.getRun(workspaceId, runId);
+      const previousRequest = this.#attemptRequest(input.requestKey);
+      if (previousRequest) {
+        const prior = this.#attempt(previousRequest.attemptId)!;
+        if (previousRequest.kind !== 'CREATE' || previousRequest.sha !== requestSha || prior.runId !== runId)
+          throw new ResearchAutomationConflictError('request_key_conflict', 'This request key is bound to another revision.');
+        await this.#readAttemptSources(this.#current(runId)!, prior);
+        if (prior.state === 'COMMITTED') await this.#readAttemptPair(this.#current(runId)!, prior);
+        if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, input.previousPairId, input.acceptedInsight);
+        if ('boundedMethods' in input) await this.#loadBoundedMethods(this.#current(runId)!, input);
+        if ('quoteMethods' in input) await this.#loadQuoteMethods(this.#current(runId)!, input);
+        return revisionReceipt(prior, true);
+      }
+      const run = this.#current(runId)!;
+      if (run.status !== 'DRAFT_READY' || !run.scopeSha || !run.scopeConfirmedAt)
+        throw new ResearchAutomationStateError('Finish the original report before requesting another version.');
+      const versions = await this.listReportVersions(workspaceId, runId);
+      const previous = versions.at(-1)!;
+      if (previous.pairId !== input.previousPairId)
+        throw new ResearchAutomationConflictError('revision_conflict', 'The selected report version is no longer current.');
+      if (this.#db.prepare(`SELECT 1 FROM analysis_research_automation_attempts WHERE run_id=? AND state IN ('QUEUED','RUNNING')`).get(runId))
+        throw new ResearchAutomationConflictError('invalid_state', 'Another report revision is pending.');
+      for (const output of previous.outputs) await this.readReport(workspaceId, runId, output.kind, false, previous.pairId);
+      if ('acceptedMetric' in input) await this.#classifiedMetric.project(workspaceId, runId, previous.pairId, input.acceptedMetric, true);
+      if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, previous.pairId, input.acceptedInsight, true);
+      if ('boundedMethods' in input) await this.#loadBoundedMethods(run, input);
+      if ('quoteMethods' in input) await this.#loadQuoteMethods(run, input);
+      const start = await this.#readStartSnapshot(run.startSha, workspaceId);
+      const scope = await this.#readScopeSnapshot(run.scopeSha, workspaceId, runId);
+      const bound = { runId, start, scope, scopeConfirmedAt: run.scopeConfirmedAt };
+      const priorAttempt = previous.attemptId ? this.#attempt(previous.attemptId)! : undefined;
+      const priorSources = priorAttempt ? await this.#readAttemptSources(run, priorAttempt) : await this.#readFrozenSources(run);
+      let metric: AutomationConfirmedSourceSet['metric'];
+      if (input.sources.metric.decision === 'USE_PREPARED')
+        metric = { decision: 'ADMITTED', sourcePackage: await this.#metricMethods.inspectPrepared(bound, input.sources.metric.packageId) };
+      else if (input.sources.metric.decision === 'SKIP') metric = { decision: 'SKIPPED' };
+      else if (priorSources) metric = priorSources.value.metric;
+      else {
+        const originalOutput = this.#output(runId, 'MARKET');
+        const semantic = originalOutput ? await this.#readJson<Record<string, unknown>>(originalOutput.versionSha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : undefined;
+        metric = semantic && isRecord(semantic.metricMethods) ? { decision: 'ADMITTED', sourcePackage: (semantic.metricMethods as unknown as AutomationMetricMethodSnapshot).originalSourcePackage } : { decision: 'ABSENT' };
+      }
+      let nativeReference: NativeSourceReviewReference | undefined;
+      let nativeReview: AutomationConfirmedSourceSet['nativeReview'];
+      if (input.sources.nativeReview.decision === 'SKIP') nativeReview = { decision: 'SKIPPED' };
+      else {
+        nativeReference = input.sources.nativeReview.decision === 'USE_PACKAGE'
+          ? await this.#nativeReviews.resolvePackage(bound, input.sources.nativeReview.packageId)
+          : priorSources ? priorSources.nativeReference : (await this.#stepDocument(runId, 'COLLECTION'))?.nativeReview;
+        if (nativeReference) {
+          await this.#nativeReviews.readReference(nativeReference, bound);
+          nativeReview = { decision: 'RESOLVED', referenceSha256: digest(nativeReference) };
+        } else nativeReview = priorSources?.value.nativeReview ?? { decision: 'NONE' };
+      }
+      const attemptId = randomUUID();
+      const sources: AutomationConfirmedSourceSet = { contractVersion: 'automation-confirmed-source-set-v1', runId, workspaceId,
+        executionId: attemptId, startSha256: run.startSha, scopeSha256: run.scopeSha, requestSha256: requestSha,
+        confirmedAt: run.scopeConfirmedAt, metric, nativeReview };
+      await this.#verifySourceDocument(run, sources, nativeReference);
+      const at = this.#now().toISOString();
+      const requestArtifact = await this.#putJson(input, at);
+      const sourceArtifact = await this.#putJson(sources, at);
+      const referenceArtifact = nativeReference ? await this.#putJson(nativeReference, at) : undefined;
+      this.#db.transaction(() => {
+        const currentPair = this.#db.prepare(`SELECT pair_sha256 pairId FROM analysis_research_automation_attempts WHERE run_id=? AND state='COMMITTED' ORDER BY version_number DESC LIMIT 1`).get(runId) as { pairId: string } | undefined;
+        if ((currentPair?.pairId ?? this.#originalPair(run)?.pairId) !== previous.pairId)
+          throw new ResearchAutomationConflictError('revision_conflict', 'The report predecessor changed during admission.');
+        this.#registerManifest(requestArtifact, 'application/json', at);
+        this.#registerManifest(sourceArtifact, 'application/json', at);
+        if (referenceArtifact) this.#registerManifest(referenceArtifact, 'application/json', at);
+        const number = this.#db.prepare(`SELECT coalesce(max(attempt_number),0)+1 number FROM analysis_research_automation_attempts WHERE run_id=?`).get(runId) as { number: number | bigint };
+        this.#db.prepare(`INSERT INTO analysis_research_automation_attempts(attempt_id,run_id,attempt_number,previous_pair_sha256,request_sha256,source_set_sha256,state,created_at) VALUES (?,?,?,?,?,?,'QUEUED',?)`)
+          .run(attemptId, runId, number.number, previous.pairId, requestArtifact.sha256, sourceArtifact.sha256, at);
+        this.#db.prepare(`INSERT INTO analysis_research_automation_attempt_requests(request_key,attempt_id,request_kind,request_sha256,accepted_at) VALUES (?,?,'CREATE',?,?)`)
+          .run(input.requestKey, attemptId, requestSha, at);
+      }).immediate();
+      return revisionReceipt(this.#attempt(attemptId)!, false);
+    });
+  }
+
+  async cancelReportRevision(workspaceId: string, runId: string, attemptId: string, requestKey: string): Promise<ResearchAutomationRevisionReceipt> {
+    if (!UUID.test(attemptId) || !REQUEST_KEY.test(requestKey)) throw new ResearchAutomationValidationError('Revision cancellation identity is invalid.');
+    const sha = digest({ contractVersion: 'automation-report-revision-cancel-v1', runId, attemptId, requestKey });
+    const receipt = await withDatabaseMutationMutex(this.#db, async () => {
+      await this.getRun(workspaceId, runId);
+      const attempt = this.#attempt(attemptId);
+      if (!attempt || attempt.runId !== runId) throw new ResearchAutomationNotFoundError('report_not_available', 'Report revision not found.');
+      await this.#readAttemptSources(this.#current(runId)!, attempt);
+      const prior = this.#attemptRequest(requestKey);
+      if (prior) {
+        if (prior.kind !== 'CANCEL' || prior.attemptId !== attemptId || prior.sha !== sha)
+          throw new ResearchAutomationConflictError('request_key_conflict', 'This request key is bound to another operation.');
+        return revisionReceipt(attempt, true);
+      }
+      if (attempt.state !== 'QUEUED' && attempt.state !== 'RUNNING')
+        throw new ResearchAutomationConflictError('invalid_state', 'The report revision has already settled.');
+      const at = this.#now().toISOString();
+      this.#db.transaction(() => {
+        const changed = this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='CANCELLED',finished_at=? WHERE attempt_id=? AND state IN ('QUEUED','RUNNING')`).run(at, attemptId);
+        if (changed.changes !== 1) throw new ResearchAutomationConflictError('invalid_state', 'The report revision has already settled.');
+        this.#db.prepare(`INSERT INTO analysis_research_automation_attempt_requests(request_key,attempt_id,request_kind,request_sha256,accepted_at) VALUES (?,?,'CANCEL',?,?)`).run(requestKey, attemptId, sha, at);
+      }).immediate();
+      return revisionReceipt(this.#attempt(attemptId)!, false);
+    });
+    this.#active.get(attemptId)?.abort();
+    return receipt;
+  }
+
+  async readReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf = false, pairId?: string): Promise<ResearchAutomationReadReport> {
+    return (await this.#readVerifiedReport(workspaceId, runId, kind, pdf, pairId)).report;
+  }
+
+  /** Read-only literal source of one explicit Insight pair; no provider, parser, inference or collection. */
+  async readInsightSourceContext(workspaceId: string, runId: string, pairId: string): Promise<InsightSourceContext> {
+    if (!/^[0-9a-f]{64}$/.test(pairId)) throw new ResearchAutomationValidationError('Invalid exact report pair.');
+    // The owning report reader verifies pair membership, fallback artifacts and KEEP method lineage.
+    const { report, scopeSha256, verifiedLocated, verifiedNative } = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId);
+    if (!scopeSha256) throw new ResearchAutomationIntegrityError('Insight source context lacks its frozen scope.');
+    if (verifiedNative && verifiedLocated) throw new ResearchAutomationIntegrityError('Insight source context has more than one review source.');
+    // A v1 located snapshot is a rule proposal only, never accepted literal context.
+    const located = verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? verifiedLocated : undefined;
+    const snapshot = verifiedNative ?? located;
+    if (!snapshot) throw new ResearchAutomationConflictError('invalid_state', 'This exact report has no verified adopted review source.');
+    const input = structuredClone(snapshot.output.input);
+    return { binding: { workspaceId, runId, pairId, scopeSha256, reportSha256: report.versionId,
+      sourceKind: verifiedNative ? 'NATIVE' as const : 'EXACT_SHOPEE' as const,
+      sourcePackageSha256: digest(snapshot.sourcePackage), inputSha256: digest(input) }, input };
+  }
+
+  adoptInsightCodingRules(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
+    return this.#insightCoding.adopt(workspaceId, runId, value, owner);
+  }
+  proposeInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
+    return this.#insightCoding.propose(workspaceId, runId, value, owner);
+  }
+  proposeLiteralInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
+    return this.#insightCoding.proposeLiteral(workspaceId, runId, value, owner);
+  }
+  proposeModelInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' },
+    ai: import('./insight-model-execution.js').InsightModelAI, signal?: AbortSignal) {
+    return this.#insightCoding.proposeModel(workspaceId, runId, value, owner, ai, signal);
+  }
+  acceptInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
+    return this.#insightCoding.accept(workspaceId, runId, value, owner);
+  }
+  /** Verified query-only history of one explicit pair; it does not assert that the pair is current. */
+  readInsightCoding(workspaceId: string, runId: string, pairId: string) {
+    return this.#insightCoding.view(workspaceId, runId, pairId);
+  }
+  readInsightCodingEvidence(workspaceId: string, runId: string, evidenceId: string) {
+    return this.#insightCoding.read(evidenceId, workspaceId, runId);
+  }
+  resolveInsightCoding(workspaceId: string, runId: string, proposalId: string, receiptIds: readonly string[]) {
+    return this.#insightCoding.resolve(workspaceId, runId, proposalId, receiptIds);
+  }
+
+  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined): Promise<{
+    report: ResearchAutomationReadReport; scopeSha256: string | null;
+    verifiedLocated: AutomationLocatedReviewSnapshot | undefined; verifiedNative: NativeSourceReviewSnapshot | undefined;
+  }> {
     const run = await this.getRun(workspaceId, runId);
-    const output = this.#output(runId, kind);
+    const frozenRun = this.#current(runId)!;
+    const selectedPair = pairId ? (await this.listReportVersions(workspaceId, runId)).find(item => item.pairId === pairId) : undefined;
+    if (pairId && !selectedPair) throw new ResearchAutomationNotFoundError('report_not_available', 'Report version not found.');
+    const attempt = selectedPair?.attemptId ? this.#attempt(selectedPair.attemptId) : undefined;
+    const output = attempt ? this.#attemptOutputs(attempt.attemptId).find(item => item.reportKind === kind) : this.#output(runId, kind);
     if (!output) throw new ResearchAutomationNotFoundError(pdf ? 'pdf_not_available' : 'report_not_available', pdf ? 'PDF is not available for this run.' : 'Report is not available for this run.');
     if (pdf && !output.pdfSha) throw new ResearchAutomationNotFoundError('pdf_not_available', 'PDF is not available for this run.');
     // Verify the immutable semantic version before serving either representation;
@@ -308,6 +844,13 @@ export class ResearchAutomationService {
     if (semantic.contractVersion !== 'research-automation-report-v1' || semantic.runId !== runId || semantic.workspaceId !== workspaceId || semantic.kind !== kind) {
       throw new ResearchAutomationIntegrityError('Stored report semantic artifact has inconsistent identity.');
     }
+    const sources = attempt ? await this.#readAttemptSources(frozenRun, attempt) : await this.#readFrozenSources(frozenRun);
+    const metricSources = attempt ? await this.#methodSources(frozenRun, attempt, 'metric') : sources;
+    const nativeExecution = attempt ? (await this.#methodSources(frozenRun, attempt, 'nativeReview'))?.value.executionId : undefined;
+    if (attempt ? semantic.reportAttemptId !== attempt.attemptId || semantic.previousPairId !== attempt.previousPairId : semantic.reportAttemptId !== undefined || semantic.previousPairId !== undefined)
+      throw new ResearchAutomationIntegrityError('Stored report revision identity differs.');
+    if (sources ? semantic.confirmedSourceSetSha256 !== sources.sha256 : semantic.confirmedSourceSetSha256 !== undefined)
+      throw new ResearchAutomationIntegrityError('Stored report has inconsistent confirmed source membership.');
     if (semantic.descriptiveMethods !== undefined && semantic.descriptiveMethods !== null) {
       const frozen = this.#current(runId);
       if (!frozen?.scopeSha) throw new ResearchAutomationIntegrityError('Stored method output lacks its frozen scope.');
@@ -321,35 +864,47 @@ export class ResearchAutomationService {
     }
     if (semantic.reviewCorpus !== undefined && semantic.reviewCorpus !== null) {
       const frozen = this.#current(runId);
-      const collection = await this.#stepDocument(runId, 'COLLECTION');
+      const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
       if (kind !== 'INSIGHT' || !frozen?.scopeSha || !frozen.scopeConfirmedAt || !collection?.exactShopee) throw new ResearchAutomationIntegrityError('Stored corpus lacks exact run lineage.');
       await this.#shopee.verifyCorpus(semantic.reviewCorpus, collection.exactShopee, { runId,
         start: await this.#readStartSnapshot(frozen.startSha, workspaceId), scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt });
     }
-    if (semantic.locatedReview !== undefined && semantic.locatedReview !== null) {
+    let verifiedLocated: AutomationLocatedReviewSnapshot | undefined;
+    let verifiedNative: NativeSourceReviewSnapshot | undefined;
+    if ((semantic.locatedReview !== undefined && semantic.locatedReview !== null) || semantic.locatedReviewFallback) {
       const frozen = this.#current(runId);
-      const collection = await this.#stepDocument(runId, 'COLLECTION');
-      if (kind !== 'INSIGHT' || !semantic.reviewCorpus || !frozen?.scopeSha || !frozen.scopeConfirmedAt || !collection?.exactShopee)
+      const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
+      if (kind !== 'INSIGHT' || (!semantic.reviewCorpus && !semantic.locatedReviewFallback) || !frozen?.scopeSha || !frozen.scopeConfirmedAt || !collection?.exactShopee)
         throw new ResearchAutomationIntegrityError('Stored located review lacks its verified source and frozen run.');
-      await this.#locatedReviews.verify(semantic.locatedReview, { runId, reference: collection.exactShopee,
+      const input = { runId, reference: collection.exactShopee,
         start: await this.#readStartSnapshot(frozen.startSha, workspaceId), scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId),
-        scopeConfirmedAt: frozen.scopeConfirmedAt });
+        scopeConfirmedAt: frozen.scopeConfirmedAt };
+      if (semantic.locatedReviewFallback) {
+        if (semantic.locatedReview || semantic.reviewCorpus || !isRecord(semantic.locatedReviewFallback) ||
+            Object.keys(semantic.locatedReviewFallback).join(',') !== 'sourcePackage' || !isRecord(semantic.locatedReviewFallback.sourcePackage) ||
+            semantic.reviewCorpusFailure !== 'REVIEW_CORPUS_REPORT_TOO_LARGE') throw new ResearchAutomationIntegrityError('Stored located fallback identity is invalid.');
+        verifiedLocated = await this.#locatedReviews.readSnapshot(semantic.locatedReviewFallback.sourcePackage as Extract<AutomationLocatedReviewSnapshot, { contractVersion: 'automation-located-review-snapshot-v2' }>['sourcePackage'], input);
+      } else verifiedLocated = await this.#locatedReviews.verify(semantic.locatedReview, input);
     }
     if ((semantic.nativeReview !== undefined && semantic.nativeReview !== null) || semantic.nativeReviewFallback) {
       const frozen = this.#current(runId);
-      const collection = await this.#stepDocument(runId, 'COLLECTION');
+      const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
       if (kind !== 'INSIGHT' || semantic.reviewCorpus || semantic.locatedReview || !frozen?.scopeSha ||
           !frozen.scopeConfirmedAt || !collection?.nativeReview || collection.exactShopee)
         throw new ResearchAutomationIntegrityError('Stored native review lacks its distinct source and frozen run.');
       const input = { runId,
         start: await this.#readStartSnapshot(frozen.startSha, workspaceId),
-        scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt };
+        scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt,
+        ...(nativeExecution ? { executionId: nativeExecution } : {}) };
       if (semantic.nativeReviewFallback) {
         if (semantic.nativeReview || !isRecord(semantic.nativeReviewFallback) || !isRecord(semantic.nativeReviewFallback.sourcePackage) ||
             semantic.nativeReviewFailure !== 'NATIVE_REVIEW_REPORT_TOO_LARGE')
           throw new ResearchAutomationIntegrityError('Stored native fallback identity is invalid.');
-        await this.#nativeReviews.readSnapshot(semantic.nativeReviewFallback.sourcePackage as NativeSourceReviewSnapshot['sourcePackage'], collection.nativeReview, input);
-      } else await this.#nativeReviews.verify(semantic.nativeReview, collection.nativeReview, input);
+        verifiedNative = await this.#nativeReviews.readSnapshot(semantic.nativeReviewFallback.sourcePackage as NativeSourceReviewSnapshot['sourcePackage'], collection.nativeReview, input);
+      } else {
+        await this.#nativeReviews.verify(semantic.nativeReview, collection.nativeReview, input);
+        verifiedNative = semantic.nativeReview as NativeSourceReviewSnapshot;
+      }
     }
     if (semantic.marketInventory !== undefined && semantic.marketInventory !== null) {
       const frozen = this.#current(runId);
@@ -363,20 +918,183 @@ export class ResearchAutomationService {
         throw new ResearchAutomationIntegrityError('Stored Metric methods lack their exact confirmed run.');
       await this.#metricMethods.verify(semantic.metricMethods, { runId,
         start: await this.#readStartSnapshot(frozen.startSha, workspaceId),
-        scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt });
+        scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt,
+        ...(metricSources ? { sourceSelection: metricSelection(metricSources.value) } : {}) });
+    }
+    const classifiedRequest = attempt ? await this.#classifiedRequest(frozenRun, attempt) : undefined;
+    if (kind === 'MARKET' && classifiedRequest) {
+      if (!semantic.metricMethods) throw new ResearchAutomationIntegrityError('Classified Metric result lacks its source preparation.');
+      const proof = await this.#classifiedMetric.verify(semantic.metricClassified, workspaceId, runId, classifiedRequest.previousPairId, classifiedRequest.acceptedMetric);
+      const classified = semantic.metricClassified as AutomationClassifiedMetricSnapshot;
+      const metric = semantic.metricMethods as AutomationMetricMethodSnapshot;
+      if (classified.binding.preparationSha256 !== metric.preparation.preparationSha256 ||
+          classified.binding.sourcePackageId !== metric.originalSourcePackage.packageId ||
+          !(await this.#readArtifact(classified.proofSha256, MAX_JSON_ARTIFACT_BYTES, 'application/json')).equals(proof))
+        throw new ResearchAutomationIntegrityError('Classified Metric proof differs from its frozen preparation.');
+    } else if (semantic.metricClassified !== undefined && semantic.metricClassified !== null) {
+      throw new ResearchAutomationIntegrityError('Classified Metric snapshot lacks an explicit revision request.');
+    }
+    const insightRequest = attempt ? await this.#insightCodingRequest(frozenRun, attempt) : undefined;
+    if (kind === 'INSIGHT' && insightRequest) {
+      const snapshot = await this.#insightCoding.verifyReportSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.acceptedInsight);
+      const source = verifiedNative ?? (verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? verifiedLocated : undefined);
+      if (!source || snapshot.binding.scopeSha256 !== frozenRun.scopeSha || snapshot.binding.inputSha256 !== digest(source.output.input) ||
+          snapshot.binding.sourcePackageSha256 !== digest(source.sourcePackage))
+        throw new ResearchAutomationIntegrityError('Insight coding snapshot differs from the retained source.');
+    } else if (semantic.insightCoding !== undefined && semantic.insightCoding !== null) {
+      throw new ResearchAutomationIntegrityError('Insight coding snapshot lacks an explicit revision request.');
+    }
+    const boundedRequest = attempt ? await this.#boundedRequest(frozenRun, attempt) : undefined;
+    if (boundedRequest && boundedRequest.boundedMethods.decision === 'USE_PACKAGE') {
+      try {
+        await this.#verifySupplementalOrigin(frozenRun, boundedRequest.boundedMethods, 'BOUNDED');
+        await verifyAutomationBoundedMethods(semantic.boundedMethods, this.#boundedBinding(frozenRun, boundedRequest),
+          boundedRequest.boundedMethods, this.#boundedSourceReader());
+      } catch { throw new ResearchAutomationIntegrityError('Bounded method snapshot failed source replay.'); }
+    } else if (semantic.boundedMethods !== undefined && semantic.boundedMethods !== null) {
+      throw new ResearchAutomationIntegrityError('Bounded method snapshot lacks its explicit source selection.');
+    }
+    const quoteRequest = kind === 'MARKET' && attempt ? await this.#quoteRequest(frozenRun, attempt) : undefined;
+    if (quoteRequest && quoteRequest.quoteMethods.decision === 'USE_PACKAGE') {
+      try {
+        await this.#verifySupplementalOrigin(frozenRun, quoteRequest.quoteMethods, 'QUOTE');
+        await verifyAutomationQuoteMethods(semantic.quoteMethods, this.#boundedBinding(frozenRun, quoteRequest),
+          quoteRequest.quoteMethods, this.#boundedSourceReader());
+      } catch { throw new ResearchAutomationIntegrityError('Quote method snapshot failed source replay.'); }
+    } else if (semantic.quoteMethods !== undefined && semantic.quoteMethods !== null) {
+      throw new ResearchAutomationIntegrityError('Quote method snapshot lacks its explicit Market source selection.');
+    }
+    if (semantic.m01InventoryArtifact !== undefined && (kind !== 'MARKET' || semantic.sourceClaimsArtifact === undefined))
+      throw new ResearchAutomationIntegrityError('Stored M01 inventory lacks its owning Market claims.');
+    if (semantic.i14AdmissionArtifact !== undefined && (kind !== 'INSIGHT' || semantic.sourceClaimsArtifact === undefined))
+      throw new ResearchAutomationIntegrityError('Stored I14 admission lacks its owning Insight claims.');
+    if (semantic.i14ExecutionId !== undefined && (semantic.i14AdmissionArtifact === undefined || typeof semantic.i14ExecutionId !== 'string' || !UUID.test(semantic.i14ExecutionId)))
+      throw new ResearchAutomationIntegrityError('Stored I14 execution lacks its owning admission.');
+    if (semantic.sourceClaimsArtifact !== undefined) {
+      if (!frozenRun.scopeSha) throw new ResearchAutomationIntegrityError('Stored source claims lack their frozen scope.');
+      // Reconstruct only after the owning bridges verified the exact saved sources.
+      const expected = buildAutomationSourceClaims({ run: { runId, workspaceId },
+        scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
+        ...(kind === 'MARKET' && semantic.descriptiveMethods ? { descriptive: { output: semantic.descriptiveMethods as DescriptiveMarketMethods } } : {}),
+        ...(kind === 'INSIGHT' && verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2'
+          ? { located: { snapshot: verifiedLocated } } : {}),
+        ...(kind === 'INSIGHT' && verifiedNative ? { native: { snapshot: verifiedNative } } : {}) });
+      const reference = validateAutomationSourceClaimsReference(semantic.sourceClaimsArtifact);
+      const savedClaims = await this.#readArtifact(reference.sha256, MAX_SOURCE_CLAIMS_BYTES, 'application/json');
+      if (savedClaims.length !== reference.byteSize || !savedClaims.equals(expected.bytes))
+        throw new ResearchAutomationIntegrityError('Stored source claims differ from the verified method snapshots.');
+      if (semantic.m01InventoryArtifact !== undefined) {
+        if (!validateM01Reference(semantic.m01InventoryArtifact))
+          throw new ResearchAutomationIntegrityError('Stored M01 inventory reference is invalid.');
+        const m01Reference = semantic.m01InventoryArtifact;
+        const expectedM01 = buildAutomationM01EvidenceInventory({ run: { runId, workspaceId },
+          scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
+          sourceClaims: expected.artifact, claimsSha256: expected.artifact.claimsSha256 });
+        const savedM01 = await this.#readArtifact(m01Reference.sha256, MAX_M01_EVIDENCE_INVENTORY_BYTES, 'application/json');
+        if (savedM01.length !== m01Reference.byteSize || !savedM01.equals(expectedM01.bytes))
+          throw new ResearchAutomationIntegrityError('Stored M01 inventory differs from its exact upstream claims.');
+      }
+      if (semantic.i14AdmissionArtifact !== undefined) {
+        if (!validateI14Reference(semantic.i14AdmissionArtifact))
+          throw new ResearchAutomationIntegrityError('Stored I14 admission reference is invalid.');
+        const i14Reference = semantic.i14AdmissionArtifact;
+        const savedI14 = await this.#readArtifact(i14Reference.sha256, MAX_I14_EVIDENCE_ADMISSION_BYTES, 'application/json');
+        const admissionInput = { run: { runId, workspaceId },
+          admissionVersion: automationI14AdmissionVersion(JSON.parse(savedI14.toString('utf8'))),
+          literalSnapshot: verifiedNative ?? (verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? verifiedLocated : null),
+          scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
+          sourceClaims: expected.artifact, claimsSha256: expected.artifact.claimsSha256,
+          locatedMethodOutput: verifiedNative?.output ??
+            (verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? verifiedLocated.output : null) };
+        const expectedI14 = buildAutomationI14EvidenceAdmission(admissionInput);
+        if (savedI14.length !== i14Reference.byteSize || !savedI14.equals(expectedI14.bytes))
+          throw new ResearchAutomationIntegrityError('Stored I14 admission differs from its exact upstream claims and context.');
+        if (semantic.i14ExecutionId !== undefined) {
+          const retained = await this.#i14Executions.read(await this.#i14Parent(frozenRun, attempt), admissionInput);
+          if (!['VALID', 'INVALID', 'DISPATCH_UNKNOWN'].includes(retained.status) || !('executionId' in retained) || retained.executionId !== semantic.i14ExecutionId)
+            throw new ResearchAutomationIntegrityError('Stored I14 execution is not the exact settled report dependency.');
+        }
+      }
+    }
+    if (semantic.decisionPackets !== undefined) {
+      const sectionIds = kind === 'MARKET' ? ['M11', 'M12'] as const : ['I15'] as const;
+      if (!Array.isArray(semantic.decisionPackets) || semantic.decisionPackets.length !== sectionIds.length ||
+          !frozenRun.scopeSha || semantic.sourceClaimsArtifact === undefined)
+        throw new ResearchAutomationIntegrityError('Stored decision packets lack their exact source owner.');
+      let decisionLocated = verifiedLocated;
+      let decisionNative = verifiedNative;
+      const pairedVersion = semantic.decisionPairedInsightVersionId;
+      if (kind === 'INSIGHT' ? pairedVersion !== null : pairedVersion !== null &&
+          (typeof pairedVersion !== 'string' || !/^[0-9a-f]{64}$/.test(pairedVersion)))
+        throw new ResearchAutomationIntegrityError('Stored decision packet pair identity is invalid.');
+      const siblingOutput = kind === 'MARKET'
+        ? attempt ? this.#attemptOutputs(attempt.attemptId).find(item => item.reportKind === 'INSIGHT') : this.#output(runId, 'INSIGHT')
+        : undefined;
+      if (kind === 'MARKET' && pairedVersion !== (siblingOutput?.versionSha ?? null))
+        throw new ResearchAutomationIntegrityError('Stored decision packet does not bind the exact sibling version.');
+      if (kind === 'MARKET' && pairedVersion !== null) {
+        // Read the sibling in this exact pair, never the latest Insight. Insight
+        // cannot point back to Market, so this dependency has no recursion cycle.
+        const sibling = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId);
+        if (sibling.report.versionId !== pairedVersion)
+          throw new ResearchAutomationIntegrityError('Stored decision packet differs from its paired Insight.');
+        decisionLocated = sibling.verifiedLocated;
+        decisionNative = sibling.verifiedNative;
+      }
+      const decisionScope = await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId);
+      const rebuilt = buildAutomationSourceClaims({ run: { runId, workspaceId }, scope: decisionScope,
+        ...(kind === 'MARKET' && semantic.descriptiveMethods ? { descriptive: { output: semantic.descriptiveMethods as DescriptiveMarketMethods } } : {}),
+        ...(decisionLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? { located: { snapshot: decisionLocated } } : {}),
+        ...(decisionNative ? { native: { snapshot: decisionNative } } : {}) });
+      const executionIds = semantic.decisionExecutionIds;
+      if (executionIds !== undefined && (!isRecord(executionIds) || Object.entries(executionIds).some(([id, value]) =>
+          !sectionIds.some(sectionId => sectionId === id) || typeof value !== 'string')))
+        throw new ResearchAutomationIntegrityError('Stored decision execution references are invalid.');
+      try {
+        for (const [index, sectionId] of sectionIds.entries()) {
+          const packet = semantic.decisionPackets[index];
+          if (!isRecord(packet) || !isRecord(packet.useContextAdmission)) throw new Error('missing packet admission');
+          const admissionVersion = packet.useContextAdmission.methodVersion;
+          if (admissionVersion !== '1.0.0' && admissionVersion !== '1.1.0') throw new Error('unknown packet admission');
+          if (packet.methodVersion !== '1.0.0' && packet.methodVersion !== '1.1.0') throw new Error('unknown decision packet version');
+          const source: AutomationDecisionPacketInput = { sectionId, packetVersion: packet.methodVersion, evidence: {
+            run: { runId, workspaceId }, scope: decisionScope, admissionVersion,
+            sourceClaims: rebuilt.artifact, claimsSha256: rebuilt.artifact.claimsSha256,
+            literalSnapshot: decisionNative ?? (decisionLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? decisionLocated : null),
+            locatedMethodOutput: decisionNative?.output ?? (decisionLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? decisionLocated.output : null),
+          } };
+          verifyAutomationDecisionPacket(packet, source);
+          if (isRecord(executionIds) && executionIds[sectionId] !== undefined) {
+            const retained = await this.#decisionExecutions[sectionId].read(await this.#i14Parent(frozenRun, attempt), source);
+            if (!['VALID', 'INVALID', 'DISPATCH_UNKNOWN'].includes(retained.status) || !('executionId' in retained) ||
+                retained.executionId !== executionIds[sectionId])
+              throw new ResearchAutomationIntegrityError('Stored decision execution is not the exact settled report dependency.');
+          }
+        }
+      } catch { throw new ResearchAutomationIntegrityError('Stored decision packet failed exact source replay.'); }
+    } else if (semantic.decisionPairedInsightVersionId !== undefined || semantic.decisionExecutionIds !== undefined) {
+      throw new ResearchAutomationIntegrityError('Stored decision dependency lacks packets.');
     }
     const sha = pdf ? output.pdfSha! : output.htmlSha;
     const bytes = await this.#readArtifact(sha, pdf ? 64 * 1024 * 1024 : MAX_HTML_BYTES, pdf ? 'application/pdf' : 'text/html; charset=utf-8');
     if (pdf && !bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new ResearchAutomationIntegrityError('Stored PDF has an invalid header.');
-    return { kind, versionId: output.versionSha, bytes, mediaType: pdf ? 'application/pdf' : 'text/html; charset=utf-8' };
+    return { report: { kind, versionId: output.versionSha, bytes, mediaType: pdf ? 'application/pdf' : 'text/html; charset=utf-8' },
+      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative };
   }
 
   /** Worker entry point: claims and settles at most one durable step. */
   async processNext(signal?: AbortSignal): Promise<boolean> {
     const row = this.#db.prepare(`SELECT run_id runId,workspace_id workspaceId,revision,status,mode,keyword,period_start periodStart,period_end periodEnd,reports,
-      start_request_sha256 startSha,scope_request_sha256 scopeSha,scope_confirmed_at scopeConfirmedAt,actor_id actorId,created_at createdAt,updated_at updatedAt
+      start_request_sha256 startSha,scope_request_sha256 scopeSha,scope_confirmed_at scopeConfirmedAt,confirmed_source_set_sha256 sourceSetSha,actor_id actorId,created_at createdAt,updated_at updatedAt
       FROM analysis_research_automation_runs WHERE status IN ('QUICK_SEARCH_QUEUED','COLLECTION_QUEUED','RENDERING') ORDER BY created_at,run_id LIMIT 1`).get() as RunRow | undefined;
-    if (!row) return false;
+    if (!row) {
+      const queued = this.#db.prepare(`SELECT attempt_id attemptId FROM analysis_research_automation_attempts WHERE state='QUEUED' ORDER BY created_at,attempt_id LIMIT 1`).get() as { attemptId: string } | undefined;
+      if (!queued) return false;
+      const attempt = this.#attempt(queued.attemptId)!;
+      const parent = this.#current(attempt.runId);
+      if (!parent) throw new ResearchAutomationIntegrityError('Revision source run is missing.');
+      return this.#executeReports(parent, signal, attempt);
+    }
     if (row.status === 'QUICK_SEARCH_QUEUED') return this.#executeQuick(row, signal);
     if (row.status === 'COLLECTION_QUEUED') return this.#executeCollection(row, signal);
     return this.#executeReports(row, signal);
@@ -388,6 +1106,8 @@ export class ResearchAutomationService {
       const rows = this.#db.prepare(`SELECT run_id runId,revision,status FROM analysis_research_automation_runs WHERE status IN ('QUICK_SEARCH_RUNNING','COLLECTING','CANCELLING','RENDERING')`).all() as Array<{ runId: string; revision: bigint | number; status: ResearchAutomationRun['status'] }>;
       const at = this.#now().toISOString();
       this.#db.transaction(() => {
+        this.#i14Executions.recoverInterruptedDispatches();
+        this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='QUEUED',started_at=NULL WHERE state='RUNNING'`).run();
         for (const row of rows) {
           if (row.status === 'RENDERING') {
             this.#transition(row.runId, toNumber(row.revision), 'RENDERING', at);
@@ -409,6 +1129,10 @@ export class ResearchAutomationService {
     await withDatabaseMutationMutex(this.#db, async () => {
       this.#db.transaction(() => {
         for (const runId of active) {
+          if (this.#attempt(runId)) {
+            this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='QUEUED',started_at=NULL WHERE attempt_id=? AND state='RUNNING'`).run(runId);
+            continue;
+          }
           const row = this.#db.prepare('SELECT revision,status FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { revision: bigint | number; status: ResearchAutomationRun['status'] } | undefined;
           if (!row || TERMINAL_STATUSES.has(row.status)) continue;
           this.#transition(runId, toNumber(row.revision), 'INTERRUPTED', at);
@@ -456,6 +1180,14 @@ export class ResearchAutomationService {
         claimed = true;
       });
       if (!claimed) return false;
+      let sources: FrozenSources | undefined;
+      if (stepId === 'COLLECTION') {
+        try { sources = await this.#readFrozenSources(this.#current(row.runId)!); }
+        catch {
+          await this.#settleSourceFailure(row.runId, stepId, 'SOURCE_PACKAGE_RESOLUTION_FAILED', 'FAILED');
+          return true;
+        }
+      }
       if (controller.signal.aborted) {
         await this.#settleSourceFailure(row.runId, stepId, 'CANCELLED_DURING_PROVIDER_OPERATION', 'CANCELLED');
         return true;
@@ -487,7 +1219,12 @@ export class ResearchAutomationService {
       if (stepId === 'COLLECTION' && scope?.exactShopeeUrls?.length && !controller.signal.aborted) {
         const frozenInput = { runId: row.runId, start, scope, scopeConfirmedAt: row.scopeConfirmedAt! };
         let resolution: Awaited<ReturnType<AutomationNativeSourceReviewBridge['resolve']>> | undefined;
-        try { resolution = await this.#nativeReviews.resolve(frozenInput); }
+        try {
+          resolution = sources ? sources.value.nativeReview.decision === 'RESOLVED'
+            ? { state: 'RESOLVED', reference: sources.nativeReference! }
+            : sources.value.nativeReview.decision === 'NONE' ? { state: 'NONE' } : undefined
+            : await this.#nativeReviews.resolve(frozenInput);
+        }
         catch {
           if (!controller.signal.aborted) result.step = nativeSourceBlocked(result.step, 'SOURCE_PACKAGE_RESOLUTION_FAILED');
         }
@@ -522,11 +1259,13 @@ export class ResearchAutomationService {
     }
   }
 
-  async #executeReports(row: RunRow, externalSignal?: AbortSignal): Promise<boolean> {
+  async #executeReports(row: RunRow, externalSignal?: AbortSignal, attempt?: AttemptRow): Promise<boolean> {
     const current = this.#current(row.runId);
-    if (!current || current.status !== 'RENDERING') return false;
+    if (!current || current.status !== (attempt ? 'DRAFT_READY' : 'RENDERING')) return false;
+    const activeKey = attempt?.attemptId ?? row.runId;
+    if (this.#active.has(activeKey)) return false;
     const controller = new AbortController();
-    this.#active.set(row.runId, controller);
+    this.#active.set(activeKey, controller);
     const onAbort = () => controller.abort();
     externalSignal?.addEventListener('abort', onAbort, { once: true });
     if (externalSignal?.aborted) controller.abort();
@@ -534,15 +1273,24 @@ export class ResearchAutomationService {
     const at = this.#now().toISOString();
     let claimed = false;
     await withDatabaseMutationMutex(this.#db, async () => {
-      const fresh = this.#current(row.runId);
-      if (!fresh || fresh.status !== 'RENDERING') return;
-      this.#transition(row.runId, toNumber(fresh.revision), 'RENDERING', at);
-      this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='RUNNING',started_at=?,message_code=NULL WHERE run_id=? AND step_id='REPORTS' AND state='QUEUED'`).run(at, row.runId);
-      claimed = true;
+      this.#db.transaction(() => {
+        const fresh = this.#current(row.runId);
+        if (!fresh || fresh.status !== (attempt ? 'DRAFT_READY' : 'RENDERING')) return;
+        if (attempt) {
+          const claim = this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='RUNNING',started_at=? WHERE attempt_id=? AND state='QUEUED'`).run(at, attempt.attemptId);
+          claimed = claim.changes === 1;
+          return;
+        }
+        const claim = this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='RUNNING',started_at=?,message_code=NULL WHERE run_id=? AND step_id='REPORTS' AND state='QUEUED'`).run(at, row.runId);
+        if (claim.changes !== 1) return;
+        this.#transition(row.runId, toNumber(fresh.revision), 'RENDERING', at);
+        claimed = true;
+      }).immediate();
     });
     if (!claimed) return false;
     if (controller.signal.aborted) {
-      await this.#settleSourceFailure(row.runId, 'REPORTS', 'CANCELLED_DURING_REPORT_RENDERING', 'CANCELLED');
+      if (attempt) await this.#settleAttempt(attempt.attemptId, 'CANCELLED');
+      else await this.#settleSourceFailure(row.runId, 'REPORTS', 'CANCELLED_DURING_REPORT_RENDERING', 'CANCELLED');
       return true;
     }
     const fresh = this.#current(row.runId);
@@ -553,41 +1301,95 @@ export class ResearchAutomationService {
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
     const captures = await this.#captureRecords(fresh.runId);
-    const outputArtifacts: Array<{ kind: 'MARKET' | 'INSIGHT'; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
+    const outputArtifacts: Array<{ kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
     try {
       controller.signal.throwIfAborted();
+      const sources = attempt ? await this.#readAttemptSources(fresh, attempt) : await this.#readFrozenSources(fresh);
+      const reviewCollection = attempt ? await this.#reportCollection(fresh.runId, sources, true) : collection;
+      const revisionRequest = attempt ? await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : undefined;
+      const priorMarket = attempt && start.reports.includes('MARKET') ? await this.#previousSemantic(fresh, attempt, 'MARKET') : undefined;
+      const priorInsight = attempt && start.reports.includes('INSIGHT') ? await this.#previousSemantic(fresh, attempt, 'INSIGHT') : undefined;
+      const boundedMethods = revisionRequest && 'boundedMethods' in revisionRequest
+        ? await this.#loadBoundedMethods(fresh, revisionRequest)
+        : (priorMarket ?? priorInsight)?.boundedMethods as AutomationBoundedMethodSnapshot | undefined;
+      const quoteMethods = revisionRequest && 'quoteMethods' in revisionRequest
+        ? await this.#loadQuoteMethods(fresh, revisionRequest)
+        : priorMarket?.quoteMethods as AutomationQuoteMethodSnapshot | undefined;
       let descriptiveMethods: DescriptiveMarketMethods | undefined;
       let descriptiveMethodFailure: 'DESCRIPTIVE_METHOD_FAILED' | undefined;
       let marketInventory: AutomationMarketMethodSnapshot | undefined;
       let marketInventoryFailure: 'MARKET_INVENTORY_FAILED' | undefined;
       let metricMethods: AutomationMetricMethodSnapshot | undefined;
-      let metricMethodsFailure: 'METRIC_METHOD_FAILED' | undefined;
+      let metricClassified: AutomationClassifiedMetricSnapshot | undefined;
+      let insightCoding: AutomationInsightCodingSnapshot | undefined;
+      let metricProof: StoredArtifact | null = null;
+      let metricMethodsFailure: MetricMethodFailureCode | undefined;
       let reviewCorpus: ResearchReviewCorpus | undefined;
-      let reviewCorpusFailure: 'REVIEW_CORPUS_FAILED' | undefined;
+      let reviewCorpusFailure: ResearchAutomationReportInput['reviewCorpusFailure'];
       let locatedReview: AutomationLocatedReviewSnapshot | undefined;
+      let locatedReviewFallback: ResearchAutomationReportInput['locatedReviewFallback'];
       let nativeReview: NativeSourceReviewSnapshot | undefined;
       let nativeReviewFailure: 'NATIVE_REVIEW_METHOD_FAILED' | undefined;
       let locatedReviewFailure: 'LOCATED_REVIEW_METHOD_FAILED' | undefined;
-      if (start.reports.includes('INSIGHT') && collection?.nativeReview) {
-        try { nativeReview = await this.#nativeReviews.execute(collection.nativeReview, { runId: fresh.runId, start, scope,
-          scopeConfirmedAt: fresh.scopeConfirmedAt! }, controller.signal); }
+      if (priorInsight && revisionRequest?.sources.nativeReview.decision === 'KEEP') {
+        insightCoding = priorInsight.insightCoding as AutomationInsightCodingSnapshot | undefined;
+        reviewCorpus = priorInsight.reviewCorpus as ResearchReviewCorpus | undefined;
+        reviewCorpusFailure = priorInsight.reviewCorpusFailure as typeof reviewCorpusFailure;
+        locatedReview = priorInsight.locatedReview as AutomationLocatedReviewSnapshot | undefined;
+        locatedReviewFailure = priorInsight.locatedReviewFailure as typeof locatedReviewFailure;
+        if (priorInsight.locatedReviewFallback && reviewCollection?.exactShopee) {
+          locatedReviewFallback = priorInsight.locatedReviewFallback as ResearchAutomationReportInput['locatedReviewFallback'];
+          locatedReview = await this.#locatedReviews.readSnapshot(locatedReviewFallback!.sourcePackage,
+            { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt!, reference: reviewCollection.exactShopee });
+        }
+        nativeReview = priorInsight.nativeReview as NativeSourceReviewSnapshot | undefined;
+        if (priorInsight.nativeReviewFallback && reviewCollection?.nativeReview) {
+          const identity = (priorInsight.nativeReviewFallback as Pick<NativeSourceReviewSnapshot, 'sourcePackage'>).sourcePackage;
+          const execution = (await this.#methodSources(fresh, attempt!, 'nativeReview'))?.value.executionId;
+          nativeReview = await this.#nativeReviews.readSnapshot(identity, reviewCollection.nativeReview,
+            { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt!, ...(execution ? { executionId: execution } : {}) });
+        } else nativeReviewFailure = priorInsight.nativeReviewFailure as typeof nativeReviewFailure;
+      } else if (start.reports.includes('INSIGHT') && reviewCollection?.nativeReview) {
+        try { nativeReview = await this.#nativeReviews.execute(reviewCollection.nativeReview, { runId: fresh.runId, start, scope,
+          scopeConfirmedAt: fresh.scopeConfirmedAt!, ...(attempt ? { executionId: attempt.attemptId } : {}) }, controller.signal); }
         catch { controller.signal.throwIfAborted(); nativeReviewFailure = 'NATIVE_REVIEW_METHOD_FAILED'; }
       }
-      if (start.reports.includes('INSIGHT') && collection?.exactShopee) {
-        try { reviewCorpus = await this.#shopee.corpus(collection.exactShopee, { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt! }); }
+      if (revisionRequest?.sources.nativeReview.decision !== 'KEEP' && start.reports.includes('INSIGHT') && reviewCollection?.exactShopee) {
+        try { reviewCorpus = await this.#shopee.corpus(reviewCollection.exactShopee, { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt! }); }
         catch { controller.signal.throwIfAborted(); reviewCorpusFailure = 'REVIEW_CORPUS_FAILED'; }
         if (reviewCorpus) {
           try { locatedReview = await this.#locatedReviews.execute({ runId: fresh.runId, start, scope,
-            scopeConfirmedAt: fresh.scopeConfirmedAt!, reference: collection.exactShopee }, controller.signal); }
+            scopeConfirmedAt: fresh.scopeConfirmedAt!, reference: reviewCollection.exactShopee }, controller.signal); }
           catch { controller.signal.throwIfAborted(); locatedReviewFailure = 'LOCATED_REVIEW_METHOD_FAILED'; }
         }
       }
+      if (revisionRequest && 'acceptedInsight' in revisionRequest) {
+        insightCoding = await this.#insightCoding.reportSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.acceptedInsight);
+      }
       if (start.reports.includes('MARKET')) {
-        try {
+        if (priorMarket && revisionRequest?.sources.metric.decision === 'KEEP') {
+          metricMethods = priorMarket.metricMethods as AutomationMetricMethodSnapshot | undefined;
+          metricClassified = priorMarket.metricClassified as AutomationClassifiedMetricSnapshot | undefined;
+          metricMethodsFailure = priorMarket.metricMethodsFailure as MetricMethodFailureCode | undefined;
+        } else try {
           if (!fresh.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Metric methods require confirmed scope.');
           metricMethods = await this.#metricMethods.execute({ runId: fresh.runId, start, scope,
-            scopeConfirmedAt: fresh.scopeConfirmedAt }, controller.signal);
-        } catch { controller.signal.throwIfAborted(); metricMethodsFailure = 'METRIC_METHOD_FAILED'; }
+            scopeConfirmedAt: fresh.scopeConfirmedAt,
+            ...(sources ? { sourceSelection: metricSelection(sources.value) } : {}) }, controller.signal);
+        } catch (error) { controller.signal.throwIfAborted(); metricMethodsFailure = metricMethodFailureCode(error); }
+        if (revisionRequest && 'acceptedMetric' in revisionRequest) {
+          const classified = await this.#classifiedMetric.calculate(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.acceptedMetric);
+          metricClassified = classified.snapshot;
+          metricProof = await this.#artifacts.put(classified.proofBytes);
+        } else if (metricClassified) {
+          metricProof = await this.#artifacts.put(await this.#readArtifact(metricClassified.proofSha256, MAX_JSON_ARTIFACT_BYTES, 'application/json'));
+        }
+        if (priorMarket) {
+          marketInventory = priorMarket.marketInventory as AutomationMarketMethodSnapshot | undefined;
+          marketInventoryFailure = priorMarket.marketInventoryFailure as typeof marketInventoryFailure;
+          descriptiveMethods = priorMarket.descriptiveMethods as DescriptiveMarketMethods | undefined;
+          descriptiveMethodFailure = priorMarket.descriptiveMethodFailure as typeof descriptiveMethodFailure;
+        } else {
         try { marketInventory = await this.#marketInventory.execute({ runId: fresh.runId, start, scope, collection, captures }, controller.signal); }
         catch { controller.signal.throwIfAborted(); marketInventoryFailure = 'MARKET_INVENTORY_FAILED'; }
         try { descriptiveMethods = await this.#methods.execute({ runId: fresh.runId, start, scope, collection, captures }, controller.signal); }
@@ -597,41 +1399,128 @@ export class ResearchAutomationService {
           // Failed admission must not fall back to presenting unchecked numbers.
           descriptiveMethodFailure = 'DESCRIPTIVE_METHOD_FAILED';
         }
+        }
       }
-      for (const kind of start.reports) {
+      // Market decision packets can cite the paired Insight. Render the sibling
+      // first to bind its exact immutable version without a circular reference.
+      for (const kind of (['INSIGHT', 'MARKET'] as const).filter(kind => start.reports.includes(kind))) {
         if (controller.signal.aborted) throw new Error('aborted');
         let input: ResearchAutomationReportInput = { run, start, scope, captures,
-          collection: kind === 'MARKET' && descriptiveMethodFailure && collection ? { ...collection, comparables: [] } : collection,
+          ...(boundedMethods ? { boundedMethods } : {}),
+          ...(kind === 'MARKET' && quoteMethods ? { quoteMethods } : {}),
+          collection: kind === 'INSIGHT' ? reviewCollection : descriptiveMethodFailure && collection ? { ...collection, comparables: [] } : collection,
           ...(kind === 'MARKET' && descriptiveMethods ? { descriptiveMethods } : {}),
           ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
           ...(kind === 'INSIGHT' && reviewCorpus ? { reviewCorpus } : {}),
           ...(kind === 'INSIGHT' && reviewCorpusFailure ? { reviewCorpusFailure } : {}),
-          ...(kind === 'INSIGHT' && locatedReview ? { locatedReview } : {}),
+          ...(kind === 'INSIGHT' && locatedReview && !locatedReviewFallback ? { locatedReview } : {}),
+          ...(kind === 'INSIGHT' && locatedReviewFallback ? { locatedReviewFallback } : {}),
           ...(kind === 'INSIGHT' && nativeReview ? { nativeReview } : {}),
+          ...(kind === 'INSIGHT' && insightCoding ? { insightCoding } : {}),
           ...(kind === 'INSIGHT' && nativeReviewFailure ? { nativeReviewFailure } : {}),
           ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
           ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
           ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
           ...(kind === 'MARKET' && metricMethods ? { metricMethods } : {}),
+          ...(kind === 'MARKET' && metricClassified ? { metricClassified } : {}),
           ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
         };
+        const builtClaims = buildAutomationSourceClaims({ run, scope,
+            ...(input.descriptiveMethods ? { descriptive: { output: input.descriptiveMethods } } : {}),
+            ...(kind === 'INSIGHT' && locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? { located: { snapshot: locatedReview } } : {}),
+            ...(input.nativeReview ? { native: { snapshot: input.nativeReview } } : {}) });
+        const claimsArtifact = await this.#artifacts.put(builtClaims.bytes);
+        const builtM01 = kind === 'MARKET' ? buildAutomationM01EvidenceInventory({ run, scope,
+          sourceClaims: builtClaims.artifact, claimsSha256: builtClaims.artifact.claimsSha256 }) : undefined;
+        const m01Artifact = builtM01 ? await this.#artifacts.put(builtM01.bytes) : null;
+        const admissionInput = { run, scope,
+          admissionVersion: '1.1.0' as const,
+          literalSnapshot: nativeReview ?? (locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? locatedReview : null),
+          sourceClaims: builtClaims.artifact, claimsSha256: builtClaims.artifact.claimsSha256,
+          locatedMethodOutput: nativeReview?.output ??
+            (locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? locatedReview.output : null) };
+        const builtI14 = kind === 'INSIGHT' ? buildAutomationI14EvidenceAdmission(admissionInput) : undefined;
+        const i14Artifact = builtI14 ? await this.#artifacts.put(builtI14.bytes) : null;
+        let i14Synthesis: AutomationI14ExecutionOutcome | undefined;
+        if (builtI14) {
+          const parent = await this.#i14Parent(fresh, attempt);
+          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
+            // Selected coding changes deterministic methods, not the frozen AI evidence package.
+            const retained = await this.#i14Executions.read(parent, admissionInput);
+            if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
+              throw new ResearchAutomationIntegrityError('Prior Insight execution is not settled.');
+            if (retained.status !== 'ABSENT') i14Synthesis = retained;
+          } else i14Synthesis = await this.#i14Executions.execute({ parent,
+            admission: admissionInput, ai: this.#i14Ai, signal: controller.signal });
+        }
+        if (i14Synthesis?.status === 'PREPARED') throw new ResearchAutomationIntegrityError('Prepared I14 execution has not settled.');
+        const decisionClaims = kind === 'MARKET' ? buildAutomationSourceClaims({ run, scope,
+          ...(descriptiveMethods ? { descriptive: { output: descriptiveMethods } } : {}),
+          ...(locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? { located: { snapshot: locatedReview } } : {}),
+          ...(nativeReview ? { native: { snapshot: nativeReview } } : {}) }) : builtClaims;
+        const decisionPackets: AutomationDecisionPacket[] = [];
+        const decisionSynthesis: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionOutcome>> = {};
+        const decisionExecutionIds: Partial<Record<AutomationDecisionSectionId, string>> = {};
+        for (const sectionId of (kind === 'MARKET' ? ['M11', 'M12'] as const : ['I15'] as const)) {
+          const source: AutomationDecisionPacketInput = { sectionId, packetVersion: '1.1.0', evidence: { ...admissionInput,
+            sourceClaims: decisionClaims.artifact, claimsSha256: decisionClaims.artifact.claimsSha256 } };
+          decisionPackets.push(buildAutomationDecisionPacket(source).artifact);
+          const parent = await this.#i14Parent(fresh, attempt);
+          let outcome: AutomationDecisionExecutionOutcome | undefined;
+          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
+            // Deterministic revisions preserve the source-bound draft, without authorizing new AI calls.
+            const retained = await this.#decisionExecutions[sectionId].read(parent, source);
+            if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
+              throw new ResearchAutomationIntegrityError('Prior decision synthesis is not settled.');
+            if (retained.status !== 'ABSENT') outcome = retained;
+          } else outcome = await this.#decisionExecutions[sectionId].execute({ parent, source,
+            ai: this.#decisionAi[sectionId] ?? null, signal: controller.signal });
+          if (outcome?.status === 'PREPARED') throw new ResearchAutomationIntegrityError('Prepared decision synthesis has not settled.');
+          if (outcome) {
+            decisionSynthesis[sectionId] = outcome;
+            if ('executionId' in outcome) decisionExecutionIds[sectionId] = outcome.executionId;
+          }
+        }
+        const decisionPairedInsightVersionId = kind === 'MARKET' ? outputArtifacts.find(output => output.kind === 'INSIGHT')?.semantic.sha256 ?? null : null;
+        input = { ...input, decisionPackets, decisionSynthesis, decisionSourceClaims: decisionClaims.artifact,
+          sourceClaims: builtClaims.artifact, ...(builtM01 ? { m01Inventory: builtM01.artifact } : {}),
+          ...(builtI14 ? { i14Admission: builtI14.artifact } : {}), ...(i14Synthesis ? { i14Synthesis } : {}) };
         const render = async () => {
           const rendered = this.#renderer ? await this.#renderer(input, kind, controller.signal) : defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
           if (typeof rendered.semantic !== 'object' || rendered.semantic === null || Array.isArray(rendered.semantic)) throw new ResearchAutomationIntegrityError('Research report semantic output is not an object.');
           // Method persistence is owned here, not delegated to an optional presentation adapter.
-          const reportSemantic = { ...rendered.semantic, ...(kind === 'MARKET' && descriptiveMethods ? { descriptiveMethods } : {}),
+          const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
+            decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
+            quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
+            i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
+            i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = rendered.semantic as Record<string, unknown>;
+          const reportSemantic = { ...presentation, decisionPackets, decisionPairedInsightVersionId,
+            ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
+            sourceClaimsArtifact: { contractVersion: 'automation-source-claims-reference-v1', sha256: claimsArtifact.sha256, byteSize: builtClaims.bytes.length },
+            ...(boundedMethods ? { boundedMethods } : {}),
+            ...(kind === 'MARKET' && quoteMethods ? { quoteMethods } : {}),
+            ...(builtM01 && m01Artifact ? { m01InventoryArtifact: { contractVersion: 'automation-m01-inventory-reference-v1', sha256: m01Artifact.sha256, byteSize: builtM01.bytes.length } } : {}),
+            ...(builtI14 && i14Artifact ? { i14AdmissionArtifact: { contractVersion: 'automation-i14-admission-reference-v1', sha256: i14Artifact.sha256, byteSize: builtI14.bytes.length } } : {}),
+            ...(i14Synthesis && 'executionId' in i14Synthesis ? { i14ExecutionId: i14Synthesis.executionId } : {}),
+            ...(kind === 'MARKET' && descriptiveMethods ? { descriptiveMethods } : {}),
+            ...(sources ? { confirmedSourceSetSha256: sources.sha256 } : {}),
+            ...(attempt ? { reportAttemptId: attempt.attemptId, previousPairId: attempt.previousPairId } : {}),
             ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
             ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null } : {}),
             ...(kind === 'INSIGHT' && input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}),
             ...(kind === 'INSIGHT' ? { locatedReview: input.locatedReview ?? null } : {}),
+            ...(kind === 'INSIGHT' && input.locatedReviewFallback ? { locatedReviewFallback: input.locatedReviewFallback } : {}),
             ...(kind === 'INSIGHT' ? { nativeReview: input.nativeReview ?? null } : {}),
+            ...(kind === 'INSIGHT' && insightCoding ? { insightCoding } : {}),
             ...(kind === 'INSIGHT' && input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
             ...(kind === 'INSIGHT' && input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
             ...(kind === 'INSIGHT' && input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}),
             ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
             ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
             ...(kind === 'MARKET' ? { metricMethods: metricMethods ?? null } : {}),
+            ...(kind === 'MARKET' && metricClassified ? { metricClassified } : {}),
             ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}) };
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
@@ -642,7 +1531,9 @@ export class ResearchAutomationService {
           // Keep the entire admitted raw collection. Do not truncate quotes or
           // fail the independent Market report because this view is too large.
           const { reviewCorpus: _oversizedCorpus, locatedReview: _oversizedLocated, ...withoutCorpus } = input;
-          input = { ...withoutCorpus, reviewCorpusFailure: 'REVIEW_CORPUS_REPORT_TOO_LARGE' };
+          input = { ...withoutCorpus,
+            ...(_oversizedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? { locatedReviewFallback: { sourcePackage: _oversizedLocated.sourcePackage } } : {}),
+            reviewCorpusFailure: 'REVIEW_CORPUS_REPORT_TOO_LARGE' };
           prepared = await render();
         }
         if (kind === 'INSIGHT' && input.nativeReview && (prepared.semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || prepared.html.byteLength > MAX_HTML_BYTES)) {
@@ -661,35 +1552,54 @@ export class ResearchAutomationService {
           if (pdfBytes.byteLength > MAX_PDF_BYTES || !pdfBytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new ResearchAutomationIntegrityError('Research PDF output failed validation.');
           pdf = await this.#artifacts.put(pdfBytes);
         }
-        outputArtifacts.push({ kind, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
+        outputArtifacts.push({ kind, claims: claimsArtifact, m01: m01Artifact, i14: i14Artifact, metricProof: kind === 'MARKET' ? metricProof : null, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
       }
     } catch {
+      if (attempt) { await this.#settleAttempt(attempt.attemptId, controller.signal.aborted ? 'CANCELLED' : 'FAILED'); return true; }
       const current = this.#current(row.runId);
       if (!current || TERMINAL_STATUSES.has(current.status)) return true;
       await this.#settleSourceFailure(row.runId, 'REPORTS', controller.signal.aborted ? 'CANCELLED_DURING_REPORT_RENDERING' : 'REPORT_RENDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');
       return true;
     }
     const beforeSave = this.#current(row.runId);
-    if (!beforeSave || TERMINAL_STATUSES.has(beforeSave.status)) return true;
+    if (!beforeSave || (!attempt && TERMINAL_STATUSES.has(beforeSave.status))) return true;
     const finished = this.#now().toISOString();
     try {
+      const previous = attempt ? (await this.listReportVersions(row.workspaceId, row.runId)).at(-1)! : undefined;
+      if (attempt && previous!.pairId !== attempt.previousPairId) throw new ResearchAutomationIntegrityError('Revision predecessor changed.');
+      const pairArtifact = attempt ? await this.#putJson(pairDocument(row, previous!.versionNumber + 1, outputArtifacts.map(output => ({ reportKind: output.kind,
+        versionSha: output.semantic.sha256, htmlSha: output.html.sha256, pdfSha: output.pdf?.sha256 ?? null, pdfUnavailableCode: output.pdfCode })), attempt.attemptId), finished) : undefined;
       await withDatabaseMutationMutex(this.#db, async () => {
         this.#db.transaction(() => {
           const current = this.#current(row.runId);
-          if (!current || TERMINAL_STATUSES.has(current.status)) return;
+          if (!current || (!attempt && TERMINAL_STATUSES.has(current.status))) return;
+          if (attempt && this.#attempt(attempt.attemptId)?.state !== 'RUNNING') return;
           controller.signal.throwIfAborted();
           for (const output of outputArtifacts) {
+            this.#registerManifest(output.claims, 'application/json', finished);
+            if (output.m01) this.#registerManifest(output.m01, 'application/json', finished);
+            if (output.i14) this.#registerManifest(output.i14, 'application/json', finished);
+            if (output.metricProof) this.#registerManifest(output.metricProof, 'application/json', finished);
             this.#registerManifest(output.semantic, 'application/json', finished);
             this.#registerManifest(output.html, 'text/html; charset=utf-8', finished);
             if (output.pdf) this.#registerManifest(output.pdf, 'application/pdf', finished);
-            this.#db.prepare(`INSERT INTO analysis_research_automation_outputs(run_id,report_kind,version_sha256,html_sha256,pdf_sha256,pdf_unavailable_code,created_at) VALUES (?,?,?,?,?,?,?)`)
+            if (attempt) this.#db.prepare(`INSERT INTO analysis_research_automation_attempt_outputs(attempt_id,report_kind,version_sha256,html_sha256,pdf_sha256,pdf_unavailable_code,created_at) VALUES (?,?,?,?,?,?,?)`)
+              .run(attempt.attemptId, output.kind, output.semantic.sha256, output.html.sha256, output.pdf?.sha256 ?? null, output.pdf ? null : output.pdfCode, finished);
+            else this.#db.prepare(`INSERT INTO analysis_research_automation_outputs(run_id,report_kind,version_sha256,html_sha256,pdf_sha256,pdf_unavailable_code,created_at) VALUES (?,?,?,?,?,?,?)`)
               .run(row.runId, output.kind, output.semantic.sha256, output.html.sha256, output.pdf?.sha256 ?? null, output.pdf ? null : output.pdfCode, finished);
+          }
+          if (attempt) {
+            this.#registerManifest(pairArtifact!, 'application/json', finished);
+            const change = this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state='COMMITTED',version_number=?,pair_sha256=?,finished_at=? WHERE attempt_id=? AND state='RUNNING'`).run(previous!.versionNumber + 1, pairArtifact!.sha256, finished, attempt.attemptId);
+            if (change.changes !== 1) throw new ResearchAutomationIntegrityError('Revision publication claim was lost.');
+            return;
           }
           this.#transition(row.runId, toNumber(current.revision), 'DRAFT_READY', finished);
           this.#db.prepare(`UPDATE analysis_research_automation_steps SET state='SUCCEEDED',finished_at=? WHERE run_id=? AND step_id='REPORTS' AND state='RUNNING'`).run(finished, row.runId);
         })();
       });
     } catch (error) {
+      if (attempt) { await this.#settleAttempt(attempt.attemptId, controller.signal.aborted ? 'CANCELLED' : 'FAILED'); return true; }
       try {
         const current = this.#current(row.runId);
         if (!current || TERMINAL_STATUSES.has(current.status)) return true;
@@ -702,7 +1612,7 @@ export class ResearchAutomationService {
     return true;
     } finally {
       externalSignal?.removeEventListener('abort', onAbort);
-      this.#active.delete(row.runId);
+      if (this.#active.get(activeKey) === controller) this.#active.delete(activeKey);
     }
   }
 
@@ -872,6 +1782,11 @@ export class ResearchAutomationService {
     const usageRows = this.#db.prepare(`SELECT step_id stepId,ordinal,provider,operation,request_count requestCount,cost_state costState,cost_unit costUnit,cost_amount costAmount FROM analysis_research_automation_usage WHERE run_id=? ORDER BY step_id,ordinal`).all(row.runId) as UsageRow[];
     const usageEntries = usageRows.map((value) => ({ stepId: value.stepId, provider: value.provider, operation: value.operation, requestCount: toNumber(value.requestCount), cost: value.costState === 'KNOWN' ? { state: 'KNOWN' as const, unit: value.costUnit!, amount: value.costAmount! } : { state: 'UNKNOWN' as const } }));
     const knownCosts = usageEntries.filter((value): value is typeof value & { cost: { state: 'KNOWN'; unit: 'USD' | 'CREDITS'; amount: string } } => value.cost.state === 'KNOWN').map((value) => ({ unit: value.cost.unit, amount: value.cost.amount }));
+    const aiActivity: NonNullable<ResearchAutomationRun['aiActivity']> = { ...await this.#i14Executions.readActivity(row.workspaceId, row.runId) };
+    for (const [sectionId, key] of [['M11', 'm11'], ['M12', 'm12'], ['I15', 'i15']] as const) {
+      const activity = await this.#decisionExecutions[sectionId].readActivity(row.workspaceId, row.runId);
+      if (activity) aiActivity[key] = activity;
+    }
     const blockers = blockerList(steps, documents, scope !== null);
     const outputRows = this.#db.prepare(`SELECT report_kind reportKind,version_sha256 versionSha,html_sha256 htmlSha,pdf_sha256 pdfSha,pdf_unavailable_code pdfUnavailableCode FROM analysis_research_automation_outputs WHERE run_id=?`).all(row.runId) as OutputRow[];
     const outputs = outputRows.length === 0 ? undefined : Object.fromEntries(outputRows.map((value) => [value.reportKind === 'MARKET' ? 'market' : 'insight', { versionId: value.versionSha, web: true as const, pdf: { available: value.pdfSha !== null, reason: value.pdfSha ? null : message(value.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED') } }])) as ResearchAutomationRun['outputs'];
@@ -880,6 +1795,7 @@ export class ResearchAutomationService {
       description: start.description, interview: start.interview, requestedPeriod: start.requestedPeriod, reports: start.reports as ResearchAutomationRun['reports'],
       definition: scope ? { definition: scope.definition, includeTerms: [...scope.includeTerms], excludeTerms: [...scope.excludeTerms], selectedProductIds: [...scope.selectedProductIds], peerProductIds: [...scope.peerProductIds], confirmedAt: row.scopeConfirmedAt!, ...(scope.exactShopeeUrls !== undefined ? { exactShopeeUrls: [...scope.exactShopeeUrls] } : {}) } : null,
       productCards: [...cards], coverage: { requestedPeriod: start.requestedPeriod, sources: [...coverageSources] }, usage: { entries: usageEntries, requestCount: usageEntries.reduce((total, value) => total + value.requestCount, 0), knownCosts: knownCosts.slice(0, 2), hasUnknownCost: usageEntries.some((value) => value.cost.state === 'UNKNOWN') },
+      ...(Object.keys(aiActivity).length ? { aiActivity } : {}),
       steps: steps.map((value) => ({ stepId: value.stepId, state: value.state, code: value.code, message: value.code ? safeStepMessage(value.code) : null, startedAt: value.startedAt, finishedAt: value.finishedAt })), blockers,
       ...(outputs ? { outputs } : {}), createdAt: row.createdAt, updatedAt: row.updatedAt,
     };
@@ -903,8 +1819,197 @@ export class ResearchAutomationService {
   #output(runId: string, kind: 'MARKET' | 'INSIGHT'): OutputRow | undefined {
     return this.#db.prepare(`SELECT report_kind reportKind,version_sha256 versionSha,html_sha256 htmlSha,pdf_sha256 pdfSha,pdf_unavailable_code pdfUnavailableCode FROM analysis_research_automation_outputs WHERE run_id=? AND report_kind=?`).get(runId, kind) as OutputRow | undefined;
   }
+  #attempt(attemptId: string): AttemptRow | undefined {
+    return this.#db.prepare(`SELECT attempt_id attemptId,run_id runId,attempt_number attemptNumber,previous_pair_sha256 previousPairId,request_sha256 requestSha,source_set_sha256 sourceSetSha,state,version_number versionNumber,pair_sha256 pairId,created_at createdAt FROM analysis_research_automation_attempts WHERE attempt_id=?`).get(attemptId) as AttemptRow | undefined;
+  }
+  #attemptRequest(key: string): { attemptId: string; kind: 'CREATE' | 'CANCEL'; sha: string } | undefined {
+    return this.#db.prepare(`SELECT attempt_id attemptId,request_kind kind,request_sha256 sha FROM analysis_research_automation_attempt_requests WHERE request_key=?`).get(key) as { attemptId: string; kind: 'CREATE' | 'CANCEL'; sha: string } | undefined;
+  }
+  #attemptOutputs(attemptId: string): OutputRow[] {
+    return this.#db.prepare(`SELECT report_kind reportKind,version_sha256 versionSha,html_sha256 htmlSha,pdf_sha256 pdfSha,pdf_unavailable_code pdfUnavailableCode FROM analysis_research_automation_attempt_outputs WHERE attempt_id=? ORDER BY CASE report_kind WHEN 'MARKET' THEN 0 ELSE 1 END`).all(attemptId) as OutputRow[];
+  }
+  #originalPair(run: RunRow): ResearchAutomationReportPair | undefined {
+    const outputs = run.reports.split(',').map(kind => this.#output(run.runId, kind as 'MARKET' | 'INSIGHT'));
+    if (outputs.every(item => !item)) return undefined;
+    if (outputs.some(item => !item)) throw new ResearchAutomationIntegrityError('Original report pair is incomplete.');
+    const rows = outputs as OutputRow[];
+    return pairProjection(digest(pairDocument(run, 1, rows)), 1, null, rows);
+  }
+  async #readAttemptPair(run: RunRow, attempt: AttemptRow): Promise<ResearchAutomationReportPair> {
+    if (attempt.runId !== run.runId || attempt.state !== 'COMMITTED' || !attempt.pairId || !attempt.versionNumber)
+      throw new ResearchAutomationIntegrityError('Committed report revision is invalid.');
+    await this.#readAttemptSources(run, attempt);
+    const rows = this.#attemptOutputs(attempt.attemptId);
+    if (rows.map(item => item.reportKind).join(',') !== run.reports)
+      throw new ResearchAutomationIntegrityError('Committed report pair membership is invalid.');
+    const document = await this.#readJson<unknown>(attempt.pairId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (canonicalJson(document) !== canonicalJson(pairDocument(run, toNumber(attempt.versionNumber), rows, attempt.attemptId)))
+      throw new ResearchAutomationIntegrityError('Committed report pair differs from its exact output identities.');
+    return pairProjection(attempt.pairId, toNumber(attempt.versionNumber), attempt.attemptId, rows);
+  }
+  async #readAttemptSources(run: RunRow, attempt: AttemptRow): Promise<FrozenSources> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const accepted = validateRevision(request) && this.#attemptRequest(request.requestKey);
+    if (!accepted || accepted.kind !== 'CREATE' || accepted.attemptId !== attempt.attemptId || accepted.sha !== attempt.requestSha ||
+        request.previousPairId !== attempt.previousPairId || attempt.runId !== run.runId)
+      throw new ResearchAutomationIntegrityError('Revision request identity is inconsistent.');
+    const value = await this.#readJson<AutomationConfirmedSourceSet>(attempt.sourceSetSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateSourceSet(value) || value.executionId !== attempt.attemptId || value.requestSha256 !== attempt.requestSha)
+      throw new ResearchAutomationIntegrityError('Revision source set identity is inconsistent.');
+    if ((request.sources.metric.decision === 'USE_PREPARED' && (value.metric.decision !== 'ADMITTED' || value.metric.sourcePackage.packageId !== request.sources.metric.packageId)) ||
+        (request.sources.metric.decision === 'SKIP' && value.metric.decision !== 'SKIPPED') ||
+        (request.sources.nativeReview.decision === 'SKIP' && value.nativeReview.decision !== 'SKIPPED'))
+      throw new ResearchAutomationIntegrityError('Revision source choices differ from the owner request.');
+    const nativeReference = await this.#verifySourceDocument(run, value);
+    if (request.sources.nativeReview.decision === 'USE_PACKAGE' && nativeReference?.sourcePackage.packageId !== request.sources.nativeReview.packageId)
+      throw new ResearchAutomationIntegrityError('Revision native choice differs from the owner request.');
+    if (request.sources.metric.decision === 'KEEP' || request.sources.nativeReview.decision === 'KEEP') {
+      const previous = this.#previousAttempt(run, attempt);
+      const prior = previous ? await this.#readAttemptSources(run, previous) : await this.#readFrozenSources(run);
+      if (prior) {
+        if ((request.sources.metric.decision === 'KEEP' && canonicalJson(value.metric) !== canonicalJson(prior.value.metric)) ||
+            (request.sources.nativeReview.decision === 'KEEP' && canonicalJson(value.nativeReview) !== canonicalJson(prior.value.nativeReview)))
+          throw new ResearchAutomationIntegrityError('Retained source membership drifted across report versions.');
+      } else {
+        const original = this.#output(run.runId, 'MARKET');
+        const semantic = original ? await this.#readJson<Record<string, unknown>>(original.versionSha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : undefined;
+        const metric = semantic && isRecord(semantic.metricMethods) ? { decision: 'ADMITTED', sourcePackage: (semantic.metricMethods as unknown as AutomationMetricMethodSnapshot).originalSourcePackage } : { decision: 'ABSENT' };
+        const native = (await this.#stepDocument(run.runId, 'COLLECTION'))?.nativeReview;
+        const nativeChoice = native ? { decision: 'RESOLVED', referenceSha256: digest(native) } : { decision: 'NONE' };
+        if ((request.sources.metric.decision === 'KEEP' && canonicalJson(value.metric) !== canonicalJson(metric)) ||
+            (request.sources.nativeReview.decision === 'KEEP' && canonicalJson(value.nativeReview) !== canonicalJson(nativeChoice)))
+          throw new ResearchAutomationIntegrityError('Legacy source membership drifted across report versions.');
+      }
+    }
+    return { sha256: attempt.sourceSetSha, value, ...(nativeReference ? { nativeReference } : {}) };
+  }
+  async #verifySourceDocument(run: RunRow, value: AutomationConfirmedSourceSet, reference?: NativeSourceReviewReference): Promise<NativeSourceReviewReference | undefined> {
+    if (!validateSourceSet(value) || value.runId !== run.runId || value.workspaceId !== run.workspaceId ||
+        value.startSha256 !== run.startSha || value.scopeSha256 !== run.scopeSha || value.confirmedAt !== run.scopeConfirmedAt || !run.scopeSha || !run.scopeConfirmedAt)
+      throw new ResearchAutomationIntegrityError('Source set differs from the frozen research scope.');
+    const bound = { runId: run.runId, start: await this.#readStartSnapshot(run.startSha, run.workspaceId),
+      scope: await this.#readScopeSnapshot(run.scopeSha, run.workspaceId, run.runId), scopeConfirmedAt: run.scopeConfirmedAt };
+    await this.#metricMethods.verifySelection({ ...bound, sourceSelection: metricSelection(value) });
+    if (value.nativeReview.decision !== 'RESOLVED') return undefined;
+    const native = reference ?? await this.#readJson<NativeSourceReviewReference>(value.nativeReview.referenceSha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (digest(native) !== value.nativeReview.referenceSha256) throw new ResearchAutomationIntegrityError('Source reference digest differs.');
+    await this.#nativeReviews.readReference(native, bound);
+    return native;
+  }
+  async #reportCollection(runId: string, sources: FrozenSources | undefined, supplemental: boolean): Promise<StepResultDocument | null> {
+    const original = await this.#stepDocument(runId, 'COLLECTION');
+    if (!supplemental || !sources || !original) return original;
+    const { exactShopee: _exact, nativeReview: _native, ...withoutReviews } = original;
+    if (sources.nativeReference) return { ...withoutReviews, nativeReview: sources.nativeReference };
+    if (sources.value.nativeReview.decision === 'SKIPPED') return withoutReviews;
+    return original;
+  }
+  #previousAttempt(run: RunRow, attempt: AttemptRow): AttemptRow | undefined {
+    const row = this.#db.prepare(`SELECT attempt_id attemptId FROM analysis_research_automation_attempts WHERE run_id=? AND state='COMMITTED' AND pair_sha256=? AND attempt_number<?`).get(run.runId, attempt.previousPairId, attempt.attemptNumber) as { attemptId: string } | undefined;
+    if (row) return this.#attempt(row.attemptId)!;
+    if (this.#originalPair(run)?.pairId !== attempt.previousPairId)
+      throw new ResearchAutomationIntegrityError('Revision predecessor is missing.');
+    return undefined;
+  }
+  async #methodSources(run: RunRow, attempt: AttemptRow, family: 'metric' | 'nativeReview'): Promise<FrozenSources | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Revision request fails its closed contract.');
+    if (request.sources[family].decision !== 'KEEP') return this.#readAttemptSources(run, attempt);
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#methodSources(run, previous, family) : family === 'metric' ? this.#readFrozenSources(run) : undefined;
+  }
+  async #classifiedRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationClassifiedReportRevisionRequest | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Classified revision request failed verification.');
+    if ('acceptedMetric' in request) return request;
+    if (request.sources.metric.decision !== 'KEEP') return undefined;
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#classifiedRequest(run, previous) : undefined;
+  }
+  async #i14Parent(run: RunRow, attempt?: AttemptRow): Promise<AutomationI14ExecutionParent> {
+    if (!attempt) return { kind: 'INITIAL_REPORTS', runId: run.runId };
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight execution revision request failed verification.');
+    return 'acceptedMetric' in request || 'acceptedInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
+      : { kind: 'SUPPLEMENTAL_ATTEMPT', runId: run.runId, attemptId: attempt.attemptId };
+  }
+  async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationInsightReportRevisionRequest | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight coding revision request failed verification.');
+    if ('acceptedInsight' in request) return request;
+    if (request.sources.nativeReview.decision !== 'KEEP') return undefined;
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#insightCodingRequest(run, previous) : undefined;
+  }
+  async #previousSemantic(run: RunRow, attempt: AttemptRow, kind: 'MARKET' | 'INSIGHT'): Promise<Record<string, unknown>> {
+    const report = await this.readReport(run.workspaceId, run.runId, kind, false, attempt.previousPairId);
+    return this.#readJson<Record<string, unknown>>(report.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+  }
+  #boundedSourceReader(): FoundationSourcePackageReader {
+    return new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+  }
+  #boundedBinding(run: RunRow, request: Pick<AutomationBoundedReportRevisionRequest, 'previousPairId'>): AutomationBoundedMethodSnapshot['binding'] {
+    if (!run.scopeSha) throw new ResearchAutomationIntegrityError('Bounded methods require confirmed scope.');
+    return { workspaceId: run.workspaceId, runId: run.runId, startSha256: run.startSha,
+      scopeSha256: run.scopeSha, previousPairId: request.previousPairId };
+  }
+  async #loadBoundedMethods(run: RunRow, request: AutomationBoundedReportRevisionRequest): Promise<AutomationBoundedMethodSnapshot | undefined> {
+    if (request.boundedMethods.decision === 'SKIP') return undefined;
+    await this.#verifySupplementalOrigin(run, request.boundedMethods, 'BOUNDED');
+    return buildAutomationBoundedMethods(request.boundedMethods, this.#boundedBinding(run, request), this.#boundedSourceReader());
+  }
+  async #boundedRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationBoundedReportRevisionRequest | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Bounded revision request failed verification.');
+    if ('boundedMethods' in request) return request.boundedMethods.decision === 'USE_PACKAGE' ? request : undefined;
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#boundedRequest(run, previous) : undefined;
+  }
+  async #loadQuoteMethods(run: RunRow, request: AutomationQuoteReportRevisionRequest): Promise<AutomationQuoteMethodSnapshot | undefined> {
+    if (request.quoteMethods.decision === 'SKIP') return undefined;
+    await this.#verifySupplementalOrigin(run, request.quoteMethods, 'QUOTE');
+    return buildAutomationQuoteMethods(request.quoteMethods, this.#boundedBinding(run, request), this.#boundedSourceReader());
+  }
+  /** Manual packages retain the existing explicit-selection policy. Prepared attachments cannot escape their confirmed run/scope. */
+  async #verifySupplementalOrigin(run: RunRow, selection: AutomationBoundedMethodSnapshot['selection'], family: 'QUOTE' | 'BOUNDED'): Promise<void> {
+    const reader = this.#boundedSourceReader();
+    const budget = { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 };
+    const source = await reader.readFinalizedSourcePackage(selection.packageId, budget);
+    const origin = await reader.readAutomationAttachmentOrigin(selection.packageId, budget);
+    const prepared = source.manifest.packageKey.startsWith('automation-supplemental:');
+    if (!origin) {
+      if (prepared) throw new ResearchAutomationIntegrityError('Prepared source origin is missing.');
+      return;
+    }
+    if (!run.scopeSha || origin.manifestArtifactSha256 !== selection.manifestArtifactSha256)
+      throw new ResearchAutomationIntegrityError('Prepared source origin failed verification.');
+    const start = await this.#readStartSnapshot(run.startSha, run.workspaceId);
+    const scope = await this.#readScopeSnapshot(run.scopeSha, run.workspaceId, run.runId);
+    if (origin.bindingSha256 !== digest({ runId: run.runId, start, scope }) ||
+        (prepared && !source.manifest.packageKey.startsWith(`automation-supplemental:${run.runId}-${family.toLowerCase()}-`)))
+      throw new ResearchAutomationValidationError('Prepared source does not belong to this run and method family.');
+    if (prepared) {
+      const verified = await verifyPreparedSupplementalSource(reader, { runId: run.runId, start, scope }, source);
+      if (verified.packageId !== selection.packageId || verified.manifestArtifactSha256 !== selection.manifestArtifactSha256 ||
+          verified.packageContentSha256 !== selection.packageContentSha256 || verified.family !== family ||
+          verified.descriptorPath !== selection.descriptorPath)
+        throw new ResearchAutomationValidationError('Prepared source selection does not match its exact context.');
+    }
+  }
+  async #quoteRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationQuoteReportRevisionRequest | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Quote revision request failed verification.');
+    if ('quoteMethods' in request) return request.quoteMethods.decision === 'USE_PACKAGE' ? request : undefined;
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#quoteRequest(run, previous) : undefined;
+  }
+  async #settleAttempt(attemptId: string, state: 'FAILED' | 'CANCELLED'): Promise<void> {
+    await withDatabaseMutationMutex(this.#db, async () => {
+      this.#db.prepare(`UPDATE analysis_research_automation_attempts SET state=?,finished_at=? WHERE attempt_id=? AND state='RUNNING'`).run(state, this.#now().toISOString(), attemptId);
+    });
+  }
   #current(runId: string): RunRow | undefined {
-    return this.#db.prepare(`SELECT run_id runId,workspace_id workspaceId,revision,status,mode,keyword,period_start periodStart,period_end periodEnd,reports,start_request_sha256 startSha,scope_request_sha256 scopeSha,scope_confirmed_at scopeConfirmedAt,actor_id actorId,created_at createdAt,updated_at updatedAt FROM analysis_research_automation_runs WHERE run_id=?`).get(runId) as RunRow | undefined;
+    return this.#db.prepare(`SELECT run_id runId,workspace_id workspaceId,revision,status,mode,keyword,period_start periodStart,period_end periodEnd,reports,start_request_sha256 startSha,scope_request_sha256 scopeSha,scope_confirmed_at scopeConfirmedAt,confirmed_source_set_sha256 sourceSetSha,actor_id actorId,created_at createdAt,updated_at updatedAt FROM analysis_research_automation_runs WHERE run_id=?`).get(runId) as RunRow | undefined;
   }
   async #requireRun(workspaceId: string, runId: string): Promise<ResearchAutomationRun> {
     return this.getRun(workspaceId, runId);
@@ -928,7 +2033,32 @@ export class ResearchAutomationService {
   async #retryOrConflict(prior: { runId: string; kind: 'START' | 'CONFIRM' | 'CANCEL'; sha: string }, sha: string, workspaceId: string, kind: 'START' | 'CONFIRM' | 'CANCEL', runId?: string): Promise<ResearchAutomationMutationReceipt> {
     if (prior.sha !== sha || prior.kind !== kind || (runId !== undefined && prior.runId !== runId)) throw new ResearchAutomationConflictError('request_key_conflict', 'This request key is already bound to different content.');
     const run = await this.getRun(workspaceId, prior.runId);
+    if (kind === 'CONFIRM') await this.#readFrozenSources(this.#current(prior.runId)!);
     return { contractVersion: 'research-automation-receipt-v1', exactRetry: true, run };
+  }
+
+  async #readFrozenSources(run: RunRow): Promise<FrozenSources | undefined> {
+    const row = this.#db.prepare(`SELECT execution_id executionId,source_set_sha256 sha256,request_key requestKey,request_sha256 requestSha,start_sha256 startSha,scope_sha256 scopeSha,confirmed_at confirmedAt FROM analysis_research_automation_source_sets WHERE run_id=?`)
+      .get(run.runId) as { executionId: string; sha256: string; requestKey: string; requestSha: string; startSha: string; scopeSha: string; confirmedAt: string } | undefined;
+    if (!row) {
+      if (run.sourceSetSha) throw new ResearchAutomationIntegrityError('Confirmed source membership is missing.');
+      return undefined;
+    }
+    const value = await this.#readJson<AutomationConfirmedSourceSet>(row.sha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const request = this.#request(row.requestKey);
+    if (run.sourceSetSha !== row.sha256 || !validateSourceSet(value) || value.runId !== run.runId || value.workspaceId !== run.workspaceId ||
+        value.executionId !== row.executionId || value.startSha256 !== row.startSha || value.scopeSha256 !== row.scopeSha ||
+        value.requestSha256 !== row.requestSha || value.confirmedAt !== row.confirmedAt ||
+        run.startSha !== row.startSha || run.scopeSha !== row.scopeSha || run.scopeConfirmedAt !== row.confirmedAt ||
+        !request || request.runId !== run.runId || request.kind !== 'CONFIRM' || request.sha !== row.requestSha)
+      throw new ResearchAutomationIntegrityError('Confirmed source set does not match its exact run and request.');
+    const input = { runId: run.runId, start: await this.#readStartSnapshot(run.startSha, run.workspaceId),
+      scope: await this.#readScopeSnapshot(row.scopeSha, run.workspaceId, run.runId), scopeConfirmedAt: row.confirmedAt };
+    await this.#metricMethods.verifySelection({ ...input, sourceSelection: metricSelection(value) });
+    if (value.nativeReview.decision !== 'RESOLVED') return { sha256: row.sha256, value };
+    const nativeReference = await this.#readJson<NativeSourceReviewReference>(value.nativeReview.referenceSha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    await this.#nativeReviews.readReference(nativeReference, input);
+    return { sha256: row.sha256, value, nativeReference };
   }
   #transition(runId: string, expectedRevision: number, status: ResearchAutomationRun['status'], at: string): void {
     const result = this.#db.prepare('UPDATE analysis_research_automation_runs SET revision=revision+1,status=?,updated_at=? WHERE run_id=? AND revision=?').run(status, at, runId, expectedRevision);
@@ -977,6 +2107,13 @@ export class ResearchAutomationService {
         throw new ResearchAutomationIntegrityError('Native review source lacks separate confirmed scope.');
       await this.#nativeReviews.readReference(value.nativeReview, { runId, start: await this.#readStartSnapshot(row.startSha, row.workspaceId),
         scope: await this.#readScopeSnapshot(row.scopeSha, row.workspaceId, runId), scopeConfirmedAt: row.scopeConfirmedAt });
+    }
+    if (stepId === 'COLLECTION') {
+      const sources = await this.#readFrozenSources(this.#current(runId)!);
+      if (sources && (sources.value.nativeReview.decision === 'RESOLVED'
+          ? digest(value.nativeReview) !== sources.value.nativeReview.referenceSha256 || value.exactShopee !== undefined
+          : value.nativeReview !== undefined || (sources.value.nativeReview.decision === 'SKIPPED' && value.exactShopee !== undefined)))
+        throw new ResearchAutomationIntegrityError('Collection does not match the confirmed review selection.');
     }
     return value;
   }
@@ -1080,6 +2217,18 @@ function validateStart(value: unknown): ResearchAutomationStartRequest {
   return output;
 }
 function validateConfirm(value: unknown): ResearchAutomationConfirmRequest { const object = plain(value); keys(object, ['contractVersion', 'requestKey', 'expectedRevision', 'definition', 'includeTerms', 'excludeTerms', 'selectedProductIds', 'peerProductIds', 'exactShopeeUrls']); if (object.contractVersion !== 'research-automation-confirm-v1' || typeof object.requestKey !== 'string' || !REQUEST_KEY.test(object.requestKey) || !Number.isSafeInteger(object.expectedRevision) || object.expectedRevision < 1) throw new ResearchAutomationValidationError('Invalid scope confirmation request.'); return { contractVersion: 'research-automation-confirm-v1', requestKey: object.requestKey, expectedRevision: object.expectedRevision, definition: text(object.definition, 2000, true), includeTerms: terms(object.includeTerms), excludeTerms: terms(object.excludeTerms), selectedProductIds: productIds(object.selectedProductIds, 4), peerProductIds: productIds(object.peerProductIds, 8), ...(object.exactShopeeUrls !== undefined ? { exactShopeeUrls: validateExactUrls(object.exactShopeeUrls) } : {}) }; }
+function validateScopeConfirmation(value: unknown): ResearchAutomationConfirmRequest | ResearchAutomationSourceConfirmRequest {
+  if (!isRecord(value) || value.contractVersion !== 'research-automation-confirm-v2') return validateConfirm(value);
+  if (!validateSourceConfirm(value)) throw new ResearchAutomationValidationError('Invalid source-bound scope confirmation.');
+  const { sources, ...scope } = value;
+  const normalized = validateConfirm({ ...scope, contractVersion: 'research-automation-confirm-v1' });
+  const result = { ...normalized, contractVersion: 'research-automation-confirm-v2', sources };
+  if (!validateSourceConfirm(result)) throw new ResearchAutomationValidationError('Invalid normalized source-bound confirmation.');
+  return result;
+}
+function metricSelection(set: AutomationConfirmedSourceSet) {
+  return { executionId: set.executionId, sourcePackage: set.metric.decision === 'ADMITTED' ? set.metric.sourcePackage : null };
+}
 function validateExactUrls(value: unknown): string[] {
   if (!Array.isArray(value) || value.length > 5) throw new ResearchAutomationValidationError('Choose up to five exact Shopee product URLs.');
   const urls = value.map(item => text(item, 2000));
@@ -1102,6 +2251,17 @@ function inclusiveDays(period: { startDate: string; endDate: string }): number {
 function validDate(value: string): boolean { const time = Date.parse(`${value}T00:00:00Z`); return Number.isFinite(time) && new Date(time).toISOString().slice(0, 10) === value; }
 function todayVN(): string { const date = new Date(Date.now() + 7 * 3_600_000); return date.toISOString().slice(0, 10); }
 function digest(value: unknown): string { return createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex'); }
+function pairDocument(run: RunRow, versionNumber: number, outputs: readonly OutputRow[], attemptId?: string) {
+  return { contractVersion: 'automation-report-pair-v1', runId: run.runId, workspaceId: run.workspaceId,
+    startSha256: run.startSha, scopeSha256: run.scopeSha, versionNumber, ...(attemptId ? { attemptId } : {}),
+    outputs: [...outputs].sort((a, b) => a.reportKind === b.reportKind ? 0 : a.reportKind === 'MARKET' ? -1 : 1) };
+}
+function pairProjection(pairId: string, versionNumber: number, attemptId: string | null, rows: readonly OutputRow[]): ResearchAutomationReportPair {
+  return { pairId, versionNumber, attemptId, outputs: rows.map(row => ({ kind: row.reportKind, versionId: row.versionSha, pdfAvailable: row.pdfSha !== null })) };
+}
+function revisionReceipt(attempt: AttemptRow, exactRetry: boolean): ResearchAutomationRevisionReceipt {
+  return { attemptId: attempt.attemptId, attemptNumber: toNumber(attempt.attemptNumber), state: attempt.state, pairId: attempt.pairId, exactRetry };
+}
 function toNumber(value: bigint | number): number { const number = typeof value === 'bigint' ? Number(value) : value; if (!Number.isSafeInteger(number)) throw new ResearchAutomationIntegrityError('Stored integer is out of bounds.'); return number; }
 function assertUuid(value: string): void { if (!UUID.test(value)) throw new ResearchAutomationValidationError('ID must be a UUID.'); }
 function captureEnvelope(capture: ProviderRawCapture): Buffer { const value = { contractVersion: 'research-automation-capture-v1', ...capture, requestBodyBytesBase64: capture.requestBodyBytes?.toString('base64') ?? null, responseBytesBase64: capture.responseBytes?.toString('base64') ?? null }; delete (value as { requestBodyBytes?: unknown }).requestBodyBytes; delete (value as { responseBytes?: unknown }).responseBytes; return Buffer.from(canonicalJson(value), 'utf8'); }

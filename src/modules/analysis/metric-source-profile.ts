@@ -55,6 +55,23 @@ function readSheet(bytes: Buffer): RawRow[] {
   return (JSON.parse(run.stdout.toString('utf8')) as { rows: RawRow[] }).rows;
 }
 
+/** Exact observed header/profile for upload preparation, never a repair or a market calculation. */
+export function inspectMetricWorkbookProfile(workbook: Buffer): {
+  profileId: MetricSourceManifest['profileId']; profileVersion: MetricSourceManifest['profileVersion'];
+  headerSha256: MetricSourceManifest['source']['headerSha256']; lastRow: number;
+} {
+  const rows = readSheet(workbook);
+  const header = rows[0];
+  if (!header || header.row !== 1 || header.cells.some(cell => cell.type !== 'text')) reject('Sheet1!A1:T1', 'HEADER_MISMATCH');
+  const values = header.cells.map(cell => cell.value);
+  const legacy = canonicalJson(values) === canonicalJson(LEGACY_HEADERS);
+  const current = canonicalJson(values) === canonicalJson(CURRENT_HEADERS);
+  if (!legacy && !current) reject('Sheet1!A1:T1', 'HEADER_MISMATCH');
+  if (rows.length < 2 || rows.length > 10001 || rows.some((row, index) => row.row !== index + 1)) reject('Sheet1', 'ROW_RANGE_MISMATCH');
+  return { profileId: current ? 'metric-shopee-product-list-sheet1-v2' : 'metric-shopee-product-list-sheet1-v1',
+    profileVersion: current ? '2.0.0' : '1.0.0', headerSha256: jsonHash(values) as MetricSourceManifest['source']['headerSha256'], lastRow: rows.length };
+}
+
 // Exact base-10 conversion from OOXML numeric lexical values; never Number(value).
 function integer(cell: Cell, locator: string): string | null {
   if (cell.type === 'blank' || (cell.type === 'text' && cell.value === '')) return null;

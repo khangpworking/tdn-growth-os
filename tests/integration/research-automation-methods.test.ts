@@ -34,11 +34,13 @@ interface SavedSemantic {
   readonly state: string;
 }
 
-async function fixture(t: TestContext, kind: 'MARKET' | 'INSIGHT' | 'BOTH' = 'MARKET', fault?: 'method' | 'normalization' | 'step-lineage' | 'capture-bound' | 'unsettled', reviews = false) {
+async function fixture(t: TestContext, kind: 'MARKET' | 'INSIGHT' | 'BOTH' = 'MARKET', fault?: 'method' | 'normalization' | 'step-lineage' | 'capture-bound' | 'unsettled', reviews = false,
+  eventInput?: { launchDates: readonly string[]; period: { startDate: string; endDate: string } }) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-automation-methods-'));
   const db = openDatabase({ databasePath: path.join(root, 'db.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   let calls = 0;
+  let detailIndex = 0;
   const transport: ProviderTransport = {
     now: () => now().getTime(),
     sleep: async () => {},
@@ -55,6 +57,7 @@ async function fixture(t: TestContext, kind: 'MARKET' | 'INSIGHT' | 'BOTH' = 'MA
         payload = { success: true, data: {
           product_id: body.product_id, product_region: 'vn', currency: 'VND', date_range: fault === 'method' ? 'unverified provider period' : body.date_range,
           product_name: 'Synthetic thermos', revenue: 0, sales_volumn: 7, unit_price: 120000,
+          ...(eventInput ? { launch_date: eventInput.launchDates[detailIndex++] } : {}),
         } };
       } else {
         throw new Error(`Unexpected fixture endpoint: ${url.pathname}`);
@@ -113,10 +116,12 @@ async function fixture(t: TestContext, kind: 'MARKET' | 'INSIGHT' | 'BOTH' = 'MA
 
   await service.start(workspaceId, {
     contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
-    mode: 'PRODUCT', keyword: 'thermos', requestedPeriod: period, reports: kind === 'BOTH' ? ['MARKET', 'INSIGHT'] : [kind],
+    mode: 'PRODUCT', keyword: 'thermos', requestedPeriod: eventInput?.period ?? period, reports: kind === 'BOTH' ? ['MARKET', 'INSIGHT'] : [kind],
   });
   await worker.start();
   const awaiting = await waitFor('AWAITING_SCOPE');
+  // Quick search fetches a detail too; the event sequence models collection windows only.
+  detailIndex = 0;
   await service.confirmScope(workspaceId, runId, {
     contractVersion: 'research-automation-confirm-v1', requestKey: '44444444-4444-4444-8444-444444444444',
     expectedRevision: awaiting.revision, definition: 'Vietnam thermos source observations',
@@ -171,6 +176,44 @@ test('collection executes source-bound methods and saves zero-safe partial resul
   assert.deepEqual(replay.bytes, first.bytes);
   assert.match(first.bytes.toString('utf8'), /revenue/);
   assert.match(first.bytes.toString('utf8'), /sales_volumn/);
+  assert.deepEqual({ changes: state.changes(), calls: state.calls() }, before);
+});
+
+// Existing fixtures have no event field. This owns the actual collection-to-report
+// omission, including repeat windows and conflicting source dates, not a mapper mock.
+test('retained launch dates reach M09 as attributed statements without duplicate-window events or causal claims', async t => {
+  const state = await fixture(t, 'MARKET', undefined, false, {
+    launchDates: ['2024-08-31', '2024-08-31', '2024-09-01', '2026-99-99'],
+    period: { startDate: '2026-07-01', endDate: '2026-09-30' },
+  });
+  const methods = state.semantic.descriptiveMethods;
+  assert.ok(methods);
+  assert.equal(methods.input.m09.length, 3, 'repeated date across query windows is one source statement');
+  assert.deepEqual(methods.input.m09.map(row => row.eventDate), ['2024-08-31', '2024-09-01', null]);
+  assert.deepEqual(methods.input.m09.map(row => row.sourceWording), [
+    '{"launch_date":"2024-08-31"}', '{"launch_date":"2024-09-01"}', '{"launch_date":"2026-99-99"}',
+  ]);
+  for (const event of methods.input.m09) {
+    assert.equal(event.statementType, 'UNCLASSIFIED');
+    assert.equal(event.publicationDate, null, 'retrieval and query dates are not publication dates');
+    assert.equal(event.namedScope, productId);
+    assert.ok(event.targetLink, 'scope uses verified provider identity, never product-name joining');
+    assert.equal(event.affectedMetricLiteral, null);
+    assert.equal(event.conflictRefs.length, 2, 'different values remain linked, not resolved by latest capture');
+  }
+  assert.equal(state.semantic.completion.completedAnalyticalSections, 0);
+  assert.ok(state.semantic.completion.boundedMethodOutputSectionIds.includes('M09'));
+  const retained = await state.sourcePackages.readVerified(methods.input.sourcePackage.packageId);
+  const normalized = JSON.parse(retained.files.find(file => file.path === 'normalized/observations.json')!.bytes.toString());
+  assert.deepEqual(normalized.eventLineage.map((row: { captures: unknown[] }) => row.captures.length), [2, 1, 1]);
+  assert.ok(normalized.eventLineage.every((row: { captures: { responseLocator: string }[] }) =>
+    row.captures.every(capture => capture.responseLocator === '/data/launch_date')));
+  const before = { changes: state.changes(), calls: state.calls() };
+  const report = await state.service.readReport(workspaceId, runId, 'MARKET');
+  assert.match(report.bytes.toString(), /launch_date/);
+  assert.match(report.bytes.toString(), /2024-08-31/);
+  assert.match(report.bytes.toString(), /2026-99-99/);
+  assert.deepEqual((await state.service.readReport(workspaceId, runId, 'MARKET')).bytes, report.bytes);
   assert.deepEqual({ changes: state.changes(), calls: state.calls() }, before);
 });
 

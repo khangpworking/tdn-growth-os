@@ -5,6 +5,40 @@ import { compileFromFile } from 'json-schema-to-typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contracts = [
+  ['analysis', 'pageindex-cloud-query'],
+  ['analysis', 'automation-decision-packets'],
+  ['analysis', 'automation-decision-synthesis-input'],
+  ['analysis', 'automation-decision-synthesis-prompt'],
+  ['analysis', 'automation-quote-report-revision'],
+  ['analysis', 'automation-quote-method-snapshot'],
+  ['analysis', 'automation-bounded-report-revision'],
+  ['analysis', 'automation-bounded-method-snapshot'],
+  ['analysis', 'automation-classified-report-revision'],
+  ['analysis', 'automation-classified-metric'],
+  ['analysis', 'automation-metric-membership'],
+  ['analysis', 'automation-insight-selection'],
+  ['analysis', 'automation-insight-coding'],
+  ['analysis', 'automation-insight-model'],
+  ['analysis', 'automation-insight-report-revision'],
+  ['analysis', 'automation-insight-coding-snapshot'],
+  ['api', 'research-automation-metric-membership-api'],
+  ['api', 'research-automation-insight-coding-api'],
+  ['api', 'research-automation-insight-model-api'],
+  ['analysis', 'automation-metric-rule-adoption'],
+  ['analysis', 'automation-i14-synthesis-input'],
+  ['analysis', 'automation-i14-synthesis-prompt'],
+  ['analysis', 'automation-i14-synthesis-configuration'],
+  ['analysis', 'automation-decision-synthesis-configuration'],
+  ['analysis', 'automation-i14-admission-reference'],
+  ['analysis', 'automation-i14-evidence-admission'],
+  ['analysis', 'automation-i14-candidates'],
+  ['analysis', 'automation-m01-evidence-inventory'],
+  ['analysis', 'automation-m01-inventory-reference'],
+  ['analysis', 'automation-source-claims'],
+  ['analysis', 'automation-source-claims-reference'],
+  ['api', 'research-automation-metric-intake-api'],
+  ['api', 'research-automation-supplemental-intake-api'],
+  ['analysis', 'automation-report-revision'],
   ['analysis', 'report-section-catalog'],
   ['analysis', 'descriptive-market-methods'],
   ['analysis', 'located-insight-methods'],
@@ -36,6 +70,8 @@ const contracts = [
   ['analysis', 'metric-source-manifest'],
   ['analysis', 'metric-source-labels'],
   ['analysis', 'automation-metric-source'],
+  ['analysis', 'automation-metric-source-v2'],
+  ['analysis', 'automation-confirmed-source-set'],
   ['analysis', 'metric-input-preparation-request'],
   ['analysis', 'metric-input-preparation-result'],
   ['analysis', 'metric-preparation-readiness-result'],
@@ -108,6 +144,8 @@ const contracts = [
   ['api', 'report-api'],
   ['api', 'research-generation-api'],
   ['api', 'research-automation-api'],
+  ['api', 'research-automation-source-api'],
+  ['api', 'research-automation-revision-api'],
   ['api', 'owner-report-review-target-api'],
   ['api', 'owner-content-brand-api'],
   ['api', 'owner-content-catalog-api'],
@@ -168,8 +206,9 @@ for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
+    ...(['research-automation-metric-intake-api', 'research-automation-supplemental-intake-api', 'research-automation-source-api', 'automation-i14-evidence-admission', 'automation-i14-candidates', 'automation-quote-method-snapshot', 'automation-decision-packets', 'automation-decision-synthesis-input', 'automation-decision-synthesis-prompt', 'automation-insight-model'].includes(contract) ? { ignoreMinAndMaxItems: true } : {}),
     // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
-    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api', 'generic-quote-unit', 'temporal-window-method', 'research-review-corpus', 'shopee-exact-request', 'shopee-exact-collection'].includes(contract)
+    ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api', 'research-automation-revision-api', 'generic-quote-unit', 'temporal-window-method', 'research-review-corpus', 'shopee-exact-request', 'shopee-exact-collection'].includes(contract)
       ? { ignoreMinAndMaxItems: true }
       : {}),
     bannerComment: `/* Generated from ${contract}.schema.json. Do not edit by hand. */`,

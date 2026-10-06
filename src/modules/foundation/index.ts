@@ -46,5 +46,5 @@ export {
   type VerifiedExactShopeeCollection,
 } from './shopee-collection-service.js';
 
-export { SourcePackageService, type SourcePackageIntakeResult, type VerifiedFinalizedSourcePackage, type VerifiedSourcePackageFile, type FinalizedSourcePackageSummary } from './source-package-service.js';
-export { FoundationSourcePackageReader, type FinalizedSourcePackageReader } from './source-package-reader.js';
+export { SourcePackageService, type SourcePackageIntakeResult, type VerifiedFinalizedSourcePackage, type VerifiedSourcePackageFile, type FinalizedSourcePackageSummary, type FinalizedSourcePackageEntry, type SourceAttachmentOrigin } from './source-package-service.js';
+export { FoundationSourcePackageReader, type FinalizedSourcePackageReader, type FinalizedSourcePackageLookup, type AutomationSourcePackageLookup, type SourceAttachmentOriginReader } from './source-package-reader.js';

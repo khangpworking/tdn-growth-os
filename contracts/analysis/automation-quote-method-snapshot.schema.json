@@ -1,0 +1,29 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research.local/contracts/analysis/automation-quote-method-snapshot.schema.json",
+  "title": "AutomationQuoteMethodSnapshot",
+  "description": "GenericQuoteUnit recomputed from one exact Foundation package descriptor admitted under literal-structured-quote-v1. Literal declarations only: no provider truth, checkout attestation, imported review authority, cost, margin, ranking or completion claim.",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "binding", "selection", "descriptorSha256", "sourceMetadata", "output"],
+  "properties": {
+    "contractVersion": { "const": "automation-quote-method-snapshot-v1" },
+    "binding": { "$ref": "#/$defs/binding" },
+    "selection": { "$ref": "automation-quote-report-revision.schema.json#/$defs/selection" },
+    "descriptorSha256": { "$ref": "#/$defs/digest" },
+    "sourceMetadata": { "type": "array", "items": { "$ref": "../foundation/source-package-intake-request.schema.json#/$defs/file" } },
+    "output": { "$ref": "generic-quote-unit.schema.json" }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "binding": {
+      "title": "AutomationQuoteMethodBinding", "type": "object", "additionalProperties": false,
+      "required": ["workspaceId", "runId", "startSha256", "scopeSha256", "previousPairId"],
+      "properties": {
+        "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" },
+        "startSha256": { "$ref": "#/$defs/digest" }, "scopeSha256": { "$ref": "#/$defs/digest" },
+        "previousPairId": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

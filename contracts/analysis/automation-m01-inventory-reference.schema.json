@@ -1,0 +1,13 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-m01-inventory-reference.schema.json",
+  "title": "AutomationM01InventoryReference",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "sha256", "byteSize"],
+  "properties": {
+    "contractVersion": { "const": "automation-m01-inventory-reference-v1" },
+    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "byteSize": { "type": "integer", "minimum": 1, "maximum": 67108864 }
+  }
+}

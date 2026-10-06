@@ -1,0 +1,27 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-report-revision.schema.json",
+  "title": "AutomationReportRevisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "requestKey", "previousPairId", "sources"],
+  "properties": {
+    "contractVersion": { "const": "automation-report-revision-v1" },
+    "requestKey": { "type": "string", "format": "uuid" },
+    "previousPairId": { "$ref": "#/$defs/digest" },
+    "sources": {
+      "type": "object", "additionalProperties": false, "required": ["metric", "nativeReview"],
+      "properties": {
+        "metric": { "oneOf": [
+          { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "enum": ["KEEP", "SKIP"] } } },
+          { "type": "object", "additionalProperties": false, "required": ["decision", "packageId"], "properties": { "decision": { "const": "USE_PREPARED" }, "packageId": { "type": "string", "format": "uuid" } } }
+        ] },
+        "nativeReview": { "oneOf": [
+          { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "enum": ["KEEP", "SKIP"] } } },
+          { "type": "object", "additionalProperties": false, "required": ["decision", "packageId"], "properties": { "decision": { "const": "USE_PACKAGE" }, "packageId": { "type": "string", "format": "uuid" } } }
+        ] }
+      }
+    }
+  },
+  "$defs": { "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+}

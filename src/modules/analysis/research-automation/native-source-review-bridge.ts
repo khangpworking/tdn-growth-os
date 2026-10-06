@@ -55,7 +55,9 @@ const equal = (a: unknown, b: unknown): boolean => canonicalJson(a) === canonica
 function fail(message: string): never { throw new ResearchAutomationIntegrityError(message); }
 type Identity = NonNullable<Parameters<typeof buildPackageLocatedInsightExtension>[1]>;
 type ProjectionDocument = Awaited<ReturnType<typeof buildSourcePackageLiteralReviewProjection>>['output'];
-export type NativeSourceReviewRunInput = ExactShopeeRunInput;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+/** The optional execution identity belongs to a supplemental method attempt, not the v1 source reference. */
+export type NativeSourceReviewRunInput = ExactShopeeRunInput & { readonly executionId?: string };
 export interface NativeSourceReviewReference {
   contractVersion: 'automation-native-review-reference-v1';
   runId: string;
@@ -70,8 +72,12 @@ export interface NativeSourceReviewReference {
 export type NativeSourceReviewResolution = { state: 'RESOLVED'; reference: NativeSourceReviewReference }
   | { state: 'NONE' | 'AMBIGUOUS' | 'UNSUPPORTED_SCOPE' };
 export interface NativeSourceReviewSnapshot {
-  contractVersion: 'automation-native-review-snapshot-v1';
+  contractVersion: 'automation-native-review-snapshot-v1' | 'automation-native-review-snapshot-v2';
   runId: string;
+  /** Present only for explicit supplemental executions. Historical v1 snapshots keep their exact shape. */
+  executionId?: string;
+  /** Full input binding for a v2 method; v1 keeps the reference-only binding for historical replay. */
+  runBindingSha256?: string;
   authorityState: 'ADOPTED_FOR_SOURCE_BOUND_DECLARATIONS';
   nativeSource: NativeSourceReviewReference;
   sourcePackage: Identity;
@@ -94,17 +100,19 @@ export class AutomationNativeSourceReviewBridge {
   }
 
   async resolve(input: NativeSourceReviewRunInput): Promise<NativeSourceReviewResolution> {
+    validateExecution(input);
     if (!input.scope.exactShopeeUrls?.length) return { state: 'NONE' };
     const selections = selectExactShopeeListings(exactShopeeRequest(input)).selected;
     const matches: NativeSourceReviewReference[] = [];
     try {
-      // The declared Foundation listing verifies its entire bounded inventory. Failure is not absence.
-      const summaries = await this.#reader.listFinalizedSourcePackages(BUDGET);
-      if (summaries.length > 100) fail('Native source inventory exceeds its bound.');
-      for (const summary of summaries) {
-        if (summary.version !== 3) continue;
-        const source = await this.#reader.readFinalizedSourcePackage(summary.packageId, BUDGET);
-        if (source.manifestArtifactSha256 !== summary.manifestArtifactSha256) fail('Native source summary identity differs.');
+      // Still discovery, not an admitted reference: no run-bound native key or admission record exists yet.
+      // Only immutable rows with the exact original version/membership are verified, so unrelated or damaged
+      // packages of any other shape cannot block this run. Failure of a candidate is not absence.
+      const candidates = await this.#reader.findFinalizedSourcePackagesByMembership(3, NATIVE_PATHS);
+      for (const candidate of candidates) {
+        if (!originalNativeKey(candidate.packageKey)) continue;
+        const source = await this.#reader.readFinalizedSourcePackage(candidate.packageId, BUDGET);
+        if (source.manifestArtifactSha256 !== candidate.manifestArtifactSha256) fail('Native source candidate identity differs.');
         if (!originalNativeFormat(source)) continue;
         const mapping = parse(source, MAPPING) as DamiLocatedReviewMapping;
         const selected = selections.find(value => equal(mapping.selected, { shopId: value.shopId, itemId: value.itemId }));
@@ -121,16 +129,39 @@ export class AutomationNativeSourceReviewBridge {
         matches.push(reference);
       }
     } catch {
-      fail('SOURCE_PACKAGE_RESOLUTION_FAILED: retained inventory or native binding could not be verified.');
+      fail('SOURCE_PACKAGE_RESOLUTION_FAILED: native source candidates or binding could not be verified.');
     }
     if (matches.length && selections.length !== 1) return { state: 'UNSUPPORTED_SCOPE' };
     return matches.length === 0 ? { state: 'NONE' } : matches.length === 1
       ? { state: 'RESOLVED', reference: matches[0]! } : { state: 'AMBIGUOUS' };
   }
 
+  /**
+   * Explicit supplemental-source resolution. The package ID is supplied by the
+   * owner attempt, so this path never discovers or chooses a different native
+   * capture from the retained inventory.
+   */
+  async resolvePackage(input: NativeSourceReviewRunInput, packageId: string): Promise<NativeSourceReviewReference> {
+    validateExecution(input);
+    if (input.scope.exactShopeeUrls?.length !== 1 || typeof packageId !== 'string' || !packageId.length)
+      fail('Native supplemental review requires one exact listing and one retained package.');
+    const source = await this.#reader.readFinalizedSourcePackage(packageId, BUDGET);
+    if (!originalNativeFormat(source)) fail('Native supplemental source package is not an original capture.');
+    const mapping = parse(source, MAPPING) as DamiLocatedReviewMapping;
+    const reference = referenceFor(source, input);
+    validateNativeBindings(source, reference, input);
+    await this.#verifyNativePrior(source);
+    const mapped = mapDamiLocatedReviewSource(file(source, DATASET), reference.selected);
+    const descriptor = parse(source, DESCRIPTOR) as LocatedInsightMethods['input'];
+    if (!equal(mapped.mapping, mapping) || !equal(mapped.records, descriptor.records)) fail('Native source mapping differs from reviewed mapping.');
+    await buildPackageLocatedInsightExtension(DESCRIPTOR, identity(source), this.#reader);
+    return reference;
+  }
+
   async readReference(reference: NativeSourceReviewReference, input: NativeSourceReviewRunInput): Promise<VerifiedFinalizedSourcePackage> {
+    validateExecution(input);
     if (!reference || reference.contractVersion !== 'automation-native-review-reference-v1' || reference.runId !== input.runId ||
-        reference.bindingSha256 !== sha(json(input)) || !equal(reference.selected, selectedListing(input)))
+        reference.bindingSha256 !== referenceBinding(input) || !equal(reference.selected, selectedListing(input)))
       fail('Native review reference differs from its frozen confirmed run.');
     const source = await this.#reader.readFinalizedSourcePackage(reference.sourcePackage.packageId, BUDGET);
     if (!equal(reference.sourcePackage, identity(source)) || !equal(reference, referenceFor(source, input)))
@@ -149,12 +180,16 @@ export class AutomationNativeSourceReviewBridge {
         prior.manifest.sourceAcquiredAt !== source.manifest.sourceAcquiredAt || !membership(prior, priorPaths))
       fail('Native mapped source prior package identity differs.');
     for (const path of priorPaths.filter(value => value !== DESCRIPTOR && value !== ORIGINAL_OUTPUT)) {
-      if (!equal(file(prior, path), file(source, path))) fail('Native mapped source capture or authority dependency differs.');
+      const { bytes: priorBytes, ...priorMetadata } = file(prior, path);
+      const { bytes: sourceBytes, ...sourceMetadata } = file(source, path);
+      if (!priorBytes.equals(sourceBytes) || !equal(priorMetadata, sourceMetadata))
+        fail('Native mapped source capture or authority dependency differs.');
     }
   }
 
   async execute(reference: NativeSourceReviewReference, input: NativeSourceReviewRunInput, signal?: AbortSignal): Promise<NativeSourceReviewSnapshot> {
     signal?.throwIfAborted();
+    validateExecution(input);
     const original = await this.readReference(reference, input);
     const prepared = await buildSourcePackageLiteralReviewProjection({ sourcePackage: reference.sourcePackage, logicalPath: DESCRIPTOR },
       this.#reader, readLiteralReviewRulesV1());
@@ -166,11 +201,11 @@ export class AutomationNativeSourceReviewBridge {
       files.set(path, bytes);
     }
     files.set(REFERENCE, json(reference));
-    files.set(CONFIG, json({ contractVersion: 'automation-native-review-run-v1', ...input, referenceSha256: sha(files.get(REFERENCE)!) }));
+    files.set(CONFIG, json(runConfig(input, sha(files.get(REFERENCE)!))));
     for (const bytes of files.values()) if (bytes.length > MAX_JSON_ARTIFACT_BYTES) fail('Native declaration exceeds its bound.');
     const first = original.manifest.files[0]!;
     const metadataByPath = new Map(original.manifest.files.map(value => [value.path, value]));
-    const request: SourcePackageIntakeRequest = { contractVersion: '1.0.0', packageKey: `automation-method:${input.runId}-native-review-v1`, version: 1,
+    const request: SourcePackageIntakeRequest = { contractVersion: '1.0.0', packageKey: methodKey(input), version: 1,
       sourceLabel: 'Retained native shop-sweep source and partial source-bound declarations', sourceAcquiredAt: original.manifest.sourceAcquiredAt,
       files: [first, ...[...files].filter(([path]) => path !== first.path).map(([path, bytes]) => metadataByPath.get(path) ?? metadata(path, bytes))] };
     return withDatabaseMutationMutex(this.#db, async () => {
@@ -180,7 +215,8 @@ export class AutomationNativeSourceReviewBridge {
       if (retained.files.length !== files.size || retained.files.some(value => !files.get(value.path)?.equals(value.bytes)))
         fail('Native declaration publication differs from prepared bytes.');
       signal?.throwIfAborted();
-      return { contractVersion: 'automation-native-review-snapshot-v1', runId: input.runId, authorityState: prepared.output.authorityState,
+      const version = snapshotVersion(input);
+      return { contractVersion: version, runId: input.runId, ...executionSnapshotIdentity(input), authorityState: prepared.output.authorityState,
         nativeSource: reference, sourcePackage: identity(retained), projectionSha256: sha(prepared.bytes), projectionId: prepared.output.projectionId,
         policySha256: prepared.output.policySha256, projection: prepared.output.projection, output: prepared.locatedOutput };
     });
@@ -194,13 +230,19 @@ export class AutomationNativeSourceReviewBridge {
 
   async #verifyFrozenSnapshot(snapshot: NativeSourceReviewSnapshot, reference: NativeSourceReviewReference,
     input: NativeSourceReviewRunInput): Promise<void> {
-    if (Object.keys(snapshot).sort().join(',') !== 'authorityState,contractVersion,nativeSource,output,policySha256,projection,projectionId,projectionSha256,runId,sourcePackage' ||
-        snapshot.contractVersion !== 'automation-native-review-snapshot-v1' || snapshot.runId !== input.runId ||
+    validateExecution(input);
+    const v2 = input.executionId !== undefined;
+    const keys = ['authorityState', 'contractVersion', 'nativeSource', 'output', 'policySha256', 'projection', 'projectionId', 'projectionSha256', 'runId', 'sourcePackage',
+      ...(v2 ? ['executionId', 'runBindingSha256'] : [])].sort().join(',');
+    if (Object.keys(snapshot).sort().join(',') !== keys ||
+        snapshot.contractVersion !== snapshotVersion(input) || snapshot.runId !== input.runId ||
         snapshot.authorityState !== 'ADOPTED_FOR_SOURCE_BOUND_DECLARATIONS' || snapshot.policySha256 !== POLICY_SHA256 || !equal(snapshot.nativeSource, reference))
       fail('Native declaration snapshot identity differs.');
+    if (v2 && (snapshot.executionId !== input.executionId || snapshot.runBindingSha256 !== sha(json(input))))
+      fail('Native declaration supplemental execution identity differs.');
     const original = await this.readReference(reference, input);
     const retained = await this.#reader.readFinalizedSourcePackage(snapshot.sourcePackage.packageId, BUDGET);
-    if (!equal(snapshot.sourcePackage, identity(retained)) || retained.manifest.packageKey !== `automation-method:${input.runId}-native-review-v1` ||
+    if (!equal(snapshot.sourcePackage, identity(retained)) || retained.manifest.packageKey !== methodKey(input) ||
         retained.manifest.version !== 1 || !membership(retained, OVERLAY_PATHS)) fail('Native declaration retained package identity differs.');
     const originalMetadata = new Map(original.manifest.files.map(value => [value.path, value]));
     for (const value of retained.files) {
@@ -208,18 +250,18 @@ export class AutomationNativeSourceReviewBridge {
       if (!equal(actual, originalMetadata.get(value.path) ?? metadata(value.path, bytes)) ||
           (originalMetadata.has(value.path) && !file(original, value.path).bytes.equals(bytes))) fail('Native declaration retained file role or source differs.');
     }
-    if (!equal(parse(retained, REFERENCE), reference) || !equal(parse(retained, CONFIG),
-      { contractVersion: 'automation-native-review-run-v1', ...input, referenceSha256: file(retained, REFERENCE).sha256 }))
+    if (!equal(parse(retained, REFERENCE), reference) || !equal(parse(retained, CONFIG), runConfig(input, file(retained, REFERENCE).sha256)))
       fail('Native declaration configuration differs from frozen run.');
     verifyFrozenProjection(retained, original, snapshot);
   }
 
   async readSnapshot(sourcePackage: NativeSourceReviewSnapshot['sourcePackage'], reference: NativeSourceReviewReference,
     input: NativeSourceReviewRunInput): Promise<NativeSourceReviewSnapshot> {
+    validateExecution(input);
     const retained = await this.#reader.readFinalizedSourcePackage(sourcePackage.packageId, BUDGET);
     if (!equal(sourcePackage, identity(retained))) fail('Native declaration fallback package identity differs.');
     const overlay = parse(retained, PROJECTION) as ProjectionDocument;
-    const snapshot: NativeSourceReviewSnapshot = { contractVersion: 'automation-native-review-snapshot-v1', runId: input.runId,
+    const snapshot: NativeSourceReviewSnapshot = { contractVersion: snapshotVersion(input), runId: input.runId, ...executionSnapshotIdentity(input),
       authorityState: overlay.authorityState, nativeSource: parse(retained, REFERENCE) as NativeSourceReviewReference, sourcePackage,
       projectionSha256: file(retained, PROJECTION).sha256, projectionId: overlay.projectionId, policySha256: overlay.policySha256,
       projection: overlay.projection, output: parse(retained, PROJECTION_OUTPUT) as LocatedInsightMethods };
@@ -235,11 +277,41 @@ function selectedListing(input: NativeSourceReviewRunInput): NativeSourceReviewR
   const selected = selectExactShopeeListings(exactShopeeRequest(input)).selected[0]!;
   return { shopId: selected.shopId, itemId: selected.itemId };
 }
+function validateExecution(input: NativeSourceReviewRunInput): void {
+  if (input.executionId !== undefined && !UUID.test(input.executionId)) fail('Native review execution identity is invalid.');
+}
+function referenceInput(input: NativeSourceReviewRunInput): ExactShopeeRunInput {
+  const { executionId: _executionId, ...historical } = input;
+  return historical;
+}
+function referenceBinding(input: NativeSourceReviewRunInput): string {
+  // The v1 reference is the historical source binding. Supplemental execution
+  // identity is deliberately kept in the v2 method, not retrofitted into it.
+  return sha(json(referenceInput(input)));
+}
+function snapshotVersion(input: NativeSourceReviewRunInput): NativeSourceReviewSnapshot['contractVersion'] {
+  return input.executionId === undefined ? 'automation-native-review-snapshot-v1' : 'automation-native-review-snapshot-v2';
+}
+function methodKey(input: NativeSourceReviewRunInput): string {
+  return input.executionId === undefined
+    ? `automation-method:${input.runId}-native-review-v1`
+    : `automation-method:${input.runId}-native-review-v2-${input.executionId}`;
+}
+function executionSnapshotIdentity(input: NativeSourceReviewRunInput): Pick<NativeSourceReviewSnapshot, 'executionId' | 'runBindingSha256'> | Record<never, never> {
+  return input.executionId === undefined ? {} : { executionId: input.executionId, runBindingSha256: sha(json(input)) };
+}
+function runConfig(input: NativeSourceReviewRunInput, referenceSha256: string) {
+  return { contractVersion: input.executionId === undefined ? 'automation-native-review-run-v1' : 'automation-native-review-run-v2',
+    ...input, referenceSha256 };
+}
 function membership(source: VerifiedFinalizedSourcePackage, paths: readonly string[]): boolean {
   return source.files.length === paths.length && source.files.every(value => paths.includes(value.path));
 }
+function originalNativeKey(packageKey: string): boolean {
+  return !/^(automation-method|private-method):/.test(packageKey);
+}
 function originalNativeFormat(source: VerifiedFinalizedSourcePackage): boolean {
-  return source.manifest.version === 3 && !/^(automation-method|private-method):/.test(source.manifest.packageKey) &&
+  return source.manifest.version === 3 && originalNativeKey(source.manifest.packageKey) &&
     !source.files.some(value => value.path === PROJECTION) && membership(source, NATIVE_PATHS);
 }
 function identity(source: VerifiedFinalizedSourcePackage): Identity {
@@ -260,6 +332,7 @@ function object(value: unknown): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 function referenceFor(source: VerifiedFinalizedSourcePackage, input: NativeSourceReviewRunInput): NativeSourceReviewReference {
+  validateExecution(input);
   const request = object(parse(source, 'capture/request.json'));
   const terminal = object(object(parse(source, 'capture/terminal-status.json')).data);
   if (typeof request.actor !== 'string' || typeof terminal.id !== 'string' || typeof terminal.defaultDatasetId !== 'string')
@@ -270,7 +343,7 @@ function referenceFor(source: VerifiedFinalizedSourcePackage, input: NativeSourc
     capture: { actor: request.actor, runId: terminal.id, datasetId: terminal.defaultDatasetId,
       requestSha256: file(source, 'capture/request.json').sha256, datasetSha256: file(source, DATASET).sha256,
       terminalSha256: file(source, 'capture/terminal-status.json').sha256, receiptSha256: file(source, 'capture/receipt.json').sha256 },
-    bindingSha256: sha(json(input)) };
+    bindingSha256: referenceBinding(input) };
 }
 
 /** Frozen source relationships only. This does not execute the retained or current mapper. */

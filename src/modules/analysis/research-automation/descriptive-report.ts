@@ -43,7 +43,7 @@ const LIMITATION_TEXT: Readonly<Record<string, string>> = {
   UNREVIEWED_BOUNDED_METHOD_OUTPUT_NOT_COMPLETE_SECTION: 'Kết quả phương pháp có giới hạn, chưa duyệt; không phải mục hoàn chỉnh.',
 };
 const PROVENANCE_TEXT: Readonly<Record<Input['sources'][number]['providerProvenance'], string>> = {
-  verified: 'Đã xác minh', provider_reported: 'Nhà cung cấp tự báo', operator_supplied_unverified: 'Người vận hành cung cấp, chưa xác minh', synthetic: 'Dữ liệu tổng hợp',
+  verified: 'Đã xác minh', provider_reported: 'Nhà cung cấp tự báo', operator_supplied_unverified: 'Người vận hành cung cấp, chưa xác minh', synthetic: 'Dữ liệu giả lập dùng kiểm thử',
 };
 const EVENT_TYPE: Readonly<Record<Input['m09'][number]['statementType'], string>> = {
   DOCUMENTED_EVENT: 'Sự kiện có tài liệu', SOURCE_STATED_DIRECTION: 'Hướng do nguồn nêu', COUNTEREVIDENCE: 'Bằng chứng ngược', UNCLASSIFIED: 'Chưa phân loại',
@@ -59,14 +59,14 @@ const hasSourceValue = (row: Observation): boolean => row.observation.state === 
 const blockerList = (codes: readonly string[]): string => codes.length === 0 ? '' : `<ul class="limits">${[...new Set(codes)].map(code => `<li>${escape(BLOCKER_TEXT[code] ?? code)}</li>`).join('')}</ul>`;
 const unresolvedRow = (pointer: string, columns: number): string => `<tr><td colspan="${columns}">${tag('Không phân giải được con trỏ', 'warn')}<code>${escape(pointer)}</code></td></tr>`;
 const table = (label: string, head: readonly string[], rows: string): string =>
-  `<div class="table-wrap"><table><caption>${escape(label)}</caption><thead><tr>${head.map(cell => `<th>${escape(cell)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
+  `<div class="table-wrap" role="region" aria-label="${escape(label)}" tabindex="0"><table><caption>${escape(label)}</caption><thead><tr>${head.map(cell => `<th>${escape(cell)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table></div>`;
 
 function valueCell(row: Observation): string {
   const unit = row.unit === null ? tag('Thiếu đơn vị', 'warn') : escape(row.unit);
   const { state, value, precision } = row.observation;
   const exact = precision === 'non_exact' ? tag('Không chính xác tuyệt đối', 'warn') : '';
   if (state === 'missing') return tag('Thiếu giá trị · không phải 0', 'warn');
-  if (state === 'UNKNOWN') return tag('UNKNOWN · không phải 0', 'warn');
+  if (state === 'UNKNOWN') return tag('Chưa rõ: UNKNOWN · không phải 0', 'warn');
   if (value === null) return tag('Thiếu giá trị · không phải 0', 'warn');
   return `${escape(value)} ${unit}${state === 'observed_zero' ? ` ${tag('Nguồn ghi bằng 0', 'zero')}` : ''}${exact}`;
 }
@@ -76,7 +76,7 @@ const scopeText = (scope: Input['scope']): string => `${escape(scope.universe)} 
 function sourceCell(input: Input, ref: Ref): string {
   const source = input.sources.find(item => item.sha256 === ref.sourceSha256);
   const file = source ? `${escape(source.logicalPath)}<br><small>${escape(PROVENANCE_TEXT[source.providerProvenance])} · ${escape(source.evidenceFamily)}</small>` : tag('Nguồn không có trong bản kê', 'warn');
-  return `${file}<br><code>${escape(ref.locator)}</code>`;
+  return `${file}<br><code class="loc">${escape(ref.locator)}</code>`;
 }
 const entityCell = (row: Observation): string => `${row.entityLabel === null ? tag('Nguồn không nêu đối tượng', 'warn') : escape(row.entityLabel)}<br><small>${escape(row.measureLiteral)}</small>`;
 
@@ -141,7 +141,7 @@ function m07(methods: DescriptiveMarketMethods): Omit<DescriptiveSectionView, 'h
   const declared = section.mode === 'DECLARED_PEERS_SIDE_BY_SIDE' && methods.input.peerSet !== null;
   const side = (pointer: string | null, ref: Ref): string => {
     const row = pointer === null ? null : recordAt(methods.input.m07, pointer, 'm07');
-    return row === null ? `${tag('Chưa xác định bản ghi', 'warn')}<br><code>${escape(ref.locator)}</code>` : `${entityCell(row)}<br>${valueCell(row)}<br><small>${periodCell(row.period)}</small>`;
+    return row === null ? `${tag('Chưa xác định bản ghi', 'warn')}<br><code class="loc">${escape(ref.locator)}</code>` : `${entityCell(row)}<br>${valueCell(row)}<br><small>${periodCell(row.period)}</small>`;
   };
   const comparisons = declared && section.comparisons.length
     ? `<h3>Đặt cạnh nhau theo nhóm đối thủ đã khai báo</h3><p>Cơ sở khai báo: ${escape(methods.input.peerSet!.membershipBasis)} · bản ${escape(methods.input.peerSet!.membershipRevision)}. Không xếp hạng, chấm điểm, tính chênh lệch hay thị phần.</p>${table('Mốc và từng đối thủ đã khai báo, cùng thước đo và kỳ khi so sánh được.', ['Mốc', 'Đối thủ khai báo', 'So sánh được', 'Lý do chặn'], section.comparisons.map(item => `<tr><td>${side(item.anchorPointer, item.anchorRef)}</td><td>${side(item.peerPointer, item.peerRef)}</td><td>${item.compatibility === 'COMPARABLE' ? tag('So sánh được', 'zero') : tag('Không so sánh được', 'warn')}</td><td>${blockerList(item.blockers) || 'Không có'}</td></tr>`).join(''))}`
@@ -179,7 +179,7 @@ export function describeDescriptiveSection(methods: DescriptiveMarketMethods, se
 /** Package and method identity belong in the M13 appendix, not in the analytical sections. */
 export function descriptiveAppendix(methods: DescriptiveMarketMethods | undefined, failure?: 'DESCRIPTIVE_METHOD_FAILED'): string {
   if (methods === undefined && failure) return `<h3>Hồ sơ phương pháp mô tả thị trường</h3><p>Đã thử chạy phương pháp mô tả nhưng đầu vào hoặc phương pháp không vượt qua kiểm tra. Mã lỗi: <code>${escape(failure)}</code>. Không có kết quả phương pháp dùng được cho M05, M06, M07 và M09. Bản thu nguồn vẫn được giữ trong bản kê phía trên; cần kiểm tra lỗi trước khi tạo phiên bản mới, không tự động gọi lại nguồn.</p>`;
-  if (methods === undefined) return '<h3>Hồ sơ phương pháp mô tả thị trường</h3><p>Chưa được nối vào lượt này. Các mục M05, M06, M07 và M09 không có kết quả phương pháp.</p>';
+  if (methods === undefined) return '<h3>Hồ sơ phương pháp mô tả thị trường</h3><p>Không có kết quả trong lượt này. Phương pháp chỉ chạy khi lượt có quan sát sản phẩm hợp lệ từ bản thu nguồn. Các mục M05, M06, M07 và M09 không có kết quả phương pháp.</p>';
   const pkg = methods.input.sourcePackage;
   const config = methods.input.configuration;
   const sources = methods.input.sources.map(source => `<tr><td>${escape(source.logicalPath)}</td><td>${escape(source.evidenceFamily)}</td><td>${escape(PROVENANCE_TEXT[source.providerProvenance])}</td><td><code>${escape(source.sha256)}</code></td></tr>`).join('');

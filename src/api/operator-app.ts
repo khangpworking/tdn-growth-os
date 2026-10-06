@@ -18,6 +18,11 @@ import { acquireExecutorLock, canonicalDatabasePath, type ExecutorLock } from '.
 import { createR2MediaArchive } from '../platform/artifacts/r2-media-archive.js';
 import { openResearchAutomationApi, researchAutomationApiPath, type ResearchAutomationApiApplication } from './research-automation-api.js';
 import { researchAutomationProviderConfigFromEnv, type ResearchAutomationProviderConfig } from '../modules/analysis/research-automation/providers.js';
+import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
+import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
+import type { AutomationDecisionSynthesisConfiguration } from '../modules/analysis/research-automation/decision-synthesis-execution.js';
+import type { AutomationDecisionSectionId } from '../modules/analysis/research-automation/decision-packets.js';
+import type { InsightModelConfiguration } from '../modules/analysis/research-automation/insight-model-execution.js';
 
 const TOKEN = /^(?=.*[A-Za-z])(?=.*\d)[\x21-\x7e]{32,512}$/;
 const ACTOR = /^[a-z][a-z0-9:_-]{2,119}$/;
@@ -52,6 +57,12 @@ export interface OperatorAppConfiguration {
   readonly researchProviders?: ResearchAutomationProviderConfig;
   /** Explicit local Chromium executable; absence leaves web drafts usable without PDF. */
   readonly researchPdfExecutablePath?: string;
+  /** Opt-in I14 synthesis model through `cliproxy`. */
+  readonly researchI14Ai?: AutomationI14SynthesisConfiguration;
+  /** Each listed section is separately enabled; absent entries do not dispatch. */
+  readonly researchDecisionAi?: Partial<Record<AutomationDecisionSectionId, AutomationDecisionSynthesisConfiguration>>;
+  /** Opt-in Insight semantic coding proposals through `cliproxy`; never inherited from another model flag. */
+  readonly researchInsightCodingAi?: InsightModelConfiguration;
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -75,6 +86,30 @@ export function operatorAppConfigurationFromEnvironment(
   if (!/^[1-9]\d{0,4}$/.test(rawPort)) throw new TypeError('TDN_OPERATOR_APP_PORT must be an integer from 1 to 65535');
   const cliproxy = cliproxyConfigurationFromEnvironment(environment);
   if (environment.TDN_R2_ENABLED !== undefined && !['true', 'false'].includes(environment.TDN_R2_ENABLED)) throw new TypeError('TDN_R2_ENABLED must be exactly true or false');
+  const i14Enabled = environment.TDN_RESEARCH_I14_AI_ENABLED;
+  if (i14Enabled !== undefined && i14Enabled !== 'true' && i14Enabled !== 'false') throw new TypeError('TDN_RESEARCH_I14_AI_ENABLED must be exactly true or false');
+  let researchI14Ai: AutomationI14SynthesisConfiguration | undefined;
+  if (i14Enabled === 'true') {
+    try { researchI14Ai = i14CliproxySynthesisConfiguration(environment.TDN_RESEARCH_I14_AI_MODEL ?? ''); }
+    catch { throw new TypeError('TDN_RESEARCH_I14_AI_MODEL must name an explicit CLIProxy model when TDN_RESEARCH_I14_AI_ENABLED is true'); }
+  }
+  const researchDecisionAi: Partial<Record<AutomationDecisionSectionId, AutomationDecisionSynthesisConfiguration>> = {};
+  for (const sectionId of ['M11', 'M12', 'I15'] as const) {
+    const prefix = `TDN_RESEARCH_${sectionId}_AI`;
+    const enabled = environment[`${prefix}_ENABLED`];
+    if (enabled !== undefined && enabled !== 'true' && enabled !== 'false') throw new TypeError(`${prefix}_ENABLED must be exactly true or false`);
+    if (enabled === 'true') {
+      try { researchDecisionAi[sectionId] = decisionCliproxySynthesisConfiguration(sectionId, environment[`${prefix}_MODEL`] ?? ''); }
+      catch { throw new TypeError(`${prefix}_MODEL must name an explicit CLIProxy model when ${prefix}_ENABLED is true`); }
+    }
+  }
+  const insightCodingEnabled = environment.TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED;
+  if (insightCodingEnabled !== undefined && insightCodingEnabled !== 'true' && insightCodingEnabled !== 'false') throw new TypeError('TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED must be exactly true or false');
+  let researchInsightCodingAi: InsightModelConfiguration | undefined;
+  if (insightCodingEnabled === 'true') {
+    try { researchInsightCodingAi = insightCodingCliproxyConfiguration(environment.TDN_RESEARCH_INSIGHT_CODING_AI_MODEL ?? ''); }
+    catch { throw new TypeError('TDN_RESEARCH_INSIGHT_CODING_AI_MODEL must name an explicit CLIProxy model when TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED is true'); }
+  }
   const configuration: OperatorAppConfiguration = {
     databasePath: environment.TDN_WORKSPACE_DB ?? '', artifactRoot: environment.TDN_ARTIFACT_ROOT ?? '',
     frontendDist: defaults.frontendDist, version: defaults.version,
@@ -86,6 +121,9 @@ export function operatorAppConfigurationFromEnvironment(
     ...(cliproxy === undefined ? {} : { cliproxy }),
     ...(!environment.TDN_KALODATA_SECRET_KEY && !environment.TDN_SERPAPI_API_KEY && !environment.TDN_APIFY_TOKEN ? {} : { researchProviders: researchAutomationProviderConfigFromEnv(environment) }),
     ...(environment.TDN_RESEARCH_PDF_CHROMIUM === undefined ? {} : { researchPdfExecutablePath: environment.TDN_RESEARCH_PDF_CHROMIUM }),
+    ...(researchI14Ai === undefined ? {} : { researchI14Ai }),
+    ...(Object.keys(researchDecisionAi).length === 0 ? {} : { researchDecisionAi }),
+    ...(researchInsightCodingAi === undefined ? {} : { researchInsightCodingAi }),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,
@@ -148,6 +186,10 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       databasePath, artifactRoot: configuration.artifactRoot, origin,
       ...(configuration.researchProviders ? { providers: configuration.researchProviders } : {}),
       ...(configuration.researchPdfExecutablePath ? { pdfExecutablePath: configuration.researchPdfExecutablePath } : {}),
+      // Validation pins this to the OWNER executor with CLIProxy configured; the read handle never receives it.
+      ...(configuration.researchI14Ai ? { i14Synthesis: { cliproxy: configuration.cliproxy!, configuration: configuration.researchI14Ai } } : {}),
+      ...(configuration.researchDecisionAi ? { decisionSynthesis: { cliproxy: configuration.cliproxy!, configurations: configuration.researchDecisionAi } } : {}),
+      ...(configuration.researchInsightCodingAi ? { insightCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchInsightCodingAi } } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,
@@ -276,6 +318,9 @@ function validateConfiguration(configuration: OperatorAppConfiguration): StaticF
   if (configuration.ownerWritesEnabled && (!configuration.ownerActorId || !ACTOR.test(configuration.ownerActorId))) throw new TypeError('TDN_OWNER_API_ACTOR_ID is required and invalid when OWNER writes are enabled');
   if (configuration.cliproxy !== undefined) assertCliproxyConfiguration(configuration.cliproxy);
   if (configuration.r2 && !configuration.ownerWritesEnabled) throw new TypeError('R2 mirroring requires OWNER writes to be enabled');
+  if (configuration.researchI14Ai !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_I14_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
+  if (configuration.researchDecisionAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('Research decision synthesis requires CLIProxy and OWNER writes to be enabled');
+  if (configuration.researchInsightCodingAi !== undefined && (!configuration.cliproxy || !configuration.ownerWritesEnabled)) throw new TypeError('TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED requires CLIProxy and OWNER writes to be enabled');
   return preloadFrontend(configuration.frontendDist);
 }
 

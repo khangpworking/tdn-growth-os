@@ -3,23 +3,27 @@ import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import type Database from 'better-sqlite3';
 import descriptorSchema from '../../../../contracts/analysis/automation-metric-source.schema.json' with { type: 'json' };
+import descriptorV2Schema from '../../../../contracts/analysis/automation-metric-source-v2.schema.json' with { type: 'json' };
 import manifestSchema from '../../../../contracts/analysis/metric-source-manifest.schema.json' with { type: 'json' };
 import inputSchema from '../../../../contracts/analysis/metric-scope-input.schema.json' with { type: 'json' };
 import type { AutomationMetricSource } from '../../../../contracts/analysis/automation-metric-source.generated.js';
+import type { AutomationMetricSourceV2 } from '../../../../contracts/analysis/automation-metric-source-v2.generated.js';
 import type { MetricInputPreparationResult } from '../../../../contracts/analysis/metric-input-preparation-result.generated.js';
 import type { MetricPreparationReadinessResult } from '../../../../contracts/analysis/metric-preparation-readiness-result.generated.js';
 import type { MetricScopeOutput } from '../../../../contracts/analysis/metric-scope-output.generated.js';
 import type { MetricSourceManifest } from '../../../../contracts/analysis/metric-source-manifest.generated.js';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
-import { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
+import { ArtifactIntegrityError, ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import { withDatabaseMutationMutex } from '../../../platform/db/database-mutation-mutex.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
+import { FoundationIdentityConflictError } from '../../foundation/foundation-service.js';
 import { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { SourcePackageService, type VerifiedFinalizedSourcePackage, type VerifiedSourcePackageFile } from '../../foundation/source-package-service.js';
 import type { DiscoveryWorkspaceReader } from '../../flow/discovery-workspace-reader.js';
 import { AnalysisMetricInputPreparationReader, MetricInputPreparationService } from '../metric-input-preparation-service.js';
 import { MetricPreparationReadinessService } from '../metric-preparation-readiness.js';
 import { calculateMetricScopes } from '../metric-scope-calculator.js';
+import { MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type ScopeSnapshot, type StartSnapshot } from './model.js';
 
 const require = createRequire(import.meta.url);
@@ -29,6 +33,7 @@ const currentAjv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(currentAjv);
 currentAjv.addSchema(inputSchema);
 const validateCurrentDescriptor = currentAjv.compile<AutomationMetricSource>(descriptorSchema);
+const validateCurrentDescriptorV2 = currentAjv.compile<AutomationMetricSourceV2>(descriptorV2Schema);
 const validateCurrentManifest = currentAjv.compile<MetricSourceManifest>(manifestSchema);
 
 const SOURCE_DESCRIPTOR = 'normalized/automation-metric-source.json';
@@ -41,10 +46,14 @@ const READINESS = 'methods/metric-readiness.json';
 const CATALOG = 'authority/report-section-catalog-v1.json';
 const SCHEMA_NAMES = ['automation-metric-source', 'metric-source-manifest', 'metric-scope-input', 'metric-scope-output',
   'metric-input-preparation-request', 'metric-input-preparation-result', 'metric-preparation-readiness-result', 'report-section-catalog'] as const;
-type SchemaName = typeof SCHEMA_NAMES[number];
+type SchemaName = typeof SCHEMA_NAMES[number] | 'automation-metric-source-v2';
+const schemaNames = (input: MetricRunInput): readonly SchemaName[] => input.sourceSelection
+  ? [...SCHEMA_NAMES, 'automation-metric-source-v2'] : SCHEMA_NAMES;
 const profilePath = (name: SchemaName): string => `profiles/${name}.schema.json`;
 const schemaId = (name: SchemaName): string => `https://tdn.local/contracts/analysis/${name}.schema.json`;
 const DERIVED_PATHS = [CONFIG, PREPARATION, NORMALIZED, RECEIPT, RESULT, READINESS, CATALOG, ...SCHEMA_NAMES.map(profilePath)];
+const derivedPaths = (input: MetricRunInput): readonly string[] => input.sourceSelection
+  ? [...DERIVED_PATHS, profilePath('automation-metric-source-v2')] : DERIVED_PATHS;
 const XLSX_MEDIA = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 const MAX_FILE_BYTES = 32 * 1024 * 1024;
 const BUDGET = { maxFileBytes: MAX_FILE_BYTES, maxTotalBytes: 128 * 1024 * 1024 };
@@ -59,6 +68,8 @@ const LIMITATIONS = [
   'DECLARED_PERIOD_AND_PRECISION_NOT_INDEPENDENTLY_VERIFIED',
 ] as const;
 const SHORTER_PERIOD = 'SOURCE_PERIOD_SHORTER_THAN_REQUESTED_NOT_EXPANDED_OR_PRORATED';
+/** Profile-owner codes that do not distinguish rejected input from a reader failure; they stay generic. */
+const AMBIGUOUS_PROFILE_DIAGNOSTICS: ReadonlySet<string> = new Set(['OFFLINE_READER_UNAVAILABLE_OR_LIMIT', 'INVALID_XLSX']);
 const sha = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value));
 /** Preparation artifacts are canonical JSON plus one newline. */
@@ -66,18 +77,40 @@ const text = (value: unknown): Buffer => Buffer.from(canonicalJson(value) + '\n'
 const digest = (value: unknown): string => sha(json(value));
 const equal = (a: unknown, b: unknown): boolean => canonicalJson(a) === canonicalJson(b);
 function integrity(message: string): never { throw new ResearchAutomationIntegrityError(message); }
+function fail(code: ClassifiedFailure, message: string): never { throw new MetricMethodFailure(code, message); }
 type Validator = (value: unknown) => boolean;
-type PackageIdentity = { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string };
-type Selected = { descriptor: AutomationMetricSource; descriptorFile: VerifiedSourcePackageFile; workbook: VerifiedSourcePackageFile;
+export type MetricSourceIdentity = { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string };
+type PackageIdentity = MetricSourceIdentity;
+type SourceDescriptor = AutomationMetricSource | AutomationMetricSourceV2;
+type Selected = { descriptor: SourceDescriptor; descriptorFile: VerifiedSourcePackageFile; workbook: VerifiedSourcePackageFile;
   manifest: VerifiedSourcePackageFile; context: VerifiedSourcePackageFile };
 
 export interface MetricRunInput {
   runId: string; start: StartSnapshot; scope: ScopeSnapshot; scopeConfirmedAt: string;
+  /** Internal exact frozen selection. Absence retains the historical v1 lookup; null source never performs discovery. */
+  sourceSelection?: { readonly executionId: string; readonly sourcePackage: MetricSourceIdentity | null };
+}
+
+/** Closed, display-safe reasons. The last is the generic fallback for anything not established below. */
+export const METRIC_METHOD_FAILURE_CODES = ['METRIC_SOURCE_AMBIGUOUS', 'METRIC_SOURCE_UNSUPPORTED', 'METRIC_SOURCE_INTEGRITY_FAILED',
+  'METRIC_SOURCE_RUN_MISMATCH', 'METRIC_SOURCE_PERIOD_CONFLICT', 'METRIC_SOURCE_INPUT_REJECTED', 'METRIC_CALCULATION_FAILED',
+  'METRIC_METHOD_FAILED'] as const;
+export type MetricMethodFailureCode = typeof METRIC_METHOD_FAILURE_CODES[number];
+type ClassifiedFailure = Exclude<MetricMethodFailureCode, 'METRIC_METHOD_FAILED'>;
+
+/** Still an integrity failure; the code is set only where this bridge or a typed owner error establishes the reason. */
+export class MetricMethodFailure extends ResearchAutomationIntegrityError {
+  constructor(readonly code: ClassifiedFailure, message: string) { super(message); }
+}
+
+/** Only the closed code crosses into reports; exception text, paths and owner messages never do. */
+export function metricMethodFailureCode(error: unknown): MetricMethodFailureCode {
+  return error instanceof MetricMethodFailure ? error.code : 'METRIC_METHOD_FAILED';
 }
 
 /** Service retains these exact bytes under its committed artifact digest before reporting. */
 export interface AutomationMetricMethodSnapshot {
-  readonly contractVersion: 'automation-metric-method-snapshot-v1';
+  readonly contractVersion: 'automation-metric-method-snapshot-v1' | 'automation-metric-method-snapshot-v2';
   readonly runId: string;
   readonly runBindingSha256: string;
   readonly sourcePackage: PackageIdentity;
@@ -106,21 +139,70 @@ export class AutomationMetricMethodBridge {
     this.#now = options.now;
   }
 
+  /** Pre-confirmation admission checks the prepared bytes and owner profile; it creates no report or provider call. */
+  async inspectPrepared(input: MetricRunInput, packageId: string): Promise<MetricSourceIdentity> {
+    const source = await this.#reader.readFinalizedSourcePackage(packageId, BUDGET);
+    const selected = selectSource(source, input, validateCurrentDescriptorV2, true);
+    await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
+    const manifest = jsonRecord(selected.manifest.bytes);
+    if (selected.manifest.mediaType !== 'application/json' || !validateCurrentManifest(manifest))
+      fail('METRIC_SOURCE_UNSUPPORTED', 'Prepared Metric manifest is invalid.');
+    declaredPeriodCoverage(input, (manifest as unknown as MetricSourceManifest).scope);
+    // Admission checks the same offline profile without persisting a calculation
+    // or recursively acquiring the caller's database mutation mutex.
+    normalizeMetricWorkbookInput(Buffer.from(selected.workbook.bytes), Buffer.from(selected.manifest.bytes));
+    return identity(source);
+  }
+
+  /** Read-only inventory verification; no normalizer, preparation or confirmation timestamp is needed. */
+  async verifyPreparedSourceMetadata(input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'>, packageId: string): Promise<void> {
+    const source = await this.#reader.readFinalizedSourcePackage(packageId, BUDGET);
+    const selected = selectSource(source, input, validateCurrentDescriptorV2, true);
+    await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
+    const manifest = jsonRecord(selected.manifest.bytes);
+    if (selected.manifest.mediaType !== 'application/json' || !validateCurrentManifest(manifest))
+      fail('METRIC_SOURCE_UNSUPPORTED', 'Prepared Metric manifest is invalid.');
+    declaredPeriodCoverage(input, (manifest as unknown as MetricSourceManifest).scope);
+  }
+
+  async verifySelection(input: MetricRunInput): Promise<void> {
+    const source = await this.#resolve(input);
+    if (!source) return;
+    const selected = selectBoundSource(source, input, validateCurrentDescriptor, validateCurrentDescriptorV2);
+    if (selected.descriptor.contractVersion === 'automation-metric-source-v2') await this.#verifyPreparedOrigin(source, selected.descriptor.runBindingSha256);
+    const manifest = jsonRecord(selected.manifest.bytes);
+    if (selected.manifest.mediaType !== 'application/json' || !validateCurrentManifest(manifest))
+      fail('METRIC_SOURCE_UNSUPPORTED', 'Frozen Metric manifest is invalid.');
+    declaredPeriodCoverage(input, (manifest as unknown as MetricSourceManifest).scope);
+  }
+
+  async #verifyPreparedOrigin(source: VerifiedFinalizedSourcePackage, bindingSha256: string): Promise<void> {
+    const origin = await this.#reader.readAutomationAttachmentOrigin(source.packageId, BUDGET);
+    if (!origin || origin.bindingSha256 !== bindingSha256 || origin.manifestArtifactSha256 !== source.manifestArtifactSha256)
+      fail('METRIC_SOURCE_RUN_MISMATCH', 'Prepared Metric source lacks its server-authored storage binding.');
+  }
+
   async execute(input: MetricRunInput, signal?: AbortSignal): Promise<AutomationMetricMethodSnapshot | undefined> {
     signal?.throwIfAborted();
     const original = await this.#resolve(input);
     if (!original) return undefined;
-    const selected = selectSource(original, input, validateCurrentDescriptor);
-    const manifest = parse(original, selected.manifest.path);
+    const selected = selectBoundSource(original, input, validateCurrentDescriptor, validateCurrentDescriptorV2);
+    const manifest = jsonRecord(selected.manifest.bytes);
     if (selected.manifest.mediaType !== 'application/json' || !validateCurrentManifest(manifest))
-      integrity('Metric attachment manifest is invalid.');
+      fail('METRIC_SOURCE_UNSUPPORTED', 'Metric attachment manifest is invalid.');
     // These declared dates are already available before any preparation write.
     // Still check normalized dates below; neither check authenticates the source.
     declaredPeriodCoverage(input, (manifest as unknown as MetricSourceManifest).scope);
     signal?.throwIfAborted();
     const preparations = new MetricInputPreparationService({ db: this.#db, artifactStore: this.#artifacts,
       sourcePackages: this.#reader, workspaces: this.#workspaces, now: this.#now });
-    const prepared = await preparations.prepare(preparationRequest(input, original, selected.descriptor));
+    const prepared = await preparations.prepare(preparationRequest(input, original, selected.descriptor)).catch((error: unknown) => {
+      // The profile owner's typed workbook/declaration rejections are input failures. Its unavailable local
+      // reader and its catch-all reader diagnostic (crash, undecodable or unstructured output) prove nothing about the input.
+      if (error instanceof MetricSourceRejection && !AMBIGUOUS_PROFILE_DIAGNOSTICS.has(error.code))
+        fail('METRIC_SOURCE_INPUT_REJECTED', 'Metric source rows or declarations were rejected by the export profile.');
+      throw error;
+    });
     const verified = await preparations.readVerified(prepared.preparationSha256);
     signal?.throwIfAborted();
     const catalogBytes = await fs.readFile(new URL('../../../../docs/research/report-section-catalog-v1.json', import.meta.url));
@@ -128,18 +210,18 @@ export class AutomationMetricMethodBridge {
       .evaluate(prepared.preparationSha256, catalogBytes, sha(catalogBytes));
     // Approved generic calculation; no classifier or label is introduced here.
     const result = calculateMetricScopes(verified.input);
-    if (result.inputSha256 !== verified.result.normalizedInput.valueSha256) integrity('Metric calculation input differs from its preparation.');
+    if (result.inputSha256 !== verified.result.normalizedInput.valueSha256) fail('METRIC_CALCULATION_FAILED', 'Metric calculation input differs from its preparation.');
     assertBoundedState(result, readiness);
     const limitations = limitationsFor(periodCoverage(input, result));
     const [preparationBytes, inputBytes, receiptBytes] = await Promise.all([prepared.resultArtifactSha256,
       verified.result.normalizedInput.artifactSha256, verified.result.normalizationReceiptSha256]
       .map(value => this.#artifacts.read(value, { maxBytes: MAX_FILE_BYTES })));
     if (!preparationBytes!.equals(text(verified.result)) || !inputBytes!.equals(text(verified.input)))
-      integrity('Metric preparation artifacts differ from their verified replay.');
+      fail('METRIC_CALCULATION_FAILED', 'Metric preparation artifacts differ from their verified replay.');
     const files = new Map(original.files.map(file => [file.path, file.bytes]));
     const derived = new Map<string, Buffer>([[PREPARATION, preparationBytes!], [NORMALIZED, inputBytes!], [RECEIPT, receiptBytes!],
       [RESULT, json(result)], [READINESS, json(readiness)], [CATALOG, catalogBytes]]);
-    for (const name of SCHEMA_NAMES)
+    for (const name of schemaNames(input))
       derived.set(profilePath(name), await fs.readFile(new URL(`../../../../contracts/analysis/${name}.schema.json`, import.meta.url)));
     derived.set(CONFIG, json(runConfig(input, original, selected, result, sha(catalogBytes), limitations)));
     let totalBytes = 0;
@@ -150,7 +232,7 @@ export class AutomationMetricMethodBridge {
     }
     for (const [filePath, bytes] of derived) files.set(filePath, bytes);
     const originalMetadata = new Map(original.manifest.files.map(file => [file.path, file]));
-    const request: SourcePackageIntakeRequest = { contractVersion: '1.0.0', packageKey: methodKey(input.runId), version: 1,
+    const request: SourcePackageIntakeRequest = { contractVersion: '1.0.0', packageKey: methodKey(input), version: 1,
       sourceAcquiredAt: original.manifest.sourceAcquiredAt, sourceLabel: methodLabel(input.runId),
       files: [...files].map(([filePath, bytes]) => originalMetadata.get(filePath) ?? derivedMetadata(filePath, bytes)) as SourcePackageIntakeRequest['files'] };
     const snapshot = await withDatabaseMutationMutex(this.#db, async () => {
@@ -158,8 +240,8 @@ export class AutomationMetricMethodBridge {
       const receipt = await this.#packages.intake(request, files);
       const retained = await this.#packages.readVerified(receipt.packageId, BUDGET);
       if (retained.files.length !== files.size || retained.files.some(file => !files.get(file.path)?.equals(file.bytes)))
-        integrity('Metric method publication differs from prepared bytes.');
-      const output: AutomationMetricMethodSnapshot = { contractVersion: 'automation-metric-method-snapshot-v1', runId: input.runId,
+        fail('METRIC_CALCULATION_FAILED', 'Metric method publication differs from prepared bytes.');
+      const output: AutomationMetricMethodSnapshot = { contractVersion: snapshotVersion(input), runId: input.runId,
         runBindingSha256: digest(input), sourcePackage: identity(retained), originalSourcePackage: identity(original),
         preparation: verified.result, readiness, result, limitations };
       return output;
@@ -172,21 +254,23 @@ export class AutomationMetricMethodBridge {
   async verify(untrusted: unknown, input: MetricRunInput): Promise<AutomationMetricMethodSnapshot> {
     if (!isRecord(untrusted) || json(untrusted).length > MAX_JSON_ARTIFACT_BYTES ||
         Object.keys(untrusted).sort().join(',') !== 'contractVersion,limitations,originalSourcePackage,preparation,readiness,result,runBindingSha256,runId,sourcePackage' ||
-        untrusted.contractVersion !== 'automation-metric-method-snapshot-v1' || untrusted.runId !== input.runId ||
+        untrusted.contractVersion !== snapshotVersion(input) || untrusted.runId !== input.runId ||
         untrusted.runBindingSha256 !== digest(input) || !isIdentity(untrusted.sourcePackage) || !isIdentity(untrusted.originalSourcePackage) ||
         !isRecord(untrusted.preparation) || !isRecord(untrusted.readiness) || !isRecord(untrusted.result) || !Array.isArray(untrusted.limitations))
       integrity('Metric method snapshot identity is invalid.');
     const snapshot = untrusted as unknown as AutomationMetricMethodSnapshot;
     const retained = await this.#packages.readVerified(snapshot.sourcePackage.packageId, BUDGET);
     const original = await this.#packages.readVerified(snapshot.originalSourcePackage.packageId, BUDGET);
-    if (!equal(snapshot.sourcePackage, identity(retained)) || retained.manifest.packageKey !== methodKey(input.runId) ||
+    if (!equal(snapshot.sourcePackage, identity(retained)) || retained.manifest.packageKey !== methodKey(input) ||
         retained.manifest.version !== 1 || retained.manifest.sourceLabel !== methodLabel(input.runId) ||
-        !equal(snapshot.originalSourcePackage, identity(original)) || original.manifest.packageKey !== sourceKey(input.runId) ||
-        original.manifest.version !== 1 || retained.manifest.sourceAcquiredAt !== original.manifest.sourceAcquiredAt)
+        !equal(snapshot.originalSourcePackage, identity(original)) ||
+        (input.sourceSelection ? !equal(input.sourceSelection.sourcePackage, identity(original))
+          : original.manifest.packageKey !== sourceKey(input.runId) || original.manifest.version !== 1) ||
+        retained.manifest.sourceAcquiredAt !== original.manifest.sourceAcquiredAt)
       integrity('Metric method or original source package identity differs from the frozen run.');
     const originalMetadata = new Map(original.manifest.files.map(file => [file.path, file]));
-    const expectedPaths = new Set([...originalMetadata.keys(), ...DERIVED_PATHS]);
-    if (expectedPaths.size !== originalMetadata.size + DERIVED_PATHS.length || retained.files.length !== expectedPaths.size ||
+    const expectedPaths = new Set([...originalMetadata.keys(), ...derivedPaths(input)]);
+    if (expectedPaths.size !== originalMetadata.size + derivedPaths(input).length || retained.files.length !== expectedPaths.size ||
         retained.files.some(file => !expectedPaths.has(file.path))) integrity('Metric method package membership differs from its frozen roles.');
     for (const { bytes, ...metadata } of retained.files) {
       const originalFile = originalMetadata.get(metadata.path);
@@ -194,8 +278,8 @@ export class AutomationMetricMethodBridge {
           (originalFile !== undefined && !bytes.equals(file(original, metadata.path).bytes)))
         integrity('Metric method retained file role or original bytes differ.');
     }
-    const validators = frozenValidators(retained);
-    const selected = selectSource(original, input, validators['automation-metric-source']);
+    const validators = frozenValidators(retained, input);
+    const selected = selectBoundSource(original, input, validators['automation-metric-source'], validators['automation-metric-source-v2']);
     const { preparation, readiness, result } = snapshot;
     if (!validators['metric-input-preparation-result'](preparation) || !validators['metric-preparation-readiness-result'](readiness) ||
         !validators['metric-scope-output'](result) || !validators['report-section-catalog'](parse(retained, CATALOG)) ||
@@ -219,48 +303,94 @@ export class AutomationMetricMethodBridge {
   }
 
   async #resolve(input: MetricRunInput): Promise<VerifiedFinalizedSourcePackage | undefined> {
-    const matches: VerifiedFinalizedSourcePackage[] = [];
-    try {
-      // The declared Foundation listing verifies its bounded inventory. Failure is not absence.
-      for (const summary of await this.#reader.listFinalizedSourcePackages(BUDGET)) {
-        const source = await this.#reader.readFinalizedSourcePackage(summary.packageId, BUDGET);
-        if (source.manifestArtifactSha256 !== summary.manifestArtifactSha256) throw new Error('summary identity');
-        if (source.manifest.packageKey === sourceKey(input.runId)) matches.push(source);
-      }
-    } catch {
-      integrity('METRIC_SOURCE_RESOLUTION_FAILED: retained source inventory could not be verified.');
+    if (input.sourceSelection) {
+      assertSelection(input.sourceSelection);
+      const chosen = input.sourceSelection.sourcePackage;
+      if (chosen === null) return undefined;
+      const source = await this.#reader.readFinalizedSourcePackage(chosen.packageId, BUDGET).catch((error: unknown) => {
+        if (error instanceof ArtifactIntegrityError || error instanceof FoundationIdentityConflictError)
+          fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Frozen Metric source bytes or identity are damaged.');
+        return integrity('Frozen Metric source could not be verified.');
+      });
+      if (!equal(chosen, identity(source))) fail('METRIC_SOURCE_INTEGRITY_FAILED', 'Frozen Metric source identity differs.');
+      return source;
     }
-    if (matches.length > 1) integrity('Metric source attachment is ambiguous.');
-    if (matches[0] && matches[0].manifest.version !== 1) integrity('Metric source attachment version is unsupported.');
-    return matches[0];
+    // Only this run's exact key is looked up and verified; other packages are never read or counted.
+    // Every version of the key is returned, so a second version stays ambiguous instead of being ignored.
+    const key = sourceKey(input.runId);
+    const matches = await this.#reader.findFinalizedSourcePackagesByKey(key)
+      .catch(() => integrity('METRIC_SOURCE_RESOLUTION_FAILED: run-attached source lookup failed.'));
+    if (matches.length > 1) fail('METRIC_SOURCE_AMBIGUOUS', 'Metric source attachment is ambiguous.');
+    const match = matches[0];
+    if (!match) return undefined;
+    if (match.version !== 1) fail('METRIC_SOURCE_UNSUPPORTED', 'Metric source attachment version is unsupported.');
+    // Failure is not absence: a damaged attachment must not silently skip Metric.
+    // Only Foundation's typed byte/identity checks establish damage; other read failures stay unclassified.
+    const source = await this.#reader.readFinalizedSourcePackage(match.packageId, BUDGET).catch((error: unknown) => {
+      if (error instanceof ArtifactIntegrityError || error instanceof FoundationIdentityConflictError)
+        fail('METRIC_SOURCE_INTEGRITY_FAILED', 'METRIC_SOURCE_RESOLUTION_FAILED: run-attached source bytes or identity are damaged.');
+      return integrity('METRIC_SOURCE_RESOLUTION_FAILED: run-attached source could not be verified.');
+    });
+    if (source.manifestArtifactSha256 !== match.manifestArtifactSha256 || source.manifest.packageKey !== key || source.manifest.version !== 1)
+      fail('METRIC_SOURCE_INTEGRITY_FAILED', 'METRIC_SOURCE_RESOLUTION_FAILED: run-attached source identity differs from its lookup.');
+    return source;
   }
 }
 
 function sourceKey(runId: string): string { return `automation-metric-source:${runId}`; }
-function methodKey(runId: string): string { return `automation-method:${runId}-metric-v1`; }
+function methodKey(input: MetricRunInput): string {
+  if (input.sourceSelection) {
+    assertSelection(input.sourceSelection);
+    return `automation-method:${input.runId}-metric-v2-${input.sourceSelection.executionId}`;
+  }
+  return `automation-method:${input.runId}-metric-v1`;
+}
+function snapshotVersion(input: MetricRunInput): AutomationMetricMethodSnapshot['contractVersion'] {
+  return input.sourceSelection ? 'automation-metric-method-snapshot-v2' : 'automation-metric-method-snapshot-v1';
+}
+function assertSelection(value: NonNullable<MetricRunInput['sourceSelection']>): void {
+  if (!isRecord(value) || Object.keys(value).sort().join(',') !== 'executionId,sourcePackage' ||
+      !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(value.executionId) ||
+      (value.sourcePackage !== null && (!isIdentity(value.sourcePackage) ||
+        !/^[0-9a-f]{64}$/.test(value.sourcePackage.manifestArtifactSha256) || !/^[0-9a-f]{64}$/.test(value.sourcePackage.packageContentSha256))))
+    integrity('Frozen Metric source selection is invalid.');
+}
 function methodLabel(runId: string): string { return `Automation ${runId}: attached Metric export and frozen ALL calculation`; }
 
+function selectBoundSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, v1: Validator, v2?: Validator): Selected {
+  const declared = jsonRecord(file(source, SOURCE_DESCRIPTOR).bytes);
+  if (input.sourceSelection && declared?.contractVersion === 'automation-metric-source-v2' && v2)
+    return selectSource(source, input, v2, true);
+  const { sourceSelection: _selection, ...originalBinding } = input;
+  return selectSource(source, originalBinding, v1, false);
+}
+
 /** Exact explicit attachment only; nothing is inferred from names, dates or recency. */
-function selectSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, validate: Validator): Selected {
-  const descriptorFile = file(source, SOURCE_DESCRIPTOR);
-  const descriptor = parse(source, SOURCE_DESCRIPTOR);
-  if (descriptorFile.mediaType !== 'application/json' || !validate(descriptor) || !json(descriptor).equals(descriptorFile.bytes))
-    integrity('Metric source descriptor is invalid or non-canonical.');
-  const declared = descriptor as unknown as AutomationMetricSource;
-  if (declared.runId !== input.runId || input.scope.runId !== input.runId || declared.workspaceId !== input.start.workspaceId ||
-      input.scope.workspaceId !== input.start.workspaceId || declared.runBindingSha256 !== digest(input) || declared.keyword !== input.start.keyword)
-    integrity('Metric source descriptor is not bound to this confirmed run.');
+function selectSource(source: VerifiedFinalizedSourcePackage, input: MetricRunInput, validate: Validator, prepared?: boolean): Selected;
+function selectSource(source: VerifiedFinalizedSourcePackage, input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'>, validate: Validator, prepared: true): Selected;
+function selectSource(source: VerifiedFinalizedSourcePackage, input: Pick<MetricRunInput, 'runId' | 'start' | 'scope'> & Partial<MetricRunInput>, validate: Validator, prepared = Boolean(input.sourceSelection)): Selected {
+  const descriptorFile = source.files.find(value => value.path === SOURCE_DESCRIPTOR);
+  const descriptor = descriptorFile && jsonRecord(descriptorFile.bytes);
+  if (!descriptorFile || descriptorFile.mediaType !== 'application/json' || !validate(descriptor) || !json(descriptor).equals(descriptorFile.bytes))
+    fail('METRIC_SOURCE_UNSUPPORTED', 'Metric source descriptor is invalid or non-canonical.');
+  const declared = descriptor as unknown as SourceDescriptor;
+  if (input.scope.runId !== input.runId || input.scope.workspaceId !== input.start.workspaceId)
+    integrity('Metric run input is not one confirmed run.');
+  const binding = prepared ? { runId: input.runId, start: input.start, scope: input.scope } : input;
+  if (declared.runId !== input.runId || declared.workspaceId !== input.start.workspaceId || declared.runBindingSha256 !== digest(binding) ||
+      declared.keyword !== input.start.keyword)
+    fail('METRIC_SOURCE_RUN_MISMATCH', 'Metric source descriptor is not bound to this confirmed run.');
   const paths = [SOURCE_DESCRIPTOR, declared.workbookPath, declared.manifestPath, declared.sourceContextPath];
   if (new Set(paths).size !== paths.length || source.files.length !== paths.length || source.files.some(value => !paths.includes(value.path)))
-    integrity('Metric source package membership differs from its descriptor.');
+    fail('METRIC_SOURCE_UNSUPPORTED', 'Metric source package membership differs from its descriptor.');
   if (source.files.some(value => value.independence !== 'non_independent') || descriptorFile.providerProvenance !== 'operator_supplied_unverified' ||
       file(source, declared.workbookPath).mediaType !== XLSX_MEDIA)
-    integrity('Metric source roles are not admitted for an operator attachment.');
+    fail('METRIC_SOURCE_UNSUPPORTED', 'Metric source roles are not admitted for an operator attachment.');
   return { descriptor: declared, descriptorFile, workbook: file(source, declared.workbookPath), manifest: file(source, declared.manifestPath),
     context: file(source, declared.sourceContextPath) };
 }
 
-function preparationRequest(input: MetricRunInput, source: VerifiedFinalizedSourcePackage, descriptor: AutomationMetricSource): MetricInputPreparationResult['request'] {
+function preparationRequest(input: MetricRunInput, source: VerifiedFinalizedSourcePackage, descriptor: SourceDescriptor): MetricInputPreparationResult['request'] {
   return { contractVersion: '1.0.0', workspaceId: input.start.workspaceId, packageId: source.packageId,
     packageManifestSha256: source.manifestArtifactSha256, workbookPath: descriptor.workbookPath, manifestPath: descriptor.manifestPath, labelsPath: null };
 }
@@ -269,10 +399,10 @@ function preparationRequest(input: MetricRunInput, source: VerifiedFinalizedSour
 function periodCoverage(input: MetricRunInput, result: MetricScopeOutput): 'EXACT_REQUESTED_PERIOD' | 'SHORTER_THAN_REQUESTED' {
   return declaredPeriodCoverage(input, result.input.scope);
 }
-function declaredPeriodCoverage(input: MetricRunInput, source: { start: string; end: string }): 'EXACT_REQUESTED_PERIOD' | 'SHORTER_THAN_REQUESTED' {
+function declaredPeriodCoverage(input: Pick<MetricRunInput, 'start'>, source: { start: string; end: string }): 'EXACT_REQUESTED_PERIOD' | 'SHORTER_THAN_REQUESTED' {
   const { startDate, endDate } = input.start.requestedPeriod;
   const { start, end } = source;
-  if (start > end || start < startDate || end > endDate) integrity('Metric source period lies outside the requested dates.');
+  if (start > end || start < startDate || end > endDate) fail('METRIC_SOURCE_PERIOD_CONFLICT', 'Metric source period lies outside the requested dates.');
   return start === startDate && end === endDate ? 'EXACT_REQUESTED_PERIOD' : 'SHORTER_THAN_REQUESTED';
 }
 function limitationsFor(coverage: ReturnType<typeof periodCoverage>): string[] {
@@ -287,13 +417,13 @@ function assertBoundedState(result: MetricScopeOutput, readiness: MetricPreparat
       core?.key !== 'core' || core.status !== 'BLOCKED_LABELS' || result.comparisons.length !== 0 ||
       result.input.records.some(row => row.label !== null) || result.labelIssues.length !== result.input.records.length ||
       sections.get('M03') !== 'BLOCKED' || sections.get('M04') !== 'BLOCKED')
-    integrity('Metric labels or classified readiness are not in their bounded blocked state.');
+    fail('METRIC_CALCULATION_FAILED', 'Metric labels or classified readiness are not in their bounded blocked state.');
 }
 
 function runConfig(input: MetricRunInput, original: VerifiedFinalizedSourcePackage, selected: Selected, result: MetricScopeOutput,
   catalogSha256: string, limitations: readonly string[]) {
   const ref = (value: VerifiedSourcePackageFile) => ({ logicalPath: value.path, sha256: value.sha256, byteSize: value.byteSize, mediaType: value.mediaType });
-  return { contractVersion: 'automation-metric-run-v1', input, runBindingSha256: digest(input), originalSourcePackage: identity(original),
+  return { contractVersion: input.sourceSelection ? 'automation-metric-run-v2' : 'automation-metric-run-v1', input, runBindingSha256: digest(input), originalSourcePackage: identity(original),
     descriptor: ref(selected.descriptorFile), workbook: ref(selected.workbook), manifest: ref(selected.manifest),
     // Literal retained bytes only; no filter, category, coverage guarantee or identifier is read from it.
     sourceContext: ref(selected.context),
@@ -330,16 +460,16 @@ function verifyFrozenPreparation(retained: VerifiedFinalizedSourcePackage, origi
     integrity('Metric frozen normalization receipt differs.');
 }
 
-function frozenValidators(retained: VerifiedFinalizedSourcePackage): Record<SchemaName, Validator> {
+function frozenValidators(retained: VerifiedFinalizedSourcePackage, input: MetricRunInput): Record<SchemaName, Validator> {
   const ajv = new Ajv2020({ strict: true, allErrors: true });
   addFormats(ajv);
   try {
-    for (const name of SCHEMA_NAMES) {
+    for (const name of schemaNames(input)) {
       const schema = parse(retained, profilePath(name));
       if (schema.$id !== schemaId(name)) throw new Error('schema identity');
       ajv.addSchema(schema);
     }
-    return Object.fromEntries(SCHEMA_NAMES.map(name => {
+    return Object.fromEntries(schemaNames(input).map(name => {
       const validate = ajv.getSchema(schemaId(name));
       if (!validate) throw new Error('schema missing');
       return [name, (value: unknown) => validate(value) === true];
@@ -360,11 +490,14 @@ function file(source: VerifiedFinalizedSourcePackage, filePath: string): Verifie
   return source.files.find(value => value.path === filePath) ?? integrity('Metric retained file is missing.');
 }
 function parse(source: VerifiedFinalizedSourcePackage, filePath: string): Record<string, unknown> {
+  return jsonRecord(file(source, filePath).bytes) ?? integrity('Metric retained JSON is invalid.');
+}
+function jsonRecord(bytes: Buffer): Record<string, unknown> | undefined {
   try {
-    const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(file(source, filePath).bytes));
+    const value: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
     if (isRecord(value)) return value;
-  } catch { /* Fixed message below. */ }
-  return integrity('Metric retained JSON is invalid.');
+  } catch { /* Callers report a fixed reason. */ }
+  return undefined;
 }
 function isRecord(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 function derivedMetadata(filePath: string, bytes: Buffer): SourcePackageIntakeRequest['files'][number] {

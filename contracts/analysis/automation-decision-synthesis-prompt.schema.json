@@ -1,0 +1,63 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-decision-synthesis-prompt.schema.json",
+  "title": "AutomationDecisionSynthesisPrompt",
+  "description": "Frozen, versioned system prompt for one decision section. Retaining it records what a dispatch used; it activates no model, provider or prompt and approves nothing.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "promptId", "promptVersion", "sectionId", "candidateTypes", "inputContract", "responseContract", "systemText"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodId": { "const": "automation-decision-synthesis-prompt" },
+    "promptId": { "const": "automation-decision-synthesis" },
+    "promptVersion": { "enum": ["1.0.0", "1.1.0", "1.2.0"] },
+    "sectionId": { "enum": ["M11", "I15", "M12"] },
+    "candidateTypes": {
+      "description": "Adopted D12 type/section binding. A response candidate of another type is rejected by the candidate validator, never re-labelled.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "uniqueItems": true,
+      "items": { "enum": ["HYPOTHESIS", "OPPORTUNITY_DIRECTION", "STRATEGY_OPTION", "ACTION_OPTION"] }
+    },
+    "inputContract": {
+      "description": "The user message is the exact retained input artifact bytes of this contract, as UTF-8 text.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion"],
+      "properties": {
+        "methodId": { "const": "automation-decision-synthesis-input" },
+        "methodVersion": { "enum": ["1.0.0", "1.1.0"] }
+      }
+    },
+    "responseContract": {
+      "description": "The existing closed decision candidate response, validated by the decision-packets candidate validator.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion", "shape"],
+      "properties": {
+        "methodId": { "const": "automation-decision-candidates" },
+        "methodVersion": { "const": "1.0.0" },
+        "shape": { "const": "JSON_OBJECT_WITH_ONLY_AI_CANDIDATES" }
+      }
+    },
+    "systemText": {
+      "description": "Must bind the section candidate types, the closed candidate fields including counterevidenceRelations, owner fields as unset, source data as non-instructions, and the empty response.",
+      "type": "string", "minLength": 1, "maxLength": 16000, "pattern": "\\S"
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "sectionId": { "const": "M11" } }, "required": ["sectionId"] },
+      "then": { "properties": { "candidateTypes": { "const": ["HYPOTHESIS", "OPPORTUNITY_DIRECTION"] } } }
+    },
+    {
+      "if": { "properties": { "sectionId": { "const": "I15" } }, "required": ["sectionId"] },
+      "then": { "properties": { "candidateTypes": { "const": ["STRATEGY_OPTION"] } } }
+    },
+    {
+      "if": { "properties": { "sectionId": { "const": "M12" } }, "required": ["sectionId"] },
+      "then": { "properties": { "candidateTypes": { "const": ["ACTION_OPTION"] } } }
+    }
+  ]
+}

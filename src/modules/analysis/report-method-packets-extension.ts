@@ -8,7 +8,7 @@ import catalogSchema from '../../../contracts/analysis/report-section-catalog.sc
 import metricInputSchema from '../../../contracts/analysis/metric-scope-input.schema.json' with { type: 'json' };
 import type { ReportMethodPacketsInput } from '../../../contracts/analysis/report-method-packets-input.generated.js';
 import type { FinalizedSourcePackageReader } from '../foundation/source-package-reader.js';
-import type { VerifiedSourcePackageFile } from '../foundation/source-package-service.js';
+import type { VerifiedFinalizedSourcePackage, VerifiedSourcePackageFile } from '../foundation/source-package-service.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import type { SourceBackedReportBundle } from './source-backed-report.js';
 import { buildBoundedAnalysisGates } from './bounded-analysis-gates.js';
@@ -63,21 +63,13 @@ function methodPacketBusinessPayload(value: unknown): unknown {
     .map(([key, child]) => [key, methodPacketBusinessPayload(child)]));
 }
 
-export async function buildReportMethodPacketsExtension(
-  logicalPath: string | undefined,
-  bundle: SourceBackedReportBundle,
-  sourcePackages: FinalizedSourcePackageReader,
-) {
-  if (logicalPath === undefined) return undefined;
-  const identity = bundle.envelope.sourcePackage;
-  const retained = await sourcePackages.readFinalizedSourcePackage(identity.packageId, {
-    maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024,
-  });
-  if (retained.packageId !== identity.packageId || retained.manifestArtifactSha256 !== identity.manifestArtifactSha256 ||
-      retained.packageContentSha256 !== identity.packageContentSha256 || canonicalJson(retained.manifest) !== canonicalJson(identity.manifest)) {
-    fail('METHOD_PACKET_PACKAGE_IDENTITY_MISMATCH');
-  }
+/** Consumes an owning Foundation reader's exact package, without requiring a Metric calculation.
+ * Source references authenticate literal payloads, not semantic truth or human approval.
+ * Decision claim references are NOT admitted here; the caller must bind them to calculation bytes.
+ */
+export function buildVerifiedMethodPacketSources(logicalPath: string, retained: VerifiedFinalizedSourcePackage) {
   const byPath = new Map(retained.files.map(file => [file.path, file]));
+  if (byPath.size !== retained.files.length) fail('METHOD_PACKET_DUPLICATE_SOURCE_PATH');
   const descriptor = byPath.get(logicalPath);
   if (!descriptor) fail('METHOD_PACKET_DESCRIPTOR_MISSING');
   const input = parse(descriptor);
@@ -117,6 +109,25 @@ export async function buildReportMethodPacketsExtension(
     for (const [key, child] of Object.entries(object)) if (!['source', 'protocolRef', 'identityEvidence'].includes(key)) verifyTree(child);
   }
   if (input.gates !== null) verifyTree(input.gates);
+  const gates = input.gates === null ? undefined : buildBoundedAnalysisGates(input.gates).output;
+  return { input, descriptor, evidence, gates };
+}
+
+export async function buildReportMethodPacketsExtension(
+  logicalPath: string | undefined,
+  bundle: SourceBackedReportBundle,
+  sourcePackages: FinalizedSourcePackageReader,
+) {
+  if (logicalPath === undefined) return undefined;
+  const identity = bundle.envelope.sourcePackage;
+  const retained = await sourcePackages.readFinalizedSourcePackage(identity.packageId, {
+    maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024,
+  });
+  if (retained.packageId !== identity.packageId || retained.manifestArtifactSha256 !== identity.manifestArtifactSha256 ||
+      retained.packageContentSha256 !== identity.packageContentSha256 || canonicalJson(retained.manifest) !== canonicalJson(identity.manifest)) {
+    fail('METHOD_PACKET_PACKAGE_IDENTITY_MISMATCH');
+  }
+  const { input, descriptor, evidence, gates } = buildVerifiedMethodPacketSources(logicalPath, retained);
   const packetBytes = bundle.files.get('packet.json');
   if (!packetBytes || digest(packetBytes) !== bundle.envelope.artifacts.packetSha256) fail('METHOD_PACKET_CALCULATION_BYTES_MISMATCH');
   const resultBytes = bundle.files.get('metric-result.json');
@@ -129,7 +140,6 @@ export async function buildReportMethodPacketsExtension(
     if (claim.reference.sha256 !== digest(resultBytes) ||
         canonicalJson(pointer(bundle.packet, claim.reference.claimPointer)) !== canonicalJson(claim.payload)) fail('METHOD_PACKET_CLAIM_REPLAY_MISMATCH');
   }
-  const gates = input.gates === null ? undefined : buildBoundedAnalysisGates(input.gates).output;
   const decisions = input.decisions === null ? undefined : buildDecisionEvidencePackets(input.decisions).output;
   const fileEnvelope = (file: VerifiedSourcePackageFile) => ({
     logicalPath: file.path, sha256: file.sha256, byteSize: file.byteSize, mediaType: file.mediaType,

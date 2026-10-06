@@ -13,7 +13,7 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
-import type { MetricRunInput, AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
+import { METRIC_METHOD_FAILURE_CODES, type MetricRunInput, type AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -29,8 +29,10 @@ async function fixture(t: TestContext, invalidBinding = false) {
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, now, uuid: () => workspaceId });
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'metric-report', title: 'Synthetic Metric report' });
   const workspaces = new FlowDiscoveryWorkspaceReader(discovery);
+  const inputs = new Map<'MARKET' | 'INSIGHT', Parameters<typeof buildResearchAutomationReport>[0]>();
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: workspaces, now, uuid: () => runId,
     renderer: (input, kind) => {
+      inputs.set(kind, input);
       const rendered = buildResearchAutomationReport(input, kind);
       const { metricMethods: _presentationOmitted, ...semantic } = rendered.semantic as Record<string, unknown>;
       return { ...rendered, semantic };
@@ -76,7 +78,7 @@ async function fixture(t: TestContext, invalidBinding = false) {
   assert.ok(ready.outputs?.market && ready.outputs.insight);
   const semantic = JSON.parse((await artifacts.read(ready.outputs.market.versionId)).toString()) as Record<string, unknown>;
   const insightSemantic = JSON.parse((await artifacts.read(ready.outputs.insight.versionId)).toString()) as Record<string, unknown>;
-  return { db, artifacts, service, workspaces, semantic, insightSemantic };
+  return { db, artifacts, service, workspaces, semantic, insightSemantic, marketInput: inputs.get('MARKET')! };
 }
 
 // Primary owner is the REPORTS lifecycle: the bridge's tests cannot detect an
@@ -101,6 +103,23 @@ test('REPORTS computes attached raw Metric rows, retains the full method indepen
   assert.match(doc.getElementById('M04')!.textContent!, /66\.67%/);
   assert.equal(doc.getElementById('M04')!.querySelectorAll('svg').length, 1);
   assert.equal(doc.querySelectorAll('script').length, 0);
+  const reading = doc.querySelector('#M03 .reader-summary')!.textContent!;
+  assert.match(reading, /150 VND/);
+  assert.match(reading, /tổng của mẫu xuất, không phải ước tính quy mô toàn thị trường/);
+  const context = doc.querySelector('#M03 .reader-context')!.textContent!;
+  assert.doesNotMatch(context, /Synthetic export measurement period/);
+  const evidence = [...doc.querySelectorAll('#M03 details.evidence-trace')].at(-1)!.textContent!;
+  assert.ok(evidence.includes(snapshot.result.input.scope.periodBasis), 'original period basis remains in evidence');
+  assert.ok(evidence.includes(snapshot.result.methodVersion) && evidence.includes(snapshot.result.rounding));
+  assert.match(doc.querySelector('#M04 .reader-summary')!.textContent!, /66\.67%/);
+  const scopeText = doc.getElementById('M02')!.textContent!;
+  assert.match(scopeText, /2026-08-17 đến 2026-09-16/); // Requested period is longer.
+  assert.match(scopeText, /2026-08-17 đến 2026-09-15/); // Retained source declaration.
+  assert.match(scopeText, /Thời điểm lấy nguồnChưa xác nhận/);
+  assert.match(scopeText, /ALL: CALCULATED; WIDE: BLOCKED_LABELS; CORE: BLOCKED_LABELS/);
+  assert.match(scopeText, /Quy tắc phân loại Metric không tự áp dụng cho Kalodata/);
+  assert.ok(doc.getElementById('M13')!.textContent!.includes(snapshot.originalSourcePackage.packageContentSha256));
+  assert.ok(doc.getElementById('M13')!.textContent!.includes(snapshot.preparation.selectedSources.workbook.sha256));
   assert.ok(doc.getElementById('M04')!.querySelector('svg title'));
   const changes = (f.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count;
   const priorPath = process.env.PATH;
@@ -115,14 +134,56 @@ test('REPORTS computes attached raw Metric rows, retains the full method indepen
   } finally { process.env.PATH = priorPath; }
 });
 
-test('a wrong Metric run binding stays blocked without losing the separate Insight report or displaying unchecked totals', async t => {
+test('a wrong Metric run binding keeps its closed reason, never the exception text, stays blocked beside Insight and is served frozen', async t => {
   const f = await fixture(t, true);
-  assert.equal(f.semantic.metricMethodsFailure, 'METRIC_METHOD_FAILED');
+  assert.equal(f.semantic.metricMethodsFailure, 'METRIC_SOURCE_RUN_MISMATCH');
   assert.equal(f.semantic.metricMethods, null);
-  const doc = new JSDOM((await f.service.readReport(workspaceId, runId, 'MARKET')).bytes.toString()).window.document;
-  assert.match(doc.getElementById('M03')!.textContent!, /chưa vượt qua kiểm tra/i);
+  const original = await f.service.readReport(workspaceId, runId, 'MARKET');
+  const doc = new JSDOM(original.bytes.toString()).window.document;
+  assert.match(doc.getElementById('M03')!.textContent!, /Mã đối chiếu: METRIC_SOURCE_RUN_MISMATCH\./);
+  // The bridge's exception text and the generic fallback never reach stored output.
+  for (const stored of [original.bytes.toString(), JSON.stringify(f.semantic)])
+    assert.doesNotMatch(stored, /not bound to this confirmed run|METRIC_METHOD_FAILED/);
   assert.equal(doc.getElementById('M03')!.querySelector('table'), null);
   assert.equal(doc.getElementById('M04')!.querySelector('svg'), null);
   assert.equal(f.insightSemantic.metricMethodsFailure, undefined);
   assert.ok((await f.service.readReport(workspaceId, runId, 'INSIGHT')).bytes.length);
+  const changes = (f.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count;
+  const priorPath = process.env.PATH;
+  f.db.pragma('query_only=ON');
+  try {
+    process.env.PATH = '/no-python-for-historical-read';
+    const reader = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, workspaceReader: f.workspaces,
+      now: () => { throw new Error('historical report read must not use the clock'); } });
+    assert.deepEqual((await reader.readReport(workspaceId, runId, 'MARKET')).bytes, original.bytes);
+    assert.equal((f.db.prepare('SELECT total_changes() count').get() as { count: bigint }).count, changes);
+  } finally { process.env.PATH = priorPath; }
+});
+
+test('each closed Metric failure renders its own fixed explanation and next step, never totals, and the generic fallback keeps its copy', async t => {
+  const f = await fixture(t, true);
+  const { metricMethods: _metricMethods, metricMethodsFailure: _failure, ...base } = f.marketInput;
+  const explanations = new Set<string>();
+  const nextSteps = new Set<string>();
+  for (const code of METRIC_METHOD_FAILURE_CODES) {
+    const rendered = buildResearchAutomationReport({ ...base, metricMethodsFailure: code }, 'MARKET');
+    assert.equal((rendered.semantic as Record<string, unknown>).metricMethodsFailure, code);
+    const doc = new JSDOM(rendered.html.toString()).window.document;
+    for (const id of ['M03', 'M04']) {
+      const section = doc.getElementById(id)!;
+      assert.equal(section.querySelector('table, svg'), null);
+      const explanation = section.querySelector('header + p')!.textContent!;
+      const warning = section.querySelector('p.warning')!.textContent!;
+      const reference = ` Mã đối chiếu: ${code}.`;
+      assert.ok(warning.endsWith(reference), `${code} ${id}: ${warning}`);
+      if (id === 'M03') { explanations.add(explanation); nextSteps.add(warning.slice(0, -reference.length)); }
+      // Unclassified failures keep the copy shown before closed reasons existed.
+      if (code === 'METRIC_METHOD_FAILED') {
+        assert.equal(explanation, 'Gói Metric được gắn với lượt này chưa vượt qua kiểm tra nguồn, kỳ hoặc phương pháp. Không dùng số liệu chưa xác minh; cần sửa gói đầu vào cho lượt mới. Không tự gọi lại nguồn.');
+        assert.equal(warning, 'Chưa tính được từ gói Metric gắn với lượt này. Kiểm tra nguồn, kỳ đo và liên kết phạm vi trước khi tạo lượt mới. Mã đối chiếu: METRIC_METHOD_FAILED.');
+      }
+    }
+  }
+  assert.equal(explanations.size, METRIC_METHOD_FAILURE_CODES.length);
+  assert.equal(nextSteps.size, METRIC_METHOD_FAILURE_CODES.length);
 });

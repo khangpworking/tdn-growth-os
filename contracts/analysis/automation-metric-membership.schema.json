@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-metric-membership.schema.json",
+  "title": "AutomationMetricMembershipContract",
+  "oneOf": [{ "$ref": "#/$defs/propose" }, { "$ref": "#/$defs/accept" }, { "$ref": "#/$defs/proposal" }, { "$ref": "#/$defs/receipt" }],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "assignment": {
+      "title": "MetricMembershipAssignment", "type": "object", "additionalProperties": false,
+      "required": ["recordKey", "classification", "group"],
+      "properties": {
+        "recordKey": { "$ref": "#/$defs/digest" },
+        "classification": { "enum": ["CORE_CANDIDATE", "ADJACENT", "OUTSIDE", "UNKNOWN"] },
+        "group": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$" }
+      }
+    },
+    "propose": {
+      "title": "MetricMembershipProposeRequest", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "pairId", "adoptionId", "assignments"],
+      "properties": {
+        "contractVersion": { "const": "metric-membership-propose-v1" },
+        "requestKey": { "$ref": "#/$defs/uuid" }, "pairId": { "$ref": "#/$defs/digest" }, "adoptionId": { "$ref": "#/$defs/uuid" },
+        "assignments": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/assignment" } }
+      }
+    },
+    "accept": {
+      "title": "MetricMembershipAcceptRequest", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "proposalId", "selectedRecordKeys"],
+      "properties": {
+        "contractVersion": { "const": "metric-membership-accept-v1" }, "requestKey": { "$ref": "#/$defs/uuid" },
+        "proposalId": { "$ref": "#/$defs/uuid" },
+        "selectedRecordKeys": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/digest" } }
+      }
+    },
+    "binding": {
+      "title": "MetricMembershipBinding", "type": "object", "additionalProperties": false,
+      "required": ["workspaceId", "runId", "pairId", "adoptionId", "adoptionSha256", "preparationSha256", "inputSha256", "sourcePackageId", "scopeSha256"],
+      "properties": {
+        "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" }, "pairId": { "$ref": "#/$defs/digest" },
+        "adoptionId": { "$ref": "#/$defs/uuid" }, "adoptionSha256": { "$ref": "#/$defs/digest" },
+        "preparationSha256": { "$ref": "#/$defs/digest" }, "inputSha256": { "$ref": "#/$defs/digest" },
+        "sourcePackageId": { "$ref": "#/$defs/uuid" }, "scopeSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "proposal": {
+      "title": "MetricMembershipProposal", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "proposalId", "binding", "request", "actorId", "createdAt"],
+      "properties": {
+        "contractVersion": { "const": "metric-membership-proposal-v1" }, "proposalId": { "$ref": "#/$defs/uuid" },
+        "binding": { "$ref": "#/$defs/binding" }, "request": { "$ref": "#/$defs/propose" },
+        "actorId": { "type": "string", "minLength": 1, "maxLength": 200 }, "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "receipt": {
+      "title": "MetricMembershipReceipt", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "receiptId", "binding", "request", "proposalSha256", "actorId", "actorRole", "acceptedAt"],
+      "properties": {
+        "contractVersion": { "const": "metric-membership-receipt-v1" }, "receiptId": { "$ref": "#/$defs/uuid" },
+        "binding": { "$ref": "#/$defs/binding" }, "request": { "$ref": "#/$defs/accept" }, "proposalSha256": { "$ref": "#/$defs/digest" },
+        "actorId": { "type": "string", "minLength": 1, "maxLength": 200 }, "actorRole": { "const": "OWNER" },
+        "acceptedAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  }
+}

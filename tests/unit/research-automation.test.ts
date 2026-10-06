@@ -69,6 +69,65 @@ async function waitFor(service: ResearchAutomationService, workspace: string, ru
   throw new Error(`Timed out waiting for ${status}; latest status was ${latest?.status ?? 'unknown'}.`);
 }
 
+// One owner proof covers attempt lifecycle, not browser gestures or SQL text.
+test('failed and cancelled supplemental attempts do not advance report versions; restart reuses the frozen queued sources', async () => {
+  let failInsight = false;
+  const state = await fixture((input, kind) => {
+    if (failInsight && kind === 'INSIGHT') throw new Error('Synthetic renderer failure after Market');
+    return { semantic: { contractVersion: 'research-automation-report-v1', kind, runId, workspaceId },
+      html: Buffer.from(`<html>${kind}</html>`) };
+  });
+  try {
+    await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '14141414-1414-4414-8414-141414141414',
+      mode: 'CATEGORY', keyword: 'synthetic attempt lifecycle', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET', 'INSIGHT'] });
+    await state.service.processNext();
+    const awaiting = await state.service.getRun(workspaceId, runId);
+    await state.service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v2', requestKey: '15151515-1515-4515-8515-151515151515',
+      expectedRevision: awaiting.revision, definition: 'Synthetic unchanged scope', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [],
+      sources: { metric: { decision: 'SKIPPED' }, nativeReview: 'SKIP' } });
+    await state.service.processNext(); await state.service.processNext();
+    const [original] = await state.service.listReportVersions(workspaceId, runId);
+    assert.ok(original);
+    const savedRun = state.db.prepare('SELECT * FROM analysis_research_automation_runs').all();
+    const savedUsage = state.db.prepare('SELECT * FROM analysis_research_automation_usage').all();
+    const request = { contractVersion: 'automation-report-revision-v1', requestKey: '16161616-1616-4616-8616-161616161616', previousPairId: original.pairId,
+      sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };
+    const failed = await state.service.requestReportRevision(workspaceId, runId, request);
+    failInsight = true; await state.service.processNext(); failInsight = false;
+    assert.equal((await state.service.requestReportRevision(workspaceId, runId, request)).state, 'FAILED');
+    assert.equal((await state.service.listReportVersions(workspaceId, runId)).length, 1);
+    assert.equal((state.db.prepare('SELECT count(*) n FROM analysis_research_automation_attempt_outputs').get() as { n: bigint }).n, 0n);
+    const cancelled = await state.service.requestReportRevision(workspaceId, runId, { ...request, requestKey: '17171717-1717-4717-8717-171717171717' });
+    assert.equal(cancelled.attemptNumber, failed.attemptNumber + 1);
+    const cancelKey = '18181818-1818-4818-8818-181818181818';
+    const cancellation = await state.service.cancelReportRevision(workspaceId, runId, cancelled.attemptId, cancelKey);
+    assert.equal(cancellation.state, 'CANCELLED');
+    const before = state.db.prepare('SELECT total_changes() n').get();
+    assert.deepEqual(await state.service.cancelReportRevision(workspaceId, runId, cancelled.attemptId, cancelKey), { ...cancellation, exactRetry: true });
+    assert.deepEqual(state.db.prepare('SELECT total_changes() n').get(), before);
+    assert.equal(await state.service.processNext(), false);
+    const recovered = await state.service.requestReportRevision(workspaceId, runId, { ...request, requestKey: '19191919-1919-4919-8919-191919191919' });
+    const frozen = state.db.prepare('SELECT source_set_sha256 sha FROM analysis_research_automation_attempts WHERE attempt_id=?').get(recovered.attemptId);
+    // Crash-state fixture: durable claim persisted, no output publication committed.
+    state.db.prepare(`UPDATE analysis_research_automation_attempts SET state='RUNNING',started_at='2026-10-02T01:00:00.000Z' WHERE attempt_id=?`).run(recovered.attemptId);
+    const inactiveHandle = new ResearchAutomationService({ db: state.db,
+      artifactStore: new ContentAddressedArtifactStore(path.join(state.root, 'artifacts')),
+      workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db: state.db,
+        artifactStore: new ContentAddressedArtifactStore(path.join(state.root, 'artifacts')) })) });
+    await inactiveHandle.interruptActive();
+    assert.deepEqual(state.db.prepare('SELECT state FROM analysis_research_automation_attempts WHERE attempt_id=?').get(recovered.attemptId), { state: 'RUNNING' });
+    await state.service.recoverOnStart();
+    assert.deepEqual(state.db.prepare('SELECT source_set_sha256 sha FROM analysis_research_automation_attempts WHERE attempt_id=?').get(recovered.attemptId), frozen);
+    await state.service.processNext();
+    const versions = await state.service.listReportVersions(workspaceId, runId);
+    assert.deepEqual(versions.map(item => item.versionNumber), [1, 2]);
+    assert.equal((await state.service.requestReportRevision(workspaceId, runId, { ...request, requestKey: '19191919-1919-4919-8919-191919191919' })).attemptNumber, 3);
+    assert.deepEqual(state.db.prepare('SELECT * FROM analysis_research_automation_runs').all(), savedRun);
+    assert.deepEqual(state.db.prepare('SELECT * FROM analysis_research_automation_usage').all(), savedUsage);
+    await assert.rejects(state.service.requestReportRevision(workspaceId, runId, { ...request, requestKey: '20202020-2020-4020-8020-202020202020', definition: 'changed scope' }), /invalid/);
+  } finally { state.db.close(); await fs.rm(state.root, { recursive: true, force: true }); }
+});
+
 test('start request keys are exact-idempotent and changed content conflicts', async () => {
   const state = await fixture();
   try {
@@ -107,6 +166,42 @@ test('worker persists raw captures and reaches an immutable partial draft after 
     assert.match(html.bytes.toString('utf8'), /MARKET/);
   } finally {
     await worker.close();
+    state.db.close();
+    await fs.rm(state.root, { recursive: true, force: true });
+  }
+});
+
+test('only one simultaneous worker pickup renders the queued report pair', async () => {
+  const rendered: string[] = [];
+  const renderer: ResearchAutomationReportRenderer = (input, kind) => {
+    rendered.push(kind);
+    return { semantic: { contractVersion: 'research-automation-report-v1', kind,
+      runId: input.run.runId, workspaceId: input.run.workspaceId }, html: Buffer.from(`<html><body>${kind}</body></html>`) };
+  };
+  const state = await fixture(renderer);
+  try {
+    const artifacts = new ContentAddressedArtifactStore(path.join(state.root, 'artifacts'));
+    const discoveries = new DiscoveryWorkspaceService({ db: state.db, artifactStore: artifacts });
+    const second = new ResearchAutomationService({ db: state.db, artifactStore: artifacts,
+      workspaceReader: new FlowDiscoveryWorkspaceReader(discoveries), renderer,
+      now: () => new Date('2026-10-02T00:00:00.000Z') });
+    await state.service.start(workspaceId, { contractVersion: 'research-automation-start-v1',
+      requestKey: '12121212-1212-4212-8212-121212121212', mode: 'CATEGORY', keyword: 'synthetic pickup',
+      requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET', 'INSIGHT'] });
+    await state.service.processNext();
+    const awaiting = await state.service.getRun(workspaceId, runId);
+    await state.service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v1',
+      requestKey: '13131313-1313-4313-8313-131313131313', expectedRevision: awaiting.revision,
+      definition: 'Synthetic empty selected scope', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] });
+    await state.service.processNext();
+    const picked = await Promise.all([state.service.processNext(), second.processNext()]);
+    assert.deepEqual(picked.sort(), [false, true], 'A queued step must have exactly one successful claim');
+    assert.deepEqual(rendered, ['MARKET', 'INSIGHT'], 'A losing worker must not run either renderer');
+    const ready = await state.service.getRun(workspaceId, runId);
+    assert.equal(ready.status, 'DRAFT_READY');
+    assert.ok(ready.outputs?.market && ready.outputs.insight);
+    assert.equal((state.db.prepare('SELECT count(*) n FROM analysis_research_automation_outputs WHERE run_id=?').get(runId) as { n: bigint }).n, 2n);
+  } finally {
     state.db.close();
     await fs.rm(state.root, { recursive: true, force: true });
   }

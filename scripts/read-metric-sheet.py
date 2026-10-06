@@ -169,6 +169,9 @@ try:
 except Rejected as error:
     print(json.dumps({'locator': error.locator, 'code': error.code}), file=sys.stderr)
     sys.exit(1)
+except zipfile.BadZipFile:
+    print(json.dumps({'locator': 'workbook', 'code': 'WORKBOOK_ARCHIVE_INVALID'}), file=sys.stderr)
+    sys.exit(1)
 except Exception:
     print(json.dumps({'locator': 'workbook', 'code': 'INVALID_XLSX'}), file=sys.stderr)
     sys.exit(1)

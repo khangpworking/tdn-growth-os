@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import fs from 'node:fs/promises';
 import type Database from 'better-sqlite3';
-import type { DescriptiveMarketMethods, LiteralMarketObservation, MarketObservationScope } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
+import type { AttributedMarketEvent, DescriptiveMarketMethods, LiteralMarketObservation, MarketObservationScope } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import { withDatabaseMutationMutex } from '../../../platform/db/database-mutation-mutex.js';
@@ -10,14 +10,14 @@ import { SourcePackageService, type VerifiedFinalizedSourcePackage } from '../..
 import { buildVerifiedReportDescriptiveExtension } from '../report-descriptive-extension.js';
 import { verifyDescriptiveMarketSnapshot } from '../descriptive-market-methods.js';
 import { MAX_CAPTURE_ENVELOPE_BYTES, MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type CaptureRecord, type ScopeSnapshot, type StartSnapshot, type StepResultDocument } from './model.js';
-import { verifyAutomationObservations } from './verified-observations.js';
+import { verifyAutomationDetailCaptures, verifyAutomationObservations } from './verified-observations.js';
 
 const DESCRIPTOR = 'methods/descriptive-input.json';
 const PROFILE = 'authority/market-profile.md';
 const ADOPTION = 'authority/method-adoption.md';
 const NORMALIZED = 'normalized/observations.json';
 const CONFIGURATION = 'normalized/run-configuration.json';
-const MAPPING_REVISION = 'kalodata-product-detail-descriptive-v1';
+const MAPPING_REVISION = 'kalodata-product-detail-descriptive-v2';
 const PROFILE_SHA = 'ddd4c0dcebc9a07a215646abce5152060f7d0c45c2582676ef84e2eb1ae3d8f7';
 const ADOPTION_SHA = '5c5d1ea4d6d8b8aebfbdc3d92cb51718351890184cc290aac82411722636b7e7';
 const READ_BUDGET = { maxFileBytes: MAX_CAPTURE_ENVELOPE_BYTES, maxTotalBytes: 128 * 1024 * 1024 };
@@ -69,7 +69,7 @@ export class AutomationDescriptiveMethodBridge {
     const retained = await this.#packages.readVerified(output.input.sourcePackage.packageId, READ_BUDGET);
     const identity = output.input.sourcePackage;
     if (retained.manifestArtifactSha256 !== identity.manifestArtifactSha256 || retained.packageContentSha256 !== identity.packageContentSha256 ||
-        retained.manifest.version !== identity.version || retained.manifest.packageKey !== `automation-method:${input.runId}-descriptive-v1`)
+        retained.manifest.version !== identity.version)
       throw new ResearchAutomationIntegrityError('Retained method package identity differs from the frozen run.');
     const files = new Map(retained.files.map(file => [file.path, file]));
     const parse = (filePath: string): Record<string, unknown> => {
@@ -86,9 +86,12 @@ export class AutomationDescriptiveMethodBridge {
     if (canonicalJson(parse(DESCRIPTOR)) !== canonicalJson(descriptor))
       throw new ResearchAutomationIntegrityError('Retained method input differs from its committed descriptor.');
     const normalized = parse(NORMALIZED);
-    // This is the historical v1 reader. Future mappings add their own reader;
-    // changing the active writer must not retire a committed v1 snapshot.
-    if (normalized.contractVersion !== 'automation-descriptive-normalization-v1' || normalized.mappingRevision !== 'kalodata-product-detail-descriptive-v1' ||
+    // Mapping v2 adds located source date statements. Frozen v1 remains readable
+    // without rerunning either mapping or replacing its original package identity.
+    const revision = normalized.mappingRevision === 'kalodata-product-detail-descriptive-v1' ? 'v1'
+      : normalized.mappingRevision === 'kalodata-product-detail-descriptive-v2' ? 'v2' : null;
+    if (!revision || retained.manifest.packageKey !== `automation-method:${input.runId}-descriptive-${revision}` ||
+        normalized.contractVersion !== `automation-descriptive-normalization-${revision}` ||
         normalized.runId !== input.runId || canonicalJson(normalized.start) !== canonicalJson(input.start) || canonicalJson(normalized.scope) !== canonicalJson(input.scope))
       throw new ResearchAutomationIntegrityError('Retained method normalization differs from the frozen run.');
     // Authority and inputs are bound to the recorded snapshot, never current adoption constants.
@@ -171,9 +174,39 @@ export class AutomationDescriptiveMethodBridge {
       return [{ observation: literals[index]!, objectLiteral: 'Bản ghi sản phẩm Kalodata', statusLiteral: null,
         dateMeaning: 'Kỳ truy vấn của thước đo, không phải khoảng ngày listing còn hàng hoặc đang bán.' }];
     });
+    // Only already admitted detail captures: no new collection, inferred event,
+    // name join, or interpretation of a query date as a product launch date.
+    const events: Omit<AttributedMarketEvent, 'source' | 'targetLink' | 'conflictRefs'>[] = [];
+    const eventLineage: { captures: { captureSha256: string; responseSha256: string; responseLocator: string;
+      productRef: string; retrievedAt: string; requestWindow: CaptureRecord['window'] }[] }[] = [];
+    const eventIndex = new Map<string, number>();
+    for (const detail of verifyAutomationDetailCaptures({ ...input, captures, captureBytes })) {
+      const value = detail.data.launch_date;
+      if (typeof value !== 'string' || !/\S/.test(value)) continue;
+      const sourceWording = JSON.stringify({ launch_date: value });
+      if (sourceWording.length > 2000) throw new ResearchAutomationIntegrityError('Source date statement exceeds the descriptive method bound.');
+      const identity = JSON.stringify([detail.productRef, value]);
+      let index = eventIndex.get(identity);
+      if (index === undefined) {
+        index = events.length;
+        eventIndex.set(identity, index);
+        const parsed = /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00Z`) : null;
+        const eventDate = parsed && Number.isFinite(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value ? value : null;
+        events.push({
+          statementType: 'UNCLASSIFIED', sourceWording, attribution: 'Kalodata product/detail, trường launch_date; chưa xác minh độc lập.',
+          publicationDate: null, eventDate,
+          dateBasis: 'Ngày do nguồn khai báo tại launch_date, không phải ngày thu thập hoặc kỳ đo lường. Có thể nằm ngoài kỳ truy vấn; chưa xác minh đây là ngày ra mắt thực tế. Giá trị sai định dạng được giữ nguyên, không tự sửa.',
+          namedScope: detail.productRef, affectedMetricLiteral: null,
+        });
+        eventLineage.push({ captures: [] });
+      }
+      eventLineage[index]!.captures.push({ captureSha256: detail.capture.artifactSha256,
+        responseSha256: sha(detail.responseBytes), responseLocator: '/data/launch_date', productRef: detail.productRef,
+        retrievedAt: detail.capture.retrievedAt, requestWindow: detail.capture.window });
+    }
     const normalized = {
-      contractVersion: 'automation-descriptive-normalization-v1', mappingRevision: MAPPING_REVISION, runId: input.runId,
-      observations: literals, supply,
+      contractVersion: 'automation-descriptive-normalization-v2', mappingRevision: MAPPING_REVISION, runId: input.runId,
+      observations: literals, supply, events, eventLineage,
       lineage: observations.map(value => ({ ...value.evidence, mappingRevision: MAPPING_REVISION, productRef: value.comparable.productId, metric: value.comparable.metric })),
       start: input.start, scope: input.scope,
     };
@@ -197,7 +230,11 @@ export class AutomationDescriptiveMethodBridge {
       question, scope, m05: records,
       m06: supply.map((value, index) => ({ ...value, observation: { ...value.observation, source: sourceRef(`/supply/${index}`), aggregation: null } })),
       // The UI peer selection does not supply an anchor/baseline declaration; do not manufacture one.
-      m07: records, peerSet: null, m09: [],
+      m07: records, peerSet: null,
+      m09: events.map((event, index) => ({ ...event, source: sourceRef(`/events/${index}`), targetLink: sourceRef(`/events/${index}/namedScope`),
+        conflictRefs: events.flatMap((other, otherIndex) => otherIndex !== index && other.namedScope === event.namedScope
+          ? [sourceRef(`/events/${otherIndex}`)] : []),
+      })),
     };
     const files = new Map<string, Buffer>([
       [PROFILE, profile], [ADOPTION, adoption], [NORMALIZED, normalizedBytes], [CONFIGURATION, configurationBytes], [DESCRIPTOR, json(descriptor)],
@@ -222,7 +259,7 @@ export class AutomationDescriptiveMethodBridge {
     }
     return {
       files,
-      request: { contractVersion: '1.0.0', packageKey: `automation-method:${input.runId}-descriptive-v1`, version: 1,
+      request: { contractVersion: '1.0.0', packageKey: `automation-method:${input.runId}-descriptive-v2`, version: 1,
         sourceAcquiredAt: [...captures].map(value => value.retrievedAt).sort().at(-1) ?? null,
         sourceLabel: `Automation ${input.runId}: source-bound descriptive inputs`, files: metadata as SourcePackageIntakeRequest['files'] },
     };
