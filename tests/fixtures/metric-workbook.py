@@ -14,11 +14,18 @@ rows = [headers, ['Synthetic A', 'https://shopee.vn/product/10/101', '900', '2',
                   'https://shopee.vn/shop/10', '1__101__10', 'Health', 'Supplements', '', '2020-01-01', '', 'Shop', '99999', '3', '555'],
         ['Synthetic B', 'https://shopee.vn/product/20/102', '800', '0', '50', 'Health', 'Brand', '', '',
          'https://shopee.vn/shop/20', '1__102__20', 'Health', 'Supplements', '', '2020-01-01', '', 'Shop', '88888', '4', '444']]
-if config.get('profile') == 'v2':
+if config.get('profile') in ('v2', 'v3'):
     order = [0, 1, 2, 3, 4, 6, 7, 8, 9, 10, 5, 11, 12, 13, 14, 15, 16, 17, 18, 19]
     rows = [[row[index] for index in order] for row in rows]
     rows[1][1] = 'https://shopee.vn/synthetic-a-i.10.101'
     rows[2][1] = 'https://shopee.vn/synthetic-b-i.20.102'
+if config.get('profile') == 'v3':
+    # Combined export: TikTok Shop rows interleaved with Shopee rows (Shopee 2, 4; TikTok 3, 5).
+    def tiktok(title, listing, shop, units, revenue):
+        return [title, 'https://shop-vn.tiktok.com/pdp/' + listing, '700', units, revenue, 'Brand', '', '',
+                'https://short.metric.vn/shop/8__' + shop, '8__' + listing, 'Health', 'Health', 'Supplements', '',
+                '2020-01-01', '', 'Shop T', '7777', '5', '333']
+    rows = [rows[0], rows[1], tiktok('Synthetic T1', '7001', '30', '3', '70'), rows[2], tiktok('Synthetic T2', '7002', '40', '1', '40')]
 shared = []
 shared_xml = []
 row_xml = []
