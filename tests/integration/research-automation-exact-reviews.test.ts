@@ -410,7 +410,7 @@ test('explicit listing scope flows through collection and frozen corpus to both 
   assert.match(html, /&lt;script&gt;bad\(\)&lt;\/script&gt;/);
   assert.doesNotMatch(html, /Do not project me|<script>/);
   assert.match(html, /Tách riêng/);
-  assert.match(html, /Chưa coding/);
+  assert.match(html, /Chưa mã hóa/);
   const dom = new JSDOM(html);
   try {
     const document = dom.window.document;

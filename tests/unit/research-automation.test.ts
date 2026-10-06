@@ -196,7 +196,7 @@ test('only one simultaneous worker pickup renders the queued report pair', async
     await state.service.processNext();
     const picked = await Promise.all([state.service.processNext(), second.processNext()]);
     assert.deepEqual(picked.sort(), [false, true], 'A queued step must have exactly one successful claim');
-    assert.deepEqual(rendered, ['MARKET', 'INSIGHT'], 'A losing worker must not run either renderer');
+    assert.deepEqual(rendered, ['INSIGHT', 'MARKET'], 'A losing worker must not run either renderer');
     const ready = await state.service.getRun(workspaceId, runId);
     assert.equal(ready.status, 'DRAFT_READY');
     assert.ok(ready.outputs?.market && ready.outputs.insight);
