@@ -1,8 +1,9 @@
 // SerpApi adapter for bounded current web discovery.
 //
-// SerpApi's documented Google organic-results endpoint is a search snapshot,
-// not a period-sales source. This adapter therefore only exposes
-// WEB_DISCOVERY_CURRENT and never turns result counts into market metrics.
+// SerpApi's documented Google organic-results endpoint returns a labelled
+// current web snapshot. Results are stored and surfaced verbatim as web
+// discovery and are never converted into market metrics or period-sales
+// figures.
 import {
   CaptureLog, RateLimiter, boundedRequest, boundedText,
   bytesContainSecret, emptyUsage, httpsUrl, isAmbiguous, isRecord, parseJson,
@@ -27,8 +28,6 @@ export const SERPAPI_LIMITS = Object.freeze({
 });
 
 const LIMITATIONS = [
-  'CURRENT_WEB_SNAPSHOT_NOT_PERIOD_EVIDENCE',
-  'NO_MARKET_TOTALS_OR_ANNUAL_SALES_INFERRED',
   'ORGANIC_RESULTS_ONLY',
   'RESULT_URLS_ARE_PROVIDER_REPORTED',
 ] as const;

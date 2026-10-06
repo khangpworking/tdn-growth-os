@@ -8,6 +8,7 @@ import type { Row } from './classify.js';
 import { renderChart, type FlintChartInput, type FlintPalette } from './flint.js';
 import { esc, num, sp } from './format.js';
 import { cover, hlNum, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section, type CoverImage } from './layout.js';
+import { FORBIDDEN_PROVIDER_NAMES } from './lint.js';
 import { NO_BRAND, type Scope } from './scope-metrics.js';
 import { barChart, paretoChart } from './svg-charts.js';
 
@@ -32,11 +33,29 @@ export type MarketReportOptions = {
   cover?: CoverImage | null;
   /** false renders the hand-drawn SVG charts only (no chart engine load). */
   flint?: boolean;
+  /** Web search results of the run, listed in the appendix as plain text (no outbound links). */
+  webResults?: readonly ReaderWebResult[];
 };
+export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string };
 export type BuiltMarketReport = {
   html: string; narrator: Narrator; extraOk: string[];
   charts: { id: string; engine: 'flint' | 'svg-fallback'; error?: string }[];
+  /** The web results actually shown; results whose text would break a report rule are left out. */
+  webResults: ReaderWebResult[];
 };
+
+// Words a reader page must not carry (provider names, whole-market claims,
+// stray cross-references); a web result containing one is left out, not edited.
+const WEB_TEXT_BLOCKED = new RegExp([
+  ...FORBIDDEN_PROVIDER_NAMES.map(p => `\\b${p}\\b`), '\\bSerpApi\\b',
+  'xếp hạng', 'thị phần', 'toàn thị trường', 'quy mô thị trường', '(?:Hình|Bảng|Phần) (?:\\d|PL)',
+  '\\bundefined\\b', '\\bNaN\\b', '\\bnull\\b', '\\{\\{', '\\}\\}', 'Infinity',
+].join('|'), 'i');
+/** Results that can be shown verbatim without tripping the publish gate. */
+export function readerWebResults(values: readonly ReaderWebResult[]): ReaderWebResult[] {
+  return values.filter(v => /^https:\/\//.test(v.url) && !WEB_TEXT_BLOCKED.test(`${v.title} ${v.snippet ?? ''} ${v.url}`))
+    .sort((a, b) => a.position - b.position);
+}
 
 const vd = (s: string): string => s.split('-').reverse().join('/');
 const sum = (a: readonly Row[]): number => a.reduce((s, r) => s + r.rev, 0);
@@ -286,10 +305,15 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     'Đây là đề xuất, chờ chủ duyệt. Hạn là gợi ý; chủ dự án đổi theo lịch thật.'));
 
   // ---------- Phụ lục ----------
+  const web = readerWebResults(options.webResults ?? []);
+  const webOn = web.length ? vd(new Date(Date.parse(web[0]!.retrievedAt) + 7 * 3_600_000).toISOString().slice(0, 10)) : '';
+  const webSrc = web.length ? `<li>Kết quả tìm kiếm Google tại Việt Nam cho từ khóa của báo cáo, thu ngày ${webOn}</li>` : '';
+  const webTable = web.length ? `
+<div class="ex"><div class="exh"><span class="exn">Bảng PL.3</span><span class="ext">Kết quả tìm kiếm trên web</span></div><div class="tw"><table class="pl-web"><thead><tr><th>#</th><th>Tiêu đề</th><th>Tóm tắt</th><th>Địa chỉ trang</th></tr></thead><tbody>${web.map(w => `<tr><td>${w.position}</td><td>${esc(w.title)}</td><td>${esc(w.snippet ?? '')}</td><td class="pl-url">${esc(w.url)}</td></tr>`).join('')}</tbody></table></div><p class="ex-note">Thứ tự theo kết quả tìm kiếm tại thời điểm thu; nội dung trang có thể đã đổi sau ngày thu. Địa chỉ trang ghi dạng chữ để tra lại.</p><p class="ex-src">Nguồn: Google, thu ngày ${webOn}.</p></div>` : '';
   const listRows = [...rows].sort((a, b) => b.rev - a.rev).map(r => `<tr><td>${r.i}</td><td>${plat(r.platform)}</td><td>${esc(segName(r.seg ?? ''))}</td><td>${esc(r.shopName || r.shop)}</td><td>${n(num(r.rev))}</td><td>${n(num(r.units))}</td><td>${n(num(r.asp))}</td><td>${esc(r.title)}</td></tr>`).join('');
   secs.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm',
     hlNum(nar('Phụ lục liệt kê nguồn số liệu và nghĩa của các thuật ngữ. Cuối phụ lục có danh sách đủ {{src.rows}} sản phẩm để tra lại.', 'PL.ans')),
-    `<div class="ex"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn số liệu</span></div><ul class="pl-srclist">${PLATS.map(P => `<li>Dữ liệu bán hàng ${PLATFORM_LABEL[P]} (số ước tính)</li>`).join('')}</ul><p class="ex-src">Nguồn: TDN.</p></div>
+    `<div class="ex"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn số liệu</span></div><ul class="pl-srclist">${PLATS.map(P => `<li>Dữ liệu bán hàng ${PLATFORM_LABEL[P]} (số ước tính)</li>`).join('')}${webSrc}</ul><p class="ex-src">Nguồn: TDN.</p></div>
 <div class="ex"><div class="exh"><span class="exn">Bảng PL.2</span><span class="ext">Thuật ngữ</span></div><dl class="pl-terms">
 <div><dt>Lõi</dt><dd>${coreSegs.map(k => L(segName(k))).join('; ')}. Mọi số chỉ tính phần lõi, trừ khi ghi khác.</dd></div>
 <div><dt>Sản phẩm</dt><dd>Một trang bán hàng trên sàn; có thể gồm nhiều biến thể.</dd></div>
@@ -297,7 +321,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
 <div><dt>Giá trung bình</dt><dd>Doanh thu ÷ đơn vị bán. Đã gộp biến thể và khuyến mãi, nên khác giá niêm yết.</dd></div>
 <div><dt>Trung vị, mốc 25% / 75%</dt><dd>Xếp các giá trị từ thấp đến cao: trung vị ở giữa; mốc 25% và 75% là mức mà một phần tư và ba phần tư số sản phẩm thấp hơn.</dd></div>
 <div><dt>Trong mẫu</dt><dd>${nar('Tính trên tệp {{src.rows}} sản phẩm doanh thu cao nhất, không phải toàn thị trường.', 'PL.terms')}</dd></div>
-<div><dt>TDN</dt><dd>Đơn vị thực hiện báo cáo.</dd></div></dl><p class="ex-src">Nguồn: TDN.</p></div>
+<div><dt>TDN</dt><dd>Đơn vị thực hiện báo cáo.</dd></div></dl><p class="ex-src">Nguồn: TDN.</p></div>${webTable}
 <div class="box pl-disc"><h3>Miễn trừ</h3><p>Số liệu bán hàng là số ước tính từ dữ liệu công khai trên sàn, chưa đối chiếu với số liệu của người bán. Người đọc tự đánh giá mức phù hợp trước khi dùng cho quyết định.</p></div>
 <details class="pl-all"><summary>${nar('Xem đủ {{src.rows}} sản phẩm', 'PL.sum')}</summary><input class="pl-find" type="search" placeholder="Lọc theo tên, gian hàng, nhóm…" aria-label="Lọc danh sách sản phẩm"><div class="tw"><table class="pl-list"><thead><tr><th>#</th><th>Sàn</th><th>Nhóm</th><th>Gian hàng</th><th>${n('Doanh thu (đồng)')}</th><th>${n('Đơn vị bán')}</th><th>${n('Giá trung bình (đồng)')}</th><th>Tên sản phẩm</th></tr></thead><tbody>${listRows}</tbody></table></div></details>
 <script>addEventListener('beforeprint',()=>document.querySelectorAll('details.pl-all').forEach(d=>d.open=true));(()=>{const i=document.querySelector('.pl-find'),tr=[...document.querySelectorAll('.pl-list tbody tr')];let t;i.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{const v=i.value.trim().toLowerCase();for(const r of tr)r.style.display=!v||r.textContent.toLowerCase().includes(v)?'':'none'},150)})})()</script>`,
@@ -307,6 +331,6 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     title: `Báo cáo thị trường – ${prof.product} – ${platNames}`, coverHtml, intro, toc: MARKET_TOC, sections: secs,
     foot: `Bản đọc dựng tự động bằng bộ dựng báo cáo của TDN ngày ${esc(options.builtOn)}. Không chạy nguồn trả phí khi dựng.`,
   });
-  return { html: platIcons(html0, COL).html, narrator: N, extraOk: [...extraOk], charts };
+  return { html: platIcons(html0, COL).html, narrator: N, extraOk: [...extraOk], charts, webResults: web };
 }
 

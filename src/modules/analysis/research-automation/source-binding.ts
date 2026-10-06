@@ -9,7 +9,7 @@ import type {
   ResearchAutomationProvider,
 } from './providers.js';
 import type { ResearchAutomationProductCard } from '../../../../contracts/api/research-automation-api.generated.js';
-import { message, ResearchAutomationProviderOutputError, type SourceLimitation, type SourceStepId, type StepResultDocument, type TypedComparable } from './model.js';
+import { MAX_WEB_RESULTS, message, ResearchAutomationProviderOutputError, type SourceLimitation, type SourceStepId, type StepResultDocument, type StepWebResult, type TypedComparable } from './model.js';
 import type { DateWindow } from './providers.js';
 
 /** The backend-facing source port. Provider-specific credentials and transport stay behind this port. */
@@ -107,6 +107,7 @@ function collectStep(runId: string, result: CollectResult): StepResultDocument {
       comparables.push({ productId: observation.productRef, provider: result.provider.toLowerCase(), metric, value: String(value), window: observation.window, captureIndex });
     }
   }
+  const webResults = toWebResults(result);
   return {
     contractVersion: 'research-automation-step-result-v1',
     runId,
@@ -115,11 +116,33 @@ function collectStep(runId: string, result: CollectResult): StepResultDocument {
     productCards: [],
     comparables,
     coverage: result.coverage.map(toCoverage),
-    limitations: [
-      ...limitations,
-      ...result.webResults.map((value) => limitation(value.semantics, 'SERPAPI')),
-    ],
+    limitations,
+    ...(webResults.length ? { webResults } : {}),
   };
+}
+
+/** Keeps https organic results with exact capture lineage; text is bounded, never interpreted. */
+function toWebResults(result: CollectResult): StepWebResult[] {
+  const out: StepWebResult[] = [];
+  for (const value of result.webResults) {
+    const captureIndex = result.captures.findIndex(capture => capture.captureId === value.captureId);
+    const capture = result.captures[captureIndex];
+    if (!capture || capture.provider !== result.provider || capture.outcome !== 'OK') {
+      throw new ResearchAutomationProviderOutputError('Web result is missing its source capture.');
+    }
+    const url = safeHttps(value.url);
+    const title = boundedText(value.title, 300);
+    if (!url || url.length > 2000 || !title || !Number.isSafeInteger(value.position) || value.position < 1 ||
+        !Number.isFinite(Date.parse(value.retrievedAt))) continue;
+    out.push({ position: value.position, title, url, snippet: value.snippet === null ? null : boundedText(value.snippet, 1000), retrievedAt: value.retrievedAt, captureIndex });
+    if (out.length === MAX_WEB_RESULTS) break;
+  }
+  return out;
+}
+
+function boundedText(value: string, max: number): string | null {
+  const text = value.normalize('NFC').replace(/[\u0000-\u001f\u007f]+/g, ' ').replace(/\s+/g, ' ').trim();
+  return text ? text.slice(0, max) : null;
 }
 
 function toPublicCard(card: ProviderProductCard, captures: readonly ProviderRawCapture[]): ResearchAutomationProductCard {

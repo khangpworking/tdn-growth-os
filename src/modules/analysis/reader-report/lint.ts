@@ -10,6 +10,25 @@ export function visibleText(html: string): string {
   return html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
 }
 
+// Attribute values as the browser reads them (character references decoded).
+const NAMED: Record<string, string> = { quot: '"', apos: "'", amp: '&', colon: ':', sol: '/', bsol: '\\', lpar: '(', rpar: ')', tab: '\t', newline: '\n' };
+function decodeAttr(value: string): string {
+  return value.replace(/&#x([0-9a-f]+);?|&#(\d+);?|&([a-z]+);/gi, (all, hex?: string, dec?: string, name?: string) => {
+    const code = hex ? parseInt(hex, 16) : dec ? Number(dec) : NaN;
+    if (Number.isFinite(code)) return code <= 0x10ffff ? String.fromCodePoint(code) : all;
+    return NAMED[(name ?? '').toLowerCase()] ?? all;
+  });
+}
+
+// CSS as the browser reads it: comments dropped, escapes (\2f, \/) decoded.
+function decodeCss(css: string): string {
+  return css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\\([0-9a-f]{1,6})\s?|\\([^\n0-9a-f])/gi, (all, hex?: string, ch?: string) => {
+    if (ch !== undefined) return ch;
+    const code = parseInt(hex ?? '', 16);
+    return code > 0 && code <= 0x10ffff ? String.fromCodePoint(code) : all;
+  });
+}
+
 export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [] }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
   const vis = visibleText(html), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
@@ -47,7 +66,19 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   const covBad = /\d[\d.]*\s*(sản phẩm|gian hàng)|Nguồn ảnh|ảnh:|badge/.test(covTxt + cov.replace(/class="cover[^"]*"/g, ''));
   add('F8 bìa đúng mẫu (không số sản phẩm, nhãn, nguồn ảnh)', !!cov && !covBad, cov ? (covBad ? 'bìa có chữ cấm' : 'đúng mẫu') : 'không có bìa');
 
-  const remote = [...html.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc=|\b(?:src|href)="(?:https?:)?\/\/|url\(\s*['"]?(?:https?:)?\/\//gi)].map(m => m[0].slice(0, 40));
+  // Only real tags load anything: attributes are read inside tags (double,
+  // single or no quotes) and CSS inside <style> blocks and style attributes.
+  // The same words in escaped page text (e.g. a quoted web snippet) load nothing.
+  const tags = [...html.matchAll(/<[a-z][\w:-]*(?:"[^"]*"|'[^']*'|[^'">])*>/gi)].map(m => m[0]);
+  const attrs = (name: string) => tags.flatMap(tag => [...tag.matchAll(new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'gi'))]
+    .map(m => ({ tag, value: decodeAttr(m[1] ?? m[2] ?? m[3] ?? '').trim() })));
+  const css = decodeCss([...[...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(m => m[1] ?? ''), ...attrs('style').map(a => a.value)].join('\n'));
+  const remote = [
+    ...[...html.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc\s*=/gi)].map(m => m[0]),
+    ...attrs('(?:[\\w-]+:)?(?:src|srcset|href)').filter(a => /^(?:https?:)?[\\/]{2}/i.test(a.value)).map(a => a.tag),
+    // url(...), or a quoted address as in @import "..." and image-set("...").
+    ...[...css.matchAll(/url\(\s*['"]?\s*(?:https?:)?[\\/]{2}|['"]\s*(?:https?:)?[\\/]{2}|@import\b/gi)].map(m => m[0]),
+  ].map(s => s.slice(0, 40));
   add('F0 không tải tài nguyên ngoài (font, ảnh, script cục bộ)', remote.length === 0, remote.length ? remote.slice(0, 3).join(' | ') : 'cục bộ');
 
   const secs = [...html.matchAll(/<section id="([^"]+)"/g)].map(m => m[1] ?? '');

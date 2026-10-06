@@ -382,6 +382,21 @@ test('SerpApi current discovery maps organic results, strips the key from captur
   assert.equal(result.productPeriodSummaries.length, 0);
 });
 
+test('SerpApi collect keeps web results without the removed period-evidence blocking labels', async () => {
+  const registry = createResearchAutomationProviderRegistry({
+    kalodataSecretKey: null, serpApiKey: 'synthetic-serp-key', apifyTokenConfigured: false,
+  }, transport(async () => response({ organic_results: [
+    { position: 1, title: 'Calcium research', link: 'https://example.test/article' },
+  ] })));
+  const bound = await bindResearchAutomationProvider(registry.get('SERPAPI')).collect(collectInput());
+  assert.equal(bound.result.status, 'SUCCEEDED');
+  assert.equal(bound.result.webResults.length, 1);
+  const expectedLimitations = ['ORGANIC_RESULTS_ONLY', 'RESULT_URLS_ARE_PROVIDER_REPORTED'];
+  assert.deepEqual(bound.result.limitations, expectedLimitations);
+  assert.deepEqual(bound.result.coverage[0]?.limitations, expectedLimitations);
+  assert.deepEqual(bound.step.limitations.map(row => row.code), expectedLimitations);
+});
+
 test('SerpApi bounds returned organic rows at the requested result limit', async () => {
   const organicResults = Array.from({ length: 11 }, (_, index) => ({
     position: index + 1, title: `Result ${index + 1}`, link: `https://example.test/${index + 1}`,

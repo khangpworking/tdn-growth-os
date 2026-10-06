@@ -5,6 +5,7 @@ import {
   Bundle, Narrator, barChart, classify, cover, lint, makeExhibits, num, page, paretoChart, platIcons,
   readerReportFontCss, renderChart, renderFlintChart, scopeMetrics, section, stripChart, ty, READER_SECTION_ANCHORS, type Profile, type Row,
 } from '../../src/modules/analysis/reader-report/index.js';
+import { esc } from '../../src/modules/analysis/reader-report/format.js';
 
 const profile: Profile = {
   slug: 'synthetic', product: 'Bình thử', status: 'proposed',
@@ -112,6 +113,28 @@ test('lint catches provider names, remote fonts and missing sources', () => {
   const bad = '<html><head><title>Metric</title><link href="https://fonts.googleapis.com/css2" rel="stylesheet"></head><body><section id="phan-1"><div class="ex"><span class="exn">Bảng 1.1</span></div></section></body></html>';
   const failed = lint(bad).filter(r => !r.ok).map(r => r.rule.split(' ')[0]);
   assert.deepEqual(failed.sort(), ['F0', 'F1', 'F2', 'F6', 'F8']);
+});
+
+test('F0 flags CSS that loads remote files, not the same words in escaped page text', () => {
+  const f0 = (html: string) => lint(html).find(r => r.rule.startsWith('F0'))!.ok;
+  assert.equal(f0(`<p>${esc('Mẹo: dùng url(https://example.test/image.png) và url("//cdn.test/a.css")')}</p>`), true);
+  assert.equal(f0('<style>.a{background:url(https://example.test/x.png)}</style>'), false);
+  assert.equal(f0('<div style="background:url(&quot;//example.test/x.png&quot;)"></div>'), false);
+  assert.equal(f0("<style>@import 'https://example.test/a.css';</style>"), false);
+  assert.equal(f0('<style>.a{background:url(data:image/png;base64,AAAA)}</style><div style="background-image:url(\'data:image/jpeg;base64,AAAA\')"></div>'), true);
+  // Style attributes in any quoting, and encoded addresses, are read as the browser reads them.
+  assert.equal(f0("<div style='background:url(https://example.test/x.png)'></div>"), false);
+  assert.equal(f0('<div style=background:url(//example.test/x.png)></div>'), false);
+  assert.equal(f0('<div style="background:url(&#x2F;&#x2F;example.test/x.png)"></div>'), false);
+  assert.equal(f0('<style>.a{background:url(\\2f\\2f example.test/x.png)}</style>'), false);
+  assert.equal(f0('<style>.a{background:image-set("https://example.test/x.png" 1x)}</style>'), false);
+  assert.equal(f0("<img src='//example.test/x.png'>"), false);
+  assert.equal(f0('<img src=https://example.test/x.png>'), false);
+  assert.equal(f0('<img src="\\\\example.test/x.png">'), false);
+  assert.equal(f0('<img srcset="https://example.test/x.png 2x">'), false);
+  assert.equal(f0('<svg><use xlink:href="https://example.test/s.svg#i"/></svg>'), false);
+  // The same characters in escaped page text load nothing.
+  assert.equal(f0(`<p>${esc("Mẹo: style='background:url(https://example.test/x.png)' và src=//cdn.test/a.js")}</p>`), true);
 });
 
 test('flint renders static SVG offline with fixed platform colours, and falls back when it cannot', async () => {

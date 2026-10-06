@@ -13,7 +13,7 @@ import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import {
   buildMarketReport, computeReaderReportData, publishReaderReport, ReaderAssetError, ReaderReportGateError, ReaderReportInputError,
-  storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type StoredCoverImage,
+  storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
@@ -61,6 +61,8 @@ export function readerLimitationsFromDraft(semantic: Record<string, unknown>, pr
 export interface ReaderDraftContext {
   readonly workspaceId: string; readonly runId: string; readonly draftPairId: string;
   readonly marketSemantic: Record<string, unknown>;
+  /** Web search results retained by the run's collection step; empty when none ran. */
+  readonly webResults?: readonly ReaderWebResult[];
   readonly metric: { readonly packageId: string; readonly workbook: Buffer; readonly measurementPeriod: { readonly startDate: string; readonly endDate: string } };
 }
 export interface ReaderBinding { readonly workspaceId: string; readonly runId: string }
@@ -135,7 +137,8 @@ export class AutomationReaderReports {
     const cover: CoverImage | null = stored && coverBytes ? { bytes: coverBytes, mime: stored.mime } : null;
     const limitations = readerLimitationsFromDraft(context.marketSemantic, request.profile.status);
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
-    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true });
+    const webResults = context.webResults ?? [];
+    const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults });
     let published;
     try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk }); }
     catch (error) { if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(error.message); throw error; }
@@ -143,7 +146,7 @@ export class AutomationReaderReports {
     const record = await this.artifacts.put(json({
       contractVersion: 'reader-report-build-record-v1', builderVersion: READER_BUILDER_VERSION, revisionId,
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
-      requestSha256: requestSha, profileSha256: profile.sha256, input, limitations,
+      requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
       cover: stored && request.cover ? { sha256: stored.coverSha256, imageSha256: stored.imageSha256, mime: stored.mime,
         licence: request.cover.licence, credit: request.cover.credit ?? null } : null,
       charts: built.charts, htmlSha256: published.html.sha256, actorId: actor.actorId, createdAt,
