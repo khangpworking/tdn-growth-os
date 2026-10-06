@@ -6,8 +6,8 @@ import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { normalizeMetricWorkbook, normalizeMetricWorkbookInput, MetricSourceRejection } from '../../src/modules/analysis/metric-source-profile.js';
-import { renderMetricScopeDraft } from '../../src/modules/analysis/metric-scope-calculator.js';
+import { inspectMetricWorkbookProfile, normalizeMetricWorkbook, normalizeMetricWorkbookInput, MetricSourceRejection } from '../../src/modules/analysis/metric-source-profile.js';
+import { metricLabelFingerprint, renderMetricScopeDraft } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { createResearchReportPacket } from '../../src/modules/analysis/versioned-report-packet.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import catalog from '../../docs/research/report-section-catalog-v1.json' with { type: 'json' };
@@ -26,6 +26,51 @@ function manifest(bytes: Buffer) {
     precision: { revenue: 'unknown', units: 'unknown' }, labelCodebookVersion: 'synthetic-v1', wideUnknownPolicy: 'exclude' };
 }
 const normalize = (bytes: Buffer) => normalizeMetricWorkbook(bytes, encode(manifest(bytes)));
+
+function currentManifest(bytes: Buffer) {
+  return { ...manifest(bytes), profileId: 'metric-shopee-product-list-sheet1-v2', profileVersion: '2.0.0',
+    source: { ...manifest(bytes).source, headerSha256: 'b5b493190917fac69bd1e2cf1aa618aae175a7fd314ec635e44bcf29aab6f7ac' } };
+}
+
+test('Metric v2 maps the declared reordered export without changing metrics, IDs or source-cell evidence', () => {
+  const bytes = fixture({ profile: 'v2' });
+  const parsed = normalizeMetricWorkbook(bytes, encode(currentManifest(bytes)));
+  assert.equal(parsed.input.profileId, 'metric-shopee-product-list-sheet1-v2');
+  assert.equal(parsed.receipt.profileVersion, '2.0.0');
+  assert.deepEqual(parsed.input.records.map(r => [r.shopId, r.listingId, r.category, r.revenue.value, r.units.value]),
+    [['10', '101', 'Supplements', '100', '2'], ['20', '102', 'Supplements', '50', '0']]);
+  assert.equal(parsed.input.records[0]!.revenue.source.locator, 'Sheet1!E2');
+  assert.equal(parsed.input.records[0]!.units.source.locator, 'Sheet1!D2');
+  assert.equal(parsed.receipt.evidence[0]!.cells[8]!.value, 'https://shopee.vn/shop/10');
+  assert.equal(parsed.receipt.evidence[0]!.cells[9]!.value, '1__101__10');
+  assert.equal(parsed.receipt.evidence[0]!.cells[17]!.value, '99999');
+  assert.equal(parsed.result.scopes[0].revenue.value, '150');
+  assert.equal(parsed.result.scopes[1].status, 'BLOCKED_LABELS');
+});
+
+test('Metric profile declarations cannot authorize a different header order or cross-pair version and header identity', () => {
+  const current = fixture({ profile: 'v2' }), legacy = fixture();
+  for (const [bytes, declaration] of [[current, manifest(current)], [legacy, currentManifest(legacy)]] as const) {
+    assert.throws(() => normalizeMetricWorkbook(bytes, encode(declaration)), /HEADER_MISMATCH/);
+  }
+  const declaration = currentManifest(current);
+  for (const bad of [
+    { ...declaration, profileVersion: '1.0.0' },
+    { ...declaration, source: { ...declaration.source, headerSha256: manifest(current).source.headerSha256 } },
+    { ...declaration, profileId: 'metric-unknown-profile' },
+  ]) assert.throws(() => normalizeMetricWorkbook(current, encode(bad)), /INVALID_MANIFEST/);
+  for (const [column, value, rejectedColumn, code] of [
+    ['I2', 'https://shopee.vn/shop/999', 'I2', 'SHOP_ID_MISMATCH'],
+    ['J2', '1__999__10', 'J2', 'COMPOSITE_ID_MISMATCH'],
+    ['B2', 'https://shopee.vn.attacker.example/synthetic-a-i.10.101', 'B2', 'PRODUCT_URL_SHAPE'],
+    ['B2', 'https://shopee.vn/synthetic-a-i.10.101?shop=999', 'B2', 'PRODUCT_URL_SHAPE'],
+    ['B2', 'https://shopee.vn/synthetic-a-i.999.101', 'I2', 'SHOP_ID_MISMATCH'],
+  ] as const) {
+    const bytes = fixture({ profile: 'v2', cells: { [column]: { value } } });
+    assert.throws(() => normalizeMetricWorkbook(bytes, encode(currentManifest(bytes))),
+      e => e instanceof MetricSourceRejection && e.locator === `Sheet1!${rejectedColumn}` && e.code === code);
+  }
+});
 
 test('normalization can finish before the explicit calculation gate without changing input identity', () => {
   const workbook = fixture();
@@ -186,4 +231,103 @@ test('actual A2 CLI publishes private bundles, reuses exact bytes, and emits loc
     assert.equal(JSON.parse(rejected.stderr).status, 'REJECTED');
     await assert.rejects(fs.access(path.join(temp, 'rejected')));
   } finally { await fs.rm(temp, { recursive: true, force: true }); }
+});
+
+function combinedManifest(bytes: Buffer, platform: 'shopee' | 'tiktok', platformRows: Record<string, number> = { shopee: 2, tiktok: 2 }) {
+  const current = currentManifest(bytes);
+  return { ...current, profileId: 'metric-marketplace-product-list-sheet1-v3', profileVersion: '3.0.0',
+    source: { ...current.source, lastRow: 5 }, scope: { ...current.scope, platform }, platformRows };
+}
+const rejectsAt = (locator: string, code: string) => (e: unknown) => e instanceof MetricSourceRejection && e.locator === locator && e.code === code;
+
+test('Metric v3 reads one combined file per marketplace with real Sheet1 locators and per-platform row counts', () => {
+  const bytes = fixture({ profile: 'v3' });
+  const observed = inspectMetricWorkbookProfile(bytes);
+  assert.equal(observed.profileId, 'metric-marketplace-product-list-sheet1-v3');
+  assert.equal(observed.profileVersion, '3.0.0');
+  assert.equal(observed.lastRow, 5);
+  assert.deepEqual(observed.platformRows, { shopee: 2, tiktok: 2 });
+  const shopee = normalizeMetricWorkbookInput(bytes, encode(combinedManifest(bytes, 'shopee')));
+  assert.deepEqual(shopee.input.records.map(r => [r.shopId, r.listingId, r.revenue.value, r.revenue.source.locator]),
+    [['10', '101', '100', 'Sheet1!E2'], ['20', '102', '50', 'Sheet1!E4']]);
+  assert.deepEqual(shopee.receipt.evidence.map(e => e.row), [2, 4]);
+  const tiktok = normalizeMetricWorkbook(bytes, encode(combinedManifest(bytes, 'tiktok')));
+  assert.deepEqual(tiktok.input.records.map(r => [r.shopId, r.listingId, r.revenue.value, r.units.value, r.units.source.locator]),
+    [['30', '7001', '70', '3', 'Sheet1!D3'], ['40', '7002', '40', '1', 'Sheet1!D5']]);
+  assert.ok(tiktok.input.records.every(r => r.measurement.platform === 'tiktok' && r.category === 'Supplements'));
+  assert.deepEqual(tiktok.receipt.evidence.map(e => e.row), [3, 5]);
+  assert.equal(tiktok.receipt.evidence[0]!.contentSha256, metricLabelFingerprint('tiktok', tiktok.input.records[0]!));
+  assert.equal(tiktok.result.scopes[0].revenue.value, '110');
+});
+
+test('Metric v3 checks every row of both marketplaces and the declared per-platform counts', () => {
+  const unknown = fixture({ profile: 'v3', cells: { J3: { value: '9__7001' } } });
+  assert.throws(() => inspectMetricWorkbookProfile(unknown), rejectsAt('Sheet1!J3', 'UNKNOWN_PLATFORM_PREFIX'));
+  assert.throws(() => normalizeMetricWorkbookInput(unknown, encode(combinedManifest(unknown, 'shopee'))),
+    rejectsAt('Sheet1!J3', 'UNKNOWN_PLATFORM_PREFIX'));
+  // A broken TikTok row blocks the Shopee pass too: the file is accepted whole or not at all.
+  for (const [cell, value, locator, code] of [
+    ['B3', 'https://shop-vn.tiktok.com.attacker.example/pdp/7001', 'Sheet1!B3', 'PRODUCT_URL_SHAPE'],
+    ['B3', 'https://shop-vn.tiktok.com/pdp/7001?x=1', 'Sheet1!B3', 'PRODUCT_URL_SHAPE'],
+    ['I3', 'https://short.metric.vn/shop/1__30', 'Sheet1!I3', 'SHOP_ID_MISMATCH'],
+    ['J3', '8__7999', 'Sheet1!J3', 'COMPOSITE_ID_MISMATCH'],
+    ['B5', 'https://shop-vn.tiktok.com/pdp/7001', 'Sheet1!J5', 'COMPOSITE_ID_MISMATCH'],
+  ] as const) {
+    const bytes = fixture({ profile: 'v3', cells: { [cell]: { value } } });
+    assert.throws(() => normalizeMetricWorkbookInput(bytes, encode(combinedManifest(bytes, 'shopee'))), rejectsAt(locator, code));
+  }
+  const bytes = fixture({ profile: 'v3' });
+  for (const rows of [{ shopee: 2, tiktok: 1 }, { shopee: 2 }, { shopee: 3, tiktok: 2 }]) {
+    assert.throws(() => normalizeMetricWorkbookInput(bytes, encode(combinedManifest(bytes, 'tiktok', rows))),
+      rejectsAt('manifest/platformRows', 'PLATFORM_ROW_COUNT_MISMATCH'));
+  }
+  assert.throws(() => normalizeMetricWorkbook(bytes, encode(currentManifest(bytes))), MetricSourceRejection, 'a v2 declaration cannot read a combined file');
+  const { platformRows: _omitted, ...withoutRows } = combinedManifest(bytes, 'shopee');
+  assert.throws(() => normalizeMetricWorkbook(bytes, encode(withoutRows)), /INVALID_MANIFEST/);
+  assert.throws(() => normalizeMetricWorkbook(bytes, encode({ ...currentManifest(bytes), platformRows: { shopee: 2 } })), /INVALID_MANIFEST/);
+});
+
+test('Metric v3 on a Shopee-only file still reads Shopee and refuses an empty marketplace', () => {
+  const bytes = fixture({ profile: 'v2' });
+  assert.equal(inspectMetricWorkbookProfile(bytes).profileId, 'metric-shopee-product-list-sheet1-v2');
+  assert.equal(inspectMetricWorkbookProfile(bytes).platformRows, undefined);
+  const declared = (platform: 'shopee' | 'tiktok') => {
+    const m = combinedManifest(bytes, platform, { shopee: 2 });
+    return { ...m, source: { ...m.source, lastRow: 3 } };
+  };
+  assert.equal(normalizeMetricWorkbookInput(bytes, encode(declared('shopee'))).input.records.length, 2);
+  assert.throws(() => normalizeMetricWorkbookInput(bytes, encode(declared('tiktok'))), rejectsAt('manifest/scope', 'EMPTY_PLATFORM_SCOPE'));
+  // v1/v2 keep their Shopee-only scope.
+  const v2 = currentManifest(bytes);
+  assert.throws(() => normalizeMetricWorkbook(bytes, encode({ ...v2, scope: { ...v2.scope, platform: 'tiktok' } })),
+    rejectsAt('manifest/scope', 'SCOPE_PERIOD_MISMATCH'));
+});
+
+test('Metric v3 labels address the selected marketplace rows by their Sheet1 row number', () => {
+  const bytes = fixture({ profile: 'v3' }), m = encode(combinedManifest(bytes, 'tiktok'));
+  const parsed = normalizeMetricWorkbook(bytes, m);
+  const sidecar = { contractVersion: '1.0.0', sourceSha256: parsed.receipt.sourceSha256, codebookVersion: 'synthetic-v1', provenanceBasis: 'Synthetic assistant labels',
+    rows: parsed.receipt.evidence.map(e => ({ row: e.row, rowSha256: e.rowSha256, shopId: e.shopId, listingId: e.listingId,
+      contentSha256: e.contentSha256, classification: 'CORE_CANDIDATE', group: 'Synthetic', methodVersion: 'synthetic-v1', adjudication: 'assistant' })) };
+  const accepted = normalizeMetricWorkbook(bytes, m, encode(sidecar));
+  assert.deepEqual(accepted.input.records.map(r => r.label!.source.locator), ['/rows/0', '/rows/1']);
+  assert.equal(accepted.result.scopes[2].revenue.value, '110');
+  const shopeeRow = normalizeMetricWorkbookInput(bytes, encode(combinedManifest(bytes, 'shopee'))).receipt.evidence[0]!;
+  const crossed = structuredClone(sidecar);
+  crossed.rows[0] = { ...crossed.rows[0]!, row: shopeeRow.row, rowSha256: shopeeRow.rowSha256, shopId: shopeeRow.shopId,
+    listingId: shopeeRow.listingId, contentSha256: shopeeRow.contentSha256 };
+  assert.throws(() => normalizeMetricWorkbook(bytes, m, encode(crossed)), rejectsAt('/rows/0', 'LABEL_DUPLICATE_OR_EXTRA_ROW'));
+});
+
+// Optional check against a real combined export kept outside the repository.
+test('Metric v3 real combined export splits into its declared marketplace rows', { skip: !process.env.METRIC_COMBINED_FIXTURE }, async () => {
+  const bytes = await fs.readFile(process.env.METRIC_COMBINED_FIXTURE!);
+  const observed = inspectMetricWorkbookProfile(bytes);
+  assert.equal(observed.profileId, 'metric-marketplace-product-list-sheet1-v3');
+  assert.deepEqual(observed.platformRows, { shopee: 2903, tiktok: 2097 });
+  for (const platform of ['shopee', 'tiktok'] as const) {
+    const m = combinedManifest(bytes, platform, observed.platformRows!);
+    const declared = { ...m, source: { ...m.source, lastRow: observed.lastRow } };
+    assert.equal(normalizeMetricWorkbookInput(bytes, encode(declared)).input.records.length, observed.platformRows![platform]);
+  }
 });

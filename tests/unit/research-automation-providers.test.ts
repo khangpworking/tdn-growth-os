@@ -12,9 +12,18 @@ import {
   type ResearchAutomationProvider,
 } from '../../src/modules/analysis/research-automation/providers.js';
 import { bindResearchAutomationProvider } from '../../src/modules/analysis/research-automation/source-binding.js';
-import { ResearchAutomationProviderOutputError } from '../../src/modules/analysis/research-automation/model.js';
 
 const PERIOD = { startDate: '2026-01-01', endDate: '2026-01-31' } as const;
+
+test('review collection configuration requires both a token and an explicit bounded charge cap', () => {
+  const token = 'synthetic-apify-token-not-live';
+  assert.equal(researchAutomationProviderConfigFromEnv({ TDN_APIFY_TOKEN: token }).apifyReviews, undefined);
+  assert.deepEqual(researchAutomationProviderConfigFromEnv({ TDN_APIFY_TOKEN: token, TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '5' }).apifyReviews, { token, maxChargeUsd: 5 });
+  for (const cap of ['0', '-1', 'NaN', 'Infinity', '10001']) {
+    assert.throws(() => researchAutomationProviderConfigFromEnv({ TDN_APIFY_TOKEN: token, TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: cap }), error => error instanceof Error && !error.message.includes(token));
+  }
+  assert.throws(() => researchAutomationProviderConfigFromEnv({ TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '5' }), /requires/);
+});
 
 function response(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
@@ -157,12 +166,19 @@ test('source binding refuses cards without a successful matching rank capture', 
   const bound = await valid.quickSearch(input);
   assert.equal(bound.step.productCards[0]?.retrievedAt, validCapture.completedAt);
 
-  const missing = bindResearchAutomationProvider(syntheticBindingProvider(syntheticQuickResult(syntheticCard('missing-rank'), [validCapture])));
-  await assert.rejects(() => missing.quickSearch(input), (error: unknown) => error instanceof ResearchAutomationProviderOutputError);
-
   const rejectedCapture = syntheticRankCapture('INVALID_PAYLOAD');
-  const rejected = bindResearchAutomationProvider(syntheticBindingProvider(syntheticQuickResult(syntheticCard(rejectedCapture.captureId), [rejectedCapture])));
-  await assert.rejects(() => rejected.quickSearch(input), (error: unknown) => error instanceof ResearchAutomationProviderOutputError);
+  for (const raw of [
+    syntheticQuickResult(syntheticCard('missing-rank'), [validCapture]),
+    syntheticQuickResult(syntheticCard(rejectedCapture.captureId), [rejectedCapture]),
+  ]) {
+    const rejected = await bindResearchAutomationProvider(syntheticBindingProvider(raw)).quickSearch(input);
+    assert.equal(rejected.result, raw);
+    assert.equal(rejected.step.outcome, 'FAILED');
+    assert.deepEqual(rejected.step.productCards, []);
+    assert.deepEqual(rejected.step.comparables, []);
+    assert.deepEqual(rejected.step.coverage, []);
+    assert.deepEqual(rejected.step.limitations.map(row => row.code), ['PROVIDER_OUTPUT_INVALID']);
+  }
 });
 
 test('source binding sorts observed windows and marks holes or unexecuted windows partial', async () => {
@@ -224,7 +240,8 @@ test('Kalodata collection splits exact requested periods and only sums one produ
   const registry = createResearchAutomationProviderRegistry({
     kalodataSecretKey: 'synthetic-kalo-key', serpApiKey: null, apifyTokenConfigured: false,
   }, fixture);
-  const result = await registry.get('KALODATA').collect(collectInput());
+  const bound = await bindResearchAutomationProvider(registry.get('KALODATA')).collect(collectInput());
+  const result = bound.result;
   assert.equal(result.status, 'SUCCEEDED');
   assert.deepEqual(seen.map(body => body.date_range), ['2026-01-01~2026-01-30', '2026-01-31~2026-01-31']);
   assert.equal(result.productObservations.length, 2);
@@ -232,6 +249,91 @@ test('Kalodata collection splits exact requested periods and only sums one produ
   assert.equal(summary.scope, 'SINGLE_PRODUCT_NOT_MARKET_TOTAL');
   assert.deepEqual(summary.revenue, { status: 'SUM_OF_DISJOINT_PROVIDER_WINDOWS', value: 150 });
   assert.equal(result.coverage[0]?.status, 'QUERIES_COMPLETE');
+  assert.deepEqual(bound.step.comparables.map(row => [row.productId, row.metric, row.value, row.window]), [
+    ['kalodata:101', 'GMV_VND', '100', { startDate: '2026-01-01', endDate: '2026-01-30' }],
+    ['kalodata:101', 'UNITS_SOLD', '1', { startDate: '2026-01-01', endDate: '2026-01-30' }],
+    ['kalodata:101', 'GMV_VND', '50', { startDate: '2026-01-31', endDate: '2026-01-31' }],
+    ['kalodata:101', 'UNITS_SOLD', '1', { startDate: '2026-01-31', endDate: '2026-01-31' }],
+  ]);
+  for (const row of bound.step.comparables) {
+    const capture = result.captures[row.captureIndex]!;
+    assert.equal(capture.operation, 'kalodata.product.detail');
+    assert.equal(capture.productRef, row.productId);
+    assert.deepEqual(capture.queryWindow, row.window);
+  }
+});
+
+test('collection binding preserves observed zero, omits missing metrics and retains raw results when projection lineage is invalid', async () => {
+  const provider = createResearchAutomationProviderRegistry({ kalodataSecretKey: 'synthetic-kalo-key', serpApiKey: null, apifyTokenConfigured: false },
+    transport(async url => url.pathname.endsWith('/credit/balance')
+      ? response({ success: true, data: { totalRemain: 10 } })
+      : response({ success: true, data: { product_id: '101', revenue: null, sales_volumn: 0 } }))).get('KALODATA');
+  const bound = await bindResearchAutomationProvider(provider).collect(collectInput());
+  assert.deepEqual(bound.step.comparables.map(row => [row.metric, row.value]), [['UNITS_SOLD', '0'], ['UNITS_SOLD', '0']]);
+  for (const change of [
+    { productRef: 'kalodata:999' },
+    { window: { startDate: '2025-01-01', endDate: '2025-01-30' } },
+    { captureId: 'not-retained' },
+  ]) {
+    const invalid = { ...bound.result, productObservations: [{ ...bound.result.productObservations[0]!, ...change }] };
+    const rejected = await bindResearchAutomationProvider({ ...provider, collect: async () => invalid }).collect(collectInput());
+    assert.equal(rejected.result, invalid);
+    assert.equal(rejected.result.captures, bound.result.captures);
+    assert.equal(rejected.result.usage, bound.result.usage);
+    assert.deepEqual(rejected.step, {
+      contractVersion: 'research-automation-step-result-v1', runId: collectInput().runId, stepId: 'COLLECTION', outcome: 'FAILED',
+      productCards: [], comparables: [], coverage: [],
+      limitations: [{ code: 'PROVIDER_OUTPUT_INVALID', provider: null,
+        message: 'The provider returned data that failed validation; the result was rejected and nothing was inferred from it.' }],
+    });
+  }
+});
+
+test('Kalodata detail accepts the Vietnam region in either ASCII case and still rejects other regions or product IDs', async () => {
+  const cases = [
+    { productId: '101', region: 'vn', accepted: true },
+    { productId: '101', region: 'VN', accepted: true },
+    { productId: '101', region: 'th', accepted: false },
+    { productId: '101', region: 'US', accepted: false },
+    { productId: '999', region: 'vn', accepted: false },
+  ] as const;
+  for (const item of cases) {
+    const label = `${item.productId}/${item.region}`;
+    const registry = createResearchAutomationProviderRegistry({
+      kalodataSecretKey: 'synthetic-kalo-key', serpApiKey: null, apifyTokenConfigured: false,
+    }, transport(async url => url.pathname.endsWith('/credit/balance')
+      ? response({ success: true, data: { totalRemain: 10 } })
+      : response({ success: true, data: {
+        product_id: item.productId, product_region: item.region, product_name: 'Synthetic jelly', product_description: [],
+        revenue: 10, sales_volumn: 2, unit_price: 5, min_price: 5, max_price: 5, video_revenue: 6, live_revenue: 4, shopping_mall_revenue: 0,
+      } })));
+    const result = await registry.get('KALODATA').collect(collectInput({ requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' } }));
+    assert.equal(result.captures.find(capture => capture.operation === 'kalodata.product.detail')?.outcome, item.accepted ? 'OK' : 'INVALID_PAYLOAD', label);
+    assert.equal(result.coverage[0]?.queryWindows[0]?.status, item.accepted ? 'OK' : 'FAILED', label);
+    assert.deepEqual(result.productObservations.map(row => [row.revenue, row.salesVolume]), item.accepted ? [[10, 2]] : [], label);
+  }
+});
+
+test('Kalodata collection without approved products requests nothing, while an empty detail response is an observed window', async () => {
+  let calls = 0;
+  const source = bindResearchAutomationProvider(createResearchAutomationProviderRegistry({
+    kalodataSecretKey: 'synthetic-kalo-key', serpApiKey: null, apifyTokenConfigured: false,
+  }, transport(async url => {
+    calls++;
+    return url.pathname.endsWith('/credit/balance') ? response({ success: true, data: { totalRemain: 10 } }) : response({ success: true, data: null });
+  })).get('KALODATA'));
+  const requestedPeriod = { startDate: '2026-01-01', endDate: '2026-01-30' };
+  const none = await source.collect(collectInput({ requestedPeriod, selectedProductRefs: [], peerProductRefs: [] }));
+  assert.equal(calls, 0);
+  assert.deepEqual(none.step.coverage, [{
+    provider: 'kalodata', dataset: 'product_period_detail', state: 'WAITING_FOR_INPUT', observedStartDate: null, observedEndDate: null, truncated: false, note: 'NO_APPROVED_PRODUCT_REFS',
+  }]);
+  const empty = await source.collect(collectInput({ requestedPeriod }));
+  assert.equal(empty.step.outcome, 'SUCCEEDED');
+  assert.equal(empty.result.productObservations.length, 0);
+  assert.deepEqual(empty.step.coverage, [{
+    provider: 'kalodata', dataset: 'product_period_detail', state: 'COLLECTED', observedStartDate: '2026-01-01', observedEndDate: '2026-01-30', truncated: false, note: 'SINGLE_PRODUCT_WINDOWS_NOT_MARKET_TOTAL',
+  }]);
 });
 
 test('malformed Kalodata payload is retained as an invalid capture and never retried', async () => {

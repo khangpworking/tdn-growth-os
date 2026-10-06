@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-i14-synthesis-input.schema.json",
+  "title": "AutomationI14SynthesisInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "methodVersion", "sectionId", "runId", "workspaceId", "scopeSha256", "admission", "ownerQuestion", "ownerConstraints", "supportEligible", "counterevidenceOnly", "outputContract", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodId": { "const": "automation-i14-synthesis-input" },
+    "methodVersion": { "const": "1.0.0" },
+    "sectionId": { "const": "I14" },
+    "runId": { "$ref": "#/$defs/uuid" },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "scopeSha256": { "$ref": "#/$defs/digest" },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion", "admissionSha256"],
+      "properties": {
+        "methodId": { "const": "automation-i14-evidence-admission" },
+        "methodVersion": { "enum": ["1.0.0", "1.1.0"] },
+        "admissionSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "ownerQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "text"],
+      "properties": {
+        "state": { "const": "UNSET" },
+        "text": { "type": "null" }
+      }
+    },
+    "ownerConstraints": {
+      "description": "Owner-authored constraints. Always empty in this version; the model cannot complete them.",
+      "type": "array",
+      "maxItems": 0,
+      "items": { "$ref": "#/$defs/text" }
+    },
+    "supportEligible": {
+      "description": "Admitted I14 anchors in admission order, which is not a priority. Only these claim ids may be cited as support.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20000,
+      "items": { "$ref": "#/$defs/supportClaim" }
+    },
+    "counterevidenceOnly": {
+      "description": "Unassigned I02/I04 claims in admission order. They may be cited only as counterevidence.",
+      "type": "array",
+      "maxItems": 20000,
+      "items": { "$ref": "#/$defs/counterevidenceClaim" }
+    },
+    "outputContract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion"],
+      "properties": {
+        "methodId": { "const": "automation-i14-candidates" },
+        "methodVersion": { "const": "1.0.0" }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/text" }
+    }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 4000, "pattern": "\\S" },
+    "quote": { "type": "string", "minLength": 1, "maxLength": 1000000, "pattern": "\\S" },
+    "supportClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimId", "sourceAttribution", "contextFields", "counterevidenceQuotes"],
+      "properties": {
+        "claimId": { "$ref": "#/$defs/digest" },
+        "sourceAttribution": { "$ref": "#/$defs/text" },
+        "contextFields": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["field", "quote"],
+            "properties": {
+              "field": { "enum": ["role", "situation", "task", "setting", "time"] },
+              "quote": { "$ref": "#/$defs/quote" }
+            }
+          }
+        },
+        "counterevidenceQuotes": {
+          "description": "If the claim is cited as support, these quotes must be acknowledged in the rationale or limitations and the claim id must not be duplicated in counterevidenceRefs. Empty means none encoded, not that none exists.",
+          "type": "array",
+          "maxItems": 100,
+          "items": { "$ref": "#/$defs/quote" }
+        }
+      }
+    },
+    "counterevidenceClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimId", "sectionId", "reason", "sourceAttribution", "quotes"],
+      "properties": {
+        "claimId": { "$ref": "#/$defs/digest" },
+        "sectionId": { "enum": ["I02", "I04"] },
+        "reason": {
+          "enum": [
+            "I04_BEHAVIOR_ALONE_IS_NOT_USE_CONTEXT",
+            "NO_SOURCE_STATED_USE_CONTEXT_FIELD",
+            "CONTEXT_FIELD_CONFLICTING",
+            "CONTEXT_QUALIFIER_SEMANTICS_NOT_ENCODED"
+          ]
+        },
+        "sourceAttribution": { "$ref": "#/$defs/text" },
+        "quotes": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["role", "quote"],
+            "properties": {
+              "role": { "enum": ["RECORD", "DECLARATION", "QUALIFIER", "COUNTEREVIDENCE", "CONTEXT"] },
+              "quote": { "$ref": "#/$defs/quote" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

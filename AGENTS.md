@@ -52,6 +52,26 @@ Never weaken a valid assertion just to obtain green CI.
 Reuse evidence only while relevant code, inputs and environment remain unchanged.
 Clean up only test processes and temporary data created by the task.
 
+## Vietnamese report prose (owner decision, 2026-10-04)
+
+Use `humanizer-vi` from https://github.com/longhang2004/vietnamese-humanizer
+when writing or editing Vietnamese AI interpretations for Market and Insight
+reports. Reviewed upstream revision: `576c80fb445a8b2e9ec1993a6490ab6529b89d12`,
+skill path `skills/humanizer-vi`. Read its SKILL.md and preservation rules before
+using it; if unavailable in a worker environment, report that limitation rather
+than claiming the skill ran. Do not assume a Windows-local installation exists
+on Fedora or is automatically loaded by the application's model calls.
+
+Use clear, neutral analytical Vietnamese, not advertising copy. Preserve facts,
+numbers, units, dates, population/period scope, citations, source attribution,
+negation, uncertainty, counterevidence and missing-data limits. Never rewrite
+verbatim source quotes, source bytes, identifiers, formulas or structured coding
+spans. Separate AI interpretation from source evidence and owner approval.
+Natural wording must not promote a hypothesis into a fact or imply causation.
+Keep suitable text unchanged; do not regenerate merely for stylistic variety.
+Application prompt integration is a separate versioned change requiring review;
+this instruction does not authorize rewriting historical reports or deployment.
+
 ## Scope and private data
 
 New project starts with new data. No legacy freeze, migration or backfill.

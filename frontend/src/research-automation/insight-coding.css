@@ -1,0 +1,69 @@
+/* Insight coding: scoped to .ic-panel; reuses the Operate tokens from styles.css and adds no new colors. */
+.ic-panel{min-width:0;max-width:100%}
+.ic-panel *{min-width:0}
+.ic-panel textarea{font:inherit;width:100%;max-width:100%;resize:vertical;min-height:88px;padding:10px 12px;border:1px solid #b8c8d2;border-radius:8px;background:var(--white);color:var(--ink)}
+.ic-panel textarea:focus-visible{outline:3px solid var(--teal);outline-offset:4px}
+.ic-panel :is(input:not([type=checkbox]):not([type=radio]),select,button,summary){min-height:44px}
+.ic-panel :is(input[type=checkbox],input[type=radio]){accent-color:var(--teal);width:18px;height:18px;flex-shrink:0}
+.ic-panel fieldset{display:grid;gap:12px;margin:0;padding:16px;border:1px solid var(--line);border-radius:12px}
+.ic-panel legend{padding:0 6px;font-size:14px;font-weight:700}
+.ic-panel h5{font-size:15px;margin-top:8px}
+.ic-panel ul{margin:0;padding-left:20px}
+
+.ic-facts{display:grid;gap:10px;margin:0}
+.ic-facts div{display:grid;gap:2px}
+.ic-facts dt{font-size:12px;color:var(--muted)}
+.ic-facts dd{margin:0;font-size:13px;white-space:pre-wrap;overflow-wrap:anywhere}
+
+.ic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.ic-rule-form,.ic-editor,.ic-editor-form{display:grid;gap:14px}
+.ic-corpus,.ic-provenance,.ic-extras,.ic-receipts{background:var(--white)}
+
+/* The exact record: whitespace and line breaks shown as stored, so a highlight maps to one text node. */
+.ic-record{display:grid;gap:6px;padding:14px;border-radius:12px;background:var(--paper)}
+.ic-record-meta{font-size:13px}
+.ic-panel .ic-record-text{margin:0;max-width:none;padding:12px 14px;border:1px solid var(--line);border-radius:9px;background:var(--white);white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.65;max-height:320px;overflow:auto;user-select:text}
+
+.ic-state{display:inline-flex;padding:2px 8px;border-radius:99px;font-size:12px;font-weight:700}
+.ic-state-included{background:#e1f4ed;color:#186655}
+.ic-state-excluded{background:#fff4d5;color:#79520e}
+.ic-state-unreadable{background:#fde9eb;color:#943643}
+
+.ic-span{background:var(--white)}
+.ic-span-entry{display:flex;gap:8px;align-items:end;flex-wrap:wrap}
+.ic-span-entry .ra-label{flex:1 1 260px}
+.ic-occurrences{display:grid;gap:6px}
+.ic-occurrence{display:flex;align-items:flex-start;gap:10px;padding:9px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;line-height:1.55;overflow-wrap:anywhere;cursor:pointer}
+.ic-occurrence:has(input:checked){border-color:var(--teal);background:#eef8f8}
+.ic-occurrence input{margin-top:2px}
+.ic-panel mark{background:#b8e7e2;color:var(--ink);border-radius:3px;padding:0 1px}
+
+.ic-members{list-style:none;padding:0;display:grid;gap:6px;max-height:420px;overflow:auto}
+.ic-snippet{display:block;color:var(--muted);font-size:12px;overflow-wrap:anywhere}
+
+.ic-chips{list-style:none;padding:0;display:flex;flex-wrap:wrap;gap:6px}
+.ic-chips li{display:inline-flex;align-items:center;gap:6px;max-width:100%;padding:4px 4px 4px 10px;border-radius:8px;background:var(--paper);font-size:13px;overflow-wrap:anywhere}
+
+.ic-panel .ic-entries{list-style:none;padding:0;margin:0}
+.ic-entries>li{display:grid;gap:6px;padding:14px 0;border-bottom:1px solid var(--line);overflow-wrap:anywhere}
+.ic-tag{display:inline-flex;padding:2px 7px;border-radius:6px;background:#edf2f5;color:var(--muted);font-size:11px;font-weight:700;white-space:nowrap}
+.ic-panel .ic-hold{display:inline-block;padding:4px 9px;border-radius:8px;background:#fff4d5;color:#79520e;font-size:12px}
+
+/* Full source beside each review entry. The stored text wraps in place and keeps ink colour, rather than scrolling inside the dialog's own scroll. */
+.ic-context>summary{cursor:pointer;color:var(--blue);font-size:13px;font-weight:650}
+.ic-context[open]>summary{margin-bottom:6px}
+.ic-panel .ic-context .ic-record-text{max-height:none;overflow:visible;color:var(--ink)}
+
+.ic-dialog-body{max-height:calc(100dvh - 240px);overflow:auto;overscroll-behavior:contain;display:grid;gap:10px;overflow-wrap:anywhere}
+.ic-panel .confirm-dialog{max-height:calc(100dvh - 40px);overflow:auto}
+
+@media(max-width:650px){
+  .ic-grid{grid-template-columns:1fr}
+  .ic-panel fieldset{padding:12px}
+  .ic-span-entry{display:grid}
+  .ic-panel .ic-record-text{max-height:240px}
+}
+
+/* Model proposals: same rhythm as the panel; the outcome holder only receives focus when a sequence ends. */
+.ic-model{display:grid;gap:10px}
+.ic-model>[tabindex="-1"]:focus{outline:none}

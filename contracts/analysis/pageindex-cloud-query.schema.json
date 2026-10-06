@@ -1,0 +1,19 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://tdn.local/contracts/analysis/pageindex-cloud-query.schema.json",
+  "title": "PageIndexCloudQuery",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "sourcePackageId", "manifestSha256", "logicalPath", "sourceSha256", "cloudDocId", "cloudFileName", "pageCount", "question"],
+  "properties": {
+    "contractVersion": {"const": "pageindex-cloud-query-v1"},
+    "sourcePackageId": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+    "manifestSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "logicalPath": {"type": "string", "minLength": 1, "maxLength": 500},
+    "sourceSha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "cloudDocId": {"type": "string", "pattern": "^pi-[A-Za-z0-9_-]{1,128}$"},
+    "cloudFileName": {"type": "string", "minLength": 1, "maxLength": 250, "pattern": "^[^;<>\r\n]+$"},
+    "pageCount": {"type": "integer", "minimum": 1, "maximum": 1000},
+    "question": {"type": "string", "minLength": 1, "maxLength": 4000}
+  }
+}

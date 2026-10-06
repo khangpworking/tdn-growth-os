@@ -24,7 +24,7 @@ Branch: `feature/r2-private-media`.
 ## Evidence
 
 Isolated Fedora validation checkout:
-`/home/pkhang/.nanobot/workspace/tdn-r2-validation-20261002`.
+`<private path on the test host, withheld>`.
 Node `24.15.0`, lockfile install, strict backend typecheck: PASS.
 Focused archive plus existing image-inspector tests: **11/11 PASS**.
 Web follow-up: strict backend typecheck and focused SDK/HTTP upload/poster,
@@ -66,7 +66,7 @@ check also passed using the actual configured R2 client, a separate temporary
 database and disposable port 8793. That listener was closed after the check.
 
 Runtime code: `c68e1c9d6a78b06573f9f6c65b29066a1e89c717`.
-Release: `/home/pkhang/.local/share/tdn-growth-os/operator-checkout-r2-bc359bd`.
+Release: `<private path on the test host, withheld>`.
 Listener: `127.0.0.1:8787`, PID 1193296 at activation. Persistent tmux window
 `r2-web` in session `tdn-growth-os-operator-8787`; not a boot-managed service.
 Original authoritative database/artifacts and CLIProxy/local OWNER testing
@@ -75,7 +75,7 @@ confirmed 105 business rows and all 46 artifacts unchanged, schema 37, safe
 health status, UI/assets/read routes and unauthenticated OWNER rejection.
 
 Cold private recovery copy:
-`/home/pkhang/.local/state/tdn-growth-os/operator-dev-8787-ab099f3/recovery-before-r2-c68e1c9-20261002T020211Z`.
+`<private path on the test host, withheld>`.
 It contains the quiescent SQLite set, artifact tree and verification manifest,
 not credentials. Private files remain 0600; directories 0700.
 

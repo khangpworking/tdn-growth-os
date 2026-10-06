@@ -55,11 +55,11 @@ function setup(): {
 
 test('opens a fresh WAL database and a second migration run is idempotent', () => {
   const first = setup();
-  assert.deepEqual(first.migrationApplied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38]);
+  assert.deepEqual(first.migrationApplied, [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47]);
   assert.equal(first.db.pragma('journal_mode', { simple: true }), 'wal');
   assert.equal(first.db.pragma('foreign_keys', { simple: true }), 1n);
   assert.equal(first.db.pragma('busy_timeout', { simple: true }), 5000n);
-  assert.equal(first.db.pragma('user_version', { simple: true }), 38n);
+  assert.equal(first.db.pragma('user_version', { simple: true }), 47n);
   const databasePath = first.db.name;
   if (process.platform !== 'win32') {
     assert.equal(fs.statSync(databasePath).mode & 0o777, 0o600);
@@ -68,7 +68,7 @@ test('opens a fresh WAL database and a second migration run is idempotent', () =
 
   const second = openDatabase({ databasePath });
   assert.deepEqual(second.migration.applied, []);
-  assert.equal(second.migration.currentVersion, 38);
+  assert.equal(second.migration.currentVersion, 47);
   assert.deepEqual(second.db.prepare('SELECT version FROM schema_migrations ORDER BY version').all(), [
     { version: 1n },
     { version: 2n },
@@ -108,6 +108,15 @@ test('opens a fresh WAL database and a second migration run is idempotent', () =
     { version: 36n },
     { version: 37n },
     { version: 38n },
+    { version: 39n },
+    { version: 40n },
+    { version: 41n },
+    { version: 42n },
+    { version: 43n },
+    { version: 44n },
+    { version: 45n },
+    { version: 46n },
+    { version: 47n },
   ]);
   second.db.close();
 });
@@ -116,7 +125,11 @@ test('migration 0038 upgrades a version-37 database once and reruns idempotently
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-foundation-0038-'));
   roots.push(root);
   const priorDirectory = path.join(root, 'migrations-v37');
+  const version38Directory = path.join(root, 'migrations-v38');
   fs.mkdirSync(priorDirectory);
+  fs.mkdirSync(version38Directory);
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 38).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(version38Directory, name));
   for (const name of fs.readdirSync('migrations').filter((candidate) => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 37).sort()) {
     fs.copyFileSync(path.join('migrations', name), path.join(priorDirectory, name));
   }
@@ -126,17 +139,146 @@ test('migration 0038 upgrades a version-37 database once and reruns idempotently
   assert.equal(version37.db.pragma('user_version', { simple: true }), 37n);
   version37.db.close();
 
-  const upgraded = openDatabase({ databasePath });
+  const upgraded = openDatabase({ databasePath, migrationsDirectory: version38Directory });
   assert.deepEqual(upgraded.migration.applied, [38]);
   assert.equal(upgraded.migration.currentVersion, 38);
   assert.equal(upgraded.db.pragma('user_version', { simple: true }), 38n);
   assert.ok(upgraded.db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name='analysis_research_automation_runs'").get());
   upgraded.db.close();
 
-  const rerun = openDatabase({ databasePath });
+  const rerun = openDatabase({ databasePath, migrationsDirectory: version38Directory });
   assert.deepEqual(rerun.migration.applied, []);
   assert.equal(rerun.migration.currentVersion, 38);
   rerun.db.close();
+});
+
+test('migrations 0039 through 0045 upgrade their exact prior versions without changing existing evidence and rerun with zero migrations', async () => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-foundation-0039-'));
+  roots.push(root);
+  const priorDirectory = path.join(root, 'migrations-v38');
+  const nextDirectory = path.join(root, 'migrations-v39');
+  fs.mkdirSync(priorDirectory);
+  fs.mkdirSync(nextDirectory);
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 38).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(priorDirectory, name));
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 39).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(nextDirectory, name));
+  const databasePath = path.join(root, 'foundation.sqlite');
+  const prior = openDatabase({ databasePath, migrationsDirectory: priorDirectory });
+  const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
+  const service = new FoundationService({ db: prior.db, artifactStore: artifacts });
+  const receipt = await service.importManualObservation(fixture());
+  const lineage = service.getLineageRecords(receipt.observationIds[0]!);
+  const migrationLedger = prior.db.prepare('SELECT * FROM schema_migrations ORDER BY version').all();
+  prior.db.close();
+  const upgraded = openDatabase({ databasePath, migrationsDirectory: nextDirectory });
+  assert.deepEqual(upgraded.migration.applied, [39]);
+  assert.equal(upgraded.migration.currentVersion, 39);
+  assert.deepEqual(upgraded.db.prepare('SELECT * FROM schema_migrations WHERE version<=38 ORDER BY version').all(), migrationLedger);
+  assert.deepEqual(new FoundationService({ db: upgraded.db, artifactStore: artifacts }).getLineageRecords(receipt.observationIds[0]!), lineage);
+  assert.deepEqual(upgraded.db.prepare('SELECT * FROM foundation_source_attachment_origins').all(), []);
+  upgraded.db.close();
+  const rerun = openDatabase({ databasePath, migrationsDirectory: nextDirectory });
+  assert.deepEqual(rerun.migration.applied, []);
+  assert.equal(rerun.db.pragma('user_version', { simple: true }), 39n);
+  const ledger39 = rerun.db.prepare('SELECT * FROM schema_migrations ORDER BY version').all();
+  rerun.db.close();
+  const directory40 = path.join(root, 'migrations-v40');
+  fs.mkdirSync(directory40);
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 40).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(directory40, name));
+  const upgraded40 = openDatabase({ databasePath, migrationsDirectory: directory40 });
+  assert.deepEqual(upgraded40.migration.applied, [40]);
+  assert.equal(upgraded40.db.pragma('user_version', { simple: true }), 40n);
+  assert.deepEqual(upgraded40.db.prepare('SELECT * FROM schema_migrations WHERE version<=39 ORDER BY version').all(), ledger39);
+  assert.deepEqual(new FoundationService({ db: upgraded40.db, artifactStore: artifacts }).getLineageRecords(receipt.observationIds[0]!), lineage);
+  assert.deepEqual(upgraded40.db.prepare('SELECT * FROM analysis_research_automation_source_sets').all(), []);
+  upgraded40.db.close();
+  const repeat40 = openDatabase({ databasePath, migrationsDirectory: directory40 });
+  assert.deepEqual(repeat40.migration.applied, []);
+  assert.equal(repeat40.db.pragma('user_version', { simple: true }), 40n);
+  const ledger40 = repeat40.db.prepare('SELECT * FROM schema_migrations ORDER BY version').all();
+  repeat40.db.close();
+  const directory41 = path.join(root, 'migrations-v41');
+  fs.mkdirSync(directory41);
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 41).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(directory41, name));
+  const upgraded41 = openDatabase({ databasePath, migrationsDirectory: directory41 });
+  assert.deepEqual(upgraded41.migration.applied, [41]);
+  assert.equal(upgraded41.db.pragma('user_version', { simple: true }), 41n);
+  assert.deepEqual(upgraded41.db.prepare('SELECT * FROM schema_migrations WHERE version<=40 ORDER BY version').all(), ledger40);
+  assert.deepEqual(new FoundationService({ db: upgraded41.db, artifactStore: artifacts }).getLineageRecords(receipt.observationIds[0]!), lineage);
+  assert.deepEqual(upgraded41.db.prepare('SELECT * FROM analysis_research_automation_attempts').all(), []);
+  upgraded41.db.close();
+  const repeat41 = openDatabase({ databasePath, migrationsDirectory: directory41 });
+  assert.deepEqual(repeat41.migration.applied, []);
+  assert.equal(repeat41.db.pragma('user_version', { simple: true }), 41n);
+  const ledger41 = repeat41.db.prepare('SELECT * FROM schema_migrations ORDER BY version').all();
+  repeat41.db.close();
+  const directory42 = path.join(root, 'migrations-v42');
+  fs.mkdirSync(directory42);
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 42).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(directory42, name));
+  const upgraded42 = openDatabase({ databasePath, migrationsDirectory: directory42 });
+  assert.deepEqual(upgraded42.migration.applied, [42]);
+  assert.equal(upgraded42.db.pragma('user_version', { simple: true }), 42n);
+  assert.deepEqual(upgraded42.db.prepare('SELECT * FROM schema_migrations WHERE version<=41 ORDER BY version').all(), ledger41);
+  assert.deepEqual(new FoundationService({ db: upgraded42.db, artifactStore: artifacts }).getLineageRecords(receipt.observationIds[0]!), lineage);
+  assert.deepEqual(upgraded42.db.prepare('SELECT * FROM analysis_research_automation_ai_executions').all(), []);
+  upgraded42.db.close();
+  const repeat42 = openDatabase({ databasePath, migrationsDirectory: directory42 });
+  assert.deepEqual(repeat42.migration.applied, []);
+  assert.equal(repeat42.migration.currentVersion, 42);
+  const ledger42 = repeat42.db.prepare('SELECT * FROM schema_migrations ORDER BY version').all();
+  repeat42.db.close();
+  const directory43 = path.join(root, 'migrations-v43');
+  fs.mkdirSync(directory43);
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 43).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(directory43, name));
+  const upgraded43 = openDatabase({ databasePath, migrationsDirectory: directory43 });
+  assert.deepEqual(upgraded43.migration.applied, [43]);
+  assert.equal(upgraded43.db.pragma('user_version', { simple: true }), 43n);
+  assert.deepEqual(upgraded43.db.prepare('SELECT * FROM schema_migrations WHERE version<=42 ORDER BY version').all(), ledger42);
+  assert.deepEqual(new FoundationService({ db: upgraded43.db, artifactStore: artifacts }).getLineageRecords(receipt.observationIds[0]!), lineage);
+  assert.deepEqual(upgraded43.db.prepare('SELECT * FROM analysis_metric_rule_adoptions').all(), []);
+  upgraded43.db.close();
+  const repeat43 = openDatabase({ databasePath, migrationsDirectory: directory43 });
+  assert.deepEqual(repeat43.migration.applied, []);
+  assert.equal(repeat43.migration.currentVersion, 43);
+  const ledger43 = repeat43.db.prepare('SELECT * FROM schema_migrations ORDER BY version').all();
+  repeat43.db.close();
+  const directory44 = path.join(root, 'migrations-v44');
+  fs.mkdirSync(directory44);
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 44).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(directory44, name));
+  const upgraded44 = openDatabase({ databasePath, migrationsDirectory: directory44 });
+  assert.deepEqual(upgraded44.migration.applied, [44]);
+  assert.equal(upgraded44.db.pragma('user_version', { simple: true }), 44n);
+  assert.deepEqual(upgraded44.db.prepare('SELECT * FROM schema_migrations WHERE version<=43 ORDER BY version').all(), ledger43);
+  assert.deepEqual(new FoundationService({ db: upgraded44.db, artifactStore: artifacts }).getLineageRecords(receipt.observationIds[0]!), lineage);
+  for (const table of ['analysis_metric_membership_proposals', 'analysis_metric_membership_receipts', 'analysis_metric_membership_accepted'])
+    assert.deepEqual(upgraded44.db.prepare(`SELECT * FROM ${table}`).all(), []);
+  upgraded44.db.close();
+  const repeat44 = openDatabase({ databasePath, migrationsDirectory: directory44 });
+  assert.deepEqual(repeat44.migration.applied, []);
+  assert.equal(repeat44.migration.currentVersion, 44);
+  const ledger44 = repeat44.db.prepare('SELECT * FROM schema_migrations ORDER BY version').all();
+  repeat44.db.close();
+  const directory45 = path.join(root, 'migrations-v45');
+  fs.mkdirSync(directory45);
+  for (const name of fs.readdirSync('migrations').filter(candidate => /^\d{4}_.+\.sql$/.test(candidate) && Number(candidate.slice(0, 4)) <= 45).sort())
+    fs.copyFileSync(path.join('migrations', name), path.join(directory45, name));
+  const upgraded45 = openDatabase({ databasePath, migrationsDirectory: directory45 });
+  assert.deepEqual(upgraded45.migration.applied, [45]);
+  assert.equal(upgraded45.db.pragma('user_version', { simple: true }), 45n);
+  assert.deepEqual(upgraded45.db.prepare('SELECT * FROM schema_migrations WHERE version<=44 ORDER BY version').all(), ledger44);
+  assert.deepEqual(new FoundationService({ db: upgraded45.db, artifactStore: artifacts }).getLineageRecords(receipt.observationIds[0]!), lineage);
+  assert.deepEqual(upgraded45.db.prepare('SELECT * FROM analysis_insight_coding_evidence').all(), []);
+  upgraded45.db.close();
+  const repeat45 = openDatabase({ databasePath, migrationsDirectory: directory45 });
+  assert.deepEqual(repeat45.migration.applied, []);
+  assert.equal(repeat45.migration.currentVersion, 45);
+  repeat45.db.close();
 });
 
 test('AJV rejects missing required input and SQLite rejects invalid foreign keys', async () => {

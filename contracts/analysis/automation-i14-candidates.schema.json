@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-i14-candidates.schema.json",
+  "title": "AutomationI14Candidates",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "methodVersion", "sectionId", "runId", "workspaceId", "scopeSha256", "admission", "ownerQuestion", "ownerDirections", "aiCandidates", "validation", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodId": { "const": "automation-i14-candidates" },
+    "methodVersion": { "const": "1.0.0" },
+    "sectionId": { "const": "I14" },
+    "runId": { "$ref": "#/$defs/uuid" },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "scopeSha256": { "$ref": "#/$defs/digest" },
+    "admission": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion", "admissionSha256"],
+      "properties": {
+        "methodId": { "const": "automation-i14-evidence-admission" },
+        "methodVersion": { "enum": ["1.0.0", "1.1.0"] },
+        "admissionSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "ownerQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "text"],
+      "properties": {
+        "state": { "const": "UNSET" },
+        "text": { "type": "null" }
+      }
+    },
+    "ownerDirections": {
+      "description": "Owner-authored direction labels. Always empty in this version; AI candidates never populate it.",
+      "type": "array",
+      "maxItems": 0,
+      "items": { "$ref": "#/$defs/text" }
+    },
+    "aiCandidates": {
+      "type": "array",
+      "maxItems": 20,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/candidate" }
+    },
+    "validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["structural", "semantic"],
+      "properties": {
+        "structural": { "const": "SCHEMA_AND_REFERENCES_PASSED" },
+        "semantic": { "const": "NOT_VERIFIED_HUMAN_REVIEW_REQUIRED" }
+      }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/text" }
+    }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 4000, "pattern": "\\S" },
+    "aiText": {
+      "description": "Untrusted layer-3 draft text. It must contain a non-space character and no Unicode number character; numeric facts stay application-owned claim bindings.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^\\P{N}*[^\\s\\p{N}]\\P{N}*$"
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidateType", "candidateStatus", "layer", "text", "conciseEvidenceLinkedRationale", "citedClaimRefs", "counterevidenceRefs", "assumptions", "unknowns", "evidenceGaps", "limitations"],
+      "properties": {
+        "candidateType": { "enum": ["HYPOTHESIS", "OPPORTUNITY_DIRECTION"] },
+        "candidateStatus": { "const": "HUMAN_REVIEW_REQUIRED" },
+        "layer": { "const": 3 },
+        "text": { "$ref": "#/$defs/aiText" },
+        "conciseEvidenceLinkedRationale": { "$ref": "#/$defs/aiText" },
+        "citedClaimRefs": { "type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": { "$ref": "#/$defs/digest" } },
+        "counterevidenceRefs": {
+          "description": "Empty means none was supplied, not that no counterevidence exists.",
+          "type": "array", "maxItems": 20, "uniqueItems": true, "items": { "$ref": "#/$defs/digest" }
+        },
+        "assumptions": { "type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": { "$ref": "#/$defs/aiText" } },
+        "unknowns": { "type": "array", "maxItems": 10, "uniqueItems": true, "items": { "$ref": "#/$defs/aiText" } },
+        "evidenceGaps": { "type": "array", "maxItems": 10, "uniqueItems": true, "items": { "$ref": "#/$defs/aiText" } },
+        "limitations": { "type": "array", "minItems": 1, "maxItems": 10, "uniqueItems": true, "items": { "$ref": "#/$defs/aiText" } }
+      }
+    }
+  }
+}

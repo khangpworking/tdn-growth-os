@@ -16,7 +16,7 @@ Status: design intake (static inspection) plus the implemented renderer describe
 
 ## 1. Verified sources
 
-### 1.1 Kit (read-only) `C:/Users/Admin/Documents/Codex/2026-09-16/t-i/report-kit/`
+### 1.1 Kit (read-only) `<private path on the owner machine, withheld>`
 
 Not a git repo. SHA-256, full:
 
@@ -187,7 +187,7 @@ There is no ledger rendition concept: artifacts are keyed `(report_id, version, 
 Chosen shape: theme CSS + static SVG/CSS in a new string renderer (section 3). Fonts: `font-family: Montserrat,'Segoe UI',system-ui,…` with **no webfont**; installed Montserrat is used when present, otherwise the system fallback. No CSP change. Whether `local()` `@font-face` resolves under `default-src 'none'` is not verified; do not depend on it.
 
 Embedding Montserrat is possible but needs a root decision first (nothing has been copied):
-- Source: `C:/Users/Admin/Documents/Codex/2026-09-16/t-i/report-kit/node_modules/@fontsource/montserrat/files/montserrat-{latin,vietnamese}-{400,600,700,800}-normal.woff2` (8 files, about 105 KB).
+- Source: `<private path on the owner machine, withheld>` (8 files, about 105 KB).
 - License: SIL Open Font License 1.1, "Copyright 2011 The Montserrat Project Authors". The OFL text must ship with the asset.
 - CSP: embedded `data:` fonts are blocked by today's report CSP. They need a narrow `font-src data:` added to both the response header and the meta CSP, plus an update of the assertion at `tests/integration/report-version-service.test.ts:778`. The retained HTML then grows by about 140 KB of base64.
 

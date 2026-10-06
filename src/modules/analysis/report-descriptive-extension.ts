@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { DescriptiveMarketMethods } from '../../../contracts/analysis/descriptive-market-methods.generated.js';
 import type { FinalizedSourcePackageReader } from '../foundation/source-package-reader.js';
-import type { VerifiedSourcePackageFile } from '../foundation/source-package-service.js';
+import type { VerifiedFinalizedSourcePackage, VerifiedSourcePackageFile } from '../foundation/source-package-service.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
 import type { SourceBackedReportBundle } from './source-backed-report.js';
 import { buildDescriptiveMarketMethods, validateDescriptiveMarketInput } from './descriptive-market-methods.js';
@@ -68,6 +68,17 @@ export async function buildReportDescriptiveExtension(
   if (retained.packageId !== identity.packageId || retained.manifestArtifactSha256 !== identity.manifestArtifactSha256 ||
     retained.packageContentSha256 !== identity.packageContentSha256) fail('DESCRIPTIVE_PACKAGE_IDENTITY_MISMATCH');
   equal(retained.manifest, identity.manifest, 'DESCRIPTIVE_PACKAGE_MANIFEST_MISMATCH');
+  return buildVerifiedReportDescriptiveExtension(logicalPath, retained);
+}
+
+/** Shared package-bound method boundary, independent of the Metric-only report envelope. */
+export function buildVerifiedReportDescriptiveExtension(logicalPath: string, retained: VerifiedFinalizedSourcePackage): {
+  output: DescriptiveMarketMethods;
+  bytes: Buffer;
+  inputBytes: Buffer;
+  inputSha256: string;
+  files: ReadonlyMap<string, Buffer>;
+} {
   const byPath = new Map(retained.files.map(file => [file.path, file]));
   const descriptorFile = byPath.get(logicalPath);
   if (!descriptorFile) fail('DESCRIPTIVE_DESCRIPTOR_NOT_IN_PACKAGE');

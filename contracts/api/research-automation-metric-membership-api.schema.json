@@ -1,0 +1,53 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-automation-metric-membership-api.schema.json",
+  "title": "ResearchAutomationMetricMembershipApi",
+  "oneOf": [{ "$ref": "#/$defs/mutation" }, { "$ref": "#/$defs/proposal" }, { "$ref": "#/$defs/receipt" }, { "$ref": "#/$defs/review" }],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" }, "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "mutation": {
+      "title": "ResearchMetricMembershipMutation", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "kind", "id", "exactRetry"],
+      "properties": { "contractVersion": { "const": "metric-membership-mutation-v1" }, "kind": { "enum": ["PROPOSAL", "ACCEPTANCE"] },
+        "id": { "$ref": "#/$defs/uuid" }, "exactRetry": { "type": "boolean" } }
+    },
+    "proposal": {
+      "title": "ResearchMetricMembershipProposal", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "proposalId", "workspaceId", "runId", "pairId", "adoptionId", "createdAt", "assignments"],
+      "properties": {
+        "contractVersion": { "const": "metric-membership-proposal-view-v1" }, "proposalId": { "$ref": "#/$defs/uuid" },
+        "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" }, "pairId": { "$ref": "#/$defs/digest" }, "adoptionId": { "$ref": "#/$defs/uuid" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "assignments": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "../analysis/automation-metric-membership.schema.json#/$defs/assignment" } }
+      }
+    },
+    "receipt": {
+      "title": "ResearchMetricMembershipReceipt", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "receiptId", "proposalId", "workspaceId", "runId", "acceptedAt", "selectedRecordKeys"],
+      "properties": {
+        "contractVersion": { "const": "metric-membership-acceptance-view-v1" }, "receiptId": { "$ref": "#/$defs/uuid" }, "proposalId": { "$ref": "#/$defs/uuid" },
+        "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" }, "acceptedAt": { "type": "string", "format": "date-time" },
+        "selectedRecordKeys": { "type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": { "$ref": "#/$defs/digest" } }
+      }
+    },
+    "review": {
+      "title": "ResearchMetricMembershipReview", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "runId", "pairId", "adoptionId", "recordCount", "acceptedCount", "pendingCount", "complete", "acceptedReceiptIds", "records"],
+      "properties": {
+        "contractVersion": { "const": "metric-membership-review-v1" }, "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" },
+        "pairId": { "$ref": "#/$defs/digest" }, "adoptionId": { "$ref": "#/$defs/uuid" },
+        "recordCount": { "type": "integer", "minimum": 0 }, "acceptedCount": { "type": "integer", "minimum": 0 }, "pendingCount": { "type": "integer", "minimum": 0 }, "complete": { "type": "boolean" },
+        "acceptedReceiptIds": { "type": "array", "maxItems": 10000, "uniqueItems": true, "items": { "$ref": "#/$defs/uuid" } },
+        "records": { "type": "array", "maxItems": 10000, "items": {
+          "type": "object", "additionalProperties": false,
+          "required": ["recordKey", "title", "category", "shopId", "listingId", "locator", "state", "classification", "group", "proposalId"],
+          "properties": {
+            "recordKey": { "$ref": "#/$defs/digest" }, "title": { "type": "string" }, "category": { "type": "string" }, "shopId": { "type": "string" }, "listingId": { "type": "string" }, "locator": { "type": "string" },
+            "state": { "enum": ["PENDING", "ACCEPTED"] }, "classification": { "enum": [null, "CORE_CANDIDATE", "ADJACENT", "OUTSIDE", "UNKNOWN"] },
+            "group": { "type": ["string", "null"] }, "proposalId": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] }
+          }
+        } }
+      }
+    }
+  }
+}

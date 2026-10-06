@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-i14-evidence-admission.schema.json",
+  "title": "AutomationI14EvidenceAdmission",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "methodVersion", "sectionId", "runId", "workspaceId", "scopeSha256", "sourceClaims", "locatedMethodOutputId", "ownerQuestion", "admissionRule", "status", "insufficientEvidence", "anchors", "unassigned", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodId": { "const": "automation-i14-evidence-admission" },
+    "methodVersion": { "enum": ["1.0.0", "1.1.0"] },
+    "sectionId": { "const": "I14" },
+    "runId": { "$ref": "#/$defs/uuid" },
+    "workspaceId": { "$ref": "#/$defs/uuid" },
+    "scopeSha256": { "$ref": "#/$defs/digest" },
+    "sourceClaims": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion", "claimsSha256"],
+      "properties": {
+        "methodId": { "const": "automation-source-claims" },
+        "methodVersion": { "const": "1.0.0" },
+        "claimsSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "locatedMethodOutputId": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
+    "ownerQuestion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["state", "text"],
+      "properties": {
+        "state": { "const": "UNSET" },
+        "text": { "type": "null" }
+      }
+    },
+    "admissionRule": { "enum": ["I02_SOURCE_STATED_SITUATION_TASK_OR_SETTING_WITHOUT_QUALIFIERS_V1", "I02_VERIFIED_LITERAL_MATCHER_DUPLICATES_V2"] },
+    "literalProjection": {
+      "anyOf": [
+        { "type": "null" },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["policySha256", "projectionId", "projectionSha256", "methodArtifact", "methodOutputId"],
+          "properties": {
+            "policySha256": { "const": "ba676c8e9e89f7ba0f05ec6157b82414524f6af48697900afe61ac7e0dc64f42" },
+            "projectionId": { "$ref": "#/$defs/digest" },
+            "projectionSha256": { "$ref": "#/$defs/digest" },
+            "methodArtifact": { "$ref": "#/$defs/package" },
+            "methodOutputId": { "$ref": "#/$defs/digest" }
+          }
+        }
+      ]
+    },
+    "status": { "enum": ["USE_CONTEXT_ADMITTED", "INSUFFICIENT_EVIDENCE"] },
+    "insufficientEvidence": { "anyOf": [{ "const": "NO_ADMISSIBLE_SOURCE_STATED_USE_CONTEXT" }, { "type": "null" }] },
+    "anchors": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": { "$ref": "#/$defs/anchor" }
+    },
+    "unassigned": {
+      "type": "array",
+      "maxItems": 20000,
+      "items": { "$ref": "#/$defs/unassignedClaim" }
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 30,
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/text" }
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "methodVersion": { "const": "1.0.0" } }, "required": ["methodVersion"] },
+      "then": {
+        "properties": { "admissionRule": { "const": "I02_SOURCE_STATED_SITUATION_TASK_OR_SETTING_WITHOUT_QUALIFIERS_V1" }, "literalProjection": false }
+      },
+      "else": {
+        "required": ["literalProjection"],
+        "properties": { "admissionRule": { "const": "I02_VERIFIED_LITERAL_MATCHER_DUPLICATES_V2" }, "literalProjection": {} }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 4000, "pattern": "\\S" },
+    "nullableText": { "anyOf": [{ "$ref": "#/$defs/text" }, { "type": "null" }] },
+    "package": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageId", "version", "manifestArtifactSha256", "packageContentSha256"],
+      "properties": {
+        "packageId": { "$ref": "#/$defs/uuid" },
+        "version": { "type": "integer", "minimum": 1 },
+        "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "method": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["methodId", "methodVersion", "methodOutputId", "artifact", "outputPointer"],
+      "properties": {
+        "methodId": { "$ref": "#/$defs/text" },
+        "methodVersion": { "$ref": "#/$defs/text" },
+        "methodOutputId": { "$ref": "#/$defs/digest" },
+        "artifact": { "$ref": "#/$defs/package" },
+        "outputPointer": { "type": "string", "pattern": "^/", "maxLength": 400 }
+      }
+    },
+    "sourceLocator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["package", "logicalPath", "sha256", "locator", "recordLocator", "attribution"],
+      "properties": {
+        "package": { "$ref": "#/$defs/package" },
+        "logicalPath": { "$ref": "#/$defs/text" },
+        "sha256": { "$ref": "#/$defs/digest" },
+        "locator": { "type": "string", "minLength": 1, "maxLength": 2000 },
+        "recordLocator": { "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 2000 }, { "type": "null" }] },
+        "attribution": { "$ref": "#/$defs/nullableText" }
+      }
+    },
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["start", "end", "quote"],
+      "properties": {
+        "start": { "type": "integer", "minimum": 0 },
+        "end": { "type": "integer", "minimum": 1 },
+        "quote": { "type": "string", "minLength": 1, "maxLength": 1000000, "pattern": "\\S" }
+      }
+    },
+    "contextField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "span"],
+      "properties": {
+        "field": { "enum": ["role", "situation", "task", "setting", "time"] },
+        "span": { "$ref": "#/$defs/span" }
+      }
+    },
+    "declaration": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sourceAttribution", "annotationAttribution", "provenance"],
+      "properties": {
+        "sourceAttribution": { "$ref": "#/$defs/text" },
+        "annotationAttribution": { "$ref": "#/$defs/nullableText" },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["basis", "coderRole", "adjudication", "disagreement"],
+          "properties": {
+            "basis": { "const": "DECLARED" },
+            "coderRole": { "$ref": "#/$defs/text" },
+            "adjudication": { "$ref": "#/$defs/nullableText" },
+            "disagreement": { "$ref": "#/$defs/nullableText" }
+          }
+        }
+      }
+    },
+    "anchor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimId", "method", "source", "contextFields", "counterevidenceSpans", "declaration"],
+      "properties": {
+        "claimId": { "$ref": "#/$defs/digest" },
+        "method": { "$ref": "#/$defs/method" },
+        "source": { "$ref": "#/$defs/sourceLocator" },
+        "contextFields": { "type": "array", "minItems": 1, "maxItems": 5, "items": { "$ref": "#/$defs/contextField" } },
+        "counterevidenceSpans": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/span" } },
+        "declaration": { "$ref": "#/$defs/declaration" }
+      }
+    },
+    "unassignedClaim": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["claimId", "sectionId", "reason"],
+      "properties": {
+        "claimId": { "$ref": "#/$defs/digest" },
+        "sectionId": { "enum": ["M05", "I02", "I04"] },
+        "reason": {
+          "enum": [
+            "NOT_A_LOCATED_DECLARATION",
+            "I04_BEHAVIOR_ALONE_IS_NOT_USE_CONTEXT",
+            "NO_SOURCE_STATED_USE_CONTEXT_FIELD",
+            "CONTEXT_FIELD_CONFLICTING",
+            "CONTEXT_QUALIFIER_SEMANTICS_NOT_ENCODED"
+          ]
+        }
+      }
+    }
+  }
+}

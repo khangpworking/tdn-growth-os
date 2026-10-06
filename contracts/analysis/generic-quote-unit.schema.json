@@ -1,0 +1,158 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research.local/contracts/analysis/generic-quote-unit.schema.json",
+  "title": "GenericQuoteUnit",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "methodVersion", "physicalCountUnitMappingRevision", "inputSha256", "methodOutputId", "input", "quotes", "limitations"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodId": { "const": "generic-quote-unit-v1" },
+    "methodVersion": { "const": "1.0.0" },
+    "physicalCountUnitMappingRevision": { "const": "physical-count-unit-v1" },
+    "inputSha256": { "$ref": "#/$defs/digest" },
+    "methodOutputId": { "$ref": "#/$defs/digest" },
+    "input": { "$ref": "#/$defs/input" },
+    "quotes": {
+      "type": "array", "maxItems": 500,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["quoteId", "quoteInputSha256", "inventoryPointer", "pricePerPurchasedPack", "pricePerPhysicalItem", "pricePer100gNet", "pricePer100gDrained"],
+        "properties": {
+          "quoteId": { "$ref": "#/$defs/text" },
+          "quoteInputSha256": { "$ref": "#/$defs/digest" },
+          "inventoryPointer": { "$ref": "#/$defs/pointer" },
+          "pricePerPurchasedPack": { "$ref": "#/$defs/result" },
+          "pricePerPhysicalItem": { "$ref": "#/$defs/result" },
+          "pricePer100gNet": { "$ref": "#/$defs/result" },
+          "pricePer100gDrained": { "$ref": "#/$defs/result" }
+        }
+      }
+    },
+    "limitations": { "type": "array", "items": { "$ref": "#/$defs/text" }, "maxItems": 20 }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+    "nullableText": { "anyOf": [{ "$ref": "#/$defs/text" }, { "type": "null" }] },
+    "pointer": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "^(?:/(?:[^~/]|~[01])*)+$" },
+    "decimal": { "type": "string", "maxLength": 80, "pattern": "^(0|[1-9][0-9]{0,39})(\\.[0-9]{1,18})?$" },
+    "nullableDecimal": { "anyOf": [{ "$ref": "#/$defs/decimal" }, { "type": "null" }] },
+    "ref": {
+      "type": "object", "additionalProperties": false, "required": ["sourceSha256", "locator", "fieldPointer"],
+      "properties": { "sourceSha256": { "$ref": "#/$defs/digest" }, "locator": { "$ref": "#/$defs/text" }, "fieldPointer": { "$ref": "#/$defs/pointer" } }
+    },
+    "nullableRef": { "anyOf": [{ "$ref": "#/$defs/ref" }, { "type": "null" }] },
+    "quantity": {
+      "type": "object", "additionalProperties": false,
+      "required": ["state", "value", "unit", "dimension", "origin", "binding", "literal"],
+      "properties": {
+        "state": { "enum": ["EXACT", "MISSING", "NON_EXACT", "UNREADABLE", "CONFLICTING", "UNKNOWN"] },
+        "value": { "$ref": "#/$defs/nullableDecimal" },
+        "unit": { "$ref": "#/$defs/nullableText" },
+        "dimension": { "enum": ["PHYSICAL_COUNT", "MASS", "OTHER", "UNKNOWN"] },
+        "origin": { "enum": ["SOURCE_STATED", "OWNER_DECLARED", "UNKNOWN"] },
+        "binding": { "$ref": "#/$defs/nullableRef" },
+        "literal": { "$ref": "#/$defs/nullableText" }
+      }
+    },
+    "mass": {
+      "type": "object", "additionalProperties": false, "required": ["quantity", "basis", "linkage", "basisBinding"],
+      "properties": {
+        "quantity": { "$ref": "#/$defs/quantity" },
+        "basis": { "enum": ["PER_ITEM", "PER_PURCHASED_PACK", "UNKNOWN"] },
+        "linkage": { "enum": ["MATCHED", "UNKNOWN", "CONFLICTING"] },
+        "basisBinding": { "$ref": "#/$defs/nullableRef" }
+      }
+    },
+    "rational": {
+      "type": "object", "additionalProperties": false, "required": ["numerator", "denominator"],
+      "properties": { "numerator": { "type": "string", "pattern": "^(0|[1-9][0-9]{0,159})$" }, "denominator": { "type": "string", "pattern": "^[1-9][0-9]{0,159}$" } }
+    },
+    "result": {
+      "type": "object", "additionalProperties": false,
+      "required": ["status", "basis", "reasons", "exact", "display", "rounding", "denominator", "operandPointers"],
+      "properties": {
+        "status": { "enum": ["AVAILABLE", "UNAVAILABLE"] },
+        "basis": { "enum": ["SOURCED", "SCENARIO", null] },
+        "reasons": { "type": "array", "maxItems": 20, "uniqueItems": true, "items": { "enum": ["PRICE_NOT_EXACT", "CURRENCY_UNKNOWN", "IDENTITY_UNRESOLVED", "VARIANT_UNRESOLVED", "OFFER_LINKAGE_UNRESOLVED", "COUNT_NOT_EXACT", "COUNT_UNIT_NOT_PHYSICAL", "UNSUPPORTED_PHYSICAL_COUNT_UNIT", "INVALID_COUNT_VALUE", "PACK_NOT_HOMOGENEOUS", "MASS_BASIS_NOT_SELECTED", "MASS_NOT_EXACT", "INVALID_MASS_VALUE", "MASS_LINKAGE_UNRESOLVED", "MASS_BASIS_UNKNOWN", "UNSUPPORTED_MASS_UNIT"] } },
+        "exact": { "anyOf": [{ "$ref": "#/$defs/rational" }, { "type": "null" }] },
+        "display": { "type": ["string", "null"], "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{2}$", "maxLength": 180 },
+        "rounding": { "const": "decimal-2-half-even-v1" },
+        "denominator": { "anyOf": [{ "$ref": "#/$defs/rational" }, { "type": "null" }] },
+        "operandPointers": { "type": "array", "maxItems": 12, "items": { "$ref": "#/$defs/pointer" } }
+      }
+    },
+    "input": {
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "sourcePackage", "sources", "configuration", "quotes"],
+      "properties": {
+        "contractVersion": { "const": "1.0.0" },
+        "sourcePackage": {
+          "type": "object", "additionalProperties": false,
+          "required": ["packageId", "version", "manifestArtifactSha256", "packageContentSha256"],
+          "properties": { "packageId": { "type": "string", "format": "uuid" }, "version": { "type": "integer", "minimum": 1 }, "manifestArtifactSha256": { "$ref": "#/$defs/digest" }, "packageContentSha256": { "$ref": "#/$defs/digest" } }
+        },
+        "sources": {
+          "type": "array", "minItems": 1, "maxItems": 1000,
+          "items": {
+            "type": "object", "additionalProperties": false, "required": ["logicalPath", "sha256", "role"],
+            "properties": { "logicalPath": { "$ref": "#/$defs/text" }, "sha256": { "$ref": "#/$defs/digest" }, "role": { "enum": ["SOURCE", "OWNER_DECLARATION"] } }
+          }
+        },
+        "configuration": {
+          "type": "object", "additionalProperties": false,
+          "required": ["parserProfileId", "parserRevision", "parserProfileSha256", "parserProfileRef", "mappingRevision", "configurationRef"],
+          "properties": { "parserProfileId": { "$ref": "#/$defs/text" }, "parserRevision": { "$ref": "#/$defs/text" }, "parserProfileSha256": { "$ref": "#/$defs/digest" }, "parserProfileRef": { "$ref": "#/$defs/ref" }, "mappingRevision": { "$ref": "#/$defs/text" }, "configurationRef": { "$ref": "#/$defs/ref" } }
+        },
+        "quotes": {
+          "type": "array", "maxItems": 500,
+          "items": {
+            "type": "object", "additionalProperties": false,
+            "required": ["quoteId", "source", "acquiredAt", "observedAt", "authenticationState", "reviewState", "identity", "offerText", "packText", "price", "pack", "netMass", "drainedMass", "selectedMassBases", "massSelectionBinding"],
+            "properties": {
+              "quoteId": { "$ref": "#/$defs/text" }, "source": { "$ref": "#/$defs/ref" },
+              "acquiredAt": { "type": "string", "format": "date-time" },
+              "observedAt": { "anyOf": [{ "type": "string", "format": "date-time" }, { "type": "null" }] },
+              "authenticationState": { "enum": ["DECLARED_AUTHENTICATED", "UNAUTHENTICATED", "UNKNOWN"] },
+              "reviewState": { "enum": ["DECLARED_REVIEWED", "UNREVIEWED", "UNKNOWN"] },
+              "identity": {
+                "type": "object", "additionalProperties": false,
+                "required": ["state", "platform", "shopId", "listingId", "variantState", "variantId", "variantAttributes", "binding", "linkage"],
+                "properties": {
+                  "state": { "enum": ["EXACT", "UNKNOWN", "CONFLICTING"] },
+                  "platform": { "$ref": "#/$defs/nullableText" }, "shopId": { "$ref": "#/$defs/nullableText" }, "listingId": { "$ref": "#/$defs/nullableText" },
+                  "variantState": { "enum": ["EXACT", "NOT_APPLICABLE", "UNKNOWN", "CONFLICTING"] }, "variantId": { "$ref": "#/$defs/nullableText" },
+                  "variantAttributes": { "type": "array", "maxItems": 50, "items": { "type": "object", "additionalProperties": false, "required": ["name", "literal", "binding"], "properties": { "name": { "$ref": "#/$defs/text" }, "literal": { "$ref": "#/$defs/text" }, "binding": { "$ref": "#/$defs/ref" } } } },
+                  "binding": { "$ref": "#/$defs/nullableRef" }, "linkage": { "enum": ["MATCHED", "UNKNOWN", "CONFLICTING"] }
+                }
+              },
+              "offerText": { "$ref": "#/$defs/nullableText" }, "packText": { "$ref": "#/$defs/nullableText" },
+              "price": {
+                "type": "object", "additionalProperties": false,
+                "required": ["state", "value", "range", "currency", "priceState", "binding", "checkoutBinding", "conditions", "tax", "shipping"],
+                "properties": {
+                  "state": { "enum": ["EXACT", "RANGE", "MISSING", "NON_EXACT", "UNREADABLE", "CONFLICTING", "UNKNOWN"] },
+                  "value": { "$ref": "#/$defs/nullableDecimal" },
+                  "range": { "anyOf": [{ "type": "object", "additionalProperties": false, "required": ["minimum", "maximum"], "properties": { "minimum": { "$ref": "#/$defs/decimal" }, "maximum": { "$ref": "#/$defs/decimal" } } }, { "type": "null" }] },
+                  "currency": { "type": ["string", "null"], "pattern": "^[A-Z]{3}$" },
+                  "priceState": { "enum": ["LISTED", "STRUCK_THROUGH", "PROMO_CONDITIONAL", "OBSERVED_CHECKOUT", "UNKNOWN"] },
+                  "binding": { "$ref": "#/$defs/nullableRef" }, "checkoutBinding": { "$ref": "#/$defs/nullableRef" },
+                  "conditions": { "type": "array", "maxItems": 50, "items": { "type": "object", "additionalProperties": false, "required": ["literal", "binding"], "properties": { "literal": { "$ref": "#/$defs/text" }, "binding": { "$ref": "#/$defs/ref" } } } },
+                  "tax": { "enum": ["INCLUDED", "EXCLUDED", "UNKNOWN"] }, "shipping": { "enum": ["INCLUDED", "EXCLUDED", "UNKNOWN"] }
+                }
+              },
+              "pack": {
+                "type": "object", "additionalProperties": false, "required": ["count", "compositionState", "linkage", "binding", "components"],
+                "properties": { "count": { "$ref": "#/$defs/quantity" }, "compositionState": { "enum": ["HOMOGENEOUS", "MIXED", "WITH_GIFT", "UNKNOWN"] }, "linkage": { "enum": ["MATCHED", "UNKNOWN", "CONFLICTING"] }, "binding": { "$ref": "#/$defs/nullableRef" }, "components": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/text" } } }
+              },
+              "netMass": { "$ref": "#/$defs/mass" }, "drainedMass": { "$ref": "#/$defs/mass" },
+              "selectedMassBases": { "type": "array", "maxItems": 2, "uniqueItems": true, "items": { "enum": ["NET", "DRAINED"] } },
+              "massSelectionBinding": { "$ref": "#/$defs/nullableRef" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

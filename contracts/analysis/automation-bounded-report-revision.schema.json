@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-bounded-report-revision.schema.json",
+  "title": "AutomationBoundedReportRevisionRequest",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "requestKey", "previousPairId", "sources", "boundedMethods"],
+  "properties": {
+    "contractVersion": { "const": "automation-bounded-report-revision-v1" },
+    "requestKey": { "type": "string", "format": "uuid" },
+    "previousPairId": { "$ref": "#/$defs/digest" },
+    "sources": {
+      "type": "object", "additionalProperties": false, "required": ["metric", "nativeReview"],
+      "properties": {
+        "metric": { "$ref": "automation-classified-report-revision.schema.json#/$defs/keep" },
+        "nativeReview": { "$ref": "automation-classified-report-revision.schema.json#/$defs/keep" }
+      }
+    },
+    "boundedMethods": { "oneOf": [
+      { "$ref": "#/$defs/selection" },
+      { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "const": "SKIP" } } }
+    ] }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "selection": {
+      "title": "BoundedMethodPackageSelection",
+      "description": "Exact finalized Foundation package and descriptor path. Package identity is checked; descriptor references verify literal bytes only, not truth, period compatibility or approval.",
+      "type": "object", "additionalProperties": false,
+      "required": ["decision", "packageId", "manifestArtifactSha256", "packageContentSha256", "descriptorPath"],
+      "properties": {
+        "decision": { "const": "USE_PACKAGE" },
+        "packageId": { "type": "string", "format": "uuid" },
+        "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "descriptorPath": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$" }
+      }
+    }
+  }
+}

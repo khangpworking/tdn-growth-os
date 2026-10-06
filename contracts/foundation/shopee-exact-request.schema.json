@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShopeeExactRequest",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "runKey", "topic", "selectionBasis", "source", "productUrls"],
+  "properties": {
+    "contractVersion": { "const": "2.0.0" },
+    "runKey": { "$ref": "shopee-listing-request.schema.json#/properties/runKey" },
+    "topic": { "$ref": "shopee-listing-request.schema.json#/properties/topic" },
+    "selectionBasis": { "const": "OWNER_EXACT_URL" },
+    "source": { "$ref": "shopee-listing-request.schema.json#/properties/source" },
+    "productUrls": { "type": "array", "minItems": 1, "maxItems": 5, "uniqueItems": true,
+      "items": { "type": "string", "minLength": 1, "maxLength": 2000 } }
+  }
+}

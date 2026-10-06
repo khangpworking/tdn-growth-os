@@ -18,6 +18,24 @@ async function readSchema(relativePath) {
 const reportApiSchema = await readSchema('contracts/api/report-api.schema.json');
 const researchGenerationApiSchema = await readSchema('contracts/api/research-generation-api.schema.json');
 const researchAutomationApiSchema = await readSchema('contracts/api/research-automation-api.schema.json');
+const automationReportRevisionSchema = await readSchema('contracts/analysis/automation-report-revision.schema.json');
+const researchAutomationRevisionApiSchema = await readSchema('contracts/api/research-automation-revision-api.schema.json');
+const metricIntakeSchema = await readSchema('contracts/api/research-automation-metric-intake-api.schema.json');
+const supplementalIntakeSchema = await readSchema('contracts/api/research-automation-supplemental-intake-api.schema.json');
+const sourcePackageIntakeSchema = await readSchema('contracts/foundation/source-package-intake-request.schema.json');
+const metricRuleSchema = await readSchema('contracts/analysis/automation-metric-rule-adoption.schema.json');
+const metricMembershipSchema = await readSchema('contracts/analysis/automation-metric-membership.schema.json');
+const metricMembershipApiSchema = await readSchema('contracts/api/research-automation-metric-membership-api.schema.json');
+const classifiedRevisionSchema = await readSchema('contracts/analysis/automation-classified-report-revision.schema.json');
+const boundedRevisionSchema = await readSchema('contracts/analysis/automation-bounded-report-revision.schema.json');
+const quoteRevisionSchema = await readSchema('contracts/analysis/automation-quote-report-revision.schema.json');
+const locatedInsightSchema = await readSchema('contracts/analysis/located-insight-methods.schema.json');
+const insightSelectionSchema = await readSchema('contracts/analysis/automation-insight-selection.schema.json');
+const insightCodingSchema = await readSchema('contracts/analysis/automation-insight-coding.schema.json');
+const insightCodingApiSchema = await readSchema('contracts/api/research-automation-insight-coding-api.schema.json');
+const insightModelSchema = await readSchema('contracts/analysis/automation-insight-model.schema.json');
+const insightModelApiSchema = await readSchema('contracts/api/research-automation-insight-model-api.schema.json');
+const insightRevisionSchema = await readSchema('contracts/analysis/automation-insight-report-revision.schema.json');
 const reportReviewTargetSchema = await readSchema('contracts/analysis/report-review-target.schema.json');
 const reportReviewTargetCreateRequestSchema = await readSchema('contracts/analysis/report-review-target-create-request.schema.json');
 const ownerReportReviewTargetApiSchema = await readSchema('contracts/api/owner-report-review-target-api.schema.json');
@@ -29,12 +47,60 @@ ajv.addSchema(reportReviewTargetCreateRequestSchema);
 ajv.addSchema(reportApiSchema);
 ajv.addSchema(researchGenerationApiSchema);
 ajv.addSchema(researchAutomationApiSchema);
+ajv.addSchema(automationReportRevisionSchema);
+ajv.addSchema(researchAutomationRevisionApiSchema);
+ajv.addSchema(metricIntakeSchema);
+ajv.addSchema(sourcePackageIntakeSchema);
+ajv.addSchema(supplementalIntakeSchema);
+ajv.addSchema(metricRuleSchema);
+ajv.addSchema(metricMembershipSchema);
+ajv.addSchema(metricMembershipApiSchema);
+ajv.addSchema(classifiedRevisionSchema);
+ajv.addSchema(boundedRevisionSchema);
+ajv.addSchema(quoteRevisionSchema);
+ajv.addSchema(locatedInsightSchema);
+ajv.addSchema(insightSelectionSchema);
+ajv.addSchema(insightCodingSchema);
+ajv.addSchema(insightCodingApiSchema);
+ajv.addSchema(insightModelSchema);
+ajv.addSchema(insightModelApiSchema);
+ajv.addSchema(insightRevisionSchema);
 ajv.addSchema(ownerReportReviewTargetApiSchema);
 
 const validatorRefs = {
+  supplementalSourcePrepare: `${supplementalIntakeSchema.$id}#/$defs/request`,
+  supplementalSourcePrepared: `${supplementalIntakeSchema.$id}#/$defs/receipt`,
+  supplementalSourcePreparedList: `${supplementalIntakeSchema.$id}#/$defs/preparedList`,
+  metricRuleAdopt: `${metricRuleSchema.$id}#/$defs/request`,
+  metricRuleReceipt: `${metricRuleSchema.$id}#/$defs/receipt`,
+  metricRuleList: `${metricRuleSchema.$id}#/$defs/list`,
+  metricMembershipPropose: `${metricMembershipSchema.$id}#/$defs/propose`,
+  metricMembershipAccept: `${metricMembershipSchema.$id}#/$defs/accept`,
+  metricMembershipMutation: `${metricMembershipApiSchema.$id}#/$defs/mutation`,
+  metricMembershipProposal: `${metricMembershipApiSchema.$id}#/$defs/proposal`,
+  metricMembershipReceipt: `${metricMembershipApiSchema.$id}#/$defs/receipt`,
+  metricMembershipReview: `${metricMembershipApiSchema.$id}#/$defs/review`,
+  classifiedReportRevision: classifiedRevisionSchema.$id,
+  boundedReportRevision: boundedRevisionSchema.$id,
+  quoteReportRevision: quoteRevisionSchema.$id,
+  insightCodingAdopt: `${insightCodingApiSchema.$id}#/$defs/adoptRequest`,
+  insightCodingPropose: `${insightCodingApiSchema.$id}#/$defs/proposeRequest`,
+  insightCodingAccept: `${insightCodingApiSchema.$id}#/$defs/acceptRequest`,
+  insightCodingMutation: `${insightCodingApiSchema.$id}#/$defs/mutation`,
+  insightCodingView: `${insightCodingApiSchema.$id}#/$defs/view`,
+  insightModelRequest: `${insightModelApiSchema.$id}#/$defs/request`,
+  insightModelResponse: `${insightModelApiSchema.$id}#/$defs/response`,
+  insightReportRevision: insightRevisionSchema.$id,
   researchAutomationRun: `${researchAutomationApiSchema.$id}#/$defs/run`,
   researchAutomationRunList: `${researchAutomationApiSchema.$id}#/$defs/runList`,
   researchAutomationReceipt: `${researchAutomationApiSchema.$id}#/$defs/receipt`,
+  researchAutomationMetricPrepared: `${metricIntakeSchema.$id}#/$defs/receipt`,
+  researchAutomationMetricPreparedList: `${metricIntakeSchema.$id}#/$defs/preparedList`,
+  researchAutomationRevision: automationReportRevisionSchema.$id,
+  researchAutomationRevisionCancel: `${researchAutomationRevisionApiSchema.$id}#/$defs/cancelRequest`,
+  researchAutomationRevisionVersionList: `${researchAutomationRevisionApiSchema.$id}#/$defs/versionList`,
+  researchAutomationRevisionAttemptList: `${researchAutomationRevisionApiSchema.$id}#/$defs/attemptList`,
+  researchAutomationRevisionReceipt: `${researchAutomationRevisionApiSchema.$id}#/$defs/receipt`,
   researchGenerationInputs: `${researchGenerationApiSchema.$id}#/$defs/inputs`,
   researchGenerationReceipt: `${researchGenerationApiSchema.$id}#/$defs/receipt`,
   researchGenerationMethodInputError: `${researchGenerationApiSchema.$id}#/$defs/methodInputError`,

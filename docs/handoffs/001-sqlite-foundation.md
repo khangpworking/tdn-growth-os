@@ -1,7 +1,7 @@
 # Handoff — Task 001 SQLite foundation
 
 Updated: 06/09/2026
-Worktree/branch: `/home/openclaw/.openclaw/workspace/worktrees/tdn-growth-os-001` / `feature/001-sqlite-foundation`
+Worktree/branch: `<private path, withheld>` / `feature/001-sqlite-foundation`
 Completed:
 - Inspected current repository state, architecture/task/plan/status, the warehouse field inventory, the legacy pipeline package/migration proposal, and the relevant Content Studio phase-4 package/lock/migration implementation without reading runtime/private data.
 - Added a new authoritative local SQLite foundation with WAL, foreign keys, 5-second busy timeout, FULL synchronous mode, checksum migration ledger, `user_version`, and idempotent second migration execution.

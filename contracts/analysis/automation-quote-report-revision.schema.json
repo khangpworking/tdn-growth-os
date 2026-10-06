@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://research.local/contracts/analysis/automation-quote-report-revision.schema.json",
+  "title": "AutomationQuoteReportRevisionRequest",
+  "description": "Quote-only report revision. Metric and native review sources are kept unchanged; quote methods either use one exact finalized Foundation package descriptor or are skipped.",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "requestKey", "previousPairId", "sources", "quoteMethods"],
+  "properties": {
+    "contractVersion": { "const": "automation-quote-report-revision-v1" },
+    "requestKey": { "type": "string", "format": "uuid" },
+    "previousPairId": { "$ref": "#/$defs/digest" },
+    "sources": {
+      "type": "object", "additionalProperties": false, "required": ["metric", "nativeReview"],
+      "properties": {
+        "metric": { "$ref": "#/$defs/keep" },
+        "nativeReview": { "$ref": "#/$defs/keep" }
+      }
+    },
+    "quoteMethods": { "oneOf": [
+      { "$ref": "#/$defs/selection" },
+      { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "const": "SKIP" } } }
+    ] }
+  },
+  "$defs": {
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "keep": { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "const": "KEEP" } } },
+    "selection": {
+      "title": "QuoteMethodPackageSelection",
+      "description": "Exact finalized Foundation package and GenericQuoteUnit descriptor path (descriptor without sourcePackage). Package identity, source bytes and the literal structured-quote profile are checked; this verifies literal declarations only, not provider truth, variant/pack correctness, checkout or approval.",
+      "type": "object", "additionalProperties": false,
+      "required": ["decision", "packageId", "manifestArtifactSha256", "packageContentSha256", "descriptorPath"],
+      "properties": {
+        "decision": { "const": "USE_PACKAGE" },
+        "packageId": { "type": "string", "format": "uuid" },
+        "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+        "packageContentSha256": { "$ref": "#/$defs/digest" },
+        "descriptorPath": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "^(?!/)(?!.*(?:^|/)\\.\\.(?:/|$))(?!.*\\\\)(?!.*//)[^\\u0000]+$" }
+      }
+    }
+  }
+}

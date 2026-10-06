@@ -9,6 +9,7 @@
     "node": "24.15.0"
   },
   "scripts": {
+    "research:pageindex:query": "tsx scripts/query-pageindex-cloud.ts",
     "media:r2:archive": "tsx scripts/archive-media-r2.ts",
     "research:economics:calculate": "tsx scripts/calculate-conditional-economics.ts",
     "research:quote:normalize": "tsx scripts/normalize-tablet-quote.ts",

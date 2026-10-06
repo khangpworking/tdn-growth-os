@@ -33,8 +33,8 @@ Do not run this on Windows. The helper uses its own loopback port; it does not r
 Actual acceptance evidence from this implementation is at:
 
 ```text
-/home/pkhang/.cache/tdn-auto-v1-BHHCkn/screenshots/
-C:/Users/Admin/Documents/Codex/2026-08-27/cou/artifacts/automation-v1-browser/
+<private path on the test host, withheld>
+<private path on the owner machine, withheld>
 ```
 
 Files: `research-editor-desktop.png`, `research-scope-empty-desktop.png`, `research-run-mobile.png`, `research-demo-mobile.png`, `acceptance.json`. The earlier `research-run-mobile-overflow.png` is pre-fix diagnostic evidence, not the accepted mobile result.

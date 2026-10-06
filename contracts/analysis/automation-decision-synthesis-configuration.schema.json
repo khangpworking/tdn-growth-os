@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-decision-synthesis-configuration.schema.json",
+  "title": "AutomationDecisionSynthesisConfiguration",
+  "description": "Explicit non-secret text configuration for one M11/M12/I15 synthesis. This does not enable I14 or any provider. Secrets and endpoints remain transport-only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "methodId", "sectionId", "providerId", "modelId", "temperature", "maxOutputTokens", "timeoutMs", "maxResponseBytes"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "methodId": { "const": "automation-decision-synthesis-configuration" },
+    "sectionId": { "enum": ["M11", "M12", "I15"] },
+    "providerId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,39}$" },
+    "modelId": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$" },
+    "temperature": { "anyOf": [{ "type": "number", "minimum": 0, "maximum": 2 }, { "type": "null" }] },
+    "maxOutputTokens": { "type": "integer", "minimum": 1, "maximum": 65536 },
+    "timeoutMs": { "type": "integer", "minimum": 1000, "maximum": 600000 },
+    "maxResponseBytes": { "type": "integer", "minimum": 1, "maximum": 1048576 }
+  }
+}

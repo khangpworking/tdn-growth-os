@@ -1,0 +1,80 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-metric-rule-adoption.schema.json",
+  "title": "AutomationMetricRuleAdoptionContract",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/artifact" }, { "$ref": "#/$defs/receipt" }, { "$ref": "#/$defs/list" }],
+  "$defs": {
+    "text": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S" },
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "rulebook": {
+      "title": "AutomationMetricRulebook", "type": "object", "additionalProperties": false,
+      "required": ["ruleId", "revision", "title", "definitions", "groups", "wideUnknownPolicy"],
+      "properties": {
+        "ruleId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$" },
+        "revision": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+        "definitions": {
+          "type": "object", "additionalProperties": false,
+          "required": ["CORE_CANDIDATE", "ADJACENT", "OUTSIDE", "UNKNOWN"],
+          "properties": {
+            "CORE_CANDIDATE": { "$ref": "#/$defs/text" }, "ADJACENT": { "$ref": "#/$defs/text" },
+            "OUTSIDE": { "$ref": "#/$defs/text" }, "UNKNOWN": { "$ref": "#/$defs/text" }
+          }
+        },
+        "groups": {
+          "type": "array", "minItems": 1, "maxItems": 100,
+          "items": { "type": "object", "additionalProperties": false, "required": ["key", "label", "definition"],
+            "properties": {
+              "key": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$" },
+              "label": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+              "definition": { "$ref": "#/$defs/text" }
+            }
+          }
+        },
+        "wideUnknownPolicy": { "const": "exclude" }
+      }
+    },
+    "request": {
+      "title": "AutomationMetricRuleAdoptionRequest", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "expectedRevision", "rulebook"],
+      "properties": {
+        "contractVersion": { "const": "automation-metric-rule-adopt-v1" },
+        "requestKey": { "$ref": "#/$defs/uuid" },
+        "expectedRevision": { "type": "integer", "minimum": 1, "maximum": 2147483647 },
+        "rulebook": { "$ref": "#/$defs/rulebook" }
+      }
+    },
+    "artifact": {
+      "title": "AutomationMetricRuleAdoptionArtifact", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "adoptionId", "workspaceId", "runId", "startSha256", "scopeSha256", "request", "rulebookSha256", "actorId", "actorRole", "adoptedAt"],
+      "properties": {
+        "contractVersion": { "const": "automation-metric-rule-adoption-v1" },
+        "adoptionId": { "$ref": "#/$defs/uuid" }, "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" },
+        "startSha256": { "$ref": "#/$defs/digest" }, "scopeSha256": { "$ref": "#/$defs/digest" },
+        "request": { "$ref": "#/$defs/request" }, "rulebookSha256": { "$ref": "#/$defs/digest" },
+        "actorId": { "type": "string", "minLength": 1, "maxLength": 200 }, "actorRole": { "const": "OWNER" },
+        "adoptedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "receipt": {
+      "title": "AutomationMetricRuleAdoptionReceipt", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "adoptionId", "workspaceId", "runId", "adoptedAt", "rulebook", "exactRetry"],
+      "properties": {
+        "contractVersion": { "const": "automation-metric-rule-receipt-v1" },
+        "adoptionId": { "$ref": "#/$defs/uuid" }, "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" },
+        "adoptedAt": { "type": "string", "format": "date-time" }, "rulebook": { "$ref": "#/$defs/rulebook" },
+        "exactRetry": { "type": "boolean" }
+      }
+    },
+    "list": {
+      "title": "AutomationMetricRuleAdoptionList", "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "runId", "adoptions"],
+      "properties": {
+        "contractVersion": { "const": "automation-metric-rule-list-v1" },
+        "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" },
+        "adoptions": { "type": "array", "items": { "$ref": "#/$defs/receipt" } }
+      }
+    }
+  }
+}

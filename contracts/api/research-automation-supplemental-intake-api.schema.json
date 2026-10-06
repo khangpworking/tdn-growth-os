@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-automation-supplemental-intake-api.schema.json",
+  "title": "ResearchAutomationSupplementalIntakeApi",
+  "description": "Metadata and safe receipt for one run-bound, operator-supplied supplemental method source package (M08 quote or M10/I11/I12/I16 bounded). Exact file bytes travel separately; the server computes every digest and size. Preparation stores an unverified, non-independent source only: it is not revision admission, report execution, data collection, provider authentication or business approval.",
+  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/receipt" }, { "$ref": "#/$defs/preparedList" }],
+  "$defs": {
+    "family": {
+      "description": "QUOTE targets the existing GenericQuoteUnit literal-structured-quote-v1 descriptor (without sourcePackage). BOUNDED targets the existing ReportMethodPacketsInput descriptor with gates only.",
+      "enum": ["QUOTE", "BOUNDED"]
+    },
+    "mediaType": {
+      "description": "JSON sources and descriptors only. text/markdown is admitted solely for BOUNDED packages and only when the existing bounded owner consumes the file as a digest-pinned method authority; it is never parsed as a source.",
+      "enum": ["application/json", "text/markdown"]
+    },
+    "path": {
+      "description": "Uploaded logical path. The automation-supplemental/ directory is reserved for the server-created context member and is rejected.",
+      "$ref": "../foundation/source-package-intake-request.schema.json#/$defs/file/properties/path"
+    },
+    "file": {
+      "title": "ResearchAutomationSupplementalFile",
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "mediaType", "representationRole"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "mediaType": { "$ref": "#/$defs/mediaType" },
+        "representationRole": { "$ref": "../foundation/source-package-intake-request.schema.json#/$defs/file/properties/representationRole" }
+      }
+    },
+    "request": {
+      "title": "ResearchAutomationSupplementalPrepareRequest",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "family", "sourceLabel", "acquiredAt", "descriptorPath", "files"],
+      "properties": {
+        "contractVersion": { "const": "automation-supplemental-prepare-v1" },
+        "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+        "family": { "$ref": "#/$defs/family" },
+        "sourceLabel": { "$ref": "../foundation/source-package-intake-request.schema.json#/properties/sourceLabel" },
+        "acquiredAt": { "$ref": "../foundation/source-package-intake-request.schema.json#/properties/sourceAcquiredAt" },
+        "descriptorPath": { "$ref": "#/$defs/path" },
+        "files": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/file" } }
+      }
+    },
+    "receiptFile": {
+      "title": "ResearchAutomationSupplementalReceiptFile",
+      "type": "object", "additionalProperties": false,
+      "required": ["path", "sha256", "byteSize", "mediaType"],
+      "properties": {
+        "path": { "$ref": "#/$defs/path" },
+        "sha256": { "$ref": "research-automation-api.schema.json#/$defs/digest" },
+        "byteSize": { "type": "integer", "minimum": 1, "maximum": 8388608 },
+        "mediaType": { "$ref": "#/$defs/mediaType" }
+      }
+    },
+    "receipt": {
+      "title": "ResearchAutomationSupplementalPrepareReceipt",
+      "description": "Exact package identity for an explicit later quote/bounded revision selection. The owning method replays the exact package semantically again at revision admission.",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "requestKey", "family", "state", "exactRetry", "packageId", "manifestArtifactSha256", "packageContentSha256", "descriptorPath", "files", "sourceLabel", "acquiredAt", "provenance", "admission"],
+      "properties": {
+        "contractVersion": { "const": "automation-supplemental-prepared-v1" },
+        "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+        "family": { "$ref": "#/$defs/family" },
+        "state": { "const": "PREPARED_NOT_ADMITTED" },
+        "exactRetry": { "type": "boolean" },
+        "packageId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "manifestArtifactSha256": { "$ref": "research-automation-api.schema.json#/$defs/digest" },
+        "packageContentSha256": { "$ref": "research-automation-api.schema.json#/$defs/digest" },
+        "descriptorPath": { "$ref": "#/$defs/path" },
+        "files": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/receiptFile" } },
+        "sourceLabel": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "acquiredAt": { "type": ["string", "null"], "format": "date-time" },
+        "provenance": { "const": "OPERATOR_SUPPLIED_UNVERIFIED" },
+        "admission": { "const": "SEMANTIC_REPLAY_REQUIRED_AT_REVISION" }
+      }
+    },
+    "preparedPackage": {
+      "title": "ResearchAutomationSupplementalPreparedPackage",
+      "description": "One verified prepared package recovered from its server-created context. State describes the stored source only: it stays PREPARED_NOT_ADMITTED even if a revision later selected it, and implies no report, revision or historical run state.",
+      "type": "object", "additionalProperties": false,
+      "required": ["requestKey", "family", "state", "packageId", "manifestArtifactSha256", "packageContentSha256", "descriptorPath", "files", "sourceLabel", "acquiredAt", "provenance", "admission"],
+      "properties": {
+        "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+        "family": { "$ref": "#/$defs/family" },
+        "state": { "const": "PREPARED_NOT_ADMITTED" },
+        "packageId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "manifestArtifactSha256": { "$ref": "research-automation-api.schema.json#/$defs/digest" },
+        "packageContentSha256": { "$ref": "research-automation-api.schema.json#/$defs/digest" },
+        "descriptorPath": { "$ref": "#/$defs/path" },
+        "files": { "type": "array", "minItems": 1, "maxItems": 16, "items": { "$ref": "#/$defs/receiptFile" } },
+        "sourceLabel": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "acquiredAt": { "type": ["string", "null"], "format": "date-time" },
+        "provenance": { "const": "OPERATOR_SUPPLIED_UNVERIFIED" },
+        "admission": { "const": "SEMANTIC_REPLAY_REQUIRED_AT_REVISION" }
+      }
+    },
+    "preparedList": {
+      "title": "ResearchAutomationSupplementalPreparedList",
+      "description": "Read-only reload inventory for one run. Every listed package passed prefix, origin-binding, context and manifest/member verification; any corrupt package fails the whole read closed. Listing performs no method replay, provider authentication or admission.",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "workspaceId", "runId", "packages"],
+      "properties": {
+        "contractVersion": { "const": "automation-supplemental-prepared-list-v1" },
+        "workspaceId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "runId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "packages": { "type": "array", "maxItems": 100, "items": { "$ref": "#/$defs/preparedPackage" } }
+      }
+    },
+    "sourceContext": {
+      "description": "Server-created package member at automation-supplemental/context.json. It binds the exact normalized request (files sorted by path), family, descriptor path and run binding; uploaded files can never occupy its path. Not an API message.",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "declaration", "workspaceId", "runId", "runBindingSha256", "request"],
+      "properties": {
+        "contractVersion": { "const": "automation-supplemental-context-v1" },
+        "declaration": { "const": "Operator declarations, not authenticated provider metadata. Preparation is not revision admission." },
+        "workspaceId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "runId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
+        "runBindingSha256": { "$ref": "research-automation-api.schema.json#/$defs/digest" },
+        "request": { "$ref": "#/$defs/request" }
+      }
+    }
+  }
+}

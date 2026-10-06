@@ -61,6 +61,15 @@ jobs:
           fi
           echo "mode=$mode" >> "$GITHUB_OUTPUT"
           echo "Validation scope: $mode" >> "$GITHUB_STEP_SUMMARY"
+      - name: Set up optional PDF verification for full checks
+        if: steps.scope.outputs.mode == 'full'
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+      - name: Install pinned local PDF verifier
+        if: steps.scope.outputs.mode == 'full'
+        run: |
+          python3 -m pip install --only-binary=:all: --require-hashes -r scripts/requirements-pageindex.txt
       - name: Run full integration checks
         if: steps.scope.outputs.mode == 'full'
         run: npm run check

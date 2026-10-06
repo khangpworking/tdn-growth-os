@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-bounded-method-snapshot.schema.json",
+  "title": "AutomationBoundedMethodSnapshot",
+  "description": "Bounded gates recomputed from one exact Foundation package descriptor. Gates only: no decision claims, approval, forecast, causal estimate or AI execution.",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "binding", "selection", "descriptorSha256", "output"],
+  "properties": {
+    "contractVersion": { "const": "automation-bounded-method-snapshot-v1" },
+    "binding": { "$ref": "#/$defs/binding" },
+    "selection": { "$ref": "automation-bounded-report-revision.schema.json#/$defs/selection" },
+    "descriptorSha256": { "$ref": "#/$defs/digest" },
+    "output": { "$ref": "bounded-analysis-gates.schema.json" }
+  },
+  "$defs": {
+    "uuid": { "type": "string", "format": "uuid" },
+    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "binding": {
+      "title": "AutomationBoundedMethodBinding", "type": "object", "additionalProperties": false,
+      "required": ["workspaceId", "runId", "startSha256", "scopeSha256", "previousPairId"],
+      "properties": {
+        "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" },
+        "startSha256": { "$ref": "#/$defs/digest" }, "scopeSha256": { "$ref": "#/$defs/digest" },
+        "previousPairId": { "$ref": "#/$defs/digest" }
+      }
+    }
+  }
+}

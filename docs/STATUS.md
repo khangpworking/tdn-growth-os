@@ -1,5 +1,888 @@
 # Trạng thái hiện tại
 
+## PageIndex Cloud: connector truy nguồn tùy chọn (04/10/2026)
+
+Đã thêm backend/CLI truy vấn PDF trong source package được replay xác minh,
+kiểm tra trích dẫn Cloud với text trích từ PDF gốc tại máy. Kết quả giữ trạng
+thái UNREVIEWED; không tự thêm vào báo cáo hoặc bù dữ liệu thiếu. Sáu kiểm
+tra tập trung và strict TypeScript trên Linux PASS; SQLite giữ nguyên byte,
+output ngoài Git có quyền riêng tư, không tự retry lượt trả phí. Không chạy
+kiểm tra Windows, không gọi Cloud thật mới hay cập nhật Fedora. UI/upload
+tự động và release gate còn lại. [Phạm vi](tasks/research-pageindex-cloud-connector.md).
+
+## Nguồn bổ sung và lượt Insight construct mới (04/10/2026)
+
+Intake M08/bounded và POST OWNER đã qua generation/typecheck Linux; kiểm tra
+owner lưu/replay PASS, hai kiểm tra HTTP gồm tách phiên bản PASS. Client kiểm
+tra hash/tệp theo yêu cầu đã gửi, không tự retry hoặc tạo báo cáo; nhóm client
+20/20 và frontend typecheck PASS. Danh sách nguồn sau reload đang được nối,
+chưa có UI hoàn chỉnh, nguồn thật đủ tính hoặc triển khai Fedora.
+
+Lượt construct/provenance Insight đã chạy bốn lô với đúng prompt mới, tổng
+476,776 giây, 4/4 VALID cấu trúc. Đã đối chiếu prompt lưu thật và replay không
+gọi model/không mutation. Nghiệp vụ đang audit nghĩa; không tăng số section
+hoàn tất. [Bằng chứng](handoffs/research-insight-real-pilot-results.md#constructprovenance-follow-up-executed-0410).
+
+## M08: kiểm tra nguồn chi tiết Shopee thật (04/10/2026)
+
+Một lượt exact-URL đã xong, provider báo khoảng 0,02005 USD. Đúng shop/item ID
+nhưng giá và giá biến thể đều null; không có quy cách đủ điều kiện tính. Title
+trả về khác quy cách trong URL cũ, không dùng title làm khối lượng. Không nối
+connector này như nguồn giá đã xác minh, không cập nhật operator hay dữ liệu
+nghiệp vụ. [Bằng chứng](handoffs/research-m08-quote-source.md#exact-url-qualification-result-04102026).
+Nguồn-native M08 vẫn thiếu; intake JSON bổ sung R1 đang được triển khai riêng.
+
+## Diễn giải tiếng Việt và audit Insight (04/10/2026)
+
+Prompt 1.2.0 cho M11/M12/I15 đã tích hợp theo `humanizer-vi`; contract generation,
+typecheck và 10/10 kiểm tra Linux PASS. Ba kết quả synthetic lưu trước bản sửa
+vẫn replay với cùng bytes; sáu prompt cũ không đổi. Chưa đo chất lượng tiếng Việt
+trên output model và chưa bật trên Fedora.
+
+Audit nghiệp vụ Insight follow-up đã xong, chưa duyệt nội dung. Claude đã sửa
+quy tắc chung I04/I09; bốn kết quả thật cũ replay không gọi AI hay mutation.
+Đã truy đúng prompt của lượt follow-up: bản đó chưa có các sửa đổi provenance
+và construct mới, nên không gán cải thiện quan sát được cho bản sửa sau.
+Không tăng số section hoàn tất. Xem [prose](handoffs/research-vietnamese-synthesis-prose.md)
+và [pilot](handoffs/research-insight-real-pilot-results.md).
+
+## Insight: đối chiếu prompt trên nguồn thật (04/10/2026)
+
+Lượt follow-up cùng 20 review đã xong: bốn lô VALID cấu trúc, tổng 452,337 giây.
+Đã khôi phục context và partial states, tách đánh giá trái chiều, bỏ một quan hệ
+thời gian không đủ căn cứ. I09 còn nghi vấn ý định mua lại bị coi là mong muốn;
+session nghiệp vụ đang audit. Đã sửa câu prompt mâu thuẫn về disagreement theo
+audit baseline. Linux 15/15 và replay bốn output follow-up PASS, không gọi model
+lại, không mutation. Không duyệt nội dung, không PDF/deploy và không tăng số
+section hoàn tất. [Bằng chứng](handoffs/research-insight-real-pilot-results.md).
+
+## Pre-pilot Insight bằng model và nguồn thật (04/10/2026)
+
+Đã chạy gpt-6.1-sol qua service production riêng: 20 review, bốn lô đều VALID
+cấu trúc, tổng 273,555 giây; chi phí tiền chưa xác minh. Audit thấy bỏ sót context,
+partial state và gộp clause, nên chưa chấp nhận chất lượng nội dung. Đã sửa prompt
+generic theo D06/D07, Linux 15/15 PASS; bốn exact retry giữ kết quả cũ, không gọi
+model hoặc mutation. Business audit/prompt follow-up còn mở; không acceptance,
+PDF hoặc deploy. [Bằng chứng](handoffs/research-insight-real-pilot-results.md).
+
+## Replay nguồn review thật qua luồng báo cáo riêng (04/10/2026)
+
+Tạo bản sao SQLite/artifacts riêng trên Linux và dùng service/worker hiện tại
+để sinh Market + Insight draft từ exact native package jelly. Reader giữ đúng
+62 dòng, 20 review đủ điều kiện và vị trí gốc. Nguồn gốc không đổi; không gọi
+provider/model, không coding acceptance và không chạm operator live. Bộ đối
+chiếu nghiệp vụ vẫn đang được lập; benchmark, PDF và nghiệm thu ba case còn mở.
+[Bằng chứng](handoffs/research-insight-real-pilot-preparation.md#production-path-retained-source-run-0410).
+
+## Client bổ sung nguồn giá và bounded methods (04/10/2026)
+
+Đã sửa client trình duyệt từ chối hai request quote/bounded hợp lệ mà backend
+đã hỗ trợ. Dùng schema có sẵn, giữ exact package/pair/retry và KEEP hai nguồn
+khác; không tự retry hoặc tự chọn nguồn. Regression RED trước sửa, Linux nhóm
+client/UI 10/10 và typecheck/build PASS. Chưa có source picker/intake hoặc nguồn
+thật; không tăng section completion và chưa triển khai Fedora.
+[Handoff](handoffs/research-supplemental-method-client.md).
+
+## UI đề xuất Insight theo lô toàn corpus (04/10/2026)
+
+Đã nối chạy tường minh, xác nhận, dừng và retry đúng yêu cầu cho chín family
+Insight. Claude triển khai; GPT audit và sửa mất identity khi read-back không
+khớp, cùng lỗi trả focus sau hủy dialog. Linux 17/17, frontend typecheck/build
+PASS; Chromium synthetic desktop/mobile PASS với 240 bản ghi theo 100/100/40.
+Không tự duyệt hoặc tạo report. Finish review độc lập: SHIP trong phạm vi panel.
+Benchmark dữ liệu/model thật còn mở, chưa triển khai Fedora hoặc tăng section completion.
+[Handoff](handoffs/research-insight-model-ui.md). Các đoạn dưới là checkpoint
+lịch sử, không còn có nghĩa UI khởi tạo chưa được nối.
+
+## Mở rộng bằng chứng cho M11/M12/I15 (04/10/2026)
+
+Packet/input/prompt v1.1 nhận quan sát M05 nguyên văn và hành vi I04 có bối cảnh
+I02 cùng nguồn, không coi chúng là pattern đã xác minh. Giữ zero, kỳ chưa rõ,
+attribution và phản chứng; không tự tính xu hướng hoặc duyệt phương án.
+Đọc lịch sử giữ adapter/prompt cũ, không gọi lại model. Linux generation/root
+typecheck PASS; nhóm trọng tâm 9/9 và API/nguồn/transport 38/38 PASS. Đã nối caller
+report nhưng chưa nghiệm thu dữ liệu thật, visual/PDF hoặc triển khai Fedora.
+[Handoff](handoffs/research-decision-support-v2.md).
+
+## Client tạo đề xuất Insight đã kiểm chứng trên Linux (04/10/2026)
+
+Trình duyệt có client gọi model endpoint, dùng validator từ schema và phân biệt
+đề xuất với chưa gọi/invalid/unknown. Không retry tự động hoặc tự duyệt.
+Linux typecheck và build PASS; nhóm client + UI hiện có 9/9 PASS. Nút chạy và
+chia lô toàn corpus đang được nối, chưa nghiệm thu hoặc triển khai.
+[Handoff](handoffs/research-insight-model-client.md).
+
+## Đã nối operator và API cho đề xuất Insight bằng model (04/10/2026)
+
+Cấu hình riêng mặc định tắt, endpoint OWNER gắn đúng nguồn/rule/batch, kết quả
+chờ duyệt và retry từ dữ liệu đã lưu. Shutdown chờ các lượt model kết thúc trước
+khi đóng database; không tự gọi lại outcome unknown. Claude làm transport và
+cấu hình, GPT audit/nối API/kiểm tra Linux. Nhóm cuối 9/9 PASS; contract generation,
+backend/frontend typecheck và diff check PASS. Chưa UI khởi tạo, benchmark thật,
+deploy hoặc tăng số section hoàn tất.
+[Handoff](handoffs/research-insight-model-runtime-api.md).
+
+## Backend đề xuất coding bằng model đã nối (04/10/2026)
+
+P4.4: dịch vụ nhận nguồn/rule chính xác, chạy model qua transport tường minh,
+lưu kết quả rồi tạo proposal pending cho chín family Insight. Lô tối đa 100
+record không thu nhỏ corpus; retry không gọi lại; kết quả đến trễ không ghi đè.
+Migration 0047 mở rộng ledger hiện có, chưa chạy trên live. Linux generation,
+typecheck, journey ba ngành synthetic và nhóm trọng tâm 16/16 PASS. Legacy và
+migration-affected 91/91 PASS; kiểm tra cuối source/model 7/7 PASS, không cộng
+nhóm có overlap. Operator/API đã nối ở checkpoint trên; UI khởi tạo, benchmark
+model thật và nghiệm thu nghiệp vụ còn mở; không tăng completion count.
+[Handoff](handoffs/research-insight-model-proposals.md).
+
+## Duyệt và xuất coding semantic cho thêm năm section (04/10/2026)
+
+I02/I04/I05/I07/I08 đã nối nguồn → proposal → receipt v2 → report revision,
+UI hiển thị/chọn đúng từng mục, giữ v1 lịch sử. Linux nhóm cuối 14/14, typechecks, ba case
+synthetic persist/report, HTTP legacy và browser desktop/mobile PASS. Không
+tự duyệt, thu nhỏ corpus hoặc suy polarity từ sao. Model proposal P4.4 vẫn
+chưa nối; không có real-data acceptance hoặc tăng completion count. Không
+đổi migration, dữ liệu thật hay Fedora live.
+[Handoff](handoffs/research-insight-semantic-selection.md).
+
+## Đề xuất coding nguyên văn I10/I13 (04/10/2026)
+
+API OWNER đã tự tìm cụm từ trong codebook được duyệt và lưu đề xuất có vị trí
+nguồn, không tự chấp nhận. Không khớp vẫn PENDING; giữ bản ghi trùng, loại trừ và
+mẫu số đúng nghĩa. Linux typechecks PASS, matching/selection 5/5, HTTP 1/1;
+luồng coding ba case synthetic trước đó vẫn PASS. Không model/provider call,
+thay migration hoặc cập nhật live. UI khởi tạo và pipeline model P4.4 còn mở;
+không tăng số section hoàn tất. [Handoff](handoffs/research-insight-literal-proposals.md).
+
+## M02/M13 và chạy lại nguồn thật đã lưu (04/10/2026)
+
+Market v10 tách kỳ yêu cầu, kỳ Metric khai báo và cửa sổ truy vấn; nối dấu vết
+phân loại đã chọn, không kế thừa sang nguồn khác. Linux typecheck, report owner
+12 PASS + 1 PDF skip, API ba ngành 1 PASS; browser bốn view thật đã lưu PASS.
+Thermos/fan mỗi case có 78 quan sát M05, 39 bản ghi M06, 3 ngày ra mắt M09;
+M08 vẫn thiếu điều kiện quy đổi. Jelly run gốc không có COLLECTION, không thay
+bằng nguồn khác. Replay giữ nguyên database gốc và 88 artifact đã kiểm tra,
+không gọi provider hoặc thay Fedora live. Không tăng completion count.
+[Handoff](handoffs/research-m02-source-scope.md).
+
+## M11/M12/I14/I15: đã hiển thị hoạt động AI riêng từng mục (04/10/2026)
+
+API/read owner và RunView đã nối các section có dữ liệu, không biến mục vắng
+thành 0 lượt gọi hoặc phản hồi hợp lệ thành phân tích hoàn tất. Linux typechecks,
+37/37 affected tests, API journey ba ngành 1/1, production build và browser
+desktop/mobile PASS. Chi phí chưa biết vẫn ghi chưa biết. Chưa bật live, gọi
+provider hoặc tăng completion count. Tiếp tục nguồn/phương pháp thay vì polish
+trạng thái. [Handoff](handoffs/research-decision-activity.md).
+
+## M11/M12/I15: cấu hình operator đã nối, chưa bật live (04/10/2026)
+
+Mỗi section cần cờ bật và model tường minh riêng; I14 không tự bật thêm lượt gọi.
+Linux transport/config 5/5 và API-worker journey ba ngành PASS. Bản nháp đã vào
+hai báo cáo qua API; revision/read không gọi lại AI. Chưa gọi provider thật,
+đổi Fedora hoặc tăng số section hoàn tất. Còn activity UI, mở rộng nguồn và
+nghiệm thu thật/web/PDF. [Handoff](handoffs/research-decision-runtime.md).
+
+## M11/M12/I15: bản nháp có nguồn đã vào hai báo cáo (04/10/2026)
+
+GPT nối report worker và exact retained replay; Claude viết phần trình bày,
+GPT audit và chạy Linux typecheck, nhóm ảnh hưởng 38 PASS + 1 optional PDF skip.
+Sáu HTML synthetic ba ngành qua 12 lượt Chrome desktop/mobile: citation targets,
+keyboard disclosure, không tràn ngang/page error. Không gọi provider hoặc đổi
+runtime live. Giữ draft cần người dùng xem xét, không tự chọn phương án hoặc
+tăng completion. Còn nối explicit runtime configuration/activity, mở rộng support
+ngoài I02 theo authority, nghiệm thu dữ liệu thật và PDF. [Handoff](handoffs/research-decision-report-integration.md).
+
+## M11/M12/I15: adapter thực thi đã kiểm tra, chưa nối report caller (04/10/2026)
+
+Claude tách lifecycle I14 dùng chung; GPT audit và thêm adapter ba section,
+cấu hình đóng riêng, migration 0046 và kiểm tra dữ liệu lịch sử. Linux generation/
+typecheck PASS; nhóm execution/migration 29/29, nguồn/method 31/31 và nhóm
+migration-affected 76/76 PASS. Chưa bật provider, đổi database live hoặc deploy.
+Report vẫn hiển thị packet; tiếp theo nối caller, replay và draft có nguồn.
+Không tăng số section hoàn tất. [Handoff](handoffs/research-shared-synthesis-execution.md).
+
+## M11/M12/I15: packet nguồn đúng phiên bản (04/10/2026)
+
+Đầu vào/prompt model đã qua Linux generation, typecheck và nhóm owner 24/24;
+chưa có retained execution cho ba section. Đã gỡ timeout tái hiện ở journey API
+ba ngành bằng so sánh byte trực tiếp, không bỏ kiểm tra nguồn hoặc nâng timeout;
+lượt riêng PASS 94,94 giây. Nhóm API/quote/report: 20 PASS, 1 optional PDF skip;
+nhóm packet/input cuối 5/5. Các lượt có test trùng, không cộng thành tổng.
+
+Ba packet đã nối lưu, hiển thị và replay; Market ghim đúng sibling Insight và
+không dùng nhận định I14 như nguồn. Giữ riêng observation/declaration, câu nguồn,
+qualifier và scope; owner choice luôn rỗng. Linux 31 PASS, 1 optional PDF skip;
+negative control counterevidence relation thất bại đúng assertion. [Handoff](handoffs/research-decision-packets-integration.md).
+Chưa sinh/lưu AI candidate cho ba mục, chưa real-data/visual acceptance hoặc
+triển khai. Đây vẫn là inventory, không tăng số section phân tích hoàn chỉnh.
+
+## M08: nguồn giá có cấu trúc vào báo cáo (04/10/2026)
+
+Exact package đi qua revision/API, phép tính có nguồn, Market renderer và
+historical replay; Insight không đổi. Giá gói/đơn vị/100g chỉ xuất khi đủ điều
+kiện, giữ chính xác phân số và nguồn khai báo. Linux generation/typecheck PASS;
+affected 49 PASS, 1 optional PDF skip, negative source-replay control và lượt
+positive cuối 1/1 PASS. [Bằng chứng](handoffs/research-m08-quote-source.md).
+Producer provider-native, UI intake, visual và nghiệm thu thật vẫn mở.
+Không merge/deploy/live write hoặc tăng số section phân tích hoàn chỉnh.
+
+## G: nối nguồn vào M10/I11/I12/I16 (04/10/2026)
+
+Exact source package đã đi qua revision/API, lưu snapshot và đọc lại kiểm chứng
+nguồn trong hai báo cáo. KEEP giữ nguồn cũ; SKIP chỉ bỏ khỏi bản mới. Liên kết
+bằng chứng dẫn tới appendix có nội dung đầy đủ, không tải file không tồn tại.
+Linux affected **23/23 PASS**, lượt cuối **14 PASS, 1 optional PDF skip**;
+negative control chứng minh bỏ source replay sẽ làm test thất bại. Các nhóm
+test trùng nhau, không cộng tổng. [Bằng chứng](handoffs/research-g-source-snapshot.md).
+Đây vẫn là inventory/gate, chưa forecast hay phân tích hoàn chỉnh. UI chọn nguồn,
+nghiệm thu nguồn thật và visual web/PDF còn mở. Không merge/deploy/live write.
+
+## B2: tích hợp UI duyệt Insight (04/10/2026)
+
+Claude đã bàn giao; GPT audit và sửa mất bản nháp khi thu gọn/tải lại lỗi,
+chọn trích dẫn sau lần xuất hiện thứ 50 và trả focus khi hủy xác nhận.
+Linux frontend typecheck/build và nhóm ảnh hưởng **18/18 PASS**; regression
+có RED/GREEN. Chrome desktop/mobile synthetic hoàn tất bốn thao tác riêng,
+không lỗi trang/tràn ngang. [Bằng chứng và giới hạn](handoffs/research-b2-insight-ui.md).
+Đây là đường hỗ trợ OWNER, chưa tự động coding, chưa real-data acceptance hoặc
+finish approval; không tăng số section hoàn thành. Không merge/deploy/live write.
+
+## Breadth M09 và nguồn G độc lập Metric (04/10/2026)
+
+Đã nối `launch_date` trong capture Kalodata hợp lệ vào M09 dưới dạng lời do nguồn
+khai báo, không là nguyên nhân tăng trưởng. Giữ ngày mâu thuẫn, gộp lần thu lặp,
+không đổi report cũ. Linux root typecheck + 31/31 nhóm ảnh hưởng PASS; regression
+có RED/GREEN và replay v1 bằng code v2 giữ nguyên digest. G M10/I11/I12/I16 có
+đường verified package không cần Metric, 7/7 PASS; chưa nối vào automation.
+[Handoff và giới hạn](handoffs/research-b3-source-method-breadth.md).
+UI Insight của Claude đang triển khai. ZCode đọc một file thành công nhưng review
+nhiều file timeout 240 giây, GPT tiếp quản. Chưa có real-data acceptance, full
+release, merge/deploy hoặc tăng số section phân tích hoàn chỉnh.
+
+## B2: HTTP OWNER và client Insight (04/10/2026)
+
+Claude đã nối lịch sử coding exact-pair và ba thao tác OWNER vào service có sẵn.
+GPT audit, thêm validator trình duyệt, client và request tạo revision từ biên
+nhận Insight. Linux nhóm HTTP/nguồn/report: **48 PASS, 1 optional PDF skip**;
+client/revision **7/7 PASS**, frontend typecheck/build PASS. Regression phản hồi
+sai request-kind có RED/GREEN. Không xác nhận bằng chứng chỉ từ thông báo worker.
+
+ZCode hoàn tất lượt đọc code nhưng lượt viết client timeout 420 giây; GPT đã
+tiếp quản và kiểm tra file. UI chọn span/quan hệ/codebook và nghiệm thu dữ liệu
+thật vẫn mở. Chưa merge/deploy, không tính bốn section hoàn thành phân tích.
+
+## B2: biên nhận Insight vào phiên bản báo cáo (04/10/2026)
+
+Đã nối lựa chọn I06/I09/I10/I13 vào revision worker và verified historical
+reader, dùng nguyên nguồn KEEP và calculator hiện có. Claude mở rộng renderer;
+GPT tích hợp và sửa lỗi hiển thị số 0 đã kiểm chứng thành thiếu kết quả. Linux
+generation/typecheck PASS; nhóm ảnh hưởng **46 PASS, 1 PDF test skipped**.
+Regression zero có RED trước sửa, GREEN sau sửa. Bộ ba synthetic chứng minh
+revision giữ nguyên Market và báo cáo cũ, không dispatch AI mới; KEEP giữ coding,
+SKIP bỏ coding khỏi bản mới, lịch sử vẫn đọc được. Preview riêng đã xuất sáu PDF
+synthetic; desktop/mobile, disclosure, citation và cuộn bảng bằng bàn phím đã
+kiểm tra. PDF có header bảng đứng riêng và khoảng trắng lớn cần sửa trước duyệt
+xuất bản. Đây chưa phải nghiệm thu dữ liệu thật hoặc full release.
+
+Chưa có OWNER HTTP/API và UI chọn span cho nhóm Insight; không coi service
+caller là bằng chứng authentication. Không merge/deploy hay duyệt nghiệp vụ thật.
+Xem [handoff B2](handoffs/research-b2-insight-coding.md).
+
+## B2: lưu coding Insight theo đúng nguồn (04/10/2026)
+
+Đã nối bộ đọc nguồn lịch sử của Claude với owner do GPT triển khai: duyệt quy
+tắc, lưu đề xuất, chọn nhận định và đọc lại biên nhận bất biến. Bốn nhóm
+I06/I09/I10/I13 dùng lại method hiện có; phần chưa chọn vẫn pending, không thu
+nhỏ corpus để mở tỷ lệ. Linux generation/typecheck và nhóm ảnh hưởng **118/118
+PASS**, gồm ba ngành synthetic và nâng schema v44 lên v45. Audit độc lập không
+phát hiện lỗi trọng yếu. [Handoff](handoffs/research-b2-insight-coding.md).
+
+OWNER hiện là trusted caller của service, chưa chứng minh authentication HTTP.
+Chưa nối receipt Insight vào report revision, HTTP/UI; chưa duyệt dữ liệu thật,
+chưa full release hoặc deploy. Bốn section chưa tự động hóa hoàn chỉnh.
+
+## B1-A: UI duyệt rule/assignment và helper projection Insight (04/10/2026)
+
+UI duyệt Metric rule/assignment đã có; gate write source-ready và KEEP/KEEP có
+regression RED trước khi sửa, GREEN sau khi sửa. Linux frontend full 219/219,
+focused 19/19, typecheck/build PASS. Independent finish review trả Ship; design
+documenter độc lập yêu cầu giữ DESIGN.md không đổi. Đây mới là tích hợp kỹ thuật
+UI, chưa phải acceptance thật.
+
+I06/I09/I10/I13 có `selected-insight-projection.ts` và schema
+`automation-insight-selection` đóng; Linux root typecheck và 17 focused tests
+PASS; audit không còn lỗi vật chất. Helper giữ nguyên corpus đầy đủ và pending,
+gọi calculator có sẵn, NHƯNG chưa có Insight receipt/persistence/revision/UI
+đã xác thực. Bốn section chưa automation-complete; nghiệm thu thật ba case của
+tất cả vẫn mở. Không claim deployed/full release/real acceptance.
+
+## B1-A: phân loại đã duyệt tạo cặp báo cáo mới (04/10/2026)
+
+Đã nối exact receipt vào calculator có sẵn và report revision, giữ nguyên bản cũ.
+M03/M04 hiển thị ALL/WIDE/CORE và các mẫu số riêng, không coi mẫu là toàn thị trường.
+Đã sửa lỗi renderer và lỗi gọi lại AI Insight khi chỉ đổi phân loại Metric; kiểm tra
+RED hai lượt gọi, GREEN còn một lượt. Linux typecheck và nhóm liên quan 78 PASS,
+một optional PDF skip. [Handoff](handoffs/research-b1-classified-metric-revision.md).
+UI duyệt rule/assignment đang là bước tiếp theo. Chưa nhãn thật, nghiệm thu đủ nội
+dung 30 section, PDF ba case ở cùng tree, full release CI hoặc triển khai Fedora.
+
+## B1-A: proposal và biên nhận duyệt membership Metric (04/10/2026)
+
+Backend/API đã nối đề xuất bất biến, chọn từng phần và biên nhận OWNER với
+đúng nguồn/input/rule/report pair. Pending không thành UNKNOWN; chồng lắp không
+đếm hai lần. Đã sửa hai lỗi có RED/GREEN: biên nhận cũ phụ thuộc đợt sau hỏng,
+và report pair mới tự thừa hưởng approval cũ. Linux typecheck và nhóm ảnh hưởng
+95/95 PASS; migration 0044 chỉ chạy trên dữ liệu synthetic. [Handoff](handoffs/research-b1-metric-membership.md).
+Chưa UI, classified report revision, nhãn thật, full release CI hoặc deploy;
+M03/M04 chưa hoàn thành. ZCode smoke đọc schema PASS nhưng review hai file
+timeout 240 giây, không coi là approval độc lập. GPT audit và sửa production owner.
+
+## B1-A: backend duyệt quy tắc Metric (04/10/2026)
+
+GPT đã thêm API OWNER duyệt exact rulebook theo phạm vi đã xác nhận, đọc lại
+theo adoption ID và danh sách đã kiểm chứng. Actor/time do máy chủ cung cấp;
+retry giữ nguyên dữ liệu, version cũ bất biến, không tự duyệt nhãn hoặc đổi báo
+cáo. Migration mới 0043; Linux generation/typecheck và nhóm ảnh hưởng 94/94 PASS.
+[Handoff](handoffs/research-b1-metric-rule-adoption.md). Chưa UI, membership receipt,
+classified revision, rule adoption thật hoặc deployment. M03/M04 chưa hoàn thành.
+
+## B1: I03/I17 dùng chung coverage và trace (03/10/2026)
+
+GPT đã nối projection vào cả native review và exact collection. Số dòng, bản ghi
+duy nhất, disposition và các nhóm khai báo/chờ/giữ lại tách riêng; giữ nguyên
+nguồn thô và không tính metadata là phân tích hoàn chỉnh. Linux typecheck PASS,
+hai suite tích hợp 27 PASS, nhóm projection/report/preview 13 PASS + một optional
+skip. Chromium desktop/mobile không lỗi trang hoặc overflow toàn trang; liên kết
+và disclosure bàn phím hoạt động. [Handoff](handoffs/research-b1-corpus-trace.md).
+Claude hết quota; ZCode timeout terminal không có code, GPT tiếp quản. Chưa deploy,
+chưa nghiệm thu dữ liệu thật. Metric adoption/receipt/classified revision còn mở;
+business session xác nhận hai thao tác OWNER riêng, không thay OWNER duyệt J/T/F.
+
+## Điều phối lại toàn bộ 30 section (03/10/2026)
+
+OWNER giao ba luồng song song: Claude Opus 5.5 high, ZCode GLM-5.3-Flash high,
+GPT điều phối/audit/tích hợp và code phụ. Xem [plan v2.4](tasks/research-automation-execution-plan-v2.vi.md)
+và [bảng 30 section](research/research-30-section-progress.md). Hai tài liệu này
+thay phần phân công/trọng tâm cũ bên dưới, không thay evidence lịch sử.
+Đợt B1 ưu tiên receipt membership mở đường M03/M04 và corpus/trace I03/I17;
+không tiếp tục polish M01/I14 làm chậm các nhóm độc lập. JEV chỉ dùng có mục
+đích và audit, không tự acceptance. Chưa có acceptance đủ 30 section/ba case
+ở tree hiện tại; không coi số test hoặc PDF là phần trăm hoàn thành.
+
+## P5 transport và nghiệm thu bản in (03/10/2026)
+
+Claude đã thêm transport CLIProxy tùy chọn cho I14, mặc định tắt, chỉ nối vào
+writer. GPT chạy Linux typecheck và nhóm transport/operator/API/native-review:
+36/36 PASS. Acceptance HTTP/worker với gateway giả lập gọi đúng một lần, tạo
+report pair và replay cùng byte sau khi mở lại read-only. Audit Luna không thấy
+blocker reachable. Không gọi provider thật hoặc bật cấu hình trên operator;
+model và giới hạn activation phải được ghi rõ trước khi bật.
+Xem [handoff transport](handoffs/research-p5-i14-transport.md).
+
+Đã sửa lỗi phân trang PDF: J-Market synthetic giảm 132 xuống 78 trang; T/F là
+79/78 trang, cả ba Insight là 28 trang. Sáu export dùng renderer production,
+giữ đủ quote/digest đã đối chiếu và font Unicode nhúng. Kiểm tra hình ảnh mẫu
+xác nhận bìa/mục lục một trang và M01 theo ngay cảnh báo. Linux typecheck PASS;
+nhóm report/Metric/native/exact-review 53 PASS, một test Chromium tùy chọn skip
+(sáu export thật được chạy riêng). M01 vẫn quá dài vì inventory/provenance;
+P6.4 và nghiệm thu thiết kế cuối chưa đóng. Xem
+[handoff bản in](handoffs/research-p5-print-pagination.md).
+
+Business session đã AGREE bản M01 SUMMARY_DRAFT theo A41 dù ownerQuestion UNSET:
+catalog order, code bind số/citation, giữ HUMAN_REVIEW_REQUIRED và giới hạn,
+không tự tạo ưu tiên/kết luận OWNER. Membership ngành J/T/F chưa được adoption
+đầy đủ; acceptance nhãn theo lô không thay quyền duyệt codebook. Xem
+[clarification P5/Membership](research/research-p5-business-clarification-20261003.md).
+Chưa nghiệm thu nội dung thật hoặc release. ZCode hoãn theo OWNER; JEV vẫn shadow.
+
+## P5 follow-up: bối cảnh literal tới I14 (03/10/2026)
+
+Đã tái hiện và sửa mismatch: parser giữ cụm I02 trong cả field và qualifiers,
+còn admission v1 chặn mọi qualifier. Business session AGREE ngoại lệ hẹp theo
+exact adopted tuple. Admission 1.1.0 chỉ cho bản sao matcher đi qua khi owning
+bridge đã xác minh projection; generic/custom coding, điều kiện/phủ định và
+role/time đơn độc vẫn không đủ. Không đổi lexicon hoặc xóa qualifier. Replay
+lịch sử giữ rule v1, không gọi lại model. Linux nhóm đầu PASS 42/42, nhóm cuối
+PASS 30/30 (chồng lắp, không cộng tổng). Audit Luna kiểm tra owning paths và
+không tìm thấy bypass còn chặn. Chưa phải full release. Chi tiết/phạm vi chưa hoàn thành tại
+[handoff literal context](handoffs/research-p5-literal-context-admission.md).
+
+Đã đối chiếu P3.2a/P4.3a: nhãn/provenance khai báo hiện tại chưa phải receipt
+OWNER đã xác thực. [Ranh giới triển khai batch](tasks/research-batch-acceptance-implementation.md)
+giữ contract lịch sử, yêu cầu đi đến report revision mới thay vì chỉ lưu receipt
+hoặc làm recipe offline. Chưa triển khai batch, không thêm gate cho mapping
+literal rõ nghĩa đã được adoption. Slice transport I14 tùy chọn của Claude
+(job `task-musi13a2-sk3eu1`) đã tới checkpoint Linux nêu trên. Không bật model
+hoặc đổi operator thật.
+
+## P5 checkpoint: retained I14 và JEV shadow (03/10/2026)
+
+Đã nối helper lưu lần xử lý I14 vào report owner qua transport tùy chọn,
+mặc định tắt. Migration 0042 chỉ chạy trên database kiểm tra Linux; operator
+thật chưa thay đổi. Read/PDF kiểm tra đúng execution đã kết thúc và các artifact
+đã lưu, không gọi model. Khởi động lại đánh dấu lần gọi chưa rõ kết quả trước
+khi xếp lại công việc dựng báo cáo. Nhận định AI vẫn là bản đề xuất chưa duyệt.
+
+Linux typecheck PASS; nhóm focused gồm admission/rendering, retention, migration,
+ba ngành synthetic và preview PASS 34/34. Nhóm luồng automation/native/exact
+PASS 41/41. Các nhóm có kiểm tra lặp, không cộng thành tổng coverage. Đối chứng
+đưa lỗi yêu cầu parent RUNNING trở lại làm regression replay lịch sử thất bại
+đúng `PARENT_NOT_RUNNING`; đã khôi phục code và kiểm tra lại PASS.
+
+Impeccable đã dẫn tới sửa M01/I14 mobile, giới hạn lặp và truy nguồn quá dài;
+không đổi hướng thiết kế đã duyệt. JEV chỉ thử shadow trên sáu ví dụ giả lập,
+không gửi dữ liệu riêng tư: sáu nhãn khớp kỳ vọng, nhưng xác suất thay đổi khi
+lặp. Chưa promotion, chưa nhãn business nào được tự chấp nhận. Xem
+[handoff P5/JEV](handoffs/research-p5-retention-and-jev-shadow.md).
+
+P5/R1/R2 và checklist đầy đủ 30 section vẫn mở. Chưa có kiểm tra release toàn
+bộ, nghiệm thu nội dung thật ba ngành hoặc merge/deploy cho tree hiện tại.
+
+## Kế hoạch thực thi đa ngành v2.3 (03/10/2026, đang thực thi)
+
+GPT và Claude Opus 5.5 high đã thảo luận hai vòng và chốt đề xuất
+[checklist thực thi](tasks/research-automation-execution-plan-v2.vi.md). OWNER đã giao
+Claude Opus 5.5 xhigh làm coder chính, GPT audit và làm phần độc lập.
+Ưu tiên sửa source isolation cho Metric/native/manual, nối intake UI, triển khai
+nguồn + Market / Insight + tổng hợp / report UI song song, nghiệm thu ba case
+trên cùng build. Có checklist đủ 30 section và JEV shadow tùy chọn; không tính
+gate hoặc proposal AI là phân tích hoàn chỉnh. R1 có hỗ trợ nguồn và R2 khép kín
+được tách rõ. Slice đầu P1.1 đã có code và regression cho exact Metric lookup
+và thu hẹp native discovery; đang audit/kiểm tra trên bản sao Linux riêng.
+Foundation 0039 đã thêm marker cho attachment do automation tạo ngay trong intake;
+inventory thủ công loại marker trước khi tính cap. Nguồn lịch sử không marker
+vẫn giữ nguyên. Analysis admission/input freezing đã có slice backend nội bộ 0040;
+0041 đã thêm attempt/version bổ sung cùng API đọc, tạo và hủy; API nhận Metric
+XLSX, inventory đã lưu và UI chốt nguồn cùng scope đã có kiểm tra Linux. UI
+version bổ sung đã có kiểm tra Linux/synthetic; nghiệm thu thật vẫn mở. Không tick P1.1
+chỉ vì các slice storage/lookup đã được viết. Business session đã review có điều kiện ngữ nghĩa
+batch acceptance; không có scope/label/coding thật nào được chấp nhận thay OWNER.
+Baseline vẫn là `0116091fd5dc0902594f92d969dfb3ee0732c9c8`; chưa merge/deploy.
+
+OWNER đã duyệt nguồn chốt cùng xác nhận phạm vi; nguồn bổ sung sau đó tạo report
+version mới, không ghi đè bản cũ và không tự thu trả phí. Đổi phạm vi tạo run mới.
+SSH Fedora đã kết nối bằng đúng khóa WSL. Kiểm tra trên scratch Linux: typecheck
+PASS, bốn owner P1.1/P1.2/storage 33/33 PASS; nhóm compatibility 85/86 PASS ban
+đầu, ca còn lại chỉ thiếu kỳ vọng migration 0039 và đã sửa/retest PASS; nhóm
+method/replay/preparation 45 PASS, 1 optional browser skip, 0 lỗi. Chưa chạy
+full release check cho tree mới và chưa thay operator/data đang hoạt động.
+
+Fixture ba ngành đã được ghim cùng expected M05/I04 độc lập. Linux owner-boundary
+kiểm tra thạch dừa, bình giữ nhiệt và quạt cầm tay trong cùng database, đúng nguồn
+riêng, query windows 365 ngày và query-only replay sáu web report. Dữ liệu hoàn
+toàn synthetic; không phải real benchmark hoặc đủ 30 section. Matrix nội dung
+thật vẫn UNVERIFIED, P0.3/R1 còn mở. Xem
+[three-case matrix](research/research-execution-three-case-matrix.md).
+
+### P5 source-neutral claim checkpoint, 2026-10-03
+
+Source claims now retain verified M05 observations and adopted I02/I04
+declarations in an owned content-addressed artifact. Report semantics reference
+its exact digest/size; presentation adapters cannot replace it. Read-only replay
+reconstructs the same claims from verified frozen methods, including shortened
+native/exact-review views. Missing/corrupt claim files fail the report read.
+Independent audit found and closed an exact-review KEEP fallback omission;
+the regression failed before repair and passed afterward without recollection.
+The focused Linux group passed 30/30; subsequent typecheck and narrower 12/12
+passed after restoring the replay negative control. These are overlapping checks,
+not release CI or real evidence acceptance.
+
+Claude's main-coder job `task-mus7f8qo-wwa2bu` terminated without completion;
+the tracked runtime confirmed the process died, not that quota was exhausted.
+The resumed job `task-mus8qqhv-b21nqu` completed the narrower deterministic
+M01 inventory slice. GPT integrated owned artifact storage/reference/replay;
+Linux generation replaced the handwritten generated type. Typecheck and the
+M01/three-case invocation passed 9/9; the affected automation/native/exact
+invocation passed 26/26. After a replay negative control failed at the intended
+missing-artifact rejection, the restored source passed typecheck and 9/9 again.
+Luna's independent read-only review found no integration blocker. These focused
+checks are not release evidence. Market currently inventories its own M05
+claims, with owner question UNSET and no conclusion or ranking. Cross-report
+claim composition and visible M01 rendering are still open.
+Claude's I14 job `task-mus9epun-ubnjh6` completed a pure structured-I02
+admission/closed candidate boundary. GPT integrated an owned Insight admission
+artifact/reference and exact saved-source replay, with renderer override
+stripping and atomic manifest registration. Linux generation/typecheck and the
+first focused invocation passed9/9; affected automation/native/exact passed41/41.
+A deliberate skipped-I14-replay control failed at missing-artifact rejection.
+After restoration and KEEP-reference assertions, typecheck and the final
+I14/three-case/native/exact invocation passed35/35. The groups overlap; none is
+full release CI. Bare-action fixtures remain explicitly insufficient, not
+successful opportunity synthesis. Qualifier semantics, visible rendering,
+real evidence and retained model execution remain open. Luna's independent I14
+code review found no integration blocker; this is not release approval.
+Claude is continuing the narrow Analysis-owned retained-execution subrecord in
+job `task-musaixix-rya3ov`; it is not model/provider activation and is not yet
+integrated or verified. No report read or PDF path is permitted to call a model.
+Synthesis/model retention, native raw
+intake, root UI delivery gate, real three-case content and two-PDF acceptance
+remain open. All broad plan checkboxes remain unticked; live data/runtime and
+provider/model calls are untouched.
+
+### Source freeze implementation checkpoint, 2026-10-03
+
+Claude's tracked job `task-muryap50-ho2uqf` stopped at its session limit without
+changing files. GPT took over under the owner's existing fallback instruction.
+The owner reaffirmed bind-at-confirm and late-source versions.
+
+Internal confirmation v2 now verifies prepared Metric sources and resolves exact
+retained native reviews before queuing collection. Migration 0040 commits one
+canonical source set with the guarded scope CAS and request. Explicit absence
+and skip remain distinct. Workers and historical reads use frozen identities,
+not late inventory; chosen-source damage cannot trigger replacement collection.
+The prepared descriptor binds stable run/start/scope before confirmation; the
+method snapshot additionally binds actual confirmation time and execution ID.
+Historical v1 requests, descriptors, method keys and reads stay separate.
+
+Linux generation/typecheck and the integrated owner group passed 71/71; the
+affected content/Shopee/API group passed 72/72. These are focused invocations,
+not full release CI. The migration owner preserves exact v38-to-v39 proof and
+adds v39-to-v40 evidence preservation/idempotency. Luna's read-only audit found
+an initial binding gap; the new trigger restricts it to scope confirmation.
+
+The duplicate REPORTS worker claim was reproduced RED on baseline and repaired
+with an immediate transaction and checked claim count. The ambiguous Metric
+`INVALID_XLSX` diagnostic stays generic, also verified RED/GREEN. New writes use
+renderer v8 without rerendering historical HTML. Supplemental attempt/version
+storage, safe intake API and frontend remained unimplemented at that checkpoint.
+The later checkpoint below supersedes its API/version status. P1/R1 remain open. No merge, deployment, real
+source acceptance, provider/model call or Windows test occurred.
+
+### Supplemental report/API checkpoint, 2026-10-03
+
+The current unreleased tree adds Analysis migration 0041 and closed generated
+revision contracts. A supplemental attempt freezes its retained source choices,
+exact predecessor pair and unchanged scope. Only a DRAFT_READY original run is
+supported. Failed/cancelled attempts do not advance the successful version;
+requested Market/Insight outputs commit together. KEEP replays prior method
+results; changed input reruns only dependent methods without paid recollection.
+Old default report URLs still select the original, never implicit latest.
+
+HTTP now accepts confirmation v2 and exposes exact version-list, pair web/PDF,
+attempt-status, OWNER revision and OWNER cancellation routes. PDF availability
+remains truthful when no exporter is configured. Upload endpoints and frontend
+source/version controls are not implemented. Cancellation here cancels a report
+attempt, not an upload; exact missing-publication recovery remains open.
+
+Linux generation/typecheck and the final eight-file integrated owner/HTTP group
+passed 78/78 with no skips or failures. The earlier nine-file compatibility group
+passed 72/72 before the new HTTP journey; totals overlap and are not full release
+CI. A shutdown regression failed with bulk interruption of another worker's
+attempt and passed when interruption was scoped to locally active identities.
+Luna inspected HTTP identity/auth/reuse/error boundaries read-only. Its schema-ID
+finding was already repaired before the final run. No P1/R1 checkbox is ticked.
+SSH was verified using the existing WSL key. No live DB/operator change, provider
+call, Windows test, commit, push, merge or deployment occurred.
+
+### Raw Metric intake checkpoint, 2026-10-03
+
+The unreleased OWNER route `POST .../runs/:runId/sources/metric` accepts a
+multipart `metadata` JSON field and one original `workbook` file. Workbook bytes
+are bounded at 32 MiB, metadata at 16 KiB, with a bounded envelope. Other JSON
+commands retain their existing limits. Exact observed Sheet1 v1/v2 headers and
+the existing offline numeric/row profile are checked without calculation.
+Unsupported formats are not repaired, converted or silently substituted.
+
+Preparation writes a marked immutable Foundation source package, not scope,
+steps, usage, labels or report outputs. It uses the real run/start and proposed
+or exact confirmed scope. Declared period must lie within the requested window;
+acquisition may remain null. Filters, precision and measurement period remain
+operator declarations, not authenticated provider collection. A later upload
+is inert until explicitly selected by a supplemental request.
+
+Request-owned staging publishes only the verified committed package membership.
+An exact retry can re-stage genuinely missing publication from the same input
+and immutable package/manifest/origin metadata, with zero database mutations.
+Corrupt canonical bytes are never replaced. Recovery requires active staging
+ownership and preserves earlier raw artifact acquisition timestamps on reuse.
+No canonical or unrelated artifact is deleted.
+
+Linux generation/typecheck passed. Upload/API and Foundation owners passed
+14/14, then the final eight-file integrated group passed 80/80 with no skips or
+failures, including later-package recovery. These overlap prior runs and are
+not release CI. Frontend intake/version controls, upload cancellation UX,
+native raw-file intake and real content/PDF acceptance remain open. No dependency
+or additional migration was needed for this slice. No live data/operator,
+provider/model, Windows checks, commit/push/merge or deployment changed.
+
+### Prepared-source inventory and scope UI checkpoint, 2026-10-03
+
+The read-only inventory resolves marked packages by exact run prefix, then
+verifies canonical context, original package, declarations and stable run/scope
+binding. It survives a read-application reopen and does not run Python, calculate,
+admit a source or write. Damaged inventory returns a generic integrity error,
+not an empty list. Invalid XLSX archives now have a typed input diagnostic;
+unexpected reader failures remain generic failures rather than accepted absence.
+
+The scope screen loads persisted choices, defaults to ABSENT, and never selects
+an upload automatically. Original XLSX preparation has explicit source-period,
+filter and precision declarations. Pending/uncertain uploads freeze scope edits;
+transport failures retain the same file/request for explicit retry. Stop-wait
+does not claim to undo server storage. A scope edit invalidates an incompatible
+choice. Final confirmation freezes the exact choice and native-review reuse/skip.
+
+Linux generation and backend/frontend typechecks passed. Focused inventory/API,
+Metric and Foundation checks passed 30/30; frontend boundary/workflow checks
+passed 12/12; the full frontend invocation passed 199/199 and the production
+build passed. These groups overlap and are not final release CI. Synthetic
+component-browser captures at 1440 and 390 px show no overflow/page errors and
+confirmation Escape/focus return without writes. They are not a live data or
+whole-application acceptance journey. Independent code audit found no blocker.
+The default scope surface's independent visual review returned ship at this
+synthetic component scope. Native raw intake, real 30-section/three-case content
+and PDF acceptance remain open. The checkpoint below adds supplemental UI. No P1/R1 gate,
+merge, deployment, provider call or live operator change is implied.
+
+### Explicit report-version UI checkpoint, 2026-10-03
+
+GET `.../report-attempts` verifies durable attempt history so reload can discover
+pending work without another POST. The existing DRAFT_READY dossier now shows
+an explicit immutable pair selector; both report web/PDF links bind that exact
+pair. The original remains the default, never implicit latest. Supplemental
+confirmation freezes the exact predecessor and retained-source choices. Unknown
+transport outcomes retain the same request key/body for an explicit retry.
+Cancellation targets one exact attempt and cannot erase a committed pair.
+
+Parallel history reads can straddle a commit. The UI holds new work while a
+committed attempt's pair is not yet visible. The mounted regression failed RED
+with that guard removed (fresh creation was enabled), then passed GREEN with
+the owner guard restored. Independent code audit found no concrete blocker.
+
+Linux revision-client checks passed 5/5, mounted lifecycle checks 3/3, and the
+owning HTTP group 6/6. Frontend typecheck/build passed and the full frontend
+invocation passed 207/207 before the final mobile StepNav fix. After that fix,
+typecheck/build plus affected frontend checks passed 20/20. Counts overlap and
+are not final full repository or release CI proof. Existing large-chunk build
+warning remains, without changing its threshold.
+
+Synthetic RunView browser acceptance passed at 1440 and 390 px: explicit pair
+selection, retained-source choices, create/cancel confirmation, Escape/focus
+return, no automatic navigation, no overflow or page errors. Impeccable's sole
+material finding was the offscreen current mobile step; its visibility check
+failed RED before the repair and passed GREEN afterward. The reviewer scored
+that finding fully resolved and returned ship at the supplied preview scope.
+The documenter confirmed incumbent design consistency. Root's full delivery
+gate remains open. This is not actual-source/PDF or full-app acceptance, and does
+not tick P1/R1 or authorize activation. No live/runtime data, provider/model,
+Windows test, commit/push/merge or deployment changed.
+
+## Metric source-to-method automation checkpoint (2026-10-03, draft PR #110)
+
+Claude Opus 5.5 high implemented the independent Metric bridge; GPT integrated
+and audited it. REPORTS now consumes an explicitly confirmed-run-bound original
+workbook through existing preparation/readiness/calculation services and freezes
+the complete output with exact original bytes and schemas. M03/M04 show bounded
+ALL sample totals and concentration, not classified market-section completion.
+Historical report reads verify frozen bytes without Python, current methods,
+providers or writes. An audit regression closed late rejection of out-of-request
+periods before preparation writes.
+
+Linux affected checks passed 35 with one optional browser test skipped and zero
+failures. The full isolated Linux check passed 870 backend tests (one optional
+browser skip) and 196 frontend tests, plus contract generation, both typechecks
+and the production build. Separate real Chromium offline acceptance generated both Market and
+Insight web/PDF from the 223-listing, 127-shop original sample and the 62-row
+retained native review source. No new provider/model call, runtime data mutation,
+migration or deployment occurred. WIDE/CORE remain blocked pending business
+scope/codebook and real frozen classification evidence. Remaining sections and
+final Claude/owner report approval are still open; no 30-section completion claim.
+Desktop/mobile checks and PDF text/contact-sheet inspection were completed;
+the latest focus checks passed after the mobile chart-label repair. Exact-head
+release CI is recorded in the PR handoff, not inferred from the earlier head.
+See the [Metric method bridge handoff](handoffs/research-automation-metric-method-bridge.md).
+
+## Metric original-export checkpoint (2026-10-03, draft PR #110)
+
+GPT continues implementation while Claude quota is unavailable. A genuine
+Metric Shopee export exposed a changed 20-column header and slug product URLs.
+The separately declared v2 profile now normalizes it without repairing raw
+cells or weakening the legacy profile. Linux affected checks passed 19/19,
+backend TypeScript passed, and the actual offline CLI accepted 223 records
+with zero database mutations and no model/provider invocation by the CLI.
+Exact-head Check 37042736552 and preview 37042736776 passed on dea282a.
+
+The source is a bounded keyword-selected sample, includes nonfood records,
+and ends before the requested report period. No classifications were assigned;
+WIDE/CORE remain blocked. Exact listing IDs are verified but pack-size identity
+and commercial precision are not. The UI acquisition's point/cost usage is
+unknown, not zero. Original files, audit metadata and generated results are
+private and outside Git.
+
+The subsequent checkpoint above connects confirmed-run attachment and frozen
+full Metric output into the automation code; live deployment remains separate. No migration,
+deployment or active-runtime data change occurred. See the
+[profile v2 handoff](handoffs/research-metric-export-profile-v2.md).
+
+## Native review automation checkpoint (2026-10-03, draft PR #110)
+
+The retained Dami native SourcePackage now connects to exact-listing automation
+without fabricating Zen lineage or a new provider receipt. The internal resolver
+binds exact shop/item IDs, source/descriptor/capture bytes and confirmed run
+scope. Multiple matching originals block automatic reuse rather than selecting
+the latest or silently recollecting. Frozen replay verifies retained outputs
+without executing today's semantic mapper, parser or projector.
+
+Independent review found no remaining actionable issue. Linux affected proof
+passed 17/17 and TypeScript; the full isolated Linux check passed 864/864 backend,
+196 frontend, contract generation, both typechecks and the production build.
+The actual retained Thạch dừa capture passed an isolated-copy automation journey:
+62 rows, 20 INCLUDED, one I04 and three I05 source declarations, all 100 pending
+diagnostics retained, separate Market/Insight web and PDF files. Saved reads made
+zero provider calls and database mutations. No new provider cost was incurred.
+This is PARTIAL source-bound output, not a completed analytical section or a
+complete 30-section report. Published native head
+`ecfa251d605a99a42f3569e4a109c06e64d2695e` passed
+[exact-head CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37038843045).
+
+Claude quota is unavailable; GPT takes over implementation and verification.
+Claude final design approval and owner final-report approval remain outstanding.
+No active operator data, runtime, migration, provider or business decision was
+changed. See [native integration handoff](handoffs/research-native-review-automation.md).
+
+## Adopted declaration delivery checkpoint (2026-10-02, draft PR #110)
+
+Published projection checkpoint `9c760b3b5f4cc92b2a51cb2d68f929baf9b86f26`
+passed exact-head [Linux CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37030852858).
+The next integration retains a separate v2 run-bound overlay and the unchanged
+v1 proposal, then renders eligible source declarations and pending diagnostics
+in Insight sections without promoting analytical completion. Historical v1 and
+v2 replay use retained semantic results, not today's literal rules/projector.
+The PDF export expands source and pending disclosures for paper.
+
+Independent code audit found no actionable finding. Linux affected proof is
+17 passed, 0 failed, 1 optional Chromium skip, plus TypeScript. A complete
+isolated check with Chromium enabled passed 855/855 backend and 196 frontend,
+contracts, typechecks and production build. A later pending-count clarification
+passed the final affected check (17 passed, one optional Chromium skip) and
+paired web/PDF acceptance before publication; do not treat the earlier complete
+check as proof of those final edited bytes. Published integration
+`8c60beffc3caa91d4f4598ac3c3b124e8c41a871` passed exact-head
+[Linux CI](https://github.com/khangpworking/tdn-growth-os/actions/runs/37034798142):
+854 backend passed, 0 failed, 1 optional Chromium skip, plus the other check stages.
+
+Claude quota is unavailable. GPT is taking over code and visual verification,
+but Claude final design approval and owner final-report approval are not claimed.
+The native Dami connection advanced in the checkpoint above; thermos/fan review
+sources, verified market operands and remaining section adapters are still open. No
+merge, active-runtime update, new provider call or real business decision occurred.
+See [v2 integration and proof](handoffs/research-literal-projection-v1.md).
+
+## Literal review/source-failure checkpoint (2026-10-02, draft PR #110)
+
+Published checkpoint `38c881020b141a209ea1208f8096be64ab34abb0` retains an exact source-bound literal-coding proposal in
+a real immutable Foundation package. Parser/rule/semantics/schema bytes are
+frozen with the corpus and output. No candidate is admitted to report findings;
+historical reads verify retained bytes without today's parser or provider.
+Insight keeps method-proposal and source-failure guidance. A failed Actor with
+zero rows is no longer treated as successful empty collection.
+
+The final accepted grammar tuple passed a full Linux check (845 backend passed,
+0 failed, 1 skipped; 196 frontend passed). A subsequent shared-engine extraction
+preserved original corpus output bytes across four Foundation synthetic cases.
+Its final Linux check passed 847 backend tests, 0 failed, 1 skipped, plus
+frontend tests/build, contract generation and both typechecks. Focused
+SourcePackage/coding/integration proof is 18/18. Independent static review found
+no blocking issue in this scope; this is not an accuracy or source-authentication
+certification.
+Synthetic normal and failed-Actor journeys passed paired web/PDF export and
+desktop/mobile checks. No full-final-byte CI, 30-section completion, Claude
+design approval, merge or active-runtime update is claimed.
+
+Two deliberate real Actor probes reported USD 0.013 total: Zen failed with zero
+rows; Dami returned 62 exact-listing rows including 20 readable comments. The
+Dami capture is retained privately as its own verified SourcePackage, not a
+Zen collection or complete review history. Version 2 preserves the provider's
+original date strings without automatic annual/category admission. The new
+SourcePackage adapter retained proposal-only diagnostics for 20 readable
+comments, with zero report annotations and exact retry mutations. The bounded
+grammar's earlier exact tuple received business ACCEPT; the new extraction and
+admission/render policy received scoped ACCEPT and delegated adoption in
+business turns `01a0fd40-445d-7fe3-a8bf-3679bd9aa61f` and
+`01a0fd49-67c4-7240-a1b0-5dadbdd84b52`. The separately versioned source-bound
+projection implementation received business ACCEPT in turn
+`01a0fd52-5299-78b2-9510-257b2636a5b9` and independent code audit with no actionable
+finding. Its Linux full check passed 854 backend, 0 failed, 1 skipped, plus
+frontend/contracts/typechecks/build. Actual private v3 source execution admitted
+one I04 and three I05 source-bound declarations, retaining all 100 pending
+diagnostics, PARTIAL status and unchanged original source versions. No final
+ratio, section completion or verified behavior is claimed. Production automation intake
+for this alternative source remains open. See
+[implementation and proof](handoffs/research-literal-review-coding-v1.md) and
+[source/cost inventory](handoffs/research-source-inventory-20261002.md).
+
+## Published checkpoint and independent source inventory (2026-10-02)
+
+An earlier draft PR #110 checkpoint pinned reviewed remediation code at
+`53538fc095ffd092e5f36647b2098ed9c11398bb`; exact-head Linux CI passed in
+[run 37011129241](https://github.com/khangpworking/tdn-growth-os/actions/runs/37011129241).
+It remains unmerged and is not activated on Fedora.
+Parallel read-only inventory reverified all 103 original three-case captures
+and responses. They are Kalodata only; the original audit store has no review
+collection. A separately inspected legacy operator collection contains an empty
+raw page. These checks do not establish absence in every other private store.
+See [source inventory and independent plan review](handoffs/research-source-inventory-20261002.md).
+Claude's new content-acceptance matrix is a proposal under independent review,
+not a completed-section or deployment claim.
+
+## Parallel Market / Insight integration checkpoint (2026-10-02, unreleased)
+
+The approved remediation plan now runs source/method integration in parallel,
+with one owner for the automation service/API/UI. The working tree connects:
+
+- M03/M08: verified Kalodata detail captures → immutable Foundation package →
+  frozen temporal/quote inventory → retained Market report. Unknown measurement
+  semantics still block annual aggregation, growth and unit-price calculations.
+- Insight: explicitly confirmed exact Shopee URLs → existing Foundation exact
+  collection → generic raw review corpus → I03 coverage and I17 source quotes.
+  No calcium-only filter, inferred variant, coded theme or customer prevalence.
+- Optional URL scope input and confirmation; missing source configuration and
+  ambiguous collection are explicit. A token alone does not enable paid review
+  collection; the optional per-run collector cap must also be configured.
+
+Independent Claude review identified API naming, failed-source status and raw
+retention issues; those were corrected with regression proof. Source failures
+are isolated, unknown charges remain unknown, and oversized quote views no longer
+discard the independent Market output. One final Linux full check passed **838
+backend and 196 frontend tests**, contracts, both typechecks and production build.
+A paired synthetic worker run exported both HTML/PDF reports, with no source calls
+or DB writes during replay. This is not live collection, final design approval,
+published-head CI or activation evidence. The previous 804/195 full check below
+belongs to the earlier source snapshot.
+Zero broad analytical sections are certified complete; located Insight coding,
+scope admission, Metric input attachment and remaining section adapters are still
+required. No live runtime, provider, schema or historical-report changes occurred.
+
+## Real-world automation repair in progress (2026-10-02)
+
+The three real-world cases exposed a Vietnam-region parser rejection and a
+second data-loss boundary between provider observations and report inputs.
+The fix branch restores window-bound values and truthful no-product/coverage
+states, with offline retained-response replay and Linux validation. This does
+not complete the 30 analytical sections. Wave 1 now connects verified raw
+Kalodata exchanges through real Foundation source-package intake to existing
+M05/M06 descriptive methods and unranked M07 inventory, with retained replay.
+M09 executes with an explicit empty result when no events exist; it is not
+counted as analytical completion. Compatible Insight evidence and the remaining
+method paths are still pending. See [wave 1 evidence](handoffs/research-remediation-wave1.md),
+[30-section plan](tasks/research-30-section-remediation-plan.vi.md) and
+[repair and remaining work](tasks/research-real-world-data-repair.md).
+The independent Claude review was collected and its package-inventory,
+historical-read, method-isolation and paid-capture-retention findings were
+addressed, with Linux regression/negative-control proof. The business session's
+next-method proposal has a [bounded implementation disposition](research/remediation-contract-review-v1.md);
+generic M08 arithmetic now has offline implementation proof (5/5 Linux tests).
+Exact Shopee URL intake v2 also passed its owning Linux suite (27/27), preserving
+legacy calcium behavior and without fabricated revenue/period fields. These
+are prerequisites, not live automation wiring or completed sections. M03 temporal
+operations now have a separate offline implementation with 6/6 Linux tests.
+Business review found two M08 linkage/unit gaps; both were corrected with focused
+Linux proof and negative controls. A subsequent Claude review's denominator,
+capture-ordinal and failure-copy findings were corrected. The business session
+accepted operation-local denominator clarification 1.1 and statically re-reviewed
+its implementation. Final isolated Linux verification passed 804 backend and 195
+frontend tests, contract generation, typechecks and production build. This is
+unpublished working-tree proof, not final-head GitHub CI or 30-section completion.
+No live deployment or historical report replacement has occurred.
+
 ## Automated research v1: GPT/Luna integration and release verification (2026-10-02)
 
 The owner approved implementation of the reviewed prototype and parallel

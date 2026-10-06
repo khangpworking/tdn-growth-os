@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShopeeExactCollection",
+  "type": "object", "additionalProperties": false,
+  "required": ["contractVersion", "selectionBasis", "collectionId", "runKey", "requestSha256", "createdAt", "mode", "selected", "selectionWarnings", "collectorWarnings", "actor", "pages"],
+  "properties": {
+    "contractVersion": { "const": "2.0.0" },
+    "selectionBasis": { "const": "OWNER_EXACT_URL" },
+    "collectionId": { "$ref": "shopee-collection.schema.json#/properties/collectionId" },
+    "runKey": { "$ref": "shopee-collection.schema.json#/properties/runKey" },
+    "requestSha256": { "$ref": "shopee-collection.schema.json#/properties/requestSha256" },
+    "createdAt": { "$ref": "shopee-collection.schema.json#/properties/createdAt" },
+    "mode": { "$ref": "shopee-collection.schema.json#/properties/mode" },
+    "selected": {
+      "type": "array", "minItems": 1, "maxItems": 5,
+      "items": {
+        "type": "object", "additionalProperties": false,
+        "required": ["platform", "shopId", "itemId", "productUrl", "submittedUrl"],
+        "properties": {
+          "platform": { "const": "shopee" },
+          "shopId": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" },
+          "itemId": { "type": "string", "pattern": "^[1-9][0-9]{0,19}$" },
+          "productUrl": { "type": "string", "minLength": 1, "maxLength": 2000 },
+          "submittedUrl": { "type": "string", "minLength": 1, "maxLength": 2000 }
+        }
+      }
+    },
+    "selectionWarnings": { "$ref": "shopee-collection.schema.json#/properties/selectionWarnings" },
+    "collectorWarnings": { "$ref": "shopee-collection.schema.json#/properties/collectorWarnings" },
+    "actor": { "$ref": "shopee-collection.schema.json#/properties/actor" },
+    "pages": { "$ref": "shopee-collection.schema.json#/properties/pages" }
+  }
+}
