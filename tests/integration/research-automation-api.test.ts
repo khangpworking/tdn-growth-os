@@ -277,7 +277,9 @@ function captureCount(databasePath: string): number {
 // Primary acceptance owner: actual upload, verified preparation, proposals and
 // selected receipts. Catches forged membership, silent partial writes and
 // pending-to-UNKNOWN coercion that the rule-adoption test cannot exercise.
-test('three industries classify a new report from complete selected acceptance without changing old reports', { timeout: 120_000 }, async t => {
+// Three full runs end to end: about 110 s alone on a 12-core host, so 120 s timed
+// out under the parallel suite in CI.
+test('three industries classify a new report from complete selected acceptance without changing old reports', { timeout: 300_000 }, async t => {
   const fixture = await createFixture();
   const seedDb = openDatabase({ databasePath: fixture.databasePath }).db;
   try {
