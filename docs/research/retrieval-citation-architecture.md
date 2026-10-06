@@ -27,7 +27,7 @@ A document retriever is not an evidence authority. A model's explanation is not 
 
 | Tool | Proposed responsibility | Current boundary |
 | --- | --- | --- |
-| PageIndex | Find candidate pages/sections in a selected PDF | Isolated pilot only; never authorizes a claim or silently fills missing evidence |
+| PageIndex | Find candidate pages/blocks in a selected PDF | Optional Cloud backend/CLI connector, not yet deployed; never authorizes a claim or silently fills missing evidence |
 | WeKnora | Optional document-library search across uploaded file formats | Considered later; not installed or connected to the live operator |
 | OpenViking | Optional cross-run agent context/memory | Considered later; not an authoritative report/source database |
 | Flint | Compile/audit eligible chart specifications | Offline, pinned compiler; no arithmetic, claim verification or automatic section completion |
@@ -59,3 +59,15 @@ Efficient uses for Flint are authoring a candidate specification from existing c
 5. Owner final approval before live operator update.
 
 No schema migration, runtime dependency, model-call budget increase, production record mutation or deployment is included in this slice.
+
+## Cloud connector, 2026-10-04
+
+The owner authorized implementing Cloud following a successful public synthetic Task 2 pilot. The pilot established page/block locators for that fixture, not general report accuracy. Its native model identity was not returned, and repeat answers preserved meaning without identical prose bytes.
+
+`PageIndexCloudClient` and `research:pageindex:query` now form an opt-in retrieval path over an exact finalized TDN source-package PDF. The CLI uses the existing verified Foundation reader and read-only/query-only SQLite. It independently extracts text from those verified bytes with local `pypdf`; Cloud OCR is never its own verifier. The request pins source package, manifest, file digest, logical path and operator-selected Cloud document. The vendor metadata does not attest the original upload SHA-256, so this binding is explicitly operator-asserted, not cryptographically verified by the vendor.
+
+Outputs retain raw answer, provider blocks, locators, local match status, usage if available and limitations. They are `UNREVIEWED` retrieval candidates outside Git. A local text match does not prove semantic entailment, source period compatibility, pixel-accurate highlighting or complete-document coverage. An unmatched quote is retained as unverified, not silently dropped or promoted. No result bypasses A46's retained-claim/locator verification or supplies missing evidence to a section automatically.
+
+The connector never automatically uploads documents, retries a paid call, uses WeKnora/OpenViking or falls back to another model. A private durable attempt directory is required for each explicit operation. Existing directories cannot be reused for dispatch, including after an ambiguous failure. Raw source/calculation/interpretation/human-decision boundaries remain unchanged.
+
+First slice is backend/CLI only. A UI citation action, upload consent/retention lifecycle, report claim mapping, independent review and Fedora deployment remain separate release steps. See [Cloud connector task](../tasks/research-pageindex-cloud-connector.md).

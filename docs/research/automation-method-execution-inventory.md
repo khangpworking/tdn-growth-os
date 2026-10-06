@@ -1,5 +1,97 @@
 # Executable inventory: Market M01–M13 and Insight I01–I17
 
+Current coordination entry point: [30-section progress](research-30-section-progress.md)
+and [execution plan v2.4](../tasks/research-automation-execution-plan-v2.vi.md).
+The chronological audits below are evidence, not competing current-status
+dashboards. B1 uses Claude Opus 5.5 high, ZCode GLM-5.3-Flash high and GPT; no
+section is promoted on a worker's claim alone, and M01/I14 expansion is parked
+while the independent section families are connected.
+
+## Unreleased P5 update (2026-10-03, working tree)
+
+Decision-packet integration addendum 04/10: M11/M12/I15 now have a production
+packet builder, retained semantic input, renderer and verified replay. Market
+pins its exact sibling Insight; it never uses I14 candidate prose as evidence.
+These are inventories, not AI synthesis or analytical completion. Linux owner
+group: 31 passed, one optional PDF skip. [Integration handoff](../handoffs/research-decision-packets-integration.md)
+supersedes only the older unwired-packet statements below. Broader support
+adapters, retained candidate execution and real three-case acceptance remain open.
+
+G integration addendum 04/10: `ResearchAutomationService` now admits an exact
+non-Metric source package through `automation-bounded-report-revision-v1`, freezes
+the rebuilt snapshot into both reports and verifies source replay on reads.
+KEEP and explicit SKIP retain immutable history. M10/I11/I12/I16 render the
+bounded outputs and link their full embedded evidence, but remain inventories
+or gates, not analytical completion. Linux affected 23/23 passed; final narrower
+group 14 passed/one optional PDF skip. No real-source, visual or release acceptance
+is claimed. [Current handoff](../handoffs/research-g-source-snapshot.md) supersedes
+the earlier open-wiring statement below, not its semantic limitations.
+
+Breadth addendum 04/10: M09's descriptive v2 writer now maps attributed
+`launch_date` statements from verified detail captures, retains repeated-capture
+lineage and contrary dates, and preserves v1 replay. It is not causal analysis.
+`buildVerifiedMethodPacketSources` admits source-only G packages without Metric,
+but G automation admission/revision/rendering remain open. Linux evidence and
+limits: [B3 handoff](../handoffs/research-b3-source-method-breadth.md). These facts
+supersede only the corresponding wiring statements below, not acceptance.
+
+This update supersedes only the M01/I14 automation-wiring statements in the
+baseline table below. It does not certify any section complete or describe the
+Fedora operator currently deployed.
+
+| Section | Current owner path | Evidence and remaining limit |
+|---|---|---|
+| M01 | `ResearchAutomationService.#executeReports` → `buildAutomationM01EvidenceInventory` → exact artifact reference → `m01InventorySection` | Deterministic source-claim inventory from retained M05 output. Verified read reconstructs and compares exact bytes. No Market AI synthesis, ranking or wider conclusions yet. |
+| I14 | Same report owner → versioned evidence admission → `AutomationI14SynthesisExecutions` → `i14SynthesisSection` | Optional transport, off by default. Retains input/configuration/response and candidate validation separately. Historical reads and retry use the saved admission version without redispatch. Raw synthetic native evidence now reaches one cited unreviewed candidate; this is not model-quality or real-evidence acceptance. |
+
+Admission 1.1.0 accepts duplicate I02 matcher qualifiers only through the
+verified adopted literal projection. Generic coding, conditional/negated
+context, time-only input and additional unmatched qualifiers still fail that
+gate; the original qualifiers remain retained. Rule/parser/codebook authorities
+are unchanged. Version 1.0.0 artifacts retain their prior semantics.
+
+Focused Linux evidence: initial affected 42/42 and final narrower 30/30 PASS
+(overlapping groups, not summed); independent owner-path audit found no
+remaining blocker. See [literal-context handoff](../handoffs/research-p5-literal-context-admission.md)
+and [retention handoff](../handoffs/research-p5-retention-and-jev-shadow.md).
+P3/P4 authenticated batch acceptance, broader section adapters, live-model
+activation and three-product acceptance remain open. JEV is only a synthetic
+shadow proposer so far, not an accepted code source.
+
+## Current production wiring at 0116091 (2026-10-03)
+
+This addendum supersedes the older **automation wiring** columns below, not the
+historical artifacts, method authorities or completion counters. It is a static
+code audit, not a fresh three-case acceptance run. Production entry is
+`ResearchAutomationService.#executeReports` → `buildResearchAutomationReport`.
+Metric, native and exact-review bridges retain frozen outputs; their readers
+verify stored results instead of rerunning today's parser on historical reports.
+
+| Sections | Current production path / output kind | Open requirement |
+|---|---|---|
+| M01, M11, M12 | No synthesis call in automation; BLOCKED | Source-neutral claim admission and bounded retained interpretation (P5). |
+| M02 | Frozen requested scope as SOURCE_CONTEXT | Account for observed scope/rule/membership separately; do not imply provider filters ran (P3.1a). |
+| M03, M04 | `AutomationMetricMethodBridge.execute`: preparation/readiness/calculator; `metric-method-report.ts` renders unclassified ALL as SOURCE_TABLE | Accepted membership is missing; CORE/WIDE and classified section readiness stay blocked. M03 temporal inventory is an independent lane, not an annual trend (P3). |
+| M05, M06, M07, M09 | `AutomationDescriptiveMethodBridge.execute` → D; METHOD_OUTPUT or METHOD_NO_USABLE_RECORDS | Source-bound observations and unranked explicit peers only. Empty M09 is not a finding; broader coverage still needs eligible inputs (P2/P3). |
+| M08 | `AutomationMarketMethodInventoryBridge.execute` retains generic quote inputs/output as SOURCE_TABLE | Source-native exact price/unit/variant denominators, not a renamed tablet method (P3.5). |
+| M10 | No G gate call in automation; BLOCKED | Connect the adopted bounded gate; actual forecasts remain outside adoption. |
+| M13 | Capture and descriptive-package appendix, SOURCE_CONTEXT | Add source-neutral trace of Metric/native/other method identities, inclusion and exclusions (P3.1a). |
+| I01 | Requested brief/scope as SOURCE_CONTEXT | Preserve provided fields versus UNSET; keyword is not a business objective. |
+| I02, I04, I05, I07, I08 | Native v3 or exact-collection v2 → source-bound literal projection → L; METHOD_OUTPUT only when accepted narrow declarations exist | Relation/semantic gaps stay pending, model proposals do not count; batch acceptance delta under business review (P4). |
+| I03, I17 | Exact corpus/native collection context, quoted text and retained projection trace as SOURCE_CONTEXT | Generic corpus/method/acceptance account and citation index (P3.1a/P4/P6). |
+| I06, I09, I10, I13 | L/count methods exist offline but not connected to automation sections; BLOCKED | Shared accepted coded corpus and valid same-record relations; no inferred journeys or population ratios (P4). |
+| I11, I12, I16 | G inventory/gate methods exist offline but not called by automation; BLOCKED | Connect eligible bounded inputs, keep advanced analysis disabled. |
+| I14, I15 | P exists offline but has no automation call; BLOCKED | Source-neutral claims/retained AI candidates and human-use review (P5). |
+
+All 13 Market and 17 Insight IDs are covered. Code presence, a positive
+declaration and a calculated ALL sample do not prove full analytical completion.
+Report v1's `completedAnalyticalSections = 0` is unchanged. New progress must
+separate valid source, execution, limited usable output, full analytical scope
+and output review rather than count headings or relabel old reports.
+
+Read alongside the [execution plan](../tasks/research-automation-execution-plan-v2.vi.md)
+and [three-case acceptance matrix](research-execution-three-case-matrix.md).
+
 Static audit dated 2026-10-02. Inspected baseline: HEAD `9355f57187437fdc22089fecdcffba612fe7673f` plus the existing uncommitted repair files, before the new automation method bridge. This is an inventory of production code and integration deltas, not execution evidence for a research run or a release receipt. Concurrent remediation must update the wiring column only after its production call, retained output and replay are verified.
 
 **Wave 1 integration addendum:** the matrix below is the preserved pre-bridge audit,

@@ -64,6 +64,8 @@ Baseline kiểm tra: `9355f57187437fdc22089fecdcffba612fe7673f`, nhánh `fix/res
 
 Bản sửa trước kế hoạch này đã replay offline 103 phản hồi lưu lại. Bình giữ nhiệt và Quạt cầm tay mỗi case giữ được 39 cửa sổ detail và 78 giá trị metric; Thạch dừa khôi phục 4 detail phục vụ discovery nhưng chưa có collection đúng listing Shopee. Đây là bằng chứng sửa thất thoát dữ liệu, không phải bằng chứng đủ thị trường hoặc đủ 30 section. Chi tiết ở [biên bản sửa](research-real-world-data-repair.md).
 
+> Cập nhật điều hành 03/10/2026: xem [kế hoạch thực thi v2.2](research-automation-execution-plan-v2.vi.md) đã được GPT và Claude thảo luận, trình OWNER. Bản mới thay thứ tự/checklist triển khai; các ranh giới nghiệp vụ và authority phương pháp bên dưới vẫn giữ. Đồng thuận kế hoạch không phải bằng chứng đã code, merge hoặc deploy.
+
 ## 3. Kiến trúc sửa và những gì không xây thêm
 
 Luồng đề xuất:
