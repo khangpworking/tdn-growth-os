@@ -47,14 +47,14 @@
       "then": {"properties": {
         "profileVersion": {"const": "1.0.0"},
         "source": {"type": "object", "properties": {"headerSha256": {"const": "8c2bdf296db44d3ab32e4e67908a0385cc34960717270a38ae05e325f5127bba"}}}
-      }, "not": {"required": ["platformRows"]}}
+      }, "not": {"properties": {"platformRows": true}, "required": ["platformRows"]}}
     },
     {
       "if": {"properties": {"profileId": {"const": "metric-shopee-product-list-sheet1-v2"}}},
       "then": {"properties": {
         "profileVersion": {"const": "2.0.0"},
         "source": {"type": "object", "properties": {"headerSha256": {"const": "b5b493190917fac69bd1e2cf1aa618aae175a7fd314ec635e44bcf29aab6f7ac"}}}
-      }, "not": {"required": ["platformRows"]}}
+      }, "not": {"properties": {"platformRows": true}, "required": ["platformRows"]}}
     },
     {
       "if": {"properties": {"profileId": {"const": "metric-marketplace-product-list-sheet1-v3"}}},
