@@ -217,7 +217,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           const config = configuration.providers!.apifyReviews!;
           // Cover the actor's 300-second timeout plus a small terminal-state
           // margin. This polls the same run; it never retries a paid POST.
-          return { requestsIssued: () => requests, collector: new ApifyShopeeCollector({ token: config.token, maxChargeUsd: config.maxChargeUsd, maxPolls: 155, retainReturnedPages: true,
+          return { requestsIssued: () => requests, collector: new ApifyShopeeCollector({ token: config.token, maxChargeUsd: config.maxChargeUsd, maxPolls: 155,
+            ...(config.maxReviewsPerProduct !== undefined ? { maxReviewsPerProduct: config.maxReviewsPerProduct } : {}), retainReturnedPages: true,
             journalRoot: path.join(path.dirname(path.resolve(configuration.databasePath)), 'research-automation-apify-journal'), contentFilter: 'all',
             fetch: async (input, init) => { requests++; return fetch(input, init); } }) };
         } } : {}),

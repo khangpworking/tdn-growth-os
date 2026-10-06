@@ -45,6 +45,8 @@ designated Claude report-review session and then the owner, separately from test
 - Runtime review collection requires `TDN_APIFY_TOKEN` and explicit positive
   `TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD` (maximum 10000). This is an operational
   per-actor cap, not a new owner budget. Merely having a token does not enable it.
+  Optional `TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT` (whole number 1–500)
+  lowers the per-listing review limit; unset keeps 500.
 - No live runtime restart, migrations, provider calls or real business writes
   are part of this isolated checkpoint.
 

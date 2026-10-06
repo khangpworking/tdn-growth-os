@@ -25,6 +25,17 @@ test('review collection configuration requires both a token and an explicit boun
   assert.throws(() => researchAutomationProviderConfigFromEnv({ TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '5' }), /requires/);
 });
 
+test('review collection accepts an optional per-listing review limit from 1 to 500', () => {
+  const token = 'synthetic-apify-token-not-live';
+  const base = { TDN_APIFY_TOKEN: token, TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '5' };
+  assert.deepEqual(researchAutomationProviderConfigFromEnv({ ...base, TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT: '300' }).apifyReviews, { token, maxChargeUsd: 5, maxReviewsPerProduct: 300 });
+  assert.equal(researchAutomationProviderConfigFromEnv(base).apifyReviews?.maxReviewsPerProduct, undefined);
+  for (const limit of ['0', '501', '-1', '2.5', 'NaN', '1e2', ' 300']) {
+    assert.throws(() => researchAutomationProviderConfigFromEnv({ ...base, TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT: limit }), error => error instanceof Error && !error.message.includes(token));
+  }
+  assert.throws(() => researchAutomationProviderConfigFromEnv({ TDN_APIFY_TOKEN: token, TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT: '300' }), /requires/);
+});
+
 function response(payload: unknown, status = 200): Response {
   return new Response(JSON.stringify(payload), { status, headers: { 'content-type': 'application/json' } });
 }
