@@ -57,10 +57,10 @@ test('profile is stored canonically and read back verified', async t => {
 test('cover images are recognised by their bytes, bounded and paired with a licence sidecar', async t => {
   const store = await storeFor(t);
   for (const [bytes, mime] of [[JPEG, 'image/jpeg'], [PNG, 'image/png'], [WEBP, 'image/webp']] as const) {
+    const stored = await storeCoverImage(store, bytes, { licence: 'CC0', credit: 'Ảnh tự chụp' });
     assert.equal(stored.mime, mime);
     assert.notEqual(stored.coverSha256, stored.imageSha256);
     assert.deepEqual([stored.image.sha256, stored.sidecar.sha256], [stored.imageSha256, stored.coverSha256]);
-    assert.notEqual(stored.coverSha256, stored.imageSha256);
     const loaded = await loadCoverImage(store, stored.coverSha256);
     assert.equal(loaded.mime, mime);
     assert.deepEqual([...loaded.bytes], [...bytes]);
