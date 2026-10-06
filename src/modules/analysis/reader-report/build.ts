@@ -15,6 +15,7 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
 const validateInput = ajv.compile<ReaderReportInput>(inputSchema);
+const validateProfile = ajv.getSchema<ReaderReportInput['profile']>(`${inputSchema.$id}#/$defs/profile`)!;
 
 export type ReaderPlatform = ReaderReportInput['platforms'][number];
 export class ReaderReportInputError extends Error {}
@@ -24,15 +25,14 @@ export class ReaderReportGateError extends Error {
   }
 }
 
-/** Schema plus the cross-field rules a JSON schema cannot express. */
-export function verifyReaderReportInput(value: unknown): ReaderReportInput {
-  if (!validateInput(value)) {
-    const first = (validateInput.errors ?? []).slice(0, 5).map(e => `${e.instancePath || '/'} ${e.message ?? ''}`).join('; ');
-    throw new ReaderReportInputError(`đầu vào bản đọc sai khuôn: ${first}`);
-  }
-  const input = value;
-  const { profile: p, platforms, rows, source } = input;
-  const fail = (msg: string): never => { throw new ReaderReportInputError(msg); };
+const fail = (msg: string): never => { throw new ReaderReportInputError(msg); };
+const shapeErrors = (errors: readonly { instancePath: string; message?: string }[] | null | undefined): string =>
+  (errors ?? []).slice(0, 5).map(e => `${e.instancePath || '/'} ${e.message ?? ''}`).join('; ');
+
+/** Profile schema plus its cross-field rules; shared by the full input check and the stored profile asset. */
+export function verifyReaderProfile(value: unknown): ReaderReportInput['profile'] {
+  if (!validateProfile(value)) fail(`profile bản đọc sai khuôn: ${shapeErrors(validateProfile.errors)}`);
+  const p = value as ReaderReportInput['profile'];
   const segs = new Set(Object.keys(p.segments));
   for (const k of [...p.core, ...p.non, ...p.rules.map(r => r.seg)]) if (!segs.has(k)) fail(`nhóm ${k} chưa khai báo trong profile`);
   if (p.core.some(k => p.non.includes(k))) fail('một nhóm vừa là lõi vừa là ngoài lõi');
@@ -40,6 +40,15 @@ export function verifyReaderReportInput(value: unknown): ReaderReportInput {
     ...Object.values(p.primaryNouns ?? {}), ...p.signals.flat(), ...p.rules.flatMap(r => conditionPatterns(r.when))];
   for (const s of patterns) if (s !== undefined) { try { profileRe(s); } catch { fail(`mẫu chữ không hợp lệ: ${s}`); } }
   if (p.signals.some(x => x.length !== 2)) fail('mỗi tín hiệu cần đúng nhãn và mẫu chữ');
+  return p;
+}
+
+/** Schema plus the cross-field rules a JSON schema cannot express. */
+export function verifyReaderReportInput(value: unknown): ReaderReportInput {
+  if (!validateInput(value)) throw new ReaderReportInputError(`đầu vào bản đọc sai khuôn: ${shapeErrors(validateInput.errors)}`);
+  const input = value;
+  const { platforms, rows, source } = input;
+  verifyReaderProfile(input.profile);
   const ids = new Set<number>();
   for (const r of rows) {
     if (ids.has(r.i)) fail(`dòng ${r.i} lặp số thứ tự`);
