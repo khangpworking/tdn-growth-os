@@ -301,16 +301,29 @@ test('model coding batches preserve other records and retain stale, invalid and 
   assert.deepEqual(second.proposal.evidence.request.annotations.i04!.map(row => row.recordIndex), [0, 1]);
   assert.equal(calls, 2);
   let winningId = '';
-    const winningKey = randomUUID();
+  const winningKey = randomUUID();
   const stale = request(0, second.proposal.evidence.evidenceId);
-  await assert.rejects(f.service.proposeModelInsightCoding(workspaceId, runId, stale, owner, { configuration,
-    port: { async generateText() {
-      calls++;
-      const winner = await f.service.proposeInsightCoding(workspaceId, runId, { contractVersion: 'insight-coding-propose-v1', requestKey: winningKey,
-        adoptionId: adoption.evidence.evidenceId, previousProposalId: second.proposal!.evidence.evidenceId, annotations: annotations(1) }, owner);
-      winningId = winner.evidence.evidenceId;
-      return { text: JSON.stringify(annotations(0)) };
-    } } }), /changed/);
+  // Exercise stale publication independently of wall-clock filesystem latency.
+  // The separate timeout test below owns deadline/late-response behavior.
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    await assert.rejects(async () => {
+      const result = await f.service.proposeModelInsightCoding(workspaceId, runId, stale, owner, { configuration,
+        port: { async generateText() {
+          calls++;
+          const winner = await f.service.proposeInsightCoding(workspaceId, runId, { contractVersion: 'insight-coding-propose-v1', requestKey: winningKey,
+            adoptionId: adoption.evidence.evidenceId, previousProposalId: second.proposal!.evidence.evidenceId, annotations: annotations(1) }, owner);
+          winningId = winner.evidence.evidenceId;
+          return { text: JSON.stringify(annotations(0)) };
+        } } });
+      assert.fail(`Expected stale proposal rejection; execution=${JSON.stringify(result.execution)}`);
+    }, /changed/);
+  } finally {
+    t.mock.timers.reset();
+  }
+  assert.equal((f.db.prepare("SELECT evidence_id FROM analysis_insight_coding_evidence WHERE parent_id=? AND kind='PROPOSAL' ORDER BY sequence DESC LIMIT 1")
+    .get(adoption.evidence.evidenceId) as { evidence_id: string }).evidence_id, winningId);
+  assert.equal(f.db.prepare('SELECT evidence_id FROM analysis_insight_coding_evidence WHERE request_key=?').get(stale.requestKey), undefined);
   assert.equal(calls, 3);
   await assert.rejects(f.service.proposeModelInsightCoding(workspaceId, runId, { ...request(0, winningId), requestKey: winningKey }, owner, ai(0)), /changed/);
   assert.equal(calls, 3, 'a key consumed by a manual action never starts a paid model call');
@@ -340,6 +353,87 @@ test('model coding batches preserve other records and retain stale, invalid and 
   await assert.rejects(f.service.proposeModelInsightCoding(workspaceId, runId, firstRequest, { ...owner, actorId: 'different-owner' }, null), /EXECUTION_IDENTITY_CONFLICT/);
   assert.equal(calls, 5);
   assert.equal((f.db.prepare("SELECT count(*) n FROM analysis_insight_coding_evidence WHERE kind='RECEIPT'").get() as { n: bigint }).n, 0n);
+});
+
+test('model coding timeout retains unknown and ignores a late valid response after a manual winner', async t => {
+  const text = 'Tôi đã mua sản phẩm.';
+  const raw = Buffer.from(JSON.stringify([{ shopId: '78085196', itemId: '17678138164', reviewId: 'timeout-0', comment: text, ratingStar: 5 }]));
+  const f = await fixture(t, () => ({ requestsIssued: () => 0, collector: new FixtureShopeeCollector(raw) }));
+  await f.service.confirmScope(workspaceId, runId, f.confirm); await f.service.processNext(); await f.service.processNext();
+  const pair = (await f.service.listReportVersions(workspaceId, runId))[0]!;
+  const source = await f.service.readInsightSourceContext(workspaceId, runId, pair.pairId);
+  const owner = { actorId: 'owner:model-timeout', role: 'OWNER' as const };
+  const adoption = await f.service.adoptInsightCodingRules(workspaceId, runId, {
+    contractVersion: 'insight-coding-adopt-v1', requestKey: randomUUID(), binding: source.binding,
+    rules: { ruleId: 'timeout-v1', revision: 1, question: 'Explicit reported actions?', inclusionRule: 'All retained records', adjudicationRule: 'Human review required', corpora: [] },
+  }, owner);
+  const annotations = { i02: [], i04: [{ recordIndex: 0, span: locatedSpan(text, text), eventKind: 'ACTION_REPORTED' as const,
+    attribution: 'SELF_REPORTED' as const, qualifiers: [], counterevidence: [],
+    provenance: { basis: 'PENDING_AI' as const, coderRole: 'model', adjudication: null, disagreement: null } }],
+    i05: [], i06: [], i07: [], i08: [], i09: [], i13Mentions: [], corpora: [] };
+  const request = { contractVersion: 'insight-model-request-v1', requestKey: randomUUID(), adoptionId: adoption.evidence.evidenceId,
+    previousProposalId: null, recordIndexes: [0] };
+  const configuration = { contractVersion: 'insight-model-configuration-v1' as const, providerId: 'synthetic', modelId: 'timeout-model',
+    temperature: null, maxOutputTokens: 1000, timeoutMs: 1000, maxResponseBytes: 65536 };
+  let enter!: (signal: AbortSignal) => void;
+  let failEntry!: (error: unknown) => void;
+  const entered = new Promise<AbortSignal>((resolve, reject) => { enter = resolve; failEntry = reject; });
+  let release!: (value: { text: string }) => void;
+  const response = new Promise<{ text: string }>(resolve => { release = resolve; });
+  let markReturned!: () => void;
+  const returned = new Promise<void>(resolve => { markReturned = resolve; });
+  let calls = 0;
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  try {
+    const pending = f.service.proposeModelInsightCoding(workspaceId, runId, request, owner, { configuration,
+      port: { async generateText({ signal }) {
+        calls++;
+        assert.ok(signal);
+        enter(signal);
+        const value = await response;
+        markReturned();
+        return value;
+      } },
+    });
+    // Observe failures immediately while the test coordinates the synthetic port.
+    pending.catch(failEntry);
+    const signal = await entered;
+    const winner = await f.service.proposeInsightCoding(workspaceId, runId, {
+      contractVersion: 'insight-coding-propose-v1', requestKey: randomUUID(), adoptionId: adoption.evidence.evidenceId,
+      previousProposalId: null, annotations,
+    }, owner);
+    t.mock.timers.tick(configuration.timeoutMs - 1);
+    assert.equal(signal.aborted, false);
+    t.mock.timers.tick(1);
+    assert.equal(signal.aborted, true);
+    assert.match(String(signal.reason), /INSIGHT_CODING_DISPATCH_TIMEOUT/);
+    const result = await pending;
+    assert.equal(result.execution.status, 'DISPATCH_UNKNOWN');
+    if (result.execution.status !== 'DISPATCH_UNKNOWN') assert.fail('Expected unknown timeout outcome');
+    assert.equal(result.execution.unknownCode, 'TRANSPORT_OUTCOME_AMBIGUOUS');
+    assert.equal(result.execution.dispatched, true);
+    assert.equal(result.proposal, undefined);
+    assert.equal(calls, 1);
+    const before = f.db.prepare('SELECT total_changes() n').get();
+    release({ text: JSON.stringify(annotations) });
+    await returned;
+    // Drain the real event loop after the late transport resolves, without advancing timers.
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
+    assert.equal((f.db.prepare("SELECT evidence_id FROM analysis_insight_coding_evidence WHERE parent_id=? AND kind='PROPOSAL' ORDER BY sequence DESC LIMIT 1")
+      .get(adoption.evidence.evidenceId) as { evidence_id: string }).evidence_id, winner.evidence.evidenceId);
+    assert.equal(f.db.prepare('SELECT evidence_id FROM analysis_insight_coding_evidence WHERE request_key=?').get(request.requestKey), undefined);
+    assert.deepEqual(f.db.prepare('SELECT state, validation_status, candidates_sha256, unknown_code FROM analysis_research_automation_ai_executions WHERE coding_request_key=?')
+      .get(request.requestKey), { state: 'DISPATCH_UNKNOWN', validation_status: null, candidates_sha256: null, unknown_code: 'TRANSPORT_OUTCOME_AMBIGUOUS' });
+    const retry = await f.service.proposeModelInsightCoding(workspaceId, runId, request, owner, null);
+    assert.deepEqual(retry.execution, { ...result.execution, dispatched: false });
+    assert.equal(retry.proposal, undefined);
+    assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
+    assert.equal(calls, 1, 'timeout replay never redispatches the model');
+  } finally {
+    release({ text: JSON.stringify(annotations) });
+    t.mock.timers.reset();
+  }
 });
 
 test('explicit listing scope flows through collection and frozen corpus to both reports without a discovery substitute', async t => {
