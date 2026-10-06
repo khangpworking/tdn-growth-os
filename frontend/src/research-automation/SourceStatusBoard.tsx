@@ -1,0 +1,73 @@
+import { useEffect, useState } from 'react';
+import type { FrontendMode } from '../data-source';
+import { loadSourceStatus, ResearchAutomationError } from './api';
+import type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry } from './api';
+import { formatTime } from './run-status';
+import './source-status.css';
+
+export interface SourceStatusBoardProps {
+  readonly mode: FrontendMode;
+  readonly workspaceId: string;
+}
+
+const SOURCE_COPY: Record<ResearchAutomationSourceStatusEntry['source'], { readonly name: string; readonly role: string; readonly unit: string }> = {
+  KALODATA: { name: 'Kalodata', role: 'Số liệu sản phẩm theo kỳ', unit: 'lần thu' },
+  SERPAPI: { name: 'SerpApi', role: 'Kết quả tìm Google', unit: 'lần thu' },
+  APIFY_SHOPEE: { name: 'Apify', role: 'Review Shopee theo link', unit: 'lần thu' },
+  METRIC: { name: 'Metric', role: 'File xuất tải lên tay', unit: 'file' },
+};
+
+export function sourceStateView(entry: ResearchAutomationSourceStatusEntry): { readonly tone: 'ready' | 'partial' | 'missing' | 'manual' | 'off'; readonly label: string; readonly detail: string } {
+  switch (entry.state) {
+    case 'READY': return { tone: 'ready', label: 'Đã kết nối', detail: 'Đã cài khóa và phiên nghiên cứu đang dùng nguồn này.' };
+    case 'CONFIGURED_NOT_WIRED': return { tone: 'partial', label: 'Có khóa, chưa dùng', detail: 'Đã cài khóa nhưng phiên nghiên cứu chưa gọi nguồn này.' };
+    case 'MANUAL_IMPORT': return { tone: 'manual', label: 'Nhập tay', detail: 'Không cần khóa. Dữ liệu vào khi bạn tải file lên trong từng phiên.' };
+    case 'EXECUTOR_DISABLED': return { tone: 'off', label: 'Máy chủ không chạy', detail: 'Máy chủ này chỉ đọc, không chạy phiên nghiên cứu nên không gọi nguồn nào.' };
+    case 'NOT_CONFIGURED':
+      return { tone: 'missing', label: 'Chưa kết nối', detail: entry.credential === 'CONFIGURED'
+        ? 'Đã có token nhưng thiếu hạn mức chi tối đa, nên không tự thu.' : 'Chưa cài khóa trên máy chủ.' };
+  }
+}
+
+const credentialLabel = (value: ResearchAutomationSourceStatusEntry['credential']) =>
+  value === 'CONFIGURED' ? 'Đã cài' : value === 'MISSING' ? 'Thiếu' : 'Không cần';
+
+export default function SourceStatusBoard({ mode, workspaceId }: SourceStatusBoardProps) {
+  const [data, setData] = useState<ResearchAutomationSourceStatus | null>(null);
+  const [error, setError] = useState<{ readonly workspaceId: string; readonly message: string } | null>(null);
+  const [loadingWorkspace, setLoadingWorkspace] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
+  const status = data?.workspaceId === workspaceId ? data : null;
+  const message = error?.workspaceId === workspaceId ? error.message : '';
+  useEffect(() => {
+    if (mode === 'demo') { setData(null); setError(null); setLoadingWorkspace(null); return; }
+    const controller = new AbortController(); let active = true;
+    setLoadingWorkspace(workspaceId);
+    void loadSourceStatus(workspaceId, controller.signal).then(value => { if (active) { setData(value); setError(null); setLoadingWorkspace(null); } }).catch(failure => { if (active && !controller.signal.aborted) { setError({ workspaceId, message: failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được trạng thái nguồn dữ liệu.' }); setLoadingWorkspace(null); } });
+    return () => { active = false; controller.abort(); };
+  }, [mode, workspaceId, tick]);
+
+  return <section className="ra-sources surface" aria-labelledby="ra-sources-title">
+    <div className="ra-sources-head"><div><h2 id="ra-sources-title">Nguồn dữ liệu</h2><p className="ra-muted">Tình trạng kết nối của từng nguồn{status ? ` · kiểm tra lúc ${formatTime(status.checkedAt)}` : ''}.</p></div>{mode !== 'demo' && <button type="button" className="button" onClick={() => setTick(value => value + 1)}>Kiểm tra lại</button>}</div>
+    {mode === 'demo' ? <p className="ra-muted">Demo không đọc cấu hình máy chủ. Chuyển sang dữ liệu thật để xem nguồn nào đã kết nối.</p>
+      : loadingWorkspace === workspaceId && !status ? <p className="ra-muted" role="status">Đang kiểm tra nguồn dữ liệu…</p>
+        : message ? <div className="ra-message error" role="alert"><p>{message}</p><button type="button" className="button" onClick={() => setTick(value => value + 1)}>Thử lại</button></div>
+          : status ? <>
+            <ul className="ra-sources-grid">{status.sources.map(entry => {
+              const copy = SOURCE_COPY[entry.source]; const view = sourceStateView(entry);
+              return <li key={entry.source} className={`ra-source ${view.tone}`} data-source={entry.source}>
+                <div><h3>{copy.name}</h3><small>{copy.role}</small></div>
+                <span className="status-pill">{view.label}</span>
+                <small>{view.detail}</small>
+                <dl>
+                  <dt>Khóa</dt><dd>{credentialLabel(entry.credential)}</dd>
+                  <dt>Chi phí</dt><dd>{entry.paid ? 'Trả phí theo lượt' : 'Không tốn phí'}</dd>
+                  <dt>Dữ liệu</dt><dd>{entry.dataCount ? `${entry.dataCount} ${copy.unit} · gần nhất ${entry.lastDataAt ? formatTime(entry.lastDataAt) : '—'}` : 'Chưa có trong workspace'}</dd>
+                  {entry.paid && <><dt>Gọi gần nhất</dt><dd>{entry.lastUsageAt ? formatTime(entry.lastUsageAt) : 'Chưa gọi'}</dd></>}
+                </dl>
+              </li>;
+            })}</ul>
+            <p className="ra-muted ra-sources-note">Bảng chỉ đọc cấu hình và lịch sử đã lưu, không gọi thử nguồn nên không tốn phí. “Đã kết nối” nghĩa là khóa đã được cài, chưa chứng minh khóa còn hạn hoặc còn hạn mức.</p>
+          </> : null}
+  </section>;
+}

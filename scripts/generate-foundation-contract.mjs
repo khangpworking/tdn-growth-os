@@ -145,6 +145,7 @@ const contracts = [
   ['api', 'research-generation-api'],
   ['api', 'research-automation-api'],
   ['api', 'research-automation-source-api'],
+  ['api', 'research-automation-source-status-api'],
   ['api', 'research-automation-revision-api'],
   ['api', 'owner-report-review-target-api'],
   ['api', 'owner-content-brand-api'],
