@@ -1277,10 +1277,10 @@ export class ResearchAutomationService {
         await this.#settleSourceFailure(row.runId, stepId, 'CANCELLED_DURING_PROVIDER_OPERATION', 'CANCELLED');
         return true;
       }
-      const noProductRefs = !scope?.selectedProductIds.length && !scope?.peerProductIds.length && !scope?.exactShopeeUrls?.length;
-      if (stepId === 'COLLECTION' && noProductRefs && !this.#webSource) {
+      if (stepId === 'COLLECTION' && !scope?.selectedProductIds.length && !scope?.peerProductIds.length && !scope?.exactShopeeUrls?.length) {
         // An explicit "none" selection still yields a draft, but nothing was
         // requested, so the step must not read as a successful collection.
+        // Paid web search also waits for confirmed products.
         await this.#settleSourceFailure(row.runId, stepId, 'NO_APPROVED_PRODUCT_REFS', 'SKIPPED');
         return true;
       }
@@ -1293,9 +1293,7 @@ export class ResearchAutomationService {
         result = stepId === 'QUICK_SEARCH' ? await source!.quickSearch(input as QuickSearchInput, options)
           : source && (scope?.selectedProductIds.length || scope?.peerProductIds.length) ? await source.collect(input as CollectInput, options)
           : { result: null, step: { contractVersion: 'research-automation-step-result-v1', runId: row.runId, stepId,
-            outcome: 'UNAVAILABLE', productCards: [], comparables: [], coverage: [],
-            // Only reachable with a web source: the web lane runs, product detail stays unrequested.
-            limitations: noProductRefs ? [{ code: 'NO_APPROVED_PRODUCT_REFS', provider: null, message: message('NO_APPROVED_PRODUCT_REFS') }] : [] } };
+            outcome: 'UNAVAILABLE', productCards: [], comparables: [], coverage: [], limitations: [] } };
       } catch {
         if (stepId !== 'COLLECTION' || (!scope?.exactShopeeUrls?.length && !this.#webSource) || controller.signal.aborted) {
           await this.#settleSourceFailure(row.runId, stepId, controller.signal.aborted ? 'CANCELLED_DURING_PROVIDER_OPERATION' : 'PROVIDER_FAILED', controller.signal.aborted ? 'CANCELLED' : 'FAILED');

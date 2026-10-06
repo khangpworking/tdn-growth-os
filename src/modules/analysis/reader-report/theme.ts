@@ -99,6 +99,7 @@ export const CSS_COVER = `
 table.pl-list{min-width:880px;font-size:13px;margin:0}.pl-list th,.pl-list td{padding:5px 8px}
 .pl-list thead th{position:sticky;top:0;z-index:1;background:var(--card)}.pl-list tbody tr:nth-child(even) td{background:var(--chip)}
 .pl-list td:first-child{white-space:nowrap}.pl-list td:nth-child(2){min-width:9.5em}.pl-list td:last-child{min-width:18em}
+.pl-web td.pl-url{min-width:12em;max-width:22em;overflow-wrap:anywhere;font-size:12.5px;color:var(--mute)}
 @media (max-width:640px){.pl-src{grid-template-columns:1fr}.pl-seg thead{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
 .ex table.pl-seg{min-width:0}.pl-seg,.pl-seg tbody,.pl-seg tr,.pl-seg td{display:block;width:auto}
 .pl-seg tr{padding:8px 0 8px 12px;border-bottom:1px solid var(--line)}.pl-seg tr.core{box-shadow:inset 3px 0 0 var(--acc)}.pl-seg tr.non{box-shadow:inset 3px 0 0 var(--gry)}

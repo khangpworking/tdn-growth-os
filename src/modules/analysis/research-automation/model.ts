@@ -67,7 +67,8 @@ export interface TypedComparable {
   readonly captureIndex: number;
 }
 
-export const MAX_WEB_RESULTS = 20;
+/** One web search per collection; the provider requests and keeps at most 10 organic results. */
+export const MAX_WEB_RESULTS = 10;
 
 /** One organic web search result as returned at retrieval time; captureIndex locates its raw response. */
 export interface StepWebResult {

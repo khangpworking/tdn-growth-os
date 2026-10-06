@@ -47,7 +47,13 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   const covBad = /\d[\d.]*\s*(sản phẩm|gian hàng)|Nguồn ảnh|ảnh:|badge/.test(covTxt + cov.replace(/class="cover[^"]*"/g, ''));
   add('F8 bìa đúng mẫu (không số sản phẩm, nhãn, nguồn ảnh)', !!cov && !covBad, cov ? (covBad ? 'bìa có chữ cấm' : 'đúng mẫu') : 'không có bìa');
 
-  const remote = [...html.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc=|\b(?:src|href)="(?:https?:)?\/\/|url\(\s*['"]?(?:https?:)?\/\//gi)].map(m => m[0].slice(0, 40));
+  // CSS loads only from <style> blocks and style attributes; the same words in
+  // escaped page text (e.g. a quoted web snippet) load nothing.
+  const css = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>|\bstyle="([^"]*)"/gi)].map(m => m[1] ?? m[2] ?? '').join('\n');
+  const remote = [
+    ...html.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc=|\b(?:src|href)="(?:https?:)?\/\//gi),
+    ...css.matchAll(/url\(\s*(?:['"]|&quot;|&#39;)?\s*(?:https?:)?\/\/|@import\b/gi),
+  ].map(m => m[0].slice(0, 40));
   add('F0 không tải tài nguyên ngoài (font, ảnh, script cục bộ)', remote.length === 0, remote.length ? remote.slice(0, 3).join(' | ') : 'cục bộ');
 
   const secs = [...html.matchAll(/<section id="([^"]+)"/g)].map(m => m[1] ?? '');

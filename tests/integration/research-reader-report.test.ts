@@ -12,6 +12,8 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { readerLimitationsFromDraft, type ReaderRowsReader } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook } from '../../src/modules/analysis/reader-report/metric-rows.js';
+import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
+import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -36,7 +38,7 @@ const source = (start = period.startDate) => ({
   platformBreakdown: { shopee: { displayedRevenueVnd: 200 } },
 });
 
-async function readyRun(t: TestContext, rows?: ReaderRowsReader) {
+async function readyRun(t: TestContext, rows?: ReaderRowsReader, sources: { source?: AutomationSourcePort; webSource?: AutomationSourcePort } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-reader-report-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -44,13 +46,13 @@ async function readyRun(t: TestContext, rows?: ReaderRowsReader) {
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'reader-report', title: 'Synthetic reader report' });
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')), uuid: () => runId, now,
-    readerReportFlint: false, ...(rows ? { readerRows: rows } : {}) });
+    readerReportFlint: false, ...(rows ? { readerRows: rows } : {}), ...sources });
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword: 'synthetic jar', requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET', 'INSIGHT'] });
   await service.processNext();
   const awaiting = await service.getRun(workspaceId, runId);
-  const scope = { definition: 'Synthetic reader scope', includeTerms: ['synthetic jar'], excludeTerms: [], selectedProductIds: [], peerProductIds: [] };
+  const scope = { definition: 'Synthetic reader scope', includeTerms: ['synthetic jar'], excludeTerms: [], selectedProductIds: sources.source ? [SYNTHETIC_CARD_ID] : [], peerProductIds: [] };
   const prepared = await service.prepareMetricSource(workspaceId, runId, { contractVersion: 'automation-metric-prepare-v1',
     requestKey: '44444444-4444-4444-8444-444444444444', expectedRevision: awaiting.revision, scope,
     sourceLabel: 'Synthetic operator export', sourceContext: 'Keyword export; filters not independently verified.',
@@ -179,4 +181,16 @@ test('reader build stores the cover photo with its licence sidecar and refuses a
   assert.equal(media(row.cover_sha256), 'application/json', 'the revision names the licence sidecar');
   assert.equal(media(createHash('sha256').update(png).digest('hex')), 'image/png');
   assert.match((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8'), /data:image\/png;base64,/);
+});
+
+test('reader page lists the run web results in the appendix and never names the search provider', async t => {
+  const organic = [{ position: 1, title: 'Hũ thủy tinh nên mua', link: 'https://example.test/hu?a=1&b=2', snippet: 'So sánh nắp đậy' }];
+  const f = await readyRun(t, undefined, { source: syntheticProductSource(), webSource: syntheticWebSource(() => {}, organic) });
+  const built = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000000000e01'), owner);
+  const html = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
+  assert.match(html, /Bảng PL\.3/);
+  assert.match(html, /Hũ thủy tinh nên mua/);
+  assert.ok(html.includes('https://example.test/hu?a=1&amp;b=2'), 'the address is shown as escaped text');
+  assert.doesNotMatch(html, /href="https?:/);
+  assert.doesNotMatch(html, /SerpApi|Kalodata/i);
 });
