@@ -55,11 +55,12 @@ test('run inspector keeps AI activity separate from source requests and never di
     aiActivity: { i14: { states: { prepared: 1, dispatching: 2, completed: 3, dispatchUnknown: 4 },
       outcomes: { valid: 2, invalid: 1 }, billing: { state: 'UNKNOWN' } } },
   };
-  let requests = 0;
+  let requests = 0; let readerReads = 0;
   globalThis.fetch = (async (url, init) => {
     assert.notEqual(init?.method, 'POST');
     if (String(url).endsWith('/report-versions')) return new Response(JSON.stringify({ contractVersion: 'automation-report-version-list-v1', workspaceId, runId, versions: [] }));
     if (String(url).endsWith('/report-attempts')) return new Response(JSON.stringify({ contractVersion: 'automation-report-attempt-list-v1', workspaceId, runId, attempts: [] }));
+    if (String(url).endsWith('/reader-reports')) { readerReads++; return new Response(JSON.stringify({ contractVersion: 'reader-report-list-v1', workspaceId, runId, revisions: [] })); }
     requests++;
     return new Response(JSON.stringify(response));
   }) as typeof fetch;
@@ -94,15 +95,11 @@ test('run inspector keeps AI activity separate from source requests and never di
     } } };
     await render('revisions');
     assert.equal(value('Đã xử lý phản hồi'), '1');
-    const beforeRefresh = requests;
-    response = { ...response, aiActivity: { i14: { ...response.aiActivity!.i14!,
-      states: { prepared: 0, dispatching: 0, completed: 2, dispatchUnknown: 0 }, outcomes: { valid: 2, invalid: 0 },
-    } } };
-    const refresh = [...document.querySelectorAll('button')].find(item => item.textContent === 'Tải lại lịch sử');
-    assert.ok(refresh);
-    await act(async () => refresh.click());
-    assert.equal(value('Đã xử lý phản hồi'), '2', 'Reading supplemental progress also refreshes cumulative AI activity');
-    assert.equal(requests, beforeRefresh + 1, 'One history refresh must not start a recursive read loop');
+    // Owner decision 06/10: a ready run shows only the reader page; the automated draft panel is hidden.
+    assert.ok(document.querySelector('#ra-reader-title'), 'A ready run shows the reader report section');
+    assert.equal([...document.querySelectorAll('button')].some(item => item.textContent === 'Tải lại lịch sử'), false, 'The draft version panel is not shown');
+    assert.equal(document.querySelector('.ra-outputs'), null, 'Draft report links are not shown');
+    assert.equal(readerReads, 1);
     response = { ...response, status: 'FAILED', aiActivity: {
       m11: { states: { prepared: 0, dispatching: 0, completed: 1, dispatchUnknown: 0 }, outcomes: { valid: 0, invalid: 1 }, billing: { state: 'UNKNOWN' } },
       m12: { states: { prepared: 0, dispatching: 0, completed: 0, dispatchUnknown: 1 }, outcomes: { valid: 0, invalid: 0 }, billing: { state: 'UNKNOWN' } },

@@ -275,3 +275,9 @@ export function normalizeMetricWorkbook(workbook: Buffer, manifestBytes: Buffer,
   }
   return { ...normalized, result };
 }
+
+/** Typed Sheet1 cells for read-only consumers such as the reader report; never a normalization. */
+export type MetricSheetCell = Cell;
+export type MetricSheetRow = RawRow;
+export const METRIC_CURRENT_HEADERS: readonly string[] = CURRENT_HEADERS;
+export function readMetricSheetRows(workbook: Buffer): MetricSheetRow[] { return readSheet(workbook); }
