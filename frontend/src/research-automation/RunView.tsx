@@ -6,6 +6,7 @@ import { coverageStateLabel, datasetLabel, formatDay, formatTime, limitationLabe
 import type { RunPhase } from './run-status';
 import ScopeConfirm from './ScopeConfirm';
 import StepNav from './StepNav';
+import ReportVersionsPanel from './ReportVersionsPanel';
 
 const POLL_MS = 4000;
 
@@ -81,6 +82,7 @@ export default function RunView({ workspaceId, runId, ownerToken, writesAvailabl
   return <div className="ra-dossier"><aside className="ra-side"><StepNav steps={runSteps(run, phase)} /></aside><section className="ra-main" aria-labelledby="ra-run-title">
     {notice && <div className="ra-banner" role="alert"><p>{notice}</p><button type="button" className="button" onClick={() => setNotice('')}>Đã hiểu</button></div>}
     {loadError && <div className="ra-message error" role="alert"><p>Mất kết nối khi cập nhật trạng thái. Dữ liệu bên dưới là lần tải gần nhất.</p><button type="button" className="button" onClick={reload}>Tải lại</button></div>}
+    {run.status === 'DRAFT_READY' && <ReportVersionsPanel key={run.runId} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} onActivityChanged={reload} />}
     {phase === 'scope' ? <ScopeConfirm key={`${run.runId}:${run.revision}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} onConfirmed={() => { notify('Đã xác nhận phạm vi. Hệ thống bắt đầu thu thập.'); reload(); }} onConflict={conflict} /> : <RunProgress run={run} phase={phase} workspaceId={workspaceId} />}
   </section><aside className="ra-inspector" aria-labelledby="ra-run-facts"><h2 id="ra-run-facts">Phiên nghiên cứu</h2><p className={`status-pill ${phase === 'finished' && run.status !== 'FAILED' && run.status !== 'CANCELLED' && run.status !== 'INTERRUPTED' ? 'good' : ''}`}>{statusLabel(run.status)}</p><dl className="ra-kv"><div><dt>Từ khóa</dt><dd>{run.keyword}</dd></div><div><dt>Chế độ</dt><dd>{modeLabel(run.mode)}</dd></div><div><dt>Kỳ yêu cầu</dt><dd>{formatDay(run.requestedPeriod.startDate)} → {formatDay(run.requestedPeriod.endDate)} · {run.requestedPeriod.dayCount} ngày</dd></div><div><dt>Thị trường</dt><dd>Việt Nam</dd></div><div><dt>Báo cáo</dt><dd>{reportsLabel(run.reports)}</dd></div><div><dt>Bắt đầu</dt><dd>{formatTime(run.createdAt)}</dd></div><div><dt>Cập nhật</dt><dd>{formatTime(run.updatedAt)}</dd></div></dl><h3>Chi phí và lượt gọi</h3><UsageSummary run={run}/><p className="ra-muted">Ưu tiên đủ dữ liệu · Không đặt trần chi phí. Chưa có số liệu nghĩa là nguồn chưa báo, không phải bằng 0.</p>{phase !== 'finished' && <><button type="button" className="button danger" disabled={!canWrite || cancelPending} onClick={() => setCancelOpen(true)}>{cancelPending ? 'Đang hủy…' : 'Hủy phiên nghiên cứu'}</button>{!canWrite && <p className="ra-muted">Mở khóa OWNER để hủy phiên.</p>}</>}{cancelOpen && <ConfirmDialog titleId="ra-cancel-title" descriptionId="ra-cancel-description" title="Hủy phiên nghiên cứu này?" confirmLabel="Hủy phiên" pending={cancelPending} onCancel={() => setCancelOpen(false)} onConfirm={() => void cancel()}><p id="ra-cancel-description">Hệ thống dừng các bước còn lại. Dữ liệu và chi phí đã phát sinh vẫn được ghi lại. Muốn chạy lại cần tạo phiên mới.</p></ConfirmDialog>}</aside></div>;
 }
@@ -98,7 +100,32 @@ function runSteps(run: ResearchAutomationRun, phase: RunPhase) {
 
 function UsageSummary({ run }: { readonly run: ResearchAutomationRun }) {
   const known = run.usage.knownCosts;
-  return <dl className="ra-kv"><div><dt>Request count</dt><dd>{run.usage.requestCount}</dd></div>{known.map(cost => <div key={`${cost.unit}:${cost.amount}`}><dt>{cost.unit}</dt><dd>{cost.amount}</dd></div>)}{run.usage.hasUnknownCost && <div><dt>Chi phí chưa biết</dt><dd>Chưa có số liệu</dd></div>}</dl>;
+  const activities = ([['m11', 'M11 · Cơ hội'], ['m12', 'M12 · Hành động'],
+    ['i14', 'I14 · Hướng cơ hội'], ['i15', 'I15 · Định hướng chiến lược']] as const)
+    .flatMap(([id, title]) => {
+      const activity = run.aiActivity?.[id];
+      return activity ? [{ id, title, activity }] : [];
+    });
+  return <>
+    <dl className="ra-kv"><div><dt>Lượt gọi thu nguồn</dt><dd>{run.usage.requestCount}</dd></div>{known.map(cost => <div key={`${cost.unit}:${cost.amount}`}><dt>Thu nguồn ({cost.unit})</dt><dd>{cost.amount}</dd></div>)}{run.usage.hasUnknownCost && <div><dt>Chi phí thu nguồn</dt><dd>Chưa có đủ số liệu</dd></div>}</dl>
+    {activities.length ? <>
+      <h4>Hoạt động AI theo mục</h4>
+      <p className="ra-muted">Gồm lần tạo đầu và các phiên bản bổ sung của phiên nghiên cứu này.</p>
+      {activities.map(({ id, title, activity: ai }) => <details key={id} className="ra-ai-activity" aria-label={title}>
+        <summary>{title}</summary>
+        <dl className="ra-kv">
+        <div><dt>Đã chuẩn bị, chưa bắt đầu gửi</dt><dd>{ai.states.prepared}</dd></div>
+        <div><dt>Đang xử lý</dt><dd>{ai.states.dispatching}</dd></div>
+        <div><dt>Đã xử lý phản hồi</dt><dd>{ai.states.completed}</dd></div>
+        <div><dt>Phản hồi qua kiểm tra máy</dt><dd>{ai.outcomes.valid}</dd></div>
+        <div><dt>Phản hồi không đạt kiểm tra</dt><dd>{ai.outcomes.invalid}</dd></div>
+        <div><dt>Chưa rõ kết quả gửi</dt><dd>{ai.states.dispatchUnknown}</dd></div>
+        <div><dt>Chi phí AI</dt><dd>{ai.billing.state === 'UNKNOWN' ? 'Chưa có số liệu xác nhận' : 'Chưa bắt đầu gửi yêu cầu'}</dd></div>
+        </dl>
+      </details>)}
+      <p className="ra-muted">Đây là trạng thái xử lý, không phải số lượt được tính tiền hay số mục đã hoàn tất. Phản hồi qua kiểm tra máy vẫn cần xem xét nội dung. Mục không xuất hiện chưa có thống kê được ghi nhận.</p>
+    </> : <p className="ra-muted">Chưa có thống kê hoạt động AI trong dữ liệu này. Lượt gọi thu nguồn không bao gồm AI.</p>}
+  </>;
 }
 
 function RunProgress({ run, phase, workspaceId }: { readonly run: ResearchAutomationRun; readonly phase: RunPhase; readonly workspaceId: string }) {
@@ -108,7 +135,7 @@ function RunProgress({ run, phase, workspaceId }: { readonly run: ResearchAutoma
     <section className="ra-block" aria-labelledby="ra-steps-title"><h3 id="ra-steps-title">Tiến độ các bước</h3><ol className="ra-run-steps" aria-label="Các bước máy chủ">{run.steps.map(step => <li key={step.stepId}><span>{step.stepId === 'QUICK_SEARCH' ? 'Tìm nhanh' : step.stepId === 'COLLECTION' ? 'Thu thập' : 'Báo cáo'}</span><span className={`ra-state ${step.state.toLowerCase()}`}>{stepStateLabel(step.state)}{step.code ? ` · ${limitationLabel(step.code)}` : ''}{step.code && <details><summary>Chi tiết kỹ thuật</summary><code>{step.code}</code>{step.message && <span>{step.message}</span>}</details>}</span></li>)}</ol></section>
     <section className="ra-block" aria-labelledby="ra-coverage-title"><h3 id="ra-coverage-title">Độ phủ dữ liệu</h3><dl className="ra-kv wide"><div><dt>Kỳ yêu cầu</dt><dd>{formatDay(run.coverage.requestedPeriod.startDate)} → {formatDay(run.coverage.requestedPeriod.endDate)} · {run.coverage.requestedPeriod.dayCount} ngày</dd></div></dl><div className="ra-source-list">{run.coverage.sources.map(source => <article key={`${source.provider}:${source.dataset}`}><div><b>{providerLabel(source.provider)}</b><span>{datasetLabel(source.dataset)}</span></div><span className="status-pill">{coverageStateLabel(source.state)}</span><p>{source.observedStartDate && source.observedEndDate ? `Quan sát: ${formatDay(source.observedStartDate)} → ${formatDay(source.observedEndDate)}` : 'Chưa có kỳ quan sát được báo'}{source.truncated ? ' · Kết quả bị cắt.' : ''}</p><details><summary>Chi tiết kỹ thuật</summary><code>{source.provider} · {source.dataset}</code>{source.note && <span>{source.note}</span>}</details></article>)}</div></section>
     {blockerGroups.length > 0 && <section className="ra-block" aria-labelledby="ra-blockers-title"><h3 id="ra-blockers-title">Phần chưa thể hoàn thành</h3><ul className="ra-blockers">{blockerGroups.map(group => <li key={`${group.code}:${group.provider ?? ''}`}><b>{group.provider ? providerLabel(group.provider) : 'Nguồn'}</b><div><span>{limitationLabel(group.code)}</span><details><summary>Chi tiết kỹ thuật{group.entries.length > 1 ? ` (${group.entries.length} ghi nhận)` : ''}</summary>{group.entries.map((entry, index) => <div key={`${entry.scope}:${entry.message}:${index}`}><code>{entry.code}</code><span>Phạm vi: {entry.scope === 'RUN' ? 'Cả phiên' : entry.scope === 'SOURCE' ? 'Nguồn' : entry.scope}</span>{entry.provider && <span>Nhà cung cấp: {entry.provider}</span>}<span>{entry.message}</span></div>)}</details></div></li>)}</ul></section>}
-    <Outputs run={run} workspaceId={workspaceId}/>
+    {run.status !== 'DRAFT_READY' && <Outputs run={run} workspaceId={workspaceId}/>}
   </div>;
 }
 
