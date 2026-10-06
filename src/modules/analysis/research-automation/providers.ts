@@ -345,7 +345,7 @@ export interface ResearchAutomationProviderConfig {
   /** Presence only matters for the capability report; no Apify operation is wired here. */
   readonly apifyTokenConfigured: boolean;
   /** Separate opt-in for exact-listing reviews; presence of a token alone does not enable spending. */
-  readonly apifyReviews?: { readonly token: string; readonly maxChargeUsd: number };
+  readonly apifyReviews?: { readonly token: string; readonly maxChargeUsd: number; readonly maxReviewsPerProduct?: number };
 }
 
 export class ProviderConfigurationError extends Error {
@@ -366,11 +366,15 @@ export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv):
   const capValue = env.TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD;
   const cap = capValue ? Number(capValue) : null;
   if (capValue && (!token || cap === null || !Number.isFinite(cap) || cap <= 0 || cap > 10000)) throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD requires an approved positive cap and APIFY token');
+  // Optional per-listing review limit; unset keeps the collector default (500).
+  const perListingValue = env.TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT;
+  const perListing = perListingValue ? Number(perListingValue) : null;
+  if (perListingValue && (cap === null || !/^\d+$/.test(perListingValue) || perListing === null || perListing < 1 || perListing > 500)) throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT requires a whole number from 1 to 500 and an approved charge cap');
   return {
     kalodataSecretKey: credential(env[PROVIDER_CREDENTIAL_ENV.KALODATA], PROVIDER_CREDENTIAL_ENV.KALODATA),
     serpApiKey: credential(env[PROVIDER_CREDENTIAL_ENV.SERPAPI], PROVIDER_CREDENTIAL_ENV.SERPAPI),
     apifyTokenConfigured: token !== null,
-    ...(token && cap !== null ? { apifyReviews: { token, maxChargeUsd: cap } } : {}),
+    ...(token && cap !== null ? { apifyReviews: { token, maxChargeUsd: cap, ...(perListing !== null ? { maxReviewsPerProduct: perListing } : {}) } } : {}),
   };
 }
 
