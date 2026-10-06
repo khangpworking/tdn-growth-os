@@ -58,7 +58,7 @@ async function readyRun(t: TestContext, rows?: ReaderRowsReader) {
   const build = (requestKey: string, extra: Record<string, unknown> = {}) => ({ contractVersion: 'reader-report-build-v1', requestKey,
     metricPackageId: prepared.packageId, platforms: ['shopee'], profile, cover: null, source: source(), ...extra });
   // A run that is not DRAFT_READY never gets a reader page.
-  await assert.rejects(service.buildReaderReport(workspaceId, runId, build('early-build-key'), owner), /bản nháp đã sẵn sàng/);
+  await assert.rejects(service.buildReaderReport(workspaceId, runId, build('30000000-0000-4000-8000-000000000000'), owner), /bản nháp đã sẵn sàng/);
   await service.confirmScope(workspaceId, runId, { contractVersion: 'research-automation-confirm-v2', requestKey: '55555555-5555-4555-8555-555555555555',
     expectedRevision: awaiting.revision, ...scope, sources: { metric: { decision: 'USE_PREPARED', packageId: prepared.packageId }, nativeReview: 'SKIP' } });
   for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
@@ -71,21 +71,21 @@ const decide = (requestKey: string, revisionId: string, decision: 'APPROVED' | '
 
 test('reader page restates a ready draft: exact retry, deterministic rebuild, latest-only decisions and immutable rows', async t => {
   const f = await readyRun(t);
-  const first = await f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0001'), owner);
+  const first = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303031'), owner);
   assert.equal(first.exactRetry, false);
   assert.equal(first.revision.revisionNumber, 1);
   assert.equal(first.revision.state, 'PENDING_OWNER_REVIEW');
   assert.deepEqual(first.revision.platforms, ['shopee']);
-  const retry = await f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0001'), owner);
+  const retry = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303031'), owner);
   assert.deepEqual(retry, { ...first, exactRetry: true });
-  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0001', { platforms: ['shopee', 'tiktok'] }), owner),
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303031', { platforms: ['shopee', 'tiktok'] }), owner),
     (error: Error & { code?: string }) => error.code === 'request_key_conflict');
-  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0002', { source: source('2025-12-31') }), owner),
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303032', { source: source('2025-12-31') }), owner),
     /Kỳ số liệu khai báo khác kỳ của tệp/);
-  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0003', { platforms: ['shopee', 'tiktok'],
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303033', { platforms: ['shopee', 'tiktok'],
     source: { ...source(), platformBreakdown: { shopee: { displayedRevenueVnd: 150 }, tiktok: { displayedRevenueVnd: 50 } } } }), owner),
   /không dùng được cho bản đọc \(tiktok\)/, 'a declared marketplace with no rows fails closed');
-  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0004', { metricPackageId: '99999999-9999-4999-8999-999999999999' }), owner),
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303034', { metricPackageId: '99999999-9999-4999-8999-999999999999' }), owner),
     /không thuộc lượt research/);
 
   const page = await f.service.readReaderReport(workspaceId, runId, first.revision.revisionId);
@@ -94,38 +94,38 @@ test('reader page restates a ready draft: exact retry, deterministic rebuild, la
   assert.match(html, /Phân loại sản phẩm do AI đề xuất, chưa được chủ duyệt\./);
   assert.doesNotMatch(html, /Metric|Kalodata|TradeInt|Dami/i, 'the reader page never names a data provider');
 
-  const second = await f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0005'), owner);
+  const second = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303035'), owner);
   assert.equal(second.revision.revisionNumber, 2);
   assert.equal(second.revision.htmlSha256, first.revision.htmlSha256, 'same draft, file and profile rebuild the same page bytes');
   const listed = await f.service.listReaderReports(workspaceId, runId);
   assert.deepEqual(listed.revisions.map(r => r.state), ['SUPERSEDED', 'PENDING_OWNER_REVIEW']);
 
-  await assert.rejects(f.service.decideReaderReport(workspaceId, runId, decide('decide-key-0001', first.revision.revisionId, 'APPROVED'), owner),
+  await assert.rejects(f.service.decideReaderReport(workspaceId, runId, decide('20000000-0000-4000-8000-000030303031', first.revision.revisionId, 'APPROVED'), owner),
     (error: Error & { code?: string }) => error.code === 'revision_conflict' && /bản đọc mới hơn/.test(error.message));
-  const rejected = await f.service.decideReaderReport(workspaceId, runId, decide('decide-key-0002', second.revision.revisionId, 'REJECTED', '  Sai nhóm sản phẩm  '), owner);
+  const rejected = await f.service.decideReaderReport(workspaceId, runId, decide('20000000-0000-4000-8000-000030303032', second.revision.revisionId, 'REJECTED', '  Sai nhóm sản phẩm  '), owner);
   assert.equal(rejected.exactRetry, false);
   assert.equal(rejected.revision.state, 'REJECTED');
   assert.equal(rejected.revision.decision?.reason, 'Sai nhóm sản phẩm');
-  assert.deepEqual(await f.service.decideReaderReport(workspaceId, runId, decide('decide-key-0002', second.revision.revisionId, 'REJECTED', 'Sai nhóm sản phẩm'), owner),
+  assert.deepEqual(await f.service.decideReaderReport(workspaceId, runId, decide('20000000-0000-4000-8000-000030303032', second.revision.revisionId, 'REJECTED', 'Sai nhóm sản phẩm'), owner),
     { ...rejected, exactRetry: true });
-  await assert.rejects(f.service.decideReaderReport(workspaceId, runId, decide('decide-key-0002', second.revision.revisionId, 'APPROVED'), owner),
+  await assert.rejects(f.service.decideReaderReport(workspaceId, runId, decide('20000000-0000-4000-8000-000030303032', second.revision.revisionId, 'APPROVED'), owner),
     (error: Error & { code?: string }) => error.code === 'request_key_conflict');
-  await assert.rejects(f.service.decideReaderReport(workspaceId, runId, decide('decide-key-0003', second.revision.revisionId, 'APPROVED'), owner),
+  await assert.rejects(f.service.decideReaderReport(workspaceId, runId, decide('20000000-0000-4000-8000-000030303033', second.revision.revisionId, 'APPROVED'), owner),
     /đã có quyết định/);
 
-  const third = await f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0006', { profile: { ...profile, status: 'approved' } }), owner);
+  const third = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303036', { profile: { ...profile, status: 'approved' } }), owner);
   assert.equal(third.revision.profileStatus, 'approved');
   assert.doesNotMatch((await f.service.readReaderReport(workspaceId, runId, third.revision.revisionId)).bytes.toString('utf8'), /do AI đề xuất, chưa được chủ duyệt/);
-  const approved = await f.service.decideReaderReport(workspaceId, runId, decide('decide-key-0004', third.revision.revisionId, 'APPROVED'), owner);
+  const approved = await f.service.decideReaderReport(workspaceId, runId, decide('20000000-0000-4000-8000-000030303034', third.revision.revisionId, 'APPROVED'), owner);
   assert.equal(approved.revision.state, 'APPROVED');
-  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('build-key-0007'), owner), /Bản đọc mới nhất đã được chủ duyệt\./);
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000030303037'), owner), /Bản đọc mới nhất đã được chủ duyệt\./);
   assert.deepEqual((await f.service.listReaderReports(workspaceId, runId)).revisions.map(r => r.state), ['SUPERSEDED', 'REJECTED', 'APPROVED']);
 
   for (const sql of ["UPDATE analysis_reader_report_revisions SET actor_id='x'", 'DELETE FROM analysis_reader_report_revisions',
     "UPDATE analysis_reader_report_decisions SET reason='x'", 'DELETE FROM analysis_reader_report_decisions'])
     assert.throws(() => f.db.prepare(sql).run(), /immutable_reader_report/);
   assert.throws(() => f.db.prepare(`INSERT INTO analysis_reader_report_decisions(revision_id,run_id,decision,request_key,reason,actor_id,decided_at)
-    VALUES (?,?,'APPROVED','decide-key-raw1',NULL,'owner:x','2026-02-01T00:00:00.000Z')`).run(first.revision.revisionId, runId), /requires_latest_revision/);
+    VALUES (?,?,'APPROVED','20000000-0000-4000-8000-000072617731',NULL,'owner:x','2026-02-01T00:00:00.000Z')`).run(first.revision.revisionId, runId), /requires_latest_revision/);
   await assert.rejects(f.service.readReaderReport(workspaceId, runId, '99999999-9999-4999-8999-999999999999'), /Không tìm thấy bản đọc/);
 });
 
@@ -133,7 +133,7 @@ test('reader build reads both marketplaces from one combined file and only accep
   const rows: ReaderRowsReader = (bytes, platforms) => readerRowsFromMetricWorkbook(workbook({ J3: { type: 's', value: '8__102__20' } }), platforms)
     .map(row => ({ ...row, units: row.units || 1 }));
   const f = await readyRun(t, rows);
-  const body = f.build('build-key-both', { platforms: ['tiktok', 'shopee'],
+  const body = f.build('10000000-0000-4000-8000-0000626f7468', { platforms: ['tiktok', 'shopee'],
     source: { ...source(), platformBreakdown: { shopee: { displayedRevenueVnd: 120 }, tiktok: { displayedRevenueVnd: 60 } } } });
   await assert.rejects(f.service.buildReaderReport(workspaceId, runId, body, { actorId: ' ', role: 'OWNER' }), /OWNER actor/);
   const built = await f.service.buildReaderReport(workspaceId, runId, body, owner);

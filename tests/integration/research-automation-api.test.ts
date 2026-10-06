@@ -1605,15 +1605,15 @@ test('reader report routes build, serve and decide one OWNER reader page without
     const post = (action: string, body: unknown, authorized = true) => fetch(`${runRoot('owner-api')}/${action}`,
       { method: 'POST', headers: ownerHeaders(base, authorized), body: JSON.stringify(body) });
 
-    assert.equal((await post('reader-reports', build('reader-build-01'), false)).status, 401);
-    const badPeriod = await post('reader-reports', build('reader-build-02', '2025-12-31'));
+    assert.equal((await post('reader-reports', build('40000000-0000-4000-8000-000000000001'), false)).status, 401);
+    const badPeriod = await post('reader-reports', build('40000000-0000-4000-8000-000000000002', '2025-12-31'));
     assert.equal(badPeriod.status, 400);
     assert.equal((await readJson(badPeriod)).error.message, 'Kỳ số liệu khai báo khác kỳ của tệp đã gắn vào lượt.');
-    const created = await post('reader-reports', build('reader-build-01'));
+    const created = await post('reader-reports', build('40000000-0000-4000-8000-000000000001'));
     assert.equal(created.status, 201, await created.clone().text());
     const receipt = await readJson(created);
     assert.equal(receipt.revision.state, 'PENDING_OWNER_REVIEW');
-    const retried = await post('reader-reports', build('reader-build-01'));
+    const retried = await post('reader-reports', build('40000000-0000-4000-8000-000000000001'));
     assert.equal(retried.status, 200);
     assert.deepEqual(await readJson(retried), { ...receipt, exactRetry: true });
     assert.deepEqual((await readJson(await fetch(`${runRoot('api')}/reader-reports`))).revisions, [receipt.revision]);
@@ -1632,16 +1632,16 @@ test('reader report routes build, serve and decide one OWNER reader page without
     assert.doesNotMatch(csp, /script-src[^;]*unsafe/);
     assert.equal((await fetch(`${runRoot('api')}/reader-reports/99999999-9999-4999-8999-999999999999/html`)).status, 404);
 
-    const decision = { contractVersion: 'reader-report-decision-v1', requestKey: 'reader-decide-01', revisionId: receipt.revision.revisionId, decision: 'APPROVED', reason: null };
+    const decision = { contractVersion: 'reader-report-decision-v1', requestKey: '50000000-0000-4000-8000-000000000001', revisionId: receipt.revision.revisionId, decision: 'APPROVED', reason: null };
     assert.equal((await post('reader-reports/decisions', decision, false)).status, 401);
     const decided = await post('reader-reports/decisions', decision);
     assert.equal(decided.status, 201, await decided.clone().text());
     assert.equal((await readJson(decided)).revision.state, 'APPROVED');
     assert.equal((await post('reader-reports/decisions', decision)).status, 200);
-    const again = await post('reader-reports/decisions', { ...decision, requestKey: 'reader-decide-02' });
+    const again = await post('reader-reports/decisions', { ...decision, requestKey: '50000000-0000-4000-8000-000000000002' });
     assert.equal(again.status, 409);
     assert.equal((await readJson(again)).error.message, 'Bản đọc này đã có quyết định.');
-    const afterApproval = await post('reader-reports', build('reader-build-03'));
+    const afterApproval = await post('reader-reports', build('40000000-0000-4000-8000-000000000003'));
     assert.equal(afterApproval.status, 409);
     assert.equal((await readJson(afterApproval)).error.message, 'Bản đọc mới nhất đã được chủ duyệt.');
 
