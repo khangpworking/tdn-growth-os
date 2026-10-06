@@ -10,6 +10,11 @@ export function visibleText(html: string): string {
   return html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
 }
 
+// Cells marked data-quote hold text copied from a web search result.
+// The report's own wording rules (F3, F5, F7) do not apply to a quotation;
+// provider names (F1) are still checked everywhere.
+const QUOTED = /<(\w+)\b[^>]*\sdata-quote\b[^>]*>[\s\S]*?<\/\1>/g;
+
 // Attribute values as the browser reads them (character references decoded).
 const NAMED: Record<string, string> = { quot: '"', apos: "'", amp: '&', colon: ':', sol: '/', bsol: '\\', lpar: '(', rpar: ')', tab: '\t', newline: '\n' };
 function decodeAttr(value: string): string {
@@ -31,9 +36,9 @@ function decodeCss(css: string): string {
 
 export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [] }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
-  const vis = visibleText(html), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
+  const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
-  const prov = providers.filter(p => new RegExp(`\\b${p}\\b`, 'i').test(vis + ' ' + svgText + ' ' + titleTag));
+  const prov = providers.filter(p => new RegExp(`\\b${p}\\b`, 'i').test(all + ' ' + svgText + ' ' + titleTag));
   add('F1 tên nhà cung cấp số liệu', prov.length === 0, prov.length ? 'thấy: ' + prov.join(', ') : 'không thấy ' + providers.join('/'));
 
   const ex = [...html.matchAll(/<(figure|div) class="ex">([\s\S]*?)(?=<(figure|div) class="ex">|<\/section>)/g)];
@@ -69,13 +74,15 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   // Only real tags load anything: attributes are read inside tags (double,
   // single or no quotes) and CSS inside <style> blocks and style attributes.
   // The same words in escaped page text (e.g. a quoted web snippet) load nothing.
+  // A link the reader clicks (<a href>) loads nothing either; any other remote address does.
   const tags = [...html.matchAll(/<[a-z][\w:-]*(?:"[^"]*"|'[^']*'|[^'">])*>/gi)].map(m => m[0]);
-  const attrs = (name: string) => tags.flatMap(tag => [...tag.matchAll(new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'gi'))]
-    .map(m => ({ tag, value: decodeAttr(m[1] ?? m[2] ?? m[3] ?? '').trim() })));
+  const attrs = (name: string) => tags.flatMap(tag => [...tag.matchAll(new RegExp(`\\s(${name})\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s"'>]+))`, 'gi'))]
+    .map(m => ({ tag, name: (m[1] ?? '').toLowerCase(), value: decodeAttr(m[2] ?? m[3] ?? m[4] ?? '').trim() })));
   const css = decodeCss([...[...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>/gi)].map(m => m[1] ?? ''), ...attrs('style').map(a => a.value)].join('\n'));
   const remote = [
     ...[...html.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc\s*=/gi)].map(m => m[0]),
-    ...attrs('(?:[\\w-]+:)?(?:src|srcset|href)').filter(a => /^(?:https?:)?[\\/]{2}/i.test(a.value)).map(a => a.tag),
+    ...attrs('(?:[\\w-]+:)?(?:src|srcset|href|poster|data|action|formaction|ping)')
+      .filter(a => /^(?:https?:)?[\\/]{2}/i.test(a.value) && !(/^<a\s/i.test(a.tag) && a.name === 'href')).map(a => a.tag),
     // url(...), or a quoted address as in @import "..." and image-set("...").
     ...[...css.matchAll(/url\(\s*['"]?\s*(?:https?:)?[\\/]{2}|['"]\s*(?:https?:)?[\\/]{2}|@import\b/gi)].map(m => m[0]),
   ].map(s => s.slice(0, 40));

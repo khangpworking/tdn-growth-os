@@ -70,7 +70,7 @@ function parseResults(data: unknown, retrievedAt: string, captureId: string): Se
       captureId, position, title, url,
       displayedLink: boundedText(row.displayed_link, 500),
       snippet: boundedText(row.snippet, 2_000),
-      source: boundedText(row.source, 300), retrievedAt,
+      source: boundedText(row.source, 300), date: boundedText(row.date, 100), retrievedAt,
       semantics: 'CURRENT_WEB_SNAPSHOT_NOT_PERIOD_EVIDENCE',
     });
   }

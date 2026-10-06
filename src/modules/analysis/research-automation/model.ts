@@ -76,6 +76,9 @@ export interface StepWebResult {
   readonly title: string;
   readonly url: string;
   readonly snippet: string | null;
+  /** Page name and publish date as the search engine shows them; absent in results stored before they were kept. */
+  readonly site?: string | null;
+  readonly published?: string | null;
   readonly retrievedAt: string;
   readonly captureIndex: number;
 }

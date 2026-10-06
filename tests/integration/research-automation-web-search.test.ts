@@ -15,7 +15,7 @@ const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
 const now = () => new Date('2026-10-02T00:00:00.000Z');
 const organic = [
-  { position: 2, title: 'Bình giữ nhiệt nên mua', link: 'https://example.test/guide', snippet: 'So sánh dung tích' },
+  { position: 2, title: 'Bình giữ nhiệt nên mua', link: 'https://example.test/guide', snippet: 'So sánh dung tích', source: 'Báo Mẫu', date: '3 ngày trước' },
   { position: 1, title: 'Bình giữ nhiệt chính hãng', link: 'https://example.test/brand' },
   { position: 3, title: 'Không an toàn', link: 'javascript:alert(1)' },
 ];
@@ -70,6 +70,7 @@ test('confirmed products run one web search beside the product lane, offset past
   assert.deepEqual(f.document.webResults?.map(w => [w.position, w.url, w.captureIndex]), [[2, 'https://example.test/guide', 1], [1, 'https://example.test/brand', 1]],
     'provider order is kept; the reader page sorts');
   assert.equal(f.document.webResults?.[0]?.snippet, 'So sánh dung tích');
+  assert.deepEqual(f.document.webResults?.map(w => [w.site, w.published]), [['Báo Mẫu', '3 ngày trước'], [null, null]], 'page name and date are kept for citing');
   assert.ok(f.document.coverage.some(c => c.provider === 'kalodata'));
   assert.ok(f.document.coverage.some(c => c.provider === 'serpapi'));
   assert.equal((await f.artifacts.read(f.captures[1]!.sha)).toString('utf8').includes(SYNTHETIC_SERP_KEY), false, 'the key never reaches a capture');

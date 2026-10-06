@@ -90,32 +90,42 @@ test('approved profile and missing signals or benchmark still render', async () 
   });
 });
 
-test('web search results render as an appendix table that passes every gate and links nowhere', async () => {
+test('web search results are cited in the appendix with links, kept despite their own wording, and pass every gate', async () => {
   await withStore(async store => {
     const at = '2026-10-01T18:30:00.000Z';
     const webResults = [
-      { position: 2, title: 'Bình giữ nhiệt <b>mẫu mới</b>', url: 'https://example.test/b?x=1&y=2', snippet: 'Đánh giá "thật"', retrievedAt: at },
+      { position: 2, title: 'Bình giữ nhiệt <b>mẫu mới</b>', url: 'https://example.test/b?x=1&y=2', snippet: 'Đánh giá "thật"', retrievedAt: at, site: 'Báo Mẫu', published: '15 thg 3, 2026' },
       { position: 1, title: 'Hướng dẫn chọn bình', url: 'https://example.test/a', snippet: null, retrievedAt: at },
       { position: 3, title: 'Bình rẻ nhất', url: 'http://example.test/plain', snippet: null, retrievedAt: at },
-      { position: 4, title: 'Thị phần bình 2026', url: 'https://example.test/share', snippet: null, retrievedAt: at },
-      { position: 5, title: 'Xem Bảng 3 ở đây', url: 'https://example.test/table', snippet: null, retrievedAt: at },
-      { position: 6, title: 'Bình Kalodata', url: 'https://example.test/provider', snippet: null, retrievedAt: at },
-      { position: 7, title: 'Bình', url: 'https://example.test/c', snippet: 'giá {{x}}', retrievedAt: at },
+      { position: 4, title: 'Thị phần bình 2026 xếp hạng toàn thị trường', url: 'https://example.test/share', snippet: null, retrievedAt: at },
+      { position: 5, title: 'Xem Bảng 3 ở đây, Phần 14', url: 'https://example.test/table', snippet: null, retrievedAt: at },
+      { position: 6, title: 'Bình theo Kalodata', url: 'https://example.test/kalodata-review', snippet: 'Số liệu SerpApi và metric', retrievedAt: at, site: 'Dami blog', published: null },
+      { position: 7, title: 'Bình', url: 'https://example.test/c', snippet: 'giá {{x}} null NaN', retrievedAt: at },
       { position: 8, title: 'Mẹo trang trí', url: `https://example.test/${'a'.repeat(400)}?ref=1`, snippet: 'Dùng url(https://example.test/x.png) làm nền', retrievedAt: at },
+      { position: 9, title: 'Trang của nguồn số liệu', url: 'https://www.kalodata.com/products/1', snippet: null, retrievedAt: at },
     ];
-    assert.deepEqual(readerWebResults(webResults).map(w => w.position), [1, 2, 8], 'unsafe or gate-tripping results are dropped, not edited');
+    assert.deepEqual(readerWebResults(webResults).map(w => w.position), [1, 2, 4, 5, 6, 7, 8],
+      'only non-https pages and pages hosted by a data provider are left out');
     const r = await buildMarketReport(computeReaderReportData(input()), { ...options, webResults });
     const pub = await publishReaderReport(store, { html: r.html, narrator: r.narrator, extraOk: r.extraOk });
     assert.ok(pub.lint.every(x => x.ok), JSON.stringify(pub.lint.filter(x => !x.ok)));
-    assert.deepEqual(r.webResults.map(w => w.position), [1, 2, 8], 'a quoted url(...) snippet and a long address still pass the offline-asset gate');
-    assert.match(r.html, /td\.pl-url\{[^}]*overflow-wrap:anywhere/, 'long addresses wrap instead of widening the page');
+    assert.deepEqual(r.webResults.map(w => w.position), [1, 2, 4, 5, 6, 7, 8]);
+    const masked = r.webResults.find(w => w.position === 6)!;
+    assert.deepEqual([masked.title, masked.snippet, masked.site], ['Bình theo […]', 'Số liệu […] và […]', '[…] blog'], 'provider names are masked, the rest is quoted');
+    assert.match(r.html, /\.pl-url\{overflow-wrap:anywhere/, 'long addresses wrap instead of widening the page');
     const vis = visibleText(r.html);
     assert.match(vis, /Bảng PL\.3/);
     assert.match(vis, /Kết quả tìm kiếm Google tại Việt Nam cho từ khóa của báo cáo, thu ngày 02\/10\/2026/, 'retrieval day is shown in Vietnam time');
-    assert.ok(r.html.includes('Bình giữ nhiệt &lt;b&gt;mẫu mới&lt;/b&gt;'), 'titles are escaped');
-    assert.ok(r.html.includes('https://example.test/b?x=1&amp;y=2'));
-    assert.doesNotMatch(r.html, /href="https?:|src="https?:/);
-    assert.doesNotMatch(vis, /SerpApi|Kalodata/i);
+    assert.ok(r.html.includes('<a href="https://example.test/b?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">Bình giữ nhiệt &lt;b&gt;mẫu mới&lt;/b&gt;</a>'),
+      'the title links to the page and is escaped');
+    assert.match(vis, /Báo Mẫu · đăng 15 thg 3, 2026/, 'site and publish date are cited');
+    assert.match(vis, /https:\/\/example\.test\/b\?x=1&amp;y=2/, 'the address stays readable on paper');
+    assert.match(vis, /Thị phần bình 2026 xếp hạng toàn thị trường/, 'a page title is quoted as written');
+    assert.match(vis, /Google không cho biết tác giả/);
+    assert.match(vis, /chép theo kết quả tìm kiếm Google, không phải từ trang gốc: Google có thể cắt ngắn/, 'the note says where the text comes from');
+    assert.doesNotMatch(vis, /nguyên văn/, 'search-result text is not claimed to be verbatim from the page');
+    assert.doesNotMatch(r.html, /src="https?:/);
+    assert.doesNotMatch(vis, /SerpApi|Kalodata|\bDami\b|\bmetric\b/i);
 
     const none = await buildMarketReport(computeReaderReportData(input()), options);
     assert.doesNotMatch(none.html, /Bảng PL\.3|Kết quả tìm kiếm Google/);

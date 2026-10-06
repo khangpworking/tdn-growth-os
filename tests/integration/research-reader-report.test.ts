@@ -183,14 +183,17 @@ test('reader build stores the cover photo with its licence sidecar and refuses a
   assert.match((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8'), /data:image\/png;base64,/);
 });
 
-test('reader page lists the run web results in the appendix and never names the search provider', async t => {
-  const organic = [{ position: 1, title: 'Hũ thủy tinh nên mua', link: 'https://example.test/hu?a=1&b=2', snippet: 'So sánh nắp đậy' }];
+test('reader page cites the run web results in the appendix with links and never names the search provider', async t => {
+  const organic = [
+    { position: 1, title: 'Hũ thủy tinh nên mua', link: 'https://example.test/hu?a=1&b=2', snippet: 'So sánh nắp đậy', source: 'Báo Mẫu', date: '2 thg 9, 2026' },
+    { position: 2, title: 'Thị phần hũ thủy tinh', link: 'https://example.test/share', snippet: null },
+  ];
   const f = await readyRun(t, undefined, { source: syntheticProductSource(), webSource: syntheticWebSource(() => {}, organic) });
   const built = await f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000000000e01'), owner);
   const html = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
   assert.match(html, /Bảng PL\.3/);
-  assert.match(html, /Hũ thủy tinh nên mua/);
-  assert.ok(html.includes('https://example.test/hu?a=1&amp;b=2'), 'the address is shown as escaped text');
-  assert.doesNotMatch(html, /href="https?:/);
+  assert.ok(html.includes('<a href="https://example.test/hu?a=1&amp;b=2" target="_blank" rel="noopener noreferrer">Hũ thủy tinh nên mua</a>'), 'the title links to the page');
+  assert.match(html, /Báo Mẫu · đăng 2 thg 9, 2026/, 'site and publish date flow from the search result to the citation');
+  assert.match(html, /Thị phần hũ thủy tinh/, 'a result is not dropped for its own wording');
   assert.doesNotMatch(html, /SerpApi|Kalodata/i);
 });

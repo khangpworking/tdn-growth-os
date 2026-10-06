@@ -470,7 +470,8 @@ export class ResearchAutomationService {
     const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
     const webResults = collection?.resultSha ? (await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION')).webResults ?? [] : [];
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic,
-      webResults: webResults.map(({ position, title, url, snippet, retrievedAt }) => ({ position, title, url, snippet, retrievedAt })),
+      webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
+        ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
       metric: { packageId, workbook: workbook.bytes, measurementPeriod: prepared.request.measurementPeriod } };
   }
 
@@ -2302,6 +2303,8 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
         typeof item.title !== 'string' || item.title.length < 1 || item.title.length > 300 ||
         typeof item.url !== 'string' || item.url.length > 2000 || !item.url.startsWith('https://') ||
         (item.snippet !== null && (typeof item.snippet !== 'string' || item.snippet.length > 1000)) ||
+        (item.site != null && (typeof item.site !== 'string' || item.site.length > 200)) ||
+        (item.published != null && (typeof item.published !== 'string' || item.published.length > 100)) ||
         typeof item.retrievedAt !== 'string' || !Number.isFinite(Date.parse(item.retrievedAt)) ||
         !Number.isSafeInteger(item.captureIndex) || item.captureIndex < 0)))
     throw new ResearchAutomationIntegrityError('Stored web results are invalid.');
