@@ -122,6 +122,8 @@ test('web search results are cited in the appendix with links, kept despite thei
     assert.match(vis, /https:\/\/example\.test\/b\?x=1&amp;y=2/, 'the address stays readable on paper');
     assert.match(vis, /Thị phần bình 2026 xếp hạng toàn thị trường/, 'a page title is quoted as written');
     assert.match(vis, /Google không cho biết tác giả/);
+    assert.match(vis, /chép theo kết quả tìm kiếm Google, không phải từ trang gốc: Google có thể cắt ngắn/, 'the note says where the text comes from');
+    assert.doesNotMatch(vis, /nguyên văn/, 'search-result text is not claimed to be verbatim from the page');
     assert.doesNotMatch(r.html, /src="https?:/);
     assert.doesNotMatch(vis, /SerpApi|Kalodata|\bDami\b|\bmetric\b/i);
 

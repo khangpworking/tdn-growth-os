@@ -10,7 +10,7 @@ export function visibleText(html: string): string {
   return html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
 }
 
-// Cells marked data-quote hold verbatim text quoted from a cited web page.
+// Cells marked data-quote hold text copied from a web search result.
 // The report's own wording rules (F3, F5, F7) do not apply to a quotation;
 // provider names (F1) are still checked everywhere.
 const QUOTED = /<(\w+)\b[^>]*\sdata-quote\b[^>]*>[\s\S]*?<\/\1>/g;
