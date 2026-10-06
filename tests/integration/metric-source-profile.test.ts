@@ -155,6 +155,14 @@ test('A2 rejects ambiguous rich-string content instead of discarding or concaten
     e => e instanceof MetricSourceRejection && e.locator === 'Sheet1!E2' && e.code === 'AMBIGUOUS_INLINE_STRING');
 });
 
+test('A2 reads an empty inline-string cell as blank, the same as an omitted cell', () => {
+  const parsed = normalize(fixture({ cells: { D2: { type: 'inlineStr', emptyInline: true } } }));
+  assert.equal(parsed.input.records[0]!.units.state, 'missing');
+  assert.equal(parsed.result.scopes[0].units.complete, false);
+  assert.equal(parsed.receipt.evidence[0]!.cells[3]!.type, 'blank');
+  assert.equal(parsed.receipt.evidence[0]!.cells[3]!.rawType, 'inlineStr');
+});
+
 test('A2 rejects a whole workbook at the offending locator instead of repairing or dropping rows', () => {
   const cases: [object, string, string][] = [
     [{ cells: { E2: { type: 's', value: '1.5' } } }, 'Sheet1!E2', 'INVALID_INTEGER_TEXT'],

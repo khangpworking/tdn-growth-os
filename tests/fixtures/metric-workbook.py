@@ -43,6 +43,8 @@ for r, values in enumerate(rows, 1):
             shared.append(value)
             shared_xml.append(spec.get('richXml', '<t>' + escape(value) + '</t>'))
             contents = '<v>' + str(len(shared) - 1) + '</v>'
+        elif typ == 'inlineStr' and spec.get('emptyInline'):
+            contents = ''
         elif typ == 'inlineStr':
             contents = '<is>' + spec.get('richXml', '<t>' + escape(value) + '</t>') + '</is>'
             if spec.get('duplicateInline'):

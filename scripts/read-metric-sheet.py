@@ -142,6 +142,9 @@ def read_workbook(data):
                     if value is None or not re.fullmatch('[0-9]{1,8}', value) or int(value) >= len(shared):
                         reject('Sheet1!' + ref, 'SHARED_STRING_INDEX')
                     value, typ = shared[int(value)], 'text'
+                elif typ == 'inlineStr' and not vals and not inlines:
+                    # Exports write empty cells as <c t="inlineStr"/>; that is a blank cell, not text.
+                    typ = 'blank'
                 elif typ == 'inlineStr':
                     if vals or len(inlines) != 1:
                         reject('Sheet1!' + ref, 'AMBIGUOUS_INLINE_STRING')
