@@ -33,27 +33,35 @@ export type MarketReportOptions = {
   cover?: CoverImage | null;
   /** false renders the hand-drawn SVG charts only (no chart engine load). */
   flint?: boolean;
-  /** Web search results of the run, listed in the appendix as plain text (no outbound links). */
+  /** Web search results of the run, cited in the appendix with a link to each page. */
   webResults?: readonly ReaderWebResult[];
 };
-export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string };
+/** site and published are the page name and date as the search engine shows them; older runs have neither. */
+export type ReaderWebResult = { position: number; title: string; url: string; snippet: string | null; retrievedAt: string; site?: string | null; published?: string | null };
 export type BuiltMarketReport = {
   html: string; narrator: Narrator; extraOk: string[];
   charts: { id: string; engine: 'flint' | 'svg-fallback'; error?: string }[];
-  /** The web results actually shown; results whose text would break a report rule are left out. */
+  /** The web results actually cited, with data-provider names masked. */
   webResults: ReaderWebResult[];
 };
 
-// Words a reader page must not carry (provider names, whole-market claims,
-// stray cross-references); a web result containing one is left out, not edited.
-const WEB_TEXT_BLOCKED = new RegExp([
-  ...FORBIDDEN_PROVIDER_NAMES.map(p => `\\b${p}\\b`), '\\bSerpApi\\b',
-  'xếp hạng', 'thị phần', 'toàn thị trường', 'quy mô thị trường', '(?:Hình|Bảng|Phần) (?:\\d|PL)',
-  '\\bundefined\\b', '\\bNaN\\b', '\\bnull\\b', '\\{\\{', '\\}\\}', 'Infinity',
-].join('|'), 'i');
-/** Results that can be shown verbatim without tripping the publish gate. */
+// A report never names a data provider, even inside a quotation: the name is
+// masked, and a page hosted by a provider is not cited at all. Other wording in
+// a quotation is the page's own and stays as written.
+const PROVIDER_NAME = new RegExp(`\\b(?:${[...FORBIDDEN_PROVIDER_NAMES, 'SerpApi'].join('|')})\\b`, 'gi');
+const mask = (s: string): string => s.replace(PROVIDER_NAME, '[…]');
+const maskOrNull = (s: string | null | undefined): string | null => (s ? mask(s) : null);
+function citableUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && !new RegExp(PROVIDER_NAME.source, 'i').test(url.hostname);
+  } catch { return false; }
+}
+/** Results that can be cited: https pages not hosted by a provider, provider names masked, in search order. */
 export function readerWebResults(values: readonly ReaderWebResult[]): ReaderWebResult[] {
-  return values.filter(v => /^https:\/\//.test(v.url) && !WEB_TEXT_BLOCKED.test(`${v.title} ${v.snippet ?? ''} ${v.url}`))
+  return values.filter(v => citableUrl(v.url))
+    .map(v => ({ position: v.position, title: mask(v.title), url: v.url, snippet: maskOrNull(v.snippet), retrievedAt: v.retrievedAt,
+      site: maskOrNull(v.site), published: maskOrNull(v.published) }))
     .sort((a, b) => a.position - b.position);
 }
 
@@ -309,7 +317,10 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   const webOn = web.length ? vd(new Date(Date.parse(web[0]!.retrievedAt) + 7 * 3_600_000).toISOString().slice(0, 10)) : '';
   const webSrc = web.length ? `<li>Kết quả tìm kiếm Google tại Việt Nam cho từ khóa của báo cáo, thu ngày ${webOn}</li>` : '';
   const webTable = web.length ? `
-<div class="ex"><div class="exh"><span class="exn">Bảng PL.3</span><span class="ext">Kết quả tìm kiếm trên web</span></div><div class="tw"><table class="pl-web"><thead><tr><th>#</th><th>Tiêu đề</th><th>Tóm tắt</th><th>Địa chỉ trang</th></tr></thead><tbody>${web.map(w => `<tr><td>${w.position}</td><td>${esc(w.title)}</td><td>${esc(w.snippet ?? '')}</td><td class="pl-url">${esc(w.url)}</td></tr>`).join('')}</tbody></table></div><p class="ex-note">Thứ tự theo kết quả tìm kiếm tại thời điểm thu; nội dung trang có thể đã đổi sau ngày thu. Địa chỉ trang ghi dạng chữ để tra lại.</p><p class="ex-src">Nguồn: Google, thu ngày ${webOn}.</p></div>` : '';
+<div class="ex"><div class="exh"><span class="exn">Bảng PL.3</span><span class="ext">Kết quả tìm kiếm trên web</span></div><div class="tw"><table class="pl-web"><thead><tr><th>#</th><th>Bài viết được trích</th><th>Tóm tắt (trích nguyên văn)</th></tr></thead><tbody>${web.map(w => {
+    const meta = [w.site, w.published ? `đăng ${w.published}` : null].filter(Boolean).map(s => esc(s)).join(' · ');
+    return `<tr><td>${w.position}</td><td class="pl-cite" data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${meta ? `<span class="pl-meta">${meta}</span>` : ''}<span class="pl-url">${esc(mask(w.url))}</span></td><td data-quote>${esc(w.snippet ?? '')}</td></tr>`;
+  }).join('')}</tbody></table></div><p class="ex-note">Bấm tiêu đề để mở trang gốc; bản in giữ địa chỉ trang dưới tiêu đề. Tên trang và ngày đăng ghi theo Google; Google không cho biết tác giả. Tiêu đề và tóm tắt trích nguyên văn từ trang gốc, không phải nhận định của báo cáo. Thứ tự theo kết quả tìm kiếm tại thời điểm thu; nội dung trang có thể đã đổi sau ngày thu.</p><p class="ex-src">Nguồn: Google, thu ngày ${webOn}.</p></div>` : '';
   const listRows = [...rows].sort((a, b) => b.rev - a.rev).map(r => `<tr><td>${r.i}</td><td>${plat(r.platform)}</td><td>${esc(segName(r.seg ?? ''))}</td><td>${esc(r.shopName || r.shop)}</td><td>${n(num(r.rev))}</td><td>${n(num(r.units))}</td><td>${n(num(r.asp))}</td><td>${esc(r.title)}</td></tr>`).join('');
   secs.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm',
     hlNum(nar('Phụ lục liệt kê nguồn số liệu và nghĩa của các thuật ngữ. Cuối phụ lục có danh sách đủ {{src.rows}} sản phẩm để tra lại.', 'PL.ans')),

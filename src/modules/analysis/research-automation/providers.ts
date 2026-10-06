@@ -296,6 +296,8 @@ export interface WebDiscoveryResult {
   readonly displayedLink: string | null;
   readonly snippet: string | null;
   readonly source: string | null;
+  /** Publish date exactly as the search engine shows it (may be relative, e.g. "3 ngày trước"). */
+  readonly date: string | null;
   readonly retrievedAt: string;
   /** Search results are a current snapshot; never annual or sales evidence. */
   readonly semantics: 'CURRENT_WEB_SNAPSHOT_NOT_PERIOD_EVIDENCE';

@@ -10,11 +10,16 @@ export function visibleText(html: string): string {
   return html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
 }
 
+// Cells marked data-quote hold verbatim text quoted from a cited web page.
+// The report's own wording rules (F3, F5, F7) do not apply to a quotation;
+// provider names (F1) are still checked everywhere.
+const QUOTED = /<(\w+)\b[^>]*\sdata-quote\b[^>]*>[\s\S]*?<\/\1>/g;
+
 export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [] }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
-  const vis = visibleText(html), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
+  const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
-  const prov = providers.filter(p => new RegExp(`\\b${p}\\b`, 'i').test(vis + ' ' + svgText + ' ' + titleTag));
+  const prov = providers.filter(p => new RegExp(`\\b${p}\\b`, 'i').test(all + ' ' + svgText + ' ' + titleTag));
   add('F1 tên nhà cung cấp số liệu', prov.length === 0, prov.length ? 'thấy: ' + prov.join(', ') : 'không thấy ' + providers.join('/'));
 
   const ex = [...html.matchAll(/<(figure|div) class="ex">([\s\S]*?)(?=<(figure|div) class="ex">|<\/section>)/g)];
@@ -48,10 +53,13 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('F8 bìa đúng mẫu (không số sản phẩm, nhãn, nguồn ảnh)', !!cov && !covBad, cov ? (covBad ? 'bìa có chữ cấm' : 'đúng mẫu') : 'không có bìa');
 
   // CSS loads only from <style> blocks and style attributes; the same words in
-  // escaped page text (e.g. a quoted web snippet) load nothing.
+  // escaped page text (e.g. a quoted web snippet) load nothing. A link the
+  // reader clicks (<a href>) loads nothing either; any other remote address does.
   const css = [...html.matchAll(/<style\b[^>]*>([\s\S]*?)<\/style>|\bstyle="([^"]*)"/gi)].map(m => m[1] ?? m[2] ?? '').join('\n');
+  const remoteAttr = [...html.matchAll(/<([a-z][\w:-]*)\b[^>]*?\s((?:xlink:)?href|src|srcset|poster|data|action|formaction)="\s*(?:https?:)?\/\/[^>]*>/gi)]
+    .filter(m => !((m[1] ?? '').toLowerCase() === 'a' && (m[2] ?? '').toLowerCase() === 'href' && !/\s(?:src|srcset|ping)=/i.test(m[0])));
   const remote = [
-    ...html.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc=|\b(?:src|href)="(?:https?:)?\/\//gi),
+    ...html.matchAll(/<link\b[^>]*>|<script\b[^>]*\bsrc=/gi), ...remoteAttr,
     ...css.matchAll(/url\(\s*(?:['"]|&quot;|&#39;)?\s*(?:https?:)?\/\/|@import\b/gi),
   ].map(m => m[0].slice(0, 40));
   add('F0 không tải tài nguyên ngoài (font, ảnh, script cục bộ)', remote.length === 0, remote.length ? remote.slice(0, 3).join(' | ') : 'cục bộ');

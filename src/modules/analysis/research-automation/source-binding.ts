@@ -134,7 +134,9 @@ function toWebResults(result: CollectResult): StepWebResult[] {
     const title = boundedText(value.title, 300);
     if (!url || url.length > 2000 || !title || !Number.isSafeInteger(value.position) || value.position < 1 ||
         !Number.isFinite(Date.parse(value.retrievedAt))) continue;
-    out.push({ position: value.position, title, url, snippet: value.snippet === null ? null : boundedText(value.snippet, 1000), retrievedAt: value.retrievedAt, captureIndex });
+    out.push({ position: value.position, title, url, snippet: value.snippet === null ? null : boundedText(value.snippet, 1000),
+      site: value.source === null ? null : boundedText(value.source, 200), published: value.date === null ? null : boundedText(value.date, 100),
+      retrievedAt: value.retrievedAt, captureIndex });
     if (out.length === MAX_WEB_RESULTS) break;
   }
   return out;

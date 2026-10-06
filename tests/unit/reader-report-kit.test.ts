@@ -122,6 +122,20 @@ test('F0 flags CSS that loads remote files, not the same words in escaped page t
   assert.equal(f0('<div style="background:url(&quot;//example.test/x.png&quot;)"></div>'), false);
   assert.equal(f0("<style>@import 'https://example.test/a.css';</style>"), false);
   assert.equal(f0('<style>.a{background:url(data:image/png;base64,AAAA)}</style><div style="background-image:url(\'data:image/jpeg;base64,AAAA\')"></div>'), true);
+  assert.equal(f0('<a href="https://example.test/a?x=1&amp;y=2" target="_blank" rel="noopener noreferrer">Bài viết</a>'), true, 'a link the reader clicks loads nothing');
+  assert.equal(f0('<img alt="" src="https://example.test/x.png">'), false);
+  assert.equal(f0('<svg><image href="https://example.test/x.png"/></svg>'), false);
+  assert.equal(f0('<svg><use xlink:href="//example.test/s.svg#i"/></svg>'), false);
+  assert.equal(f0('<a href="https://example.test/" ping="https://track.test/">x</a>'), false);
+  assert.equal(f0('<iframe src="https://example.test/"></iframe>'), false);
+});
+
+test('quoted web text is exempt from the wording rules but never from the provider-name rule', () => {
+  const rules = (html: string) => Object.fromEntries(lint(html).filter(r => /^F[1357] /.test(r.rule)).map(r => [r.rule.split(' ')[0], r.ok]));
+  const quoted = '<td data-quote>Thị phần và xếp hạng toàn thị trường, Bảng 9.9, Phần 20, null {{x}}</td>';
+  assert.deepEqual(rules(`<section id="phan-1"><table><tr>${quoted}</tr></table></section>`), { F1: true, F3: true, F5: true, F7: true });
+  assert.deepEqual(rules(`<section id="phan-1"><p>${quoted.replace(/<\/?td[^>]*>/g, '')}</p></section>`), { F1: true, F3: false, F5: false, F7: false });
+  assert.equal(rules('<section id="phan-1"><table><tr><td data-quote>Theo Kalodata</td></tr></table></section>').F1, false);
 });
 
 test('flint renders static SVG offline with fixed platform colours, and falls back when it cannot', async () => {
