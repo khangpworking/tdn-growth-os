@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.3 · ngày 07/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.4 · ngày 07/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -13,8 +13,9 @@ File hợp nhất:
 5. **v1.1 (07/10/2026):** quyết định của chủ dự án cho phần Insight: ngoại lệ E4–E8, làm rõ cách áp quy tắc chung cho Insight, và danh mục nguồn dữ liệu cho Insight (mục 6).
 6. **v1.2 (07/10/2026):** M08 tính giá theo đơn vị chuẩn của từng ngành hàng, và ngoại lệ E9 cho phép so cạnh nhau có điều kiện.
 7. **v1.3 (07/10/2026):** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu; ngưỡng thu review mở rộng (mục 6.3).
+8. **v1.4 (07/10/2026):** giữ song song nhiều cách tính ngưỡng (số cố định, độ bão hoà, hiệu chỉnh theo dữ liệu, 80/20); không mua hàng (L8); phụ lục giải thích các nguyên tắc chuyên môn.
 
-Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi.
+Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn).
 
 Quy ước trạng thái:
 
@@ -70,6 +71,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 - **L5 · Nhiều nền tảng (quy tắc 2, 3).** Mỗi nền tảng một cột, đặt cạnh nhau. Không cộng số giữa các nền tảng, không ghép người. Chỉ so ở mức **nhóm hoàn cảnh**.
 - **L6 · Số sao (quy tắc 1; I05).** Số sao là một phân bố riêng, không tự chuyển thành khen/chê. Review không có chữ thì cảm nhận là "chưa biết". Nguồn không có trường số sao thì ghi "nguồn không có số sao", không ghi 0.
 - **L7 · Lời người bán.** Mọi suy luận từ tiêu đề, mô tả, video, quảng cáo của người bán được viết là "người bán nhắm tới…" hoặc "người bán định vị…", không viết thành sự thật về khách.
+- **L8 · Không mua hàng (mới ở v1.4).** Báo cáo không đề xuất đặt hàng thử hay mua hàng dưới bất kỳ hình thức nào. Chất lượng sản phẩm chỉ được đánh giá qua nguồn công khai (review, ảnh khách đính kèm, tin an toàn thực phẩm) và dữ liệu chủ cung cấp. Căn cứ: chủ "không bao giờ có khả năng chi tiền thật" (07/10/2026).
 
 ### 2.2 Ngoại lệ đã được chủ duyệt
 
@@ -119,12 +121,14 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
   - **Là gì:** một lớp riêng, tách khỏi chân dung E4, tên hiển thị "Chân dung người bán nhắm tới, có số liệu bán hàng củng cố (trong mẫu)".
   - **Được công nhận khi qua đủ 4 phép kiểm, và tín hiệu đến từ ≥2 nền tảng:**
 
-    | Phép kiểm | Cách đo | Tham số mặc định (chủ chỉnh được) |
-    |---|---|---|
-    | 1. Nhiều người bán cùng nhắm | Cùng một nhóm khách xuất hiện ở nhiều thương hiệu hoặc gian hàng độc lập | ≥3 thương hiệu hoặc gian hàng |
-    | 2. Thị trường đáp lại | Nội dung nhắm nhóm đó có doanh thu thuộc nhóm cao **trong mẫu** theo tiêu chí chủ khai báo, và doanh thu kéo dài, không chỉ một lần nổi | duy trì ≥4 tuần |
-    | 3. Người bán tiếp tục trả tiền | Chi quảng cáo hoặc tỷ trọng doanh thu từ quảng cáo duy trì; hoặc quảng cáo trong thư viện quảng cáo công khai chạy liên tục. ROAS/CPA chỉ là số tham khảo theo E1 | duy trì ≥4 tuần, hoặc quảng cáo chạy ≥30 ngày |
-    | 4. Khách tự xác nhận | Review, bình luận, bài viết có người tự nói đúng hoàn cảnh đó | ≥1 câu trích có locator ở nguồn không phải của người bán |
+    | Phép kiểm | Cách đo | Cách A: số cố định | Cách B: hiệu chỉnh theo dữ liệu | Cách C: 80/20 |
+    |---|---|---|---|---|
+    | 1. Nhiều người bán cùng nhắm | Cùng một nhóm khách xuất hiện ở nhiều thương hiệu hoặc gian hàng độc lập | ≥3 thương hiệu hoặc gian hàng | — | — |
+    | 2. Thị trường đáp lại | Nội dung nhắm nhóm đó có doanh thu thuộc nhóm cao **trong mẫu**, và doanh thu kéo dài, không chỉ một lần nổi | Thuộc nhóm 20% video doanh thu cao nhất; duy trì ≥4 tuần | Duy trì lâu bằng nhóm 25% video duy trì lâu nhất của ngành hàng trong mẫu | Thuộc nhóm video cộng dồn tạo ra 80% doanh thu trong mẫu |
+    | 3. Người bán tiếp tục trả tiền | Chi quảng cáo hoặc tỷ trọng doanh thu từ quảng cáo duy trì; hoặc quảng cáo trong thư viện quảng cáo công khai chạy liên tục. ROAS/CPA chỉ là số tham khảo theo E1 | Duy trì ≥4 tuần, hoặc quảng cáo chạy ≥30 ngày | Chạy lâu bằng nhóm 25% quảng cáo chạy lâu nhất của ngành hàng trong mẫu | — |
+    | 4. Khách tự xác nhận | Review, bình luận, bài viết có người tự nói đúng hoàn cảnh đó | ≥1 câu trích có locator ở nguồn không phải của người bán | — | — |
+
+  - **Nhiều cách tính (chủ quyết 07/10/2026, giữ song song):** báo cáo tính theo mọi cách áp dụng được và ghi rõ đạt theo cách nào, ví dụ "đạt theo cách A và C". Một phép kiểm đạt khi đạt ít nhất một cách; cách không đạt vẫn ghi ra. Giải thích: Phụ lục G3 (80/20), G5 (nhóm 25% cao nhất), G6 (tuổi thọ quảng cáo).
 
   - **Tỷ lệ khớp:** với N nội dung người bán được đọc trong mẫu, đếm n nội dung có nhóm khách nhắm tới **khớp** với lời khách (phép kiểm 4). Hiển thị "n/N trong mẫu". Nhận định của chủ "khoảng 70% người bán nhắm đúng" là **giả thuyết để so**, không phải kết luận.
   - **Bắt buộc:**
@@ -148,7 +152,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 - **E8 · Thu review mở rộng không đặt trần chi phí.**
   - **Căn cứ:** chủ quyết "không có giới hạn trần, miễn là chất lượng báo cáo đạt" (07/10/2026).
   - **Được phép:** đề xuất thu review mở rộng với điều kiện dừng là đạt ngưỡng chất lượng, không phải hết ngân sách.
-  - **Vẫn bắt buộc:** mỗi lần chi thật (gọi nhà cung cấp, mua hàng thử) báo trước danh sách và ước tính chi phí để chủ duyệt.
+  - **Vẫn bắt buộc:** mỗi lần gọi nhà cung cấp dữ liệu có tính phí phải báo trước danh sách và ước tính chi phí để chủ duyệt. Không mua hàng (L8).
 
 **Ngoại lệ ngày 07/10/2026 (mới ở v1.2, phần Market)**
 
@@ -187,7 +191,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     | Thước đo nhu cầu (M05) | Doanh số, theo E10 |
     | Nhóm để so (I11) | Theo sàn; theo khách mua lẻ và khách mua sỉ, khi nguồn cho phân biệt được (chủ chọn 07/10/2026) |
     | Ưu tiên giữa các hướng, phương án (M11, I14, I15) | Không xếp ưu tiên, chỉ liệt kê (chủ chọn 07/10/2026) |
-    | Duyệt cách xếp nhóm (quy tắc 8, L3) | AI lập bộ mã và gắn mã. Một model khác, độc lập, gắn mã lại toàn bộ khi tập có ≤200 bản ghi, hoặc một mẫu ngẫu nhiên 200 bản ghi khi lớn hơn. Độ đồng thuận κ ≥ 0,6: số đếm được dùng ở bản phát hành, nhãn "phân loại do AI, đã kiểm chéo". κ < 0,6: nhãn "độ tin cậy thấp", không đưa số đếm vào Kết luận chính. Bản ghi hai model gắn khác nhau liệt kê ở phụ lục |
+    | Duyệt cách xếp nhóm (quy tắc 8, L3) | AI lập bộ mã và gắn mã. Một model khác, độc lập, gắn mã lại toàn bộ khi tập có ≤200 bản ghi, hoặc một mẫu ngẫu nhiên 200 bản ghi khi lớn hơn. Độ đồng thuận κ ≥ 0,6: số đếm được dùng ở bản phát hành, nhãn "phân loại do AI, đã kiểm chéo". κ < 0,6: nhãn "độ tin cậy thấp", không đưa số đếm vào Kết luận chính. Bản ghi hai model gắn khác nhau liệt kê ở phụ lục. **Ghi chú:** chủ chưa có chuyên môn để duyệt mốc κ (07/10/2026); mốc 0,6 giữ theo chuẩn thường dùng, xem lại khi có người có chuyên môn. Giải thích: Phụ lục G2, G7 |
     | Đơn vị chuẩn khi tính giá (M08) | Theo bảng đơn vị chuẩn ở M08. Hàng bán theo khối lượng dùng khối lượng tịnh; ghi thêm khối lượng cái khi trang bán có |
 
 ---
@@ -426,7 +430,7 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 ### I16 · Thử nghiệm và đo lường — PROPOSED + BUSINESS_REVIEWED
 
 - Hai chế độ loại trừ: `DESIGN_ONLY` (kết quả null, NOT_EXECUTED, liệt kê gap) hoặc `EXISTING_RESULT` (protocol + dữ liệu + estimator đã khai báo trước + review). Không tự thực hiện thử nghiệm, không lift từ observational exposure, không chọn estimator sau khi thấy kết quả.
-- **Cập nhật 07/10:** so trước/sau một thay đổi bằng review công khai là so sánh quan sát; ghi rõ "không đo được hiệu quả của thay đổi". Đặt hàng thử để kiểm mẫu là việc kiểm hàng của chủ; kết quả chỉ vào báo cáo khi được lưu có locator (ảnh, phiếu kiểm).
+- **Cập nhật 07/10:** so trước/sau một thay đổi bằng review công khai là so sánh quan sát; ghi rõ "không đo được hiệu quả của thay đổi". Không đề xuất đặt hàng thử (L8).
 
 ### I17 · Phụ lục và bằng chứng — EXISTING_BOUNDED
 
@@ -498,6 +502,19 @@ Chủ đồng ý ngày 07/10/2026. Thu tới khi đạt đủ các ngưỡng (E8
 | Chân dung | ≥5 người viết khác nhau, đến từ ≥3 sản phẩm hoặc thương hiệu | E4, và để chân dung không phải của riêng một gian hàng |
 | Gọi là vấn đề "của ngành hàng" | Xuất hiện ở ≥3 sản phẩm khác thương hiệu; dưới mức đó ghi "của sản phẩm" | Tránh khái quát từ một sản phẩm |
 
+**Các cách dừng thu (chủ quyết 07/10/2026, giữ song song):**
+
+| Cách | Áp cho | Quy tắc |
+|---|---|---|
+| A. Số cố định | Mọi tiêu chí | Theo bảng trên |
+| B. Độ bão hoà | Cỡ mẫu mỗi sản phẩm | Đọc theo lô 25 review có chữ. Hai lô đầu làm nền. Dừng khi một lô mới chỉ thêm ≤5% mã chủ đề mới so với số mã đã có. Luôn dừng khi hết review hoặc chạm trần 500 của hệ thống. Giải thích: Phụ lục G1 |
+| C. 80/20 | Độ phủ doanh thu | Đọc review các sản phẩm cộng dồn tạo ra ≥80% doanh thu nhóm lõi, thay cho ≥50%, khi cần phủ rộng hơn. Giải thích: Phụ lục G3 |
+
+- Mỗi sản phẩm dừng khi đạt cách A hoặc cách B, tuỳ cách nào đến trước.
+- Độ phủ doanh thu mặc định là ≥50% (cách A); ≥80% (cách C) là cách được chấp nhận.
+- Báo cáo ghi rõ đã dùng cách nào cho từng tiêu chí.
+- Điều kiện "≥30 review có chữ" giải thích ở Phụ lục G4.
+
 ---
 
 ## 7. Đồng bộ với TDN
@@ -539,3 +556,68 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
   Quy tắc chung 1–9, ngoại lệ E1–E3 và các section Market không đổi. Tham số mặc định của E5 là đề xuất ban đầu, chủ chỉnh được.
 - **v1.2 — 07/10/2026:** M08 thêm bảng đơn vị chuẩn theo ngành hàng (khối lượng, thể tích, số lượng, hàng dùng lâu, combo); ngoại lệ E9 cho phép so cạnh nhau và sắp xếp giá theo đơn vị chuẩn khi cùng đơn vị, cùng loại giá, cùng kỳ, không kết luận "rẻ nhất / tốt nhất".
 - **v1.3 — 07/10/2026:** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu (tập đối thủ từ dữ liệu bán hàng, nhóm so sánh theo sàn và mua lẻ/mua sỉ, không xếp ưu tiên, bộ mã kiểm chéo bằng model thứ hai); mục 6.3 ngưỡng thu review mở rộng kèm căn cứ.
+- **v1.4 — 07/10/2026:** E5 và mục 6.3 giữ song song cách A (số cố định), cách B (độ bão hoà hoặc hiệu chỉnh theo dữ liệu) và cách C (80/20); L8 không mua hàng; ghi chú chủ chưa duyệt chuyên môn mốc κ; thêm phụ lục giải thích nguyên tắc chuyên môn kèm nguồn.
+
+---
+
+## Phụ lục: Giải thích nguyên tắc chuyên môn
+
+Mỗi mục có: nghĩa là gì, ví dụ, dùng ở đâu trong file này, nguồn, và mức chắc chắn.
+
+### G1. Độ bão hoà (đọc tới lúc không còn ý mới)
+
+- **Nghĩa:** khi đọc thêm dữ liệu mà gần như không thấy ý mới, ta đã "bão hoà" và có thể dừng. Đọc tiếp chỉ lặp lại những ý đã có.
+- **Ví dụ:** đọc 50 review đầu thấy 20 chủ đề. Đọc thêm 25 review chỉ thấy 1 chủ đề mới (1/20 = 5%), nên dừng.
+- **Dùng ở:** mục 6.3, cách B.
+- **Nguồn:**
+  - Guest, Namey và Chen (2020) đề xuất cách đo bão hoà gồm ba phần: nền ban đầu, độ dài mỗi lượt đọc thêm, và ngưỡng ý mới (thường ≤5%). [PLOS ONE, bản đọc miễn phí](https://www.ncbi.nlm.nih.gov/pmc/articles/PMC7200005/)
+  - Hennink và Kaiser (2022) tổng hợp 23 nghiên cứu: thường đủ chủ đề chính sau 9–17 cuộc phỏng vấn; hiểu sâu từng chủ đề cần khoảng 24. [Social Science & Medicine, bản đọc miễn phí](https://pmc.ncbi.nlm.nih.gov/articles/PMC9359070)
+- **Mức chắc chắn:** trung bình. Các nghiên cứu làm trên phỏng vấn sâu; review sàn ngắn hơn nhiều nên cần nhiều bản ghi hơn. Chưa có nghiên cứu riêng cho review sàn thương mại điện tử.
+
+### G2. Hệ số κ (kappa): hai người gắn mã giống nhau tới đâu
+
+- **Nghĩa:** khi hai người (hoặc hai model) cùng xếp nhóm một tập bản ghi, κ đo mức họ xếp giống nhau, **sau khi trừ phần giống nhau do may rủi**. κ = 1 là giống hoàn toàn; κ = 0 là giống nhau không hơn đoán bừa.
+- **Ví dụ:** hai model xếp 100 review vào "khen/chê/trung tính" và giống nhau ở 85 review. Nếu đoán bừa cũng đã trùng khoảng 40 review, κ ≈ (85 − 40) / (100 − 40) = 0,75.
+- **Thang đọc thường dùng (Landis và Koch, 1977):** dưới 0 là không đồng thuận; 0–0,20 rất ít; 0,21–0,40 ít; 0,41–0,60 vừa phải; 0,61–0,80 đáng kể; 0,81–1 gần như hoàn toàn. Mốc 0,6 trong file này nằm ở ranh giới giữa "vừa phải" và "đáng kể".
+- **Dùng ở:** E11 (kiểm chéo bộ mã); gói P7 trong kế hoạch #124 cũng dùng mốc 0,6.
+- **Nguồn:** [Landis và Koch (1977), Biometrics (PubMed)](https://pubmed.ncbi.nlm.nih.gov/843571/); [giải thích κ (Wikipedia)](https://en.wikipedia.org/wiki/Cohen%27s_kappa).
+- **Mức chắc chắn:** trung bình. Thang Landis và Koch được dùng rất rộng nhưng chính tác giả không đưa bằng chứng cho các mốc; đây là quy ước. Chủ chưa có chuyên môn để duyệt mốc này (07/10/2026).
+
+### G3. Nguyên tắc 80/20 (Pareto)
+
+- **Nghĩa:** trong nhiều thị trường, một phần nhỏ (khoảng 20%) sản phẩm, video hay khách hàng tạo ra phần lớn (khoảng 80%) doanh thu. Đây là quy luật kinh nghiệm, không phải định luật; tỷ lệ thật mỗi ngành mỗi khác.
+- **Ví dụ:** với thạch dừa, khoảng 24 sản phẩm đầu đã chiếm 50% doanh thu lõi trong mẫu, nghĩa là doanh thu rất tập trung.
+- **Dùng ở:** E5 cách A (nhóm 20% doanh thu cao nhất) và cách C (nhóm tạo ra 80% doanh thu); mục 6.3 cách C.
+- **Nguồn:** [Nguyên tắc Pareto (Wikipedia)](https://en.wikipedia.org/wiki/Pareto_principle).
+- **Mức chắc chắn:** quy ước. Luôn ghi tỷ lệ thật đo được trong mẫu bên cạnh.
+
+### G4. Sai số ±18 điểm với 30 review
+
+- **Nghĩa:** khi đếm tỷ lệ trên một mẫu nhỏ, con số có thể lệch so với tỷ lệ thật. "Khoảng tin cậy 95%" là khoảng mà tỷ lệ thật nằm trong đó với độ tin cậy 95%.
+- **Ví dụ:** 30 review có chữ, 15 review chê (50%). Tỷ lệ thật có thể nằm trong khoảng 32%–68%, tức ±18 điểm. Với 20 review là ±22 điểm. Hai sản phẩm có tỷ lệ chê 45% và 55% trên 30 review thì **chưa nói được** sản phẩm nào bị chê nhiều hơn.
+- **Cách tính:** ±1,96 × √(p × (1 − p) / n), với p = 0,5 là trường hợp sai số lớn nhất.
+- **Dùng ở:** mục 6.3, điều kiện "≥30 review có chữ" trước khi so giữa sản phẩm.
+- **Nguồn:** [Biên sai số (Wikipedia)](https://en.wikipedia.org/wiki/Margin_of_error).
+- **Mức chắc chắn:** cao về phép tính; mốc 30 là quy ước để sai số không quá lớn.
+
+### G5. Hiệu chỉnh theo dữ liệu: "nhóm 25% cao nhất"
+
+- **Nghĩa:** thay vì đặt cứng một con số (ví dụ 30 ngày), lấy mốc từ chính dữ liệu của ngành hàng: xếp các giá trị từ thấp tới cao, mốc là giá trị mà chỉ 25% số mục vượt qua.
+- **Ví dụ:** trong 40 quảng cáo thạch dừa, 10 quảng cáo chạy lâu nhất đều chạy ≥21 ngày. Mốc của cách B là 21 ngày, dù thấp hơn 30 ngày của cách A.
+- **Dùng ở:** E5, cách B.
+- **Mức chắc chắn:** quy ước; ưu điểm là tự khớp với từng ngành hàng.
+
+### G6. Tuổi thọ quảng cáo: chạy lâu thường là quảng cáo có lãi
+
+- **Nghĩa:** người bán thường không trả tiền lâu cho quảng cáo lỗ, nên quảng cáo chạy lâu thường là quảng cáo ra đơn. Người chạy quảng cáo hay dùng mốc 30 ngày.
+- **Số liệu tham khảo:** một bộ khoảng 83.000 quảng cáo cho thấy tuổi thọ trung vị (một nửa số quảng cáo ngắn hơn, một nửa dài hơn) là 17 ngày; một bộ khoảng 47.000 quảng cáo có khoảng 11% chạy liên tục quá 60 ngày.
+- **Dùng ở:** E5 phép kiểm 3, cách A.
+- **Nguồn:** [hướng dẫn thư viện quảng cáo Meta (virlo.ai)](https://virlo.ai/blog/complete-guide-meta-ad-library); [nghiên cứu đối thủ bằng thư viện quảng cáo Meta (segwise.ai)](https://segwise.ai/blog/meta-ad-library-competitor-research).
+- **Mức chắc chắn:** thấp. Nguồn là blog marketing, dữ liệu quảng cáo nước ngoài, chưa kiểm chứng độc lập. Vì vậy có thêm cách B.
+
+### G7. Kiểm chéo bằng model thứ hai
+
+- **Nghĩa:** trong nghiên cứu định tính, cách làm chuẩn là để hai người xếp nhóm độc lập rồi đo mức giống nhau (κ, xem G2). Ở đây chủ không duyệt từng bản ghi (E11), nên thay người thứ hai bằng một model AI khác, chạy độc lập, không thấy kết quả của model đầu.
+- **Giới hạn:** hai model có thể cùng sai theo một kiểu, nên κ cao chưa chắc là đúng. Bản ghi hai model xếp khác nhau luôn được liệt kê để người đọc tự kiểm.
+- **Dùng ở:** E11, dòng "Duyệt cách xếp nhóm".
+- **Mức chắc chắn:** trung bình. Đây là cách thay thế cho người duyệt, chưa được kiểm chứng trên dữ liệu của dự án.

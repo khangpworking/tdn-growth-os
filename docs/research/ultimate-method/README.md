@@ -104,7 +104,9 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 - M11: định nghĩa giao 3 tín hiệu.
 - E2, E3 cho luồng tự động; điều chỉnh mục "Cấm" của M01, M12.
 
-### Từ Ultimate v1.1, v1.2 và v1.3 (07/10)
+### Từ Ultimate v1.1 đến v1.4 (07/10)
+
+- v1.4: E5 và mục 6.3 tính ngưỡng theo nhiều cách song song (số cố định, độ bão hoà hoặc hiệu chỉnh theo dữ liệu, 80/20) và ghi đạt theo cách nào; L8 không đề xuất mua hàng.
 
 - E10 (M05): doanh số là thước đo nhu cầu.
 - E11: thay mọi chỗ chờ chủ khai báo bằng quy tắc mặc định; tập đối thủ tự lấy từ dữ liệu bán hàng; bộ mã kiểm chéo bằng model thứ hai; nhóm so sánh I11 theo sàn và mua lẻ/mua sỉ.

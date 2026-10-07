@@ -13,6 +13,7 @@ File này ghi **mọi thay đổi business rule** của [Ultimate Method](ultima
   - **căn cứ**: ai quyết, ở đâu, kèm lời chủ nếu có. Lời chủ trích ngắn, không ghi thông tin cá nhân hay đường dẫn máy;
   - **TDN**: `Chưa đồng bộ` / `Đang làm (gói …)` / `Đã đồng bộ (PR …)`.
 - Commit đổi business rule bắt đầu bằng `business-rule:`.
+- Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) phải có giải thích dễ hiểu và link nguồn ở Phụ lục của file Ultimate.
 - Chỉ ghi quyết định đã có. Đề xuất chưa được chủ đồng ý thì không ghi vào đây và không sửa file Ultimate.
 - Khi một dòng đã vào TDN, chỉ sửa cột **TDN** của dòng đó; không sửa nội dung cũ. Muốn đổi lại quyết định thì thêm dòng mới.
 
@@ -22,6 +23,10 @@ Dòng mới nhất ở trên cùng.
 
 | Mã | Ngày | Phiên bản | Section | Thay đổi | Căn cứ | TDN |
 |---|---|---|---|---|---|---|
+| BR-20261007-20 | 07/10/2026 | 1.4 | Toàn bộ (Phụ lục) | Phụ lục giải thích nguyên tắc chuyên môn G1–G7 (độ bão hoà, κ, 80/20, sai số, hiệu chỉnh theo dữ liệu, tuổi thọ quảng cáo, kiểm chéo bằng model thứ hai), kèm nguồn và mức chắc chắn | Chủ: "các nguyên tắc khó hiểu nhớ để lại link báo cáo và chú thích giải thích" | Không cần code |
+| BR-20261007-19 | 07/10/2026 | 1.4 | E11 | Ghi chú: chủ chưa có chuyên môn để duyệt mốc κ ≥ 0,6; giữ mốc theo chuẩn thường dùng, xem lại khi có người có chuyên môn | Chủ: "tôi cũng chưa có kiến thức để duyệt cái này, note lại đi" | Chưa đồng bộ |
+| BR-20261007-18 | 07/10/2026 | 1.4 | Quy tắc chung (L8); E8; I16 | **L8**: báo cáo không đề xuất đặt hàng thử hay mua hàng; chất lượng sản phẩm chỉ đánh giá qua nguồn công khai và dữ liệu chủ cung cấp | Chủ: "không bao giờ có khả năng chi tiền thật đâu" (trả lời về đặt hàng thử) | Không cần code; áp khi viết đề xuất |
+| BR-20261007-17 | 07/10/2026 | 1.4 | E5; mục 6.3 | Giữ song song nhiều cách tính ngưỡng: A số cố định; B độ bão hoà (6.3) hoặc hiệu chỉnh theo dữ liệu (E5); C 80/20. Báo cáo ghi đạt theo cách nào | Chủ: "giữ cả 2 option trong nghiệp vụ… nếu những cái nào follow nguyên tắc 80/20 cũng được" | Chưa đồng bộ |
 | BR-20261007-16 | 07/10/2026 | 1.3 | Thu review (mục 6.3) | Ngưỡng chất lượng cho lần thu review mở rộng, kèm căn cứ từng con số | Chủ đồng ý ngưỡng ở Bảng 15.2 của báo cáo thạch dừa và yêu cầu ghi căn cứ cho các con số | Không cần code; áp khi lập kế hoạch thu |
 | BR-20261007-15 | 07/10/2026 | 1.3 | M11, I14, I15 | Không xếp ưu tiên giữa các hướng, phương án; chỉ liệt kê | Chủ chọn phương án (a) | Đã đúng với TDN hiện tại |
 | BR-20261007-14 | 07/10/2026 | 1.3 | I11 | Nhóm mặc định để so: theo sàn; theo khách mua lẻ và mua sỉ | Chủ: "làm theo đề xuất" | Chưa đồng bộ |
