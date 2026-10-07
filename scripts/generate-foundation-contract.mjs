@@ -71,6 +71,7 @@ const contracts = [
   ['analysis', 'metric-source-labels'],
   ['analysis', 'automation-metric-source'],
   ['analysis', 'automation-metric-source-v2'],
+  ['analysis', 'automation-metric-web-snapshot-v1'],
   ['analysis', 'automation-confirmed-source-set'],
   ['analysis', 'metric-input-preparation-request'],
   ['analysis', 'metric-input-preparation-result'],

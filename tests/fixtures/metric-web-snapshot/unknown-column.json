@@ -1,0 +1,1506 @@
+{
+  "contractVersion": "automation-metric-web-snapshot-v1",
+  "captureId": "cap-synthetic-001",
+  "specDigest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "capturedAt": "2026-09-21T03:15:00Z",
+  "scope": {
+    "keywords": [
+      "bình giữ nhiệt",
+      "Bình nước"
+    ],
+    "platforms": [
+      "shopee",
+      "tiktok"
+    ],
+    "period": {
+      "startDate": "2025-09-15",
+      "endDate": "2026-09-20"
+    },
+    "category": "Nhà cửa & Đời sống",
+    "ticks": [
+      "Chỉ sản phẩm có lượt bán"
+    ],
+    "advancedFilters": [
+      {
+        "label": "Giá",
+        "displayed": "50.000 - 500.000"
+      }
+    ],
+    "exclusions": [
+      "nắp thay thế"
+    ]
+  },
+  "groups": {
+    "W2_kpi": {
+      "revenue": {
+        "current": {
+          "label": "Doanh số",
+          "displayed": "12,3 tỷ",
+          "value": 12312345678,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "overview.revenue.value"
+        },
+        "changePct": {
+          "label": "Doanh số - % so với kỳ liền kề",
+          "displayed": "18,4%",
+          "value": 18.4,
+          "unit": "PERCENT",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "overview.revenue.change"
+        }
+      },
+      "units": {
+        "current": {
+          "label": "Lượt bán",
+          "displayed": "1.234.567",
+          "value": 1234567,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "overview.units.value"
+        },
+        "changePct": {
+          "label": "Lượt bán - % so với kỳ liền kề",
+          "displayed": "-5,2%",
+          "value": -5.2,
+          "unit": "PERCENT",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "overview.units.change"
+        }
+      },
+      "soldListings": {
+        "current": {
+          "label": "Sản phẩm có lượt bán",
+          "displayed": "850 nghìn",
+          "value": 850210,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "overview.soldListings.value"
+        },
+        "changePct": {
+          "label": "Sản phẩm có lượt bán - % so với kỳ liền kề",
+          "displayed": "3,1%",
+          "value": 3.1,
+          "unit": "PERCENT",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "overview.soldListings.change"
+        }
+      },
+      "shops": {
+        "current": {
+          "label": "Gian hàng có lượt bán",
+          "displayed": "4.512",
+          "value": 4512,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "overview.shops.value"
+        },
+        "changePct": {
+          "label": "Gian hàng có lượt bán - % so với kỳ liền kề",
+          "displayed": "-",
+          "value": null,
+          "unit": "PERCENT",
+          "precision": "display_rounded",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "overview.shops.change"
+        }
+      }
+    },
+    "W3_platformSplit": [
+      {
+        "platform": "shopee",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "8 tỷ",
+          "value": 8012345678,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "platform.shopee.revenue"
+        },
+        "share": {
+          "label": "Tỷ trọng",
+          "displayed": "65,1%",
+          "value": 65.08,
+          "unit": "PERCENT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "platform.shopee.share"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "4,3 tỷ",
+          "value": 4300000000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "platform.tiktok.revenue"
+        },
+        "share": {
+          "label": "Tỷ trọng",
+          "displayed": "34,9%",
+          "value": 34.92,
+          "unit": "PERCENT",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "platform.tiktok.share"
+        }
+      }
+    ],
+    "W4_monthly": [
+      {
+        "platform": "shopee",
+        "month": "2025-09",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "512,3 triệu",
+          "value": 512345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2025-09-30"
+          },
+          "sourcePointer": "chart.growth.shopee[0].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.100",
+          "value": 4100,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2025-09-30"
+          },
+          "sourcePointer": "chart.growth.shopee[0].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2025-09",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "287,7 triệu",
+          "value": 287654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2025-09-30"
+          },
+          "sourcePointer": "chart.growth.tiktok[0].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2025-10",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "533,3 triệu",
+          "value": 533345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-10-01",
+            "endDate": "2025-10-31"
+          },
+          "sourcePointer": "chart.growth.shopee[1].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.137",
+          "value": 4137,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-10-01",
+            "endDate": "2025-10-31"
+          },
+          "sourcePointer": "chart.growth.shopee[1].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2025-10",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "300,7 triệu",
+          "value": 300654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2025-10-01",
+            "endDate": "2025-10-31"
+          },
+          "sourcePointer": "chart.growth.tiktok[1].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2025-11",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "554,3 triệu",
+          "value": 554345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-11-01",
+            "endDate": "2025-11-30"
+          },
+          "sourcePointer": "chart.growth.shopee[2].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.174",
+          "value": 4174,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-11-01",
+            "endDate": "2025-11-30"
+          },
+          "sourcePointer": "chart.growth.shopee[2].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2025-11",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "313,7 triệu",
+          "value": 313654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2025-11-01",
+            "endDate": "2025-11-30"
+          },
+          "sourcePointer": "chart.growth.tiktok[2].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2025-12",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "575,3 triệu",
+          "value": 575345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-12-01",
+            "endDate": "2025-12-31"
+          },
+          "sourcePointer": "chart.growth.shopee[3].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.211",
+          "value": 4211,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2025-12-01",
+            "endDate": "2025-12-31"
+          },
+          "sourcePointer": "chart.growth.shopee[3].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2025-12",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "326,7 triệu",
+          "value": 326654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2025-12-01",
+            "endDate": "2025-12-31"
+          },
+          "sourcePointer": "chart.growth.tiktok[3].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-01",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "596,3 triệu",
+          "value": 596345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-31"
+          },
+          "sourcePointer": "chart.growth.shopee[4].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.248",
+          "value": 4248,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-31"
+          },
+          "sourcePointer": "chart.growth.shopee[4].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-01",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "339,7 triệu",
+          "value": 339654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-01-01",
+            "endDate": "2026-01-31"
+          },
+          "sourcePointer": "chart.growth.tiktok[4].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-02",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "617,3 triệu",
+          "value": 617345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-02-01",
+            "endDate": "2026-02-28"
+          },
+          "sourcePointer": "chart.growth.shopee[5].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.285",
+          "value": 4285,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-02-01",
+            "endDate": "2026-02-28"
+          },
+          "sourcePointer": "chart.growth.shopee[5].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-02",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "352,7 triệu",
+          "value": 352654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-02-01",
+            "endDate": "2026-02-28"
+          },
+          "sourcePointer": "chart.growth.tiktok[5].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-03",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "638,3 triệu",
+          "value": 638345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-03-01",
+            "endDate": "2026-03-31"
+          },
+          "sourcePointer": "chart.growth.shopee[6].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.322",
+          "value": 4322,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-03-01",
+            "endDate": "2026-03-31"
+          },
+          "sourcePointer": "chart.growth.shopee[6].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-03",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "365,7 triệu",
+          "value": 365654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-03-01",
+            "endDate": "2026-03-31"
+          },
+          "sourcePointer": "chart.growth.tiktok[6].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-04",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "659,3 triệu",
+          "value": 659345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-04-01",
+            "endDate": "2026-04-30"
+          },
+          "sourcePointer": "chart.growth.shopee[7].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.359",
+          "value": 4359,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-04-01",
+            "endDate": "2026-04-30"
+          },
+          "sourcePointer": "chart.growth.shopee[7].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-04",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "378,7 triệu",
+          "value": 378654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-04-01",
+            "endDate": "2026-04-30"
+          },
+          "sourcePointer": "chart.growth.tiktok[7].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-05",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "680,3 triệu",
+          "value": 680345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-05-01",
+            "endDate": "2026-05-31"
+          },
+          "sourcePointer": "chart.growth.shopee[8].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.396",
+          "value": 4396,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-05-01",
+            "endDate": "2026-05-31"
+          },
+          "sourcePointer": "chart.growth.shopee[8].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-05",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "391,7 triệu",
+          "value": 391654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-05-01",
+            "endDate": "2026-05-31"
+          },
+          "sourcePointer": "chart.growth.tiktok[8].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-06",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "701,3 triệu",
+          "value": 701345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-06-01",
+            "endDate": "2026-06-30"
+          },
+          "sourcePointer": "chart.growth.shopee[9].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.433",
+          "value": 4433,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-06-01",
+            "endDate": "2026-06-30"
+          },
+          "sourcePointer": "chart.growth.shopee[9].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-06",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "404,7 triệu",
+          "value": 404654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-06-01",
+            "endDate": "2026-06-30"
+          },
+          "sourcePointer": "chart.growth.tiktok[9].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-07",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "722,3 triệu",
+          "value": 722345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-07-01",
+            "endDate": "2026-07-31"
+          },
+          "sourcePointer": "chart.growth.shopee[10].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.470",
+          "value": 4470,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-07-01",
+            "endDate": "2026-07-31"
+          },
+          "sourcePointer": "chart.growth.shopee[10].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-07",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "417,7 triệu",
+          "value": 417654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-07-01",
+            "endDate": "2026-07-31"
+          },
+          "sourcePointer": "chart.growth.tiktok[10].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-08",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "743,3 triệu",
+          "value": 743345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-08-01",
+            "endDate": "2026-08-31"
+          },
+          "sourcePointer": "chart.growth.shopee[11].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.507",
+          "value": 4507,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-08-01",
+            "endDate": "2026-08-31"
+          },
+          "sourcePointer": "chart.growth.shopee[11].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-08",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "430,7 triệu",
+          "value": 430654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-08-01",
+            "endDate": "2026-08-31"
+          },
+          "sourcePointer": "chart.growth.tiktok[11].revenue"
+        },
+        "units": null
+      },
+      {
+        "platform": "shopee",
+        "month": "2026-09",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "764,3 triệu",
+          "value": 764345000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-09-01",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "chart.growth.shopee[12].revenue"
+        },
+        "units": {
+          "label": "Lượt bán",
+          "displayed": "4.544",
+          "value": 4544,
+          "unit": "COUNT",
+          "precision": "exact",
+          "platform": "shopee",
+          "period": {
+            "startDate": "2026-09-01",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "chart.growth.shopee[12].units"
+        }
+      },
+      {
+        "platform": "tiktok",
+        "month": "2026-09",
+        "revenue": {
+          "label": "Doanh số",
+          "displayed": "443,7 triệu",
+          "value": 443654000,
+          "unit": "VND",
+          "precision": "exact",
+          "platform": "tiktok",
+          "period": {
+            "startDate": "2026-09-01",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "chart.growth.tiktok[12].revenue"
+        },
+        "units": null
+      }
+    ],
+    "W5_category": {
+      "columns": [
+        "category",
+        "level",
+        "platform",
+        "revenue"
+      ],
+      "rows": [
+        {
+          "cells": {
+            "category": {
+              "label": "Ngành hàng",
+              "text": "Ngành A",
+              "sourcePointer": "category[0].name"
+            },
+            "level": {
+              "label": "Cấp",
+              "text": "Cấp 2",
+              "sourcePointer": "category[0].level"
+            },
+            "platform": {
+              "label": "Sàn",
+              "text": "shopee",
+              "sourcePointer": "category[0].platform"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "5,1 tỷ",
+              "value": 5104000000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "category[0].revenue"
+            }
+          }
+        },
+        {
+          "cells": {
+            "category": {
+              "label": "Ngành hàng",
+              "text": "Ngành A",
+              "sourcePointer": "category[1].name"
+            },
+            "level": {
+              "label": "Cấp",
+              "text": "Cấp 2",
+              "sourcePointer": "category[1].level"
+            },
+            "platform": {
+              "label": "Sàn",
+              "text": "tiktok",
+              "sourcePointer": "category[1].platform"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "2,7 tỷ",
+              "value": 2711000000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "tiktok",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "category[1].revenue"
+            }
+          }
+        }
+      ]
+    },
+    "W6_priceLevel": {
+      "columns": [
+        "priceLevel",
+        "platform",
+        "revenue"
+      ],
+      "rows": [
+        {
+          "cells": {
+            "priceLevel": {
+              "label": "Mức giá",
+              "text": "100.000 - 200.000",
+              "sourcePointer": "price[0].band"
+            },
+            "platform": {
+              "label": "Sàn",
+              "text": "shopee",
+              "sourcePointer": "price[0].platform"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "3,2 tỷ",
+              "value": 3215000000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "price[0].revenue"
+            }
+          }
+        },
+        {
+          "cells": {
+            "priceLevel": {
+              "label": "Mức giá",
+              "text": "100.000 - 200.000",
+              "sourcePointer": "price[1].band"
+            },
+            "platform": {
+              "label": "Sàn",
+              "text": "tiktok",
+              "sourcePointer": "price[1].platform"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "1,8 tỷ",
+              "value": 1804000000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "tiktok",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "price[1].revenue"
+            }
+          }
+        }
+      ]
+    },
+    "W7_top10Brand": {
+      "top10": {
+        "label": "Top 10 thương hiệu",
+        "displayed": "41,2%",
+        "value": 41.2,
+        "unit": "PERCENT",
+        "precision": "exact",
+        "platform": "all",
+        "period": {
+          "startDate": "2025-09-15",
+          "endDate": "2026-09-20"
+        },
+        "sourcePointer": "brandShare.top10"
+      },
+      "others": {
+        "label": "Còn lại",
+        "displayed": "58,8%",
+        "value": 58.8,
+        "unit": "PERCENT",
+        "precision": "exact",
+        "platform": "all",
+        "period": {
+          "startDate": "2025-09-15",
+          "endDate": "2026-09-20"
+        },
+        "sourcePointer": "brandShare.others"
+      }
+    },
+    "W8_top10Shop": {
+      "top10": {
+        "label": "Top 10 gian hàng",
+        "displayed": "27,5%",
+        "value": 27.5,
+        "unit": "PERCENT",
+        "precision": "exact",
+        "platform": "all",
+        "period": {
+          "startDate": "2025-09-15",
+          "endDate": "2026-09-20"
+        },
+        "sourcePointer": "shopShare.top10"
+      },
+      "others": {
+        "label": "Còn lại",
+        "displayed": "72,5%",
+        "value": 72.5,
+        "unit": "PERCENT",
+        "precision": "exact",
+        "platform": "all",
+        "period": {
+          "startDate": "2025-09-15",
+          "endDate": "2026-09-20"
+        },
+        "sourcePointer": "shopShare.others"
+      }
+    },
+    "W9_brandByShopType": {
+      "columns": [
+        "brand",
+        "revenueNormal",
+        "revenueMall"
+      ],
+      "rows": [
+        {
+          "cells": {
+            "brand": {
+              "label": "Thương hiệu",
+              "text": "Thương hiệu A",
+              "sourcePointer": "brandShopType[0].brand"
+            },
+            "revenueNormal": {
+              "label": "Gian hàng thường",
+              "displayed": "410 triệu",
+              "value": 410250000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "brandShopType[0].normal"
+            },
+            "revenueMall": {
+              "label": "Gian hàng Mall",
+              "displayed": "1,1 tỷ",
+              "value": 1104000000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "brandShopType[0].mall"
+            }
+          }
+        }
+      ]
+    },
+    "W10_shopType": [
+      {
+        "shopType": "mall",
+        "share": {
+          "label": "Mall/chính hãng",
+          "displayed": "22,4%",
+          "value": 22.4,
+          "unit": "PERCENT",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "shopType.mall"
+        }
+      },
+      {
+        "shopType": "normal",
+        "share": {
+          "label": "Thường",
+          "displayed": "77,6%",
+          "value": 77.6,
+          "unit": "PERCENT",
+          "precision": "exact",
+          "platform": "all",
+          "period": {
+            "startDate": "2025-09-15",
+            "endDate": "2026-09-20"
+          },
+          "sourcePointer": "shopType.normal"
+        }
+      }
+    ],
+    "W11_location": {
+      "columns": [
+        "location",
+        "share"
+      ],
+      "rows": [
+        {
+          "cells": {
+            "location": {
+              "label": "Kho hàng",
+              "text": "Tỉnh X",
+              "sourcePointer": "location[0].name"
+            },
+            "share": {
+              "label": "Tỷ trọng",
+              "displayed": "46,3%",
+              "value": 46.3,
+              "unit": "PERCENT",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "location[0].share"
+            }
+          }
+        },
+        {
+          "cells": {
+            "location": {
+              "label": "Kho hàng",
+              "text": "Tỉnh Y",
+              "sourcePointer": "location[1].name"
+            },
+            "share": {
+              "label": "Tỷ trọng",
+              "displayed": "31,7%",
+              "value": 31.7,
+              "unit": "PERCENT",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "location[1].share"
+            }
+          }
+        }
+      ]
+    },
+    "W12_topProducts": {
+      "columns": [
+        "name",
+        "shop",
+        "price",
+        "revenue",
+        "revenueChg",
+        "units",
+        "unitsChg",
+        "category"
+      ],
+      "rows": [
+        {
+          "cells": {
+            "name": {
+              "label": "Sản phẩm",
+              "text": "Sản phẩm C 500ml",
+              "sourcePointer": "products[0].name"
+            },
+            "shop": {
+              "label": "Gian hàng",
+              "text": "Gian hàng B",
+              "sourcePointer": "products[0].shop"
+            },
+            "price": {
+              "label": "Giá",
+              "displayed": "189.000",
+              "value": 189000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "products[0].price"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "642 triệu",
+              "value": 642310000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "products[0].revenue"
+            },
+            "revenueChg": {
+              "label": "% doanh số",
+              "displayed": "12,5%",
+              "value": 12.5,
+              "unit": "PERCENT",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "products[0].revenueChg"
+            },
+            "units": {
+              "label": "Lượt bán",
+              "displayed": "3.398",
+              "value": 3398,
+              "unit": "COUNT",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "products[0].units"
+            },
+            "unitsChg": {
+              "label": "% lượt bán",
+              "displayed": "-1,4%",
+              "value": -1.4,
+              "unit": "PERCENT",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "products[0].unitsChg"
+            },
+            "category": {
+              "label": "Ngành hàng",
+              "text": "Ngành A",
+              "sourcePointer": "products[0].category"
+            }
+          }
+        }
+      ]
+    },
+    "W13_topShops": {
+      "columns": [
+        "rankNew",
+        "rankOld",
+        "shop",
+        "platform",
+        "revenue",
+        "revenueChg",
+        "growthScore"
+      ],
+      "rows": [
+        {
+          "cells": {
+            "rankNew": {
+              "label": "Hạng mới",
+              "displayed": "1",
+              "value": 1,
+              "unit": "RANK",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "shops[0].rankNew"
+            },
+            "rankOld": {
+              "label": "Hạng cũ",
+              "displayed": "3",
+              "value": 3,
+              "unit": "RANK",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "shops[0].rankOld"
+            },
+            "shop": {
+              "label": "Gian hàng",
+              "text": "Gian hàng B",
+              "sourcePointer": "shops[0].shop"
+            },
+            "platform": {
+              "label": "Sàn",
+              "text": "shopee",
+              "sourcePointer": "shops[0].platform"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "1,7 tỷ",
+              "value": 1702000000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "shops[0].revenue"
+            },
+            "revenueChg": {
+              "label": "% doanh số",
+              "displayed": "9,8%",
+              "value": 9.8,
+              "unit": "PERCENT",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "shops[0].revenueChg"
+            },
+            "growthScore": {
+              "label": "Điểm",
+              "text": "cao",
+              "sourcePointer": "shops[0].score"
+            }
+          }
+        },
+        {
+          "cells": {
+            "rankNew": {
+              "label": "Hạng mới",
+              "displayed": "2",
+              "value": 2,
+              "unit": "RANK",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "shops[1].rankNew"
+            },
+            "rankOld": {
+              "label": "Hạng cũ",
+              "displayed": "Mới",
+              "value": null,
+              "unit": "RANK",
+              "precision": "display_rounded",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "shops[1].rankOld"
+            },
+            "shop": {
+              "label": "Gian hàng",
+              "text": "Gian hàng D",
+              "sourcePointer": "shops[1].shop"
+            },
+            "platform": {
+              "label": "Sàn",
+              "text": "tiktok",
+              "sourcePointer": "shops[1].platform"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "980 triệu",
+              "value": 980400000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "tiktok",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "shops[1].revenue"
+            },
+            "revenueChg": {
+              "label": "% doanh số",
+              "displayed": "-",
+              "value": null,
+              "unit": "PERCENT",
+              "precision": "display_rounded",
+              "platform": "tiktok",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "shops[1].revenueChg"
+            }
+          }
+        }
+      ]
+    },
+    "W14_topBrands": {
+      "columns": [
+        "rankNew",
+        "rankOld",
+        "brand",
+        "revenue"
+      ],
+      "rows": [
+        {
+          "cells": {
+            "rankNew": {
+              "label": "Hạng mới",
+              "displayed": "1",
+              "value": 1,
+              "unit": "RANK",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "brands[0].rankNew"
+            },
+            "rankOld": {
+              "label": "Hạng cũ",
+              "displayed": "1",
+              "value": 1,
+              "unit": "RANK",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "brands[0].rankOld"
+            },
+            "brand": {
+              "label": "Thương hiệu",
+              "text": "Thương hiệu A",
+              "sourcePointer": "brands[0].brand"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "1,5 tỷ",
+              "value": 1514250000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "all",
+              "period": {
+                "startDate": "2025-09-15",
+                "endDate": "2026-09-20"
+              },
+              "sourcePointer": "brands[0].revenue"
+            }
+          }
+        }
+      ]
+    },
+    "W16_detailHistory": {
+      "columns": [
+        "entityKind",
+        "entity",
+        "month",
+        "revenue"
+      ],
+      "rows": [
+        {
+          "cells": {
+            "entityKind": {
+              "label": "Loại",
+              "text": "shop",
+              "sourcePointer": "detail[0].kind"
+            },
+            "entity": {
+              "label": "Tên",
+              "text": "Gian hàng B",
+              "sourcePointer": "detail[0].name"
+            },
+            "month": {
+              "label": "Tháng",
+              "text": "2026-08",
+              "sourcePointer": "detail[0].month"
+            },
+            "revenue": {
+              "label": "Doanh số",
+              "displayed": "121 triệu",
+              "value": 121040000,
+              "unit": "VND",
+              "precision": "exact",
+              "platform": "shopee",
+              "period": {
+                "startDate": "2026-08-01",
+                "endDate": "2026-08-31"
+              },
+              "sourcePointer": "detail[0].revenue"
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,197 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-metric-web-snapshot-v1.schema.json",
+  "title": "AutomationMetricWebSnapshotV1",
+  "description": "Values captured from one results page for the same search as the xlsx capture (same captureId and specDigest). Every value keeps its label and displayed text; value is the raw number when the page data carried one. Groups W1-W3 are required; W4-W16 may be an explicit Absent marker. No computed or derived values.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "captureId", "specDigest", "capturedAt", "scope", "groups"],
+  "properties": {
+    "contractVersion": { "const": "automation-metric-web-snapshot-v1" },
+    "captureId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[A-Za-z0-9_-]+$" },
+    "specDigest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "capturedAt": { "type": "string", "format": "date-time" },
+    "scope": { "$ref": "#/$defs/scope" },
+    "groups": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["W2_kpi", "W3_platformSplit", "W4_monthly", "W5_category", "W6_priceLevel", "W7_top10Brand", "W8_top10Shop",
+        "W9_brandByShopType", "W10_shopType", "W11_location", "W12_topProducts", "W13_topShops", "W14_topBrands", "W16_detailHistory"],
+      "properties": {
+        "W2_kpi": { "$ref": "#/$defs/kpi" },
+        "W3_platformSplit": { "$ref": "#/$defs/platformSplit" },
+        "W4_monthly": { "oneOf": [{ "$ref": "#/$defs/monthly" }, { "$ref": "#/$defs/absent" }] },
+        "W5_category": { "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/absent" }] },
+        "W6_priceLevel": { "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/absent" }] },
+        "W7_top10Brand": { "oneOf": [{ "$ref": "#/$defs/top10Share" }, { "$ref": "#/$defs/absent" }] },
+        "W8_top10Shop": { "oneOf": [{ "$ref": "#/$defs/top10Share" }, { "$ref": "#/$defs/absent" }] },
+        "W9_brandByShopType": { "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/absent" }] },
+        "W10_shopType": { "oneOf": [{ "$ref": "#/$defs/shopType" }, { "$ref": "#/$defs/absent" }] },
+        "W11_location": { "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/absent" }] },
+        "W12_topProducts": { "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/absent" }] },
+        "W13_topShops": { "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/absent" }] },
+        "W14_topBrands": { "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/absent" }] },
+        "W16_detailHistory": { "oneOf": [{ "$ref": "#/$defs/table" }, { "$ref": "#/$defs/absent" }] }
+      }
+    }
+  },
+  "$defs": {
+    "platform": { "enum": ["shopee", "tiktok"] },
+    "date": { "type": "string", "format": "date" },
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["startDate", "endDate"],
+      "properties": { "startDate": { "$ref": "#/$defs/date" }, "endDate": { "$ref": "#/$defs/date" } }
+    },
+    "shortText": { "type": "string", "minLength": 1, "maxLength": 500 },
+    "scope": {
+      "description": "W1: filters as applied on the page.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["keywords", "platforms", "period", "category", "ticks", "advancedFilters", "exclusions"],
+      "properties": {
+        "keywords": { "type": "array", "minItems": 1, "maxItems": 10, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
+        "platforms": { "type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/platform" } },
+        "period": { "$ref": "#/$defs/period" },
+        "category": { "oneOf": [{ "$ref": "#/$defs/shortText" }, { "type": "null" }] },
+        "ticks": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/shortText" } },
+        "advancedFilters": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "displayed"],
+            "properties": { "label": { "$ref": "#/$defs/shortText" }, "displayed": { "type": "string", "maxLength": 500 } }
+          }
+        },
+        "exclusions": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/shortText" } }
+      }
+    },
+    "value": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "displayed", "value", "unit", "precision", "platform", "period", "sourcePointer"],
+      "properties": {
+        "label": { "$ref": "#/$defs/shortText" },
+        "displayed": { "type": "string", "maxLength": 200 },
+        "value": { "type": ["number", "null"] },
+        "unit": { "enum": ["VND", "COUNT", "PERCENT", "RANK"] },
+        "precision": { "enum": ["exact", "display_rounded"] },
+        "platform": { "enum": ["shopee", "tiktok", "all"] },
+        "period": { "$ref": "#/$defs/period" },
+        "sourcePointer": { "$ref": "#/$defs/shortText" }
+      }
+    },
+    "nullableValue": { "oneOf": [{ "$ref": "#/$defs/value" }, { "type": "null" }] },
+    "text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "text", "sourcePointer"],
+      "properties": {
+        "label": { "$ref": "#/$defs/shortText" },
+        "text": { "type": "string", "maxLength": 1000 },
+        "sourcePointer": { "$ref": "#/$defs/shortText" }
+      }
+    },
+    "absent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["absent", "reason"],
+      "properties": {
+        "absent": { "const": true },
+        "reason": { "enum": ["NOT_ON_PAGE", "NOT_CAPTURED", "RECON_PENDING"] }
+      }
+    },
+    "kpiMetric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["current", "changePct"],
+      "properties": { "current": { "$ref": "#/$defs/value" }, "changePct": { "$ref": "#/$defs/nullableValue" } }
+    },
+    "kpi": {
+      "description": "W2: market overview headline values.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["revenue", "units", "soldListings", "shops"],
+      "properties": {
+        "revenue": { "$ref": "#/$defs/kpiMetric" },
+        "units": { "$ref": "#/$defs/kpiMetric" },
+        "soldListings": { "$ref": "#/$defs/kpiMetric" },
+        "shops": { "$ref": "#/$defs/kpiMetric" }
+      }
+    },
+    "platformSplit": {
+      "description": "W3: revenue and share per platform.",
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["platform", "revenue", "share"],
+        "properties": { "platform": { "$ref": "#/$defs/platform" }, "revenue": { "$ref": "#/$defs/value" }, "share": { "$ref": "#/$defs/value" } }
+      }
+    },
+    "monthly": {
+      "description": "W4: one point per month per platform.",
+      "type": "array",
+      "maxItems": 240,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["platform", "month", "revenue", "units"],
+        "properties": {
+          "platform": { "$ref": "#/$defs/platform" },
+          "month": { "type": "string", "pattern": "^[0-9]{4}-(0[1-9]|1[0-2])$" },
+          "revenue": { "$ref": "#/$defs/value" },
+          "units": { "$ref": "#/$defs/nullableValue" }
+        }
+      }
+    },
+    "top10Share": {
+      "description": "W7/W8: top-10 share against the others.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["top10", "others"],
+      "properties": { "top10": { "$ref": "#/$defs/value" }, "others": { "$ref": "#/$defs/value" } }
+    },
+    "shopType": {
+      "description": "W10: revenue share by shop type.",
+      "type": "array",
+      "maxItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["shopType", "share"],
+        "properties": { "shopType": { "enum": ["mall", "normal"] }, "share": { "$ref": "#/$defs/value" } }
+      }
+    },
+    "table": {
+      "description": "Generic page table. Allowed column keys per group are enforced by the runtime validator.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["columns", "rows"],
+      "properties": {
+        "columns": { "type": "array", "minItems": 1, "maxItems": 20, "uniqueItems": true, "items": { "type": "string", "pattern": "^[A-Za-z][A-Za-z0-9]{0,63}$" } },
+        "rows": {
+          "type": "array",
+          "maxItems": 1000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["cells"],
+            "properties": {
+              "cells": {
+                "type": "object",
+                "propertyNames": { "pattern": "^[A-Za-z][A-Za-z0-9]{0,63}$" },
+                "additionalProperties": { "oneOf": [{ "$ref": "#/$defs/value" }, { "$ref": "#/$defs/text" }] }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
