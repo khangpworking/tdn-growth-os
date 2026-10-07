@@ -13,6 +13,7 @@ File này ghi **mọi thay đổi business rule** của [Ultimate Method](ultima
   - **căn cứ**: ai quyết, ở đâu, kèm lời chủ nếu có. Lời chủ trích ngắn, không ghi thông tin cá nhân hay đường dẫn máy;
   - **TDN**: `Chưa đồng bộ` / `Đang làm (gói …)` / `Đã đồng bộ (PR …)`.
 - Commit đổi business rule bắt đầu bằng `business-rule:`.
+- Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) phải có giải thích dễ hiểu và link nguồn ở Phụ lục của file Ultimate.
 - Chỉ ghi quyết định đã có. Đề xuất chưa được chủ đồng ý thì không ghi vào đây và không sửa file Ultimate.
 - Khi một dòng đã vào TDN, chỉ sửa cột **TDN** của dòng đó; không sửa nội dung cũ. Muốn đổi lại quyết định thì thêm dòng mới.
 
@@ -22,6 +23,15 @@ Dòng mới nhất ở trên cùng.
 
 | Mã | Ngày | Phiên bản | Section | Thay đổi | Căn cứ | TDN |
 |---|---|---|---|---|---|---|
+| BR-20261007-20 | 07/10/2026 | 1.4 | Toàn bộ (Phụ lục) | Phụ lục giải thích nguyên tắc chuyên môn G1–G7 (độ bão hoà, κ, 80/20, sai số, hiệu chỉnh theo dữ liệu, tuổi thọ quảng cáo, kiểm chéo bằng model thứ hai), kèm nguồn và mức chắc chắn | Chủ: "các nguyên tắc khó hiểu nhớ để lại link báo cáo và chú thích giải thích" | Không cần code |
+| BR-20261007-19 | 07/10/2026 | 1.4 | E11 | Ghi chú: chủ chưa có chuyên môn để duyệt mốc κ ≥ 0,6; giữ mốc theo chuẩn thường dùng, xem lại khi có người có chuyên môn | Chủ: "tôi cũng chưa có kiến thức để duyệt cái này, note lại đi" | Chưa đồng bộ |
+| BR-20261007-18 | 07/10/2026 | 1.4 | Quy tắc chung (L8); E8; I16 | **L8**: báo cáo không đề xuất đặt hàng thử hay mua hàng; chất lượng sản phẩm chỉ đánh giá qua nguồn công khai và dữ liệu chủ cung cấp | Chủ: "không bao giờ có khả năng chi tiền thật đâu" (trả lời về đặt hàng thử) | Không cần code; áp khi viết đề xuất |
+| BR-20261007-17 | 07/10/2026 | 1.4 | E5; mục 6.3 | Giữ song song nhiều cách tính ngưỡng: A số cố định; B độ bão hoà (6.3) hoặc hiệu chỉnh theo dữ liệu (E5); C 80/20. Báo cáo ghi đạt theo cách nào | Chủ: "giữ cả 2 option trong nghiệp vụ… nếu những cái nào follow nguyên tắc 80/20 cũng được" | Chưa đồng bộ |
+| BR-20261007-16 | 07/10/2026 | 1.3 | Thu review (mục 6.3) | Ngưỡng chất lượng cho lần thu review mở rộng, kèm căn cứ từng con số | Chủ đồng ý ngưỡng ở Bảng 15.2 của báo cáo thạch dừa và yêu cầu ghi căn cứ cho các con số | Không cần code; áp khi lập kế hoạch thu |
+| BR-20261007-15 | 07/10/2026 | 1.3 | M11, I14, I15 | Không xếp ưu tiên giữa các hướng, phương án; chỉ liệt kê | Chủ chọn phương án (a) | Đã đúng với TDN hiện tại |
+| BR-20261007-14 | 07/10/2026 | 1.3 | I11 | Nhóm mặc định để so: theo sàn; theo khách mua lẻ và mua sỉ | Chủ: "làm theo đề xuất" | Chưa đồng bộ |
+| BR-20261007-13 | 07/10/2026 | 1.3 | Toàn bộ; M07, I13, quy tắc 4, quy tắc 8, M08 | **E11**: báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu. Tập đối thủ lấy từ dữ liệu bán hàng (thương hiệu đứng đầu tới ≥50% doanh thu nhóm). Cách thực hiện do Claude đề xuất để chủ xác nhận: mẫu số = toàn bộ tập mẫu đã chốt; bộ mã kiểm chéo bằng model thứ hai (κ ≥ 0,6); hàng bán theo khối lượng dùng khối lượng tịnh | Chủ: "chủ có tham gia làm báo cáo hay có gì để input vào báo cáo đâu mà có phần chủ quyết"; "danh sách đối thủ thì lấy từ metric, kalodata chứ cần gì tôi chọn nữa" | Chưa đồng bộ |
+| BR-20261007-12 | 07/10/2026 | 1.3 | M05 (và M01, M11) | **E10**: doanh số là thước đo nhu cầu trong mẫu; mức quan tâm tìm kiếm ghi riêng | Chủ: "cho phép doanh số là nhu cầu" | Chưa đồng bộ |
 | BR-20261007-11 | 07/10/2026 | 1.2 | Toàn bộ | Có nhật ký thay đổi business rule này | Chủ: "tôi muốn chúng ta có log cập nhật business rule của file ultimate trên github" | Không cần |
 | BR-20261007-10 | 07/10/2026 | 1.2 | M08 | Giá theo **đơn vị chuẩn** của từng ngành hàng: khối lượng (giá/100 g, tách khối lượng tịnh và khối lượng cái), thể tích (giá/100 ml), số lượng (giá/đơn vị), hàng dùng lâu (giá/cái trong cùng nhóm quy cách), combo (giá/combo). Ngoại lệ **E9**: được so cạnh nhau và sắp xếp khi cùng đơn vị chuẩn, cùng loại giá, cùng kỳ; không kết luận "rẻ nhất / tốt nhất" | Chủ hỏi cách tính cho sản phẩm không bán theo gram; Claude đề xuất bảng đơn vị chuẩn; chủ đồng ý: "chỉ được so khi cùng đơn vị chuẩn, cùng loại giá, cùng kỳ, và chỉ 'sắp xếp', không kết luận 'rẻ nhất / tốt nhất'" | Chưa đồng bộ. Code đã có phép tính 100g nhưng chưa theo bảng đơn vị chuẩn và E9 |
 | BR-20261007-09 | 07/10/2026 | 1.1 | Toàn bộ; I02 | Business rule của Ultimate là **nguồn chuẩn**; recipe, cấu hình và code TDN phải theo. I02 cho dựng chân dung theo E4 | Chủ: "cho dựng chân dung, ngoài ra business rule của file ultimate là source of truth" | Chưa đồng bộ (recipe I02, quyết định D06) |
