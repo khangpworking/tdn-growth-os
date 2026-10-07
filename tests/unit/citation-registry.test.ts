@@ -128,3 +128,35 @@ test('the same cite sequence gives byte-identical entries, trace and html', () =
     assert.equal(renderCitationRegister(left.entries(), { format }), renderCitationRegister(right.entries(), { format }));
   }
 });
+
+test('a provider name or digest in the locator or the URL never reaches the register', () => {
+  const sha = 'ab'.repeat(32);
+  const cases: Array<[Partial<CitationInput>, string]> = [
+    [{ locator: `kalodata-export/rows` }, 'PROVIDER_NAME_IN_LABEL'],
+    [{ locator: { kind: 'json-pointer', pointer: '/captures/0/apify' } }, 'PROVIDER_NAME_IN_LABEL'],
+    [{ locator: { kind: 'xlsx', sheet: 'Metric export', cell: 'B2' } }, 'PROVIDER_NAME_IN_LABEL'],
+    [{ locator: null, url: 'https://www.kalodata.com/product/1' }, 'PROVIDER_NAME_IN_LABEL'],
+    [{ locator: `export/${sha}` }, 'TECHNICAL_ID_IN_LABEL'],
+    [{ locator: { kind: 'json-pointer', pointer: `/captures/${sha}` } }, 'TECHNICAL_ID_IN_LABEL'],
+    [{ locator: null, url: `https://example.vn/artifacts/${sha}` }, 'TECHNICAL_ID_IN_LABEL'],
+    [{ label: `Bảng ${sha.toUpperCase()}` }, 'TECHNICAL_ID_IN_LABEL'],
+    [{ quote: `mã ${sha}`, quoteVerification: 'UNVERIFIED' }, 'TECHNICAL_ID_IN_LABEL'],
+  ];
+  for (const [over, expected] of cases) {
+    const registry = new CitationRegistry();
+    assert.equal(code(() => registry.cite(input(over))), expected, JSON.stringify(over));
+    assert.deepEqual(registry.entries(), [], 'a rejected source creates no entry');
+  }
+  // Ordinary ids stay readable: listing ids and short hex are not digests.
+  const registry = new CitationRegistry();
+  assert.equal(registry.cite(input({ locator: null, url: 'https://shopee.vn/product/78085196/17678138164' })), 1);
+  assert.equal(registry.cite(input({ locator: { kind: 'json-pointer', pointer: '/rows/0/abc123' } })), 2);
+});
+
+test('the renderer refuses entries built outside the registry that carry a provider name or digest', () => {
+  const entry = { number: 1, citationId: 'c'.repeat(64), sourceKind: 'CAPTURE' as const, label: 'Bảng doanh số', retrievedAt: null,
+    url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' as const };
+  assert.equal(code(() => renderCitationRegister([{ ...entry, locatorText: 'trang 2 của Apify' }], { format: 'web' })), 'PROVIDER_NAME_IN_LABEL');
+  assert.equal(code(() => renderCitationRegister([{ ...entry, locatorText: null, url: `https://example.vn/${'d'.repeat(64)}` }], { format: 'pdf' })), 'TECHNICAL_ID_IN_LABEL');
+  assert.match(renderCitationRegister([{ ...entry, locatorText: 'trang 2' }], { format: 'web' }), /trang 2/);
+});

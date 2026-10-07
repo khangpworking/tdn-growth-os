@@ -54,7 +54,7 @@ export interface CitationTrace {
   readonly entries: readonly CitationTraceEntry[];
 }
 
-export type CitationLabelErrorCode = 'PROVIDER_NAME_IN_LABEL' | 'INVALID_URL' | 'INVALID_INPUT';
+export type CitationLabelErrorCode = 'PROVIDER_NAME_IN_LABEL' | 'TECHNICAL_ID_IN_LABEL' | 'INVALID_URL' | 'INVALID_INPUT';
 
 export class CitationLabelError extends Error {
   constructor(readonly code: CitationLabelErrorCode) {
@@ -75,6 +75,21 @@ const sha256 = (text: string): string => createHash('sha256').update(text, 'utf8
 export function containsForbiddenProviderName(text: string): boolean {
   const lower = text.toLowerCase();
   return CITATION_FORBIDDEN_NAMES.some(name => lower.includes(name));
+}
+
+/** A digest-like run of 32+ hex characters (sha256, artifact or package ids) is technical identity, never reader text. */
+const TECHNICAL_ID = /(?<![0-9a-f])[0-9a-f]{32,}(?![0-9a-f])/i;
+export function containsTechnicalId(text: string): boolean {
+  return TECHNICAL_ID.test(text);
+}
+
+/** Every field a reader sees: label, quote, locator text and the displayed URL. Throws on a provider name or a digest. */
+export function assertReaderSafeCitation(entry: Pick<CitationEntry, 'label' | 'quote' | 'locatorText' | 'url'>): void {
+  for (const text of [entry.label, entry.quote, entry.locatorText, entry.url]) {
+    if (text === null) continue;
+    if (containsForbiddenProviderName(text)) throw new CitationLabelError('PROVIDER_NAME_IN_LABEL');
+    if (containsTechnicalId(text)) throw new CitationLabelError('TECHNICAL_ID_IN_LABEL');
+  }
 }
 
 /** https URL for display: no credentials, query string or fragment. */
@@ -100,10 +115,6 @@ function normalizeLocator(locator: CitationInput['locator']): ReportCitationLoca
   try { return normalizeReportCitationLocator(locator); } catch { throw new CitationLabelError('INVALID_INPUT'); }
 }
 
-function checkReaderText(text: string): void {
-  if (containsForbiddenProviderName(text)) throw new CitationLabelError('PROVIDER_NAME_IN_LABEL');
-}
-
 export class CitationRegistry {
   readonly #entries: CitationEntry[] = [];
   readonly #trace: CitationTraceEntry[] = [];
@@ -117,10 +128,10 @@ export class CitationRegistry {
     if (input.retrievedAt !== null && (!ISO_DATE.test(input.retrievedAt) || Number.isNaN(Date.parse(input.retrievedAt)))) {
       throw new CitationLabelError('INVALID_INPUT');
     }
-    checkReaderText(input.label);
-    if (input.quote !== null) checkReaderText(input.quote);
     const url = input.url === null ? null : displayCitationUrl(input.url);
     const locator = normalizeLocator(input.locator);
+    const locatorText = citationLocatorText(locator);
+    assertReaderSafeCitation({ label: input.label, quote: input.quote, locatorText, url });
     const citationId = sha256(canonicalJson({ sourceKind: input.sourceKind, identity: input.identity, locator }));
 
     const known = this.#numberById.get(citationId);
@@ -134,7 +145,7 @@ export class CitationRegistry {
       label: input.label,
       retrievedAt: input.retrievedAt,
       url,
-      locatorText: citationLocatorText(locator),
+      locatorText,
       quote: input.quote,
       quoteVerification: input.quoteVerification,
     }));

@@ -1,5 +1,5 @@
 import { escapeHtml } from './research-automation/descriptive-report.js';
-import type { CitationEntry } from './citation-registry.js';
+import { assertReaderSafeCitation, type CitationEntry } from './citation-registry.js';
 
 /** "Nguồn tham khảo" register for web and PDF. Reader text only: no ids or digests. */
 
@@ -20,6 +20,8 @@ function renderItem(entry: CitationEntry, format: 'web' | 'pdf'): string {
 
 export function renderCitationRegister(entries: readonly CitationEntry[], options: { readonly format: 'web' | 'pdf' }): string {
   if (entries.length === 0) return '';
+  // Entries may be built outside the registry; nothing reader-unsafe is rendered either way.
+  for (const entry of entries) assertReaderSafeCitation(entry);
   return `<section class="citation-register"><h2>Nguồn tham khảo</h2><ol>${entries.map(entry => renderItem(entry, options.format)).join('')}</ol></section>`;
 }
 
