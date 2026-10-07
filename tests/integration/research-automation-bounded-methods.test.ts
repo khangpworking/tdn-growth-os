@@ -13,6 +13,7 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { reportMethodPacketsFixture } from '../helpers/report-method-packets-fixture.js';
+import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 import type { AutomationBoundedMethodSnapshot } from '../../contracts/analysis/automation-bounded-method-snapshot.generated.js';
 
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -114,6 +115,10 @@ test('exact non-Metric package flows through a bounded revision, frozen replay, 
     assert.equal(doc.querySelector('a[href="report-method-evidence.json"]'), null);
     assert.deepEqual(JSON.parse(doc.querySelector('#bounded-method-evidence pre')!.textContent!), current);
     assert.equal(doc.querySelectorAll('script').length, 0);
+    const html = report.bytes.toString();
+    assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), [], 'reader text keeps provider names, digests and status codes out');
+    assert.deepEqual(providerNameViolations(html), [], 'no disclosure may name the provider');
+    assert.deepEqual(citationRegisterViolations(doc), [], 'one register holds exactly the cited sources');
   }
   const keep = await service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-report-revision-v1',
     requestKey: randomUUID(), previousPairId: pair.pairId, sources: request.sources });

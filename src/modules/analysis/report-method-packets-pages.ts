@@ -11,6 +11,9 @@ const pair = (name: string, html: string): string => `<dt>${esc(name)}</dt><dd>$
 // Keep source context readable inside the approved report's narrow table cells.
 const dl = (body: string): string => `<dl style="grid-template-columns:minmax(0,1fr);gap:4px">${body}</dl>`;
 const disclosure = (title: string, body: string): string => `<details><summary>${esc(title)}</summary>${body}</details>`;
+/** Owner-facing copy stays plain Vietnamese; the machine code stays in the HTML for the technical trace only. */
+const codeMarker = (code: string, label = 'Mã trạng thái nguồn'): string =>
+  `<details class="evidence-trace"><summary>${esc(label)}</summary><code>${esc(code)}</code></details>`;
 const raw = (value: unknown): string => {
   const serialized = JSON.stringify(value, null, 2);
   return `<pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(serialized === undefined ? 'null' : serialized)}</pre>`;
@@ -109,7 +112,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
   function i11(output: BoundedAnalysisGates): string {
     const input = output.input.i11;
     const section = output.sections.I11;
-    let body = '<p><b>Danh mục nhóm nội bộ.</b> Giữ nguyên ô số và cách gán nhóm của nguồn. Không tính tỷ lệ hoặc chênh lệch; chưa có quyền công bố (NOT_AUTHORIZED).</p>';
+    let body = '<p><b>Danh mục nhóm nội bộ.</b> Giữ nguyên ô số và cách gán nhóm của nguồn. Không tính tỷ lệ hoặc chênh lệch; chưa có quyền công bố.</p>' + codeMarker('NOT_AUTHORIZED', 'Mã trạng thái công bố');
     if (input === null || !section.partitions.length) body += '<p>Chưa có ô dữ liệu nhóm. Cần nguồn gán nhóm, thước đo, đơn vị và phạm vi tương ứng.</p>';
     if (input !== null) {
       const policy = input.groupPolicy;
@@ -120,7 +123,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
       for (const partition of section.partitions.slice(0, LIMIT)) {
         body += table('Ô nhóm trong cùng phạm vi, chưa tính so sánh', ['Nhóm nguồn', 'Ô số nguồn', 'Phạm vi và ngữ cảnh'], partition.cellPointers.slice(0, LIMIT).map(pointer => {
           const cell = at(input.cells, pointer, '/input/i11/cells/');
-          return `<tr><th scope="row">${text(cell.group)}<small>${cell.assignment.state === 'SOURCE_ASSIGNED' ? 'Nguồn gán nhóm (SOURCE_ASSIGNED)' : 'Chưa rõ cách gán nhóm (UNKNOWN)'}</small></th>`
+          return `<tr><th scope="row">${text(cell.group)}<small>${cell.assignment.state === 'SOURCE_ASSIGNED' ? 'Nguồn gán nhóm' : 'Chưa rõ cách gán nhóm'}</small>${codeMarker(cell.assignment.state, 'Mã cách gán nhóm')}</th>`
             + `<td>${dl(pair('Tử số nguồn', observation(cell.numerator)) + pair('Mẫu số nguồn', observation(cell.denominator)) + pair('Đơn vị đếm', esc(cell.countUnit)))}</td>`
             + `<td>${scope(cell.scope)}${context(cell, cell.source)}</td></tr>`;
         }), partition.cellPointers.length) + disclosure('Điều kiện của phạm vi này', list(partition.blockers));
@@ -150,10 +153,12 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
   function i16(output: BoundedAnalysisGates): string {
     const input = output.input.i16;
     const section = output.sections.I16;
-    let body = '<p><b>Chưa thực hiện (NOT_EXECUTED).</b> Ước lượng và độ bất định chưa có (null).</p>';
+    let body = '<p><b>Chưa thực hiện.</b> Ước lượng và độ bất định chưa có (null).</p>' + codeMarker('NOT_EXECUTED', 'Mã trạng thái thực thi');
     if (input === null) body += '<p>Chưa có thiết kế hoặc hồ sơ kết quả có sẵn. Cần đề cương và các trường phương pháp trước khi kiểm tra điều kiện.</p>';
     else {
-      body += `<p>${input.mode === 'DESIGN_ONLY' ? 'Chỉ lưu thiết kế (DESIGN_ONLY), chưa có kết quả thực nghiệm.' : 'Chỉ kiểm tra điều kiện hồ sơ kết quả có sẵn (ELIGIBILITY_ONLY), không tạo kết quả hoặc ước lượng tác động.'}</p>`
+      body += (input.mode === 'DESIGN_ONLY'
+        ? '<p>Chỉ lưu thiết kế, chưa có kết quả thực nghiệm.</p>' + codeMarker('DESIGN_ONLY', 'Mã chế độ thực thi')
+        : '<p>Chỉ kiểm tra điều kiện hồ sơ kết quả có sẵn, không tạo kết quả hoặc ước lượng tác động.</p>' + codeMarker('ELIGIBILITY_ONLY', 'Mã chế độ thực thi'))
         + `<p>Cấu trúc: ${section.structurallyComplete ? 'đầy đủ theo phép kiểm tra' : 'còn thiếu hoặc không tương thích'}.</p>`
         + dl(Object.entries(input.fields).map(([key, value]) => pair(PROTOCOL_LABELS[key] ?? key, text(value))).join(''))
         + disclosure('Đề cương và nguồn khai báo', source(input.protocolRef) + source(input.source))
@@ -175,11 +180,11 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
       const claim = item === undefined ? undefined : output.input.claims[item.inputIndex];
       if (claim === undefined) throw new TypeError('method packet HTML: UNKNOWN_CLAIM');
       const fact = claim.payload;
-      const review = claim.reviewDeclaration.state === 'DECLARED_REVIEWED' ? 'Khai báo đã rà soát (DECLARED_REVIEWED), chưa xác thực thành phê duyệt'
-        : claim.reviewDeclaration.state === 'EXCLUDED' ? 'Được khai báo loại ra (EXCLUDED), không phải bằng chứng hỗ trợ đã duyệt' : 'Chưa rà soát (UNREVIEWED)';
-      return `<tr><th scope="row">${esc(statement[fact.statementKind] ?? fact.statementKind)}<small>${esc(fact.sectionId)} · ${esc(fact.claimId)}</small></th><td>`
+      const review = claim.reviewDeclaration.state === 'DECLARED_REVIEWED' ? 'Khai báo đã rà soát, chưa xác thực thành phê duyệt'
+        : claim.reviewDeclaration.state === 'EXCLUDED' ? 'Được khai báo loại ra (EXCLUDED), không phải bằng chứng hỗ trợ đã duyệt' : 'Chưa rà soát';
+      return `<tr><th scope="row">${esc(statement[fact.statementKind] ?? fact.statementKind)}<small>${esc(fact.sectionId)} · ${esc(fact.claimId)}</small>${codeMarker(claim.reviewDeclaration.state, 'Mã trạng thái rà soát')}</th><td>`
         + dl(pair('Giá trị nguồn', `${esc(fact.value)} ${esc(fact.unit)}`) + pair('Phạm vi', esc(fact.scopeKey)) + pair('Rà soát', review)
-          + pair('Phê duyệt của quan sát', esc(fact.approvalState)) + pair('Hỗ trợ quyết định', 'Cần người xem xét (HUMAN_REVIEW_REQUIRED)'))
+          + pair('Phê duyệt của quan sát', esc(fact.approvalState)) + pair('Hỗ trợ quyết định', 'Cần người xem xét' + codeMarker('HUMAN_REVIEW_REQUIRED', 'Mã hỗ trợ quyết định')))
         + disclosure('Toàn bộ quan sát, mẫu số, giới hạn và tham chiếu', dl(pair('Tệp dữ liệu nền', esc(claim.reference.fileName))
           + pair('SHA-256 metric-result.json', `<code>${esc(claim.reference.sha256)}</code>`)
           + pair('Vị trí claim hiện tại trong packet.json', `<code>${esc(claim.reference.claimPointer)}</code>`)
@@ -194,7 +199,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
       + claims(output, value.excludedClaimKeys, 'Quan sát được khai báo loại ra') + disclosure('Bằng chứng còn thiếu', list(value.missingEvidence, 'Chưa khai báo phần bằng chứng còn thiếu; không có nghĩa hồ sơ đã đầy đủ.'));
   }
   function decisionsBody(output: DecisionEvidencePackets, id: 'M01' | 'M11' | 'M12' | 'I14' | 'I15'): string {
-    let body = '<p class="sec-note">Danh mục bằng chứng chưa xếp hạng. Khai báo của chủ dự án và khai báo đã rà soát không xác thực quyền phê duyệt. Mọi quan sát vẫn cần người xem xét (HUMAN_REVIEW_REQUIRED).</p>'
+    let body = '<p class="sec-note">Danh mục bằng chứng chưa xếp hạng. Khai báo của chủ dự án và khai báo đã rà soát không xác thực quyền phê duyệt. Mọi quan sát vẫn cần người xem xét.</p>' + codeMarker('HUMAN_REVIEW_REQUIRED', 'Mã hỗ trợ quyết định')
       + dl(pair('Câu hỏi được khai báo', owner(output.input.question)));
     if (id === 'M01') {
       const result = output.sections.M01;

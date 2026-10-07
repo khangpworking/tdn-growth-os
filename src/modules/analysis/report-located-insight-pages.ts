@@ -1,6 +1,7 @@
 import type {
   LocatedInsightMethods, Field, Provenance, Relation, Span,
 } from '../../../contracts/analysis/located-insight-methods.generated.js';
+import { attributionText } from './research-automation/descriptive-report.js';
 
 type Input = LocatedInsightMethods['input'];
 type LocatedId = 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09';
@@ -89,7 +90,7 @@ function source(ctx: RenderContext, recordIndex: number): string {
 function annotationContext(ctx: RenderContext, row: Annotation): string {
   const qualifiers = row.qualifiers.length === 0 ? '' : `<h5>Điều kiện và giới hạn được giữ lại</h5><ul class="limits">${row.qualifiers.map(span => `<li>${quote(span)}</li>`).join('')}</ul>`;
   const counter = row.counterevidence.length === 0 ? '' : `<h5>Bằng chứng ngược trong bản ghi</h5><ul class="limits">${row.counterevidence.map(span => `<li>${quote(span)}</li>`).join('')}</ul>`;
-  return `${source(ctx, row.recordIndex)}${qualifiers}${counter}${provenance(row.provenance)}<details><summary>Ghi nguồn, nguyên văn</summary><p>${esc(ctx.output.input.records[row.recordIndex]!.sourceAttribution)}</p></details>`;
+  return `${source(ctx, row.recordIndex)}${qualifiers}${counter}${provenance(row.provenance)}<details><summary>Ghi nguồn, nguyên văn</summary><p>${attributionText(ctx.output.input.records[row.recordIndex]!.sourceAttribution, 'Chưa có ghi nhận nguồn')}</p></details>`;
 }
 
 function relation(value: Relation | null): string {
@@ -102,7 +103,7 @@ function originalRecords(ctx: RenderContext): string {
   return `<h4>Toàn văn bản ghi được trích</h4><p class="sec-note">Số “Bản ghi N” đếm từ 1; chỉ số bản ghi trong con trỏ của hồ sơ phương pháp đếm từ 0, nên Bản ghi N ứng với chỉ số N − 1. Vị trí trong nguồn được giữ đúng như nguồn ghi.</p>${[...ctx.records].map(index => {
     const record = ctx.output.input.records[index]!;
     const paths = ctx.output.input.sources.filter(item => item.sha256 === record.sourceSha256).map(item => item.logicalPath);
-    return `<details id="located-${ctx.sectionId}-record-${index}"><summary>Bản ghi ${index + 1}: nguyên văn và thông tin nguồn</summary><p class="sec-note">Giữ nguyên lời nguồn, kể cả phủ định, điều kiện và lời kể lại. Các mã hóa phía trên là khai báo cần được xem xét cùng toàn văn.</p><div style="white-space:pre-wrap">${record.text === null ? 'Bản ghi không đọc được.' : esc(record.text)}</div><dl>${definition('Ghi nguồn, nguyên văn', esc(record.sourceAttribution))}${definition('Tệp nguồn', paths.map(esc).join('<br>'))}${definition('Vị trí trong nguồn', `<code>${esc(record.locator)}</code>`)}${definition('SHA-256 nguồn', `<code>${esc(record.sourceSha256)}</code>`)}${definition('Thời điểm theo nguồn', textOrUnset(record.timeText))}</dl></details>`;
+    return `<details id="located-${ctx.sectionId}-record-${index}"><summary>Bản ghi ${index + 1}: nguyên văn và thông tin nguồn</summary><p class="sec-note">Giữ nguyên lời nguồn, kể cả phủ định, điều kiện và lời kể lại. Các mã hóa phía trên là khai báo cần được xem xét cùng toàn văn.</p><div style="white-space:pre-wrap">${record.text === null ? 'Bản ghi không đọc được.' : esc(record.text)}</div><dl>${definition('Ghi nguồn, nguyên văn', attributionText(record.sourceAttribution, 'Chưa có ghi nhận nguồn'))}${definition('Tệp nguồn', paths.map(esc).join('<br>'))}${definition('Vị trí trong nguồn', `<code>${esc(record.locator)}</code>`)}${definition('SHA-256 nguồn', `<code>${esc(record.sourceSha256)}</code>`)}${definition('Thời điểm theo nguồn', textOrUnset(record.timeText))}</dl></details>`;
   }).join('')}`;
 }
 

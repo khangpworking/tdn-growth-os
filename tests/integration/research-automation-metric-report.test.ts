@@ -97,6 +97,12 @@ test('REPORTS computes attached raw Metric rows, retains the full method indepen
   assert.equal(f.insightSemantic.metricMethodsFailure, undefined);
   const original = await f.service.readReport(workspaceId, runId, 'MARKET');
   const doc = new JSDOM(original.bytes.toString()).window.document;
+  // P1-03: the aggregate row cites the frozen calculation, and a raw row cites its exact workbook cell.
+  assert.equal(doc.querySelector('#M03 table tbody tr td:last-child .cite')!.textContent, '[1]', 'the aggregate row is cited');
+  const registerText = doc.querySelector('.citation-register')!.textContent!;
+  assert.match(registerText, /Số liệu đã tính từ nguồn đã lưu/);
+  assert.match(registerText, /Dòng số liệu nguồn · bảng Sheet1, ô E2/);
+  assert.match(registerText, /Dòng số liệu nguồn · bảng Sheet1, ô D3/);
   assert.match(doc.getElementById('M03')!.textContent!, /150 VND/);
   assert.match(doc.getElementById('M03')!.textContent!, /2026-08-17 đến 2026-09-15/);
   assert.match(doc.getElementById('M03')!.textContent!, /WIDE và CORE chưa được tính/);
@@ -117,7 +123,7 @@ test('REPORTS computes attached raw Metric rows, retains the full method indepen
   assert.match(scopeText, /2026-08-17 đến 2026-09-15/); // Retained source declaration.
   assert.match(scopeText, /Thời điểm lấy nguồnChưa xác nhận/);
   assert.match(scopeText, /ALL: CALCULATED; WIDE: BLOCKED_LABELS; CORE: BLOCKED_LABELS/);
-  assert.match(scopeText, /Quy tắc phân loại Metric không tự áp dụng cho Kalodata/);
+  assert.match(scopeText, /Quy tắc phân loại của nguồn số liệu không tự áp dụng cho nguồn sàn khác, tìm kiếm hoặc review\./);
   assert.ok(doc.getElementById('M13')!.textContent!.includes(snapshot.originalSourcePackage.packageContentSha256));
   assert.ok(doc.getElementById('M13')!.textContent!.includes(snapshot.preparation.selectedSources.workbook.sha256));
   assert.ok(doc.getElementById('M04')!.querySelector('svg title'));
@@ -140,7 +146,7 @@ test('a wrong Metric run binding keeps its closed reason, never the exception te
   assert.equal(f.semantic.metricMethods, null);
   const original = await f.service.readReport(workspaceId, runId, 'MARKET');
   const doc = new JSDOM(original.bytes.toString()).window.document;
-  assert.match(doc.getElementById('M03')!.textContent!, /Mã đối chiếu: METRIC_SOURCE_RUN_MISMATCH\./);
+  assert.equal(doc.querySelector('#M03 p.warning + details.evidence-trace code')!.textContent, 'METRIC_SOURCE_RUN_MISMATCH');
   // The bridge's exception text and the generic fallback never reach stored output.
   for (const stored of [original.bytes.toString(), JSON.stringify(f.semantic)])
     assert.doesNotMatch(stored, /not bound to this confirmed run|METRIC_METHOD_FAILED/);
@@ -174,13 +180,13 @@ test('each closed Metric failure renders its own fixed explanation and next step
       assert.equal(section.querySelector('table, svg'), null);
       const explanation = section.querySelector('header + p')!.textContent!;
       const warning = section.querySelector('p.warning')!.textContent!;
-      const reference = ` Mã đối chiếu: ${code}.`;
-      assert.ok(warning.endsWith(reference), `${code} ${id}: ${warning}`);
-      if (id === 'M03') { explanations.add(explanation); nextSteps.add(warning.slice(0, -reference.length)); }
+      // The closed reason stays machine-readable in the technical disclosure, never in the reader's sentence.
+      assert.equal(section.querySelector('p.warning + details.evidence-trace code')!.textContent, code);
+      if (id === 'M03') { explanations.add(explanation); nextSteps.add(warning); }
       // Unclassified failures keep the copy shown before closed reasons existed.
       if (code === 'METRIC_METHOD_FAILED') {
-        assert.equal(explanation, 'Gói Metric được gắn với lượt này chưa vượt qua kiểm tra nguồn, kỳ hoặc phương pháp. Không dùng số liệu chưa xác minh; cần sửa gói đầu vào cho lượt mới. Không tự gọi lại nguồn.');
-        assert.equal(warning, 'Chưa tính được từ gói Metric gắn với lượt này. Kiểm tra nguồn, kỳ đo và liên kết phạm vi trước khi tạo lượt mới. Mã đối chiếu: METRIC_METHOD_FAILED.');
+        assert.equal(explanation, 'Gói số liệu thị trường được gắn với lượt này chưa vượt qua kiểm tra nguồn, kỳ hoặc phương pháp. Không dùng số liệu chưa xác minh; cần sửa gói đầu vào cho lượt mới. Không tự gọi lại nguồn.');
+        assert.equal(warning, 'Chưa tính được từ gói số liệu thị trường gắn với lượt này. Kiểm tra nguồn, kỳ đo và liên kết phạm vi trước khi tạo lượt mới.');
       }
     }
   }

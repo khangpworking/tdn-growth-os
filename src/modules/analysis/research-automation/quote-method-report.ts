@@ -1,6 +1,6 @@
 import type { AutomationQuoteMethodSnapshot } from '../../../../contracts/analysis/automation-quote-method-snapshot.generated.js';
 import type { Result } from '../../../../contracts/analysis/generic-quote-unit.generated.js';
-import { escapeHtml as escape } from './descriptive-report.js';
+import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
 const reasons: Record<Result['reasons'][number], string> = {
   PRICE_NOT_EXACT: 'Chưa có một mức giá chính xác', CURRENCY_UNKNOWN: 'Chưa rõ tiền tệ',
@@ -20,13 +20,23 @@ const operations = [
 const priceLabels = { LISTED: 'Giá niêm yết', STRUCK_THROUGH: 'Giá gạch ngang', PROMO_CONDITIONAL: 'Giá có điều kiện',
   OBSERVED_CHECKOUT: 'Giá tại bước thanh toán', UNKNOWN: 'Chưa rõ loại giá' };
 
+/** Usability is read from the stored calculation; the caller needs it before the (lazy) HTML is composed. */
+export function quoteMethodUsable(snapshot: AutomationQuoteMethodSnapshot): boolean {
+  return snapshot.output.quotes.some(row => operations.some(([key]) => row[key].status === 'AVAILABLE'));
+}
+
 /** Read-only presentation of verified arithmetic; no parsing, selection or recomputation. */
-export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot): { html: string; usable: boolean } {
+export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, citations: ReportCitations): string {
   const output = snapshot.output;
-  const usable = output.quotes.some(row => operations.some(([key]) => row[key].status === 'AVAILABLE'));
   const html = output.quotes.slice(0, 20).map((row, index) => {
     const quote = output.input.quotes[index]!;
     const source = snapshot.sourceMetadata.find(file => file.sha256 === quote.source.sourceSha256 && quote.source.locator === file.path + quote.source.fieldPointer)!;
+    const pointer = readerPointer(quote.source.fieldPointer);
+    const mark = citations.mark({
+      sourceKind: 'CAPTURE', identity: quote.source.sourceSha256.trim() === '' ? null : quote.source.sourceSha256, locator: pointer.locator,
+      label: 'Bản ghi giá đã lưu', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
+      technical: { fieldPointer: quote.source.fieldPointer, provenance: source.providerProvenance, provenanceBasis: source.provenanceBasis },
+    });
     const amount = quote.price.value ?? (quote.price.range ? `${quote.price.range.minimum} đến ${quote.price.range.maximum}` : 'Chưa có giá');
     const rows = operations.map(([key, label]) => {
       const result = row[key];
@@ -40,7 +50,7 @@ export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot): { h
       <p>Biến thể: ${escape(quote.identity.variantId ?? quote.identity.variantState)}. Điều kiện: ${escape(quote.price.conditions.map(condition => condition.literal).join('; ') || 'Không có điều kiện được ghi trong nguồn; chưa xác nhận vô điều kiện')}. Thuế: ${escape(quote.price.tax)}; vận chuyển: ${escape(quote.price.shipping)}.</p>
       <p>Thời điểm quan sát: ${escape(quote.observedAt ?? 'Chưa xác định, không coi là giá hiện tại')}. Thời điểm thu nhận được khai báo: ${escape(quote.acquiredAt)}.</p>
       <div class="table-wrap" role="region" aria-label="Phép tính giá chào bán ${index + 1}" tabindex="0"><table><caption>Giá theo từng cơ sở, giữ riêng khối lượng tịnh và ráo</caption><thead><tr><th scope="col">Cơ sở</th><th scope="col">Kết quả</th><th scope="col">Điều kiện và phần thiếu</th></tr></thead><tbody>${rows}</tbody></table></div>
-      <p>Nguồn: <code>${escape(quote.source.locator)}</code>. Xuất xứ khai báo trong gói: ${escape(source.providerProvenance)}; ${escape(source.provenanceBasis)}. <a href="#quote-method-evidence">Xem trường nguồn và phép tính tại M13</a>.</p>`;
+      <p>Nguồn: ${mark}. Xuất xứ khai báo trong gói: ${storedLiteral(source.providerProvenance, 'xuất xứ được giữ trong bản lưu nguồn')}; ${storedLiteral(source.provenanceBasis, 'cơ sở xuất xứ được giữ trong bản lưu nguồn')}. <a href="#quote-method-evidence">Xem trường nguồn và phép tính tại M13</a>.</p>`;
   }).join('');
-  return { usable, html: `<p class="warning">Tính từ bản ghi có cấu trúc đã lưu, không tự suy quy cách từ tên sản phẩm. Kiểm tra này chứng minh phép tính và sự khớp trường, không xác nhận nội dung của trang bán hàng, giao dịch hay việc người dùng đã duyệt. Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.</p>${html || '<p>Gói đã chọn không có bản ghi giá.</p>'}${output.quotes.length > 20 ? `<p>Hiển thị 20 trong ${output.quotes.length} bản ghi theo thứ tự nguồn. Toàn bộ bản ghi và kết quả được giữ tại M13.</p>` : ''}<p>Số hiển thị làm tròn đến hai chữ số thập phân theo half-even; phân số chính xác được giữ riêng. Giá có điều kiện không trở thành giá thanh toán vô điều kiện.</p>` };
+  return `<p class="warning">Tính từ bản ghi có cấu trúc đã lưu, không tự suy quy cách từ tên sản phẩm. Kiểm tra này chứng minh phép tính và sự khớp trường, không xác nhận nội dung của trang bán hàng, giao dịch hay việc người dùng đã duyệt. Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.</p>${html || '<p>Gói đã chọn không có bản ghi giá.</p>'}${output.quotes.length > 20 ? `<p>Hiển thị 20 trong ${output.quotes.length} bản ghi theo thứ tự nguồn. Toàn bộ bản ghi và kết quả được giữ tại M13.</p>` : ''}<p>Số hiển thị làm tròn đến hai chữ số thập phân theo half-even; phân số chính xác được giữ riêng. Giá có điều kiện không trở thành giá thanh toán vô điều kiện.</p>`;
 }

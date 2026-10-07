@@ -475,7 +475,8 @@ test('three industries classify a new report from complete selected acceptance w
       assert.deepEqual(semantic.sourceScope.metric.scopes.map((scope: any) => [scope.scope, scope.status]),
         [['all', 'CALCULATED'], ['wide', 'CALCULATED'], ['core', 'CALCULATED']]);
       assert.deepEqual(semantic.sourceScope.metric.classification.receiptIds, semantic.metricClassified.selection.receiptIds);
-      assert.match(classifiedHtml, /Phân loại này chỉ áp dụng cho mẫu Metric/);
+      // P1 changed this copy: the reader no longer sees a provider name in the classification sentence.
+      assert.match(classifiedHtml, /Phân loại này chỉ áp dụng cho mẫu số liệu/);
       assert.match(classifiedHtml, /Kỳ chọn listing không giới hạn ngày đăng review/);
       assert.deepEqual(calculated.scopes.map((scope: any) => [scope.key, scope.listingCount, scope.revenue.value, scope.units.value]),
         index === 0 ? [['all', 2, '150', '2'], ['wide', 1, '100', '2'], ['core', 1, '100', '2']] :

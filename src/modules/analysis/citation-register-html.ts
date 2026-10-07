@@ -28,3 +28,8 @@ export function renderCitationRegister(entries: readonly CitationEntry[], option
 export function renderCitationMark(n: number): string {
   return `<sup class="cite">[${n}]</sup>`;
 }
+
+/** A value the viewer cannot trace to a retained source shows the missing-source phrase instead of a number. */
+export function renderCitationMarkOrMissing(number: number | null): string {
+  return number === null ? '<span class="cite-missing">Chưa có nguồn</span>' : renderCitationMark(number);
+}
