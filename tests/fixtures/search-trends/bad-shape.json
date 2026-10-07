@@ -1,0 +1,17 @@
+{
+  "search_parameters": {
+    "engine": "google_trends",
+    "q": "bình giữ nhiệt An Nhiên",
+    "data_type": "TIMESERIES"
+  },
+  "interest_over_time": {
+    "timeline_data": {
+      "unexpected": true
+    }
+  },
+  "related_queries": {
+    "top": "not-an-array",
+    "rising": []
+  },
+  "interest_by_region": null
+}

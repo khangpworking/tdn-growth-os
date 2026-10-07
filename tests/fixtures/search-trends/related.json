@@ -1,0 +1,41 @@
+{
+  "search_parameters": {
+    "engine": "google_trends",
+    "q": "bình giữ nhiệt An Nhiên",
+    "data_type": "RELATED_QUERIES",
+    "geo": "VN",
+    "hl": "vi",
+    "date": "today 12-m"
+  },
+  "related_queries": {
+    "top": [
+      {
+        "query": "bình giữ nhiệt An Nhiên 1 lít",
+        "value": "100",
+        "extracted_value": 100
+      },
+      {
+        "query": "bình giữ nhiệt An Nhiên giá",
+        "value": "72",
+        "extracted_value": 72
+      },
+      {
+        "query": "bình giữ nhiệt An Nhiên chính hãng",
+        "value": "65",
+        "extracted_value": 65
+      }
+    ],
+    "rising": [
+      {
+        "query": "bình giữ nhiệt An Nhiên 2 lít",
+        "value": "Breakout",
+        "extracted_value": 5000
+      },
+      {
+        "query": "bình giữ nhiệt An Nhiên màu mới",
+        "value": "+250%",
+        "extracted_value": 250
+      }
+    ]
+  }
+}
