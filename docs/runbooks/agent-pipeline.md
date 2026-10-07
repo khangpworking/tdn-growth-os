@@ -9,8 +9,8 @@ Luồng này thay cho việc chuyền file và nhắn qua lại. Với mỗi gó
 2. Model khác review, so với checklist. Có lỗi thì agent sửa, tối đa 3 vòng.
 3. Kiểm tra tự động: test, typecheck, file nào được sửa, có lộ khoá hay đường dẫn máy không.
 4. Agent tự đẩy nhánh lên và mở **PR nháp**.
-5. Claude review lần cuối trên GitHub. Nếu còn lỗi, agent sửa tiếp trên chính nhánh đó.
-6. Đạt hết thì chủ shop nhận **một** thông báo "sẵn sàng merge". **Merge và deploy vẫn chỉ do chủ shop.**
+5. Đạt hết thì chủ shop nhận **một** thông báo "sẵn sàng merge". **Merge và deploy vẫn chỉ do chủ shop.**
+6. Chỉ khi chủ shop yêu cầu, Claude mới review thêm một lần trên GitHub. Không có lịch tự động, nên không tốn thêm quota.
 
 Chủ shop chỉ cần xử lý khi được báo: sẵn sàng merge, hoặc bị chặn và cần quyết định.
 
@@ -24,15 +24,16 @@ Chủ shop chỉ cần xử lý khi được báo: sẵn sàng merge, hoặc b�
 | Worker | oh-my-pi or opencode, worker model | edit owned paths, commit locally, write the handoff | push, PR, `gh`, network calls to providers |
 | Advisor | the tool's advisor role, a stronger model | answer the worker's design questions inside the session | edit files |
 | Reviewer | **Codex CLI on Fedora (via Orca), model Astra 6, reasoning effort high, read-only sandbox** (owner choice 2026-10-07; see §5) | read the diff, re-run the gates, write a verdict | edit files, push |
-| Final reviewer | a Claude Code cloud session (scheduled routine or on request) | re-run the tests on Linux, verify the checklist, post a review, mark the PR ready | push to the package branch, merge |
+| Final reviewer (optional) | a Claude Code cloud session, **only when the owner asks** (no schedule; owner decision 2026-10-07) | re-run the tests on Linux, verify the checklist, post a review | push to the package branch, merge |
 | Owner | khangpworking | merge, deploy, approve paid or live actions | |
 
 ## 2. Package lifecycle
 
-`QUEUED → WORKING → REVIEW(n) → GATES → PUSHED → DRAFT_PR → FINAL_REVIEW → READY_FOR_OWNER → MERGED`
+`QUEUED → WORKING → REVIEW(n) → GATES → PUSHED → DRAFT_PR → READY_FOR_OWNER → MERGED`
 
 - REVIEW gives CHANGES → back to WORKING, at most **3 internal rounds**.
-- FINAL_REVIEW gives CHANGES → back to WORKING on the same branch, at most **2 external rounds**.
+- After the draft PR is open, the runner marks it ready for review and notifies the owner.
+- Owner or optional final-review feedback (`PIPELINE-REVIEW: CHANGES`) → back to WORKING on the same branch, at most **2 external rounds**.
 - Any of these → `BLOCKED`, and the owner is notified once:
   - a round limit is exceeded;
   - a gate fails twice in a row;
@@ -146,17 +147,18 @@ A wave-1 package starts as soon as the runner is free. A gated package (P5–P8)
   - body: the handoff, including the evidence table; "Part of #124/#125/#127" as applicable; the round count.
 - **Never merge.** Never enable auto-merge.
 
-## 9. Final review on GitHub (Claude Code cloud)
+## 9. Ready for the owner, and optional final review
 
-**Trigger:** a scheduled routine, or the owner asking. It processes draft PRs labelled `agent-pipeline` whose head changed since its last review.
-
-For each PR:
-1. Check out the head and run the gates (§6) on Linux.
-2. Verify every checklist ID against the diff.
-3. Post **one** PR comment that starts with `PIPELINE-REVIEW: PASS` or `PIPELINE-REVIEW: CHANGES`.
-   - CHANGES lists the findings in the §5 JSON shape inside a fenced block.
-4. On PASS: mark the PR ready for review and notify the owner ("sẵn sàng merge").
-5. On CHANGES: the runner reads the comment, starts a worker round on the same branch, re-runs §5–§6, and pushes. The PR updates, and the next final review runs.
+- After §5 PASS and §6 green, the runner pushes, opens the PR, marks it **ready for review** and notifies the owner.
+- **Optional final review, only on the owner's request.** A Claude Code cloud session:
+  1. checks out the head;
+  2. re-runs the gates on Linux;
+  3. verifies every checklist ID against the diff;
+  4. posts **one** comment starting with `PIPELINE-REVIEW: PASS` or `PIPELINE-REVIEW: CHANGES`. CHANGES carries the findings in the §5 JSON shape inside a fenced block.
+- **Change requests:** a `PIPELINE-REVIEW: CHANGES` comment, from that review or written by the owner, makes the runner:
+  1. start a worker round on the same branch;
+  2. re-run §5–§6;
+  3. push.
 
 ## 10. Keeping branches current
 
