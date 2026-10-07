@@ -1,0 +1,845 @@
+{
+  "search_parameters": {
+    "engine": "google_trends",
+    "q": "bình giữ nhiệt An Nhiên,nồi chiên An Nhiên",
+    "data_type": "TIMESERIES",
+    "geo": "VN",
+    "hl": "vi",
+    "date": "today 12-m"
+  },
+  "interest_over_time": {
+    "timeline_data": [
+      {
+        "date": "2025-10-05",
+        "timestamp": "1759622400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "42",
+            "extracted_value": 42
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "18",
+            "extracted_value": 18
+          }
+        ]
+      },
+      {
+        "date": "2025-10-12",
+        "timestamp": "1760227200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "49",
+            "extracted_value": 49
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "31",
+            "extracted_value": 31
+          }
+        ]
+      },
+      {
+        "date": "2025-10-19",
+        "timestamp": "1760832000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "56",
+            "extracted_value": 56
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "44",
+            "extracted_value": 44
+          }
+        ]
+      },
+      {
+        "date": "2025-10-26",
+        "timestamp": "1761436800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "63",
+            "extracted_value": 63
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "57",
+            "extracted_value": 57
+          }
+        ]
+      },
+      {
+        "date": "2025-11-02",
+        "timestamp": "1762041600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "70",
+            "extracted_value": 70
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "70",
+            "extracted_value": 70
+          }
+        ]
+      },
+      {
+        "date": "2025-11-09",
+        "timestamp": "1762646400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "77",
+            "extracted_value": 77
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "83",
+            "extracted_value": 83
+          }
+        ]
+      },
+      {
+        "date": "2025-11-16",
+        "timestamp": "1763251200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "84",
+            "extracted_value": 84
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "96",
+            "extracted_value": 96
+          }
+        ]
+      },
+      {
+        "date": "2025-11-23",
+        "timestamp": "1763856000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "91",
+            "extracted_value": 91
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "9",
+            "extracted_value": 9
+          }
+        ]
+      },
+      {
+        "date": "2025-11-30",
+        "timestamp": "1764460800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "98",
+            "extracted_value": 98
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "22",
+            "extracted_value": 22
+          }
+        ]
+      },
+      {
+        "date": "2025-12-07",
+        "timestamp": "1765065600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "5",
+            "extracted_value": 5
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "35",
+            "extracted_value": 35
+          }
+        ]
+      },
+      {
+        "date": "2025-12-14",
+        "timestamp": "1765670400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "<1",
+            "extracted_value": 0
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "48",
+            "extracted_value": 48
+          }
+        ]
+      },
+      {
+        "date": "2025-12-21",
+        "timestamp": "1766275200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "19",
+            "extracted_value": 19
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "61",
+            "extracted_value": 61
+          }
+        ]
+      },
+      {
+        "date": "2025-12-28",
+        "timestamp": "1766880000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "26",
+            "extracted_value": 26
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "74",
+            "extracted_value": 74
+          }
+        ]
+      },
+      {
+        "date": "2026-01-04",
+        "timestamp": "1767484800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "33",
+            "extracted_value": 33
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "87",
+            "extracted_value": 87
+          }
+        ]
+      },
+      {
+        "date": "2026-01-11",
+        "timestamp": "1768089600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "40",
+            "extracted_value": 40
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "0",
+            "extracted_value": 0
+          }
+        ]
+      },
+      {
+        "date": "2026-01-18",
+        "timestamp": "1768694400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "47",
+            "extracted_value": 47
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "13",
+            "extracted_value": 13
+          }
+        ]
+      },
+      {
+        "date": "2026-01-25",
+        "timestamp": "1769299200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "54",
+            "extracted_value": 54
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "26",
+            "extracted_value": 26
+          }
+        ]
+      },
+      {
+        "date": "2026-02-01",
+        "timestamp": "1769904000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "61",
+            "extracted_value": 61
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "39",
+            "extracted_value": 39
+          }
+        ]
+      },
+      {
+        "date": "2026-02-08",
+        "timestamp": "1770508800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "68",
+            "extracted_value": 68
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "52",
+            "extracted_value": 52
+          }
+        ]
+      },
+      {
+        "date": "2026-02-15",
+        "timestamp": "1771113600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "75",
+            "extracted_value": 75
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "65",
+            "extracted_value": 65
+          }
+        ]
+      },
+      {
+        "date": "2026-02-22",
+        "timestamp": "1771718400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "82",
+            "extracted_value": 82
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "78",
+            "extracted_value": 78
+          }
+        ]
+      },
+      {
+        "date": "2026-03-01",
+        "timestamp": "1772323200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "89",
+            "extracted_value": 89
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "91",
+            "extracted_value": 91
+          }
+        ]
+      },
+      {
+        "date": "2026-03-08",
+        "timestamp": "1772928000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "96",
+            "extracted_value": 96
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "4",
+            "extracted_value": 4
+          }
+        ]
+      },
+      {
+        "date": "2026-03-15",
+        "timestamp": "1773532800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "3",
+            "extracted_value": 3
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "17",
+            "extracted_value": 17
+          }
+        ]
+      },
+      {
+        "date": "2026-03-22",
+        "timestamp": "1774137600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "10",
+            "extracted_value": 10
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "30",
+            "extracted_value": 30
+          }
+        ]
+      },
+      {
+        "date": "2026-03-29",
+        "timestamp": "1774742400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "17",
+            "extracted_value": 17
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "<1",
+            "extracted_value": 0
+          }
+        ]
+      },
+      {
+        "date": "2026-04-05",
+        "timestamp": "1775347200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "24",
+            "extracted_value": 24
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "56",
+            "extracted_value": 56
+          }
+        ]
+      },
+      {
+        "date": "2026-04-12",
+        "timestamp": "1775952000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "31",
+            "extracted_value": 31
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "69",
+            "extracted_value": 69
+          }
+        ]
+      },
+      {
+        "date": "2026-04-19",
+        "timestamp": "1776556800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "38",
+            "extracted_value": 38
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "82",
+            "extracted_value": 82
+          }
+        ]
+      },
+      {
+        "date": "2026-04-26",
+        "timestamp": "1777161600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "45",
+            "extracted_value": 45
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "95",
+            "extracted_value": 95
+          }
+        ]
+      },
+      {
+        "date": "2026-05-03",
+        "timestamp": "1777766400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "52",
+            "extracted_value": 52
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "8",
+            "extracted_value": 8
+          }
+        ]
+      },
+      {
+        "date": "2026-05-10",
+        "timestamp": "1778371200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "59",
+            "extracted_value": 59
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "21",
+            "extracted_value": 21
+          }
+        ]
+      },
+      {
+        "date": "2026-05-17",
+        "timestamp": "1778976000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "66",
+            "extracted_value": 66
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "34",
+            "extracted_value": 34
+          }
+        ]
+      },
+      {
+        "date": "2026-05-24",
+        "timestamp": "1779580800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "73",
+            "extracted_value": 73
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "47",
+            "extracted_value": 47
+          }
+        ]
+      },
+      {
+        "date": "2026-05-31",
+        "timestamp": "1780185600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "80",
+            "extracted_value": 80
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "60",
+            "extracted_value": 60
+          }
+        ]
+      },
+      {
+        "date": "2026-06-07",
+        "timestamp": "1780790400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "87",
+            "extracted_value": 87
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "73",
+            "extracted_value": 73
+          }
+        ]
+      },
+      {
+        "date": "2026-06-14",
+        "timestamp": "1781395200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "94",
+            "extracted_value": 94
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "86",
+            "extracted_value": 86
+          }
+        ]
+      },
+      {
+        "date": "2026-06-21",
+        "timestamp": "1782000000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "1",
+            "extracted_value": 1
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "99",
+            "extracted_value": 99
+          }
+        ]
+      },
+      {
+        "date": "2026-06-28",
+        "timestamp": "1782604800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "8",
+            "extracted_value": 8
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "12",
+            "extracted_value": 12
+          }
+        ]
+      },
+      {
+        "date": "2026-07-05",
+        "timestamp": "1783209600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "15",
+            "extracted_value": 15
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "25",
+            "extracted_value": 25
+          }
+        ]
+      },
+      {
+        "date": "2026-07-12",
+        "timestamp": "1783814400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "3"
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "38",
+            "extracted_value": 38
+          }
+        ]
+      },
+      {
+        "date": "2026-07-19",
+        "timestamp": "1784419200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "29",
+            "extracted_value": 29
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "51",
+            "extracted_value": 51
+          }
+        ]
+      },
+      {
+        "date": "2026-07-26",
+        "timestamp": "1785024000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "36",
+            "extracted_value": 36
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "64",
+            "extracted_value": 64
+          }
+        ]
+      },
+      {
+        "date": "2026-08-02",
+        "timestamp": "1785628800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "43",
+            "extracted_value": 43
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "77",
+            "extracted_value": 77
+          }
+        ]
+      },
+      {
+        "date": "2026-08-09",
+        "timestamp": "1786233600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "50",
+            "extracted_value": 50
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "90",
+            "extracted_value": 90
+          }
+        ]
+      },
+      {
+        "date": "2026-08-16",
+        "timestamp": "1786838400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "57",
+            "extracted_value": 57
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "3",
+            "extracted_value": 3
+          }
+        ]
+      },
+      {
+        "date": "2026-08-23",
+        "timestamp": "1787443200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "64",
+            "extracted_value": 64
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "16",
+            "extracted_value": 16
+          }
+        ]
+      },
+      {
+        "date": "2026-08-30",
+        "timestamp": "1788048000",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "71",
+            "extracted_value": 71
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "29",
+            "extracted_value": 29
+          }
+        ]
+      },
+      {
+        "date": "2026-09-06",
+        "timestamp": "1788652800",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "78",
+            "extracted_value": 78
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "42",
+            "extracted_value": 42
+          }
+        ]
+      },
+      {
+        "date": "2026-09-13",
+        "timestamp": "1789257600",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "85",
+            "extracted_value": 85
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "55",
+            "extracted_value": 55
+          }
+        ]
+      },
+      {
+        "date": "2026-09-20",
+        "timestamp": "1789862400",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "92",
+            "extracted_value": 92
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "68",
+            "extracted_value": 68
+          }
+        ]
+      },
+      {
+        "date": "2026-09-27",
+        "timestamp": "1790467200",
+        "values": [
+          {
+            "query": "bình giữ nhiệt An Nhiên",
+            "value": "99",
+            "extracted_value": 99
+          },
+          {
+            "query": "nồi chiên An Nhiên",
+            "value": "81",
+            "extracted_value": 81
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,42 @@
+{
+  "search_parameters": {
+    "engine": "google_trends",
+    "q": "bình giữ nhiệt An Nhiên",
+    "data_type": "GEO_MAP_0",
+    "geo": "VN",
+    "hl": "vi",
+    "date": "today 12-m"
+  },
+  "interest_by_region": [
+    {
+      "geo": "VN-HN",
+      "location": "Hà Nội",
+      "value": "100",
+      "extracted_value": 100
+    },
+    {
+      "geo": "VN-SG",
+      "location": "Hồ Chí Minh",
+      "value": "88",
+      "extracted_value": 88
+    },
+    {
+      "geo": "VN-DN",
+      "location": "Đà Nẵng",
+      "value": "<1",
+      "extracted_value": 0
+    },
+    {
+      "geo": "VN-CT",
+      "location": "Cần Thơ",
+      "value": "41",
+      "extracted_value": 41
+    },
+    {
+      "geo": "VN-HP",
+      "location": "Hải Phòng",
+      "value": "37",
+      "extracted_value": 37
+    }
+  ]
+}

@@ -1,0 +1,83 @@
+// Expanded web-search query builder and per-run call budget (offline, not wired into a run yet).
+//
+// The builder only ever recombines words the owner already confirmed as products or brands with a
+// fixed set of template words. It never invents a name, model or competitor, and it never emits a
+// query it was not handed. The budget is the only thing that limits how many paid calls a run makes.
+import { SEARCH_TRENDS_LIMITS } from './search-trends.js';
+
+export const EXPANDED_SEARCH_MAX_QUERIES = 10;
+
+const NAME_MAX_CHARS = 80;
+
+/** Trim, collapse spaces, drop empty or over-long names, and dedupe case-insensitively keeping input order. */
+function normalizeNames(values: readonly string[]): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of values) {
+    const name = raw.normalize('NFC').trim().replace(/\s+/g, ' ');
+    if (name.length < 1 || name.length > NAME_MAX_CHARS) continue;
+    const key = name.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+  }
+  return names;
+}
+
+/**
+ * Fill in order: every product template first, then brand templates, then adjacent product pairs.
+ * Dedupe case-insensitively and cap at EXPANDED_SEARCH_MAX_QUERIES.
+ */
+export function buildExpandedQueries(input: {
+  confirmedProducts: readonly string[];
+  confirmedBrands: readonly string[];
+}): readonly string[] {
+  const products = normalizeNames(input.confirmedProducts);
+  const brands = normalizeNames(input.confirmedBrands);
+  const queries: string[] = [];
+  for (const product of products) queries.push(`${product} review`, `${product} có tốt không`, `${product} lỗi`);
+  for (const brand of brands) queries.push(`${brand} review`);
+  for (let index = 0; index + 1 < products.length; index += 1) {
+    queries.push(`${products[index]!} hay ${products[index + 1]!}`);
+  }
+  const expanded: string[] = [];
+  const seen = new Set<string>();
+  for (const query of queries) {
+    const key = query.toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    expanded.push(query);
+    if (expanded.length === EXPANDED_SEARCH_MAX_QUERIES) break;
+  }
+  return expanded;
+}
+
+/** Stable, secret-free cache identity: same query and retrieval day give the same key. */
+export function expandedSearchCacheKey(q: string, retrievedDate: string): string {
+  return `expanded_search|${JSON.stringify(q)}|${retrievedDate}`;
+}
+
+export interface SearchCallLimits { readonly trends: number; readonly search: number }
+
+const DEFAULT_SEARCH_CALL_LIMITS: SearchCallLimits = Object.freeze({
+  trends: SEARCH_TRENDS_LIMITS.maxCallsPerRun,
+  search: EXPANDED_SEARCH_MAX_QUERIES,
+});
+
+/**
+ * Per-run ceiling for paid provider calls. Once a kind is exhausted `take` returns false and the
+ * caller skips the call: nothing is queued, deferred or retried.
+ */
+export class SearchCallBudget {
+  readonly #remaining: { trends: number; search: number };
+
+  constructor(limits: SearchCallLimits = DEFAULT_SEARCH_CALL_LIMITS) {
+    this.#remaining = { trends: limits.trends, search: limits.search };
+  }
+
+  take(kind: 'trends' | 'search'): boolean {
+    if (this.#remaining[kind] <= 0) return false;
+    this.#remaining[kind] -= 1;
+    return true;
+  }
+}
