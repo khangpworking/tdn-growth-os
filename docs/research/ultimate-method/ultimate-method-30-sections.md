@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.2 · ngày 07/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.3 · ngày 07/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -12,6 +12,7 @@ File hợp nhất:
 4. Cập nhật thảo luận ngày 05/10/2026 cho M06, M08, M09, M10, M11 và ngoại lệ E1–E3 (bản v1.0).
 5. **v1.1 (07/10/2026):** quyết định của chủ dự án cho phần Insight: ngoại lệ E4–E8, làm rõ cách áp quy tắc chung cho Insight, và danh mục nguồn dữ liệu cho Insight (mục 6).
 6. **v1.2 (07/10/2026):** M08 tính giá theo đơn vị chuẩn của từng ngành hàng, và ngoại lệ E9 cho phép so cạnh nhau có điều kiện.
+7. **v1.3 (07/10/2026):** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu; ngưỡng thu review mở rộng (mục 6.3).
 
 Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi.
 
@@ -165,6 +166,30 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     - so khác đơn vị chuẩn, khác loại giá hoặc khác kỳ;
     - quy đổi hàng dùng lâu theo ml hay gram.
 
+**Ngoại lệ ngày 07/10/2026 (mới ở v1.3)**
+
+- **E10 · Phần 5 (M05) – doanh số là thước đo nhu cầu.**
+  - **Căn cứ:** chủ: "cho phép doanh số là nhu cầu" (07/10/2026).
+  - **Được phép:** dùng doanh số (doanh thu, số đơn vị bán, kể cả số ước tính) làm thước đo nhu cầu ở M05 và ở các phần lấy số từ M05 (M01, M11). Ghi là "nhu cầu, đo bằng doanh số (ước tính) trong mẫu".
+  - **Bắt buộc:** ghi kỳ và nguồn; tách theo sàn (L5); số ước tính kèm câu miễn trừ như E1. Mức quan tâm tìm kiếm (Trends) ghi riêng là "mức quan tâm tìm kiếm", không cộng hay trộn với doanh số.
+  - **Vẫn cấm:** quy mô thị trường ngoài mẫu; nhu cầu chưa được đáp ứng (theo I09); dự báo (M10); đếm người mua.
+- **E11 · Báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu.**
+  - **Căn cứ:** chủ: "chủ có tham gia làm báo cáo hay có gì để input vào báo cáo đâu mà có phần chủ quyết" (07/10/2026).
+  - **Nguyên tắc:** chỗ nào phương pháp ghi "chủ khai báo", "chủ duyệt" hay "chủ định nghĩa" cho **nội dung báo cáo**, hệ thống dùng quy tắc mặc định trong bảng dưới, ghi rõ quy tắc đã dùng trong phần phương pháp của báo cáo (M02, I03), và không dừng chờ chủ. Chủ sửa quy tắc bằng một quyết định mới, ghi vào file này.
+  - **Không áp cho:** chi tiền thật, merge và deploy, hành động ra bên ngoài (đặt hàng, đăng bài, nhắn tin). Những việc này vẫn cần chủ đồng ý từng lần.
+  - **Quy tắc mặc định:**
+
+    | Chỗ trước đây cần chủ | Quy tắc mặc định |
+    |---|---|
+    | Câu hỏi kinh doanh (I01) | Câu hỏi làm việc theo E7 |
+    | Tập đối thủ để so (M07, I13) | Lấy từ dữ liệu bán hàng (sàn thương mại điện tử và video bán hàng), cùng nhóm sản phẩm, cùng kỳ: các thương hiệu đứng đầu theo doanh thu trong mẫu, cộng dồn tới khi đạt ≥50% doanh thu của nhóm (cùng ngưỡng ở mục 6.3). Không rõ thương hiệu thì dùng gian hàng. Quy tắc chốt trước khi đọc số để không chọn lọc theo kết quả. Thương hiệu lấy từ tiêu đề ghi "theo tiêu đề người bán" |
+    | Mẫu số của tỷ lệ (quy tắc 4) | Toàn bộ bản ghi của tập mẫu đã chốt, cùng nguồn, cùng kỳ, cùng đơn vị; ghi rõ mẫu số trong báo cáo |
+    | Thước đo nhu cầu (M05) | Doanh số, theo E10 |
+    | Nhóm để so (I11) | Theo sàn; theo khách mua lẻ và khách mua sỉ, khi nguồn cho phân biệt được (chủ chọn 07/10/2026) |
+    | Ưu tiên giữa các hướng, phương án (M11, I14, I15) | Không xếp ưu tiên, chỉ liệt kê (chủ chọn 07/10/2026) |
+    | Duyệt cách xếp nhóm (quy tắc 8, L3) | AI lập bộ mã và gắn mã. Một model khác, độc lập, gắn mã lại toàn bộ khi tập có ≤200 bản ghi, hoặc một mẫu ngẫu nhiên 200 bản ghi khi lớn hơn. Độ đồng thuận κ ≥ 0,6: số đếm được dùng ở bản phát hành, nhãn "phân loại do AI, đã kiểm chéo". κ < 0,6: nhãn "độ tin cậy thấp", không đưa số đếm vào Kết luận chính. Bản ghi hai model gắn khác nhau liệt kê ở phụ lục |
+    | Đơn vị chuẩn khi tính giá (M08) | Theo bảng đơn vị chuẩn ở M08. Hàng bán theo khối lượng dùng khối lượng tịnh; ghi thêm khối lượng cái khi trang bán có |
+
 ---
 
 ## 3. Bảng tổng quan 30 section
@@ -175,9 +200,9 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 | 2 | M02 | Phạm vi và phương pháp | Existing | Tài khoản scope/method A22 | EXISTING_BOUNDED |
 | 3 | M03 | Quy mô và diễn biến | Existing | Tổng đơn-chuẩn-bị A32/A37, giữ đủ/thiếu/zero/UNKNOWN | EXISTING_BOUNDED |
 | 4 | M04 | Cơ cấu thị trường | Existing | Slice nhóm/tập trung MetricScope/A27; cần đủ denominator để vẽ share | EXISTING_BOUNDED |
-| 5 | M05 | Nhu cầu | Additional | Phân vùng thước đo nghĩa đen theo nguồn; proxy nhu cầu phải người duyệt | PROPOSED + BUSINESS_REVIEWED |
+| 5 | M05 | Nhu cầu | Additional | Phân vùng thước đo nghĩa đen theo nguồn; doanh số là thước đo nhu cầu (E10) | PROPOSED + BUSINESS_REVIEWED + E10 |
 | 6 | M06 | Nguồn cung | Additional | Inventory cung có locator; có kiểm chứng agent ngày 05/10 (phần mẫu hẹp) | PROPOSED + VALIDATED_IN_SAMPLE |
-| 7 | M07 | Đối thủ | Additional | So sánh cạnh nhau theo peer-set chủ khai báo; không rank | PROPOSED + BUSINESS_REVIEWED |
+| 7 | M07 | Đối thủ | Additional | So sánh cạnh nhau theo tập đối thủ lấy từ dữ liệu bán hàng (E11); không rank | PROPOSED + BUSINESS_REVIEWED + E11 |
 | 8 | M08 | Giá và kinh tế đơn vị | Existing + bổ sung | Số học quote A24/P4 + giá theo đơn vị chuẩn từng ngành hàng (v1.2) + benchmark ROAS/CPA (05/10) | BOUNDED + BENCHMARK_ADDED + E1 + E9 |
 | 9 | M09 | Động lực và rủi ro | Additional | Inventory sự kiện có nguồn/ngày + kênh báo cáo ngành (05/10) | PROPOSED + BUSINESS_REVIEWED |
 | 10 | M10 | Dự báo và kịch bản | Additional | Gate đủ điều kiện; chỉ kịch bản có điều kiện; forecast sản xuất chặn | BLOCKED (by design) |
@@ -194,8 +219,8 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 | 20 | I07 | Lý do lựa chọn | Additional | Lý do nêu trực tiếp trong bản ghi; không suy từ hành vi | PROPOSED + BUSINESS_REVIEWED |
 | 21 | I08 | Rào cản | Additional | Rào cản task–trở ngại trong cùng locator | PROPOSED + BUSINESS_REVIEWED |
 | 22 | I09 | Nhu cầu chưa được đáp ứng | Additional | Cặp mong muốn–thiếu hụt trong cùng bản ghi | PROPOSED + BUSINESS_REVIEWED |
-| 23 | I10 | Chủ đề và mối quan tâm | Additional | Coding corpus đóng băng; n/N trong corpus; bản phát hành cần codebook đã duyệt | PROPOSED + BUSINESS_REVIEWED |
-| 24 | I11 | Khác biệt giữa các nhóm | Advanced | Nhóm chủ định nghĩa; rate mô tả khi mẫu số tương thích; suy luận chặn | PROPOSED + BUSINESS_REVIEWED |
+| 23 | I10 | Chủ đề và mối quan tâm | Additional | Coding corpus đóng băng; n/N trong corpus; bản phát hành cần bộ mã đã kiểm chéo (E11) | PROPOSED + BUSINESS_REVIEWED + E11 |
+| 24 | I11 | Khác biệt giữa các nhóm | Advanced | Nhóm mặc định theo sàn và mua lẻ/mua sỉ (E11); rate mô tả khi mẫu số tương thích; suy luận chặn | PROPOSED + BUSINESS_REVIEWED + E11 |
 | 25 | I12 | Điểm tiếp xúc | Advanced | PRESENCE/EXPOSURE/OUTCOME tách rời; ratio theo unit đã link | PROPOSED + BUSINESS_REVIEWED |
 | 26 | I13 | Thương hiệu và đối thủ | Additional | Inventory nhắc thương hiệu/nội dung trong corpus đóng băng; lời người bán theo L7 | PROPOSED + BUSINESS_REVIEWED + E5 |
 | 27 | I14 | Hướng cơ hội | Synthesis | Portfolio hướng không rank; AI candidate tách riêng | PROPOSED + BUSINESS_REVIEWED |
@@ -234,6 +259,7 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 - **Phương pháp:** phân vùng thước đo nghĩa đen theo nguồn (đơn vị, kỳ, timezone, universe, frame); cộng chính xác khi khai báo additive và chứng minh được rời nhau; rate chỉ với mẫu số chủ khai báo. Mapping "thước đo → proxy nhu cầu" (ví dụ bán hàng = nhu cầu) phải có phê duyệt người, phiên bản hóa.
 - **Cập nhật 05/10:** khối lượng comment/review lớn hơn không tự nâng giá trị claim — số bản ghi vẫn là bản ghi, không phải người; chỉ tăng độ phủ chủ đề khi có codebook + corpus đóng băng (đi qua I10), không mua thêm nguồn chỉ vì "thêm sample".
 - **Cấm:** nhu cầu chưa được đáp ứng, quy mô thị trường, đếm người, điểm tổng hợp nhu cầu.
+- **Cập nhật 07/10 (E10):** doanh số được dùng làm thước đo nhu cầu trong mẫu; mức quan tâm tìm kiếm ghi riêng.
 
 ### M06 · Nguồn cung — PROPOSED + VALIDATED_IN_SAMPLE (cập nhật 05/10)
 
@@ -250,7 +276,8 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 - **Phương pháp:** chủ khai báo peer-set (anchor + peers, căn cứ quan hệ, scope, phiên bản tiêu chí) **trước khi** đọc giá trị; so sánh cạnh nhau chỉ trong phân vùng cùng thước đo/đơn vị/kỳ/timezone; delta `peer − anchor` chỉ khi được bật riêng; thiếu peer set → inventory không rank.
 - **Nguồn dữ liệu hợp lệ cho bảng so sánh:** Kalodata và Metric (như đã chốt 05/10). Không dùng AI/search để "phát hiện" đối thủ; cùng sản phẩm phải có căn cứ danh tính từ nguồn.
 - **Cấm:** rank/winner/best-worst, tương đương sản phẩm tự suy, chiến lược/tiện lợi giá nếu chưa có phương pháp được duyệt.
-- **Liên quan v1.1:** nội dung video và quảng cáo của đối thủ (mục 6) được dùng ở đây như lời người bán (L7), theo peer-set chủ khai báo.
+- **Liên quan v1.1:** nội dung video và quảng cáo của đối thủ (mục 6) được dùng ở đây như lời người bán (L7).
+- **Cập nhật 07/10 (E11):** tập đối thủ lấy tự động từ dữ liệu bán hàng theo quy tắc mặc định ở E11, thay cho danh sách chủ khai báo.
 
 ### M08 · Giá và kinh tế đơn vị — BOUNDED + BENCHMARK_ADDED + E9 (cập nhật 05/10, 07/10)
 
@@ -365,11 +392,13 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 
 - Corpus đóng băng + codebook phiên bản + frame/đơn vị mã hóa; output là tần suất theo bản ghi/coding unit trong corpus; n/N hiển thị khi denominator đầy đủ. Không đọc thành % khách hàng/dân số; co-occurrence không thành nhân quả.
 - **Cập nhật 07/10:** áp L3 (nháp và phát hành) và L4 (không xếp hạng ngầm). Nhãn ô có sẵn trong mẫu đánh giá của sàn ("Hương vị:", "Đường:") không quyết định chủ đề.
+- **Cập nhật 07/10 (E11):** "bộ mã đã duyệt" nghĩa là đã qua kiểm chéo bằng model thứ hai theo E11.
 
 ### I11 · Khác biệt giữa các nhóm — PROPOSED + BUSINESS_REVIEWED
 
 - Nhóm do chủ định nghĩa trước khi xem số; cùng outcome/đơn vị/kỳ/frame mới so; rate + chênh lệch giữ phân số chính xác; sparse-cell rule và phương pháp uncertainty phải khai báo trước; suy luận thống kê chặn khi thiếu.
 - **Cập nhật 07/10:** so giữa nền tảng (Shopee, TikTok Shop, Facebook, Instagram) chỉ là so cạnh nhau theo L5; mẫu số mỗi nền tảng ghi riêng.
+- **Cập nhật 07/10 (E11):** nhóm mặc định là theo sàn và theo khách mua lẻ / mua sỉ.
 
 ### I12 · Điểm tiếp xúc — PROPOSED + BUSINESS_REVIEWED
 
@@ -454,6 +483,21 @@ Mười câu hỏi dưới đây áp cho từng video. Cột "Nghĩa đúng" là
 - Số liệu của video (lượt xem, tương tác) ghi kèm ngày lấy số.
 - Chuyển giọng nói thành chữ: ưu tiên phụ đề có sẵn và công cụ chạy trên máy. Dùng dịch vụ đám mây (gửi video ra ngoài, có thể tốn phí) cần chủ duyệt.
 
+### 6.3 Ngưỡng chất lượng cho lần thu review mở rộng (mới ở v1.3)
+
+Chủ đồng ý ngày 07/10/2026. Thu tới khi đạt đủ các ngưỡng (E8); mỗi lần chi thật vẫn báo trước.
+
+| Tiêu chí | Ngưỡng | Căn cứ |
+|---|---|---|
+| Độ phủ doanh thu | Các sản phẩm được đọc review chiếm ≥50% doanh thu của nhóm sản phẩm lõi trong mẫu | Là đa số doanh thu. Với thạch dừa, 1 sản phẩm chỉ chiếm khoảng 0,7%, còn khoảng 24 sản phẩm đầu đã chiếm 50%: doanh thu tập trung, nên đọc nhóm đầu là đọc phần lớn hàng khách thật sự mua |
+| Đa dạng | Đủ các nhóm sản phẩm lõi và ≥5 thương hiệu | Trong 24 sản phẩm đạt 50% doanh thu thạch dừa có 7 nhóm thương hiệu theo tiêu đề; ≥5 là phần lớn số đó, tránh dồn vào một thương hiệu |
+| Hai sàn | Có review cả Shopee và TikTok Shop | Báo cáo thị trường có cả hai sàn |
+| Cỡ mẫu mỗi sản phẩm | Khoảng 300 review, hoặc lấy hết nếu ít hơn | Chủ đặt 300 review mỗi sản phẩm cho lần chạy thử ngày 06/10/2026; hệ thống cho tối đa 500 |
+| Điều kiện để so giữa sản phẩm | ≥30 review có chữ mỗi sản phẩm | Với 30 bản ghi, sai số của một tỷ lệ quanh 50% là khoảng ±18 điểm phần trăm (khoảng tin cậy 95%); với 20 bản ghi là khoảng ±22. Chênh lệch nhỏ hơn mức này giữa hai sản phẩm không đọc được |
+| Số sao và người viết | Có số sao và mã người viết ẩn danh | Theo L2 (đếm người viết) và L6 (số sao là phân bố riêng) |
+| Chân dung | ≥5 người viết khác nhau, đến từ ≥3 sản phẩm hoặc thương hiệu | E4, và để chân dung không phải của riêng một gian hàng |
+| Gọi là vấn đề "của ngành hàng" | Xuất hiện ở ≥3 sản phẩm khác thương hiệu; dưới mức đó ghi "của sản phẩm" | Tránh khái quát từ một sản phẩm |
+
 ---
 
 ## 7. Đồng bộ với TDN
@@ -494,3 +538,4 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 
   Quy tắc chung 1–9, ngoại lệ E1–E3 và các section Market không đổi. Tham số mặc định của E5 là đề xuất ban đầu, chủ chỉnh được.
 - **v1.2 — 07/10/2026:** M08 thêm bảng đơn vị chuẩn theo ngành hàng (khối lượng, thể tích, số lượng, hàng dùng lâu, combo); ngoại lệ E9 cho phép so cạnh nhau và sắp xếp giá theo đơn vị chuẩn khi cùng đơn vị, cùng loại giá, cùng kỳ, không kết luận "rẻ nhất / tốt nhất".
+- **v1.3 — 07/10/2026:** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu (tập đối thủ từ dữ liệu bán hàng, nhóm so sánh theo sàn và mua lẻ/mua sỉ, không xếp ưu tiên, bộ mã kiểm chéo bằng model thứ hai); mục 6.3 ngưỡng thu review mở rộng kèm căn cứ.
