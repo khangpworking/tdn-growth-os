@@ -6,7 +6,7 @@ Cập nhật: 07/10/2026
 
 Có hai lớp tài liệu về phương pháp, và hai lớp này **không giống nhau**:
 
-1. **Nghiệp vụ Ultimate** ([ultimate-method-30-sections.md](ultimate-method-30-sections.md)) nói báo cáo **được làm gì, không được làm gì**. Đây là nguồn chuẩn: khi có tranh cãi về nghiệp vụ thì theo file này, trừ khi chủ dự án có quyết định mới hơn.
+1. **Nghiệp vụ Ultimate** ([ultimate-method-30-sections.md](ultimate-method-30-sections.md)) nói báo cáo **được làm gì, không được làm gì**. Chủ dự án xác nhận ngày 07/10/2026: **business rule của Ultimate là nguồn chuẩn**, TDN phải theo. Khi có tranh cãi về nghiệp vụ thì theo file này, trừ khi chủ dự án có quyết định mới hơn.
 2. **TDN đang áp dụng** là những gì hệ thống thật sự đã có: recipe kỹ thuật, cấu hình, code và test trong repo.
 
 Nghiệp vụ luôn đi trước, hệ thống theo sau. Một quy tắc có trong Ultimate nhưng chưa vào code thì **chưa được coi là hệ thống đã làm**. Bảng ở mục 4 cho biết từng section đang lệch ở đâu.
@@ -36,7 +36,7 @@ Ba loại báo cáo đang dùng các lớp khác nhau:
 | Trường hợp | Xử lý |
 |---|---|
 | Ultimate cho phép, TDN chưa có | Ghi vào danh sách đồng bộ (mục 5). Báo cáo tự động không được tuyên bố đã làm. Có thể làm tay trong bản đọc, ghi rõ là làm tay |
-| TDN chặt hơn Ultimate | Code giữ nguyên mức chặn cho tới khi recipe và code được cập nhật qua PR. Code không tự nới |
+| TDN chặt hơn Ultimate | Ultimate thắng; TDN phải sửa recipe, cấu hình và code theo Ultimate. Trong lúc chưa sửa xong, báo cáo tự động không tuyên bố đã làm được |
 | TDN cho phép điều Ultimate cấm | Là lỗi. Sửa TDN, hoặc xin chủ quyết rồi ghi vào Ultimate |
 | Chủ vừa quyết điều mới, Ultimate chưa ghi | Quyết định của chủ thắng (Ultimate mục 1). Bổ sung vào Ultimate ở phiên bản kế tiếp |
 
@@ -53,6 +53,7 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 
 ## 4. Đối chiếu 30 section
 
+- Hiện đang làm phần business rule; cột **TDN code** tạm giữ nguyên, chưa cập nhật.
 - Cột **TDN code** lấy từ bảng điều hành ngày 04/10/2026 (`research-30-section-progress.md`). "Nối" nghĩa là luồng chạy có gọi phương pháp, **chưa** có nghĩa là đúng hay đã nghiệm thu. Tới 04/10 chưa section nào nghiệm thu đủ trên ba case (thạch dừa, bình giữ nhiệt, quạt cầm tay).
 - Các PR sau 04/10 (#118–#137) thêm nguồn và trích dẫn (tìm kiếm web, trạng thái review Shopee, sổ trích dẫn, lưu trữ, Trends) nhưng không đổi phương pháp section.
 
@@ -73,7 +74,7 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 | M13 | EXISTING_BOUNDED | A23 | Đã nối | — |
 | Kết luận Insight | E6 | Không có trong danh mục 30 section | Không có | Thêm khi đưa bản đọc Insight vào app |
 | I01 | PROPOSED + E7 | Câu hỏi phải do chủ viết | Brief đã nối; thiếu thì UNSET | E7 (câu hỏi làm việc có nhãn) |
-| I02 | PROPOSED + E4 + E5 | Coding bản ghi; không persona, không đếm người (D06) | Đề xuất/duyệt coding đã nối; bảng điều hành ghi "không dựng persona" | **Xung đột:** TDN đang chặn chân dung, Ultimate đã cho phép theo E4. Cập nhật recipe I02 và D06. Gói P7 đã có chân dung E4 cho mạng xã hội. E5 chưa có ở đâu |
+| I02 | PROPOSED + E4 + E5 | Coding bản ghi; không persona, không đếm người (D06) | Đề xuất/duyệt coding đã nối; bảng điều hành ghi "không dựng persona" | **Đã quyết 07/10: theo Ultimate, cho dựng chân dung (E4).** TDN sửa recipe I02 và D06. Gói P7 đã có chân dung E4 cho mạng xã hội. E5 chưa có ở đâu |
 | I03 | EXISTING_BOUNDED | A25 | Đã nối | Ghi riêng từng nguồn khi có nhiều nguồn |
 | I04 | PROPOSED | Đề xuất | Đã nối, chưa duyệt coding thật | — |
 | I05 | PROPOSED | Đề xuất | Đã nối | L6: số sao là phân bố riêng |
@@ -103,7 +104,7 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 
 ### Từ Ultimate v1.1 (07/10)
 
-- Recipe I02 và quyết định D06: cho phép chân dung theo E4; thêm lớp E5.
+- Recipe I02 và quyết định D06: cho phép chân dung theo E4 (chủ đã quyết 07/10, TDN phải sửa); thêm lớp E5.
 - L1–L7 vào recipe các section Insight và vào lint của bản đọc (gói P2 hoặc P8): cấm so sánh bậc nhất làm nhận định, nhãn tại câu có số khi coding chưa duyệt, không gộp bản ghi trùng chữ, số sao tách riêng.
 - E6, E7: mẫu bản đọc Insight trong app (hiện chỉ có Market).
 - Nguồn mới ở mục 6 của Ultimate, so với gói việc hiện có:

@@ -31,6 +31,8 @@ Khi hai tài liệu mâu thuẫn, thứ tự ưu tiên là:
 3. Recipe gốc từng section (A40, `section-methods-v1/sections/Mxx.md` / `Ixx.md`).
 4. Gói cấu hình A41 (`method-configurations-v1/`) và hồ sơ tiếp nhận (adoption note, remediation review 02/10).
 
+**Chủ dự án xác nhận ngày 07/10/2026:** business rule trong file này là nguồn chuẩn. Recipe A40, cấu hình A41 và code TDN phải theo file này. Khi TDN lệch với file này, sửa TDN; không sửa file này cho khớp với code. Mục 3 và 4 trong danh sách trên chỉ là tài liệu kỹ thuật, dùng khi chúng không trái với file này.
+
 Quyết định của chủ chỉ có hiệu lực lâu dài khi được ghi vào file này. Quyết định mới chưa kịp ghi vẫn thắng, nhưng phải được bổ sung ở phiên bản kế tiếp.
 
 Phân biệt bắt buộc, không được trộn:
@@ -453,5 +455,7 @@ Lưu ý giữ từ v1.0: hồ sơ tiếp nhận của TDN mô tả phương phá
   - ngoại lệ E4 chân dung có thẻ bằng chứng, E5 chân dung người bán nhắm tới có số liệu củng cố, E6 kết luận chính và Phần 15 của Insight, E7 câu hỏi làm việc, E8 thu review không đặt trần chi phí;
   - cập nhật từng section I01–I17 và khối Kết luận chính;
   - danh mục nguồn cho Insight và cách đọc nội dung video (mục 6).
+
+  Chủ xác nhận business rule của file này là nguồn chuẩn, TDN phải theo (mục 1); I02 cho dựng chân dung theo E4, TDN sửa theo.
 
   Quy tắc chung 1–9, ngoại lệ E1–E3 và các section Market không đổi. Tham số mặc định của E5 là đề xuất ban đầu, chủ chỉnh được.
