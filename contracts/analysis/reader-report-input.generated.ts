@@ -7,10 +7,10 @@ export type Platform = 'shopee' | 'tiktok';
 export type Date = string;
 
 /**
- * Semantic input for one owner-facing reader report: the classification profile, the per-listing rows and what the source screen displayed. Numbers only; no narrative.
+ * Semantic input for one owner-facing reader report: the classification profile, the per-listing rows and what the source screen displayed. Numbers only; no narrative. Version rules (enforced by verifyReaderReportInput): 1.0.0 requires source and forbids webSnapshot/webSnapshotSha256; 1.1.0 requires webSnapshot/webSnapshotSha256 and source is optional when webSnapshot is present.
  */
 export interface ReaderReportInput {
-  contractVersion: '1.0.0';
+  contractVersion: '1.0.0' | '1.1.0';
   profile: Profile;
   /**
    * @minItems 1
@@ -22,7 +22,14 @@ export interface ReaderReportInput {
    * @maxItems 20000
    */
   rows: [Row, ...Row[]];
-  source: Source;
+  source?: Source;
+  /**
+   * Opaque web snapshot (automation-metric-web-snapshot-v1). Allowed only in 1.1.0; validated at runtime.
+   */
+  webSnapshot?: {
+    [k: string]: unknown;
+  };
+  webSnapshotSha256?: string;
 }
 export interface Profile {
   slug: string;

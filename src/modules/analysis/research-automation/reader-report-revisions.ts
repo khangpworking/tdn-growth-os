@@ -13,7 +13,7 @@ import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import {
   buildMarketReport, computeReaderReportData, publishReaderReport, ReaderAssetError, ReaderReportGateError, ReaderReportInputError,
-  storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
+  ReaderSourceError, storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
@@ -117,10 +117,30 @@ export class AutomationReaderReports {
       throw error;
     }
     // computeReaderReportData re-validates the whole input against its schema.
-    const input = { contractVersion: '1.0.0', profile: request.profile, platforms, rows, source: request.source } as unknown as ReaderReportInput;
+    // A 1.1.0 request may carry a web snapshot; the effective (derived) period
+    // is checked against the attached file below, after compute.
+    const extraSnapshot = value as { webSnapshot?: unknown; webSnapshotSha256?: unknown };
+    const input = {
+      contractVersion: extraSnapshot.webSnapshot === undefined ? '1.0.0' : '1.1.0',
+      profile: request.profile, platforms, rows, source: request.source,
+      ...(extraSnapshot.webSnapshot === undefined ? {} : {
+        webSnapshot: extraSnapshot.webSnapshot,
+        webSnapshotSha256: extraSnapshot.webSnapshotSha256,
+      }),
+    } as unknown as ReaderReportInput;
     let data;
     try { data = computeReaderReportData(input); }
-    catch (error) { if (error instanceof ReaderReportInputError) throw new ResearchAutomationValidationError(error.message); throw error; }
+    catch (error) {
+      if (error instanceof ReaderReportInputError || error instanceof ReaderSourceError) {
+        throw new ResearchAutomationValidationError(error.message);
+      }
+      throw error;
+    }
+    const effectivePeriod = data.input.source?.measurementPeriod;
+    if (effectivePeriod !== undefined &&
+      (effectivePeriod.start !== period.startDate || effectivePeriod.end !== period.endDate)) {
+      throw new ResearchAutomationValidationError('Kỳ số liệu khai báo khác kỳ của tệp đã gắn vào lượt.');
+    }
 
     // Cover photo and profile are stored as artifacts first: the page is built only from stored, checked bytes.
     let stored: StoredCoverImage | null = null, coverBytes: Buffer | null = null;

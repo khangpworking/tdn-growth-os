@@ -2,12 +2,12 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/contracts/analysis/reader-report-input.schema.json",
   "title": "ReaderReportInput",
-  "description": "Semantic input for one owner-facing reader report: the classification profile, the per-listing rows and what the source screen displayed. Numbers only; no narrative.",
+  "description": "Semantic input for one owner-facing reader report: the classification profile, the per-listing rows and what the source screen displayed. Numbers only; no narrative. Version rules (enforced by verifyReaderReportInput): 1.0.0 requires source and forbids webSnapshot/webSnapshotSha256; 1.1.0 requires webSnapshot/webSnapshotSha256 and source is optional when webSnapshot is present.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contractVersion", "profile", "platforms", "rows", "source"],
+  "required": ["contractVersion", "profile", "platforms", "rows"],
   "properties": {
-    "contractVersion": { "const": "1.0.0" },
+    "contractVersion": { "enum": ["1.0.0", "1.1.0"] },
     "profile": { "$ref": "#/$defs/profile" },
     "platforms": {
       "type": "array",
@@ -17,7 +17,12 @@
       "items": { "$ref": "#/$defs/platform" }
     },
     "rows": { "type": "array", "minItems": 1, "maxItems": 20000, "items": { "$ref": "#/$defs/row" } },
-    "source": { "$ref": "#/$defs/source" }
+    "source": { "$ref": "#/$defs/source" },
+    "webSnapshot": {
+      "description": "Opaque web snapshot (automation-metric-web-snapshot-v1). Allowed only in 1.1.0; validated at runtime.",
+      "type": "object"
+    },
+    "webSnapshotSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
   },
   "$defs": {
     "platform": { "enum": ["shopee", "tiktok"] },

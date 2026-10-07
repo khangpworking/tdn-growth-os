@@ -11,6 +11,9 @@ import { cover, hlNum, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, s
 import { FORBIDDEN_PROVIDER_NAMES } from './lint.js';
 import { NO_BRAND, type Scope } from './scope-metrics.js';
 import { barChart, paretoChart } from './svg-charts.js';
+import { CitationRegistry } from '../citation-registry.js';
+import { renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
+import { DISPLAY_ROUNDED_NOTE, WEB_FAMILY_LABEL, WEB_MONTHLY_METHOD, webMonthlyStats } from './web-facts.js';
 
 export const MARKET_PRICE_BANDS: readonly (readonly [string, number, number])[] = [
   ['Dưới 100.000đ', 0, 1e5], ['100.000–199.999đ', 1e5, 2e5], ['200.000–299.999đ', 2e5, 3e5],
@@ -105,7 +108,9 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
     } as FlintChartInput, () => barChart(cats, PLATS.map(P => ({ name: PLATFORM_LABEL[P]!, values: cats.map((_, j) => val(P, j)), color: COL[P] })), { fmt }), keepOrder('hang_muc', cats));
 
   // ---------- extra metrics: price bands, new listings, brands on both platforms ----------
-  const period = input.source.measurementPeriod, P0 = vd(period.start), P1 = vd(period.end);
+  const src = input.source;
+  if (src === undefined) throw new Error('bản đọc thiếu nguồn số liệu');
+  const period = src.measurementPeriod, P0 = vd(period.start), P1 = vd(period.end);
   const priceBands = {} as Record<ReaderPlatform, { n: number; rev: number }[]>;
   for (const P of PLATS) {
     const sc = S[P];
@@ -137,6 +142,67 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
   const statusLabel = prof.status === 'approved' ? 'đã được chủ duyệt' : 'đề xuất, chờ chủ duyệt';
   const product = L(prof.product);
 
+  // ---------- web snapshot exhibits (1.1.0 only; absent keeps 1.0.0 bytes identical) ----------
+  const WEB_GROUP_LABELS: Record<string, string> = {
+    scope: 'phạm vi tìm kiếm', kpi: 'số liệu tổng quan', split: 'số liệu theo sàn', monthly: 'số liệu theo tháng',
+    category: 'số liệu theo ngành hàng', price: 'số liệu theo mức giá', top10brand: 'tỷ trọng top 10 thương hiệu',
+    top10shop: 'tỷ trọng top 10 gian hàng', brandshoptype: 'số liệu thương hiệu theo loại gian hàng',
+    shoptype: 'số liệu theo loại gian hàng', location: 'số liệu theo khu vực', topproducts: 'bảng sản phẩm dẫn đầu',
+    topshops: 'bảng gian hàng dẫn đầu', topbrands: 'bảng thương hiệu dẫn đầu', detail: 'lịch sử chi tiết theo tháng',
+  };
+  const WEB = d.webFacts;
+  const webCites = new Map<string, number>();
+  const webRegistry = WEB === null || WEB === undefined ? null : new CitationRegistry();
+  const webSha = d.input.webSnapshotSha256;
+  /** Cite one snapshot group once; sets cite.web.<group> for {{}} marks. */
+  const citeWeb = (group: string): number | null => {
+    if (WEB === null || WEB === undefined || webRegistry === null || webSha === undefined) return null;
+    const known = webCites.get(group);
+    if (known !== undefined) return known;
+    const label = WEB_GROUP_LABELS[group] ?? group;
+    const no = webRegistry.cite({
+      sourceKind: 'CAPTURE', identity: webSha, locator: null,
+      label: `Trang kết quả tìm kiếm: ${label}`, retrievedAt: WEB.capturedAt,
+      url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
+    });
+    if (no === null) return null;
+    webCites.set(group, no);
+    B.set(`cite.web.${group}`, no, 'int');
+    return no;
+  };
+  /** Narrator-safe citation mark: {{}} is stripped before the digit check. */
+  const citeRef = (group: string): string => (citeWeb(group) === null ? '' : ` [{{cite.web.${group}}}]`);
+  /** Plain-HTML citation mark for table cells and captions. */
+  const citeCell = (group: string): string => {
+    const no = citeWeb(group);
+    return no === null ? '' : renderCitationMark(no);
+  };
+  const has = (id: string): boolean => B.has(id);
+  /** Web number through the {{key}} gate; '–' when the page had no value. */
+  const wn = (id: string, where: string): string => (has(id) ? nar(`{{${id}}}`, where) : '–');
+  const roundedIn = (...items: readonly ({ readonly precision: string } | null | undefined)[]): boolean =>
+    items.some(x => x !== null && x !== undefined && x.precision === 'display_rounded');
+  const vmonth = (m: string): string => {
+    const label = `tháng ${m.slice(5).replace(/^0/, '')}/${m.slice(0, 4)}`;
+    extraOk.add(label);
+    return esc(label);
+  };
+  /** Wraps one web exhibit so lint can require the family label beside web numbers. */
+  const webex = (inner: string, labels: string): string =>
+    `<div class="webex" data-web-label="${esc(labels)}">${inner}</div>`;
+  const WEB_SRC = `Trang kết quả tìm kiếm (${WEB_FAMILY_LABEL})`;
+  const webMonthlyGroups = WEB !== null && WEB !== undefined && !('absent' in WEB.monthly) ? WEB.monthly : null;
+  /** Months carrying at least one page revenue value. */
+  const webMonths: string[] = webMonthlyGroups !== null
+    ? [...new Set(Object.values(webMonthlyGroups).flatMap(m =>
+      Object.keys(m ?? {}).filter(month => {
+        const months = (m ?? {}) as Record<string, { revenue: { value: number | null } }>;
+        const value = months[month]?.revenue.value;
+        return value !== null && value !== undefined && Number.isFinite(value);
+      })))].sort()
+    : [];
+  const webHasMonthly = webMonths.length > 0;
+
   // ---------- cover and opening ----------
   const platNames = PLATS.map(P => PLATFORM_LABEL[P]).join(' và ');
   const coverHtml = cover(options.cover ?? null, `Dữ liệu ${P0} – ${P1} · ${platNames}`, ['Báo cáo thị trường sản phẩm', prof.product, 'Bản đọc cho chủ dự án']);
@@ -153,6 +219,12 @@ ${two ? '<li><b>Mỗi sàn tính riêng.</b> Chỉ cộng hai sàn khi ghi rõ �
 
   // ---------- Phần 1 ----------
   const nonShare = two ? '{{both.non.share}}' : `{{${PLATS[0]}.non.share}}`;
+  const m01WebKey = WEB !== null && WEB !== undefined && has('web.kpi.rev')
+    ? `<li>${hlNum(nar(`<b>Toàn kết quả tìm kiếm.</b> Cả trang đạt {{web.kpi.rev}}${has('web.kpi.rev.chg') ? ' ({{web.kpi.rev.chg}} so với kỳ liền kề)' : ''}${citeRef('kpi')}.`, 'M01.web'))} <small>→ Bảng 3.2</small></li>`
+    : '';
+  const m01Trend = webHasMonthly
+    ? `<li>Diễn biến theo tháng của ${WEB_FAMILY_LABEL}: có số theo tháng, xem Hình 3.2.</li>`
+    : '<li>Thị trường đang tăng hay giảm, có mùa vụ không: chưa có số theo tháng.</li>';
   secs.push(section('M01', 'Kết luận chính',
     hlNum(nar(`Trong mẫu {{src.rows}} sản phẩm, phần lõi đạt ${each(P => `{{${P}.core.rev}} ${onP(P)}`, ' và ')} trong kỳ số liệu. Số liệu là một tổng cả kỳ, chưa có số theo tháng.`, 'M01.ans')),
     `<div class="grid4">${PLATS.map(P => kpi(B.f(`${P}.core.rev`), `Doanh thu lõi ${PLATFORM_LABEL[P]}`)).join('')}${kpi(each(P => B.f(`${P}.core.shops`), ' · '), `Gian hàng có doanh thu lõi (${platNames})`)}${kpi(each(P => B.f(`${P}.core.asp`, 'dong'), ' · '), `Giá trung bình mỗi đơn vị (${platNames})`)}</div>
@@ -161,10 +233,10 @@ ${two ? '<li><b>Mỗi sàn tính riêng.</b> Chỉ cộng hai sàn khi ghi rõ �
 <li>${hlNum(PLATS.map(P => { const k = topSeg(P); return `${nar(`<b>${PLATFORM_LABEL[P]}:</b> nhóm lớn nhất chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M01.k2.${P}`)} (${L(segName(k))}).`; }).join(' '))} <small>→ Hình 4.1</small></li>
 <li>${hlNum(nar(`<b>Mức tập trung theo gian hàng.</b> ${each(P => `Gian hàng lớn nhất ${onP(P)} giữ {{${P}.conc.1}}, top 10 giữ {{${P}.conc.10}} doanh thu lõi`, '. ')}.`, 'M01.k3'))} <small>→ Hình 4.2</small></li>
 <li>${hlNum(PLATS.map(P => { const j = topBand(P); return `${nar(`<b>Giá ${onP(P)}:</b> khoảng giá mang nhiều doanh thu nhất chiếm {{${P}.pb.${j}.share}} doanh thu lõi`, `M01.k4.${P}`)} (${L(MARKET_PRICE_BANDS[j]![0])}).`; }).join(' '))} <small>→ Hình 8.1</small></li>
-<li>${hlNum(nar(`<b>Sản phẩm mới mở bán trong kỳ.</b> ${each(P => `{{${P}.coh.revShare}} doanh thu lõi ${onP(P)}`, '; ')}.`, 'M01.k5'))} <small>→ Bảng 6.2</small></li></ol>
+<li>${hlNum(nar(`<b>Sản phẩm mới mở bán trong kỳ.</b> ${each(P => `{{${P}.coh.revShare}} doanh thu lõi ${onP(P)}`, '; ')}.`, 'M01.k5'))} <small>→ Bảng 6.2</small></li>${m01WebKey}</ol>
 <p>${nar('<b>Đề xuất:</b> các phương án ở Phần 12 là đề xuất của TDN, chờ chủ duyệt. Việc làm ngay là viết câu hỏi kinh doanh và duyệt phân loại.', 'M01.rec')}</p>
 <div class="box"><h3>Báo cáo này chưa trả lời được</h3><ul>
-<li>Thị trường đang tăng hay giảm, có mùa vụ không: chưa có số theo tháng.</li>
+${m01Trend}
 <li>Khách khen, chê gì: chưa có ý kiến khách hàng trong bản này.</li>
 <li>Lãi gộp: chưa có giá vốn, phí sàn, chi phí vận chuyển.</li></ul>
 <p class="ex-note">${nar(`Tệp chỉ gồm {{src.rows}} sản phẩm doanh thu cao nhất (giới hạn {{src.rowCap}} dòng); ${each(P => `phủ {{src.${P}.cover}} doanh thu ${PLATFORM_LABEL[P]}`)} của toàn bộ kết quả tìm kiếm.`, 'M01.box')}</p></div>`,
@@ -172,6 +244,28 @@ ${two ? '<li><b>Mỗi sàn tính riêng.</b> Chỉ cộng hai sàn khi ghi rõ �
 
   // ---------- Phần 2 ----------
   const ruleRows = prof.rules.map((r, k) => [k + 1, L(segName(r.seg)), esc(r.why ?? ''), n(num(d.ruleHits[k] ?? 0))]);
+  const m02Web = WEB !== null && WEB !== undefined
+    ? webex(
+      `${tbl('2.3', `Phạm vi tìm kiếm trên trang (${WEB_FAMILY_LABEL})`, '', ['Hạng mục', 'Giá trị'], [
+        ['Từ khóa', L(WEB.scope.keywords.join('; '))],
+        ['Sàn', WEB.scope.platforms.map(p => PLATFORM_LABEL[p] ?? p).join(', ')],
+        ['Kỳ số liệu', `${vd(WEB.scope.period.startDate)} – ${vd(WEB.scope.period.endDate)}`],
+        ['Ngành hàng', WEB.scope.category === null ? '–' : L(WEB.scope.category)],
+        ['Điều kiện áp dụng', WEB.scope.ticks.length ? L(WEB.scope.ticks.join('; ')) : '–'],
+        ['Bộ lọc nâng cao', WEB.scope.advancedFilters.length
+          ? L(WEB.scope.advancedFilters.map(f => `${f.label}: ${f.displayed}`).join('; '))
+          : '–'],
+        ['Loại trừ', WEB.scope.exclusions.length ? L(WEB.scope.exclusions.join('; ')) : '–'],
+      ], { src: `${WEB_SRC}${citeCell('scope')}` })}
+<p>${hlNum(nar(`Tệp trong mẫu {{src.rows}} sản phẩm phủ {{src.cover.listings}} số sản phẩm và {{src.cover.rev}} doanh thu ${WEB_FAMILY_LABEL}; mỗi sàn tính riêng, đây là tỷ lệ duy nhất so hai họ số.${citeRef('kpi')}`, 'M02.webcover'))}</p>
+<p class="ex-note">Cách tính các mốc tháng: ${esc(WEB_MONTHLY_METHOD)}.</p>
+${d.webReconciliation.length
+    ? `<div class="box"><h3>Đối chiếu tệp mẫu với trang</h3><ul>${d.webReconciliation.map(w => `<li>${esc(w.detail)}</li>`).join('')}</ul></div>`
+    : '<p class="ex-note">Đối chiếu tệp mẫu với trang: khớp, không chênh lệch.</p>'}`,
+      [...WEB.scope.keywords, ...WEB.scope.ticks, ...WEB.scope.exclusions,
+        ...WEB.scope.advancedFilters.map(f => `${f.label}: ${f.displayed}`),
+        ...(WEB.scope.category === null ? [] : [WEB.scope.category])].join(' | '))
+    : '';
   secs.push(section('M02', 'Phạm vi và phương pháp',
     hlNum(nar(`Một nguồn bán hàng (số ước tính), một tổng cả kỳ, {{src.rows}} sản phẩm; phân nhóm lõi/ngoài lõi theo luật đọc tiêu đề, ${statusLabel}.`, 'M02.ans')),
     `<h3>Quy trình xử lý 4 bước</h3><ol class="steps">
@@ -189,12 +283,72 @@ ${tbl('2.1', 'Phạm vi dữ liệu theo sàn', '', ['Hạng mục', ...PLATS.ma
     ['Sản phẩm lõi / ngoài lõi', ...PLATS.map(P => n(`${B.f(`${P}.core.n`)} / ${B.f(`${P}.non.n`)}`))]],
     { note: nar('Màn hình nguồn ghi {{src.hl.rev}} cho {{src.hl.listings}} sản phẩm có lượt bán; tệp chỉ lấy {{src.rows}} sản phẩm đầu (khoảng {{src.cover.listings}} số sản phẩm).', 'T2.1') })}
 ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['Thứ tự', 'Gán vào nhóm', 'Khi nào', n('Số sản phẩm')], ruleRows,
-    { note: 'Luật chạy từ trên xuống; sản phẩm khớp luật nào trước thì vào nhóm đó.', src: 'TDN.' })}`,
+     { note: 'Luật chạy từ trên xuống; sản phẩm khớp luật nào trước thì vào nhóm đó.', src: 'TDN.' })}${m02Web}`,
     'Phân nhóm bằng luật đọc tiêu đề, không phải nhãn của sàn; vẫn có thể sai lẻ. Danh sách đủ ở Phụ lục để tra lại.'));
 
   // ---------- Phần 3 ----------
+  const webMonthlySeries = webMonthlyGroups !== null
+    ? Object.keys(webMonthlyGroups).sort().map(platform => ({
+      platform,
+      points: webMonths.flatMap(month => {
+        const perPlatform = webMonthlyGroups[platform as ReaderPlatform];
+        const point = perPlatform === undefined ? undefined : perPlatform[month];
+        const value = point?.revenue.value;
+        return value === null || value === undefined || !Number.isFinite(value) ? [] : [{ month, value }];
+      }),
+    })).filter(s => s.points.length > 0)
+    : [];
+  const m03WebChart = webHasMonthly && webMonthlySeries.length > 0
+    ? fig('3.2', `Doanh thu theo tháng, từng sàn (${WEB_FAMILY_LABEL})`, 'tỷ đồng', await chart('m03-web-monthly', {
+      data: { values: webMonthlySeries.flatMap(s => s.points.map(p => ({ thang: p.month, san: PLATFORM_LABEL[s.platform] ?? s.platform, doanh_thu: +(p.value / 1e9).toFixed(3) }))) },
+      semantic_types: { thang: 'Category', san: 'Category', doanh_thu: 'Number' },
+      field_display_names: { thang: 'Tháng', san: 'Sàn', doanh_thu: 'Doanh thu (tỷ đồng)' },
+      chart_spec: { chartType: 'Line Chart', encodings: { x: 'thang', y: 'doanh_thu', color: 'san' } },
+    } as FlintChartInput, () => barChart(webMonths,
+      webMonthlySeries.map(s => ({
+        name: PLATFORM_LABEL[s.platform] ?? s.platform,
+        values: webMonths.map(m => (s.points.find(p => p.month === m)?.value ?? 0) / 1e9),
+        color: COL[s.platform as ReaderPlatform],
+      })), { fmt: t1 }), keepOrder('thang', webMonths)),
+    {
+      note: webMonthlySeries.map(s => {
+        if (webMonthlyGroups === null) return '';
+        const months = webMonthlyGroups[s.platform as ReaderPlatform];
+        if (months === undefined) return '';
+        const stats = webMonthlyStats(months);
+        const peak = stats.peak === null ? '' : `cao nhất ${vmonth(stats.peak.month)} (${n(B.f(`web.${s.platform}.peak`))})`;
+        const low = stats.low === null ? '' : `thấp nhất ${vmonth(stats.low.month)} (${n(B.f(`web.${s.platform}.low`))})`;
+        const drift = stats.last3vsPrev3 === null ? '' : `; 3 tháng cuối so 3 tháng trước đó ${n(B.f(`web.${s.platform}.last3vsPrev3`))}`;
+        return `<b>${esc(PLATFORM_LABEL[s.platform] ?? s.platform)}:</b> ${peak}, ${low}${drift}`;
+      }).filter(Boolean).join('<br>') + (citeCell('monthly') ? `<br>Chú thích mang số tham chiếu${citeCell('monthly')}` : ''),
+      src: `${WEB_SRC}${citeCell('monthly')}`,
+    })
+    : '';
+  const m03Kpi = WEB !== null && WEB !== undefined && has('web.kpi.rev')
+    ? webex(
+      `${tbl('3.2', `Số liệu tổng quan (${WEB_FAMILY_LABEL})`, '', ['Chỉ số', `Giá trị ${WEB_FAMILY_LABEL}`, 'So với kỳ liền kề'], [
+        ['Doanh thu', n(wn('web.kpi.rev', 'T3.2')), n(wn('web.kpi.rev.chg', 'T3.2'))],
+        ['Đơn vị bán', n(wn('web.kpi.units', 'T3.2')), n(wn('web.kpi.units.chg', 'T3.2'))],
+        ['Sản phẩm có lượt bán', n(wn('web.kpi.listings', 'T3.2')), n(wn('web.kpi.listings.chg', 'T3.2'))],
+        ['Gian hàng có lượt bán', n(wn('web.kpi.shops', 'T3.2')), n(wn('web.kpi.shops.chg', 'T3.2'))],
+        ...[...WEB.platformSplit].sort((a, b) => (a.platform < b.platform ? -1 : 1)).flatMap(e => [
+          [`Doanh thu ${PLATFORM_LABEL[e.platform] ?? e.platform}`, n(wn(`web.${e.platform}.rev`, 'T3.2')), ''],
+          [`Tỷ trọng ${PLATFORM_LABEL[e.platform] ?? e.platform}`, n(wn(`web.${e.platform}.share`, 'T3.2')), ''],
+        ]),
+      ], {
+        ...(roundedIn(WEB.kpi.revenue.current, WEB.kpi.revenue.changePct, WEB.kpi.units.current,
+          WEB.kpi.units.changePct, WEB.kpi.soldListings.current, WEB.kpi.soldListings.changePct,
+          WEB.kpi.shops.current, WEB.kpi.shops.changePct,
+          ...WEB.platformSplit.flatMap(e => [e.revenue, e.share]))
+          ? { note: `Các số ${DISPLAY_ROUNDED_NOTE}.` } : {}),
+        src: `${WEB_SRC}${citeCell('kpi')}${citeCell('split')}`,
+      })}`,
+      ['doanh thu', 'lượt bán', 'sản phẩm có lượt bán', 'gian hàng', ...WEB.platformSplit.map(e => e.platform)].join(' | '))
+    : '';
   secs.push(section('M03', 'Quy mô và diễn biến',
-    hlNum(nar(`Lõi đạt ${each(P => `{{${P}.core.rev}} ${onP(P)}`, ' và ')}; chưa có số theo tháng nên chưa biết xu hướng.`, 'M03.ans')),
+    webHasMonthly
+      ? hlNum(nar(`Lõi đạt ${each(P => `{{${P}.core.rev}} ${onP(P)}`, ' và ')}; diễn biến theo tháng của ${WEB_FAMILY_LABEL}${citeRef('monthly')}.`, 'M03.ans')) + ' <small>→ Hình 3.2</small>'
+      : hlNum(nar(`Lõi đạt ${each(P => `{{${P}.core.rev}} ${onP(P)}`, ' và ')}; chưa có số theo tháng nên chưa biết xu hướng.`, 'M03.ans')),
     tbl('3.1', 'Số liệu cơ bản theo sàn', '', ['Chỉ số', ...PLATS.map(P => PLATFORM_LABEL[P]!)], [
       ['Doanh thu toàn mẫu', ...PLATS.map(P => n(B.f(`${P}.all.rev`)))],
       ['Doanh thu lõi', ...PLATS.map(P => n(B.f(`${P}.core.rev`)))],
@@ -204,11 +358,55 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
       ['Giá trung bình lõi (đồng)', ...PLATS.map(P => n(B.f(`${P}.core.asp`)))],
       ['Doanh thu ngoài lõi (tỷ trọng)', ...PLATS.map(P => n(`${B.f(`${P}.non.rev`)} (${B.f(`${P}.non.share`)})`))]]) +
     fig('3.1', 'Doanh thu theo nhóm, từng sàn', 'tỷ đồng', await bars('m03-segs', allSegs.map(segName), (P, j) => B.v(`${P}.seg.${allSegs[j]}.rev`) / 1e9, 'Doanh thu (tỷ đồng)', t1, 2),
-      { fact: nar(`Hàng ngoài lõi chiếm ${each(P => `{{${P}.non.share}} doanh thu ${PLATFORM_LABEL[P]}`)}.`, 'F3.1') }),
-    'Không có chuỗi theo ngày/tháng; Phần 3 chỉ có quy mô, không có diễn biến. Số “toàn kết quả tìm kiếm” là số làm tròn trên màn hình nguồn, chỉ dùng để đo độ phủ.'));
+       { fact: nar(`Hàng ngoài lõi chiếm ${each(P => `{{${P}.non.share}} doanh thu ${PLATFORM_LABEL[P]}`)}.`, 'F3.1') }) +
+    m03Kpi + m03WebChart,
+    webHasMonthly
+      ? `Diễn biến theo tháng là số ${WEB_FAMILY_LABEL} (Hình 3.2); số trong mẫu không có chuỗi theo tháng. Số “${WEB_FAMILY_LABEL}” là số làm tròn trên màn hình nguồn, chỉ dùng để đo độ phủ.`
+      : 'Không có chuỗi theo ngày/tháng; Phần 3 chỉ có quy mô, không có diễn biến. Số “toàn kết quả tìm kiếm” là số làm tròn trên màn hình nguồn, chỉ dùng để đo độ phủ.'));
 
   // ---------- Phần 4 ----------
   const cum = (P: ReaderPlatform): number[] => { let a = 0; return S[P].shops.map(s => (a += s.rev, 100 * a / S[P].cr)); };
+  const wtext = (cell: unknown): string => {
+    if (typeof cell === 'object' && cell !== null && 'text' in cell) return L(String((cell as { text: unknown }).text));
+    return '–';
+  };
+  const wrounded = (cell: unknown): boolean =>
+    typeof cell === 'object' && cell !== null && 'precision' in cell &&
+    (cell as { precision: unknown }).precision === 'display_rounded';
+  const m04Cat = WEB !== null && WEB !== undefined && !('absent' in WEB.category)
+    ? webex(tbl('4.2', `Ngành hàng trên trang (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+      ['Ngành hàng', 'Cấp', 'Sàn', 'Doanh thu'],
+      WEB.category.map((row, i) => [wtext(row['category']), wtext(row['level']), wtext(row['platform']), n(wn(`web.cat.${i}.rev`, 'T4.2'))]),
+      {
+        ...(WEB.category.some(r => wrounded(r['revenue'])) ? { note: `Doanh thu ${DISPLAY_ROUNDED_NOTE}.` } : {}),
+        src: `${WEB_SRC}${citeCell('category')}`,
+      }),
+    WEB.category.flatMap(r => [r['category'], r['level'], r['platform']]
+      .filter(c => typeof c === 'object' && c !== null && 'text' in c)
+      .map(c => String((c as { text: unknown }).text))).join(' | '))
+    : '';
+  const m04ShopType = WEB !== null && WEB !== undefined && !('absent' in WEB.shopType)
+    ? webex(tbl('4.3', `Loại gian hàng trên trang (${WEB_FAMILY_LABEL})`, '', ['Loại gian hàng', 'Tỷ trọng'],
+      WEB.shopType.map(e => [L(e.share.label),
+        n(e.shopType === 'mall' ? wn('web.shopType.mall', 'T4.3') : wn('web.shopType.normal', 'T4.3'))]),
+      {
+        ...(WEB.shopType.some(e => e.share.precision === 'display_rounded') ? { note: `Tỷ trọng ${DISPLAY_ROUNDED_NOTE}.` } : {}),
+        src: `${WEB_SRC}${citeCell('shoptype')}`,
+      }),
+    WEB.shopType.map(e => e.share.label).join(' | '))
+    : '';
+  const m04Loc = WEB !== null && WEB !== undefined && !('absent' in WEB.location)
+    ? webex(tbl('4.4', `Khu vực kho hàng trên trang (${WEB_FAMILY_LABEL})`, '', ['Khu vực', 'Tỷ trọng'],
+      WEB.location.map((row, i) => [wtext(row['location']), n(wn(`web.loc.${i}`, 'T4.4'))]),
+      {
+        ...(WEB.location.some(r => wrounded(r['share'])) ? { note: `Tỷ trọng ${DISPLAY_ROUNDED_NOTE}.` } : {}),
+        src: `${WEB_SRC}${citeCell('location')}`,
+      }),
+    WEB.location.flatMap(r => {
+      const c = r['location'];
+      return typeof c === 'object' && c !== null && 'text' in c ? [String((c as { text: unknown }).text)] : [];
+    }).join(' | '))
+    : '';
   const segTbl = PLATS.flatMap(P => coreSegs.map(k => [plat(P), L(segName(k)), n(B.f(`${P}.seg.${k}.n`)), n(B.f(`${P}.seg.${k}.shops`)), n(B.f(`${P}.seg.${k}.rev`, 'tynum')), n(B.f(`${P}.seg.${k}.revShare`)), n(B.f(`${P}.seg.${k}.unitShare`)), n(B.has(`${P}.seg.${k}.asp`) ? B.f(`${P}.seg.${k}.asp`) : '–')]));
   const pareto = await chart('m04-pareto', {
     data: { values: PLATS.flatMap(P => cum(P).map((y, i) => ({ hang: i + 1, san: PLATFORM_LABEL[P]!, luy_ke: +y.toFixed(1) }))) },
@@ -221,7 +419,8 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     fig('4.1', 'Tỷ trọng doanh thu lõi theo nhóm, từng sàn', '% doanh thu lõi của sàn', await bars('m04-share', coreSegs.map(segName), (P, j) => B.v(`${P}.seg.${coreSegs[j]}.revShare`), 'Tỷ trọng doanh thu lõi (%)', ps)) +
     tbl('4.1', 'Số liệu theo nhóm lõi, từng sàn', 'doanh thu: tỷ đồng; giá: đồng', ['Sàn', 'Nhóm', n('Sản phẩm'), n('Gian hàng'), n('Doanh thu'), n('Tỷ trọng doanh thu'), n('Tỷ trọng đơn vị bán'), n('Giá trung bình')], segTbl) +
     fig('4.2', 'Mức tập trung doanh thu lõi theo gian hàng', '% doanh thu lõi cộng dồn', pareto,
-      { fact: nar(`Top 3 gian hàng giữ ${each(P => `{{${P}.conc.3}} ${onP(P)}`)}; top 20 giữ ${each(P => `{{${P}.conc.20}} ${onP(P)}`)}.`, 'F4.2') }),
+       { fact: nar(`Top 3 gian hàng giữ ${each(P => `{{${P}.conc.3}} ${onP(P)}`)}; top 20 giữ ${each(P => `{{${P}.conc.20}} ${onP(P)}`)}.`, 'F4.2') }) +
+    m04Cat + m04ShopType + m04Loc,
     'Tỷ trọng tính trong mẫu từng sàn, không phải thị phần. Gian hàng nhận diện theo đường dẫn gian hàng; một chủ có thể có nhiều gian hàng.'));
 
   // ---------- Phần 5 ----------
@@ -239,22 +438,112 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   const brandRows = Array.from({ length: Math.max(...PLATS.map(P => Math.min(10, named(P).length))) }, (_, j) =>
     [j + 1, ...PLATS.flatMap(P => { const b = named(P)[j]; return b ? [L(b.brand), n(t1(b.rev / 1e9)), n(b.shops)] : ['', '', '']; })]);
   const coh = PLATS.map(P => [plat(P), n(B.f(`${P}.coh.known`)), n(B.f(`${P}.coh.n`)), n(B.f(`${P}.coh.nShare`)), n(B.f(`${P}.coh.rev`)), n(B.f(`${P}.coh.revShare`))]);
+  const m06Web = WEB !== null && WEB !== undefined && !('absent' in WEB.top10Share.shop)
+    ? webex(tbl('6.3', `Top 10 gian hàng giữ bao nhiêu (${WEB_FAMILY_LABEL})`, '', ['Chỉ số', ...PLATS.map(P => `Trong mẫu ${PLATFORM_LABEL[P]}`), WEB_FAMILY_LABEL], [
+      ['Top 10 gian hàng giữ (% doanh thu)', ...PLATS.map(P => n(B.f(`${P}.conc.10`))), n(wn('web.top10.shop', 'T6.3'))],
+    ], {
+      ...(WEB.top10Share.shop.top10.precision === 'display_rounded' ? { note: `Tỷ trọng ${DISPLAY_ROUNDED_NOTE}.` } : {}),
+      src: `${WEB_SRC}${citeCell('top10shop')}`,
+    }), 'top 10 gian hàng')
+    : '';
   secs.push(section('M06', 'Nguồn cung',
     hlNum(nar(`Hàng không ghi thương hiệu chiếm ${each(P => `{{${P}.brand.none.share}} doanh thu lõi ${PLATFORM_LABEL[P]}`)}; top 5 thương hiệu giữ ${each(P => `{{${P}.brand.top5share}} ${onP(P)}`)}.${two ? ' {{brand.bothCount}} thương hiệu bán trên cả hai sàn.' : ''}`, 'M06.ans')),
     tbl('6.1', 'Top 10 thương hiệu theo doanh thu lõi, từng sàn', 'doanh thu: tỷ đồng', ['#', ...PLATS.flatMap(P => [PLATFORM_LABEL[P]!, n('Doanh thu'), n('Gian hàng')])], brandRows,
       { note: 'Không tính sản phẩm không ghi thương hiệu. Tên thương hiệu theo cột thương hiệu của nguồn.' }) +
     tbl('6.2', 'Sản phẩm lõi mới mở bán trong kỳ', 'doanh thu: tỷ đồng', ['Sàn', n('Sản phẩm lõi có ngày mở bán'), n('Mở bán trong kỳ'), n('Tỷ trọng sản phẩm'), n('Doanh thu'), n('Tỷ trọng doanh thu lõi')], coh,
-      { note: nar(`“Mở bán trong kỳ” = ngày bắt đầu bán từ ${P0}. Sản phẩm không có ngày hợp lệ không tính (${each(P => `{{${P}.coh.nodate}} ${onP(P)}`)}).`, 'T6.2') }),
+       { note: nar(`“Mở bán trong kỳ” = ngày bắt đầu bán từ ${P0}. Sản phẩm không có ngày hợp lệ không tính (${each(P => `{{${P}.coh.nodate}} ${onP(P)}`)}).`, 'T6.2') }) +
+    m06Web,
     'Thương hiệu theo cột của nguồn, người bán tự khai; hàng “không ghi” có thể vẫn là hàng có thương hiệu.'));
 
   // ---------- Phần 7 ----------
   const brandOf = (brands: Record<string, number>): string => { const e = Object.entries(brands).sort((a, b) => b[1] - a[1])[0]?.[0]; return !e || e === NO_BRAND ? '–' : e; };
+  /** Rank cell: bundle key when the page gave a number, captured text when not. */
+  const wrank = (row: Record<string, unknown>, col: string, key: string, where: string): string => {
+    if (has(key)) return wn(key, where);
+    const c = row[col];
+    if (typeof c === 'object' && c !== null && 'displayed' in c && !/\d/.test(String((c as { displayed: unknown }).displayed))) {
+      return esc(String((c as { displayed: unknown }).displayed));
+    }
+    return '–';
+  };
+  const m07BrandShare = WEB !== null && WEB !== undefined && !('absent' in WEB.top10Share.brand)
+    ? webex(tbl('7.2', `Top 10 thương hiệu giữ bao nhiêu (${WEB_FAMILY_LABEL})`, '', ['Chỉ số', 'Giá trị'],
+      [['Top 10 thương hiệu giữ (% doanh thu)', n(wn('web.top10.brand', 'T7.2'))]],
+      {
+        ...(WEB.top10Share.brand.top10.precision === 'display_rounded' ? { note: `Tỷ trọng ${DISPLAY_ROUNDED_NOTE}.` } : {}),
+        src: `${WEB_SRC}${citeCell('top10brand')}`,
+      }), 'top 10 thương hiệu')
+    : '';
+  const m07BrandShop = WEB !== null && WEB !== undefined && !('absent' in WEB.brandByShopType)
+    ? webex(tbl('7.3', `Thương hiệu theo loại gian hàng (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+      ['Thương hiệu', 'Gian hàng thường', 'Gian hàng Mall'],
+      WEB.brandByShopType.map((row, i) => [wtext(row['brand']) + citeCell('brandshoptype'),
+        n(wn(`web.bst.${i}.normal`, 'T7.3')), n(wn(`web.bst.${i}.mall`, 'T7.3'))]),
+      { src: `${WEB_SRC}${citeCell('brandshoptype')}` }),
+    WEB.brandByShopType.flatMap(r => {
+      const c = r['brand'];
+      return typeof c === 'object' && c !== null && 'text' in c ? [String((c as { text: unknown }).text)] : [];
+    }).join(' | '))
+    : '';
+  const m07Products = WEB !== null && WEB !== undefined && !('absent' in WEB.topProducts)
+    ? webex(tbl('7.4', `Sản phẩm dẫn đầu trên trang (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+      ['#', 'Sản phẩm', 'Gian hàng', 'Giá (đồng)', 'Doanh thu', '%doanh số', 'Đơn vị bán', '%đơn vị'],
+      WEB.topProducts.map((row, i) => [i + 1, wtext(row['name']) + citeCell('topproducts'), wtext(row['shop']),
+        n(wn(`web.top.product.${i}.price`, 'T7.4')), n(wn(`web.top.product.${i}.rev`, 'T7.4')),
+        n(wn(`web.top.product.${i}.chg`, 'T7.4')), n(wn(`web.top.product.${i}.units`, 'T7.4')),
+        n(wn(`web.top.product.${i}.unitsChg`, 'T7.4'))]),
+      {
+        note: 'Tăng trưởng so kỳ liền kề theo trang hiển thị.',
+        src: `${WEB_SRC}${citeCell('topproducts')}`,
+      }),
+    WEB.topProducts.flatMap(r => [r['name'], r['shop']]
+      .filter(c => typeof c === 'object' && c !== null && 'text' in c)
+      .map(c => String((c as { text: unknown }).text))).join(' | '))
+    : '';
+  const m07Shops = WEB !== null && WEB !== undefined && !('absent' in WEB.topShops)
+    ? webex(tbl('7.5', `Gian hàng dẫn đầu trên trang (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+      ['Hạng mới', 'Hạng cũ', 'Gian hàng', 'Sàn', 'Doanh thu', '%doanh số'],
+      WEB.topShops.map((row, i) => {
+        const cells = row as Record<string, unknown>;
+        const shopCell = cells['shop'];
+        const platCell = cells['platform'];
+        return [n(wrank(cells, 'rankNew', `web.top.shop.${i}.rankNew`, 'T7.5')),
+          n(wrank(cells, 'rankOld', `web.top.shop.${i}.rankOld`, 'T7.5')),
+          wtext(shopCell) + citeCell('topshops'), wtext(platCell),
+          n(wn(`web.top.shop.${i}.rev`, 'T7.5')), n(wn(`web.top.shop.${i}.chg`, 'T7.5'))];
+      }),
+      {
+        note: 'Hạng cũ “Mới” nghĩa là gian hàng mới vào bảng.',
+        src: `${WEB_SRC}${citeCell('topshops')}`,
+      }),
+    WEB.topShops.flatMap(r => {
+      const c = (r as Record<string, unknown>)['shop'];
+      return typeof c === 'object' && c !== null && 'text' in c ? [String((c as { text: unknown }).text)] : [];
+    }).join(' | '))
+    : '';
+  const m07Brands = WEB !== null && WEB !== undefined && !('absent' in WEB.topBrands)
+    ? webex(tbl('7.6', `Thương hiệu dẫn đầu trên trang (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+      ['Hạng mới', 'Hạng cũ', 'Thương hiệu', 'Doanh thu'],
+      WEB.topBrands.map((row, i) => {
+        const cells = row as Record<string, unknown>;
+        const brandCell = cells['brand'];
+        return [n(wrank(cells, 'rankNew', `web.top.brand.${i}.rankNew`, 'T7.6')),
+          n(wrank(cells, 'rankOld', `web.top.brand.${i}.rankOld`, 'T7.6')),
+          wtext(brandCell) + citeCell('topbrands'), n(wn(`web.top.brand.${i}.rev`, 'T7.6'))];
+      }),
+      { src: `${WEB_SRC}${citeCell('topbrands')}` }),
+    WEB.topBrands.flatMap(r => {
+      const c = (r as Record<string, unknown>)['brand'];
+      return typeof c === 'object' && c !== null && 'text' in c ? [String((c as { text: unknown }).text)] : [];
+    }).join(' | '))
+    : '';
   secs.push(section('M07', 'Đối thủ',
     hlNum(nar(`Gian hàng lớn nhất đạt ${each(P => `{{${P}.shop.top.0.rev}} ${onP(P)}`)}; gian hàng điển hình (trung vị) đạt ${each(P => `{{${P}.shop.median}} triệu đồng ${onP(P)}`)}.`, 'M07.ans')),
     tbl('7.1', 'Top 10 gian hàng theo doanh thu lõi, từng sàn', 'doanh thu: tỷ đồng', ['Sàn', '#', 'Gian hàng', 'Thương hiệu bán nhiều nhất', n('Sản phẩm lõi'), n('Doanh thu'), n('Tỷ trọng doanh thu lõi của sàn')],
       PLATS.flatMap(P => S[P].shops.slice(0, 10).map((s, j) => [plat(P), j + 1, L(s.name), L(brandOf(s.brands)), n(s.n), n(t1(s.rev / 1e9)), n(B.f(`${P}.shop.top.${j}.share`))])),
       { note: 'Sắp theo doanh thu quan sát, không phải xếp hạng năng lực. Nhóm đối thủ để so trực tiếp chưa chốt (Phần 12).' }) +
-    `<p>${hlNum(nar(`Số gian hàng dưới 100 triệu đồng doanh thu lõi: ${each(P => `{{${P}.shop.under100m}}/{{${P}.core.shops}} ${onP(P)}`)}.`, 'M07.p'))}</p>`,
+    `<p>${hlNum(nar(`Số gian hàng dưới 100 triệu đồng doanh thu lõi: ${each(P => `{{${P}.shop.under100m}}/{{${P}.core.shops}} ${onP(P)}`)}.`, 'M07.p'))}</p>` +
+    m07BrandShare + m07BrandShop + m07Products + m07Shops + m07Brands,
     'Doanh thu theo gian hàng chỉ tính sản phẩm có trong tệp; gian hàng có thể còn bán sản phẩm ngoài tệp.'));
   extraOk.add('100 triệu');
 
@@ -262,29 +551,70 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   const qRows = PLATS.flatMap(P => coreSegs.filter(k => B.has(`${P}.seg.${k}.aspMed`)).map(k => [plat(P), L(segName(k)), n(B.f(`${P}.seg.${k}.n`)), n(B.f(`${P}.seg.${k}.aspP25`, 'dong100')), n(B.f(`${P}.seg.${k}.aspMed`, 'dong100')), n(B.f(`${P}.seg.${k}.aspP75`, 'dong100'))]));
   const bench = prof.benchmark;
   const benchRows = bench ? PLATS.filter(P => B.has(`${P}.bench.n`)).map(P => [plat(P), L(bench.label), n(B.f(`${P}.bench.n`)), n(B.f(`${P}.bench.p25`)), n(B.f(`${P}.bench.med`)), n(B.f(`${P}.bench.p75`))]) : [];
+  const m08Web = WEB !== null && WEB !== undefined && !('absent' in WEB.priceLevel)
+    ? webex(tbl('8.3', `Mức giá trên trang (${WEB_FAMILY_LABEL})`, 'doanh thu: tỷ đồng',
+      ['Mức giá trên trang', 'Sàn', 'Doanh thu'],
+      WEB.priceLevel.map((row, i) => [wtext(row['priceLevel']), wtext(row['platform']), n(wn(`web.price.${i}.rev`, 'T8.3'))]),
+      {
+        note: `Bảng này giữ nguyên mức giá trang hiển thị, không gộp với khoảng giá mẫu (Hình 8.1).${
+          WEB.priceLevel.some(r => wrounded(r['revenue'])) ? ` Doanh thu ${DISPLAY_ROUNDED_NOTE}.` : ''}`,
+        src: `${WEB_SRC}${citeCell('price')}`,
+      }),
+    WEB.priceLevel.flatMap(r => [r['priceLevel'], r['platform']]
+      .filter(c => typeof c === 'object' && c !== null && 'text' in c)
+      .map(c => String((c as { text: unknown }).text))).join(' | '))
+    : '';
   secs.push(section('M08', 'Giá và kinh tế đơn vị',
     hlNum(nar(`Giá trung bình lõi là ${each(P => `{{${P}.core.asp:dong100}} ${onP(P)}`)}. Chưa tính được lãi vì chưa có giá vốn.`, 'M08.ans')),
     `<p class="lead">Giá trung bình = doanh thu ÷ đơn vị bán của từng sản phẩm, đã gộp biến thể và khuyến mãi.</p>` +
     fig('8.1', 'Doanh thu lõi theo khoảng giá trung bình', '% doanh thu lõi của sàn', await bars('m08-price-bands', MARKET_PRICE_BANDS.map(b => b[0]), (P, j) => B.v(`${P}.pb.${j}.share`), 'Tỷ trọng doanh thu lõi (%)', ps)) +
     tbl('8.1', 'Mốc giá theo nhóm, từng sàn', 'đồng', ['Sàn', 'Nhóm', n('Sản phẩm'), n('Mốc 25%'), n('Trung vị'), n('Mốc 75%')], qRows) +
-    (benchRows.length ? tbl('8.2', 'Mốc so giá', 'đồng', ['Sàn', 'Tập so sánh', n('Sản phẩm'), n('Mốc 25%'), n('Trung vị'), n('Mốc 75%')], benchRows) : ''),
+    (benchRows.length ? tbl('8.2', 'Mốc so giá', 'đồng', ['Sàn', 'Tập so sánh', n('Sản phẩm'), n('Mốc 25%'), n('Trung vị'), n('Mốc 75%')], benchRows) : '') +
+    m08Web,
     'Không có giá vốn, phí sàn, chi phí vận chuyển và quảng cáo nên chưa tính được lãi gộp. Giá trung bình thấp có thể do khuyến mãi hoặc biến thể rẻ.'));
 
   // ---------- Phần 9 ----------
   const lead = PLATS.reduce((a, P) => B.v(`${P}.conc.3`) > B.v(`${a}.conc.3`) ? P : a, PLATS[0]!);
+  const webHasDetail = WEB !== null && WEB !== undefined && !('absent' in WEB.detailHistory);
+  const m09WebRows: (readonly unknown[])[] = webHasMonthly && webMonthlyGroups !== null
+    ? Object.keys(webMonthlyGroups).sort().map(platform => {
+      const months = webMonthlyGroups[platform as ReaderPlatform];
+      const stats = months === undefined ? null : webMonthlyStats(months);
+      const signal = stats !== null && has(`web.${platform}.last3vsPrev3`)
+        ? hlNum(nar(`${PLATFORM_LABEL[platform] ?? platform} (${WEB_FAMILY_LABEL}): ba tháng cuối {{web.${platform}.last3vsPrev3}} so ba tháng trước đó${citeRef('monthly')}`, 'T9.1web'))
+        : hlNum(nar(`${PLATFORM_LABEL[platform] ?? platform} (${WEB_FAMILY_LABEL}): có số theo tháng, chưa đủ sáu tháng để so ba tháng cuối với ba tháng trước đó${citeRef('monthly')}`, 'T9.1web'));
+      return [signal, 'Đà theo mùa có thể lặp lại khi vào đúng đợt mua sắm',
+        webHasDetail ? 'Lịch sử chi tiết từng đối tượng trên trang' : 'Chuỗi theo tháng của từng sản phẩm',
+        webHasDetail ? 'Trung bình' : 'Thấp'];
+    })
+    : [];
   secs.push(section('M09', 'Động lực và rủi ro',
     'Các tín hiệu dưới đây mới ở mức giả thuyết, chưa phải kết luận nguyên nhân.',
     tbl('9.1', 'Tín hiệu, cơ chế có thể và mức chắc chắn', '', ['Tín hiệu quan sát được', 'Cơ chế có thể ảnh hưởng', 'Cần đối chiếu thêm', 'Mức chắc chắn'], [
       [hlNum(nar(`${PLATFORM_LABEL[lead]}: ba gian hàng lớn nhất giữ {{${lead}.conc.3}} doanh thu lõi`, 'T9.1a')), 'Doanh thu dựa vào vài gian hàng lớn; một gian hàng đổi giá hay ngừng bán là đổi cục diện', 'Lịch sử bán theo tháng của các gian hàng lớn', 'Thấp'],
       [hlNum(nar(`Sản phẩm mở bán trong kỳ: ${each(P => `{{${P}.coh.revShare}} doanh thu lõi ${PLATFORM_LABEL[P]}`)}`, 'T9.1b')), 'Mẫu xoay vòng nhanh thì sản phẩm mới phải liên tục ra mẫu', 'Chuỗi theo tháng của từng sản phẩm', 'Thấp'],
-      [hlNum(nar(`Hàng không ghi thương hiệu: ${each(P => `{{${P}.brand.none.share}} doanh thu lõi ${PLATFORM_LABEL[P]}`)}`, 'T9.1c')), 'Khách chưa trung thành với thương hiệu, cạnh tranh bằng giá', 'Ý kiến khách hàng', 'Thấp']],
+      [hlNum(nar(`Hàng không ghi thương hiệu: ${each(P => `{{${P}.brand.none.share}} doanh thu lõi ${PLATFORM_LABEL[P]}`)}`, 'T9.1c')), 'Khách chưa trung thành với thương hiệu, cạnh tranh bằng giá', 'Ý kiến khách hàng', 'Thấp'],
+      ...m09WebRows],
       { src: 'Dữ liệu bán hàng ước tính (Phần 3–8).' }),
     'Không gán xác suất cho rủi ro. Doanh số cao không tự chứng minh nguyên nhân.'));
 
   // ---------- Phần 10 ----------
+  const m10Web = webHasMonthly && webMonthlyGroups !== null
+    ? `<p>Diễn biến đã qua của ${WEB_FAMILY_LABEL}: ${Object.keys(webMonthlyGroups).sort().map(platform => {
+      const months = webMonthlyGroups[platform as ReaderPlatform];
+      if (months === undefined) return '';
+      const stats = webMonthlyStats(months);
+      const peak = stats.peak === null || !has(`web.${platform}.peak`)
+        ? '' : `${vmonth(stats.peak.month)} đạt ${n(B.f(`web.${platform}.peak`))}`;
+      const low = stats.low === null || !has(`web.${platform}.low`)
+        ? '' : `${vmonth(stats.low.month)} ở mức ${n(B.f(`web.${platform}.low`))}`;
+      if (peak === '' && low === '') return '';
+      return `${esc(PLATFORM_LABEL[platform] ?? platform)}: ${[peak, low].filter(Boolean).join('; ')}`;
+    }).filter(Boolean).join('. ')}. Chỉ đọc xu hướng đã qua, không suy ra con số tương lai.</p>`
+    : '';
   secs.push(section('M10', 'Dự báo và kịch bản',
     'Chưa dự báo: dữ liệu chỉ có một tổng cả kỳ, không có chuỗi theo ngày/tháng.',
-    '<p>Để mở lại, cần chuỗi bán theo ngày của cùng một nhóm sản phẩm, đủ dài để kiểm ngoài mẫu, kèm giả định lượng bán, giá và chi phí. Khi đó mới lập được kịch bản có điều kiện (chậm / cơ sở / thuận lợi).</p>',
+    '<p>Để mở lại, cần chuỗi bán theo ngày của cùng một nhóm sản phẩm, đủ dài để kiểm ngoài mẫu, kèm giả định lượng bán, giá và chi phí. Khi đó mới lập được kịch bản có điều kiện (chậm / cơ sở / thuận lợi).</p>' + m10Web,
     'Dữ liệu sàn không đủ để dự báo cho toàn thị trường.'));
 
   // ---------- Phần 11 + 12: largest platform × core segment cells ----------
@@ -316,15 +646,19 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   const web = readerWebResults(options.webResults ?? []);
   const webOn = web.length ? vd(new Date(Date.parse(web[0]!.retrievedAt) + 7 * 3_600_000).toISOString().slice(0, 10)) : '';
   const webSrc = web.length ? `<li>Kết quả tìm kiếm Google tại Việt Nam cho từ khóa của báo cáo, thu ngày ${webOn}</li>` : '';
+  const webSnapshotSrc = WEB !== null && WEB !== undefined
+    ? `<li>Trang kết quả tìm kiếm (${WEB_FAMILY_LABEL}) cho từ khóa của báo cáo, thu ngày ${vd(WEB.capturedAt.slice(0, 10))}</li>`
+    : '';
   const webTable = web.length ? `
 <div class="ex"><div class="exh"><span class="exn">Bảng PL.3</span><span class="ext">Kết quả tìm kiếm trên web</span></div><div class="tw"><table class="pl-web"><thead><tr><th>#</th><th>Trang tìm thấy</th><th>Đoạn mô tả Google hiển thị</th></tr></thead><tbody>${web.map(w => {
     const meta = [w.site, w.published ? `đăng ${w.published}` : null].filter(Boolean).map(s => esc(s)).join(' · ');
     return `<tr><td>${w.position}</td><td class="pl-cite" data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${meta ? `<span class="pl-meta">${meta}</span>` : ''}<span class="pl-url">${esc(mask(w.url))}</span></td><td data-quote>${esc(w.snippet ?? '')}</td></tr>`;
   }).join('')}</tbody></table></div><p class="ex-note">Bấm tiêu đề để mở trang gốc; bản in giữ địa chỉ trang dưới tiêu đề. Tên trang và ngày đăng ghi theo Google; Google không cho biết tác giả. Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm Google, không phải từ trang gốc: Google có thể cắt ngắn, tên nguồn số liệu (nếu có) được che bằng […], và báo cáo không mở trang gốc để đối chiếu. Đây không phải nhận định của báo cáo. Thứ tự theo kết quả tìm kiếm tại thời điểm thu; nội dung trang có thể đã đổi sau ngày thu.</p><p class="ex-src">Nguồn: Google, thu ngày ${webOn}.</p></div>` : '';
   const listRows = [...rows].sort((a, b) => b.rev - a.rev).map(r => `<tr><td>${r.i}</td><td>${plat(r.platform)}</td><td>${esc(segName(r.seg ?? ''))}</td><td>${esc(r.shopName || r.shop)}</td><td>${n(num(r.rev))}</td><td>${n(num(r.units))}</td><td>${n(num(r.asp))}</td><td>${esc(r.title)}</td></tr>`).join('');
+  const webRegister = webRegistry !== null ? renderCitationRegister(webRegistry.entries(), { format: 'pdf' }) : '';
   secs.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm',
     hlNum(nar('Phụ lục liệt kê nguồn số liệu và nghĩa của các thuật ngữ. Cuối phụ lục có danh sách đủ {{src.rows}} sản phẩm để tra lại.', 'PL.ans')),
-    `<div class="ex"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn số liệu</span></div><ul class="pl-srclist">${PLATS.map(P => `<li>Dữ liệu bán hàng ${PLATFORM_LABEL[P]} (số ước tính)</li>`).join('')}${webSrc}</ul><p class="ex-src">Nguồn: TDN.</p></div>
+    `<div class="ex"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn số liệu</span></div><ul class="pl-srclist">${PLATS.map(P => `<li>Dữ liệu bán hàng ${PLATFORM_LABEL[P]} (số ước tính)</li>`).join('')}${webSnapshotSrc}${webSrc}</ul><p class="ex-src">Nguồn: TDN.</p></div>
 <div class="ex"><div class="exh"><span class="exn">Bảng PL.2</span><span class="ext">Thuật ngữ</span></div><dl class="pl-terms">
 <div><dt>Lõi</dt><dd>${coreSegs.map(k => L(segName(k))).join('; ')}. Mọi số chỉ tính phần lõi, trừ khi ghi khác.</dd></div>
 <div><dt>Sản phẩm</dt><dd>Một trang bán hàng trên sàn; có thể gồm nhiều biến thể.</dd></div>
@@ -332,7 +666,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
 <div><dt>Giá trung bình</dt><dd>Doanh thu ÷ đơn vị bán. Đã gộp biến thể và khuyến mãi, nên khác giá niêm yết.</dd></div>
 <div><dt>Trung vị, mốc 25% / 75%</dt><dd>Xếp các giá trị từ thấp đến cao: trung vị ở giữa; mốc 25% và 75% là mức mà một phần tư và ba phần tư số sản phẩm thấp hơn.</dd></div>
 <div><dt>Trong mẫu</dt><dd>${nar('Tính trên tệp {{src.rows}} sản phẩm doanh thu cao nhất, không phải toàn thị trường.', 'PL.terms')}</dd></div>
-<div><dt>TDN</dt><dd>Đơn vị thực hiện báo cáo.</dd></div></dl><p class="ex-src">Nguồn: TDN.</p></div>${webTable}
+<div><dt>TDN</dt><dd>Đơn vị thực hiện báo cáo.</dd></div></dl><p class="ex-src">Nguồn: TDN.</p></div>${webTable}${webRegister}
 <div class="box pl-disc"><h3>Miễn trừ</h3><p>Số liệu bán hàng là số ước tính từ dữ liệu công khai trên sàn, chưa đối chiếu với số liệu của người bán. Người đọc tự đánh giá mức phù hợp trước khi dùng cho quyết định.</p></div>
 <details class="pl-all"><summary>${nar('Xem đủ {{src.rows}} sản phẩm', 'PL.sum')}</summary><input class="pl-find" type="search" placeholder="Lọc theo tên, gian hàng, nhóm…" aria-label="Lọc danh sách sản phẩm"><div class="tw"><table class="pl-list"><thead><tr><th>#</th><th>Sàn</th><th>Nhóm</th><th>Gian hàng</th><th>${n('Doanh thu (đồng)')}</th><th>${n('Đơn vị bán')}</th><th>${n('Giá trung bình (đồng)')}</th><th>Tên sản phẩm</th></tr></thead><tbody>${listRows}</tbody></table></div></details>
 <script>addEventListener('beforeprint',()=>document.querySelectorAll('details.pl-all').forEach(d=>d.open=true));(()=>{const i=document.querySelector('.pl-find'),tr=[...document.querySelectorAll('.pl-list tbody tr')];let t;i.addEventListener('input',()=>{clearTimeout(t);t=setTimeout(()=>{const v=i.value.trim().toLowerCase();for(const r of tr)r.style.display=!v||r.textContent.toLowerCase().includes(v)?'':'none'},150)})})()</script>`,

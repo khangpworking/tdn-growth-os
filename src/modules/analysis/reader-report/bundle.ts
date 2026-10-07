@@ -86,9 +86,10 @@ export class Narrator {
   /** Numbers in rendered narrative text that no bundled metric can produce. */
   notInBundle(extraOk: readonly string[] = []): { where: string; t: string }[] {
     const forms = this.bundle.allForms();
+    const unsigned = new Set([...forms].map(f => f.replace(/^-/, '')));
     return this.entries.flatMap(x => [...x.text.replace(/<[^>]+>/g, ' ').matchAll(/\d[\d.,]*/g)]
       .map(m => m[0].replace(/[.,]$/, ''))
-      .filter(t => !forms.has(t) && !extraOk.some(e => e.includes(t)) && !/^\d{1,2}$/.test(t) && !/^\d{2}\/\d{2}\/\d{4}$/.test(t) && !/^(20\d\d)$/.test(t))
+      .filter(t => !forms.has(t) && !unsigned.has(t) && !extraOk.some(e => e.includes(t)) && !/^\d{1,2}$/.test(t) && !/^\d{2}\/\d{2}\/\d{4}$/.test(t) && !/^(20\d\d)$/.test(t))
       .map(t => ({ where: x.where, t })));
   }
 }
