@@ -59,6 +59,17 @@ import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/de
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
 import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { AutomationMetricMethodBridge, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
+import { PageIndexCloudClient } from '../pageindex-cloud.js';
+import { estimatePageIndexBalance } from '../pageindex-balance.js';
+import {
+  indexRunPdfsForPageIndex,
+  isPageIndexUsageLimited,
+  listPageIndexDocuments,
+  readPageIndexDocument,
+  refreshPageIndexStatus,
+  selectRunPdfFiles,
+  type EnsureIndexedDeps,
+} from '../pageindex-documents.js';
 import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
 import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot, type NativeSourceReviewReference } from './native-source-review-bridge.js';
 import { buildAutomationSourceClaims, validateAutomationSourceClaimsReference, MAX_SOURCE_CLAIMS_BYTES } from './source-claims.js';
@@ -155,6 +166,33 @@ export interface ResearchAutomationReportInput {
 export type AutomationReportInput = ResearchAutomationReportInput;
 export type ResearchAutomationSourceActivityKey = 'kalodata' | 'serpapi' | 'apify-shopee' | 'metric';
 export interface ResearchAutomationSourceActivity { readonly lastDataAt: string | null; readonly dataCount: number; readonly lastUsageAt: string | null }
+
+/** One PDF of a run with its automatic-indexing state for the run page. */
+export interface PageIndexRunPdfDocument {
+  readonly fileName: string;
+  readonly sourceSha256: string;
+  readonly state: 'INDEXING' | 'READY' | 'FAILED' | 'SKIPPED_LOW_BALANCE' | 'SKIPPED_USAGE_LIMIT' | 'DISABLED';
+  readonly cloudDocId: string | null;
+}
+
+/** Run-page PDF states with the paused flag for the warning banner. */
+export interface PageIndexRunPdfStates {
+  readonly paused: boolean;
+  readonly documents: readonly PageIndexRunPdfDocument[];
+}
+
+/** Best-effort ledger read that never throws; unreadable rows degrade to INDEXING. */
+function safeReadPageIndex(db: Database.Database, sourceSha256: string): {
+  readonly status: 'INDEXING' | 'READY' | 'FAILED' | 'SKIPPED_LOW_BALANCE' | 'SKIPPED_USAGE_LIMIT';
+  readonly cloudDocId: string | null;
+} | null {
+  try {
+    const found = readPageIndexDocument(db, sourceSha256);
+    return found ? { status: found.status, cloudDocId: found.cloudDocId } : null;
+  } catch {
+    return null;
+  }
+}
 
 export interface ResearchAutomationRenderedReport {
   readonly semantic: unknown;
@@ -417,8 +455,108 @@ export class ResearchAutomationService {
       if (!row.scopeSha) throw new ResearchAutomationConflictError('revision_conflict', 'A confirmed scope is required.');
       const start = await this.#readStartSnapshot(row.startSha, workspaceId);
       const scope = await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
-      return this.#supplementalIntake!.prepare(input, retainedFiles, { runId, start, scope });
+      const receipt = await this.#supplementalIntake!.prepare(input, retainedFiles, { runId, start, scope });
+      // Shared automatic-indexing hook: every stored PDF funnels through one best-effort call that never breaks intake.
+      await this.#indexStoredPdfsForPageIndex(retainedFiles);
+      return receipt;
     });
+  }
+
+  /** One PDF of a run with its ledger state for the run page. */
+  async pageIndexStatesForRun(workspaceId: string, runId: string): Promise<PageIndexRunPdfStates> {
+    assertUuid(workspaceId); assertUuid(runId);
+    await this.#requireRun(workspaceId, runId);
+    const enabled = process.env.TDN_PAGEINDEX_CLOUD_ENABLED === 'true';
+    const listed = await this.listPreparedSupplementalSources(workspaceId, runId);
+    const pdfs = selectRunPdfFiles(listed.packages.flatMap(entry => entry.files));
+    const transport = this.#pageIndexTransport();
+    const documents: PageIndexRunPdfDocument[] = [];
+    for (const pdf of pdfs) {
+      let ledger = safeReadPageIndex(this.#db, pdf.sha256);
+      if (enabled && transport && ledger?.status === 'INDEXING' && ledger.cloudDocId) {
+        ledger = (await refreshPageIndexStatus(this.#db, pdf.sha256, {
+          fetchStatus: async id => (await transport.documentStatus(id)).status, now: this.#now,
+        })) ?? ledger;
+      }
+      documents.push({
+        fileName: pdf.fileName,
+        sourceSha256: pdf.sha256,
+        state: !enabled ? 'DISABLED' : ledger?.status ?? 'INDEXING',
+        cloudDocId: ledger?.cloudDocId ?? null,
+      });
+    }
+    return { paused: !enabled || this.#pageIndexPaused(), documents };
+  }
+
+  /**
+   * Shared source-ingest hook for PDFs: attached sources, uploaded inputs and
+   * PDFs fetched during research all funnel through `indexRunPdfsForPageIndex`
+   * exactly once. Best effort and never throws, so intake never breaks.
+   */
+  async #indexStoredPdfsForPageIndex(files: ReadonlyMap<string, Uint8Array>): Promise<void> {
+    try {
+      if (process.env.TDN_PAGEINDEX_CLOUD_ENABLED !== 'true') return;
+      const pdfs = [...files]
+        .filter(([, bytes]) => bytes.length > 5 && Buffer.from(bytes.subarray(0, 5)).toString('utf8') === '%PDF-')
+        .map(([path, bytes]) => ({
+          sha256: createHash('sha256').update(bytes).digest('hex'),
+          fileName: path.split('/').pop() ?? path,
+          bytes: Buffer.from(bytes),
+        }));
+      if (pdfs.length === 0) return;
+      await indexRunPdfsForPageIndex(pdfs, this.#pageIndexDeps());
+    } catch {
+      // Automatic indexing never breaks intake.
+    }
+  }
+
+  /** Transport for one upload/status check at most; undefined when no key is configured. */
+  #pageIndexTransport(): PageIndexCloudClient | undefined {
+    try {
+      const key = process.env.PAGEINDEX_API_KEY ?? '';
+      if (!key.trim() || /[\r\n]/u.test(key)) return undefined;
+      return new PageIndexCloudClient({ enabled: true, apiKey: key });
+    } catch {
+      return undefined;
+    }
+  }
+
+  #pageIndexDeps(): EnsureIndexedDeps {
+    const transport = this.#pageIndexTransport();
+    return {
+      db: this.#db,
+      now: this.#now,
+      lowBalance: () => this.#pageIndexLowBalance(),
+      upload: transport
+        ? async input => {
+          const doc = await transport.uploadDocument(input);
+          return { cloudDocId: doc.cloudDocId, pageCount: doc.pageCount };
+        }
+        : undefined,
+      fetchStatus: transport ? async id => (await transport.documentStatus(id)).status : undefined,
+    };
+  }
+
+  /** Fail-closed balance gate. Unknown credit allows uploads; the kill switch and usage flag still guard. */
+  #pageIndexLowBalance(): boolean {
+    try {
+      const raw = process.env.TDN_PAGEINDEX_STARTING_CREDIT_MICRO_DOLLARS;
+      if (raw === undefined || !raw.trim()) return false;
+      const starting = Number(raw);
+      if (!Number.isSafeInteger(starting) || starting < 0) return true;
+      const indexed = listPageIndexDocuments(this.#db).reduce((sum, doc) => sum + (doc.uploadedAt ? doc.pageCount : 0), 0);
+      return estimatePageIndexBalance({ startingCreditMicroDollars: starting, indexedPagesTotal: indexed, activePages: 0 }).lowBalance;
+    } catch {
+      return true;
+    }
+  }
+
+  #pageIndexPaused(): boolean {
+    try {
+      return this.#pageIndexLowBalance() || isPageIndexUsageLimited(this.#db);
+    } catch {
+      return true;
+    }
   }
 
   async listPreparedMetricSources(workspaceId: string, runId: string): Promise<ResearchAutomationPreparedMetricList> {
@@ -1391,6 +1529,12 @@ export class ResearchAutomationService {
     const start = await this.#readStartSnapshot(fresh.startSha, fresh.workspaceId);
     const scope = fresh.scopeSha ? await this.#readScopeSnapshot(fresh.scopeSha, fresh.workspaceId, fresh.runId) : null;
     if (!scope) { await this.#settleSourceFailure(row.runId, 'REPORTS', 'REPORT_RENDER_FAILED', 'FAILED'); return true; }
+    // The REPORTS step waits a bounded moment for automatic PDF indexing to
+    // settle. Best effort only: indexing never fails the run. Skipped entirely
+    // while the kill switch is off, so existing runs are untouched.
+    if (process.env.TDN_PAGEINDEX_CLOUD_ENABLED === 'true' && !controller.signal.aborted) {
+      try { await this.pageIndexStatesForRun(fresh.workspaceId, fresh.runId); } catch { /* indexing never breaks reporting */ }
+    }
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
     const captures = await this.#captureRecords(fresh.runId);

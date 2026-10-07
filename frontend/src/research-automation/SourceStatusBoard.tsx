@@ -15,6 +15,7 @@ const SOURCE_COPY: Record<ResearchAutomationSourceStatusEntry['source'], { reado
   SERPAPI: { name: 'SerpApi', role: 'Kết quả tìm Google', unit: 'lần thu' },
   APIFY_SHOPEE: { name: 'Apify', role: 'Review Shopee theo link', unit: 'lần thu' },
   METRIC: { name: 'Metric', role: 'File xuất tải lên tay', unit: 'file' },
+  PAGEINDEX: { name: 'PageIndex', role: 'Tự lập chỉ mục cho PDF', unit: 'tài liệu' },
 };
 
 export function sourceStateView(entry: ResearchAutomationSourceStatusEntry): { readonly tone: 'ready' | 'partial' | 'missing' | 'manual' | 'off'; readonly label: string; readonly detail: string } {
@@ -31,6 +32,22 @@ export function sourceStateView(entry: ResearchAutomationSourceStatusEntry): { r
 
 const credentialLabel = (value: ResearchAutomationSourceStatusEntry['credential']) =>
   value === 'CONFIGURED' ? 'Đã cài' : value === 'MISSING' ? 'Thiếu' : 'Không cần';
+
+/** Micro-dollars to a short dollar string, e.g. 500000 -> $0.50. Null stays unknown, never 0. */
+export function formatMicroDollars(value: number | null): string {
+  if (value === null || !Number.isSafeInteger(value)) return 'Chưa rõ';
+  const sign = value < 0 ? '-' : '';
+  const abs = Math.abs(value);
+  return `${sign}$${Math.floor(abs / 1_000_000)}.${String(Math.floor((abs % 1_000_000) / 10_000)).padStart(2, '0')}`;
+}
+
+export function pageIndexAutomaticCopy(state: 'INDEXING_PDFS' | 'PAUSED_LOW_BALANCE' | 'DISABLED'): string {
+  switch (state) {
+    case 'INDEXING_PDFS': return 'Đang tự dùng cho PDF';
+    case 'PAUSED_LOW_BALANCE': return 'Tạm dừng vì số dư thấp';
+    case 'DISABLED': return 'Đã tắt';
+  }
+}
 
 export default function SourceStatusBoard({ mode, workspaceId }: SourceStatusBoardProps) {
   const [data, setData] = useState<ResearchAutomationSourceStatus | null>(null);
@@ -64,7 +81,13 @@ export default function SourceStatusBoard({ mode, workspaceId }: SourceStatusBoa
                   <dt>Chi phí</dt><dd>{entry.paid ? 'Trả phí theo lượt' : 'Không tốn phí'}</dd>
                   <dt>Dữ liệu</dt><dd>{entry.dataCount ? `${entry.dataCount} ${copy.unit} · gần nhất ${entry.lastDataAt ? formatTime(entry.lastDataAt) : '—'}` : 'Chưa có trong workspace'}</dd>
                   {entry.paid && <><dt>Gọi gần nhất</dt><dd>{entry.lastUsageAt ? formatTime(entry.lastUsageAt) : 'Chưa gọi'}</dd></>}
+                  {entry.source === 'PAGEINDEX' && entry.pageindex && <>
+                    <dt>Số dư (ước tính)</dt><dd>{formatMicroDollars(entry.pageindex.balanceMicroDollars)}{entry.pageindex.balanceCheckedAt ? ` · kiểm tra lúc ${formatTime(entry.pageindex.balanceCheckedAt)}` : ''}{entry.pageindex.billingUrl ? <> · <a href={entry.pageindex.billingUrl} target="_blank" rel="noopener noreferrer">Thanh toán</a></> : null}</dd>
+                    <dt>Trang đang lưu</dt><dd>{`${entry.pageindex.activePages} trang · khoảng ${formatMicroDollars(entry.pageindex.estimatedMonthlyCostMicroDollars)}/tháng`}</dd>
+                    <dt>Tự động</dt><dd>{pageIndexAutomaticCopy(entry.pageindex.automaticState)}</dd>
+                  </>}
                 </dl>
+                {entry.source === 'PAGEINDEX' && entry.pageindex && entry.pageindex.automaticState !== 'INDEXING_PDFS' && <div className="ra-message error" role="alert"><p>{entry.pageindex.automaticState === 'PAUSED_LOW_BALANCE' ? 'Đã tạm dừng gửi PDF mới. PageIndex báo đã hết số dư.' : 'Lập chỉ mục tự động đang tắt; PDF mới không được gửi.'}</p></div>}
               </li>;
             })}</ul>
             <p className="ra-muted ra-sources-note">Bảng chỉ đọc cấu hình và lịch sử đã lưu, không gọi thử nguồn nên không tốn phí. “Đã kết nối” nghĩa là khóa đã được cài, chưa chứng minh khóa còn hạn hoặc còn hạn mức.</p>

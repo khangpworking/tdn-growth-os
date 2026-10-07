@@ -116,7 +116,7 @@ test('source status reports configuration and workspace history without exposing
     for (const secret of [kalodataSecret, serpApiSecret, apifySecret, ownerToken]) assert.equal(text.includes(secret), false);
     assert.equal(body.workspaceId, workspaceId);
     assert.equal(body.executorEnabled, true);
-    assert.deepEqual(body.sources.map((item: Record<string, any>) => item.source), ['KALODATA', 'SERPAPI', 'APIFY_SHOPEE', 'METRIC']);
+    assert.deepEqual(body.sources.map((item: Record<string, any>) => item.source), ['KALODATA', 'SERPAPI', 'APIFY_SHOPEE', 'METRIC', 'PAGEINDEX']);
     const sources = bySource(body);
     assert.deepEqual(sources.KALODATA, { source: 'KALODATA', state: 'READY', credential: 'CONFIGURED', wiredIntoRuns: true, paid: true,
       lastDataAt: '2026-02-03T00:00:00.000Z', dataCount: 2, lastUsageAt: '2026-02-03T00:00:01.000Z' });
@@ -131,6 +131,10 @@ test('source status reports configuration and workspace history without exposing
     assert.equal(sources.APIFY_SHOPEE.dataCount, 1);
     assert.deepEqual(sources.METRIC, { source: 'METRIC', state: 'MANUAL_IMPORT', credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false,
       lastDataAt: null, dataCount: 0, lastUsageAt: null });
+    // The document-indexing card is present before any live connector state is wired.
+    assert.deepEqual(sources.PAGEINDEX, { source: 'PAGEINDEX', state: 'NOT_CONFIGURED', credential: 'MISSING', wiredIntoRuns: false, paid: true,
+      lastDataAt: null, dataCount: 0, lastUsageAt: null, pageindex: { automaticState: 'DISABLED', documentsSent: 0,
+        balanceMicroDollars: null, balanceCheckedAt: null, billingUrl: null, activePages: 0, estimatedMonthlyCostMicroDollars: null } });
   });
 
   await withApi(fixture, true, { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: true,
@@ -147,7 +151,7 @@ test('source status reports configuration and workspace history without exposing
   await withApi(fixture, false, providers, async base => {
     const { body } = await readStatus(base);
     assert.equal(body.executorEnabled, false);
-    assert.deepEqual(body.sources.map((item: Record<string, any>) => item.state), ['EXECUTOR_DISABLED', 'EXECUTOR_DISABLED', 'EXECUTOR_DISABLED', 'EXECUTOR_DISABLED']);
+    assert.deepEqual(body.sources.map((item: Record<string, any>) => item.state), ['EXECUTOR_DISABLED', 'EXECUTOR_DISABLED', 'EXECUTOR_DISABLED', 'EXECUTOR_DISABLED', 'EXECUTOR_DISABLED']);
     assert.equal(bySource(body).KALODATA.credential, 'CONFIGURED');
   });
 });

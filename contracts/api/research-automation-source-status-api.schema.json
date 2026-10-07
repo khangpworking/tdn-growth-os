@@ -8,7 +8,7 @@
     "uuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
     "timestamp": { "type": "string", "minLength": 20, "maxLength": 40 },
     "count": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-    "sourceId": { "title": "ResearchAutomationSourceId", "enum": ["KALODATA", "SERPAPI", "APIFY_SHOPEE", "METRIC"] },
+    "sourceId": { "title": "ResearchAutomationSourceId", "enum": ["KALODATA", "SERPAPI", "APIFY_SHOPEE", "METRIC", "PAGEINDEX"] },
     "sourceState": {
       "title": "ResearchAutomationSourceState",
       "description": "READY: configured and used by runs. CONFIGURED_NOT_WIRED: credential present but runs do not call it yet. NOT_CONFIGURED: credential or spending cap missing. MANUAL_IMPORT: data arrives only as an owner upload. EXECUTOR_DISABLED: this server cannot run research at all.",
@@ -27,7 +27,23 @@
         "paid": { "type": "boolean" },
         "lastDataAt": { "description": "Latest stored capture or finalized upload in this workspace.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
         "dataCount": { "description": "Stored captures or finalized uploads in this workspace.", "$ref": "#/$defs/count" },
-        "lastUsageAt": { "description": "Latest recorded provider usage in this workspace; null for manual imports.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] }
+        "lastUsageAt": { "description": "Latest recorded provider usage in this workspace; null for manual imports.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "pageindex": { "$ref": "#/$defs/pageindexDetail" }
+      }
+    },
+    "pageindexDetail": {
+      "title": "ResearchAutomationPageIndexDetail",
+      "description": "Document-indexing connector detail. Present only on the PAGEINDEX entry. Money is integer micro-dollars.",
+      "type": "object", "additionalProperties": false,
+      "required": ["automaticState", "documentsSent", "balanceMicroDollars", "balanceCheckedAt", "billingUrl", "activePages", "estimatedMonthlyCostMicroDollars"],
+      "properties": {
+        "automaticState": { "description": "Whether new PDFs are currently sent for indexing.", "enum": ["INDEXING_PDFS", "PAUSED_LOW_BALANCE", "DISABLED"] },
+        "documentsSent": { "description": "PDFs ever uploaded for indexing.", "$ref": "#/$defs/count" },
+        "balanceMicroDollars": { "description": "Estimated remaining credit, or null when unknown.", "anyOf": [{ "type": "integer" }, { "type": "null" }] },
+        "balanceCheckedAt": { "description": "When the estimate was computed.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "billingUrl": { "description": "Vendor billing page.", "anyOf": [{ "type": "string", "minLength": 8, "maxLength": 300 }, { "type": "null" }] },
+        "activePages": { "description": "Stored pages that accrue monthly cost.", "$ref": "#/$defs/count" },
+        "estimatedMonthlyCostMicroDollars": { "description": "Full-month active-page cost at the current page count.", "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] }
       }
     },
     "status": {
@@ -39,7 +55,7 @@
         "workspaceId": { "$ref": "#/$defs/uuid" },
         "checkedAt": { "$ref": "#/$defs/timestamp" },
         "executorEnabled": { "type": "boolean" },
-        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" }, "maxItems": 4 }
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" }, "maxItems": 5 }
       }
     }
   }

@@ -2,6 +2,22 @@ import type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntr
 import type { ResearchAutomationProviderConfig } from './providers.js';
 import type { ResearchAutomationSourceActivity, ResearchAutomationSourceActivityKey } from './service.js';
 
+/** Live document-indexing connector state for the status card. Built server-side; no key value is included. */
+export interface PageIndexStatusSummary {
+  /** True when the server holds a document-indexing key (value never leaves the server). */
+  readonly keyConfigured: boolean;
+  /** False when the TDN_PAGEINDEX_CLOUD_ENABLED kill switch is off. */
+  readonly enabled: boolean;
+  readonly lastCallAt: string | null;
+  readonly documentsSent: number;
+  readonly balanceMicroDollars: number | null;
+  readonly balanceCheckedAt: string | null;
+  readonly billingUrl: string | null;
+  readonly activePages: number;
+  readonly estimatedMonthlyCostMicroDollars: number | null;
+  readonly lowBalance: boolean;
+}
+
 export interface SourceStatusInput {
   readonly workspaceId: string;
   readonly checkedAt: string;
@@ -11,6 +27,8 @@ export interface SourceStatusInput {
   /** Sources the executor actually calls during a run. Web search is configured separately from run wiring. */
   readonly wired: { readonly kalodata: boolean; readonly serpapi: boolean; readonly apifyShopee: boolean };
   readonly activity: Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity>;
+  /** Absent until the API route passes live connector state; the card then shows the not-connected copy. */
+  readonly pageindex?: PageIndexStatusSummary;
 }
 
 /** Configuration and stored history only: no provider is called and no credential value leaves the server. */
@@ -24,6 +42,8 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     wiredIntoRuns: wired, paid: true, ...input.activity[key],
   });
   const apifyToken = Boolean(providers?.apifyTokenConfigured || providers?.apifyReviews);
+  const pageindex = input.pageindex;
+  const pageindexUsable = Boolean(pageindex?.keyConfigured && pageindex?.enabled);
   return {
     contractVersion: 'research-automation-source-status-v1',
     workspaceId: input.workspaceId,
@@ -37,6 +57,25 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
       {
         source: 'METRIC', state: input.executorEnabled ? 'MANUAL_IMPORT' : 'EXECUTOR_DISABLED', credential: 'NOT_REQUIRED',
         wiredIntoRuns: true, paid: false, ...input.activity.metric, lastUsageAt: null,
+      },
+      {
+        source: 'PAGEINDEX',
+        state: !input.executorEnabled ? 'EXECUTOR_DISABLED' : !pageindexUsable ? 'NOT_CONFIGURED' : 'READY',
+        credential: pageindex?.keyConfigured ? 'CONFIGURED' : 'MISSING',
+        wiredIntoRuns: pageindexUsable,
+        paid: true,
+        lastDataAt: null,
+        dataCount: pageindex?.documentsSent ?? 0,
+        lastUsageAt: pageindex?.lastCallAt ?? null,
+        pageindex: {
+          automaticState: !pageindex?.enabled ? 'DISABLED' : pageindex.lowBalance ? 'PAUSED_LOW_BALANCE' : 'INDEXING_PDFS',
+          documentsSent: pageindex?.documentsSent ?? 0,
+          balanceMicroDollars: pageindex?.balanceMicroDollars ?? null,
+          balanceCheckedAt: pageindex?.balanceCheckedAt ?? null,
+          billingUrl: pageindex?.billingUrl ?? null,
+          activePages: pageindex?.activePages ?? 0,
+          estimatedMonthlyCostMicroDollars: pageindex?.estimatedMonthlyCostMicroDollars ?? null,
+        },
       },
     ],
   };

@@ -6,7 +6,7 @@
 export type ResearchAutomationSourceStatusApiContract = ResearchAutomationSourceStatus;
 export type Uuid = string;
 export type Timestamp = string;
-export type ResearchAutomationSourceId = 'KALODATA' | 'SERPAPI' | 'APIFY_SHOPEE' | 'METRIC';
+export type ResearchAutomationSourceId = 'KALODATA' | 'SERPAPI' | 'APIFY_SHOPEE' | 'METRIC' | 'PAGEINDEX';
 /**
  * READY: configured and used by runs. CONFIGURED_NOT_WIRED: credential present but runs do not call it yet. NOT_CONFIGURED: credential or spending cap missing. MANUAL_IMPORT: data arrives only as an owner upload. EXECUTOR_DISABLED: this server cannot run research at all.
  */
@@ -20,7 +20,7 @@ export interface ResearchAutomationSourceStatus {
   checkedAt: Timestamp;
   executorEnabled: boolean;
   /**
-   * @maxItems 4
+   * @maxItems 5
    */
   sources:
     | []
@@ -28,6 +28,13 @@ export interface ResearchAutomationSourceStatus {
     | [ResearchAutomationSourceStatusEntry, ResearchAutomationSourceStatusEntry]
     | [ResearchAutomationSourceStatusEntry, ResearchAutomationSourceStatusEntry, ResearchAutomationSourceStatusEntry]
     | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
@@ -52,4 +59,38 @@ export interface ResearchAutomationSourceStatusEntry {
    * Latest recorded provider usage in this workspace; null for manual imports.
    */
   lastUsageAt: Timestamp | null;
+  pageindex?: ResearchAutomationPageIndexDetail;
+}
+/**
+ * Document-indexing connector detail. Present only on the PAGEINDEX entry. Money is integer micro-dollars.
+ */
+export interface ResearchAutomationPageIndexDetail {
+  /**
+   * Whether new PDFs are currently sent for indexing.
+   */
+  automaticState: 'INDEXING_PDFS' | 'PAUSED_LOW_BALANCE' | 'DISABLED';
+  /**
+   * PDFs ever uploaded for indexing.
+   */
+  documentsSent: number;
+  /**
+   * Estimated remaining credit, or null when unknown.
+   */
+  balanceMicroDollars: number | null;
+  /**
+   * When the estimate was computed.
+   */
+  balanceCheckedAt: Timestamp | null;
+  /**
+   * Vendor billing page.
+   */
+  billingUrl: string | null;
+  /**
+   * Stored pages that accrue monthly cost.
+   */
+  activePages: number;
+  /**
+   * Full-month active-page cost at the current page count.
+   */
+  estimatedMonthlyCostMicroDollars: number | null;
 }
