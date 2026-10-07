@@ -25,6 +25,12 @@ Completed:
   - byte-identical output for the same cite sequence.
 - Not wired into any report (out of scope; the follow-up comes after #123).
 
+- **Review fix (owner review, 2026-10-07):** provider names and digests could reach "Nguồn tham khảo" through the locator text or the URL, because only the label and quote were checked.
+  - `assertReaderSafeCitation` now checks the label, quote, locator text and displayed URL.
+  - A provider name → `PROVIDER_NAME_IN_LABEL`. A run of 32+ hex characters → the new `TECHNICAL_ID_IN_LABEL`.
+  - `renderCitationRegister` re-checks every entry, including entries built outside the registry.
+  - 2 regression tests were added.
+
 Changed paths:
 - `src/modules/analysis/citation-registry.ts` (new)
 - `src/modules/analysis/citation-register-html.ts` (new)
