@@ -11,6 +11,8 @@ export interface CollectedPages {
   actor: ShopeeCollection['actor'];
   warnings: string[];
   pages: { bytes: Buffer; offset: number }[];
+  /** Last provider status message, sanitized. Diagnostic only: never part of the saved collection packet. */
+  actorStatusMessage?: string | null;
 }
 
 export const PRODUCTION_MAX_REVIEWS_PER_PRODUCT = 500 as const;
@@ -222,7 +224,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
         retrievedAt: new Date().toISOString(), providerTotalRows, usageTotalUsd: run.usageTotalUsd,
         stopReason: terminalReason ?? (readFailed ? 'dataset_read_failed'
           : exhausted ? 'dataset_exhausted' : 'collection_limit_reached'),
-      }, warnings: [...(terminalReason ? [terminalReason] : readFailed ? ['dataset_read_failed'] : []),
+      }, actorStatusMessage: run.statusMessage, warnings: [...(terminalReason ? [terminalReason] : readFailed ? ['dataset_read_failed'] : []),
         ...(cancelled ? ['collection_cancelled_locally_provider_status_unchanged'] : [])], pages };
   }
 
@@ -272,11 +274,18 @@ function checkCancellation(signal?: AbortSignal): void {
 
 interface Run {
   id: string; defaultDatasetId: string; defaultKeyValueStoreId: string | null; buildId: string | null;
-  status: string; usageTotalUsd: number | null; maxTotalChargeUsd: number | null;
+  status: string; usageTotalUsd: number | null; maxTotalChargeUsd: number | null; statusMessage: string | null;
+}
+/** Provider status text for diagnostics: trimmed, control characters removed, at most 300 chars. */
+export function providerStatusMessage(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  // eslint-disable-next-line no-control-regex
+  const text = value.replace(/[\u0000-\u001f\u007f-\u009f]/g, ' ').trim().slice(0, 300).trim();
+  return text === '' ? null : text;
 }
 function validProviderId(x: unknown): x is string { return typeof x === 'string' && /^[a-zA-Z0-9]{1,100}$/.test(x); }
 function parseRun(value: unknown): Run {
-  const data = (value as { data?: Partial<Run> & { options?: { maxTotalChargeUsd?: unknown } } } | null)?.data;
+  const data = (value as { data?: Partial<Omit<Run, 'statusMessage'>> & { statusMessage?: unknown; options?: { maxTotalChargeUsd?: unknown } } } | null)?.data;
   if (!data || !validProviderId(data.id) || !validProviderId(data.defaultDatasetId) ||
       typeof data.status !== 'string' || !/^[A-Z-]{1,40}$/.test(data.status) ||
       (data.buildId != null && !validProviderId(data.buildId)) ||
@@ -289,7 +298,8 @@ function parseRun(value: unknown): Run {
   }
   return { id: data.id, defaultDatasetId: data.defaultDatasetId,
     defaultKeyValueStoreId: data.defaultKeyValueStoreId ?? null, status: data.status,
-    buildId: data.buildId ?? null, usageTotalUsd: data.usageTotalUsd ?? null, maxTotalChargeUsd: cap ?? null };
+    buildId: data.buildId ?? null, usageTotalUsd: data.usageTotalUsd ?? null, maxTotalChargeUsd: cap ?? null,
+    statusMessage: providerStatusMessage(data.statusMessage) };
 }
 async function readOptional(file: string): Promise<Buffer | null> {
   try { return await fs.readFile(file); }

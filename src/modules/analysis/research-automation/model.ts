@@ -3,6 +3,7 @@ import type {
   ResearchAutomationReportKind, ResearchAutomationRunStatus, ResearchAutomationStepState,
 } from '../../../../contracts/api/research-automation-api.generated.js';
 import type { NativeSourceReviewReference } from './native-source-review-bridge.js';
+import type { ExactShopeeOutcome } from './exact-shopee-outcome.js';
 
 export type StepId = 'QUICK_SEARCH' | 'COLLECTION' | 'REPORTS';
 export type SourceStepId = Exclude<StepId, 'REPORTS'>;
@@ -99,6 +100,14 @@ export interface StepResultDocument {
     readonly collectionId: string;
     readonly collectionSha256: string;
     readonly requestSha256: string;
+  };
+  /** Classified exact-Shopee review outcome; absent on runs stored before it was kept. */
+  readonly exactShopeeOutcome?: {
+    readonly outcome: ExactShopeeOutcome;
+    readonly listings: readonly { readonly listingUrl: string; readonly reviews: number }[];
+    readonly providerMessage: string | null;
+    readonly attemptedAt: string;
+    readonly reused: boolean;
   };
   /** A reused native capture, never projected as a new provider collection. */
   readonly nativeReview?: NativeSourceReviewReference;

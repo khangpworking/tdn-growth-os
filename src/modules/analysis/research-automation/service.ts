@@ -64,6 +64,7 @@ import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot, ty
 import { buildAutomationSourceClaims, validateAutomationSourceClaimsReference, MAX_SOURCE_CLAIMS_BYTES } from './source-claims.js';
 import type { AutomationSourceClaims } from '../../../../contracts/analysis/automation-source-claims.generated.js';
 import { AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory } from './exact-shopee-bridge.js';
+import { EXACT_SHOPEE_OUTCOMES, MAX_PROVIDER_MESSAGE_LENGTH, type ExactShopeeOutcome } from './exact-shopee-outcome.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import type {
@@ -1328,7 +1329,7 @@ export class ResearchAutomationService {
             if (!controller.signal.aborted) result.step = nativeSourceBlocked(result.step, 'SOURCE_PACKAGE_RESOLUTION_FAILED');
           }
         } else if (resolution?.state === 'NONE' && !controller.signal.aborted) {
-          exact = await this.#shopee.collect(frozenInput, controller.signal);
+          exact = await this.#shopee.collect(frozenInput, controller.signal, this.#now);
         } else if (resolution && !controller.signal.aborted) {
           result.step = nativeSourceBlocked(result.step, resolution.state === 'AMBIGUOUS' ? 'NATIVE_SOURCE_AMBIGUOUS' : 'NATIVE_SOURCE_SCOPE_UNSUPPORTED');
         }
@@ -1771,8 +1772,10 @@ export class ResearchAutomationService {
       outcome: exact.coverage.state === 'FAILED' || exact.coverage.state === 'CANCELLED'
         ? step.outcome === 'SUCCEEDED' || step.outcome === 'PARTIAL' ? 'PARTIAL' : exact.coverage.state
         : exact.reference ? (step.outcome === 'SUCCEEDED' && exact.coverage.state === 'COLLECTED' ? 'SUCCEEDED' : 'PARTIAL') : step.outcome === 'SUCCEEDED' ? 'PARTIAL' : step.outcome,
-      coverage: [...step.coverage, exact.coverage], limitations: [...step.limitations, exact.limitation],
-      ...(exact.reference ? { exactShopee: exact.reference } : {}) };
+      coverage: [...step.coverage, exact.coverage],
+      limitations: [...step.limitations, exact.limitation, ...(exact.outcomeLimitation ? [exact.outcomeLimitation] : [])],
+      ...(exact.reference ? { exactShopee: exact.reference } : {}),
+      ...(exact.reference && exact.exactShopeeOutcome ? { exactShopeeOutcome: exact.exactShopeeOutcome } : {}) };
     if (webStep) {
       // Without any product-source attempt the web lane alone decides the outcome.
       const productAttempted = result !== null || bound.unsettledProvider !== undefined || exact !== undefined || nativeCoverage.length > 0;
@@ -2298,6 +2301,15 @@ function assertStepDocument(value: unknown, runId: string, stepId: StepId): asse
       value.nativeReview.contractVersion !== 'automation-native-review-reference-v1' || value.nativeReview.runId !== runId ||
       stepId !== 'COLLECTION' || !/^[a-f0-9]{64}$/.test(String(value.nativeReview.bindingSha256))))
     throw new ResearchAutomationIntegrityError('Stored native source reference is invalid.');
+  if (value.exactShopeeOutcome !== undefined && (stepId !== 'COLLECTION' || value.exactShopee === undefined || !isRecord(value.exactShopeeOutcome) ||
+      !EXACT_SHOPEE_OUTCOMES.includes(value.exactShopeeOutcome.outcome as ExactShopeeOutcome) || typeof value.exactShopeeOutcome.reused !== 'boolean' ||
+      typeof value.exactShopeeOutcome.attemptedAt !== 'string' || !Number.isFinite(Date.parse(value.exactShopeeOutcome.attemptedAt)) ||
+      (value.exactShopeeOutcome.providerMessage !== null && (typeof value.exactShopeeOutcome.providerMessage !== 'string' ||
+        value.exactShopeeOutcome.providerMessage.length > MAX_PROVIDER_MESSAGE_LENGTH)) ||
+      !Array.isArray(value.exactShopeeOutcome.listings) || value.exactShopeeOutcome.listings.length < 1 || value.exactShopeeOutcome.listings.length > 5 ||
+      value.exactShopeeOutcome.listings.some(item => !isRecord(item) || typeof item.listingUrl !== 'string' || !item.listingUrl.startsWith('https://shopee.vn/') ||
+        item.listingUrl.length > 2000 || !Number.isSafeInteger(item.reviews) || item.reviews < 0)))
+    throw new ResearchAutomationIntegrityError('Stored exact review outcome is invalid.');
   if (value.webResults !== undefined && (stepId !== 'COLLECTION' || !Array.isArray(value.webResults) || value.webResults.length > MAX_WEB_RESULTS ||
       value.webResults.some(item => !isRecord(item) || !Number.isSafeInteger(item.position) || item.position < 1 ||
         typeof item.title !== 'string' || item.title.length < 1 || item.title.length > 300 ||
