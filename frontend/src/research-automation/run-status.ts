@@ -42,6 +42,9 @@ const limitationLabels: Readonly<Record<string, string>> = {
   EXECUTOR_RESTARTED: 'Operator đã khởi động lại khi nguồn đang chạy; không tự chạy lại.',
   SKIPPED_AFTER_STOP: 'Bước này không chạy vì bước trước đã dừng.',
   NO_APPROVED_PRODUCT_REFS: 'Không có sản phẩm nào được duyệt nên chưa thu thập chi tiết sản phẩm theo kỳ.',
+  EXACT_SHOPEE_REVIEWS_BLOCKED: 'Không lấy được đánh giá khách hàng Shopee. Báo cáo vẫn được tạo nhưng thiếu phần ý kiến khách hàng.',
+  EXACT_SHOPEE_REVIEWS_TIMEOUT: 'Không lấy được đánh giá khách hàng Shopee. Báo cáo vẫn được tạo nhưng thiếu phần ý kiến khách hàng.',
+  EXACT_SHOPEE_REVIEWS_PARTIAL: 'Chỉ lấy được đánh giá Shopee cho một phần sản phẩm. Phần ý kiến khách hàng trong báo cáo chưa đủ.',
 };
 
 export function runPhase(status: ResearchAutomationRun['status'] | string): RunPhase { return phaseByStatus[status] ?? 'running'; }

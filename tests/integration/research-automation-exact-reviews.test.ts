@@ -13,7 +13,7 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { FixtureShopeeCollector, CollectionPendingError } from '../../src/platform/collectors/apify-shopee.js';
-import type { ShopeeCollectorFactory } from '../../src/modules/analysis/research-automation/exact-shopee-bridge.js';
+import { AutomationExactShopeeBridge, type ShopeeCollectorFactory } from '../../src/modules/analysis/research-automation/exact-shopee-bridge.js';
 import { MAX_HTML_BYTES } from '../../src/modules/analysis/research-automation/model.js';
 import { AutomationLocatedReviewBridge } from '../../src/modules/analysis/research-automation/located-review-bridge.js';
 import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
@@ -36,7 +36,9 @@ ajv.addSchema(apiSchema);
 const validateRun = ajv.getSchema(`${apiSchema.$id}#/$defs/run`)!;
 const sha = (value: unknown) => createHash('sha256').update(canonicalJson(value), 'utf8').digest('hex');
 function assertRunContract(run: unknown) { assert.equal(validateRun(run), true, JSON.stringify(validateRun.errors)); }
-async function fixture(t: TestContext, factory?: ShopeeCollectorFactory, oversizedView = false, keyword = 'Synthetic coconut jelly') {
+type ReportInput = Parameters<typeof buildResearchAutomationReport>[0];
+async function fixture(t: TestContext, factory?: ShopeeCollectorFactory, oversizedView = false, keyword = 'Synthetic coconut jelly',
+  onRender?: (input: ReportInput, kind: 'MARKET' | 'INSIGHT') => void) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-exact-review-run-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -45,6 +47,7 @@ async function fixture(t: TestContext, factory?: ShopeeCollectorFactory, oversiz
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')),
     uuid: () => runId, now, ...(factory ? { shopeeCollectorFactory: factory } : {}), renderer: (input, kind) => {
+      onRender?.(input, kind);
       const rendered = buildResearchAutomationReport(input, kind);
       return oversizedView && kind === 'INSIGHT' && input.reviewCorpus ? { ...rendered, html: Buffer.alloc(MAX_HTML_BYTES + 1, 'x') } : rendered;
     } });
@@ -641,5 +644,134 @@ test('a terminal Actor failure is not an empty-review success and any returned r
     await state.service.readReport(workspaceId, runId, 'MARKET');
     assert.equal(await state.service.processNext(), false);
     assert.equal(calls, 1);
+  });
+});
+
+// #123: the four real failure shapes, classified once, logged once, and explained to the owner without provider names or codes.
+test('exact review outcome is classified, logged once, shown on the run page and noticed in both reports', async t => {
+  const listings = ['17678138164', '17678138165', '17678138166', '17678138167', '17678138168'];
+  const urls = listings.map(itemId => `https://shopee.vn/product/78085196/${itemId}`);
+  const rows = (itemIds: readonly string[]) => itemIds.map((itemId, index) => ({ shopId: '78085196', itemId, reviewId: `synthetic-${index}`, comment: 'Synthetic review text', ratingStar: 5 }));
+  const cases = [
+    { name: 'blocked', failed: true, message: 'Reviews could not be retrieved right now. Please try again later.', rows: [] as string[],
+      outcome: 'PROVIDER_BLOCKED', code: 'EXACT_SHOPEE_REVIEWS_BLOCKED', level: 'warn' },
+    { name: 'timeout', failed: true, message: 'This run hit its time limit before any reviews were collected', rows: [] as string[],
+      outcome: 'PROVIDER_TIMEOUT_NO_REVIEWS', code: 'EXACT_SHOPEE_REVIEWS_TIMEOUT', level: 'warn' },
+    { name: 'partial', failed: false, message: null, rows: [listings[0]!, listings[0]!, listings[3]!],
+      outcome: 'PARTIAL_LISTINGS', code: 'EXACT_SHOPEE_REVIEWS_PARTIAL', level: 'warn' },
+    { name: 'ok', failed: false, message: null, rows: listings, outcome: 'OK', code: null, level: 'info' },
+  ] as const;
+  for (const c of cases) await t.test(c.name, async sub => {
+    const logs: Array<{ level: string; line: string }> = [];
+    for (const level of ['info', 'warn'] as const) sub.mock.method(console, level, (...args: unknown[]) => { logs.push({ level, line: args.map(String).join(' ') }); });
+    const rendered: Array<{ input: ReportInput; kind: 'MARKET' | 'INSIGHT' }> = [];
+    let calls = 0;
+    const state = await fixture(sub, () => ({ requestsIssued: () => calls, collector: { mode: 'fixture', collect: async (...args) => {
+      calls++;
+      const collected = await new FixtureShopeeCollector(Buffer.from(JSON.stringify(rows(c.rows)))).collect(...args);
+      return c.failed ? { ...collected, actor: { ...collected.actor, status: 'FAILED', stopReason: 'actor_terminal_failed', usageTotalUsd: 0.008 },
+        warnings: ['actor_terminal_failed'], actorStatusMessage: c.message } : collected;
+    } } }), false, 'Synthetic coconut jelly', (input, kind) => rendered.push({ input, kind }));
+    await state.service.confirmScope(workspaceId, runId, { ...state.confirm, exactShopeeUrls: urls });
+    await state.service.processNext(); await state.service.processNext();
+    const ready = await state.service.getRun(workspaceId, runId);
+    assertRunContract(ready);
+
+    const expectedCounts = urls.map((listingUrl, index) => ({ listingUrl, reviews: c.rows.filter(itemId => itemId === listings[index]).length }));
+    const { resultSha } = state.db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string };
+    const step = JSON.parse((await state.artifacts.read(resultSha)).toString());
+    assert.equal(step.exactShopeeOutcome.outcome, c.outcome);
+    assert.deepEqual(step.exactShopeeOutcome.listings, expectedCounts);
+    assert.equal(step.exactShopeeOutcome.providerMessage, c.message);
+    assert.equal(step.exactShopeeOutcome.reused, false);
+    assert.equal(step.exactShopeeOutcome.attemptedAt, now().toISOString());
+
+    const lines = logs.filter(entry => entry.line.includes('exact_shopee_collection'));
+    assert.equal(lines.length, 1);
+    assert.equal(lines[0]!.level, c.level);
+    const logged = JSON.parse(lines[0]!.line);
+    assert.deepEqual(logged, { event: 'exact_shopee_collection', runId, outcome: c.outcome,
+      listings: listings.map((itemId, index) => ({ listing: `78085196:${itemId}`, reviews: expectedCounts[index]!.reviews })),
+      actorStatus: c.failed ? 'FAILED' : 'FIXTURE', usageUsd: c.failed ? 0.008 : null, reused: false });
+    assert.doesNotMatch(lines[0]!.line, /token|http|Synthetic review text|could not|time limit/i);
+
+    assert.equal(ready.blockers.some(row => row.code === c.code), c.code !== null);
+    assert.equal(ready.blockers.filter(row => row.code.startsWith('EXACT_SHOPEE_REVIEWS_')).length, c.code === null ? 0 : 1);
+    if (c.failed) assert.ok(ready.blockers.some(row => row.code === 'EXACT_SHOPEE_ACTOR_FAILED'), 'the existing limitation is kept');
+
+    for (const kind of ['MARKET', 'INSIGHT'] as const) {
+      const html = (await state.service.readReport(workspaceId, runId, kind)).bytes.toString();
+      const body = new JSDOM(html).window.document.body;
+      const notice = body.querySelector('.review-outcome-notice');
+      const input = rendered.find(entry => entry.kind === kind)!.input;
+      const { exactShopeeOutcome: _outcome, ...oldCollection } = input.collection!;
+      const before = buildResearchAutomationReport({ ...input, collection: oldCollection }, kind).html.toString();
+      if (c.outcome === 'OK') {
+        assert.equal(notice, null);
+        assert.equal(html, before, 'an OK outcome renders byte-identically to a run without the field');
+        continue;
+      }
+      assert.ok(notice);
+      assert.match(notice.textContent!, /02\/10\/2026/);
+      assert.deepEqual([...notice.querySelectorAll('li a')].map(link => link.getAttribute('href')),
+        expectedCounts.filter(row => row.reviews === 0).map(row => row.listingUrl));
+      assert.match(notice.textContent!, /Phần bị ảnh hưởng/);
+      for (const section of ['I02 Khách hàng và hoàn cảnh', 'I03 Phương pháp nghiên cứu', 'I17 Phụ lục và bằng chứng']) assert.ok(notice.textContent!.includes(section), section);
+      assert.match(notice.textContent!, /Phần vẫn dùng được: doanh thu, giá, đối thủ, nhu cầu tìm kiếm\./);
+      assert.doesNotMatch(notice.textContent!, /Apify|apify|zen-studio|SerpApi|Kalodata|Metric|EXACT_SHOPEE|PROVIDER_|FAILED/);
+      // Only the notice and the plain review sentence are new; the rest of the page is byte-identical.
+      // (Older copy elsewhere on the page already carries method codes; this change adds none.)
+      const added = /<div class="warning review-outcome-notice"[^>]*>[\s\S]*?<\/div>|<p class="warning">Lần thu ngày [^<]*<\/p>/g;
+      assert.equal(html.replace(added, ''), before, 'nothing outside the notice and review sentence changes');
+      const addedText = (html.match(added) ?? []).join(' ');
+      assert.equal((html.match(added) ?? []).length, kind === 'INSIGHT' ? 3 : 1, 'one notice, plus the review sentence in I03 and I17');
+      assert.doesNotMatch(addedText, /Apify|apify|zen-studio|SerpApi|Kalodata|Metric|EXACT_SHOPEE|PROVIDER_|FAILED/);
+      if (kind === 'INSIGHT') for (const id of ['#I03', '#I17']) {
+        const review = body.querySelector(id)!.textContent!;
+        assert.match(review, c.outcome === 'PARTIAL_LISTINGS' ? /chỉ lấy được đánh giá Shopee cho 2\/5 sản phẩm/ : /không lấy được đánh giá Shopee nào cho 5 sản phẩm/, id);
+      }
+    }
+    assert.equal(calls, 1);
+    if (c.name !== 'blocked') return;
+
+    // Removing the review source in a revision removes the notice from BOTH reports; the original pair keeps it.
+    const firstPair = (await state.service.listReportVersions(workspaceId, runId))[0]!;
+    await state.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-report-revision-v1', requestKey: randomUUID(),
+      previousPairId: firstPair.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'SKIP' } } });
+    await state.service.processNext();
+    const skippedPair = (await state.service.listReportVersions(workspaceId, runId)).at(-1)!;
+    assert.notEqual(skippedPair.pairId, firstPair.pairId);
+    for (const kind of ['MARKET', 'INSIGHT'] as const) {
+      const skipped = (await state.service.readReport(workspaceId, runId, kind, false, skippedPair.pairId)).bytes.toString();
+      assert.doesNotMatch(skipped, /review-outcome-notice|Lần thu ngày/, `${kind} after the review source is skipped`);
+      const original = (await state.service.readReport(workspaceId, runId, kind, false, firstPair.pairId)).bytes.toString();
+      assert.match(original, /review-outcome-notice/, `${kind} history is unchanged`);
+    }
+
+    // Reuse path: the frozen collection is read back, classified again, logged once, and never recollected.
+    logs.length = 0;
+    const bridge = new AutomationExactShopeeBridge(state.db, state.artifacts, () => ({ requestsIssued: () => calls, collector: { mode: 'fixture', collect: async () => {
+      calls++; throw new Error('a reused collection must not be collected again');
+    } } }));
+    const reused = await bridge.collect({ runId, start: rendered[0]!.input.start, scope: rendered[0]!.input.scope, scopeConfirmedAt: now().toISOString() }, undefined, now);
+    assert.deepEqual(reused.exactShopeeOutcome, { outcome: 'PROVIDER_BLOCKED', listings: expectedCounts, providerMessage: null, attemptedAt: now().toISOString(), reused: true });
+    assert.equal(reused.outcomeLimitation?.code, 'EXACT_SHOPEE_REVIEWS_BLOCKED');
+    assert.deepEqual(logs.filter(entry => entry.line.includes('exact_shopee_collection')).map(entry => [entry.level, JSON.parse(entry.line).reused, JSON.parse(entry.line).usageUsd]), [['warn', true, 0]]);
+    assert.equal(calls, 1);
+
+    // A stored outcome with a bad shape is rejected when the step is read back; old documents without it still load.
+    // Simulate storage-level tampering in this disposable database by lifting the settled-step guard.
+    state.db.exec('DROP TRIGGER analysis_research_automation_steps_settled');
+    const tampered = await state.artifacts.put(Buffer.from(canonicalJson({ ...step, exactShopeeOutcome: { ...step.exactShopeeOutcome, outcome: 'MAYBE' } })));
+    state.db.prepare('INSERT INTO artifact_manifests VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(tampered.sha256, tampered.byteSize,
+      'application/vnd.tdn.research-automation.step+json', tampered.relativePath, now().toISOString(), '1.0.0', 'active', now().toISOString());
+    state.db.prepare(`UPDATE analysis_research_automation_steps SET result_sha256=? WHERE run_id=? AND step_id='COLLECTION'`).run(tampered.sha256, runId);
+    await assert.rejects(state.service.getRun(workspaceId, runId), /Stored exact review outcome is invalid/);
+    const { exactShopeeOutcome: _dropped, ...old } = step;
+    const legacy = await state.artifacts.put(Buffer.from(canonicalJson(old)));
+    state.db.prepare('INSERT INTO artifact_manifests VALUES (?, ?, ?, ?, ?, ?, ?, ?)').run(legacy.sha256, legacy.byteSize,
+      'application/vnd.tdn.research-automation.step+json', legacy.relativePath, now().toISOString(), '1.0.0', 'active', now().toISOString());
+    state.db.prepare(`UPDATE analysis_research_automation_steps SET result_sha256=? WHERE run_id=? AND step_id='COLLECTION'`).run(legacy.sha256, runId);
+    assertRunContract(await state.service.getRun(workspaceId, runId));
   });
 });

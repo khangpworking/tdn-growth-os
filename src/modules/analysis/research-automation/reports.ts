@@ -124,6 +124,45 @@ function retainedReviewStatus(input: AutomationReportInput): string | null {
   return null;
 }
 
+/**
+ * Insight sections that read the review corpus, so a missing Shopee review collection affects them:
+ * - I02, I04, I05, I07, I08: literal reading of located reviews (`literalFamilies`, `renderLocatedInsightSection`);
+ * - I06, I09, I10, I13 (and the five above): coding families over the same records (`codingFamilies`, `semanticCodingFamilies`);
+ * - I03, I17: review source status, corpus trace and quotes (`reviewCorpusSection`, `corpusTraceSection`, `retainedReviewStatus`).
+ * No market section reads reviews.
+ */
+export const REVIEW_DEPENDENT_SECTIONS: readonly { readonly sectionId: string; readonly title: string }[] = [
+  { sectionId: 'I02', title: 'Khách hàng và hoàn cảnh' }, { sectionId: 'I03', title: 'Phương pháp nghiên cứu' },
+  { sectionId: 'I04', title: 'Hành vi' }, { sectionId: 'I05', title: 'Cảm nhận và thái độ' }, { sectionId: 'I06', title: 'Hành trình' },
+  { sectionId: 'I07', title: 'Lý do lựa chọn' }, { sectionId: 'I08', title: 'Rào cản' }, { sectionId: 'I09', title: 'Nhu cầu chưa được đáp ứng' },
+  { sectionId: 'I10', title: 'Chủ đề và mối quan tâm' }, { sectionId: 'I13', title: 'Thương hiệu và đối thủ' }, { sectionId: 'I17', title: 'Phụ lục và bằng chứng' },
+];
+
+type ReviewOutcome = NonNullable<StepResultDocument['exactShopeeOutcome']>;
+/** A non-OK outcome bound to this report's exact collection; old runs, OK runs and replaced review sources show nothing. */
+function missingReviewOutcome(input: AutomationReportInput): ReviewOutcome | null {
+  const value = input.collection?.exactShopeeOutcome;
+  return value && input.collection?.exactShopee && value.outcome !== 'OK' ? value : null;
+}
+/** dd/mm/yyyy in Vietnam time (UTC+7, no daylight saving). */
+const vietnamDate = (iso: string): string => {
+  const day = new Date(Date.parse(iso) + 7 * 3_600_000).toISOString();
+  return `${day.slice(8, 10)}/${day.slice(5, 7)}/${day.slice(0, 4)}`;
+};
+const reviewOutcomeLead = (value: ReviewOutcome): string => {
+  const withReviews = value.listings.filter(row => row.reviews > 0).length;
+  return value.outcome === 'PARTIAL_LISTINGS'
+    ? `Lần thu ngày ${vietnamDate(value.attemptedAt)} chỉ lấy được đánh giá Shopee cho ${withReviews}/${value.listings.length} sản phẩm đã chọn. Phần ý kiến khách hàng chỉ dựa trên các sản phẩm có đánh giá.`
+    : `Lần thu ngày ${vietnamDate(value.attemptedAt)} không lấy được đánh giá Shopee nào cho ${value.listings.length} sản phẩm đã chọn. Phần ý kiến khách hàng trong báo cáo này chưa có dữ liệu.`;
+};
+function reviewOutcomeNotice(value: ReviewOutcome, kind: 'MARKET' | 'INSIGHT'): string {
+  const missing = value.listings.filter(row => row.reviews === 0);
+  return `<div class="warning review-outcome-notice" role="note"><p><strong>${value.outcome === 'PARTIAL_LISTINGS' ? 'Thiếu một phần đánh giá khách hàng Shopee.' : 'Thiếu đánh giá khách hàng Shopee.'}</strong> ${escape(reviewOutcomeLead(value))}</p>`
+    + `<p>Sản phẩm chưa có đánh giá:</p><ul>${missing.map(row => `<li><a href="${escape(row.listingUrl)}" rel="noopener noreferrer">${escape(row.listingUrl)}</a></li>`).join('')}</ul>`
+    + `<p><strong>Phần bị ảnh hưởng${kind === 'MARKET' ? ' (trong báo cáo insight)' : ''}:</strong> ${escape(REVIEW_DEPENDENT_SECTIONS.map(section => `${section.sectionId} ${section.title}`).join('; '))}.</p>`
+    + '<p><strong>Phần vẫn dùng được:</strong> doanh thu, giá, đối thủ, nhu cầu tìm kiếm.</p></div>';
+}
+
 type DeclarationSnapshot = Extract<AutomationLocatedReviewSnapshot, { contractVersion: 'automation-located-review-snapshot-v2' }> | NativeSourceReviewSnapshot;
 function literalPendingSection(snapshot: DeclarationSnapshot, family: LiteralFamily): { notice: string; details: string } {
   const pending = snapshot.projection.pending.filter(row => row.family === family);
@@ -525,7 +564,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     `Ngữ cảnh hoặc bảng nguồn: ${completion.contextSections + completion.sourceTableSections} mục. Chưa có kết quả: ${completion.blockedSections + emptyIds.length} mục.`,
     'Ngữ cảnh, bảng nguồn, kết quả phương pháp từng phần và tệp PDF không đồng nghĩa với phân tích hoàn chỉnh.',
   ].filter(Boolean).join(' ');
-  const appendix = (sectionId: string): string => baseAppendix(sectionId) +
+  const reviewOutcome = missingReviewOutcome(input);
+  const appendix = (sectionId: string): string =>
+    (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
+    baseAppendix(sectionId) +
     (kind === 'MARKET' && sectionId === 'M13' && input.quoteMethods
       ? `<details open id="quote-method-evidence"><summary>Hồ sơ giá M08: nguồn, điều kiện và phép tính</summary><p>Xuất xứ trong manifest là khai báo đã lưu, không phải chứng nhận độc lập. Dữ liệu tổng hợp thủ công hoặc giả lập không trở thành dữ liệu nhà cung cấp đã xác minh.</p><pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escape(JSON.stringify(input.quoteMethods, null, 2))}</pre></details>` : '') +
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
@@ -573,7 +615,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return '';
     return locatedViews.get(section.sectionId) ?? views.get(section.sectionId)!.html;
   };
-  const body = `<p class="warning">${escape(headline)}</p><p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable : ''}${observationTable(section.rows, captures)}${appendix(section.sectionId)}<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${escape(section.method)}</small></p></details></section>`).join('');
+  const body = `<p class="warning">${escape(headline)}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable : ''}${observationTable(section.rows, captures)}${appendix(section.sectionId)}<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${escape(section.method)}</small></p></details></section>`).join('');
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${escape(title)} · ${escape(input.start.keyword)}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`
   // Desktop cover: keep text off the diagonal (yellow stripe spans 61.5%→39.6% of the cover width, top→bottom).
   + `@media screen and (min-width:901px){.cover{container-type:inline-size}.cv-left>div:nth-child(2){max-width:calc(46cqi - 40px)}.cv-meta{max-width:calc(38cqi - 40px)}.cv-right{padding-left:11cqi}}`
