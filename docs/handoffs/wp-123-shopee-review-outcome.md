@@ -40,7 +40,9 @@ Changed paths:
 - `src/platform/collectors/apify-shopee.ts`
 - `src/modules/analysis/research-automation/exact-shopee-bridge.ts`
 - `src/modules/analysis/research-automation/model.ts` (one optional field and a type import)
-- `src/modules/analysis/research-automation/service.ts`. The changes are the exact-Shopee call (it passes `this.#now`), `#persistSourceResult` and the step validator, plus one import line.
+- `src/modules/analysis/research-automation/service.ts`:
+  - the exact-Shopee call (it passes `this.#now`), `#persistSourceResult` and the step validator, plus one import line;
+  - review fix: `#reportCollection` and the Market report input in the report-render path.
 - `src/modules/analysis/research-automation/reports.ts`
 - `frontend/src/research-automation/run-status.ts`
 - `tests/unit/research-automation-exact-shopee-outcome.test.ts` (new, 8 tests)
@@ -69,7 +71,12 @@ Unresolved:
   - with the added markup removed, the page is byte-identical to the render without the field.
   Cleaning the older copy is a separate decision.
 - **Run-page label test:** `frontend/tests` has no existing run-status label test, so none was added there, per the brief. The unit test reads the label map from `run-status.ts` as text, because importing the frontend module breaks the server typecheck (`node16` resolution).
-- **Replaced review source:** when a revision replaces or skips the exact review source, `#reportCollection` (service.ts ~L2026, not edited) drops `exactShopee`. The notice keys on `exactShopee` as well, so it disappears too. The stored step keeps `exactShopeeOutcome`.
+- **Replaced or skipped review source (fixed after owner review, 2026-10-07):**
+  - The first version hid the notice only in the Insight report. The Market report reads the full collection step, so after a revision that skips or replaces the exact review source it still showed the old notice.
+  - Now `#reportCollection` also drops `exactShopeeOutcome`.
+  - The Market report gets the collection without `exactShopeeOutcome` whenever the review collection no longer carries `exactShopee`.
+  - The integration test makes a SKIP revision and checks that both reports of the new pair have no notice, while the original pair keeps it.
+  - The run-page blocker stays, because it records what the collection step did. The pre-existing `EXACT_SHOPEE_ACTOR_FAILED` blocker behaves the same way.
 - **Skills:** the `test-audit` skill and its `TDN-GROWTH-OS.md` note are not in this repo or this environment. `humanizer-vi` is not installed either. The Vietnamese strings follow the brief's wording and stay short.
 
 Next action: The coordinator reviews, then the owner decides on a PR. Merge needs owner approval. WP-125-A2 (wire the citation registry into `reports.ts`) can start after this lands.

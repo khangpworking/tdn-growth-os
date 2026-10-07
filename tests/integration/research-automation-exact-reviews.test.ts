@@ -734,6 +734,20 @@ test('exact review outcome is classified, logged once, shown on the run page and
     assert.equal(calls, 1);
     if (c.name !== 'blocked') return;
 
+    // Removing the review source in a revision removes the notice from BOTH reports; the original pair keeps it.
+    const firstPair = (await state.service.listReportVersions(workspaceId, runId))[0]!;
+    await state.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-report-revision-v1', requestKey: randomUUID(),
+      previousPairId: firstPair.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'SKIP' } } });
+    await state.service.processNext();
+    const skippedPair = (await state.service.listReportVersions(workspaceId, runId)).at(-1)!;
+    assert.notEqual(skippedPair.pairId, firstPair.pairId);
+    for (const kind of ['MARKET', 'INSIGHT'] as const) {
+      const skipped = (await state.service.readReport(workspaceId, runId, kind, false, skippedPair.pairId)).bytes.toString();
+      assert.doesNotMatch(skipped, /review-outcome-notice|Lần thu ngày/, `${kind} after the review source is skipped`);
+      const original = (await state.service.readReport(workspaceId, runId, kind, false, firstPair.pairId)).bytes.toString();
+      assert.match(original, /review-outcome-notice/, `${kind} history is unchanged`);
+    }
+
     // Reuse path: the frozen collection is read back, classified again, logged once, and never recollected.
     logs.length = 0;
     const bridge = new AutomationExactShopeeBridge(state.db, state.artifacts, () => ({ requestsIssued: () => calls, collector: { mode: 'fixture', collect: async () => {

@@ -1399,6 +1399,10 @@ export class ResearchAutomationService {
       controller.signal.throwIfAborted();
       const sources = attempt ? await this.#readAttemptSources(fresh, attempt) : await this.#readFrozenSources(fresh);
       const reviewCollection = attempt ? await this.#reportCollection(fresh.runId, sources, true) : collection;
+      // The Market report reads the full collection, but a revision that skips or replaces the
+      // exact review source must not keep that source's missing-review notice.
+      const marketCollection = collection?.exactShopeeOutcome && !reviewCollection?.exactShopee
+        ? (({ exactShopeeOutcome: _outcome, ...rest }) => rest)(collection) : collection;
       const revisionRequest = attempt ? await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : undefined;
       const priorMarket = attempt && start.reports.includes('MARKET') ? await this.#previousSemantic(fresh, attempt, 'MARKET') : undefined;
       const priorInsight = attempt && start.reports.includes('INSIGHT') ? await this.#previousSemantic(fresh, attempt, 'INSIGHT') : undefined;
@@ -1501,7 +1505,7 @@ export class ResearchAutomationService {
         let input: ResearchAutomationReportInput = { run, start, scope, captures,
           ...(boundedMethods ? { boundedMethods } : {}),
           ...(kind === 'MARKET' && quoteMethods ? { quoteMethods } : {}),
-          collection: kind === 'INSIGHT' ? reviewCollection : descriptiveMethodFailure && collection ? { ...collection, comparables: [] } : collection,
+          collection: kind === 'INSIGHT' ? reviewCollection : descriptiveMethodFailure && marketCollection ? { ...marketCollection, comparables: [] } : marketCollection,
           ...(kind === 'MARKET' && descriptiveMethods ? { descriptiveMethods } : {}),
           ...(kind === 'MARKET' && descriptiveMethodFailure ? { descriptiveMethodFailure } : {}),
           ...(kind === 'INSIGHT' && reviewCorpus ? { reviewCorpus } : {}),
@@ -2026,7 +2030,7 @@ export class ResearchAutomationService {
   async #reportCollection(runId: string, sources: FrozenSources | undefined, supplemental: boolean): Promise<StepResultDocument | null> {
     const original = await this.#stepDocument(runId, 'COLLECTION');
     if (!supplemental || !sources || !original) return original;
-    const { exactShopee: _exact, nativeReview: _native, ...withoutReviews } = original;
+    const { exactShopee: _exact, exactShopeeOutcome: _outcome, nativeReview: _native, ...withoutReviews } = original;
     if (sources.nativeReference) return { ...withoutReviews, nativeReview: sources.nativeReference };
     if (sources.value.nativeReview.decision === 'SKIPPED') return withoutReviews;
     return original;
