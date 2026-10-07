@@ -9,6 +9,8 @@ Có hai lớp tài liệu về phương pháp, và hai lớp này **không giố
 1. **Nghiệp vụ Ultimate** ([ultimate-method-30-sections.md](ultimate-method-30-sections.md)) nói báo cáo **được làm gì, không được làm gì**. Chủ dự án xác nhận ngày 07/10/2026: **business rule của Ultimate là nguồn chuẩn**, TDN phải theo. Khi có tranh cãi về nghiệp vụ thì theo file này, trừ khi chủ dự án có quyết định mới hơn.
 2. **TDN đang áp dụng** là những gì hệ thống thật sự đã có: recipe kỹ thuật, cấu hình, code và test trong repo.
 
+Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md).
+
 Nghiệp vụ luôn đi trước, hệ thống theo sau. Một quy tắc có trong Ultimate nhưng chưa vào code thì **chưa được coi là hệ thống đã làm**. Bảng ở mục 4 cho biết từng section đang lệch ở đâu.
 
 ---
@@ -43,7 +45,7 @@ Ba loại báo cáo đang dùng các lớp khác nhau:
 ## 3. Đưa một quyết định mới vào hệ thống
 
 1. Chủ dự án quyết bằng văn bản (tin nhắn, issue, PR).
-2. Ghi vào Ultimate: tăng phiên bản, thêm ngoại lệ hoặc làm rõ, cập nhật lịch sử phiên bản (mục 9 của Ultimate).
+2. Ghi vào Ultimate: tăng phiên bản, thêm ngoại lệ hoặc làm rõ, cập nhật lịch sử phiên bản (mục 9 của Ultimate), và thêm một dòng vào [CHANGELOG.md](CHANGELOG.md) trong cùng commit.
 3. Cập nhật recipe A40 của section liên quan và, nếu cần, cấu hình A41.
 4. Tạo gói việc có checklist (theo `docs/tasks/research-batch-2-packages.md` và `docs/runbooks/agent-pipeline.md`), sửa code, thêm test và lint.
 5. Chạy trên dữ liệu thật, review output.
@@ -66,7 +68,7 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 | M05 | PROPOSED | Đề xuất; chưa chốt proxy nhu cầu | Mô tả hẹp; replay thật 2 case | Cập nhật 05/10: thêm review không tự nâng giá trị claim |
 | M06 | PROPOSED + VALIDATED_IN_SAMPLE | Đề xuất | Inventory hẹp; replay thật 2 case | Kết quả kiểm chứng 05/10 |
 | M07 | PROPOSED | Đề xuất; chưa có tập đối thủ | So sánh peer tường minh, không xếp hạng | Nguồn so sánh chốt 05/10; nội dung video đối thủ (v1.1, mục 6) |
-| M08 | BOUNDED + BENCHMARK + E1 | Chỉ số học một quote (A24) | Phép tính giá/gói/đơn vị/100g | E1 (ROAS/CPA, miễn trừ). Bản review 05/10 ghi phép quy đổi 100g **vượt biên A24**, chưa có duyệt của chủ: cần chủ quyết giữ hay bỏ |
+| M08 | BOUNDED + BENCHMARK + E1 + E9 | Chỉ số học một quote (A24) | Phép tính giá/gói/đơn vị/100g | E1 (ROAS/CPA, miễn trừ). **Đã quyết 07/10 (v1.2):** giá theo đơn vị chuẩn của từng ngành hàng và so cạnh nhau theo E9; phép 100g nay có căn cứ cho hàng bán theo khối lượng, nhưng phải theo bảng đơn vị chuẩn và điều kiện E9 |
 | M09 | PROPOSED | Đề xuất | Inventory ngày ra mắt; replay thật 2 case | Kênh báo cáo ngành 05/10 |
 | M10 | BLOCKED | Gate | Gate đã nối | Nguyên tắc kịch bản có điều kiện 05/10 |
 | M11 | PROPOSED | Chờ chính sách chủ | Packet bản nháp chờ review | Định nghĩa cơ hội = giao 3 tín hiệu (05/10) |
@@ -96,13 +98,15 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 ### Từ Ultimate v1.0 (05/10), chưa bàn giao vào TDN
 
 - M06: kết quả kiểm chứng trong mẫu.
-- M08: E1 (ROAS/CPA tham khảo, câu miễn trừ, chưa dùng Ad Spend); quyết định về phép quy đổi 100g.
+- M08: E1 (ROAS/CPA tham khảo, câu miễn trừ, chưa dùng Ad Spend).
 - M09: kênh báo cáo ngành.
 - M10: kịch bản có điều kiện và điều kiện mở lại.
 - M11: định nghĩa giao 3 tín hiệu.
 - E2, E3 cho luồng tự động; điều chỉnh mục "Cấm" của M01, M12.
 
-### Từ Ultimate v1.1 (07/10)
+### Từ Ultimate v1.1 và v1.2 (07/10)
+
+- M08 (v1.2): bảng đơn vị chuẩn theo ngành hàng, tách khối lượng tịnh và khối lượng cái, so cạnh nhau theo E9.
 
 - Recipe I02 và quyết định D06: cho phép chân dung theo E4 (chủ đã quyết 07/10, TDN phải sửa); thêm lớp E5.
 - L1–L7 vào recipe các section Insight và vào lint của bản đọc (gói P2 hoặc P8): cấm so sánh bậc nhất làm nhận định, nhãn tại câu có số khi coding chưa duyệt, không gộp bản ghi trùng chữ, số sao tách riêng.

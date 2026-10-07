@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.1 · ngày 07/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.2 · ngày 07/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -10,7 +10,10 @@ File hợp nhất:
 2. Gói cấu hình A41 đã review kinh doanh (30/09–01/10/2026), tại `docs/research/method-configurations-v1/`.
 3. Điều chỉnh đã chốt ngày 02/10/2026 (research-method contracts: temporal, quote, synthesis, corpus review).
 4. Cập nhật thảo luận ngày 05/10/2026 cho M06, M08, M09, M10, M11 và ngoại lệ E1–E3 (bản v1.0).
-5. **Mới ở v1.1 (07/10/2026):** quyết định của chủ dự án cho phần Insight: ngoại lệ E4–E8, làm rõ cách áp quy tắc chung cho Insight, và danh mục nguồn dữ liệu cho Insight (mục 6).
+5. **v1.1 (07/10/2026):** quyết định của chủ dự án cho phần Insight: ngoại lệ E4–E8, làm rõ cách áp quy tắc chung cho Insight, và danh mục nguồn dữ liệu cho Insight (mục 6).
+6. **v1.2 (07/10/2026):** M08 tính giá theo đơn vị chuẩn của từng ngành hàng, và ngoại lệ E9 cho phép so cạnh nhau có điều kiện.
+
+Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi.
 
 Quy ước trạng thái:
 
@@ -146,6 +149,22 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
   - **Được phép:** đề xuất thu review mở rộng với điều kiện dừng là đạt ngưỡng chất lượng, không phải hết ngân sách.
   - **Vẫn bắt buộc:** mỗi lần chi thật (gọi nhà cung cấp, mua hàng thử) báo trước danh sách và ước tính chi phí để chủ duyệt.
 
+**Ngoại lệ ngày 07/10/2026 (mới ở v1.2, phần Market)**
+
+- **E9 · Phần 8 (M08) – so giá theo đơn vị chuẩn.**
+  - **Căn cứ:** chủ đồng ý "chỉ được so khi cùng đơn vị chuẩn, cùng loại giá, cùng kỳ, và chỉ 'sắp xếp', không kết luận 'rẻ nhất / tốt nhất'" (07/10/2026).
+  - **Được phép:** đặt cạnh nhau và **sắp xếp** giá theo đơn vị chuẩn (bảng đơn vị chuẩn ở M08) giữa nhiều sản phẩm, khi cả ba điều kiện cùng đúng:
+    - cùng đơn vị chuẩn, kể cả cùng cơ sở khối lượng (tịnh hay cái); hàng dùng lâu thì cùng nhóm quy cách;
+    - cùng loại giá: giá niêm yết, giá thanh toán, giá khuyến mãi có điều kiện không trộn với nhau;
+    - cùng kỳ quan sát.
+  - **Bắt buộc:** ghi đơn vị chuẩn, loại giá, kỳ, và số lượng lấy từ đâu (trang bán có locator, hay chủ khai báo). Sản phẩm thiếu số lượng hoặc thiếu giá vẫn được liệt kê với trạng thái "chưa rõ", nhưng không đưa vào phần sắp xếp.
+  - **Vẫn cấm:**
+    - kết luận "rẻ nhất", "đắt nhất", "tốt nhất", "đáng mua nhất";
+    - gọi kết quả là "giá thị trường" hay "giá trung bình ngành";
+    - suy chất lượng, giá trị, biên lợi nhuận hay mức giá nên bán từ giá theo đơn vị;
+    - so khác đơn vị chuẩn, khác loại giá hoặc khác kỳ;
+    - quy đổi hàng dùng lâu theo ml hay gram.
+
 ---
 
 ## 3. Bảng tổng quan 30 section
@@ -159,7 +178,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 | 5 | M05 | Nhu cầu | Additional | Phân vùng thước đo nghĩa đen theo nguồn; proxy nhu cầu phải người duyệt | PROPOSED + BUSINESS_REVIEWED |
 | 6 | M06 | Nguồn cung | Additional | Inventory cung có locator; có kiểm chứng agent ngày 05/10 (phần mẫu hẹp) | PROPOSED + VALIDATED_IN_SAMPLE |
 | 7 | M07 | Đối thủ | Additional | So sánh cạnh nhau theo peer-set chủ khai báo; không rank | PROPOSED + BUSINESS_REVIEWED |
-| 8 | M08 | Giá và kinh tế đơn vị | Existing + bổ sung | Số học quote đơn lẻ A24/P4 + benchmark ROAS/CPA (05/10) | BOUNDED + BENCHMARK_ADDED + E1 |
+| 8 | M08 | Giá và kinh tế đơn vị | Existing + bổ sung | Số học quote A24/P4 + giá theo đơn vị chuẩn từng ngành hàng (v1.2) + benchmark ROAS/CPA (05/10) | BOUNDED + BENCHMARK_ADDED + E1 + E9 |
 | 9 | M09 | Động lực và rủi ro | Additional | Inventory sự kiện có nguồn/ngày + kênh báo cáo ngành (05/10) | PROPOSED + BUSINESS_REVIEWED |
 | 10 | M10 | Dự báo và kịch bản | Additional | Gate đủ điều kiện; chỉ kịch bản có điều kiện; forecast sản xuất chặn | BLOCKED (by design) |
 | 11 | M11 | Cơ hội | Synthesis | Giao 3 tín hiệu; inventory evidence không rank (05/10) | PROPOSED + BUSINESS_REVIEWED |
@@ -233,9 +252,22 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 - **Cấm:** rank/winner/best-worst, tương đương sản phẩm tự suy, chiến lược/tiện lợi giá nếu chưa có phương pháp được duyệt.
 - **Liên quan v1.1:** nội dung video và quảng cáo của đối thủ (mục 6) được dùng ở đây như lời người bán (L7), theo peer-set chủ khai báo.
 
-### M08 · Giá và kinh tế đơn vị — BOUNDED + BENCHMARK_ADDED (cập nhật 05/10)
+### M08 · Giá và kinh tế đơn vị — BOUNDED + BENCHMARK_ADDED + E9 (cập nhật 05/10, 07/10)
 
 - **Phần chuẩn hóa giá (A24/P4, duy nhất đã có code):** số học chính xác cho **một** quote (giá/kháp, giá/viên theo packCount do chủ khai báo), giữ rational + hiển thị 2 chữ số half-even; không so sánh quote, không giá thị trường, không biên lợi nhuận.
+- **Giá theo đơn vị chuẩn của từng ngành hàng (mới ở v1.2):** chủ chọn đơn vị chuẩn cho ngành hàng **trước khi** tính.
+
+  | Loại sản phẩm | Đơn vị chuẩn | Ghi chú |
+  |---|---|---|
+  | Bán theo khối lượng | Giá / 100 g | Tách **khối lượng tịnh** và **khối lượng cái** (sau khi chắt nước), ví dụ thạch dừa ngâm nước. Chủ chọn cơ sở nào cho ngành hàng; thiếu khối lượng cái thì không suy từ khối lượng tịnh |
+  | Bán theo thể tích | Giá / 100 ml | Đồ uống, chất lỏng dùng dần |
+  | Bán theo số lượng | Giá / đơn vị (viên, gói, túi lọc, cái…) | Đơn vị đếm phải cùng loại |
+  | Hàng dùng lâu | Giá / cái, chỉ trong cùng nhóm quy cách (dung tích, chất liệu, kích cỡ) | Không chia theo ml hay gram; ví dụ bình giữ nhiệt 500 ml và 1 lít là hai nhóm |
+  | Combo, bộ nhiều loại | Giá / combo | Không chia nhỏ |
+
+  - Số gram, số ml, số đơn vị lấy từ trang bán (có locator) hoặc do chủ khai báo. Thiếu thì "chưa rõ"; không đoán từ tiêu đề.
+  - Giá niêm yết, giá thanh toán, giá khuyến mãi có điều kiện là ba loại giá khác nhau, không thay nhau.
+  - So giữa nhiều sản phẩm chỉ theo **E9**.
 - **Phần benchmark quảng cáo (05/10):** với các trường ROAS/CPA, dùng dữ liệu Kalodata cho thị trường quảng cáo Việt Nam sau khi xác nhận API hỗ trợ; kèm disclaimer bắt buộc: *"Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế."*
 - **Trạng thái xác nhận:** API đã xác nhận trả được **ROAS và CPA**; **chưa xác nhận trường Ad Spend trực tiếp** — không đặt số Ad Spend vào báo cáo cho đến khi xác nhận.
 - **Chặn:** Kalodata không chứng minh giá vốn, chi phí thực, lợi nhuận thực; các trường này giữ `UNKNOWN` hoặc loại khỏi report, không nội suy từ ROAS/CPA.
@@ -448,6 +480,8 @@ Lưu ý giữ từ v1.0: hồ sơ tiếp nhận của TDN mô tả phương phá
 
 ## 9. Lịch sử phiên bản
 
+Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md).
+
 - **v1.0 — 05/10/2026:** hợp nhất lần đầu từ A40 + A41 + remediation 02/10; bổ sung cập nhật 05/10 cho M06, M07, M08, M09, M10, M11; ngoại lệ E1–E3.
 - **v1.1 — 07/10/2026:** đưa file vào repo làm nguồn chuẩn, bỏ đường dẫn máy cá nhân. Thêm cho Insight:
   - ba loại tiếng nói (mục 1);
@@ -459,3 +493,4 @@ Lưu ý giữ từ v1.0: hồ sơ tiếp nhận của TDN mô tả phương phá
   Chủ xác nhận business rule của file này là nguồn chuẩn, TDN phải theo (mục 1); I02 cho dựng chân dung theo E4, TDN sửa theo.
 
   Quy tắc chung 1–9, ngoại lệ E1–E3 và các section Market không đổi. Tham số mặc định của E5 là đề xuất ban đầu, chủ chỉnh được.
+- **v1.2 — 07/10/2026:** M08 thêm bảng đơn vị chuẩn theo ngành hàng (khối lượng, thể tích, số lượng, hàng dùng lâu, combo); ngoại lệ E9 cho phép so cạnh nhau và sắp xếp giá theo đơn vị chuẩn khi cùng đơn vị, cùng loại giá, cùng kỳ, không kết luận "rẻ nhất / tốt nhất".
