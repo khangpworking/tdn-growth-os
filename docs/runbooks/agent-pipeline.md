@@ -23,7 +23,7 @@ Chủ shop chỉ cần xử lý khi được báo: sẵn sàng merge, hoặc b�
 | Runner | a script on the Fedora operator host (built from this spec; kept private, not in this repo) | create worktrees, start workers and reviewers, run gates, push the package branch, open a draft PR, read PR comments, notify the owner | merge, deploy, edit code itself |
 | Worker | oh-my-pi or opencode, worker model | edit owned paths, commit locally, write the handoff | push, PR, `gh`, network calls to providers |
 | Advisor | the tool's advisor role, a stronger model | answer the worker's design questions inside the session | edit files |
-| Reviewer | the tool's review role, **a different model from the worker** | read the diff, re-run the gates, write a verdict | edit files, push |
+| Reviewer | **Codex CLI on Fedora (via Orca), model Astra 6, reasoning effort high, read-only sandbox** (owner choice 2026-10-07; see §5) | read the diff, re-run the gates, write a verdict | edit files, push |
 | Final reviewer | a Claude Code cloud session (scheduled routine or on request) | re-run the tests on Linux, verify the checklist, post a review, mark the PR ready | push to the package branch, merge |
 | Owner | khangpworking | merge, deploy, approve paid or live actions | |
 
@@ -73,6 +73,16 @@ A wave-1 package starts as soon as the runner is free. A gated package (P5–P8)
 
 ## 5. Review step (internal, every round)
 
+- **Reviewer command (owner choice 2026-10-07):**
+
+  ```bash
+  codex exec --sandbox read-only -c model='"<Astra 6 model id as Codex lists it>"' -c model_reasoning_effort='"high"' \
+    --cd <worktree> "<review prompt>" </dev/null
+  ```
+
+  - The reviewer is always a different model from the worker; Astra 6 is never the worker in the same round.
+  - Running the gates needs `npm test` to write temp files. If the read-only sandbox blocks that, the runner runs the gates (§6) and passes their output to the reviewer.
+  - If the ChatGPT/Codex quota is exhausted, the runner marks the package `BLOCKED: reviewer quota` and notifies the owner. It never falls back to the worker's own model. Another reviewer model needs an owner decision.
 - **Input:**
   - `git diff origin/main...HEAD`;
   - the package section;
