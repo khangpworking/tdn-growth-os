@@ -17,6 +17,7 @@ import {
   buildMarketReport, computeReaderReportData, publishReaderReport, ReaderAssetError, ReaderReportGateError, ReaderReportInputError,
   ReaderSourceError, storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
+import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
 import { MetricWebSnapshotError } from './metric-web-snapshot.js';
@@ -34,6 +35,7 @@ const validDecision = def<ResearchAutomationReaderDecisionRequest>('decisionRequ
 const validRevision = def<ResearchAutomationReaderRevision>('revision');
 
 export const READER_BUILDER_VERSION = 'reader-report-market-v3';
+export const NEXT_MARKET_READER_BUILDER_VERSION = 'reader-report-market-v4';
 export const MAX_READER_HTML_BYTES = 32 * 1024 * 1024;
 const sha = (bytes: Uint8Array | string): string => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value), 'utf8');
@@ -107,7 +109,7 @@ export class AutomationReaderReports {
 
     if (request.metricPackageId !== context.metric.packageId) throw new ResearchAutomationIntegrityError('Reader build context names another package.');
     const period = context.metric.measurementPeriod;
-    if (request.contractVersion === 'reader-report-build-v1' && request.source !== undefined &&
+    if ((request.contractVersion === 'reader-report-build-v1' || request.contractVersion === 'reader-report-build-v1.2') && request.source !== undefined &&
       (request.source.measurementPeriod.start !== period.startDate || request.source.measurementPeriod.end !== period.endDate))
       throw new ResearchAutomationValidationError('Kỳ số liệu khai báo khác kỳ của tệp đã gắn vào lượt.');
     const latest = this.#latest(context.runId);
@@ -129,18 +131,34 @@ export class AutomationReaderReports {
     // computeReaderReportData re-validates the whole input against its schema.
     // A reader-report-build-v1.1 request carries a web snapshot; the effective (derived) period
     // is checked against the attached file below, after compute.
+    const next = request.contractVersion === 'reader-report-build-v1.2';
+    const builderVersion = next ? NEXT_MARKET_READER_BUILDER_VERSION : READER_BUILDER_VERSION;
+    const retainedUnitPriceSources: RetainedUnitPriceSource[] = [];
+    if (next && request.unitPrices) {
+      let totalBytes = 0;
+      for (const source of request.unitPrices.sources) {
+        let bytes: Buffer;
+        try { bytes = await this.artifacts.read(source.sha256, { maxBytes: 2 * 1024 * 1024 }); }
+        catch { throw new ResearchAutomationValidationError('Không đọc được bản lưu quy cách hoặc khai báo số lượng.'); }
+        totalBytes += bytes.byteLength;
+        if (sha(bytes) !== source.sha256 || totalBytes > 8 * 1024 * 1024) throw new ResearchAutomationIntegrityError('Bản lưu quy cách không vượt qua kiểm tra toàn vẹn hoặc giới hạn kích thước.');
+        retainedUnitPriceSources.push({ sha256: source.sha256, bytes });
+      }
+    }
     const input = {
-      contractVersion: '1.3.0', peerRule, ownerPeerProductIds: additions,
+      contractVersion: next ? '1.4.0' : '1.3.0', peerRule, ownerPeerProductIds: additions,
       profile: request.profile, platforms, rows, rowLineage: { sha256: sha(context.metric.workbook) },
       ...(request.source === undefined ? {} : { source: request.source }),
-      ...(request.contractVersion === 'reader-report-build-v1' ? {} : {
+      ...(request.webSnapshot === undefined ? {} : {
         webSnapshot: request.webSnapshot,
         webSnapshotSha256: request.webSnapshotSha256,
       }),
+      ...(next && request.unitPrices ? { unitPrices: request.unitPrices } : {}),
     } as unknown as ReaderReportInput;
     let data;
-    try { data = computeReaderReportData(input); }
+    try { data = computeReaderReportData(input, retainedUnitPriceSources); }
     catch (error) {
+      if (error instanceof MarketUnitPriceError) throw new ResearchAutomationValidationError('Không xác minh được quy cách hoặc giá từ bản lưu. Hãy kiểm tra đúng listing, biến thể, số lượng, kỳ và vị trí nguồn; không dùng quan sát trùng.');
       if (error instanceof ReaderReportInputError || error instanceof ReaderSourceError || error instanceof MetricWebSnapshotError) {
         throw new ResearchAutomationValidationError(error.message);
       }
@@ -170,11 +188,15 @@ export class AutomationReaderReports {
     const webResults = context.webResults ?? [];
     const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults });
     let published;
-    try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk }); }
-    catch (error) { if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(error.message); throw error; }
+    try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: next }); }
+    catch (error) {
+      if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError(next
+        ? 'Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày. Hãy kiểm tra nguồn, nhận định và nhãn phân loại chờ chủ duyệt trước khi tạo phiên bản mới.' : error.message);
+      throw error;
+    }
     const profile = (await storeReaderProfile(this.artifacts, request.profile)).artifact;
     const record = await this.artifacts.put(json({
-      contractVersion: 'reader-report-build-record-v1', builderVersion: READER_BUILDER_VERSION, revisionId,
+      contractVersion: 'reader-report-build-record-v1', builderVersion, revisionId,
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
       requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
       defaultMarketPeers: data.defaultMarketPeers,
@@ -200,7 +222,7 @@ export class AutomationReaderReports {
         builder_version,actor_id,created_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
         revisionId, context.workspaceId, context.runId, next, request.requestKey, requestSha, context.draftPairId, request.metricPackageId,
         platforms.join(','), request.profile.status, record.sha256, profile.sha256, stored?.coverSha256 ?? null,
-        published.html.sha256, published.metrics.sha256, published.claims.sha256, READER_BUILDER_VERSION, actor.actorId, createdAt);
+        published.html.sha256, published.metrics.sha256, published.claims.sha256, builderVersion, actor.actorId, createdAt);
       this.db.exec('COMMIT');
     } catch (error) {
       if (this.db.inTransaction) this.db.exec('ROLLBACK');

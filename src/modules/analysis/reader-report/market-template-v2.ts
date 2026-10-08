@@ -10,10 +10,12 @@ import { MARKET_TOC, readerWebResults, type BuiltMarketReport, type MarketReport
 import { CitationRegistry } from '../citation-registry.js';
 import { renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import type { MetricWebCellFact, MetricWebTableFact } from '../research-automation/metric-web-facts.js';
+import { marketFindings } from './market-findings.js';
 
 /** Missing-input projection. No chart fabricates a zero bar for an unobserved value. */
 export async function buildMarketReportV2(d: ReaderReportData, options: MarketReportOptions): Promise<BuiltMarketReport> {
   const { input, profile, rows, bundle: B } = d, PLATS = input.platforms;
+  const next = input.contractVersion === '1.4.0';
   const narrator = new Narrator(B), registry = new CitationRegistry(), extraOk = new Set<string>();
   const label = (s: string): string => { if (/\d/.test(s)) extraOk.add(s); return esc(s); };
   const source = input.source!;
@@ -27,13 +29,27 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       label: i === undefined ? 'Số liệu đã tính từ nguồn đã lưu' : 'Dòng số liệu nguồn', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
   };
-  const bf = (id: string): string => B.f(id) + cite();
-  const nar = (template: string, where: string): string => narrator.nar(template, where) + cite();
+  const pendingId = (id: string): boolean => next && profile.status === 'proposed' && !id.endsWith('.threshold') && /\.core\.|\.seg\.|\.coh\.|^shop\.|^peers\.|^rule\./.test(id);
+  const bf = (id: string): string => (pendingId(id) && B.value(id) !== null
+    ? `<span data-classified="pending">${B.f(id)}</span> (đề xuất, chờ chủ duyệt)` : B.f(id)) + cite();
+  const nar = (template: string, where: string): string => {
+    const pending = [...template.matchAll(/\{\{([^}:]+)/g)].some(m => pendingId(m[1]!));
+    const text = narrator.nar(pending ? template.replace(/\.$/, '') + ' (đề xuất, chờ chủ duyệt).' : template, where);
+    return (pending ? `<span data-classified="pending">${text}</span>` : text) + cite();
+  };
   const segName = (k: string): string => profile.segments[k] ?? k;
   const status = profile.status === 'approved' ? 'đã được chủ duyệt' : 'đề xuất, chờ chủ duyệt';
   const sections: string[] = [], charts: BuiltMarketReport['charts'] = [];
-  const summary = PLATS.map(P => nar(`${PLATFORM_LABEL[P]}: {{${P}.core.rev}} doanh thu, {{${P}.core.units}} đơn vị bán trong mẫu`, `M01.${P}`)).join('; ');
-  sections.push(section('M01', 'Kết luận chính', summary,
+  const summary = next ? '' : PLATS.map(P => nar(`${PLATFORM_LABEL[P]}: {{${P}.core.rev}} doanh thu, {{${P}.core.units}} đơn vị bán trong mẫu`, `M01.${P}`)).join('; ');
+  if (next) {
+    const findings = marketFindings(d);
+    const groups = profile.core.map(k => label(segName(k))).join('; ');
+    sections.push(section('M01', 'Kết luận chính', 'Các nhận định mô tả mẫu đã lưu, không sắp theo mức quan trọng.',
+      `<p>Phạm vi: trong mẫu sản phẩm đã lưu; kỳ ${period}; sản phẩm ${label(profile.product)}; nhóm lõi theo thứ tự hồ sơ: ${groups}. Mỗi sàn giữ riêng.</p>` +
+      `<ul class="market-findings">${findings.map(finding => `<li><p><b>Nhận định:</b> ${nar(finding.template, `M01.finding.${finding.id}`)}</p><p><b>Bằng chứng:</b> ${finding.exhibit}${cite()}.</p><p><b>Trạng thái:</b> ${finding.classified && profile.status === 'proposed' ? 'Phân loại đề xuất, chờ chủ duyệt; số ước tính trong mẫu.' : 'Quan sát mô tả từ bản lưu; số bán hàng là ước tính.'} Phạm vi ${label(profile.product)}, nhóm ${groups}, kỳ ${period}.</p></li>`).join('')}</ul>` +
+      (findings.length < 4 ? '<p>Chưa đủ bằng chứng để có bốn nhận định; không bổ sung nhận định không có nguồn. Phần kết luận còn thiếu.</p>' : '') +
+      '<p>Số ước tính chưa đối chiếu với người bán. Không suy ra số người mua, quy mô ngoài mẫu hay nguyên nhân.</p>', sourceText));
+  } else sections.push(section('M01', 'Kết luận chính', summary,
     `<p>Thiếu dữ liệu được ghi riêng, không thay bằng số không. Nhóm sản phẩm ${status}.</p><p>${PLATS.map(P => profile.core.map(k => nar(`${PLATFORM_LABEL[P]} · ${label(segName(k))}: {{${P}.seg.${k}.revShare}} doanh thu lõi trong mẫu`, `M01.group.${P}.${k}`)).join('; ')).join('<br>')}. → Bảng 4.1</p><p>Ngày mở bán chưa rõ: xem Bảng 6.1. Phương án ở Phần 12 đều chờ chủ duyệt.</p>`, sourceText));
   const reconciliation = d.webReconciliation.map(warning => `<p>${esc(warning.detail)}</p>`).join('');
   const reconciliationState = d.webFacts === null ? '' : '<p>Đối chiếu riêng từng sàn: doanh thu thiếu ở một dòng làm phép đối chiếu của sàn đó chưa xác định. Các sàn đủ số vẫn được kiểm tra; không cộng chéo sàn để đối chiếu.</p>';
@@ -83,7 +99,49 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
   } });
   sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
-  sections.push(section('M08', 'Giá và kinh tế đơn vị', 'Giá trung bình chỉ có khi doanh thu và đơn vị bán cùng dòng đều có số, mẫu số khác không.', salesTable('8.1'), 'Không có giá vốn hoặc phép quy đổi đã xác minh; chưa tính lãi hay giá theo đơn vị chuẩn.'));
+  let unitPriceTables = '';
+  if (next) {
+    const mark = (ref: { sourceSha256: string; locator: string }): string => {
+      const no = registry.cite({ sourceKind: 'CAPTURE', identity: ref.sourceSha256,
+        locator: { kind: 'source-locator', value: ref.locator }, label: 'Quy cách và giá trong bản lưu nguồn',
+        retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+      return no === null ? 'Chưa có nguồn' : renderCitationMark(no);
+    };
+    const prices = { LISTED: 'Giá niêm yết', PAYMENT: 'Giá thanh toán', CONDITIONAL_PROMO: 'Giá khuyến mãi có điều kiện' };
+    const groups = new Map<string, typeof d.unitPrices>();
+    const missing: typeof d.unitPrices = [];
+    d.unitPrices.forEach((item, index) => {
+      for (const [field, value] of [['price', item.observation.price.value], ['quantity', item.observation.quantity.value], ['standard', item.value]] as const) {
+        const id = `unitPrice.${index}.${field}`;
+        if (value === null) B.setMissing(id, field === 'quantity' ? 'grouped' : 'dong'); else B.set(id, value, field === 'quantity' ? 'grouped' : 'dong');
+      }
+      if (item.value === null) missing.push(item);
+      else groups.set(item.comparisonKey, [...(groups.get(item.comparisonKey) ?? []), item]);
+    });
+    const cells = (item: typeof d.unitPrices[number]): string[] => {
+      const index = d.unitPrices.indexOf(item), observation = item.observation;
+      const title = input.rows.find(row => row.i === item.rowI)!.title;
+      return [plat(observation.platform), `<span data-quote>${esc(title)}</span><br><small>${label(observation.listing)}</small>`, `<span data-quote>${esc(observation.variant)}</span>`, label(observation.category.label),
+        n(B.f(`unitPrice.${index}.price`)), `${n(B.f(`unitPrice.${index}.quantity`))} ${label(observation.quantity.unit)}`,
+        n(B.f(`unitPrice.${index}.standard`)), label(item.standard), prices[observation.price.kind],
+        label(`${observation.period.start} – ${observation.period.end}`),
+        item.missing ?? 'Có dữ liệu khai báo đã đối chiếu bản lưu',
+        `${item.ownerDeclared ? 'Số lượng do chủ khai báo' : 'Số lượng từ quy cách trang bán đã lưu'}${item.sources.map(mark).join('')}`,
+        observation.price.conditions.length ? `<span data-quote>${observation.price.conditions.map(esc).join('; ')}</span>` : 'Không ghi điều kiện khuyến mãi'];
+    };
+    const headings = ['Sàn', 'Sản phẩm / mã nguồn', 'Biến thể', 'Ngành hàng', 'Giá (đồng)', 'Số lượng', 'Giá theo đơn vị chuẩn', 'Đơn vị chuẩn / cơ sở', 'Loại giá', 'Kỳ quan sát', 'Trạng thái', 'Nguồn số lượng', 'Điều kiện giá'];
+    let no = 2;
+    unitPriceTables = [...groups.values()].map(group => tbl(`8.${no++}`, 'Giá theo đơn vị chuẩn — sắp xếp tăng dần trong phạm vi tương thích', '', headings,
+      [...group].sort((a, b) => a.value! - b.value! || a.rowI - b.rowI).map(cells),
+      { src: 'Quy cách trang bán và khai báo số lượng được giữ nguyên trong bản lưu.', note: 'Giá hiển thị làm tròn đến đồng; sắp xếp theo giá trị chưa làm tròn. Số lượng hiển thị tối đa ba chữ số thập phân. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị/cơ sở, loại giá, điều kiện giá và kỳ. Hàng dùng lâu cùng nhóm quy cách; combo không tách thành món.' })).join('');
+    if (missing.length) unitPriceTables += tbl(`8.${no++}`, 'Dòng chưa rõ — không đưa vào sắp xếp', '', headings, missing.map(cells), { src: 'Quy cách trang bán trong bản lưu nguồn.' });
+    if (!d.unitPrices.length) unitPriceTables = '<p>Chưa có bản lưu quy cách và giá tương thích đã xác minh. Chưa tính giá theo đơn vị chuẩn; không đoán số lượng từ tiêu đề.</p>';
+    const observed = new Set(d.unitPrices.map(item => item.rowI));
+    const absent = rows.filter(row => !observed.has(row.i));
+    if (absent.length && d.unitPrices.length) unitPriceTables += tbl(`8.${no}`, 'Listing chưa có quy cách/giá đã xác minh — không đưa vào sắp xếp', '', ['Sàn', 'Tiêu đề nguồn', 'Trạng thái'], absent.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, 'Chưa rõ số lượng và giá niêm yết' + cite(row.i)]));
+    unitPriceTables += '<p>Kỳ quan sát giá ghi ở từng dòng và giữ riêng với kỳ doanh số. Khối lượng tịnh và khối lượng cái giữ riêng; thể tích tính theo đơn vị chuẩn, hàng đếm giữ cùng loại đơn vị. Quy đổi chỉ từ quy cách có vị trí nguồn hoặc khai báo của chủ. Đây là đối chiếu khai báo với bản lưu nguồn, không xác thực người bán. Không suy chất lượng, biên lợi nhuận hay mức giá nên bán.</p><p>Chưa có trường ROAS hoặc CPA với nguồn đã xác nhận trong đầu vào đã lưu; chưa có số liệu quảng cáo (ước tính) để tham khảo. Không suy từ doanh thu hoặc chi tiêu quảng cáo.</p><p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
+  }
+  sections.push(section('M08', 'Giá và kinh tế đơn vị', 'Giá trung bình chỉ có khi doanh thu và đơn vị bán cùng dòng đều có số, mẫu số khác không.', salesTable('8.1') + unitPriceTables, next ? 'Giá bán trung bình = doanh thu ÷ đơn vị bán trong mẫu; giữ riêng với giá niêm yết, thanh toán và khuyến mãi có điều kiện. Chưa tính lãi vì không có giá vốn.' : 'Không có giá vốn hoặc phép quy đổi đã xác minh; chưa tính lãi hay giá theo đơn vị chuẩn.'));
   sections.push(section('M09', 'Động lực và rủi ro', 'Chưa đủ bằng chứng để kết luận nguyên nhân.', tbl('9.1', 'Ngày mở bán do nguồn ghi, giữ riêng từng dòng', '', ['Sàn', 'Tiêu đề nguồn', 'Ngày mở bán'], rows.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, row.start === null || row.start === undefined ? 'Chưa rõ ngày' : label(row.start)]))));
   sections.push(section('M10', 'Dự báo và kịch bản', 'Chưa dự báo.', '<p>Cần chuỗi phù hợp và giả định đã kiểm chứng trước khi lập kịch bản.</p>'));
   sections.push(...currentProposals({ PLATS, coreSegs: profile.core, segName, bf, tbl, SRC: sourceText }));
@@ -151,5 +209,5 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
   const html = page({ title: `Báo cáo thị trường – ${profile.product}`, coverHtml: cover(options.cover ?? null, `Dữ liệu ${period}`, ['Báo cáo thị trường', profile.product, 'Bản đọc cho chủ dự án']),
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
-  return { html, narrator, extraOk: [...extraOk], charts, webResults: web };
+  return { html: next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
 }
