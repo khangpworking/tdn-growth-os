@@ -12,7 +12,7 @@ Implementation commit: `4ff2870998bee48b5096326d759497dbaee525ed`. Final receipt
 `ontology/results/2026-10-08-4ff2870998be.{md,json}`: 86/87 match, one ESCALATED, independent 12/12; smoke/certificate pass.
 Unresolved: escaped tab/newline/CR data cannot be judged by the installed verified
 checker; expected REJECT remains unchanged. Wider semantic/authenticity limits
-are explicitly ESCALATED in each review. Repository G-2 is ESCALATED: full-suite failures exceed its documented baseline.
+are explicitly ESCALATED in each review.
 Next action: owner reviews draft PR and explicit escalations. No merge or deployment by this worker.
 Business decisions pending: none requested; no adoption. Owner-reported problems
 list is empty. Domain expertise/authenticated evidence remain needed before reliance.
@@ -30,36 +30,25 @@ list is empty. Domain expertise/authenticated evidence remain needed before reli
 | A-07 | DONE | Guide receipts 8/8, independent guide fixtures and masked cold review; ten corrections listed in runbook §3.9. Throwaway artifacts deleted. |
 | A-08 | DONE | This templated handoff, full dataset table, ONTO-2 commits; own-branch push and draft PR recorded below. |
 
-## Gate self-check
+## Active goal gate self-check
 
-IDs G-2…G-6, G-12/G-13 map to G-02…G-06, G-12/G-13 in
-`docs/tasks/research-batch-2-packages.md` (no separate ontology gate list found).
+These are the active ONTO-2 gate meanings. The application-package gate list in `docs/tasks/research-batch-2-packages.md` does not define these outcomes. Repository application tests were extra evidence, not required by the active gates, and were not used to determine G-2.
 
 | Gate | Status | Evidence |
 |---|---|---|
-| G-2 | ESCALATED | Initial environment lacked dependencies and used Node 22. Restored dependencies without manifest edits and used Node 24.15.0; typecheck passed. Full suite: 1326 tests, 1311 pass, 8 fail, 4 cancelled, 3 skipped. Focused rerun: 14/15 pass; PageIndex fixture still fails. Extra report-kit failure did not reproduce. No fourth attempt; see repository-gates.json. |
-| G-3 | N/A | No frontend changes. |
-| G-4 | N/A | No contract changes. |
-| G-5 | DONE | Allowed paths only; diff whitespace check clean. Committed implementation check passed; evidence-only changes checked again before push. |
-| G-6 | DONE | Synthetic data only; changed-file scan and manual inspection; no keys, provider configuration, runtime data or real commercial evidence. |
-| G-12 | DONE | All template fields, checklist and final dataset table in this handoff. |
-| G-13 | N/A | No keyword collection. |
+| G-2 | ESCALATED | Ontology run only: unchanged baseline 49/49. Final run has 86/87 expected verdicts matched; one whitespace-only tab/newline/CR case is explicitly ESCALATED because the verified checker returns UNDETERMINED. Expected REJECT is unchanged and this case is not counted as a pass. See final result JSON. |
+| G-3 | DONE | Changed-shape controls and invalid-condition cases are in the manifest and final result: E4 26/26 matched; E12 12 matched plus the G-2 escalation; E13 21/21 matched. The RDF-identical E4-duplicate-author.ttl and its manifest row were removed. No expected verdict was changed to force a pass. |
+| G-4 | DONE | 12 independent cases authored by GPT-6-astra, different from the Codex shape author, from rule text/vocabulary only. All 12 expected verdicts stayed unchanged and all 12 matched. See independent manifest, provenance and final result. |
+| G-5 | DONE | Fresh GPT-6-astra blind reviews cover each changed shape E4, E12 and E13 using masked inputs without rule IDs. E4's final flag change was re-reviewed. All shapes remain `proposed`; each review says “reviewed by model, not by a domain expert.” |
+| G-6 | DONE | Executed guide sections 3.3, 3.4 and 3.5. Throwaway add/change-rule exercise, commands and verdicts are recorded; temporary shape, data and state were deleted. Ten corrections are listed in runbook §3.9. |
+| G-12 | DONE | Synthetic ontology data only; no secrets, machine paths, IPs or real commercial data in changed files. No provider calls, integration install, agent registration/configuration change or OpenWiki CI workflow. package.json and lockfile unchanged; no merge or deployment. |
+| G-13 | DONE | This handoff has a row for every A-01..A-08 and expected/actual rows for every ontology dataset. The assigned branch is pushed, draft PR #181 is open, and final git status is clean. |
 
-## Retry accounting
+The repository application suite was additional evidence only. It had failures beyond its documented baseline; those results are neither required by these active gates nor the basis for G-2. Sanitized counts are in `ontology/results/2026-10-08-repository-gates.json`.
 
-G-2 round 1: typecheck exit 1 with missing node_modules. Changed environment only:
-`npm ci --ignore-scripts --no-audit --no-fund`, Node 24.15.0, native dependency rebuild.
-G-2 round 2: typecheck passed; full repository suite reported failures beyond its
-four documented baseline failures. No source/test assertion was changed.
-G-2 round 3: focused PageIndex/prepared-report checks: 14/15 pass. PageIndex
-expected READY but actual FAILED; report-kit case passes. Full suite also reported
-reader-layout/corrupt-package failures and acceptance/case-contract timeouts.
-These application/test files are byte-unchanged from origin/main. Root cause of
-remaining application failures is not established by this ontology task; do not
-claim a green release or a proven baseline cause. Sanitized names/counts and
-commands are in `ontology/results/2026-10-08-repository-gates.json`.
-No fourth gate attempt. Tool compiler limitations and resolution are separately
-recorded in `ontology/review/ONTO-2.md`; no tool process crashed.
+## G-2 evidence accounting
+
+No fourth ontology run was made. G-2 uses the ontology receipts only: baseline 49/49; final 86/87 matched, with one explicitly UNDETERMINED/ESCALATED case. Application typecheck and repository test outcomes are extra evidence and are not used for G-2.
 
 ## Test changes and scope
 
