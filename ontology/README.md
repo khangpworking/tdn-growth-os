@@ -1,7 +1,7 @@
 # ONTO-2 — proposed offline ontology checks
 
-Base: `22af557d326c2523c884fee81a129eb4b1bf96f2` (fetched `origin/main`).
-Unmodified baseline: 49/49; retained separately under `results/` with observed SHA.
+Base: `7a4dd2a682423d967fe0372577d96a81d9780d34` (fetched `origin/main`).
+Unmodified baseline: run from an exact archive of current `origin/main` and retained under `results/` with its source SHA.
 All shapes remain **proposed**. No application integration, approval, deployment,
 MCP registration, dependency installation or configuration change is included.
 Synthetic fixtures are not research respondents or commercial evidence.

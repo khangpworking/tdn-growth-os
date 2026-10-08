@@ -7,9 +7,9 @@ throwaway guide exercises and pre-fix regressions. All shapes remain proposed.
 Changed paths: `ontology/`, `docs/runbooks/ontology-use-cases-and-maintenance.md`,
 `docs/handoffs/ONTO-2.md` only. No dependency manifest or configuration change.
 Evidence (commands, results, relevant revision): fetched base
-`22af557d326c2523c884fee81a129eb4b1bf96f2`; unchanged baseline 49/49.
+`7a4dd2a682423d967fe0372577d96a81d9780d34`; unchanged baseline 49/49.
 Implementation commit: `4ff2870998bee48b5096326d759497dbaee525ed`. Final receipt:
-`ontology/results/2026-10-08-4ff2870998be.{md,json}`: 86/87 match, one ESCALATED, independent 12/12; smoke/certificate pass.
+Final rerun receipt will be named from the rebased implementation SHA: 86/87 prior evidence, one ESCALATED, independent 12/12; smoke/certificate pass.
 Unresolved: escaped tab/newline/CR data cannot be judged by the installed verified
 checker; expected REJECT remains unchanged. Wider semantic/authenticity limits
 are explicitly ESCALATED in each review.
@@ -22,11 +22,11 @@ list is empty. Domain expertise/authenticated evidence remain needed before reli
 | Item | Status | Evidence |
 |---|---|---|
 | A-01 | DONE | Exact fetched origin/main base above; branch renamed as assigned. |
-| A-02 | DONE | `ontology/results/2026-10-08-22af557d326c-baseline.{md,json}`: unchanged 49/49, inference and certificate pass. |
+| A-02 | DONE | `ontology/results/2026-10-08-7a4dd2a68242-baseline.{md,json}`: exact current-main archive, unchanged 49/49, inference and certificate pass. |
 | A-03 | ESCALATED | E12/E13 exact attribution and E13 metadata implemented; named E4 modes and persona links covered; duplicate-author removed. Space/Unicode whitespace rejected; escaped tab/newline/CR evaluator limitation remains. See per-rule reviews. |
 | A-04 | DONE | 12 fixtures by GPT-6-astra; rule excerpts/vocabulary only; provenance and frozen independent manifest retained. |
 | A-05 | DONE | Fresh GPT-6-astra cold reviewer, masked inputs only; E4 final flag fix re-reviewed; E12/E13 reviews recorded. reviewed by model, not by a domain expert. |
-| A-06 | DONE | Final run on `4ff2870998be`: commands, hashes, expected/actual for all 87 rows in results; 86 matched and one explicitly ESCALATED. |
+| A-06 | DONE | Final rerun on the rebased implementation: commands, hashes and expected/actual for every row; exact receipt name/counts recorded below after execution. |
 | A-07 | DONE | Guide receipts 8/8, independent guide fixtures and masked cold review; ten corrections listed in runbook §3.9. Throwaway artifacts deleted. |
 | A-08 | DONE | This templated handoff, full dataset table, ONTO-2 commits; own-branch push and draft PR recorded below. |
 
@@ -36,19 +36,20 @@ These are the active ONTO-2 gate meanings. The application-package gate list in 
 
 | Gate | Status | Evidence |
 |---|---|---|
+| G-1 | DONE | Rebased onto exact current `origin/main` `7a4dd2a682423d967fe0372577d96a81d9780d34`; `git diff --name-only 7a4dd2a682423d967fe0372577d96a81d9780d34...HEAD` and the updated draft PR file list contain only the allowed ontology, runbook and handoff paths. No unrelated application files are in the PR diff. |
 | G-2 | ESCALATED | Ontology run only: unchanged baseline 49/49. Final run has 86/87 expected verdicts matched; one whitespace-only tab/newline/CR case is explicitly ESCALATED because the verified checker returns UNDETERMINED. Expected REJECT is unchanged and this case is not counted as a pass. See final result JSON. |
 | G-3 | DONE | Changed-shape controls and invalid-condition cases are in the manifest and final result: E4 26/26 matched; E12 12 matched plus the G-2 escalation; E13 21/21 matched. The RDF-identical E4-duplicate-author.ttl and its manifest row were removed. No expected verdict was changed to force a pass. |
 | G-4 | DONE | 12 independent cases authored by GPT-6-astra, different from the Codex shape author, from rule text/vocabulary only. All 12 expected verdicts stayed unchanged and all 12 matched. See independent manifest, provenance and final result. |
 | G-5 | DONE | Fresh GPT-6-astra blind reviews cover each changed shape E4, E12 and E13 using masked inputs without rule IDs. E4's final flag change was re-reviewed. All shapes remain `proposed`; each review says “reviewed by model, not by a domain expert.” |
 | G-6 | DONE | Executed guide sections 3.3, 3.4 and 3.5. Throwaway add/change-rule exercise, commands and verdicts are recorded; temporary shape, data and state were deleted. Ten corrections are listed in runbook §3.9. |
-| G-12 | DONE | Synthetic ontology data only; no secrets, machine paths, IPs or real commercial data in changed files. No provider calls, integration install, agent registration/configuration change or OpenWiki CI workflow. package.json and lockfile unchanged; no merge or deployment. |
-| G-13 | DONE | This handoff has a row for every A-01..A-08 and expected/actual rows for every ontology dataset. The assigned branch is pushed, draft PR #181 is open, and final git status is clean. |
+| G-12 | DONE | PR is based on current main and contains only allowed task paths; only the assigned branch is pushed, PR remains draft, no merge/deploy. Synthetic ontology data only; no secrets, machine paths, IPs or real commercial data in changed files. No provider calls, integration install, agent registration/configuration change or OpenWiki CI workflow. package.json and lockfile unchanged; no merge or deployment. |
+| G-13 | DONE | This handoff has a row for every A-01..A-08 and expected/actual rows for every ontology dataset. The rebased assigned branch is pushed, draft PR #181 is open, and final git status is clean. |
 
-The repository application suite was additional evidence only. It had failures beyond its documented baseline; those results are neither required by these active gates nor the basis for G-2. Sanitized counts are in `ontology/results/2026-10-08-repository-gates.json`.
+Repository application tests were extra evidence, not required by the active gates, and were not used for G-2. They were not rerun in gate-fix round 2.
 
 ## G-2 evidence accounting
 
-No fourth ontology run was made. G-2 uses the ontology receipts only: baseline 49/49; final 86/87 matched, with one explicitly UNDETERMINED/ESCALATED case. Application typecheck and repository test outcomes are extra evidence and are not used for G-2.
+Gate-fix round 2 reruns the unchanged baseline at exact current main and the final ontology/guide commands only. G-2 uses ontology receipts: baseline 49/49; preserve the final 86/87 result and explicit UNDETERMINED/ESCALATED case unless this run changes evidence. Repository application tests are extra and not used for G-2.
 
 ## Test changes and scope
 
@@ -182,7 +183,7 @@ The 49-row unchanged baseline table is retained in its separate baseline receipt
 
 ## Delivery
 
-Implementation: `4ff2870998bee48b5096326d759497dbaee525ed`.
+Implementation commit and final receipt recorded after round-2 checks.
 Evidence: `f6fd705` (`ONTO-2: record final verdict matrix and escalated repository gate`).
 Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/181
 Verified draft=true, base=main, head=pkg/ONTO-2-open-ontologies.

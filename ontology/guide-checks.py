@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='.guide-', dir=ROOT) as scratch:
     for version, marker in [('v1', 'one'), ('v2', 'two')]:
         # Written fixture-only decision; simulation never amends Ultimate/CHANGELOG.
         shape.write_text(prefix + 'ex:GuideShape a sh:NodeShape; ex:ruleId "GUIDE"; ex:status "proposed"; '
-            'ex:source <https://github.com/khangpworking/tdn-growth-os/blob/22af557d326c2523c884fee81a129eb4b1bf96f2/docs/runbooks/ontology-use-cases-and-maintenance.md>; '
+            'ex:source <https://github.com/khangpworking/tdn-growth-os/blob/7a4dd2a682423d967fe0372577d96a81d9780d34/docs/runbooks/ontology-use-cases-and-maintenance.md>; '
             f'sh:targetClass ex:GuideRecord; sh:property [ sh:path ex:marker; sh:maxCount 1; sh:hasValue "{marker}"; sh:message "Thiếu marker đúng phiên bản" ] .\n')
         for name, ttl in fixtures.items():
             dataset = scratch / (name + '.ttl')
@@ -47,7 +47,7 @@ with tempfile.TemporaryDirectory(prefix='.guide-', dir=ROOT) as scratch:
                 shape_sha256=hashlib.sha256(shape.read_bytes()).hexdigest(), ttl=ttl))
     # Pre-fix proof at same CLI boundary: original shapes accept selected new negatives.
     for rule, fixture in [('E12','E12-blank-file'), ('E12','E12-wrong-attribution'), ('E13','E13-missing-indicatorCode'), ('E4','E4-blank-author')]:
-        original = subprocess.check_output(['git','show',f'22af557d326c2523c884fee81a129eb4b1bf96f2:ontology/shapes/{rule}.ttl'])
+        original = subprocess.check_output(['git','show',f'7a4dd2a682423d967fe0372577d96a81d9780d34:ontology/shapes/{rule}.ttl'])
         shape.write_bytes(original)
         state = scratch / ('before-' + fixture)
         dataset = ROOT / 'tests/invalid' / (fixture + '.ttl')
