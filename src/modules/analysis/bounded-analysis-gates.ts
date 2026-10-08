@@ -69,7 +69,9 @@ export function validateBoundedAnalysisGatesInput(untrusted: unknown): Input {
     }
     // AJV above has checked these closed field shapes before recursive checks.
     if ('start' in object && 'end' in object) calendar(object as unknown as Period);
-    if ('state' in object && 'value' in object) validateObservation(object as unknown as Observation);
+    // A source-stated basis also carries `state`/`value`, so only an exact two-key {state, value} object is a Value.
+    const keys = Object.keys(object);
+    if (keys.length === 2 && keys.includes('state') && keys.includes('value')) validateObservation(object as unknown as Observation);
     if (typeof object.timezone === 'string') validateTimezone(object.timezone);
     Object.values(object).forEach(check);
   }
@@ -88,7 +90,10 @@ export function validateBoundedAnalysisGatesInput(untrusted: unknown): Input {
     groupLabels.add(group.label);
   }
   for (const cell of input.i11?.cells ?? []) {
-    if (cell.assignment.state === 'SOURCE_ASSIGNED' && (cell.assignment.source === null || cell.group === null)) {
+    // 1.1.0 derives the group from a source-stated platform/buyer basis, so a source-assigned cell needs either an
+    // explicit in-policy label or that basis; 1.0.0 keeps requiring the explicit label.
+    const labeled = cell.group !== null || ((input.semanticsVersion ?? '1.0.0') === '1.1.0' && cell.groupBasis !== undefined);
+    if (cell.assignment.state === 'SOURCE_ASSIGNED' && (cell.assignment.source === null || !labeled)) {
       fail('I11_SOURCE_ASSIGNMENT_EVIDENCE_REQUIRED');
     }
     if (cell.countUnit === 'SOURCE_IDENTIFIED_ENTITY' && cell.identityEvidence === null) fail('I11_ENTITY_IDENTITY_EVIDENCE_REQUIRED');
@@ -145,23 +150,23 @@ function scopeBlockers(scope: Scope, prefix: string): string[] {
 }
 
 /** U-04 (E11 / Ultimate §6.3): a descriptive rate is reported only with >=30 located text records per group. */
-const MIN_RATE_RECORDS = 30;
+const MIN_RATE_RECORDS = 30 as const;
 /** U-04: input semantics version. Absence retains 1.0.0 bytes exactly (no derived groups, no rates). */
 type SemanticsVersion = '1.0.0' | '1.1.0';
 type I11Cell = NonNullable<Input['i11']>['cells'][number];
 type I11Partition = BoundedAnalysisGates['sections']['I11']['partitions'][number];
 
 /**
- * A source-stated group label only: the platform the source itself names plus an explicit retail/wholesale buyer type.
- * A stated platform with an absent or ambiguous buyer type is labelled UNSPECIFIED, never treated as covering all
- * buyers; a missing platform yields no label at all. No buyer type is inferred.
+ * A source-stated group label only: the platform the source itself names, subdivided by an explicit retail/wholesale
+ * buyer type when the source states one. A stated platform with an absent or non-retail/wholesale buyer type stays
+ * platform-only (it never stands for every buyer); a missing platform yields no label at all. No buyer type is inferred.
  */
 function derivedGroupLabel(cell: I11Cell): string | null {
   const basis = cell.groupBasis;
   if (!basis || basis.platform.state !== 'SOURCE_STATED' || basis.platform.value === null) return null;
   const buyer = basis.buyerType;
   const stated = buyer && buyer.state === 'SOURCE_STATED' && (buyer.value === 'RETAIL' || buyer.value === 'WHOLESALE');
-  return `${basis.platform.value} / ${stated ? buyer.value : 'UNSPECIFIED'}`;
+  return stated ? `${basis.platform.value} / ${buyer.value}` : basis.platform.value;
 }
 
 function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sections']['I11'] {
@@ -200,8 +205,9 @@ function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sec
     if (cell.denominator.state === 'observed_zero') partition.blockers.push('I11_ZERO_DENOMINATOR');
     if (label !== null) {
       const values = groupValues.get(key) ?? new Map();
-      // Two cells for the same group in one partition would silently overwrite numerator/denominator; reject instead.
-      if (values.has(label)) fail('I11_DUPLICATE_GROUP_CELL');
+      // 1.1.0: two cells for the same group in one partition would silently overwrite numerator/denominator, so this
+      // version rejects the ambiguity. 1.0.0 keeps its historical last-cell-wins bytes and replays unchanged.
+      if (version === '1.1.0' && values.has(label)) fail('I11_DUPLICATE_GROUP_CELL');
       values.set(label, {
         numerator: cell.numerator.value, denominator: cell.denominator.value, unit: cell.countUnit,
         members: (cell.memberSources ?? []).map(canonicalJson), numeratorMembers: (cell.numeratorMemberSources ?? []).map(canonicalJson),
@@ -230,21 +236,32 @@ function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sec
       owner.set(member, group);
     }
     if (overlap) partition.blockers = unique([...partition.blockers, 'I11_GROUP_MEMBER_OVERLAP']);
+    // A platform-only group and a buyer-subdivided group of the same platform describe overlapping universes, so the
+    // partition stays counts-only rather than comparing them; the missing buyer type is never read as all buyers.
+    for (const [group] of values) if (!group.includes(' / ') && values.some(([other]) => other.startsWith(`${group} / `)))
+      partition.blockers = unique([...partition.blockers, 'I11_PLATFORM_ONLY_GROUP_OVERLAPS_BUYER_SUBDIVISION']);
     // An unknown assignment, scope or missing/zero denominator in the partition keeps every group counts-only.
     if (overlap || partition.blockers.length) continue;
-    const proven = values.every(([group, value]) => {
+    const proven = values.every(([, value]) => {
       const members = new Set(value.members);
-      const numerators = value.numeratorMembers.filter(member => members.has(member));
-      return !group.endsWith('/ UNSPECIFIED') && value.unit === 'LOCATED_RECORD' && value.denominator !== null &&
-        value.numerator !== null && members.size === value.denominator && members.size >= MIN_RATE_RECORDS &&
-        numerators.length === value.numerator && value.numeratorMembers.length === numerators.length;
+      const numerators = new Set(value.numeratorMembers.filter(member => members.has(member)));
+      // Declared counts are stored as source text, so they are read as integers before they can prove a denominator.
+      const denominator = value.denominator === null ? null : Number(value.denominator);
+      const numerator = value.numerator === null ? null : Number(value.numerator);
+      return value.unit === 'LOCATED_RECORD' && denominator !== null && numerator !== null &&
+        Number.isSafeInteger(denominator) && Number.isSafeInteger(numerator) &&
+        // Every declared member reference must be distinct, and the authenticated member set must equal the denominator.
+        value.members.length === members.size && members.size === denominator && members.size >= MIN_RATE_RECORDS &&
+        // The numerator must be a distinct subset of that member set, so a repeated member can never inflate it.
+        value.numeratorMembers.length === numerators.size && numerators.size === numerator;
     });
     if (!proven) continue;
     const index = partitionIndex.get(key)!;
     for (const [group, value] of values) {
       if (value.numerator === null) continue;
+      const numerator = Number(value.numerator);
       const members = new Set(value.members);
-      rateGroups.push({ partition: index, group, numerator: value.numerator, denominator: members.size, rate: value.numerator / members.size });
+      rateGroups.push({ partition: index, group, numerator, denominator: members.size, rate: numerator / members.size });
     }
   }
   const rates = rateGroups.length > 0 ? { recordsPerGroupMinimum: MIN_RATE_RECORDS, groups: rateGroups } : null;

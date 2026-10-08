@@ -8,7 +8,7 @@ export type AutomationDecisionSynthesisInput = {
 } & {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-synthesis-input';
-  methodVersion: '1.0.0' | '1.1.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
   sectionId: 'M11' | 'I15' | 'M12';
   runId: Uuid;
   workspaceId: Uuid;
@@ -113,6 +113,15 @@ export type AutomationDecisionSynthesisInput = {
       | 'tradeOffWeights'
       | 'weights'
     )[];
+    workingQuestion?: {
+      state: 'AI_PROPOSED_AWAITING_OWNER';
+      label: Text;
+      text: null;
+      /**
+       * @maxItems 10000
+       */
+      ownerFieldsToAdd: Text[];
+    };
   };
   /**
    * Claims the CURRENT adapter admits as support (I02 source-stated use-context anchors), in packet order, which is not a priority. Only these claim ids may be cited as support. A temporary adapter limit, not the business eligibility rule.

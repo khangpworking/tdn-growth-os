@@ -10,7 +10,7 @@
     "contractVersion": { "const": "1.0.0" },
     "methodId": { "const": "automation-decision-synthesis-prompt" },
     "promptId": { "const": "automation-decision-synthesis" },
-    "promptVersion": { "enum": ["1.0.0", "1.1.0", "1.2.0"] },
+    "promptVersion": { "enum": ["1.0.0", "1.1.0", "1.2.0", "1.3.0"] },
     "sectionId": { "enum": ["M11", "I15", "M12"] },
     "candidateTypes": {
       "description": "Adopted D12 type/section binding. A response candidate of another type is rejected by the candidate validator, never re-labelled.",
@@ -27,7 +27,7 @@
       "required": ["methodId", "methodVersion"],
       "properties": {
         "methodId": { "const": "automation-decision-synthesis-input" },
-        "methodVersion": { "enum": ["1.0.0", "1.1.0"] }
+        "methodVersion": { "enum": ["1.0.0", "1.1.0", "1.2.0"] }
       }
     },
     "responseContract": {

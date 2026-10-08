@@ -21,7 +21,10 @@
       "const": "located-insight-methods"
     },
     "methodVersion": {
-      "const": "1.0.0"
+      "enum": [
+        "1.0.0",
+        "1.1.0"
+      ]
     },
     "methodOutputId": {
       "$ref": "#/$defs/digest"
@@ -84,6 +87,51 @@
             },
             "blockers": {
               "$ref": "#/$defs/strings"
+            },
+            "workingQuestion": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "state",
+                "label",
+                "text",
+                "ownerFieldsToAdd"
+              ],
+              "properties": {
+                "state": {
+                  "enum": [
+                    "AI_PROPOSED_AWAITING_OWNER",
+                    "OWNER_SUPPLIED"
+                  ]
+                },
+                "label": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/text"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "text": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/text"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "ownerFieldsToAdd": {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {
+                    "$ref": "#/$defs/text"
+                  }
+                }
+              }
             }
           }
         },
@@ -1495,6 +1543,22 @@
               }
             }
           }
+        },
+        "semanticsVersion": {
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
+        },
+        "workingQuestionProposal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     }

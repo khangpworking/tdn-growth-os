@@ -225,6 +225,7 @@
       "uniqueItems": true,
       "items": {
         "enum": [
+          "WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER",
           "OWNER_QUESTION_UNSET",
           "NO_ELIGIBLE_UPSTREAM_CLAIMS",
           "NO_SOURCE_OBSERVATION_CLAIMS",
@@ -319,7 +320,8 @@
         "methodVersion": {
           "enum": [
             "1.0.0",
-            "1.1.0"
+            "1.1.0",
+            "1.2.0"
           ]
         },
         "sectionId": {
@@ -410,6 +412,51 @@
             },
             "priority": {
               "type": "null"
+            },
+            "aiProposal": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "immediateTask",
+                "proposedOwner",
+                "proposedDeadline"
+              ],
+              "properties": {
+                "label": {
+                  "$ref": "#/$defs/text"
+                },
+                "immediateTask": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposedOwner": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposedDeadline": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
             }
           }
         },
@@ -454,7 +501,8 @@
         "methodVersion": {
           "enum": [
             "1.0.0",
-            "1.1.0"
+            "1.1.0",
+            "1.2.0"
           ]
         },
         "sectionId": {
@@ -553,6 +601,51 @@
             },
             "preferredOption": {
               "type": "null"
+            },
+            "aiProposal": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "immediateTask",
+                "proposedOwner",
+                "proposedDeadline"
+              ],
+              "properties": {
+                "label": {
+                  "$ref": "#/$defs/text"
+                },
+                "immediateTask": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposedOwner": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposedDeadline": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
             }
           }
         },
@@ -597,7 +690,8 @@
         "methodVersion": {
           "enum": [
             "1.0.0",
-            "1.1.0"
+            "1.1.0",
+            "1.2.0"
           ]
         },
         "sectionId": {
@@ -700,6 +794,51 @@
             },
             "executionAuthorization": {
               "type": "null"
+            },
+            "aiProposal": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "label",
+                "immediateTask",
+                "proposedOwner",
+                "proposedDeadline"
+              ],
+              "properties": {
+                "label": {
+                  "$ref": "#/$defs/text"
+                },
+                "immediateTask": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposedOwner": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "proposedDeadline": {
+                  "anyOf": [
+                    {
+                      "$ref": "#/$defs/aiText"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
             }
           }
         },
@@ -956,6 +1095,36 @@
         },
         "limitations": {
           "$ref": "#/$defs/requiredAiTexts"
+        },
+        "immediateTask": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposedOwner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposedDeadline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -1018,6 +1187,36 @@
         },
         "limitations": {
           "$ref": "#/$defs/requiredAiTexts"
+        },
+        "immediateTask": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposedOwner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposedDeadline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },

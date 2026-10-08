@@ -6,6 +6,9 @@ import { automationDecisionSynthesisPrompt } from '../../src/modules/analysis/re
 import { insightModelPrompt } from '../../src/modules/analysis/research-automation/insight-model-execution.js';
 import { locatedInsightFixture } from '../helpers/located-insight-fixture.js';
 import { boundedAnalysisGatesFixture } from '../helpers/bounded-analysis-gates-fixture.js';
+import type { BoundedAnalysisGates } from '../../contracts/analysis/bounded-analysis-gates.generated.js';
+
+type Cell = NonNullable<BoundedAnalysisGates['input']['i11']>['cells'][number];
 
 // U-05 (E4): the persona ban is lifted only in the new prompt version, and "no people counts" is kept.
 test('U-05 lifts only the persona ban in prompt v2 and keeps the v1 bytes otherwise', () => {
@@ -64,16 +67,16 @@ test('U-04 derives source-backed disjoint platform/buyer groups and gates descri
   const scope = input.i11!.cells[0]!.scope;
   const source = (locator: string) => ({ logicalPath: 'gate-source.json', sha256: '1'.repeat(64), locator });
   const member = (index: number, number_: number) => source(`/i11/cells/${index}/members/${number_}`);
-  const cell = (index: number, platform: string, buyer: string, numerator: number, denominator: number) => ({
+  const cell = (index: number, platform: string, buyer: string, numerator: number, denominator: number): Cell => ({
     source: source(`/i11/cells/${index}`), group: null,
-    assignment: { state: 'SOURCE_ASSIGNED' as const, source: source(`/i11/cells/${index}/assignment`) },
-    countUnit: 'LOCATED_RECORD' as const, identityEvidence: null, scope: structuredClone(scope),
-    numerator: { state: 'observed_value' as const, value: String(numerator) }, denominator: { state: 'observed_value' as const, value: String(denominator) },
+    assignment: { state: 'SOURCE_ASSIGNED', source: source(`/i11/cells/${index}/assignment`) },
+    countUnit: 'LOCATED_RECORD', identityEvidence: null, scope: structuredClone(scope),
+    numerator: { state: 'observed_value', value: String(numerator) }, denominator: { state: 'observed_value', value: String(denominator) },
     memberSources: Array.from({ length: denominator }, (_, memberIndex) => member(index, memberIndex)),
     numeratorMemberSources: Array.from({ length: numerator }, (_, memberIndex) => member(index, memberIndex)),
     groupBasis: {
-      platform: { state: 'SOURCE_STATED' as const, value: platform, source: source(`/i11/cells/${index}/platform`) },
-      buyerType: { state: 'SOURCE_STATED' as const, value: buyer, source: source(`/i11/cells/${index}/buyer`) },
+      platform: { state: 'SOURCE_STATED', value: platform, source: source(`/i11/cells/${index}/platform`) },
+      buyerType: { state: 'SOURCE_STATED', value: buyer, source: source(`/i11/cells/${index}/buyer`) },
     },
   });
   const versioned = { ...input, semanticsVersion: '1.1.0', i11: { ...input.i11!, groupPolicy: null, cells: [
@@ -93,16 +96,27 @@ test('U-04 derives source-backed disjoint platform/buyer groups and gates descri
 
   // A declared denominator that does not match the authenticated member set keeps the partition counts-only.
   const mismatched = structuredClone(versioned) as typeof versioned;
-  mismatched.i11.cells[0]!.memberSources = mismatched.i11.cells[0]!.memberSources.slice(0, 39);
+  mismatched.i11.cells[0]!.memberSources = mismatched.i11.cells[0]!.memberSources!.slice(0, 39);
   assert.equal(buildBoundedAnalysisGates(mismatched).output.sections.I11.rates, null);
 
-  // An ambiguous buyer type is labelled UNSPECIFIED and keeps the whole partition counts-only; no inference, no rate.
+  // A group with no stated buyer type is platform-only and, mixed with a buyer subdivision of the same platform,
+  // describes overlapping universes; the partition stays counts-only and no buyer type is inferred.
   const unspecified = structuredClone(versioned) as typeof versioned;
-  unspecified.i11.cells[1]!.groupBasis.buyerType = { state: 'NOT_STATED' as const, value: null, source: null };
+  unspecified.i11.cells[1]!.groupBasis!.buyerType = { state: 'NOT_STATED', value: null, source: null };
   const countsOnly = buildBoundedAnalysisGates(unspecified).output.sections.I11;
-  assert.ok(countsOnly.partitions[0]!.groupOrder.includes('Shopee / UNSPECIFIED'));
+  assert.deepEqual(countsOnly.partitions[0]!.groupOrder, ['Shopee / RETAIL', 'Shopee', 'Lazada / RETAIL']);
+  assert.ok(countsOnly.partitions[0]!.blockers.includes('I11_PLATFORM_ONLY_GROUP_OVERLAPS_BUYER_SUBDIVISION'));
   assert.equal(countsOnly.rates, null);
   assert.ok(countsOnly.blockers.includes('I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS'));
+
+  // A platform-only comparison is allowed on its own when exact text-record members prove disjointness and >=30 each.
+  const platformOnly = structuredClone(versioned) as typeof versioned;
+  platformOnly.i11.cells = [platformOnly.i11.cells[0]!, structuredClone(versioned.i11.cells[2]!)];
+  for (const value of platformOnly.i11.cells) value.groupBasis!.buyerType = { state: 'NOT_STATED', value: null, source: null };
+  assert.deepEqual(buildBoundedAnalysisGates(platformOnly).output.sections.I11.rates, { recordsPerGroupMinimum: 30, groups: [
+    { partition: 0, group: 'Shopee', numerator: 12, denominator: 40, rate: 0.3 },
+    { partition: 0, group: 'Lazada', numerator: 9, denominator: 35, rate: 9 / 35 },
+  ] });
 
   // Below 30 located records per group the partition stays counts-only too.
   const small = structuredClone(versioned) as typeof versioned;
@@ -111,10 +125,18 @@ test('U-04 derives source-backed disjoint platform/buyer groups and gates descri
 
   // Distinct group labels are not proof of disjoint membership: a record counted in two groups keeps rates blocked.
   const overlap = structuredClone(versioned) as typeof versioned;
-  overlap.i11.cells[1]!.memberSources[0] = overlap.i11.cells[0]!.memberSources[0]!;
+  overlap.i11.cells[1]!.memberSources![0] = overlap.i11.cells[0]!.memberSources![0]!;
   const overlapped = buildBoundedAnalysisGates(overlap).output.sections.I11;
   assert.equal(overlapped.rates, null);
   assert.ok(overlapped.partitions[0]!.blockers.includes('I11_GROUP_MEMBER_OVERLAP'));
+
+  // Repeating one member inside a group cannot inflate the numerator into the declared value.
+  const inflated = structuredClone(versioned) as typeof versioned;
+  inflated.i11.cells[0]!.numeratorMemberSources!.push(inflated.i11.cells[0]!.numeratorMemberSources![0]!);
+  assert.equal(buildBoundedAnalysisGates(inflated).output.sections.I11.rates, null);
+  const duplicatedMember = structuredClone(versioned) as typeof versioned;
+  duplicatedMember.i11.cells[0]!.memberSources!.push(duplicatedMember.i11.cells[0]!.memberSources![0]!);
+  assert.equal(buildBoundedAnalysisGates(duplicatedMember).output.sections.I11.rates, null);
 
   // Two cells for one group in one partition would overwrite the numerator/denominator: rejected, never merged.
   const duplicate = structuredClone(versioned) as typeof versioned;
