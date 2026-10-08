@@ -13,6 +13,7 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { reportMethodPacketsFixture } from '../helpers/report-method-packets-fixture.js';
+import { boundedAnalysisGatesFixture } from '../helpers/bounded-analysis-gates-fixture.js';
 import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 import type { AutomationBoundedMethodSnapshot } from '../../contracts/analysis/automation-bounded-method-snapshot.generated.js';
 
@@ -47,7 +48,12 @@ test('exact non-Metric package flows through a bounded revision, frozen replay, 
   const original = (await service.listReportVersions(workspaceId, runId))[0]!;
   const originalHtml = (await service.readReport(workspaceId, runId, 'MARKET')).bytes;
   const packages = new SourcePackageService({ db, artifactStore: artifacts, now });
-  const fixture = reportMethodPacketsFixture();
+  const gateInput = boundedAnalysisGatesFixture();
+  gateInput.m10!.series[0]!.entityLiteral = 'Metric reporting series';
+  gateInput.i11!.groupPolicy!.revision = 'Metric sample policy';
+  gateInput.i12!.records[0]!.touchpoint = 'Metric sample touchpoint';
+  gateInput.i16!.fields.question = 'Metric sample question';
+  const fixture = reportMethodPacketsFixture(undefined, undefined, false, gateInput);
   const intake = async (decisions = false, drift = false) => {
     const descriptor = structuredClone(fixture.descriptor);
     if (!decisions) descriptor.decisions = null;

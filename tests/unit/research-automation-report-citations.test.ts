@@ -107,6 +107,7 @@ test('provider-bearing descriptive period basis stays original in semantics and 
   const source = descriptiveMarketFixture();
   source.descriptor.m05[0]!.period!.basis = 'Metric reporting month';
   source.descriptor.m05[0]!.unit = 'Metric units';
+  source.descriptor.configuration.policyRevision = 'Metric policy revision';
   const sourceBytes = source.files.map(file => Buffer.from(file.bytes));
   const methods = buildDescriptiveMarketMethods({ ...source.descriptor, sourcePackage: {
     packageId: '33333333-3333-4333-8333-333333333333', version: 1,
@@ -120,6 +121,7 @@ test('provider-bearing descriptive period basis stays original in semantics and 
   assert.equal(JSON.stringify(methods), before);
   assert.deepEqual((report.semantic as { descriptiveMethods: unknown }).descriptiveMethods, methods);
   assert.equal(methods.input.m05[0]!.period!.basis, 'Metric reporting month');
+  assert.equal(methods.input.configuration.policyRevision, 'Metric policy revision');
   assert.equal((report.semantic as { keyword: string }).keyword, keyword);
   source.files.forEach((file, index) => assert.deepEqual(file.bytes, sourceBytes[index]));
   assert.deepEqual(visibleTextViolations(reportVisibleText(report.html.toString())), []);

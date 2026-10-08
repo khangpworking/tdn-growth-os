@@ -1,13 +1,15 @@
 import type { BoundedAnalysisGates, Source, Value, Scope, Period } from '../../../contracts/analysis/bounded-analysis-gates.generated.js';
 import type { DecisionEvidencePackets, OwnerField, EvidenceGroup } from '../../../contracts/analysis/decision-evidence-packets.generated.js';
-import { retainedEvidenceHtml, technicalLiteral } from './research-automation/descriptive-report.js';
+import { retainedEvidenceHtml, storedLiteral, technicalLiteral } from './research-automation/descriptive-report.js';
 
 const LIMIT = 20;
 const esc = (value: string | number): string => String(value).replace(/[&<>"']/g, character => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
 })[character]!);
 const download = '<a href="report-method-evidence.json" download>Tải toàn bộ hồ sơ phương pháp và bằng chứng</a>';
-const text = (value: string | number | null): string => value === null ? 'Chưa khai báo (UNKNOWN)' : esc(value);
+// Freeform declarations are projected only; the retained method input remains exact.
+const text = (value: string | number | null): string => value === null ? 'Chưa khai báo (UNKNOWN)'
+  : typeof value === 'number' ? esc(value) : storedLiteral(value, 'Nội dung được giữ trong bản lưu nguồn');
 const pair = (name: string, html: string): string => `<dt>${esc(name)}</dt><dd>${html}</dd>`;
 // Keep source context readable inside the approved report's narrow table cells.
 const dl = (body: string): string => `<dl style="grid-template-columns:minmax(0,1fr);gap:4px">${body}</dl>`;
@@ -72,7 +74,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
   const clipNote = (total: number): string => total > LIMIT
     ? `<p class="sec-note">Đang hiển thị ${LIMIT} trong ${total} mục theo thứ tự hồ sơ. ${remainderNote}</p>` : '';
   function list(values: readonly string[], empty = 'Không có mục được ghi nhận.'): string {
-    return values.length ? `<ul class="limits">${values.slice(0, LIMIT).map(value => `<li>${esc(value)}</li>`).join('')}</ul>${clipNote(values.length)}` : `<p>${esc(empty)}</p>`;
+    return values.length ? `<ul class="limits">${values.slice(0, LIMIT).map(value => `<li>${text(value)}</li>`).join('')}</ul>${clipNote(values.length)}` : `<p>${esc(empty)}</p>`;
   }
   function table(caption: string, headings: readonly string[], rows: readonly string[], total = rows.length): string {
     return `<div class="table-wrap" role="region" aria-label="${esc(caption)}" tabindex="0"><table class="obs${headings.length > 2 ? ' method-wide' : ''}"><caption>${esc(caption)}</caption><thead><tr>${headings.map(heading => `<th scope="col">${esc(heading)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>${clipNote(total)}`;
@@ -115,7 +117,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
     if (input !== null) {
       const policy = input.groupPolicy;
       body += policy === null ? '<p>Chưa có quy tắc nhóm được khai báo.</p>'
-        : disclosure('Quy tắc và thứ tự nhóm của nguồn', dl(pair('Phiên bản', esc(policy.revision)) + pair('Chồng lấn', esc(policy.overlap))
+        : disclosure('Quy tắc và thứ tự nhóm của nguồn', dl(pair('Phiên bản', text(policy.revision)) + pair('Chồng lấn', esc(policy.overlap))
           + pair('Bao phủ', esc(policy.exhaustiveness)) + pair('Quy tắc ẩn ô', text(policy.suppressionRule)))
           + list(policy.groups.map(group => group.label)) + source(policy.source));
       for (const partition of section.partitions.slice(0, LIMIT)) {
@@ -140,7 +142,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
       if (input === null || !pointers.length) { body += '<p>Chưa có bản ghi nguồn cho danh mục này.</p>'; continue; }
       body += table(title, ['Điểm tiếp xúc và lời quy thuộc', 'Quan sát riêng', 'Phạm vi và ngữ cảnh'], pointers.slice(0, LIMIT).map(pointer => {
         const row = at(input.records, pointer, '/input/i12/records/');
-        return `<tr><th scope="row">${esc(row.touchpoint)}<small>${esc(row.attribution)}</small></th><td>${observation(row.observation)}`
+        return `<tr><th scope="row">${text(row.touchpoint)}<small>${text(row.attribution)}</small></th><td>${observation(row.observation)}`
           + dl(pair('Kênh', text(row.channel)) + pair('Ngày', text(row.date)) + pair('Cửa sổ quan sát', text(row.window)))
           + `</td><td>${scope(row.scope)}${context(row, row.source)}</td></tr>`;
       }), pointers.length);
@@ -181,18 +183,18 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
       const review = claim.reviewDeclaration.state === 'DECLARED_REVIEWED' ? 'Khai báo đã rà soát, chưa xác thực thành phê duyệt'
         : claim.reviewDeclaration.state === 'EXCLUDED' ? 'Được khai báo loại ra (EXCLUDED), không phải bằng chứng hỗ trợ đã duyệt' : 'Chưa rà soát';
       return `<tr><th scope="row">${esc(statement[fact.statementKind] ?? fact.statementKind)}<small>${esc(fact.sectionId)} · ${esc(fact.claimId)}</small>${codeMarker(claim.reviewDeclaration.state, 'Mã trạng thái rà soát')}</th><td>`
-        + dl(pair('Giá trị nguồn', `${esc(fact.value)} ${esc(fact.unit)}`) + pair('Phạm vi', esc(fact.scopeKey)) + pair('Rà soát', review)
+        + dl(pair('Giá trị nguồn', `${text(fact.value)} ${text(fact.unit)}`) + pair('Phạm vi', text(fact.scopeKey)) + pair('Rà soát', review)
           + pair('Phê duyệt của quan sát', esc(fact.approvalState)) + pair('Hỗ trợ quyết định', 'Cần người xem xét' + codeMarker('HUMAN_REVIEW_REQUIRED', 'Mã hỗ trợ quyết định')))
-        + disclosure('Toàn bộ quan sát, mẫu số, giới hạn và tham chiếu', dl(pair('Tệp dữ liệu nền', esc(claim.reference.fileName))
+        + disclosure('Toàn bộ quan sát, mẫu số, giới hạn và tham chiếu', dl(pair('Tệp dữ liệu nền', technicalLiteral(claim.reference.fileName))
           + pair('SHA-256 metric-result.json', `<code>${esc(claim.reference.sha256)}</code>`)
-          + pair('Vị trí claim hiện tại trong packet.json', `<code>${esc(claim.reference.claimPointer)}</code>`)
-          + pair('Vị trí metric trong metric-result.json', `<code>${esc(fact.metricPointer)}</code>`)
-          + pair('Tham chiếu mẫu số', fact.denominatorPointer === null ? 'Không có tham chiếu mẫu số (null)' : `<code>${esc(fact.denominatorPointer)}</code>`)
+          + pair('Vị trí claim hiện tại trong packet.json', `<code>${technicalLiteral(claim.reference.claimPointer)}</code>`)
+          + pair('Vị trí metric trong metric-result.json', `<code>${technicalLiteral(fact.metricPointer)}</code>`)
+          + pair('Tham chiếu mẫu số', fact.denominatorPointer === null ? 'Không có tham chiếu mẫu số (null)' : `<code>${technicalLiteral(fact.denominatorPointer)}</code>`)
           + pair('Ghi chú rà soát', text(claim.reviewDeclaration.reason))) + list(fact.limitations) + raw(claim)) + '</td></tr>';
     }), keys.length);
   }
   function group(output: DecisionEvidencePackets, value: EvidenceGroup): string {
-    return `<h4>${esc(value.label)}</h4><p>${value.basis === 'OWNER_DECLARATION' ? 'Nhóm do chủ dự án khai báo.' : 'Danh mục theo mục nguồn; chưa có giả thuyết do chủ dự án khai báo.'} Chưa xác lập ưu tiên; cần người xem xét.</p>`
+    return `<h4>${text(value.label)}</h4><p>${value.basis === 'OWNER_DECLARATION' ? 'Nhóm do chủ dự án khai báo.' : 'Danh mục theo mục nguồn; chưa có giả thuyết do chủ dự án khai báo.'} Chưa xác lập ưu tiên; cần người xem xét.</p>`
       + claims(output, value.claimKeys, 'Quan sát được gắn vào nhóm') + claims(output, value.counterclaimKeys, 'Bằng chứng ngược được khai báo')
       + claims(output, value.excludedClaimKeys, 'Quan sát được khai báo loại ra') + disclosure('Bằng chứng còn thiếu', list(value.missingEvidence, 'Chưa khai báo phần bằng chứng còn thiếu; không có nghĩa hồ sơ đã đầy đủ.'));
   }
@@ -225,7 +227,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
       body += '<p><b>Chưa có phương án ưu tiên (null).</b> Thứ tự dưới đây là thứ tự khai báo của chủ dự án.</p>';
       if (!result.options.length) body += '<p>Chưa có phương án được khai báo. Chi phí, năng lực, thời gian và rủi ro chưa được suy đoán.</p>';
       for (const option of result.options.slice(0, LIMIT)) {
-        body += `<h4>${esc(option.label)}</h4>${constraints(option.constraints)}`
+        body += `<h4>${text(option.label)}</h4>${constraints(option.constraints)}`
           + claims(output, option.claimKeys, 'Quan sát gắn với phương án') + claims(output, option.counterclaimKeys, 'Bằng chứng ngược được khai báo')
           + claims(output, option.excludedClaimKeys, 'Quan sát được khai báo loại ra')
           + disclosure('Bằng chứng còn thiếu', list(option.missingEvidence, 'Chưa khai báo phần còn thiếu; không có nghĩa phương án đã đủ bằng chứng.'));

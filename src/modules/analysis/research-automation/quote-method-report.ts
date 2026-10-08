@@ -2,6 +2,8 @@ import type { AutomationQuoteMethodSnapshot } from '../../../../contracts/analys
 import type { Result } from '../../../../contracts/analysis/generic-quote-unit.generated.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
+const readerText = (value: string): string => storedLiteral(value, 'Nội dung được giữ trong bản lưu nguồn');
+
 const reasons: Record<Result['reasons'][number], string> = {
   PRICE_NOT_EXACT: 'Chưa có một mức giá chính xác', CURRENCY_UNKNOWN: 'Chưa rõ tiền tệ',
   IDENTITY_UNRESOLVED: 'Chưa xác định đúng mặt hàng', VARIANT_UNRESOLVED: 'Chưa xác định biến thể',
@@ -41,13 +43,13 @@ export function quoteMethodSection(snapshot: AutomationQuoteMethodSnapshot, cita
     const rows = operations.map(([key, label]) => {
       const result = row[key];
       return `<tr><th scope="row">${label}</th><td>${result.status === 'AVAILABLE'
-        ? `${escape(result.display!)} ${escape(quote.price.currency!)}<br><small>Giá trị chính xác: ${escape(result.exact!.numerator)} / ${escape(result.exact!.denominator)}</small>`
+        ? `${escape(result.display!)} ${readerText(quote.price.currency!)}<br><small>Giá trị chính xác: ${escape(result.exact!.numerator)} / ${escape(result.exact!.denominator)}</small>`
         : 'Chưa tính được'}</td><td>${result.status === 'AVAILABLE'
           ? result.basis === 'SCENARIO' ? 'Kịch bản dùng mẫu số người dùng khai báo' : 'Từ trường trong bản ghi nguồn, chưa xác minh thực tế'
           : escape(result.reasons.map(reason => reasons[reason]).join('; '))}</td></tr>`;
     }).join('');
-    return `<h3>${escape(quote.offerText ?? quote.quoteId)}</h3><p>${escape(quote.packText ?? 'Chưa có mô tả quy cách')}. ${escape(priceLabels[quote.price.priceState])}: ${escape(amount)} ${escape(quote.price.currency ?? '(chưa rõ tiền tệ)')}.</p>
-      <p>Biến thể: ${escape(quote.identity.variantId ?? quote.identity.variantState)}. Điều kiện: ${escape(quote.price.conditions.map(condition => condition.literal).join('; ') || 'Không có điều kiện được ghi trong nguồn; chưa xác nhận vô điều kiện')}. Thuế: ${escape(quote.price.tax)}; vận chuyển: ${escape(quote.price.shipping)}.</p>
+    return `<h3>${readerText(quote.offerText ?? quote.quoteId)}</h3><p>${readerText(quote.packText ?? 'Chưa có mô tả quy cách')}. ${escape(priceLabels[quote.price.priceState])}: ${escape(amount)} ${readerText(quote.price.currency ?? '(chưa rõ tiền tệ)')}.</p>
+      <p>Biến thể: ${readerText(quote.identity.variantId ?? quote.identity.variantState)}. Điều kiện: ${readerText(quote.price.conditions.map(condition => condition.literal).join('; ') || 'Không có điều kiện được ghi trong nguồn; chưa xác nhận vô điều kiện')}. Thuế: ${escape(quote.price.tax)}; vận chuyển: ${escape(quote.price.shipping)}.</p>
       <p>Thời điểm quan sát: ${escape(quote.observedAt ?? 'Chưa xác định, không coi là giá hiện tại')}. Thời điểm thu nhận được khai báo: ${escape(quote.acquiredAt)}.</p>
       <div class="table-wrap" role="region" aria-label="Phép tính giá chào bán ${index + 1}" tabindex="0"><table><caption>Giá theo từng cơ sở, giữ riêng khối lượng tịnh và ráo</caption><thead><tr><th scope="col">Cơ sở</th><th scope="col">Kết quả</th><th scope="col">Điều kiện và phần thiếu</th></tr></thead><tbody>${rows}</tbody></table></div>
       <p>Nguồn: ${mark}. Xuất xứ khai báo trong gói: ${storedLiteral(source.providerProvenance, 'xuất xứ được giữ trong bản lưu nguồn')}; ${storedLiteral(source.provenanceBasis, 'cơ sở xuất xứ được giữ trong bản lưu nguồn')}. <a href="#quote-method-evidence">Xem trường nguồn và phép tính tại M13</a>.</p>`;

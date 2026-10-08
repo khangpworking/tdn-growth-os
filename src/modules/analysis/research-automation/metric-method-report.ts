@@ -69,7 +69,7 @@ export function metricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
     const calculation = calculationMark(result, citations);
     const groups = result.scopes.map(scope => `<h3>${escape(scope.key.toUpperCase())}: cấu trúc trong mẫu đã phân loại</h3>` +
       table(`Nhóm sản phẩm · ${scope.key.toUpperCase()}`, ['Nhóm đã duyệt', 'Bản ghi sản phẩm', 'Doanh thu quan sát', 'Tỷ trọng cùng phạm vi', 'Nguồn'],
-        scope.groups.map(group => `<tr><th scope="row">${escape(group.group)}</th><td>${group.listingCount}</td><td>${total(group.revenue, 'VND')}</td><td>${group.revenueShare ? escape(group.revenueShare.percent) + '%' : 'Chưa đủ điều kiện tính'}</td><td>${calculation}</td></tr>`)) +
+        scope.groups.map(group => `<tr><th scope="row">${storedLiteral(group.group, 'Nhãn nhóm được giữ trong bản lưu nguồn')}</th><td>${group.listingCount}</td><td>${total(group.revenue, 'VND')}</td><td>${group.revenueShare ? escape(group.revenueShare.percent) + '%' : 'Chưa đủ điều kiện tính'}</td><td>${calculation}</td></tr>`)) +
       concentration(scope, result, citations, `Mức tập trung gian hàng · ${scope.key.toUpperCase()}`) +
       (scope.withoutTopShop ? `<p>Độ nhạy ${escape(scope.key.toUpperCase())}: bỏ ${storedLiteral(shopLabel(scope.withoutTopShop.removedShopKey), 'Gian hàng được giữ trong bản lưu nguồn')}, còn ${scope.withoutTopShop.listingCount} bản ghi sản phẩm; doanh thu quan sát ${integer(scope.withoutTopShop.revenue.value)}${scope.withoutTopShop.revenue.value === null ? '' : ' VND'}. Không phải dự báo.</p>` : '<p>Chưa đủ điều kiện tính độ nhạy trong phạm vi này.</p>'));
     return limits + context + readinessText + concentration(observed, result, citations) + groups.join('') + details;

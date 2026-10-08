@@ -15,6 +15,9 @@ import { ResearchAutomationService } from '../../src/modules/analysis/research-a
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { METRIC_METHOD_FAILURE_CODES, type MetricRunInput, type AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
+import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
+import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
+import type { AutomationClassifiedMetricSnapshot } from '../../contracts/analysis/automation-classified-metric.generated.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -96,6 +99,30 @@ test('REPORTS retains a provider-bearing declared period basis without disclosin
   assert.deepEqual(providerNameViolations(original.bytes.toString()), []);
   assert.deepEqual(visibleTextViolations(reportVisibleText(original.bytes.toString())), []);
   assert.equal((f.marketInput.metricMethods!).result.input.scope.periodBasis, periodBasis);
+});
+
+test('accepted classified group labels remain exact in the calculation while the complete report uses neutral reader text', async t => {
+  const f = await fixture(t);
+  for (const literal of ['Metric sample', 'a'.repeat(64), 'SOURCE_STATED_METADATA']) {
+    const input = metricFixture();
+    input.records[0]!.label!.group = literal;
+    const result = calculateMetricScopes(input);
+    // The calculator owns label admission; this test owns its rendering in a
+    // complete report using the service's real retained Metric method snapshot.
+    const metricClassified: AutomationClassifiedMetricSnapshot = {
+      contractVersion: 'automation-classified-metric-v1', result, proofSha256: '1'.repeat(64),
+      binding: { workspaceId, runId, pairId: '2'.repeat(64), adoptionId: '3'.repeat(64), adoptionSha256: '4'.repeat(64),
+        preparationSha256: '5'.repeat(64), inputSha256: result.inputSha256, sourcePackageId: workspaceId, scopeSha256: '6'.repeat(64) },
+      selection: { adoptionId: '3'.repeat(64), receiptIds: [runId] },
+    };
+    const before = JSON.stringify(metricClassified);
+    const report = buildResearchAutomationReport({ ...f.marketInput, metricClassified }, 'MARKET');
+    assert.deepEqual(providerNameViolations(report.html.toString()), []);
+    assert.deepEqual(visibleTextViolations(reportVisibleText(report.html.toString())), []);
+    assert.ok(!reportVisibleText(report.html.toString()).includes(literal));
+    assert.equal(JSON.stringify(metricClassified), before);
+    assert.equal(result.input.records[0]!.label!.group, literal);
+  }
 });
 
 // Primary owner is the REPORTS lifecycle: the bridge's tests cannot detect an
