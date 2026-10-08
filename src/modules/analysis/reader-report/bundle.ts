@@ -2,7 +2,7 @@ import { FMT } from './format.js';
 
 // Every number shown in a reader report comes from one metric bundle, keyed by
 // a stable id. Narrative text only reaches numbers through {{id}} or {{id:fmt}}.
-export type Metric = { id: string; value: number; fmt: string; desc: string };
+export type Metric = { id: string; value: number | null; fmt: string; desc: string };
 
 export class Bundle {
   readonly m = new Map<string, Metric>();
@@ -15,11 +15,23 @@ export class Bundle {
     return value;
   }
 
+  setMissing(id: string, fmt: string, desc = ''): void {
+    if (!FMT[fmt]) throw new Error(`thiếu định dạng ${fmt}`);
+    this.m.set(id, { id, value: null, fmt, desc });
+  }
+
+  value(id: string): number | null {
+    const x = this.m.get(id);
+    if (!x) throw new Error('thiếu metric ' + id);
+    return x.value;
+  }
+
   has(id: string): boolean { return this.m.has(id); }
 
   v(id: string): number {
     const x = this.m.get(id);
     if (!x) throw new Error('thiếu metric ' + id);
+    if (x.value === null) throw new Error('metric thiếu giá trị ' + id);
     return x.value;
   }
 
@@ -29,18 +41,18 @@ export class Bundle {
     const fn = FMT[fmt || x.fmt];
     if (!fn) throw new Error('thiếu định dạng ' + fmt);
     this.used.add(id);
-    return fn(x.value);
+    return x.value === null ? 'Chưa có dữ liệu' : fn(x.value);
   }
 
   /** Every valid written form of every bundled number (for the number checker). */
   allForms(): Set<string> {
     const s = new Set<string>();
-    for (const x of this.m.values()) for (const fn of Object.values(FMT)) s.add(fn(x.value).replace(/ tỷ$|đ$|%$/, ''));
+    for (const x of this.m.values()) if (x.value !== null) for (const fn of Object.values(FMT)) s.add(fn(x.value).replace(/ tỷ$|đ$|%$/, ''));
     return s;
   }
 
   toJSON(): (Metric & { display: string; usedInText: boolean })[] {
-    return [...this.m.values()].map(x => ({ ...x, display: FMT[x.fmt]!(x.value), usedInText: this.used.has(x.id) }));
+    return [...this.m.values()].map(x => ({ ...x, display: x.value === null ? 'Chưa có dữ liệu' : FMT[x.fmt]!(x.value), usedInText: this.used.has(x.id) }));
   }
 }
 

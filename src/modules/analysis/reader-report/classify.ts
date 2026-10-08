@@ -1,11 +1,15 @@
 // Profile-driven row classification. A profile is the owner-approved rule set
 // for one product; the first matching rule decides a row's segment.
-export type Row = {
+type ReaderRow<Amount> = {
   i: number; platform: string; listing: string; shop: string; shopName?: string; cat: string;
-  rev: number; units: number; asp: number; brand: string; title: string; start?: string | null;
+  rev: Amount; units: Amount; asp: Amount; brand: string; title: string; start?: string | null;
   label?: string; seg?: string; vol?: number[]; primary?: string | null; rule?: number;
   [k: string]: unknown;
 };
+
+export type Row = ReaderRow<number>;
+export type LegacyRow = Row;
+export type NullableRow = ReaderRow<number | null>;
 
 export type Cond = {
   idIn?: number[]; labelEq?: string; labelPrefix?: string; titleRe?: string; notTitleRe?: string;
@@ -46,7 +50,7 @@ export function primaryNoun(title: string, p: Profile): string | null {
   return best;
 }
 
-function matches(c: Cond, r: Row): boolean {
+function matches(c: Cond, r: NullableRow): boolean {
   const vol = r.vol ?? [];
   if (c.any && !c.any.some(x => matches(x, r))) return false;
   if (c.idIn && !c.idIn.includes(r.i)) return false;
@@ -54,7 +58,7 @@ function matches(c: Cond, r: Row): boolean {
   if (c.labelPrefix && !String(r.label || '').startsWith(c.labelPrefix)) return false;
   if (c.titleRe && !profileRe(c.titleRe).test(r.title)) return false;
   if (c.notTitleRe && profileRe(c.notTitleRe).test(r.title)) return false;
-  if (c.aspGte != null && !(r.asp >= c.aspGte)) return false;
+  if (c.aspGte != null && !(r.asp !== null && r.asp >= c.aspGte)) return false;
   if (c.measureGte != null && !(vol.length && Math.max(...vol) >= c.measureGte)) return false;
   if (c.measureMinGte != null && !(vol.length && Math.min(...vol) >= c.measureMinGte)) return false;
   if (c.primaryIn && !c.primaryIn.includes(String(r.primary))) return false;
@@ -62,7 +66,7 @@ function matches(c: Cond, r: Row): boolean {
 }
 
 /** Sets label/vol/primary/seg/rule on each row in place; returns hits per rule index. */
-export function classify(rows: Row[], p: Profile): Record<number, number> {
+export function classify(rows: NullableRow[], p: Profile): Record<number, number> {
   const hits: Record<number, number> = {};
   for (const r of rows) {
     const override = p.labelOverrides?.[r.i];

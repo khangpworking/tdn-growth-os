@@ -30,7 +30,7 @@ const validBuild = def<ResearchAutomationReaderBuildRequest>('buildRequest');
 const validDecision = def<ResearchAutomationReaderDecisionRequest>('decisionRequest');
 const validRevision = def<ResearchAutomationReaderRevision>('revision');
 
-export const READER_BUILDER_VERSION = 'reader-report-market-v1';
+export const READER_BUILDER_VERSION = 'reader-report-market-v2';
 export const MAX_READER_HTML_BYTES = 32 * 1024 * 1024;
 const sha = (bytes: Uint8Array | string): string => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value), 'utf8');
@@ -119,16 +119,15 @@ export class AutomationReaderReports {
       throw error;
     }
     // computeReaderReportData re-validates the whole input against its schema.
-    // A 1.1.0 request may carry a web snapshot; the effective (derived) period
+    // A reader-report-build-v1.1 request carries a web snapshot; the effective (derived) period
     // is checked against the attached file below, after compute.
     const input = {
-      contractVersion: request.contractVersion === 'reader-report-build-v1' ? '1.0.0' : '1.1.0',
-      profile: request.profile, platforms, rows,
+      contractVersion: '1.2.0',
+      profile: request.profile, platforms, rows, rowLineage: { sha256: sha(context.metric.workbook) },
       ...(request.source === undefined ? {} : { source: request.source }),
       ...(request.contractVersion === 'reader-report-build-v1' ? {} : {
         webSnapshot: request.webSnapshot,
         webSnapshotSha256: request.webSnapshotSha256,
-        rowLineage: { sha256: sha(context.metric.workbook) },
       }),
     } as unknown as ReaderReportInput;
     let data;
