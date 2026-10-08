@@ -203,7 +203,7 @@ function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
     // Unsupported family in a draft view: withhold classified totals with an
     // explicit unavailable explanation instead of showing bare accepted
     // numbers. Pending details and polarities below are not totals and stay.
-    body += `<p>Bản nháp này chưa tính số đề xuất cho mục ${sectionId} (chỉ hỗ trợ I02/I10/I13); không hiển thị số đã chấp nhận ở đây.</p>`;
+    body += `<p>Bản nháp này chưa tính số đề xuất cho mục ${sectionId} (chỉ hỗ trợ I02/I10/I13); số chi tiết không hiển thị ở đây.</p>`;
   } else {
     body += `<p>${section.locatedRecordCount} bản ghi có mã hóa được hồ sơ đưa vào kết quả${ctx.showAnnotationPendingCount ? `; ${section.pendingAnnotationPointers.length} chú giải đang chờ xử lý` : ''}. Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
   }
@@ -274,7 +274,9 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
     const corpus = ctx.output.input.corpora[result.corpusIndex];
     if (!corpus) throw new TypeError('located insight HTML: UNKNOWN_CORPUS');
     const complete = result.codingComplete && result.ratioStatus === 'COMPLETE';
-    const state = result.ratioStatus === 'ZERO_DENOMINATOR' ? 'Mẫu số bằng 0; không có tỷ lệ.'
+    const state = result.draftCounts !== undefined
+      ? 'Bản nháp chưa đối chiếu xong; chưa công bố n/N.'
+      : result.ratioStatus === 'ZERO_DENOMINATOR' ? 'Mẫu số bằng 0; không có tỷ lệ.'
       : complete ? 'Đã hoàn tất mẫu số và mã hóa theo khai báo của hồ sơ.' : 'Mã hóa hoặc thành viên chưa đầy đủ; chưa công bố n/N.';
     body += `<h4>${textOrUnset(corpus.question)}</h4><p><b>${state}</b></p>`;
     if (result.draftCounts === undefined) {
@@ -282,7 +284,7 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
     } else {
       // Draft mode withholds accepted-state tallies instead of showing bare
       // classified numbers; the draft per-code table below carries the labels.
-      body += `<p class="sec-note">Số tổng hợp và phạm vi chi tiết của tập này được tính theo trạng thái mã hóa đã lưu, không hiển thị ở bản nháp; số đề xuất theo mã ở bảng dưới (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}).</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
+      body += `<p class="sec-note">Số tổng hợp chi tiết của tập này không hiển thị ở bản nháp; số đề xuất theo mã ở bảng dưới (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}).</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
     }
     const coverage = [
       ['Thành viên duy nhất', result.membershipCount], ['Đưa vào', result.includedRecordCount],
