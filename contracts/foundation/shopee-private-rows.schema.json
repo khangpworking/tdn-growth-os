@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "ShopeePrivateRows",
-  "description": "Closed sanitized metadata allowlist, preserves source comment strings verbatim; invalid evidence scalars are null. Missing field and invalid ID differ. No raw author ID/name/profile fields. Bound2500 follows5 listings times500 existing collection ceiling.",
+  "description": "Closed sanitized metadata allowlist, preserves source comment strings verbatim; rating preserves explicit source presence/state and safe numeric values; other invalid evidence scalars are null. Missing field and invalid ID differ. No raw author ID/name/profile fields. Bound2500 follows5 listings times500 existing collection ceiling.",
   "type": "array",
   "maxItems": 2500,
   "items": {
@@ -11,11 +11,11 @@
       "reviewId",
       "shopId",
       "itemId",
-      "ratingStar",
       "comment",
       "createdAt",
       "region",
-      "authorIdentity"
+      "authorIdentity",
+      "rating"
     ],
     "properties": {
       "reviewId": {
@@ -38,14 +38,6 @@
           "null"
         ],
         "pattern": "^[1-9][0-9]{0,19}$"
-      },
-      "ratingStar": {
-        "type": [
-          "integer",
-          "null"
-        ],
-        "minimum": 1,
-        "maximum": 5
       },
       "comment": {
         "type": [
@@ -103,6 +95,107 @@
               },
               "hash": {
                 "type": "null"
+              }
+            }
+          }
+        ]
+      },
+      "rating": {
+        "description": "Source rating presence/state; never manufacture an absent source field. Invalid finite safe numeric source values survive, arbitrary strings/nested values do not.",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldPresent",
+              "state",
+              "value"
+            ],
+            "properties": {
+              "fieldPresent": {
+                "const": false
+              },
+              "state": {
+                "const": "ABSENT"
+              },
+              "value": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldPresent",
+              "state",
+              "value"
+            ],
+            "properties": {
+              "fieldPresent": {
+                "const": true
+              },
+              "state": {
+                "const": "MISSING"
+              },
+              "value": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldPresent",
+              "state",
+              "value"
+            ],
+            "properties": {
+              "fieldPresent": {
+                "const": true
+              },
+              "state": {
+                "const": "VALID"
+              },
+              "value": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldPresent",
+              "state",
+              "value"
+            ],
+            "properties": {
+              "fieldPresent": {
+                "const": true
+              },
+              "state": {
+                "const": "INVALID"
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "not": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 5
+                    }
+                  }
+                ]
               }
             }
           }

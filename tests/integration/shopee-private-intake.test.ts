@@ -177,3 +177,47 @@ test('absent documented IDs retain truthful distinct-content fallback and never 
     assert.equal(f.calls.length, 0);
   } finally { db.close(); }
 });
+
+test('same public key UUID with changed salt cannot resume journals or reuse finalized author evidence', async () => {
+  const f = await fixture(); const db = openDatabase({ databasePath: path.join(f.root, 'test.sqlite') }).db;
+  const foundation = new ShopeeCollectionService(db, new ContentAddressedArtifactStore(path.join(f.root, 'artifacts')));
+  const original = createShopeePrivateIntake({ salt, keyId });
+  const changed = createShopeePrivateIntake({ salt: Buffer.alloc(32, 8), keyId });
+  const second = new ApifyShopeeCollector(f.collector.options, changed);
+  try {
+    assert.notEqual(original.profile.keyCommitment, changed.profile.keyCommitment);
+    assert.equal(original.profile.keyCommitment, createShopeePrivateIntake({ salt: Buffer.from(salt), keyId }).profile.keyCommitment);
+    const bytes = requestBytes('private-key-continuity');
+    const saved = await foundation.collectExact(bytes, f.collector, { privacy: true });
+    const projection = await foundation.readPrivateProjection(saved.packet.collectionId);
+    await assert.rejects(foundation.collectExact(bytes, second, { privacy: true }), /different private key or mapping/);
+    await assert.rejects(second.collect(selected, saved.packet.requestSha256, saved.packet.runKey), /Receipt identity or budget conflict/);
+    assert.equal(f.calls.length, 2, 'salt mismatch must fail before a provider request');
+    assert.deepEqual(await foundation.readPrivateProjection(saved.packet.collectionId), projection);
+    assertPrivate(Buffer.concat(await retainedFiles(path.join(f.root, 'journal'))));
+  } finally { db.close(); }
+});
+
+test('an incomplete dataset retains only sanitized diagnostic pages and cannot publish Foundation evidence', async () => {
+  const f = await fixture(); const db = openDatabase({ databasePath: path.join(f.root, 'test.sqlite') }).db;
+  const foundation = new ShopeeCollectionService(db, new ContentAddressedArtifactStore(path.join(f.root, 'artifacts')));
+  let datasetReads = 0;
+  const transport: typeof fetch = async input => {
+    if (String(input).includes('/runs?')) return Response.json({ data: { id: 'SyntheticRun01', defaultDatasetId: 'SyntheticData01',
+      buildId: 'SyntheticBuild01', status: 'SUCCEEDED', statusMessage: 'PRIVATE_STATUS_NAME 918273645' } });
+    datasetReads++;
+    if (datasetReads > 1) throw new Error('PRIVATE_TRANSPORT_DETAIL 918273645');
+    return Response.json(Array.from({ length: 100 }, (_, index) => ({ ...rawRow, reviewId: String(2000 + index) })),
+      { headers: { 'x-apify-pagination-total': '200' } });
+  };
+  const collector = new ApifyShopeeCollector({ ...f.collector.options, maxReviewsPerProduct: 500, fetch: transport }, createShopeePrivateIntake({ salt, keyId }));
+  try {
+    await assert.rejects(foundation.collectExact(requestBytes('private-incomplete'), collector, { privacy: true }), /incomplete intake/);
+    assert.equal(datasetReads, 2);
+    assert.equal((db.prepare('SELECT COUNT(*) AS n FROM foundation_shopee_collections').get() as { n: bigint }).n, 0n);
+    const files = await retainedFiles(path.join(f.root, 'journal')); assertPrivate(Buffer.concat(files));
+    assert.equal(Buffer.concat(files).includes('PRIVATE_TRANSPORT_DETAIL'), false);
+    const snapshot = files.map(bytes => JSON.parse(bytes.toString())).find(value => value.receiptVersion === '2.0.0');
+    assert.equal(snapshot.actor.stopReason, 'dataset_read_failed'); assert.equal(snapshot.pages.length, 1);
+  } finally { db.close(); }
+});

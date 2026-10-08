@@ -40,13 +40,13 @@
           "reviewId",
           "shopId",
           "itemId",
-          "ratingStar",
           "comment",
           "createdAt",
           "region",
           "authorIdentity",
           "admission",
-          "locator"
+          "locator",
+          "rating"
         ],
         "properties": {
           "reviewId": {
@@ -57,9 +57,6 @@
           },
           "itemId": {
             "$ref": "shopee-private-rows.schema.json#/items/properties/itemId"
-          },
-          "ratingStar": {
-            "$ref": "shopee-private-rows.schema.json#/items/properties/ratingStar"
           },
           "comment": {
             "$ref": "shopee-private-rows.schema.json#/items/properties/comment"
@@ -115,6 +112,9 @@
                 "pattern": "^/(0|[1-9][0-9]*)/comment$"
               }
             }
+          },
+          "rating": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/rating"
           }
         }
       }

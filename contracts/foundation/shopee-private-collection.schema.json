@@ -103,7 +103,8 @@
         "documentationUrl",
         "documentationSha256",
         "documentationRetrievedAt",
-        "keyId"
+        "keyId",
+        "keyCommitment"
       ],
       "properties": {
         "profileVersion": {
@@ -134,6 +135,11 @@
           "type": "string",
           "format": "uuid",
           "pattern": "^[0-9a-f-]{36}$"
+        },
+        "keyCommitment": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Domain-separated HMAC-SHA256 fixed-label key commitment. Caller must use a private random high-entropy salt, never a password. This opaque value binds actual salt continuity without retaining or reconstructing key material."
         }
       }
     }

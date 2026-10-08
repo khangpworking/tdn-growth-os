@@ -45,3 +45,20 @@ test('unverified mapping and forged raw-page mechanics fail closed before return
   await assert.rejects(new FixtureShopeeCollector(Buffer.from(JSON.stringify([row('918273645')])), forged).collect([
     { platform: 'shopee', shopId: '2001', itemId: '3001', productUrl: 'https://shopee.vn/product/2001/3001' }]), /Invalid private Shopee rows/);
 });
+
+test('rating presence preserves absent, explicit missing, invalid and valid source states without arbitrary raw data', () => {
+  const intake = createShopeePrivateIntake({ salt: salt(), keyId });
+  const { ratingStar: _removed, ...absent } = row('918273645');
+  const result = sanitize(intake, [absent, { ...absent, ratingStar: null }, { ...absent, ratingStar: 0 },
+    { ...absent, ratingStar: 'PRIVATE_INVALID_RATING' }, { ...absent, ratingStar: { name: 'PRIVATE_NESTED_RATING' } },
+    { ...absent, ratingStar: 3.5 }, { ...absent, ratingStar: 5 }]);
+  assert.deepEqual(result.map((entry: { rating: unknown }) => entry.rating), [
+    { fieldPresent: false, state: 'ABSENT', value: null }, { fieldPresent: true, state: 'MISSING', value: null },
+    { fieldPresent: true, state: 'INVALID', value: 0 }, { fieldPresent: true, state: 'INVALID', value: null },
+    { fieldPresent: true, state: 'INVALID', value: null }, { fieldPresent: true, state: 'INVALID', value: 3.5 },
+    { fieldPresent: true, state: 'VALID', value: 5 },
+  ]);
+  assert.equal(Object.hasOwn(result[0], 'ratingStar'), false, 'new typed metadata does not manufacture a raw source rating field');
+  assert.equal(JSON.stringify(result).includes('PRIVATE_INVALID_RATING'), false);
+  assert.equal(JSON.stringify(result).includes('PRIVATE_NESTED_RATING'), false);
+});

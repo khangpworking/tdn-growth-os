@@ -15,7 +15,6 @@ export interface ShopeePrivateProjection {
     reviewId: string | null;
     shopId: string | null;
     itemId: string | null;
-    ratingStar: number | null;
     comment: string | null;
     createdAt: string | null;
     region: string | null;
@@ -36,6 +35,30 @@ export interface ShopeePrivateProjection {
       rowIndex: number;
       textPointer: string;
     };
+    /**
+     * Source rating presence/state; never manufacture an absent source field. Invalid finite safe numeric source values survive, arbitrary strings/nested values do not.
+     */
+    rating:
+      | {
+          fieldPresent: false;
+          state: 'ABSENT';
+          value: null;
+        }
+      | {
+          fieldPresent: true;
+          state: 'MISSING';
+          value: null;
+        }
+      | {
+          fieldPresent: true;
+          state: 'VALID';
+          value: number;
+        }
+      | {
+          fieldPresent: true;
+          state: 'INVALID';
+          value: null | number;
+        };
   }[];
   accounting: {
     retainedRecords: number;
@@ -66,4 +89,8 @@ export interface Privacy {
   documentationSha256: '798f1078e4b52991129ec29d34346cf3980495061fc14f0026c3fe4c0578d1c6';
   documentationRetrievedAt: '2026-10-08';
   keyId: string;
+  /**
+   * Domain-separated HMAC-SHA256 fixed-label key commitment. Caller must use a private random high-entropy salt, never a password. This opaque value binds actual salt continuity without retaining or reconstructing key material.
+   */
+  keyCommitment: string;
 }

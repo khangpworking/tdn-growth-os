@@ -25,7 +25,9 @@ export function createShopeePrivateIntake(configuration: { salt: Uint8Array; key
   if (['utf8', 'hex', 'base64', 'base64url'].some(encoding => salt.toString(encoding as BufferEncoding) === configuration.keyId)) {
     throw new TypeError('Private key identifier must not contain salt material');
   }
-  const profile = Object.freeze(validatePrivateProfile({ ...SHOPEE_PRIVATE_MAPPING, keyId: configuration.keyId }));
+  const profile = Object.freeze(validatePrivateProfile({ ...SHOPEE_PRIVATE_MAPPING, keyId: configuration.keyId,
+    // Opaque key-continuity witness, independent of author IDs and public UUID.
+    keyCommitment: createHmac('sha256', salt).update('tdn:shopee.vn:key-continuity:v1').digest('hex') }));
   const sanitizePage = (bytes: Buffer): Buffer => {
     const values = parseJsonBytes(bytes);
     if (!Array.isArray(values) || values.length > 2500) throw new TypeError('Invalid bounded private Shopee page');
@@ -40,7 +42,10 @@ export function createShopeePrivateIntake(configuration: { salt: Uint8Array; key
       if (typeof row.comment === 'string' && row.comment.length > 20000) throw new TypeError('Private review text exceeds supported source bound');
       // A closed metadata allowlist. Free prose is deliberately verbatim and may itself contain PII.
       return { reviewId: sourceId(row.reviewId), shopId: sourceId(row.shopId), itemId: sourceId(row.itemId),
-        ratingStar: typeof row.ratingStar === 'number' && Number.isInteger(row.ratingStar) && row.ratingStar >= 1 && row.ratingStar <= 5 ? row.ratingStar : null,
+        rating: { fieldPresent: Object.hasOwn(row, 'ratingStar'),
+          state: !Object.hasOwn(row, 'ratingStar') ? 'ABSENT' as const : row.ratingStar === null ? 'MISSING' as const
+            : typeof row.ratingStar === 'number' && Number.isInteger(row.ratingStar) && row.ratingStar >= 1 && row.ratingStar <= 5 ? 'VALID' as const : 'INVALID' as const,
+          value: typeof row.ratingStar === 'number' && Number.isFinite(row.ratingStar) && Math.abs(row.ratingStar) <= Number.MAX_SAFE_INTEGER ? row.ratingStar : null },
         comment: typeof row.comment === 'string' ? row.comment : null,
         createdAt: typeof row.createdAt === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(row.createdAt) && Number.isFinite(Date.parse(row.createdAt)) ? row.createdAt : null,
         region: typeof row.region === 'string' && /^[A-Z]{2}$/.test(row.region) ? row.region : null,
