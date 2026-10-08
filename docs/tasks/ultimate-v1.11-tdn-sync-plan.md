@@ -1,6 +1,6 @@
 # Plan: bring TDN in line with Ultimate v1.11, and show the approved data sources on the source board
 
-Updated: 2026-10-08 · Base: `origin/main` `99b4fe5` · Business source of truth: [Ultimate Method v1.11](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.7 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
+Updated: 2026-10-08 · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.11](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.7 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
 
 This file is a plan with checklists. It does not assign work to agents; the owner splits it. When an item is split into a package, keep its ID (`U-..`, `B-..`) so the handoff can report it.
 
@@ -30,7 +30,7 @@ This file is a plan with checklists. It does not assign work to agents; the owne
   - số tham khảo ROAS/CPA kèm câu miễn trừ (E1);
   - kiểm chéo bộ mã bằng model thứ hai (κ);
   - số liệu Cục Thống kê và World Bank (E12, E13).
-- **Thứ tự làm:** merge P1 (#143) và P2 (#140) trước, vì hai PR này sửa đúng các file sẽ đụng tới. Sau đó làm theo 4 đợt:
+- **Thứ tự làm:** P1 (#143) và P2 (#140) đã merge ngày 08/10, nên các đợt sau bắt đầu từ main mới. Làm theo 4 đợt:
   - **A1:** gỡ 9 chỗ đang ngược quy tắc;
   - **A2:** các bộ kiểm tra dùng chung (nhãn bản nháp, kiểm chéo κ, lọc từ khoá, cấm so sánh bậc nhất);
   - **A3:** phương pháp mới (bảng giá theo đơn vị chuẩn, Kết luận chính dạng Nhận định / Bằng chứng / Trạng thái, bản đọc Insight, chân dung);
@@ -64,7 +64,7 @@ This file is a plan with checklists. It does not assign work to agents; the owne
 
 ## Current state (audit of `99b4fe5`, 2026-10-08)
 
-Two independent read-only audits, spot-checked. P1 (#143) and P2 (#140) are open and not on main; they touch `reports.ts` and `reader-report/market-template.ts`.
+Two independent read-only audits, spot-checked. P1 (#143, head `051af2c`) and P2 (#140, head `1adae54`) merged after the audit, and main CI passed on `5152240`. P2 moved code in `reader-report/market-template.ts`, so line numbers below are from `99b4fe5`. A recheck at `5152240` found the conflicts still present at new lines: M01 superlatives ~343-345, the M05 "không đo nhu cầu" text ~574, the M12 order note ~785-786, and the cross-platform brand count ~226.
 
 Where things live:
 - **Market reader report:**
@@ -118,7 +118,7 @@ Where things live:
 
 ### A0. Preconditions
 
-- [ ] U-00 Merge P1 (#143) and P2 (#140), or close them on purpose. Both are mergeable today. Everything in A1–A3 that edits `reports.ts` or `market-template.ts` starts after this, from fresh `main`.
+- [x] U-00 Merge P1 (#143) and P2 (#140). Done 2026-10-08: reviewed heads `051af2c` and `1adae54` are on main, and main CI passed on `5152240`. Everything in A1–A3 that edits `reports.ts` or `market-template.ts` starts from fresh `main`.
 - [ ] U-00b Add a pointer at the top of `docs/research/section-methods-v1/index.md` and of the recipes that conflict (I02/D06 personas, I01 owner question, I11 group policy, M07 peers, M12 owner choice): "Superseded by Ultimate v1.11 where they differ" with the rule ID. Docs only.
 
 ### A1. Remove the conflicts (code does what the rules forbid)
