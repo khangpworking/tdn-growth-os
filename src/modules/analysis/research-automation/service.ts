@@ -2542,6 +2542,7 @@ export class ResearchAutomationService {
     }
     const rowForSources = this.#current(runId)!;
     const sourceStart = await this.#readStartSnapshot(rowForSources.startSha, rowForSources.workspaceId);
+    let cancelledSourceEvidence: (() => AutomationSourceEvidence) | undefined;
     if (stepId === 'COLLECTION' && sourceStart.sourceEvidenceVersion) {
       const sourceScope = await this.#readScopeSnapshot(rowForSources.scopeSha!, rowForSources.workspaceId, runId);
       const allCaptures = [...await this.#captureRecords(runId), ...captures.map(c => c.row)];
@@ -2554,14 +2555,25 @@ export class ResearchAutomationService {
         // without promoting a late draft to successful L9 admission.
         this.#assertKeywordDraftActive(rowForSources, signal);
       } catch { drafted = { digest: null, unavailableReason: 'DRAFT_FAILED' }; draft = null; }
-      const sourceEvidence = buildSourceEvidence({ draft, draftDigest: drafted.digest, unavailableReason: drafted.unavailableReason,
-        webResults: step.webResults ?? [], captures: allCaptures,
-        usedCaptureDigests: step.comparables.map(row => captures[row.captureIndex]?.row.artifactSha256).filter((sha): sha is string => Boolean(sha)) });
+      const evidenceInputs = { webResults: step.webResults ?? [], captures: allCaptures,
+        usedCaptureDigests: step.comparables.map(row => captures[row.captureIndex]?.row.artifactSha256).filter((sha): sha is string => Boolean(sha)) };
+      cancelledSourceEvidence = () => buildSourceEvidence({ ...evidenceInputs, draft: null, draftDigest: null, unavailableReason: 'DRAFT_FAILED' });
+      const sourceEvidence = buildSourceEvidence({ ...evidenceInputs, draft, draftDigest: drafted.digest, unavailableReason: drafted.unavailableReason });
       step = { ...step, sourceEvidence };
     }
     const webResult = web && 'bound' in web ? web.bound.result : null;
-    const resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
+    let resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
     await withDatabaseMutationMutex(this.#db, async () => {
+      // A cancellation can complete during the preceding CAS await. Publish
+      // only diagnostic admission from that point; keep prior valid keyword
+      // manifests and actual late capture/usage evidence. No transaction spans I/O.
+      const statusAtPublication = this.#current(runId)?.status;
+      if (cancelledSourceEvidence && step.sourceEvidence?.draftDigest && (aborted || signal?.aborted ||
+          result?.status === 'CANCELLED' || webResult?.status === 'CANCELLED' ||
+          !statusAtPublication || ['CANCELLING', 'CANCELLED', 'FAILED', 'INTERRUPTED'].includes(statusAtPublication))) {
+        step = { ...step, sourceEvidence: cancelledSourceEvidence() };
+        resultArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(step), 'utf8'));
+      }
       this.#db.transaction(() => {
         for (const value of captures) this.#registerManifest(value.artifact, 'application/vnd.tdn.research-automation.capture+json', value.row.retrievedAt);
         this.#registerManifest(resultArtifact, 'application/vnd.tdn.research-automation.step+json', now);

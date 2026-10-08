@@ -26,7 +26,7 @@ const kalodataName = 'Thạch dừa tên nguồn Kalodata riêng';
 const period = { startDate: '2026-08-17', endDate: '2026-09-15' };
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
-async function fixture(t: TestContext, enabled = true, cancelDuringModel = false, cancelDuringRetention = false) {
+async function fixture(t: TestContext, enabled = true, cancelDuringModel = false, cancelDuringRetention = false, cancelDuringCollectionPut = false) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-keyword-owner-'));
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
   const db = openDatabase({ databasePath }).db;
@@ -88,6 +88,21 @@ async function fixture(t: TestContext, enabled = true, cancelDuringModel = false
       return bytes;
     });
   }
+  let manifestsAtLateCancel = -1;
+  if (cancelDuringCollectionPut) {
+    const originalPut = ContentAddressedArtifactStore.prototype.put;
+    let cancelled = false;
+    t.mock.method(ContentAddressedArtifactStore.prototype, 'put', async function(this: ContentAddressedArtifactStore, bytes: Uint8Array) {
+      let value: { contractVersion?: string; stepId?: string; sourceEvidence?: { draftDigest?: string | null } } | null = null;
+      try { value = JSON.parse(Buffer.from(bytes).toString()); } catch { /* Other source artifacts are not the boundary. */ }
+      if (!cancelled && value?.contractVersion === 'research-automation-step-result-v1' && value.stepId === 'COLLECTION' && value.sourceEvidence?.draftDigest) {
+        cancelled = true;
+        manifestsAtLateCancel = Number((db.prepare("SELECT COUNT(*) n FROM artifact_manifests WHERE media_type='application/vnd.tdn.keyword-draft+json'").get() as { n: number | bigint }).n);
+        await cancelModel!();
+      }
+      return originalPut.call(this, bytes);
+    });
+  }
   const configuration = keywordDraftConfiguration('synthetic-metric-keyword-model');
   app = openResearchAutomationApi({ databasePath, artifactRoot, origin,
     providers: { kalodataSecretKey: 'synthetic-sales-key', serpApiKey: 'synthetic-web-key', apifyTokenConfigured: false },
@@ -143,7 +158,7 @@ async function fixture(t: TestContext, enabled = true, cancelDuringModel = false
   assert.ok(confirmedSources.metric.decision === 'ADMITTED');
   const sourcePackage = confirmedSources.metric.sourcePackage;
   assert.equal(sourcePackage.packageId, prepared.packageId);
-  await wait(cancelDuringModel || cancelDuringRetention ? 'CANCELLED' : 'DRAFT_READY');
+  await wait(cancelDuringModel || cancelDuringRetention || cancelDuringCollectionPut ? 'CANCELLED' : 'DRAFT_READY');
   const callsAfterReady = calls.length, modelCallsAfterReady = modelRequests.length;
   const retry = await post(`${ownerRoot}/${id}/confirm-scope`, confirmBody, 200); assert.equal(retry.exactRetry, true);
   assert.equal(retry.run.runId, confirm.run.runId); assert.equal(calls.length, callsAfterReady); assert.equal(modelRequests.length, modelCallsAfterReady);
@@ -155,7 +170,7 @@ async function fixture(t: TestContext, enabled = true, cancelDuringModel = false
   });
   const service = readService();
   const packet = await service.readSourceEvidence(workspaceId, id); assert.ok(packet);
-  return { db, artifacts, id, prepared, sourcePackage, packet, modelRequests, calls, readService, service, readRoot, configuration };
+  return { db, artifacts, id, prepared, sourcePackage, packet, modelRequests, calls, readService, service, readRoot, configuration, confirmBody, root, manifestsAtLateCancel };
 }
 
 test('real OWNER selected workbook -> configured fake keyword model -> retained v3 -> L9/report/read preserves exact cells and no-call replay', async t => {
@@ -232,4 +247,21 @@ test('OWNER cancellation during post-model workbook revalidation prevents draft 
   assert.deepEqual(f.db.prepare("SELECT sha256 FROM artifact_manifests WHERE media_type='application/vnd.tdn.keyword-draft+json'").all(), []);
   assert.equal((await f.service.getRun(workspaceId, f.id)).status, 'CANCELLED');
   await assert.rejects(f.service.readReport(workspaceId, f.id, 'MARKET'));
+});
+
+test('OWNER late COLLECTION CAS cancellation publishes diagnostics, preserves prior keyword manifest and exact retry', async t => {
+  const f = await fixture(t, true, false, false, true);
+  assert.equal(f.modelRequests.length, 1); assert.equal(f.manifestsAtLateCancel, 1);
+  assert.equal(f.packet.draftDigest, null); assert.equal(f.packet.admission, null);
+  assert.equal(f.packet.unavailableReason, 'DRAFT_FAILED');
+  assert.equal(f.packet.sourceAppendix.rows.some(row => row.registryId === 'S01'), false);
+  assert.equal(Number((f.db.prepare("SELECT COUNT(*) n FROM artifact_manifests WHERE media_type='application/vnd.tdn.keyword-draft+json'").get() as { n: number | bigint }).n), f.manifestsAtLateCancel);
+  await assert.rejects(f.service.readReport(workspaceId, f.id, 'MARKET'));
+  await assert.rejects(f.service.readReport(workspaceId, f.id, 'INSIGHT'));
+  const before = Buffer.from(f.db.serialize()), calls = [...f.calls];
+  const files = (await fs.readdir(path.join(f.root, 'artifacts'), { recursive: true })).sort();
+  assert.equal((await f.service.confirmScope(workspaceId, f.id, f.confirmBody)).exactRetry, true);
+  assert.deepEqual(await f.service.readSourceEvidence(workspaceId, f.id), f.packet);
+  assert.deepEqual(f.db.serialize(), before); assert.deepEqual(f.calls, calls); assert.equal(f.modelRequests.length, 1);
+  assert.deepEqual((await fs.readdir(path.join(f.root, 'artifacts'), { recursive: true })).sort(), files);
 });
