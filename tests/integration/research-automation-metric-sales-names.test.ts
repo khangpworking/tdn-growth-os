@@ -109,6 +109,26 @@ test('actual prepare rejects changed current-profile headers before confirmation
   await assert.rejects(fixture(t, { A1: { type: 's', value: 'Invented product title header' } }));
 });
 
+test('legitimate equal title strings retain both original cells and identities', async t => {
+  const f = await fixture(t, { A3: { type: 's', value: title } });
+  const result = await readMetricSalesNameEvidence(f.options, f.input, f.sources, f.sourceSetDigest);
+  assert.ok(result);
+  assert.deepEqual(result.names, [{ name: title, row: 2, locator: 'Sheet1!A2' }, { name: title, row: 3, locator: 'Sheet1!A3' }]);
+});
+
+test('absent/skipped Metric and mismatched source-set digest perform no package discovery or inspection', async t => {
+  const f = await fixture(t);
+  let calls = 0;
+  const rejectCall = async (): Promise<never> => { calls++; throw new Error('unexpected package authority call'); };
+  const options = { artifacts: f.artifacts, reader: { readFinalizedSourcePackage: rejectCall },
+    authority: { verifySelection: rejectCall, inspectPrepared: rejectCall } };
+  for (const decision of ['ABSENT', 'SKIPPED'] as const) {
+    assert.equal(await readMetricSalesNameEvidence(options, f.input, { ...f.sources, metric: { decision } }, f.sourceSetDigest), null);
+  }
+  await assert.rejects(readMetricSalesNameEvidence(options, f.input, f.sources, 'f'.repeat(64)), /confirmed workbook source/);
+  assert.equal(calls, 0);
+});
+
 test('OWNER HTTP workbook upload and explicit package confirmation supply authenticated exact Metric cells', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-names-owner-'));
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
