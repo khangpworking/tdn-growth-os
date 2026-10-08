@@ -26,7 +26,7 @@ Source implementation commit: `7dc02ce42d1e6ab5429e913b96fbdc9c229fc35d`.
 | Frontend affected checks: reader-unit-spec-intake, research-automation and pageindex-run-wiring | 20/20 PASS. Explicit action/owner/file gating, original bytes in multipart, receipt context/status checks, error/retry, saved evidence distinguished from rejected build, adjacent run/PDF behavior. |
 | `tests/unit/reader-unit-spec-intake-contract.test.ts` | PASS. Original buildRequest equals assigned-base definition; old/new discriminants, required packet, pointer/unit fields and no client-authored route identity. |
 | Backend `npm run typecheck` | PASS on source/API implementation. |
-| Frontend `npm run frontend:typecheck` | PASS under canonical lease. No source changes since this check. |
+| Frontend `npm run frontend:typecheck` | PASS under canonical lease. No frontend source changes since this check. |
 | Canonical generation and staged `git diff --exit-code contracts/` | PASS under explicit lease. Only allocated reader API contract changed; generator registrations/declarations are additive. Generated browser JS is ignored and reproduced from its generator. |
 | Working/staged whitespace checks | PASS; final committed range check before push. |
 | Full hosted `npm run check` | Mandatory coordinator exact-head gate, pending; no baseline waiver. |

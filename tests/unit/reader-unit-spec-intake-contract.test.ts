@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import test from 'node:test';
 import readerSchema from '../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import inputSchema from '../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
@@ -17,8 +18,8 @@ for (const schema of [peerSchema, apiSchema, inputSchema, readerSchema]) ajv.add
 const valid = (name: string, value: unknown) => ajv.getSchema(`${readerSchema.$id}#/$defs/${name}`)!(value);
 
 test('intake canonical contract binds new envelope without altering historical buildRequest', () => {
-  const baseSchema = JSON.parse(execFileSync('git', ['show', '1c58d2532f254ec476ef71879cf589400d106927:contracts/api/research-automation-reader-report-api.schema.json'], { encoding: 'utf8' }));
-  assert.deepEqual(readerSchema.$defs.buildRequest, baseSchema.$defs.buildRequest);
+  // Frozen assigned-base buildRequest identity; works in shallow hosted checkouts.
+  assert.equal(createHash('sha256').update(canonicalJson(readerSchema.$defs.buildRequest)).digest('hex'), '49fda598cd21cd3b03650c1e88a33b44c4115b42c2be3fa06dcb701d0a8b6b86');
   const input = sync1ReaderFixture('1.4.0');
   const packet = unitPriceFixture(input.rows).packet;
   const request = { contractVersion: 'reader-report-build-v1.2', requestKey: '11111111-1111-4111-8111-111111111111',
