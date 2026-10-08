@@ -3,14 +3,15 @@ import { createHash } from 'node:crypto';
 import { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { buildInsightLiteralEvidence, verifyInsightLiteralEvidence, type InsightLiteralEvidence } from '../insight-literal-evidence.js';
-import { exactLiteralReviews, literalSellerStatements, nativeLiteralReviews } from './insight-literal-source.js';
+import { exactLiteralReviews, privateLiteralReviews, literalSellerStatements, nativeLiteralReviews } from './insight-literal-source.js';
 import { AutomationExactShopeeBridge, type ExactShopeeRunInput } from './exact-shopee-bridge.js';
+import type { PrivateReviewReference } from './private-review-corpus.js';
 import { AutomationNativeSourceReviewBridge } from './native-source-review-bridge.js';
 import { MAX_CAPTURE_ENVELOPE_BYTES, MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type CaptureRecord, type StepResultDocument } from './model.js';
 
 export type InsightLiteralBridgeInput = ExactShopeeRunInput & {
   previousPairId: string;
-  collection: StepResultDocument | null;
+  collection: (StepResultDocument & { privateShopee?: PrivateReviewReference }) | null;
   captures: readonly CaptureRecord[];
 };
 const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
@@ -29,8 +30,11 @@ export class AutomationInsightLiteralEvidence {
   async build(input: InsightLiteralBridgeInput): Promise<InsightLiteralEvidence> {
     if (!/^[0-9a-f]{64}$/.test(input.previousPairId) || input.start.workspaceId !== input.scope.workspaceId || input.scope.runId !== input.runId ||
         (input.collection !== null && input.collection.runId !== input.runId)) throw new ResearchAutomationIntegrityError('Literal evidence run binding differs.');
+    if (input.collection?.privateShopee && (!(input.start.privateShopeeSource || input.privateShopeeSource) || input.collection.exactShopee || input.collection.nativeReview)) throw new ResearchAutomationIntegrityError('Private literal evidence cannot substitute another source.');
+    if ((input.start.privateShopeeSource || input.privateShopeeSource) && (input.collection?.exactShopee || input.collection?.nativeReview)) throw new ResearchAutomationIntegrityError('Private literal source marker differs.');
     if (input.collection?.exactShopee && input.collection.nativeReview) throw new ResearchAutomationIntegrityError('Literal evidence cannot substitute native and exact sources.');
     let reviews: InsightLiteralEvidence['input']['reviews'] = [];
+    if (input.collection?.privateShopee) reviews = privateLiteralReviews(await this.#exact.readPrivate(input.collection.privateShopee, input));
     if (input.collection?.exactShopee) reviews = exactLiteralReviews(await this.#exact.read(input.collection.exactShopee, input));
     if (input.collection?.nativeReview) {
       // The historical reference digest covers only the frozen run fields.

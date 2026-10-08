@@ -1,3 +1,5 @@
+import { privateReviewReportView } from './private-review-contracts.js';
+import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
 import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
 import { renderAutomationMarketFindings, renderAutomationMarketUnitPrices } from './market-presentation-report.js';
@@ -21,7 +23,7 @@ import type { AutomationDecisionSectionId } from './decision-packets.js';
 import type { AutomationDecisionExecutionOutcome } from './decision-synthesis-execution.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import { verifyInsightLiteralEvidence, type InsightLiteralEvidence } from '../insight-literal-evidence.js';
-import { reviewCorpusSection, insightLiteralSection } from './review-corpus-report.js';
+import { reviewCorpusSection, privateReviewCorpusSection, insightLiteralSection } from './review-corpus-report.js';
 import { projectCorpusTrace, type CorpusTrace } from './corpus-trace-projection.js';
 import { projectMarketSourceScope, marketSourceScopeSection } from './market-scope-report.js';
 import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
@@ -67,6 +69,7 @@ export interface AutomationReportInput {
   /** Produced and verified by the production service; absent for runs without a connected descriptive method. */
   readonly descriptiveMethods?: DescriptiveMarketMethods;
   readonly descriptiveMethodFailure?: 'DESCRIPTIVE_METHOD_FAILED';
+  readonly privateReviewCorpus?: PrivateReviewReportView;
   readonly reviewCorpus?: ResearchReviewCorpus;
   readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
   readonly locatedReview?: AutomationLocatedReviewSnapshot;
@@ -484,6 +487,9 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (receiptIds.size !== receipts.length || selection.receiptIds.length !== receipts.length || !selection.receiptIds.every(id => receiptIds.has(id))) throw new Error('Report insight coding receipt mismatch');
     if (binding.sourceKind === 'NATIVE' ? input.locatedReview || input.locatedReviewFallback : input.nativeReview || input.nativeReviewFallback) throw new Error('Report insight coding source kind mismatch');
   }
+  const privateView = kind === 'INSIGHT' && input.privateReviewCorpus ? privateReviewReportView(input.privateReviewCorpus) : undefined;
+  if (privateView && (!input.start.privateShopeeSource || input.reviewCorpus || input.locatedReview || input.nativeReview || !input.collection?.privateShopee ||
+    privateView.corpus.collectionSha256 !== input.collection.privateShopee.collectionSha256)) throw new Error('Private report source lineage mismatch');
   const insightCoding = kind === 'INSIGHT' ? input.insightCoding : undefined;
   const marketPresentation = kind === 'MARKET' && input.marketPresentation
     ? verifyAutomationMarketPresentation(input.marketPresentation, input.marketPresentation.binding) : undefined;
@@ -696,7 +702,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? 'automation-report-kit-v22' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -717,6 +723,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, locatedReview: input.locatedReview ?? null, nativeReview: input.nativeReview ?? null,
       ...(input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
       ...(input.insightCoding ? { insightCoding: input.insightCoding } : {}),
+      ...(privateView ? { privateReviewCorpus: privateView } : {}),
       ...(insightLiteral ? { insightLiteral } : {}),
       ...(input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
       ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
@@ -788,6 +795,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     }
     if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion || marketPresentation));
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
+      if (privateView) return privateReviewCorpusSection(privateView, sectionId, citations);
       const codingNotice = located
         ? `<p class="warning">Đã áp dụng quy tắc đã duyệt để đưa các khai báo rõ nghĩa vào phạm vi hẹp, có vị trí nguyên văn. ${located.projection.pending.length} mục còn chờ được giữ cùng bản đề xuất ban đầu; không tính thành mục phân tích hoàn chỉnh. Khi mở lại, hệ thống đọc kết quả đã lưu, không chạy lại parser hoặc gọi nguồn.</p>`
         : input.locatedReview
