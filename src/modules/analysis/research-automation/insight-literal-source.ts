@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import type { InsightLiteralEvidence } from '../../../../contracts/analysis/insight-literal-evidence.generated.js';
 export type LiteralReviewInput = InsightLiteralEvidence['input']['reviews'][number];
 export type LiteralSellerInput = InsightLiteralEvidence['input']['sellerStatements'][number];
-import type { VerifiedExactShopeeCollection } from '../../foundation/shopee-collection-service.js';
+import type { VerifiedExactShopeeCollection, VerifiedPrivateShopeeCollection } from '../../foundation/shopee-collection-service.js';
+import { projectPrivateShopeeCollection } from '../../foundation/shopee-private-projection.js';
 import type { VerifiedSourcePackageFile } from '../../foundation/source-package-service.js';
 import { buildResearchReviewCorpus } from './review-corpus.js';
 import { mapDamiLocatedReviewSource, type DamiSelectedListing } from './dami-located-review-mapping.js';
@@ -30,6 +31,26 @@ export function exactLiteralReviews(source: VerifiedExactShopeeCollection): Lite
         : record.listingAdmission === 'SELECTED_LISTING' ? [] : [record.listingAdmission],
       sourceRefs: version.sourceRefs.map(ref => ({ sourceSha256: ref.pageSha256,
         rowLocator: ref.rowPointer, textLocator: ref.textPointer, ratingLocator: `${ref.rowPointer}/ratingStar` })) };
+  }));
+}
+
+/** One sanitized source row stays one located record. Identity metadata is not
+ * part of literal/report input; source dates and author evidence remain in the
+ * separately retained private corpus. Invalid numeric stars stay in that corpus
+ * while the historical literal contract records their state with a null value. */
+export function privateLiteralReviews(source: VerifiedPrivateShopeeCollection): LiteralReviewInput[] {
+  return projectPrivateShopeeCollection(source).records.map(row => ({
+    sourceKind: 'EXACT_SHOPEE' as const,
+    text: row.comment,
+    textState: textState(row.comment),
+    rating: { fieldPresent: row.rating.fieldPresent, state: row.rating.state,
+      value: row.rating.state === 'VALID' ? row.rating.value : null },
+    admitted: row.admission === 'SELECTED_TEXT' || row.admission === 'NO_READABLE_TEXT',
+    exclusionReasons: row.admission === 'OTHER_LISTING' ? ['WRONG_LISTING' as const]
+      : row.admission === 'UNRESOLVED_LISTING' ? ['UNRESOLVED_LISTING' as const] : [],
+    sourceRefs: [{ sourceSha256: row.locator.pageSha256,
+      rowLocator: `/${row.locator.rowIndex}`, textLocator: row.comment === null ? null : row.locator.textPointer,
+      ratingLocator: `/${row.locator.rowIndex}/rating/value` }],
   }));
 }
 

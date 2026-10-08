@@ -1,0 +1,180 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "corpus",
+    "capture",
+    "records",
+    "accounting",
+    "missingIdentityLabel",
+    "fallbackRequirement",
+    "limits"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "private-review-report-view-v1"
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifactSha256",
+        "corpusId",
+        "collectionId",
+        "collectionSha256",
+        "requestSha256"
+      ],
+      "properties": {
+        "artifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "corpusId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "collectionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "collectionSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "retrievedAt"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "fixture",
+            "live"
+          ]
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 2500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "recordId",
+          "shopId",
+          "itemId",
+          "text",
+          "textState",
+          "rating",
+          "createdAt",
+          "region",
+          "admission",
+          "locator"
+        ],
+        "properties": {
+          "recordId": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$"
+          },
+          "shopId": {
+            "$ref": "../foundation/shopee-private-rows.schema.json#/items/properties/shopId"
+          },
+          "itemId": {
+            "$ref": "../foundation/shopee-private-rows.schema.json#/items/properties/itemId"
+          },
+          "text": {
+            "$ref": "../foundation/shopee-private-rows.schema.json#/items/properties/comment"
+          },
+          "textState": {
+            "enum": [
+              "READABLE",
+              "EMPTY",
+              "UNREADABLE"
+            ]
+          },
+          "rating": {
+            "$ref": "../foundation/shopee-private-rows.schema.json#/items/properties/rating"
+          },
+          "createdAt": {
+            "$ref": "../foundation/shopee-private-rows.schema.json#/items/properties/createdAt"
+          },
+          "region": {
+            "$ref": "../foundation/shopee-private-rows.schema.json#/items/properties/region"
+          },
+          "admission": {
+            "$ref": "../foundation/shopee-private-projection.schema.json#/properties/records/items/properties/admission"
+          },
+          "locator": {
+            "$ref": "../foundation/shopee-private-projection.schema.json#/properties/records/items/properties/locator"
+          }
+        }
+      }
+    },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retainedRecords",
+        "selectedTextRecords",
+        "distinctContents",
+        "missingIdentityRecords",
+        "invalidIdentityRecords"
+      ],
+      "properties": {
+        "retainedRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "selectedTextRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "distinctContents": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "missingIdentityRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "invalidIdentityRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        }
+      }
+    },
+    "missingIdentityLabel": {
+      "const": "nguồn không có mã người viết"
+    },
+    "fallbackRequirement": {
+      "const": ">=5 distinct contents, chưa xác minh là 5 người"
+    },
+    "limits": {
+      "$ref": "../foundation/shopee-private-projection.schema.json#/properties/limits"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/private-review-report-view.schema.json",
+  "title": "PrivateReviewReportView",
+  "description": "Author/key-free report evidence view. Exact retained corpus digest and source locators support owning-service replay; neither schema validation nor counts authenticate people. Verbatim source prose may still contain personal data."
+}

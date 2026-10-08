@@ -33,6 +33,8 @@ export const MAX_PDF_BYTES = 64 * 1024 * 1024;
 
 /** Exact start snapshot persisted before the run exists; its digest is the request identity. */
 export interface StartSnapshot {
+  /** Explicit injected source configuration, frozen only for new private starts. No salt. */
+  readonly privateShopeeSource?: import('../../../../contracts/analysis/automation-private-shopee-source.generated.js').AutomationPrivateShopeeSource;
   /** Explicit additive source policy; marker-free historical starts retain v1 behavior. */
   readonly sourceEvidenceVersion?: 'automation-source-evidence-v1';
   readonly contractVersion: 'research-automation-start-snapshot-v1';
@@ -108,6 +110,8 @@ export interface StepResultDocument {
   readonly limitations: readonly SourceLimitation[];
   /** Web search results of the collection step; absent on runs without a web source. */
   readonly webResults?: readonly StepWebResult[];
+  /** Sanitized Foundation3 reference; mutually exclusive with raw/native review. */
+  readonly privateShopee?: import('./private-review-corpus.js').PrivateReviewReference;
   readonly exactShopee?: {
     readonly collectionId: string;
     readonly collectionSha256: string;
