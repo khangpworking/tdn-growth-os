@@ -30,6 +30,11 @@ import readerInputSchema from '../../contracts/analysis/reader-report-input.sche
 import defaultPeerSchema from '../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
 import readerApiSchema from '../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import sourceStatusSchema from '../../contracts/api/research-automation-source-status-api.schema.json' with { type: 'json' };
+import p9CommentsSchema from '../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
+import p9ReadingSchema from '../../contracts/analysis/video-reading-v1.schema.json' with { type: 'json' };
+import p9KeywordSchema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
+import type { TikTokSourcePackageIdentity } from '../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
+import { P9SourceError } from '../modules/analysis/research-automation/p9-source-intake.js';
 import { buildResearchAutomationSourceStatus } from '../modules/analysis/research-automation/source-status.js';
 import type { ResearchInsightModelResponse } from '../../contracts/api/research-automation-insight-model-api.generated.js';
 import type { InsightModelConfiguration } from '../modules/analysis/research-automation/insight-model-execution.js';
@@ -66,6 +71,8 @@ import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, Resea
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
+  /** Explicit injected collector/profile and approved cap; absent never activates P9. */
+  readonly tikTokCommentsCollector?: import('../platform/collectors/apify-tiktok-comments.js').ApifyTikTokCommentsCollector;
   /** Independently configured list drafting; other model flags grant no calls here. */
   readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
   readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
@@ -113,7 +120,13 @@ ajv.addSchema(locatedInsightSchema); ajv.addSchema(insightSelectionSchema); ajv.
 ajv.addSchema(insightModelSchema); ajv.addSchema(insightModelApiSchema);
 ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
 ajv.addSchema(sourceStatusSchema);
+ajv.addSchema([p9KeywordSchema, p9CommentsSchema, p9ReadingSchema]);
 const validates = {
+  p9Selection: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/selectionRequest` }),
+  p9Package: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/sourcePackage` }),
+  p9Receipt: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/receipt` }),
+  p9ReadingRequest: ajv.compile({ $ref: `${p9ReadingSchema.$id}#/$defs/request` }),
+  p9ReadingReceipt: ajv.compile({ $ref: `${p9ReadingSchema.$id}#/$defs/receipt` }),
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }] }),
   cancel: ajv.compile({ $ref: `${schema.$id}#/$defs/cancelRequest` }),
@@ -195,6 +208,11 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   }
   if (configuration.i14Synthesis && !configuration.owner) throw new TypeError('Automation I14 synthesis requires the OWNER writer');
   if (configuration.keywordDrafting && !configuration.owner) throw new TypeError('Keyword drafting requires the OWNER writer');
+  if (configuration.tikTokCommentsCollector && !configuration.owner) throw new TypeError('P9 collection requires the OWNER writer');
+  if (configuration.tikTokCommentsCollector &&
+    (!Boolean(configuration.providers?.apifyTokenConfigured || configuration.providers?.apifyReviews) ||
+      configuration.providers?.apifyTikTokComments?.maxChargeUsd !== configuration.tikTokCommentsCollector.collectionConfiguration.approvedMaxTotalChargeUsd))
+    throw new TypeError('P9 collection requires the existing configured credential and the same explicitly approved cap');
   const keywordTransport = configuration.keywordDrafting ? createKeywordCliproxyTransport(configuration.keywordDrafting) : undefined;
   const sourceEvidence = { modelIdentity: configuration.keywordDrafting ? `cliproxy:${configuration.keywordDrafting.configuration.modelId}` : 'unconfigured',
     promptVersion: 'l9-keyword-prompt-v1', ...(configuration.keywordDrafting ? { configuration: configuration.keywordDrafting.configuration } : {}) };
@@ -240,6 +258,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
+        ...(configuration.tikTokCommentsCollector ? { tikTokCommentsCollector: configuration.tikTokCommentsCollector } : {}),
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
@@ -323,10 +342,13 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const report = originalReport?.[1] ?? versionReport?.[2];
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
+    const p9Read = /^sources\/(tiktok-comments|video-reading)\/([0-9a-f-]{36})(\/citations)?$/.exec(action ?? '');
+    const p9History = action === 'sources/tiktok-comments' || action === 'sources/video-reading';
+    const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
       ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
       : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
-    if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
+    if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
     if (mutation) {
@@ -345,6 +367,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     try {
       if (!mutation) {
         if (!runId) return sendApiJson(response, 200, await readService.listRuns(workspaceId!));
+        if (p9Read) {
+          const source = await readService.readP9Source(workspaceId!, runId, p9Read[1] === 'tiktok-comments' ? 'comments' : 'reading', p9Read[2]!);
+          return sendApiJson(response, 200, p9Read[3] ? source.citations : source.view);
+        }
+        if (p9History) {
+          const history = await readService.readP9SourceHistory(workspaceId!, runId);
+          return sendApiJson(response, 200, action === 'sources/tiktok-comments' ? history.comments : history.readings);
+        }
         if (action === 'pageindex') {
           const result = { contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId,
             ...await readService.pageIndexStatesForRun(workspaceId!, runId) };
@@ -434,6 +464,46 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       }
       await ready;
       if (startupFailed || worker?.lastError !== undefined) return fail(response, 503, 'service_unavailable', 'Research executor is unavailable');
+      if (action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect') {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 64 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Malformed P9 request'); }
+        if (!(action.endsWith('/selections') ? validates.p9Selection : validates.p9Package)(input)) return fail(response, 400, 'bad_request', 'P9 request failed validation');
+        if (action.endsWith('/selections')) {
+          const result = await writeService!.selectTikTokCommentVideos(workspaceId!, runId!, input);
+          if (!validates.p9Package(result)) throw new Error('P9 selection identity failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        const controller = new AbortController();
+        const pending = writeService!.collectTikTokComments(workspaceId!, runId!, input as TikTokSourcePackageIdentity, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!validates.p9Receipt(result)) throw new Error('P9 collection receipt failed validation');
+          return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+        } finally { modelRequests.delete(controller); }
+      }
+      if (action === 'sources/video-reading') {
+        const contentType = singleHeader(request.headers['content-type']);
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Video reading requires explicit JSON metadata and frame members');
+        const raw = await readOwnerBytes(request, 32 * 1024 * 1024 + 512 * 1024);
+        let form: FormData;
+        try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(raw) }).formData(); }
+        catch { return fail(response, 400, 'bad_request', 'Malformed video reading upload'); }
+        const metadata = form.get('metadata');
+        if (typeof metadata !== 'string' || form.getAll('metadata').length !== 1 || Buffer.byteLength(metadata) > 512 * 1024) return fail(response, 400, 'bad_request', 'Video reading requires one bounded metadata object');
+        let input: unknown; try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Malformed video reading metadata'); }
+        if (!validates.p9ReadingRequest(input)) return fail(response, 400, 'bad_request', 'Video reading request failed validation');
+        const frames = new Map<string, Uint8Array>();
+        for (const [field, value] of form.entries()) {
+          if (field === 'metadata') continue;
+          if (!field.startsWith('file:') || !(value instanceof File) || frames.has(field.slice(5)) || value.size < 1 || value.size > 8 * 1024 * 1024) return fail(response, 400, 'bad_request', 'Video frame membership failed validation');
+          frames.set(field.slice(5), new Uint8Array(await value.arrayBuffer()));
+        }
+        const result = await writeService!.prepareP9VideoReading(workspaceId!, runId!, input, frames);
+        if (!validates.p9ReadingReceipt(result)) throw new Error('P9 video receipt failed validation');
+        return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+      }
       if (action === 'pageindex-recheck') {
         let input: unknown;
         try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 1024))); }
@@ -692,6 +762,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       worker!.wake();
       sendApiJson(response, action === 'cancel' || receipt.exactRetry ? 200 : 202, receipt);
     } catch (error) {
+      if (error instanceof P9SourceError) return fail(response, 409, 'source_evidence_rejected', 'P9 source evidence or configured collection is unavailable');
       if (action === 'source-pdfs' && error instanceof ResearchAutomationValidationError)
         return fail(response, 400, 'bad_request', 'Tài liệu PDF không hợp lệ hoặc vượt giới hạn dung lượng.');
       if (error instanceof AutomationSynthesisExecutionError) {
@@ -732,6 +803,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   async function sourceStatusProjection(workspaceId: string) {
     const result = buildResearchAutomationSourceStatus({ workspaceId, checkedAt: new Date().toISOString(),
       executorEnabled: Boolean(writeService), providers: configuration.providers, wired: SOURCES_WIRED_INTO_RUNS,
+      tikTokCommentsConfigured: Boolean(configuration.tikTokCommentsCollector),
       activity: await readService.readSourceActivity(workspaceId), pageindex: (writeService ?? readService).pageIndexStatusSummary() });
     if (!validates.sourceStatus(result)) throw new Error('Source status projection failed validation');
     return result;

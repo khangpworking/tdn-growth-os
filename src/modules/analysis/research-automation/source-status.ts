@@ -90,9 +90,9 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
   APIFY_SHOPEE: { registryIds: ['S05'], tier: 'B', tierDetail: null, group: 'CUSTOMER_VOICE',
     reportName: 'review công khai trên Shopee', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   APIFY_TIKTOK_COMMENTS: { registryIds: ['S07'], tier: 'B', tierDetail: null, group: 'CUSTOMER_VOICE',
-    reportName: 'bình luận công khai dưới video', paid: true, pendingPackage: 'P9', built: false, arrival: 'PAID_API' },
+    reportName: 'bình luận công khai dưới video', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   VIDEO_READING: { registryIds: ['S14'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
-    reportName: 'nội dung video của người bán', paid: false, pendingPackage: 'P9', built: false, arrival: 'MANUAL_UPLOAD' },
+    reportName: 'nội dung video của người bán', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   META_AD_LIBRARY: { registryIds: ['S15'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
     reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: 'U-23', built: false, arrival: 'FREE_COLLECT' },
   SERPAPI: { registryIds: ['S19', 'S13', 'S26', 'S20'], tier: null, tierDetail: 'S19: theo trang gốc; S13: C; S26: C; S20: B',
@@ -121,6 +121,8 @@ export const SERPAPI_KNOWN_OPERATIONS: readonly { readonly operation: string; re
 ];
 
 export interface SourceStatusInput {
+  /** Explicit configured P9 collector, independently of shared token/cap flags. */
+  readonly tikTokCommentsConfigured?: boolean;
   readonly workspaceId: string;
   readonly checkedAt: string;
   /** True only when this server owns the writer and worker that execute runs. */
@@ -170,7 +172,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
   const apifyToken = Boolean(providers?.apifyTokenConfigured || providers?.apifyReviews);
   const pageindex = input.pageindex;
   const pageindexUsable = Boolean(pageindex?.keyConfigured && pageindex?.enabled);
-  const manualSource = (source: 'METRIC' | 'KALODATA_VIDEO_FILE', key: 'metric' | 'kalodata-video'): ResearchAutomationSourceStatusEntry => ({
+  const manualSource = (source: 'METRIC' | 'KALODATA_VIDEO_FILE' | 'VIDEO_READING', key: 'metric' | 'kalodata-video' | 'video-reading'): ResearchAutomationSourceStatusEntry => ({
     source, state: cardState(source, 'MANUAL_IMPORT'), credential: 'NOT_REQUIRED',
     wiredIntoRuns: true, paid: false, ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
   });
@@ -181,11 +183,14 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     // Paid review collection also needs a spending cap; a token alone never starts a collection.
     paidSource('APIFY_SHOPEE', 'apify-shopee', apifyToken, Boolean(providers?.apifyReviews), input.wired.apifyShopee,
       providers?.apifyReviews?.maxChargeUsd ?? null, null),
-    // The shared Apify token is credential evidence; the missing independent cap
-    // still blocks collection and the card stays NOT_BUILT until P9 lands.
-    notBuilt('APIFY_TIKTOK_COMMENTS', 'apify-tiktok-comments', apifyToken ? 'CONFIGURED' : 'MISSING',
-      providers?.apifyTikTokComments?.maxChargeUsd ?? null),
-    notBuilt('VIDEO_READING', 'video-reading', 'NOT_REQUIRED', null),
+    { source: 'APIFY_TIKTOK_COMMENTS',
+      state: cardState('APIFY_TIKTOK_COMMENTS', input.tikTokCommentsConfigured && apifyToken &&
+        providers?.apifyTikTokComments && providers.apifyTikTokComments.maxChargeUsd > 0 ? 'READY' : 'NOT_CONFIGURED'),
+      credential: apifyToken ? 'CONFIGURED' : 'MISSING',
+      wiredIntoRuns: Boolean(input.tikTokCommentsConfigured && apifyToken && providers?.apifyTikTokComments && providers.apifyTikTokComments.maxChargeUsd > 0),
+      paid: true, ...input.activity['apify-tiktok-comments'], ...meta('APIFY_TIKTOK_COMMENTS'),
+      spendCapUsd: providers?.apifyTikTokComments?.maxChargeUsd ?? null, operations: null },
+    manualSource('VIDEO_READING', 'video-reading'),
     notBuilt('META_AD_LIBRARY', 'meta-ad-library', 'NOT_REQUIRED', null),
     paidSource('SERPAPI', 'serpapi', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null,
       buildSerpApiOperations(input.activity.serpapiOperations)),

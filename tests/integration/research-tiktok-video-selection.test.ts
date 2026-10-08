@@ -24,7 +24,7 @@ async function fixture(t: test.TestContext, revenues: (string | null)[], videos 
   const csv = Buffer.from(['video,creator,revenue,views,units,ad_spend,publish_date,product_link',
     ...revenues.map((value, index) => `${videos[index]},synthetic,${value ?? ''},,,,,`)].join('\n'));
   const prepared = await intake.prepare({ contractVersion: 'automation-video-prepare-v1', requestKey: randomUUID(), table: 'video',
-    sourceLabel: 'Synthetic video sample', acquiredAt: null }, csv, 'synthetic.csv', binding);
+    sourceLabel: 'Synthetic video sample', acquiredAt: null }, csv, 'synthetic.csv', { workspaceId: binding.workspaceId, runId: binding.runId });
   return { db, artifacts, reader, binding, sourcePackage: { packageId: prepared.packageId,
     manifestArtifactSha256: prepared.manifestArtifactSha256, packageContentSha256: prepared.packageContentSha256 } };
 }

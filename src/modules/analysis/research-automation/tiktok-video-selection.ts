@@ -32,7 +32,7 @@ export async function selectTikTokVideos(reader: FinalizedSourcePackageReader & 
   if (!['A_TOP_20_PERCENT', 'C_CUMULATIVE_80_PERCENT'].includes(request.option) || request.reviewVideoUrls.length > 30) fail();
   const source = await reader.readFinalizedSourcePackage(request.sourcePackage.packageId, VIDEO_READ_BUDGET);
   if (source.manifestArtifactSha256 !== request.sourcePackage.manifestArtifactSha256 || source.packageContentSha256 !== request.sourcePackage.packageContentSha256) fail();
-  await verifyPreparedVideoSource(reader, bound, source, { packageId: source.packageId,
+  await verifyPreparedVideoSource(reader, { workspaceId: bound.workspaceId, runId: bound.runId }, source, { packageId: source.packageId,
     packageKey: source.manifest.packageKey, manifestArtifactSha256: source.manifestArtifactSha256, version: source.manifest.version });
   const member = source.files.find(file => file.path === VIDEO_TABLE_PATH);
   if (!member || sha(member.bytes) !== member.sha256) fail();

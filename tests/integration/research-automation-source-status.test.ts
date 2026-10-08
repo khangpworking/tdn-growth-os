@@ -164,12 +164,18 @@ test('source status reports eleven cards with registry metadata, workspace histo
     assert.equal(sources.APIFY_SHOPEE.dataCount, 1);
     assert.equal(sources.APIFY_SHOPEE.spendCapUsd, null);
     // Unbuilt cards name their owning package and show honest zeros.
-    for (const id of ['APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'OFFICIAL_STATS', 'WORLD_BANK']) {
+    for (const id of ['META_AD_LIBRARY', 'OFFICIAL_STATS', 'WORLD_BANK']) {
       assert.equal(sources[id].state, 'NOT_BUILT', `${id} must not pretend its collector exists`);
       assert.equal(sources[id].dataCount, 0);
       assert.ok(sources[id].pendingPackage, `${id} names its owning package`);
     }
-    assert.equal(sources.APIFY_TIKTOK_COMMENTS.pendingPackage, 'P9');
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.pendingPackage, null);
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.state, 'NOT_CONFIGURED');
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.dataCount, 0);
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.wiredIntoRuns, false);
+    assert.equal(sources.VIDEO_READING.state, 'MANUAL_IMPORT');
+    assert.equal(sources.VIDEO_READING.pendingPackage, null);
+    assert.equal(sources.VIDEO_READING.dataCount, 0);
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.credential, 'CONFIGURED', 'Shared Apify token is honest credential evidence');
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.spendCapUsd, null, 'An absent TikTok cap is never defaulted to $3');
     assert.deepEqual(sources.METRIC.registryIds, ['S01', 'S04']);
@@ -191,7 +197,7 @@ test('source status reports eleven cards with registry metadata, workspace histo
     assert.equal(sources.SERPAPI.state, 'NOT_CONFIGURED');
     assert.equal(sources.APIFY_SHOPEE.state, 'READY');
     assert.equal(sources.APIFY_SHOPEE.spendCapUsd, 2);
-    assert.equal(sources.APIFY_TIKTOK_COMMENTS.state, 'NOT_BUILT', 'A configured cap alone does not build the collector');
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.state, 'NOT_CONFIGURED', 'A configured cap/token alone does not configure the collector');
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.spendCapUsd, 3);
   });
 
@@ -202,7 +208,7 @@ test('source status reports eleven cards with registry metadata, workspace histo
     assert.ok(body.sources.every((item: Record<string, any>) => item.state === 'EXECUTOR_DISABLED'),
       'Executor-disabled keeps precedence over every card including NOT_BUILT');
     assert.equal(bySource(body).KALODATA.credential, 'CONFIGURED');
-    assert.equal(bySource(body).APIFY_TIKTOK_COMMENTS.pendingPackage, 'P9');
+    assert.equal(bySource(body).APIFY_TIKTOK_COMMENTS.pendingPackage, null);
   });
 });
 

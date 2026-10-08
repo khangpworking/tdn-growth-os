@@ -124,25 +124,38 @@ export type TikTokCommentPrivacy = ReturnType<typeof createTikTokCommentPrivacy>
  * authenticates completed storage on retries. No automatic fallback or retry. */
 export class ApifyTikTokCommentsCollector {
   readonly #attempts = new Map<string, { request: string; result?: TikTokCommentCapture }>();
+  readonly #configuration;
   constructor(private readonly options: { transport: TikTokCommentsTransport; privacy: TikTokCommentPrivacy;
     actor?: TikTokCommentActor; approvedMaxTotalChargeUsd: number; maxCommentsPerVideo?: number }) {
     if (!Number.isFinite(options.approvedMaxTotalChargeUsd) || options.approvedMaxTotalChargeUsd <= 0 || options.approvedMaxTotalChargeUsd > 10000) fail();
+    const actor = options.actor ?? TIKTOK_COMMENT_ACTORS.default;
+    const maximum = options.maxCommentsPerVideo ?? 200;
+    if (!Object.values(TIKTOK_COMMENT_ACTORS).includes(actor) || !Number.isSafeInteger(maximum) || maximum < 1 || maximum > 200 || !validateProfile(options.privacy.profile)) fail();
+    this.options = Object.freeze({ ...options, privacy: Object.freeze({ profile: Object.freeze(structuredClone(options.privacy.profile)), sanitizePage: options.privacy.sanitizePage }) });
+    this.#configuration = Object.freeze({ actor, approvedMaxTotalChargeUsd: options.approvedMaxTotalChargeUsd, maxCommentsPerVideo: maximum });
   }
   get privacyProfile() { return this.options.privacy.profile; }
-  async collect(urls: readonly string[], requestSha256: string, signal?: AbortSignal): Promise<TikTokCommentCapture> {
+  /** Exact copied opt-in settings used by collection; never credentials or salt. */
+  get collectionConfiguration() { return this.#configuration; }
+  async collect(urls: readonly string[], requestSha256: string, signal?: AbortSignal,
+    observeReceipt?: (receipt: TikTokCommentRunReceipt) => Promise<void>): Promise<TikTokCommentCapture> {
     signal?.throwIfAborted(); if (!/^[a-f0-9]{64}$/.test(requestSha256)) fail();
-    const actor = this.options.actor ?? TIKTOK_COMMENT_ACTORS.default;
-    const maximum = this.options.maxCommentsPerVideo ?? 200;
+    const { actor, maxCommentsPerVideo: maximum, approvedMaxTotalChargeUsd } = this.#configuration;
     const input = tikTokCommentActorInput(actor, urls, maximum);
-    const request = canonicalJson({ input, actor, maxTotalChargeUsd: this.options.approvedMaxTotalChargeUsd, privacy: this.privacyProfile });
+    const request = canonicalJson({ input, actor, maxTotalChargeUsd: approvedMaxTotalChargeUsd, privacy: this.privacyProfile });
     const prior = this.#attempts.get(requestSha256);
     if (prior) { if (prior.request !== request || !prior.result) fail(); return cloneCapture(prior.result); }
     this.#attempts.set(requestSha256, { request });
-    const receipt = await this.options.transport.start(actor, input, this.options.approvedMaxTotalChargeUsd, signal);
-    signal?.throwIfAborted();
-    if (!validateReceipt({ runId: receipt.runId, datasetId: receipt.datasetId, buildId: receipt.buildId, status: receipt.status, retrievedAt: receipt.retrievedAt, providerTotalRows: receipt.providerTotalRows, usageTotalUsd: receipt.usageTotalUsd }) || receipt.status !== 'SUCCEEDED' || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.runId) || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.datasetId) ||
+    const returned = await this.options.transport.start(actor, input, approvedMaxTotalChargeUsd, signal);
+    // Keep only the closed existing receipt; a transport may attach raw extras.
+    const receipt: TikTokCommentRunReceipt = { runId: returned.runId, datasetId: returned.datasetId, buildId: returned.buildId,
+      status: returned.status, retrievedAt: returned.retrievedAt, providerTotalRows: returned.providerTotalRows, usageTotalUsd: returned.usageTotalUsd };
+    if (!validateReceipt(receipt) || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.runId) || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.datasetId) ||
       (receipt.buildId !== null && (typeof receipt.buildId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.buildId))) || date(receipt.retrievedAt) === null || (receipt.providerTotalRows !== null && count(receipt.providerTotalRows) === null) ||
-      (receipt.usageTotalUsd !== null && (!Number.isFinite(receipt.usageTotalUsd) || receipt.usageTotalUsd < 0 || receipt.usageTotalUsd > this.options.approvedMaxTotalChargeUsd))) fail();
+      (receipt.usageTotalUsd !== null && (!Number.isFinite(receipt.usageTotalUsd) || receipt.usageTotalUsd < 0 || receipt.usageTotalUsd > approvedMaxTotalChargeUsd))) fail();
+    await observeReceipt?.(structuredClone(receipt));
+    signal?.throwIfAborted();
+    if (receipt.status !== 'SUCCEEDED') fail();
     const pages: { sha256: string; bytes: Buffer; offset: number; rows: SanitizedTikTokComment[] }[] = [];
     const perVideo = new Map<string, Set<string>>(); let offset = 0;
     // Bounded audit transport volume is an engineering guard, not sampling.
