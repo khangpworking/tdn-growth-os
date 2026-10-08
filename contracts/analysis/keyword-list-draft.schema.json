@@ -1,0 +1,205 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/keyword-list-draft.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "dataVersion",
+    "category",
+    "seeds"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "l9-keyword-list-draft-v1"
+    },
+    "dataVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "\\S"
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "\\S"
+    },
+    "seeds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productNames",
+        "includeTerms",
+        "excludeTerms"
+      ],
+      "properties": {
+        "productNames": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "\\S"
+          },
+          "minItems": 1,
+          "maxItems": 500
+        },
+        "includeTerms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "minItems": 0,
+          "maxItems": 500
+        },
+        "excludeTerms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "minItems": 0,
+          "maxItems": 500
+        }
+      },
+      "title": "KeywordListDraftSeeds"
+    }
+  },
+  "title": "KeywordListDraftRequest",
+  "$defs": {
+    "seeds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "productNames",
+        "includeTerms",
+        "excludeTerms"
+      ],
+      "properties": {
+        "productNames": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "\\S"
+          },
+          "minItems": 1,
+          "maxItems": 500
+        },
+        "includeTerms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "minItems": 0,
+          "maxItems": 500
+        },
+        "excludeTerms": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200,
+            "pattern": "\\S"
+          },
+          "minItems": 0,
+          "maxItems": 500
+        }
+      },
+      "title": "KeywordListDraftSeeds"
+    },
+    "configuration": {
+      "title": "KeywordDraftConfiguration",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "providerId",
+        "modelId",
+        "temperature",
+        "maxOutputTokens",
+        "timeoutMs",
+        "maxResponseBytes"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "keyword-draft-configuration-v1"
+        },
+        "providerId": {
+          "const": "cliproxy"
+        },
+        "modelId": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+        },
+        "temperature": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 2
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "maxOutputTokens": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65536
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 1000,
+          "maximum": 600000
+        },
+        "maxResponseBytes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1048576
+        }
+      }
+    },
+    "generation": {
+      "title": "KeywordDraftGeneration",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prompt",
+        "promptVersion",
+        "modelIdentity"
+      ],
+      "properties": {
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "pattern": "\\S"
+        },
+        "promptVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "\\S"
+        },
+        "modelIdentity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        }
+      }
+    }
+  }
+}

@@ -44,6 +44,11 @@ const validateFilterData = ajv.compile<KeywordMeaningFilterData>({ $ref: `${filt
 const validateFilterRecords = ajv.compile<KeywordMeaningRecord[]>({ $ref: `${filterSchema.$id}#/$defs/records` });
 const validateFilterResult = ajv.compile<KeywordMeaningFilterResult>({ $ref: `${filterSchema.$id}#/$defs/result` });
 
+/** Canonical schema check for versioned keyword/exclusion data; used by drafting and future consumers. */
+export function validatesKeywordMeaningFilterData(value: unknown): value is KeywordMeaningFilterData {
+  return validateFilterData(value);
+}
+
 /** Canonical schema check for a frozen result; used by tests and future consumers. */
 export function validatesKeywordMeaningFilterResult(value: unknown): value is KeywordMeaningFilterResult {
   return validateFilterResult(value);

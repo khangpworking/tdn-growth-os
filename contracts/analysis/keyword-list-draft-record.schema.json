@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/keyword-list-draft-record.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "run",
+    "scopeDigest",
+    "sourceSetDigest",
+    "salesNameRefs",
+    "seeds",
+    "dataVersion",
+    "category",
+    "model",
+    "output"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "l9-keyword-list-draft-record-v2"
+    },
+    "run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "\\S"
+        },
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 36,
+          "pattern": "\\S"
+        }
+      }
+    },
+    "scopeDigest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sourceSetDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "salesNameRefs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "digest",
+          "locator",
+          "captureDigest"
+        ],
+        "properties": {
+          "digest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "locator": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500,
+            "pattern": "^/"
+          },
+          "captureDigest": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          }
+        }
+      },
+      "minItems": 1,
+      "maxItems": 500
+    },
+    "seeds": {
+      "$ref": "keyword-list-draft.schema.json#/$defs/seeds"
+    },
+    "dataVersion": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 80,
+      "pattern": "\\S"
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 120,
+      "pattern": "\\S"
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "promptVersion",
+        "prompt",
+        "promptSha256",
+        "configuration"
+      ],
+      "properties": {
+        "identity": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        },
+        "promptVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "\\S"
+        },
+        "prompt": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 65536,
+          "pattern": "\\S"
+        },
+        "promptSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "configuration": {
+          "anyOf": [
+            {
+              "$ref": "keyword-list-draft.schema.json#/$defs/configuration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "title": "KeywordListDraftModel"
+    },
+    "output": {
+      "$ref": "keyword-meaning-filter.schema.json#/$defs/data"
+    }
+  },
+  "title": "KeywordListDraftRecord"
+}
