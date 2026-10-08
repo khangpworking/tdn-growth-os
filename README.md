@@ -6,6 +6,11 @@ Hệ thống nghiên cứu và vận hành kinh doanh canxi, phát triển bởi
 
 Trạng thái: modular monolith TypeScript/SQLite đã có các lát cắt foundation, analysis, governance/flow và Shopee research được kiểm thử; xem `docs/STATUS.md` để biết năng lực và giới hạn đã xác minh.
 
+Ultimate alignment is being delivered in bounded, independently reviewed packages.
+The eleven-card source board, versioned Market reader corrections, bounded L9 core
+and draft/Insight defaults are merged; future collector placeholders remain inactive.
+See [current implementation evidence and limits](docs/STATUS.md#ultimate-alignment--implementation-run-08102026).
+
 ## Bắt đầu
 
 Bối cảnh thiết kế đang thảo luận: [INTENT.md](INTENT.md) — quyết định đã thống nhất, phần để sau và câu hỏi tiếp tục phỏng vấn.
