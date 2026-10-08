@@ -5,7 +5,8 @@ export type ResearchAutomationRevisionApiContract =
   | ResearchAutomationRevisionCancelRequest
   | ResearchAutomationReportVersionList
   | ResearchAutomationReportAttemptList
-  | ResearchAutomationRevisionReceipt;
+  | ResearchAutomationRevisionReceipt
+  | AutomationMarketPresentationRevisionRequest;
 export type Uuid = string;
 export type Digest = string;
 
@@ -72,4 +73,18 @@ export interface ResearchAutomationRevisionReceipt {
   state: 'QUEUED' | 'RUNNING' | 'COMMITTED' | 'FAILED' | 'CANCELLED';
   pairId: Digest | null;
   exactRetry: boolean;
+}
+export interface AutomationMarketPresentationRevisionRequest {
+  contractVersion: 'automation-market-presentation-revision-v1';
+  requestKey: string;
+  previousPairId: string;
+  sources: {
+    metric: {
+      decision: 'KEEP';
+    };
+    nativeReview: {
+      decision: 'KEEP';
+    };
+  };
+  unitSpecIntakeSha256?: string;
 }

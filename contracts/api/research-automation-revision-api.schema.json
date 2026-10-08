@@ -4,6 +4,7 @@
   "title": "ResearchAutomationRevisionApiContract",
   "oneOf": [
     { "$ref": "../analysis/automation-report-revision.schema.json" },
+    { "$ref": "../analysis/automation-market-presentation-revision.schema.json" },
     { "$ref": "#/$defs/cancelRequest" },
     { "$ref": "#/$defs/versionList" },
     { "$ref": "#/$defs/attemptList" },
