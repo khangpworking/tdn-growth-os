@@ -12,6 +12,10 @@ Committed and pushed (isolated for SYNC-1 to cherry-pick):
 - `5473386ad6cf6de998468454a748626ad32a20a0` — narrow `service.ts` dispatch: new packets `1.2.0`, new M01 inventories `1.1.0`, retained replay at the saved version.
 - `2103f69` — the seven contract deltas, regenerated derivatives and the I11 corrections.
 - `8592afb` — sibling working question, platform-only groups and proposal rendering.
+- `4990989` — merge of the refreshed `origin/main` (SYNC-1 #162, SYNC-6 #161).
+- `76f963c` — source-key member identity and the located producer path.
+- `2c39cca` — U-02 scope-question producer, I11 basis alignment, frozen v1 prompt bytes.
+- `64a990e` — U-07 required proposal fields and the M11 cap.
 
 Coordinator corrections applied after the first report (`msg_462c804ed55c`):
 - `msg_3e0c075c2dc4` member identity: `bounded-analysis-gates.ts` now keys group members, the numerator subset and the cross-group overlap check on the retained source key (sha256 + locator), so one record retained under two logical paths is one record; a repeated reference additionally names `I11_MEMBER_REFERENCES_NOT_DISTINCT` and keeps that partition counts-only. Negative case added to the retained-membership fixture test.
@@ -77,7 +81,7 @@ Astra/coordinator feedback already applied:
 | G-08 | DONE | Owner-facing additions are plain Vietnamese and name no provider; platform names appear only as source-stated values. |
 | G-09 | DONE | Missing stays missing: unresolved owner fields stay listed, `null` states stay `null`, no zero substitution, no invented group membership and no invented people counts. |
 | G-10 | DONE | Retained 1.0.0/1.1.0 artifacts validate and replay byte-identically; new versions are opt-in discriminators; the retained-version replay test covers the old I11 duplicate-cell behaviour. |
-| G-11 | DONE | No test was deleted, skipped or weakened. One assertion this package itself added was replaced by a stronger one: the located integration test now requires a non-empty proposal text instead of the earlier `text: null`. Copy this package changed and re-asserted: the located I01 working-question note ("do hệ thống hoặc mô hình đề xuất"), the 1.1.0 I11 page text and the rate table heading. `git diff c2014bb..HEAD -- tests/` contains additions plus that one replacement. No copy assertion needed updating: the changed I11 copy is 1.1.0-only and the 1.0.0 page copy is byte-identical, so no existing assertion pinned text that this package changed. New assertions were added to `bounded-analysis-gates`, `report-method-packets-pages`, `report-method-packets-extension`, `report-reader-projection` and `sync3-version-semantics`. |
+| G-11 | DONE | No test was deleted, skipped or weakened. Three assertions this package itself added in this branch were updated: the located integration test now requires a non-empty proposal text instead of the earlier `text: null`; the U-07 prompt test now expects the M11 cap of three with the required-field wording instead of `at most 20`; and the M12/I15 prompt wording moved from "may also add" to "must include". Copy this package changed and re-asserted: the located I01 working-question note ("do hệ thống hoặc mô hình đề xuất"), the 1.1.0 I11 page text and the rate table heading. `git diff c2014bb..HEAD -- tests/` contains additions plus that one replacement. No copy assertion needed updating: the changed I11 copy is 1.1.0-only and the 1.0.0 page copy is byte-identical, so no existing assertion pinned text that this package changed. New assertions were added to `bounded-analysis-gates`, `report-method-packets-pages`, `report-method-packets-extension`, `report-reader-projection` and `sync3-version-semantics`. |
 | G-12 | DONE | This file uses `templates/handoff.md` fields plus the Checklist evidence table. |
 | G-13 | N/A | This package does not collect records by keyword; no search/social/comment/ad collection path is created or changed. |
 
