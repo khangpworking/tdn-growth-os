@@ -4,6 +4,10 @@ import { buildAutomationDecisionPacket, validateAutomationDecisionCandidateRespo
 import { automationDecisionSynthesisPrompt, prepareAutomationDecisionSynthesis } from '../../src/modules/analysis/research-automation/decision-synthesis-input.js';
 import { decisionPacketSection } from '../../src/modules/analysis/research-automation/synthesis-evidence-report.js';
 import { syntheticI14Input, validI14Response } from '../helpers/i14-execution-fixture.js';
+import { sync2ReportFixture } from '../helpers/sync2-report-fixture.js';
+import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
+import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
 
 const evidence = { ...syntheticI14Input(), admissionVersion: '1.1.0' as const };
 const sections = ['M11', 'M12', 'I15'] as const;
@@ -67,4 +71,23 @@ test('historical prompt 1.3 stays byte-identical and 1.2 reports keep their hist
     assert.match(html, /Phản hồi AI cho mục này không đạt kiểm tra cấu trúc hoặc tham chiếu nguồn/);
     assert.doesNotMatch(html, /Đề xuất AI bị chặn/);
   }
+});
+
+test('new generic renderer gate preserves source and default-peer renderer precedence and old report bytes', () => {
+  const base = sync2ReportFixture();
+  const evidence = { ...syntheticI14Input(base.run.runId, base.run.workspaceId, base.scope), admissionVersion: '1.1.0' as const };
+  const packets = (packetVersion: '1.2.0' | '1.3.0') => (['M11', 'M12'] as const).map(sectionId =>
+    buildAutomationDecisionPacket({ sectionId, packetVersion, evidence }).artifact);
+  const old = { ...base, decisionPackets: packets('1.2.0'), decisionSourceClaims: evidence.sourceClaims as Parameters<typeof decisionPacketSection>[1] };
+  const historical = buildResearchAutomationReport(old, 'MARKET');
+  const latest = { ...old, decisionPackets: packets('1.3.0') };
+  const current = buildResearchAutomationReport(latest, 'MARKET');
+  assert.equal((current.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v24');
+  assert.equal((historical.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
+  assert.deepEqual(buildResearchAutomationReport(old, 'MARKET'), historical);
+  const sourceEvidence = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
+  const source = buildResearchAutomationReport({ ...latest, sourceEvidence, start: { ...latest.start, sourceEvidenceVersion: 'automation-source-evidence-v1' } }, 'MARKET');
+  assert.equal((source.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v18');
+  const peers = buildResearchAutomationReport({ ...latest, start: { ...latest.start, defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE } } }, 'MARKET');
+  assert.equal((peers.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v14');
 });

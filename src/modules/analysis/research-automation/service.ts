@@ -31,7 +31,7 @@ import type { AutomationQuoteReportRevisionRequest } from '../../../../contracts
 import type { AutomationQuoteMethodSnapshot } from '../../../../contracts/analysis/automation-quote-method-snapshot.generated.js';
 import { buildAutomationQuoteMethods, verifyAutomationQuoteMethods } from './quote-methods.js';
 import type { AutomationDecisionPacket } from '../../../../contracts/analysis/automation-decision-packets.generated.js';
-import { buildAutomationDecisionPacket, verifyAutomationDecisionPacket, type AutomationDecisionPacketInput, type AutomationDecisionSectionId } from './decision-packets.js';
+import { MAX_DECISION_PACKET_BYTES, buildAutomationDecisionPacket, verifyAutomationDecisionPacket, type AutomationDecisionPacketInput, type AutomationDecisionSectionId } from './decision-packets.js';
 import { AutomationDecisionSynthesisExecutions, type AutomationDecisionExecutionRequest, type AutomationDecisionExecutionOutcome } from './decision-synthesis-execution.js';
 import type { AutomationInsightReportRevisionRequest } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
 import type { AutomationInsightCodingSnapshot } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
@@ -1771,7 +1771,7 @@ export class ResearchAutomationService {
           if (!isRecord(packet) || !isRecord(packet.useContextAdmission)) throw new Error('missing packet admission');
           const admissionVersion = packet.useContextAdmission.methodVersion;
           if (admissionVersion !== '1.0.0' && admissionVersion !== '1.1.0') throw new Error('unknown packet admission');
-          if (!['1.0.0', '1.1.0', '1.2.0'].includes(packet.methodVersion as string)) throw new Error('unknown decision packet version');
+          if (!['1.0.0', '1.1.0', '1.2.0', '1.3.0'].includes(packet.methodVersion as string)) throw new Error('unknown decision packet version');
           const source: AutomationDecisionPacketInput = { sectionId, packetVersion: packet.methodVersion, evidence: {
             run: { runId, workspaceId }, scope: decisionScope, admissionVersion,
             sourceClaims: rebuilt.artifact, claimsSha256: rebuilt.artifact.claimsSha256,
@@ -2247,9 +2247,9 @@ export class ResearchAutomationService {
         const decisionSynthesis: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionOutcome>> = {};
         const decisionExecutionIds: Partial<Record<AutomationDecisionSectionId, string>> = {};
         for (const sectionId of (kind === 'MARKET' ? ['M11', 'M12'] as const : ['I15'] as const)) {
-          const source: AutomationDecisionPacketInput = { sectionId, packetVersion: '1.2.0', evidence: { ...admissionInput,
+          const source: AutomationDecisionPacketInput = { sectionId, packetVersion: '1.3.0', evidence: { ...admissionInput,
             sourceClaims: decisionClaims.artifact, claimsSha256: decisionClaims.artifact.claimsSha256 } };
-          decisionPackets.push(buildAutomationDecisionPacket(source).artifact);
+          let displayPacket = buildAutomationDecisionPacket(source).artifact;
           const parent = await this.#i14Parent(fresh, attempt);
           let outcome: AutomationDecisionExecutionOutcome | undefined;
           if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
@@ -2261,6 +2261,29 @@ export class ResearchAutomationService {
           } else outcome = await this.#decisionExecutions[sectionId].execute({ parent, source,
             ai: this.#decisionAi[sectionId] ?? null, signal: controller.signal });
           if (outcome?.status === 'PREPARED') throw new ResearchAutomationIntegrityError('Prepared decision synthesis has not settled.');
+          if (outcome && 'executionId' in outcome) {
+            // A kept revision reuses the execution's exact packet, not the current guard version.
+            // The owning execution read has already verified the parent and all frozen dependencies.
+            const retained = this.#db.prepare(`SELECT admission_sha256 admissionSha256, run_id runId,
+              workspace_id workspaceId, section_id sectionId, scope_sha256 scopeSha256, attempt_id attemptId
+              FROM analysis_research_automation_ai_executions WHERE execution_id=?`).get(outcome.executionId) as
+              { admissionSha256: string; runId: string; workspaceId: string; sectionId: string; scopeSha256: string; attemptId: string | null } | undefined;
+            const retainedAttemptId = parent.kind === 'INITIAL_REPORTS' ? null
+              : parent.kind === 'SUPPLEMENTAL_ATTEMPT' ? parent.attemptId : undefined;
+            if (retainedAttemptId === undefined || !retained || retained.runId !== fresh.runId || retained.workspaceId !== fresh.workspaceId ||
+                retained.sectionId !== sectionId || retained.scopeSha256 !== fresh.scopeSha ||
+                retained.attemptId !== retainedAttemptId)
+              throw new ResearchAutomationIntegrityError('Decision packet execution identity differs.');
+            const packetBytes = await this.#readArtifact(retained.admissionSha256, MAX_DECISION_PACKET_BYTES, 'application/json');
+            // The synthesis owner retains canonical packet JSON with its historical trailing newline.
+            const packet = JSON.parse(packetBytes.toString('utf8')) as AutomationDecisionPacket;
+            const retainedSource = { ...source, packetVersion: packet.methodVersion,
+              evidence: { ...source.evidence, admissionVersion: packet.useContextAdmission.methodVersion } };
+            displayPacket = verifyAutomationDecisionPacket(packet, retainedSource);
+            if (!packetBytes.equals(buildAutomationDecisionPacket(retainedSource).bytes))
+              throw new ResearchAutomationIntegrityError('Decision packet retained bytes differ.');
+          }
+          decisionPackets.push(displayPacket);
           if (outcome) {
             decisionSynthesis[sectionId] = outcome;
             if ('executionId' in outcome) decisionExecutionIds[sectionId] = outcome.executionId;

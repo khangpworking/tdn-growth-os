@@ -7,6 +7,7 @@ test('U16 general purchase and trial-order proposals are blocked in Vietnamese a
     'Mua sản phẩm đối thủ để kiểm tra chất lượng', 'Buy a competitor product to assess its quality',
     'Mua sản phẩm để kiểm tra', 'Purchase the product to inspect its quality',
     'Đặt hàng thử sản phẩm đối thủ', 'Order a competitor product for testing',
+    'Place a trial order to inspect quality', 'Đặt một đơn hàng để đánh giá chất lượng',
     'Buying a product for testing is a proposed prerequisite',
     'Không chỉ mua sản phẩm để kiểm tra', 'Không thể không mua sản phẩm để kiểm tra',
     'Do not review public data; instead purchase a competitor product',

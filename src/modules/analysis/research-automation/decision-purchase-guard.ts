@@ -3,7 +3,7 @@ export const DECISION_PURCHASE_GUARD_VERSION = 'u16-no-purchase-v1';
 
 // Bounded lexical guard, not a language classifier. Match proposed purchase verbs;
 // a quality/test qualifier is not required because L8 prohibits purchase proposals generally.
-const PURCHASE = /(?<![\p{L}\p{N}_])(?:mua|đặt\s+(?:mua|hàng)|buy(?:ing)?|purchas(?:e|ing)|order(?:ing)?|place\s+(?:an?\s+)?order)(?![\p{L}\p{N}_])/giu;
+const PURCHASE = /(?<![\p{L}\p{N}_])(?:mua|đặt\s+(?:mua|(?:một\s+)?(?:đơn\s+)?hàng)|buy(?:ing)?|purchas(?:e|ing)|order(?:ing)?|place\s+(?:an?\s+)?(?:(?:trial|sample|test)\s+)?order)(?![\p{L}\p{N}_])/giu;
 const CLAUSE = /[.;:!?\n,]|\b(?:but|instead|then|and)\b|(?:\s)(?:nhưng|thay vào đó|sau đó|và)(?:\s)/iu;
 // The negation must immediately govern this verb, not a different earlier action.
 const PROHIBITION = /(?:không(?:\s+(?:được|nên|cần|đề xuất|khuyến nghị|yêu cầu|phải|thực hiện))?|tránh|cấm|chưa được phép|do not|don't|must not|should not|never|without|no need to|do not (?:suggest|recommend|propose)|avoid|prohibit)\s*$/iu;

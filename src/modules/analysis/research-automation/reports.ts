@@ -715,6 +715,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
+    : input.decisionPackets?.some(packet => packet.methodVersion === '1.3.0') ? 'automation-report-kit-v24'
     : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {
