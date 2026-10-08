@@ -189,6 +189,7 @@ const SECTION_LEAD: Readonly<Record<LocatedId, string>> = {
 
 function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
   const section = ctx.output.sections[sectionId];
+  const flagged = ctx.output.input.draftCountsVersion === 'draft-counts-v1';
   let body = `<p class="sec-note">${SECTION_LEAD[sectionId]}</p>`;
   if (draftMode(section) && 'draftAnnotationPointers' in section) {
     // Draft mode: the leading totals ARE the eligible draft numbers with the
@@ -198,6 +199,11 @@ function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
     const label = 'draftLabel' in section ? section.draftLabel ?? 'đề xuất, chờ chủ duyệt' : 'đề xuất, chờ chủ duyệt';
     const count = 'draftLocatedRecordCount' in section ? section.draftLocatedRecordCount ?? pointers.length : pointers.length;
     body += `<p>${count} bản ghi (${label}). Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
+  } else if (flagged) {
+    // Unsupported family in a draft view: withhold classified totals with an
+    // explicit unavailable explanation instead of showing bare accepted
+    // numbers. Pending details and polarities below are not totals and stay.
+    body += `<p>Bản nháp này chưa tính số đề xuất cho mục ${sectionId} (chỉ hỗ trợ I02/I10/I13); không hiển thị số đã chấp nhận ở đây.</p>`;
   } else {
     body += `<p>${section.locatedRecordCount} bản ghi có mã hóa được hồ sơ đưa vào kết quả${ctx.showAnnotationPendingCount ? `; ${section.pendingAnnotationPointers.length} chú giải đang chờ xử lý` : ''}. Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
   }
@@ -209,9 +215,10 @@ function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
       return `<tr><td>${source(ctx, index)}</td><td>${label(item.polarity)}</td></tr>`;
     })) + sliceNote(ctx, polarities.length, 'bản ghi');
   }
-  body += section.annotationPointers.length === 0 && !draftMode(section)
+  body += section.annotationPointers.length === 0 && !draftMode(section) && !flagged
     ? '<p>Chưa có chú giải được đưa vào kết quả cho mục này. Cần bổ sung mã hóa có vị trí nguồn và xử lý các mục đang chờ.</p>'
     : draftMode(section) ? draftSummaryTable(ctx, sectionId, section)
+    : flagged ? ''
     : table('Chú giải được hồ sơ đưa vào kết quả', ['Nội dung và mã hóa', 'Nguồn và ngữ cảnh'], section.annotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer))) + sliceNote(ctx, section.annotationPointers.length, 'chú giải');
   if (section.pendingAnnotationPointers.length) body += pendingDetails(ctx, sectionId, section);
   return body + footer(ctx, section.blockers);
@@ -269,7 +276,14 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
     const complete = result.codingComplete && result.ratioStatus === 'COMPLETE';
     const state = result.ratioStatus === 'ZERO_DENOMINATOR' ? 'Mẫu số bằng 0; không có tỷ lệ.'
       : complete ? 'Đã hoàn tất mẫu số và mã hóa theo khai báo của hồ sơ.' : 'Mã hóa hoặc thành viên chưa đầy đủ; chưa công bố n/N.';
-    body += `<h4>${textOrUnset(corpus.question)}</h4><p><b>${state}</b></p><p>${result.includedRecordCount} bản ghi thuộc diện đưa vào; ${result.pendingCount} bản ghi đang chờ mã hóa hoặc phân xử; ${result.unreadableCount} bản ghi không đọc được.</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
+    body += `<h4>${textOrUnset(corpus.question)}</h4><p><b>${state}</b></p>`;
+    if (result.draftCounts === undefined) {
+      body += `<p>${result.includedRecordCount} bản ghi thuộc diện đưa vào; ${result.pendingCount} bản ghi đang chờ mã hóa hoặc phân xử; ${result.unreadableCount} bản ghi không đọc được.</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
+    } else {
+      // Draft mode withholds accepted-state tallies instead of showing bare
+      // classified numbers; the draft per-code table below carries the labels.
+      body += `<p class="sec-note">Số tổng hợp và phạm vi chi tiết của tập này được tính theo trạng thái mã hóa đã lưu, không hiển thị ở bản nháp; số đề xuất theo mã ở bảng dưới (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}).</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
+    }
     const coverage = [
       ['Thành viên duy nhất', result.membershipCount], ['Đưa vào', result.includedRecordCount],
       ['Loại ra', result.excludedCount], ['Không đọc được', result.unreadableCount],
@@ -277,7 +291,9 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
       ['Không gán mã (UNCODED)', result.uncodedCount], ['Đã có mã', result.codedCount],
       ['Có nhiều mã', result.multiCodedCount], ['Tham chiếu lặp đã loại trùng', result.duplicateReferenceCount],
     ] as const;
-    body += `<details><summary>Phạm vi và mức hoàn tất mã hóa</summary><dl>${coverage.map(([name, value]) => definition(name, String(value))).join('')}</dl><p>Đang chờ, chưa rõ mã và không gán mã là các trạng thái khác nhau. Các số trên không cộng thành một tổng chung.</p></details>`;
+    if (result.draftCounts === undefined) {
+      body += `<details><summary>Phạm vi và mức hoàn tất mã hóa</summary><dl>${coverage.map(([name, value]) => definition(name, String(value))).join('')}</dl><p>Đang chờ, chưa rõ mã và không gán mã là các trạng thái khác nhau. Các số trên không cộng thành một tổng chung.</p></details>`;
+    }
     const rows = result.counts.slice(0, PAGE_LIMIT).map(count => {
       const code = corpus.codebook.codes.find(item => item.code === count.code);
       if (!code) throw new TypeError('located insight HTML: UNKNOWN_CODE');

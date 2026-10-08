@@ -152,6 +152,25 @@ test('U-03 renderers label every draft number in the same sentence and leave leg
   assert.match(draftSummary, /2 bản ghi \(đề xuất, chờ chủ duyệt\)\./);
 });
 
+test('U-03 unsupported families withhold totals with an explicit explanation', () => {
+  const flagged = summaryFixture(true);
+  flagged.i04 = [{ recordIndex: 0, provenance: pendingAi(), qualifiers: [], counterevidence: [],
+    span: { start: 0, end: 10, quote: 'I bought A' }, eventKind: 'ACTION_REPORTED', attribution: 'SELF_REPORTED' }];
+  const flaggedHtml = renderLocatedInsightSection(buildLocatedInsightMethods(flagged).output, 'I04')!;
+  assert.match(flaggedHtml, /Bản nháp này chưa tính số đề xuất cho mục I04 \(chỉ hỗ trợ I02\/I10\/I13\); không hiển thị số đã chấp nhận ở đây\./);
+  assert.equal(flaggedHtml.includes('bản ghi có mã hóa được hồ sơ đưa vào kết quả'), false, 'No bare accepted totals in draft view');
+  assert.equal(flaggedHtml.includes('Chú giải được hồ sơ đưa vào kết quả'), false, 'No accepted table in draft view');
+  const plain = summaryFixture(false);
+  plain.i04 = flagged.i04;
+  const legacyHtml = renderLocatedInsightSection(buildLocatedInsightMethods(plain).output, 'I04')!;
+  assert.equal(legacyHtml.includes('chưa tính số đề xuất'), false, 'Legacy HTML carries no draft copy');
+  assert.match(legacyHtml, /0 bản ghi có mã hóa được hồ sơ đưa vào kết quả/);
+  const draftCorpus = renderLocatedInsightSection(buildLocatedInsightMethods(corpusFixture(true)).output, 'I10')!;
+  assert.match(draftCorpus, /Số tổng hợp và phạm vi chi tiết của tập này được tính theo trạng thái mã hóa đã lưu, không hiển thị ở bản nháp/);
+  assert.equal(draftCorpus.includes('Phạm vi và mức hoàn tất mã hóa'), false, 'No accepted coverage block in draft view');
+  assert.match(draftCorpus, /2 \(đề xuất, chờ chủ duyệt\)/);
+});
+
 test('U-03 draft view suppresses ratios without touching raw complete counts', () => {
   const input = corpusFixture(false);
   input.corpora[0]!.assignments = [{ recordIndex: 0, code: 'T001', span: { start: 0, end: 9, quote: 'packaging' }, provenance: { ...REVIEWED } }];
