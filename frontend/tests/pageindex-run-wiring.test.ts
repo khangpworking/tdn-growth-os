@@ -23,6 +23,48 @@ const run: ResearchAutomationRun = { contractVersion: 'research-automation-run-v
   createdAt: '2026-01-31T00:00:00.000Z', updatedAt: '2026-01-31T00:00:00.000Z' };
 
 // These protect mounted owner controls and response identity, which module upload tests cannot observe.
+test('run progress refreshes an initially empty PDF inventory and displays PDFs retained before the terminal draft', async t => {
+  const dom = setupDom(); const priorFetch = globalThis.fetch;
+  const { createRoot } = await import('react-dom/client'); const root = createRoot(dom.container);
+  const { default: RunView } = await tsImport('../src/research-automation/RunView.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' });
+  const priorTimeout = window.setTimeout; const priorClear = window.clearTimeout;
+  const timers = new Map<number, () => void>(); let nextTimer = 0;
+  window.setTimeout = ((callback: () => void) => { const id = ++nextTimer; timers.set(id, callback); return id; }) as typeof window.setTimeout;
+  window.clearTimeout = (id: number | undefined) => { if (id !== undefined) timers.delete(id); };
+  let currentRun: ResearchAutomationRun = { ...run, revision: 2, status: 'COLLECTING' };
+  let pdfReads = 0; const signals: AbortSignal[] = [];
+  globalThis.fetch = (async (url, init) => {
+    assert.equal(init?.method ?? 'GET', 'GET', 'Run advancement must never upload, query or recheck a provider');
+    if (String(url).endsWith('/pageindex')) {
+      pdfReads++; signals.push(init!.signal as AbortSignal);
+      return json({ ...states(currentRun.status === 'DRAFT_READY' ? [{ fileName: 'collected-evidence.pdf', sourceSha256: sha, state: 'READY', cloudDocId: null }] : []), paused: false });
+    }
+    if (String(url).endsWith('/reader-reports')) return json({ contractVersion: 'reader-report-list-v1', workspaceId, runId, revisions: [] });
+    return json(currentRun);
+  }) as typeof fetch;
+  t.after(async () => {
+    await act(async () => root.unmount()); globalThis.fetch = priorFetch;
+    window.setTimeout = priorTimeout; window.clearTimeout = priorClear; dom.cleanup();
+  });
+  const advance = async () => act(async () => {
+    const timer = timers.entries().next().value; assert.ok(timer, 'An active run schedules its next read');
+    timers.delete(timer[0]); timer[1]();
+  });
+  await act(async () => root.render(createElement(RunView, { workspaceId, runId, ownerToken: null, writesAvailable: false, notify: () => {}, onStatusChange: () => {} })));
+  assert.equal(pdfReads, 1);
+  currentRun = { ...currentRun, revision: 3, status: 'RENDERING' };
+  await advance();
+  assert.equal(pdfReads, 2, 'Advancing the parent run refreshes an inventory that previously had no PDFs');
+  assert.equal(signals[0]!.aborted, true, 'Run advancement cancels the preceding inventory scope');
+  currentRun = { ...currentRun, revision: 4, status: 'DRAFT_READY' };
+  await advance();
+  assert.equal(pdfReads, 3, 'The terminal run snapshot gets a final inventory refresh');
+  assert.match(dom.container.textContent!, /collected-evidence.pdf.*Sẵn sàng/);
+  assert.equal(timers.size, 0, 'A terminal run with READY PDFs performs no further polling');
+  await act(async () => root.unmount());
+  assert.equal(signals.at(-1)!.aborted, true, 'Unmount cancels the last inventory scope');
+});
+
 test('real run page loads PDF states, makes one explicit bounded attachment, and hides cloud identifiers', { timeout: 10_000 }, async t => {
   const dom = setupDom(); const prior = globalThis.fetch;
   const { createRoot } = await import('react-dom/client'); const root = createRoot(dom.container);

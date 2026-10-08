@@ -548,14 +548,19 @@ export class ResearchAutomationService {
       const activePages = check && (Number(check.succeeded) !== 1 || check.pages === null) ? null : Math.max(ledgerPages, Number(check?.pages ?? 0));
       const raw = this.#pageIndex?.startingCreditMicroDollars ?? process.env.TDN_PAGEINDEX_STARTING_CREDIT_MICRO_DOLLARS;
       const starting = raw === undefined || String(raw).trim() === '' ? null : Number(raw);
-      const balance = starting === null || activePages === null ? null : activePages > ledgerPages
-        ? estimatePageIndexBalance({ startingCreditMicroDollars: starting, indexedPagesTotal: activePages, activePages })
+      // A free list has no upload dates for untracked pages. Their historical
+      // charges are unknown; replacing ledger accrual with one month refunds
+      // known costs and can incorrectly reopen paid uploads.
+      const balance = starting === null || activePages === null || activePages > ledgerPages ? null
         : estimatePageIndexLedgerBalance({ startingCreditMicroDollars: starting, now: this.#now(), documents: rows });
+      const monthlyCost = balance?.estimatedMonthlyCostMicroDollars ?? (activePages !== null && activePages > ledgerPages ? estimatePageIndexBalance({
+        startingCreditMicroDollars: 0, indexedPagesTotal: 0, activePages,
+      }).estimatedMonthlyCostMicroDollars : null);
       const question = this.#db.prepare('SELECT max(attempted_at) at FROM analysis_pageindex_questions').get() as { at: string | null };
       return { ...base, lastCallAt: [...attempted.map(row => row.uploadAttemptedAt), check?.at, question.at].filter((at): at is string => Boolean(at)).sort().at(-1) ?? null,
         documentsSent: attempted.length, activePages, balanceMicroDollars: balance?.balanceMicroDollars ?? null,
         balanceCheckedAt: balance ? this.#now().toISOString() : null,
-        estimatedMonthlyCostMicroDollars: balance?.estimatedMonthlyCostMicroDollars ?? null,
+        estimatedMonthlyCostMicroDollars: monthlyCost,
         lowBalance: !balance || balance.lowBalance };
     } catch {
       return { ...base, lastCallAt: null, documentsSent: null, activePages: null, balanceMicroDollars: null,
@@ -679,7 +684,11 @@ export class ResearchAutomationService {
     const local = new Map<number, { bytes: Buffer; pages: readonly PageIndexLocalPage[] }>();
     for (const [index, file] of files.entries()) {
       try {
-        const packageValue = await reader.readVerified(file.packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 32 * 1024 * 1024 });
+        const packageValue = await reader.readVerified(file.packageId, {
+          maxFileBytes: 32 * 1024 * 1024,
+          // The inclusive PDF member limit does not include its bounded manifest.
+          maxTotalBytes: 32 * 1024 * 1024 + 64 * 1024,
+        });
         const member = packageValue.files.find(entry => entry.path === file.logicalPath);
         if (packageValue.manifestArtifactSha256 !== file.manifestSha256 || !member || member.sha256 !== file.sha256 || member.mediaType !== 'application/pdf') continue;
         await indexRunPdfsForPageIndex([{ sha256: file.sha256, fileName: file.fileName, bytes: member.bytes }], this.#pageIndexDeps());

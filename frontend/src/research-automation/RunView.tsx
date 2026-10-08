@@ -86,11 +86,11 @@ export default function RunView({ workspaceId, runId, ownerToken, writesAvailabl
     {/* The automated draft stays server-side for AI and audit; the OWNER sees only the reader page. */}
     {run.status === 'DRAFT_READY' && <ReaderReportPanel key={run.runId} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} />}
     {phase === 'scope' ? <ScopeConfirm key={`${run.runId}:${run.revision}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} onConfirmed={() => { notify('Đã xác nhận phạm vi. Hệ thống bắt đầu thu thập.'); reload(); }} onConflict={conflict} /> : <RunProgress run={run} phase={phase} workspaceId={workspaceId} />}
-    <RunPdfPanel key={`${workspaceId}:${runId}`} workspaceId={workspaceId} runId={runId} ownerToken={ownerToken} writesAvailable={writesAvailable} attachmentAllowed={run.status === 'AWAITING_SCOPE' || run.status === 'DRAFT_READY'} />
+    <RunPdfPanel key={`${workspaceId}:${runId}`} workspaceId={workspaceId} runId={runId} ownerToken={ownerToken} writesAvailable={writesAvailable} runRevision={run.revision} runStatus={run.status} attachmentAllowed={run.status === 'AWAITING_SCOPE' || run.status === 'DRAFT_READY'} />
   </section><aside className="ra-inspector" aria-labelledby="ra-run-facts"><h2 id="ra-run-facts">Phiên nghiên cứu</h2><p className={`status-pill ${phase === 'finished' && run.status !== 'FAILED' && run.status !== 'CANCELLED' && run.status !== 'INTERRUPTED' ? 'good' : ''}`}>{statusLabel(run.status)}</p><dl className="ra-kv"><div><dt>Từ khóa</dt><dd>{run.keyword}</dd></div><div><dt>Chế độ</dt><dd>{modeLabel(run.mode)}</dd></div><div><dt>Kỳ yêu cầu</dt><dd>{formatDay(run.requestedPeriod.startDate)} → {formatDay(run.requestedPeriod.endDate)} · {run.requestedPeriod.dayCount} ngày</dd></div><div><dt>Thị trường</dt><dd>Việt Nam</dd></div><div><dt>Báo cáo</dt><dd>{reportsLabel(run.reports)}</dd></div><div><dt>Bắt đầu</dt><dd>{formatTime(run.createdAt)}</dd></div><div><dt>Cập nhật</dt><dd>{formatTime(run.updatedAt)}</dd></div></dl><h3>Chi phí và lượt gọi</h3><UsageSummary run={run}/><p className="ra-muted">Ưu tiên đủ dữ liệu · Không đặt trần chi phí. Chưa có số liệu nghĩa là nguồn chưa báo, không phải bằng 0.</p>{phase !== 'finished' && <><button type="button" className="button danger" disabled={!canWrite || cancelPending} onClick={() => setCancelOpen(true)}>{cancelPending ? 'Đang hủy…' : 'Hủy phiên nghiên cứu'}</button>{!canWrite && <p className="ra-muted">Mở khóa OWNER để hủy phiên.</p>}</>}{cancelOpen && <ConfirmDialog titleId="ra-cancel-title" descriptionId="ra-cancel-description" title="Hủy phiên nghiên cứu này?" confirmLabel="Hủy phiên" pending={cancelPending} onCancel={() => setCancelOpen(false)} onConfirm={() => void cancel()}><p id="ra-cancel-description">Hệ thống dừng các bước còn lại. Dữ liệu và chi phí đã phát sinh vẫn được ghi lại. Muốn chạy lại cần tạo phiên mới.</p></ConfirmDialog>}</aside></div>;
 }
 
-function RunPdfPanel({ workspaceId, runId, ownerToken, writesAvailable, attachmentAllowed }: Pick<RunViewProps, 'workspaceId' | 'runId' | 'ownerToken' | 'writesAvailable'> & { readonly attachmentAllowed: boolean }) {
+function RunPdfPanel({ workspaceId, runId, ownerToken, writesAvailable, runRevision, runStatus, attachmentAllowed }: Pick<RunViewProps, 'workspaceId' | 'runId' | 'ownerToken' | 'writesAvailable'> & { readonly runRevision: number; readonly runStatus: ResearchAutomationRun['status']; readonly attachmentAllowed: boolean }) {
   const [data, setData] = useState<ResearchAutomationRunPdfStates | null>(null);
   const [file, setFile] = useState<File | null>(null);
   const [error, setError] = useState('');
@@ -115,7 +115,7 @@ function RunPdfPanel({ workspaceId, runId, ownerToken, writesAvailable, attachme
     };
     void load();
     return () => { alive = false; controller.abort(); if (timer !== undefined) window.clearTimeout(timer); };
-  }, [workspaceId, runId, tick]);
+  }, [workspaceId, runId, runRevision, runStatus, tick]);
   const attach = async () => {
     if (!attachmentAllowed || !file || !ownerToken || !writesAvailable || inFlight.current) return;
     inFlight.current = true; setUploading(true); setError('');

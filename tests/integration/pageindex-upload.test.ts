@@ -9,6 +9,7 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { buildResearchAutomationSourceStatus } from '../../src/modules/analysis/research-automation/source-status.js';
+import { extractPageIndexPdf } from '../../src/modules/analysis/pageindex-questions.js';
 import sourceStatusSchema from '../../contracts/api/research-automation-source-status-api.schema.json' with { type: 'json' };
 
 const require = createRequire(import.meta.url);
@@ -70,15 +71,17 @@ test('fixture run indexes attached PDF once, persists verified quotes and expose
       throw new Error('Unexpected connector request');
     };
     const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), now: fixedNow,
-      pageIndex: { enabled: true, apiKey: 'synthetic-pdf-key', fetch: fakeFetch, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: 2 },
+      pageIndex: { enabled: true, apiKey: 'synthetic-pdf-key', fetch: fakeFetch, startingCreditMicroDollars: 10_000_000, maxQuestionsPerRun: 2,
+        extractPdf: async source => source.length === 32 * 1024 * 1024
+          ? [{ page: 1, text: 'Calcium 120 mg' }] : extractPageIndexPdf(source) },
       renderer: (input, kind) => ({ semantic: { contractVersion: 'research-automation-report-v1', runId: input.run.runId, workspaceId, kind }, html: Buffer.from(`<html>${kind}</html>`) }) });
-    async function run(key: string, expectedQuotes = 2) {
+    async function run(key: string, expectedQuotes = 2, sourceBytes = bytes) {
       const receipt = await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: key, mode: 'CATEGORY', keyword: 'synthetic PDF',
         requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
       await service.processNext();
       const run = await service.getRun(workspaceId, receipt.run.runId);
       assert.equal(run.status, 'AWAITING_SCOPE');
-      const states = await service.attachRunPdf(workspaceId, run.runId, 'fixture.pdf', bytes);
+      const states = await service.attachRunPdf(workspaceId, run.runId, 'fixture.pdf', sourceBytes);
       assert.deepEqual(states.documents.map(doc => doc.state), ['READY']);
       await service.confirmScope(workspaceId, run.runId, { contractVersion: 'research-automation-confirm-v2', requestKey: key.replace(/^./, 'f'), expectedRevision: run.revision,
         definition: 'Synthetic unchanged scope', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [], sources: { metric: { decision: 'SKIPPED' }, nativeReview: 'SKIP' } });
@@ -127,6 +130,11 @@ test('fixture run indexes attached PDF once, persists verified quotes and expose
     assert.equal(summary.documentsSent, 1); assert.equal(summary.activePages, 1); assert.equal(summary.balanceMicroDollars, 9_990_000);
     assert.equal(summary.keyConfigured, true); assert.equal(summary.lastCallAt, fixedNow().toISOString());
     await service.recheckPageIndex(); assert.equal(lists, 1); assert.equal(uploads, 1); assert.equal(questions, 8);
+    // Exercise the inclusive member-size limit through intake and REPORTS. Only
+    // local parsing is fake for this padded fixture; package verification is real.
+    const atLimit = Buffer.alloc(32 * 1024 * 1024, 0x20); bytes.copy(atLimit);
+    await run('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 2, atLimit);
+    assert.equal(uploads, 2); assert.equal(questions, 10);
     unknownPages = true;
     const unknown = await service.recheckPageIndex();
     assert.equal(unknown.activePages, null); assert.equal(unknown.balanceMicroDollars, null); assert.equal(unknown.lowBalance, true);
@@ -134,7 +142,7 @@ test('fixture run indexes attached PDF once, persists verified quotes and expose
     assert.equal((await service.recheckPageIndex()).usageLimited, true, 'A free-list usage signal pauses future paid calls');
     db.pragma('query_only = ON');
     assert.equal((await service.pageIndexStatesForRun(workspaceId, firstRun)).documents[0]?.state, 'READY');
-    assert.equal(service.pageIndexStatusSummary().documentsSent, 1);
+    assert.equal(service.pageIndexStatusSummary().documentsSent, 2);
     assert.equal(lists, 3, 'read-only page loads never issue a provider call');
   } finally { opened.db.close(); await fs.rm(root, { recursive: true, force: true }); }
 });
@@ -173,18 +181,37 @@ test('production upload gates account for accrued storage, prospective indexing 
         (source_sha256,cloud_doc_id,cloud_file_name,page_count,uploaded_at,status,updated_at,upload_attempted,upload_attempted_at)
         VALUES (?,?,?,1000,'2026-08-01T00:00:00.000Z','READY','2026-08-01T00:00:00.000Z',1,'2026-08-01T00:00:00.000Z')`)
         .run(digest.repeat(64), `pi-${digest}`, `${digest}.pdf`);
-      let calls = 0;
+      let calls = 0; let lists = 0;
       const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), now: fixedNow,
         pageIndex: { enabled: true, apiKey: 'synthetic-gate-key', ...(scenario === 'unknown' ? {} : { startingCreditMicroDollars: scenario === 'storage' ? 27_000_000 : 10_000_000 }),
           extractPdf: async () => Array.from({ length: scenario === 'prospective' ? 1000 : 1 }, (_, index) => ({ page: index + 1, text: 'Synthetic local verifier' })),
-          fetch: async () => { calls++; throw new Error('Gate must prevent dispatch'); } } });
+          fetch: async url => {
+            if (scenario === 'storage' && new URL(String(url)).pathname === '/doc/list') {
+              lists++;
+              return Response.json({ documents: [{ id: 'pi-a', name: 'a.pdf', pageNum: 1000, status: 'completed' },
+                { id: 'pi-b', name: 'b.pdf', pageNum: 1000, status: 'completed' },
+                { id: 'pi-untracked', name: 'untracked.pdf', pageNum: 1, status: 'completed' }] });
+            }
+            calls++; throw new Error('Gate must prevent paid dispatch');
+          } } });
+      if (scenario === 'storage') {
+        const before = service.pageIndexStatusSummary();
+        assert.equal(before.balanceMicroDollars, 4_806_452); assert.equal(before.lowBalance, true);
+        const discovered = await service.recheckPageIndex();
+        assert.equal(discovered.activePages, 2001);
+        assert.ok(discovered.balanceMicroDollars === null || discovered.balanceMicroDollars <= before.balanceMicroDollars!,
+          'An untracked page cannot refund already accrued storage');
+        assert.equal(discovered.lowBalance, true, 'Unknown extra storage must not reopen paid uploads');
+        assert.equal(discovered.estimatedMonthlyCostMicroDollars, 1_001_000);
+        assert.equal(lists, 1);
+      }
       const receipt = await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '99999999-9999-4999-8999-999999999999',
         mode: 'CATEGORY', keyword: 'synthetic gate', requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
       await service.processNext();
       const states = await service.attachRunPdf(workspaceId, receipt.run.runId, 'fixture.pdf', pdfFixture());
       assert.equal(states.documents[0]?.state, 'SKIPPED_LOW_BALANCE'); assert.equal(calls, 0);
       if (scenario === 'unknown') assert.equal(service.pageIndexStatusSummary().balanceMicroDollars, null);
-      if (scenario === 'storage') assert.equal(service.pageIndexStatusSummary().balanceMicroDollars, 4_806_452);
+      if (scenario === 'storage') assert.equal(service.pageIndexStatusSummary().balanceMicroDollars, null);
     } finally { opened.db.close(); await fs.rm(root, { recursive: true, force: true }); }
   });
 });
