@@ -121,6 +121,11 @@ test('configured private bridge -> Foundation3 -> exact retained corpus -> close
   await assert.rejects(f.bridge.readPrivate(result.privateReference, altered));
   await assert.rejects(f.bridge.verifyPrivateCorpus(corpus, result.privateReference, f.input,
     { ...f.binding, confirmedSourceSetSha256: 'f'.repeat(64) }));
+  const wrongRunCorpus = structuredClone(corpus);
+  wrongRunCorpus.binding.runId = keyId;
+  const { corpusId: _old, ...wrongRunBody } = wrongRunCorpus;
+  wrongRunCorpus.corpusId = hash(wrongRunBody);
+  await assert.rejects(f.bridge.verifyPrivateCorpus(wrongRunCorpus, result.privateReference, f.input, f.binding), /replay/);
   await assert.rejects(f.bridge.read(result.privateReference, f.input), /substitution/);
 });
 
@@ -143,7 +148,7 @@ test('private bridge failure/incomplete/cancellation stays diagnostics-only and 
       collect: async (...args: Parameters<typeof f.collector.collect>) => {
         calls++; const capture = await f.collector.collect(...args);
         if (status === 'CANCELLED') controller.abort();
-        else if (status === 'INCOMPLETE') capture.actor.stopReason = 'review_limit';
+        else if (status === 'INCOMPLETE') capture.actor.stopReason = 'collection_limit_reached';
         else capture.actor.status = status;
         return capture;
       } };

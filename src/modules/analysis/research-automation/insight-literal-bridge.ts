@@ -30,8 +30,8 @@ export class AutomationInsightLiteralEvidence {
   async build(input: InsightLiteralBridgeInput): Promise<InsightLiteralEvidence> {
     if (!/^[0-9a-f]{64}$/.test(input.previousPairId) || input.start.workspaceId !== input.scope.workspaceId || input.scope.runId !== input.runId ||
         (input.collection !== null && input.collection.runId !== input.runId)) throw new ResearchAutomationIntegrityError('Literal evidence run binding differs.');
-    if (input.collection?.privateShopee && (!input.privateShopeeSource || input.collection.exactShopee || input.collection.nativeReview)) throw new ResearchAutomationIntegrityError('Private literal evidence cannot substitute another source.');
-    if (input.privateShopeeSource && (input.collection?.exactShopee || input.collection?.nativeReview)) throw new ResearchAutomationIntegrityError('Private literal source marker differs.');
+    if (input.collection?.privateShopee && (!(input.start.privateShopeeSource || input.privateShopeeSource) || input.collection.exactShopee || input.collection.nativeReview)) throw new ResearchAutomationIntegrityError('Private literal evidence cannot substitute another source.');
+    if ((input.start.privateShopeeSource || input.privateShopeeSource) && (input.collection?.exactShopee || input.collection?.nativeReview)) throw new ResearchAutomationIntegrityError('Private literal source marker differs.');
     if (input.collection?.exactShopee && input.collection.nativeReview) throw new ResearchAutomationIntegrityError('Literal evidence cannot substitute native and exact sources.');
     let reviews: InsightLiteralEvidence['input']['reviews'] = [];
     if (input.collection?.privateShopee) reviews = privateLiteralReviews(await this.#exact.readPrivate(input.collection.privateShopee, input));

@@ -48,7 +48,7 @@ export class AutomationExactShopeeBridge {
   }
 
   async collect(input: ExactShopeeRunInput, signal?: AbortSignal, now: () => Date = () => new Date()): Promise<ExactShopeeAttempt> {
-    if (input.privateShopeeSource) return this.#collectPrivate(input, signal);
+    if (input.start.privateShopeeSource || input.privateShopeeSource) return this.#collectPrivate(input, signal);
     const request = exactShopeeRequest(input);
     const selection = selectExactShopeeListings(request);
     const bytes = Buffer.from(canonicalJson(request));
@@ -102,7 +102,7 @@ export class AutomationExactShopeeBridge {
   }
 
   async #collectPrivate(input: ExactShopeeRunInput, signal?: AbortSignal): Promise<ExactShopeeAttempt> {
-    const marker = privateShopeeMarker(input.privateShopeeSource);
+    const marker = privateShopeeMarker(input.start.privateShopeeSource ?? input.privateShopeeSource);
     const base = { provider: 'apify-shopee', dataset: 'reviews', observedStartDate: null, observedEndDate: null, truncated: false } as const;
     const configuration = this.privateConfiguration;
     if (!configuration || canonicalJson(privateShopeeMarker(configuration.source)) !== canonicalJson(marker)) return {
@@ -128,7 +128,7 @@ export class AutomationExactShopeeBridge {
   }
 
   async readPrivate(reference: PrivateReviewReference, input: ExactShopeeRunInput) {
-    return readPrivateReviewCollection(this.#collections, reference, exactShopeeRequest(input), privateShopeeMarker(input.privateShopeeSource));
+    return readPrivateReviewCollection(this.#collections, reference, exactShopeeRequest(input), privateShopeeMarker(input.start.privateShopeeSource ?? input.privateShopeeSource));
   }
   async privateCorpus(reference: PrivateReviewReference, input: ExactShopeeRunInput, binding: PrivateReviewBinding): Promise<ResearchPrivateReviewCorpus> {
     this.#assertPrivateBinding(input, binding);
@@ -147,7 +147,7 @@ export class AutomationExactShopeeBridge {
   }
 
   async read(reference: NonNullable<StepResultDocument['exactShopee']>, input: ExactShopeeRunInput): Promise<VerifiedExactShopeeCollection> {
-    if (input.privateShopeeSource || 'privateVersion' in reference) throw new Error('Raw/private source substitution');
+    if (input.start.privateShopeeSource || input.privateShopeeSource || 'privateVersion' in reference) throw new Error('Raw/private source substitution');
     const verified = await this.#collections.readExact(reference.collectionId);
     const request = exactShopeeRequest(input);
     if (verified.sha256 !== reference.collectionSha256 || verified.packet.requestSha256 !== reference.requestSha256 ||
