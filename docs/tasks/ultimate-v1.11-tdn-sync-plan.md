@@ -6,6 +6,13 @@
 >
 > Task-specific authority permits the coordinator to merge only these implementation PRs after independent review and passing exact-head CI, using the normal repository method and `--match-head-commit`. Deployment, cap changes, bypass and unrelated PRs remain outside this authority. Historical baseline test failures do not waive the CI gate.
 
+### Verified merged implementation (08/10/2026)
+
+- [PR #161](https://github.com/khangpworking/tdn-growth-os/pull/161): B-01/B-02/B-04/B-05/B-06/B-07 complete; B-03 partial (P4 retained uploads, SerpApi operation history and PageIndex workspace/account distinction complete; future collectors/readers remain with their packages). Reviewed head `5ff13b5a88508400d006c7a3afbeb77da29419f0`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37758072524) passed, merge `e306c1b757d6823c654970b738afc1f9349312e8`.
+- [PR #162](https://github.com/khangpworking/tdn-growth-os/pull/162): U-06/U-08/U-30/U-31 and Market-only U-07 complete; U-32 safe per-platform correction complete, positive-total exception still escalated. Reviewed head `116b371c1c6153b3e91c9a62400eb223d9c5848e`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37759463000) passed, merge `a2250b76ad89120d26bad0e8f288fdd8a73bb12f`.
+
+The audit tables below describe the original baseline. Checked items refer to these merged packages and their [SYNC-1](../handoffs/SYNC-1.md)/[SYNC-6](../handoffs/SYNC-6.md) handoffs. U-07 stays unchecked until its separately owned draft/Insight part is complete. B-03 and U-32 stay unchecked while their stated remainder is unresolved.
+
 Updated: 2026-10-08 · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.12](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.9 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
 
 This file is a plan with checklists. It does not assign work to agents; the owner splits it. When an item is split into a package, keep its ID (`U-..`, `B-..`) so the handoff can report it.
@@ -148,13 +155,13 @@ Where things live:
   - Descriptive rates are shown only where the denominators are compatible and each group has ≥30 text records (the §6.3 comparison condition); otherwise counts only.
   - Remove `I11_GROUP_POLICY_MISSING` and `I11_PUBLICATION_NOT_AUTHORIZED` as hard blocks (`bounded-analysis-gates.ts:179-183`). Inference stays off.
 - [ ] U-05 **E4: lift the persona ban** in the coding prompt (`insight-model-execution.ts:41`). Keep "no people counts" until L2 data exists (U-18). The persona builder itself is U-20.
-- [ ] U-06 **Rule 5 / L4 in Market M01.** Rewrite the M01 key points without superlatives ("lớn nhất", "nhiều … nhất"). State each group with its share side by side, with the figure pointer. Same for `market-template.ts:253`.
+- [x] U-06 **Rule 5 / L4 in Market M01.** Rewrite the M01 key points without superlatives ("lớn nhất", "nhiều … nhất"). State each group with its share side by side, with the figure pointer. Same for `market-template.ts:253`.
 - [ ] U-07 **E2, E6, E11: no ordering, proposed owner and deadline.**
   - Market M11/M12: stop picking "top 3 cells by revenue" and remove "Thứ tự theo doanh thu" (`market-template.ts:291,307`).
   - Up to 3 options, each with an immediate task, a proposed owner and a proposed deadline, all labelled "đề xuất, chờ chủ duyệt". Any order is stated as dependency order only (L4).
   - Draft packets: owner and deadline become AI-proposed with the label instead of UNSET (`decision-packets.ts:53-62`).
   - Insight I15: allow a proposed owner and deadline and cap the candidates at 3 (`decision-synthesis-input.ts:98,126`). Owner options and AI candidates stay in separate lists.
-- [ ] U-08 **E10 in M05.**
+- [x] U-08 **E10 in M05.**
   - Replace "Nguồn không đo nhu cầu trực tiếp" and the `M05_LITERAL_SOURCE_MEASURES_NOT_DEMAND_OR_MARKET_SIZE` limitation with the E10 wording "nhu cầu, đo bằng doanh số (ước tính) trong mẫu", with period, source, per-platform split (L5) and the E1-style disclaimer for estimates.
   - Search interest stays a separate "mức quan tâm tìm kiếm" line, never mixed with sales.
   - Still forbidden: market size outside the sample, unmet demand, forecasts, buyer counts.
@@ -207,8 +214,8 @@ Where things live:
   - L9 exclusion counts;
   - the L10 source type ("bình luận dưới video review" / "bình luận dưới video bán hàng");
   - official-statistics attribution (E12, E13).
-- [ ] U-30 **R1 in the reader:** an unknown value is never written as 0. Fix `coh.nShare` (`market-template.ts:119`) and allow missing values in the reader input where the source can lack them.
-- [ ] U-31 **R2:** remove the cross-platform "same brand" count (`market-template.ts:124-128`). Show brand names per platform side by side; any match is "tên giống nhau theo tiêu đề, chưa xác minh".
+- [x] U-30 **R1 in the reader:** an unknown value is never written as 0. Fix `coh.nShare` (`market-template.ts:119`) and allow missing values in the reader input where the source can lack them.
+- [x] U-31 **R2:** remove the cross-platform "same brand" count (`market-template.ts:124-128`). Show brand names per platform side by side; any match is "tên giống nhau theo tiêu đề, chưa xác minh".
 - [ ] U-32 **R3:** a two-platform total is allowed only when both platforms come from the same export, period and unit, and the label says "cộng hai sàn trong mẫu". Otherwise show per platform only (L5). Add a test for each case.
 
 ### A4. Items that need new data (most are already packaged)
@@ -267,7 +274,7 @@ Where things live:
 - Route: `GET /api/workspaces/:id/research-automation/source-status`.
 - Test: `tests/integration/research-automation-source-status.test.ts`.
 - The source id is a closed enum (`KALODATA`, `SERPAPI`, `APIFY_SHOPEE`, `METRIC`, `PAGEINDEX`). Activity is read only for `kalodata`, `serpapi` and `apify-shopee` captures and usage, plus Metric uploads (`service.ts:994`).
-- The board is read-only by design: it calls no provider and never returns a key value. Keep that.
+- The board GET and refresh read configuration/history only and never return a key value. The separately authorized PageIndex owner POST remains an explicit action that reads its provider account and records the result.
 
 ### B1. Sources to show
 
@@ -290,7 +297,7 @@ Only sources that are in use or approved in the source registry. Sources marked 
 
 ### B2. Checklist
 
-- [ ] B-01 **Contract (additive).**
+- [x] B-01 **Contract (additive).**
   - New source ids: `KALODATA_VIDEO_FILE`, `APIFY_TIKTOK_COMMENTS`, `VIDEO_READING`, `META_AD_LIBRARY`, `OFFICIAL_STATS`, `WORLD_BANK`.
   - New state `NOT_BUILT`, plus an optional `pendingPackage`.
   - Optional per-entry fields:
@@ -301,7 +308,7 @@ Only sources that are in use or approved in the source registry. Sources marked 
     - `spendCapUsd` (number or null);
     - `operations[]` (operation, `lastUsageAt`, count) for multi-operation providers such as SerpApi search and Trends.
   - Bump `contractVersion` if the generated validators require it. Regenerate with `npm run contracts:generate`.
-- [ ] B-02 **Server build.**
+- [x] B-02 **Server build.**
   - `buildResearchAutomationSourceStatus` returns every card in B1.
   - Each card's built flag comes from the module being present on this build. Until it is, the card is `NOT_BUILT` with `pendingPackage`.
   - Registry IDs, tier, group and report name come from one constant that mirrors the registry. A test asserts each ID exists in `input-data-sources-30-sections.md`.
@@ -314,15 +321,15 @@ Only sources that are in use or approved in the source registry. Sources marked 
     - SerpApi per operation (search vs Trends).
   - Each package that adds a source adds its reader and flips its card from `NOT_BUILT`, in the same PR.
   - Missing history stays `null` or 0 per the existing contract rules, never invented.
-- [ ] B-04 **Charge caps.**
+- [x] B-04 **Charge caps.**
   - A separate cap per paid collection: `TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD`, owner approved 3 for test runs on 08/10.
   - It is independent of the Shopee cap. The card shows the cap and says "Đã có token nhưng thiếu hạn mức chi tối đa" when the cap is missing. A token alone never starts a collection.
-- [ ] B-05 **Frontend.**
+- [x] B-05 **Frontend.**
   - Add `SOURCE_COPY` entries, with group headings in the order of B1.
   - Show the registry IDs, tier, report name, cap line ("Trần chi: $3 mỗi lượt") and per-operation rows for SerpApi.
   - `NOT_BUILT` copy: "Chưa có bộ thu (gói P9)". Free sources say "Không tốn phí"; World Bank says "Không cần khoá".
   - The board may name providers; it is the internal board (G-08).
-- [ ] B-06 **Tests.**
+- [x] B-06 **Tests.**
   - Contract validation for every card and state.
   - `NOT_BUILT` → built transition.
   - Cap shown or missing.
@@ -330,7 +337,7 @@ Only sources that are in use or approved in the source registry. Sources marked 
   - Demo mode unchanged.
   - Executor disabled → every card `EXECUTOR_DISABLED`.
   - Frontend tests for the new copy and grouping.
-- [ ] B-07 **Keep the board in sync with the registry.** When a source's status changes in `input-data-sources-30-sections.md` (e.g. a test turns it "dùng được"), update the B-02 constant in the same PR, and say so in the test log entry.
+- [x] B-07 **Keep the board in sync with the registry.** When a source's status changes in `input-data-sources-30-sections.md` (e.g. a test turns it "dùng được"), update the B-02 constant in the same PR, and say so in the test log entry.
 
 ---
 

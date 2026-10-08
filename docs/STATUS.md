@@ -1,5 +1,29 @@
 # Trạng thái hiện tại
 
+## Ultimate alignment — implementation run (08/10/2026)
+
+The source-board foundation is merged in [PR #161](https://github.com/khangpworking/tdn-growth-os/pull/161),
+after independent review and full Linux Check on head `5ff13b5a88508400d006c7a3afbeb77da29419f0`.
+It shows eleven cards, source-specific registry metadata, actual configured caps,
+stored workspace activity and explicit future-package placeholders. PageIndex account
+totals remain distinct from workspace history; its existing separate owner action is
+preserved. Loading or refreshing the board reads configuration/history only.
+
+The Market reader corrections are merged in [PR #162](https://github.com/khangpworking/tdn-growth-os/pull/162),
+after independent review and full Linux Check on head `116b371c1c6153b3e91c9a62400eb223d9c5848e`.
+New reader input 1.2/builder v2 preserves missing values, per-platform identity and
+arithmetic, side-by-side findings, and three proposals awaiting owner approval.
+Both M05 lanes use estimated in-sample sales as a demand measure with source,
+period and estimate limits. Legacy reader/method outputs retain their saved
+semantics and synthetic byte-replay checks. See [SYNC-1 evidence](handoffs/SYNC-1.md).
+
+Future collector activation and history readers remain with P5/P9/P10/U-23.
+This merge does not establish complete Ultimate alignment or business acceptance.
+U-26 revision/admission policy, U-32 positive cross-platform totals, and U-11
+family-level multi-code κ remain unresolved; paid staging under U-40 was not run.
+See the [coordination plan](tasks/ultimate-v1.11-tdn-sync-plan.md) and
+[source-board handoff](handoffs/SYNC-6.md) for the bounded scope.
+
 ## PageIndex Cloud: connector truy nguồn tùy chọn (04/10/2026)
 
 Đã thêm backend/CLI truy vấn PDF trong source package được replay xác minh,
