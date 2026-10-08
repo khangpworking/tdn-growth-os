@@ -61,10 +61,12 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('F3 không sót undefined/NaN/null/{{}}', junk.length === 0, junk.length ? junk.slice(0, 5).join(', ') : 'sạch');
 
   const rank = [...vis.matchAll(/(.{0,30})xếp hạng/g)].filter(m => !/không\s*(phải\s*)?$/i.test(m[1] ?? '')).length;
-  // The existing located-method disclaimer is longer than the historical
-  // forty-character lookback. Recognize its explicit negation only in Insight.
-  const insightDisclaimer = (before: string): boolean => reportKind === 'INSIGHT' && /Không suy rộng thành số người, tỷ lệ dân số hay\s*$/iu.test(before);
-  const whole = [...vis.matchAll(/(.{0,40})(thị phần|toàn thị trường|quy mô thị trường)/g)].filter(m => !/không|chưa|không phải/.test(m[1] ?? '') && !insightDisclaimer(vis.slice(0, (m.index ?? 0) + (m[1]?.length ?? 0)))).length;
+  // These retained located/corpus disclaimers exceed the historical lookback.
+  // Recognize only their exact limitation wording, and only in Insight.
+  const insightDisclaimer = (before: string, term = 'thị phần'): boolean => reportKind === 'INSIGHT' &&
+    (/Không suy rộng thành số người, tỷ lệ dân số hay\s*$/iu.test(before) ||
+      (term === 'toàn thị trường' && /Chưa mã hóa nội dung; số dòng không phải số khách hàng, tỷ lệ chủ đề hay độ phủ\s*$/iu.test(before)));
+  const whole = [...vis.matchAll(/(.{0,40})(thị phần|toàn thị trường|quy mô thị trường)/g)].filter(m => !/không|chưa|không phải/.test(m[1] ?? '') && !insightDisclaimer(vis.slice(0, (m.index ?? 0) + (m[1]?.length ?? 0)), m[2])).length;
   add('F5 không khẳng định toàn thị trường; "sắp xếp" thay "xếp hạng"', rank === 0 && whole === 0, `xếp hạng không phủ định: ${rank}; thị phần/toàn thị trường không phủ định: ${whole}`);
 
   const m12 = reportKind === 'INSIGHT' ? html.match(/<section id="I15">[\s\S]*?<\/section>/)?.[0] ?? '' : html.match(/<section id="phan-12">[\s\S]*?<\/section>/)?.[0] ?? '';
