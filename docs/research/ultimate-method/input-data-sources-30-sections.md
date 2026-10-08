@@ -1,6 +1,6 @@
 # Input data sources for 30 sections
 
-Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.5 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.8
+Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.6 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.10
 
 Đây là **nguồn chuẩn về danh mục nguồn dữ liệu**. File này trả lời ba câu hỏi:
 - có những nguồn nào;
@@ -184,7 +184,7 @@ Lịch sử từng lần thử thu và kiểm định nằm ở **[Input data so
 - Từ khoá tiếng Việt dễ ra kết quả lệch nghĩa. Từ v1.8, bước lọc nghĩa là quy tắc **L9** của file Ultimate. Ví dụ gặp trong bài test:
   - "thạch dừa" (thạch làm từ nước dừa lên men) lẫn với thạch rau câu nước dừa, thạch dừa xiêm nguyên quả, "thạch dứa", và các chữ "Thạch" trong tên riêng hay "thử thách";
   - "bình giữ nhiệt" lẫn với bình nóng lạnh, thùng ủ sữa chua, hộp cơm giữ nhiệt, "giữ vững nhiệt huyết", và bình làm quà tặng kèm sữa, bảo hiểm, ngân hàng.
-- **Bình luận dưới video review là nguồn lời khách tốt nhất trong các lần thử** (S07: 10–32% bình luận là lời khách ứng viên, so với 0–8% khi tìm bài Facebook theo từ khoá). Bình luận còn cho câu hỏi trước khi mua, lời chê và cách bảo quản, chế biến (I07, I08). Người bình luận chưa chắc đã mua; ghi "lời người xem" khi chưa có dấu hiệu đã mua hoặc đã dùng.
+- **Bình luận dưới video review là nguồn lời khách tốt nhất trong các lần thử** (S07: 10–32% bình luận là lời khách ứng viên, so với 0–8% khi tìm bài Facebook theo từ khoá). Bình luận còn cho câu hỏi trước khi mua, lời chê và cách bảo quản, chế biến (I07, I08). Từ v1.10, bình luận dưới video review được tính là lời khách (L10 của file Ultimate, chủ quyết 08/10/2026); bình luận của người làm video hoặc tài khoản người bán không tính.
 - Khi chấm mẫu, chia đều số bình luận cho từng video (ví dụ 10 bình luận mỗi video), không lấy 50 dòng đầu. 50 dòng đầu dễ rơi hết vào một video.
 - Hai công cụ thu cùng một video với cùng giới hạn vẫn ra hai tập bình luận khác nhau. Cỡ mẫu ghi là "bình luận thu được", không phải "toàn bộ bình luận".
 - Tên thương hiệu lấy theo tiêu đề có thể trùng thương hiệu khác ngành, ví dụ Niumi. Hoặc viết khác nhau giữa các nguồn, ví dụ "Fanhouse F" và "Fan House". Cần đối chiếu danh tính thương hiệu trước khi gộp (I13, E11).

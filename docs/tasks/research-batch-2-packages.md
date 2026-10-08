@@ -398,7 +398,7 @@ Checklist:
 - [ ] P9-01 **Video selection** from a P4 video table, by a rule fixed before reading any comment:
   - option A: the top 20% of videos by revenue in the sample;
   - option C: the videos that together make 80% of revenue;
-  - plus operator-added review-video URLs, marked `REVIEW_VIDEO` (người xem) instead of `SELLER_VIDEO`.
+  - plus operator-added review-video URLs, marked `REVIEW_VIDEO` instead of `SELLER_VIDEO`.
 
   A cap of 30 videos per run by default. The selection rule, the option used and the list are stored with the run.
 - [ ] P9-02 **Comment collector** behind the existing provider configuration:
@@ -414,7 +414,8 @@ Checklist:
 - [ ] P9-05 **One located record per comment:**
   - text, creation time, like count;
   - locator = video URL + comment ID (the actors return no per-comment link);
-  - default voice `VIEWER` ("lời người xem");
+  - voice: comments under a `REVIEW_VIDEO` are `CUSTOMER` (lời khách, Ultimate L10); comments under a `SELLER_VIDEO` stay `VIEWER` ("lời người xem") until the owner decides;
+  - tag-only or emoji-only comments are excluded from counts with a reason;
   - comments by the video owner or a brand account are marked `SELLER_OR_CREATOR`, not deleted;
   - an empty comment is excluded with a reason, never counted.
 - [ ] P9-06 **Insight path:** records feed the existing coding path for I02, I04–I10 and I13 as source S07. No new coding method. The E11 codebook cross-check applies. Counts say "bình luận thu được", never "toàn bộ bình luận".
@@ -528,12 +529,13 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 | ≤20 MB per XLSX | P10-01 | The largest official-statistics workbook seen on 08/10 was about 1 MB; 20 MB leaves wide headroom and still blocks a wrong upload | Medium |
 | ≥2 s between requests, ≤20 files per run | P10-08 | Polite load on a government site. Monthly tables + CPI are 2 files per month, so 20 files cover about 10 months | Convention |
 | ≤6 paid calls | Phase 0 spike | Approved by the owner on 07/10 | Owner decision |
+| $3 charge cap per P9 run | P9-02, owner gates | 30 videos × 200 comments ≈ $2 at the tested rate, plus headroom for price changes and duplicate rows. Approved by the owner for test runs on 08/10 | Owner decision |
 
 ---
 
 ## Owner gates (not agent work)
 
-- P9 live comment collection: an owner-approved charge cap per run.
+- P9 live comment collection: **approved for test runs on 2026-10-08 at a $3 cap per run** (`maxTotalChargeUsd` = 3). Each run is still announced before it starts (Ultimate E8).
 
 - Phase 0 spike (#124): ≤6 paid calls. **Approved 2026-10-07.** Run it with `docs/runbooks/agent-pipeline.md` §7.
 - Install the OpenCLI extension in Chrome on Fedora (unblocks P6).
