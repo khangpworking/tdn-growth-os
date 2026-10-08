@@ -398,7 +398,7 @@ Checklist:
 - [ ] P9-01 **Video selection** from a P4 video table, by a rule fixed before reading any comment:
   - option A: the top 20% of videos by revenue in the sample;
   - option C: the videos that together make 80% of revenue;
-  - plus operator-added review-video URLs, marked `REVIEW_VIDEO` (người xem) instead of `SELLER_VIDEO`.
+  - plus operator-added review-video URLs, marked `REVIEW_VIDEO` instead of `SELLER_VIDEO`.
 
   A cap of 30 videos per run by default. The selection rule, the option used and the list are stored with the run.
 - [ ] P9-02 **Comment collector** behind the existing provider configuration:
@@ -414,7 +414,8 @@ Checklist:
 - [ ] P9-05 **One located record per comment:**
   - text, creation time, like count;
   - locator = video URL + comment ID (the actors return no per-comment link);
-  - default voice `VIEWER` ("lời người xem");
+  - voice: comments under a `REVIEW_VIDEO` or a `SELLER_VIDEO` are `CUSTOMER` (lời khách, Ultimate L10). Each record keeps the video kind, so the report can label the source "bình luận dưới video review" or "bình luận dưới video bán hàng";
+  - tag-only or emoji-only comments are excluded from counts with a reason;
   - comments by the video owner or a brand account are marked `SELLER_OR_CREATOR`, not deleted;
   - an empty comment is excluded with a reason, never counted.
 - [ ] P9-06 **Insight path:** records feed the existing coding path for I02, I04–I10 and I13 as source S07. No new coding method. The E11 codebook cross-check applies. Counts say "bình luận thu được", never "toàn bộ bình luận".
@@ -515,6 +516,10 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 | `rowCap` from 1 to 20,000 | P2 snapshot-source validation | Retains the existing input-schema bound and limits report processing. The upper bound is an engineering convention, not an experimentally established sample size | Convention |
 | First 2 lint diagnostics; 80-character W2/W3 and 60-character W6 excerpts | P2 reader-report lint | Keeps diagnostic output bounded and readable. These output lengths are not detection or statistical thresholds | Convention |
 | 40-character W4 and 25-character W5 negation windows | P2 reader-report lint | Bounds the local text heuristic around a claim. These are conventions, not validated Vietnamese linguistic thresholds | Convention |
+| ≤32 MiB per retained PDF member | P3 upload and local verification | Reuses the bounded intake size to limit transfer, extraction and retained artifact memory. This is an engineering ceiling, not a verified cloud API limit | Convention |
+| ≤64 KiB manifest allowance above the PDF aggregate budget | P3 REPORTS package reader | Allows bounded metadata for a one-member Foundation package at the 32 MiB member boundary, consistent with the prepared-intake budget pattern | Convention |
+| ≤100 configurable questions per run (default 10) | P3 fixed-question planning | Prevents a configuration mistake from allowing unbounded paid retrieval. The default stays 10; the ceiling is not a measured quality or cost threshold | Convention |
+| Filename label: ≤240 characters at the attachment API, ≤250 at the service, ≤256 at the cloud transport | P3 PDF input boundaries | Each layer bounds human-readable metadata; the attachment API is the tighter public limit. These engineering bounds are not a filesystem compatibility guarantee or a verified cloud API limit | Convention |
 | ≤5 Trends keywords | P5 (`SEARCH_TRENDS_LIMITS.maxKeywords`) | Google Trends compares at most 5 terms in one query | High (platform limit) |
 | ≤4 Trends calls | P5-02 | The plan is 1 time series (all keywords) + 2 related-query calls (one keyword per call) + 1 regional map | High (derived from the plan) |
 | ≤10 expanded searches | P5-02, P5-07 | Per-run cost ceiling for the Phase 0 trial. Dated and single-site queries share it, so they cannot raise cost. Revisit after the spike | Convention |
@@ -527,12 +532,13 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 | ≤20 MB per XLSX | P10-01 | The largest official-statistics workbook seen on 08/10 was about 1 MB; 20 MB leaves wide headroom and still blocks a wrong upload | Medium |
 | ≥2 s between requests, ≤20 files per run | P10-08 | Polite load on a government site. Monthly tables + CPI are 2 files per month, so 20 files cover about 10 months | Convention |
 | ≤6 paid calls | Phase 0 spike | Approved by the owner on 07/10 | Owner decision |
+| $3 charge cap per P9 run | P9-02, owner gates | 30 videos × 200 comments ≈ $2 at the tested rate, plus headroom for price changes and duplicate rows. Approved by the owner for test runs on 08/10 | Owner decision |
 
 ---
 
 ## Owner gates (not agent work)
 
-- P9 live comment collection: an owner-approved charge cap per run.
+- P9 live comment collection: **approved for test runs on 2026-10-08 at a $3 cap per run** (`maxTotalChargeUsd` = 3). Each run is still announced before it starts (Ultimate E8).
 
 - Phase 0 spike (#124): ≤6 paid calls. **Approved 2026-10-07.** Run it with `docs/runbooks/agent-pipeline.md` §7.
 - Install the OpenCLI extension in Chrome on Fedora (unblocks P6).

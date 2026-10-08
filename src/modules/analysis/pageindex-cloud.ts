@@ -7,6 +7,11 @@ const validateQuery = new Ajv({ strict: true }).compile<PageIndexCloudQuery>(que
 
 const ORIGIN = 'https://api.pageindex.ai';
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
+/** Vendor document paths below are UNVERIFIED against the live API (see handoff P3). There is intentionally no delete method. */
+export const PAGEINDEX_UPLOAD_PATH = '/doc/upload';
+export const PAGEINDEX_LIST_PATH = '/doc/list';
+const MAX_ERROR_SNIPPET_BYTES = 8192;
+const MAX_UPLOAD_BYTES = 32 * 1024 * 1024;
 const MAX_BLOCKS = 16;
 const hash = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const fail = (code: string): never => { throw new Error(`PAGEINDEX_${code}`); };
@@ -20,6 +25,43 @@ const string = (value: unknown, max: number): string => {
 };
 const normalise = (text: string): string => text.normalize('NFC').replace(/\s+/gu, ' ').trim();
 
+/** Normalises vendor document shapes (`id`/`doc_id`, `name`, `pageNum`) into one document view. */
+function toDocument(value: Record<string, unknown>): PageIndexCloudDocument {
+  const rawId = string(value.id ?? value.doc_id, 256);
+  if (!rawId.trim()) fail('RESPONSE_INVALID');
+  const rawName = string(value.name ?? value.file_name, 256);
+  if (!rawName.trim()) fail('RESPONSE_INVALID');
+  const rawPages = value.pageNum ?? value.page_count;
+  const pageCount = rawPages === undefined || rawPages === null ? null
+    : typeof rawPages === 'number' && Number.isSafeInteger(rawPages) && rawPages >= 1 && rawPages <= 1000 ? rawPages : fail('RESPONSE_INVALID') as never;
+  const status = value.status === 'completed' ? 'completed' as const
+    : value.status === 'processing' || value.status === 'indexing' || value.status === undefined || value.status === null ? 'processing' as const
+    : value.status === 'failed' ? 'failed' as const : 'unknown' as const;
+  return { cloudDocId: rawId, cloudFileName: rawName, pageCount, status };
+}
+
+/**
+ * Bounded, best-effort read of an error body for code mapping. Never throws
+ * and never returns more than MAX_ERROR_SNIPPET_BYTES of text.
+ */
+async function readErrorSnippet(response: Response): Promise<string> {
+  try {
+    if (!response.body) return '';
+    const reader = response.body.getReader();
+    const chunks: Uint8Array[] = []; let length = 0;
+    try {
+      while (true) {
+        const next = await reader.read(); if (next.done) break;
+        const room = MAX_ERROR_SNIPPET_BYTES - length;
+        if (room <= 0) break;
+        chunks.push(next.value.subarray(0, room)); length += Math.min(next.value.length, room);
+        if (next.value.length >= room) break;
+      }
+    } finally { await reader.cancel().catch(() => undefined); }
+    return new TextDecoder('utf-8', { fatal: false }).decode(Buffer.concat(chunks));
+  } catch { return ''; }
+}
+
 export interface PageIndexCloudCandidate {
   readonly role: 'RETRIEVAL_CANDIDATE';
   readonly sourceSha256: string;
@@ -29,6 +71,20 @@ export interface PageIndexCloudCandidate {
   readonly bbox: readonly number[];
   readonly quote: string;
   readonly verification: 'LOCAL_PDF_TEXT_MATCH' | 'UNVERIFIED_LOCAL_TEXT';
+}
+
+/** One vendor document as seen through upload, status or list. No delete operation exists. */
+export interface PageIndexCloudDocument {
+  readonly cloudDocId: string;
+  readonly cloudFileName: string;
+  readonly pageCount: number | null;
+  readonly status: 'processing' | 'completed' | 'failed' | 'unknown';
+}
+
+/** Document upload input. The request shape follows the UNVERIFIED upload path above. */
+export interface PageIndexCloudUpload {
+  readonly fileName: string;
+  readonly bytes: Uint8Array;
 }
 
 export interface PageIndexCloudResult {
@@ -65,7 +121,11 @@ export class PageIndexCloudClient {
         headers: body === undefined ? { api_key: this.#key } : { api_key: this.#key, 'Content-Type': 'application/json' },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(90_000),
       });
-      if (!response.ok) fail(`HTTP_${response.status}`);
+      // Single attempt only: this connector never retries a paid call.
+      if (!response.ok) {
+        if (response.status === 403 && (await readErrorSnippet(response)).includes('USAGE_LIMIT_REACHED')) fail('USAGE_LIMIT_REACHED');
+        fail(`HTTP_${response.status}`);
+      }
       if (!response.body) return fail('RESPONSE_INVALID');
       const reader = response.body.getReader();
       const chunks: Uint8Array[] = []; let length = 0;
@@ -86,6 +146,39 @@ export class PageIndexCloudClient {
       if (error instanceof Error && /^PAGEINDEX_[A-Z0-9_]+$/u.test(error.message)) throw error;
       return fail('TRANSPORT_FAILED');
     }
+  }
+
+  /**
+   * Uploads one PDF for indexing. Single attempt, no retry. The upload path is
+   * UNVERIFIED against the live API; verify it before any production enablement.
+   */
+  async uploadDocument(input: PageIndexCloudUpload): Promise<PageIndexCloudDocument> {
+    if (typeof input.fileName !== 'string' || !input.fileName.trim() || input.fileName.length > 256 || /[\r\n]/u.test(input.fileName)) fail('INPUT_INVALID');
+    if (!(input.bytes instanceof Uint8Array) || input.bytes.byteLength < 1 || input.bytes.byteLength > MAX_UPLOAD_BYTES) fail('INPUT_INVALID');
+    const response = await this.#request(PAGEINDEX_UPLOAD_PATH, {
+      file_name: input.fileName, content_base64: Buffer.from(input.bytes).toString('base64'),
+    });
+    return toDocument(response);
+  }
+
+  /**
+   * Reads one document's indexing state via its metadata. Single attempt, no retry.
+   */
+  async documentStatus(cloudDocId: string): Promise<PageIndexCloudDocument> {
+    if (typeof cloudDocId !== 'string' || !cloudDocId.trim() || cloudDocId.length > 256 || /[\r\n]/u.test(cloudDocId)) fail('INPUT_INVALID');
+    return toDocument(await this.#request('/doc/' + encodeURIComponent(cloudDocId) + '/metadata'));
+  }
+
+  /**
+   * Lists uploaded documents. This is the free call used by status rechecks;
+   * it never uploads and never asks a question. Single attempt, no retry.
+   */
+  async listDocuments(): Promise<readonly PageIndexCloudDocument[]> {
+    const response = await this.#request(PAGEINDEX_LIST_PATH);
+    const listed: unknown = response.documents;
+    if (!Array.isArray(listed)) return fail('RESPONSE_INVALID');
+    if (listed.length > 10000) return fail('RESPONSE_TOO_LARGE');
+    return listed.map(entry => toDocument(object(entry)));
   }
 
   /** Local pages must be extracted from these exact bytes, never from Cloud OCR. */
