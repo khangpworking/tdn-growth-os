@@ -1,0 +1,49 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "profile"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "automation-private-shopee-source-v1"
+    },
+    "profile": {
+      "$ref": "../foundation/shopee-private-collection.schema.json#/properties/privacy"
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-private-shopee-source.schema.json",
+  "title": "AutomationPrivateShopeeSource",
+  "description": "Explicit frozen private Shopee source configuration; public profile/key identity only, never salt or raw author metadata. Historical absence selects the existing raw path.",
+  "$defs": {
+    "reference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "privateVersion",
+        "collectionId",
+        "collectionSha256",
+        "requestSha256"
+      ],
+      "properties": {
+        "privateVersion": {
+          "const": "3.0.0"
+        },
+        "collectionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "collectionSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    }
+  }
+}
