@@ -413,21 +413,21 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       }
       if (action === 'sources/kalodata-video') {
         const contentType = singleHeader(request.headers['content-type']);
-        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Source upload requires multipart/form-data');
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Hãy tải tệp bằng biểu mẫu đính kèm.');
         const bytes = await readOwnerBytes(request, MAX_VIDEO_UPLOAD_BYTES + 16 * 1024 + 4096);
         let form: FormData;
         try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(bytes) }).formData(); }
-        catch { return fail(response, 400, 'bad_request', 'Malformed source upload'); }
+        catch { return fail(response, 400, 'bad_request', 'Không đọc được biểu mẫu tải tệp.'); }
         const fields = [...form.entries()];
         const metadata = form.get('metadata'); const upload = form.get('file');
         if (fields.length !== 2 || typeof metadata !== 'string' || Buffer.byteLength(metadata) > 16 * 1024 || !(upload instanceof File))
-          return fail(response, 400, 'bad_request', 'Source upload requires one metadata object and one export file');
-        if (upload.size > MAX_VIDEO_UPLOAD_BYTES) return fail(response, 413, 'payload_too_large', 'Export exceeds the upload limit');
+          return fail(response, 400, 'bad_request', 'Cần một bộ thông tin nguồn và một tệp xuất.');
+        if (upload.size > MAX_VIDEO_UPLOAD_BYTES) return fail(response, 413, 'payload_too_large', 'Tệp xuất vượt giới hạn tải lên.');
         if (!upload.size || !['', 'application/octet-stream', 'text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(upload.type))
-          return fail(response, 400, 'bad_request', 'Export media type is unsupported');
+          return fail(response, 400, 'bad_request', 'Định dạng tệp xuất chưa được hỗ trợ.');
         let input: unknown;
-        try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Source metadata must be valid JSON'); }
-        if (!validates.videoPrepare(input)) return fail(response, 400, 'bad_request', 'Source metadata failed validation');
+        try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Không đọc được thông tin nguồn.'); }
+        if (!validates.videoPrepare(input)) return fail(response, 400, 'bad_request', 'Thông tin nguồn không hợp lệ.');
         await readService.getRun(workspaceId!, runId!);
         const store = new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot));
         const intake = new AutomationKalodataVideoIntake(store, writer!, () => new Date());
@@ -574,7 +574,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (readerAction && error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', error.message);
       if (error instanceof SourcePackageRequestConflictError)
         return fail(response, 409, 'request_key_conflict', 'This upload identity is already bound to different content');
-      if (error instanceof KalodataVideoRejection) return fail(response, 400, 'source_input_rejected', 'The video export does not match the supported profile');
+      if (error instanceof KalodataVideoRejection) return fail(response, 400, 'source_input_rejected', 'Tệp video không đúng cấu trúc được hỗ trợ.');
       if (error instanceof SupplementalSourceRejection) return fail(response, 400, 'source_input_rejected', 'The source package does not match a supported method profile');
       if (error instanceof MetricSourceRejection && !['INVALID_XLSX', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT'].includes(error.code))
         return fail(response, 400, 'source_input_rejected', 'The workbook does not match a supported source profile');

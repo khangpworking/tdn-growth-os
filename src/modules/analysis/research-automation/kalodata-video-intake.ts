@@ -15,12 +15,7 @@ import type {
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import type {
   AutomationSourcePackageLookup,
-  // Pre-validate all member sizes before finalization
-  const totalSize = /* calculate total size of all members */;
-  if (totalSize > VIDEO_READ_BUDGET.maxTotalBytes) {
-    reject("VIDEO_PACKAGE_TOO_LARGE");
-  }
-    FinalizedSourcePackageReader,
+  FinalizedSourcePackageReader,
   SourceAttachmentOriginReader,
 } from '../../foundation/source-package-reader.js';
 import { SourcePackageService, type VerifiedFinalizedSourcePackage } from '../../foundation/source-package-service.js';
@@ -142,26 +137,10 @@ export function deriveUnitsPer1000Views(units: string | null, views: string | nu
 /** Ad spend share of revenue, rounded to four places. Null when either side is missing or revenue is zero. */
 export function deriveAdShare(adSpend: string | null, revenue: string | null): string | null {
   if (adSpend === null || revenue === null || !DECIMAL_PATTERN.test(adSpend) || !DECIMAL_PATTERN.test(revenue)) return null;
-  // Preserve full input precision; round only the final quotient
-  const adParts = adSpend.split('.');
-  const revParts = revenue.split('.');
-  const adFraction = (adParts[1] ?? '').padEnd(20, '0');
-  const revFraction = (revParts[1] ?? '').padEnd(20, '0');
-  const numerator = BigInt((adParts[0] ?? '0') + adFraction);
-  const denominator = BigInt((revParts[0] ?? '0') + revFraction);
+  const numerator = toScaled(adSpend, 10);
+  const denominator = toScaled(revenue, 10);
   if (denominator === 0n) return null;
-  // Scale to get 4 decimal places in the result
-  const scaled = numerator * 10000n;
-  const quotient = scaled / denominator;
-  const remainder = scaled % denominator;
-  // Round half-up
-  const rounded = remainder * 2n >= denominator ? quotient + 1n : quotient;
-  const result = rounded.toString().padStart(5, '0');
-  const whole = result.slice(0, -4) || '0';
-  const frac = result.slice(-4);
-  // Trim trailing zeros
-  const trimmed = frac.replace(/0+$/, '');
-  return trimmed ? `${whole}.${trimmed}` : whole;
+  return divideToString(numerator, denominator, 4);
 }
 
 // ---------------------------------------------------------------------------
@@ -184,10 +163,12 @@ export function parseVideoCsv(bytes: Buffer): TextGrid {
   let row: string[] = [];
   let cell = '';
   let quoted = false;
+  let closedQuote = false;
   let index = 0;
   const pushCell = (): void => {
     row.push(cell);
     cell = '';
+    closedQuote = false;
   };
   while (index < text.length) {
     const char = text[index] ?? '';
@@ -199,6 +180,7 @@ export function parseVideoCsv(bytes: Buffer): TextGrid {
           continue;
         }
         quoted = false;
+        closedQuote = true;
         index += 1;
         continue;
       }
@@ -206,6 +188,7 @@ export function parseVideoCsv(bytes: Buffer): TextGrid {
       index += 1;
       continue;
     }
+    if (closedQuote && char !== ',' && char !== '\r' && char !== '\n') reject('MALFORMED_CSV_QUOTE');
     if (char === '"') {
       if (cell !== '') reject('MALFORMED_CSV_QUOTE');
       quoted = true;
@@ -228,10 +211,13 @@ export function parseVideoCsv(bytes: Buffer): TextGrid {
     index += 1;
   }
   if (quoted) reject('MALFORMED_CSV_QUOTE');
-  pushCell();
-  grid.push(row);
-  // A trailing newline produces one empty row; drop fully-empty rows but keep original numbering for lineage.
-  return grid.filter(candidate => candidate.some(value => value.trim() !== ''));
+  // A terminal separator starts no further record. Interior blank records
+  // remain in the grid so later row locators use the original CSV positions.
+  if (cell !== '' || row.length > 0 || !/[\r\n]$/.test(text)) {
+    pushCell();
+    grid.push(row);
+  }
+  return grid;
 }
 
 // ---------------------------------------------------------------------------
@@ -289,7 +275,15 @@ function unzipVideoWorkbook(bytes: Buffer): Map<string, Buffer> {
     const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
     const compressed = bytes.subarray(dataOffset, dataOffset + compressedSize);
     if (compressed.length !== compressedSize) reject('WORKBOOK_ARCHIVE_INVALID');
-    const data = method === 0 ? Buffer.from(compressed) : inflateRawSync(compressed, { maxOutputLength: MAX_VIDEO_UPLOAD_BYTES });
+    const outputLimit = Math.min(32 * 1024 * 1024, 64 * 1024 * 1024 - totalUncompressed);
+    if (method === 0 && compressed.length > outputLimit) reject('WORKBOOK_SIZE_LIMIT');
+    let data: Buffer;
+    try {
+      data = method === 0 ? Buffer.from(compressed) : inflateRawSync(compressed, { maxOutputLength: Math.max(1, outputLimit) });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ERR_BUFFER_TOO_LARGE') reject('WORKBOOK_SIZE_LIMIT');
+      throw error;
+    }
     totalUncompressed += data.length;
     if (totalUncompressed > 64 * 1024 * 1024 || data.length > 32 * 1024 * 1024) reject('WORKBOOK_SIZE_LIMIT');
     members.set(name, data);
@@ -298,23 +292,23 @@ function unzipVideoWorkbook(bytes: Buffer): Map<string, Buffer> {
 }
 
 function decodeXmlEntities(text: string): string {
-  return text
-    .replace(/&(amp|lt|gt|quot|apos);/g, (_match, name: string) => {
-      switch (name) {
-        case 'amp':
-          return '&';
-        case 'lt':
-          return '<';
-        case 'gt':
-          return '>';
-        case 'quot':
-          return '"';
-        default:
-          return "'";
-      }
-    })
-    .replace(/&#(\d+);/g, (_match, digits: string) => String.fromCodePoint(Number(digits)))
-    .replace(/&#x([0-9A-Fa-f]+);/g, (_match, digits: string) => String.fromCodePoint(parseInt(digits, 16)));
+  return text.replace(/&([^&;]*);|&/g, (_match, entity: string | undefined) => {
+    if (entity === undefined) reject('UNSUPPORTED_XML');
+    switch (entity) {
+      case 'amp': return '&';
+      case 'lt': return '<';
+      case 'gt': return '>';
+      case 'quot': return '"';
+      case 'apos': return "'";
+    }
+    const decimal = /^#([0-9]+)$/.exec(entity);
+    const hex = /^#x([0-9A-Fa-f]+)$/.exec(entity);
+    const point = decimal ? Number(decimal[1]) : hex ? parseInt(hex[1]!, 16) : NaN;
+    if (!Number.isInteger(point) || !(point === 9 || point === 10 || point === 13 ||
+        (point >= 0x20 && point <= 0xd7ff) || (point >= 0xe000 && point <= 0xfffd) ||
+        (point >= 0x10000 && point <= 0x10ffff))) reject('UNSUPPORTED_XML');
+    return String.fromCodePoint(point);
+  });
 }
 
 function xmlAttribute(tag: string, name: string): string | undefined {
@@ -342,6 +336,7 @@ function readVideoSheetXml(
     expected += 1;
     if (!Number.isSafeInteger(number) || number !== expected || number > MAX_VIDEO_TABLE_ROWS + 1) reject(`${locator}:ROW_ORDER_OR_LIMIT`);
     const cells = new Array<string>(width).fill('');
+    const seenColumns = new Set<number>();
     const cellPattern = /<c\b([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g;
     let cellMatch: RegExpExecArray | null;
     for (;;) {
@@ -349,7 +344,7 @@ function readVideoSheetXml(
       if (cellMatch === null) break;
       const tag = cellMatch[1] ?? '';
       const inner = cellMatch[2] ?? '';
-      if (/<f[\s>]/.test(inner) || /<f>/.test(inner)) reject(`${locator}:FORMULA_NOT_ALLOWED`);
+      if (/<f(?:\s|\/?>)/.test(inner)) reject(`${locator}:FORMULA_NOT_ALLOWED`);
       const reference = xmlAttribute(tag, 'r') ?? '';
       const columnMatch = /^([A-Z]+)(\d+)$/.exec(reference);
       if (!columnMatch || Number(columnMatch[2]) !== number) reject(`${locator}:CELL_OUTSIDE_PROFILE`);
@@ -357,6 +352,8 @@ function readVideoSheetXml(
       for (const letter of columnMatch[1] ?? '') column = column * 26 + (letter.charCodeAt(0) - 64);
       column -= 1;
       if (column < 0 || column >= width) reject(`${locator}:CELL_OUTSIDE_PROFILE`);
+      if (seenColumns.has(column)) reject(`${locator}:DUPLICATE_CELL`);
+      seenColumns.add(column);
       const kind = xmlAttribute(tag, 't') ?? 'n';
       if (kind === 'inlineStr') {
         const inline = /<is>([\s\S]*?)<\/is>/.exec(inner)?.[1] ?? '';
@@ -470,7 +467,10 @@ function dateOrNull(raw: string, locator: string): string | null {
   if (!match) reject(`${locator}:INVALID_DATE_VALUE`);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  if (month < 1 || month > 12 || day < 1 || day > 31) reject(`${locator}:INVALID_DATE_VALUE`);
+  const year = Number(match[1]);
+  const leap = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const days = [31, leap ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  if (month < 1 || month > 12 || day < 1 || day > (days[month - 1] ?? 0)) reject(`${locator}:INVALID_DATE_VALUE`);
   return text;
 }
 
@@ -551,8 +551,8 @@ export function buildVideoTable(fileBytes: Uint8Array, filename: string, table: 
     const rows = grid.slice(1);
     if (rows.length < 1 || rows.length > MAX_VIDEO_TABLE_ROWS) reject(`${prefix}:ROW_RANGE_MISMATCH`);
     rows.forEach((cells, offset) => {
-      if (cells.length !== headers.length) reject(`${prefix}:ROW_WIDTH_MISMATCH`);
       if (cells.every(cell => cell.trim() === '')) return;
+      if (cells.length !== headers.length) reject(`${prefix}:ROW_WIDTH_MISMATCH`);
       const line = `${prefix}:row:${offset + 2}`;
       if (entry === 'video') videos.push(mapVideoRow(cells, line));
       else creators.push(mapCreatorRow(cells, line));
@@ -658,16 +658,31 @@ export class AutomationKalodataVideoIntake {
     ]);
     const files = expectedVideoMetadata(bound.runId, bytesByPath);
     if (!files) reject('METADATA_SNAPSHOT_INCOMPLETE');
+    const packageRequest: SourcePackageIntakeRequest = {
+      contractVersion: '1.0.0',
+      packageKey: videoPackageKey(bound.runId, input.requestKey),
+      version: 1,
+      sourceLabel: input.sourceLabel,
+      sourceAcquiredAt: input.acquiredAt,
+      files: [files[0]!, ...files.slice(1)],
+    };
+    // Foundation's replay budget includes the manifest. UUIDs and digests
+    // have fixed widths; the longest Date.toISOString() reserves its size
+    // before any artifact staging or database finalization.
+    const manifestSize = Buffer.byteLength(canonicalJson({
+      ...packageRequest,
+      packageId: input.requestKey,
+      finalizedAt: '+999999-12-31T23:59:59.999Z',
+      packageContentSha256: binding,
+    }));
+    if (files.some(file => file.byteSize > VIDEO_READ_BUDGET.maxFileBytes) ||
+        manifestSize > VIDEO_READ_BUDGET.maxFileBytes ||
+        files.reduce((total, file) => total + file.byteSize, manifestSize) > VIDEO_READ_BUDGET.maxTotalBytes) {
+      reject('VIDEO_PACKAGE_TOO_LARGE');
+    }
     return this.artifacts.withOwnership(async () => {
       const stored = await this.#packages.intakeAutomationAttachment(
-        {
-          contractVersion: '1.0.0',
-          packageKey: videoPackageKey(bound.runId, input.requestKey),
-          version: 1,
-          sourceLabel: input.sourceLabel,
-          sourceAcquiredAt: input.acquiredAt,
-          files,
-        },
+        packageRequest,
         new Map(bytesByPath),
         binding,
       );

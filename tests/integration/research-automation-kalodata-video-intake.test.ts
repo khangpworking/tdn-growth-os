@@ -8,6 +8,7 @@ import { once } from 'node:events';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { crc32, deflateRawSync } from 'node:zlib';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
@@ -128,13 +129,152 @@ test('derived metrics never divide by zero and never invent zero', () => {
   assert.equal(deriveAdShare(null, '1250000'), null);
   assert.equal(deriveAdShare('100000', null), null);
   assert.equal(deriveAdShare('10', '0'), null);
+  assert.equal(deriveAdShare('0.0000000001', '0.0000000002'), '0.5');
+  assert.equal(deriveAdShare('1.2345499999', '1'), '1.2345');
+  assert.equal(deriveAdShare('1.2345500000', '1'), '1.2346');
+  assert.equal(deriveAdShare('0', '0.0000000001'), '0');
+  assert.equal(deriveAdShare('1', '0.0000000000'), null);
 });
 
 test('csv parsing keeps quoted commas and rejects malformed quotes', () => {
   const grid = parseVideoCsv(Buffer.from('"a,b",c\r\n1,2\r\n'));
   assert.deepEqual(grid, [['a,b', 'c'], ['1', '2']]);
+  assert.deepEqual(parseVideoCsv(Buffer.from('"a""b",c')), [['a"b', 'c']]);
   assert.throws(() => parseVideoCsv(Buffer.from('"unterminated,cell\n')), /MALFORMED_CSV_QUOTE/);
   assert.throws(() => parseVideoCsv(Buffer.from([0xff, 0xfe])), /INVALID_CSV_UTF8/);
+});
+
+test('stored CSV lineage retains blank source records for both table profiles', async t => {
+  const { intake, reader, bound } = await harness(t);
+  for (const [table, csv] of [['video', VIDEO_CSV], ['creator', CREATOR_CSV]] as const) {
+    const [header, ...rows] = csv.split(/\r?\n/);
+    const width = table === 'video' ? VIDEO_TABLE_HEADERS.length : CREATOR_TABLE_HEADERS.length;
+    const withBlanks = [header, '', rows[0], ','.repeat(width - 1), '   ', ...rows.slice(1), ''].join('\r\n');
+    const receipt = await intake.prepare(request(table, randomUUID()), Buffer.from(withBlanks), 'export.csv', bound);
+    const stored = await readStoredTable(reader, receipt.packageId);
+    assert.deepEqual((table === 'video' ? stored.videos : stored.creators).map(row => row.line),
+      rows.map((_, index) => `csv:row:${index === 0 ? 3 : index + 5}`));
+  }
+});
+
+/** A valid flat workbook with synthetic inert padding members. */
+function paddedWorkbook(paddingSizes: readonly number[], rowXml = '<c r="A2" t="inlineStr"><is><t>Synthetic creator</t></is></c>'): Buffer {
+  const header = CREATOR_TABLE_HEADERS.map((value, index) =>
+    `<c r="${String.fromCharCode(65 + index)}1" t="inlineStr"><is><t>${value}</t></is></c>`).join('');
+  const members: [string, Buffer][] = [
+    ['xl/workbook.xml', Buffer.from('<workbook><sheets><sheet name="creators" r:id="rId1"/></sheets></workbook>')],
+    ['xl/_rels/workbook.xml.rels', Buffer.from('<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/></Relationships>')],
+    ['xl/worksheets/sheet1.xml', Buffer.from(`<worksheet><sheetData><row r="1">${header}</row><row r="2">${rowXml}</row></sheetData></worksheet>`)],
+    ...paddingSizes.map((size, index): [string, Buffer] => [`padding/${index}.xml`, Buffer.alloc(size, 32)]),
+  ];
+  const local: Buffer[] = [];
+  const central: Buffer[] = [];
+  let offset = 0;
+  for (const [name, data] of members) {
+    const filename = Buffer.from(name);
+    const compressed = deflateRawSync(data);
+    const checksum = crc32(data);
+    const entry = Buffer.alloc(30);
+    entry.writeUInt32LE(0x04034b50);
+    entry.writeUInt16LE(20, 4);
+    entry.writeUInt16LE(8, 8);
+    entry.writeUInt32LE(checksum, 14);
+    entry.writeUInt32LE(compressed.length, 18);
+    entry.writeUInt32LE(data.length, 22);
+    entry.writeUInt16LE(filename.length, 26);
+    local.push(entry, filename, compressed);
+    const directory = Buffer.alloc(46);
+    directory.writeUInt32LE(0x02014b50);
+    directory.writeUInt16LE(20, 4);
+    directory.writeUInt16LE(20, 6);
+    directory.writeUInt16LE(8, 10);
+    directory.writeUInt32LE(checksum, 16);
+    directory.writeUInt32LE(compressed.length, 20);
+    directory.writeUInt32LE(data.length, 24);
+    directory.writeUInt16LE(filename.length, 28);
+    directory.writeUInt32LE(offset, 42);
+    central.push(directory, filename);
+    offset += entry.length + filename.length + compressed.length;
+  }
+  const directory = Buffer.concat(central);
+  const end = Buffer.alloc(22);
+  end.writeUInt32LE(0x06054b50);
+  end.writeUInt16LE(members.length, 8);
+  end.writeUInt16LE(members.length, 10);
+  end.writeUInt32LE(directory.length, 12);
+  end.writeUInt32LE(offset, 16);
+  return Buffer.concat([...local, directory, end]);
+}
+
+test('XLSX inflation honors member and aggregate limits with typed size errors', () => {
+  const mib = 1024 * 1024;
+  assert.equal(buildVideoTable(paddedWorkbook([9 * mib]), 'export.xlsx', 'creator').creators.length, 1);
+  for (const sizes of [[33 * mib], [32 * mib, 32 * mib]]) {
+    assert.throws(() => buildVideoTable(paddedWorkbook(sizes), 'export.xlsx', 'creator'),
+      (error: unknown) => error instanceof KalodataVideoRejection && error.code === 'WORKBOOK_SIZE_LIMIT');
+  }
+});
+
+test('XLSX preserves entity text and rejects ambiguous or unsupported cells', async t => {
+  await t.test('entity escapes are decoded exactly once', () => {
+    const workbook = paddedWorkbook([], '<c r="A2" t="inlineStr"><is><t>Literal &amp;#65; &amp;lt; &#65; &#x1F600;</t></is></c>');
+    assert.equal(buildVideoTable(workbook, 'export.xlsx', 'creator').creators[0]?.creator, 'Literal &#65; &lt; A 😀');
+  });
+  for (const entity of ['&#1114112;', '&#0;', '&#xD800;']) {
+    await t.test(`invalid XML codepoint ${entity} is a typed rejection`, () => {
+      assert.throws(() => buildVideoTable(paddedWorkbook([], `<c r="A2" t="inlineStr"><is><t>${entity}</t></is></c>`), 'export.xlsx', 'creator'),
+        (error: unknown) => error instanceof KalodataVideoRejection && error.code === 'UNSUPPORTED_XML');
+    });
+  }
+  await t.test('unterminated ampersand runs are rejected before cell mapping', () => {
+    assert.throws(() => buildVideoTable(paddedWorkbook([], `<c r="A2" t="inlineStr"><is><t>${'&'.repeat(10000)}</t></is></c>`), 'export.xlsx', 'creator'),
+      (error: unknown) => error instanceof KalodataVideoRejection && error.code === 'UNSUPPORTED_XML');
+  });
+  await t.test('duplicate references cannot overwrite evidence', () => {
+    assert.throws(() => buildVideoTable(paddedWorkbook([], '<c r="C2"><v>1250000</v></c><c r="C2"><v>9</v></c>'), 'export.xlsx', 'creator'), /DUPLICATE_CELL/);
+  });
+  for (const formula of ['<f/>', '<f t="shared"/>', '<f>1+1</f>']) {
+    await t.test(`formula ${formula} is rejected even with a cached value`, () => {
+      assert.throws(() => buildVideoTable(paddedWorkbook([], `<c r="C2">${formula}<v>2</v></c>`), 'export.xlsx', 'creator'), /FORMULA_NOT_ALLOWED/);
+    });
+  }
+});
+
+test('CSV does not repair characters after a closing quote or impossible dates', async t => {
+  const header = VIDEO_TABLE_HEADERS.join(',');
+  for (const revenue of ['"1"2', '"1" ', '"1"x']) {
+    await t.test(`malformed numeric ${revenue}`, () => {
+      assert.throws(() => buildVideoTable(Buffer.from(`${header}\nv,c,${revenue},1,1,1,,`), 'export.csv', 'video'), /MALFORMED_CSV_QUOTE/);
+    });
+  }
+  for (const date of ['2026-02-31', '2026-04-31', '2100-02-29']) {
+    await t.test(`invalid calendar date ${date}`, () => {
+      assert.throws(() => buildVideoTable(Buffer.from(`${header}\nv,c,1,1,1,1,${date},`), 'export.csv', 'video'), /INVALID_DATE_VALUE/);
+    });
+  }
+  for (const date of ['2024-02-29', '2000-02-29', '2026-04-30']) {
+    assert.equal(buildVideoTable(Buffer.from(`${header}\nv,c,1,1,1,1,${date},`), 'export.csv', 'video').videos[0]?.publishDate, date);
+  }
+});
+
+test('package read budgets reject expanded members and total bytes before storage', async t => {
+  const { intake, reader, bound, changes } = await harness(t);
+  for (const [title, count] of [['x'.repeat(10000), 450], ['\u0001'.repeat(10000), 150]] as const) {
+    const caseBound = { ...bound, runId: randomUUID() };
+    const csv = Buffer.from([VIDEO_TABLE_HEADERS.join(','), ...Array.from({ length: count }, () => `${title},creator,1,1,1,1,,`)].join('\n'));
+    assert.ok(csv.length < MAX_VIDEO_UPLOAD_BYTES);
+    buildVideoTable(csv, 'export.csv', 'video');
+    const key = randomUUID();
+    const before = changes();
+    await assert.rejects(intake.prepare(request('video', key), csv, 'export.csv', caseBound),
+      (error: unknown) => error instanceof KalodataVideoRejection && error.code === 'VIDEO_PACKAGE_TOO_LARGE');
+    assert.deepEqual(changes(), before);
+    assert.equal(intake.hasRequest(caseBound.runId, key), false);
+    assert.deepEqual((await readPreparedKalodataVideoSources(reader, caseBound)).sources, []);
+    const retried = await intake.prepare(request('video', key), Buffer.from(VIDEO_CSV), 'export.csv', caseBound);
+    assert.equal(retried.exactRetry, false);
+    assert.equal((await readStoredTable(reader, retried.packageId)).videos.length, 3);
+  }
 });
 
 test('workbook reader rejects non-archives', () => {
@@ -439,6 +579,7 @@ test('video upload route prepares an exact cited table without confirmation', as
       assert.equal(rejected.status, 400);
       const rejection = (await rejected.json()) as { error: { code: string; message: string } };
       assert.equal(rejection.error.code, 'source_input_rejected');
+      assert.equal(rejection.error.message, 'Tệp video không đúng cấu trúc được hỗ trợ.');
       assert.ok(!PROVIDER_NAME.test(rejection.error.message));
 
       const created = await upload();
