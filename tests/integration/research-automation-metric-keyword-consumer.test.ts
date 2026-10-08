@@ -13,6 +13,12 @@ import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
+import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
+import { FoundationSourcePackageReader } from '../../src/modules/foundation/source-package-reader.js';
+import { AutomationMetricMethodBridge } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
+import { verifySourceKeywordDraftEvidence } from '../../src/modules/analysis/keyword-list-draft-record.js';
+import { readMetricSalesNameEvidence } from '../../src/modules/analysis/research-automation/metric-sales-name-evidence.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { keywordDraftConfiguration } from '../../src/modules/analysis/research-automation/keyword-cliproxy-transport.js';
 import type { ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
@@ -264,4 +270,71 @@ test('OWNER late COLLECTION CAS cancellation publishes diagnostics, preserves pr
   assert.deepEqual(await f.service.readSourceEvidence(workspaceId, f.id), f.packet);
   assert.deepEqual(f.db.serialize(), before); assert.deepEqual(f.calls, calls); assert.equal(f.modelRequests.length, 1);
   assert.deepEqual((await fs.readdir(path.join(f.root, 'artifacts'), { recursive: true })).sort(), files);
+});
+
+test('cold reopened configured-free query-only replay uses retained Metric proof with no Python, clock or writes', async t => {
+  const f = await fixture(t);
+  const draft = await f.service.readSourceKeywordDraft(workspaceId, f.id, f.packet.draftDigest!);
+  const market = await f.service.readReport(workspaceId, f.id, 'MARKET');
+  const insight = await f.service.readReport(workspaceId, f.id, 'INSIGHT');
+  const before = Buffer.from(f.db.serialize()), calls = [...f.calls], models = f.modelRequests.length;
+  const files = (await fs.readdir(path.join(f.root, 'artifacts'), { recursive: true })).sort();
+  const child = spawnSync(process.execPath, ['--import', 'tsx', 'tests/fixtures/metric-cold-replay.ts', f.root, workspaceId, f.id,
+    f.packet.draftDigest!, hash(Buffer.from(canonicalJson(draft))), hash(market.bytes), hash(insight.bytes)],
+    { env: { ...process.env, PATH: '/no-python-for-metric-cold-child' }, maxBuffer: 1024 * 1024 });
+  assert.equal(child.status, 0, child.stderr.toString());
+  assert.match(child.stdout.toString(), /cold retained Metric proof replay passed/);
+  assert.deepEqual(f.db.serialize(), before); assert.deepEqual(f.calls, calls); assert.equal(f.modelRequests.length, models);
+  assert.deepEqual((await fs.readdir(path.join(f.root, 'artifacts'), { recursive: true })).sort(), files);
+});
+
+test('existing frozen Metric proof rejects wrong bindings, corrupt dependencies and ambiguous key without raw fallback', async t => {
+  const f = await fixture(t);
+  const row = f.db.prepare('SELECT start_request_sha256 startSha,scope_request_sha256 scopeSha,confirmed_source_set_sha256 sourceSha,scope_confirmed_at confirmedAt FROM analysis_research_automation_runs WHERE run_id=?').get(f.id) as { startSha: string; scopeSha: string; sourceSha: string; confirmedAt: string };
+  const sources = JSON.parse((await f.artifacts.read(row.sourceSha)).toString()) as AutomationConfirmedSourceSet;
+  const input = { runId: f.id, start: JSON.parse((await f.artifacts.read(row.startSha)).toString()),
+    scope: JSON.parse((await f.artifacts.read(row.scopeSha)).toString()), scopeConfirmedAt: row.confirmedAt };
+  const packages = new SourcePackageService({ db: f.db, artifactStore: f.artifacts });
+  const reader = new FoundationSourcePackageReader(packages);
+  const authority = new AutomationMetricMethodBridge({ db: f.db, artifactStore: f.artifacts,
+    workspaces: { readVerifiedWorkspace: async () => { throw new Error('read must not consult workspace'); } },
+    now: () => { throw new Error('read must not consult clock'); } });
+  let rawFallbacks = 0;
+  authority.inspectPrepared = async () => { rawFallbacks++; throw new Error('raw fallback forbidden for existing proof'); };
+  const options = { artifacts: f.artifacts, reader, authority };
+  const exact = await readMetricSalesNameEvidence(options, input, sources, row.sourceSha);
+  assert.deepEqual(exact!.names.map(cell => [cell.row, cell.locator, cell.name]), [[2, 'Sheet1!A2', title], [4, 'Sheet1!A4', title]]);
+  const originalDraft = await f.service.readSourceKeywordDraft(workspaceId, f.id, f.packet.draftDigest!);
+  assert.equal(originalDraft.contractVersion, 'l9-keyword-list-draft-record-v3');
+  if (originalDraft.contractVersion !== 'l9-keyword-list-draft-record-v3') throw new Error('synthetic v3 expected');
+  for (const change of ['row', 'locator', 'workbook', 'title'] as const) {
+    const candidate = structuredClone(originalDraft);
+    const index = candidate.salesNameRefs.findIndex(ref => !('captureDigest' in ref));
+    const ref = candidate.salesNameRefs[index]!;
+    if ('captureDigest' in ref) throw new Error('synthetic cell reference expected');
+    if (change === 'row') ref.row = 3;
+    else if (change === 'locator') ref.locator = 'Sheet1!A3';
+    else if (change === 'workbook') ref.workbook.sha256 = 'f'.repeat(64);
+    else candidate.seeds.productNames[index] = 'caller title';
+    await assert.rejects(verifySourceKeywordDraftEvidence(f.artifacts, candidate, { options, input, sources, sourceSetDigest: row.sourceSha }));
+  }
+  const bound = { ...input, sourceSelection: { executionId: sources.executionId, sourcePackage: f.sourcePackage } };
+  await assert.rejects(authority.readFrozenSalesNames({ ...bound, scopeConfirmedAt: '2026-10-10T00:00:00Z' }));
+  await assert.rejects(authority.readFrozenSalesNames({ ...bound, scope: { ...input.scope, definition: 'different scope' } }));
+  const entries = await reader.findFinalizedSourcePackagesByKey(`automation-method:${f.id}-metric-v2-${sources.executionId}`);
+  assert.equal(entries.length, 1);
+  const method = await reader.readFinalizedSourcePackage(entries[0]!.packageId);
+  for (const pathName of ['methods/metric-normalization-receipt.json', 'methods/metric-normalized-input.json', 'profiles/metric-scope-input.schema.json', 'metric/export.xlsx']) {
+    const member = method.files.find(file => file.path === pathName)!;
+    const filePath = f.artifacts.pathForDigest(member.sha256), bytes = await fs.readFile(filePath);
+    try {
+      await fs.writeFile(filePath, Buffer.from('{"corrupt":true}'));
+      await assert.rejects(readMetricSalesNameEvidence(options, input, sources, row.sourceSha));
+    } finally { await fs.writeFile(filePath, bytes); }
+  }
+  await packages.intake({ contractVersion: '1.0.0', packageKey: method.manifest.packageKey, version: 2,
+    sourceLabel: method.manifest.sourceLabel, sourceAcquiredAt: method.manifest.sourceAcquiredAt,
+    files: method.manifest.files }, new Map(method.files.map(file => [file.path, file.bytes])));
+  await assert.rejects(readMetricSalesNameEvidence(options, input, sources, row.sourceSha), /ambiguous/);
+  assert.equal(rawFallbacks, 0); assert.equal(f.modelRequests.length, 1);
 });

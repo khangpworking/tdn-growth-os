@@ -22,8 +22,8 @@ import { SourcePackageService, type VerifiedFinalizedSourcePackage, type Verifie
 import type { DiscoveryWorkspaceReader } from '../../flow/discovery-workspace-reader.js';
 import { AnalysisMetricInputPreparationReader, MetricInputPreparationService } from '../metric-input-preparation-service.js';
 import { MetricPreparationReadinessService } from '../metric-preparation-readiness.js';
-import { calculateMetricScopes } from '../metric-scope-calculator.js';
-import { MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
+import { calculateMetricScopes, metricLabelFingerprint } from '../metric-scope-calculator.js';
+import { METRIC_CURRENT_HEADERS, MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type ScopeSnapshot, type StartSnapshot } from './model.js';
 
 const require = createRequire(import.meta.url);
@@ -174,6 +174,56 @@ export class AutomationMetricMethodBridge {
     if (selected.manifest.mediaType !== 'application/json' || !validateCurrentManifest(manifest))
       fail('METRIC_SOURCE_UNSUPPORTED', 'Frozen Metric manifest is invalid.');
     declaredPeriodCoverage(input, (manifest as unknown as MetricSourceManifest).scope);
+  }
+
+  /** Cold exact-title read from this frozen source execution's existing method
+   * package. Absence is not evidence; ambiguity/damage never falls back. */
+  async readFrozenSalesNames(input: MetricRunInput) {
+    if (input.sourceSelection?.sourcePackage === null) return undefined;
+    const key = methodKey(input);
+    const matches = await this.#reader.findFinalizedSourcePackagesByKey(key);
+    if (matches.length > 1) integrity('Metric frozen sales-name proof is ambiguous.');
+    const match = matches[0];
+    if (!match) return undefined;
+    if (match.version !== 1) integrity('Metric frozen sales-name proof version differs.');
+    const retained = await this.#reader.readFinalizedSourcePackage(match.packageId, BUDGET);
+    if (retained.manifestArtifactSha256 !== match.manifestArtifactSha256 || retained.manifest.packageKey !== key || retained.manifest.version !== 1)
+      integrity('Metric frozen sales-name proof lookup identity differs.');
+    const config = parse(retained, CONFIG);
+    const snapshot = await this.verify({ contractVersion: snapshotVersion(input), runId: input.runId,
+      runBindingSha256: digest(input), sourcePackage: identity(retained), originalSourcePackage: config.originalSourcePackage,
+      preparation: parse(retained, PREPARATION), readiness: parse(retained, READINESS), result: parse(retained, RESULT),
+      limitations: config.limitations }, input);
+    await this.verifySelection(input);
+    const original = await this.#reader.readFinalizedSourcePackage(snapshot.originalSourcePackage.packageId, BUDGET);
+    // verify() above authenticated the frozen schemas and bytes. The existing
+    // metadata validators select those same freshly verified original members.
+    const selected = selectBoundSource(original, input, validateCurrentDescriptor, validateCurrentDescriptorV2);
+    const manifest = parse(original, selected.manifest.path) as unknown as MetricSourceManifest;
+    const receipt = parse(retained, RECEIPT);
+    if (snapshot.result.input.profileId !== manifest.profileId || !equal(snapshot.result.input.scope, manifest.scope) ||
+        receipt.headerSha256 !== digest(METRIC_CURRENT_HEADERS) || manifest.source.headerSha256 !== receipt.headerSha256 ||
+        receipt.rowDigestMethod !== 'canonical-typed-cells-v1' || !Array.isArray(receipt.evidence))
+      integrity('Metric frozen sales-name profile or receipt differs.');
+    const seen = new Set<number>(); let previousRow = 1;
+    const names = receipt.evidence.map((untrusted: unknown, index: number) => {
+      const record = snapshot.result.input.records[index];
+      if (!isRecord(untrusted) || !record || !Number.isSafeInteger(untrusted.row) || typeof untrusted.row !== 'number' ||
+          untrusted.row <= previousRow || untrusted.row > manifest.source.lastRow || seen.has(untrusted.row) ||
+          !Array.isArray(untrusted.cells) || untrusted.cells.length !== METRIC_CURRENT_HEADERS.length ||
+          untrusted.rowSha256 !== digest(untrusted.cells) || untrusted.shopId !== record.shopId || untrusted.listingId !== record.listingId ||
+          untrusted.contentSha256 !== metricLabelFingerprint(snapshot.result.input.scope.platform, record) ||
+          untrusted.locator !== `Sheet1!A${untrusted.row}:T${untrusted.row}` || record.source.locator !== untrusted.locator ||
+          record.source.sourceSha256 !== selected.workbook.sha256)
+        integrity('Metric frozen sales-name row or cell witness differs.');
+      const cell: unknown = untrusted.cells[0];
+      if (!isRecord(cell) || cell.type !== 'text' || typeof cell.value !== 'string' || !cell.value.trim() || cell.value !== record.title)
+        integrity('Metric frozen title is not the exact retained title cell.');
+      seen.add(untrusted.row); previousRow = untrusted.row;
+      return { name: cell.value, row: untrusted.row, locator: `Sheet1!A${untrusted.row}` };
+    });
+    return { sourcePackage: snapshot.originalSourcePackage,
+      workbook: { logicalPath: selected.workbook.path, sha256: selected.workbook.sha256, byteSize: selected.workbook.byteSize }, names };
   }
 
   async #verifyPreparedOrigin(source: VerifiedFinalizedSourcePackage, bindingSha256: string): Promise<void> {

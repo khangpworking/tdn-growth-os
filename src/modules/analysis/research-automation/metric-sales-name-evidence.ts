@@ -19,7 +19,7 @@ function fail(): never { throw new ResearchAutomationIntegrityError('Metric sale
 export async function readMetricSalesNameEvidence(options: {
   artifacts: ContentAddressedArtifactStore;
   reader: FinalizedSourcePackageReader;
-  authority: Pick<AutomationMetricMethodBridge, 'verifySelection' | 'inspectPrepared'>;
+  authority: Pick<AutomationMetricMethodBridge, 'verifySelection' | 'inspectPrepared'> & Partial<Pick<AutomationMetricMethodBridge, 'readFrozenSalesNames'>>;
 }, input: MetricRunInput, sources: AutomationConfirmedSourceSet, sourceSetDigest: string) {
   if (sources.metric.decision !== 'ADMITTED') return null;
   if (digest(sources) !== sourceSetDigest || sources.runId !== input.runId || sources.workspaceId !== input.start.workspaceId ||
@@ -29,7 +29,13 @@ export async function readMetricSalesNameEvidence(options: {
   const sourceBytes = await options.artifacts.read(sourceSetDigest, { maxBytes: 8 * 1024 * 1024 });
   if (!sourceBytes.equals(Buffer.from(canonicalJson(sources)))) fail();
   const selected = sources.metric.sourcePackage;
-  await options.authority.verifySelection({ ...input, sourceSelection: { executionId: sources.executionId, sourcePackage: selected } });
+  const bound = { ...input, sourceSelection: { executionId: sources.executionId, sourcePackage: selected } };
+  await options.authority.verifySelection(bound);
+  const frozen = await options.authority.readFrozenSalesNames?.(bound);
+  if (frozen) {
+    if (canonicalJson(frozen.sourcePackage) !== canonicalJson(selected)) fail();
+    return frozen;
+  }
   const admitted = await options.authority.inspectPrepared(input, selected.packageId);
   if (canonicalJson(admitted) !== canonicalJson(selected)) fail();
   const retained = await options.reader.readFinalizedSourcePackage(selected.packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
