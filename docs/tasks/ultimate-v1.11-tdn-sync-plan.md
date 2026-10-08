@@ -356,6 +356,56 @@ Suggested order:
 5. A3 next, then A4 as P5, P7, P9 and P10 land.
 6. A5 last.
 
+## Handing a group of items to an agent
+
+### Ready-made groups (wave 1)
+
+The groups below do not share files, so they can run in parallel. Later groups (A3, A4, A5) start after these merge.
+
+| Group | Items | Branch | Main files |
+|---|---|---|---|
+| SYNC-1 | U-06, U-07 (Market M11/M12 only), U-08, U-30, U-31, U-32 | `pkg/SYNC-1-market-reader-rules` | `reader-report/market-template.ts`, `scope-metrics.ts`, `build.ts` |
+| SYNC-2 | U-01, U-26 | `pkg/SYNC-2-default-peers-auto-collect` | `ScopeConfirm.tsx`, `model.ts`, `descriptive-method-bridge.ts`, `reports.ts` (peer check only), `service.ts` (confirm path only) |
+| SYNC-3 | U-02, U-04, U-05, U-07 (draft packets and I15 only), U-16 | `pkg/SYNC-3-insight-defaults` | `located-insight-methods.ts`, `decision-packets.ts`, `m01-evidence-inventory.ts`, `decision-synthesis-input.ts`, `bounded-analysis-gates.ts`, `insight-model-execution.ts` |
+| SYNC-4 | U-03, then U-11 | `pkg/SYNC-4-draft-counts-crosscheck` | `insight-coding.ts`, `selected-insight-projection.ts`, `insight-corpus-counts.ts`, `report-located-insight-pages.ts` |
+| SYNC-5 | U-12 | `pkg/SYNC-5-keyword-filter` | a new shared module and its data files |
+| SYNC-6 | B-01 … B-07 | `pkg/SYNC-6-source-board` | `source-status.ts`, its contract, `SourceStatusBoard.tsx`, `service.ts` (`readSourceActivity` only) |
+
+After SYNC-1 merges: SYNC-7 = U-13, U-14, U-15, U-17 (lint and wording). Then A3 (U-27, U-28, U-29, U-33, U-34), then A4 together with packages P5, P6, P7, P9 and P10, then A5.
+
+### Prompt template
+
+Copy it, replace the three `<…>` values with a row from the table above, and give it to the agent.
+
+```text
+You are working in the repository khangpworking/tdn-growth-os.
+
+Task: implement group <GROUP_ID> = items <ITEM_IDS> from docs/tasks/ultimate-v1.11-tdn-sync-plan.md.
+
+Read first, in this order:
+1. AGENTS.md (repository rules).
+2. docs/research/ultimate-method/ultimate-method-30-sections.md: the business source of truth. If code, recipes or configs disagree with it, change the code.
+3. docs/tasks/ultimate-v1.11-tdn-sync-plan.md: "Ground rules for every item", "Current state", your items, and "File hotspots".
+4. docs/tasks/research-batch-2-packages.md: "Global definition of done" G-01…G-13. They apply to you.
+
+Rules:
+- Work on branch <BRANCH> created from the latest origin/main. On later rounds, merge origin/main in; never rebase or force-push.
+- Edit only the files your items need, plus their tests. Do not edit files listed for other groups in "File hotspots"; if you must, stop and report ESCALATED with the reason.
+- Line numbers in the plan come from an audit and may have moved; find the code by name.
+- No live provider or AI call in tests: fakes and synthetic fixtures only. No secrets, machine paths, IPs or real commercial data anywhere.
+- Owner-facing text: plain Vietnamese, no provider names (G-08).
+- Stored report versions must read back byte-identical; bump the renderer version when rendered output changes.
+- A new numeric threshold needs a row in Ultimate Appendix G8 (business) or in the "Numeric caps and why" table (engineering). If a threshold is not already decided in the Ultimate file, report it as ESCALATED instead of inventing one.
+- If an item needs a business decision the Ultimate file does not cover, do not decide it: mark it ESCALATED and continue with the rest.
+- Do not merge or deploy. Push and PR: if a pipeline runner drives you, do not push (the runner does). If you run on your own, push the branch and open a draft PR only.
+
+Finish with:
+- npm run typecheck and npm test (only the known baseline failures from G-02 may remain); frontend and contract checks when you touched those paths (G-03, G-04);
+- commits named "<GROUP_ID>: <summary>";
+- a handoff at docs/handoffs/<GROUP_ID>.md using templates/handoff.md, with a "Checklist evidence" table: one row per item ID in <ITEM_IDS> and per G-01…G-13, each DONE (with evidence), ESCALATED (with the reason) or N/A (with the reason);
+- a clean git status.
+```
+
 ## Owner decisions
 
 None needed to start. Already decided and recorded:
