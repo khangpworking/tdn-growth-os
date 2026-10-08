@@ -8,8 +8,10 @@ Completed: owned source implemented for all five items, version-aware and additi
 Committed and pushed (isolated for SYNC-1 to cherry-pick):
 - `fc07995b253cbdd13f1f2777889f1b508e0ff11f` — `src/modules/analysis/research-automation/reports.ts` plus new `tests/unit/research-automation-renderer-identity.test.ts`.
 - `884bef0ef832ee5286825b0fee80a267416a8773` — correction from coordinator review: the new kit identity applies only when `kind === 'MARKET'`, so an INSIGHT report that merely carries an unused Market descriptive method keeps `automation-report-kit-v12`. Adds the regression test `an INSIGHT report keeps v12 even when an unused Market descriptive method is attached`.
+- `7797d9eb14b6045196f3f88dbfb9a3146c5d9141` — the version-aware source for all five items (below).
+- `5473386ad6cf6de998468454a748626ad32a20a0` — narrow `service.ts` dispatch under the coordinator grant: new decision packets `1.2.0`, new M01 inventories `1.1.0`, retained packets accept `1.2.0`, retained M01 replays at its saved `methodVersion`.
 
-Changed paths (uncommitted):
+Committed paths:
 - `src/modules/analysis/located-insight-methods.ts` (U-02: `semanticsVersion` input, `methodVersion` output, labelled `workingQuestion` on I01 naming every owner field still to add)
 - `src/modules/analysis/bounded-analysis-gates.ts` (U-04: derived source-backed groups, authenticated-member rate proof, per-partition blockers, rate partition identity)
 - `src/modules/analysis/report-method-packets-pages.ts` (U-04: version-aware I11 page — derived group labels, descriptive-rate table, counted-record count; 1.0.0 copy byte-identical)
@@ -20,7 +22,8 @@ Changed paths (uncommitted):
 - `src/modules/analysis/research-automation/decision-synthesis-input.ts` (U-02/U-07/U-16: prompt `1.3.0`, `ownerInputs.workingQuestion`, v1.2.0 support preservation)
 - `src/modules/analysis/research-automation/decision-synthesis-execution.ts` (admission `1.2.0` ↔ prompt `1.3.0` binding)
 - `src/modules/analysis/research-automation/synthesis-evidence-report.ts` (U-07 rendering: AI-proposed immediate task/owner/deadline shown, labelled awaiting the owner)
-- `src/modules/analysis/research-automation/m01-evidence-inventory.ts` (U-02: `inventoryVersion` hook)
+- `src/modules/analysis/research-automation/m01-evidence-inventory.ts` (U-02: `inventoryVersion` hook + `automationM01InventoryVersion` retained-version reader)
+- `src/modules/analysis/research-automation/service.ts` (narrow producer dispatch and retained-version replay only)
 - `tests/unit/sync3-version-semantics.test.ts` (new)
 
 Evidence (commands, results, relevant revision):
@@ -42,10 +45,35 @@ Astra/coordinator feedback already applied:
 Unresolved (blockers):
 1. Schema lease. Astra confirms it stays HOLD: SYNC-6 has not released, then a very short SYNC-1 final generator phase, then my seven schemas. Seven `contracts/analysis/*.schema.json` files (plus the method-packet input schema for `groupBasis`/`memberSources`/`numeratorMemberSources`) and `npm run contracts:generate` cannot be written until then. Until that point the 1.2.0/1.3.0/prompt-v2/method-1.1.0 artifacts cannot validate and the three version-aware tests stay red.
 2. U-04 producer wiring. The gate consumes `cells[].groupBasis` (source-stated platform + explicit RETAIL/WHOLESALE) and `cells[].memberSources`/`numeratorMemberSources` as the authenticated-member proof, verified by `report-method-packets-extension.ts` `verifyTree`; whoever assembles the I11 input must populate them from retained evidence, and Astra authorized me to wire the producer/render/replay in `report-section-pages.ts`, `report-method-packets-pages.ts`, `report-method-packets-extension.ts`, `bounded-methods.ts`. Gate rendering and the `verifyTree` member resolution are done; the producer assembly is not. Note the verifier's retained-source-file cap (4) may need a decision once members span files.
-3. M01 `inventoryVersion` and the U-02 working-question producer must be passed by the caller (`service.ts` / report assembly), which is not an owned path. Prepared, not applied: `service.ts` still builds packets as `packetVersion '1.1.0'` (line ~1890) and M01 without `inventoryVersion`; the narrow grant is queued behind SYNC-6.
+3. Located/bounded descriptor producers (reported to Astra in msg_dc789ed2409c, awaiting owner confirmation). `service.ts` cannot dispatch `semanticsVersion` for located/bounded: their inputs are descriptors read from a finalized source package (`methods/located-input.json`; the bounded `descriptorPath`), re-verified in `located-review-bridge.ts`, `native-source-review-bridge.ts`, `bounded-methods.ts`. My builders accept `semanticsVersion: '1.1.0'`, but the package-side descriptor writer must set it and must fill `i11.cells[].groupBasis`/`memberSources`/`numeratorMemberSources`. Those bridge files are not in my grant, so new located/bounded outputs stay 1.0.0 until that owner is named.
 
 Next action: after the lease grant, apply the schema deltas (gate input/output, method-packet input, located-insight-methods, decision packets, decision-synthesis input/prompt, insight model, M01), including `groupBasis`/`memberSources`/`numeratorMemberSources`/`rates[].partition`, `npm run contracts:generate`, confirm the version tests and the affected set, run `npm run typecheck` and the bounded full suite, then commit the remaining source (renderer commits `fc07995`/`884bef0` already separate cleanly), push, open a draft PR and report. Do not merge, deploy or make provider calls.
 Business decisions pending: the I11 rate-governance wording for the methodology doc (Ultimate §6.3 ≥30 applied per source-stated platform+buyer group, classified-rate eligibility SYNC-4 dependency-bound) — Astra is documenting this.
+
+## Prepared schema deltas (apply on lease grant, then `npm run contracts:generate`)
+
+`contracts/analysis/bounded-analysis-gates.schema.json`
+- `properties.methodVersion`: `{"enum":["1.0.0","1.1.0"]}`.
+- `$defs.input.properties.semanticsVersion`: `{"enum":["1.0.0","1.1.0"]}` (optional).
+- `$defs.input…i11.cells.items.properties` add optional:
+  - `groupBasis`: object, `additionalProperties:false`, required `platform`,`buyerType`, each `{"type":"object","additionalProperties":false,"required":["state","value","source"],"properties":{"state":{"enum":["SOURCE_STATED","NOT_STATED"]},"value":{"anyOf":[{"$ref":"#/$defs/text"},{"type":"null"}]},"source":{"anyOf":[{"$ref":"#/$defs/source"},{"type":"null"}]}}}`.
+  - `memberSources`, `numeratorMemberSources`: `{"type":"array","maxItems":10000,"items":{"$ref":"#/$defs/source"}}`.
+- `$defs.i11Output.properties.rates`/`differences`: `{"anyOf":[{"type":"object","additionalProperties":false,"required":["recordsPerGroupMinimum","groups"],"properties":{"recordsPerGroupMinimum":{"const":30},"groups":{"type":"array","maxItems":10000,"items":{"type":"object","additionalProperties":false,"required":["partition","group","numerator","denominator","rate"],"properties":{"partition":{"type":"integer","minimum":0},"group":{"$ref":"#/$defs/text"},"numerator":{"type":"integer","minimum":0},"denominator":{"type":"integer","minimum":1},"rate":{"type":"number"}}}}}},{"type":"null"}]}`; `differences` stays `null` until SYNC-4 (keep `{"type":"null"}` there).
+
+`contracts/analysis/located-insight-methods.schema.json`
+- input `semanticsVersion` enum `["1.0.0","1.1.0"]`; optional `workingQuestionProposal` (`text`|null).
+- output `methodVersion` enum `["1.0.0","1.1.0"]`; I01 gains optional `workingQuestion` `{state: enum[AI_PROPOSED_AWAITING_OWNER,OWNER_SUPPLIED], label: nullableText, text: nullableText, ownerFieldsToAdd: array of text}`.
+
+`contracts/analysis/report-method-packets-input.schema.json` — refs the gate schema; verify only.
+
+`contracts/analysis/automation-decision-packets.schema.json`
+- `$defs.packet.methodVersion` enum adds `1.2.0`; `evidenceGaps` enum adds `WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER`; `limitations` enum adds the two 1.2.0 strings; optional `aiProposal` slot on M12/I15 section fields (`{status:'AI_PROPOSED_AWAITING_OWNER', label}` with null values); candidate `proposedOwner`/`proposedDeadline`/`immediateTask` (`text`|null); M12/I15 `maxItems` 3 for `aiCandidates`.
+
+`contracts/analysis/automation-m01-evidence-inventory.schema.json` — `methodVersion` enum adds `1.1.0`; the 1.1.0 limitation string.
+
+`contracts/analysis/automation-decision-synthesis-input.schema.json` — `methodVersion` enum adds `1.2.0`; optional `ownerInputs.workingQuestion`.
+`contracts/analysis/automation-decision-synthesis-prompt.schema.json` — `promptVersion` enum adds `1.3.0`; `inputContract.methodVersion` enum adds `1.2.0`.
+`contracts/analysis/automation-insight-model.schema.json` — prompt `contractVersion` enum adds `insight-model-prompt-v2`.
 
 ## Checklist evidence
 
