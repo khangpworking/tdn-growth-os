@@ -111,7 +111,9 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
     const targets = [...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
     const links = [...html.matchAll(/\bhref="#([^"]+)"/g)].map(m => m[1]);
     add('I_CITATIONS nguồn và vị trí chính xác', new Set(citationIds).size === citationIds.length && marks.every(n => citationIds.includes(n)) && links.every(id => targets.includes(id)), 'Tham chiếu phải có đúng vị trí trên bản đọc.');
-    add('I_ACTIONS tối đa ba đề xuất', [...m12.matchAll(/data-insight-action="candidate"/g)].length <= 3, 'Phương án của chủ giữ riêng với đề xuất AI.');
+    const declaredCounts = [...m12.matchAll(/data-insight-action-count="([^"]*)"/g)].map(match => match[1]);
+    add('I_ACTIONS tối đa ba đề xuất', declaredCounts.length <= 1 && declaredCounts.every(count => /^[0-3]$/.test(count ?? '')) &&
+      [...m12.matchAll(/data-insight-action="candidate"/g)].length <= 3, 'Phương án của chủ giữ riêng với đề xuất AI.');
   }
 
   // Web snapshot rules (W1–W6). Pages without a snapshot have no webex block

@@ -90,10 +90,14 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
     const outcome = methods.decisionSynthesis?.I15;
     if (outcome?.status === 'VALID' && outcome.candidates.artifact.aiCandidates.length > 3)
       throw new ReaderReportInputError('Insight reader admits at most three retained proposed actions.');
+    const candidateCount = outcome?.status === 'VALID' ? outcome.candidates.artifact.aiCandidates.length : 0;
     append('I15', '<p>Mọi đề xuất AI đều là đề xuất, chờ chủ duyệt. Người phụ trách và hạn chót giữ trạng thái đề xuất; phương án của chủ giữ riêng.</p>' +
-      decisionPacketSection(packet, methods.decisionSourceClaims, outcome, citations), 'Bằng chứng, giả thuyết và phương án chưa duyệt được giữ riêng; không có quyết định thay chủ.');
+      `<div data-insight-action-count="${candidateCount}">${decisionPacketSection(packet, methods.decisionSourceClaims, outcome, citations)}</div>`,
+      'Bằng chứng, giả thuyết và phương án chưa duyệt được giữ riêng; không có quyết định thay chủ.');
   }
   if (methods.sourceEvidence) append('I17', sourceEvidenceHtml(methods.sourceEvidence), 'Nguồn, hạng và kết quả lọc nghĩa được giữ riêng theo từng nguồn.');
+  else append('I17', '<p>Phiên bản nguồn này chưa có bản kê nguồn với mã đăng ký, hạng và kết quả lọc nghĩa đã xác minh. Các vị trí nguồn đã có vẫn được giữ; không tự điền hạng hoặc kết quả lọc còn thiếu.</p>',
+    'Phần còn thiếu của bản kê nguồn được giữ rõ, không thay bằng giá trị mặc định.');
   return { input, page: { keyword: scope.keyword, definition: scope.definition, period: scope.requestedPeriod,
     registry, sections: [...sections.values()], findings: projectInsightFindings(methods) } };
 }

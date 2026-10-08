@@ -64,6 +64,7 @@ test('Insight citation and visible-text gates reject missing targets, rankings a
   assert.ok(fails(html.replace('<main>', '<main><p>Thị phần là 10%.</p>'), 'W4'));
   assert.ok(fails(html.replace(/\(đề xuất, chờ chủ duyệt\)/g, '(đề xuất). Cần chờ chủ duyệt'), 'U13_PENDING_NUMBER'));
   assert.ok(fails(html.replace('id="I17"', 'id="removed-appendix"'), 'Cấu trúc'));
+  assert.ok(fails(html.replace('<section id="I15">', '<section id="I15"><div data-insight-action-count="4"></div>'), 'I_ACTIONS'));
 });
 
 test('shared publisher rejects handwritten numbers or broken Insight citations before storing any artifact', async () => {
