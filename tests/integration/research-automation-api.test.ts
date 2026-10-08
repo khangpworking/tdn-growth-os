@@ -14,6 +14,7 @@ import BetterSqlite3 from 'better-sqlite3';
 import researchAutomationApiSchema from '../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import revisionApiSchema from '../../contracts/api/research-automation-revision-api.schema.json' with { type: 'json' };
 import revisionRequestSchema from '../../contracts/analysis/automation-report-revision.schema.json' with { type: 'json' };
+import marketPresentationRevisionSchema from '../../contracts/analysis/automation-market-presentation-revision.schema.json' with { type: 'json' };
 import metricIntakeSchema from '../../contracts/api/research-automation-metric-intake-api.schema.json' with { type: 'json' };
 import metricRuleSchema from '../../contracts/analysis/automation-metric-rule-adoption.schema.json' with { type: 'json' };
 import membershipSchema from '../../contracts/analysis/automation-metric-membership.schema.json' with { type: 'json' };
@@ -69,6 +70,7 @@ const apiValidators = (() => {
   addFormats(ajv);
   ajv.addSchema(researchAutomationApiSchema);
   ajv.addSchema(revisionRequestSchema);
+  ajv.addSchema(marketPresentationRevisionSchema);
   ajv.addSchema(revisionApiSchema);
   ajv.addSchema(metricIntakeSchema);
   ajv.addSchema(metricRuleSchema);
