@@ -128,6 +128,10 @@ test('classified Metric adapter consumes retained group/source membership and ne
   assert.equal(result.frames[0]!.selected[0]!.identity.kind, 'SHOP');
   assert.deepEqual(result.input.ownerAdditions, ['owner-extra']);
   assert.deepEqual(result.frames[0]!.selected[0]!.sources, [sales.records[0]!.revenue.source]);
+  const mismatch = structuredClone(sales); mismatch.records[1]!.measurement.selection = 'ON';
+  assert.ok(classifiedMetricDefaultPeers(mismatch, { ...DEFAULT_MARKET_PEER_RULE }, []).frames[0]!.excluded.some(row => row.reason === 'FRAME_MISMATCH'));
+  mismatch.records[1]!.measurement.selection = 'UNSPECIFIED'; mismatch.records[1]!.measurement.profileId = 'another-profile';
+  assert.ok(classifiedMetricDefaultPeers(mismatch, { ...DEFAULT_MARKET_PEER_RULE }, []).frames[0]!.excluded.some(row => row.reason === 'FRAME_MISMATCH'));
   sales.records[1]!.label = null;
   assert.equal(classifiedMetricDefaultPeers(sales, { ...DEFAULT_MARKET_PEER_RULE }, []).frames[0]!.state, 'INCOMPLETE');
   for (const row of sales.records) row.label = null;
@@ -163,6 +167,16 @@ test('reader peer identities use literal source brand labels rather than inferre
   assert.ok(data.rows.every(row => row.brand === 'Merged name'), 'existing display aliases remain separate from default identity policy');
   assert.ok(data.defaultMarketPeers!.frames.every(frame => frame.state === 'SELECTED'));
   assert.ok(data.defaultMarketPeers!.frames.flatMap(frame => frame.members).every(member => ['Alpha', 'Beta'].includes(member.identity.label)));
+});
+
+test('reader preserves owner source identifiers in retention while its displayed labels pass provider-name gates', async () => {
+  const input = { ...sync1ReaderFixture(), contractVersion: '1.3.0', peerRule: { ...DEFAULT_MARKET_PEER_RULE }, ownerPeerProductIds: ['kalodata:owner-peer', 'metric:other-peer'] };
+  for (const row of input.rows) row.brand = '(không ghi)';
+  const data = computeReaderReportData(input), built = await buildMarketReport(data, sync1Options);
+  assert.deepEqual(data.defaultMarketPeers!.input.ownerAdditions, input.ownerPeerProductIds);
+  assert.match(built.html, /owner-peer/); assert.match(built.html, /other-peer/);
+  assert.doesNotMatch(built.html, /kalodata|metric:/i);
+  assert.ok(lint(built.html, { sectionIds: READER_SECTION_ANCHORS }).every(row => row.ok), JSON.stringify(lint(built.html).filter(row => !row.ok)));
 });
 
 test('retained reader1.2 positive/nullable and descriptive1.1 bytes remain unchanged alongside legacy tests', async () => {

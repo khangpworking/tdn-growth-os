@@ -143,7 +143,8 @@ export function classifiedMetricDefaultPeers(
       membershipBasis: `retained-classification:${sales.labelCodebookVersion}` }));
   const records: Input['records'] = sales.records.map(row => ({
       platform: row.measurement.platform,
-      sampleKey: row.measurement.scopeKey === sales.scope.key ? sampleKey : row.measurement.scopeKey,
+      sampleKey: row.measurement.scopeKey === sales.scope.key && row.measurement.profileId === sales.profileId && row.measurement.selection === sales.scope.selection
+        ? sampleKey : key([row.measurement.scopeKey, row.measurement.profileId, row.measurement.selection]),
       period: { start: row.measurement.start, end: row.measurement.end }, unit: row.measurement.currency,
       group: row.label?.group ?? null,
       membership: row.label === null || row.label.classification === 'UNKNOWN' ? 'UNKNOWN'

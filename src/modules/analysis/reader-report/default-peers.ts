@@ -1,6 +1,7 @@
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
 import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 import { deriveDefaultMarketPeers } from '../default-market-peers.js';
+import { sourceMemberLabel } from '../research-automation/descriptive-report.js';
 import type { NullableRow } from './classify.js';
 import type { Bundle } from './bundle.js';
 import { esc } from './format.js';
@@ -27,7 +28,7 @@ export function readerDefaultPeers(input: ReaderReportInput, rows: NullableRow[]
 }
 
 const STATE_TEXT: Readonly<Record<DefaultMarketPeers['frames'][number]['state'], string>> = {
-  SELECTED: 'Đã chốt từ doanh thu trong mẫu', NO_SALES: 'Chưa có doanh số tương thích',
+  SELECTED: 'Tập mặc định đã tính từ doanh thu trong mẫu', NO_SALES: 'Chưa có doanh số tương thích',
   ZERO_REVENUE: 'Doanh thu nhóm bằng không; chưa chọn đối thủ',
   INCOMPLETE: 'Chưa đủ nguồn, doanh thu, nhóm hoặc danh tính; chưa chọn đối thủ',
 };
@@ -58,9 +59,10 @@ export function readerPeerExhibit(
     return `<div class="peer-frame"><h3>${platform} · ${group}</h3><p>${STATE_TEXT[result.state]}. Kỳ ${period}.</p><p>Quy tắc đã chốt trước khi tính: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${n(metric(`${id}.threshold`))}% doanh thu nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng đặt cạnh nhau theo danh tính, không xếp ưu tiên.</p><p>Doanh thu nhóm trong mẫu: ${n(metric(`${id}.total`))}; doanh thu tập đã chọn: ${n(metric(`${id}.selected`))}.${sources}</p>${table}</div>`;
   }).join('');
   const additions = snapshot.input.ownerAdditions.length
-    ? `<ul>${snapshot.input.ownerAdditions.map(value => `<li>${text(value)}</li>`).join('')}</ul>`
+    ? `<ul>${snapshot.input.ownerAdditions.map(value => `<li>Đối tượng nguồn: ${text(sourceMemberLabel(value))}</li>`).join('')}</ul>`
     : '<p>Chưa có bổ sung của chủ.</p>';
   const exclusions = snapshot.frames.flatMap(frame => frame.excluded).length;
   bundle.set('peers.excluded', exclusions, 'num');
-  return `${body}<h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định. Không suy cùng thương hiệu hay gian hàng từ tên giống nhau giữa các sàn.</p><p>Dòng loại khỏi phép chọn: ${n(metric('peers.excluded'))}; lý do và vị trí được giữ trong hồ sơ đối chiếu.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><pre data-quote>${esc(JSON.stringify(snapshot, null, 2))}</pre></details>`;
+  const trace = snapshot.frames.flatMap(frame => frame.excluded.map(row => `<li><code>${esc(row.reason)}</code> ${row.source === null ? 'Chưa có nguồn' : sourceMark(row.source)}</li>`)).join('');
+  return `${body}<h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định. Không suy cùng thương hiệu hay gian hàng từ tên giống nhau giữa các sàn.</p><p>Số lần loại dòng ở các nhóm và sàn: ${n(metric('peers.excluded'))}; lý do và vị trí được giữ trong hồ sơ đối chiếu.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${esc(snapshot.input.rule.version)}</code>. Đầu vào, thành viên và kết quả chính xác được giữ trong bản lưu bất biến của báo cáo.</p><ul>${trace}</ul></details>`;
 }
