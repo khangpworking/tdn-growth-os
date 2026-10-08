@@ -1,6 +1,6 @@
 # Input data sources for 30 sections
 
-Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.1 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.7
+Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.2 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.7
 
 Đây là **nguồn chuẩn về danh mục nguồn dữ liệu**. File này trả lời ba câu hỏi:
 - có những nguồn nào;
@@ -62,7 +62,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 | ID | Nguồn | Tiếng nói | Công cụ | Tên trong báo cáo | Hạng | Đại diện | Trạng thái | Chi phí | Ràng buộc |
 |---|---|---|---|---|---|---|---|---|---|
 | S01 | Dữ liệu bán hàng trên sàn: doanh thu, đơn vị bán, giá, gian hàng, thương hiệu theo tiêu đề | Thị trường | Metric (file xuất; tự động hoá ở gói P6) | "dữ liệu bán hàng ước tính trên sàn" | C | Vừa | Đang dùng | Theo gói thuê bao của chủ | E10, E11, M03–M05; ghi "ước tính" |
-| S02 | Video bán hàng, creator, sản phẩm TikTok: doanh thu, lượt xem, chi quảng cáo, ROAS/CPA | Thị trường | Kalodata (file xuất, gói P4) | "dữ liệu video bán hàng (ước tính)" | C | Vừa | Đang dùng (một phần); P4 | Theo gói thuê bao | E1 (ROAS/CPA chỉ tham khảo); E5 phép kiểm 2, 3 |
+| S02 | Video bán hàng, creator, sản phẩm TikTok: doanh thu, lượt xem, chi quảng cáo, ROAS/CPA | Thị trường | Kalodata (file xuất, gói P4) | "dữ liệu video bán hàng (ước tính)" | C | Vừa | Đang dùng (một phần); gói P4 nhập file video và creator đã merge ngày 08/10/2026 | Theo gói thuê bao | E1 (ROAS/CPA chỉ tham khảo); E5 phép kiểm 2, 3 |
 | S03 | Nhà cung cấp, xuất nhập khẩu theo doanh nghiệp | Thị trường | TradeInt | "dữ liệu thương mại ước tính" | C | Vừa | Chưa dùng được (chưa có phiên truy cập hợp lệ) | Theo gói thuê bao | M06 |
 | S04 | Trang bán sản phẩm: tiêu đề, mô tả, ảnh, quy cách, giá niêm yết | Người bán | Chụp trang (Metric web snapshot, PR #137); bộ thu sàn | "trang bán của người bán" | B | Vừa | Đang dùng | Không | L7; M08 (đơn vị chuẩn, E9) |
 
@@ -72,7 +72,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 |---|---|---|---|---|---|---|---|---|---|
 | S05 | Review Shopee, có số sao | Khách | Bộ thu review Shopee (Apify, actor zen-studio) | "review công khai trên Shopee" | B | Thấp | Đang dùng | Theo lượt; cần chủ duyệt mỗi lần chi | L1, L6; mục 6.3 |
 | S06 | Review TikTok Shop | Khách | Chưa có bộ thu | "review công khai trên TikTok Shop" | B | Thấp | Đề xuất | — | Như S05 |
-| S07 | Bình luận dưới video TikTok | Khách | Apify (clockworks, datadoping) | "bình luận công khai dưới video" | B | Thấp | Chưa test được (R3, R4 chưa chạy: thiếu 5 link video đúng sản phẩm đã xác minh). Lấy link từ file video S02 | ~$0,35–1,25 / 1.000 bình luận | Ẩn danh người viết; lọc tài khoản bán hàng; E5 phép kiểm 4 |
+| S07 | Bình luận dưới video TikTok | Khách | Apify (clockworks, datadoping) | "bình luận công khai dưới video" | B | Thấp | Chờ test (R3, R4): đã có 5 link video review đã kiểm (ST-20261008-17) | ~$0,35–1,25 / 1.000 bình luận | Ẩn danh người viết; lọc tài khoản bán hàng; E5 phép kiểm 4 |
 | S08 | Bài viết Facebook công khai và bài trong nhóm | Khách | Agent-Reach (OpenCLI); Apify Facebook Posts Search | "bài viết công khai trên Facebook" | B | Thấp | Đã test. Agent-Reach: một phần. Apify tìm bài công khai: R1 không đạt, R2 một phần. Bài công khai chủ yếu là bài bán hàng; lời khách nên lấy từ nhóm | Agent-Reach: không; Apify: ~$0,23–0,26 cho 75–86 bài | Ẩn danh; dùng tài khoản riêng; L5, L7; bài không có ngày không vào số đếm theo kỳ |
 | S09 | Instagram | Khách / người bán | Agent-Reach (không dùng được); Apify chỉ trả link | "bài viết công khai trên Instagram" | B | Thấp | Không dùng được hiện tại | — | — |
 | S10 | X (Twitter) | Khách | Apify Tweet Scraper | "bài viết công khai trên X" | B | Rất thấp ở Việt Nam | Đã test (R7): một phần. 94% bài đúng sản phẩm, nhưng chỉ 24% là lời khách ứng viên; nhiều câu mô tả lặp mẫu. Chỉ dùng làm nguồn phụ, có lọc | ~$0,08 cho 200 bài | Chưa xác minh được người thật, người Việt |
@@ -175,22 +175,9 @@ Cột "Nguồn chính" là nguồn cho phép tính hoặc bằng chứng chính 
 
 ---
 
-## 5. Nhật ký thử nguồn
+## 5. Nhật ký thử và kiểm định nguồn
 
-| Ngày | Nguồn | Kết quả | Ghi chú |
-|---|---|---|---|
-| 08/10/2026 | S08 Facebook qua Agent-Reach, lần 1 | Một phần: chỉ ra tên trang và tên nhóm; không có bài | Lệnh đọc bảng tin lỗi |
-| 08/10/2026 | S08 Facebook qua Agent-Reach, lần 2 (sau khi sửa bộ đọc) | Một phần, tốt hơn lần 1 | Tìm theo từ khoá: 10 bài, chỉ 4 bài có ngày. Đọc nhóm đã tham gia: 8 bài có ngày, link, người viết, nhưng các nhóm không liên quan nên 0 bài về sản phẩm. Không có nội dung bình luận. Bản sửa nằm ở máy cục bộ |
-| 08/10/2026 | S15 Thư viện quảng cáo Meta | Có ngày bắt đầu và trạng thái đang chạy; một số thẻ có ngưỡng chi | Kết quả tìm kiếm rộng lẫn quảng cáo không liên quan |
-| 08/10/2026 | S09 Instagram qua Agent-Reach | Không dùng được | — |
-| 08/10/2026 | S21 Cục Thống kê | Truy cập được; 803 file Excel qua API; bắt buộc ghi nguồn | Xem E12 và mục 6.4 của Ultimate |
-| 08/10/2026 | Bài test Apify, 5/7 lượt đã chạy, tổng phí ~$0,78 (trần $4,40) | Xem các dòng dưới | Chấm trên 50 bản ghi đầu mỗi lượt. Dữ liệu thô giữ ngoài Git |
-| 08/10/2026 | S08 Facebook, tìm "thạch dừa" (R1) | Không đạt | 86 bài; 6/50 liên quan sản phẩm; 0/50 lời khách |
-| 08/10/2026 | S08 Facebook, tìm "bình giữ nhiệt" (R2) | Một phần | 75 bài; 37/50 liên quan; 4/50 lời khách ứng viên; chủ yếu bài bán hàng và quà tặng |
-| 08/10/2026 | S07 bình luận TikTok (R3, R4) | Chưa chạy | Thiếu 5 link video đúng sản phẩm đã xác minh. Cần lấy link từ file video S02 |
-| 08/10/2026 | S16 quảng cáo nổi bật TikTok (R5) | Không đạt | Actor báo không lấy được quảng cáo nào |
-| 08/10/2026 | S17 thư viện quảng cáo Google (R6) | Một phần | Chỉ chạy được 1 thương hiệu (99 quảng cáo); 1 dòng lạc nhà quảng cáo khác; 65/100 lệch giữa hai bộ ngày; 0/100 có lượt hiển thị cho Việt Nam; 11/100 có chữ |
-| 08/10/2026 | S10 X (R7) | Một phần | 200 bài; 47/50 liên quan; 12/50 lời khách ứng viên; nhiều câu lặp mẫu |
+Lịch sử từng lần thử thu và kiểm định nằm ở **[Input data sources: test and validation log](input-data-sources-test-log.md)**. Mục này chỉ giữ các bài học rút ra.
 
 **Bài học từ bài test Apify:**
 - Tìm theo từ khoá sản phẩm trên mạng xã hội chủ yếu ra **bài của người bán**. Muốn có lời khách, nguồn tốt hơn là nhóm (S08 qua đọc nhóm), bình luận dưới video (S07) và review (S05).
@@ -206,5 +193,5 @@ Cột "Nguồn chính" là nguồn cho phép tính hoặc bằng chứng chính 
 1. Thêm một dòng vào mục 2 với mã S kế tiếp, kèm hạng, độ đại diện, trạng thái và ràng buộc.
 2. Cập nhật bảng section ở mục 3 nếu nguồn được dùng cho section nào.
 3. Nếu nguồn cần quy tắc mới (ví dụ phải ghi tên nguồn, như E12), thêm quy tắc vào file Ultimate.
-4. Sau mỗi lần thử nguồn, ghi kết quả vào mục 5. Nếu hạng hoặc trạng thái đổi, sửa mục 2.
+4. Sau mỗi lần thử hoặc kiểm định nguồn, thêm một dòng vào [nhật ký test và kiểm định](input-data-sources-test-log.md). Nếu hạng hoặc trạng thái đổi, sửa mục 2 trong cùng commit.
 5. Ghi một dòng vào [CHANGELOG.md](CHANGELOG.md), cùng commit.

@@ -473,7 +473,7 @@ Danh mục đầy đủ nằm ở **[Input data sources for 30 sections](input-d
 - trạng thái thử nghiệm, chi phí, ràng buộc;
 - bảng section dùng nguồn nào;
 - nguồn đã xét và không dùng;
-- nhật ký thử nguồn.
+- bài học từ các lần thử nguồn. Lịch sử từng lần thử và kiểm định nằm ở [nhật ký test và kiểm định nguồn](input-data-sources-test-log.md).
 
 Quy tắc ở file này (E, L, mục 6.2–6.4) áp cho mọi nguồn trong danh mục. Khi file này và file Input data sources for 30 sections khác nhau về **quy tắc**, theo file này; về **danh mục, trạng thái, hạng**, theo file Input data sources for 30 sections.
 
