@@ -105,3 +105,31 @@ test('Insight panel requires explicit source selection and owner action, with se
     assert.match(dom.container.textContent!, /reader-report-market-v4/); assert.equal(document.querySelector('[role=dialog]'), null); assert.equal(writes.length, 2);
   } finally { await act(async () => root.unmount()); globalThis.fetch = original; dom.cleanup(); }
 });
+
+test('changing runs clears source selections and ignores an old in-flight build response', async () => {
+  const dom = setupDom(), original = globalThis.fetch;
+  const { createRoot } = await import('react-dom/client');
+  const { default: Panel } = await tsImport('../src/research-automation/ReaderReportPanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/ReaderReportPanel');
+  const root = createRoot(dom.container), nextRunId = '66666666-6666-4666-8666-666666666666';
+  let settle!: (response: Response) => void, writes = 0;
+  globalThis.fetch = (async (url, init) => {
+    if (init?.method) { writes++; return new Promise<Response>(resolve => { settle = resolve; }); }
+    const currentRun = String(url).includes(nextRunId) ? nextRunId : runId;
+    if (String(url).endsWith('report-versions')) return json({ contractVersion: 'automation-report-version-list-v1', workspaceId, runId: currentRun,
+      versions: [{ pairId: revision.draftPairId, versionNumber: 1, attemptId: null, outputs: [{ kind: 'INSIGHT', versionId: revision.semanticSha256, pdfAvailable: false }] }] });
+    return json({ ...list([]), runId: currentRun });
+  }) as typeof fetch;
+  const run = { workspaceId, runId, reports: ['INSIGHT'], status: 'DRAFT_READY' } as ResearchAutomationRun;
+  const buildButton = () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === 'Dựng bản đọc insight')!;
+  try {
+    await act(async () => root.render(createElement(Panel, { run, ownerToken: token, writesAvailable: true })));
+    const sourceSelect = document.querySelectorAll<HTMLSelectElement>('select')[1]!;
+    await act(async () => { sourceSelect.value = revision.draftPairId; sourceSelect.dispatchEvent(new Event('change', { bubbles: true })); });
+    await act(async () => buildButton().click()); assert.equal(writes, 1);
+    await act(async () => root.render(createElement(Panel, { run: { ...run, runId: nextRunId }, ownerToken: token, writesAvailable: true })));
+    assert.equal(document.querySelectorAll<HTMLSelectElement>('select')[1]!.value, ''); assert.equal(buildButton().disabled, true);
+    await act(async () => settle(json({ contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision }, 201)));
+    assert.equal(document.querySelectorAll<HTMLSelectElement>('select')[1]!.value, ''); assert.equal(buildButton().disabled, true);
+    assert.doesNotMatch(dom.container.textContent!, /Đã dựng bản đọc insight lần/); assert.equal(writes, 1);
+  } finally { await act(async () => root.unmount()); globalThis.fetch = original; dom.cleanup(); }
+});
