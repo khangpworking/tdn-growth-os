@@ -4,12 +4,14 @@ import type Database from 'better-sqlite3';
 import apiSchema from '../../../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import readerApiSchema from '../../../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import readerInputSchema from '../../../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
+import defaultPeerSchema from '../../../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
 import type {
   ResearchAutomationReaderBuildRequest, ResearchAutomationReaderBuildReceipt, ResearchAutomationReaderDecisionRequest,
   ResearchAutomationReaderDecisionReceipt, ResearchAutomationReaderRevision, ResearchAutomationReaderRevisionList,
 } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../default-market-peers.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import {
   buildMarketReport, computeReaderReportData, publishReaderReport, ReaderAssetError, ReaderReportGateError, ReaderReportInputError,
@@ -24,13 +26,14 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: false });
-addFormats(ajv); ajv.addSchema(apiSchema); ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
+addFormats(ajv);
+ajv.addSchema(defaultPeerSchema); ajv.addSchema(apiSchema); ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
 const def = <T>(name: string) => ajv.compile<T>({ $ref: `${readerApiSchema.$id}#/$defs/${name}` });
 const validBuild = def<ResearchAutomationReaderBuildRequest>('buildRequest');
 const validDecision = def<ResearchAutomationReaderDecisionRequest>('decisionRequest');
 const validRevision = def<ResearchAutomationReaderRevision>('revision');
 
-export const READER_BUILDER_VERSION = 'reader-report-market-v2';
+export const READER_BUILDER_VERSION = 'reader-report-market-v3';
 export const MAX_READER_HTML_BYTES = 32 * 1024 * 1024;
 const sha = (bytes: Uint8Array | string): string => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value), 'utf8');
@@ -111,6 +114,11 @@ export class AutomationReaderReports {
     if (latest?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc mới nhất đã được chủ duyệt.');
 
     const platforms = [...request.platforms].sort() as ReaderPlatform[];
+    // Immutable policy declaration precedes workbook parsing or revenue derivation.
+    const peerRule = { ...DEFAULT_MARKET_PEER_RULE };
+    const scope = context.marketSemantic.scope;
+    const additions = typeof scope === 'object' && scope !== null && 'peerProductIds' in scope && Array.isArray(scope.peerProductIds)
+      ? scope.peerProductIds.filter((id): id is string => typeof id === 'string') : [];
     let rows: ReaderRow[];
     try { rows = this.#rows(context.metric.workbook, platforms); }
     catch (error) {
@@ -122,7 +130,7 @@ export class AutomationReaderReports {
     // A reader-report-build-v1.1 request carries a web snapshot; the effective (derived) period
     // is checked against the attached file below, after compute.
     const input = {
-      contractVersion: '1.2.0',
+      contractVersion: '1.3.0', peerRule, ownerPeerProductIds: additions,
       profile: request.profile, platforms, rows, rowLineage: { sha256: sha(context.metric.workbook) },
       ...(request.source === undefined ? {} : { source: request.source }),
       ...(request.contractVersion === 'reader-report-build-v1' ? {} : {
@@ -169,6 +177,7 @@ export class AutomationReaderReports {
       contractVersion: 'reader-report-build-record-v1', builderVersion: READER_BUILDER_VERSION, revisionId,
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
       requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
+      defaultMarketPeers: data.defaultMarketPeers,
       cover: stored && request.cover ? { sha256: stored.coverSha256, imageSha256: stored.imageSha256, mime: stored.mime,
         licence: request.cover.licence, credit: request.cover.credit ?? null } : null,
       charts: built.charts, htmlSha256: published.html.sha256, actorId: actor.actorId, createdAt,

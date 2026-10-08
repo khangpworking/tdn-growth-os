@@ -14,6 +14,7 @@ import { ResearchAutomationService } from '../../src/modules/analysis/research-a
 import { readerLimitationsFromDraft, type ReaderRowsReader } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
 import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook } from '../../src/modules/analysis/reader-report/metric-rows.js';
+import { DEFAULT_MARKET_PEER_RULE, verifyDefaultMarketPeers } from '../../src/modules/analysis/default-market-peers.js';
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 
@@ -68,8 +69,34 @@ async function readyRun(t: TestContext, rows?: ReaderRowsReader, sources: { sour
     expectedRevision: awaiting.revision, ...scope, sources: { metric: { decision: 'USE_PREPARED', packageId: prepared.packageId }, nativeReview: 'SKIP' } });
   for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
   assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
-  return { db, service, build, packageId: prepared.packageId };
+  return { db, service, artifacts, build, packageId: prepared.packageId };
 }
+
+test('new reader retains its frozen peer rule, eligible/excluded membership and selected result through exact retries and byte reads', async t => {
+  const rows: ReaderRowsReader = () => [0, 1, 2].map(i => ({
+    i, platform: 'shopee', listing: `listing-${i}`, shop: `shop-${i}`, shopName: `Gian hàng thử ${i}`,
+    cat: 'Hũ', title: `Hũ thử ${i}`, brand: '(không ghi)', rev: [100, 60, 40][i]!, units: 2, asp: [50, 30, 20][i]!,
+  }));
+  const f = await readyRun(t, rows);
+  const request = f.build('10000000-0000-4000-8000-000000000997');
+  const built = await f.service.buildReaderReport(workspaceId, runId, request, owner);
+  const row = f.db.prepare('SELECT input_sha256,builder_version FROM analysis_reader_report_revisions WHERE revision_id=?').get(built.revision.revisionId) as { input_sha256: string; builder_version: string };
+  const recordBytes = await f.artifacts.read(row.input_sha256);
+  const record = JSON.parse(recordBytes.toString());
+  assert.equal(row.builder_version, 'reader-report-market-v3');
+  assert.equal(record.input.contractVersion, '1.3.0');
+  assert.deepEqual(record.input.peerRule, DEFAULT_MARKET_PEER_RULE);
+  const snapshot = verifyDefaultMarketPeers(record.defaultMarketPeers);
+  assert.equal(snapshot.frames[0]!.totalRevenue, '200');
+  assert.equal(snapshot.frames[0]!.selectedRevenue, '100');
+  assert.equal(snapshot.frames[0]!.eligible.length, 3);
+  assert.deepEqual(snapshot.frames[0]!.selected.map(member => member.identity.label), ['Gian hàng thử 0']);
+  const first = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId);
+  assert.match(first.bytes.toString(), /Đối thủ mặc định/);
+  assert.deepEqual(await f.service.buildReaderReport(workspaceId, runId, request, owner), { ...built, exactRetry: true });
+  assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, first.bytes);
+  assert.deepEqual(await f.artifacts.read(row.input_sha256), recordBytes);
+});
 
 const decide = (requestKey: string, revisionId: string, decision: 'APPROVED' | 'REJECTED', reason: string | null = null) =>
   ({ contractVersion: 'reader-report-decision-v1', requestKey, revisionId, decision, reason });

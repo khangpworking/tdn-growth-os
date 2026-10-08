@@ -36,6 +36,7 @@ import { Bundle } from '../../src/modules/analysis/reader-report/bundle.js';
 import apiSchema from '../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import readerApiSchema from '../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import readerInputSchema from '../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
+import defaultPeerSchema from '../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
 
 // P2 reader report over the metric web snapshot: contract versions, derived
 // source, bundle keys, exhibits, lint, reconciliation and citations.
@@ -93,7 +94,7 @@ test('snapshot build API accepts explicit new version without source and rejects
   const { Ajv2020 } = require('ajv/dist/2020.js');
   const ajv = new Ajv2020({ strict: true });
   require('ajv-formats')(ajv);
-  ajv.addSchema(apiSchema).addSchema(readerInputSchema).addSchema(readerApiSchema);
+  ajv.addSchema(defaultPeerSchema).addSchema(apiSchema).addSchema(readerInputSchema).addSchema(readerApiSchema);
   const valid = ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildRequest` });
   const s = snapshot();
   const body = { contractVersion: 'reader-report-build-v1.1', requestKey: '10000000-0000-4000-8000-000000000001',
