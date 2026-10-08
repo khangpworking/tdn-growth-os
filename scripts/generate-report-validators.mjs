@@ -104,6 +104,8 @@ const validatorRefs = {
   researchAutomationRunList: `${researchAutomationApiSchema.$id}#/$defs/runList`,
   researchAutomationReceipt: `${researchAutomationApiSchema.$id}#/$defs/receipt`,
   researchAutomationSourceStatus: `${researchAutomationSourceStatusSchema.$id}#/$defs/status`,
+  researchAutomationRunPdfs: `${researchAutomationSourceStatusSchema.$id}#/$defs/runPdfStates`,
+  researchAutomationAttachPdf: `${researchAutomationSourceStatusSchema.$id}#/$defs/attachPdfRequest`,
   researchAutomationMetricPrepared: `${metricIntakeSchema.$id}#/$defs/receipt`,
   researchAutomationMetricPreparedList: `${metricIntakeSchema.$id}#/$defs/preparedList`,
   researchAutomationRevision: automationReportRevisionSchema.$id,

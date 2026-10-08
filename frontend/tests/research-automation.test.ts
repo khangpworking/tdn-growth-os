@@ -61,6 +61,7 @@ test('run inspector keeps AI activity separate from source requests and never di
     if (String(url).endsWith('/report-versions')) return new Response(JSON.stringify({ contractVersion: 'automation-report-version-list-v1', workspaceId, runId, versions: [] }));
     if (String(url).endsWith('/report-attempts')) return new Response(JSON.stringify({ contractVersion: 'automation-report-attempt-list-v1', workspaceId, runId, attempts: [] }));
     if (String(url).endsWith('/reader-reports')) { readerReads++; return new Response(JSON.stringify({ contractVersion: 'reader-report-list-v1', workspaceId, runId, revisions: [] })); }
+    if (String(url).endsWith('/pageindex')) return new Response(JSON.stringify({ contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId, paused: false, usageLimited: false, documents: [] }));
     requests++;
     return new Response(JSON.stringify(response));
   }) as typeof fetch;
