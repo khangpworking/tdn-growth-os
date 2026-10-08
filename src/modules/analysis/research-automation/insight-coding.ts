@@ -286,7 +286,7 @@ export class AutomationInsightCoding {
 
   async reportDefaultDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDefaultDraftSelection, current = false): Promise<AutomationInsightCodingDefaultDraftSnapshot | AutomationInsightCodingPrivateDefaultDraftSnapshot> {
     const proposal = await this.read(draft.proposalId, workspaceId, runId);
-    if (proposal.!isDefaultProposal(request) || hash(proposal) !== draft.proposalSha256) invalid();
+    if (!isDefaultProposal(proposal.request) || hash(proposal) !== draft.proposalSha256) invalid();
     if (proposal.binding.pairId !== pairId) conflict();
     if (current) await this.options.assertCurrent(proposal.binding);
     const context = await this.context(workspaceId, runId, pairId);
