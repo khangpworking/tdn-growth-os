@@ -91,14 +91,14 @@ export class ReaderUnitSpecIntakes {
     });
   }
 
-  async read(context: UnitSpecContext, digest: string, request: ResearchAutomationUnitSpecIntakeRequest): Promise<ResearchAutomationUnitSpecIntakeRecord> {
+  async read(context: UnitSpecContext, digest: string, request?: ResearchAutomationUnitSpecIntakeRequest): Promise<ResearchAutomationUnitSpecIntakeRecord> {
     const bytes = await this.#readRegistered(digest, RECEIPT_MEDIA_TYPE, 'reader-unit-spec-intake-record-v1');
     let record: unknown;
     try { record = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
     catch { throw new ResearchAutomationIntegrityError('Stored unit-spec receipt is unreadable.'); }
     if (!validRecord(record)) throw new ResearchAutomationIntegrityError('Stored unit-spec receipt is invalid.');
     if (record.workspaceId !== context.workspaceId || record.runId !== context.runId || record.draftPairId !== context.draftPairId ||
-      record.workbookSha256 !== context.workbookSha256 || canonicalJson(record.request) !== canonicalJson(request))
+      record.workbookSha256 !== context.workbookSha256 || (record.request.metricPackageId !== context.metricPackageId || (request !== undefined && canonicalJson(record.request) !== canonicalJson(request))))
       reject('Biên nhận quy cách không thuộc đúng phiên, tệp sản phẩm hoặc bộ quan sát này.');
     for (const source of record.request.unitPrices.sources) await this.#readRegistered(source.sha256, 'application/json', '1.0.0');
     return record;

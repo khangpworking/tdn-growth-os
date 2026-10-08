@@ -19,6 +19,7 @@ const reportApiSchema = await readSchema('contracts/api/report-api.schema.json')
 const researchGenerationApiSchema = await readSchema('contracts/api/research-generation-api.schema.json');
 const researchAutomationApiSchema = await readSchema('contracts/api/research-automation-api.schema.json');
 const researchAutomationSourceStatusSchema = await readSchema('contracts/api/research-automation-source-status-api.schema.json');
+const marketPresentationRevisionSchema = await readSchema('contracts/analysis/automation-market-presentation-revision.schema.json');
 const automationReportRevisionSchema = await readSchema('contracts/analysis/automation-report-revision.schema.json');
 const researchAutomationRevisionApiSchema = await readSchema('contracts/api/research-automation-revision-api.schema.json');
 const metricIntakeSchema = await readSchema('contracts/api/research-automation-metric-intake-api.schema.json');
@@ -54,6 +55,7 @@ ajv.addSchema(researchGenerationApiSchema);
 ajv.addSchema(researchAutomationApiSchema);
 ajv.addSchema(researchAutomationSourceStatusSchema);
 ajv.addSchema(automationReportRevisionSchema);
+ajv.addSchema(marketPresentationRevisionSchema);
 ajv.addSchema(researchAutomationRevisionApiSchema);
 ajv.addSchema(metricIntakeSchema);
 ajv.addSchema(sourcePackageIntakeSchema);

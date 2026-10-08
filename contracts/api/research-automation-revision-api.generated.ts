@@ -2,6 +2,7 @@
 
 export type ResearchAutomationRevisionApiContract =
   | AutomationReportRevisionRequest
+  | AutomationMarketPresentationRevisionRequest
   | ResearchAutomationRevisionCancelRequest
   | ResearchAutomationReportVersionList
   | ResearchAutomationReportAttemptList
@@ -31,6 +32,20 @@ export interface AutomationReportRevisionRequest {
           packageId: string;
         };
   };
+}
+export interface AutomationMarketPresentationRevisionRequest {
+  contractVersion: 'automation-market-presentation-revision-v1';
+  requestKey: string;
+  previousPairId: string;
+  sources: {
+    metric: {
+      decision: 'KEEP';
+    };
+    nativeReview: {
+      decision: 'KEEP';
+    };
+  };
+  unitSpecIntakeSha256?: string;
 }
 export interface ResearchAutomationRevisionCancelRequest {
   contractVersion: 'automation-report-revision-cancel-v1';

@@ -1,10 +1,14 @@
 import { randomUUID } from 'node:crypto';
+import type { ShopeePrivateCollection } from '../../../contracts/foundation/shopee-private-collection.generated.js';
+import type { ShopeePrivateProjection } from '../../../contracts/foundation/shopee-private-projection.generated.js';
+import { validatePrivateCollection, validatePrivateProfile, validatePrivateRows } from './shopee-private-contracts.js';
+import { projectPrivateShopeeCollection } from './shopee-private-projection.js';
 import type Database from 'better-sqlite3';
 import type { ShopeeCollection } from '../../../contracts/foundation/shopee-collection.generated.js';
 import type { ShopeeListingRequest } from '../../../contracts/foundation/shopee-listing-request.generated.js';
 import type { ShopeeExactRequest } from '../../../contracts/foundation/shopee-exact-request.generated.js';
 import type { ShopeeExactCollection } from '../../../contracts/foundation/shopee-exact-collection.generated.js';
-import { shopeeActorInputSha256, type CollectedPages, type ShopeeTransportListing } from '../../platform/collectors/apify-shopee.js';
+import { shopeeActorInputSha256, type CollectedPages, type ShopeeCollector, type ShopeeTransportListing } from '../../platform/collectors/apify-shopee.js';
 import { ContentAddressedArtifactStore } from '../../platform/artifacts/index.js';
 import type { StoredArtifact } from '../../platform/artifacts/artifact-store.js';
 import { registerManifest } from '../../platform/artifacts/register-manifest.js';
@@ -25,16 +29,27 @@ export interface VerifiedExactShopeeCollection {
   sha256: string;
   pages: { bytes: Buffer; sha256: string; offset: number }[];
 }
+export interface VerifiedPrivateShopeeCollection {
+  packet: ShopeePrivateCollection;
+  request: ShopeeExactRequest;
+  sha256: string;
+  pages: { bytes: Buffer; sha256: string; offset: number }[];
+}
+/** Declared sanitized source read boundary; no salt, provider call or historical reprocessing. */
+export interface PrivateShopeeCollectionReader {
+  readExact(id: string, options: { privacy: true }): Promise<VerifiedPrivateShopeeCollection>;
+  readPrivateProjection(id: string): Promise<ShopeePrivateProjection>;
+}
 type AnyRequest = ShopeeListingRequest | ShopeeExactRequest;
 interface AnyVerifiedCollection {
-  packet: ShopeeCollection | ShopeeExactCollection;
+  packet: ShopeeCollection | ShopeeExactCollection | ShopeePrivateCollection;
   request: AnyRequest;
   sha256: string;
   pages: { bytes: Buffer; sha256: string; offset: number }[];
 }
 interface Row { collection_id: string; request_sha256: string; artifact_sha256: string; evidence_id: string; created_at: string; run_key: string }
 
-export class ShopeeCollectionService implements ShopeeCollectionReader {
+export class ShopeeCollectionService implements ShopeeCollectionReader, PrivateShopeeCollectionReader {
   constructor(readonly db: Database.Database, readonly artifacts: ContentAddressedArtifactStore) {}
 
   async existing(requestBytes: Buffer, mode: 'fixture' | 'live'): Promise<VerifiedShopeeCollection | null> {
@@ -43,10 +58,30 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     return prior ? legacyCollection(prior) : null;
   }
 
-  async existingExact(requestBytes: Buffer, mode: 'fixture' | 'live'): Promise<VerifiedExactShopeeCollection | null> {
+  async existingExact(requestBytes: Buffer, mode: 'fixture' | 'live'): Promise<VerifiedExactShopeeCollection | null>;
+  async existingExact(requestBytes: Buffer, mode: 'fixture' | 'live', options: { privacy: true }): Promise<VerifiedPrivateShopeeCollection | null>;
+  async existingExact(requestBytes: Buffer, mode: 'fixture' | 'live', options?: { privacy: true }): Promise<VerifiedExactShopeeCollection | VerifiedPrivateShopeeCollection | null> {
     validateExactShopeeRequest(parseJsonBytes(requestBytes, 2 * 1024 * 1024));
     const prior = await this.#existingAny(requestBytes, mode);
-    return prior ? exactCollection(prior) : null;
+    return prior ? options?.privacy ? privateCollection(prior) : exactCollection(prior) : null;
+  }
+
+  /** Owning opt-in intake operation; only explicitly configured sanitized collectors can publish v3. */
+  async collectExact(requestBytes: Buffer, collector: ShopeeCollector, options: { privacy: true }, signal?: AbortSignal): Promise<VerifiedPrivateShopeeCollection> {
+    if (options.privacy !== true) throw new Error('Private collection requires explicit opt-in');
+    signal?.throwIfAborted();
+    const frozenBytes = Buffer.from(requestBytes);
+    const request = validateExactShopeeRequest(parseJsonBytes(frozenBytes, 2 * 1024 * 1024));
+    const profile = structuredClone(validatePrivateProfile(collector.privacyProfile));
+    const prior = await this.existingExact(frozenBytes, collector.mode, options);
+    if (prior) {
+      if (!jsonBytes(prior.packet.privacy).equals(jsonBytes(profile))) throw new Error('Run key already used for different private key or mapping');
+      return prior;
+    }
+    const collected = await collector.collect(selectExactShopeeListings(request).selected, digest(frozenBytes), request.runKey, signal);
+    signal?.throwIfAborted();
+    if (collected.mode !== collector.mode || !jsonBytes(collected.privacy).equals(jsonBytes(profile))) throw new Error('Private collector profile drift');
+    return this.saveExact(frozenBytes, collected, { privacy: true, ...(signal ? { signal } : {}) });
   }
 
   async #existingAny(requestBytes: Buffer, mode: 'fixture' | 'live'): Promise<AnyVerifiedCollection | null> {
@@ -64,27 +99,35 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     return legacyCollection(await this.#saveAny(requestBytes, collected));
   }
 
-  async saveExact(requestBytes: Buffer, collected: CollectedPages): Promise<VerifiedExactShopeeCollection> {
+  async saveExact(requestBytes: Buffer, collected: CollectedPages): Promise<VerifiedExactShopeeCollection>;
+  async saveExact(requestBytes: Buffer, collected: CollectedPages, options: { privacy: true; signal?: AbortSignal }): Promise<VerifiedPrivateShopeeCollection>;
+  async saveExact(requestBytes: Buffer, collected: CollectedPages, options?: { privacy: true; signal?: AbortSignal }): Promise<VerifiedExactShopeeCollection | VerifiedPrivateShopeeCollection> {
     validateExactShopeeRequest(parseJsonBytes(requestBytes, 2 * 1024 * 1024));
     const frozenBytes = Buffer.from(requestBytes);
-    const frozenCollection = { ...structuredClone({ mode: collected.mode, actor: collected.actor, warnings: collected.warnings }),
-      pages: collected.pages.map(page => ({ offset: page.offset, bytes: Buffer.from(page.bytes) })) };
-    return withDatabaseMutationMutex(this.db, async () => exactCollection(await this.#saveAny(frozenBytes, frozenCollection)));
+    const frozenCollection = freezeCollected(collected);
+    return withDatabaseMutationMutex(this.db, async () => {
+      const saved = await this.#saveAny(frozenBytes, frozenCollection, options?.privacy === true, options?.signal);
+      return options?.privacy ? privateCollection(saved) : exactCollection(saved);
+    });
   }
 
-  async #saveAny(requestBytes: Buffer, collected: CollectedPages): Promise<AnyVerifiedCollection> {
+  async #saveAny(requestBytes: Buffer, collected: CollectedPages, privateOptIn = false, signal?: AbortSignal): Promise<AnyVerifiedCollection> {
     requestBytes = Buffer.from(requestBytes);
-    collected = { ...structuredClone({ mode: collected.mode, actor: collected.actor, warnings: collected.warnings }),
-      pages: collected.pages.map(page => ({ offset: page.offset, bytes: Buffer.from(page.bytes) })) };
+    collected = freezeCollected(collected);
     const request = readRequest(requestBytes);
     const selection = selectRequest(request);
+    if (privateOptIn) {
+      signal?.throwIfAborted();
+      if (request.contractVersion !== '2.0.0') throw new Error('Private intake requires exact owner URL request');
+      validatePrivateProfile(collected.privacy); assertPrivatePublication(collected);
+    } else if (collected.privacy) throw new Error('Sanitized capture requires explicit private version');
     assertCollectorMetadata(collected, selection.selected);
     let rows = 0;
     const perListingLimit = collected.actor.settings.maxReviewsPerProduct;
     const perListing = new Map<string, number>();
     const selectedKeys = new Set(selection.selected.map(row => row.platform + ':' + row.shopId + ':' + row.itemId));
     for (const page of collected.pages) {
-      const data = parseJsonBytes(page.bytes);
+      const data = privateOptIn ? validatePrivateRows(parseJsonBytes(page.bytes)) : parseJsonBytes(page.bytes);
       if (!Array.isArray(data) || page.offset !== rows) throw new Error('Invalid collection page or offset');
       rows += data.length;
       for (const value of data) {
@@ -106,14 +149,16 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
       if (!jsonBytes(prior.packet.pages.map(p => ({ sha256: p.sha256, offset: p.offset })))
         .equals(jsonBytes(collected.pages.map(p => ({ sha256: digest(p.bytes), offset: p.offset })))) ||
           !jsonBytes(actorIdentity(prior.packet.actor)).equals(jsonBytes(actorIdentity(collected.actor))) ||
-          !jsonBytes(prior.packet.collectorWarnings).equals(jsonBytes(collected.warnings))) {
+          !jsonBytes(prior.packet.collectorWarnings).equals(jsonBytes(collected.warnings)) ||
+          (privateOptIn ? prior.packet.contractVersion !== '3.0.0' || !jsonBytes(prior.packet.privacy).equals(jsonBytes(collected.privacy)) : prior.packet.contractVersion === '3.0.0')) {
         throw new Error('Run key already used for different collection evidence');
       }
       return prior;
     }
     const now = new Date().toISOString();
     const packet = readPacket({
-      contractVersion: request.contractVersion,
+      contractVersion: privateOptIn ? '3.0.0' : request.contractVersion,
+      ...(privateOptIn ? { privacy: collected.privacy } : {}),
       ...(request.contractVersion === '2.0.0' ? { selectionBasis: request.selectionBasis } : {}),
       collectionId: randomUUID(), runKey: request.runKey,
       requestSha256: digest(requestBytes), createdAt: now, mode: collected.mode,
@@ -121,10 +166,12 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
       actor: collected.actor,
       pages: collected.pages.map(p => ({ sha256: digest(p.bytes), byteSize: p.bytes.length, offset: p.offset })),
     });
+    if (privateOptIn) signal?.throwIfAborted();
     const requestArtifact = await this.artifacts.put(requestBytes);
     const rawArtifacts: StoredArtifact[] = [];
     for (const page of collected.pages) rawArtifacts.push(await this.artifacts.put(page.bytes));
     const packetArtifact = await this.artifacts.put(jsonBytes(packet));
+    if (privateOptIn) signal?.throwIfAborted();
     const sourceId = collected.mode === 'fixture' ? 'synthetic:shopee-reviews' : 'provider:apify-shopee-reviews';
     const evidenceId = randomUUID();
     const ingestionId = randomUUID();
@@ -156,8 +203,15 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     return legacyCollection(await this.#readAny(id));
   }
 
-  async readExact(id: string): Promise<VerifiedExactShopeeCollection> {
-    return exactCollection(await this.#readAny(id));
+  async readExact(id: string): Promise<VerifiedExactShopeeCollection>;
+  async readExact(id: string, options: { privacy: true }): Promise<VerifiedPrivateShopeeCollection>;
+  async readExact(id: string, options?: { privacy: true }): Promise<VerifiedExactShopeeCollection | VerifiedPrivateShopeeCollection> {
+    const verified = await this.#readAny(id);
+    return options?.privacy ? privateCollection(verified) : exactCollection(verified);
+  }
+
+  async readPrivateProjection(id: string): Promise<ShopeePrivateProjection> {
+    return projectPrivateShopeeCollection(await this.readExact(id, { privacy: true }));
   }
 
   async #readAny(id: string): Promise<AnyVerifiedCollection> {
@@ -165,7 +219,9 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     if (!row) throw new Error('Collection not found');
     const bytes = await this.#verifiedArtifact(row.artifact_sha256);
     const packet = readPacket(parseJsonBytes(bytes));
-    assertCollectorMetadata({ mode: packet.mode, actor: packet.actor, warnings: packet.collectorWarnings, pages: [] }, packet.selected);
+    const metadata = { mode: packet.mode, actor: packet.actor, warnings: packet.collectorWarnings, pages: [] };
+    assertCollectorMetadata(metadata, packet.selected);
+    if (packet.contractVersion === '3.0.0') assertPrivatePublication(metadata);
     if (!jsonBytes(packet).equals(bytes) || packet.collectionId !== row.collection_id ||
         packet.runKey !== row.run_key || packet.createdAt !== row.created_at || packet.requestSha256 !== row.request_sha256) {
       throw new Error('Collection metadata mismatch');
@@ -173,7 +229,7 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     const requestBytes = await this.#verifiedArtifact(packet.requestSha256);
     const request = readRequest(requestBytes);
     const selection = selectRequest(request);
-    if (request.contractVersion !== packet.contractVersion || request.runKey !== packet.runKey || !jsonBytes(selection.selected).equals(jsonBytes(packet.selected)) ||
+    if (request.contractVersion !== (packet.contractVersion === '3.0.0' ? '2.0.0' : packet.contractVersion) || request.runKey !== packet.runKey || !jsonBytes(selection.selected).equals(jsonBytes(packet.selected)) ||
         !jsonBytes(selection.warnings).equals(jsonBytes(packet.selectionWarnings))) throw new Error('Selection replay mismatch');
     const evidence = this.db.prepare(`SELECT e.artifact_sha256, e.evidence_grade, i.request_sha256,
       i.idempotency_key, i.source_id, i.status, i.contract_version FROM foundation_evidence e
@@ -191,7 +247,7 @@ export class ShopeeCollectionService implements ShopeeCollectionReader {
     const selectedKeys = new Set(packet.selected.map(row => row.platform + ':' + row.shopId + ':' + row.itemId));
     for (const page of packet.pages) {
       const raw = await this.#verifiedArtifact(page.sha256);
-      const values = parseJsonBytes(raw);
+      const values = packet.contractVersion === '3.0.0' ? validatePrivateRows(parseJsonBytes(raw)) : parseJsonBytes(raw);
       if (raw.length !== page.byteSize || !Array.isArray(values) || page.offset !== offset) throw new Error('Raw page metadata mismatch');
       offset += values.length;
       for (const value of values) {
@@ -230,7 +286,8 @@ function readRequest(bytes: Buffer): AnyRequest {
     ? validateExactShopeeRequest(value) : validateListingRequest(value);
 }
 
-function readPacket(value: unknown): ShopeeCollection | ShopeeExactCollection {
+function readPacket(value: unknown): ShopeeCollection | ShopeeExactCollection | ShopeePrivateCollection {
+  if (typeof value === 'object' && value !== null && 'contractVersion' in value && value.contractVersion === '3.0.0') return validatePrivateCollection(value);
   return typeof value === 'object' && value !== null && 'contractVersion' in value && value.contractVersion === '2.0.0'
     ? validateExactShopeeCollection(value) : validateCollection(value);
 }
@@ -294,4 +351,21 @@ function assertCollectorMetadata(collected: CollectedPages, selected: readonly S
         (actor.status === 'ABORTED' && actor.stopReason === 'actor_terminal_aborted'))) {
     throw new Error('Incoherent live collector provenance');
   }
+}
+
+function privateCollection(value: AnyVerifiedCollection): VerifiedPrivateShopeeCollection {
+  if (value.packet.contractVersion !== '3.0.0' || value.request.contractVersion !== '2.0.0') throw new Error('Collection is not a sanitized exact v3 capture');
+  return { ...value, packet: value.packet, request: value.request };
+}
+function freezeCollected(collected: CollectedPages): CollectedPages {
+  return { ...structuredClone({ mode: collected.mode, actor: collected.actor, warnings: collected.warnings,
+    ...(collected.privacy ? { privacy: collected.privacy } : {}) }),
+    pages: collected.pages.map(page => ({ offset: page.offset, bytes: Buffer.from(page.bytes) })) };
+}
+function assertPrivatePublication(collected: Pick<CollectedPages, 'mode' | 'actor' | 'warnings'>): void {
+  const complete = collected.mode === 'fixture'
+    ? collected.actor.status === 'FIXTURE' && collected.actor.stopReason === 'fixture_complete' &&
+      jsonBytes(collected.warnings).equals(jsonBytes(['synthetic_fixture_not_live_evidence']))
+    : collected.actor.status === 'SUCCEEDED' && ['dataset_exhausted', 'collection_limit_reached'].includes(collected.actor.stopReason) && collected.warnings.length === 0;
+  if (!complete) throw new Error('Private collection is unavailable: failed, cancelled or incomplete intake');
 }

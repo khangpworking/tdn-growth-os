@@ -4,11 +4,11 @@ Updated: 2026-10-09
 Worktree/branch: `ultimate-next-insight-sol` / `khangpworking/ultimate-insight-default`.
 Fresh recovery Task/Dispatch: `task_4666023fdc93` / `ctx_0dc567d4c4b3`, sole coordinator run `run_adc3551f8ed8`.
 Inherited canonical head: `8063d3d0cd2152ea23d3a72dd8c7617a3c2aa6a6`; preserved source hashes inventoried in the coordinator's `replacement-default-wip-snapshot.json` before recovery edits.
-Actual fetched main: `f084663a53342074577774e5e6b3a25de0fcf4c8` (PR180/182/183 included). Main reconciliation awaits the coordinator's exact shared phase.
+Actual fetched main: `f084663a53342074577774e5e6b3a25de0fcf4c8` (PR180/182/183 included). Normally reconciled under fresh exact central and GLOBAL grants; Market20, private Foundation, historical paths and default21 are retained.
 
 Completed: new explicit authenticated default-model proposal action through the owning service, API and actual frontend/client, without a prior human rule adoption or acceptance receipt. Source-default rule/codebook proposals and exact selected report snapshots are versioned independently of the historical adoption path. Internal draft reports use existing family/count methods with pending labels; no release or coding completion is inferred.
 
-Changed paths: Insight-specific `insight-default-coding.ts`, `insight-coding.ts`, `insight-model-execution.ts`, frozen `insight-model-prompt-v4-schemas.json`; leased `research-automation/{service,reports,synthesis-execution}.ts` and `src/api/research-automation-api.ts`; frontend `InsightCodingPanel.tsx`, `InsightDefaultProposalPanel.tsx`, `insight-default-ui.ts`, `insight-coding-api.ts`, `report-revisions-api.ts`; default unit/service/HTTP/mounted-UI tests; this handoff. The inherited canonical contracts were already committed before recovery; this worker did not generate or edit canonical schemas, generated types/validators, manifests or migrations.
+Changed paths: Insight-specific `insight-default-coding.ts`, `insight-coding.ts`, `insight-model-execution.ts`, frozen `insight-model-prompt-v4-schemas.json`; leased `research-automation/{service,reports,synthesis-execution}.ts` and `src/api/research-automation-api.ts`; frontend `InsightCodingPanel.tsx`, `InsightDefaultProposalPanel.tsx`, `insight-default-ui.ts`, `insight-coding-api.ts`, `report-revisions-api.ts`; default unit/service/HTTP/mounted-UI tests; this handoff. Default canonical contracts were inherited as committed baseline. Normal reviewed-main composition and existing generator replay ran only under the final exact GLOBAL grant, with zero unstaged generated drift; no new schemas, manifests or migrations were added in recovery.
 
 ## Behavior and bounds
 
@@ -23,7 +23,7 @@ Changed paths: Insight-specific `insight-default-coding.ts`, `insight-coding.ts`
 
 ## Evidence
 
-Task-local Node24.15.0/npm11.12.1; synthetic Foundation/exact/native sources, fake model/collector transports and loopback HTTP only. No local full suite or generation ran.
+Task-local Node24.15.0/npm11.12.1; synthetic Foundation/exact/native sources, fake model/collector transports and loopback HTTP only. No local full suite ran. Existing generation ran only under the final explicit GLOBAL reconciliation grant.
 
 No-adapter proof: the new actual service test first failed on missing renderer21 identity (`/tmp/ultimate-default-recovery-no-adapter-before.log`). Under the fresh exact central grant, only explicit snapshot-v4 default reports now invoke the owning builder when no presentation adapter exists; the actual fake service→proposal→report21/read/retry passes1/1 with unchanged historical fallback bytes and no additional model calls or database writes (`/tmp/ultimate-default-recovery-no-adapter.log`).
 
@@ -45,11 +45,11 @@ The unfinished inherited HTTP fixture initially used a token without a digit and
 
 ## Ownership and next action
 
-Exact central lease `research-automation/{service,reports,model,synthesis-execution}.ts`, `src/api/research-automation-api.ts` was explicitly released at stable tested commit `ef48b2c` through `msg_4727b6fd66ae`. `model.ts` stayed unchanged. Requested `insightCodingView`, `draftInsightGroupsView`, `insightCodingTrace`, `literalPendingSection`, `corpusTraceSection` and necessary type exports are available; only additive export hooks affect historical branches. No shared source edits after this release.
+Exact central lease `research-automation/{service,reports,model,synthesis-execution}.ts`, `src/api/research-automation-api.ts` was explicitly released at stable tested commit `ef48b2c` through `msg_4727b6fd66ae`. `model.ts` stayed unchanged. Requested `insightCodingView`, `draftInsightGroupsView`, `insightCodingTrace`, `literalPendingSection`, `corpusTraceSection` and necessary type exports are available; only additive export hooks affect historical branches. A later precise final central grant (`msg_ef524e290b13`) authorized normal-main composition and the narrow no-adapter default fallback; GLOBAL grant `msg_098c37541e48` authorized only reviewed-main canonical reconciliation/generation. Final tested release is reported through fresh lifecycle.
 
-Unresolved: short coordinator-controlled main conflict reconciliation for `reports.ts`/`service.ts`, final exact-head affected verification, independent review, draft PR and mandatory full hosted `npm run check`. Local optional Chromium PDF remains unavailable. Main must be merged normally only during the fresh exact shared phase; no worker merge of the PR.
+Unresolved: independent final-head review, draft PR delivery and mandatory full hosted `npm run check`. Local optional Chromium PDF remains unavailable. The normal local main merge used only reviewed `f084663a`; no sibling WIP/commits or worker merge of the PR.
 
-Next action: finish independent frontend commit, acquire exact reconciliation phase, normally merge reviewed main, resolve scoped conflicts preserving both source and Market additions, release the phase explicitly, verify final head, push/draft PR for coordinator review and hosted checks.
+Next action: explicitly release the tested central/GLOBAL phase, push the final branch and create its draft PR for coordinator independent review and full hosted checks; worker does not merge the PR.
 
 Business decisions pending: U11 statistic and release; U26 collection/admission; U32 positive aggregate. U40 paid/live staging is unauthorized.
 
@@ -60,7 +60,15 @@ Business decisions pending: U11 statistic and release; U26 collection/admission;
 | G01/G05/G06/G07/G09/G11/G12 | Done for current bounded source/frontend | Named ownership, synthetic tests, preserved assertions, exact evidence and limits. |
 | G02 | Partial | Affected checks pass; final exact-head hosted check/review required. |
 | G03 | Affected mounted UI pass | Default plus historical flow/client behavior tested. |
-| G04 | Inherited canonical baseline only | No canonical edits/generation authorized in recovery. |
+| G04 | Done for exact reviewed-main composition | Inherited canonical baseline plus final sole GLOBAL grant; existing generation has zero further drift. |
 | G08 | Preservation rules applied to new copy | Source quotes and historical text untouched; fake tests do not certify model prose. |
-| G10 | Affected compatibility pass | Old prompt/renderer replay and actual old report equality; final reconciliation checks pending. |
+| G10 | Affected compatibility pass | Old prompt/renderer replay and actual old report equality; final reconciliation checks pass as recorded below. |
 | G13 | Existing source/filter path unchanged | No new keyword collector/consumer claim. |
+
+Final reviewed-main composition evidence (code unchanged by the handoff update):
+
+- Backend typecheck PASS (`/tmp/ultimate-default-recovery-main-typecheck.log`); direct frontend tsc PASS (`/tmp/ultimate-default-recovery-main-frontend-tsc.log`).
+- Contracts/frontend-validator generation PASS (`/tmp/ultimate-default-recovery-main-generation.log`, `/tmp/ultimate-default-recovery-main-validators.log`); `git diff --exit-code -- contracts scripts frontend/src/generated` reports zero unstaged drift.
+- Focused default/service/OWNER HTTP/no-adapter/adoption/literal/renderer/Market20/Foundation-private/lint run at concurrency2: **64 PASS, 0 FAIL, 1 existing optional Chromium PDF SKIP**, 65 total (`/tmp/ultimate-default-recovery-final-main-focused.log`). Files: `insight-default-coding`, `research-insight-default`, `research-insight-prompt-retention`, `research-insight-literal`, `research-automation-reports`, `market-presentation-contract`, `market-presentation-method`, `market-presentation-report`, both `shopee-private-intake` units/integration, `report-visible-text-lint`.
+- Final generated-validator mounted frontend/default/adoption/client/revision tests: **29/29 PASS** (`/tmp/ultimate-default-recovery-final-main-ui.log`).
+- Working and staged whitespace checks PASS. Two shared files conflicted; the resulting combined diff preserves Market20's dispatch/lint/synthesis branches alongside Insight21. No canonical conflicts or generation drift required a new contract choice.
