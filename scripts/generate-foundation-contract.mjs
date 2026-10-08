@@ -96,6 +96,7 @@ const contracts = [
   ['analysis', 'conditional-economics-output'],
   ['analysis', 'tablet-quote-input'],
   ['analysis', 'tablet-quote-output'],
+  ['analysis', 'keyword-meaning-filter'],
   ['foundation', 'shopee-listing-request'],
   ['foundation', 'shopee-collection'],
   ['foundation', 'shopee-exact-request'],
