@@ -47,9 +47,9 @@ The unfinished inherited HTTP fixture initially used a token without a digit and
 
 Exact central lease `research-automation/{service,reports,model,synthesis-execution}.ts`, `src/api/research-automation-api.ts` was explicitly released at stable tested commit `ef48b2c` through `msg_4727b6fd66ae`. `model.ts` stayed unchanged. Requested `insightCodingView`, `draftInsightGroupsView`, `insightCodingTrace`, `literalPendingSection`, `corpusTraceSection` and necessary type exports are available; only additive export hooks affect historical branches. A later precise final central grant (`msg_ef524e290b13`) authorized normal-main composition and the narrow no-adapter default fallback; GLOBAL grant `msg_098c37541e48` authorized only reviewed-main canonical reconciliation/generation. Final tested release is reported through fresh lifecycle.
 
-Unresolved: independent final-head review, draft PR delivery and mandatory full hosted `npm run check`. Local optional Chromium PDF remains unavailable. The normal local main merge used only reviewed `f084663a`; no sibling WIP/commits or worker merge of the PR.
+Unresolved: independent final-head review and mandatory full hosted `npm run check`; draft PR185 is created. Local optional Chromium PDF remains unavailable. The normal local main merge used only reviewed `f084663a`; no sibling WIP/commits or worker merge of the PR.
 
-Next action: explicitly release the tested central/GLOBAL phase, push the final branch and create its draft PR for coordinator independent review and full hosted checks; worker does not merge the PR.
+Next action: coordinator independent final-head review and full hosted checks for draft PR185; worker retains dispatch for review fixes and does not merge the PR.
 
 Business decisions pending: U11 statistic and release; U26 collection/admission; U32 positive aggregate. U40 paid/live staging is unauthorized.
 
@@ -72,3 +72,10 @@ Final reviewed-main composition evidence (code unchanged by the handoff update):
 - Focused default/service/OWNER HTTP/no-adapter/adoption/literal/renderer/Market20/Foundation-private/lint run at concurrency2: **64 PASS, 0 FAIL, 1 existing optional Chromium PDF SKIP**, 65 total (`/tmp/ultimate-default-recovery-final-main-focused.log`). Files: `insight-default-coding`, `research-insight-default`, `research-insight-prompt-retention`, `research-insight-literal`, `research-automation-reports`, `market-presentation-contract`, `market-presentation-method`, `market-presentation-report`, both `shopee-private-intake` units/integration, `report-visible-text-lint`.
 - Final generated-validator mounted frontend/default/adoption/client/revision tests: **29/29 PASS** (`/tmp/ultimate-default-recovery-final-main-ui.log`).
 - Working and staged whitespace checks PASS. Two shared files conflicted; the resulting combined diff preserves Market20's dispatch/lint/synthesis branches alongside Insight21. No canonical conflicts or generation drift required a new contract choice.
+
+Delivery checkpoint:
+
+- Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/185 (base `main`). Tested merged implementation head: `73b64facc4839d1ffa58c8129622507d29cc2578`; final test/documentation-only head is reported through the fresh lifecycle and PR.
+- Sole GLOBAL and all central source leases explicitly released in `msg_c583d3dd0a78`, accepted in `msg_55050b078829`. No shared source or canonical edits afterward.
+- Additional assertion on the changed version-dispatch boundary: actual default21 composes exact literal19 evidence and a later KEEP revision retains the exact selected proposal/snapshot and literal bytes. Modified existing fake-service test1/1PASS (`/tmp/ultimate-default-recovery-default-literal-keep.log`); no new default-model calls or replay database writes. This test/handoff update changes no implementation code.
+- Independent reviewer and hosted full Check must target the final pushed head. U03 remains partial overall because U11 release is blocked.

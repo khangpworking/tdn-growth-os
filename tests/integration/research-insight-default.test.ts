@@ -141,8 +141,13 @@ test('actual service without a presentation adapter builds and reads only the ex
 
 test('default source proposal needs no adoption; exact batches, unapproved codebook, retained report21 and replay use actual service', async t => {
   const texts = ['Tôi thích kích thước.', 'Tôi thích kích thước.'];
-  const f = await fixture(t, texts), pair = (await f.service.listReportVersions(workspaceId, runId))[0]!;
+  const f = await fixture(t, texts), initial = (await f.service.listReportVersions(workspaceId, runId))[0]!;
+  const literalRequest = { contractVersion: 'automation-insight-literal-report-revision-v1', requestKey: randomUUID(), previousPairId: initial.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } };
+  const literalReceipt = await f.service.requestReportRevision(workspaceId, runId, literalRequest);
+  const pair = await waitRevision(f.service, literalReceipt.attemptId);
   const oldReport = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pair.pairId);
+  const oldLiteral = JSON.parse((await f.artifacts.read(oldReport.versionId)).toString()).insightLiteral;
   const source = await f.service.readInsightSourceContext(workspaceId, runId, pair.pairId);
   const request: InsightDefaultModelRequest = { contractVersion: 'insight-default-model-request-v1', requestKey: randomUUID(), binding: source.binding,
     defaultRuleId: null, defaultRuleSha256: null, previousProposalId: null, previousProposalSha256: null, recordIndexes: [0] };
@@ -198,6 +203,7 @@ test('default source proposal needs no adoption; exact batches, unapproved codeb
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
   assert.equal(semantic.rendererVersion, 'automation-report-kit-v21');
   assert.equal(semantic.insightCoding.contractVersion, 'automation-insight-coding-snapshot-v4');
+  assert.deepEqual(semantic.insightLiteral, oldLiteral, 'default21 preserves exact retained literal19 evidence');
   assert.equal('adoptionId' in semantic.insightCoding, false);
   assert.equal(semantic.insightCoding.defaultRuleId, proposed.request.defaultRuleId);
   assert.deepEqual(semantic.insightCoding.draftSelection, selected);
@@ -214,6 +220,13 @@ test('default source proposal needs no adoption; exact batches, unapproved codeb
   assert.equal(retainedSource.codebookSha256, insightCodingDigest(retainedSource.input.corpora.map((corpus: { codebook: unknown }) => corpus.codebook)));
   assert.equal(JSON.parse((await f.artifacts.read(retained.prompt_sha256)).toString()).contractVersion, 'insight-model-prompt-v5');
   assert.deepEqual(JSON.parse((await f.artifacts.read(retained.configuration_sha256)).toString()), configuration);
+  const keep = { contractVersion: 'automation-report-revision-v1', requestKey: randomUUID(), previousPairId: next.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };
+  const inheritedReceipt = await f.service.requestReportRevision(workspaceId, runId, keep), inherited = await waitRevision(f.service, inheritedReceipt.attemptId);
+  const inheritedReport = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, inherited.pairId);
+  const inheritedSemantic = JSON.parse((await f.artifacts.read(inheritedReport.versionId)).toString());
+  assert.deepEqual(inheritedSemantic.insightCoding, semantic.insightCoding, 'KEEP preserves the exact selected proposal, not latest');
+  assert.deepEqual(inheritedSemantic.insightLiteral, oldLiteral); assert.equal(inheritedSemantic.rendererVersion, 'automation-report-kit-v21');
   const html = report.bytes.toString();
   assert.match(html, /đề xuất, chờ chủ duyệt/); assert.match(html, /Quy tắc và bộ mã là đề xuất/);
   assert.match(html, /lô không hợp lệ/);
