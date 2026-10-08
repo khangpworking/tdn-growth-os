@@ -414,7 +414,7 @@ Checklist:
 - [ ] P9-05 **One located record per comment:**
   - text, creation time, like count;
   - locator = video URL + comment ID (the actors return no per-comment link);
-  - voice: comments under a `REVIEW_VIDEO` are `CUSTOMER` (lời khách, Ultimate L10); comments under a `SELLER_VIDEO` stay `VIEWER` ("lời người xem") until the owner decides;
+  - voice: comments under a `REVIEW_VIDEO` or a `SELLER_VIDEO` are `CUSTOMER` (lời khách, Ultimate L10). Each record keeps the video kind, so the report can label the source "bình luận dưới video review" or "bình luận dưới video bán hàng";
   - tag-only or emoji-only comments are excluded from counts with a reason;
   - comments by the video owner or a brand account are marked `SELLER_OR_CREATOR`, not deleted;
   - an empty comment is excluded with a reason, never counted.
