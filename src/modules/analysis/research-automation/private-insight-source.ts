@@ -1,12 +1,23 @@
 import { createHash } from 'node:crypto';
 import type { ResearchPrivateReviewCorpus } from '../../../../contracts/analysis/research-private-review-corpus.generated.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
+import type { PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
+import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { createRequire } from 'node:module';
+import { registerPrivateReviewSchemas } from './private-review-contracts.js';
+import locatedSchema from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { validateLocatedInsightInput } from '../located-insight-methods.js';
 import { buildPrivateReviewReportView } from './private-review-corpus.js';
 import { privateReviewReportView } from './private-review-contracts.js';
 
+const require = createRequire(import.meta.url);
+const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const ajv = new Ajv2020({ strict: true, allErrors: false });
+(require('ajv-formats') as typeof import('ajv-formats')).default(ajv);
+registerPrivateReviewSchemas(ajv); ajv.addSchema(locatedSchema);
+const valid = ajv.compile<PrivateInsightSourceProjection>(privateSourceSchema);
 const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 function corrupt(): never { throw new TypeError('PRIVATE_INSIGHT_SOURCE_INTEGRITY'); }
 
@@ -70,9 +81,10 @@ export function projectPrivateInsightSource(corpus: ResearchPrivateReviewCorpus,
     brief: null, i02: [], i04: [], i05: [], i06: [], i07: [], i08: [], i09: [], corpora: [], i13Mentions: [],
   };
   validateLocatedInsightInput(input);
-  const output = { contractVersion: 'private-insight-source-projection-v1' as const,
+  const output: PrivateInsightSourceProjection = { contractVersion: 'private-insight-source-projection-v1' as const,
     corpus: structuredClone(view.corpus), input, records: metadata };
+  if (!valid(output)) corrupt();
   return { output, sha256: digest(output) };
 }
 
-export type PrivateInsightSourceProjection = ReturnType<typeof projectPrivateInsightSource>['output'];
+export type { PrivateInsightSourceProjection };

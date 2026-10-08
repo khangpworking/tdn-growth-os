@@ -7,7 +7,10 @@ export type AutomationInsightCoding =
   | InsightCodingEvidence
   | InsightDefaultRuleRequest
   | InsightDefaultCodingProposeRequest
-  | InsightDefaultCodingEvidence;
+  | InsightDefaultCodingEvidence
+  | InsightPrivateDefaultRuleRequest
+  | InsightPrivateDefaultCodingProposeRequest
+  | InsightPrivateDefaultCodingEvidence;
 export type Uuid = string;
 export type Digest = string;
 /**
@@ -392,6 +395,65 @@ export interface InsightDefaultCodingEvidence {
   sequence: number;
   binding: InsightSourceBinding;
   request: InsightDefaultRuleRequest | InsightDefaultCodingProposeRequest;
+  parentSha256: Digest | null;
+  actorId: string;
+  actorRole: 'OWNER';
+  createdAt: string;
+}
+export interface InsightPrivateDefaultRuleRequest {
+  contractVersion: 'insight-coding-default-rule-v2';
+  kind: 'DEFAULT_RULE';
+  status: 'PROPOSED';
+  requestKey: Uuid;
+  originatingRequestKey: Uuid;
+  binding: InsightPrivateSourceBinding;
+  policyVersion: 'source-private-default-coding-v1';
+  rules: InsightCodingRules;
+}
+export interface InsightPrivateSourceBinding {
+  contractVersion: 'insight-source-binding-v2';
+  sourceKind: 'PRIVATE_SHOPEE';
+  workspaceId: string;
+  runId: string;
+  pairId: string;
+  scopeSha256: string;
+  reportSha256: string;
+  sourcePackageSha256: string;
+  inputSha256: string;
+  projectionSha256: string;
+  corpus: Corpus1;
+}
+export interface Corpus1 {
+  artifactSha256: string;
+  corpusId: string;
+  collectionId: string;
+  collectionSha256: string;
+  requestSha256: string;
+}
+export interface InsightPrivateDefaultCodingProposeRequest {
+  contractVersion: 'insight-coding-default-propose-v2';
+  status: 'PROPOSED';
+  requestKey: Uuid;
+  defaultRuleId: Uuid;
+  defaultRuleSha256: Digest;
+  previousProposalId: Uuid | null;
+  previousProposalSha256: Digest | null;
+  executionId: Uuid;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: [number, ...number[]];
+  rules: InsightCodingRules;
+  codebookSha256: Digest;
+  annotations: InsightProposedAnnotations;
+}
+export interface InsightPrivateDefaultCodingEvidence {
+  contractVersion: 'insight-coding-default-evidence-v2';
+  evidenceId: Uuid;
+  sequence: number;
+  binding: InsightPrivateSourceBinding;
+  request: InsightPrivateDefaultRuleRequest | InsightPrivateDefaultCodingProposeRequest;
   parentSha256: Digest | null;
   actorId: string;
   actorRole: 'OWNER';

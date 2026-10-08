@@ -67,11 +67,12 @@ type Request = Evidence['request'];
 type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
 interface Row { evidence_id: string; kind: Kind; run_id: string; pair_sha256: string; parent_id: string | null; request_key: string; sequence: number | bigint; artifact_sha256: string; artifact_json: string }
 interface Owner { actorId: string; role: 'OWNER' }
-export interface InsightSourceContext { binding: AnyInsightSourceBinding; privateSource?: PrivateInsightSourceProjection; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE' }
-type SourceReads = Map<string, Promise<InsightSourceContext>>;
+export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE' }
+export type InsightCodingSourceContext = Omit<InsightSourceContext, 'binding'> & { binding: AnyInsightSourceBinding; privateSource?: PrivateInsightSourceProjection };
+type SourceReads = Map<string, Promise<InsightCodingSourceContext>>;
 interface Options {
   db: Database.Database; artifacts: ContentAddressedArtifactStore; staging?: RequestScopedArtifactStore;
-  context(workspaceId: string, runId: string, pairId: string): Promise<InsightSourceContext>;
+  context(workspaceId: string, runId: string, pairId: string): Promise<InsightCodingSourceContext>;
   assertCurrent(binding: AnyInsightSourceBinding): Promise<void>; now(): Date;
 }
 const isDefaultRule = (request: Request): request is DefaultRule => ['insight-coding-default-rule-v1', 'insight-coding-default-rule-v2'].includes(request.contractVersion);
@@ -156,6 +157,7 @@ export class AutomationInsightCoding {
       previous = evidence.request;
     }
     const context = await this.context(workspaceId, runId, adoption.binding.pairId);
+    if (adoption.binding.sourceKind === 'PRIVATE_SHOPEE') invalid();
     const execution = new AutomationInsightModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now });
     const outcome = await execution.execute({ contractVersion: 'insight-model-source-v1', request, binding: adoption.binding,
       adoptionSha256: hash(adoption), actorId: owner.actorId, input: this.compose(context, adoption.request) }, ai, signal);
@@ -245,7 +247,7 @@ export class AutomationInsightCoding {
     return { execution: outcome, proposal };
   }
 
-  private async verifyDefaultEvidence(value: Evidence, row: Row, context: InsightSourceContext, sourceReads: SourceReads) {
+  private async verifyDefaultEvidence(value: Evidence, row: Row, context: InsightCodingSourceContext, sourceReads: SourceReads) {
     const request = value.request;
     if (isDefaultRule(request)) {
       if (row.parent_id !== null || value.parentSha256 !== null || Number(row.sequence) !== 1 || json(request.binding) !== json(value.binding) ||
@@ -500,7 +502,7 @@ export class AutomationInsightCoding {
     return expected;
   }
 
-  private async context(workspaceId: string, runId: string, pairId: string, sourceReads?: SourceReads): Promise<InsightSourceContext> {
+  private async context(workspaceId: string, runId: string, pairId: string, sourceReads?: SourceReads): Promise<InsightCodingSourceContext> {
     // Reuse only within this resolution. Every later request verifies storage again.
     const key = `${workspaceId}/${runId}/${pairId}`;
     let reading = sourceReads?.get(key);
@@ -515,7 +517,7 @@ export class AutomationInsightCoding {
     } else if (context.privateSource !== undefined) corrupt();
     return context;
   }
-  private compose(context: InsightSourceContext, adoption: InsightCodingAdoptRequest, proposal?: InsightCodingProposeRequest): LocatedInsightMethods['input'] {
+  private compose(context: InsightCodingSourceContext, adoption: InsightCodingAdoptRequest, proposal?: InsightCodingProposeRequest): LocatedInsightMethods['input'] {
     const input = clone(context.input);
     input.question = adoption.rules.question; input.inclusionRule = adoption.rules.inclusionRule; input.adjudicationRule = adoption.rules.adjudicationRule;
     input.corpora = clone(adoption.rules.corpora);

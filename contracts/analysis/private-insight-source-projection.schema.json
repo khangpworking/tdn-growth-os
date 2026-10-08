@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/private-insight-source-projection.schema.json",
+  "title": "PrivateInsightSourceProjection",
+  "description": "Versioned server-derived coding source evidence, not the private corpus. Retains verbatim source text, ratings, locators and all dispositions; no author/native reviewer metadata, keys or privacy profile. Exact repeated native records do not become additional counting units; conflicting versions fail closed. No free-text PII redaction or person join.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "corpus",
+    "input",
+    "records"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "private-insight-source-projection-v1"
+    },
+    "corpus": {
+      "$ref": "private-review-report-view.schema.json#/properties/corpus"
+    },
+    "input": {
+      "$ref": "located-insight-methods.schema.json#/$defs/input"
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 2500,
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    }
+  },
+  "$defs": {
+    "binding": {
+      "title": "InsightPrivateSourceBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "workspaceId",
+        "runId",
+        "pairId",
+        "scopeSha256",
+        "reportSha256",
+        "sourceKind",
+        "sourcePackageSha256",
+        "inputSha256",
+        "corpus",
+        "projectionSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-source-binding-v2"
+        },
+        "sourceKind": {
+          "const": "PRIVATE_SHOPEE"
+        },
+        "workspaceId": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+        },
+        "pairId": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "scopeSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "reportSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "sourcePackageSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "inputSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "projectionSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "corpus": {
+          "$ref": "private-review-report-view.schema.json#/properties/corpus"
+        }
+      }
+    },
+    "record": {
+      "title": "PrivateInsightSourceRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "recordId",
+        "shopId",
+        "itemId",
+        "textState",
+        "rating",
+        "region",
+        "admission",
+        "locator",
+        "duplicateOfRecordIndex",
+        "disposition",
+        "dispositionReason"
+      ],
+      "properties": {
+        "recordId": {
+          "$ref": "private-review-report-view.schema.json#/properties/records/items/properties/recordId"
+        },
+        "shopId": {
+          "$ref": "private-review-report-view.schema.json#/properties/records/items/properties/shopId"
+        },
+        "itemId": {
+          "$ref": "private-review-report-view.schema.json#/properties/records/items/properties/itemId"
+        },
+        "textState": {
+          "$ref": "private-review-report-view.schema.json#/properties/records/items/properties/textState"
+        },
+        "rating": {
+          "$ref": "private-review-report-view.schema.json#/properties/records/items/properties/rating"
+        },
+        "region": {
+          "$ref": "private-review-report-view.schema.json#/properties/records/items/properties/region"
+        },
+        "admission": {
+          "$ref": "private-review-report-view.schema.json#/properties/records/items/properties/admission"
+        },
+        "locator": {
+          "$ref": "private-review-report-view.schema.json#/properties/records/items/properties/locator"
+        },
+        "recordIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2499
+        },
+        "duplicateOfRecordIndex": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 2499
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "disposition": {
+          "$ref": "located-insight-methods.schema.json#/$defs/record/properties/disposition"
+        },
+        "dispositionReason": {
+          "$ref": "located-insight-methods.schema.json#/$defs/record/properties/dispositionReason"
+        }
+      }
+    }
+  }
+}

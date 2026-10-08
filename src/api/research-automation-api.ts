@@ -22,6 +22,8 @@ import boundedRevisionRequestSchema from '../../contracts/analysis/automation-bo
 import quoteRevisionRequestSchema from '../../contracts/analysis/automation-quote-report-revision.schema.json' with { type: 'json' };
 import locatedInsightSchema from '../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import insightSelectionSchema from '../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
+import privateInsightSourceSchema from '../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { registerPrivateReviewSchemas } from '../modules/analysis/research-automation/private-review-contracts.js';
 import insightCodingSchema from '../../contracts/analysis/automation-insight-coding.schema.json' with { type: 'json' };
 import insightCodingApiSchema from '../../contracts/api/research-automation-insight-coding-api.schema.json' with { type: 'json' };
 import insightModelSchema from '../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
@@ -105,6 +107,7 @@ ajv.addSchema(membershipSchema); ajv.addSchema(membershipApiSchema);
 ajv.addSchema(insightRevisionRequestSchema);
 ajv.addSchema(boundedRevisionRequestSchema);
 ajv.addSchema(quoteRevisionRequestSchema);
+registerPrivateReviewSchemas(ajv); ajv.addSchema(privateInsightSourceSchema);
 ajv.addSchema(locatedInsightSchema); ajv.addSchema(insightSelectionSchema); ajv.addSchema(insightCodingSchema); ajv.addSchema(insightCodingApiSchema);
 ajv.addSchema(insightModelSchema); ajv.addSchema(insightModelApiSchema);
 ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
@@ -138,8 +141,8 @@ const validates = {
   insightLiteralPropose: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/literalProposeRequest` }),
   insightAccept: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/acceptRequest` }),
   insightMutation: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/mutation` }),
-  insightView: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/anyView` }),
-  insightDefaultModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/defaultRequest` }),
+  insightView: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/versionedView` }),
+  insightDefaultModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/defaultSubmission` }),
     insightModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/request` }),
   insightModelResponse: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/response` }),
   sourceStatus: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/status` }),
