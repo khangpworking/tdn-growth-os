@@ -1,7 +1,7 @@
 import type {
   LocatedInsightMethods, Field, Provenance, Relation, Span,
 } from '../../../contracts/analysis/located-insight-methods.generated.js';
-import { attributionText } from './research-automation/descriptive-report.js';
+import { attributionText, retainedQuoteHtml, storedLiteral, technicalLiteral } from './research-automation/descriptive-report.js';
 
 type Input = LocatedInsightMethods['input'];
 type LocatedId = 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09';
@@ -67,9 +67,9 @@ function table(caption: string, headings: readonly string[], rows: readonly stri
 }
 
 const quote = (span: Span | null): string => span === null ? '<span>Chưa có đoạn nguồn</span>'
-  : `<q style="white-space:pre-wrap">${esc(span.quote)}</q>`;
+  : retainedQuoteHtml(span.quote);
 const field = (value: Field): string => `${value.span === null ? '' : `${quote(value.span)}<br>`}<small>${label(value.state)}</small>`;
-const textOrUnset = (value: string | null): string => value === null ? 'Chưa khai báo' : esc(value);
+const textOrUnset = (value: string | null): string => value === null ? 'Chưa khai báo' : storedLiteral(value, 'Thông tin được giữ trong bản lưu nguồn');
 const definition = (name: string, html: string): string => `<dt>${esc(name)}</dt><dd>${html}</dd>`;
 // Table cells cannot afford the theme's separate 120px label column.
 const nestedDefinitions = '<dl style="grid-template-columns:minmax(0,1fr);gap:4px">';
@@ -103,7 +103,7 @@ function originalRecords(ctx: RenderContext): string {
   return `<h4>Toàn văn bản ghi được trích</h4><p class="sec-note">Số “Bản ghi N” đếm từ 1; chỉ số bản ghi trong con trỏ của hồ sơ phương pháp đếm từ 0, nên Bản ghi N ứng với chỉ số N − 1. Vị trí trong nguồn được giữ đúng như nguồn ghi.</p>${[...ctx.records].map(index => {
     const record = ctx.output.input.records[index]!;
     const paths = ctx.output.input.sources.filter(item => item.sha256 === record.sourceSha256).map(item => item.logicalPath);
-    return `<details id="located-${ctx.sectionId}-record-${index}"><summary>Bản ghi ${index + 1}: nguyên văn và thông tin nguồn</summary><p class="sec-note">Giữ nguyên lời nguồn, kể cả phủ định, điều kiện và lời kể lại. Các mã hóa phía trên là khai báo cần được xem xét cùng toàn văn.</p><div style="white-space:pre-wrap">${record.text === null ? 'Bản ghi không đọc được.' : esc(record.text)}</div><dl>${definition('Ghi nguồn, nguyên văn', attributionText(record.sourceAttribution, 'Chưa có ghi nhận nguồn'))}${definition('Tệp nguồn', paths.map(esc).join('<br>'))}${definition('Vị trí trong nguồn', `<code>${esc(record.locator)}</code>`)}${definition('SHA-256 nguồn', `<code>${esc(record.sourceSha256)}</code>`)}${definition('Thời điểm theo nguồn', textOrUnset(record.timeText))}</dl></details>`;
+    return `<details id="located-${ctx.sectionId}-record-${index}"><summary>Bản ghi ${index + 1}: nguyên văn và thông tin nguồn</summary><p class="sec-note">Giữ nguyên lời nguồn, kể cả phủ định, điều kiện và lời kể lại. Các mã hóa phía trên là khai báo cần được xem xét cùng toàn văn.</p><div style="white-space:pre-wrap">${record.text === null ? 'Bản ghi không đọc được.' : storedLiteral(record.text, 'Nguyên văn được giữ trong bản lưu nguồn; không đưa vào bản đọc này.')}</div><dl>${definition('Ghi nguồn, nguyên văn', attributionText(record.sourceAttribution, 'Chưa có ghi nhận nguồn'))}${definition('Tệp nguồn', paths.map(technicalLiteral).join('<br>'))}${definition('Vị trí trong nguồn', `<code>${technicalLiteral(record.locator)}</code>`)}${definition('SHA-256 nguồn', `<code>${esc(record.sourceSha256)}</code>`)}${definition('Thời điểm theo nguồn', textOrUnset(record.timeText))}</dl></details>`;
   }).join('')}`;
 }
 

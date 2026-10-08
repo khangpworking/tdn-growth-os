@@ -779,16 +779,22 @@ test('exact review outcome is classified, logged once, shown on the run page and
 
 // P1-15: the stored drafts of this fixture own the reader-text rules; a renderer
 // change that leaks a provider name, a digest or a status code fails here.
-test('both stored drafts keep provider names, digests and status codes out of the reader text with one matching source register', async t => {
+test('both stored drafts keep provider names, digests and status codes out while retaining original source quotations', async t => {
   let calls = 0;
-  const raw = Buffer.from(JSON.stringify([{ shopId: '78085196', itemId: '17678138164', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 5 }]));
+  const sourceQuote = 'Tôi đã dùng sản phẩm từ Metric và Kalodata.';
+  const raw = Buffer.from(JSON.stringify([{ shopId: '78085196', itemId: '17678138164', comment: 'Tôi đã dùng sản phẩm.', ratingStar: 5 },
+    { shopId: '78085196', itemId: '17678138164', comment: sourceQuote, ratingStar: 5 }]));
+  const retained: string[] = [];
   const state = await fixture(t, () => ({ requestsIssued: () => calls,
-    collector: { mode: 'fixture', collect: async (...args: Parameters<FixtureShopeeCollector['collect']>) => { calls++; return new FixtureShopeeCollector(raw).collect(...args); } } }), false, 'Synthetic clean reader text');
+    collector: { mode: 'fixture', collect: async (...args: Parameters<FixtureShopeeCollector['collect']>) => { calls++; return new FixtureShopeeCollector(raw).collect(...args); } } }), false, 'Synthetic clean reader text', input => { retained.push(JSON.stringify(input)); });
   await state.service.confirmScope(workspaceId, runId, state.confirm);
   await state.service.processNext(); await state.service.processNext();
   assert.equal((await state.service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
   for (const kind of ['MARKET', 'INSIGHT'] as const) {
-    const html = (await state.service.readReport(workspaceId, runId, kind)).bytes.toString();
+    const stored = await state.service.readReport(workspaceId, runId, kind);
+    const html = stored.bytes.toString();
+    if (kind === 'INSIGHT') assert.ok((await state.artifacts.read(stored.versionId)).toString().includes(sourceQuote),
+      'stored semantic evidence keeps the source quote byte-for-byte');
     const document = new JSDOM(html).window.document;
     assert.deepEqual(visibleTextViolations(reportVisibleText(document)), [], `${kind}: reader text keeps provider names, digests and status codes out`);
     assert.deepEqual(providerNameViolations(html), [], `${kind}: no disclosure may name the provider`);
@@ -797,4 +803,5 @@ test('both stored drafts keep provider names, digests and status codes out of th
   const insight = (await state.service.readReport(workspaceId, runId, 'INSIGHT')).bytes.toString();
   assert.match(insight, /Đánh giá khách hàng trên Shopee/, 'the review register entry carries the exact reader label');
   assert.equal(calls, 1);
+  assert.ok(retained.some(value => value.includes(sourceQuote)), 'verified render input keeps the exact source quote');
 });

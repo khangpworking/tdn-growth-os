@@ -5,6 +5,8 @@ import type { ResearchAutomationRun } from '../../contracts/api/research-automat
 import type { CitationEntry, CitationTrace } from '../../src/modules/analysis/citation-registry.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
+import { descriptiveMarketFixture } from '../helpers/descriptive-market-fixture.js';
+import { buildDescriptiveMarketMethods } from '../../src/modules/analysis/descriptive-market-methods.js';
 
 const period = { startDate: '2025-01-01', endDate: '2025-12-31', dayCount: 365 };
 const window = { startDate: '2025-12-01', endDate: '2025-12-31' };
@@ -60,4 +62,55 @@ test('one source keeps its number across sections, numbers follow the page and a
   assert.deepEqual(visibleTextViolations(reportVisibleText(html)), [], 'reader text keeps provider names, digests and codes out');
   assert.deepEqual(providerNameViolations(html), [], 'no disclosure may name the provider');
   assert.deepEqual(buildResearchAutomationReport(input, 'MARKET'), report, 'two renders are byte-identical');
+});
+
+test('appendix-only captures cannot reserve numbers ahead of the first source on the page', () => {
+  const original = fixture();
+  const extra = { ...capture(0, 'c'.repeat(64)), window: null };
+  const input = { ...original, captures: [extra, ...original.captures.map(row => ({ ...row, ordinal: row.ordinal + 1 }))],
+    collection: { ...original.collection!, comparables: original.collection!.comparables.map(row => ({ ...row, captureIndex: row.captureIndex + 1 })) } };
+  const report = buildResearchAutomationReport(input, 'MARKET');
+  const document = new JSDOM(report.html.toString()).window.document;
+  assert.deepEqual([...new Set([...document.querySelectorAll('.cite')].map(mark => mark.textContent))], ['[1]', '[2]', '[3]']);
+  assert.deepEqual(semanticOf(report).citations.entries.map(entry => entry.identity), [firstCapture, secondCapture, extra.artifactSha256]);
+});
+
+test('provider-bearing source pointers and declarations render neutrally without changing retained evidence', () => {
+  const original = fixture();
+  const descriptor = descriptiveMarketFixture().descriptor;
+  const methods = buildDescriptiveMarketMethods({ ...descriptor, sourcePackage: {
+    packageId: '33333333-3333-4333-8333-333333333333', version: 1,
+    manifestArtifactSha256: 'd'.repeat(64), packageContentSha256: 'e'.repeat(64),
+  } }).output;
+  const row = methods.input.m05[0]!;
+  row.source.locator = '/metric/value';
+  methods.input.sources[0]!.logicalPath = 'metric/source.json';
+  const before = JSON.stringify(methods);
+  const report = buildResearchAutomationReport({ ...original, descriptiveMethods: methods }, 'MARKET');
+  assert.equal(JSON.stringify(methods), before, 'rendering never mutates retained declarations');
+  assert.deepEqual((report.semantic as { descriptiveMethods: unknown }).descriptiveMethods, methods);
+  const document = new JSDOM(report.html.toString()).window.document;
+  assert.deepEqual([...new Set([...document.querySelectorAll('.cite')].map(mark => mark.textContent))],
+    semanticOf(report).citationEntries.map(entry => `[${entry.number}]`), 'eager descriptive views cannot precede M02 citations');
+  assert.equal(semanticOf(report).citations.entries[0]!.identity, firstCapture);
+  const trace = semanticOf(report).citations.entries.find(entry => entry.technical.locator === '/metric/value');
+  assert.ok(trace, 'the original pointer remains available in the semantic trace');
+  assert.deepEqual(providerNameViolations(report.html.toString()), []);
+});
+
+test('whole-HTML provider guard includes disclosures, preformatted evidence and attribute values', () => {
+  assert.deepEqual(providerNameViolations('<details><pre>Metric Kalodata Apify</pre></details>'), ['metric', 'kalodata', 'apify']);
+  assert.deepEqual(providerNameViolations('<div data-label="Metric">Source</div>'), ['metric']);
+});
+
+test('provider-bearing web labels are withheld rather than rewritten or leaked into the report', () => {
+  const original = fixture();
+  const webResults = [{ position: 1, title: 'Metric Kalodata comparison', site: 'Apify', url: 'https://example.test/source',
+    retrievedAt: '2026-01-01T00:00:00.000Z', captureIndex: 0, snippet: null }];
+  const input = { ...original, collection: { ...original.collection!, webResults } };
+  const before = JSON.stringify(input);
+  const report = buildResearchAutomationReport(input, 'MARKET');
+  assert.deepEqual(providerNameViolations(report.html.toString()), []);
+  assert.equal(JSON.stringify(input), before);
+  assert.equal(semanticOf(report).citations.entries.find(entry => entry.technical.site === 'Apify')?.identity, webResults[0]!.url);
 });

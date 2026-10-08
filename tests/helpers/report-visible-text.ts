@@ -30,22 +30,23 @@ export function visibleTextViolations(visibleText: string): string[] {
   return violations;
 }
 
-// A provider name counts where it stands as its own word, so a retained path
-// (`metric/workbook.xlsx`), a status code or a contract key (`"metric"`) is not
-// read as naming the provider.
-const BEFORE_NAME = '[\\s(«"“>=]';
-const AFTER_NAME = '[\\s.,;:!?)»"”<]';
-const namedAsWord = (name: string): RegExp => new RegExp(`${BEFORE_NAME}${name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?:${AFTER_NAME}|$)`, 'i');
+// Codes and method identifiers may remain technical; standalone names and path segments may not.
+const namedAsWord = (name: string): RegExp => new RegExp('(?<![\\p{L}\\p{N}_-])' + name + '(?![\\p{L}\\p{N}_-])', 'iu');
 
 /**
  * P1-13: provider names are banned from the whole document, disclosures included.
- * The only exception is `<pre>`, which holds a retained machine artifact verbatim
- * (the bounded-method and quote-method dumps): its field names come from stored
- * contracts this package cannot rename and are never renderer copy.
+ * Preformatted retained artifacts must also use a safe reader projection.
  */
 export function providerNameViolations(html: string): string[] {
-  const withoutDumps = html.replace(/<pre[\s\S]*?<\/pre>/gi, ' ');
-  return CITATION_FORBIDDEN_NAMES.filter(name => namedAsWord(name).test(withoutDumps));
+  const document = new JSDOM(html).window.document;
+  const walker = document.createTreeWalker(document, 4);
+  const nodes: string[] = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode.textContent ?? '');
+  const text = nodes.join(' ') + ' ' + [...document.querySelectorAll('*')]
+    .flatMap(node => [...node.attributes].map(attribute => attribute.value)).join(' ');
+  const violations = CITATION_FORBIDDEN_NAMES.filter(name => namedAsWord(name).test(text));
+  document.defaultView?.close();
+  return violations;
 }
 
 /** P1-09: one register at the end of the report, listing exactly the numbers the page cites. */

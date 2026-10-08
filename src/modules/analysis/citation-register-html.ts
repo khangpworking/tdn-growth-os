@@ -1,5 +1,5 @@
 import { escapeHtml } from './research-automation/descriptive-report.js';
-import { assertReaderSafeCitation, type CitationEntry } from './citation-registry.js';
+import { assertReaderSafeCitation, type CitationEntry, type CitationRegistry } from './citation-registry.js';
 
 /** "Nguồn tham khảo" register for web and PDF. Reader text only: no ids or digests. */
 
@@ -27,6 +27,13 @@ export function renderCitationRegister(entries: readonly CitationEntry[], option
 
 export function renderCitationMark(n: number): string {
   return `<sup class="cite">[${n}]</sup>`;
+}
+
+/** Resolve eager section rendering against the completed body before writing its register or semantic trace. */
+export function orderReportCitations(body: string, registry: CitationRegistry): string {
+  const mark = /<sup class="cite">\[(\d+)\]<\/sup>/g;
+  const mapping = registry.orderByAppearance([...body.matchAll(mark)].map(match => Number(match[1])));
+  return body.replace(mark, (_match, number: string) => renderCitationMark(mapping.get(Number(number))!));
 }
 
 /** A value the viewer cannot trace to a retained source shows the missing-source phrase instead of a number. */

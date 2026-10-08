@@ -29,6 +29,23 @@ const WITHHELD = {
 } as const;
 export const storedLiteral = (value: string, withheld: string): string => readerSafe(value) ? escape(value) : withheld;
 
+/** Technical codes and digests may be displayed in disclosures; provider identity remains in the semantic artifact. */
+export const technicalLiteral = (value: string): string => containsForbiddenProviderName(value)
+  ? 'Thông tin kỹ thuật được giữ trong bản lưu nguồn' : escape(value);
+
+/** Omit an unsafe quotation as a whole; never rewrite it and present replacement words as source evidence. */
+export const retainedQuoteHtml = (value: string, tag: 'q' | 'blockquote' = 'q'): string => readerSafe(value)
+  ? `<${tag} style="white-space:pre-wrap;overflow-wrap:anywhere">${escape(value)}</${tag}>`
+  : '<span class="source-withheld">Nguyên văn được giữ trong bản lưu nguồn; không đưa vào bản đọc này.</span>';
+
+/** A renderer projection may omit a provider-bearing machine dump; its original object remains in the semantic artifact. */
+export function retainedEvidenceHtml(value: unknown): string {
+  const serialized = JSON.stringify(value, null, 2) ?? 'null';
+  return containsForbiddenProviderName(serialized)
+    ? '<p>Hồ sơ kỹ thuật đầy đủ được giữ nguyên trong bản lưu nguồn; không đưa tên nhà cung cấp vào bản đọc.</p>'
+    : `<pre style="white-space:pre-wrap;overflow-wrap:anywhere">${escape(serialized)}</pre>`;
+}
+
 /** A stored attribution is a sentence from the retained package; one that names the provider loses the sentence. */
 export const attributionText = (value: string | null | undefined, fallback: string): string =>
   value === null || value === undefined ? fallback : storedLiteral(value, 'Ghi nhận nguồn được giữ trong bản lưu');
@@ -52,7 +69,7 @@ const READER_POINTER = /^(?:\/(?:[^/\r\n]+)(?:\/[^/\r\n]+)*|[^!\r\n]+!\$?[A-Z]{1
  */
 export function readerPointer(pointer: string | null): { locator: string | null; technical: string | null } {
   if (pointer === null || pointer === '') return { locator: null, technical: null };
-  return !containsTechnicalId(pointer) && READER_POINTER.test(pointer)
+  return readerSafe(pointer) && READER_POINTER.test(pointer)
     ? { locator: pointer, technical: pointer }
     : { locator: 'vị trí trong nguồn', technical: pointer };
 }
@@ -237,6 +254,6 @@ export function descriptiveAppendix(methods: DescriptiveMarketMethods | undefine
   if (methods === undefined) return '<h3>Hồ sơ đối chiếu phương pháp mô tả thị trường</h3><p>Không có kết quả trong lượt này. Phương pháp chỉ chạy khi lượt có quan sát sản phẩm hợp lệ từ bản thu nguồn. Các mục M05, M06, M07 và M09 không có kết quả phương pháp.</p>';
   const pkg = methods.input.sourcePackage;
   const config = methods.input.configuration;
-  const sources = methods.input.sources.map(source => `<tr><td>${escape(source.logicalPath)}</td><td>${escape(source.evidenceFamily)}</td><td>${escape(PROVENANCE_TEXT[source.providerProvenance])}</td><td><code>${escape(source.sha256)}</code></td></tr>`).join('');
+  const sources = methods.input.sources.map(source => `<tr><td>${storedLiteral(source.logicalPath, 'Tệp được giữ trong bản lưu nguồn')}</td><td>${storedLiteral(source.evidenceFamily, 'Nhóm nguồn được giữ trong bản lưu')}</td><td>${escape(PROVENANCE_TEXT[source.providerProvenance])}</td><td><code>${escape(source.sha256)}</code></td></tr>`).join('');
   return `<details class="evidence-trace"><summary>Hồ sơ đối chiếu phương pháp mô tả thị trường: gói nguồn, cấu hình và tệp</summary><dl><dt>Phương pháp</dt><dd>${escape(methods.methodId)}@${escape(methods.methodVersion)}</dd><dt>Mã kết quả</dt><dd><code>${escape(methods.methodOutputId)}</code></dd><dt>Gói nguồn</dt><dd>${escape(pkg.packageId)} · phiên bản ${escape(pkg.version)}</dd><dt>Bản kê gói</dt><dd><code>${escape(pkg.manifestArtifactSha256)}</code></dd><dt>Nội dung gói</dt><dd><code>${escape(pkg.packageContentSha256)}</code></dd><dt>Cấu hình</dt><dd>${escape(config.profileId)}@${escape(config.profileVersion)} · ${escape(config.policyRevision)}</dd><dt>Câu hỏi</dt><dd>${escape(methods.input.question)}</dd><dt>Phạm vi khai báo</dt><dd>${scopeText(methods.input.scope)}<br><small>Gồm: ${escape(methods.input.scope.inclusionRule)} · Loại: ${escape(methods.input.scope.exclusionRule)} · Biến thể: ${escape(methods.input.scope.variantRule)}</small></dd></dl>${table('Tệp nguồn của hồ sơ phương pháp. Hash chỉ chứng minh tính toàn vẹn, không chứng minh nội dung đúng.', ['Tệp logic', 'Nhóm bằng chứng', 'Nguồn gốc', 'SHA-256'], sources)}</details>`;
 }

@@ -113,7 +113,9 @@ test('exact non-Metric package flows through a bounded revision, frozen replay, 
       assert.equal(link.hasAttribute('download'), false);
     }
     assert.equal(doc.querySelector('a[href="report-method-evidence.json"]'), null);
-    assert.deepEqual(JSON.parse(doc.querySelector('#bounded-method-evidence pre')!.textContent!), current);
+    // The semantic artifact above retains the exact machine object. Reader HTML must not dump provider-bearing keys.
+    assert.equal(doc.querySelector('#bounded-method-evidence pre'), null);
+    assert.match(doc.querySelector('#bounded-method-evidence')!.textContent!, /Hồ sơ kỹ thuật đầy đủ được giữ nguyên trong bản lưu nguồn/);
     assert.equal(doc.querySelectorAll('script').length, 0);
     const html = report.bytes.toString();
     assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), [], 'reader text keeps provider names, digests and status codes out');

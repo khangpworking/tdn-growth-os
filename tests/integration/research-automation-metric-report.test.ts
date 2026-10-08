@@ -14,6 +14,7 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { METRIC_METHOD_FAILURE_CODES, type MetricRunInput, type AutomationMetricMethodSnapshot } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
+import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -97,6 +98,9 @@ test('REPORTS computes attached raw Metric rows, retains the full method indepen
   assert.equal(f.insightSemantic.metricMethodsFailure, undefined);
   const original = await f.service.readReport(workspaceId, runId, 'MARKET');
   const doc = new JSDOM(original.bytes.toString()).window.document;
+  assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), []);
+  assert.deepEqual(providerNameViolations(original.bytes.toString()), []);
+  assert.deepEqual(citationRegisterViolations(doc), []);
   // P1-03: the aggregate row cites the frozen calculation, and a raw row cites its exact workbook cell.
   assert.equal(doc.querySelector('#M03 table tbody tr td:last-child .cite')!.textContent, '[1]', 'the aggregate row is cited');
   const registerText = doc.querySelector('.citation-register')!.textContent!;

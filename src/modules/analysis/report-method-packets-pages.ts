@@ -1,5 +1,6 @@
 import type { BoundedAnalysisGates, Source, Value, Scope, Period } from '../../../contracts/analysis/bounded-analysis-gates.generated.js';
 import type { DecisionEvidencePackets, OwnerField, EvidenceGroup } from '../../../contracts/analysis/decision-evidence-packets.generated.js';
+import { retainedEvidenceHtml, technicalLiteral } from './research-automation/descriptive-report.js';
 
 const LIMIT = 20;
 const esc = (value: string | number): string => String(value).replace(/[&<>"']/g, character => ({
@@ -14,10 +15,7 @@ const disclosure = (title: string, body: string): string => `<details><summary>$
 /** Owner-facing copy stays plain Vietnamese; the machine code stays in the HTML for the technical trace only. */
 const codeMarker = (code: string, label = 'Mã trạng thái nguồn'): string =>
   `<details class="evidence-trace"><summary>${esc(label)}</summary><code>${esc(code)}</code></details>`;
-const raw = (value: unknown): string => {
-  const serialized = JSON.stringify(value, null, 2);
-  return `<pre style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(serialized === undefined ? 'null' : serialized)}</pre>`;
-};
+const raw = retainedEvidenceHtml;
 function at<T>(rows: readonly T[], pointer: string, prefix: string): T {
   const suffix = pointer.startsWith(prefix) ? pointer.slice(prefix.length) : '';
   const row = /^(0|[1-9]\d*)$/.test(suffix) ? rows[Number(suffix)] : undefined;
@@ -26,7 +24,7 @@ function at<T>(rows: readonly T[], pointer: string, prefix: string): T {
 }
 function source(value: Source | null): string {
   return value === null ? '<p>Chưa có tham chiếu nguồn.</p>' : dl(
-    pair('Tệp nguồn', esc(value.logicalPath)) + pair('Vị trí nguồn', `<code>${esc(value.locator)}</code>`)
+    pair('Tệp nguồn', technicalLiteral(value.logicalPath)) + pair('Vị trí nguồn', `<code>${technicalLiteral(value.locator)}</code>`)
     + pair('SHA-256 nguồn', `<code>${esc(value.sha256)}</code>`));
 }
 const context = (value: unknown, reference: Source): string => disclosure('Ngữ cảnh đầy đủ và vị trí nguồn', source(reference) + raw(value));

@@ -1,5 +1,6 @@
 import type { AutomationReportInput } from './reports.js';
 import { escapeHtml as escape, type ReportCitations } from './descriptive-report.js';
+import { containsForbiddenProviderName } from '../citation-registry.js';
 import type { AutomationMetricMethodSnapshot } from './metric-method-bridge.js';
 import type { StartSnapshot } from './model.js';
 
@@ -66,7 +67,7 @@ export interface MarketSourceScope {
   readonly reviewDateConstraint: 'NOT_ESTABLISHED_BY_LISTING_SELECTION_PERIOD';
 }
 
-const code = (value: string): string => `<code>${escape(value)}</code>`;
+const code = (value: string): string => `<code>${containsForbiddenProviderName(value) ? 'Tham chiếu kỹ thuật được giữ trong bản lưu nguồn' : escape(value)}</code>`;
 const stepLabel = (step: string): string => step === 'QUICK_SEARCH' ? 'Tìm sản phẩm' : 'Thu dữ liệu';
 
 export function marketSourceScopeSection(scope: MarketSourceScope, section: 'M02' | 'M13', citations: ReportCitations): string {
