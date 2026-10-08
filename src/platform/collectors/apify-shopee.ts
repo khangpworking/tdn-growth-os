@@ -1,4 +1,6 @@
 import { createHash } from 'node:crypto';
+import type { ShopeePrivateIntake } from './shopee-private-intake.js';
+import { validatePrivateProfile, validatePrivateRows } from '../../modules/foundation/shopee-private-contracts.js';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -7,6 +9,8 @@ import { jsonBytes, parseJsonBytes, shopeeUrlMatches } from '../../modules/found
 
 export const SHOPEE_ACTOR = 'zen-studio/shopee-product-reviews-scraper';
 export interface CollectedPages {
+  /** Explicit opt-in sanitized capture, never retroactively assigned to historical raw pages. */
+  privacy?: ShopeePrivateIntake['profile'];
   mode: 'fixture' | 'live';
   actor: ShopeeCollection['actor'];
   warnings: string[];
@@ -37,27 +41,31 @@ function validateMaxReviewsPerProduct(value: number): number {
 }
 export interface ShopeeCollector {
   readonly mode: 'fixture' | 'live';
+  readonly privacyProfile?: ShopeePrivateIntake['profile'] | undefined;
   collect(selected: readonly ShopeeTransportListing[], requestSha256: string, runKey: string, signal?: AbortSignal): Promise<CollectedPages>;
 }
 
 export class FixtureShopeeCollector implements ShopeeCollector {
   readonly mode = 'fixture' as const;
-  constructor(readonly bytes: Buffer) {}
+  readonly #bytes: Buffer;
+  readonly #privacy: ShopeePrivateIntake | undefined;
+  constructor(bytes: Buffer, privacy?: ShopeePrivateIntake) { this.#bytes = Buffer.from(bytes); if (privacy) validatePrivateProfile(privacy.profile); this.#privacy = privacy; }
+  get privacyProfile() { return this.#privacy?.profile; }
   async collect(selected: readonly ShopeeTransportListing[], _requestSha256?: string, _runKey?: string, signal?: AbortSignal): Promise<CollectedPages> {
     checkCancellation(signal);
-    const value = parseJsonBytes(this.bytes);
+    const value = parseJsonBytes(this.#bytes);
     const maximum = selected.length * PRODUCTION_MAX_REVIEWS_PER_PRODUCT;
     if (!Array.isArray(value) || value.length > maximum) {
       throw new Error(`Fixture must be a JSON array of at most ${maximum} rows`);
     }
-    return { mode: 'fixture', actor: {
+    return { mode: 'fixture', ...(this.#privacy ? { privacy: this.#privacy.profile } : {}), actor: {
       actorId: SHOPEE_ACTOR, settings: { maxReviewsPerProduct: PRODUCTION_MAX_REVIEWS_PER_PRODUCT,
         ...FIXED_SHOPEE_SETTINGS, maxChargeUsd: null },
       inputSha256: shopeeActorInputSha256(selected, PRODUCTION_MAX_REVIEWS_PER_PRODUCT),
       runId: null, datasetId: null, buildId: null, status: 'FIXTURE',
       retrievedAt: new Date().toISOString(), providerTotalRows: null, usageTotalUsd: null,
       stopReason: 'fixture_complete',
-    }, warnings: ['synthetic_fixture_not_live_evidence'], pages: [{ bytes: Buffer.from(this.bytes), offset: 0 }] };
+    }, warnings: ['synthetic_fixture_not_live_evidence'], pages: [{ bytes: this.#privacy ? privatePage(this.#privacy, this.#bytes) : Buffer.from(this.#bytes), offset: 0 }] };
   }
 }
 
@@ -67,13 +75,17 @@ export class ApifyShopeeCollector implements ShopeeCollector {
   readonly mode = 'live' as const;
   readonly #fetch: typeof fetch;
   readonly #sleep: (ms: number, signal?: AbortSignal) => Promise<unknown>;
+  readonly #privacy: ShopeePrivateIntake | undefined;
+  get privacyProfile() { return this.#privacy?.profile; }
   constructor(readonly options: {
     token: string; maxChargeUsd: number; journalRoot: string; maxReviewsPerProduct?: number;
     contentFilter?: ShopeeContentFilter;
     retainReturnedPages?: boolean;
     existingRun?: { runId: string; datasetId: string };
     fetch?: typeof fetch; sleep?: (ms: number, signal?: AbortSignal) => Promise<unknown>; maxPolls?: number;
-  }) {
+  }, privacy?: ShopeePrivateIntake) {
+    if (privacy) validatePrivateProfile(privacy.profile);
+    this.#privacy = privacy;
     if (!options.token.trim() || !Number.isFinite(options.maxChargeUsd) || options.maxChargeUsd <= 0) {
       throw new Error('Live collection requires token and a positive approved charge cap');
     }
@@ -120,6 +132,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
       const startPath = path.join(directory, 'start.json');
       const runPath = path.join(directory, 'run.json');
       const identity = { runKey, requestSha256, input, maxChargeUsd: this.options.maxChargeUsd,
+        ...(this.#privacy ? { privacy: this.#privacy.profile } : {}),
         ...(this.options.existingRun ? { existingRun: this.options.existingRun } : {}) };
       const prior = await readOptional(startPath);
       if (prior && !jsonBytes(parseJsonBytes(prior)).equals(jsonBytes(identity))) throw new Error('Receipt identity or budget conflict');
@@ -128,7 +141,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
       if (this.options.existingRun) {
         if (!prior) await writeReceipt(startPath, jsonBytes(identity));
         run = await this.#existingRun(input, signal);
-        if (!await readOptional(runPath)) await writeReceipt(runPath, jsonBytes({ data: run }));
+        if (!await readOptional(runPath)) await writeReceipt(runPath, jsonBytes({ data: this.#privacy ? { ...run, statusMessage: null } : run }));
       } else if (prior) {
         const runBytes = await readOptional(runPath);
         if (!runBytes) throw new CollectionPendingError('Start outcome unknown; inspect Apify manually. No second run was started');
@@ -142,7 +155,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
           run = parseRun(parseJsonBytes((await this.#request(
             '/actors/zen-studio~shopee-product-reviews-scraper/runs?' + query,
             { method: 'POST', body: JSON.stringify(input) }, false, signal)).bytes));
-          await writeReceipt(runPath, jsonBytes({ data: run }));
+          await writeReceipt(runPath, jsonBytes({ data: this.#privacy ? { ...run, statusMessage: null } : run }));
         } catch {
           throw new CollectionPendingError('Start outcome unknown; inspect Apify manually. No automatic POST retry');
         }
@@ -203,7 +216,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
           }
           const values = parseJsonBytes(bytes);
           if (!Array.isArray(values) || values.length > limit) throw new Error('Invalid bounded dataset page');
-          pages.push({ bytes, offset });
+          pages.push({ bytes: this.#privacy ? privatePage(this.#privacy, bytes) : bytes, offset });
           offset += values.length;
           if (values.length < limit) { exhausted = true; break; }
         } catch {
@@ -216,7 +229,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
         : run.status === 'ABORTED' ? 'actor_terminal_aborted' as const : null;
       const cancelled = signal?.aborted === true;
       if (cancelled) readFailed = true;
-      return { mode: 'live', actor: {
+      return { mode: 'live', ...(this.#privacy ? { privacy: this.#privacy.profile } : {}), actor: {
         actorId: SHOPEE_ACTOR, settings: { maxReviewsPerProduct, starFilter: 'all', contentFilter,
           maxChargeUsd: this.options.maxChargeUsd },
         inputSha256: createHash('sha256').update(jsonBytes(input)).digest('hex'),
@@ -224,7 +237,7 @@ export class ApifyShopeeCollector implements ShopeeCollector {
         retrievedAt: new Date().toISOString(), providerTotalRows, usageTotalUsd: run.usageTotalUsd,
         stopReason: terminalReason ?? (readFailed ? 'dataset_read_failed'
           : exhausted ? 'dataset_exhausted' : 'collection_limit_reached'),
-      }, actorStatusMessage: run.statusMessage, warnings: [...(terminalReason ? [terminalReason] : readFailed ? ['dataset_read_failed'] : []),
+      }, ...(this.#privacy ? {} : { actorStatusMessage: run.statusMessage }), warnings: [...(terminalReason ? [terminalReason] : readFailed ? ['dataset_read_failed'] : []),
         ...(cancelled ? ['collection_cancelled_locally_provider_status_unchanged'] : [])], pages };
   }
 
@@ -351,7 +364,8 @@ async function retainReturnedPages(directory: string, requestSha256: string, run
     await writeOrVerifyReceipt(path.join(directory, file), page.bytes);
     pages.push({ file, sha256, byteSize: page.bytes.length, offset: page.offset });
   }
-  const receipt = jsonBytes({ receiptVersion: '1.0.0', admission: 'UNVERIFIED', requestSha256, runKey,
+  const receipt = jsonBytes({ receiptVersion: collected.privacy ? '2.0.0' : '1.0.0',
+    ...(collected.privacy ? { privacy: collected.privacy } : {}), admission: 'UNVERIFIED', requestSha256, runKey,
     mode: collected.mode, actor: collected.actor, warnings: collected.warnings, pages });
   const sha256 = createHash('sha256').update(receipt).digest('hex');
   await writeOrVerifyReceipt(path.join(directory, `snapshot-${sha256}.json`), receipt);
@@ -409,4 +423,11 @@ export function shopeeActorInputSha256(selected: readonly ShopeeTransportListing
   maxReviewsPerProduct: number = PRODUCTION_MAX_REVIEWS_PER_PRODUCT,
   contentFilter: ShopeeContentFilter = FIXED_SHOPEE_SETTINGS.contentFilter): string {
   return createHash('sha256').update(jsonBytes(shopeeActorInput(selected, maxReviewsPerProduct, contentFilter))).digest('hex');
+}
+
+function privatePage(intake: ShopeePrivateIntake, bytes: Buffer): Buffer {
+  const sanitized = intake.sanitizePage(bytes);
+  // Validate even injected intake mechanics before any return or private journal publication.
+  validatePrivateRows(parseJsonBytes(sanitized));
+  return sanitized;
 }

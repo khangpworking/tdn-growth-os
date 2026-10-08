@@ -1,0 +1,206 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShopeePrivateRows",
+  "description": "Closed sanitized metadata allowlist, preserves source comment strings verbatim; rating preserves explicit source presence/state and safe numeric values; other invalid evidence scalars are null. Missing field and invalid ID differ. No raw author ID/name/profile fields. Bound2500 follows5 listings times500 existing collection ceiling.",
+  "type": "array",
+  "maxItems": 2500,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reviewId",
+      "shopId",
+      "itemId",
+      "comment",
+      "createdAt",
+      "region",
+      "authorIdentity",
+      "rating"
+    ],
+    "properties": {
+      "reviewId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[1-9][0-9]{0,19}$"
+      },
+      "shopId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[1-9][0-9]{0,19}$"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[1-9][0-9]{0,19}$"
+      },
+      "comment": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 20000
+      },
+      "createdAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "region": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[A-Z]{2}$"
+      },
+      "authorIdentity": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state",
+              "hash"
+            ],
+            "properties": {
+              "state": {
+                "const": "HASHED"
+              },
+              "hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state",
+              "hash"
+            ],
+            "properties": {
+              "state": {
+                "enum": [
+                  "MISSING",
+                  "INVALID"
+                ]
+              },
+              "hash": {
+                "type": "null"
+              }
+            }
+          }
+        ]
+      },
+      "rating": {
+        "description": "Source rating presence/state; never manufacture an absent source field. Invalid finite safe numeric source values survive, arbitrary strings/nested values do not.",
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldPresent",
+              "state",
+              "value"
+            ],
+            "properties": {
+              "fieldPresent": {
+                "const": false
+              },
+              "state": {
+                "const": "ABSENT"
+              },
+              "value": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldPresent",
+              "state",
+              "value"
+            ],
+            "properties": {
+              "fieldPresent": {
+                "const": true
+              },
+              "state": {
+                "const": "MISSING"
+              },
+              "value": {
+                "type": "null"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldPresent",
+              "state",
+              "value"
+            ],
+            "properties": {
+              "fieldPresent": {
+                "const": true
+              },
+              "state": {
+                "const": "VALID"
+              },
+              "value": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fieldPresent",
+              "state",
+              "value"
+            ],
+            "properties": {
+              "fieldPresent": {
+                "const": true
+              },
+              "state": {
+                "const": "INVALID"
+              },
+              "value": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "type": "number",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991,
+                    "not": {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 5
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}
