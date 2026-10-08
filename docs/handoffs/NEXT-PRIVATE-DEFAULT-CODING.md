@@ -1,72 +1,84 @@
 # Handoff — authentic private source default coding
 
-Updated: 2026-10-09 (implementation in progress; not settled)
+Updated: 2026-10-09
+Worktree/branch: `ultimate-impl-sync1-codex` / `khangpworking/ultimate-private-default-coding-sol`.
+Task/Dispatch: `task_0254b7e8d058` / `ctx_7e7c397355e0`, sole run `run_adc3551f8ed8`, coordinator `term_f78f7d8d-0a0e-4b5d-8a29-1f7a4912317d` generation2.
+Tested implementation SHA: `5b6557b82b827a56e565483a754dc8a163bb760d`. Later handoff-only commits do not change tested code; final pushed SHA is reported in the fresh lifecycle and PR.
+Reviewed baseline: `e4b78f01b573d8284235fe06e693d587ffaabca7`, normally composed with exact reviewed main187 `5f38281680a51bae1c49539060d655e093789f2f` in merge `d0ebbd7f4bfe6211235f47e79bb8d05b0acc71ea`. No unmerged Metric/P9/U16/reader source was imported. Frozen reader branch `532cc25c823dcef50c96d07162f1bb29b2e2a926` remains separate.
 
-Worktree/branch: `ultimate-impl-sync1-codex`, `khangpworking/ultimate-private-default-coding-sol`, clean new branch from reviewed main `e4b78f01b573d8284235fe06e693d587ffaabca7`. Frozen reader branch/head `59d6343919e104b157a1ac26db6d542f0684c8ad` preserved, no unmerged reader imports.
+Completed: real retained Foundation3 private review corpus/source22 now feeds an explicit authenticated OWNER default coding action without human rule adoption. The owning execution/evidence/report services retain a pending proposal, snapshot5 and authoritative report25; verified HTML/history and exact retries replay storage without model/collector calls or database writes. Existing default UI/client supplies the versioned request and a separate explicit proposal/digest report confirmation. No extra private intake/parser, parallel ledger, migration or new UI action was needed.
 
-Completed:
+## Behavior and boundaries
 
-- Actual audit confirmed source-only renderer22 can authenticate retained private corpus but historical default coding context/replay cannot consume it.
-- Independent `private-insight-source.ts` reconstructs and compares the closed safe view, validates exact collection/page/locator alignment and preserves original quotes, rating presence/state/value, text states, admissions and locators. Only server-side native listing/review identity determines exact duplicate exclusion; identifiers never cross the projection boundary. Conflicting source-visible versions fail closed, all retained rows remain visible, missing identities and equal text with distinct native identities stay separate. No author-based join or person count.
-- This source projection checkpoint is not the owning service/API/model/report deliverable. Existing service/source-only behavior remains unchanged until serial integration leases arrive.
+- `private-insight-source-projection-v1` reconstructs the closed verified view from the retained corpus, authenticates collection/page/row/text locators and copies exact safe corpus identity, original text/time, rating field presence/state/value, text states, source admission and included/excluded/unreadable dispositions. Context authority comes from authenticated frozen start/scope/run/pair/report and independently verified corpus/pages, never a caller semantic object or text-derived platform. The existing trusted private Shopee adapter supplies platform evidence.
+- Exact nonnull `(shopId,itemId,reviewId)` repeats retain all occurrences but exclude later duplicate records from coding membership. Conflicting source-visible versions fail closed. Author identity is never used for deduplication or counting; equal text with distinct native identities stays separate, and null native IDs do not collapse equal text. No per-person join or customer/person count.
+- Public/model/artifact/report projection excludes private author IDs/hashes, original reviewer metadata, native reviewer IDs, privacy keys/profile and the private corpus itself. Native IDs are used only server-side to authenticate duplicate source units. Located method `profileSha256`/`adoptionSha256` are unchanged historical method constants, not a private identity profile or owner adoption. Safe artifact/digest/collection references remain exact. Free text stays verbatim and may contain personal information: metadata stripping is **not free-text PII redaction**.
+- Private source binding/default request/source/root/proposal/evidence are additive v2, model input is v2, private prompt is v6 and coding snapshot is v5. Full safe source membership, ratings and dispositions accompany the selected eligible model records; original private reviewer metadata does not. New proposals retain the existing pending provenance, codebook/source span validation and continuation rules. Receipt creation, adoption or release is never inferred from model success.
+- Existing immutable coding/execution ledgers are reused. Legacy storage parent slots keep their existing names, while public private roots are explicitly `DEFAULT_RULE`, status `PROPOSED`, with private policy `source-private-default-coding-v1`. There is **no new DDL**, old migration edit, backfill or runtime database execution. Historical request identities, source/default/adoption/crosscheck factories and prompt1–5 bytes are preserved.
+- `readInsightSourceContext` remains exactly v1 and rejects private sources. New `readInsightSourceContextV2` authenticates private source2 and feeds owning view3/default2 callbacks. Historical sources dispatch directly through the original v1 method, avoiding duplicate recursive verification. Legacy manual/adopted/default-v1/crosscheck requests cannot consume binding2; private crosscheck is explicitly unavailable in the parent UI and rejected before confirmation in the historical child.
+- Explicit default report selection remains the existing generic exact proposal ID/digest contract. Snapshot5 binds the private projection, root, codebook, execution and zero receipts. Renderer25 precedes source-only22 fallback and uses the shared CitationRegistry, publisher and visible-text lint. An optional renderer's HTML must equal the owning authoritative private25 HTML. HTML reads return retained immutable bytes; source/coding replay verifies every binding and CAS dependency before returning them. KEEP preserves the exact selected snapshot without another collection/model dispatch.
+- Counts are retained draft method outputs, not accepted counts or release statistics. Tests produce exactly two proposed I10 records at distinct native identities while accepted count stays zero and rates remain null. Stars, textless/unreadable/excluded rows, duplicate occurrences, seller voice and source-native distinctions stay separate. No platform/person sums, personas or model-inferred platform.
 
-Changed paths: new `src/modules/analysis/research-automation/private-insight-source.ts`, `tests/unit/private-insight-source.test.ts`, this handoff.
+## Changed paths
 
-Evidence:
+Own projection: `src/modules/analysis/research-automation/private-insight-source.ts`.
+Narrow existing source/owning branches: `insight-coding.ts`, `insight-default-coding.ts`, `insight-model-execution.ts`, `service.ts`, `reports.ts` in that directory.
+Exact Ajv dependency registration only: `semantic-coding-response.ts`, `i14-cliproxy-transport.ts`, `insight-crosscheck-contracts.ts`.
+Canonical: new `contracts/analysis/private-insight-source-projection.schema.json`; additive coding/model/snapshot and coding/model API schemas with generator-produced derivatives; existing foundation/browser generator registrations and generated browser declaration output.
+API: `src/api/research-automation-api.ts` dependency/validator union only; existing routes and authorization unchanged.
+Frontend: `InsightCodingPanel.tsx`, `InsightDefaultProposalPanel.tsx`, `insight-coding-api.ts`, `insight-default-ui.ts`; exact private binding guard in `InsightCrosscheckPanel.tsx`.
+Tests: new projection unit, private owning service/OWNER HTTP and mounted private client/UI files; existing private-consumer test changes only the forged legacy default request's rejection reason, keeping v1 private rejection and every no-call/no-write/source22/literal assertion. Named reviewed-main composition includes only its already-reviewed crosscheck contracts/source/tests/docs.
 
-- Pinned Node24.15.0/npm11.12.1, `node --import tsx --test --test-concurrency=2 tests/unit/private-insight-source.test.ts`: **3 PASS**, `/tmp/tdn-private-coding-projection-tests.log`.
-- `npm run typecheck`: **PASS**, `/tmp/tdn-private-coding-projection-typecheck.log`.
-- Synthetic Foundation3/SQLite/CAS fixtures only; no application provider/model call or runtime data. No local full suite or generation.
+## Evidence
 
-Leases and design:
+Pinned Node24.15.0/npm11.12.1 at `/tmp/tdn-sync1-tools/node-v24.15.0-linux-x64/bin`. Focused tests use `--test-concurrency=2`; no local full suite ran. Synthetic SQLite/CAS, fake Foundation/model/collector transports and loopback OWNER HTTP only. No live application provider/model, paid U40, runtime/private data copy, credentials/config/caps change or deployment.
 
-- Fresh task `task_0254b7e8d058`, dispatch `ctx_7e7c397355e0`, sole run `run_adc3551f8ed8`.
-- Clean placement/independent new paths granted `msg_12410b4508bf`; actual ACK `msg_8a29c016966e`.
-- Additive version design/native dedup policy and exact new-private branches in existing `insight-coding.ts`, `insight-default-coding.ts`, `insight-model-execution.ts` granted `msg_851e8545f8e2`.
-- Renderer25 reserved (renderer23 already belongs to reviewed crosscheck); preserve source-only22 and historical default21. Private projection-v1, binding/default request/source/root/proposal/evidence-v2, model input-v2/prompt6, snapshot5. Existing immutable ledgers and generic exact default report selection suffice: **no DDL or migration**.
-- GLOBAL/central/API/UI grants pending. Exact requested schema and UI path list sent `msg_ac76e1cb1672`; no edits to those paths yet. One GLOBAL writer and one central service writer at a time; only named reviewed main composition, no sibling WIP.
+| Check | Result | Log |
+|---|---|---|
+| Full backend `npm run typecheck` | PASS on final source | `/tmp/tdn-private-coding-final-typecheck.log` |
+| Direct frontend `tsc -p frontend/tsconfig.json --noEmit` | PASS, no generation after transfer | `/tmp/tdn-private-coding-parent-typecheck.log` |
+| Private projection/default unit behavior | 6 PASS | `/tmp/tdn-private-coding-canonical-focused.log` |
+| Actual private owning + existing private-consumer | 13 PASS on final source | `/tmp/tdn-private-coding-final-owning.log` |
+| Historical owning default/native/located/prompt | 8 PASS | `/tmp/tdn-private-coding-compose-historical.log` |
+| Historical crosscheck23/adopted/literal/exact/native | 18 PASS | `/tmp/tdn-private-coding-legacy-crosscheck-literal.log` |
+| Historical default21/fallback after final routing change | 1 PASS | `/tmp/tdn-private-coding-final-legacy-routing.log` |
+| Actual private/default/public-crosscheck/client UI | 13 PASS | `/tmp/tdn-private-coding-final-ui.log` |
+| Contracts + browser generation in leased phases | PASS, repeated generation zero drift | `/tmp/tdn-private-coding-compose-regeneration.log`, `/tmp/tdn-private-coding-compose-browser.log` |
+| Historical 45 schema definitions and prompt1–5/factories | Exact equality | `/tmp/tdn-private-coding-historical-defs.log` |
+| Released canonical/generated/registry fingerprints | Unchanged after transfer | `/tmp/tdn-private-coding-compose-hashes.json` |
 
-Unresolved:
+Owning tests cover authentic corpus22 → request2 → fake model → pending proposal2/snapshot5/report25 → saved HTML/explicit read/retry/KEEP; exact source/disposition/native duplicate membership; workspace/run/pair/scope/report/corpus/collection/digest substitutions; wrong origin/OWNER/route/version; excluded/unreadable/textless/duplicate batch rejection; private historical crosscheck no dispatch; corrupt corpus and source pages failing before dispatch/mutation; privacy scans of captured model input/prompt, admission/configuration/candidate/evidence artifacts, report/API output; zero model/collector calls and SQLite fingerprint/`total_changes()` equality on settled reads/retries. Source22 historical HTML is byte-equal on reread.
 
-- Actual authenticated no-adoption request, fake model execution, immutable pending proposal/snapshot, explicit report/read/retry, public/model/artifact privacy scans and historical compatibility remain to implement under serial grants.
-- New private-coded owner reader support is **not claimed**. Frozen reader59 does not support the new renderer25/snapshot5; this task targets the owning retained HTML/report/read flow.
-- Source text is verbatim and may contain personal data. Metadata stripping is not free-text anonymization. No native reviewer metadata/author ID/hash/key/profile in projection or model/report artifacts.
+Initial failures are not hidden: unregistered additive Ajv dependencies blocked old owning initialization until exact registration grants; the final old owning checks above pass. A synthetic scan originally rejected the explanatory word “privacy”; it now targets private metadata keys and exact synthetic IDs/hashes/key/profile/native identifiers, preserving verbatim free text and source assertions. Its fake gateway now returns an assertion failure promptly instead of leaving a request pending. The task-owned failed test process was stopped; only corrected passing final runs count as evidence.
 
-Next action: implement accepted additive coding/execution branches; receive canonical and central leases after current Metric/U16 phases release, complete owning acceptance then commit/push/draft PR and exact-head handoff. Coordinator owns independent review, full hosted exact-head check and normal merge; worker never merges.
+## Ownership, checkpoints and releases
 
-Business decisions pending: U11 statistics/release, U26 policy, U32 aggregate/platform-person sums and U40 paid acceptance remain blocked. Pinned humanizer-vi `576c80fb445a8b2e9ec1993a6490ab6529b89d12` SKILL/preservation rules read; no new Vietnamese interpretation or application prompt integration in this checkpoint.
+- New independent projection placement: `msg_12410b4508bf`, ACK `msg_8a29c016966e`; additive private source branch grant `msg_851e8545f8e2`.
+- Six canonical/API/client grant `msg_ae4fc62b7262`, ACK `msg_7ad5b0105f9c`; bounded checkpoint `d07ffc724a51883a72e4ccd992e5a8dbe98ad29c`, explicit GLOBAL/APIUI release `msg_370df4bc3bc3`.
+- Sole central owning + named reviewed-main187 composition grant `msg_471bddefc067`, ACK `msg_3791e2de31b2`. No Metric correction/P9/unreviewed sibling import.
+- Short GLOBAL dependency/rematerialization grant `msg_a2b945c13736`, third exact registry grant `msg_f6aba3a38072`; stable checkpoint `7da4bf9c8c99b9e75f874499784e0c0c1867603a`, explicit release `msg_fd4bfc116423`, accepted `msg_4c5e44cd228e`. P9 became sole GLOBAL writer; no generation/schema changes afterward.
+- Parent-only private crosscheck suppression `msg_eb0324e7ed94`; exact child private guard/type narrowing `msg_40d8495b0d5d`. No other child/API/route/config change.
+- Final code checkpoint `5b6557b82b827a56e565483a754dc8a163bb760d`; central and narrow frontend/source leases are explicitly released through fresh lifecycle with stable hashes. Worker never merges the PR.
 
-Accepted source phase checkpoint (pending canonical dependency):
+## Gates and limits
 
-- Exact grant `msg_851e8545f8e2` used only for additive private branches in `insight-coding.ts`, `insight-default-coding.ts`, `insight-model-execution.ts`. Historical source/default factories and frozen prompt-v1–v5 bytes unchanged by design; replay uses strict private request/source/evidence/snapshot branches. Context authenticates projection/corpus/input digests before root creation, existing ledger retains private default roots/proposals/executions, private snapshot5 carries closed source proof, prompt6/modelinput2 retain ratings and all source dispositions. No current service/API/UI/GLOBAL edits.
-- This WIP imports the accepted additive canonical definitions whose GLOBAL grant is still queued; **not compiled or executable yet**, and no new passing integration claim. Prior 3/3/typecheck evidence applies only to independent projection checkpoint7ca91cb. Canonical generation and focused old/new acceptance required after grant.
-- FIFO `msg_ec2761b7bb3c` and `msg_28012109529c` processed: temporary original reader59 + exact reviewed crosscheck main187 composition will precede this task's GLOBAL phase after Metric explicit release, only under a fresh placement/shared phase grant. Reader59 original acceptance does not approve a new composed head. Generated browser outputs are existing `report-validators.generated.d.ts` and ignored `.js`, never hand-authored.
+| Gate | State for this bounded deliverable |
+|---|---|
+| G01 | Exact owned paths, canonical/central/APIUI phases and reviewed-main composition recorded. |
+| G02 | Affected local static/behavior checks pass; independent frozen-head review and full hosted exact-head Check remain required. |
+| G03 | Actual OWNER/client/private default and historical mounted UI pass. |
+| G04 | Additive canonical versions, one GLOBAL writer, generated/Ajv dependencies and zero generation drift verified. |
+| G05 | Synthetic actual owning integration delivered; not helper-only. |
+| G06 | Authenticated source/pair/scope/digest/CAS boundaries fail closed. |
+| G07 | Preserved valid source/missing/duplicate/no-call/no-write assertions; exact fixture corrections documented. |
+| G08 | Pinned humanizer-vi `576c80fb445a8b2e9ec1993a6490ab6529b89d12` SKILL/preservation rules read; neutral display labels only, no source quote or historical Vietnamese interpretation rewrite. Fake models do not certify prose quality. |
+| G09 | Private author/key/profile/native reviewer metadata stays out of new model/report/API artifacts; free-text redaction is not claimed. |
+| G10 | Historical default/adopted/literal/crosscheck/source22 replay and old byte equality preserved. |
+| G11 | Scope, uncertainty, evidence status and pending counts remain explicit; no implicit approval or release. |
+| G12 | Git-visible tested SHA/checks/hashes/leases/remaining coordinator work recorded; clean draft PR handoff. |
+| G13 | Existing frozen keywords/exclusions remain unchanged; no new keyword collection/filter methodology claim. |
 
-Independent acceptance preparation after reader prerequisite release:
+U03/U18 private default owning consumer slice is delivered locally. U11 statistics/crosscheck release, U26 policy, U32 platform/person aggregates and U40 paid/live staging remain blocked. Private binding2 crosscheck and owner reader25 support are **not delivered**; source-only22 and frozen reader support17/18/19/21/22 remain unchanged.
 
-- Original reader branch normally composed with exact reviewed main187 at `532cc25c823dcef50c96d07162f1bb29b2e2a926`, clean/pushed to PR186. Backend53/frontend10 PASS, strict static/generation/old-byte fingerprints PASS. GLOBAL release `msg_2f68598b328c`, central release `msg_5fb25efb91e8`; detailed reader delta/checks live in that branch's own reader handoff. Actual private branch restored clean34d6c3a in `msg_9431bab294bb`; no prerequisite source/canonical WIP copied.
-- New safe source metadata explicitly includes disposition/dispositionReason; historical located records reuse that one derived decision. Source projection3/3 PASS after this addition (`/tmp/tdn-private-coding-projection-disposition.log`).
-- New `tests/integration/research-private-default-coding.test.ts` drafts three owning synthetic service/HTTP acceptance cases: Foundation3/source-only22 → authentic request2/default execution/pending evidence2 → snapshot5/renderer25 → immutable read/exact retry/KEEP; exact source/corpus/collection/record/digest/CAS negatives before mutation; real authenticated OWNER route with fake model gateway, privacy scans and no-write settled retries/reads. **Not run yet** because canonical/central/API leases are pending. Prior passing helper evidence is not substituted for these acceptance results.
-- Existing private source consumer test266 intentionally asserts coding context unavailable. Requested precise test lease `msg_adebb9862bfb`: replace only that capability expectation with version2 proof while retaining forged historical v1 rejection/no-calls/no-writes and every source-only22/literal/byte assertion. No test edited yet; no valid assertion weakened.
-
-- Native duplicate fixture additionally varies author identity across repeated native records and proves that only source-native identity controls exclusion. Missing native IDs with identical text stay separate even when author IDs match. Projection3/3 PASS (`/tmp/tdn-private-coding-native-identity.log`); new owning settled service checks also assert SQLite `total_changes()` unchanged. Strict typechecking/integration of the pending version branches still requires the queued canonical dependency.
-- Fresh FIFO `msg_74786d2f5e03` accepts the existing private-consumer test delta for later owning integration only; no current edit grant. Current source changes remain private3file/newmodule/tests only.
-
-Bounded canonical/API/client phase, 2026-10-09:
-
-- Explicit GLOBAL/APIUI grant `msg_ae4fc62b7262`, ACK `msg_7ad5b0105f9c`, supersedes earlier queued status for the exact projection/coding/model/snapshot/API schemas and registrations/derivatives, API validation-only hunks, and named frontend coding/default files. Existing service/reports/model remain unedited; no branch composition or migration grant used here.
-- Canonical private projection-v1/binding-v2, private default request/source/root/proposal/evidence-v2, input2/prompt6/snapshot5 are generated from additive definitions. All 45 historical definitions across the five extended schemas compare exactly equal against reviewed main `e4b78f01b573d8284235fe06e693d587ffaabca7`; prompt1–5 declarations and public prompt factories retain exact source bytes. Evidence: `/tmp/tdn-private-coding-historical-defs.log`.
-- Browser declarations now derive from the existing precompiled validator registry; the previous `.d.ts` export list was separately maintained. No hand-authored runtime validator/type system. Additive versionedView/defaultSubmission preserve historical anyView/defaultRequest validators. API changes register dependencies and select additive validators only; routes/authorization remain unchanged.
-- Actual parent/default client chooses request2 only from authoritative private binding2, disables legacy adoption, verifies root/proposal/request version coherence and exact safe binding. New mounted synthetic OWNER flow verifies no adoption, explicit model confirmation, lost-response exact retry with one fake dispatch, and separate exact proposal/digest draft confirmation. No live provider.
-- `contracts:generate`, `frontend:validators`, strict source-only static and frontend static **PASS**. Projection/default unit behavior **6 PASS**. New private client plus historical default/client behavior **11 PASS** (`/tmp/tdn-private-coding-client-focused.log`). Pinned Node24.15.0/npm11.12.1, focused concurrency2, no local full suite.
-- Old owning default/prompt integration cannot initialize yet: new binding2 dependency needs registration in existing `semantic-coding-response.ts` and `i14-cliproxy-transport.ts` Ajv registries. Exact import/register-only grant requested `msg_453b6e9502d6`; no unauthorized edits. Failed run `/tmp/tdn-private-coding-historical-focused.log` is recorded, not called a passing replay check.
-- Backend full static remains pending central report snapshot5 discrimination and V2 context implementation plus owning tests. Historical public `readInsightSourceContext` remains v1/private-ineligible; accepted new `readInsightSourceContextV2` will feed owning context callback/view3 only after central grant. Existing private-consumer test edit and crosscheck-private guard await explicit central/named main composition grant.
-- This bounded checkpoint is **not settled** and does not satisfy the owning acceptance. Renderer25/service/authenticated private model/report/read/retry/corruption and privacy boundary acceptance remain outstanding. No DDL, migrated runtime data, source corpus copy, author/person join, reader25 support or approval/release claim.
-
-Reviewed-main composition and short GLOBAL registration phase:
-
-- Named reviewed main187 `5f38281680a51bae1c49539060d655e093789f2f` normally merged into clean owned checkpoint `d07ffc724a51883a72e4ccd992e5a8dbe98ad29c`; clean merge commit `d0ebbd7f4bfe6211235f47e79bb8d05b0acc71ea`. No sibling WIP, Metric correction or P9 schema import. Grant `msg_471bddefc067`; ACK `msg_3791e2de31b2`.
-- GLOBAL/APIUI release `msg_370df4bc3bc3` accepted; short sole GLOBAL regrant `msg_a2b945c13736` permits named-main derivative rematerialization and exact two Ajv registration dependency hunks. Third incoming crosscheck registration granted `msg_f6aba3a38072`, ACK `msg_c548c666503e`. All three registries add only the canonical projection/private dependency imports and registrations; no factory, configuration, transport, response or crosscheck eligibility changes. Crosscheck's retained default source/prompt helper remains explicitly v1/v5 via discriminant type guards.
-- `contracts:generate` and browser validator generation PASS; repeated named-main generation gives **zero hash drift**, manifest `/tmp/tdn-private-coding-compose-hashes.json`. No new schema semantics. Full backend strict static **PASS** (`/tmp/tdn-private-coding-owning-typecheck.log`). Old actual service/OWNER default/native/located/prompt retention focused checks **8 PASS** (`/tmp/tdn-private-coding-compose-historical.log`), including historical fallback/report21 bytes and zero new calls on retained replay.
-- Sole central grant471 implementation now introduces authentic `readInsightSourceContextV2` and callback/view3, keeps public v1 method text and private-source rejection unchanged, derives safe projection only for explicit coding/read25, verifies snapshot5 against reconstructed corpus, and selects authoritative renderer25 before private22 fallback. Optional renderer HTML must equal authoritative private25 HTML; no caller semantic authority. Current central checkpoint is pending the new actual private owning acceptance, **not settled**.
-- New private integration tests now use V2. Exact old private-consumer test delta changes only forged historical default request rejection reason; v1 context rejection and all no-call/no-write/source22/literal assertions remain. No reader25 bridge or release approval. APIUI remains released; narrow parent crosscheck private guard requested `msg_420424683ec8`, not yet edited.
+Unresolved: coordinator independent final-head review, full hosted exact-head Check and normal merge. No deployment or production acceptance is claimed.
+Next action: review the exact pushed draft head and run mandatory hosted full checks; obtain a fresh scoped grant for any correction or later reader25/private-crosscheck work.
