@@ -1410,8 +1410,13 @@ export class ResearchAutomationService {
   /** Additive private source context; the historical public v1 context stays private-ineligible. */
   async readInsightSourceContextV2(workspaceId: string, runId: string, pairId: string): Promise<InsightCodingSourceContext> {
     if (!/^[0-9a-f]{64}$/.test(pairId)) throw new ResearchAutomationValidationError('Invalid exact report pair.');
+    await this.getRun(workspaceId, runId);
+    const frozen = this.#current(runId)!;
+    const start = await this.#readStartSnapshot(frozen.startSha, workspaceId);
+    // Dispatch historical sources directly so chained replay never verifies the same report twice.
+    if (!start.privateShopeeSource) return this.readInsightSourceContext(workspaceId, runId, pairId);
     const verified = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId, true);
-    if (!verified.verifiedPrivateSource) return this.readInsightSourceContext(workspaceId, runId, pairId);
+    if (!verified.verifiedPrivateSource) throw new ResearchAutomationConflictError('invalid_state', 'This exact report has no verified private review source.');
     if (!verified.scopeSha256 || verified.verifiedNative || verified.verifiedLocated)
       throw new ResearchAutomationIntegrityError('Private coding context has inconsistent source lineage.');
     const privateSource = structuredClone(verified.verifiedPrivateSource);

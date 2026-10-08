@@ -42,9 +42,11 @@ export default function InsightCrosscheckPanel({ run, view, ownerToken, block, r
   // A verified retained selection needs no current second-model configuration or latest-proposal choice.
   const reportGate = block ?? (!ownerToken ? 'Cần khóa OWNER để tạo báo cáo nháp.' : null);
   const open = () => {
+    const sourceBinding = view.context.binding;
+    if (sourceBinding.sourceKind === 'PRIVATE_SHOPEE') return;
     if (gate || busy || inFlight.current || !proposal || proposal.request.contractVersion !== 'insight-coding-default-propose-v1' || !availability?.secondConfigurationSha256) return;
     const seed = [...crypto.getRandomValues(new Uint8Array(32))].map(byte => byte.toString(16).padStart(2, '0')).join('');
-    setConfirm({ contractVersion: 'insight-crosscheck-request-v1', requestKey: crypto.randomUUID(), binding: structuredClone(view.context.binding),
+    setConfirm({ contractVersion: 'insight-crosscheck-request-v1', requestKey: crypto.randomUUID(), binding: structuredClone(sourceBinding),
       firstProposalId: proposal.evidenceId, firstProposalSha256: proposal.sha256, codebookSha256: proposal.request.codebookSha256, seed,
       secondConfigurationSha256: availability.secondConfigurationSha256 });
   };

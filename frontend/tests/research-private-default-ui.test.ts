@@ -77,6 +77,8 @@ test('mounted OWNER private default flow sends v2 without adoption and exact ret
       reportBlock: null, onBusyChanged: () => {}, onActivityChanged: () => {} })));
     await until(() => dom.container.textContent!.includes('Tạo đề xuất AI mặc định'));
     assert.equal(posts.length, 0);
+    assert.ok(dom.container.textContent!.includes('Chưa hỗ trợ kiểm chéo cho nguồn riêng này.'));
+    assert.equal(dom.container.querySelector('.ic-crosscheck'), null);
     assert.equal([...dom.container.querySelectorAll('button')].find(item => item.textContent === 'Soạn quy tắc mã hóa')!.disabled, true);
     await click('Tạo đề xuất AI mặc định'); assert.equal(posts.length, 0); await click('Gọi model và lưu đề xuất');
     await until(() => dom.container.textContent!.includes('Thử lại đúng yêu cầu mặc định'));
@@ -88,5 +90,26 @@ test('mounted OWNER private default flow sends v2 without adoption and exact ret
     await until(() => activity === 1);
     assert.deepEqual(posts[2].defaultInsight, { contractVersion: 'insight-default-draft-select-v1', proposalId: id(12), proposalSha256: 'e'.repeat(64) });
     assert.equal(calls, 1);
+  } finally { await act(async () => root.unmount()); globalThis.fetch = original; dom.cleanup(); }
+});
+
+test('standalone historical crosscheck child cannot confirm or dispatch from a private binding', async () => {
+  const f = fixture(), dom = setupDom(), original = globalThis.fetch; let posts = 0;
+  globalThis.fetch = (async (_url, init) => {
+    if (init?.method === 'POST') posts++;
+    return response({ error: { message: 'Private crosscheck is unsupported' } }, 400);
+  }) as typeof fetch;
+  const { createRoot } = await import('react-dom/client');
+  const { default: Panel } = await tsImport('../src/research-automation/InsightCrosscheckPanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/InsightCrosscheckPanel');
+  const root = createRoot(dom.container);
+  try {
+    await act(async () => root.render(createElement(Panel, { run: { workspaceId, runId } as ResearchAutomationRun,
+      view: f.view as unknown as import('../src/research-automation/insight-coding-ui').View, ownerToken: 'synthetic', block: null, reportBlock: null,
+      inFlight: { current: false }, onBusyChanged: () => {}, onActivityChanged: () => {} })));
+    await act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
+    const button = [...dom.container.querySelectorAll('button')].find(item => item.textContent === 'Xem lại mẫu cho model thứ hai');
+    assert.ok(button); assert.equal(button.disabled, true);
+    await act(async () => button.click());
+    assert.equal(document.querySelector('[role="dialog"]'), null); assert.equal(posts, 0);
   } finally { await act(async () => root.unmount()); globalThis.fetch = original; dom.cleanup(); }
 });

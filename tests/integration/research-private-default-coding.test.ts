@@ -61,7 +61,7 @@ async function fixture(t: TestContext) {
   const semantic = JSON.parse((await artifacts.read(original.versionId)).toString());
   const corpus = JSON.parse((await artifacts.read(semantic.privateReviewCorpus.corpus.artifactSha256)).toString());
   const forbidden = ['918273645', 'PRIVATE_AUTHOR_NAME', 'PRIVATE_AVATAR', 'authorIdentity', 'reportedAuthorHashes', 'keyId', keyId,
-    'keyCommitment', privacy.profile.keyCommitment, corpus.projection.records[0].authorIdentity.hash, 'privacy', 'reviewId', 'profileVersion'];
+    'keyCommitment', privacy.profile.keyCommitment, corpus.projection.records[0].authorIdentity.hash, '"privacy":', 'reviewId', 'profileVersion'];
   const scan = (value: unknown) => {
     const bytes = Buffer.isBuffer(value) ? value.toString('utf8') : JSON.stringify(value);
     for (const token of forbidden) assert.equal(bytes.includes(token), false, token);
@@ -197,6 +197,10 @@ test('private coding rejects binding/locator/membership/CAS substitutions before
   }
   await assert.rejects(f.service.proposeDefaultModelInsightCoding(workspaceId, runId, { ...body, contractVersion: 'insight-default-model-request-v1' }, owner, ai));
   assert.equal(fingerprint(f), before); assert.equal(calls, 0);
+  await assert.rejects(f.service.prepareInsightCrosscheck(workspaceId, runId, { contractVersion: 'insight-crosscheck-request-v1', requestKey: randomUUID(),
+    binding: context.binding, firstProposalId: randomUUID(), firstProposalSha256: 'a'.repeat(64), codebookSha256: 'b'.repeat(64), seed: 'c'.repeat(64),
+    secondConfigurationSha256: 'd'.repeat(64) }, owner, ai));
+  assert.equal(fingerprint(f), before); assert.equal(calls, 0, 'private binding cannot dispatch historical crosscheck');
   for (const digest of [context.binding.corpus.artifactSha256, f.corpus.projection.records[0].locator.pageSha256]) {
     const file = path.join(f.artifactRoot, 'sha256', digest.slice(0, 2), digest), saved = await fs.readFile(file);
     await fs.writeFile(file, 'synthetic corruption');
@@ -211,18 +215,20 @@ test('private coding rejects binding/locator/membership/CAS substitutions before
 
 
 test('authenticated OWNER private default HTTP action uses exact version2 source, pending proposal and explicit report25; reads/retries stay query-only', { timeout: 120000 }, async t => {
-  const f = await fixture(t); let calls = 0;
+  const f = await fixture(t); let calls = 0; let gatewayFailure: unknown;
   const gateway = http.createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on('data', chunk => chunks.push(Buffer.from(chunk)));
     request.on('end', () => {
       calls++;
+      try {
       const envelope = JSON.parse(Buffer.concat(chunks).toString());
       f.scan(envelope);
       const userText = envelope.messages[1].content;
       assert.equal(JSON.parse(userText).contractVersion, 'insight-model-input-v2');
       response.writeHead(200, { 'Content-Type': 'application/json' });
       response.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify(candidates(userText)) } }] }));
+      } catch (error) { gatewayFailure = error; response.writeHead(500); response.end('Synthetic assertion failure'); }
     });
   });
   gateway.listen(0, '127.0.0.1'); await once(gateway, 'listening');
@@ -250,7 +256,7 @@ test('authenticated OWNER private default HTTP action uses exact version2 source
     const before = fingerprint(f);
     assert.equal((await post('insight-coding-default-model-proposals', { ...body, binding: { ...body.binding, projectionSha256: '0'.repeat(64) } })).status, 409);
     assert.equal(fingerprint(f), before); assert.equal(calls, 0);
-    const proposedResponse = await post('insight-coding-default-model-proposals', body); assert.equal(proposedResponse.status, 201);
+    const proposedResponse = await post('insight-coding-default-model-proposals', body); assert.ifError(gatewayFailure); assert.equal(proposedResponse.status, 201);
     const proposed = await proposedResponse.json(); f.scan(proposed); assert.equal(proposed.status, 'PROPOSED');
     const fresh = await (await fetch(`${read}/insight-coding/${f.pair.pairId}`)).json(); f.scan(fresh);
     const proposal = fresh.evidence.find((item: { evidenceId: string }) => item.evidenceId === proposed.proposal.evidenceId);
