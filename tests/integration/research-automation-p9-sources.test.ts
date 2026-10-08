@@ -17,6 +17,7 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { AutomationKalodataVideoIntake } from '../../src/modules/analysis/research-automation/kalodata-video-intake.js';
+import { prepareVideoReading } from '../../src/modules/analysis/research-automation/video-reading-intake.js';
 import { p9PackagePrefix, P9PublicationArtifactStore } from '../../src/modules/analysis/research-automation/p9-source-intake.js';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import { ApifyTikTokCommentsCollector, createTikTokCommentPrivacy, type TikTokCommentsTransport } from '../../src/platform/collectors/apify-tiktok-comments.js';
@@ -367,4 +368,120 @@ test('actual authenticated OWNER P4 upload/selection/comment and S14 routes expo
   assert.equal(readingCard.state, 'MANUAL_IMPORT'); assert.equal(readingCard.dataCount, 1);
   assert.equal(board.sources.find(card => card.source === 'META_AD_LIBRARY')!.state, 'NOT_BUILT');
   assert.deepEqual(f.calls(), calls); assert.deepEqual(f.db.serialize(), before);
+});
+
+
+test('S14 complete-package budget refuses manifest-overhead overflow without poisoning retained history', async t => {
+  const f = await fixture(t);
+  const selected = await f.packages.readVerified(f.selected.packageId);
+  const selection = JSON.parse(selected.files.find(file => file.path === 'selection.json')!.bytes.toString());
+  const binding = { workspaceId, runId, scopeSha256: selection.scopeSha256,
+    sourceSetSha256: selection.sourceSetSha256, selectionSha256: hash(canonicalJson(selection)) };
+  function reading(logicalBytes: number) {
+    const frame = Buffer.alloc(8 * 1024 * 1024, 61);
+    const request = { contractVersion: 'video-reading-prepare-request-v1', requestKey: randomUUID(),
+      expectedRevision: f.request.expectedRevision, selectionPackage: f.selected,
+      input: { videoUrl: url(1000), videoKind: 'SELLER_VIDEO' as const, durationSeconds: 20,
+        segments: [{ startSeconds: 0, endSeconds: 1, text: 'literal synthetic frame-bound source', captionSource: 'NATIVE' as const }],
+        onScreenText: [], frames: Array.from({ length: 16 }, (_, i) => ({ atSeconds: i,
+          logicalPath: `frames/frame_${i}.png`, sha256: hash(frame) })) } };
+    const frames = new Map(request.input.frames.map(file => [file.logicalPath, frame]));
+    const prepared = prepareVideoReading(request.input, frames, binding);
+    const overhead = Buffer.byteLength(canonicalJson(request)) + prepared.bytes.byteLength;
+    const last = Buffer.alloc(logicalBytes - 15 * frame.length - overhead, 62);
+    request.input.frames.at(-1)!.sha256 = hash(last); frames.set(request.input.frames.at(-1)!.logicalPath, last);
+    assert.equal([...frames.values()].reduce((n, value) => n + value.byteLength, 0) +
+      Buffer.byteLength(canonicalJson(request)) + prepareVideoReading(request.input, frames, binding).bytes.byteLength, logicalBytes);
+    return { request, frames };
+  }
+  const smallFrame = Buffer.from('earlier retained frame');
+  const earlierRequest = { contractVersion: 'video-reading-prepare-request-v1', requestKey: randomUUID(),
+    expectedRevision: f.request.expectedRevision, selectionPackage: f.selected,
+    input: { videoUrl: url(1000), videoKind: 'SELLER_VIDEO', durationSeconds: 20,
+      segments: [{ startSeconds: 0, endSeconds: 1, text: 'earlier retained source', captionSource: 'NATIVE' }],
+      onScreenText: [], frames: [{ atSeconds: 0, logicalPath: 'frames/earlier.png', sha256: hash(smallFrame) }] } };
+  const earlier = await f.service.prepareP9VideoReading(workspaceId, runId, earlierRequest,
+    new Map([['frames/earlier.png', smallFrame]]));
+  const earlierRead = await f.service.readP9Source(workspaceId, runId, 'reading', earlier.package.packageId);
+  const history = await f.service.readP9SourceHistory(workspaceId, runId);
+  const activity = await f.service.readSourceActivity(workspaceId);
+  const reports = await Promise.all(['MARKET', 'INSIGHT'].map(kind => f.service.readReport(workspaceId, runId, kind as 'MARKET' | 'INSIGHT')));
+  const before = Buffer.from(f.db.serialize()), changes = f.db.prepare('SELECT total_changes() n').get(), calls = f.calls();
+  const casFilesBefore = new Set(await fs.readdir(f.artifactRoot, { recursive: true }));
+  const orphanPuts: string[] = [], put = f.artifacts.put.bind(f.artifacts);
+  f.artifacts.put = async value => { orphanPuts.push(hash(value)); return put(value); };
+  const overflow = reading(128 * 1024 * 1024);
+  await assert.rejects(f.service.prepareP9VideoReading(workspaceId, runId, overflow.request, overflow.frames));
+  assert.equal(f.packages.findFinalizedSourcePackagesByKey(p9PackagePrefix(runId, 'reading') + overflow.request.requestKey).length, 0);
+  assert.deepEqual(f.db.serialize(), before); assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changes);
+  assert.deepEqual(await f.service.readP9SourceHistory(workspaceId, runId), history);
+  assert.deepEqual(await f.service.readSourceActivity(workspaceId), activity);
+  assert.deepEqual(await f.service.readP9Source(workspaceId, runId, 'reading', earlier.package.packageId), earlierRead);
+  assert.deepEqual(f.calls(), calls);
+  const expectedMemberDigests = [hash(canonicalJson(overflow.request)),
+    hash(prepareVideoReading(overflow.request.input, overflow.frames, binding).bytes), ...[...overflow.frames.values()].map(hash)];
+  assert.deepEqual(orphanPuts.sort(), expectedMemberDigests.sort());
+  const orphanFiles = (await fs.readdir(f.artifactRoot, { recursive: true })).filter(name => !casFilesBefore.has(name) && /sha256\/[a-f0-9]{2}\/[a-f0-9]{64}$/.test(name));
+  assert.ok(orphanFiles.every(name => expectedMemberDigests.includes(path.basename(name))));
+  console.log(JSON.stringify({ refusedLogicalBytes: 128 * 1024 * 1024, sanitizedMemberPuts: orphanPuts.length,
+    uncatalogedMemberOrphans: orphanFiles.length, finalizedPackages: 0, databaseChanges: 0 }));
+  const oversizedFrame = Buffer.alloc(32 * 1024 * 1024 + 1, 63);
+  const oversizedRequest = { ...earlierRequest, requestKey: randomUUID(), input: { ...earlierRequest.input,
+    frames: [{ atSeconds: 0, logicalPath: 'frames/oversized.png', sha256: hash(oversizedFrame) }] } };
+  orphanPuts.length = 0;
+  await assert.rejects(f.service.prepareP9VideoReading(workspaceId, runId, oversizedRequest, new Map([['frames/oversized.png', oversizedFrame]])));
+  assert.equal(orphanPuts.length, 0); assert.deepEqual(f.db.serialize(), before);
+  f.artifacts.put = put;
+  // Repeated identical frame digests at different logical paths still consume their full logical byte sizes.
+  const bounded = reading(127 * 1024 * 1024);
+  const receipt = await f.service.prepareP9VideoReading(workspaceId, runId, bounded.request, bounded.frames);
+  const retained = await f.packages.readVerified(receipt.package.packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
+  const manifest = await f.artifacts.read(receipt.package.manifestArtifactSha256);
+  assert.ok(manifest.length <= 32 * 1024 * 1024);
+  assert.ok(manifest.length + retained.files.reduce((n, file) => n + file.bytes.length, 0) <= 128 * 1024 * 1024);
+  assert.equal(retained.files.filter(file => file.sha256 === retained.files.find(item => item.path === 'frames/frame_0.png')!.sha256).length, 15);
+  const read = await f.service.readP9Source(workspaceId, runId, 'reading', receipt.package.packageId);
+  const after = Buffer.from(f.db.serialize()), afterChanges = f.db.prepare('SELECT total_changes() n').get();
+  const cas = async () => Promise.all((await fs.readdir(f.artifactRoot, { recursive: true })).sort().map(async name => {
+    const file = path.join(f.artifactRoot, name); return [name, (await fs.stat(file)).isFile() ? hash(await fs.readFile(file)) : null];
+  }));
+  const casBefore = await cas();
+  f.db.pragma('query_only = ON');
+  f.artifacts.put = async () => { throw new Error('budget retry wrote CAS'); };
+  const cold = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts,
+    now: () => { throw new Error('budget retry consulted clock'); },
+    workspaceReader: { readVerifiedWorkspace: async () => { throw new Error('budget retry consulted current workspace'); } } });
+  assert.equal((await cold.prepareP9VideoReading(workspaceId, runId, bounded.request, bounded.frames)).exactRetry, true);
+  assert.deepEqual(await cold.readP9Source(workspaceId, runId, 'reading', receipt.package.packageId), read);
+  assert.equal((await cold.readP9SourceHistory(workspaceId, runId)).readings.sources.length, 2);
+  assert.deepEqual(await Promise.all(['MARKET', 'INSIGHT'].map(kind => cold.readReport(workspaceId, runId, kind as 'MARKET' | 'INSIGHT'))), reports);
+  assert.deepEqual(f.db.serialize(), after); assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), afterChanges);
+  assert.deepEqual(await cas(), casBefore); assert.deepEqual(f.calls(), calls);
+  const child = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-e', `
+    import assert from 'node:assert/strict';
+    import Database from 'better-sqlite3';
+    import { createHash } from 'node:crypto';
+    import { canonicalJson } from './src/modules/foundation/canonical-json.js';
+    import { ContentAddressedArtifactStore } from './src/platform/artifacts/artifact-store.js';
+    import { ResearchAutomationService } from './src/modules/analysis/research-automation/service.js';
+    import { SourcePackageService } from './src/modules/foundation/source-package-service.js';
+    const [dbPath, artifactRoot, workspace, run, packageId, requestJson, expectedViewDigest] = process.argv.slice(1);
+    const db = new Database(dbPath, { readonly: true, fileMustExist: true }); db.defaultSafeIntegers(true); db.pragma('query_only = ON');
+    const artifacts = new ContentAddressedArtifactStore(artifactRoot); artifacts.put = async () => { throw new Error('cold CAS write'); };
+    const service = new ResearchAutomationService({ db, artifactStore: artifacts,
+      now: () => { throw new Error('cold clock'); }, workspaceReader: { readVerifiedWorkspace: async () => { throw new Error('cold workspace'); } } });
+    try {
+      const before = Buffer.from(db.serialize()), changes = db.prepare('SELECT total_changes() n').get();
+      const p = await new SourcePackageService({ db, artifactStore: artifacts }).readVerified(packageId);
+      const frames = new Map(p.files.filter(file => file.path.startsWith('frames/')).map(file => [file.path, file.bytes]));
+      assert.equal((await service.prepareP9VideoReading(workspace, run, JSON.parse(requestJson), frames)).exactRetry, true);
+      const read = await service.readP9Source(workspace, run, 'reading', packageId);
+      assert.equal(createHash('sha256').update(canonicalJson(read)).digest('hex'), expectedViewDigest);
+      assert.equal((await service.readP9SourceHistory(workspace, run)).readings.sources.length, 2);
+      assert.deepEqual(db.serialize(), before); assert.deepEqual(db.prepare('SELECT total_changes() n').get(), changes);
+      console.log('fresh cold S14 budget replay/retry: no configured transports, clock or writes');
+    } finally { db.close(); }
+  `, f.databasePath, f.artifactRoot, workspaceId, runId, receipt.package.packageId, JSON.stringify(bounded.request), hash(canonicalJson(read))], { encoding: 'utf8' });
+  assert.equal(child.status, 0, child.stderr + child.stdout);
+  assert.deepEqual(await cas(), casBefore);
 });

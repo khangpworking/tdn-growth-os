@@ -98,8 +98,8 @@ export class AutomationP9SourceIntake {
   }
   async #store(binding: TikTokVideoSelectionBinding, kind: PackageKind, requestKey: string,
     files: ReadonlyMap<string, Uint8Array>, acquiredAt: string | null = null) {
-    // Never finalize a package that the same declared bounded reader cannot
-    // reopen. Refusal preserves the sample; no text truncation or sampling.
+    // Refuse oversized members early; Foundation checks its exact finalized
+    // canonical manifest plus every logical member before publication.
     if ([...files.values()].some(value => value.byteLength > BUDGET.maxFileBytes) ||
       [...files.values()].reduce((total, value) => total + value.byteLength, 0) > BUDGET.maxTotalBytes) fail();
     const input: SourcePackageIntakeRequest = { contractVersion: '1.0.0', packageKey: p9PackagePrefix(binding.runId, kind) + requestKey,
@@ -109,13 +109,13 @@ export class AutomationP9SourceIntake {
         evidenceFamily: `p9-${kind}-v1`, representationRole: 'derived', independence: 'non_independent',
         providerProvenance: 'operator_supplied_unverified', provenanceBasis: 'Explicit Analysis-owned P9 source intake; bounded sanitized evidence or operator reading, not provider authenticity, people, release approval or complete platform coverage.' })) as SourcePackageIntakeRequest['files'] };
     const result = kind === 'diagnostic'
-      ? await this.options.publishDiagnostic(() => this.options.diagnostics.intakeAutomationAttachment(input, files, sha(bytes(binding))))
+      ? await this.options.publishDiagnostic(() => this.options.diagnostics.intakeAutomationAttachment(input, files, sha(bytes(binding)), BUDGET))
       : await this.options.publish(async () => {
         // Check under the owning mutation mutex too: two configured service
         // instances must not both treat an idempotent intent write as a new
         // paid dispatch permission.
         if (kind === 'intent' && await this.#lookup(input.packageKey)) fail();
-        return this.#packages.intakeAutomationAttachment(input, files, sha(bytes(binding)));
+        return this.#packages.intakeAutomationAttachment(input, files, sha(bytes(binding)), BUDGET);
       });
     return this.#reader.readFinalizedSourcePackage(result.packageId, BUDGET);
   }

@@ -127,14 +127,16 @@ export class SourcePackageService {
   }
 
   /** Only the server attachment owner supplies this binding; ordinary intake cannot acquire this origin. */
-  async intakeAutomationAttachment(untrustedInput: unknown, supplied: ReadonlyMap<string, Uint8Array> | readonly { path: string; bytes: Uint8Array }[], bindingSha256: string): Promise<SourcePackageIntakeResult> {
+  async intakeAutomationAttachment(untrustedInput: unknown, supplied: ReadonlyMap<string, Uint8Array> | readonly { path: string; bytes: Uint8Array }[], bindingSha256: string, readBudget?: SourcePackageReadBudget): Promise<SourcePackageIntakeResult> {
     if (this.#artifacts instanceof RequestScopedArtifactStore) this.#artifacts.assertOwnership();
     if (typeof bindingSha256 !== 'string' || !/^[0-9a-f]{64}$/.test(bindingSha256))
       throw new FoundationValidationError('Invalid attachment origin binding');
-    return this.#intake(untrustedInput, supplied, bindingSha256);
+    // A trusted caller may require that the finalized package is readable under
+    // its existing limits. Copy the policy before any awaited artifact put.
+    return this.#intake(untrustedInput, supplied, bindingSha256, readBudget === undefined ? undefined : { ...readBudget });
   }
 
-  async #intake(untrustedInput: unknown, supplied: ReadonlyMap<string, Uint8Array> | readonly { path: string; bytes: Uint8Array }[], bindingSha256?: string): Promise<SourcePackageIntakeResult> {
+  async #intake(untrustedInput: unknown, supplied: ReadonlyMap<string, Uint8Array> | readonly { path: string; bytes: Uint8Array }[], bindingSha256?: string, readBudget?: SourcePackageReadBudget): Promise<SourcePackageIntakeResult> {
     const input = validateSourcePackageIntakeRequest(untrustedInput);
     const files = [...input.files].sort((a, b) => a.path < b.path ? -1 : a.path > b.path ? 1 : 0);
     for (const file of files) {
@@ -155,6 +157,11 @@ export class SourcePackageService {
       if (bytes.byteLength !== file.byteSize || sha256(bytes) !== file.sha256) throw new FoundationValidationError(`Exact-byte digest/size mismatch: ${file.path}`);
     }
 
+    if (readBudget) {
+      assertReadBudget(readBudget);
+      assertPackageReadBudget(readBudget, files.map(file => BigInt(file.byteSize)));
+    }
+
     const semantic = { ...input, files } as SourcePackageIntakeRequest;
     const packageContentSha256 = contentDigest(files);
     const requestSha256 = sha256(Buffer.from(canonicalJson(semantic)));
@@ -170,10 +177,10 @@ export class SourcePackageService {
       ) throw new SourcePackageRequestConflictError();
       if (bindingSha256 !== undefined) {
         if (this.#artifacts instanceof RequestScopedArtifactStore) {
-          await this.#recoverAutomationAttachment(existing, input, files, bytesByPath, semantic, packageContentSha256, bindingSha256);
+          await this.#recoverAutomationAttachment(existing, input, files, bytesByPath, semantic, packageContentSha256, bindingSha256, readBudget);
         } else {
-          await this.readVerified(existing.packageId);
-          const origin = await this.readAutomationAttachmentOrigin(existing.packageId);
+          await this.readVerified(existing.packageId, readBudget);
+          const origin = await this.readAutomationAttachmentOrigin(existing.packageId, readBudget);
           if (!origin || origin.bindingSha256 !== bindingSha256 || origin.manifestArtifactSha256 !== existing.manifestArtifactSha256)
             throw new FoundationIdentityConflictError('Attachment origin differs from its original intake');
         }
@@ -189,7 +196,9 @@ export class SourcePackageService {
     const finalizedAt = this.#now().toISOString();
     const manifest: SourcePackageManifest = { ...semantic, packageId, finalizedAt, packageContentSha256 };
     validateSourcePackageManifest(manifest);
-    const manifestStored = await this.#artifacts.put(Buffer.from(canonicalJson(manifest)));
+    const manifestBytes = Buffer.from(canonicalJson(manifest));
+    if (readBudget) assertPackageReadBudget(readBudget, [BigInt(manifestBytes.byteLength), ...files.map(file => BigInt(file.byteSize))]);
+    const manifestStored = await this.#artifacts.put(manifestBytes);
 
     const transaction = this.#db.transaction(() => {
       let mutations = 0;
@@ -228,6 +237,7 @@ export class SourcePackageService {
     semantic: SourcePackageIntakeRequest,
     packageContentSha256: string,
     bindingSha256: string,
+    readBudget?: SourcePackageReadBudget,
   ): Promise<void> {
     if (existing.packageKey !== input.packageKey || Number(existing.version) !== input.version ||
         existing.sourceLabel !== input.sourceLabel || existing.sourceAcquiredAt !== input.sourceAcquiredAt ||
@@ -274,6 +284,8 @@ export class SourcePackageService {
       throw new FoundationIdentityConflictError('Source package manifest differs from its immutable intake');
     }
 
+    if (readBudget) assertPackageReadBudget(readBudget, [BigInt(manifestBytes.byteLength), ...files.map(file => BigInt(file.byteSize))]);
+
     // Validate every persisted manifest field before staging anything. The
     // acquired_at/created_at values belong to first storage and are therefore
     // intentionally not compared with this package's finalizedAt.
@@ -295,8 +307,8 @@ export class SourcePackageService {
     // This reads staged bytes through RequestScopedArtifactStore and verifies
     // package, manifest, exact membership/request identity, and origin before
     // the caller decides whether to publishOwned(). No database writes occur.
-    await this.readVerified(existing.packageId);
-    const verifiedOrigin = await this.readAutomationAttachmentOrigin(existing.packageId);
+    await this.readVerified(existing.packageId, readBudget);
+    const verifiedOrigin = await this.readAutomationAttachmentOrigin(existing.packageId, readBudget);
     if (!verifiedOrigin || verifiedOrigin.bindingSha256 !== bindingSha256 ||
         verifiedOrigin.manifestArtifactSha256 !== existing.manifestArtifactSha256) {
       throw new FoundationIdentityConflictError('Attachment origin differs from its original intake');
