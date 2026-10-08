@@ -1,0 +1,33 @@
+# Generated, vendored or private material. OpenWiki reads everything else.
+node_modules/
+dist/
+frontend/dist/
+build/
+coverage/
+.codegraph/
+.worktrees/
+artifacts/
+runtime/
+data/private/
+observations/inbox/
+evals/results/
+experiments/*/out/
+playwright-report/
+test-results/
+*.sqlite
+*.db
+*.log
+# Generated files: the schemas they come from are the source.
+contracts/**/*.generated.ts
+frontend/src/generated/
+# Older plans are historical, not the current baseline (ARCHITECTURE.md).
+references/history/
+# Images and screenshots.
+**/*.png
+**/*.jpg
+**/*.jpeg
+docs/frontend/
+docs/handoffs/*screenshots/
+tests/fixtures/content-images/
+# Lockfile.
+package-lock.json
