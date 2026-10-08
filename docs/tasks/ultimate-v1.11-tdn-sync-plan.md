@@ -1,6 +1,12 @@
-# Plan: bring TDN in line with Ultimate v1.11, and show the approved data sources on the source board
+# Plan: bring TDN in line with Ultimate v1.12, and show the approved data sources on the source board
 
-Updated: 2026-10-08 · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.11](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.7 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
+> **Implementation coordination update (2026-10-08):** Operative sources are Ultimate v1.12 and registry v1.9; the filename and original audit references below are retained for traceability. Shared schemas/generated outputs have one explicitly leased writer. SYNC-1 owns reader/M05 methods; SYNC-3 owns draft/Insight defaults and `reports.ts`; SYNC-6 owns source-board/history integration. Shared service/config and later Insight work are serialized. SYNC-7 depends on SYNC-1, SYNC-3 and SYNC-4 label contracts. Package handoffs and exact-head review/CI evidence determine completion, not these assignments.
+>
+> U-32 positive cross-platform totals remain **ESCALATED** pending reconciliation with R3/L5; implement per-platform correction only. U-26 revision/recollection/admission policy and U-11 family-level multi-code κ remain **ESCALATED**. Staging/provider execution under U-40 is not authorized in this implementation wave. Existing PageIndex owner POST remains unchanged: only GET is configuration/history-only, and account/global totals must be labelled separately from workspace activity. B1 contains **11 cards**; Trends is an operation in the SerpApi card.
+>
+> Task-specific authority permits the coordinator to merge only these implementation PRs after independent review and passing exact-head CI, using the normal repository method and `--match-head-commit`. Deployment, cap changes, bypass and unrelated PRs remain outside this authority. Historical baseline test failures do not waive the CI gate.
+
+Updated: 2026-10-08 · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.12](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.9 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
 
 This file is a plan with checklists. It does not assign work to agents; the owner splits it. When an item is split into a package, keep its ID (`U-..`, `B-..`) so the handoff can report it.
 
@@ -118,7 +124,7 @@ Where things live:
 ### A0. Preconditions
 
 - [x] U-00 Merge P1 (#143) and P2 (#140). Done 2026-10-08: reviewed heads `051af2c` and `1adae54` are on main, and main CI passed on `5152240`. Everything in A1–A3 that edits `reports.ts` or `market-template.ts` starts from fresh `main`.
-- [ ] U-00b Add a pointer at the top of `docs/research/section-methods-v1/index.md` and of the recipes that conflict (I02/D06 personas, I01 owner question, I11 group policy, M07 peers, M12 owner choice): "Superseded by Ultimate v1.11 where they differ" with the rule ID. Docs only.
+- [x] U-00b Add a pointer at the top of `docs/research/section-methods-v1/index.md` and of the recipes that conflict (I02/D06 personas, I01 owner question, I11 group policy, M07 peers, M12 owner choice): "Superseded by Ultimate v1.12 where they differ" with the rule ID. Docs only; notices added to the index and I02/I01/I11/M07/M12 recipes, with no runtime-completion claim.
 
 ### A1. Remove the conflicts (code does what the rules forbid)
 
@@ -360,7 +366,7 @@ Suggested order:
 
 ### Ready-made groups (wave 1)
 
-The groups below do not share files, so they can run in parallel. Later groups (A3, A4, A5) start after these merge.
+The table below lists primary paths only; integration paths and shared generated outputs overlap and require explicit ownership and serialization. Later groups (A3, A4, A5) start after these merge.
 
 | Group | Items | Branch | Main files |
 |---|---|---|---|
