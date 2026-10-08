@@ -189,7 +189,18 @@ const SECTION_LEAD: Readonly<Record<LocatedId, string>> = {
 
 function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
   const section = ctx.output.sections[sectionId];
-  let body = `<p class="sec-note">${SECTION_LEAD[sectionId]}</p><p>${section.locatedRecordCount} bản ghi có mã hóa được hồ sơ đưa vào kết quả${ctx.showAnnotationPendingCount ? `; ${section.pendingAnnotationPointers.length} chú giải đang chờ xử lý` : ''}. Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
+  let body = `<p class="sec-note">${SECTION_LEAD[sectionId]}</p>`;
+  if (draftMode(section) && 'draftAnnotationPointers' in section) {
+    // Draft mode: the leading totals ARE the eligible draft numbers with the
+    // same-sentence label, including zero. No competing unlabelled accepted
+    // totals precede them.
+    const pointers = section.draftAnnotationPointers ?? [];
+    const label = 'draftLabel' in section ? section.draftLabel ?? 'đề xuất, chờ chủ duyệt' : 'đề xuất, chờ chủ duyệt';
+    const count = 'draftLocatedRecordCount' in section ? section.draftLocatedRecordCount ?? pointers.length : pointers.length;
+    body += `<p>${count} bản ghi (${label}). Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
+  } else {
+    body += `<p>${section.locatedRecordCount} bản ghi có mã hóa được hồ sơ đưa vào kết quả${ctx.showAnnotationPendingCount ? `; ${section.pendingAnnotationPointers.length} chú giải đang chờ xử lý` : ''}. Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
+  }
   if (sectionId === 'I05' && ctx.output.sections.I05.recordPolarities.length) {
     const polarities = ctx.output.sections.I05.recordPolarities;
     body += table('Sắc thái theo bản ghi, không quy đổi thành tỷ lệ', ['Bản ghi nguồn', 'Sắc thái khai báo'], polarities.slice(0, PAGE_LIMIT).map(item => {
@@ -215,12 +226,12 @@ function draftMode(section: { readonly annotationPointers: readonly string[]; re
  * Version-gated draft display: the shown totals ARE the mixed eligible draft
  * counts with the same-sentence label, including zero. Accepted-only numbers
  * are not shown as competing totals; disagreements stay in the pending list.
+ * The leading count line is rendered by the caller; this renders the table.
  */
 function draftSummaryTable(ctx: RenderContext, sectionId: LocatedId, section: { readonly annotationPointers: readonly string[]; readonly pendingAnnotationPointers: readonly string[]; readonly draftAnnotationPointers?: readonly string[]; readonly draftLocatedRecordCount?: number; readonly draftLabel?: string }): string {
   const pointers = section.draftAnnotationPointers ?? [];
   const label = section.draftLabel ?? 'đề xuất, chờ chủ duyệt';
-  const count = section.draftLocatedRecordCount ?? pointers.length;
-  return `<p>${count} bản ghi (${label}).</p>` + table(`Chú giải ${label} (${pointers.length})`,
+  return table(`Chú giải ${label} (${pointers.length})`,
     ['Nội dung đề xuất', 'Nguồn và ngữ cảnh'],
     pointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer))) +
     sliceNote(ctx, pointers.length, 'chú giải đề xuất');

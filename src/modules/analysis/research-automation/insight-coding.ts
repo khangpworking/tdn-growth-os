@@ -314,6 +314,8 @@ export class AutomationInsightCoding {
    * Explicit exact proposal with zero receipts. Nothing is selected, admitted
    * or approved: the composed input keeps retained PENDING_AI provenance, and
    * the draft flag emits labelled draft counts through the owned builder.
+   * The derived computation input explicitly selects current method semantics;
+   * retained evidence, binding and provenance are never rewritten.
    */
   async resolveDraftProposal(workspaceId: string, runId: string, proposalId: string) {
     const sourceReads: SourceReads = new Map();
@@ -323,6 +325,7 @@ export class AutomationInsightCoding {
     if (adoption.request.contractVersion !== 'insight-coding-adopt-v1') corrupt();
     const context = await this.context(workspaceId, runId, proposal.binding.pairId, sourceReads);
     const input = this.compose(context, adoption.request, proposal.request);
+    input.semanticsVersion = '1.1.0';
     input.draftCountsVersion = 'draft-counts-v1';
     const { output } = buildLocatedInsightMethods(input);
     return { binding: proposal.binding, adoption, proposal, receipts: [] as InsightCodingEvidence[], output };

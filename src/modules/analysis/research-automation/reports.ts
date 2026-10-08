@@ -228,8 +228,12 @@ function corpusTraceSection(trace: CorpusTrace, sectionId: 'I03' | 'I17', citati
 type CodingFamily = 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09' | 'I10' | 'I13';
 const codingFamilies: readonly CodingFamily[] = ['I06', 'I09', 'I10', 'I13'];
 const semanticCodingFamilies: readonly CodingFamily[] = ['I02', 'I04', 'I05', 'I06', 'I07', 'I08', 'I09', 'I10', 'I13'];
-const usesCodingFamily = (coding: AutomationInsightCodingSnapshot | undefined, id: string): boolean =>
-  !!coding && (('selectionContractVersion' in coding && coding.selectionContractVersion === 'automation-insight-selection-v2') ? semanticCodingFamilies : codingFamilies).some(family => family === id);
+const usesCodingFamily = (coding: AutomationInsightCodingSnapshot | undefined, id: string): boolean => {
+  if (!coding) return false;
+  // Draft snapshots carry no selection version: their explicit draft marker routes all semantic families.
+  if ('draftSelection' in coding) return semanticCodingFamilies.some(family => family === id);
+  return (('selectionContractVersion' in coding && coding.selectionContractVersion === 'automation-insight-selection-v2') ? semanticCodingFamilies : codingFamilies).some(family => family === id);
+};
 const codingCaveat = 'Biên nhận chỉ ghi nhận lựa chọn trên đề xuất mã hóa. Không nâng cấp bằng chứng nguồn, không xác thực ý nghĩa, không thêm hoặc bỏ bản ghi; phần chưa chọn vẫn chờ xử lý.';
 
 function codedRecordIndex(output: LocatedInsightMethods, pointer: string): number {
@@ -259,7 +263,16 @@ function insightCodingView(coding: AutomationInsightCodingSnapshot, family: Codi
     const section = output.sections[family];
     const coded = new Set([...section.mentionPointers, ...section.corpora.flatMap(corpus => corpus.counts.flatMap(count => count.annotationPointers))].map(pointer => codedRecordIndex(output, pointer)));
     completeRatio = section.corpora.some(corpus => corpus.codingComplete && corpus.ratioStatus === 'COMPLETE');
-    const draftRecords = draft ? section.corpora.flatMap(corpus => corpus.draftCounts ?? []).reduce((sum, count) => sum + count.recordCount, 0) : 0;
+    // Draft record totals deduplicate stable source identity across codes and
+    // corpora; per-code memberships are never summed into a record count.
+    const draftKeys = draft ? new Set(
+      section.corpora.flatMap(corpus => corpus.draftCounts ?? []).flatMap(count => count.annotationPointers)
+        .map(pointer => {
+          const record = output.input.records[codedRecordIndex(output, pointer)]!;
+          return `${record.sourceSha256}${record.locator}`;
+        }),
+    ) : undefined;
+    const draftRecords = draftKeys?.size ?? 0;
     usable = coded.size > 0 || completeRatio || draftRecords > 0;
     records = draft ? draftRecords : coded.size;
     pending = [...section.pendingMentionPointers, ...section.corpora.flatMap((corpus, index) => corpus.pendingCount > 0 ? [`/sections/${family}/corpora/${index}`] : [])];
@@ -271,7 +284,7 @@ function insightCodingView(coding: AutomationInsightCodingSnapshot, family: Codi
     : blockers.length ? 'Chưa có kết quả dùng được vì hồ sơ phương pháp còn điều kiện chặn. Đây không phải kết quả bằng 0.'
     : 'Đề xuất không có mã hóa cho mục này. Không suy ra nguồn không nhắc tới nội dung đó.';
   const notice = draft
-    ? `<p class="warning">Dựa trên đề xuất mã hóa (đề xuất, chờ chủ duyệt); chưa có biên nhận chấp nhận nào. Số liệu là đề xuất AI, không phải kết quả đã duyệt; bản ghi gốc, tập mẫu và phần chờ được giữ nguyên; dấu vết đối chiếu ở <a href="#I17">I17</a>.</p><p class="sec-note">Trên màn hình hẹp, cuộn ngang bảng để xem đủ nội dung và tỷ lệ. Có thể dùng phím mũi tên khi bảng được chọn bằng Tab.</p>`
+    ? `<p class="warning">Dựa trên đề xuất mã hóa (đề xuất, chờ chủ duyệt); bản nháp này không dùng biên nhận chấp nhận. Số liệu là đề xuất AI, không phải kết quả đã duyệt; bản ghi gốc, tập mẫu và phần chờ được giữ nguyên; dấu vết đối chiếu ở <a href="#I17">I17</a>.</p><p class="sec-note">Trên màn hình hẹp, cuộn ngang bảng để xem đủ nội dung và tỷ lệ. Có thể dùng phím mũi tên khi bảng được chọn bằng Tab.</p>`
     : `<p class="warning">Dựa trên ${coding.receipts.length} biên nhận lựa chọn cho một đề xuất mã hóa. Biên nhận xác nhận lựa chọn của người dùng, không xác thực lời kể hoặc khai báo của người mã hóa. Bản ghi gốc, tập mẫu và phần chờ được giữ nguyên; dấu vết đối chiếu ở <a href="#I17">I17</a>.</p><p class="sec-note">Trên màn hình hẹp, cuộn ngang bảng để xem đủ nội dung và tỷ lệ. Có thể dùng phím mũi tên khi bảng được chọn bằng Tab.</p>`;
   return {
     usable, html: notice + renderLocatedInsightSection(output, family, { bundleDownload: false, citations })!,
@@ -283,11 +296,11 @@ function insightCodingView(coding: AutomationInsightCodingSnapshot, family: Codi
 function insightCodingTrace(coding: AutomationInsightCodingSnapshot, sectionId: 'I03' | 'I17'): string {
   const count = coding.receipts.length;
   const draft = 'draftSelection' in coding;
-  const families = ('selectionContractVersion' in coding && coding.selectionContractVersion === 'automation-insight-selection-v2' ? semanticCodingFamilies : codingFamilies);
-  if (sectionId === 'I03') return `<h3>${draft ? 'Đề xuất mã hóa (đề xuất, chờ chủ duyệt)' : 'Mã hóa đã chọn'} cho ${families.join(', ')}</h3><p>${draft ? 'Một đề xuất mã hóa theo quy tắc đã duyệt, chưa có biên nhận chấp nhận. ' : `Đã chọn một đề xuất mã hóa theo quy tắc đã duyệt, ghi bằng ${count} biên nhận. `}${codingCaveat} Dấu vết đối chiếu ở <a href="#I17">I17</a>.</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu mã hóa${draft ? ' đề xuất' : ' đã chọn'}</summary><p>Đề xuất: <code>${escape(coding.selection.proposalId)}</code>. Quy tắc đã duyệt: <code>${escape(coding.adoptionId)}</code>.</p></details>`;
+  const families = ('draftSelection' in coding) || ('selectionContractVersion' in coding && coding.selectionContractVersion === 'automation-insight-selection-v2') ? semanticCodingFamilies : codingFamilies;
+  if (sectionId === 'I03') return `<h3>${draft ? 'Đề xuất mã hóa (đề xuất, chờ chủ duyệt)' : 'Mã hóa đã chọn'} cho ${families.join(', ')}</h3><p>${draft ? 'Một đề xuất mã hóa theo quy tắc đã duyệt. Bản nháp này không dùng biên nhận chấp nhận. ' : `Đã chọn một đề xuất mã hóa theo quy tắc đã duyệt, ghi bằng ${count} biên nhận. `}${codingCaveat} Dấu vết đối chiếu ở <a href="#I17">I17</a>.</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu mã hóa${draft ? ' đề xuất' : ' đã chọn'}</summary><p>Đề xuất: <code>${escape(coding.selection.proposalId)}</code>. Quy tắc đã duyệt: <code>${escape(coding.adoptionId)}</code>.</p></details>`;
   const binding = coding.binding;
   const rows = coding.receipts.map(receipt => `<tr><td><code>${escape(receipt.receiptId)}</code></td><td><code>${escape(receipt.sha256)}</code></td></tr>`).join('');
-  return `<h3>${draft ? 'Dấu vết đề xuất mã hóa (đề xuất, chờ chủ duyệt)' : 'Dấu vết mã hóa đã chọn'}</h3><p class="warning">${codingCaveat}</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu mã hóa${draft ? ' đề xuất' : ' đã chọn'}</summary><dl><dt>Đề xuất</dt><dd><code>${escape(coding.selection.proposalId)}</code></dd><dt>SHA-256 đề xuất</dt><dd><code>${escape(coding.proposalSha256)}</code></dd><dt>Quy tắc đã duyệt</dt><dd><code>${escape(coding.adoptionId)}</code></dd><dt>Nguồn gắn</dt><dd>${binding.sourceKind === 'NATIVE' ? 'Review native của listing đã chọn' : 'Collection Shopee chính xác'}</dd><dt>SHA-256 gói nguồn</dt><dd><code>${escape(binding.sourcePackageSha256)}</code></dd><dt>SHA-256 đầu vào</dt><dd><code>${escape(binding.inputSha256)}</code></dd><dt>Cặp báo cáo nguồn</dt><dd><code>${escape(binding.pairId)}</code></dd><dt>Kết quả phương pháp</dt><dd><code>${escape(coding.output.methodOutputId)}</code></dd></dl></details>${draft ? '<p>Chưa có biên nhận chấp nhận nào được ghi cho đề xuất này.</p>' : `<details><summary>Biên nhận lựa chọn (${count})</summary><div class="table-wrap" role="region" aria-label="Biên nhận lựa chọn mã hóa" tabindex="0"><table><caption>Biên nhận lựa chọn đã lưu cho đề xuất này</caption><thead><tr><th scope="col">Mã biên nhận</th><th scope="col">SHA-256</th></tr></thead><tbody>${rows}</tbody></table></div></details>`}`;
+  return `<h3>${draft ? 'Dấu vết đề xuất mã hóa (đề xuất, chờ chủ duyệt)' : 'Dấu vết mã hóa đã chọn'}</h3><p class="warning">${codingCaveat}</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu mã hóa${draft ? ' đề xuất' : ' đã chọn'}</summary><dl><dt>Đề xuất</dt><dd><code>${escape(coding.selection.proposalId)}</code></dd><dt>SHA-256 đề xuất</dt><dd><code>${escape(coding.proposalSha256)}</code></dd><dt>Quy tắc đã duyệt</dt><dd><code>${escape(coding.adoptionId)}</code></dd><dt>Nguồn gắn</dt><dd>${binding.sourceKind === 'NATIVE' ? 'Review native của listing đã chọn' : 'Collection Shopee chính xác'}</dd><dt>SHA-256 gói nguồn</dt><dd><code>${escape(binding.sourcePackageSha256)}</code></dd><dt>SHA-256 đầu vào</dt><dd><code>${escape(binding.inputSha256)}</code></dd><dt>Cặp báo cáo nguồn</dt><dd><code>${escape(binding.pairId)}</code></dd><dt>Kết quả phương pháp</dt><dd><code>${escape(coding.output.methodOutputId)}</code></dd></dl></details>${draft ? '<p>Bản nháp này không dùng biên nhận chấp nhận.</p>' : `<details><summary>Biên nhận lựa chọn (${count})</summary><div class="table-wrap" role="region" aria-label="Biên nhận lựa chọn mã hóa" tabindex="0"><table><caption>Biên nhận lựa chọn đã lưu cho đề xuất này</caption><thead><tr><th scope="col">Mã biên nhận</th><th scope="col">SHA-256</th></tr></thead><tbody>${rows}</tbody></table></div></details>`}`;
 }
 const inputLabels: Readonly<Record<string, string>> = {
   'validated-metrics': 'số liệu đã kiểm tra', 'source-bound-claims': 'nhận định có tham chiếu nguồn', 'owner-review': 'duyệt của người dùng',
@@ -596,8 +609,12 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const sourceScope = kind === 'MARKET' ? projectMarketSourceScope(input) : undefined;
   // The frozen peer policy selects v14 even for Metric-only drafts. Marker-free
   // Market drafts retain v12/v13 dispatch; every Insight keeps its original identity.
+  // Draft Insight reports carry their own renderer identity, gated only on the
+  // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
-  const rendererVersion = defaultMarketPeers ? 'automation-report-kit-v14'
+  const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
+  const rendererVersion = draftInsight ? 'automation-report-kit-v15'
+    : defaultMarketPeers ? 'automation-report-kit-v14'
     : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {
@@ -654,7 +671,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     decisionProposedIds.length ? `Đề xuất AI đã lưu ở ${decisionProposedIds.join(', ')} là bản nháp chưa duyệt, không tính là mục phân tích hoàn chỉnh.` : '',
     kind === 'MARKET' ? descriptive ? `Kết quả phương pháp mô tả có giới hạn, chưa duyệt: ${methodIds.length} mục${methodIds.length ? ` (${methodIds.join(', ')})` : ''}.` : input.descriptiveMethodFailure ? '' : `Không có kết quả phương pháp mô tả thị trường: ${input.collection?.comparables.length ? 'các quan sát sản phẩm đã thu chưa tạo được kết quả được lưu' : 'lượt này không có quan sát sản phẩm từ bản thu nguồn mới'}.` : '',
     located ? `Mã hóa lời nguồn có giới hạn: ${literalIds.length} mục${literalIds.length ? ` (${literalIds.join(', ')})` : ''}. ${located.projection.pending.length} mục chờ xử lý vẫn được giữ riêng. Chưa có kết luận hoặc tỷ lệ đại diện thị trường.` : '',
-    insightCoding ? `Mã hóa ${'draftSelection' in insightCoding ? 'đề xuất (đề xuất, chờ chủ duyệt)' : 'đã chọn'} trên đề xuất (${(('selectionContractVersion' in insightCoding && insightCoding.selectionContractVersion === 'automation-insight-selection-v2') ? semanticCodingFamilies : codingFamilies).join(', ')}): có kết quả dùng được ở ${codingIds.length ? codingIds.join(', ') : 'chưa mục nào'}. Đây là mã hóa bám lời nguồn, không phải quan sát độc lập${sections.some(section => usesCodingFamily(insightCoding, section.sectionId) && section.methodOutput?.unresolvedPointers.length) ? '; phần chưa chọn vẫn chờ xử lý' : ''}.` : '',
+    insightCoding ? `Mã hóa ${'draftSelection' in insightCoding ? 'đề xuất (đề xuất, chờ chủ duyệt)' : 'đã chọn'} trên đề xuất (${(('draftSelection' in insightCoding) || ('selectionContractVersion' in insightCoding && insightCoding.selectionContractVersion === 'automation-insight-selection-v2') ? semanticCodingFamilies : codingFamilies).join(', ')}): có kết quả dùng được ở ${codingIds.length ? codingIds.join(', ') : 'chưa mục nào'}. Đây là mã hóa bám lời nguồn, không phải quan sát độc lập${sections.some(section => usesCodingFamily(insightCoding, section.sectionId) && section.methodOutput?.unresolvedPointers.length) ? '; phần chưa chọn vẫn chờ xử lý' : ''}.` : '',
     emptyIds.length ? `Phương pháp đã chạy nhưng không có bản ghi dùng được: ${emptyIds.join(', ')}.` : '',
     `Ngữ cảnh hoặc bảng nguồn: ${completion.contextSections + completion.sourceTableSections} mục. Chưa có kết quả: ${completion.blockedSections + emptyIds.length} mục.`,
     'Ngữ cảnh, bảng nguồn, kết quả phương pháp từng phần và tệp PDF không đồng nghĩa với phân tích hoàn chỉnh.',
