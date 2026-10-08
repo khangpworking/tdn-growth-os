@@ -1,6 +1,7 @@
 # Guide exercises 3.3, 3.4, 3.5 — 2026-10-08
 
-Command: `OPENWIKI_TELEMETRY_DISABLED=1 python3 ontology/guide-checks.py`.
+Source base/pre-fix shapes: `7a4dd2a682423d967fe0372577d96a81d9780d34`. Run head: `5c8642c918c1d096f1695faac64361ce8f5dae4d`.
+Command: `python3 ontology/guide-checks.py` from the worktree root (the script sets telemetry-off internally).
 
 3.3: create a throwaway proposed shape with source, rule ID, Vietnamese message,
 independent v1/v2 fixtures (GPT-6-astra) and masked cold review (input 4).

@@ -7,9 +7,8 @@ throwaway guide exercises and pre-fix regressions. All shapes remain proposed.
 Changed paths: `ontology/`, `docs/runbooks/ontology-use-cases-and-maintenance.md`,
 `docs/handoffs/ONTO-2.md` only. No dependency manifest or configuration change.
 Evidence (commands, results, relevant revision): fetched base
-`7a4dd2a682423d967fe0372577d96a81d9780d34`; unchanged baseline 49/49.
-Implementation commit: `4ff2870998bee48b5096326d759497dbaee525ed`. Final receipt:
-Final rerun receipt will be named from the rebased implementation SHA: 86/87 prior evidence, one ESCALATED, independent 12/12; smoke/certificate pass.
+`7a4dd2a682423d967fe0372577d96a81d9780d34`; unchanged baseline receipt `ontology/results/2026-10-08-7a4dd2a68242-baseline.{md,json}`: 49/49.
+Implementation commit: `5c8642c918c1d096f1695faac64361ce8f5dae4d`. Final receipt: `ontology/results/2026-10-08-5c8642c918c1.{md,json}`: 86/87 matched, one ESCALATED; independent 12/12; smoke/certificate pass. Guide receipt: 8/8.
 Unresolved: escaped tab/newline/CR data cannot be judged by the installed verified
 checker; expected REJECT remains unchanged. Wider semantic/authenticity limits
 are explicitly ESCALATED in each review.
@@ -26,8 +25,8 @@ list is empty. Domain expertise/authenticated evidence remain needed before reli
 | A-03 | ESCALATED | E12/E13 exact attribution and E13 metadata implemented; named E4 modes and persona links covered; duplicate-author removed. Space/Unicode whitespace rejected; escaped tab/newline/CR evaluator limitation remains. See per-rule reviews. |
 | A-04 | DONE | 12 fixtures by GPT-6-astra; rule excerpts/vocabulary only; provenance and frozen independent manifest retained. |
 | A-05 | DONE | Fresh GPT-6-astra cold reviewer, masked inputs only; E4 final flag fix re-reviewed; E12/E13 reviews recorded. reviewed by model, not by a domain expert. |
-| A-06 | DONE | Final rerun on the rebased implementation: commands, hashes and expected/actual for every row; exact receipt name/counts recorded below after execution. |
-| A-07 | DONE | Guide receipts 8/8, independent guide fixtures and masked cold review; ten corrections listed in runbook §3.9. Throwaway artifacts deleted. |
+| A-06 | DONE | Final rerun on `5c8642c918c1`: commands, hashes and expected/actual for all 87 rows; 86 matched and one explicitly ESCALATED. |
+| A-07 | DONE | `python3 ontology/guide-checks.py` from worktree root: 8/8. Pre-fix snapshot is current base `7a4dd2a682423d967fe0372577d96a81d9780d34`; source and run head recorded in guide receipt. Ten corrections listed in runbook §3.9; throwaway artifacts deleted. |
 | A-08 | DONE | This templated handoff, full dataset table, ONTO-2 commits; own-branch push and draft PR recorded below. |
 
 ## Active goal gate self-check
@@ -49,7 +48,7 @@ Repository application tests were extra evidence, not required by the active gat
 
 ## G-2 evidence accounting
 
-Gate-fix round 2 reruns the unchanged baseline at exact current main and the final ontology/guide commands only. G-2 uses ontology receipts: baseline 49/49; preserve the final 86/87 result and explicit UNDETERMINED/ESCALATED case unless this run changes evidence. Repository application tests are extra and not used for G-2.
+Gate-fix round 2: unchanged baseline on exact current main was 49/49. From the worktree root, `./ontology/run-checks.sh` completed 86/87 matches and one explicit UNDETERMINED/ESCALATED case; expected REJECT is preserved. `python3 ontology/guide-checks.py` completed 8/8. Repository application tests were not rerun; prior application-suite results are extra and not used for G-2.
 
 ## Test changes and scope
 
@@ -183,8 +182,9 @@ The 49-row unchanged baseline table is retained in its separate baseline receipt
 
 ## Delivery
 
-Implementation commit and final receipt recorded after round-2 checks.
-Evidence: `f6fd705` (`ONTO-2: record final verdict matrix and escalated repository gate`).
+Implementation/evidence run commit: `5c8642c918c1d096f1695faac64361ce8f5dae4d`.
+Base and source-pin update: `5c8642c` (`ONTO-2: refresh baseline and pin sources to current main`).
+Round-2 gate correction and delivery commits are listed in Git history.
 Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/181
 Verified draft=true, base=main, head=pkg/ONTO-2-open-ontologies.
 Only the assigned work branch was pushed. Final delivery-receipt commit records

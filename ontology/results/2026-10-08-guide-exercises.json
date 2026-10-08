@@ -38,7 +38,7 @@
           "ignored": [
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:ba5ac9a75574038d949ecb072e87bad0"
+              "subject": "_:ccf53f58efa7f7a9bb35d07939e7f2da"
             }
           ],
           "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
@@ -52,7 +52,7 @@
       },
       "pass_": true,
       "dataset_sha256": "d1124b6f0081ae007e159270fff928a3acaac87e7c2981838a7ecc91991acc84",
-      "shape_sha256": "d88996aabae0c0a0fd262cd5ae311be16b1ad91bebd26c86c490348b1e14b26c",
+      "shape_sha256": "6dcbc79f471edcdcfb9a851eeca8bb0af9ece6a65f7e3088a65cf6652061f5a8",
       "ttl": "@prefix o: <urn:onto:> .\no:r a o:GuideRecord; o:marker \"one\" ."
     },
     {
@@ -75,7 +75,7 @@
           "ignored": [
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:cd583ac5c3568764fd32405467ea6fed"
+              "subject": "_:ad3a172348b57c74034b3e3ecce2386b"
             }
           ],
           "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
@@ -84,7 +84,7 @@
               "focus": "<urn:onto:r>",
               "path": "<urn:onto:marker>",
               "sourceConstraintComponent": "<http://www.w3.org/ns/shacl#HasValueConstraintComponent>",
-              "sourceShape": "_:cd583ac5c3568764fd32405467ea6fed",
+              "sourceShape": "_:ad3a172348b57c74034b3e3ecce2386b",
               "value": null
             }
           ],
@@ -97,7 +97,7 @@
       },
       "pass_": true,
       "dataset_sha256": "4c043a4567d88cb8120c539ef98980affa5de1306cbd12b4963f782decf1b87d",
-      "shape_sha256": "d88996aabae0c0a0fd262cd5ae311be16b1ad91bebd26c86c490348b1e14b26c",
+      "shape_sha256": "6dcbc79f471edcdcfb9a851eeca8bb0af9ece6a65f7e3088a65cf6652061f5a8",
       "ttl": "@prefix o: <urn:onto:> .\no:r a o:GuideRecord; o:marker \"two\" ."
     },
     {
@@ -120,7 +120,7 @@
           "ignored": [
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:e5e76b98f6de7b4bdb3536c81c1ab4e9"
+              "subject": "_:acf8331228909caeacd1922d1775e059"
             }
           ],
           "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
@@ -129,7 +129,7 @@
               "focus": "<urn:onto:r>",
               "path": "<urn:onto:marker>",
               "sourceConstraintComponent": "<http://www.w3.org/ns/shacl#HasValueConstraintComponent>",
-              "sourceShape": "_:e5e76b98f6de7b4bdb3536c81c1ab4e9",
+              "sourceShape": "_:acf8331228909caeacd1922d1775e059",
               "value": null
             }
           ],
@@ -142,7 +142,7 @@
       },
       "pass_": true,
       "dataset_sha256": "d1124b6f0081ae007e159270fff928a3acaac87e7c2981838a7ecc91991acc84",
-      "shape_sha256": "4b8172737b72f944399dcdef9f415806e4821f7a31ee0d117e376807d311db5c",
+      "shape_sha256": "97414db41bf6a85f1fa10eb848b11d572ab04bc9b6e1f014bfcc51240ea3bc99",
       "ttl": "@prefix o: <urn:onto:> .\no:r a o:GuideRecord; o:marker \"one\" ."
     },
     {
@@ -165,7 +165,7 @@
           "ignored": [
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:d7d143d8b8575e02e485f7ec43d36996"
+              "subject": "_:c3fc9c19037dc061f098a3db480b7e1b"
             }
           ],
           "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
@@ -179,7 +179,7 @@
       },
       "pass_": true,
       "dataset_sha256": "4c043a4567d88cb8120c539ef98980affa5de1306cbd12b4963f782decf1b87d",
-      "shape_sha256": "4b8172737b72f944399dcdef9f415806e4821f7a31ee0d117e376807d311db5c",
+      "shape_sha256": "97414db41bf6a85f1fa10eb848b11d572ab04bc9b6e1f014bfcc51240ea3bc99",
       "ttl": "@prefix o: <urn:onto:> .\no:r a o:GuideRecord; o:marker \"two\" ."
     },
     {
@@ -202,23 +202,23 @@
           "ignored": [
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:cb7ed7074a7b680ee4f7bcc8fb21b57e"
+              "subject": "_:e8a5b211b3efaeb50b5d224a4bbfc4cf"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:ec3807cd4c2be2460e664eb6983e58"
+              "subject": "_:bb1793dfdcb92c0ba3fcd5784b235576"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:a58c593fba523c67ad77fdd6245bb57f"
+              "subject": "_:bfc2da2f9cd3a1a7a285b7284066439c"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:cdca3fa21e6f92879ab21afe9ecf5c12"
+              "subject": "_:aac9bf8a0fa705290eaab2114fd447eb"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:f42f7960bc3a230eaa69e29b03937862"
+              "subject": "_:aa2b74ee32458a5422be93439f343e36"
             }
           ],
           "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
@@ -254,23 +254,23 @@
           "ignored": [
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:fc78f9aa06ea66a5a7c0a42ae97de9e"
+              "subject": "_:fe7c858b09162be694d7d01f2b7e40f"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:f4e39366d7d62eb03c622a1106acb045"
+              "subject": "_:c82c05bbacb5f1d47cccba842f87144f"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:a71181b771b81f95df8f238bd669a7ea"
+              "subject": "_:ea95d0168faa5028d854f2a86a1cdeb1"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:e5baf40a2bb5efcc956d73ab2e9c4d15"
+              "subject": "_:f94538d8fcc3718a4083fd208b6055ff"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:a3f3f46b8dec84e063c7c778d50a7a62"
+              "subject": "_:a43502f1412d9fd4e4fb46923e706ca"
             }
           ],
           "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
@@ -306,23 +306,23 @@
           "ignored": [
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:f14aea3c4c0dbcfdbee7d97882a8e6e3"
+              "subject": "_:f5bea3350c5a75090282607cdb0e94eb"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:b81df91ace0565b10f8dd389b198309e"
+              "subject": "_:d5eaf9b7fe1d414bcb56493dde6aec6c"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:beaca0eb9f1bd2060fdd0b5f2b36d8d1"
+              "subject": "_:fa1b88ff9016a5dff1b1eb6fb468dc81"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:ff983ad2f622c2b36cf4b11b34b9db2c"
+              "subject": "_:b19c39afb8b1bb70131cba93e126c15a"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:e24fa99526f378169be42ba5f872a6b9"
+              "subject": "_:a0de9ef4c86645e2b7e04804b5c04b05"
             }
           ],
           "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
@@ -358,47 +358,47 @@
           "ignored": [
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:c2c4ed796fc51b8aa071a8c874e45e67"
+              "subject": "_:ac63e62f22c8a1c8bfeb84629b3f46b4"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:bf9bf9c0d72c85a65419e9ddfdc2d2e6"
+              "subject": "_:e8f60665f903fed2f12c74d704f7f947"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:e06a4905abb9c1e33c626fb1f4b81226"
+              "subject": "_:ae1530d216714171fcb7d5af437ac579"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:c4cde3b69521ad94bde46ecb3789f7ef"
+              "subject": "_:f1037a8a43b95363218cf2443685bea"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:f4f621b338a608cf050fb29fe4e87834"
+              "subject": "_:c4a4563b677e0d8f6cb39975a62b9c5f"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:e5e215f6655acc4625f2475b7ddf33de"
+              "subject": "_:a7728d9c87a86238bc1e443e717ae5e0"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:d7f4d2648914c14cb5097e61659b72f9"
+              "subject": "_:a1cfb7e528202696335e12db9ff4b1f6"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:f1c77c9812b9cb657d7021fa95d11e77"
+              "subject": "_:a637c5551a70fd20f3c8398c92378ecf"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:c71ecae97a9a6dbaea53ccdfb20f371b"
+              "subject": "_:af7e270596c7358dca0c445be86e7458"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:a086146363bdfeb7662561d414b5acf8"
+              "subject": "_:cdfafe1eae4df7413a5575358ff010bb"
             },
             {
               "predicate": "<http://www.w3.org/ns/shacl#message>",
-              "subject": "_:ce260665287b8a8808a422998852b77f"
+              "subject": "_:ba9e2ba46c114b7165fa4aea22611353"
             }
           ],
           "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
@@ -416,5 +416,8 @@
     }
   ],
   "temporary_files_deleted": true,
-  "no_source_rule_or_changelog_changed": true
+  "no_source_rule_or_changelog_changed": true,
+  "base": "7a4dd2a682423d967fe0372577d96a81d9780d34",
+  "run_head": "5c8642c918c1d096f1695faac64361ce8f5dae4d",
+  "pre_fix_shapes_from": "7a4dd2a682423d967fe0372577d96a81d9780d34"
 }
