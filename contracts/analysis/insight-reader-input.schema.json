@@ -9,6 +9,9 @@
     },
     {
       "$ref": "#/$defs/v2"
+    },
+    {
+      "$ref": "#/$defs/v3"
     }
   ],
   "$defs": {
@@ -291,6 +294,149 @@
               }
             }
           }
+        }
+      }
+    },
+    "v3": {
+      "title": "InsightReaderInputV3",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reportKind",
+        "builderVersion",
+        "workspaceId",
+        "runId",
+        "draftPairId",
+        "semanticSha256",
+        "sourceReportSha256",
+        "frozenStartSha256",
+        "frozenScopeSha256",
+        "sourceRendererVersion",
+        "scope",
+        "retainedMethods"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-reader-input-v3"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-v3"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "draftPairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "semanticSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceReportSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenStartSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenScopeSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceRendererVersion": {
+          "const": "automation-report-kit-v22"
+        },
+        "scope": {
+          "title": "InsightReaderFrozenScope",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "keyword",
+            "definition",
+            "requestedPeriod"
+          ],
+          "properties": {
+            "keyword": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "definition": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*\\S[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+            },
+            "requestedPeriod": {
+              "title": "InsightReaderRequestedPeriod",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "startDate",
+                "endDate"
+              ],
+              "properties": {
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
+          }
+        },
+        "retainedMethods": {
+          "type": "array",
+          "items": {
+            "title": "InsightReaderMethodReference",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "sha256"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "PRIVATE_CORPUS",
+                  "LITERAL",
+                  "SOURCE_EVIDENCE"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "contains": {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "PRIVATE_CORPUS"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
         }
       }
     }

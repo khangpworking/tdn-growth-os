@@ -3,7 +3,7 @@ import test from 'node:test';
 import { verifyInsightReaderInput, type InsightReaderInput } from '../../src/modules/analysis/reader-report/insight-input-v1.js';
 import { ReaderReportInputError } from '../../src/modules/analysis/reader-report/build.js';
 
-const input = (): InsightReaderInput => ({ contractVersion: 'insight-reader-input-v1', reportKind: 'INSIGHT', builderVersion: 'reader-report-insight-v1',
+const input = (): Extract<InsightReaderInput, { contractVersion: 'insight-reader-input-v1' }> => ({ contractVersion: 'insight-reader-input-v1', reportKind: 'INSIGHT', builderVersion: 'reader-report-insight-v1',
   workspaceId: '11111111-1111-4111-8111-111111111111', runId: '22222222-2222-4222-8222-222222222222',
   draftPairId: 'a'.repeat(64), semanticSha256: 'b'.repeat(64), sourceReportSha256: 'c'.repeat(64),
   frozenStartSha256: 'd'.repeat(64), frozenScopeSha256: 'e'.repeat(64), sourceRendererVersion: 'automation-report-kit-v19',
@@ -39,4 +39,19 @@ test('default21 reader requires explicit input-v2 and builder-v2 with strict sou
     { ...next, sourceRendererVersion: previous.sourceRendererVersion },
   ]) assert.throws(() => verifyInsightReaderInput(wrong, next), ReaderReportInputError);
   assert.deepEqual(verifyInsightReaderInput(previous, previous), previous);
+});
+
+
+test('source-only22 requires input-v3/builder-v3, one verified private reference and no coding or identities', () => {
+  const next: InsightReaderInput = { ...input(), contractVersion: 'insight-reader-input-v3', builderVersion: 'reader-report-insight-v3',
+    sourceRendererVersion: 'automation-report-kit-v22', retainedMethods: [{ kind: 'PRIVATE_CORPUS', sha256: 'f'.repeat(64) }] };
+  assert.deepEqual(verifyInsightReaderInput(next, next), next);
+  for (const wrong of [
+    { ...next, contractVersion: 'insight-reader-input-v2' }, { ...next, builderVersion: 'reader-report-insight-v2' },
+    { ...next, sourceRendererVersion: 'automation-report-kit-v21' }, { ...next, retainedMethods: [] },
+    { ...next, retainedMethods: [{ kind: 'LITERAL', sha256: 'f'.repeat(64) }] },
+    { ...next, retainedMethods: [...next.retainedMethods, { kind: 'PRIVATE_CORPUS', sha256: 'a'.repeat(64) }] },
+    ...['CODING', 'NATIVE', 'CORPUS', 'DECISION_PACKET'].map(kind => ({ ...next, retainedMethods: [...next.retainedMethods, { kind, sha256: 'a'.repeat(64) }] })),
+    { ...next, privateReviewCorpus: {} }, { ...next, authorHashes: [] }, { ...next, keyId: next.runId },
+  ]) assert.throws(() => verifyInsightReaderInput(wrong, next), ReaderReportInputError);
 });

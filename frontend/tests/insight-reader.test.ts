@@ -62,7 +62,7 @@ test('v2 reader client validates independent kind histories and rejects stale, r
   } finally { globalThis.fetch = original; }
 });
 
-for (const builderVersion of ['reader-report-insight-v1', 'reader-report-insight-v2'] as const) test(`Insight panel ${builderVersion} requires explicit source selection and owner action, with separate Market approval`, async () => {
+for (const builderVersion of ['reader-report-insight-v1', 'reader-report-insight-v2', 'reader-report-insight-v3'] as const) test(`Insight panel ${builderVersion} requires explicit source selection and owner action, with separate Market approval`, async () => {
   const visibleRevision = { ...revision, builderVersion };
   const dom = setupDom(), original = globalThis.fetch;
   const { createRoot } = await import('react-dom/client');

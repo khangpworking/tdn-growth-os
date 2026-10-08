@@ -24,7 +24,8 @@ export type Timestamp = string;
 export type ResearchAutomationReaderRevisionV2 =
   | ResearchAutomationMarketReaderRevisionV2
   | ResearchAutomationInsightReaderRevision
-  | ResearchAutomationInsightReaderRevisionV2;
+  | ResearchAutomationInsightReaderRevisionV2
+  | ResearchAutomationInsightReaderRevisionV3;
 
 export interface ResearchAutomationReaderBuildRequest {
   contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1' | 'reader-report-build-v1.2';
@@ -401,6 +402,25 @@ export interface ResearchAutomationInsightReaderRevisionV2 {
   };
   reportKind: 'INSIGHT';
   builderVersion: 'reader-report-insight-v2';
+  semanticSha256: Sha256;
+  sourceReportSha256: Sha256;
+}
+export interface ResearchAutomationInsightReaderRevisionV3 {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v3';
   semanticSha256: Sha256;
   sourceReportSha256: Sha256;
 }

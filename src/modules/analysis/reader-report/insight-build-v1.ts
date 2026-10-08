@@ -6,7 +6,7 @@ import { renderLocatedInsightSection } from '../report-located-insight-pages.js'
 import { renderReportMethodPacketSection } from '../report-method-packets-pages.js';
 import { insightCodingView, draftInsightGroupsView, insightCodingTrace, literalPendingSection, type CodingFamily, type AutomationReportInput } from '../research-automation/reports.js';
 import { attributionText, retainedEvidenceHtml, retainedQuoteHtml, storedLiteral, technicalLiteral, type ReportCitations } from '../research-automation/descriptive-report.js';
-import { insightLiteralSection, reviewCorpusSection } from '../research-automation/review-corpus-report.js';
+import { insightLiteralSection, reviewCorpusSection, privateReviewCorpusSection } from '../research-automation/review-corpus-report.js';
 import { sourceEvidenceHtml } from '../research-automation/source-evidence-report.js';
 import { decisionPacketSection, i14AdmissionSection, i14SynthesisSection } from '../research-automation/synthesis-evidence-report.js';
 import { ReaderReportInputError } from './build.js';
@@ -29,26 +29,37 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       digest(methods.start) !== identity.frozenStartSha256 || digest(methods.scope) !== identity.frozenScopeSha256)
     throw new ReaderReportInputError('Insight reader methods differ from authenticated frozen scope.');
   if (methods.nativeReview && (methods.locatedReview || methods.reviewCorpus)) throw new ReaderReportInputError('Insight reader cannot substitute native and collected sources.');
+  const private22 = identity.sourceRendererVersion === 'automation-report-kit-v22';
+  if (private22 !== Boolean(methods.privateReviewCorpus) || (private22 && (methods.nativeReview || methods.locatedReview || methods.reviewCorpus ||
+      methods.insightCoding)))
+    throw new ReaderReportInputError('Private Insight reader requires its verified source-only view.');
+  // The auto report also retains generic opportunity/decision packets. The
+  // source-only reader admits only the verified source view, literal and registry.
+  if (private22) methods = { run: methods.run, start: methods.start, scope: methods.scope, collection: methods.collection, captures: methods.captures,
+    ...(methods.privateReviewCorpus ? { privateReviewCorpus: methods.privateReviewCorpus } : {}),
+    ...(methods.insightLiteral ? { insightLiteral: methods.insightLiteral } : {}),
+    ...(methods.sourceEvidence ? { sourceEvidence: methods.sourceEvidence } : {}) };
   const default21 = identity.sourceRendererVersion === 'automation-report-kit-v21';
   if (default21 !== (methods.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
     throw new ReaderReportInputError('Insight source renderer and coding snapshot versions differ.');
   const scope = { keyword: methods.start.keyword, definition: methods.scope.definition,
     requestedPeriod: { startDate: methods.start.requestedPeriod.startDate, endDate: methods.start.requestedPeriod.endDate } };
-  const references: InsightReaderInput['retainedMethods'] = [];
+  const references: Array<InsightReaderInput['retainedMethods'][number]> = [];
   const ref = (kind: InsightReaderInput['retainedMethods'][number]['kind'], value: unknown) => {
     if (value !== undefined) {
       const sha256 = digest(value);
       if (!references.some(reference => reference.kind === kind && reference.sha256 === sha256)) references.push({ kind, sha256 });
     }
   };
+  ref('PRIVATE_CORPUS', methods.privateReviewCorpus);
   ref('NATIVE', methods.nativeReview); ref('LOCATED', methods.locatedReview); ref('CORPUS', methods.reviewCorpus);
   ref('CODING', methods.insightCoding); ref('LITERAL', methods.insightLiteral); ref('BOUNDED', methods.boundedMethods); ref('SOURCE_EVIDENCE', methods.sourceEvidence);
   ref('SOURCE_CLAIMS', methods.sourceClaims); ref('SOURCE_CLAIMS', methods.decisionSourceClaims);
   ref('I14_ADMISSION', methods.i14Admission); ref('I14_SYNTHESIS', methods.i14Synthesis);
   for (const packet of methods.decisionPackets ?? []) ref('DECISION_PACKET', packet);
   for (const outcome of Object.values(methods.decisionSynthesis ?? {})) ref('DECISION_SYNTHESIS', outcome);
-  const input = { ...identity, contractVersion: default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
-    builderVersion: default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references } as InsightReaderInput;
+  const input = { ...identity, contractVersion: private22 ? 'insight-reader-input-v3' : default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
+    builderVersion: private22 ? 'reader-report-insight-v3' : default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references } as InsightReaderInput;
   verifyInsightReaderInput(input, input);
   const registry = new CitationRegistry();
   const citations: ReportCitations = { mark: value => renderCitationMarkOrMissing(registry.cite(value)) };
@@ -88,6 +99,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
     if (coding.contractVersion === 'automation-insight-coding-snapshot-v3' || coding.contractVersion === 'automation-insight-coding-snapshot-v4')
       append('I11', draftInsightGroupsView(coding, citations), 'Số đề xuất giữ riêng theo sàn; chưa có tỷ lệ hoặc bằng chứng mua lẻ và mua sỉ.');
   }
+  if (methods.privateReviewCorpus) for (const id of ['I03', 'I17'] as const)
+    append(id, privateReviewCorpusSection(methods.privateReviewCorpus, id, citations), 'Tập nguồn đã giữ chưa có mã hóa; số bản ghi không phải số người.');
   if (methods.reviewCorpus) for (const id of ['I03', 'I17'] as const)
     append(id, reviewCorpusSection(methods.reviewCorpus, id, citations), 'Tập thu nguồn giữ riêng với phần mã hóa.');
   if (methods.insightLiteral) for (const id of ['I05', 'I07', 'I08', 'I13', 'I17'] as const)

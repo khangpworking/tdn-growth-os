@@ -1826,13 +1826,14 @@ export class ResearchAutomationService {
       if (kind !== 'INSIGHT' || pdf || !pairId || !frozenRun.scopeSha)
         throw new ResearchAutomationValidationError('Bản đọc insight cần đúng cặp và phạm vi đã chốt.');
       const rendererVersion = semantic.rendererVersion;
-      if (rendererVersion !== 'automation-report-kit-v17' && rendererVersion !== 'automation-report-kit-v18' && rendererVersion !== 'automation-report-kit-v19' && rendererVersion !== 'automation-report-kit-v21')
+      if (rendererVersion !== 'automation-report-kit-v17' && rendererVersion !== 'automation-report-kit-v18' && rendererVersion !== 'automation-report-kit-v19' && rendererVersion !== 'automation-report-kit-v21' && rendererVersion !== 'automation-report-kit-v22')
         throw new ResearchAutomationValidationError('Phiên bản nguồn chưa được hỗ trợ bởi bản đọc insight này.');
       insightReader = { identity: { workspaceId, runId, draftPairId: pairId, semanticSha256: output.versionSha,
         sourceReportSha256: output.htmlSha, frozenStartSha256: frozenRun.startSha, frozenScopeSha256: frozenRun.scopeSha,
         sourceRendererVersion: rendererVersion }, methods: {
         run, start: sourceStart, scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
         collection: await this.#reportCollection(runId, sources, Boolean(attempt)), captures: await this.#captureRecords(runId),
+        ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedNative ? { nativeReview: verifiedNative } : {}), ...(verifiedLocated ? { locatedReview: verifiedLocated } : {}),
         ...(semantic.reviewCorpus ? { reviewCorpus: semantic.reviewCorpus as ResearchReviewCorpus } : {}),
         ...(verifiedCoding ? { insightCoding: verifiedCoding } : {}), ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),

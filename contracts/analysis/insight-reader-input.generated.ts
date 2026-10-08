@@ -3,7 +3,7 @@
 /**
  * Exact retained Insight reader build identity; frozen scope comes from authenticated start/scope. Method references bind owning-service-verified retained outputs, never injected summaries or copied private corpus. No calculation, model call, Metric profile or implicit approval.
  */
-export type InsightReaderInput = InsightReaderInputV1 | InsightReaderInputV2;
+export type InsightReaderInput = InsightReaderInputV1 | InsightReaderInputV2 | InsightReaderInputV3;
 
 export interface InsightReaderInputV1 {
   contractVersion: 'insight-reader-input-v1';
@@ -83,5 +83,33 @@ export interface InsightReaderMethodReference1 {
     | 'DECISION_SYNTHESIS'
     | 'I14_ADMISSION'
     | 'I14_SYNTHESIS';
+  sha256: string;
+}
+export interface InsightReaderInputV3 {
+  contractVersion: 'insight-reader-input-v3';
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v3';
+  workspaceId: string;
+  runId: string;
+  draftPairId: string;
+  semanticSha256: string;
+  sourceReportSha256: string;
+  frozenStartSha256: string;
+  frozenScopeSha256: string;
+  sourceRendererVersion: 'automation-report-kit-v22';
+  scope: InsightReaderFrozenScope2;
+  retainedMethods: InsightReaderMethodReference2[];
+}
+export interface InsightReaderFrozenScope2 {
+  keyword: string;
+  definition: string;
+  requestedPeriod: InsightReaderRequestedPeriod2;
+}
+export interface InsightReaderRequestedPeriod2 {
+  startDate: string;
+  endDate: string;
+}
+export interface InsightReaderMethodReference2 {
+  kind: 'PRIVATE_CORPUS' | 'LITERAL' | 'SOURCE_EVIDENCE';
   sha256: string;
 }
