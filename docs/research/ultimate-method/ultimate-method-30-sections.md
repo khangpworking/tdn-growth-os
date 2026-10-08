@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.7 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.9 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -17,8 +17,10 @@ File hợp nhất:
 9. **v1.5 (08/10/2026):** thống kê chính thức của Cục Thống kê làm nguồn bối cảnh vĩ mô cho mọi ngành hàng (E12, mục 6.4).
 10. **v1.6 (08/10/2026):** tách danh mục nguồn sang file riêng [Input data sources for 30 sections](input-data-sources-30-sections.md), có mã nguồn S01…, hạng tin cậy A–D, độ đại diện và bảng section dùng nguồn nào.
 11. **v1.7 (08/10/2026):** file danh mục nguồn đổi tên thành [Input data sources for 30 sections](input-data-sources-30-sections.md); ghi kết quả bài test Apify.
+12. **v1.8 (08/10/2026):** L9 lọc nghĩa khi thu bằng từ khoá; E13 dữ liệu mở của Ngân hàng Thế giới; M09 tìm kiếm có lọc thời gian và tìm trong một trang báo.
+13. **v1.9 (08/10/2026):** G6 thêm các mốc tham khảo tuổi quảng cáo 17 ngày, 3 tuần, 60 ngày; G8 ghi lý do chọn từng ngưỡng số.
 
-Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [Input data sources for 30 sections](input-data-sources-30-sections.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn).
+Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [Input data sources for 30 sections](input-data-sources-30-sections.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn). Mọi ngưỡng số có lý do chọn ở Phụ lục G8.
 
 Quy ước trạng thái:
 
@@ -75,6 +77,17 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 - **L6 · Số sao (quy tắc 1; I05).** Số sao là một phân bố riêng, không tự chuyển thành khen/chê. Review không có chữ thì cảm nhận là "chưa biết". Nguồn không có trường số sao thì ghi "nguồn không có số sao", không ghi 0.
 - **L7 · Lời người bán.** Mọi suy luận từ tiêu đề, mô tả, video, quảng cáo của người bán được viết là "người bán nhắm tới…" hoặc "người bán định vị…", không viết thành sự thật về khách.
 - **L8 · Không mua hàng (mới ở v1.4).** Báo cáo không đề xuất đặt hàng thử hay mua hàng dưới bất kỳ hình thức nào. Chất lượng sản phẩm chỉ được đánh giá qua nguồn công khai (review, ảnh khách đính kèm, tin an toàn thực phẩm) và dữ liệu chủ cung cấp. Căn cứ: chủ "không bao giờ có khả năng chi tiền thật" (07/10/2026).
+- **L9 · Từ khoá và nghĩa (mới ở v1.8; quy tắc 1, 2).** Mọi bản ghi thu bằng từ khoá (tìm kiếm, bài mạng xã hội, bình luận, quảng cáo) phải qua bước **lọc nghĩa** trước khi đếm hay trích.
+  - Mỗi ngành hàng có **danh sách từ khoá** và **danh sách loại trừ** (từ dễ lẫn vì dấu hoặc vì nghĩa), có số phiên bản. AI lập hai danh sách theo E11, từ tên sản phẩm trong dữ liệu bán hàng.
+  - Khớp từ khoá **giữ nguyên dấu tiếng Việt**. Không bỏ dấu khi so, vì bỏ dấu thì "thạch dứa" thành "thạch dừa".
+  - Bản ghi viết không dấu (ví dụ "thach dua") khớp được cả hai nghĩa, nên phải dựa vào ngữ cảnh của chính bản ghi hoặc của video, bài gốc.
+  - Bản ghi trùng chữ nhưng khác nghĩa bị loại khỏi số đếm. Số bản ghi bị loại và lý do ghi ở phụ lục nguồn (M13, I17). Không xoá lặng lẽ.
+  - Bản ghi chưa chắc nghĩa ghi "chưa rõ có đúng sản phẩm không" và không tính vào số đếm chính.
+  - Ví dụ gặp khi thử nguồn:
+    - "thạch dừa" lẫn với "thạch dứa", thạch rau câu nước dừa, chữ "thử thách";
+    - "bình giữ nhiệt" lẫn với bình nóng lạnh, hộp cơm giữ nhiệt, bình làm quà tặng kèm dịch vụ;
+    - tên thương hiệu trùng với thương hiệu ngành khác.
+  - **Căn cứ:** bài test nguồn ngày 08/10/2026 ([danh mục nguồn, mục 5](input-data-sources-30-sections.md#5-nhật-ký-thử-và-kiểm-định-nguồn)); chủ đồng ý ngày 08/10/2026.
 
 ### 2.2 Ngoại lệ đã được chủ duyệt
 
@@ -128,7 +141,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     |---|---|---|---|---|
     | 1. Nhiều người bán cùng nhắm | Cùng một nhóm khách xuất hiện ở nhiều thương hiệu hoặc gian hàng độc lập | ≥3 thương hiệu hoặc gian hàng | — | — |
     | 2. Thị trường đáp lại | Nội dung nhắm nhóm đó có doanh thu thuộc nhóm cao **trong mẫu**, và doanh thu kéo dài, không chỉ một lần nổi | Thuộc nhóm 20% video doanh thu cao nhất; duy trì ≥4 tuần | Duy trì lâu bằng nhóm 25% video duy trì lâu nhất của ngành hàng trong mẫu | Thuộc nhóm video cộng dồn tạo ra 80% doanh thu trong mẫu |
-    | 3. Người bán tiếp tục trả tiền | Chi quảng cáo hoặc tỷ trọng doanh thu từ quảng cáo duy trì; hoặc quảng cáo trong thư viện quảng cáo công khai chạy liên tục. ROAS/CPA chỉ là số tham khảo theo E1 | Duy trì ≥4 tuần, hoặc quảng cáo chạy ≥30 ngày | Chạy lâu bằng nhóm 25% quảng cáo chạy lâu nhất của ngành hàng trong mẫu | — |
+    | 3. Người bán tiếp tục trả tiền | Chi quảng cáo hoặc tỷ trọng doanh thu từ quảng cáo duy trì; hoặc quảng cáo trong thư viện quảng cáo công khai chạy liên tục. ROAS/CPA chỉ là số tham khảo theo E1 | Duy trì ≥4 tuần, hoặc quảng cáo chạy ≥30 ngày. Ghi thêm các mốc tham khảo 17 ngày, 3 tuần, 60 ngày (G6); các mốc này không tự làm phép kiểm đạt | Chạy lâu bằng nhóm 25% quảng cáo chạy lâu nhất của ngành hàng trong mẫu | — |
     | 4. Khách tự xác nhận | Review, bình luận, bài viết có người tự nói đúng hoàn cảnh đó | ≥1 câu trích có locator ở nguồn không phải của người bán | — | — |
 
   - **Nhiều cách tính (chủ quyết 07/10/2026, giữ song song):** báo cáo tính theo mọi cách áp dụng được và ghi rõ đạt theo cách nào, ví dụ "đạt theo cách A và C". Một phép kiểm đạt khi đạt ít nhất một cách; cách không đạt vẫn ghi ra. Giải thích: Phụ lục G3 (80/20), G5 (nhóm 25% cao nhất), G6 (tuổi thọ quảng cáo).
@@ -214,6 +227,22 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     - suy nhân quả (ví dụ "giá tiêu dùng tăng nên doanh số trong mẫu giảm");
     - dùng làm lời khách, đặc điểm chân dung hay độ tiếp cận kênh;
     - dùng để dự báo ngoài điều kiện của M10.
+
+**Ngoại lệ ngày 08/10/2026 (mới ở v1.8)**
+
+- **E13 · Dữ liệu mở của Ngân hàng Thế giới làm bối cảnh vĩ mô (nguồn S23).**
+  - **Căn cứ:** chủ đồng ý ngày 08/10/2026. Dữ liệu dùng giấy phép mở CC BY 4.0, bắt buộc ghi nguồn khi dùng lại.
+  - **Được phép:**
+    - dùng chỉ số của Ngân hàng Thế giới (dân số, thu nhập, chi tiêu hộ bình quân đầu người, giá tiêu dùng theo năm, tỷ lệ dùng internet, thương mại) làm bối cảnh cho các section được dùng E12, khi:
+      - Cục Thống kê không có chỉ số tương đương; hoặc
+      - cần chuỗi nhiều năm cùng một cách tính; hoặc
+      - cần so với nước khác;
+    - ghi tên **"Ngân hàng Thế giới (World Bank Open Data)"**, kèm tên chỉ số, mã chỉ số, năm, và ngày dữ liệu được cập nhật. Đây là ngoại lệ của quy tắc không nêu tên nhà cung cấp, vì giấy phép yêu cầu ghi nguồn.
+  - **Bắt buộc:** cả bốn điều bắt buộc và mục "Vẫn cấm" của E12. Thêm:
+    1. **Không coi là xác nhận độc lập.** Nhiều chỉ số của Ngân hàng Thế giới lấy lại từ Cục Thống kê. Hai nguồn khớp nhau không được viết là "hai nguồn cùng xác nhận".
+    2. **Hai nguồn lệch nhau:** ghi cả hai cạnh nhau, kèm năm, đơn vị và cách tính (theo M01). Không chọn một.
+    3. **Đơn vị tiền:** giữ đúng đơn vị của nguồn (ví dụ "USD theo giá năm 2015"). Không tự quy đổi sang đồng để đặt cạnh giá trong mẫu.
+    4. Số do Ngân hàng Thế giới tự ước tính (khi dữ liệu có ghi chú) thì ghi "ước tính".
 
 ---
 
@@ -330,6 +359,10 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 
 - **Phương pháp:** inventory sự kiện/rủi ro có nguồn: tách ngày phát hành nguồn – ngày sự kiện – kỳ quan sát metric; trích đúng sự kiện/ngày/đối tượng/chiều hướng mà nguồn nêu; giữ mâu thuẫn song song; `documented_event` tách `candidate_driver_hypothesis` (chỉ người duyệt mới chuyển hạng).
 - **Kênh nguồn bổ sung (05/10):** báo cáo ngành đã công bố — iPOS × Nestlé Professional (F&B VN 2025 và 6T/2026) cho bối cảnh kênh tiêu thụ; báo cáo thường niên doanh nghiệp ngành (ví dụ GC Food 2024, mục quản trị rủi ro) làm case doanh nghiệp, **không gắn nhãn số liệu toàn thị trường 2025**; Metric cho tín hiệu sát SKU (biến động bán/giá/khuyến mãi/phản hồi).
+- **Tìm kiếm theo thời gian và trong một trang báo (08/10, v1.8):** tìm kiếm mở rộng (nguồn S19, gói P5) được lọc theo khoảng thời gian, và được tìm riêng trong một trang báo đã chọn. Mục đích là lập dòng thời gian sự kiện của đối thủ và ngành hàng: ra mắt sản phẩm, khuyến mãi lớn, tin an toàn thực phẩm, thu hồi.
+  - Mỗi kết quả ghi ba mốc tách nhau: ngày đăng bài, ngày sự kiện mà bài nêu, và khoảng thời gian đã lọc. Khoảng lọc không chứng minh ngày sự kiện.
+  - Hạng tin cậy chấm theo trang gốc. Kết quả qua bước lọc nghĩa L9 trước khi đếm.
+  - Căn cứ: chủ đồng ý ngày 08/10/2026.
 - **Khung diễn giải:** tín hiệu quan sát được → cơ chế có thể ảnh hưởng đến sản phẩm → bằng chứng đối chiếu → mức chắc chắn. Doanh số tăng chưa tự chứng minh nguyên nhân.
 - **Cấm:** nhân quả, xác suất/tác động, xếp hạng rủi ro, forecast từ sự kiện.
 
@@ -378,7 +411,7 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 - **Cập nhật 07/10:**
   - Chân dung khách hàng được phép theo E4 (từ lời khách) và lớp "người bán nhắm tới" theo E5 (từ lời người bán, có số liệu củng cố). Hai lớp hiển thị riêng, không trộn.
   - Khi nguồn có mã người viết, đếm người viết trong cùng nền tảng (L2).
-  - Nên tìm hoàn cảnh dùng sản phẩm ở các nguồn ngoài review sàn (bình luận video, nhóm mạng xã hội, công thức), vì review sàn thường không nói người mua là ai (mục 6).
+  - Nên tìm hoàn cảnh dùng sản phẩm ở các nguồn ngoài review sàn (bình luận dưới video, công thức, bài hướng dẫn), vì review sàn thường không nói người mua là ai (mục 6).
 
 ### I03 · Phương pháp nghiên cứu — EXISTING_BOUNDED
 
@@ -610,6 +643,8 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.5 — 08/10/2026:** E12 thống kê chính thức của Cục Thống kê làm bối cảnh vĩ mô, được ghi tên nguồn; mục 6.4 bảng nguồn số liệu và ánh xạ ngành hàng → nhóm thống kê, dùng chung cho mọi ngành hàng; thêm dòng nguồn vào mục 6.1.
 - **v1.6 — 08/10/2026:** danh mục nguồn chuyển sang [Input data sources for 30 sections](input-data-sources-30-sections.md), thêm mã nguồn S, hạng tin cậy A–D, độ đại diện, bảng section dùng nguồn nào, nguồn không dùng và nhật ký thử nguồn; mục 6.1 chỉ còn trỏ tới file đó.
 - **v1.7 — 08/10/2026:** đổi tên file danh mục nguồn thành `input-data-sources-30-sections.md` (Input data sources for 30 sections) theo yêu cầu của chủ; cập nhật trạng thái nguồn theo kết quả bài test Apify. Không đổi quy tắc.
+- **v1.8 — 08/10/2026:** L9 lọc nghĩa khi thu bằng từ khoá (danh sách từ khoá và danh sách loại trừ có phiên bản, giữ dấu, ghi số bị loại); E13 dữ liệu mở của Ngân hàng Thế giới làm bối cảnh vĩ mô theo điều kiện của E12; M09 tìm kiếm mở rộng có lọc thời gian và tìm trong một trang báo để lập dòng thời gian sự kiện.
+- **v1.9 — 08/10/2026:** G6 thêm ba mốc tham khảo tuổi quảng cáo (17 ngày, 3 tuần, 60 ngày), kiểm không xung đột, và không chép câu "chắc chắn hiệu quả" vào báo cáo (E1, E5); E5 phép kiểm 3 ghi các mốc tham khảo đã vượt, ngưỡng đạt không đổi; thêm G8 ghi lý do chọn từng ngưỡng số và mức chắc chắn.
 
 ---
 
@@ -660,13 +695,24 @@ Mỗi mục có: nghĩa là gì, ví dụ, dùng ở đâu trong file này, ngu�
 - **Dùng ở:** E5, cách B.
 - **Mức chắc chắn:** quy ước; ưu điểm là tự khớp với từng ngành hàng.
 
-### G6. Tuổi thọ quảng cáo: chạy lâu thường là quảng cáo có lãi
+### G6. Tuổi thọ quảng cáo: quảng cáo chạy lâu là quảng cáo người bán chọn giữ lại
 
-- **Nghĩa:** người bán thường không trả tiền lâu cho quảng cáo lỗ, nên quảng cáo chạy lâu thường là quảng cáo ra đơn. Người chạy quảng cáo hay dùng mốc 30 ngày.
-- **Số liệu tham khảo:** một bộ khoảng 83.000 quảng cáo cho thấy tuổi thọ trung vị (một nửa số quảng cáo ngắn hơn, một nửa dài hơn) là 17 ngày; một bộ khoảng 47.000 quảng cáo có khoảng 11% chạy liên tục quá 60 ngày.
-- **Dùng ở:** E5 phép kiểm 3, cách A.
-- **Nguồn:** [hướng dẫn thư viện quảng cáo Meta (virlo.ai)](https://virlo.ai/blog/complete-guide-meta-ad-library); [nghiên cứu đối thủ bằng thư viện quảng cáo Meta (segwise.ai)](https://segwise.ai/blog/meta-ad-library-competitor-research).
-- **Mức chắc chắn:** thấp. Nguồn là blog marketing, dữ liệu quảng cáo nước ngoài, chưa kiểm chứng độc lập. Vì vậy có thêm cách B.
+- **Nghĩa:** người bán thường không trả tiền lâu cho quảng cáo không ra đơn, nên quảng cáo chạy lâu là quảng cáo người bán **chọn giữ lại**. Đây là suy luận về hành vi người bán, không chứng minh quảng cáo có lãi (E1; mục "Vẫn cấm" của E5).
+- **Các mốc tham khảo (chủ chọn giữ cả ba mốc 17 ngày, 3 tuần, 60 ngày, ngày 08/10/2026):**
+
+  | Mốc | Nghĩa | Nguồn |
+  |---|---|---|
+  | 17 ngày | Tuổi thọ trung vị trên khoảng 83.000 quảng cáo: một nửa số quảng cáo dừng trước mốc này | Blog marketing nước ngoài (nguồn ở dưới) |
+  | 3 tuần (21 ngày) | Người làm nghề coi quảng cáo chạy quá 3 tuần là quảng cáo được đối thủ giữ lại vì đang hiệu quả | [Tomorrow Marketers, bài nghiên cứu đối thủ trên kênh digital](https://tomorrowmarketers.org/nghien-cuu-doi-thu-digital/) |
+  | 30 ngày | Mốc người chạy quảng cáo hay dùng. Là ngưỡng cách A của E5, phép kiểm 3 | Blog marketing nước ngoài |
+  | 60 ngày | Khoảng 11% quảng cáo (trên khoảng 47.000 quảng cáo) chạy liên tục quá mốc này: nhóm chạy lâu nhất | Blog marketing nước ngoài |
+
+- **Các mốc có xung đột không:** không xung đột về số. Các mốc tăng dần và khớp nhau: 3 tuần nằm trên trung vị 17 ngày, tức quảng cáo đã sống lâu hơn khoảng một nửa số quảng cáo; 60 ngày là phần đuôi, khoảng 1/10 số quảng cáo. Hai lưu ý:
+  - mỗi mốc lấy từ một bộ dữ liệu khác nhau, nên không ghép thành một đường phân bố và không suy "quảng cáo chạy 30 ngày thuộc nhóm x% lâu nhất";
+  - câu gốc "chắc chắn là quảng cáo đang có performance tốt" **không** được chép vào báo cáo, vì E1 và E5 cấm suy hiệu quả hay có lãi từ việc chạy lâu. Báo cáo chỉ viết "quảng cáo chạy liên tục x ngày, vượt mốc tham khảo y".
+- **Cách dùng trong báo cáo:** E5 phép kiểm 3 vẫn đạt theo cách A khi chạy ≥30 ngày, hoặc theo cách B. Mỗi quảng cáo ghi số ngày chạy và các mốc tham khảo đã vượt (17 ngày, 3 tuần, 30 ngày, 60 ngày). Vượt mốc 17 ngày hay 3 tuần không tự làm phép kiểm đạt.
+- **Nguồn số liệu 17 ngày, 30 ngày, 60 ngày:** [hướng dẫn thư viện quảng cáo Meta (virlo.ai)](https://virlo.ai/blog/complete-guide-meta-ad-library); [nghiên cứu đối thủ bằng thư viện quảng cáo Meta (segwise.ai)](https://segwise.ai/blog/meta-ad-library-competitor-research).
+- **Mức chắc chắn:** thấp. Cả bốn mốc đến từ blog và kinh nghiệm người làm nghề, dữ liệu quảng cáo nước ngoài, chưa kiểm chứng độc lập, chưa có số cho Việt Nam. Vì vậy có thêm cách B (hiệu chỉnh theo dữ liệu của chính ngành hàng).
 
 ### G7. Kiểm chéo bằng model thứ hai
 
@@ -674,3 +720,69 @@ Mỗi mục có: nghĩa là gì, ví dụ, dùng ở đâu trong file này, ngu�
 - **Giới hạn:** hai model có thể cùng sai theo một kiểu, nên κ cao chưa chắc là đúng. Bản ghi hai model xếp khác nhau luôn được liệt kê để người đọc tự kiểm.
 - **Dùng ở:** E11, dòng "Duyệt cách xếp nhóm".
 - **Mức chắc chắn:** trung bình. Đây là cách thay thế cho người duyệt, chưa được kiểm chứng trên dữ liệu của dự án.
+
+### G8. Ngưỡng số: vì sao chọn con số này (mới ở v1.9)
+
+Mọi ngưỡng số trong file này có một dòng ở đây: ngưỡng, dùng ở đâu, vì sao chọn số đó, ai đặt, mức chắc chắn. Thêm hay đổi một ngưỡng thì sửa bảng này trong cùng commit (xem [CHANGELOG](CHANGELOG.md), mục Cách ghi).
+
+Nhiều ngưỡng được đặt trước ngày 08/10/2026 mà không ghi lý do lúc đặt. Lý do của các ngưỡng đó là **ghi bổ sung ngày 08/10/2026**; chỗ nào chưa có căn cứ bên ngoài thì ghi thẳng là "quy ước".
+
+**Thang mức chắc chắn:**
+- **Cao:** phép tính hoặc nghiên cứu đã kiểm chứng.
+- **Trung bình:** chuẩn được dùng rộng, có nguồn, nhưng chưa kiểm trên dữ liệu của dự án.
+- **Thấp:** blog, kinh nghiệm người làm nghề.
+- **Quy ước:** chọn để có một mốc rõ ràng, chưa có căn cứ bên ngoài. Xem lại khi có dữ liệu.
+
+**Kết luận và đề xuất**
+
+| Ngưỡng | Dùng ở | Vì sao chọn số này | Ai đặt | Mức chắc chắn |
+|---|---|---|---|---|
+| Tối đa 3 phương án, 3 đề xuất | E2, E6 | Hơn 1–2 để chủ có lựa chọn thật; không quá 3 để chủ so được trong một lần đọc và việc làm ngay không bị dàn mỏng | E2: thảo luận 05/10; E6: chủ duyệt "3 đề xuất" ngày 07/10 | Quy ước, chủ đã duyệt |
+| 4–6 phát hiện ở Kết luận chính | E3, E6 | Ít nhất 4 để phủ các phần chính của báo cáo; tối đa 6 để đọc hết trong một trang | Ultimate v1.0 (05/10) | Quy ước |
+
+**Chân dung và lời khách**
+
+| Ngưỡng | Dùng ở | Vì sao chọn số này | Ai đặt | Mức chắc chắn |
+|---|---|---|---|---|
+| ≥3 thẻ bằng chứng mỗi chân dung | E4 | Một câu trích có thể là ngoại lệ, hai câu có thể trùng hợp; từ ba câu độc lập mới gọi được là điều lặp lại | Claude đề xuất, chủ duyệt E4 (07/10) | Quy ước |
+| ≥5 người viết khác nhau | E4; mục 6.3 | Để không người nào chiếm quá 1/5 số người góp lời. Ít hơn thì chân dung dễ thành chuyện của 1–2 người viết nhiều | Claude đề xuất, chủ duyệt E4 (07/10) | Quy ước |
+| ≥3 sản phẩm hoặc thương hiệu | Mục 6.3 (chân dung, vấn đề "của ngành hàng"); E5 phép kiểm 1 | Hai gian hàng có thể cùng một chủ hoặc cùng nguồn hàng. Ba là mức nhỏ nhất để nói "nhiều người bán" hay "của ngành hàng" | Claude đề xuất (07/10) | Quy ước |
+
+**Chân dung người bán nhắm tới (E5)**
+
+| Ngưỡng | Dùng ở | Vì sao chọn số này | Ai đặt | Mức chắc chắn |
+|---|---|---|---|---|
+| ≥2 nền tảng | E5 | Một nền tảng có thể đẩy một kiểu nội dung lên vì thuật toán của riêng nó. Thấy trên hai nền tảng thì khó là hiện tượng của riêng một nơi | Claude đề xuất, chủ duyệt E5 (07/10) | Quy ước |
+| Nhóm 20% video doanh thu cao nhất | E5 phép kiểm 2, cách A | Nguyên tắc 80/20: nhóm nhỏ này thường tạo phần lớn doanh thu (G3) | Claude đề xuất (07/10) | Quy ước, có nguồn |
+| Duy trì ≥4 tuần | E5 phép kiểm 2 và 3, cách A | Một tháng đủ dài để loại đợt nổi một lần (một video lan truyền, một đợt sale lớn) và khớp kỳ báo cáo theo tháng. Chưa có nghiên cứu cho mốc này, nên có thêm cách B | Claude đề xuất (07/10) | Thấp |
+| Quảng cáo chạy ≥30 ngày | E5 phép kiểm 3, cách A | Mốc người làm nghề hay dùng. Nằm trên trung vị 17 ngày và mốc 3 tuần, dưới mốc 60 ngày (G6) | Claude đề xuất (07/10) | Thấp |
+| 17 ngày, 3 tuần, 60 ngày | E5 phép kiểm 3 (chỉ để tham khảo) | Ba mốc từ ba nguồn khác nhau, không xung đột; xem G6 | Chủ chọn giữ (08/10) | Thấp |
+| Nhóm 25% cao nhất | E5 cách B; G5 | Tứ phân vị trên (mốc chia 1/4 trên cùng) là cách chia nhóm chuẩn của thống kê mô tả. Vẫn còn vài mục khi mẫu nhỏ: 40 quảng cáo còn 10 | Claude đề xuất, chủ chọn giữ song song (07/10) | Quy ước, chuẩn thống kê |
+| 80% doanh thu | E5 cách C; mục 6.3 cách C | Nguyên tắc 80/20 (G3) | Chủ chọn giữ (07/10) | Quy ước, có nguồn |
+| ≥1 câu trích | E5 phép kiểm 4 | Phép kiểm chỉ hỏi "có khách nào tự nói đúng hoàn cảnh đó không". Một câu có locator là đủ chứng minh có; độ phổ biến đã đo ở các phép kiểm khác | Claude đề xuất (07/10) | Quy ước |
+| 70% | E5, tỷ lệ khớp | **Không phải ngưỡng.** Là nhận định của chủ, dùng làm giả thuyết để so với n/N đo được | Chủ (07/10) | — |
+
+**Tập mẫu và kiểm chéo**
+
+| Ngưỡng | Dùng ở | Vì sao chọn số này | Ai đặt | Mức chắc chắn |
+|---|---|---|---|---|
+| ≥50% doanh thu nhóm lõi | E11 (tập đối thủ); mục 6.3 | Là đa số doanh thu. Với thạch dừa cần khoảng 24 sản phẩm: đủ đại diện mà vẫn đọc được | Chủ đồng ý (07/10) | Quy ước, có số liệu mẫu |
+| ≥5 thương hiệu | Mục 6.3 | 24 sản phẩm đạt 50% doanh thu thạch dừa có 7 nhóm thương hiệu; 5 là phần lớn số đó | Chủ đồng ý (07/10) | Quy ước, có số liệu mẫu |
+| 300 review mỗi sản phẩm, tối đa 500 | Mục 6.3 | 300 do chủ đặt cho lần chạy thử 06/10; 500 là giới hạn của hệ thống | Chủ | Quyết định của chủ |
+| ≥30 review có chữ | Mục 6.3 | Với 30 bản ghi, sai số của một tỷ lệ quanh 50% là khoảng ±18 điểm (G4) | Claude đề xuất (07/10) | Cao về phép tính; mốc 30 là quy ước |
+| 200 bản ghi để kiểm chéo | E11 | Với 200 bản ghi, κ đo được lệch khoảng ±0,09 (khoảng tin cậy 95%, khi hai model giống nhau ở 80% bản ghi và phần trùng do may rủi là 40%). Đủ để phân biệt κ = 0,5 với κ = 0,7. Tập nhỏ hơn thì gắn lại toàn bộ | Claude đề xuất (07/10); sai số tính theo công thức sai số chuẩn của κ | Trung bình |
+| κ ≥ 0,6 | E11 | Ranh giới giữa "vừa phải" và "đáng kể" theo thang Landis và Koch (G2) | Claude đề xuất (07/10); chủ chưa duyệt chuyên môn | Trung bình |
+| ≤5% ý mới mỗi lô | Mục 6.3 cách B | Theo Guest, Namey và Chen 2020 (G1) | Claude đề xuất (07/10) | Trung bình |
+| Lô 25 review, 2 lô đầu làm nền | Mục 6.3 cách B | Review sàn ngắn, nên lô 25 đủ nhỏ để dừng sớm và đủ lớn để mỗi lô có vài ý. Chưa kiểm trên review sàn | Claude đề xuất (07/10) | Quy ước |
+
+**Dự báo**
+
+| Ngưỡng | Dùng ở | Vì sao chọn số này | Ai đặt | Mức chắc chắn |
+|---|---|---|---|---|
+| Dữ liệu ≤180 ngày thì chỉ làm kịch bản có điều kiện | M10 | Chuỗi 180 ngày ngắn hơn một vòng mùa vụ năm (Tết, hè, cuối năm), nên không tách được mùa vụ khỏi xu hướng để dự báo. Nguồn: [Hyndman và Athanasopoulos, Forecasting: Principles and Practice, chương mùa vụ](https://otexts.com/fpp3/) | Ultimate v1.0 (05/10); lý do ghi bổ sung | Trung bình |
+
+**Chấm bài thử nguồn dữ liệu**
+
+| Ngưỡng | Dùng ở | Vì sao chọn số này | Ai đặt | Mức chắc chắn |
+|---|---|---|---|---|
+| ≥50% bản ghi liên quan, ≥30% lời khách ứng viên, chấm trên 50 bản ghi | Bài test nguồn ngày 08/10 ([nhật ký test](input-data-sources-test-log.md)) | Quá nửa bản ghi đúng sản phẩm thì công lọc còn đáng. Khoảng 1/3 là lời khách thì vài trăm bản ghi ra được vài chục câu trích, đủ cho thẻ bằng chứng của E4 | Claude đặt cho bài test | Quy ước |
