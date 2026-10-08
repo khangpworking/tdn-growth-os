@@ -1,0 +1,9 @@
+@prefix ex: <urn:onto:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+ex:UNKNOWNShape a sh:NodeShape; ex:ruleId "UNKNOWN"; ex:status "proposed";
+ ex:source <https://github.com/khangpworking/tdn-growth-os/blob/998549072ae62b9d619ffbf645ba59b22a920d4e/docs/research/offline-acceptance.md#L17>;
+ ex:ultimateSource <https://github.com/khangpworking/tdn-growth-os/blob/998549072ae62b9d619ffbf645ba59b22a920d4e/docs/research/ultimate-method/ultimate-method-30-sections.md#2-quy-tắc-dùng-chung-áp-cho-cả-30-section>;
+ sh:targetClass ex:UnknownRecord;
+ sh:property [ sh:path ex:inWide; sh:hasValue false; sh:maxCount 1; sh:message "UNKNOWN phải ở ngoài WIDE theo chính sách đã chốt" ];
+ sh:property [ sh:path ex:inAll; sh:hasValue true; sh:maxCount 1; sh:message "UNKNOWN phải được giữ trong ALL để kiểm tra" ] .
