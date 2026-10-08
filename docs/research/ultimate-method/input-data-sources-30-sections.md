@@ -1,6 +1,6 @@
 # Input data sources for 30 sections
 
-Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.2 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.7
+Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.3 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.7
 
 Đây là **nguồn chuẩn về danh mục nguồn dữ liệu**. File này trả lời ba câu hỏi:
 - có những nguồn nào;
@@ -72,7 +72,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 |---|---|---|---|---|---|---|---|---|---|
 | S05 | Review Shopee, có số sao | Khách | Bộ thu review Shopee (Apify, actor zen-studio) | "review công khai trên Shopee" | B | Thấp | Đang dùng | Theo lượt; cần chủ duyệt mỗi lần chi | L1, L6; mục 6.3 |
 | S06 | Review TikTok Shop | Khách | Chưa có bộ thu | "review công khai trên TikTok Shop" | B | Thấp | Đề xuất | — | Như S05 |
-| S07 | Bình luận dưới video TikTok | Khách | Apify (clockworks, datadoping) | "bình luận công khai dưới video" | B | Thấp | Chờ test (R3, R4): đã có 5 link video review đã kiểm (ST-20261008-17) | ~$0,35–1,25 / 1.000 bình luận | Ẩn danh người viết; lọc tài khoản bán hàng; E5 phép kiểm 4 |
+| S07 | Bình luận dưới video TikTok | Khách | Apify (clockworks, datadoping) | "bình luận công khai dưới video" | B | Thấp | Đã test (R3, R4): dùng được. 10–32% lời khách ứng viên trên mẫu chấm, cao hơn hẳn tìm bài Facebook. Pilot dùng datadoping, dự phòng clockworks | ~$0,33 (datadoping) – $1,00 (clockworks) / 1.000 bình luận duy nhất | Ẩn danh người viết; lọc tài khoản bán hàng; **lọc trùng theo mã video + mã bình luận**; vị trí trích dẫn = link video + mã bình luận (không có link trực tiếp tới bình luận); E5 phép kiểm 4 |
 | S08 | Bài viết Facebook công khai và bài trong nhóm | Khách | Agent-Reach (OpenCLI); Apify Facebook Posts Search | "bài viết công khai trên Facebook" | B | Thấp | Đã test. Agent-Reach: một phần. Apify tìm bài công khai: R1 không đạt, R2 một phần. Bài công khai chủ yếu là bài bán hàng; lời khách nên lấy từ nhóm | Agent-Reach: không; Apify: ~$0,23–0,26 cho 75–86 bài | Ẩn danh; dùng tài khoản riêng; L5, L7; bài không có ngày không vào số đếm theo kỳ |
 | S09 | Instagram | Khách / người bán | Agent-Reach (không dùng được); Apify chỉ trả link | "bài viết công khai trên Instagram" | B | Thấp | Không dùng được hiện tại | — | — |
 | S10 | X (Twitter) | Khách | Apify Tweet Scraper | "bài viết công khai trên X" | B | Rất thấp ở Việt Nam | Đã test (R7): một phần. 94% bài đúng sản phẩm, nhưng chỉ 24% là lời khách ứng viên; nhiều câu mô tả lặp mẫu. Chỉ dùng làm nguồn phụ, có lọc | ~$0,08 cho 200 bài | Chưa xác minh được người thật, người Việt |
@@ -184,6 +184,9 @@ Lịch sử từng lần thử thu và kiểm định nằm ở **[Input data so
 - Từ khoá tiếng Việt dễ ra kết quả lệch nghĩa. Ví dụ gặp trong bài test:
   - "thạch dừa" (thạch làm từ nước dừa lên men) lẫn với thạch rau câu nước dừa, thạch dừa xiêm nguyên quả, "thạch dứa", và các chữ "Thạch" trong tên riêng hay "thử thách";
   - "bình giữ nhiệt" lẫn với bình nóng lạnh, thùng ủ sữa chua, hộp cơm giữ nhiệt, "giữ vững nhiệt huyết", và bình làm quà tặng kèm sữa, bảo hiểm, ngân hàng.
+- **Bình luận dưới video review là nguồn lời khách tốt nhất trong các lần thử** (S07: 10–32% bình luận là lời khách ứng viên, so với 0–8% khi tìm bài Facebook theo từ khoá). Bình luận còn cho câu hỏi trước khi mua, lời chê và cách bảo quản, chế biến (I07, I08). Người bình luận chưa chắc đã mua; ghi "lời người xem" khi chưa có dấu hiệu đã mua hoặc đã dùng.
+- Khi chấm mẫu, chia đều số bình luận cho từng video (ví dụ 10 bình luận mỗi video), không lấy 50 dòng đầu. 50 dòng đầu dễ rơi hết vào một video.
+- Hai công cụ thu cùng một video với cùng giới hạn vẫn ra hai tập bình luận khác nhau. Cỡ mẫu ghi là "bình luận thu được", không phải "toàn bộ bình luận".
 - Tên thương hiệu lấy theo tiêu đề có thể trùng thương hiệu khác ngành, ví dụ Niumi. Hoặc viết khác nhau giữa các nguồn, ví dụ "Fanhouse F" và "Fan House". Cần đối chiếu danh tính thương hiệu trước khi gộp (I13, E11).
 
 ---
