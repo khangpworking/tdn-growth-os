@@ -12,6 +12,9 @@
     },
     {
       "$ref": "#/$defs/literalRequest"
+    },
+    {
+      "$ref": "#/$defs/defaultRequest"
     }
   ],
   "$defs": {
@@ -210,6 +213,56 @@
         },
         "literalInsight": {
           "$ref": "#/$defs/literalSelection"
+        }
+      }
+    },
+    "defaultSelection": {
+      "title": "InsightDefaultDraftSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "proposalId",
+        "proposalSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-default-draft-select-v1"
+        },
+        "proposalId": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+        },
+        "proposalSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        }
+      }
+    },
+    "defaultRequest": {
+      "title": "AutomationInsightDefaultReportRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "previousPairId",
+        "sources",
+        "defaultInsight"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-insight-default-report-revision-v1"
+        },
+        "requestKey": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+        },
+        "previousPairId": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "sources": {
+          "$ref": "#/$defs/requestSources"
+        },
+        "defaultInsight": {
+          "$ref": "#/$defs/defaultSelection"
         }
       }
     }

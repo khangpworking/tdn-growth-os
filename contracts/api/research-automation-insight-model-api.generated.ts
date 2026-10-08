@@ -3,7 +3,8 @@
 /**
  * Explicit OWNER model proposal, never annotation acceptance or report regeneration. Unknown dispatch must not be retried under a new identity automatically.
  */
-export type ResearchAutomationInsightModelApi = InsightModelRequest | ResearchInsightModelResponse;
+export type ResearchAutomationInsightModelApi =
+  InsightModelRequest | ResearchInsightModelResponse | InsightDefaultModelRequest;
 export type ResearchInsightModelResponse =
   | {
       contractVersion: Version;
@@ -35,6 +36,9 @@ export type ResearchInsightModelResponse =
     };
 export type Version = 'insight-model-response-v1';
 export type Uuid = string;
+export type InsightDefaultModelRequest = {
+  [k: string]: unknown;
+};
 
 export interface InsightModelRequest {
   contractVersion: 'insight-model-request-v1';

@@ -1,11 +1,85 @@
 /* Generated from automation-insight-model.schema.json. Do not edit by hand. */
 
 export type AutomationInsightModel =
-  InsightModelRequest | InsightModelSource | InsightModelInput | InsightModelPrompt | InsightModelConfiguration;
+  | InsightModelRequest
+  | InsightModelSource
+  | InsightModelInput
+  | InsightModelPrompt
+  | InsightModelConfiguration
+  | InsightDefaultModelRequest
+  | InsightDefaultModelSource
+  | InsightDefaultModelCandidates
+  | InsightDefaultModelPrompt;
+/**
+ * @maxItems 10000
+ */
+export type I02 = Context[];
+/**
+ * @maxItems 10000
+ */
+export type I04 = Behavior[];
+/**
+ * @maxItems 10000
+ */
+export type I05 = Attitude[];
+/**
+ * @maxItems 10000
+ */
+export type I06 = Journey[];
+/**
+ * @maxItems 10000
+ */
+export type I07 = Reason[];
+/**
+ * @maxItems 10000
+ */
+export type I08 = Barrier[];
+/**
+ * @maxItems 10000
+ */
+export type I09 = Gap[];
+/**
+ * @maxItems 10000
+ */
+export type Codes = {
+  code: string;
+  label: string;
+  phrase: string;
+  firstRecordIndex: number | null;
+  firstSpan: Span | null;
+}[];
+/**
+ * @maxItems 10000
+ */
+export type Assignments = {
+  recordIndex: number;
+  code: string;
+  span: Span;
+  provenance: Provenance;
+}[];
+/**
+ * @maxItems 10000
+ */
+export type Dispositions = {
+  recordIndex: number;
+  state: 'CODED' | 'UNCODED' | 'UNCLEAR' | 'PENDING';
+  provenance: Provenance;
+}[];
+/**
+ * @maxItems 10000
+ */
+export type I13Mentions = {
+  recordIndex: number;
+  span: Span;
+  provenance: Provenance;
+}[];
 /**
  * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
  */
 export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
+export type InsightDefaultModelRequest = {
+  [k: string]: unknown;
+};
 
 export interface InsightModelRequest {
   contractVersion: 'insight-model-request-v1';
@@ -57,46 +131,18 @@ export interface Input {
    */
   records: Record[];
   brief: Brief | null;
-  /**
-   * @maxItems 10000
-   */
-  i02: Context[];
-  /**
-   * @maxItems 10000
-   */
-  i04: Behavior[];
-  /**
-   * @maxItems 10000
-   */
-  i05: Attitude[];
-  /**
-   * @maxItems 10000
-   */
-  i06: Journey[];
-  /**
-   * @maxItems 10000
-   */
-  i07: Reason[];
-  /**
-   * @maxItems 10000
-   */
-  i08: Barrier[];
-  /**
-   * @maxItems 10000
-   */
-  i09: Gap[];
+  i02: I02;
+  i04: I04;
+  i05: I05;
+  i06: I06;
+  i07: I07;
+  i08: I08;
+  i09: I09;
   /**
    * @maxItems 10000
    */
   corpora: Corpus[];
-  /**
-   * @maxItems 10000
-   */
-  i13Mentions: {
-    recordIndex: number;
-    span: Span;
-    provenance: Provenance;
-  }[];
+  i13Mentions: I13Mentions;
   semanticsVersion?: '1.0.0' | '1.1.0';
   draftCountsVersion?: DraftCountsVersion;
   workingQuestionProposal?: string | null;
@@ -298,34 +344,10 @@ export interface Corpus {
   externalSampling: string;
   codebook: {
     revision: string;
-    /**
-     * @maxItems 10000
-     */
-    codes: {
-      code: string;
-      label: string;
-      phrase: string;
-      firstRecordIndex: number | null;
-      firstSpan: Span | null;
-    }[];
+    codes: Codes;
   };
-  /**
-   * @maxItems 10000
-   */
-  assignments: {
-    recordIndex: number;
-    code: string;
-    span: Span;
-    provenance: Provenance;
-  }[];
-  /**
-   * @maxItems 10000
-   */
-  dispositions: {
-    recordIndex: number;
-    state: 'CODED' | 'UNCODED' | 'UNCLEAR' | 'PENDING';
-    provenance: Provenance;
-  }[];
+  assignments: Assignments;
+  dispositions: Dispositions;
 }
 export interface InsightModelInput {
   contractVersion: 'insight-model-input-v1';
@@ -367,4 +389,48 @@ export interface InsightModelConfiguration {
   maxOutputTokens: number;
   timeoutMs: number;
   maxResponseBytes: number;
+}
+export interface InsightDefaultModelSource {
+  contractVersion: 'insight-default-model-source-v1';
+  request: InsightDefaultModelRequest;
+  binding: InsightSourceBinding;
+  defaultRuleId: string;
+  defaultRuleSha256: string;
+  codebookSha256: string;
+  actorId: string;
+  input: Input;
+}
+export interface InsightDefaultModelCandidates {
+  /**
+   * @maxItems 100
+   */
+  codebooks: InsightDefaultCodebookAddition[];
+  annotations: InsightProposedAnnotations;
+}
+export interface InsightDefaultCodebookAddition {
+  corpusIndex: number;
+  codes: Codes;
+}
+export interface InsightProposedAnnotations {
+  i02?: I02;
+  i04?: I04;
+  i05?: I05;
+  i07?: I07;
+  i08?: I08;
+  i06: I06;
+  i09: I09;
+  i13Mentions: I13Mentions;
+  /**
+   * @maxItems 100
+   */
+  corpora: InsightProposedCorpusCoding[];
+}
+export interface InsightProposedCorpusCoding {
+  corpusIndex: number;
+  assignments: Assignments;
+  dispositions: Dispositions;
+}
+export interface InsightDefaultModelPrompt {
+  contractVersion: 'insight-model-prompt-v5';
+  systemText: string;
 }

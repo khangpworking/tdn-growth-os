@@ -1,7 +1,13 @@
 /* Generated from automation-insight-coding.schema.json. Do not edit by hand. */
 
 export type AutomationInsightCoding =
-  InsightCodingAdoptRequest | InsightCodingProposeRequest | InsightCodingAcceptRequest | InsightCodingEvidence;
+  | InsightCodingAdoptRequest
+  | InsightCodingProposeRequest
+  | InsightCodingAcceptRequest
+  | InsightCodingEvidence
+  | InsightDefaultRuleRequest
+  | InsightDefaultCodingProposeRequest
+  | InsightDefaultCodingEvidence;
 export type Uuid = string;
 export type Digest = string;
 /**
@@ -347,6 +353,45 @@ export interface InsightCodingEvidence {
   sequence: number;
   binding: InsightSourceBinding;
   request: InsightCodingAdoptRequest | InsightCodingProposeRequest | InsightCodingAcceptRequest;
+  parentSha256: Digest | null;
+  actorId: string;
+  actorRole: 'OWNER';
+  createdAt: string;
+}
+export interface InsightDefaultRuleRequest {
+  contractVersion: 'insight-coding-default-rule-v1';
+  kind: 'DEFAULT_RULE';
+  status: 'PROPOSED';
+  requestKey: Uuid;
+  originatingRequestKey: Uuid;
+  binding: InsightSourceBinding;
+  policyVersion: 'source-default-coding-v1';
+  rules: InsightCodingRules;
+}
+export interface InsightDefaultCodingProposeRequest {
+  contractVersion: 'insight-coding-default-propose-v1';
+  status: 'PROPOSED';
+  requestKey: Uuid;
+  defaultRuleId: Uuid;
+  defaultRuleSha256: Digest;
+  previousProposalId: Uuid | null;
+  previousProposalSha256: Digest | null;
+  executionId: Uuid;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: [number, ...number[]];
+  rules: InsightCodingRules;
+  codebookSha256: Digest;
+  annotations: InsightProposedAnnotations;
+}
+export interface InsightDefaultCodingEvidence {
+  contractVersion: 'insight-coding-default-evidence-v1';
+  evidenceId: Uuid;
+  sequence: number;
+  binding: InsightSourceBinding;
+  request: InsightDefaultRuleRequest | InsightDefaultCodingProposeRequest;
   parentSha256: Digest | null;
   actorId: string;
   actorRole: 'OWNER';
