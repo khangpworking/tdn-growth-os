@@ -112,7 +112,7 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
   if (includedRecordCount === 0) blockers.push('CORPUS_ZERO_DENOMINATOR');
   const ratioStatus = blockers.length === 0 ? 'COMPLETE' as const
     : blockers.length === 1 && includedRecordCount === 0 ? 'ZERO_DENOMINATOR' as const : 'PARTIAL' as const;
-  return {
+  const countsBase = {
     corpusIndex, membershipCount: members.size, includedRecordCount, excludedCount, unreadableCount,
     pendingCount, unclearCount, uncodedCount, codedCount, multiCodedCount,
     duplicateReferenceCount: corpus.recordIndexes.length - members.size,
@@ -127,6 +127,38 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
     }),
     blockers,
   };
+  // U-03 draft eligibility is additive and opt-in: without the flag the output
+  // keeps the historical accepted-only bytes exactly. Draft assignments are
+  // all disagreement-free assignments (eligible accepted rows plus eligible
+  // retained AI proposals) on INCLUDED records with a matching eligible CODED
+  // disposition. PENDING, UNCLEAR, UNCODED or missing dispositions never enter
+  // draft code counts. Drafts never unlock ratios, rewrite provenance, or
+  // clear the pending tallies above.
+  if (input.draftCountsVersion !== 'draft-counts-v1') return countsBase;
+  const eligibleDisposition = new Set<string>();
+  for (const [key, disposition] of states) {
+    if (disposition.state === 'CODED' && disposition.provenance.disagreement === null) eligibleDisposition.add(key);
+  }
+  const draftRecords = new Map<string, Map<string, string[]>>();
+  for (const code of corpus.codebook.codes) draftRecords.set(code.code, new Map());
+  for (const [assignmentIndex, assignment] of corpus.assignments.entries()) {
+    if (assignment.provenance.disagreement !== null) continue;
+    if (input.records[assignment.recordIndex]!.disposition !== 'INCLUDED') continue;
+    const key = recordKey(input, assignment.recordIndex);
+    if (!eligibleDisposition.has(key)) continue;
+    const perCode = draftRecords.get(assignment.code)!;
+    const pointers = perCode.get(key) ?? [];
+    pointers.push(`/input/corpora/${corpusIndex}/assignments/${assignmentIndex}`);
+    perCode.set(key, pointers);
+  }
+  return { ...countsBase,
+    draftCounts: corpus.codebook.codes.map(code => {
+      const records = draftRecords.get(code.code)!;
+      return { code: code.code, recordCount: records.size,
+        annotationPointers: [...records.values()].flat(),
+        label: 'đề xuất, chờ chủ duyệt' as const };
+    }),
+    draftLabel: 'đề xuất, chờ chủ duyệt' as const, draftCountsVersion: 'draft-counts-v1' as const };
 }
 
 /** Called by the located-method boundary after schema and exact-span validation. */

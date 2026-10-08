@@ -7,6 +7,7 @@ import { createHash } from 'node:crypto';
 import { insightModelPrompt } from '../../src/modules/analysis/research-automation/insight-model-execution.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import legacyPromptSchemas from '../../src/modules/analysis/research-automation/insight-model-prompt-v1-schemas.json' with { type: 'json' };
+import frozenV2PromptSchemas from '../../src/modules/analysis/research-automation/insight-model-prompt-v2-schemas.json' with { type: 'json' };
 import locatedSchema from '../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import { locatedInsightFixture } from '../helpers/located-insight-fixture.js';
 import { boundedAnalysisGatesFixture } from '../helpers/bounded-analysis-gates-fixture.js';
@@ -31,12 +32,17 @@ test('U-05 lifts the persona ban in v2 and keeps the historical v1 prompt bytes'
   // The frozen fragment predates the U-02 fields, and only v2 embeds the current contract fragment.
   assert.ok(v1.systemText.includes(canonicalJson(legacyPromptSchemas.locatedDefinitions)));
   assert.ok(!v1.systemText.includes('workingQuestionProposal'));
-  assert.ok(v2.systemText.includes(canonicalJson(locatedSchema.$defs)));
+  // U-03: v2 keeps the frozen pre-U-03 fragments; v3 embeds the current contract fragment.
+  assert.ok(v2.systemText.includes(canonicalJson(frozenV2PromptSchemas.locatedDefinitions)));
   assert.ok(v2.systemText.includes('workingQuestionProposal'));
+  assert.ok(!v2.systemText.includes('draft-counts-v1'));
+  const v3 = insightModelPrompt('insight-model-prompt-v3');
+  assert.ok(v3.systemText.includes(canonicalJson(locatedSchema.$defs)));
+  assert.ok(v3.systemText.includes('draft-counts-v1'));
   // v1 and v2 differ by exactly the lifted persona ban plus the located-contract fragment change, nothing else.
   assert.equal(v1.systemText
     .replace('people counts, personas, causality', 'people counts, causality')
-    .replace(canonicalJson(legacyPromptSchemas.locatedDefinitions), canonicalJson(locatedSchema.$defs)), v2.systemText);
+    .replace(canonicalJson(legacyPromptSchemas.locatedDefinitions), canonicalJson(frozenV2PromptSchemas.locatedDefinitions)), v2.systemText);
 });
 
 // U-16 + U-07: the new decision prompt carries the no-purchase ban and the three labelled proposal fields, capped at 3.

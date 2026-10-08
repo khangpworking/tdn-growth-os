@@ -201,10 +201,25 @@ function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
   body += section.annotationPointers.length === 0
     ? '<p>Chưa có chú giải được đưa vào kết quả cho mục này. Cần bổ sung mã hóa có vị trí nguồn và xử lý các mục đang chờ.</p>'
     : table('Chú giải được hồ sơ đưa vào kết quả', ['Nội dung và mã hóa', 'Nguồn và ngữ cảnh'], section.annotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer))) + sliceNote(ctx, section.annotationPointers.length, 'chú giải');
-  if (section.pendingAnnotationPointers.length) {
-    body += `<details><summary>Chú giải đang chờ xử lý (${section.pendingAnnotationPointers.length})</summary><p>Gợi ý AI hoặc bất đồng chưa phân xử được giữ riêng, chưa đưa vào kết quả mã hóa.</p>${table('Chú giải đang chờ, chưa đưa vào kết quả', ['Nội dung đề xuất', 'Nguồn và điều còn chờ'], section.pendingAnnotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer)))}${sliceNote(ctx, section.pendingAnnotationPointers.length, 'chú giải đang chờ')}</details>`;
-  }
+  if (section.pendingAnnotationPointers.length) body += `<details><summary>Chú giải đang chờ xử lý (${section.pendingAnnotationPointers.length})</summary><p>Gợi ý AI hoặc bất đồng chưa phân xử được giữ riêng, chưa đưa vào kết quả mã hóa.</p>${table('Chú giải đang chờ, chưa đưa vào kết quả', ['Nội dung đề xuất', 'Nguồn và điều còn chờ'], section.pendingAnnotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer)))}${sliceNote(ctx, section.pendingAnnotationPointers.length, 'chú giải đang chờ')}</details>`;
+  body += draftSectionBody(ctx, sectionId, section);
   return body + footer(ctx, section.blockers);
+}
+
+/**
+ * Draft counts from retained AI proposals. Every number carries the draft
+ * label in the same sentence; absent draft fields render nothing, so retained
+ * versions read back exactly as before.
+ */
+function draftSectionBody(ctx: RenderContext, sectionId: LocatedId, section: { readonly annotationPointers: readonly string[]; readonly draftAnnotationPointers?: readonly string[]; readonly draftLocatedRecordCount?: number; readonly draftLabel?: string }): string {
+  const pointers = section.draftAnnotationPointers ?? [];
+  if (!pointers.length) return '';
+  const label = section.draftLabel ?? 'đề xuất, chờ chủ duyệt';
+  const count = section.draftLocatedRecordCount ?? pointers.length;
+  return `<p>${count} bản ghi (${label}).</p>` + table(`Chú giải ${label} (${pointers.length})`,
+    ['Nội dung đề xuất', 'Nguồn và ngữ cảnh'],
+    pointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer))) +
+    sliceNote(ctx, pointers.length, 'chú giải đề xuất');
 }
 
 function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
@@ -251,6 +266,19 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
       return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${textOrUnset(code.phrase)}</small>` : ''}</th><td>${count.recordCount}${evidence}</td><td>${ratio}</td></tr>`;
     });
     body += table(complete ? 'Số bản ghi theo mã trong tập đã chốt' : 'Số bản ghi đã mã hóa, còn một phần', ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], rows) + sliceNote(ctx, result.counts.length, 'mã');
+    if ((result.draftCounts ?? []).some(count => count.recordCount > 0)) {
+      const draftRows = result.draftCounts!.slice(0, PAGE_LIMIT).map(count => {
+        const code = corpus.codebook.codes.find(item => item.code === count.code);
+        if (!code) throw new TypeError('located insight HTML: UNKNOWN_CODE');
+        const refs = count.annotationPointers.slice(0, PAGE_LIMIT).map(pointer => {
+          const assignment = locatedAt(corpus.assignments, pointer, `/input/corpora/${result.corpusIndex}/assignments/`);
+          return `<li>${quote(assignment.span)}${source(ctx, assignment.recordIndex)}${provenance(assignment.provenance)}</li>`;
+        }).join('');
+        const evidence = refs ? `<details><summary>Đoạn nguồn cho mã này</summary><ul class="limits">${refs}</ul>${sliceNote(ctx, count.annotationPointers.length, 'chú giải nguồn')}</details>` : '';
+        return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small></th><td>${count.recordCount} (${count.label})${evidence}</td><td>Chưa công bố</td></tr>`;
+      });
+      body += table(`Số bản ghi theo mã (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'})`, ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], draftRows) + sliceNote(ctx, result.draftCounts!.length, 'mã đề xuất');
+    }
     body += `<p class="sec-note">${corpus.multiCode ? 'Một bản ghi có thể mang nhiều mã; không cộng các n hoặc tỷ lệ thành 100%.' : 'Hồ sơ khai báo mỗi bản ghi có tối đa một mã.'} Thứ tự theo bộ mã, không phải thứ hạng hay mức ưu tiên.</p>`;
     if (result.blockers.length) body += `<details><summary>Điều kiện còn thiếu của tập bản ghi</summary><ul class="limits">${result.blockers.map(codeItem).join('')}</ul></details>`;
   }

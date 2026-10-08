@@ -13,6 +13,10 @@ export type Facet =
   | 'OTHER_EXPLICIT'
   | 'UNCLEAR';
 /**
+ * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
+ */
+export type DraftCountsVersion = 'draft-counts-v1';
+/**
  * @maxItems 10000
  */
 export type Strings = Text[];
@@ -21,6 +25,22 @@ export type Strings = Text[];
  */
 export type Pointers = string[];
 export type Count = number;
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers1 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers2 = string[];
+/**
+ * Same-sentence label required on every AI-proposed draft number. Never a release claim.
+ */
+export type DraftCountLabel = 'đề xuất, chờ chủ duyệt';
 
 export interface LocatedInsightMethods {
   contractVersion: '1.0.0';
@@ -164,6 +184,7 @@ export interface Input {
     provenance: Provenance;
   }[];
   semanticsVersion?: '1.0.0' | '1.1.0';
+  draftCountsVersion?: DraftCountsVersion;
   workingQuestionProposal?: Text | null;
 }
 export interface Record {
@@ -383,6 +404,11 @@ export interface Section {
   annotationPointers: Pointers;
   pendingAnnotationPointers: Pointers;
   locatedRecordCount: Count;
+  draftRecordPointers?: Pointers1;
+  draftAnnotationPointers?: Pointers2;
+  draftLocatedRecordCount?: Count;
+  draftLabel?: DraftCountLabel;
+  draftCountsVersion?: DraftCountsVersion;
   semanticValidation: 'DECLARED_NOT_VERIFIED';
   blockers: Strings;
 }
@@ -416,6 +442,19 @@ export interface CorpusSection {
       } | null;
       annotationPointers: Pointers;
     }[];
+    /**
+     * Per-code draft counts from eligible retained AI proposals. Accepted counts unchanged; no ratios, never released.
+     *
+     * @maxItems 10000
+     */
+    draftCounts?: {
+      code: Text;
+      recordCount: Count;
+      annotationPointers: Pointers;
+      label: DraftCountLabel;
+    }[];
+    draftLabel?: DraftCountLabel;
+    draftCountsVersion?: DraftCountsVersion;
     blockers: Strings;
   }[];
   mentionPointers: Pointers;
