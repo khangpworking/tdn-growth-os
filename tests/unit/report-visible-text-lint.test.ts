@@ -7,6 +7,9 @@ test('U13 inspects visible wording while preserving nested quotes and titles', (
   assert.deepEqual(bad('<p>Sản phẩm tốt <b>nhất</b>.</p>'), ['U13_SUPERLATIVE']);
   assert.deepEqual(bad('<p>h&#224;ng đầu</p>'), ['U13_SUPERLATIVE']);
   assert.deepEqual(bad('<p>Quy tắc chọn tới khi đạt ít nhất <b>50</b>% doanh thu nhóm.</p>'), []);
+  assert.deepEqual(bad('<p>Bản ghi duy nhất: 12; Dòng trùng đồng nhất: 2.</p>'), []);
+  assert.deepEqual(bad('<p>Bản ghi duy nhất của sản phẩm tốt nhất.</p>'), ['U13_SUPERLATIVE']);
+  assert.deepEqual(bad('<p>Sản phẩm duy nhất cho nhu cầu này.</p>'), ['U13_SUPERLATIVE']);
 });
 test('U13 requires explicit dependency for priority and a same-sentence draft label', () => {
   assert.deepEqual(bad('<p>Làm ngay bước này, tiếp theo bước kia.</p>'), ['U13_PRIORITY']);
