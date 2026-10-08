@@ -32,6 +32,12 @@ export interface AutomationM01EvidenceInventoryInput {
   readonly inventoryVersion?: '1.0.0' | '1.1.0';
 }
 
+/** The saved version selects replay semantics; a new deployment never rewrites historical inventory bytes. */
+export function automationM01InventoryVersion(untrusted: unknown): NonNullable<AutomationM01EvidenceInventoryInput['inventoryVersion']> {
+  if (!validateSchema(untrusted)) fail('INVALID_M01_EVIDENCE_INVENTORY');
+  return untrusted.methodVersion;
+}
+
 /** A reference to one upstream claim with its bindings; never a new M01 fact. Spans and statements stay upstream. */
 function item(claim: AutomationSourceClaim): InventoryItem {
   const { observation, source } = claim;
