@@ -59,9 +59,35 @@ sentence. Unsupported family totals are withheld, and draft views do not publish
 completion or ratio claims. Synthetic checks cover exact report-byte replay without
 extra writes or calls, binding/forged-snapshot rejection, stable record deduplication,
 disposition gates and historical method/HTML/prompt byte equality.
-U-03 remains partial: other semantic families, I11 consumption and U-11 release
-cross-checks remain pending. This path does not remove all owner prerequisites.
+This original slice did not include other semantic families or I11 coding consumption;
+PR #174 below extends those paths. U-03 remains partial and U-11 release cross-checks
+remain pending. Neither path removes all owner prerequisites.
 See [SYNC-4 evidence and limitations](handoffs/SYNC-4.md).
+
+Versioned family drafts and the I11 count bridge are merged in [PR #174](https://github.com/khangpworking/tdn-growth-os/pull/174).
+Independent review covered exact head `87b65736e60ebd27fc02ce9fcff942b391dfd1ee`,
+with 12 focused tests passing and full hosted [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37792649985) passing.
+Merge: `b7c7da70a3239e8bc6ef0508453534e43c65b0f8`.
+The owning revision path now consumes I04–I09 draft families and source-authenticated
+I10/I13 memberships for separate I11 counts. Snapshot v3, selection v2, prompt v4
+and renderer v17 preserve older retained bytes. Draft rates and differences remain
+unavailable; buyer-type evidence is missing, adoption lineage remains required,
+and no receipt-free UI or U-11 release eligibility is claimed.
+See [NEXT-INSIGHT evidence](handoffs/NEXT-INSIGHT-SOL.md).
+
+Market reader findings, retained-spec unit prices and shared visible-text lint are
+merged in [PR #175](https://github.com/khangpworking/tdn-growth-os/pull/175).
+Independent review covered exact head `bada71a3f70effbe79f9092f2e3817ecbd386aa4`,
+with 17 focused tests passing and full hosted [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37793015513) passing.
+Merge: `1c58d2532f254ec476ef71879cf589400d106927`.
+Opt-in build v1.2/input 1.4/builder v4 produces scoped, unordered evidence findings
+and compatible unit-price tables from exact retained JSON spec observations.
+Shared lint checks superlatives, unsupported priority and same-sentence draft labels;
+the new Market reader and Insight v17 invoke it. Operator upload of these standalone
+spec blobs, native extraction and Market auto-report integration remain follow-ups.
+Positive reader tests preseed artifacts and do not establish upload closure.
+ROAS/CPA remain unavailable without confirmed retained field provenance.
+See [NEXT-MARKET evidence](handoffs/NEXT-MARKET.md).
 
 Future collector activation and history readers remain with P5/P9/P10/U-23.
 These merges do not establish complete Ultimate alignment or business acceptance.
