@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.6 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.7 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -15,9 +15,10 @@ File hợp nhất:
 7. **v1.3 (07/10/2026):** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu; ngưỡng thu review mở rộng (mục 6.3).
 8. **v1.4 (07/10/2026):** giữ song song nhiều cách tính ngưỡng (số cố định, độ bão hoà, hiệu chỉnh theo dữ liệu, 80/20); không mua hàng (L8); phụ lục giải thích các nguyên tắc chuyên môn.
 9. **v1.5 (08/10/2026):** thống kê chính thức của Cục Thống kê làm nguồn bối cảnh vĩ mô cho mọi ngành hàng (E12, mục 6.4).
-10. **v1.6 (08/10/2026):** tách danh mục nguồn sang file riêng [sources.md](sources.md), có mã nguồn S01…, hạng tin cậy A–D, độ đại diện và bảng section dùng nguồn nào.
+10. **v1.6 (08/10/2026):** tách danh mục nguồn sang file riêng [Input data sources for 30 sections](input-data-sources-30-sections.md), có mã nguồn S01…, hạng tin cậy A–D, độ đại diện và bảng section dùng nguồn nào.
+11. **v1.7 (08/10/2026):** file danh mục nguồn đổi tên thành [Input data sources for 30 sections](input-data-sources-30-sections.md); ghi kết quả bài test Apify.
 
-Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [sources.md](sources.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn).
+Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [Input data sources for 30 sections](input-data-sources-30-sections.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn).
 
 Quy ước trạng thái:
 
@@ -218,7 +219,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 
 ## 3. Bảng tổng quan 30 section
 
-Nguồn dữ liệu của từng section: [sources.md, mục 3](sources.md#3-section-dùng-nguồn-nào).
+Nguồn dữ liệu của từng section: [Input data sources for 30 sections, mục 3](input-data-sources-30-sections.md#3-section-dùng-nguồn-nào).
 
 | # | ID | Tiêu đề | Nhóm | Phương pháp lõi (latest) | Trạng thái |
 |---:|---|---|---|---|---|
@@ -465,7 +466,7 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 
 ### 6.1 Danh mục nguồn
 
-Danh mục đầy đủ nằm ở **[sources.md](sources.md)** (từ v1.6). File đó gồm:
+Danh mục đầy đủ nằm ở **[Input data sources for 30 sections](input-data-sources-30-sections.md)** (từ v1.6). File đó gồm:
 - mã nguồn S01…;
 - ba loại tiếng nói (khách, người bán, thị trường);
 - hạng tin cậy A–D và độ đại diện;
@@ -474,7 +475,7 @@ Danh mục đầy đủ nằm ở **[sources.md](sources.md)** (từ v1.6). File
 - nguồn đã xét và không dùng;
 - nhật ký thử nguồn.
 
-Quy tắc ở file này (E, L, mục 6.2–6.4) áp cho mọi nguồn trong danh mục. Khi file này và sources.md khác nhau về **quy tắc**, theo file này; về **danh mục, trạng thái, hạng**, theo sources.md.
+Quy tắc ở file này (E, L, mục 6.2–6.4) áp cho mọi nguồn trong danh mục. Khi file này và file Input data sources for 30 sections khác nhau về **quy tắc**, theo file này; về **danh mục, trạng thái, hạng**, theo file Input data sources for 30 sections.
 
 **Không dùng:** khảo sát, phỏng vấn, tuyển người trả lời, người trả lời giả lập (quy tắc 6).
 
@@ -607,7 +608,8 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.3 — 07/10/2026:** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu (tập đối thủ từ dữ liệu bán hàng, nhóm so sánh theo sàn và mua lẻ/mua sỉ, không xếp ưu tiên, bộ mã kiểm chéo bằng model thứ hai); mục 6.3 ngưỡng thu review mở rộng kèm căn cứ.
 - **v1.4 — 07/10/2026:** E5 và mục 6.3 giữ song song cách A (số cố định), cách B (độ bão hoà hoặc hiệu chỉnh theo dữ liệu) và cách C (80/20); L8 không mua hàng; ghi chú chủ chưa duyệt chuyên môn mốc κ; thêm phụ lục giải thích nguyên tắc chuyên môn kèm nguồn.
 - **v1.5 — 08/10/2026:** E12 thống kê chính thức của Cục Thống kê làm bối cảnh vĩ mô, được ghi tên nguồn; mục 6.4 bảng nguồn số liệu và ánh xạ ngành hàng → nhóm thống kê, dùng chung cho mọi ngành hàng; thêm dòng nguồn vào mục 6.1.
-- **v1.6 — 08/10/2026:** danh mục nguồn chuyển sang [sources.md](sources.md), thêm mã nguồn S, hạng tin cậy A–D, độ đại diện, bảng section dùng nguồn nào, nguồn không dùng và nhật ký thử nguồn; mục 6.1 chỉ còn trỏ tới file đó.
+- **v1.6 — 08/10/2026:** danh mục nguồn chuyển sang [Input data sources for 30 sections](input-data-sources-30-sections.md), thêm mã nguồn S, hạng tin cậy A–D, độ đại diện, bảng section dùng nguồn nào, nguồn không dùng và nhật ký thử nguồn; mục 6.1 chỉ còn trỏ tới file đó.
+- **v1.7 — 08/10/2026:** đổi tên file danh mục nguồn thành `input-data-sources-30-sections.md` (Input data sources for 30 sections) theo yêu cầu của chủ; cập nhật trạng thái nguồn theo kết quả bài test Apify. Không đổi quy tắc.
 
 ---
 
