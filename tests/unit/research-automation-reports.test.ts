@@ -203,6 +203,11 @@ test('supplied descriptive method output renders source records per section with
     }],
   });
   const market = buildResearchAutomationReport({ ...input, descriptiveMethods: output }, 'MARKET');
+  assert.equal((market.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
+  const legacyMethods = buildDescriptiveMarketMethods(output.input, { methodVersion: '1.0.0' }).output;
+  const legacyMarket = buildResearchAutomationReport({ ...input, descriptiveMethods: legacyMethods }, 'MARKET');
+  assert.equal((legacyMarket.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v12');
+  assert.match(marketDocument(legacyMarket).getElementById('M05')!.textContent!, /không phải nhu cầu hay quy mô thị trường/);
   const document = marketDocument(market);
   const m05 = document.getElementById('M05')!;
   assert.equal(m05.querySelectorAll('tbody tr').length, 4);
@@ -217,7 +222,8 @@ test('supplied descriptive method output renders source records per section with
   assert.equal(m05.querySelectorAll('sup.cite').length, 4, 'every located record keeps its own numbered source');
   assert.equal(m05.querySelector('tbody tr td:last-child')!.textContent, '[1] Nhà cung cấp tự báo');
   assert.doesNotMatch(m05.textContent!, /kalodata/i);
-  assert.match(m05.textContent!, /không phải nhu cầu hay quy mô thị trường/);
+  assert.match(m05.textContent!, /Nhu cầu, đo bằng doanh số \(ước tính\) trong mẫu/);
+  assert.match(m05.textContent!, /Mức quan tâm tìm kiếm ghi riêng/);
   const m06 = document.getElementById('M06')!;
   assert.match(m06.textContent!, /Phương pháp đã chạy · Không có bản ghi dùng được/);
   assert.match(m06.textContent!, /Listing Quạt C/);

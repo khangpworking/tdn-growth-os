@@ -190,7 +190,7 @@ test('combined product-list rows split by product-code prefix and fail closed on
   const rows = readerRowsFromMetricWorkbook(workbook({ J3: { type: 's', value: '8__102__20' } }), ['shopee', 'tiktok']);
   assert.deepEqual(rows.map(r => [r.i, r.platform, r.listing, r.rev, r.units]), [[0, 'shopee', '1__101__10', 100, 2], [1, 'tiktok', '8__102__20', 50, 0]]);
   assert.equal(rows[0]!.asp, 50);
-  assert.equal(rows[1]!.asp, 0, 'zero units never divide');
+  assert.equal(rows[1]!.asp, null, 'zero units leave the average price undefined');
   const code = (fn: () => unknown) => { try { fn(); } catch (error) { assert.ok(error instanceof ReaderMetricRowsError); return `${error.code} ${error.locator}`; } return 'none'; };
   assert.equal(code(() => readerRowsFromMetricWorkbook(workbook({ J2: { type: 's', value: '5__101__10' } }), ['shopee'])), 'UNKNOWN_PLATFORM_PREFIX Sheet1!J2');
   assert.equal(code(() => readerRowsFromMetricWorkbook(workbook({ J3: { type: 's', value: '8__102__20' } }), ['shopee'])), 'UNDECLARED_PLATFORM Sheet1!J3');

@@ -8,7 +8,7 @@
   "properties": {
     "contractVersion": { "const": "1.0.0" },
     "methodId": { "const": "source-bound-descriptive-market" },
-    "methodVersion": { "const": "1.0.0" },
+    "methodVersion": { "enum": ["1.0.0", "1.1.0"] },
     "methodOutputId": { "$ref": "#/$defs/digest" },
     "input": { "$ref": "#/$defs/input" },
     "sections": {
