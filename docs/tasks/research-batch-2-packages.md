@@ -44,11 +44,16 @@ Agent làm theo checklist bên dưới: mỗi việc có mã riêng (ví dụ `P
 - [ ] G-05 `git diff --check origin/main...HEAD` is clean. Every changed path is inside the package's owned paths.
 - [ ] G-06 No secrets, tokens, cookies, machine paths, home directories, IPs or real commercial data in the code, tests, fixtures, commits or handoff.
 - [ ] G-07 No real provider or AI call in tests. Fakes and synthetic fixtures only.
-- [ ] G-08 Owner-facing text: plain Vietnamese, no provider names (Metric, Kalodata, TradeInt, Dami, SerpApi, Apify, PageIndex, Agent-Reach, OpenCLI, zen-studio), no raw codes. "Shopee", "TikTok Shop", "Google", "Facebook", "Instagram" and "X" are allowed. "Cục Thống kê (nso.gov.vn)" is required as the citation of official statistics (Ultimate E12). The internal source-status board may name providers.
+- [ ] G-08 Owner-facing text: plain Vietnamese, no provider names (Metric, Kalodata, TradeInt, Dami, SerpApi, Apify, PageIndex, Agent-Reach, OpenCLI, zen-studio), no raw codes. "Shopee", "TikTok Shop", "Google", "Facebook", "Instagram" and "X" are allowed. "Cục Thống kê (nso.gov.vn)" is required as the citation of official statistics (Ultimate E12), and "Ngân hàng Thế giới (World Bank Open Data)" as the citation of World Bank data (Ultimate E13). The internal source-status board may name providers.
 - [ ] G-09 Missing stays missing (never 0). No invented sources, competitors or numbers.
 - [ ] G-10 Stored report versions read back byte-identical. Old inputs and old runs keep working.
 - [ ] G-11 No existing test is deleted, skipped or weakened. An assertion that pins copy the package was told to change may be updated; list each one in the handoff.
 - [ ] G-12 A handoff `docs/handoffs/<package-id>.md` uses the `templates/handoff.md` fields plus the "Checklist evidence" table (runbook §4).
+- [ ] G-13 If the package collects records by keyword (search, social posts, comments, ads), it applies Ultimate **L9**:
+  - each category has a keyword list and an exclusion list, versioned, as data;
+  - matching keeps Vietnamese diacritics; text without diacritics is resolved from context or marked "chưa rõ";
+  - excluded records are counted with a reason and shown in the source appendix, never dropped silently;
+  - unclear records stay out of the main counts.
 
 ---
 
@@ -285,6 +290,9 @@ Checklist:
 - [ ] P5-04 Results are stored as evidence records with `retrieved_at` and the source URL, on the same side path as the existing web results. The frozen collection packet is unchanged.
 - [ ] P5-05 Usage rows record each paid call. No retries. No call without a key.
 - [ ] P5-06 Tests with a fake transport: the caps, the cache hit, no key → no call, and old runs unchanged.
+- [ ] P5-07 Expanded queries may carry a date range and a single-site restriction (`site:<domain>`) for the M09 event timeline (Ultimate M09, owner approved 08/10/2026). Both count inside the same ≤10 calls of `SearchCallBudget`. The domain list is data, not code.
+- [ ] P5-08 Each result stores the publication date shown by the result (or missing), the date window used, and the domain filter, as separate fields. No event date is inferred from the window.
+- [ ] P5-09 Results pass the L9 meaning filter (G-13) before they are counted. Tests cover a date-range query, a `site:` query, a result without a date (stays missing), and an excluded look-alike keyword.
 
 **Functional when:** a fixture run with confirmed keywords stores Trends facts and expanded-search results with lineage, within the caps.
 
@@ -436,7 +444,7 @@ Checklist:
 
 ## P10. Official statistics intake: Cục Thống kê (wave 2; start after P4 has merged)
 
-Business rules: Ultimate Method v1.5, exception **E12** and section **6.4** (`docs/research/ultimate-method/ultimate-method-30-sections.md`). The intake works for **every product category**; nothing in it is specific to one category.
+Business rules: Ultimate Method v1.5, exception **E12** and section **6.4**; v1.8, exception **E13** (World Bank data, P10-12) (`docs/research/ultimate-method/ultimate-method-30-sections.md`). The intake works for **every product category**; nothing in it is specific to one category.
 
 **Owned paths:**
 - new `src/modules/analysis/research-automation/official-statistics-intake.ts`;
@@ -484,6 +492,13 @@ Checklist:
   - the fetch script with a fake transport, including the rate limit and the file cap;
   - the citation text;
   - the provider-name lint exception.
+
+- [ ] P10-12 World Bank data (Ultimate E13, source S23):
+  - the operator script also fetches a fixed, versioned list of indicator codes for Viet Nam from the public World Bank API (`api.worldbank.org/v2`, JSON, no key);
+  - each value is stored with the indicator code and name, year, unit, the dataset's last-updated date, and the estimate note when present;
+  - the citation reads "Ngân hàng Thế giới (World Bank Open Data), <indicator name> (<code>), <year>, cập nhật <date>";
+  - the E12 guard of P10-10 applies, and no currency conversion is done;
+  - tests use a fake transport.
 
 **Functional when:** uploading a synthetic monthly-tables file and a synthetic CPI file to a fixture run stores validated, cited official-statistics rows. For any category in the map, the rows can be read back for side-by-side display beside sample numbers, ready for P8-10.
 
