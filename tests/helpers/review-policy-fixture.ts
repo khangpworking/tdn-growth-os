@@ -35,7 +35,7 @@ export async function reviewPolicyFixture(t: TestContext, counts = [30, 300], co
   const calls: string[] = [];
   let onPage = () => {};
   const rows = counts.flatMap((count, product) => Array.from({ length: count }, (_, i) => ({ shopId: '10', itemId: String(101 + product),
-    reviewId: `${product + 1}-${i + 1}`, comment: i < 30 ? 'Equal literal source text.' : '', ratingStar: i % 2 ? 5 : null,
+    reviewId: String((product + 1) * 1000 + i + 1), comment: i < 30 ? 'Equal literal source text.' : '', ratingStar: i % 2 ? 5 : null,
     authorId: '987654321', author: 'SYNTHETIC_AUTHOR', profileUrl: 'https://example.test/SYNTHETIC_PROFILE' })));
   const transport: typeof fetch = async (urlLike, init) => {
     const url = new URL(String(urlLike)); calls.push(`${init?.method ?? 'GET'} ${url.pathname}`);

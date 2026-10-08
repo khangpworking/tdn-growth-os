@@ -1,3 +1,8 @@
+import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import reviewSampleSchema from '../../../../contracts/analysis/automation-review-sample.schema.json' with { type: 'json' };
+import type { AutomationReviewSample } from '../../../../contracts/analysis/automation-review-sample.generated.js';
+import { registerPrivateReviewSchemas } from './private-review-contracts.js';
 import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
@@ -51,6 +56,14 @@ import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
 
+const reportRequire = createRequire(import.meta.url);
+const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const sampleAjv = new Ajv2020({ strict: true, allErrors: true });
+(reportRequire('ajv-formats') as typeof import('ajv-formats')).default(sampleAjv);
+registerPrivateReviewSchemas(sampleAjv);
+const validateSample = sampleAjv.compile<AutomationReviewSample>({ $ref: reviewSampleSchema.$id });
+const sampleHash = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
+
 const REPORT_KIT_CSS = REPORT_KIT_BASE_CSS + SYNTHESIS_EVIDENCE_CSS;
 
 export interface AutomationReportInput {
@@ -74,6 +87,7 @@ export interface AutomationReportInput {
   readonly descriptiveMethods?: DescriptiveMarketMethods;
   readonly descriptiveMethodFailure?: 'DESCRIPTIVE_METHOD_FAILED';
   readonly privateReviewCorpus?: PrivateReviewReportView;
+  readonly reviewSample?: AutomationReviewSample;
   readonly reviewCorpus?: ResearchReviewCorpus;
   readonly reviewCorpusFailure?: 'REVIEW_CORPUS_FAILED' | 'REVIEW_CORPUS_REPORT_TOO_LARGE';
   readonly locatedReview?: AutomationLocatedReviewSnapshot;
@@ -493,6 +507,16 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (binding.sourceKind === 'NATIVE' ? input.locatedReview || input.locatedReviewFallback : input.nativeReview || input.nativeReviewFallback) throw new Error('Report insight coding source kind mismatch');
   }
   const privateView = kind === 'INSIGHT' && input.privateReviewCorpus ? privateReviewReportView(input.privateReviewCorpus) : undefined;
+  const sample = kind === 'INSIGHT' ? input.reviewSample : undefined;
+  if (sample) {
+    if (!validateSample(sample) || !input.start.reviewCollectionPolicy || !privateView || !input.collection?.reviewSample ||
+      canonicalJson(sample) !== canonicalJson(input.collection.reviewSample) || sample.binding.runId !== input.run.runId ||
+      sample.binding.workspaceId !== input.run.workspaceId || sample.policySha256 !== sampleHash(input.start.reviewCollectionPolicy) ||
+      sample.collection.collectionSha256 !== privateView.corpus.collectionSha256) throw new Error('Report sample source lineage differs');
+    const { sampleId, ...body } = sample;
+    if (sampleId !== sampleHash(body)) throw new Error('Report sample digest differs');
+  }
+  if (input.start.reviewCollectionPolicy && privateView && !sample) throw new Error('Policy report lacks sample accounting');
   if (privateView && (!input.start.privateShopeeSource || input.reviewCorpus || input.locatedReview || input.nativeReview || !input.collection?.privateShopee ||
     privateView.corpus.collectionSha256 !== input.collection.privateShopee.collectionSha256)) throw new Error('Private report source lineage mismatch');
   const insightCoding = kind === 'INSIGHT' ? input.insightCoding : undefined;
@@ -711,7 +735,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? 'automation-report-kit-v22' : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (input.start.reviewCollectionPolicy ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -734,6 +758,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       ...(input.insightCoding ? { insightCoding: input.insightCoding } : {}),
       ...(insightCrosscheck ? { insightCrosscheck } : {}),
       ...(privateView ? { privateReviewCorpus: privateView } : {}),
+      ...(sample ? { reviewSample: sample } : {}),
       ...(insightLiteral ? { insightLiteral } : {}),
       ...(input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
       ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
@@ -806,7 +831,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     }
     if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion || marketPresentation));
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
-      if (privateView) return privateReviewCorpusSection(privateView, sectionId, citations);
+      if (privateView) return (sample && sectionId === 'I03' ? reviewSampleSection(sample, privateView, citations) : '') + privateReviewCorpusSection(privateView, sectionId, citations);
       const codingNotice = located
         ? `<p class="warning">Đã áp dụng quy tắc đã duyệt để đưa các khai báo rõ nghĩa vào phạm vi hẹp, có vị trí nguyên văn. ${located.projection.pending.length} mục còn chờ được giữ cùng bản đề xuất ban đầu; không tính thành mục phân tích hoàn chỉnh. Khi mở lại, hệ thống đọc kết quả đã lưu, không chạy lại parser hoặc gọi nguồn.</p>`
         : input.locatedReview
@@ -857,4 +882,19 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
   return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(html, 'utf8') };
+}
+
+/** Counts describe the retained capture, never a product/platform population or people. */
+function reviewSampleSection(sample: AutomationReviewSample, view: PrivateReviewReportView, citations: ReportCitations): string {
+  const rows = sample.products.map((product, index) => {
+    const stop = product.stop === 'A_FIXED_COUNT' ? 'Đã thu được 300 bản ghi' : product.stop === 'PROVIDER_DATASET_EXHAUSTED'
+      ? 'Đã đọc hết tập dữ liệu trả về của lượt thu; chưa biết tổng review của sản phẩm' : 'Lượt thu dừng trước mốc 300';
+    const mark = citations.mark({ sourceKind: 'CAPTURE', identity: sample.collection.collectionSha256,
+      locator: `/selected/${index}`, label: 'Tập đánh giá của các mục sản phẩm đã chọn trên Shopee',
+      retrievedAt: view.capture.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+    return `<tr><td>${storedLiteral(`shopee:${product.listing.shopId}:${product.listing.itemId}`, 'Mục sản phẩm từ nguồn')}</td><td>${product.retainedReviews}</td><td>${product.textReviews}</td><td>${product.meetsComparisonTextMinimum ? 'Đạt mốc 30 bản ghi có chữ; chưa cho phép suy rộng' : 'Chưa đủ 30 bản ghi có chữ để so sánh sản phẩm'}</td><td>${escape(stop)} ${mark}</td></tr>`;
+  }).join('');
+  return '<h3>Mẫu đánh giá đã thu</h3><p>Các mục sản phẩm do chủ sở hữu chọn, chưa phải mẫu theo độ phủ doanh thu 50% hoặc 80%. Kỳ doanh thu chưa được xác thực; chưa chứng minh đủ năm thương hiệu hoặc các nhóm cốt lõi. Mốc thu là 300 bản ghi mỗi mục sản phẩm, giới hạn cứng vẫn là 500. Chưa áp dụng dừng theo bão hòa mã nội dung.</p>'
+    + `<div class="table-wrap"><table><caption>Số review trong tập thu đã giữ</caption><thead><tr><th>Mục sản phẩm</th><th>Review thu được</th><th>Có chữ đọc được</th><th>Mốc tối thiểu cho so sánh</th><th>Bằng chứng dừng</th></tr></thead><tbody>${rows}</tbody></table></div>`
+    + '<p>Số bản ghi không phải số người. Số dòng tập dữ liệu trả về không phải tổng review của mỗi sản phẩm hay của nền tảng. Review từ TikTok Shop chưa có nguồn thu được hỗ trợ; bình luận video không thay thế review sản phẩm.</p>';
 }
