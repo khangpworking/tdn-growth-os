@@ -12,10 +12,17 @@ export type ResearchAutomationReaderReportApi =
   | ResearchAutomationUnitSpecIntakeRequest
   | ResearchAutomationUnitSpecIntakeRecord
   | ResearchAutomationUnitSpecIntakeReceipt
-  | ResearchAutomationIntakeBoundReaderBuildRequest;
+  | ResearchAutomationIntakeBoundReaderBuildRequest
+  | ResearchAutomationInsightReaderBuildRequest
+  | ResearchAutomationReaderBuildReceiptV2
+  | ResearchAutomationReaderDecisionRequestV2
+  | ResearchAutomationReaderDecisionReceiptV2
+  | ResearchAutomationReaderRevisionListV2;
 export type Platform = 'shopee' | 'tiktok';
 export type Sha256 = string;
 export type Timestamp = string;
+export type ResearchAutomationReaderRevisionV2 =
+  ResearchAutomationMarketReaderRevisionV2 | ResearchAutomationInsightReaderRevision;
 
 export interface ResearchAutomationReaderBuildRequest {
   contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1' | 'reader-report-build-v1.2';
@@ -321,4 +328,81 @@ export interface ResearchAutomationIntakeBoundReaderBuildRequest {
     unitPrices: unknown;
     [k: string]: unknown;
   };
+}
+export interface ResearchAutomationInsightReaderBuildRequest {
+  contractVersion: 'insight-reader-build-v1';
+  reportKind: 'INSIGHT';
+  requestKey: string;
+  draftPairId: Sha256;
+  semanticSha256: Sha256;
+}
+export interface ResearchAutomationReaderBuildReceiptV2 {
+  contractVersion: 'reader-report-build-receipt-v2';
+  exactRetry: boolean;
+  revision: ResearchAutomationReaderRevisionV2;
+}
+export interface ResearchAutomationMarketReaderRevisionV2 {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  /**
+   * @minItems 1
+   * @maxItems 2
+   */
+  platforms: Platform[];
+  profileStatus: 'proposed' | 'approved';
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'MARKET';
+  builderVersion: string;
+}
+export interface ResearchAutomationInsightReaderRevision {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v1';
+  semanticSha256: Sha256;
+  sourceReportSha256: Sha256;
+}
+export interface ResearchAutomationReaderDecisionRequestV2 {
+  contractVersion: 'reader-report-decision-v2';
+  requestKey: string;
+  revisionId: string;
+  decision: 'APPROVED' | 'REJECTED';
+  reason: null | string;
+  reportKind: 'MARKET' | 'INSIGHT';
+  htmlSha256: Sha256;
+}
+export interface ResearchAutomationReaderDecisionReceiptV2 {
+  contractVersion: 'reader-report-decision-receipt-v2';
+  exactRetry: boolean;
+  revision: ResearchAutomationReaderRevisionV2;
+}
+export interface ResearchAutomationReaderRevisionListV2 {
+  contractVersion: 'reader-report-list-v2';
+  workspaceId: string;
+  runId: string;
+  /**
+   * @maxItems 20000
+   */
+  revisions: ResearchAutomationReaderRevisionV2[];
 }
