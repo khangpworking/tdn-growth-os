@@ -7,14 +7,28 @@ export type ResearchAutomationSourceStatusApiContract =
   ResearchAutomationSourceStatus | ResearchAutomationRunPdfStates | ResearchAutomationAttachPdfRequest;
 export type Uuid = string;
 export type Timestamp = string;
-export type ResearchAutomationSourceId = 'KALODATA' | 'SERPAPI' | 'APIFY_SHOPEE' | 'METRIC' | 'PAGEINDEX';
+export type ResearchAutomationSourceId =
+  | 'KALODATA'
+  | 'SERPAPI'
+  | 'APIFY_SHOPEE'
+  | 'METRIC'
+  | 'PAGEINDEX'
+  | 'KALODATA_VIDEO_FILE'
+  | 'APIFY_TIKTOK_COMMENTS'
+  | 'VIDEO_READING'
+  | 'META_AD_LIBRARY'
+  | 'OFFICIAL_STATS'
+  | 'WORLD_BANK';
 /**
- * READY: configured and used by runs. CONFIGURED_NOT_WIRED: credential present but runs do not call it yet. NOT_CONFIGURED: credential or spending cap missing. MANUAL_IMPORT: data arrives only as an owner upload. EXECUTOR_DISABLED: this server cannot run research at all.
+ * READY: configured and used by runs. CONFIGURED_NOT_WIRED: credential present but runs do not call it yet. NOT_CONFIGURED: credential or spending cap missing. MANUAL_IMPORT: data arrives only as an owner upload. NOT_BUILT: the collector does not exist on this build yet; pendingPackage names the owning package. EXECUTOR_DISABLED: this server cannot run research at all.
  */
 export type ResearchAutomationSourceState =
-  'READY' | 'CONFIGURED_NOT_WIRED' | 'NOT_CONFIGURED' | 'MANUAL_IMPORT' | 'EXECUTOR_DISABLED';
+  'READY' | 'CONFIGURED_NOT_WIRED' | 'NOT_CONFIGURED' | 'MANUAL_IMPORT' | 'NOT_BUILT' | 'EXECUTOR_DISABLED';
 export type ResearchAutomationCredentialState = 'CONFIGURED' | 'MISSING' | 'NOT_REQUIRED';
 export type Count = number;
+export type ResearchAutomationRegistryId = string;
+export type ResearchAutomationSourceTier = 'A' | 'B' | 'C' | 'D';
+export type ResearchAutomationSourceGroup = 'SALES_MARKET' | 'CUSTOMER_VOICE' | 'SELLER_VOICE' | 'MACRO' | 'DOCUMENTS';
 export type ResearchAutomationPdfState =
   'INDEXING' | 'READY' | 'FAILED' | 'SKIPPED_LOW_BALANCE' | 'SKIPPED_USAGE_LIMIT' | 'DISABLED';
 
@@ -24,7 +38,7 @@ export interface ResearchAutomationSourceStatus {
   checkedAt: Timestamp;
   executorEnabled: boolean;
   /**
-   * @maxItems 5
+   * @maxItems 11
    */
   sources:
     | []
@@ -38,6 +52,69 @@ export interface ResearchAutomationSourceStatus {
         ResearchAutomationSourceStatusEntry,
       ]
     | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+      ]
+    | [
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
+        ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
         ResearchAutomationSourceStatusEntry,
@@ -63,7 +140,126 @@ export interface ResearchAutomationSourceStatusEntry {
    * Latest recorded provider usage in this workspace; null for manual imports.
    */
   lastUsageAt: Timestamp | null;
+  /**
+   * Owning package that flips a NOT_BUILT card; null once built.
+   */
+  pendingPackage?: string | null;
+  /**
+   * Source registry IDs (input-data-sources-30-sections.md) covered by this card.
+   *
+   * @minItems 1
+   * @maxItems 4
+   */
+  registryIds?:
+    | [ResearchAutomationRegistryId]
+    | [ResearchAutomationRegistryId, ResearchAutomationRegistryId]
+    | [ResearchAutomationRegistryId, ResearchAutomationRegistryId, ResearchAutomationRegistryId]
+    | [
+        ResearchAutomationRegistryId,
+        ResearchAutomationRegistryId,
+        ResearchAutomationRegistryId,
+        ResearchAutomationRegistryId,
+      ];
+  /**
+   * Single tier only when every registry ID on this card shares it; mixed connectors keep null with a per-ID tierDetail.
+   */
+  tier?: ResearchAutomationSourceTier | null;
+  /**
+   * Per-ID tiers for mixed connectors, e.g. S01: C; S04: B.
+   */
+  tierDetail?: string | null;
+  group?: ResearchAutomationSourceGroup;
+  /**
+   * The report citation name from the registry.
+   */
+  reportName?: string | null;
+  /**
+   * Configured USD charge cap, or null when none is configured. Never defaulted.
+   */
+  spendCapUsd?: number | null;
+  /**
+   * Per-operation history rows for multi-operation providers such as SerpApi.
+   */
+  operations?:
+    | []
+    | [ResearchAutomationSourceOperation]
+    | [ResearchAutomationSourceOperation, ResearchAutomationSourceOperation]
+    | [ResearchAutomationSourceOperation, ResearchAutomationSourceOperation, ResearchAutomationSourceOperation]
+    | [
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+      ]
+    | [
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+      ]
+    | [
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+      ]
+    | [
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+      ]
+    | [
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+        ResearchAutomationSourceOperation,
+      ]
+    | null;
   pageindex?: ResearchAutomationPageIndexDetail;
+}
+/**
+ * One stored-history row per provider operation. Count unit is stored captures, never mixed with uploads or usage rows. Usage stays provider-level: lastUsageAt is null unless exact per-operation evidence exists.
+ */
+export interface ResearchAutomationSourceOperation {
+  operation: string;
+  count: Count;
+  /**
+   * Latest stored capture for this operation.
+   */
+  lastDataAt: Timestamp | null;
+  /**
+   * Latest recorded provider usage for this operation; null when only provider-level usage exists.
+   */
+  lastUsageAt: Timestamp | null;
+  /**
+   * @minItems 1
+   * @maxItems 4
+   */
+  registryIds?:
+    | [ResearchAutomationRegistryId]
+    | [ResearchAutomationRegistryId, ResearchAutomationRegistryId]
+    | [ResearchAutomationRegistryId, ResearchAutomationRegistryId, ResearchAutomationRegistryId]
+    | [
+        ResearchAutomationRegistryId,
+        ResearchAutomationRegistryId,
+        ResearchAutomationRegistryId,
+        ResearchAutomationRegistryId,
+      ];
+  /**
+   * Single tier only when every registry ID on this operation shares it; otherwise null with no aggregate.
+   */
+  tier?: ResearchAutomationSourceTier | null;
 }
 /**
  * Document-indexing connector detail. Present only on the PAGEINDEX entry. Money is integer micro-dollars.

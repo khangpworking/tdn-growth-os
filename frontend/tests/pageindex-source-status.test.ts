@@ -84,12 +84,13 @@ test('status board shows the PageIndex card and rechecks with GET only', async (
     assert.ok(card, 'PageIndex card renders');
     const text = card!.textContent ?? '';
     assert.match(text, /Đã kết nối/);
-    assert.match(text, /Số dư \(ước tính\).*\$9\.99/);
+    assert.match(text, /Số dư tài khoản \(ước tính\).*\$9\.99/);
     assert.match(text, /Thanh toán/);
     assert.ok(card!.querySelector('a[href="https://billing.example.invalid/pageindex"]'), 'billing link renders');
     assert.match(text, /500 trang/);
     assert.match(text, /Đang tự dùng cho PDF/);
-    assert.match(text, /2 tài liệu/);
+    assert.match(text, /2 PDF trong workspace này/);
+    assert.match(text, /Tài liệu đã gửi \(tài khoản\)/);
     assert.match(text, /Gọi gần nhất/);
     await act(async () => [...document.querySelectorAll('button')].find(item => item.textContent === 'Kiểm tra lại')!.click());
     assert.ok(methods.length >= 2 && methods.every(method => method === 'GET'), 'recheck never posts or spends');
