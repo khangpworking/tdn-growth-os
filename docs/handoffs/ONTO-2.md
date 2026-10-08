@@ -7,8 +7,8 @@ throwaway guide exercises and pre-fix regressions. All shapes remain proposed.
 Changed paths: `ontology/`, `docs/runbooks/ontology-use-cases-and-maintenance.md`,
 `docs/handoffs/ONTO-2.md` only. No dependency manifest or configuration change.
 Evidence (commands, results, relevant revision): fetched base
-`7a4dd2a682423d967fe0372577d96a81d9780d34`; unchanged baseline receipt `ontology/results/2026-10-08-7a4dd2a68242-baseline.{md,json}`: 49/49.
-Implementation commit: `5c8642c918c1d096f1695faac64361ce8f5dae4d`. Final receipt: `ontology/results/2026-10-08-5c8642c918c1.{md,json}`: 86/87 matched, one ESCALATED; independent 12/12; smoke/certificate pass. Guide receipt: 8/8.
+`f084663a53342074577774e5e6b3a25de0fcf4c8`; unchanged baseline receipt `ontology/results/2026-10-08-f084663a5334-baseline.{md,json}`: 49/49.
+Current base-pinned implementation commit and final receipt are recorded after the required reruns.
 Unresolved: escaped tab/newline/CR data cannot be judged by the installed verified
 checker; expected REJECT remains unchanged. Wider semantic/authenticity limits
 are explicitly ESCALATED in each review.
@@ -21,12 +21,12 @@ list is empty. Domain expertise/authenticated evidence remain needed before reli
 | Item | Status | Evidence |
 |---|---|---|
 | A-01 | DONE | Exact fetched origin/main base above; branch renamed as assigned. |
-| A-02 | DONE | `ontology/results/2026-10-08-7a4dd2a68242-baseline.{md,json}`: exact current-main archive, unchanged 49/49, inference and certificate pass. |
+| A-02 | DONE | `ontology/results/2026-10-08-f084663a5334-baseline.{md,json}`: exact current-main archive, unchanged 49/49, inference and certificate pass. |
 | A-03 | ESCALATED | E12/E13 exact attribution and E13 metadata implemented; named E4 modes and persona links covered; duplicate-author removed. Space/Unicode whitespace rejected; escaped tab/newline/CR evaluator limitation remains. See per-rule reviews. |
 | A-04 | DONE | 12 fixtures by GPT-6-astra; rule excerpts/vocabulary only; provenance and frozen independent manifest retained. |
 | A-05 | DONE | Fresh GPT-6-astra cold reviewer, masked inputs only; E4 final flag fix re-reviewed; E12/E13 reviews recorded. reviewed by model, not by a domain expert. |
-| A-06 | DONE | Final rerun on `5c8642c918c1`: commands, hashes and expected/actual for all 87 rows; 86 matched and one explicitly ESCALATED. |
-| A-07 | DONE | `python3 ontology/guide-checks.py` from worktree root: 8/8. Pre-fix snapshot is current base `7a4dd2a682423d967fe0372577d96a81d9780d34`; source and run head recorded in guide receipt. Ten corrections listed in runbook §3.9; throwaway artifacts deleted. |
+| A-06 | DONE | Final rerun after rebasing on the required base: commands, hashes and expected/actual for all datasets are recorded in the new result receipt. |
+| A-07 | DONE | `python3 ontology/guide-checks.py` from worktree root: 8/8. Pre-fix snapshot is current base `f084663a53342074577774e5e6b3a25de0fcf4c8`; source and run head recorded in guide receipt. Ten corrections listed in runbook §3.9; throwaway artifacts deleted. |
 | A-08 | DONE | This templated handoff, full dataset table, ONTO-2 commits; own-branch push and draft PR recorded below. |
 
 ## Active goal gate self-check
@@ -35,7 +35,7 @@ These are the active ONTO-2 gate meanings. The application-package gate list in 
 
 | Gate | Status | Evidence |
 |---|---|---|
-| G-1 | DONE | Rebased onto exact current `origin/main` `7a4dd2a682423d967fe0372577d96a81d9780d34`; `git diff --name-only 7a4dd2a682423d967fe0372577d96a81d9780d34...HEAD` and the updated draft PR file list contain only the allowed ontology, runbook and handoff paths. No unrelated application files are in the PR diff. |
+| G-1 | DONE | Rebased onto exact current `origin/main` `f084663a53342074577774e5e6b3a25de0fcf4c8`; `git diff --name-only f084663a53342074577774e5e6b3a25de0fcf4c8...HEAD` and the updated draft PR file list contain only the allowed ontology, runbook and handoff paths. No unrelated application files are in the PR diff. |
 | G-2 | ESCALATED | Ontology run only: unchanged baseline 49/49. Final run has 86/87 expected verdicts matched; one whitespace-only tab/newline/CR case is explicitly ESCALATED because the verified checker returns UNDETERMINED. Expected REJECT is unchanged and this case is not counted as a pass. See final result JSON. |
 | G-3 | DONE | Changed-shape controls and invalid-condition cases are in the manifest and final result: E4 26/26 matched; E12 12 matched plus the G-2 escalation; E13 21/21 matched. The RDF-identical E4-duplicate-author.ttl and its manifest row were removed. No expected verdict was changed to force a pass. |
 | G-4 | DONE | 12 independent cases authored by GPT-6-astra, different from the Codex shape author, from rule text/vocabulary only. All 12 expected verdicts stayed unchanged and all 12 matched. See independent manifest, provenance and final result. |
@@ -182,8 +182,8 @@ The 49-row unchanged baseline table is retained in its separate baseline receipt
 
 ## Delivery
 
-Implementation/evidence run commit: `5c8642c918c1d096f1695faac64361ce8f5dae4d`.
-Base and source-pin update: `5c8642c` (`ONTO-2: refresh baseline and pin sources to current main`).
+Final implementation/evidence commit is recorded below after reruns.
+Base and source-pin update targets `f084663a53342074577774e5e6b3a25de0fcf4c8`.
 Round-2 gate correction and delivery commits are listed in Git history.
 Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/181
 Verified draft=true, base=main, head=pkg/ONTO-2-open-ontologies.

@@ -1,7 +1,7 @@
 @prefix ex: <urn:onto:> .
 @prefix sh: <http://www.w3.org/ns/shacl#> .
 @prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
-ex:E13Shape a sh:NodeShape; ex:ruleId "E13"; ex:status "proposed"; ex:source <https://github.com/khangpworking/tdn-growth-os/blob/7a4dd2a682423d967fe0372577d96a81d9780d34/docs/research/ultimate-method/ultimate-method-30-sections.md#L243-L258>; sh:targetClass ex:E13Figure;
+ex:E13Shape a sh:NodeShape; ex:ruleId "E13"; ex:status "proposed"; ex:source <https://github.com/khangpworking/tdn-growth-os/blob/f084663a53342074577774e5e6b3a25de0fcf4c8/docs/research/ultimate-method/ultimate-method-30-sections.md#L243-L258>; sh:targetClass ex:E13Figure;
 sh:property [ sh:path ex:attribution; sh:maxCount 1; sh:in ( "Ngân hàng Thế giới (World Bank Open Data)" ); sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:pattern "[!-~¡-ᙿᚁ-῿​-‧‪-‮‰-⁞⁠-⿿、-퟿-􏿿]"; sh:message "Thiếu văn bản ghi nguồn" ];
 sh:property [ sh:path ex:valueStatus; sh:minCount 1; sh:maxCount 1; sh:in ( "ước tính" "sơ bộ" "chính thức" ); sh:message "Trạng thái phải là ước tính, sơ bộ hoặc chính thức" ];
 sh:property [ sh:path ex:file; sh:minCount 1; sh:datatype xsd:string; sh:minLength 1; sh:pattern "[!-~¡-ᙿᚁ-῿​-‧‪-‮‰-⁞⁠-⿿、-퟿-􏿿]"; sh:message "Thiếu file truy nguồn" ];

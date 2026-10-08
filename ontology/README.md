@@ -1,6 +1,6 @@
 # ONTO-2 — proposed offline ontology checks
 
-Base: `7a4dd2a682423d967fe0372577d96a81d9780d34` (fetched `origin/main`).
+Base: `f084663a53342074577774e5e6b3a25de0fcf4c8` (fetched `origin/main`).
 Unmodified baseline: run from an exact archive of current `origin/main` and retained under `results/` with its source SHA.
 All shapes remain **proposed**. No application integration, approval, deployment,
 MCP registration, dependency installation or configuration change is included.
