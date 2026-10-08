@@ -2,6 +2,9 @@ import assert from 'node:assert/strict';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
+import http from 'node:http';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
@@ -17,6 +20,7 @@ import { AutomationMetricMethodBridge } from '../../src/modules/analysis/researc
 import { readMetricSalesNameEvidence } from '../../src/modules/analysis/research-automation/metric-sales-name-evidence.js';
 import type { AutomationConfirmedSourceSet } from '../../contracts/analysis/automation-confirmed-source-set.generated.js';
 import type { MetricRunInput } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
+import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -103,4 +107,77 @@ test('Metric names reject wrong run/scope/source-set/package/digest or damaged w
 
 test('actual prepare rejects changed current-profile headers before confirmation or title admission', async t => {
   await assert.rejects(fixture(t, { A1: { type: 's', value: 'Invented product title header' } }));
+});
+
+test('OWNER HTTP workbook upload and explicit package confirmation supply authenticated exact Metric cells', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-names-owner-'));
+  const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
+  const db = openDatabase({ databasePath, now }).db;
+  const artifacts = new ContentAddressedArtifactStore(artifactRoot);
+  const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
+  await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'metric-names-owner', title: 'Synthetic OWNER Metric upload' });
+  const server = http.createServer();
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  const token = 'synthetic-owner-token-0-not-a-live-credential';
+  let app: ReturnType<typeof openResearchAutomationApi> | undefined;
+  t.after(async () => {
+    try { await app?.close(); }
+    finally {
+      server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+      db.close(); await fs.rm(root, { recursive: true, force: true });
+    }
+  });
+  app = openResearchAutomationApi({ databasePath, artifactRoot, origin,
+    providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false },
+    owner: { databasePath, artifactRoot, writeEnabled: true, token, actorId: 'synthetic-owner', allowedOrigin: origin } });
+  server.on('request', app.handler);
+  const ownerRoot = `${origin}/owner-api/workspaces/${workspaceId}/research-automation/runs`;
+  const headers = { Origin: origin, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  const started = await fetch(ownerRoot, { method: 'POST', headers, body: JSON.stringify({
+    contractVersion: 'research-automation-start-v1', requestKey: randomUUID(), mode: 'CATEGORY', keyword: 'thạch dừa',
+    reports: ['MARKET'], requestedPeriod: { startDate: '2026-08-17', endDate: '2026-09-15' } }) });
+  assert.equal(started.status, 202, await started.clone().text());
+  const startedBody = await started.json() as { run: { runId: string } };
+  const id = startedBody.run.runId;
+  const readRun = async () => {
+    const response = await fetch(`${origin}/api/workspaces/${workspaceId}/research-automation/runs/${id}`);
+    assert.equal(response.status, 200);
+    return response.json() as Promise<{ status: string; revision: number }>;
+  };
+  let awaiting = await readRun();
+  for (let n = 0; awaiting.status !== 'AWAITING_SCOPE' && n < 100; n++) {
+    assert.ok(['QUICK_SEARCH_QUEUED', 'QUICK_SEARCH_RUNNING'].includes(awaiting.status), awaiting.status);
+    await new Promise(resolve => setTimeout(resolve, 50)); awaiting = await readRun();
+  }
+  assert.equal(awaiting.status, 'AWAITING_SCOPE');
+  const scope = { definition: 'Synthetic exact OWNER names', includeTerms: ['thạch dừa'], excludeTerms: ['thạch dứa'], selectedProductIds: [], peerProductIds: [] };
+  const generated = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], {
+    input: JSON.stringify({ profile: 'v2', cells: { A2: { type: 's', value: title } } }), maxBuffer: 4 * 1024 * 1024 });
+  assert.equal(generated.status, 0, generated.stderr.toString());
+  const form = new FormData();
+  form.set('metadata', JSON.stringify({ contractVersion: 'automation-metric-prepare-v1', requestKey: randomUUID(), expectedRevision: awaiting.revision,
+    scope, sourceLabel: 'Synthetic owner attached export', acquiredAt: null, measurementPeriod: { startDate: '2026-08-17', endDate: '2026-09-15', basis: 'Synthetic period' },
+    precision: { revenue: 'unknown', units: 'unknown' }, selection: 'UNSPECIFIED', sourceContext: 'Synthetic workbook, not provider verified' }));
+  form.set('workbook', new File([new Uint8Array(generated.stdout)], 'synthetic.xlsx'));
+  const uploadUrl = `${ownerRoot}/${id}/sources/metric`;
+  const rejected = await fetch(uploadUrl, { method: 'POST', headers: { Origin: origin }, body: form });
+  assert.equal(rejected.status, 401);
+  const upload = await fetch(uploadUrl, { method: 'POST', headers: { Origin: origin, Authorization: `Bearer ${token}` }, body: form });
+  assert.equal(upload.status, 201, await upload.clone().text());
+  const prepared = await upload.json() as { packageId: string };
+  const confirm = await fetch(`${ownerRoot}/${id}/confirm-scope`, { method: 'POST', headers, body: JSON.stringify({
+    contractVersion: 'research-automation-confirm-v2', requestKey: randomUUID(), expectedRevision: (await readRun()).revision, ...scope,
+    sources: { metric: { decision: 'USE_PREPARED', packageId: prepared.packageId }, nativeReview: 'SKIP' } }) });
+  assert.equal(confirm.status, 202, await confirm.clone().text());
+  const row = db.prepare('SELECT start_request_sha256 startSha,scope_request_sha256 scopeSha,confirmed_source_set_sha256 sourceSha,scope_confirmed_at confirmedAt FROM analysis_research_automation_runs WHERE run_id=?').get(id) as { startSha: string; scopeSha: string; sourceSha: string; confirmedAt: string };
+  const sources = JSON.parse((await artifacts.read(row.sourceSha)).toString()) as AutomationConfirmedSourceSet;
+  const input: MetricRunInput = { runId: id, start: JSON.parse((await artifacts.read(row.startSha)).toString()),
+    scope: JSON.parse((await artifacts.read(row.scopeSha)).toString()), scopeConfirmedAt: row.confirmedAt };
+  const options = { artifacts, reader: new FoundationSourcePackageReader(new SourcePackageService({ db, artifactStore: artifacts })),
+    authority: new AutomationMetricMethodBridge({ db, artifactStore: artifacts, workspaces: new FlowDiscoveryWorkspaceReader(discovery), now }) };
+  const evidence = await readMetricSalesNameEvidence(options, input, sources, row.sourceSha);
+  assert.ok(evidence);
+  assert.equal(evidence.sourcePackage.packageId, prepared.packageId);
+  assert.deepEqual(evidence.names[0], { name: title, row: 2, locator: 'Sheet1!A2' });
 });
