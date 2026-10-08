@@ -62,6 +62,8 @@ const contracts = [
   ['analysis', 'temporal-window-method'],
   ['analysis', 'research-review-corpus'],
   ['analysis', 'automation-private-shopee-source'],
+  ['analysis', 'automation-review-collection-policy'],
+  ['analysis', 'automation-review-sample'],
   ['analysis', 'research-private-review-corpus'],
   ['analysis', 'private-review-report-view'],
   ['analysis', 'm13-provenance-appendix'],
