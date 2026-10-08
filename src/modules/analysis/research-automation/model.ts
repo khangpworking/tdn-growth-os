@@ -27,6 +27,8 @@ export const MAX_PDF_BYTES = 64 * 1024 * 1024;
 
 /** Exact start snapshot persisted before the run exists; its digest is the request identity. */
 export interface StartSnapshot {
+  /** Explicit additive source policy; marker-free historical starts retain v1 behavior. */
+  readonly sourceEvidenceVersion?: 'automation-source-evidence-v1';
   readonly contractVersion: 'research-automation-start-snapshot-v1';
   readonly workspaceId: string;
   readonly country: 'VN';
@@ -89,6 +91,7 @@ export interface StepWebResult {
 
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
+  readonly sourceEvidence?: import('../../../../contracts/analysis/automation-source-evidence.generated.js').AutomationSourceEvidence;
   readonly contractVersion: 'research-automation-step-result-v1';
   readonly runId: string;
   readonly stepId: SourceStepId;

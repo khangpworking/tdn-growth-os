@@ -1,3 +1,4 @@
+import { createKeywordCliproxyTransport, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -62,6 +63,8 @@ import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, Resea
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
+  /** Independently configured list drafting; other model flags grant no calls here. */
+  readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
   readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
   readonly databasePath: string;
   readonly artifactRoot: string;
@@ -184,6 +187,10 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     }
   }
   if (configuration.i14Synthesis && !configuration.owner) throw new TypeError('Automation I14 synthesis requires the OWNER writer');
+  if (configuration.keywordDrafting && !configuration.owner) throw new TypeError('Keyword drafting requires the OWNER writer');
+  const keywordTransport = configuration.keywordDrafting ? createKeywordCliproxyTransport(configuration.keywordDrafting) : undefined;
+  const sourceEvidence = { modelIdentity: configuration.keywordDrafting ? `cliproxy:${configuration.keywordDrafting.configuration.modelId}` : 'unconfigured',
+    promptVersion: 'l9-keyword-prompt-v1', ...(configuration.keywordDrafting ? { configuration: configuration.keywordDrafting.configuration } : {}) };
   const i14SynthesisAi = configuration.i14Synthesis ? createI14CliproxySynthesisAi(configuration.i14Synthesis) : undefined;
   if (configuration.insightCoding && !configuration.owner) throw new TypeError('Automation Insight coding requires the OWNER writer');
   const insightCodingAi = configuration.insightCoding ? createInsightCodingCliproxyAi(configuration.insightCoding) : null;
@@ -207,7 +214,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   const modelRequests = new Map<AbortController, Promise<unknown>>();
   const artifacts = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
   const create = (db: BetterSqlite3.Database, extra: Partial<ConstructorParameters<typeof ResearchAutomationService>[0]> = {}) => new ResearchAutomationService({
-    db, artifactStore: artifacts, ...(configuration.pageIndex ? { pageIndex: configuration.pageIndex } : {}), workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })), ...extra,
+    db, artifactStore: artifacts, sourceEvidence, ...(configuration.pageIndex ? { pageIndex: configuration.pageIndex } : {}), workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })), ...extra,
   });
   let readService: ResearchAutomationService;
   let writeService: ResearchAutomationService | undefined;
@@ -224,6 +231,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
+        sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),

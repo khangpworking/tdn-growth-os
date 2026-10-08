@@ -1,3 +1,5 @@
+import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
+import { sourceEvidenceHtml } from './source-evidence-report.js';
 import fs from 'node:fs';
 import type { AutomationBoundedMethodSnapshot } from '../../../../contracts/analysis/automation-bounded-method-snapshot.generated.js';
 import type { AutomationQuoteMethodSnapshot } from '../../../../contracts/analysis/automation-quote-method-snapshot.generated.js';
@@ -41,6 +43,7 @@ import { lintVisibleReportText } from '../report-visible-text-lint.js';
 const REPORT_KIT_CSS = REPORT_KIT_BASE_CSS + SYNTHESIS_EVIDENCE_CSS;
 
 export interface AutomationReportInput {
+  readonly sourceEvidence?: import('./source-evidence.js').AutomationSourceEvidence;
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly run: ResearchAutomationRun;
@@ -456,6 +459,11 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
+  if (input.start.sourceEvidenceVersion) {
+    if (!input.sourceEvidence) throw new Error('New report requires retained source admission');
+    checkSourceEvidence(input.sourceEvidence);
+    if (input.collection) input = { ...input, collection: { ...input.collection, webResults: admitWebResults(input.sourceEvidence, input.collection.webResults ?? [], input.captures) } };
+  } else if (input.sourceEvidence) throw new Error('Historical report cannot acquire source policy');
   if (input.run.runId !== input.scope.runId || input.run.workspaceId !== input.start.workspaceId || input.run.workspaceId !== input.scope.workspaceId) throw new Error('Report lineage mismatch');
   if (input.collection && (input.collection.runId !== input.run.runId || input.collection.stepId !== 'COLLECTION')) throw new Error('Report collection lineage mismatch');
   if (input.insightCoding) {
@@ -482,7 +490,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Views are composed on first render so that [n] numbers follow the page, not the section-array build order.
   const locatedViews = new Map<string, () => string>();
   const registry = new CitationRegistry();
-  const citations: ReportCitations = { mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
+  const citations: ReportCitations = { ...(input.start.sourceEvidenceVersion ? { distinctEntityWording: true } : {}), mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
   // Sections whose retained decision synthesis is VALID; candidate prose never makes a section analytically complete.
   const decisionGeneratedIds: string[] = [];
   const decisionProposedIds: string[] = [];
@@ -655,12 +663,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
+  const rendererVersion = input.sourceEvidence ? 'automation-report-kit-v18'
+    : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
     : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {
+    ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}),
     ...(sourceScope ? { sourceScope } : {}),
     ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
     ...(kind === 'MARKET' && input.quoteMethods ? { quoteMethods: input.quoteMethods } : {}),
@@ -723,6 +733,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const appendix = (sectionId: string): string =>
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
+    (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) : '') +
     (kind === 'MARKET' && sectionId === 'M13' && input.quoteMethods
       ? `<details open id="quote-method-evidence"><summary>Hồ sơ giá M08: nguồn, điều kiện và phép tính</summary><p>Xuất xứ trong manifest là khai báo đã lưu, không phải chứng nhận độc lập. Dữ liệu tổng hợp thủ công hoặc giả lập không trở thành dữ liệu nhà cung cấp đã xác minh.</p>${retainedEvidenceHtml(input.quoteMethods)}</details>` : '') +
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
@@ -740,7 +751,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
-    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure);
+    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion));
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
       const codingNotice = located
         ? `<p class="warning">Đã áp dụng quy tắc đã duyệt để đưa các khai báo rõ nghĩa vào phạm vi hẹp, có vị trí nguyên văn. ${located.projection.pending.length} mục còn chờ được giữ cùng bản đề xuất ban đầu; không tính thành mục phân tích hoàn chỉnh. Khi mở lại, hệ thống đọc kết quả đã lưu, không chạy lại parser hoặc gọi nguồn.</p>`
@@ -782,7 +793,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   + `@media screen and (max-width:800px){.table-wrap:not(:has(>.evidence-table)){container-type:inline-size;background:linear-gradient(90deg,#fff 30%,#fff0) left/24px 100% no-repeat local,linear-gradient(270deg,#fff 30%,#fff0) right/24px 100% no-repeat local,radial-gradient(farthest-side at 0 50%,#0f172a33,#0000) left/10px 100% no-repeat scroll,radial-gradient(farthest-side at 100% 50%,#0f172a33,#0000) right/10px 100% no-repeat scroll}.table-wrap:not(:has(>.evidence-table))::before{content:"Nếu bảng vượt chiều rộng màn hình, vuốt ngang để xem đủ cột. Bàn phím: Tab để chọn bảng, rồi dùng phím mũi tên.";display:block;position:sticky;left:0;padding:0 0 6px;color:var(--mut);font-size:12px}.table-wrap:not(:has(>.evidence-table)) caption{position:sticky;left:0;max-width:100cqi;box-sizing:border-box}.table-wrap:focus-visible{outline-offset:-3px}}`
   + `.reader-summary,.section-reading,.reader-guide{max-width:72ch}.reader-context{margin-bottom:24px}.method-reference{margin-top:24px;color:var(--mut)}.method-reference summary{cursor:pointer}.reader-summary{font-weight:500}td,dd{font-variant-numeric:tabular-nums}`
   + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}.citation-register a::after{content:" (" attr(href) ")"}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div><p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div></div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${body}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng 0.</p></footer></main></body></html>`;
-  if (rendererVersion === 'automation-report-kit-v17') {
+  // Source appendix v18 also serves existing Market and accepted Insight
+  // methods. Preserve the family-draft lint boundary independently of the
+  // renderer identity, so its source marker cannot bypass the applicable gate.
+  if (draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3') {
     const failed = lintVisibleReportText(html).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`INSIGHT_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
