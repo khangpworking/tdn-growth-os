@@ -124,7 +124,7 @@ function briefBody(ctx: RenderContext): string {
   const workingBlock = working?.state === 'AI_PROPOSED_AWAITING_OWNER'
     ? `<div class="sec-note"><p><span class="tag warn">${esc(working.label ?? CODE_GLOSS.WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER!)}</span></p>${working.text === null
       ? '<p>Chưa có nội dung câu hỏi đề xuất; chủ dự án cần bổ sung câu hỏi.</p>'
-      : `<div style="white-space:pre-wrap">${storedLiteral(working.text, 'Nội dung được giữ trong bản lưu nguồn; không đưa vào bản đọc này.')}</div>`}<p>Câu hỏi này do AI đề xuất, chưa được chủ dự án xác nhận, và không được dùng để chọn lọc hay loại bỏ bằng chứng.</p></div>`
+      : `<div style="white-space:pre-wrap">${storedLiteral(working.text, 'Nội dung được giữ trong bản lưu nguồn; không đưa vào bản đọc này.')}</div>`}<p>Câu hỏi này do hệ thống hoặc mô hình đề xuất, chưa được chủ dự án xác nhận, và không được dùng để chọn lọc hay loại bỏ bằng chứng.</p></div>`
     : working?.state === 'OWNER_SUPPLIED' ? '<p>Câu hỏi làm việc do chủ dự án cung cấp trong brief.</p>' : '';
   return `<p class="sec-note">Brief do hồ sơ khai báo. Nội dung và phiên bản này chưa được xác thực thành phê duyệt của chủ dự án.</p>${workingBlock}${brief === null ? '<p>Chưa có brief. Cần bổ sung các trường dưới đây trước khi dùng làm câu hỏi nghiên cứu đã chốt.</p>' : `<p>Phiên bản brief: ${textOrUnset(brief.version)}.</p>`}<dl>${fields}</dl>${brief ? `<p>Các mục được chọn trong brief: ${brief.selectedSectionIds.length ? brief.selectedSectionIds.map(esc).join(', ') : 'chưa chọn'}.</p>` : ''}${footer(ctx, ctx.output.sections.I01.blockers)}`;
 }

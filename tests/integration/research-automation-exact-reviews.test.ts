@@ -15,7 +15,7 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { FixtureShopeeCollector, CollectionPendingError } from '../../src/platform/collectors/apify-shopee.js';
 import { AutomationExactShopeeBridge, type ShopeeCollectorFactory } from '../../src/modules/analysis/research-automation/exact-shopee-bridge.js';
 import { MAX_HTML_BYTES } from '../../src/modules/analysis/research-automation/model.js';
-import { AutomationLocatedReviewBridge } from '../../src/modules/analysis/research-automation/located-review-bridge.js';
+import { AutomationLocatedReviewBridge, locatedScopeWorkingQuestion } from '../../src/modules/analysis/research-automation/located-review-bridge.js';
 import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
@@ -474,8 +474,15 @@ test('explicit listing scope flows through collection and frozen corpus to both 
   assert.equal(semantic.locatedReview.proposal.output.methodVersion, '1.1.0');
   assert.equal(semantic.locatedReview.proposal.output.input.semanticsVersion, '1.1.0');
   assert.deepEqual(semantic.locatedReview.proposal.output.sections.I01.workingQuestion, {
-    state: 'AI_PROPOSED_AWAITING_OWNER', label: 'câu hỏi làm việc do AI đề xuất, chờ chủ duyệt', text: null,
+    state: 'AI_PROPOSED_AWAITING_OWNER', label: 'câu hỏi làm việc do AI đề xuất, chờ chủ duyệt',
+    // The run supplies no owner question and no model proposal, so the normal caller retains the deterministic
+    // scope template as a labelled proposal: non-empty, and derived only from the frozen scope.
+    text: locatedScopeWorkingQuestion(state.confirm.definition),
     ownerFieldsToAdd: ['questionText', 'decisionToInform', 'intendedAudience', 'scope', 'knownConstraints'] });
+  assert.deepEqual(semantic.locatedReview.proposal.output.input.brief, null, 'the proposal never becomes an owner brief');
+  const proposalCoding = JSON.parse((await state.artifacts.read(semantic.locatedReview.proposal.codingSha256)).toString());
+  assert.deepEqual(semantic.locatedReview.proposal.output.input.records.map((row: { text: string }) => row.text),
+    proposalCoding.records.map((row: { text: string }) => row.text), 'the proposal changes no evidence membership');
   assert.ok(!semantic.locatedReview.proposal.output.sections.I01.blockers.includes('I01_OWNER_QUESTION_REQUIRED'),
     'a missing owner question is no longer a hard stop for a new located run');
   assert.equal(semantic.locatedReview.output.input.semanticsVersion, '1.1.0');

@@ -175,12 +175,20 @@ function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sec
   // U-04: without a declared policy, 1.1.0 derives disjoint labels from source-stated platform + buyer type.
   const groups = version === '1.0.0' || declared.length ? declared
     : unique((data?.cells ?? []).map(derivedGroupLabel).filter((label): label is string => label !== null));
+  /** The label a cell is counted under. 1.1.0 counts a source-stated platform/buyer basis first, so a declared label
+   * can never rename a group; a declared label remains the label only for the legacy 1.0.0 declared-policy path. */
   const labelOf = (cell: I11Cell): string | null => {
-    if (cell.group !== null && groups.includes(cell.group)) return cell.group;
-    return version === '1.1.0' && cell.assignment.state === 'SOURCE_ASSIGNED' ? derivedGroupLabel(cell) : null;
+    if (version === '1.1.0') {
+      const basis = cell.assignment.state === 'SOURCE_ASSIGNED' ? derivedGroupLabel(cell) : null;
+      if (basis !== null) return basis;
+    }
+    return cell.group !== null && groups.includes(cell.group) ? cell.group : null;
   };
+  /** U-04 rate eligibility needs the allowed basis itself, not merely a valid member set: a group label that only the
+   * declaration supplies is counts-only evidence, and a declaration contradicting the stated basis is named. */
+  const basisOf = (cell: I11Cell): string | null => cell.assignment.state === 'SOURCE_ASSIGNED' ? derivedGroupLabel(cell) : null;
   const partitions = new Map<string, I11Partition>();
-  const groupValues = new Map<string, Map<string, { numerator: number | null; denominator: number | null; unit: I11Cell['countUnit']; members: string[]; numeratorMembers: string[] }>>();
+  const groupValues = new Map<string, Map<string, { numerator: number | null; denominator: number | null; unit: I11Cell['countUnit']; members: string[]; numeratorMembers: string[]; sourceBacked: boolean }>>();
   const seen = new Map<string, string>();
   data?.cells.forEach((cell, index) => {
     const identity = sourceKey(cell.source);
@@ -195,6 +203,8 @@ function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sec
     const pointer = `/input/i11/cells/${index}`;
     partition.cellPointers.push(pointer);
     const label = labelOf(cell);
+    if (version === '1.1.0' && cell.group !== null && cell.group !== basisOf(cell))
+      partition.blockers.push('I11_DECLARED_GROUP_NOT_SOURCE_BACKED');
     if (label === null) {
       partition.unknownAssignmentPointers.push(pointer);
       partition.blockers.push('I11_GROUP_ASSIGNMENT_UNKNOWN');
@@ -213,6 +223,7 @@ function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sec
         // Member identity is the retained source key (sha256 + locator): the same record retained under two logical
         // paths is one record, so a path alias can neither inflate a denominator nor evade the overlap check.
         members: (cell.memberSources ?? []).map(sourceKey), numeratorMembers: (cell.numeratorMemberSources ?? []).map(sourceKey),
+        sourceBacked: basisOf(cell) !== null && basisOf(cell) === label,
       });
       groupValues.set(key, values);
     }
@@ -242,6 +253,9 @@ function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sec
     // partition stays counts-only rather than comparing them; the missing buyer type is never read as all buyers.
     for (const [group] of values) if (!group.includes(' / ') && values.some(([other]) => other.startsWith(`${group} / `)))
       partition.blockers = unique([...partition.blockers, 'I11_PLATFORM_ONLY_GROUP_OVERLAPS_BUYER_SUBDIVISION']);
+    // A rate is only comparable inside source-backed groups: a declared label with no stated basis stays counts-only.
+    if (values.some(([, value]) => !value.sourceBacked))
+      partition.blockers = unique([...partition.blockers, 'I11_GROUP_NOT_SOURCE_BACKED']);
     // A member reference repeated under a path alias (or twice) proves nothing about a denominator, so the reason is
     // named for the reader instead of silently dropping the rate.
     if (values.some(([, value]) => value.members.length !== new Set(value.members).size ||

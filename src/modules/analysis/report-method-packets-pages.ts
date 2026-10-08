@@ -136,7 +136,8 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
       for (const partition of section.partitions.slice(0, LIMIT)) {
         body += table('Ô nhóm trong cùng phạm vi, chưa tính so sánh', ['Nhóm nguồn', 'Ô số nguồn', 'Phạm vi và ngữ cảnh'], partition.cellPointers.slice(0, LIMIT).map(pointer => {
           const cell = at(input.cells, pointer, '/input/i11/cells/');
-          const label = cell.group ?? (versioned ? derivedGroupLabel(cell) : null);
+          // Mirrors the gate: 1.1.0 counts a source-stated basis first, so a declared label cannot rename a group.
+          const label = versioned ? (derivedGroupLabel(cell) ?? cell.group) : cell.group;
           const counted = versioned && cell.memberSources?.length ? `<small>Bản ghi nguồn được đếm: ${cell.memberSources.length}</small>` : '';
           return `<tr><th scope="row">${text(label)}<small>${cell.assignment.state === 'SOURCE_ASSIGNED' ? 'Nguồn gán nhóm' : 'Chưa rõ cách gán nhóm'}</small>${counted}${codeMarker(cell.assignment.state, 'Mã cách gán nhóm')}</th>`
             + `<td>${dl(pair('Tử số nguồn', observation(cell.numerator)) + pair('Mẫu số nguồn', observation(cell.denominator)) + pair('Đơn vị đếm', esc(cell.countUnit)))}</td>`

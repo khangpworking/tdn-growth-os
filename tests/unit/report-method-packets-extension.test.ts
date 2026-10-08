@@ -121,7 +121,7 @@ test('synthesis rejects fabricated packet values and reference digests despite i
 test('U-04 descriptive rates are built only from retained INCLUDED text records resolved at the package boundary', async () => {
   const RECORDS_PATH = 'method-packets/located-records.json';
   const ALIAS_PATH = 'method-packets/located-records-copy.json';
-  const build = async (mode: 'plain' | 'excluded' | 'aliased') => {
+  const build = async (mode: 'plain' | 'excluded' | 'aliased' | 'declared') => {
     const records = Array.from({ length: 71 }, (_, index) => ({ disposition: 'INCLUDED', text: `Retained text record ${index}` }));
     if (mode === 'excluded') records[0] = { disposition: 'EXCLUDED', text: 'Retained but excluded record' };
     const recordsBytes = bytesOf(records);
@@ -146,7 +146,13 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
       },
     });
     gates.semanticsVersion = '1.1.0';
-    gates.i11 = { ...gates.i11!, groupPolicy: null, cells: [
+    // 'declared' keeps the source's declared group labels but no source-stated platform/buyer basis for the cell.
+    if (mode === 'declared') {
+      const { groupBasis: _basis, ...basisless } = cell('/i11/cells/0', 'Shopee', null,
+        Array.from({ length: 40 }, (_, index) => index), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+      gates.i11 = { ...gates.i11!, cells: [{ ...basisless, group: 'B' }] };
+    }
+    else gates.i11 = { ...gates.i11!, groupPolicy: null, cells: [
       // 'aliased' declares 40 references, but record 0 is retained under two paths, so only 39 records are distinct.
       cell('/i11/cells/0', 'Shopee', null, Array.from({ length: mode === 'aliased' ? 39 : 40 }, (_, index) => index),
         [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
@@ -197,6 +203,16 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
   const excluded = await build('excluded');
   await assert.rejects(buildReportMethodPacketsExtension(excluded.logicalPath, excluded.bundle, excluded.reader),
     /METHOD_PACKET_MEMBER_NOT_AN_INCLUDED_TEXT_RECORD/);
+
+  // A declared label with valid members but no source-stated basis is not a group the source states, so the
+  // partition stays counts-only and the missing basis is named.
+  const declared = await build('declared');
+  const declaredBuilt = (await buildReportMethodPacketsExtension(declared.logicalPath, declared.bundle, declared.reader))!;
+  assert.equal(declaredBuilt.gates!.sections.I11.rates, null);
+  assert.deepEqual(declaredBuilt.gates!.sections.I11.partitions[0]!.groupOrder, ['B']);
+  assert.ok(declaredBuilt.gates!.sections.I11.partitions[0]!.blockers.includes('I11_GROUP_NOT_SOURCE_BACKED'));
+  assert.ok(declaredBuilt.gates!.sections.I11.partitions[0]!.blockers.includes('I11_DECLARED_GROUP_NOT_SOURCE_BACKED'));
+  assert.doesNotMatch(renderReportMethodPacketSection({ gates: declaredBuilt.gates! }, 'I11')!, /Tỷ lệ mô tả theo nhóm/);
 
   // The same record retained under two logical paths is one record: it can neither fill a declared denominator nor
   // be counted twice, so the partition stays counts-only with the reason named.

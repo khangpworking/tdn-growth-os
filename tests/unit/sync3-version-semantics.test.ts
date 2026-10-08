@@ -3,23 +3,40 @@ import test from 'node:test';
 import { buildBoundedAnalysisGates } from '../../src/modules/analysis/bounded-analysis-gates.js';
 import { buildLocatedInsightMethods } from '../../src/modules/analysis/located-insight-methods.js';
 import { automationDecisionSynthesisPrompt } from '../../src/modules/analysis/research-automation/decision-synthesis-input.js';
+import { createHash } from 'node:crypto';
 import { insightModelPrompt } from '../../src/modules/analysis/research-automation/insight-model-execution.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import legacyPromptSchemas from '../../src/modules/analysis/research-automation/insight-model-prompt-v1-schemas.json' with { type: 'json' };
+import locatedSchema from '../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import { locatedInsightFixture } from '../helpers/located-insight-fixture.js';
 import { boundedAnalysisGatesFixture } from '../helpers/bounded-analysis-gates-fixture.js';
 import type { BoundedAnalysisGates } from '../../contracts/analysis/bounded-analysis-gates.generated.js';
 
 type Cell = NonNullable<BoundedAnalysisGates['input']['i11']>['cells'][number];
 
-// U-05 (E4): the persona ban is lifted only in the new prompt version, and "no people counts" is kept.
-test('U-05 lifts only the persona ban in prompt v2 and keeps the v1 bytes otherwise', () => {
+// U-05 (E4): the persona ban is lifted only in the new prompt version, and "no people counts" is kept. v1 embeds a
+// frozen pre-change schema fragment, so this digest is the v1 text as released before the U-02 contract fields
+// existed: hash of the same template over the base-commit fragments. Re-deriving v1 from the current schema would
+// silently rewrite the prompt a retained v1 execution was prepared with, which is the identity this pins.
+const HISTORICAL_V1_SHA256 = 'b7fca3c33c55ba6531fa3eab9008d6da11cdad4391a3a7f7878db87efebb5e78';
+test('U-05 lifts the persona ban in v2 and keeps the historical v1 prompt bytes', () => {
   const v1 = insightModelPrompt('insight-model-prompt-v1');
   const v2 = insightModelPrompt('insight-model-prompt-v2');
   assert.equal(v1.contractVersion, 'insight-model-prompt-v1');
   assert.equal(v2.contractVersion, 'insight-model-prompt-v2');
+  assert.equal(createHash('sha256').update(v1.systemText, 'utf8').digest('hex'), HISTORICAL_V1_SHA256);
   assert.ok(v1.systemText.includes('Do not infer people counts, personas, causality'));
   assert.ok(v2.systemText.includes('Do not infer people counts, causality'));
   assert.ok(!v2.systemText.includes('personas'));
-  assert.equal(v1.systemText.replace('people counts, personas, causality', 'people counts, causality'), v2.systemText);
+  // The frozen fragment predates the U-02 fields, and only v2 embeds the current contract fragment.
+  assert.ok(v1.systemText.includes(canonicalJson(legacyPromptSchemas.locatedDefinitions)));
+  assert.ok(!v1.systemText.includes('workingQuestionProposal'));
+  assert.ok(v2.systemText.includes(canonicalJson(locatedSchema.$defs)));
+  assert.ok(v2.systemText.includes('workingQuestionProposal'));
+  // v1 and v2 differ by exactly the lifted persona ban plus the located-contract fragment change, nothing else.
+  assert.equal(v1.systemText
+    .replace('people counts, personas, causality', 'people counts, causality')
+    .replace(canonicalJson(legacyPromptSchemas.locatedDefinitions), canonicalJson(locatedSchema.$defs)), v2.systemText);
 });
 
 // U-16 + U-07: the new decision prompt carries the no-purchase ban and the three labelled proposal fields, capped at 3.
