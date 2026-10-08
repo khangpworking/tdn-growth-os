@@ -56,7 +56,7 @@
     "prompt": {
       "title": "InsightModelPrompt", "type": "object", "additionalProperties": false,
       "required": ["contractVersion", "systemText"],
-      "properties": { "contractVersion": { "enum": ["insight-model-prompt-v1", "insight-model-prompt-v2"] }, "systemText": { "type": "string", "minLength": 1 } }
+      "properties": { "contractVersion": { "enum": ["insight-model-prompt-v1", "insight-model-prompt-v2", "insight-model-prompt-v3"] }, "systemText": { "type": "string", "minLength": 1 } }
     },
     "configuration": {
       "title": "InsightModelConfiguration", "type": "object", "additionalProperties": false,

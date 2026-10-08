@@ -7,13 +7,17 @@ import selectionSchema from '../../../../contracts/analysis/automation-insight-s
 import reportRevisionSchema from '../../../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
 import classifiedRevisionSchema from '../../../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import snapshotSchema from '../../../../contracts/analysis/automation-insight-coding-snapshot.schema.json' with { type: 'json' };
-import type { AutomationInsightCodingSnapshot } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
-import type { InsightReportSelection } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
+import type {
+  AutomationInsightCodingAcceptedSnapshot,
+  AutomationInsightCodingDraftSnapshot,
+  AutomationInsightCodingSnapshot,
+} from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
+import type { InsightReportSelection, InsightDraftSelection } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
 import type { InsightCodingAdoptRequest, InsightCodingProposeRequest, InsightCodingAcceptRequest, InsightCodingEvidence, InsightSourceBinding } from '../../../../contracts/analysis/automation-insight-coding.generated.js';
 import type { AutomationInsightSelection } from '../../../../contracts/analysis/automation-insight-selection.generated.js';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
-import { validateLocatedInsightInput } from '../located-insight-methods.js';
+import { validateLocatedInsightInput, buildLocatedInsightMethods } from '../located-insight-methods.js';
 import { projectSelectedInsightCandidates } from './selected-insight-projection.js';
 import { proposeLiteralCodebook } from './literal-codebook-proposal.js';
 import { AutomationInsightModelExecution, validateInsightModelRequest, type InsightModelAI } from './insight-model-execution.js';
@@ -280,7 +284,7 @@ export class AutomationInsightCoding {
   }
 
   /** A report freezes exactly the selected receipts, not all receipts saved later. */
-  async reportSnapshot(workspaceId: string, runId: string, pairId: string, selection: InsightReportSelection, current = false): Promise<AutomationInsightCodingSnapshot> {
+  async reportSnapshot(workspaceId: string, runId: string, pairId: string, selection: InsightReportSelection, current = false): Promise<AutomationInsightCodingAcceptedSnapshot> {
     const resolved = await this.resolve(workspaceId, runId, selection.proposalId, selection.receiptIds);
     if (resolved.binding.pairId !== pairId) conflict();
     if (current) {
@@ -299,9 +303,57 @@ export class AutomationInsightCoding {
     return snapshot;
   }
 
-  async verifyReportSnapshot(value: unknown, workspaceId: string, runId: string, pairId: string, selection: InsightReportSelection): Promise<AutomationInsightCodingSnapshot> {
+  async verifyReportSnapshot(value: unknown, workspaceId: string, runId: string, pairId: string, selection: InsightReportSelection): Promise<AutomationInsightCodingAcceptedSnapshot> {
     if (!snapshotValid(value)) corrupt();
     const expected = await this.reportSnapshot(workspaceId, runId, pairId, selection);
+    if (json(expected) !== json(value)) corrupt();
+    return expected;
+  }
+
+  /**
+   * Explicit exact proposal with zero receipts. Nothing is selected, admitted
+   * or approved: the composed input keeps retained PENDING_AI provenance, and
+   * the draft flag emits labelled draft counts through the owned builder.
+   * The derived computation input explicitly selects current method semantics;
+   * retained evidence, binding and provenance are never rewritten.
+   */
+  async resolveDraftProposal(workspaceId: string, runId: string, proposalId: string) {
+    const sourceReads: SourceReads = new Map();
+    const proposal = await this.read(proposalId, workspaceId, runId, false, sourceReads);
+    if (proposal.request.contractVersion !== 'insight-coding-propose-v1') invalid();
+    const adoption = await this.read(proposal.request.adoptionId, workspaceId, runId, false, sourceReads);
+    if (adoption.request.contractVersion !== 'insight-coding-adopt-v1') corrupt();
+    const context = await this.context(workspaceId, runId, proposal.binding.pairId, sourceReads);
+    const input = this.compose(context, adoption.request, proposal.request);
+    input.semanticsVersion = '1.1.0';
+    input.draftCountsVersion = 'draft-counts-v1';
+    const { output } = buildLocatedInsightMethods(input);
+    return { binding: proposal.binding, adoption, proposal, receipts: [] as InsightCodingEvidence[], output };
+  }
+
+  /** A report freezes exactly the named draft proposal with zero receipts, not an implicit latest. */
+  async reportDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDraftSelection, current = false): Promise<AutomationInsightCodingDraftSnapshot> {
+    const resolved = await this.resolveDraftProposal(workspaceId, runId, draft.proposalId);
+    if (resolved.binding.pairId !== pairId) conflict();
+    if (current) {
+      await this.currentAdoption(resolved.adoption);
+      if (this.latest(resolved.adoption.evidenceId, 'PROPOSAL')?.evidence_id !== resolved.proposal.evidenceId) conflict();
+    }
+    const snapshot = {
+      contractVersion: 'automation-insight-coding-snapshot-v2', binding: resolved.binding,
+      selection: { proposalId: draft.proposalId, receiptIds: [] as string[] },
+      adoptionId: resolved.adoption.evidenceId, proposalSha256: hash(resolved.proposal),
+      receipts: [] as { receiptId: string; sha256: string }[],
+      draftSelection: { contractVersion: 'insight-draft-select-v1' as const, proposalId: draft.proposalId },
+      output: resolved.output,
+    };
+    if (!snapshotValid(snapshot)) corrupt();
+    return snapshot;
+  }
+
+  async verifyReportDraftSnapshot(value: unknown, workspaceId: string, runId: string, pairId: string, draft: InsightDraftSelection): Promise<AutomationInsightCodingDraftSnapshot> {
+    if (!snapshotValid(value)) corrupt();
+    const expected = await this.reportDraftSnapshot(workspaceId, runId, pairId, draft);
     if (json(expected) !== json(value)) corrupt();
     return expected;
   }

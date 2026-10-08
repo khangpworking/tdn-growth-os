@@ -68,6 +68,10 @@ export type I13Mentions = {
  */
 export type Indexes = number[];
 export type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
+/**
+ * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
+ */
+export type DraftCountsVersion = 'draft-counts-v1';
 
 export interface InsightCodingAdoptRequest {
   contractVersion: 'insight-coding-adopt-v1';
@@ -412,6 +416,7 @@ export interface Input {
   corpora: Corpus[];
   i13Mentions: I13Mentions;
   semanticsVersion?: '1.0.0' | '1.1.0';
+  draftCountsVersion?: DraftCountsVersion;
   workingQuestionProposal?: string | null;
 }
 export interface Record {

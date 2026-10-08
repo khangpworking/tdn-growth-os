@@ -91,9 +91,9 @@ test('revised insight prompt dispatches from retained bytes, keeps provenance pe
     .get() as { prompt_sha256: string; validation_status: string };
   assert.equal(row.validation_status, 'VALID');
   const retainedPrompt = JSON.parse((await f.artifacts.read(row.prompt_sha256)).toString('utf8')) as { contractVersion: string; systemText: string };
-  // U-05: a new preparation dispatches the current prompt (v2). A settled execution still replays the prompt
+  // U-03: a new preparation dispatches the current prompt (v3). A settled execution still replays the prompt
   // bytes it was prepared with, which the exact-retry assertion below proves.
-  assert.equal(retainedPrompt.contractVersion, 'insight-model-prompt-v2');
+  assert.equal(retainedPrompt.contractVersion, 'insight-model-prompt-v3');
   assert.equal(retainedPrompt.systemText, dispatchedSystemText, 'the dispatched system text is the retained prompt artifact');
   const before = f.db.prepare('SELECT total_changes() n').get();
   const replay = await f.service.proposeModelInsightCoding(workspaceId, runId, request, owner, null);

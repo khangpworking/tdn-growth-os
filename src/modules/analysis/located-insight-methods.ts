@@ -172,16 +172,29 @@ function located(input: Input, key: MethodKey): Located[] {
   });
 }
 
-function summary(input: Input, rows: Located[]): Section {
+function summary(input: Input, rows: Located[], sectionId: 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09'): Section {
   const accepted = rows.filter(({ row }) => !pending(row.provenance));
   const recordPointers = unique(accepted.map(row => row.recordPointer));
   const pendingAnnotationPointers = rows.filter(({ row }) => pending(row.provenance)).map(row => row.pointer);
-  return {
+  const base = {
     recordPointers, annotationPointers: accepted.map(row => row.pointer), pendingAnnotationPointers,
-    locatedRecordCount: recordPointers.length, semanticValidation: 'DECLARED_NOT_VERIFIED',
+    locatedRecordCount: recordPointers.length, semanticValidation: 'DECLARED_NOT_VERIFIED' as const,
     blockers: [...(accepted.length ? [] : ['NO_LOCATED_ANNOTATIONS']), ...(pendingAnnotationPointers.length ? ['CODING_PENDING'] : []),
       ...(input.question === null ? ['QUESTION_UNSET'] : [])],
   };
+  // U-03 draft eligibility is additive, opt-in and scoped to the I02 summary:
+  // without the flag the output keeps the historical accepted-only bytes
+  // exactly. Draft rows are all disagreement-free rows on INCLUDED records:
+  // eligible accepted rows plus eligible retained AI proposals, deduplicated
+  // by stable record identity. Disagreements stay pending and provenance is
+  // never rewritten to approved. Record INCLUDED membership is enforced by
+  // input validation; the pointers below reuse the same stable identity.
+  if (sectionId !== 'I02' || input.draftCountsVersion !== 'draft-counts-v1') return { ...base };
+  const draft = rows.filter(({ row }) => row.provenance.disagreement === null);
+  const draftRecordPointers = unique(draft.map(row => row.recordPointer));
+  return { ...base, draftRecordPointers, draftAnnotationPointers: draft.map(row => row.pointer),
+    draftLocatedRecordCount: draftRecordPointers.length,
+    draftLabel: 'đề xuất, chờ chủ duyệt', draftCountsVersion: 'draft-counts-v1' as const };
 }
 
 /** U-02 (E7): input semantics version. Absence retains 1.0.0 bytes exactly. */
@@ -223,6 +236,8 @@ export function buildLocatedInsightMethods(untrustedInput: unknown): { output: L
   const input = validateCore(untrustedInput);
   // U-02: an omitted semanticsVersion is the historical 1.0.0 (hard owner-question blocker, no working question).
   const version: SemanticsVersion = input.semanticsVersion ?? '1.0.0';
+  // U-03 draft eligibility is defined against current method semantics only.
+  if (input.draftCountsVersion !== undefined && version !== '1.1.0') fail('DRAFT_REQUIRES_CURRENT_SEMANTICS');
   const corpus = buildInsightCorpusCounts(input);
   const i02 = located(input, 'i02'); const i04 = located(input, 'i04'); const i05 = located(input, 'i05');
   const i06 = located(input, 'i06'); const i07 = located(input, 'i07'); const i08 = located(input, 'i08'); const i09 = located(input, 'i09');
@@ -253,12 +268,12 @@ export function buildLocatedInsightMethods(untrustedInput: unknown): { output: L
   const body: Omit<LocatedInsightMethods, 'methodOutputId'> = {
     contractVersion: '1.0.0', methodId: 'located-insight-methods', methodVersion: version, input,
     sections: {
-      I01: businessQuestion(input, version), I02: summary(input, i02), I04: summary(input, i04),
-      I05: { ...summary(input, i05), recordPolarities },
-      I06: { ...summary(input, i06), sequences, blockers: unique([...summary(input, i06).blockers,
+      I01: businessQuestion(input, version), I02: summary(input, i02, 'I02'), I04: summary(input, i04, 'I04'),
+      I05: { ...summary(input, i05, 'I05'), recordPolarities },
+      I06: { ...summary(input, i06, 'I06'), sequences, blockers: unique([...summary(input, i06, 'I06').blockers,
         ...(i06.some(({ row }) => !(row as Input['i06'][number]).relation) ? ['I06_EVENT_ORDER_UNRESOLVED'] : [])]) },
-      I07: summary(input, i07), I08: summary(input, i08),
-      I09: { ...summary(input, i09), candidates, blockers: unique([...summary(input, i09).blockers,
+      I07: summary(input, i07, 'I07'), I08: summary(input, i08, 'I08'),
+      I09: { ...summary(input, i09, 'I09'), candidates, blockers: unique([...summary(input, i09, 'I09').blockers,
         ...(candidates.some(row => !row.unmetNeedCandidate) ? ['I09_INCOMPLETE_GAP_EVIDENCE'] : [])]) },
       ...corpus,
     },

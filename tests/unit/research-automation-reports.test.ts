@@ -6,7 +6,7 @@ import type { ResearchAutomationRun } from '../../contracts/api/research-automat
 import { buildDescriptiveMarketMethods } from '../../src/modules/analysis/descriptive-market-methods.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
-import type { AutomationInsightCodingSnapshot } from '../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
+import type { AutomationInsightCodingAcceptedSnapshot } from '../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
 import type { AutomationInsightSelection } from '../../contracts/analysis/automation-insight-selection.generated.js';
 import type { LocatedInsightMethods } from '../../contracts/analysis/located-insight-methods.generated.js';
 import { projectSelectedInsightCandidates } from '../../src/modules/analysis/research-automation/selected-insight-projection.js';
@@ -347,7 +347,7 @@ function codingProposal(): LocatedInput {
   return input;
 }
 /** Synthetic renderer input treated as already verified; persistence, adoption and receipt verification belong to the Insight coding owner. */
-function codingSnapshot(input: AutomationReportInput, selection: AutomationInsightSelection): AutomationInsightCodingSnapshot {
+function codingSnapshot(input: AutomationReportInput, selection: AutomationInsightSelection): AutomationInsightCodingAcceptedSnapshot {
   return {
     contractVersion: 'automation-insight-coding-snapshot-v1',
     binding: { workspaceId: input.run.workspaceId, runId: input.run.runId, pairId: '8'.repeat(64), scopeSha256: '9'.repeat(64), reportSha256: 'a'.repeat(64),

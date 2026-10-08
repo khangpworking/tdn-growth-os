@@ -6,6 +6,9 @@ import locatedSchema from '../../../../contracts/analysis/located-insight-method
 // Frozen at the SYNC-3 base commit: the exact $defs bytes the v1 prompt embedded before the U-02 contract fields
 // existed. Asking for v1 must return those bytes, never a re-serialization of the current contract.
 import legacyPromptSchemas from './insight-model-prompt-v1-schemas.json' with { type: 'json' };
+// Frozen at the SYNC-4 base commit: the exact $defs the released v2 prompt embedded (post-SYNC-3 contracts,
+// pre-U-03 draft-count fields). v2 must return those bytes, never a re-serialization of the current contract.
+import frozenV2PromptSchemas from './insight-model-prompt-v2-schemas.json' with { type: 'json' };
 import selectionSchema from '../../../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
 import type { InsightModelRequest, InsightModelSource, InsightModelInput, InsightModelPrompt, InsightModelConfiguration } from '../../../../contracts/analysis/automation-insight-model.generated.js';
 import type { InsightProposedAnnotations } from '../../../../contracts/analysis/automation-insight-coding.generated.js';
@@ -74,14 +77,22 @@ const promptV1: InsightModelPrompt = {
  * the frozen pre-change fragments byte-for-byte, so a retained v1 execution or its retained bytes are unaffected. */
 const promptV2: InsightModelPrompt = {
   contractVersion: 'insight-model-prompt-v2',
+  systemText: insightSystemText(frozenV2PromptSchemas.annotations, frozenV2PromptSchemas.locatedDefinitions).replace(PEOPLE_COUNT_BAN_V1, PEOPLE_COUNT_BAN_V2),
+};
+
+/** U-03: v3 embeds the current contracts including the draft-count eligibility fields. Coding instructions are
+ * unchanged from v2; only the embedded fragments gain the new optional output fields. v2 keeps the frozen
+ * pre-U-03 fragments byte-for-byte, so a retained v2 execution or its retained bytes are unaffected. */
+const promptV3: InsightModelPrompt = {
+  contractVersion: 'insight-model-prompt-v3',
   systemText: insightSystemText(codingSchema.$defs.annotations, locatedSchema.$defs).replace(PEOPLE_COUNT_BAN_V1, PEOPLE_COUNT_BAN_V2),
 };
-// The current dispatch prompt. New preparations use v2; a settled execution always replays its retained prompt bytes.
-const prompt = promptV2;
+// The current dispatch prompt. New preparations use v3; a settled execution always replays its retained prompt bytes.
+const prompt = promptV3;
 
 /** The frozen prompt for one version, so a retained prompt replays against its own version, not the current default. */
-export function insightModelPrompt(version: 'insight-model-prompt-v1' | 'insight-model-prompt-v2'): InsightModelPrompt {
-  return version === 'insight-model-prompt-v1' ? promptV1 : promptV2;
+export function insightModelPrompt(version: 'insight-model-prompt-v1' | 'insight-model-prompt-v2' | 'insight-model-prompt-v3'): InsightModelPrompt {
+  return version === 'insight-model-prompt-v1' ? promptV1 : version === 'insight-model-prompt-v2' ? promptV2 : promptV3;
 }
 
 function buildInput(source: InsightModelSource): InsightModelInput {
