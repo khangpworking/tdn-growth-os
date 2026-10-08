@@ -1,485 +1,101 @@
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://tdn.local/contracts/analysis/located-insight-methods.schema.json",
-  "title": "LocatedInsightMethods",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "contractVersion",
-    "methodId",
-    "methodVersion",
-    "methodOutputId",
-    "input",
-    "sections",
-    "limitations"
-  ],
-  "properties": {
-    "contractVersion": {
-      "const": "1.0.0"
-    },
-    "methodId": {
-      "const": "located-insight-methods"
-    },
-    "methodVersion": {
-      "enum": [
-        "1.0.0",
-        "1.1.0"
+  "annotations": {
+    "title": "InsightProposedAnnotations",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "i06",
+      "i09",
+      "i13Mentions",
+      "corpora"
+    ],
+    "dependentRequired": {
+      "i02": [
+        "i04",
+        "i05",
+        "i07",
+        "i08"
+      ],
+      "i04": [
+        "i02",
+        "i05",
+        "i07",
+        "i08"
+      ],
+      "i05": [
+        "i02",
+        "i04",
+        "i07",
+        "i08"
+      ],
+      "i07": [
+        "i02",
+        "i04",
+        "i05",
+        "i08"
+      ],
+      "i08": [
+        "i02",
+        "i04",
+        "i05",
+        "i07"
       ]
     },
-    "methodOutputId": {
-      "$ref": "#/$defs/digest"
-    },
-    "input": {
-      "$ref": "#/$defs/input"
-    },
-    "sections": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "I01",
-        "I02",
-        "I04",
-        "I05",
-        "I06",
-        "I07",
-        "I08",
-        "I09",
-        "I10",
-        "I13"
-      ],
-      "properties": {
-        "I01": {
+    "properties": {
+      "i02": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i02"
+      },
+      "i04": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i04"
+      },
+      "i05": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i05"
+      },
+      "i07": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i07"
+      },
+      "i08": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i08"
+      },
+      "i06": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i06"
+      },
+      "i09": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i09"
+      },
+      "i13Mentions": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i13Mentions"
+      },
+      "corpora": {
+        "type": "array",
+        "maxItems": 100,
+        "items": {
+          "title": "InsightProposedCorpusCoding",
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "briefPointer",
-            "briefSha256",
-            "unresolvedFields",
-            "reviewState",
-            "blockers"
+            "corpusIndex",
+            "assignments",
+            "dispositions"
           ],
           "properties": {
-            "briefPointer": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "enum": [
-                "/input/brief",
-                null
-              ]
+            "corpusIndex": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 99
             },
-            "briefSha256": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/digest"
-                },
-                {
-                  "type": "null"
-                }
-              ]
+            "assignments": {
+              "$ref": "located-insight-methods.schema.json#/$defs/corpus/properties/assignments"
             },
-            "unresolvedFields": {
-              "$ref": "#/$defs/strings"
-            },
-            "reviewState": {
-              "const": "DECLARED_NOT_AUTHENTICATED"
-            },
-            "blockers": {
-              "$ref": "#/$defs/strings"
-            },
-            "workingQuestion": {
-              "type": "object",
-              "additionalProperties": false,
-              "required": [
-                "state",
-                "label",
-                "text",
-                "ownerFieldsToAdd"
-              ],
-              "properties": {
-                "state": {
-                  "enum": [
-                    "AI_PROPOSED_AWAITING_OWNER",
-                    "OWNER_SUPPLIED"
-                  ]
-                },
-                "label": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/$defs/text"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "text": {
-                  "anyOf": [
-                    {
-                      "$ref": "#/$defs/text"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "ownerFieldsToAdd": {
-                  "type": "array",
-                  "maxItems": 10000,
-                  "items": {
-                    "$ref": "#/$defs/text"
-                  }
-                }
-              }
+            "dispositions": {
+              "$ref": "located-insight-methods.schema.json#/$defs/corpus/properties/dispositions"
             }
           }
-        },
-        "I02": {
-          "$ref": "#/$defs/section"
-        },
-        "I04": {
-          "$ref": "#/$defs/section"
-        },
-        "I05": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "recordPointers",
-            "annotationPointers",
-            "pendingAnnotationPointers",
-            "locatedRecordCount",
-            "semanticValidation",
-            "blockers",
-            "recordPolarities"
-          ],
-          "properties": {
-            "recordPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "annotationPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "pendingAnnotationPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "locatedRecordCount": {
-              "$ref": "#/$defs/count"
-            },
-            "semanticValidation": {
-              "const": "DECLARED_NOT_VERIFIED"
-            },
-            "blockers": {
-              "$ref": "#/$defs/strings"
-            },
-            "recordPolarities": {
-              "type": "array",
-              "maxItems": 10000,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "recordPointer",
-                  "polarity"
-                ],
-                "properties": {
-                  "recordPointer": {
-                    "$ref": "#/$defs/text"
-                  },
-                  "polarity": {
-                    "enum": [
-                      "POSITIVE",
-                      "NEGATIVE",
-                      "MIXED",
-                      "NEUTRAL",
-                      "UNCLEAR",
-                      "NOT_STATED"
-                    ]
-                  }
-                }
-              }
-            },
-            "draftRecordPointers": {
-              "description": "Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.",
-              "$ref": "#/$defs/pointers"
-            },
-            "draftAnnotationPointers": {
-              "description": "Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.",
-              "$ref": "#/$defs/pointers"
-            },
-            "draftLocatedRecordCount": {
-              "$ref": "#/$defs/count"
-            },
-            "draftLabel": {
-              "$ref": "#/$defs/draftLabel"
-            },
-            "draftCountsVersion": {
-              "$ref": "#/$defs/draftCountsVersion"
-            },
-            "draftRecordPolarities": {
-              "type": "array",
-              "maxItems": 10000,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "recordPointer",
-                  "polarity"
-                ],
-                "properties": {
-                  "recordPointer": {
-                    "$ref": "#/$defs/text"
-                  },
-                  "polarity": {
-                    "enum": [
-                      "POSITIVE",
-                      "NEGATIVE",
-                      "MIXED",
-                      "NEUTRAL",
-                      "UNCLEAR",
-                      "NOT_STATED"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "I06": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "recordPointers",
-            "annotationPointers",
-            "pendingAnnotationPointers",
-            "locatedRecordCount",
-            "semanticValidation",
-            "blockers",
-            "sequences"
-          ],
-          "properties": {
-            "recordPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "annotationPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "pendingAnnotationPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "locatedRecordCount": {
-              "$ref": "#/$defs/count"
-            },
-            "semanticValidation": {
-              "const": "DECLARED_NOT_VERIFIED"
-            },
-            "blockers": {
-              "$ref": "#/$defs/strings"
-            },
-            "sequences": {
-              "type": "array",
-              "maxItems": 10000,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "annotationPointer",
-                  "sequenceBasis",
-                  "identityScope",
-                  "sequenceState"
-                ],
-                "properties": {
-                  "annotationPointer": {
-                    "$ref": "#/$defs/text"
-                  },
-                  "sequenceBasis": {
-                    "const": "SOURCE_EXPLICIT_SAME_RECORD"
-                  },
-                  "identityScope": {
-                    "const": "RECORD_LOCAL"
-                  },
-                  "sequenceState": {
-                    "const": "SOURCE_STATED_ORDER"
-                  }
-                }
-              }
-            },
-            "draftRecordPointers": {
-              "description": "Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.",
-              "$ref": "#/$defs/pointers"
-            },
-            "draftAnnotationPointers": {
-              "description": "Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.",
-              "$ref": "#/$defs/pointers"
-            },
-            "draftLocatedRecordCount": {
-              "$ref": "#/$defs/count"
-            },
-            "draftLabel": {
-              "$ref": "#/$defs/draftLabel"
-            },
-            "draftCountsVersion": {
-              "$ref": "#/$defs/draftCountsVersion"
-            },
-            "draftSequences": {
-              "type": "array",
-              "maxItems": 10000,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "annotationPointer",
-                  "sequenceBasis",
-                  "identityScope",
-                  "sequenceState"
-                ],
-                "properties": {
-                  "annotationPointer": {
-                    "$ref": "#/$defs/text"
-                  },
-                  "sequenceBasis": {
-                    "const": "SOURCE_EXPLICIT_SAME_RECORD"
-                  },
-                  "identityScope": {
-                    "const": "RECORD_LOCAL"
-                  },
-                  "sequenceState": {
-                    "const": "SOURCE_STATED_ORDER"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "I07": {
-          "$ref": "#/$defs/section"
-        },
-        "I08": {
-          "$ref": "#/$defs/section"
-        },
-        "I09": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "recordPointers",
-            "annotationPointers",
-            "pendingAnnotationPointers",
-            "locatedRecordCount",
-            "semanticValidation",
-            "blockers",
-            "candidates"
-          ],
-          "properties": {
-            "recordPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "annotationPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "pendingAnnotationPointers": {
-              "$ref": "#/$defs/pointers"
-            },
-            "locatedRecordCount": {
-              "$ref": "#/$defs/count"
-            },
-            "semanticValidation": {
-              "const": "DECLARED_NOT_VERIFIED"
-            },
-            "blockers": {
-              "$ref": "#/$defs/strings"
-            },
-            "candidates": {
-              "type": "array",
-              "maxItems": 10000,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "annotationPointer",
-                  "unmetNeedCandidate",
-                  "state"
-                ],
-                "properties": {
-                  "annotationPointer": {
-                    "$ref": "#/$defs/text"
-                  },
-                  "unmetNeedCandidate": {
-                    "type": "boolean"
-                  },
-                  "state": {
-                    "enum": [
-                      "EXPLICIT_GAP",
-                      "DESIRE_ONLY",
-                      "CURRENT_STATE_ONLY",
-                      "RELATION_UNCLEAR",
-                      "UNLOCATED"
-                    ]
-                  }
-                }
-              }
-            },
-            "draftRecordPointers": {
-              "description": "Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.",
-              "$ref": "#/$defs/pointers"
-            },
-            "draftAnnotationPointers": {
-              "description": "Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.",
-              "$ref": "#/$defs/pointers"
-            },
-            "draftLocatedRecordCount": {
-              "$ref": "#/$defs/count"
-            },
-            "draftLabel": {
-              "$ref": "#/$defs/draftLabel"
-            },
-            "draftCountsVersion": {
-              "$ref": "#/$defs/draftCountsVersion"
-            },
-            "draftCandidates": {
-              "type": "array",
-              "maxItems": 10000,
-              "items": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "annotationPointer",
-                  "unmetNeedCandidate",
-                  "state"
-                ],
-                "properties": {
-                  "annotationPointer": {
-                    "$ref": "#/$defs/text"
-                  },
-                  "unmetNeedCandidate": {
-                    "type": "boolean"
-                  },
-                  "state": {
-                    "enum": [
-                      "EXPLICIT_GAP",
-                      "DESIRE_ONLY",
-                      "CURRENT_STATE_ONLY",
-                      "RELATION_UNCLEAR",
-                      "UNLOCATED"
-                    ]
-                  }
-                }
-              }
-            }
-          }
-        },
-        "I10": {
-          "$ref": "#/$defs/corpusSection"
-        },
-        "I13": {
-          "$ref": "#/$defs/corpusSection"
         }
       }
-    },
-    "limitations": {
-      "$ref": "#/$defs/strings"
     }
   },
-  "$defs": {
+  "locatedDefinitions": {
     "digest": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
@@ -754,10 +370,7 @@
     "draftCountsVersion": {
       "title": "DraftCountsVersion",
       "description": "Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.",
-      "enum": [
-        "draft-counts-v1",
-        "draft-counts-v2"
-      ]
+      "const": "draft-counts-v1"
     },
     "section": {
       "type": "object",
@@ -1766,135 +1379,5 @@
         }
       }
     }
-  },
-  "allOf": [
-    {
-      "if": {
-        "properties": {
-          "input": {
-            "properties": {
-              "draftCountsVersion": {
-                "const": "draft-counts-v2"
-              }
-            },
-            "required": [
-              "draftCountsVersion"
-            ],
-            "type": "object"
-          }
-        },
-        "type": "object"
-      },
-      "then": {
-        "properties": {
-          "sections": {
-            "properties": {
-              "I05": {
-                "required": [
-                  "draftRecordPolarities",
-                  "draftCountsVersion",
-                  "draftAnnotationPointers",
-                  "draftRecordPointers",
-                  "draftLocatedRecordCount",
-                  "draftLabel"
-                ],
-                "type": "object",
-                "properties": {
-                  "draftRecordPolarities": {},
-                  "draftCountsVersion": {},
-                  "draftAnnotationPointers": {},
-                  "draftRecordPointers": {},
-                  "draftLocatedRecordCount": {},
-                  "draftLabel": {}
-                }
-              },
-              "I06": {
-                "required": [
-                  "draftSequences",
-                  "draftCountsVersion",
-                  "draftAnnotationPointers",
-                  "draftRecordPointers",
-                  "draftLocatedRecordCount",
-                  "draftLabel"
-                ],
-                "type": "object",
-                "properties": {
-                  "draftSequences": {},
-                  "draftCountsVersion": {},
-                  "draftAnnotationPointers": {},
-                  "draftRecordPointers": {},
-                  "draftLocatedRecordCount": {},
-                  "draftLabel": {}
-                }
-              },
-              "I09": {
-                "required": [
-                  "draftCandidates",
-                  "draftCountsVersion",
-                  "draftAnnotationPointers",
-                  "draftRecordPointers",
-                  "draftLocatedRecordCount",
-                  "draftLabel"
-                ],
-                "type": "object",
-                "properties": {
-                  "draftCandidates": {},
-                  "draftCountsVersion": {},
-                  "draftAnnotationPointers": {},
-                  "draftRecordPointers": {},
-                  "draftLocatedRecordCount": {},
-                  "draftLabel": {}
-                }
-              }
-            },
-            "type": "object"
-          }
-        },
-        "type": "object"
-      },
-      "else": {
-        "properties": {
-          "sections": {
-            "properties": {
-              "I05": {
-                "not": {
-                  "required": [
-                    "draftRecordPolarities"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "draftRecordPolarities": {}
-                  }
-                }
-              },
-              "I06": {
-                "not": {
-                  "required": [
-                    "draftSequences"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "draftSequences": {}
-                  }
-                }
-              },
-              "I09": {
-                "not": {
-                  "required": [
-                    "draftCandidates"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "draftCandidates": {}
-                  }
-                }
-              }
-            },
-            "type": "object"
-          }
-        },
-        "type": "object"
-      }
-    }
-  ]
+  }
 }

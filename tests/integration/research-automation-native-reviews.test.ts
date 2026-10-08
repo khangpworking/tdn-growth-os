@@ -428,7 +428,7 @@ test('a late exact native source creates a separate atomic report pair while ori
       assert.deepEqual(contexts[index], { binding: { workspaceId, runId, pairId: allVersions[index]!.pairId,
         scopeSha256: (runBefore as { scope_request_sha256: string }).scope_request_sha256, reportSha256: insightOf(allVersions[index]!),
         sourceKind: 'NATIVE', sourcePackageSha256: sha(snapshot.sourcePackage), inputSha256: sha(snapshot.output.input) },
-      input: snapshot.output.input }, 'each explicit pair binds its own verified method package and unchanged adopted input');
+      input: snapshot.output.input, verifiedPlatform: 'SHOPEE' }, 'each explicit pair binds its own verified method package and unchanged adopted input');
     assert.notDeepEqual(contexts[0]!.input, contexts[1]!.input, 'a historical pair is not answered with the current source');
     contexts[1]!.input.records.length = 0;
     assert.deepEqual((await reader.readInsightSourceContext(workspaceId, runId, allVersions[1]!.pairId)).input, semantic.nativeReview.output.input,

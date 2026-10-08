@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/contracts/analysis/reader-report-input.schema.json",
   "title": "ReaderReportInput",
-  "description": "Versioned reader inputs. Historical 1.0.0/1.1.0 retain numeric constraints; 1.2.0 preserves null separately from observed zero and never authorizes cross-platform totals. 1.3.0 adds a frozen E11 default-peer rule and optional separately retained owner additions.",
+  "description": "Versioned reader inputs. Historical 1.0.0/1.1.0 retain numeric constraints; 1.2.0 preserves null separately from observed zero and never authorizes cross-platform totals. 1.3.0 adds a frozen E11 default-peer rule and optional separately retained owner additions. 1.4.0 adds evidence-linked category unit prices and unordered Market findings; old branches remain unchanged.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -17,7 +17,8 @@
         "1.0.0",
         "1.1.0",
         "1.2.0",
-        "1.3.0"
+        "1.3.0",
+        "1.4.0"
       ]
     },
     "profile": {
@@ -76,6 +77,9 @@
         "minLength": 1,
         "maxLength": 1000
       }
+    },
+    "unitPrices": {
+      "$ref": "#/$defs/unitPrices"
     }
   },
   "if": {
@@ -572,6 +576,292 @@
           }
         }
       }
+    },
+    "unitPriceObservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "listing",
+        "variant",
+        "category",
+        "price",
+        "quantity",
+        "period"
+      ],
+      "properties": {
+        "platform": {
+          "$ref": "#/$defs/platform"
+        },
+        "listing": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "\\S"
+        },
+        "variant": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500,
+          "pattern": "\\S"
+        },
+        "category": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "label",
+            "kind",
+            "massBasis",
+            "countKind",
+            "specGroup"
+          ],
+          "properties": {
+            "label": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500,
+              "pattern": "\\S"
+            },
+            "kind": {
+              "enum": [
+                "MASS",
+                "VOLUME",
+                "COUNT",
+                "DURABLE",
+                "COMBO"
+              ]
+            },
+            "massBasis": {
+              "enum": [
+                "NET",
+                "DRAINED",
+                "NOT_APPLICABLE"
+              ]
+            },
+            "countKind": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500,
+                  "pattern": "\\S"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "specGroup": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 500,
+                  "pattern": "\\S"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        },
+        "price": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "currency",
+            "kind",
+            "conditions"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "currency": {
+              "const": "VND"
+            },
+            "kind": {
+              "enum": [
+                "LISTED",
+                "PAYMENT",
+                "CONDITIONAL_PROMO"
+              ]
+            },
+            "conditions": {
+              "type": "array",
+              "maxItems": 20,
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 500,
+                "pattern": "\\S"
+              }
+            }
+          }
+        },
+        "quantity": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "value",
+            "unit"
+          ],
+          "properties": {
+            "value": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "unit": {
+              "enum": [
+                "g",
+                "ml",
+                "count",
+                "item",
+                "combo"
+              ]
+            }
+          }
+        },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "start",
+            "end"
+          ],
+          "properties": {
+            "start": {
+              "$ref": "#/$defs/date"
+            },
+            "end": {
+              "$ref": "#/$defs/date"
+            }
+          }
+        }
+      }
+    },
+    "unitPrices": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "sources",
+        "records"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "market-unit-prices-v1"
+        },
+        "sources": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "sha256",
+              "role"
+            ],
+            "properties": {
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              "role": {
+                "enum": [
+                  "LISTING_SPEC",
+                  "OWNER_DECLARATION"
+                ]
+              }
+            }
+          }
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 500,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "rowI",
+              "source",
+              "observation"
+            ],
+            "properties": {
+              "rowI": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "source": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "sourceSha256",
+                  "locator"
+                ],
+                "properties": {
+                  "sourceSha256": {
+                    "type": "string",
+                    "pattern": "^[0-9a-f]{64}$"
+                  },
+                  "locator": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 1000,
+                    "pattern": "^(?:/(?:[^~/]|~[01])*)+$"
+                  }
+                }
+              },
+              "observation": {
+                "$ref": "#/$defs/unitPriceObservation"
+              },
+              "quantityOverride": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "source",
+                  "observation"
+                ],
+                "properties": {
+                  "source": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "sourceSha256",
+                      "locator"
+                    ],
+                    "properties": {
+                      "sourceSha256": {
+                        "type": "string",
+                        "pattern": "^[0-9a-f]{64}$"
+                      },
+                      "locator": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000,
+                        "pattern": "^(?:/(?:[^~/]|~[01])*)+$"
+                      }
+                    }
+                  },
+                  "observation": {
+                    "$ref": "#/$defs/unitPriceObservation"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "allOf": [
@@ -664,7 +954,10 @@
         "type": "object",
         "properties": {
           "contractVersion": {
-            "const": "1.3.0"
+            "enum": [
+              "1.3.0",
+              "1.4.0"
+            ]
           }
         }
       },
@@ -682,6 +975,25 @@
         "properties": {
           "peerRule": false,
           "ownerPeerProductIds": false
+        }
+      }
+    },
+    {
+      "if": {
+        "type": "object",
+        "properties": {
+          "contractVersion": {
+            "const": "1.4.0"
+          }
+        },
+        "required": [
+          "contractVersion"
+        ]
+      },
+      "else": {
+        "type": "object",
+        "properties": {
+          "unitPrices": false
         }
       }
     }

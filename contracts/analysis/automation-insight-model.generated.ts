@@ -5,7 +5,7 @@ export type AutomationInsightModel =
 /**
  * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
  */
-export type DraftCountsVersion = 'draft-counts-v1';
+export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
 
 export interface InsightModelRequest {
   contractVersion: 'insight-model-request-v1';
@@ -355,7 +355,8 @@ export interface InsightModelInput {
   }[];
 }
 export interface InsightModelPrompt {
-  contractVersion: 'insight-model-prompt-v1' | 'insight-model-prompt-v2' | 'insight-model-prompt-v3';
+  contractVersion:
+    'insight-model-prompt-v1' | 'insight-model-prompt-v2' | 'insight-model-prompt-v3' | 'insight-model-prompt-v4';
   systemText: string;
 }
 export interface InsightModelConfiguration {
