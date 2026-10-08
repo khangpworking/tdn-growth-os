@@ -1,0 +1,4 @@
+@prefix ex: <urn:onto:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+ex:f a ex:E13Figure; ex:attribution "Synthetic attribution"; ex:valueStatus "sơ bộ";  ex:sheet "Synthetic"; ex:row "2" .
