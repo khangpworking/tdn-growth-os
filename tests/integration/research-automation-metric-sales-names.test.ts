@@ -22,6 +22,7 @@ import type { AutomationConfirmedSourceSet } from '../../contracts/analysis/auto
 import type { MetricRunInput } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import { draftKeywordLists } from '../../src/modules/analysis/keyword-list-drafting.js';
+import { retainKeywordListDraft, replayKeywordListDraft, retainSourceKeywordListDraft, replaySourceKeywordListDraft, type KeywordListDraftRecord, type KeywordListDraftRecordV3, type MetricKeywordDraftEvidenceContext } from '../../src/modules/analysis/keyword-list-draft-record.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -60,6 +61,25 @@ async function fixture(t: TestContext, cells: Record<string, unknown> = {}, prof
   const options = { artifacts, reader: new FoundationSourcePackageReader(new SourcePackageService({ db, artifactStore: artifacts })),
     authority: new AutomationMetricMethodBridge({ db, artifactStore: artifacts, workspaces, now }) };
   return { root, db, artifacts, service, sources, input, sourceSetDigest: row.sourceSha, options };
+}
+
+async function retainedFixture(t: TestContext) {
+  const f = await fixture(t, { A3: { type: 's', value: title } });
+  const metric = await readMetricSalesNameEvidence(f.options, f.input, f.sources, f.sourceSetDigest);
+  assert.ok(metric);
+  const prompt = 'Synthetic retained exact Metric names: ' + canonicalJson(metric.names.map(row => row.name));
+  const record: KeywordListDraftRecordV3 = {
+    contractVersion: 'l9-keyword-list-draft-record-v3', run: { workspaceId, runId }, scopeDigest: digest(f.input.scope), sourceSetDigest: f.sourceSetDigest,
+    salesNameRefs: metric.names.map(cell => ({ kind: 'metric-workbook-title-cell-v1', sourcePackage: metric.sourcePackage,
+      workbook: metric.workbook, row: cell.row, locator: cell.locator })) as KeywordListDraftRecordV3['salesNameRefs'],
+    seeds: { productNames: metric.names.map(cell => cell.name) as [string, ...string[]], includeTerms: [...f.input.scope.includeTerms], excludeTerms: [...f.input.scope.excludeTerms] },
+    dataVersion: 'synthetic-metric-keyword-v3', category: 'thạch dừa',
+    model: { identity: 'synthetic-model', promptVersion: 'synthetic-v1', prompt, promptSha256: createHash('sha256').update(prompt).digest('hex'), configuration: null },
+    output: { contractVersion: 'l9-keyword-data-v1', dataVersion: 'synthetic-metric-keyword-v3', category: 'thạch dừa', provenance: 'MODEL_DRAFTED',
+      keywords: ['thạch dừa'], exclusions: [{ term: 'thạch dứa', reason: 'Synthetic separate term' }] },
+  };
+  const context: MetricKeywordDraftEvidenceContext = { options: f.options, input: f.input, sources: f.sources, sourceSetDigest: f.sourceSetDigest };
+  return { ...f, record, context, metric };
 }
 
 test('admitted actual prepared Metric package yields exact current-profile Sheet1 title cells, never display normalization', async t => {
@@ -149,6 +169,76 @@ test('absent/skipped Metric and mismatched source-set digest perform no package 
   }
   await assert.rejects(readMetricSalesNameEvidence(options, f.input, f.sources, 'f'.repeat(64)), /confirmed workbook source/);
   assert.equal(calls, 0);
+});
+
+test('v3 retains exact confirmed package/workbook/cell identity and replays without runtime model configuration', async t => {
+  const f = await retainedFixture(t);
+  const before = f.db.prepare('SELECT total_changes() n').get();
+  const receipt = await retainSourceKeywordListDraft(f.artifacts, f.record, f.context);
+  assert.equal(receipt.digest, digest(f.record));
+  assert.equal((await f.artifacts.read(receipt.digest)).toString(), canonicalJson(f.record));
+  assert.deepEqual(await replaySourceKeywordListDraft(f.artifacts, receipt.digest, f.context), f.record);
+  assert.equal((await retainSourceKeywordListDraft(f.artifacts, f.record, f.context)).digest, receipt.digest);
+  await assert.rejects(replaySourceKeywordListDraft(f.artifacts, receipt.digest), /owning-service frozen source context/);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
+});
+
+test('v3 rejects wrong frozen identity, package/workbook/hash/row/locator or literal seed before retention', async t => {
+  const f = await retainedFixture(t);
+  const mutate: Array<(record: KeywordListDraftRecordV3) => void> = [
+    r => { r.run.workspaceId = randomUUID(); }, r => { r.run.runId = randomUUID(); },
+    r => { r.scopeDigest = 'f'.repeat(64); }, r => { r.sourceSetDigest = 'f'.repeat(64); },
+    r => { r.seeds.productNames[0] = title.trim(); },
+    r => { if ('kind' in r.salesNameRefs[0]) r.salesNameRefs[0].sourcePackage.packageId = randomUUID(); },
+    r => { if ('kind' in r.salesNameRefs[0]) r.salesNameRefs[0].sourcePackage.manifestArtifactSha256 = 'f'.repeat(64); },
+    r => { if ('kind' in r.salesNameRefs[0]) r.salesNameRefs[0].sourcePackage.packageContentSha256 = 'f'.repeat(64); },
+    r => { if ('kind' in r.salesNameRefs[0]) r.salesNameRefs[0].workbook.sha256 = 'f'.repeat(64); },
+    r => { if ('kind' in r.salesNameRefs[0]) r.salesNameRefs[0].workbook.logicalPath = 'other/workbook.xlsx'; },
+    r => { if ('kind' in r.salesNameRefs[0]) r.salesNameRefs[0].workbook.byteSize++; },
+    r => { if ('kind' in r.salesNameRefs[0]) r.salesNameRefs[0].row = 3; },
+    r => { if ('kind' in r.salesNameRefs[0]) r.salesNameRefs[0].locator = 'Sheet1!A3'; },
+    r => { r.salesNameRefs[1] = structuredClone(r.salesNameRefs[0]); },
+  ];
+  for (const change of mutate) {
+    const wrong = structuredClone(f.record); change(wrong);
+    await assert.rejects(retainSourceKeywordListDraft(f.artifacts, wrong, f.context));
+  }
+  await assert.rejects(retainSourceKeywordListDraft(f.artifacts, f.record, { ...f.context,
+    sources: { ...f.sources, metric: { decision: 'SKIPPED' } } }), /not admitted/);
+});
+
+test('v3 replay reauthenticates original workbook bytes even when retained record digest is valid', async t => {
+  const f = await retainedFixture(t);
+  const receipt = await retainSourceKeywordListDraft(f.artifacts, f.record, f.context);
+  const file = f.artifacts.pathForDigest(f.metric.workbook.sha256), original = await fs.readFile(file);
+  await fs.writeFile(file, 'damaged synthetic retained workbook');
+  try { await assert.rejects(replaySourceKeywordListDraft(f.artifacts, receipt.digest, f.context)); }
+  finally { await fs.writeFile(file, original); }
+  assert.deepEqual(await replaySourceKeywordListDraft(f.artifacts, receipt.digest, f.context), f.record);
+});
+
+test('new versioned dispatch retains and replays historical v2 bytes identically without Metric context', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-legacy-dispatch-'));
+  t.after(() => fs.rm(root, { recursive: true, force: true }));
+  const store = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
+  const scope = { workspaceId, runId, includeTerms: ['thạch dừa'], excludeTerms: ['thạch dứa'], selectedProductIds: ['kalodata:12345'], peerProductIds: [] };
+  const scopeDigest = (await store.put(Buffer.from(JSON.stringify(scope)))).sha256;
+  const raw = Buffer.from(JSON.stringify({ data: [{ product_id: '12345', product_name: title }] }));
+  const source = await store.put(raw);
+  const capture = await store.put(Buffer.from(JSON.stringify({ contractVersion: 'research-automation-capture-v1', provider: 'KALODATA', operation: 'kalodata.product.rank',
+    outcome: 'OK', responseBytesBase64: raw.toString('base64'), responseSha256: source.sha256, responseByteLength: raw.length })));
+  const record: KeywordListDraftRecord = { contractVersion: 'l9-keyword-list-draft-record-v2', run: { workspaceId, runId }, scopeDigest, sourceSetDigest: null,
+    salesNameRefs: [{ digest: source.sha256, locator: '/data/0/product_name', captureDigest: capture.sha256 }],
+    seeds: { productNames: [title], includeTerms: scope.includeTerms, excludeTerms: scope.excludeTerms }, category: 'thạch dừa', dataVersion: 'synthetic-legacy-v2',
+    model: { configuration: null, identity: 'synthetic-legacy-model', promptVersion: 'synthetic-v1', prompt: 'Legacy retained prompt',
+      promptSha256: createHash('sha256').update('Legacy retained prompt').digest('hex') },
+    output: { contractVersion: 'l9-keyword-data-v1', category: 'thạch dừa', dataVersion: 'synthetic-legacy-v2', provenance: 'MODEL_DRAFTED',
+      keywords: ['thạch dừa'], exclusions: [{ term: 'thạch dứa', reason: 'Synthetic separate term' }] } };
+  const oldReceipt = await retainKeywordListDraft(store, record);
+  assert.deepEqual(await retainSourceKeywordListDraft(store, record), oldReceipt);
+  assert.equal(oldReceipt.digest, digest(record));
+  assert.deepEqual(await replaySourceKeywordListDraft(store, oldReceipt.digest), await replayKeywordListDraft(store, oldReceipt.digest));
+  assert.equal((await store.read(oldReceipt.digest)).toString(), canonicalJson(record));
 });
 
 test('OWNER HTTP workbook upload and explicit package confirmation supply authenticated exact Metric cells', async t => {

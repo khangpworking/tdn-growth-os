@@ -9,6 +9,7 @@ const contracts = [
   ['analysis', 'automation-market-presentation-method'],
   ['analysis', 'keyword-list-draft'],
   ['analysis', 'keyword-list-draft-record'],
+  ['analysis', 'keyword-list-draft-record-v3'],
   ['analysis', 'source-appendix-projection'],
   ['analysis', 'automation-source-evidence'],
   ['analysis', 'pageindex-cloud-query'],
