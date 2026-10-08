@@ -36,3 +36,6 @@ export async function readSalesNameEvidence(store: ContentAddressedArtifactStore
   }
   return { productNames, refs };
 }
+
+// Metric cells use their own package-bound authority; Kalodata capture replay stays unchanged.
+export { readMetricSalesNameEvidence } from './metric-sales-name-evidence.js';
