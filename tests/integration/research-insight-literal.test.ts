@@ -26,17 +26,19 @@ import { buildInsightLiteralEvidence } from '../../src/modules/analysis/insight-
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 const now = () => new Date('2026-10-08T00:00:00.000Z');
 const url = 'https://shopee.vn/product/78085196/17678138164';
-async function fixture(t: TestContext, native = false, seller = false, starsAbsent = false, injectUntrustedLiteral = false) {
+async function fixture(t: TestContext, { native = false, seller = false, starsAbsent = false, injectUntrustedLiteral = false, defaultRenderer = false,
+  extraRows = [] }: { native?: boolean; seller?: boolean; starsAbsent?: boolean; injectUntrustedLiteral?: boolean; defaultRenderer?: boolean;
+  extraRows?: { comment: string | null; star: unknown; id: string }[] } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-insight-literal-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'synthetic-literal', title: 'Synthetic literal evidence' });
-  const raw = [
+  const raw: { comment: string | null; star: unknown; id: string }[] = [
     { comment: 'Tôi chọn sản phẩm vì dễ mang theo, nhưng giao hàng chậm. Tôi đặt hàng trước, rồi nhận hàng sau.', star: 5, id: '1' }, { comment: 'Tôi chọn sản phẩm vì dễ mang theo, nhưng giao hàng chậm. Tôi đặt hàng trước, rồi nhận hàng sau.', star: 1, id: '2' },
     { comment: '', star: 4, id: '3' }, { comment: 'Không có số sao', star: undefined, id: '4' },
     { comment: 'Sao không hợp lệ', star: 0, id: '5' }, { comment: null, star: 2, id: '6' },
-    { comment: 'Mâu thuẫn một', star: 3, id: '7' }, { comment: 'Mâu thuẫn hai', star: 3, id: '7' },
+    { comment: 'Mâu thuẫn một', star: 3, id: '7' }, { comment: 'Mâu thuẫn hai', star: 3, id: '7' }, ...extraRows,
   ];
   if (starsAbsent) raw.forEach(row => { row.star = undefined; });
   const exactRows = raw.map(row => ({ shopId: literalSelected.shopId, itemId: literalSelected.itemId,
@@ -62,11 +64,11 @@ async function fixture(t: TestContext, native = false, seller = false, starsAbse
     metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')),
     workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), ...(source ? { source } : {}),
     shopeeCollectorFactory: () => { collectorStarts++; return { requestsIssued: () => 0, collector: new FixtureShopeeCollector(Buffer.from(JSON.stringify(exactRows))) }; },
-    renderer: (input, kind) => {
+    ...(defaultRenderer ? {} : { renderer: (input, kind) => {
       if (kind === 'INSIGHT') reportInput = input;
       const rendered = buildResearchAutomationReport(input, kind);
       return injectUntrustedLiteral ? { ...rendered, semantic: { ...rendered.semantic, insightLiteral: { fabricated: true, selectedRecordCount: 999 } } } : rendered;
-    } });
+    } }), });
   const worker = new ResearchAutomationWorker({ service, db });
   t.after(async () => { await worker.close(); db.close(); await fs.rm(root, { recursive: true, force: true }); });
   await worker.start();
@@ -95,7 +97,7 @@ async function waitPair(service: ResearchAutomationService, attemptId: string) {
   throw new Error('Literal revision did not settle');
 }
 for (const native of [false, true]) test(`${native ? 'native' : 'exact'} source-backed literal revision retains stars and duplicate notes with no coding adoption or extra calls`, async t => {
-  const f = await fixture(t, native, false, false, true);
+  const f = await fixture(t, { native, injectUntrustedLiteral: true });
   const oldReport = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId);
   const oldSemantic = JSON.parse((await f.artifacts.read(oldReport.versionId)).toString('utf8'));
   assert.equal(Object.hasOwn(oldSemantic, 'insightLiteral'), false, 'renderer cannot insert an unrequested literal snapshot');
@@ -150,7 +152,7 @@ for (const native of [false, true]) test(`${native ? 'native' : 'exact'} source-
 });
 
 for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal bridge independently replays actual source and rejects count/provenance tampering`, async t => {
-  const f = await fixture(t, native, true);
+  const f = await fixture(t, { native, seller: true });
   const historical = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId);
   // These service artifacts contain freshly minted package/collection IDs.
   // Their exact bytes must replay within this retained run, rather than match a
@@ -186,7 +188,7 @@ for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal
 });
 
 for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal revision reports absent star field without invented zero bins and separates retained seller voice`, async t => {
-  const f = await fixture(t, native, true, true);
+  const f = await fixture(t, { native, seller: true, starsAbsent: true });
   const calls = [f.providerCalls(), f.collectorStarts()];
   const request = { contractVersion: 'automation-insight-literal-report-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } };
@@ -209,7 +211,7 @@ for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal
 });
 
 for (const accepted of [false, true]) test(`literal revision inherits explicitly selected ${accepted ? 'accepted' : 'draft-v3'} coding with adoption lineage and never recalls the fake model`, async t => {
-  const f = await fixture(t, true, true);
+  const f = await fixture(t, { native: true, seller: true });
   const source = await f.service.readInsightSourceContext(workspaceId, runId, f.pair.pairId);
   const owner = { actorId: 'owner:synthetic-literal', role: 'OWNER' as const };
   const text = source.input.records[0]!.text!;
@@ -296,7 +298,7 @@ for (const accepted of [false, true]) test(`literal revision inherits explicitly
 });
 
 test('OWNER HTTP revision and read routes reach retained literal evidence and reject unauthorized or malformed requests', async t => {
-  const f = await fixture(t, true);
+  const f = await fixture(t, { native: true });
   await f.worker.close();
   const probe = http.createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'listening');
   const port = (probe.address() as AddressInfo).port;
@@ -338,4 +340,47 @@ test('OWNER HTTP revision and read routes reach retained literal evidence and re
     await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
     await application.close();
   }
+});
+
+test('service without a presentation adapter renders its explicitly requested literal method and preserves the old fallback bytes', async t => {
+  const f = await fixture(t, { defaultRenderer: true });
+  const old = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId);
+  const queued = await f.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-insight-literal-report-revision-v1',
+    requestKey: randomUUID(), previousPairId: f.pair.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+    literalInsight: { contractVersion: 'insight-literal-select-v1' } }); f.worker.wake();
+  const pairId = await waitPair(f.service, queued.attemptId);
+  const report = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pairId);
+  const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString('utf8'));
+  assert.equal(semantic.rendererVersion, 'automation-report-kit-v19');
+  assert.equal(semantic.insightLiteral.selectedRecordCount, 6);
+  assert.match(report.bytes.toString('utf8'), /Phân bố số sao từ nguồn/);
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId)).bytes, old.bytes);
+});
+
+for (const native of [false, true]) test(`${native ? 'native' : 'exact'} retained null star stays missing and is excluded from valid-star bins through the service`, async t => {
+  const f = await fixture(t, { native, extraRows: [{ id: '8', comment: 'Nguồn có trường sao nhưng giá trị null.', star: null }] });
+  const queued = await f.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-insight-literal-report-revision-v1',
+    requestKey: randomUUID(), previousPairId: f.pair.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+    literalInsight: { contractVersion: 'insight-literal-select-v1' } }); f.worker.wake();
+  const pairId = await waitPair(f.service, queued.attemptId);
+  const report = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pairId);
+  const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString('utf8'));
+  assert.equal(semantic.insightLiteral.selectedRecordCount, 7);
+  assert.equal(semantic.insightLiteral.stars.missingValue.recordCount, 1);
+  assert.equal(semantic.insightLiteral.stars.absentField.recordCount, 1);
+  assert.equal(semantic.insightLiteral.stars.invalidValue.recordCount, 1);
+  assert.deepEqual(semantic.insightLiteral.stars.bins.map((bin: { value: number; recordCount: number }) => [bin.value, bin.recordCount]), [[1, 1], [2, 1], [3, 0], [4, 1], [5, 1]]);
+  assert.match(report.bytes.toString('utf8'), /Nguồn có trường sao nhưng thiếu giá trị/);
+});
+
+test('exact-source literal projection preserves the established equal-native-ID collapse and both original occurrence references', async t => {
+  const f = await fixture(t, { extraRows: [{ id: '1', comment: 'Tôi chọn sản phẩm vì dễ mang theo, nhưng giao hàng chậm. Tôi đặt hàng trước, rồi nhận hàng sau.', star: 5 }] });
+  const verifier = new AutomationInsightLiteralEvidence({ db: f.db, artifactStore: f.artifacts, now });
+  const output = await verifier.build(f.literalInput(f.pair.pairId));
+  assert.equal(output.selectedRecordCount, 6);
+  const collapsed = output.input.reviews.find(row => row.sourceRefs.length === 2)!;
+  assert.ok(collapsed);
+  assert.deepEqual(collapsed.sourceRefs.map(ref => ref.rowLocator), ['/0', '/8']);
+  assert.equal(output.duplicateTexts[0]!.recordPointers.length, 2, 'distinct IDs with identical text still count separately');
+  assert.equal(output.stars.bins[4]!.recordCount, 1, 'the equal same-ID occurrence does not inflate its count');
 });
