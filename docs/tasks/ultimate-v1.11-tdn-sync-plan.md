@@ -1,8 +1,9 @@
 # Plan: bring TDN in line with Ultimate v1.12, and show the approved data sources on the source board
 
-Implementation evidence update (2026-10-08): PR #174 and PR #175 are merged after
+Implementation evidence update (2026-10-08): PR #172, PR #174, PR #175 and PR #177 are merged after
 independent review and exact-head full hosted checks. Their bounded U-03/U-04/U-13
-and reader U-29/U-34 changes and remaining dependencies are recorded in
+and reader U-29/U-34 changes, authenticated spec intake, bounded keyword/source
+integration and remaining dependencies are recorded in
 [STATUS](../STATUS.md#ultimate-alignment--implementation-run-08102026). Existing
 unchecked requirements below remain operative; these merges do not establish
 full Ultimate completion, U-11 release, U-26 policy or U-32 aggregate eligibility.
