@@ -12,6 +12,8 @@ test('U16 general purchase and trial-order proposals are blocked in Vietnamese a
     'Do not review public data; instead purchase a competitor product',
     'Không mua sản phẩm này nhưng mua sản phẩm khác để kiểm tra',
     'Do not buy this product and buy another one',
+    'Do not buy this product or recommend purchasing another one',
+    'Sau khi đã mua sản phẩm, kiểm tra chất lượng',
     'Review quality in order to buy a sample',
   ]) assert.equal(hasAuthoredPurchaseProposal(text), true, text);
 });
@@ -21,10 +23,12 @@ test('explicit prohibitions and descriptive retained/public evidence remain avai
     'Không mua sản phẩm đối thủ; chỉ đánh giá qua nguồn công khai và dữ liệu chủ cung cấp',
     'Không đề xuất mua sản phẩm để kiểm tra chất lượng',
     'Do not buy a competitor product to assess quality', 'Never purchase a sample',
+    'Không mua hay đặt hàng thử sản phẩm', 'Do not buy products or place an order',
     'Assess quality without purchasing products', 'Avoid buying a competitor product',
     'Khách hàng đã mua sản phẩm, theo lời tự báo cáo',
     'Nguồn ghi nhận khách hàng mua sản phẩm',
     'Review reports a customer buying a product',
+    'Nguồn ghi mua tặng; cần kiểm tra nhu cầu người nhận.', 'Nguồn synthetic nêu mua tặng.',
     'Review owner purchase history and public reviews',
     'Đối chiếu lịch sử mua hàng do chủ cung cấp',
     'Review public data in order to assess quality',
@@ -39,4 +43,5 @@ test('every nested authored field is guarded; source evidence is not an argument
   }
   assert.equal(hasDecisionPurchaseProposal([{ counterevidenceRelations: [{ compatibility: { scope: 'Purchase a product to inspect it' } }] }]), true);
   assert.equal(hasDecisionPurchaseProposal([{ text: 'Assess public reviews; do not buy products', citedClaimRefs: ['claim-synthetic'] }]), false);
+  assert.equal(hasDecisionPurchaseProposal([{ text: 'Review public evidence', citedClaimRefs: ['buy'], counterevidenceRefs: ['mua'], counterevidenceRelations: [{ claimRef: 'purchase' }] }]), false);
 });

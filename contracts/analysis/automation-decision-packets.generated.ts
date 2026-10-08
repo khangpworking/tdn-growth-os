@@ -95,7 +95,7 @@ export type RequiredAiTexts2 = AiText[];
 export interface AutomationM11DecisionPacket {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
   sectionId: 'M11';
   runId: Uuid;
   workspaceId: Uuid;
@@ -201,7 +201,7 @@ export interface CandidateEligibility {
 export interface AutomationI15DecisionPacket {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
   sectionId: 'I15';
   runId: Uuid;
   workspaceId: Uuid;
@@ -239,7 +239,7 @@ export interface AutomationI15DecisionPacket {
 export interface AutomationM12DecisionPacket {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
   sectionId: 'M12';
   runId: Uuid;
   workspaceId: Uuid;
@@ -294,7 +294,7 @@ export interface AutomationM11DecisionCandidates {
 }
 export interface PacketBinding {
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
   packetSha256: Digest;
 }
 export interface DecisionHypothesisCandidate {
