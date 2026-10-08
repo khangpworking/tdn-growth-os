@@ -2,101 +2,325 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/contracts/analysis/reader-report-input.schema.json",
   "title": "ReaderReportInput",
-  "description": "Semantic input for one owner-facing reader report: the classification profile, the per-listing rows and what the source screen displayed. Numbers only; no narrative. Version rules (enforced by verifyReaderReportInput): 1.0.0 requires source and forbids webSnapshot/webSnapshotSha256; 1.1.0 requires webSnapshot/webSnapshotSha256 and source is optional when webSnapshot is present.",
+  "description": "Versioned reader inputs. Historical 1.0.0/1.1.0 retain numeric constraints; 1.2.0 preserves null separately from observed zero and never authorizes cross-platform totals.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contractVersion", "profile", "platforms", "rows"],
+  "required": [
+    "contractVersion",
+    "profile",
+    "platforms",
+    "rows"
+  ],
   "properties": {
-    "contractVersion": { "enum": ["1.0.0", "1.1.0"] },
-    "profile": { "$ref": "#/$defs/profile" },
+    "contractVersion": {
+      "enum": [
+        "1.0.0",
+        "1.1.0",
+        "1.2.0"
+      ]
+    },
+    "profile": {
+      "$ref": "#/$defs/profile"
+    },
     "platforms": {
       "type": "array",
       "minItems": 1,
       "maxItems": 2,
       "uniqueItems": true,
-      "items": { "$ref": "#/$defs/platform" }
+      "items": {
+        "$ref": "#/$defs/platform"
+      }
     },
-    "rows": { "type": "array", "minItems": 1, "maxItems": 20000, "items": { "$ref": "#/$defs/row" } },
-    "source": { "$ref": "#/$defs/source" },
+    "rows": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 20000,
+      "items": {
+        "$ref": "#/$defs/row"
+      }
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
     "webSnapshot": {
       "description": "Opaque web snapshot (automation-metric-web-snapshot-v1). Allowed only in 1.1.0; validated at runtime.",
       "type": "object"
     },
-    "webSnapshotSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "webSnapshotSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "rowLineage": {
       "description": "Retained workbook identity supplied by the application, never inferred from the displayed row values.",
-      "type": "object", "additionalProperties": false, "required": ["sha256"],
-      "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
     }
   },
-  "if": { "properties": { "contractVersion": { "const": "1.0.0" } }, "required": ["contractVersion"] },
-  "then": { "properties": { "source": {}, "webSnapshot": false, "webSnapshotSha256": false, "rowLineage": false }, "required": ["source"] },
-  "else": { "properties": { "webSnapshot": {}, "webSnapshotSha256": {} }, "required": ["webSnapshot", "webSnapshotSha256"] },
+  "if": {
+    "properties": {
+      "contractVersion": {
+        "const": "1.0.0"
+      }
+    },
+    "required": [
+      "contractVersion"
+    ],
+    "type": "object"
+  },
+  "then": {
+    "properties": {
+      "source": {},
+      "webSnapshot": false,
+      "webSnapshotSha256": false,
+      "rowLineage": false
+    },
+    "required": [
+      "source"
+    ],
+    "type": "object"
+  },
+  "else": {
+    "if": {
+      "properties": {
+        "contractVersion": {
+          "const": "1.1.0"
+        }
+      },
+      "type": "object"
+    },
+    "then": {
+      "properties": {
+        "webSnapshot": {},
+        "webSnapshotSha256": {}
+      },
+      "required": [
+        "webSnapshot",
+        "webSnapshotSha256"
+      ],
+      "type": "object"
+    },
+    "else": {
+      "anyOf": [
+        {
+          "required": [
+            "source"
+          ]
+        },
+        {
+          "required": [
+            "webSnapshot",
+            "webSnapshotSha256"
+          ]
+        }
+      ]
+    }
+  },
   "$defs": {
-    "platform": { "enum": ["shopee", "tiktok"] },
-    "text": { "type": "string", "minLength": 1, "maxLength": 500 },
-    "pattern": { "type": "string", "minLength": 1, "maxLength": 2000 },
-    "segmentKey": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]{0,15}$" },
-    "date": { "type": "string", "format": "date" },
+    "platform": {
+      "enum": [
+        "shopee",
+        "tiktok"
+      ]
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 500
+    },
+    "pattern": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2000
+    },
+    "segmentKey": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9_]{0,15}$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
     "textMap": {
       "type": "object",
       "maxProperties": 200,
-      "additionalProperties": { "$ref": "#/$defs/text" }
+      "additionalProperties": {
+        "$ref": "#/$defs/text"
+      }
     },
     "condition": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "idIn": { "type": "array", "maxItems": 20000, "items": { "type": "integer", "minimum": 0 } },
-        "labelEq": { "$ref": "#/$defs/text" },
-        "labelPrefix": { "$ref": "#/$defs/text" },
-        "titleRe": { "$ref": "#/$defs/pattern" },
-        "notTitleRe": { "$ref": "#/$defs/pattern" },
-        "aspGte": { "type": "number", "minimum": 0 },
-        "measureGte": { "type": "number", "minimum": 0 },
-        "measureMinGte": { "type": "number", "minimum": 0 },
-        "primaryIn": { "type": "array", "maxItems": 50, "items": { "$ref": "#/$defs/text" } },
-        "any": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/$defs/condition" } }
+        "idIn": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "labelEq": {
+          "$ref": "#/$defs/text"
+        },
+        "labelPrefix": {
+          "$ref": "#/$defs/text"
+        },
+        "titleRe": {
+          "$ref": "#/$defs/pattern"
+        },
+        "notTitleRe": {
+          "$ref": "#/$defs/pattern"
+        },
+        "aspGte": {
+          "type": "number",
+          "minimum": 0
+        },
+        "measureGte": {
+          "type": "number",
+          "minimum": 0
+        },
+        "measureMinGte": {
+          "type": "number",
+          "minimum": 0
+        },
+        "primaryIn": {
+          "type": "array",
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "any": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "items": {
+            "$ref": "#/$defs/condition"
+          }
+        }
       }
     },
     "rule": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["seg", "when"],
+      "required": [
+        "seg",
+        "when"
+      ],
       "properties": {
-        "seg": { "$ref": "#/$defs/segmentKey" },
-        "when": { "$ref": "#/$defs/condition" },
-        "why": { "$ref": "#/$defs/text" }
+        "seg": {
+          "$ref": "#/$defs/segmentKey"
+        },
+        "when": {
+          "$ref": "#/$defs/condition"
+        },
+        "why": {
+          "$ref": "#/$defs/text"
+        }
       }
     },
     "profile": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["slug", "product", "status", "segments", "short", "core", "non", "rules", "signals"],
+      "required": [
+        "slug",
+        "product",
+        "status",
+        "segments",
+        "short",
+        "core",
+        "non",
+        "rules",
+        "signals"
+      ],
       "properties": {
-        "slug": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
-        "product": { "$ref": "#/$defs/text" },
-        "status": { "enum": ["proposed", "approved"] },
-        "segments": { "$ref": "#/$defs/textMap" },
-        "short": { "$ref": "#/$defs/textMap" },
-        "core": { "type": "array", "minItems": 1, "maxItems": 30, "items": { "$ref": "#/$defs/segmentKey" } },
-        "non": { "type": "array", "maxItems": 30, "items": { "$ref": "#/$defs/segmentKey" } },
-        "labelOverrides": { "$ref": "#/$defs/textMap" },
-        "rules": { "type": "array", "minItems": 1, "maxItems": 500, "items": { "$ref": "#/$defs/rule" } },
-        "primaryNouns": { "type": "object", "maxProperties": 50, "additionalProperties": { "$ref": "#/$defs/pattern" } },
-        "stripBeforePrimary": { "$ref": "#/$defs/pattern" },
+        "slug": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{0,63}$"
+        },
+        "product": {
+          "$ref": "#/$defs/text"
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "approved"
+          ]
+        },
+        "segments": {
+          "$ref": "#/$defs/textMap"
+        },
+        "short": {
+          "$ref": "#/$defs/textMap"
+        },
+        "core": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/segmentKey"
+          }
+        },
+        "non": {
+          "type": "array",
+          "maxItems": 30,
+          "items": {
+            "$ref": "#/$defs/segmentKey"
+          }
+        },
+        "labelOverrides": {
+          "$ref": "#/$defs/textMap"
+        },
+        "rules": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 500,
+          "items": {
+            "$ref": "#/$defs/rule"
+          }
+        },
+        "primaryNouns": {
+          "type": "object",
+          "maxProperties": 50,
+          "additionalProperties": {
+            "$ref": "#/$defs/pattern"
+          }
+        },
+        "stripBeforePrimary": {
+          "$ref": "#/$defs/pattern"
+        },
         "measure": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["unit", "re", "toBase"],
+          "required": [
+            "unit",
+            "re",
+            "toBase"
+          ],
           "properties": {
-            "unit": { "$ref": "#/$defs/text" },
-            "re": { "$ref": "#/$defs/pattern" },
+            "unit": {
+              "$ref": "#/$defs/text"
+            },
+            "re": {
+              "$ref": "#/$defs/pattern"
+            },
             "toBase": {
               "type": "object",
               "minProperties": 1,
               "maxProperties": 20,
-              "additionalProperties": { "type": "number", "exclusiveMinimum": 0 }
+              "additionalProperties": {
+                "type": "number",
+                "exclusiveMinimum": 0
+              }
             }
           }
         },
@@ -108,23 +332,36 @@
             "type": "array",
             "minItems": 2,
             "maxItems": 2,
-            "items": { "$ref": "#/$defs/pattern" }
+            "items": {
+              "$ref": "#/$defs/pattern"
+            }
           }
         },
         "benchmark": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["label"],
+          "required": [
+            "label"
+          ],
           "properties": {
-            "label": { "$ref": "#/$defs/text" },
-            "titleRe": { "$ref": "#/$defs/pattern" },
+            "label": {
+              "$ref": "#/$defs/text"
+            },
+            "titleRe": {
+              "$ref": "#/$defs/pattern"
+            },
             "measureRange": {
               "type": "array",
               "minItems": 2,
               "maxItems": 2,
-              "items": { "type": "number", "minimum": 0 }
+              "items": {
+                "type": "number",
+                "minimum": 0
+              }
             },
-            "excludeRe": { "$ref": "#/$defs/pattern" }
+            "excludeRe": {
+              "$ref": "#/$defs/pattern"
+            }
           }
         },
         "brandAlias": {
@@ -136,56 +373,176 @@
     "row": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["i", "platform", "listing", "shop", "cat", "rev", "units", "asp", "brand", "title"],
+      "required": [
+        "i",
+        "platform",
+        "listing",
+        "shop",
+        "cat",
+        "rev",
+        "units",
+        "asp",
+        "brand",
+        "title"
+      ],
       "properties": {
-        "i": { "type": "integer", "minimum": 0 },
-        "platform": { "$ref": "#/$defs/platform" },
-        "listing": { "type": "string", "minLength": 1, "maxLength": 100 },
-        "shop": { "type": "string", "minLength": 1, "maxLength": 100 },
-        "shopName": { "type": "string", "maxLength": 300 },
-        "cat": { "type": "string", "maxLength": 300 },
-        "rev": { "type": "number", "minimum": 0 },
-        "units": { "type": "number", "minimum": 0 },
-        "asp": { "type": "number", "minimum": 0 },
-        "brand": { "type": "string", "maxLength": 300 },
-        "title": { "type": "string", "minLength": 1, "maxLength": 1000 },
-        "start": { "anyOf": [{ "$ref": "#/$defs/date" }, { "type": "null" }] },
-        "label": { "type": "string", "maxLength": 100 }
+        "i": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "platform": {
+          "$ref": "#/$defs/platform"
+        },
+        "listing": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "shop": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "shopName": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "cat": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "rev": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "units": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "asp": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "brand": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "start": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 100
+        }
       }
     },
     "platformDisplay": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["displayedRevenueVnd"],
+      "required": [
+        "displayedRevenueVnd"
+      ],
       "properties": {
-        "displayedRevenueVnd": { "type": "number", "exclusiveMinimum": 0 }
+        "displayedRevenueVnd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        }
       }
     },
     "source": {
       "description": "What the export screen displayed for the broader query. Used only to state coverage of the exported rows.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["measurementPeriod", "rowCap", "displayedHeadlines", "platformBreakdown"],
+      "required": [
+        "measurementPeriod",
+        "rowCap",
+        "displayedHeadlines",
+        "platformBreakdown"
+      ],
       "properties": {
         "measurementPeriod": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["start", "end"],
+          "required": [
+            "start",
+            "end"
+          ],
           "properties": {
-            "start": { "$ref": "#/$defs/date" },
-            "end": { "$ref": "#/$defs/date" }
+            "start": {
+              "$ref": "#/$defs/date"
+            },
+            "end": {
+              "$ref": "#/$defs/date"
+            }
           }
         },
-        "rowCap": { "type": "integer", "minimum": 1, "maximum": 20000 },
+        "rowCap": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 20000
+        },
         "displayedHeadlines": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["revenueVnd", "soldListings", "shops", "units"],
+          "required": [
+            "revenueVnd",
+            "soldListings",
+            "shops",
+            "units"
+          ],
           "properties": {
-            "revenueVnd": { "type": "number", "exclusiveMinimum": 0 },
-            "soldListings": { "type": "integer", "minimum": 1 },
-            "shops": { "type": "integer", "minimum": 1 },
-            "units": { "type": "number", "exclusiveMinimum": 0 }
+            "revenueVnd": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "soldListings": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "shops": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "units": {
+              "type": [
+                "number",
+                "null"
+              ],
+              "minimum": 0
+            }
           }
         },
         "platformBreakdown": {
@@ -193,11 +550,101 @@
           "additionalProperties": false,
           "minProperties": 1,
           "properties": {
-            "shopee": { "$ref": "#/$defs/platformDisplay" },
-            "tiktok": { "$ref": "#/$defs/platformDisplay" }
+            "shopee": {
+              "$ref": "#/$defs/platformDisplay"
+            },
+            "tiktok": {
+              "$ref": "#/$defs/platformDisplay"
+            }
           }
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "contractVersion": {
+            "enum": [
+              "1.0.0",
+              "1.1.0"
+            ]
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "rows": {
+            "items": {
+              "properties": {
+                "rev": {
+                  "type": "number"
+                },
+                "units": {
+                  "type": "number"
+                },
+                "asp": {
+                  "type": "number"
+                }
+              },
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "source": {
+            "properties": {
+              "displayedHeadlines": {
+                "properties": {
+                  "revenueVnd": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  },
+                  "soldListings": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "shops": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "units": {
+                    "type": "number",
+                    "exclusiveMinimum": 0
+                  }
+                },
+                "type": "object"
+              },
+              "platformBreakdown": {
+                "properties": {
+                  "shopee": {
+                    "properties": {
+                      "displayedRevenueVnd": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "tiktok": {
+                    "properties": {
+                      "displayedRevenueVnd": {
+                        "type": "number",
+                        "exclusiveMinimum": 0
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ]
 }

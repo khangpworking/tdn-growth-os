@@ -108,6 +108,7 @@ const LIMITATION_TEXT: Readonly<Record<string, string>> = {
   EXACT_PACKAGE_BYTES_AND_LOCATORS_REQUIRE_CALLER_VERIFICATION: 'Bytes gói nguồn và vị trí bằng chứng phải được kiểm tra ở lớp gọi phương pháp.',
   SOURCE_WORDING_IS_ATTRIBUTED_INERT_TEXT_NOT_A_CONCLUSION: 'Lời trong nguồn được trích và quy cho nguồn; không phải kết luận.',
   M05_LITERAL_SOURCE_MEASURES_NOT_DEMAND_OR_MARKET_SIZE: 'M05 giữ đúng thước đo của nguồn; không phải nhu cầu hay quy mô thị trường.',
+  M05_ESTIMATED_SALES_IN_SAMPLE_DEMAND_PER_PLATFORM_SEARCH_SEPARATE: 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu; giữ kỳ, nguồn và từng sàn. Mức quan tâm tìm kiếm ghi riêng. Số ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.',
   SUBTOTAL_COMPLETENESS_ONLY_FOR_DECLARED_SOURCE_MEMBER_FRAME: 'Tổng chỉ đầy đủ trong khung thành viên do nguồn khai báo.',
   M06_LOCATED_RECORDS_NOT_UNIQUE_ENTITIES_STOCK_OR_TOTAL_SUPPLY: 'M06 đếm bản ghi; không phải đối tượng duy nhất, tồn kho hay toàn bộ nguồn cung.',
   M07_OWNER_DECLARED_SIDE_BY_SIDE_NO_RANK_SCORE_DIFFERENCE_OR_RATIO: 'M07 chỉ đặt cạnh nhau nhóm đã khai báo; không xếp hạng, chấm điểm, tính chênh lệch hay tỷ lệ.',
@@ -169,15 +170,16 @@ function methodNote(usable: boolean): string {
   return `<p class="sec-note">${usable ? 'Hồ sơ phương pháp và gói bằng chứng đã lưu nằm ở phụ lục M13.' : 'Không có bản ghi nguồn dùng được cho mục này; không có giá trị không đồng nghĩa với 0. Hồ sơ phương pháp nằm ở phụ lục M13.'}</p>`;
 }
 
-function subtotalText(partition: Partition): string {
+function subtotalText(partition: Partition, current = false): string {
   const unit = partition.unit === null ? tag('Thiếu đơn vị', 'warn') : storedLiteral(partition.unit, 'Đơn vị được giữ trong bản lưu nguồn');
   if (partition.subtotal === null) return `<p><b>Không tính tổng.</b> Chưa đủ điều kiện cộng các dòng; không hiển thị bằng 0.</p>`;
-  if (partition.complete) return `<p><b>Tổng theo khung thành viên nguồn đã khai báo:</b> ${escape(partition.subtotal)} ${unit}. Chỉ áp dụng cho thước đo và khung này; không phải nhu cầu hay tổng thị trường.</p>`;
+  if (partition.complete) return `<p><b>Tổng theo khung thành viên nguồn đã khai báo:</b> ${escape(partition.subtotal)} ${unit}. Chỉ áp dụng cho thước đo và khung này; ${current ? 'không phải tổng thị trường ngoài mẫu.' : 'không phải nhu cầu hay tổng thị trường.'}</p>`;
   return `<p><b>Tổng một phần của các dòng có số:</b> ${escape(partition.subtotal)} ${unit} ${tag('Chưa đủ dữ liệu bắt buộc', 'warn')}</p>`;
 }
 
 function m05(methods: DescriptiveMarketMethods, citations: ReportCitations): Omit<DescriptiveSectionView, 'html'> & { body: string } {
   const section = methods.sections.M05;
+  const current = methods.methodVersion === '1.1.0';
   const unresolved: string[] = [];
   let usable = false;
   const parts = section.partitions.map((partition, index) => {
@@ -188,9 +190,11 @@ function m05(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
       return `<tr><td>${entityCell(row)}</td><td>${storedLiteral(row.sourceWording, WITHHELD.wording)}</td><td>${valueCell(row)}</td><td>${sourceCell(methods.input, row.source, citations)}</td></tr>`;
     }).join('');
     const c = partition.coverage;
-    return `<h3>${escape(`${index + 1}. `)}${storedLiteral(partition.measureLiteral, WITHHELD.measure)}</h3><dl><dt>Đơn vị</dt><dd>${partition.unit === null ? tag('Thiếu đơn vị', 'warn') : storedLiteral(partition.unit, 'Đơn vị được giữ trong bản lưu nguồn')}</dd><dt>Kỳ quan sát</dt><dd>${periodCell(partition.period)}</dd><dt>Phạm vi nguồn</dt><dd>${scopeText(partition.scope)}</dd><dt>Độ phủ dòng</dt><dd>Có số ${escape(c.observedCount)} · Bằng 0 ${escape(c.zeroCount)} · Thiếu ${escape(c.missingCount)} · UNKNOWN ${escape(c.unknownCount)} · Không chính xác ${escape(c.nonExactCount)}</dd></dl>${subtotalText(partition)}${blockerList(partition.blockers)}${table('Thước đo nguyên văn của nguồn theo từng dòng. Không phải nhu cầu hay quy mô thị trường.', ['Đối tượng / thước đo', 'Lời trong nguồn', 'Giá trị nguồn', 'Vị trí nguồn'], rows)}`;
+    return `<h3>${escape(`${index + 1}. `)}${storedLiteral(partition.measureLiteral, WITHHELD.measure)}</h3><dl><dt>Đơn vị</dt><dd>${partition.unit === null ? tag('Thiếu đơn vị', 'warn') : storedLiteral(partition.unit, 'Đơn vị được giữ trong bản lưu nguồn')}</dd><dt>Kỳ quan sát</dt><dd>${periodCell(partition.period)}</dd><dt>Phạm vi nguồn</dt><dd>${scopeText(partition.scope)}</dd><dt>Độ phủ dòng</dt><dd>Có số ${escape(c.observedCount)} · Bằng 0 ${escape(c.zeroCount)} · Thiếu ${escape(c.missingCount)} · UNKNOWN ${escape(c.unknownCount)} · Không chính xác ${escape(c.nonExactCount)}</dd></dl>${subtotalText(partition, current)}${blockerList(partition.blockers)}${table(current ? 'Thước đo nguồn theo từng dòng; doanh số đo nhu cầu trong mẫu, mức quan tâm tìm kiếm giữ riêng.' : 'Thước đo nguyên văn của nguồn theo từng dòng. Không phải nhu cầu hay quy mô thị trường.', ['Đối tượng / thước đo', 'Lời trong nguồn', 'Giá trị nguồn', 'Vị trí nguồn'], rows)}`;
   }).join('');
-  const lead = `<p>${escape(section.locatedRecordCount)} bản ghi nguồn được định vị, chia theo thước đo nguyên văn, đơn vị, kỳ và phạm vi của nguồn. Số tìm kiếm hay doanh số giữ đúng tên nguồn; không đổi thành nhu cầu tổng.</p>`;
+  const lead = current
+    ? `<p>${escape(section.locatedRecordCount)} bản ghi nguồn được định vị, tách theo nguồn, thước đo, đơn vị, kỳ và phạm vi đã lưu. Nhu cầu, đo bằng doanh số (ước tính) trong mẫu, chỉ đọc cho từng sàn được nguồn khai báo; chưa rõ sàn thì giữ nguyên dòng nguồn, không cộng chéo sàn. Mức quan tâm tìm kiếm ghi riêng, không trộn với doanh số.</p><p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.</p>`
+    : `<p>${escape(section.locatedRecordCount)} bản ghi nguồn được định vị, chia theo thước đo nguyên văn, đơn vị, kỳ và phạm vi của nguồn. Số tìm kiếm hay doanh số giữ đúng tên nguồn; không đổi thành nhu cầu tổng.</p>`;
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body: `${lead}${parts}${blockerList(section.blockers)}` };
 }
 

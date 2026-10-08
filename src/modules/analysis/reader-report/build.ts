@@ -5,7 +5,8 @@ import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../pla
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { MetricWebFacts } from '../research-automation/metric-web-facts.js';
 import { Bundle, type HardcodedNumber, type Narrator } from './bundle.js';
-import { classify, profileRe, type Profile, type Row } from './classify.js';
+import { classify, profileRe, type Profile, type NullableRow as Row, type LegacyRow } from './classify.js';
+import { computeNullableReaderMetrics } from './nullable-metrics.js';
 import { READER_SECTION_ANCHORS } from './layout.js';
 import { lint, type LintResult } from './lint.js';
 import { scopeMetrics, type Scope } from './scope-metrics.js';
@@ -68,12 +69,17 @@ export function verifyReaderReportInput(value: unknown): ReaderReportInput {
     if (source === undefined) throw new ReaderReportInputError('thiếu nguồn số liệu của bản đọc');
     return checkRowsAndSource(input, source);
   }
+  if (input.contractVersion === '1.2.0' && input.webSnapshot === undefined) {
+    if (input.webSnapshotSha256 !== undefined) fail('thiếu webSnapshot');
+    if (input.source === undefined) fail('thiếu nguồn số liệu của bản đọc');
+    return checkRowsAndSource(input, input.source!);
+  }
   if (input.webSnapshot === undefined || input.webSnapshotSha256 === undefined) {
     fail('đầu vào 1.1.0 thiếu webSnapshot hoặc webSnapshotSha256');
   }
   const facts = verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
   const rowCap = input.source?.rowCap ?? input.rows.length;
-  const derived = deriveReaderSource(facts, rowCap);
+  const derived = deriveReaderSource(facts, rowCap, { nullable: input.contractVersion === '1.2.0' });
   if (input.source !== undefined) checkDerivedSource(input.source, derived);
   return checkRowsAndSource({ ...input, source: derived }, derived);
 }
@@ -116,9 +122,9 @@ export type ReaderReportData = {
 };
 
 /**
- * Classifies rows and computes every metric. Each marketplace is its own scope;
- * "both.*" totals exist only beside per-platform numbers, and "src.*" states how
- * much of the displayed source the exported rows cover.
+ * Classifies rows and computes versioned metrics. New inputs keep platform
+ * scopes separate; historical inputs retain their original "both.*" arithmetic.
+ * "src.*" states how much of the displayed source the exported rows cover.
  */
 export function computeReaderReportData(value: unknown): ReaderReportData {
   const input = verifyReaderReportInput(value);
@@ -132,7 +138,22 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
   const ruleHits = classify(rows, profile);
   const B = new Bundle();
   const scopes: Partial<Record<ReaderPlatform, Scope>> = {};
-  for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(r => r.platform === P), profile);
+  if (input.contractVersion === '1.2.0') {
+    const completePositive = rows.every(row => row.rev !== null && row.rev > 0 && row.units !== null && row.units > 0 && row.asp !== null) && input.platforms.every(P => {
+      const core = rows.filter(row => row.platform === P && profile.core.includes(row.seg!));
+      return core.length > 0 && core.reduce((s, row) => s + row.rev!, 0) > 0 && core.reduce((s, row) => s + row.units!, 0) > 0;
+    });
+    if (completePositive) for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(row => row.platform === P) as LegacyRow[], profile);
+    computeNullableReaderMetrics(B, input, rows, profile);
+    for (const [key, value, fmt] of [['src.hl.rev', input.source!.displayedHeadlines.revenueVnd, 'ty1'], ['src.hl.listings', input.source!.displayedHeadlines.soldListings, 'num'], ['src.hl.shops', input.source!.displayedHeadlines.shops, 'num'], ['src.hl.units', input.source!.displayedHeadlines.units, 'num'], ['src.rowCap', input.source!.rowCap, 'num']] as const) {
+      if (value === null) B.setMissing(key, fmt); else B.set(key, value, fmt);
+    }
+    B.setMissing('src.cover.rev', 'pct0'); B.setMissing('src.cover.listings', 'pct0');
+    for (const P of input.platforms) B.set(`src.${P}.rows`, rows.filter(row => row.platform === P).length, 'num');
+    const webFacts = input.webSnapshot === undefined ? null : verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
+    return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys: webFacts === null ? [] : setWebBundleKeys(B, webFacts), webReconciliation: webFacts === null ? [] : reconcileWebWithRows(webFacts, rows, { perPlatformOnly: true }) };
+  }
+  for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(r => r.platform === P) as LegacyRow[], profile);
 
   const both = input.platforms.map(P => scopes[P]!);
   if (both.length === 2) {
@@ -144,16 +165,16 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
     B.set('both.non.rev', B.v('both.all.rev') - B.v('both.core.rev'), 'ty');
     B.set('both.non.share', 100 * B.v('both.non.rev') / B.v('both.all.rev'), 'pct0');
   }
-  B.set('both.minRev', Math.min(...rows.map(r => r.rev)), 'tr');
+  B.set('both.minRev', Math.min(...rows.map(r => r.rev!)), 'tr');
 
   const src = input.source;
   if (src === undefined) throw new ReaderReportInputError('thiếu nguồn số liệu của bản đọc');
-  const { displayedHeadlines: hl, platformBreakdown: pb, rowCap } = src;
+  const { displayedHeadlines: hl, platformBreakdown: pb, rowCap } = src as typeof src & { displayedHeadlines: { revenueVnd: number; soldListings: number; shops: number; units: number }; platformBreakdown: Partial<Record<ReaderPlatform, { displayedRevenueVnd: number }>> };
   B.set('src.hl.rev', hl.revenueVnd, 'ty1'); B.set('src.hl.listings', hl.soldListings, 'num');
   B.set('src.hl.shops', hl.shops, 'num'); B.set('src.hl.units', hl.units, 'num');
   B.set('src.rows', rows.length, 'num'); B.set('src.rowCap', rowCap, 'num');
   B.set('src.cover.listings', 100 * rows.length / hl.soldListings, 'pct0');
-  B.set('src.cover.rev', 100 * rows.reduce((s, r) => s + r.rev, 0) / hl.revenueVnd, 'pct0');
+  B.set('src.cover.rev', 100 * rows.reduce((s, r) => s + r.rev!, 0) / hl.revenueVnd, 'pct0');
   for (const P of input.platforms) {
     B.set(`src.hl.${P}.rev`, pb[P]!.displayedRevenueVnd, 'ty1');
     B.set(`src.${P}.rows`, rows.filter(r => r.platform === P).length, 'num');
@@ -165,7 +186,7 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
   if (input.webSnapshot !== undefined && input.webSnapshotSha256 !== undefined) {
     webFacts = verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
     webKeys = setWebBundleKeys(B, webFacts);
-    webReconciliation = reconcileWebWithRows(webFacts, rows);
+    webReconciliation = reconcileWebWithRows(webFacts, rows as LegacyRow[]);
   }
   return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys, webReconciliation };
 }

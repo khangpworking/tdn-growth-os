@@ -17,9 +17,9 @@ const col = (name: string): number => METRIC_CURRENT_HEADERS.indexOf(name);
 const text = (cell: MetricSheetCell | undefined): string => (cell?.type === 'blank' ? '' : cell?.value ?? '');
 const squash = (s: string): string => s.split(/\s+/).filter(Boolean).join(' ');
 
-function amount(cell: MetricSheetCell | undefined, locator: string): number {
+function amount(cell: MetricSheetCell | undefined, locator: string, legacy: boolean): number | null {
   const raw = text(cell).trim();
-  if (raw === '') return 0;
+  if (raw === '') return legacy ? 0 : null;
   const v = Number(raw);
   if (!Number.isFinite(v) || v < 0) throw new ReaderMetricRowsError('INVALID_AMOUNT', locator);
   return v;
@@ -38,7 +38,7 @@ function startDate(cell: MetricSheetCell | undefined): string | null {
 }
 
 /** Sheet1 row n+2 becomes row i = n. Fails closed on an unknown or undeclared marketplace. */
-export function readerRowsFromMetricWorkbook(workbook: Buffer, platforms: readonly ReaderPlatform[]): ReaderRow[] {
+export function readerRowsFromMetricWorkbook(workbook: Buffer, platforms: readonly ReaderPlatform[], options: { version?: '1.0.0' | '1.2.0' } = {}): ReaderRow[] {
   const sheet = readMetricSheetRows(workbook);
   const header = sheet[0]?.cells.map(c => c.value);
   if (!header || header.join('\u0001') !== METRIC_CURRENT_HEADERS.join('\u0001'))
@@ -54,7 +54,7 @@ export function readerRowsFromMetricWorkbook(workbook: Buffer, platforms: readon
     const platform = PREFIX[listing.split('__')[0] ?? ''];
     if (!platform || !listing.includes('__')) throw new ReaderMetricRowsError('UNKNOWN_PLATFORM_PREFIX', `Sheet1!J${r}`);
     if (!platforms.includes(platform)) throw new ReaderMetricRowsError('UNDECLARED_PLATFORM', `Sheet1!J${r}`);
-    const rev = amount(c[at.rev], `Sheet1!E${r}`), units = amount(c[at.units], `Sheet1!D${r}`);
+    const rev = amount(c[at.rev], `Sheet1!E${r}`, options.version === '1.0.0'), units = amount(c[at.units], `Sheet1!D${r}`, options.version === '1.0.0');
     const link = text(c[at.shopLink]).trim();
     const shop = link.replace(/\/+$/, '').split('/').pop()?.split('?')[0] ?? '';
     const brandRaw = squash(text(c[at.brand]));
@@ -64,7 +64,7 @@ export function readerRowsFromMetricWorkbook(workbook: Buffer, platforms: readon
       i: n, platform, listing: listing.slice(0, 100), shop: (shop || listing).slice(0, 100),
       shopName: squash(text(c[at.shopName]) || shop).slice(0, 300),
       cat: (squash(text(c[at.cat2])) || '(trống)').slice(0, 300),
-      rev, units, asp: units ? Math.round(rev / units) : 0,
+      rev, units, asp: rev !== null && units !== null && units > 0 ? Math.round(rev / units) : options.version === '1.0.0' ? 0 : null,
       brand: (NO_BRAND.has(brandRaw.toLowerCase()) ? '(không ghi)' : brandRaw).slice(0, 300),
       title: title.slice(0, 1000), start: startDate(c[at.start]),
     });

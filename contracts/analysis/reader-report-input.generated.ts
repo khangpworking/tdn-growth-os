@@ -1,16 +1,12 @@
 /* Generated from reader-report-input.schema.json. Do not edit by hand. */
 
-export type Text = string;
-export type SegmentKey = string;
-export type Pattern = string;
-export type Platform = 'shopee' | 'tiktok';
-export type Date = string;
-
 /**
- * Semantic input for one owner-facing reader report: the classification profile, the per-listing rows and what the source screen displayed. Numbers only; no narrative. Version rules (enforced by verifyReaderReportInput): 1.0.0 requires source and forbids webSnapshot/webSnapshotSha256; 1.1.0 requires webSnapshot/webSnapshotSha256 and source is optional when webSnapshot is present.
+ * Versioned reader inputs. Historical 1.0.0/1.1.0 retain numeric constraints; 1.2.0 preserves null separately from observed zero and never authorizes cross-platform totals.
  */
-export interface ReaderReportInput {
-  contractVersion: '1.0.0' | '1.1.0';
+export type ReaderReportInput = {
+  [k: string]: unknown;
+} & {
+  contractVersion: '1.0.0' | '1.1.0' | '1.2.0';
   profile: Profile;
   /**
    * @minItems 1
@@ -36,7 +32,13 @@ export interface ReaderReportInput {
   rowLineage?: {
     sha256: string;
   };
-}
+};
+export type Text = string;
+export type SegmentKey = string;
+export type Pattern = string;
+export type Platform = 'shopee' | 'tiktok';
+export type Date = string;
+
 export interface Profile {
   slug: string;
   product: Text;
@@ -130,9 +132,9 @@ export interface Row {
   shop: string;
   shopName?: string;
   cat: string;
-  rev: number;
-  units: number;
-  asp: number;
+  rev: number | null;
+  units: number | null;
+  asp: number | null;
   brand: string;
   title: string;
   start?: Date | null;
@@ -148,10 +150,10 @@ export interface Source {
   };
   rowCap: number;
   displayedHeadlines: {
-    revenueVnd: number;
-    soldListings: number;
-    shops: number;
-    units: number;
+    revenueVnd: number | null;
+    soldListings: number | null;
+    shops: number | null;
+    units: number | null;
   };
   platformBreakdown: {
     shopee?: PlatformDisplay;
@@ -159,5 +161,5 @@ export interface Source {
   };
 }
 export interface PlatformDisplay {
-  displayedRevenueVnd: number;
+  displayedRevenueVnd: number | null;
 }

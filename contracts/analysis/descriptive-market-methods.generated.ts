@@ -33,7 +33,7 @@ export type Blockers = (
 export interface DescriptiveMarketMethods {
   contractVersion: '1.0.0';
   methodId: 'source-bound-descriptive-market';
-  methodVersion: '1.0.0';
+  methodVersion: '1.0.0' | '1.1.0';
   methodOutputId: Digest;
   input: DescriptiveMarketInput;
   sections: {
