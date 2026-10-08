@@ -7,7 +7,8 @@ export type AutomationInsightReportRevisionRequest =
   | AutomationInsightAcceptedReportRevisionRequest
   | AutomationInsightDraftReportRevisionRequest
   | AutomationInsightLiteralReportRevisionRequest
-  | AutomationInsightDefaultReportRevisionRequest;
+  | AutomationInsightDefaultReportRevisionRequest
+  | AutomationInsightCrosscheckReportRevisionRequest;
 export type InsightDraftSelection = InsightDraftSelectionV1 | InsightDraftSelectionV2;
 
 export interface AutomationInsightAcceptedReportRevisionRequest {
@@ -77,4 +78,19 @@ export interface InsightDefaultDraftSelection {
   contractVersion: 'insight-default-draft-select-v1';
   proposalId: string;
   proposalSha256: string;
+}
+export interface AutomationInsightCrosscheckReportRevisionRequest {
+  contractVersion: 'automation-insight-crosscheck-report-revision-v1';
+  requestKey: string;
+  previousPairId: string;
+  sources: InsightRevisionSources;
+  defaultInsight: InsightDefaultDraftSelection;
+  crosscheckInsight: InsightCrosscheckSelection;
+}
+export interface InsightCrosscheckSelection {
+  contractVersion: 'insight-crosscheck-select-v1';
+  requestKey: string;
+  snapshotSha256: string;
+  firstProposalId: string;
+  firstProposalSha256: string;
 }

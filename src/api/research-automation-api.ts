@@ -54,6 +54,8 @@ import { bindResearchAutomationProvider } from '../modules/analysis/research-aut
 import { createResearchAutomationProviderRegistry, type ResearchAutomationProviderConfig, type ProviderTransport } from '../modules/analysis/research-automation/providers.js';
 import { buildResearchAutomationReport } from '../modules/analysis/research-automation/reports.js';
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
+import { crosscheckRequestValid, crosscheckResponseValid } from '../modules/analysis/research-automation/insight-crosscheck-contracts.js';
+import { insightCodingDigest } from '../modules/analysis/research-automation/insight-default-coding.js';
 import { createI14CliproxySynthesisAi, createDecisionCliproxySynthesisAi, createInsightCodingCliproxyAi } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
 import type { AutomationDecisionSynthesisConfiguration, AutomationDecisionExecutionRequest } from '../modules/analysis/research-automation/decision-synthesis-execution.js';
@@ -77,6 +79,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly i14Synthesis?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: AutomationI14SynthesisConfiguration };
   /** Independently enabled coding proposals. Never grants acceptance or report admission. */
   readonly insightCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: InsightModelConfiguration };
+  /** Explicit independent second client, opt-in only; no caller-controlled credentials/endpoints. */
+  readonly insightCrosscheck?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: InsightModelConfiguration };
   readonly decisionSynthesis?: {
     readonly cliproxy: CliproxyConfiguration;
     readonly configurations: Partial<Record<AutomationDecisionSectionId, AutomationDecisionSynthesisConfiguration>>;
@@ -196,6 +200,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     promptVersion: 'l9-keyword-prompt-v1', ...(configuration.keywordDrafting ? { configuration: configuration.keywordDrafting.configuration } : {}) };
   const i14SynthesisAi = configuration.i14Synthesis ? createI14CliproxySynthesisAi(configuration.i14Synthesis) : undefined;
   if (configuration.insightCoding && !configuration.owner) throw new TypeError('Automation Insight coding requires the OWNER writer');
+  if (configuration.insightCrosscheck && !configuration.owner) throw new TypeError('Crosscheck requires the OWNER writer');
+  const insightCrosscheckAi = configuration.insightCrosscheck ? createInsightCodingCliproxyAi(configuration.insightCrosscheck) : null;
   const insightCodingAi = configuration.insightCoding ? createInsightCodingCliproxyAi(configuration.insightCoding) : null;
   if (configuration.decisionSynthesis && !configuration.owner) throw new TypeError('Automation decision synthesis requires the OWNER writer');
   const decisionSynthesisAi: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionRequest['ai']>> = {};
@@ -304,6 +310,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const membershipReview = /^metric-membership\/([0-9a-f]{64})\/([0-9a-f-]{36})$/.exec(action ?? '');
     const membershipRead = /^metric-membership-(proposals|receipts)\/([0-9a-f-]{36})$/.exec(action ?? '');
     const membershipWrite = action === 'metric-membership-proposals' || action === 'metric-membership-receipts';
+    const crosscheckWrite = action === 'insight-crosscheck-preparations';
+    const crosscheckRead = /^insight-crosscheck-preparations\/([0-9a-f-]{36})$/.exec(action ?? '');
+    const crosscheckAvailability = /^insight-crosscheck-availability\/([0-9a-f]{64})$/.exec(action ?? '');
     const insightRead = /^insight-coding\/([0-9a-f]{64})$/.exec(action ?? '');
     const insightWrite = action !== undefined && Object.hasOwn(insightWrites, action) ? insightWrites[action as keyof typeof insightWrites] : undefined;
     const insightDefaultModelWrite = action === 'insight-coding-default-model-proposals';
@@ -315,8 +324,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
-      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
+      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -347,6 +356,17 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
             : membershipRead![1] === 'proposals' ? await readService.readMetricMembershipProposal(workspaceId!, runId, membershipRead![2]!)
               : await readService.readMetricMembershipReceipt(workspaceId!, runId, membershipRead![2]!);
           if (!validates.membershipResponse(result)) throw new Error('Metric membership projection failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (crosscheckAvailability) {
+          const context = await readService.readInsightSourceContext(workspaceId!, runId, crosscheckAvailability[1]!);
+          return sendApiJson(response, 200, { contractVersion: 'insight-crosscheck-availability-v1', binding: context.binding,
+            secondConfiguration: insightCrosscheckAi?.configuration ?? null,
+            secondConfigurationSha256: insightCrosscheckAi ? insightCodingDigest(insightCrosscheckAi.configuration) : null });
+        }
+        if (crosscheckRead) {
+          const result = await readService.readInsightCrosscheck(workspaceId!, runId, crosscheckRead[1]!);
+          if (!crosscheckResponseValid(result)) throw new Error('Crosscheck retained read failed validation');
           return sendApiJson(response, 200, result);
         }
         if (insightRead) {
@@ -558,6 +578,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       try { body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, insightWrite ? MAX_INSIGHT_CODING_BYTES : action === 'reader-reports' ? MAX_READER_BUILD_BYTES : 16 * 1024))); }
       catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Request body must be valid UTF-8 JSON'); }
       const validate = !runId ? validates.start : action === 'confirm-scope' ? validates.confirm
+        : crosscheckWrite ? crosscheckRequestValid
         : insightModelWrite ? insightDefaultModelWrite ? validates.insightDefaultModelRequest : validates.insightModelRequest
         : insightWrite ? insightWrite.validate
         : membershipWrite ? action === 'metric-membership-proposals' ? validates.membershipPropose : validates.membershipAccept
@@ -565,6 +586,20 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
         : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
+      if (crosscheckWrite) {
+        if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
+        const controller = new AbortController();
+        const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+        response.once('close', disconnected); if (response.destroyed) controller.abort();
+        const pending = writeService!.prepareInsightCrosscheck(workspaceId!, runId!, body,
+          { actorId: configuration.owner!.actorId, role: 'OWNER' }, insightCrosscheckAi, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!crosscheckResponseValid(result)) throw new Error('Crosscheck response failed validation');
+          return sendApiJson(response, result.status === 'VALID' && !result.exactRetry ? 201 : 200, result);
+        } finally { modelRequests.delete(controller); response.removeListener('close', disconnected); }
+      }
       if (insightModelWrite) {
         if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
         const controller = new AbortController();
