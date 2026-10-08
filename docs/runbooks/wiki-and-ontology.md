@@ -80,7 +80,7 @@ Group 1 rules (all from the Ultimate file, with the section link on each shape):
 ```text
 You coordinate two independent tasks for the repository khangpworking/tdn-growth-os through Orca. Use your Orca CLI skill. Do not invent Orca commands: if you cannot find how to create a worktree or start an agent, stop and report.
 
-First: git fetch origin. The runbook docs/runbooks/wiki-and-ontology.md is on origin/main once its PR is merged; until then read it from origin/docs/wiki-ontology-runbook. Read it fully, plus AGENTS.md.
+First: git fetch origin. The runbook docs/runbooks/wiki-and-ontology.md is on origin/main once its PR is merged; until then read it from origin/claude/new-session-6ff92m. Read it fully, plus AGENTS.md.
 
 Then create two worktrees from the latest origin/main and start one worker agent in each:
 1. Worktree "wiki", branch pkg/WIKI-1-openwiki. Worker prompt: section 3.2 of the runbook, verbatim.
