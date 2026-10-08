@@ -7,10 +7,14 @@ import type { ResearchAutomationRun } from '../../contracts/api/research-automat
 import { buildDescriptiveMarketMethods } from '../../src/modules/analysis/descriptive-market-methods.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
-import type { AutomationInsightCodingAcceptedSnapshot } from '../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
+import type { AutomationInsightCodingAcceptedSnapshot, AutomationInsightCodingFamilyDraftSnapshot } from '../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
+import { buildLocatedInsightMethods } from '../../src/modules/analysis/located-insight-methods.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import { nextInsightFixture } from '../helpers/next-insight-fixture.js';
+import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import type { AutomationInsightSelection } from '../../contracts/analysis/automation-insight-selection.generated.js';
 import type { LocatedInsightMethods } from '../../contracts/analysis/located-insight-methods.generated.js';
-import { projectSelectedInsightCandidates } from '../../src/modules/analysis/research-automation/selected-insight-projection.js';
+import { projectDraftInsightGroupCounts, projectSelectedInsightCandidates } from '../../src/modules/analysis/research-automation/selected-insight-projection.js';
 import { locatedInsightFixture, locatedSpan } from '../helpers/located-insight-fixture.js';
 
 function fixture(): AutomationReportInput {
@@ -545,4 +549,56 @@ test('v18 neutral method identity wording preserves retained input and marker-fr
   assert.match(current.html.toString(), /chưa gộp listing/);
   assert.deepEqual(output.input, retainedInput);
   assert.deepEqual(buildResearchAutomationReport({ ...input, descriptiveMethods: output }, 'MARKET'), legacy);
+});
+
+test('source v18 preserves accepted Insight method output outside the family-draft lint boundary', () => {
+  const input = fixture();
+  const insightCoding = codingSnapshot(input, { contractVersion: 'automation-insight-selection-v1', i06: [0], i09: [0, 1], i13Mentions: [0, 1],
+    corpora: [0, 1].map(corpusIndex => ({ corpusIndex, assignments: [0, 1], dispositions: [0, 1, 2] })) });
+  const legacy = buildResearchAutomationReport({ ...input, insightCoding }, 'INSIGHT');
+  const sourceEvidence = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
+  const current = buildResearchAutomationReport({ ...input, insightCoding, sourceEvidence,
+    start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' } }, 'INSIGHT');
+  assert.equal((current.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v18');
+  for (const id of ['I06', 'I09', 'I10', 'I13']) {
+    assert.equal(marketDocument(current).getElementById(id)!.outerHTML, marketDocument(legacy).getElementById(id)!.outerHTML);
+  }
+  assert.match(current.html.toString(), /Thành viên duy nhất/);
+  assert.equal(lintVisibleReportText(current.html.toString()).find(check => check.rule === 'U13_SUPERLATIVE')!.ok, false,
+    'historical accepted-method copy is outside the separately approved family-draft lint gate');
+});
+
+test('marker-free Market peer policy retains renderer v14 and exact replay', () => {
+  const base = fixture();
+  const input = { ...base, start: { ...base.start, defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE } } };
+  const legacy = buildResearchAutomationReport(input, 'MARKET');
+  const semantic = legacy.semantic as { rendererVersion: string; sourceEvidence?: unknown };
+  assert.equal(semantic.rendererVersion, 'automation-report-kit-v14');
+  assert.equal(semantic.sourceEvidence, undefined);
+  assert.deepEqual(buildResearchAutomationReport(input, 'MARKET'), legacy);
+});
+
+test('family-draft renderer enforces applicable lint with and without source v18 marker', () => {
+  const input = fixture();
+  const proposal = nextInsightFixture(); proposal.draftCountsVersion = 'draft-counts-v2';
+  const output = buildLocatedInsightMethods(proposal).output;
+  const accepted = codingSnapshot(input, { contractVersion: 'automation-insight-selection-v1', i06: [0], i09: [], i13Mentions: [], corpora: [] });
+  const insightCoding: AutomationInsightCodingFamilyDraftSnapshot = {
+    contractVersion: 'automation-insight-coding-snapshot-v3', binding: accepted.binding,
+    selection: { proposalId, receiptIds: [] }, adoptionId: accepted.adoptionId, proposalSha256: accepted.proposalSha256,
+    receipts: [], draftSelection: { contractVersion: 'insight-draft-select-v2', proposalId }, output,
+    groupCounts: projectDraftInsightGroupCounts(output, 'SHOPEE'),
+  };
+  const sourceEvidence = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
+  for (const marker of [undefined, sourceEvidence]) {
+    const reportInput = { ...input, insightCoding, ...(marker ? { sourceEvidence: marker,
+      start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' as const } } : {}) };
+    const current = buildResearchAutomationReport(reportInput, 'INSIGHT');
+    assert.equal((current.semantic as { rendererVersion: string }).rendererVersion, marker ? 'automation-report-kit-v18' : 'automation-report-kit-v17');
+    assert.ok(lintVisibleReportText(current.html.toString()).every(check => check.ok));
+    const unsupportedPriority = structuredClone(reportInput);
+    unsupportedPriority.insightCoding.groupCounts.groups[0]!.scope.frame = 'Ưu tiên số 1.';
+    assert.throws(() => buildResearchAutomationReport(unsupportedPriority, 'INSIGHT'), /INSIGHT_VISIBLE_TEXT_LINT_FAILED:U13_PRIORITY/,
+      'the actual renderer rejects generated unqualified priority prose under both identities');
+  }
 });
