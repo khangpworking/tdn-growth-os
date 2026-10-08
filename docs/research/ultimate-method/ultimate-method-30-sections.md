@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.10 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.11 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -20,6 +20,7 @@ File hợp nhất:
 12. **v1.8 (08/10/2026):** L9 lọc nghĩa khi thu bằng từ khoá; E13 dữ liệu mở của Ngân hàng Thế giới; M09 tìm kiếm có lọc thời gian và tìm trong một trang báo.
 13. **v1.9 (08/10/2026):** G6 thêm các mốc tham khảo tuổi quảng cáo 17 ngày, 3 tuần, 60 ngày; G8 ghi lý do chọn từng ngưỡng số.
 14. **v1.10 (08/10/2026):** L10 bình luận dưới video review là lời khách; bảng tổng quan 30 section cập nhật theo v1.5–v1.10.
+15. **v1.11 (08/10/2026):** L10 mở rộng: bình luận dưới video bán hàng cũng là lời khách.
 
 Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [Input data sources for 30 sections](input-data-sources-30-sections.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn). Mọi ngưỡng số có lý do chọn ở Phụ lục G8.
 
@@ -50,7 +51,7 @@ Phân biệt bắt buộc, không được trộn:
 
 - **Đã mô tả phương pháp** ≠ **đã duyệt vận hành** ≠ **đã có code** ≠ **đã chạy và được review output**. Trạng thái từng section luôn nói rõ nó đang ở tầng nào.
 - Bốn tầng bằng chứng tách biệt: bằng chứng nguồn → tính toán tái lập được → diễn giải AI → quyết định con người. Diễn giải AI chưa review không được nhập vào bằng chứng nguồn.
-- **Ba loại tiếng nói tách biệt (mới ở v1.1):** lời **khách** (review, bình luận, bài viết của người mua), lời **người bán** (video, bài đăng, quảng cáo, trang bán), và **phản ứng thị trường** (doanh thu, lượt xem, chi quảng cáo). Không trình bày lời người bán như lời khách. Bình luận dưới video review cũng là lời khách (L10).
+- **Ba loại tiếng nói tách biệt (mới ở v1.1):** lời **khách** (review, bình luận, bài viết của người mua), lời **người bán** (video, bài đăng, quảng cáo, trang bán), và **phản ứng thị trường** (doanh thu, lượt xem, chi quảng cáo). Không trình bày lời người bán như lời khách. Bình luận dưới video review và dưới video bán hàng cũng là lời khách (L10).
 
 ---
 
@@ -89,13 +90,13 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     - "bình giữ nhiệt" lẫn với bình nóng lạnh, hộp cơm giữ nhiệt, bình làm quà tặng kèm dịch vụ;
     - tên thương hiệu trùng với thương hiệu ngành khác.
   - **Căn cứ:** bài test nguồn ngày 08/10/2026 ([danh mục nguồn, mục 5](input-data-sources-30-sections.md#5-nhật-ký-thử-và-kiểm-định-nguồn)); chủ đồng ý ngày 08/10/2026.
-- **L10 · Bình luận dưới video review là lời khách (mới ở v1.10; ba loại tiếng nói ở mục 1).** Bình luận công khai dưới video review sản phẩm (video của người review, không phải video của người bán) được tính là **lời khách**, dùng như review: làm câu trích, thẻ bằng chứng cho chân dung (E4), lời khách tự xác nhận (E5 phép kiểm 4), và số đếm của I02, I04–I10.
+- **L10 · Bình luận dưới video là lời khách (mới ở v1.10, mở rộng ở v1.11; ba loại tiếng nói ở mục 1).** Bình luận công khai dưới video review sản phẩm, và dưới video bán hàng của người bán (từ v1.11), được tính là **lời khách**, dùng như review: làm câu trích, thẻ bằng chứng cho chân dung (E4), lời khách tự xác nhận (E5 phép kiểm 4), và số đếm của I02, I04–I10.
   - **Không tính là lời khách:**
     - bình luận của chính người làm video, hoặc của tài khoản thương hiệu, gian hàng: đây là lời người bán (L7);
     - bình luận chỉ gắn thẻ bạn bè hoặc chỉ có biểu tượng cảm xúc: không đủ nghĩa, loại khỏi số đếm và ghi lý do.
-  - Ghi loại nguồn "bình luận dưới video review" cạnh câu trích và số đếm, để người đọc phân biệt với review sau mua trên sàn.
+  - Ghi loại nguồn "bình luận dưới video review" hoặc "bình luận dưới video bán hàng" cạnh câu trích và số đếm, để người đọc phân biệt hai loại này với nhau và với review sau mua trên sàn.
   - Đếm người viết theo L2 (chỉ trong cùng nền tảng). Cỡ mẫu ghi là "bình luận thu được", không phải "toàn bộ bình luận".
-  - **Căn cứ:** chủ quyết ngày 08/10/2026: "Bình luận dưới video review được tính là lời khách hàng". Kết quả thử nguồn R3, R4 ở [nhật ký test](input-data-sources-test-log.md) (ST-20261008-18, -19).
+  - **Căn cứ:** chủ quyết ngày 08/10/2026: "Bình luận dưới video review được tính là lời khách hàng"; với video bán hàng: "tính luôn là lời khách đi". Kết quả thử nguồn R3, R4 ở [nhật ký test](input-data-sources-test-log.md) (ST-20261008-18, -19).
 
 ### 2.2 Ngoại lệ đã được chủ duyệt
 
@@ -275,7 +276,7 @@ Nguồn dữ liệu của từng section: [Input data sources for 30 sections, m
 | 13 | M13 | Phụ lục và truy nguồn | Existing | Provenance từng dòng A23 | EXISTING_BOUNDED |
 | — | (Insight) | Kết luận chính của Insight | Synthesis | Tóm tắt mô tả trong mẫu theo E3 | E6 (mới 07/10) |
 | 14 | I01 | Câu hỏi kinh doanh | Synthesis | Brief do chủ viết, kiểm trường bắt buộc; câu hỏi làm việc có nhãn khi thiếu | PROPOSED + E7 |
-| 15 | I02 | Khách hàng và hoàn cảnh | Additional | Coding hoàn cảnh theo bản ghi định vị; chân dung có thẻ bằng chứng; lời khách gồm cả bình luận dưới video review (L10); lớp người bán nhắm tới | PROPOSED + BUSINESS_REVIEWED + E4 + E5 |
+| 15 | I02 | Khách hàng và hoàn cảnh | Additional | Coding hoàn cảnh theo bản ghi định vị; chân dung có thẻ bằng chứng; lời khách gồm cả bình luận dưới video review và video bán hàng (L10); lớp người bán nhắm tới | PROPOSED + BUSINESS_REVIEWED + E4 + E5 |
 | 16 | I03 | Phương pháp nghiên cứu | Existing | Tài khoản phương pháp A25 | EXISTING_BOUNDED |
 | 17 | I04 | Hành vi | Additional | Coding hành động/episode theo nguồn | PROPOSED + BUSINESS_REVIEWED |
 | 18 | I05 | Cảm nhận và thái độ | Additional | Coding phát biểu định vị; số sao là phân bố riêng | PROPOSED + BUSINESS_REVIEWED |
@@ -659,6 +660,7 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.8 — 08/10/2026:** L9 lọc nghĩa khi thu bằng từ khoá (danh sách từ khoá và danh sách loại trừ có phiên bản, giữ dấu, ghi số bị loại); E13 dữ liệu mở của Ngân hàng Thế giới làm bối cảnh vĩ mô theo điều kiện của E12; M09 tìm kiếm mở rộng có lọc thời gian và tìm trong một trang báo để lập dòng thời gian sự kiện.
 - **v1.9 — 08/10/2026:** G6 thêm ba mốc tham khảo tuổi quảng cáo (17 ngày, 3 tuần, 60 ngày), kiểm không xung đột, và không chép câu "chắc chắn hiệu quả" vào báo cáo (E1, E5); E5 phép kiểm 3 ghi các mốc tham khảo đã vượt, ngưỡng đạt không đổi; thêm G8 ghi lý do chọn từng ngưỡng số và mức chắc chắn.
 - **v1.10 — 08/10/2026:** L10 bình luận công khai dưới video review là lời khách (trừ bình luận của người làm video và tài khoản người bán); mục 1 ghi thêm vào ba loại tiếng nói; bảng tổng quan 30 section cập nhật dòng M01, M09, I02 và thêm ghi chú các quy tắc áp cho nhiều section.
+- **v1.11 — 08/10/2026:** L10 mở rộng: bình luận công khai dưới video bán hàng cũng là lời khách, cùng điều kiện loại trừ; ghi loại nguồn "bình luận dưới video bán hàng" cạnh câu trích và số đếm.
 
 ---
 
