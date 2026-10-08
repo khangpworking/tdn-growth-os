@@ -121,3 +121,22 @@ test('replies and equal duplicates do not consume distinct top-level quota; chan
   assert.equal(changed.profile.keyCommitment, privacy().profile.keyCommitment);
   assert.notEqual(changed.profile.voicePolicyCommitment, privacy().profile.voicePolicyCommitment);
 });
+
+test('full30-video200-comment bound reaches existing L9 in deterministic batches without dropping identities', async () => {
+  const videos = Array.from({ length: 30 }, (_, index) => ({ videoId: String(2000 + index),
+    url: `https://www.tiktok.com/@synthetic_creator/video/${2000 + index}`, kind: 'SELLER_VIDEO' as const,
+    sourceLine: `csv:row:${index + 2}`, revenue: '1' }));
+  const frozen = { ...selection, sampleVideoCount: 30, videos };
+  const values = videos.flatMap(video => Array.from({ length: 200 }, (_, index) => ({ ...row(String(index + 1)), video_id: video.videoId })));
+  const f = fake(values);
+  const capture = await new ApifyTikTokCommentsCollector({ transport: f.transport, privacy: privacy(), approvedMaxTotalChargeUsd: 3 })
+    .collect(videos.map(video => video.url), '4'.repeat(64));
+  const corpus = buildTikTokCommentCorpus({ selection: frozen,
+    selectionSha256: createHash('sha256').update(canonicalJson(frozen)).digest('hex') }, capture, keywordData);
+  assert.equal(corpus.accounting.returnedRows, 6000); assert.equal(corpus.accounting.uniqueComments, 6000);
+  assert.equal(corpus.accounting.included, 6000); assert.equal(corpus.records.length, 6000);
+  assert.deepEqual(corpus.filterBatches.map(batch => batch.results.length), [5000, 1000]);
+  assert.equal(new Set(corpus.records.map(record => record.recordId)).size, 6000);
+  assert.deepEqual(buildTikTokCommentCorpus({ selection: frozen,
+    selectionSha256: createHash('sha256').update(canonicalJson(frozen)).digest('hex') }, capture, keywordData), corpus);
+});

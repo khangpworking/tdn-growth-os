@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import keywordFilterSchema from '../../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
 import { CitationRegistry } from '../citation-registry.js';
@@ -40,8 +41,14 @@ export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture
     }
   }
   const frozenGroups = [...groups.entries()];
-  const filter = filterKeywordMeanings(keywords, frozenGroups.map(([recordId, group]) => ({ recordId, text: group.row.text ?? '', contextText: null })));
-  const decisions = new Map(filter.results.map(row => [row.recordId, row]));
+  // Reuse the existing canonical per-invocation bound. Batching preserves
+  // every collected identity and the same frozen terms; it is not sampling.
+  const candidates = frozenGroups.map(([recordId, group]) => ({ recordId, text: group.row.text ?? '', contextText: null }));
+  const batchLimit = keywordFilterSchema.$defs.records.maxItems;
+  const filterBatches: ReturnType<typeof filterKeywordMeanings>[] = [];
+  for (let offset = 0; offset < candidates.length || offset === 0; offset += batchLimit)
+    filterBatches.push(filterKeywordMeanings(keywords, candidates.slice(offset, offset + batchLimit)));
+  const decisions = new Map(filterBatches.flatMap(batch => batch.results).map(row => [row.recordId, row]));
   const records = frozenGroups.map(([recordId, group]) => {
     const video = videos.get(group.row.videoId)!;
     const l9 = decisions.get(recordId)!;
@@ -60,7 +67,7 @@ export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture
   return { contractVersion: 'tiktok-comment-corpus-v1' as const, registryId: 'S07' as const, platform: 'tiktok' as const,
     selectionSha256: selected.selectionSha256, sourcePackage: selected.selection.sourcePackage, privacy: capture.privacy,
     auditForm: capture.auditForm, codingState: 'NOT_CODED' as const, sampleLabel: 'bình luận thu được' as const,
-    keywordData: keywords, filter, records,
+    keywordData: keywords, filterBatches, records,
     accounting: { returnedRows: offset, uniqueComments: records.length,
       equalDuplicateRows: records.reduce((total, group) => total + group.occurrenceCount - group.versions.length, 0),
       conflictingCommentGroups: records.filter(group => group.versions.length > 1).length,
