@@ -542,9 +542,9 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     contextSections: ids('SOURCE_CONTEXT').length, sourceTableSections: ids('SOURCE_TABLE').length, blockedSections: ids('BLOCKED').length,
   };
   const sourceScope = kind === 'MARKET' ? projectMarketSourceScope(input) : undefined;
-  // Draft M05 (SYNC-1): a non-legacy descriptive method version renders under a new kit identity, so historical
-  // 1.0.0 descriptive output keeps `automation-report-kit-v12` byte-for-byte while new output is distinguishable.
-  const descriptiveVersion = input.descriptiveMethods?.methodVersion;
+  // Draft M05 (SYNC-1): only a MARKET report that carries a non-legacy descriptive method version renders under a new
+  // kit identity; historical 1.0.0 descriptive output and every INSIGHT report keep `automation-report-kit-v12`.
+  const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const rendererVersion = descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {

@@ -45,3 +45,10 @@ test('a non-legacy descriptive method version renders under the new kit identity
   assert.equal(rendererVersion(marketReportInput(descriptiveMethods('1.0.0'))), 'automation-report-kit-v12');
   assert.equal(rendererVersion(marketReportInput(descriptiveMethods('1.1.0'))), 'automation-report-kit-v13');
 });
+
+test('an INSIGHT report keeps v12 even when an unused Market descriptive method is attached', () => {
+  const input = marketReportInput(descriptiveMethods('1.1.0'));
+  assert.equal(rendererVersion(input), 'automation-report-kit-v13');
+  const insight = buildResearchAutomationReport(input, 'INSIGHT');
+  assert.equal((insight.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v12');
+});
