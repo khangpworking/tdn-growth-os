@@ -2,6 +2,8 @@
 
 Updated: 2026-10-09
 Worktree/branch: `ultimate-impl-sync6-opencode`, `khangpworking/ultimate-source-privacy-consumer`, base `a8e9b8439797bef3f3077399e0f34ac306cc236d`.
+Draft PR: [#184](https://github.com/khangpworking/tdn-growth-os/pull/184), pushed implementation/cap-correction head `607e69fb77b5288bf44c4eb26bc6c5274403255d`; final documentation head follows. Merge conflicts with pending main composition remain queued for an exact coordinator lease.
+
 Lifecycle: sole run `run_adc3551f8ed8`, fresh task `task_a6c3d448c7f5`, dispatch `ctx_4de259d35233`; exact Orca executable `/home/pkhang/.local/bin/orca-ide`, observed GPT-6.1-Sol high unchanged. Previous abandoned dispatch fenced; ten preserved WIP paths inspected without reset/switch/discard.
 
 Completed:
@@ -49,7 +51,7 @@ Unresolved / limits:
 
 Next action:
 
-Central phase released at `fa4dbae6dad2342755f0ad6f745316bbd4a07f47`. Coordinator source-review correction: capped capture coverage truthfulness is fixed and proven with real collector/fake fetch (5 synthetic dataset rows, configured test cap3, 3 retained rows, PARTIAL/truncated, no extra call); Foundation validation and runtime caps unchanged.
+Central phase released at `fa4dbae6dad2342755f0ad6f745316bbd4a07f47`. Final cap-correction/private-service/source/golden suite17/17 passed, strict typecheck exit0 (`/tmp/tdn-private-consumer-cap-typecheck.log`). Coordinator source-review correction: capped capture coverage truthfulness is fixed and proven with real collector/fake fetch (5 synthetic dataset rows, configured test cap3, 3 retained rows, PARTIAL/truncated, no extra call); Foundation validation and runtime caps unchanged.
 
 Then then authorized final-main reconciliation if allocated, push/draft PR and exact SHA/test/lease handoff. Canonical release remains in force; any generation requires a renewed short lease. Coordinator owns README/STATUS/plan and merge.
 
