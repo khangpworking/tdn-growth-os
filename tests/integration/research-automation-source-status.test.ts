@@ -13,6 +13,8 @@ import sourceStatusSchema from '../../contracts/api/research-automation-source-s
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import type { ResearchAutomationProviderConfig } from '../../src/modules/analysis/research-automation/providers.js';
 import { DiscoveryWorkspaceService } from '../../src/modules/flow/discovery-workspace-service.js';
+import { FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/discovery-workspace-reader.js';
+import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { openDatabase } from '../../src/platform/db/database.js';
 
@@ -83,12 +85,13 @@ function closeServer(server: http.Server): Promise<void> {
 }
 
 async function withApi<T>(fixture: { databasePath: string; artifactRoot: string }, ownerEnabled: boolean,
-  providers: ResearchAutomationProviderConfig, callback: (base: string) => Promise<T>): Promise<T> {
+  providers: ResearchAutomationProviderConfig, callback: (base: string) => Promise<T>,
+  pageIndex: Parameters<typeof openResearchAutomationApi>[0]['pageIndex'] = { enabled: false, apiKey: '' }): Promise<T> {
   const probe = http.createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'listening');
   const port = (probe.address() as AddressInfo).port; await closeServer(probe);
   const origin = `http://127.0.0.1:${port}`;
   const application = openResearchAutomationApi({
-    databasePath: fixture.databasePath, artifactRoot: fixture.artifactRoot, origin, providers,
+    databasePath: fixture.databasePath, artifactRoot: fixture.artifactRoot, origin, providers, pageIndex,
     ...(ownerEnabled ? { owner: { writeEnabled: true, databasePath: fixture.databasePath, artifactRoot: fixture.artifactRoot,
       token: ownerToken, allowedOrigin: origin, actorId: 'owner:research' } } : {}),
   });
@@ -134,7 +137,7 @@ test('source status reports configuration and workspace history without exposing
     // The document-indexing card is present before any live connector state is wired.
     assert.deepEqual(sources.PAGEINDEX, { source: 'PAGEINDEX', state: 'NOT_CONFIGURED', credential: 'MISSING', wiredIntoRuns: false, paid: true,
       lastDataAt: null, dataCount: 0, lastUsageAt: null, pageindex: { automaticState: 'DISABLED', documentsSent: 0,
-        balanceMicroDollars: null, balanceCheckedAt: null, billingUrl: null, activePages: 0, estimatedMonthlyCostMicroDollars: null } });
+        balanceMicroDollars: null, balanceCheckedAt: null, billingUrl: 'https://dash.pageindex.ai', activePages: 0, estimatedMonthlyCostMicroDollars: null, usageLimited: false } });
   });
 
   await withApi(fixture, true, { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: true,
@@ -167,4 +170,71 @@ test('source status is read-only and scoped to an existing workspace', async () 
     const { body } = await readStatus(base);
     assert.ok(body.sources.every((item: Record<string, any>) => item.dataCount === 0 && item.lastDataAt === null && item.lastUsageAt === null));
   });
+});
+
+// The HTTP boundary owns authentication, bounded multipart parsing, route reachability and free rechecks.
+// Upload accounting and local quote verification belong to pageindex-upload.test.ts.
+test('PDF HTTP intake and free recheck are reachable, owner-only, and GET states never contact the connector', async () => {
+  const fixture = await createFixture();
+  const opened = openDatabase({ databasePath: fixture.databasePath });
+  let runId: string;
+  try {
+    const artifacts = new ContentAddressedArtifactStore(fixture.artifactRoot);
+    const discovery = new DiscoveryWorkspaceService({ db: opened.db, artifactStore: artifacts });
+    const service = new ResearchAutomationService({ db: opened.db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery) });
+    const receipt = await service.start(workspaceId, { contractVersion: 'research-automation-start-v1',
+      requestKey: '44444444-4444-4444-8444-444444444444', mode: 'CATEGORY', keyword: 'synthetic PDF only',
+      requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET'] });
+    await service.processNext(); runId = receipt.run.runId;
+    assert.equal((await service.getRun(workspaceId, runId)).status, 'AWAITING_SCOPE');
+  } finally { opened.db.close(); }
+  let uploads = 0; let lists = 0; let metadataReads = 0;
+  const pageIndex: Parameters<typeof openResearchAutomationApi>[0]['pageIndex'] = {
+    enabled: true, apiKey: 'synthetic-pdf-secret-only', startingCreditMicroDollars: 10_000_000,
+    extractPdf: async () => [{ page: 1, text: 'Synthetic page for transport only' }],
+    fetch: async (url) => {
+      const pathname = new URL(String(url)).pathname;
+      if (pathname === '/doc/upload') { uploads++; return Response.json({ id: 'synthetic-cloud-doc', name: 'fixture.pdf', pageNum: 1, status: 'processing' }); }
+      if (pathname === '/doc/list') { lists++; return Response.json({ documents: [{ id: 'synthetic-cloud-doc', name: 'fixture.pdf', pageNum: 1, status: 'completed' }] }); }
+      if (pathname.endsWith('/metadata')) { metadataReads++; return Response.json({ id: 'synthetic-cloud-doc', name: 'fixture.pdf', pageNum: 1, status: 'completed' }); }
+      throw new Error('Unexpected paid question or other connector call');
+    },
+  };
+  await withApi(fixture, true, { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false }, async base => {
+    const statesUrl = `${base}/api/workspaces/${workspaceId}/research-automation/runs/${runId}/pageindex`;
+    const uploadUrl = `${base}/owner-api/workspaces/${workspaceId}/research-automation/runs/${runId}/source-pdfs`;
+    const recheckUrl = `${base}/owner-api/workspaces/${workspaceId}/research-automation/source-status/pageindex/recheck`;
+    const headers = { Origin: base, Authorization: `Bearer ${ownerToken}` };
+    assert.equal((await fetch(statesUrl)).status, 200);
+    assert.equal(uploads + lists + metadataReads, 0);
+    assert.equal((await fetch(recheckUrl, { method: 'POST', headers: { Origin: base, 'Content-Type': 'application/json' }, body: '{}' })).status, 401);
+    assert.equal((await fetch(uploadUrl, { method: 'POST', headers: { Origin: base } })).status, 401);
+    assert.equal((await fetch(recheckUrl, { method: 'POST', headers: { ...headers, Origin: 'https://foreign.invalid', 'Content-Type': 'application/json' }, body: '{}' })).status, 403);
+    assert.equal(uploads + lists + metadataReads, 0, 'Rejected authorization never calls a provider');
+    const form = (fileName = 'fixture.pdf', bytes = '%PDF-1.7\nsynthetic only') => {
+      const value = new FormData(); value.append('metadata', JSON.stringify({ contractVersion: 'research-automation-pdf-attach-v1', fileName }));
+      value.append('pdf', new Blob([bytes], { type: 'application/pdf' }), 'fixture.pdf'); return value;
+    };
+    assert.equal((await fetch(uploadUrl, { method: 'POST', headers, body: form('../outside.pdf') })).status, 400);
+    assert.equal((await fetch(uploadUrl, { method: 'POST', headers, body: form('fixture.pdf', 'not a PDF') })).status, 400);
+    const oversize = form(); oversize.set('pdf', new Blob([new Uint8Array(32 * 1024 * 1024 + 1)], { type: 'application/pdf' }), 'oversize.pdf');
+    assert.equal((await fetch(uploadUrl, { method: 'POST', headers, body: oversize })).status, 413);
+    assert.equal(uploads, 0);
+    const attachment = await fetch(uploadUrl, { method: 'POST', headers, body: form('fixture.PDF') });
+    assert.equal(attachment.status, 200, await attachment.clone().text());
+    const body = await attachment.json() as { runId: string; workspaceId: string; documents: { state: string; fileName: string }[] };
+    assert.equal(body.workspaceId, workspaceId); assert.equal(body.runId, runId);
+    assert.deepEqual(body.documents.map(document => [document.fileName, document.state]), [['fixture.PDF', 'READY']]);
+    assert.equal(uploads, 1);
+    const beforeRead = [uploads, lists, metadataReads];
+    const read = await fetch(statesUrl); assert.equal(read.status, 200); assert.deepEqual(await read.json(), body);
+    assert.deepEqual([uploads, lists, metadataReads], beforeRead);
+    const recheck = await fetch(recheckUrl, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(recheck.status, 200); const board = await recheck.json() as Record<string, any>;
+    assert.equal(validateStatus(board), true, JSON.stringify(validateStatus.errors));
+    assert.equal(bySource(board).PAGEINDEX.pageindex.documentsSent, 1);
+    assert.equal(bySource(board).PAGEINDEX.pageindex.balanceMicroDollars, 9_990_000);
+    assert.equal(JSON.stringify(board).includes('synthetic-pdf-secret-only'), false);
+    assert.equal(lists, 1); assert.equal(uploads, 1); assert.equal(metadataReads, beforeRead[2]);
+  }, pageIndex);
 });

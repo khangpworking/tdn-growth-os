@@ -3,7 +3,8 @@
 /**
  * Read-only board of research data sources. Built from executor configuration and stored history only; reading it never calls a provider and never reveals a credential value.
  */
-export type ResearchAutomationSourceStatusApiContract = ResearchAutomationSourceStatus;
+export type ResearchAutomationSourceStatusApiContract =
+  ResearchAutomationSourceStatus | ResearchAutomationRunPdfStates | ResearchAutomationAttachPdfRequest;
 export type Uuid = string;
 export type Timestamp = string;
 export type ResearchAutomationSourceId = 'KALODATA' | 'SERPAPI' | 'APIFY_SHOPEE' | 'METRIC' | 'PAGEINDEX';
@@ -13,6 +14,9 @@ export type ResearchAutomationSourceId = 'KALODATA' | 'SERPAPI' | 'APIFY_SHOPEE'
 export type ResearchAutomationSourceState =
   'READY' | 'CONFIGURED_NOT_WIRED' | 'NOT_CONFIGURED' | 'MANUAL_IMPORT' | 'EXECUTOR_DISABLED';
 export type ResearchAutomationCredentialState = 'CONFIGURED' | 'MISSING' | 'NOT_REQUIRED';
+export type Count = number;
+export type ResearchAutomationPdfState =
+  'INDEXING' | 'READY' | 'FAILED' | 'SKIPPED_LOW_BALANCE' | 'SKIPPED_USAGE_LIMIT' | 'DISABLED';
 
 export interface ResearchAutomationSourceStatus {
   contractVersion: 'research-automation-source-status-v1';
@@ -52,9 +56,9 @@ export interface ResearchAutomationSourceStatusEntry {
    */
   lastDataAt: Timestamp | null;
   /**
-   * Stored captures or finalized uploads in this workspace.
+   * Stored captures or uploads; null if the PDF ledger is unavailable.
    */
-  dataCount: number;
+  dataCount: Count | null;
   /**
    * Latest recorded provider usage in this workspace; null for manual imports.
    */
@@ -72,7 +76,7 @@ export interface ResearchAutomationPageIndexDetail {
   /**
    * PDFs ever uploaded for indexing.
    */
-  documentsSent: number;
+  documentsSent: Count | null;
   /**
    * Estimated remaining credit, or null when unknown.
    */
@@ -88,9 +92,28 @@ export interface ResearchAutomationPageIndexDetail {
   /**
    * Stored pages that accrue monthly cost.
    */
-  activePages: number;
+  activePages: Count | null;
   /**
    * Full-month active-page cost at the current page count.
    */
   estimatedMonthlyCostMicroDollars: number | null;
+  usageLimited: boolean;
+}
+export interface ResearchAutomationRunPdfStates {
+  contractVersion: 'research-automation-run-pdfs-v1';
+  workspaceId: Uuid;
+  runId: Uuid;
+  paused: boolean;
+  usageLimited: boolean;
+  documents: ResearchAutomationPdfDocument[];
+}
+export interface ResearchAutomationPdfDocument {
+  fileName: string;
+  sourceSha256: string;
+  state: ResearchAutomationPdfState;
+  cloudDocId: string | null;
+}
+export interface ResearchAutomationAttachPdfRequest {
+  contractVersion: 'research-automation-pdf-attach-v1';
+  fileName: string;
 }

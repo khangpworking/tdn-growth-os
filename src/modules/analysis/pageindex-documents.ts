@@ -1,4 +1,6 @@
 import type Database from 'better-sqlite3';
+import { createHash } from 'node:crypto';
+import { extractPageIndexPdf } from './pageindex-questions.js';
 
 /**
  * SQLite-backed ledger for automatic PDF indexing uploads, plus the shared
@@ -34,6 +36,8 @@ export interface PageIndexDocumentRow {
   readonly status: PageIndexDocumentStatus;
   readonly failureCode: string | null;
   readonly updatedAt: string;
+  readonly uploadAttempted: boolean;
+  readonly uploadAttemptedAt: string | null;
 }
 
 const SHA256 = /^[0-9a-f]{64}$/;
@@ -58,6 +62,8 @@ function rowOf(value: {
   status: string;
   failure_code: string | null;
   updated_at: string;
+  upload_attempted: number | bigint;
+  upload_attempted_at: string | null;
 }): PageIndexDocumentRow {
   if (!STATUSES.has(value.status)) throw new PageIndexDocumentError('STORE_UNAVAILABLE');
   return {
@@ -69,6 +75,8 @@ function rowOf(value: {
     status: value.status as PageIndexDocumentStatus,
     failureCode: value.failure_code,
     updatedAt: value.updated_at,
+    uploadAttempted: Number(value.upload_attempted) === 1,
+    uploadAttemptedAt: value.upload_attempted_at,
   };
 }
 
@@ -77,7 +85,7 @@ export function readPageIndexDocument(db: Database.Database, sourceSha256: strin
   assertSha256(sourceSha256);
   try {
     const found = db
-      .prepare(`SELECT source_sha256, cloud_doc_id, cloud_file_name, page_count, uploaded_at, status, failure_code, updated_at
+      .prepare(`SELECT source_sha256, cloud_doc_id, cloud_file_name, page_count, uploaded_at, status, failure_code, updated_at, upload_attempted, upload_attempted_at
         FROM analysis_pageindex_documents WHERE source_sha256 = ?`)
       .get(sourceSha256) as Parameters<typeof rowOf>[0] | undefined;
     return found ? rowOf(found) : null;
@@ -91,7 +99,7 @@ export function readPageIndexDocument(db: Database.Database, sourceSha256: strin
 export function listPageIndexDocuments(db: Database.Database): readonly PageIndexDocumentRow[] {
   try {
     const rows = db
-      .prepare(`SELECT source_sha256, cloud_doc_id, cloud_file_name, page_count, uploaded_at, status, failure_code, updated_at
+      .prepare(`SELECT source_sha256, cloud_doc_id, cloud_file_name, page_count, uploaded_at, status, failure_code, updated_at, upload_attempted, upload_attempted_at
         FROM analysis_pageindex_documents ORDER BY updated_at DESC, source_sha256 ASC`)
       .all() as Array<Parameters<typeof rowOf>[0]>;
     return rows.map(rowOf);
@@ -158,11 +166,11 @@ export interface EnsureIndexedDeps {
   /** Kill switch. Defaults to `TDN_PAGEINDEX_CLOUD_ENABLED === 'true'`. */
   readonly enabled?: boolean;
   /** Fail-closed balance gate. True (or resolving true) makes zero upload calls. */
-  readonly lowBalance?: boolean | (() => boolean | Promise<boolean>);
+  readonly lowBalance?: boolean | ((pageCount: number) => boolean | Promise<boolean>);
   /** Usage-limit gate. Defaults to the ledger flag row. True makes zero upload calls. */
   readonly usageLimited?: boolean | (() => boolean | Promise<boolean>);
-  /** Local page counter. Defaults to a bounded header heuristic; question time uses the exact local verifier. */
-  readonly countPages?: ((bytes: Uint8Array) => number) | undefined;
+  /** Local page counter. Defaults to the bounded exact-byte pypdf extractor. */
+  readonly countPages?: ((bytes: Uint8Array) => number | Promise<number>) | undefined;
   /** Vendor transport. A single call at most; absent transport leaves the row INDEXING. */
   readonly upload?: ((input: { fileName: string; bytes: Uint8Array }) => Promise<{ cloudDocId: string; pageCount: number | null }>) | undefined;
   /** Indexing-state poll. Absent poll leaves the row INDEXING for a later run. */
@@ -201,15 +209,6 @@ function upsert(
     input.uploadedAt, input.status, input.failureCode, input.updatedAt);
 }
 
-/** Bounded header heuristic: counts `/Type /Page` (not `/Pages`) markers, capped at 1001. */
-function heuristicPageCount(bytes: Uint8Array): number {
-  const text = new TextDecoder('utf-8', { fatal: false }).decode(bytes.subarray(0, Math.min(bytes.length, 4 * 1024 * 1024)));
-  let count = 0;
-  const marker = /\/Type\s*\/Page([^s]|$)/g;
-  while (marker.exec(text) !== null && count <= 1001) count += 1;
-  return count;
-}
-
 async function resolveFlag(value: boolean | (() => boolean | Promise<boolean>) | undefined, fallback: () => boolean | Promise<boolean>): Promise<boolean> {
   try {
     if (value === undefined) return fallback();
@@ -229,6 +228,7 @@ async function resolveFlag(value: boolean | (() => boolean | Promise<boolean>) |
  */
 export async function ensureIndexed(pdf: PageIndexPdfFile, deps: EnsureIndexedDeps): Promise<EnsureIndexedResult> {
   const at = (): string => (deps.now ?? (() => new Date()))().toISOString();
+  let uploadCalls = 0;
   try {
     if (!SHA256.test(pdf.sha256) || typeof pdf.fileName !== 'string' || !pdf.fileName.trim() ||
       pdf.fileName.length > MAX_UPSERT_FILENAME || !(pdf.bytes instanceof Uint8Array)) {
@@ -237,11 +237,15 @@ export async function ensureIndexed(pdf: PageIndexPdfFile, deps: EnsureIndexedDe
     const enabled = deps.enabled ?? process.env.TDN_PAGEINDEX_CLOUD_ENABLED === 'true';
     if (!enabled) return { outcome: 'SKIPPED_DISABLED', cloudDocId: null, failureCode: null, uploadCalls: 0 };
     const existing = readPageIndexDocument(deps.db, pdf.sha256);
+    if (createHash('sha256').update(pdf.bytes).digest('hex') !== pdf.sha256 || pdf.bytes.length > 32 * 1024 * 1024)
+      return { outcome: 'FAILED', cloudDocId: null, failureCode: 'PAGEINDEX_INPUT_INVALID', uploadCalls: 0 };
     // A finished or failed row is terminal: the same sha is never uploaded twice.
     if (existing?.status === 'READY') return { outcome: 'READY', cloudDocId: existing.cloudDocId, failureCode: null, uploadCalls: 0 };
     if (existing?.status === 'FAILED') {
       return { outcome: 'FAILED', cloudDocId: existing.cloudDocId, failureCode: existing.failureCode, uploadCalls: 0 };
     }
+    if (existing?.uploadAttempted && !existing.cloudDocId)
+      return { outcome: existing.status, cloudDocId: null, failureCode: existing.failureCode, uploadCalls: 0 };
     const magic = new TextDecoder('utf-8', { fatal: false }).decode(pdf.bytes.subarray(0, 5));
     if (!magic.startsWith('%PDF-')) {
       upsert(deps.db, { sourceSha256: pdf.sha256, cloudDocId: null, cloudFileName: pdf.fileName, pageCount: 1,
@@ -251,7 +255,7 @@ export async function ensureIndexed(pdf: PageIndexPdfFile, deps: EnsureIndexedDe
     }
     let pages = 0;
     try {
-      pages = (deps.countPages ?? heuristicPageCount)(pdf.bytes);
+      pages = deps.countPages ? await deps.countPages(pdf.bytes) : (await extractPageIndexPdf(pdf.bytes)).length;
     } catch {
       pages = 0;
     }
@@ -261,7 +265,8 @@ export async function ensureIndexed(pdf: PageIndexPdfFile, deps: EnsureIndexedDe
       emit(deps, { kind: 'dropped', sourceSha256: pdf.sha256, detail: 'page count outside 1-1000' });
       return { outcome: 'FAILED', cloudDocId: null, failureCode: 'PAGEINDEX_PAGE_COUNT_OUT_OF_RANGE', uploadCalls: 0 };
     }
-    if (await resolveFlag(deps.lowBalance, () => false)) {
+    const balanceGate = deps.lowBalance;
+    if (await resolveFlag(typeof balanceGate === 'function' ? () => balanceGate(existing?.uploadAttempted ? 0 : pages) : balanceGate, () => false)) {
       upsert(deps.db, { sourceSha256: pdf.sha256, cloudDocId: existing?.cloudDocId ?? null, cloudFileName: pdf.fileName,
         pageCount: pages, uploadedAt: existing?.uploadedAt ?? null, status: 'SKIPPED_LOW_BALANCE', failureCode: null, updatedAt: at() });
       return { outcome: 'SKIPPED_LOW_BALANCE', cloudDocId: existing?.cloudDocId ?? null, failureCode: null, uploadCalls: 0 };
@@ -274,20 +279,35 @@ export async function ensureIndexed(pdf: PageIndexPdfFile, deps: EnsureIndexedDe
     // A row already uploaded by an earlier run only needs its bounded wait.
     const uploaded = existing && existing.cloudDocId && existing.uploadedAt ? existing : null;
     let cloudDocId = uploaded?.cloudDocId ?? null;
-    let uploadCalls = 0;
     if (!uploaded) {
       if (!deps.upload) {
         upsert(deps.db, { sourceSha256: pdf.sha256, cloudDocId: null, cloudFileName: pdf.fileName,
           pageCount: pages, uploadedAt: null, status: 'INDEXING', failureCode: null, updatedAt: at() });
         return { outcome: 'INDEXING', cloudDocId: null, failureCode: null, uploadCalls: 0 };
       }
+      // This synchronous SQLite reservation is committed before any network call.
+      // Even a crash or an unreadable acknowledgement must never cause a retry.
+      const reserved = deps.db.prepare(`INSERT INTO analysis_pageindex_documents
+        (source_sha256, cloud_doc_id, cloud_file_name, page_count, uploaded_at, status, failure_code, updated_at, upload_attempted, upload_attempted_at)
+        VALUES (?, NULL, ?, ?, NULL, 'INDEXING', NULL, ?, 1, ?)
+        ON CONFLICT(source_sha256) DO UPDATE SET status='INDEXING', failure_code=NULL, upload_attempted=1, updated_at=excluded.updated_at,upload_attempted_at=excluded.upload_attempted_at
+        WHERE analysis_pageindex_documents.upload_attempted=0
+        RETURNING source_sha256`).get(pdf.sha256, pdf.fileName, pages, at(), at());
+      if (!reserved) {
+        const winner = readPageIndexDocument(deps.db, pdf.sha256);
+        return { outcome: winner?.status ?? 'INDEXING', cloudDocId: winner?.cloudDocId ?? null,
+          failureCode: winner?.failureCode ?? null, uploadCalls: 0 };
+      }
+      let acknowledged = false;
       try {
-        const uploadedDoc = await deps.upload({ fileName: pdf.fileName, bytes: pdf.bytes });
         uploadCalls = 1;
+        const uploadedDoc = await deps.upload({ fileName: pdf.fileName, bytes: pdf.bytes });
+        acknowledged = true;
         cloudDocId = uploadedDoc.cloudDocId;
         upsert(deps.db, { sourceSha256: pdf.sha256, cloudDocId, cloudFileName: pdf.fileName,
           pageCount: uploadedDoc.pageCount ?? pages, uploadedAt: at(), status: 'INDEXING', failureCode: null, updatedAt: at() });
       } catch (error) {
+        if (acknowledged) throw error;
         const code = error instanceof Error && /^PAGEINDEX_[A-Z0-9_]+$/u.test(error.message) ? error.message : 'PAGEINDEX_TRANSPORT_FAILED';
         if (code === 'PAGEINDEX_USAGE_LIMIT_REACHED') {
           try { setPageIndexUsageLimited(deps.db, true, deps.now); } catch { /* flag write is best effort */ }
@@ -327,7 +347,7 @@ export async function ensureIndexed(pdf: PageIndexPdfFile, deps: EnsureIndexedDe
     }
     return { outcome: 'INDEXING', cloudDocId, failureCode: null, uploadCalls };
   } catch {
-    return { outcome: 'FAILED', cloudDocId: null, failureCode: 'PAGEINDEX_STORE_UNAVAILABLE', uploadCalls: 0 };
+    return { outcome: 'FAILED', cloudDocId: null, failureCode: 'PAGEINDEX_STORE_UNAVAILABLE', uploadCalls };
   }
 }
 

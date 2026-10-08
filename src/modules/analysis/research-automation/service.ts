@@ -60,14 +60,16 @@ import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.j
 import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { AutomationMetricMethodBridge, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
-import { estimatePageIndexBalance } from '../pageindex-balance.js';
+import { estimatePageIndexBalance, estimatePageIndexLedgerBalance } from '../pageindex-balance.js';
+import { extractPageIndexPdf, planPageIndexQuestions, verifyPageIndexQuotes, buildVerifiedQuotesArtifact,
+  PAGEINDEX_ELIGIBLE_SECTIONS, type PageIndexLocalPage, type PageIndexQuotesArtifact, type PageIndexVerifiedQuote } from '../pageindex-questions.js';
+import type { PageIndexStatusSummary } from './source-status.js';
 import {
   indexRunPdfsForPageIndex,
   isPageIndexUsageLimited,
+  setPageIndexUsageLimited,
   listPageIndexDocuments,
   readPageIndexDocument,
-  refreshPageIndexStatus,
-  selectRunPdfFiles,
   type EnsureIndexedDeps,
 } from '../pageindex-documents.js';
 import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } from './located-review-bridge.js';
@@ -178,8 +180,10 @@ export interface PageIndexRunPdfDocument {
 /** Run-page PDF states with the paused flag for the warning banner. */
 export interface PageIndexRunPdfStates {
   readonly paused: boolean;
+  readonly usageLimited: boolean;
   readonly documents: readonly PageIndexRunPdfDocument[];
 }
+interface RunPdfRow { sha256: string; fileName: string; packageId: string; manifestSha256: string; logicalPath: string }
 
 /** Best-effort ledger read that never throws; unreadable rows degrade to INDEXING. */
 function safeReadPageIndex(db: Database.Database, sourceSha256: string): {
@@ -229,6 +233,15 @@ export interface ResearchAutomationServiceOptions {
   readonly readerReportFlint?: boolean;
   /** Test seam for reader rows; defaults to the prepared product-list workbook reader. */
   readonly readerRows?: ReaderRowsReader;
+  /** Optional connector configuration; absent keeps environment-backed, disabled-by-default behavior. */
+  readonly pageIndex?: {
+    readonly enabled?: boolean;
+    readonly apiKey?: string;
+    readonly fetch?: typeof fetch;
+    readonly startingCreditMicroDollars?: number;
+    readonly maxQuestionsPerRun?: number;
+    readonly extractPdf?: (bytes: Uint8Array) => Promise<readonly PageIndexLocalPage[]>;
+  };
 }
 
 export interface ResearchAutomationReadReport {
@@ -315,6 +328,7 @@ export class ResearchAutomationService {
   readonly #decisionExecutions: Record<AutomationDecisionSectionId, AutomationDecisionSynthesisExecutions>;
   readonly #decisionAi: NonNullable<ResearchAutomationServiceOptions['decisionSynthesisAi']>;
   readonly #active = new Map<string, AbortController>();
+  readonly #pageIndex: ResearchAutomationServiceOptions['pageIndex'];
 
   constructor(options: ResearchAutomationServiceOptions) {
     this.#db = options.db;
@@ -323,6 +337,7 @@ export class ResearchAutomationService {
     this.#source = options.source;
     this.#webSource = options.webSource;
     this.#renderer = options.renderer;
+    this.#pageIndex = options.pageIndex;
     this.#now = options.now ?? (() => new Date());
     this.#uuid = options.uuid ?? randomUUID;
     this.#actorId = options.actorId ?? 'research-automation-worker';
@@ -457,7 +472,7 @@ export class ResearchAutomationService {
       const scope = await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
       const receipt = await this.#supplementalIntake!.prepare(input, retainedFiles, { runId, start, scope });
       // Shared automatic-indexing hook: every stored PDF funnels through one best-effort call that never breaks intake.
-      await this.#indexStoredPdfsForPageIndex(retainedFiles);
+      await this.#indexStoredPdfsForPageIndex(runId, retainedFiles);
       return receipt;
     });
   }
@@ -466,18 +481,11 @@ export class ResearchAutomationService {
   async pageIndexStatesForRun(workspaceId: string, runId: string): Promise<PageIndexRunPdfStates> {
     assertUuid(workspaceId); assertUuid(runId);
     await this.#requireRun(workspaceId, runId);
-    const enabled = process.env.TDN_PAGEINDEX_CLOUD_ENABLED === 'true';
-    const listed = await this.listPreparedSupplementalSources(workspaceId, runId);
-    const pdfs = selectRunPdfFiles(listed.packages.flatMap(entry => entry.files));
-    const transport = this.#pageIndexTransport();
+    const enabled = this.#pageIndexEnabled() && Boolean(this.#pageIndexTransport());
+    const pdfs = this.#runPdfs(runId);
     const documents: PageIndexRunPdfDocument[] = [];
     for (const pdf of pdfs) {
-      let ledger = safeReadPageIndex(this.#db, pdf.sha256);
-      if (enabled && transport && ledger?.status === 'INDEXING' && ledger.cloudDocId) {
-        ledger = (await refreshPageIndexStatus(this.#db, pdf.sha256, {
-          fetchStatus: async id => (await transport.documentStatus(id)).status, now: this.#now,
-        })) ?? ledger;
-      }
+      const ledger = safeReadPageIndex(this.#db, pdf.sha256);
       documents.push({
         fileName: pdf.fileName,
         sourceSha256: pdf.sha256,
@@ -485,7 +493,97 @@ export class ResearchAutomationService {
         cloudDocId: ledger?.cloudDocId ?? null,
       });
     }
-    return { paused: !enabled || this.#pageIndexPaused(), documents };
+    return { paused: !enabled || this.#pageIndexPaused(), usageLimited: isPageIndexUsageLimited(this.#db), documents };
+  }
+
+  #pageIndexEnabled(): boolean { return this.#pageIndex?.enabled ?? process.env.TDN_PAGEINDEX_CLOUD_ENABLED === 'true'; }
+
+  #runPdfs(runId: string): RunPdfRow[] {
+    return this.#db.prepare(`SELECT source_sha256 sha256, file_name fileName, package_id packageId,
+      manifest_sha256 manifestSha256, logical_path logicalPath FROM analysis_pageindex_run_pdfs WHERE run_id=? ORDER BY source_sha256`).all(runId) as RunPdfRow[];
+  }
+
+  /** Explicit PDF attachment: immutable source bytes and a run binding precede indexing. */
+  async attachRunPdf(workspaceId: string, runId: string, fileName: string, bytes: Uint8Array): Promise<PageIndexRunPdfStates> {
+    assertUuid(workspaceId); assertUuid(runId); await this.#requireRun(workspaceId, runId);
+    if (typeof fileName !== 'string' || !fileName.trim() || fileName.length > 250 || /[\\/\r\n\u0000;<>]/u.test(fileName) ||
+      !fileName.toLowerCase().endsWith('.pdf') || bytes.length > 32 * 1024 * 1024 || Buffer.from(bytes.subarray(0, 5)).toString('utf8') !== '%PDF-')
+      throw new ResearchAutomationValidationError('Tài liệu PDF không hợp lệ hoặc vượt giới hạn dung lượng.');
+    await withDatabaseMutationMutex(this.#db, async () => {
+      const run = await this.#requireRun(workspaceId, runId);
+      const sha = createHash('sha256').update(bytes).digest('hex');
+      const prior = this.#runPdfs(runId).find(pdf => pdf.sha256 === sha);
+      if (!prior && !['AWAITING_SCOPE', 'DRAFT_READY'].includes(run.status))
+        throw new ResearchAutomationConflictError('revision_conflict', 'Đính kèm PDF khi đang chọn phạm vi hoặc đã có bản nháp.');
+      await this.#retainRunPdf(runId, fileName, Buffer.from(bytes));
+    });
+    return this.pageIndexStatesForRun(workspaceId, runId);
+  }
+
+  async #retainRunPdf(runId: string, fileName: string, bytes: Uint8Array): Promise<void> {
+    const sha256 = createHash('sha256').update(bytes).digest('hex');
+    const source = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+    const logicalPath = 'source.pdf';
+    const receipt = await source.intake({ contractVersion: '1.0.0', packageKey: `run-pdf:${sha256}`, version: 1,
+      sourceAcquiredAt: null, sourceLabel: 'Tài liệu PDF đính kèm', files: [{ path: logicalPath, sha256, byteSize: bytes.length,
+        mediaType: 'application/pdf', evidenceFamily: 'run-pdf', representationRole: 'primary', independence: 'independent',
+        providerProvenance: 'operator_supplied_unverified', provenanceBasis: 'Exact source bytes attached to this run; content remains unreviewed.' }] }, new Map([[logicalPath, bytes]]));
+    this.#db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path)
+      VALUES (?,?,?,?,?,?) ON CONFLICT(run_id,source_sha256) DO NOTHING`).run(runId, sha256, fileName, receipt.packageId, receipt.manifestArtifactSha256, logicalPath);
+    if (!this.#pageIndexEnabled()) return;
+    await indexRunPdfsForPageIndex([{ sha256, fileName, bytes }], this.#pageIndexDeps());
+  }
+
+  /** Safe source-status reads work on the read-only API handle and never call a provider. */
+  pageIndexStatusSummary(): PageIndexStatusSummary {
+    const enabled = this.#pageIndexEnabled();
+    const keyConfigured = Boolean((this.#pageIndex?.apiKey ?? process.env.PAGEINDEX_API_KEY)?.trim());
+    const base = { enabled, keyConfigured, billingUrl: 'https://dash.pageindex.ai', usageLimited: isPageIndexUsageLimited(this.#db) };
+    try {
+      const rows = listPageIndexDocuments(this.#db);
+      const attempted = rows.filter(row => row.uploadAttempted);
+      const ledgerPages = attempted.reduce((sum, row) => sum + row.pageCount, 0);
+      const check = this.#db.prepare('SELECT last_call_at at,succeeded,active_pages pages FROM analysis_pageindex_connector_checks WHERE singleton=1')
+        .get() as { at: string; succeeded: number | bigint; pages: number | bigint | null } | undefined;
+      const activePages = check && (Number(check.succeeded) !== 1 || check.pages === null) ? null : Math.max(ledgerPages, Number(check?.pages ?? 0));
+      const raw = this.#pageIndex?.startingCreditMicroDollars ?? process.env.TDN_PAGEINDEX_STARTING_CREDIT_MICRO_DOLLARS;
+      const starting = raw === undefined || String(raw).trim() === '' ? null : Number(raw);
+      const balance = starting === null || activePages === null ? null : activePages > ledgerPages
+        ? estimatePageIndexBalance({ startingCreditMicroDollars: starting, indexedPagesTotal: activePages, activePages })
+        : estimatePageIndexLedgerBalance({ startingCreditMicroDollars: starting, now: this.#now(), documents: rows });
+      const question = this.#db.prepare('SELECT max(attempted_at) at FROM analysis_pageindex_questions').get() as { at: string | null };
+      return { ...base, lastCallAt: [...attempted.map(row => row.uploadAttemptedAt), check?.at, question.at].filter((at): at is string => Boolean(at)).sort().at(-1) ?? null,
+        documentsSent: attempted.length, activePages, balanceMicroDollars: balance?.balanceMicroDollars ?? null,
+        balanceCheckedAt: balance ? this.#now().toISOString() : null,
+        estimatedMonthlyCostMicroDollars: balance?.estimatedMonthlyCostMicroDollars ?? null,
+        lowBalance: !balance || balance.lowBalance };
+    } catch {
+      return { ...base, lastCallAt: null, documentsSent: null, activePages: null, balanceMicroDollars: null,
+        balanceCheckedAt: null, estimatedMonthlyCostMicroDollars: null, lowBalance: true };
+    }
+  }
+
+  /** Only the free document list is called on an explicit owner recheck. */
+  async recheckPageIndex(): Promise<PageIndexStatusSummary> {
+    const transport = this.#pageIndexTransport();
+    if (!transport) return this.pageIndexStatusSummary();
+    const at = this.#now().toISOString();
+    // Record the call before dispatch; an uncertain/free-list failure shows unknown, never zero.
+    this.#db.prepare(`INSERT INTO analysis_pageindex_connector_checks(singleton,last_call_at,succeeded,active_pages) VALUES (1,?,0,NULL)
+      ON CONFLICT(singleton) DO UPDATE SET last_call_at=excluded.last_call_at,succeeded=0,active_pages=NULL`).run(at);
+    try {
+      const remote = await transport.listDocuments();
+      const activePages = remote.some(doc => doc.pageCount === null) ? null : remote.reduce((sum, doc) => sum + doc.pageCount!, 0);
+      this.#db.prepare('UPDATE analysis_pageindex_connector_checks SET succeeded=1,active_pages=? WHERE singleton=1').run(activePages);
+      for (const doc of remote) this.#db.prepare(`UPDATE analysis_pageindex_documents SET status=?, failure_code=?,updated_at=?
+        WHERE cloud_doc_id=? AND status='INDEXING'`).run(doc.status === 'completed' ? 'READY' : doc.status === 'failed' ? 'FAILED' : 'INDEXING',
+          doc.status === 'failed' ? 'PAGEINDEX_INDEX_FAILED' : null, at, doc.cloudDocId);
+    } catch (error) {
+      if (error instanceof Error && error.message === 'PAGEINDEX_USAGE_LIMIT_REACHED') {
+        try { setPageIndexUsageLimited(this.#db, true, this.#now); } catch { /* unreadable state still pauses spending */ }
+      }
+    }
+    return this.pageIndexStatusSummary();
   }
 
   /**
@@ -493,9 +591,8 @@ export class ResearchAutomationService {
    * PDFs fetched during research all funnel through `indexRunPdfsForPageIndex`
    * exactly once. Best effort and never throws, so intake never breaks.
    */
-  async #indexStoredPdfsForPageIndex(files: ReadonlyMap<string, Uint8Array>): Promise<void> {
+  async #indexStoredPdfsForPageIndex(runId: string, files: ReadonlyMap<string, Uint8Array>): Promise<void> {
     try {
-      if (process.env.TDN_PAGEINDEX_CLOUD_ENABLED !== 'true') return;
       const pdfs = [...files]
         .filter(([, bytes]) => bytes.length > 5 && Buffer.from(bytes.subarray(0, 5)).toString('utf8') === '%PDF-')
         .map(([path, bytes]) => ({
@@ -504,7 +601,7 @@ export class ResearchAutomationService {
           bytes: Buffer.from(bytes),
         }));
       if (pdfs.length === 0) return;
-      await indexRunPdfsForPageIndex(pdfs, this.#pageIndexDeps());
+      for (const pdf of pdfs) await this.#retainRunPdf(runId, pdf.fileName, pdf.bytes);
     } catch {
       // Automatic indexing never breaks intake.
     }
@@ -513,9 +610,9 @@ export class ResearchAutomationService {
   /** Transport for one upload/status check at most; undefined when no key is configured. */
   #pageIndexTransport(): PageIndexCloudClient | undefined {
     try {
-      const key = process.env.PAGEINDEX_API_KEY ?? '';
+      const key = this.#pageIndex?.apiKey ?? process.env.PAGEINDEX_API_KEY ?? '';
       if (!key.trim() || /[\r\n]/u.test(key)) return undefined;
-      return new PageIndexCloudClient({ enabled: true, apiKey: key });
+      return new PageIndexCloudClient({ enabled: true, apiKey: key, ...(this.#pageIndex?.fetch ? { fetch: this.#pageIndex.fetch } : {}) });
     } catch {
       return undefined;
     }
@@ -526,7 +623,10 @@ export class ResearchAutomationService {
     return {
       db: this.#db,
       now: this.#now,
-      lowBalance: () => this.#pageIndexLowBalance(),
+      enabled: this.#pageIndexEnabled(),
+      waitBetweenPollsMs: 1000,
+      countPages: async bytes => (await (this.#pageIndex?.extractPdf ?? extractPageIndexPdf)(bytes)).length,
+      lowBalance: pages => this.#pageIndexLowBalance(pages),
       upload: transport
         ? async input => {
           const doc = await transport.uploadDocument(input);
@@ -537,15 +637,14 @@ export class ResearchAutomationService {
     };
   }
 
-  /** Fail-closed balance gate. Unknown credit allows uploads; the kill switch and usage flag still guard. */
-  #pageIndexLowBalance(): boolean {
+  /** Unknown balance fails closed, and uploaded/uncertain pages incur storage cost. */
+  #pageIndexLowBalance(pages = 0): boolean {
     try {
-      const raw = process.env.TDN_PAGEINDEX_STARTING_CREDIT_MICRO_DOLLARS;
-      if (raw === undefined || !raw.trim()) return false;
-      const starting = Number(raw);
-      if (!Number.isSafeInteger(starting) || starting < 0) return true;
-      const indexed = listPageIndexDocuments(this.#db).reduce((sum, doc) => sum + (doc.uploadedAt ? doc.pageCount : 0), 0);
-      return estimatePageIndexBalance({ startingCreditMicroDollars: starting, indexedPagesTotal: indexed, activePages: 0 }).lowBalance;
+      const summary = this.pageIndexStatusSummary();
+      if (summary.lowBalance || summary.balanceMicroDollars === null) return true;
+      const raw = this.#pageIndex?.startingCreditMicroDollars ?? process.env.TDN_PAGEINDEX_STARTING_CREDIT_MICRO_DOLLARS;
+      const warning = Math.max(Math.ceil(Number(raw) * 0.2), 2_000_000);
+      return summary.balanceMicroDollars - pages * 10_000 <= warning;
     } catch {
       return true;
     }
@@ -557,6 +656,82 @@ export class ResearchAutomationService {
     } catch {
       return true;
     }
+  }
+
+  /** Read the stored, verified artifact; never asks a question while reading. */
+  async readPageIndexQuotes(workspaceId: string, runId: string): Promise<PageIndexQuotesArtifact | null> {
+    await this.#requireRun(workspaceId, runId);
+    const row = this.#db.prepare('SELECT artifact_sha256 sha FROM analysis_pageindex_run_quotes WHERE run_id=?').get(runId) as { sha: string } | undefined;
+    return row ? this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : null;
+  }
+
+  /** The run worker alone performs bounded indexing waits and durable no-retry questions. */
+  async #processRunPdfs(runId: string, reports: readonly string[]): Promise<void> {
+    if (!this.#pageIndexEnabled()) return;
+    const transport = this.#pageIndexTransport();
+    if (!transport) return;
+    const files = this.#runPdfs(runId);
+    const sections = PAGEINDEX_ELIGIBLE_SECTIONS.filter(id => reports.includes(id.startsWith('M') ? 'MARKET' : 'INSIGHT'));
+    const rawCap = this.#pageIndex?.maxQuestionsPerRun ?? Number(process.env.TDN_PAGEINDEX_MAX_QUESTIONS_PER_RUN ?? 10);
+    const cap = Number.isSafeInteger(rawCap) && rawCap >= 0 ? Math.min(rawCap, 100) : 0;
+    const plan = planPageIndexQuestions({ sections, pdfCount: files.length, maxPerRun: cap });
+    const reader = new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts });
+    const local = new Map<number, { bytes: Buffer; pages: readonly PageIndexLocalPage[] }>();
+    for (const [index, file] of files.entries()) {
+      try {
+        const packageValue = await reader.readVerified(file.packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 32 * 1024 * 1024 });
+        const member = packageValue.files.find(entry => entry.path === file.logicalPath);
+        if (packageValue.manifestArtifactSha256 !== file.manifestSha256 || !member || member.sha256 !== file.sha256 || member.mediaType !== 'application/pdf') continue;
+        await indexRunPdfsForPageIndex([{ sha256: file.sha256, fileName: file.fileName, bytes: member.bytes }], this.#pageIndexDeps());
+        const ledger = readPageIndexDocument(this.#db, file.sha256);
+        if (ledger?.status !== 'READY' || !ledger.cloudDocId) continue;
+        const pages = await (this.#pageIndex?.extractPdf ?? extractPageIndexPdf)(member.bytes);
+        local.set(index, { bytes: member.bytes, pages });
+      } catch { /* Local verification failure never authorizes a query. */ }
+    }
+    for (const question of plan) {
+      const file = files[question.pdfIndex]!; const extracted = local.get(question.pdfIndex);
+      const ledger = readPageIndexDocument(this.#db, file.sha256);
+      if (!extracted || ledger?.status !== 'READY' || !ledger.cloudDocId || this.#pageIndexPaused()) continue;
+      const reserved = this.#db.prepare(`INSERT INTO analysis_pageindex_questions(run_id,source_sha256,section_id,attempted_at)
+        SELECT ?,?,?,? WHERE (SELECT count(*) FROM analysis_pageindex_questions WHERE run_id=?) < ?
+        ON CONFLICT(run_id,source_sha256,section_id) DO NOTHING RETURNING section_id`)
+        .get(runId, file.sha256, question.sectionId, this.#now().toISOString(), runId, cap);
+      if (!reserved) continue;
+      try {
+        const result = await transport.query({ contractVersion: 'pageindex-cloud-query-v1', sourcePackageId: file.packageId,
+          manifestSha256: file.manifestSha256, logicalPath: file.logicalPath, sourceSha256: file.sha256,
+          cloudDocId: ledger.cloudDocId, cloudFileName: ledger.cloudFileName, pageCount: extracted.pages.length, question: question.question }, extracted.bytes, extracted.pages);
+        const drops: string[] = [];
+        const verified = verifyPageIndexQuotes({ candidates: result.candidates, localPages: extracted.pages,
+          pageCount: extracted.pages.length, sourceSha256: file.sha256, cloudDocId: ledger.cloudDocId,
+          sectionId: question.sectionId, onDrop: drop => drops.push(drop.reason) });
+        const artifact = await this.#putJson(buildVerifiedQuotesArtifact(runId, verified), this.#now().toISOString());
+        this.#db.transaction(() => {
+          this.#registerManifest(artifact, 'application/json', this.#now().toISOString());
+          this.#db.prepare(`UPDATE analysis_pageindex_questions SET result_sha256=?,failure_code=?
+            WHERE run_id=? AND source_sha256=? AND section_id=? AND result_sha256 IS NULL AND failure_code IS NULL`)
+            .run(artifact.sha256, drops.length ? `DROPPED_${drops[0]}` : null, runId, file.sha256, question.sectionId);
+        })();
+      } catch (error) {
+        const code = error instanceof Error && /^PAGEINDEX_[A-Z0-9_]+$/u.test(error.message) ? error.message : 'PAGEINDEX_QUERY_FAILED';
+        if (code === 'PAGEINDEX_USAGE_LIMIT_REACHED') {
+          try { setPageIndexUsageLimited(this.#db, true, this.#now); } catch { /* reservation remains durable */ }
+        }
+        try { this.#db.prepare(`UPDATE analysis_pageindex_questions SET failure_code=? WHERE run_id=? AND source_sha256=? AND section_id=?
+          AND result_sha256 IS NULL`).run(code, runId, file.sha256, question.sectionId); } catch { /* reserved question is never retried */ }
+      }
+    }
+    const rows = this.#db.prepare(`SELECT result_sha256 sha FROM analysis_pageindex_questions WHERE run_id=? AND result_sha256 IS NOT NULL
+      ORDER BY source_sha256,section_id`).all(runId) as Array<{ sha: string }>;
+    const quotes: PageIndexVerifiedQuote[] = [];
+    for (const row of rows) quotes.push(...(await this.#readJson<PageIndexQuotesArtifact>(row.sha, MAX_JSON_ARTIFACT_BYTES, 'application/json')).quotes);
+    const artifact = await this.#putJson(buildVerifiedQuotesArtifact(runId, quotes), this.#now().toISOString());
+    this.#db.transaction(() => {
+      this.#registerManifest(artifact, 'application/json', this.#now().toISOString());
+      this.#db.prepare(`INSERT INTO analysis_pageindex_run_quotes(run_id,artifact_sha256) VALUES (?,?)
+        ON CONFLICT(run_id) DO UPDATE SET artifact_sha256=excluded.artifact_sha256`).run(runId, artifact.sha256);
+    })();
   }
 
   async listPreparedMetricSources(workspaceId: string, runId: string): Promise<ResearchAutomationPreparedMetricList> {
@@ -1532,8 +1707,8 @@ export class ResearchAutomationService {
     // The REPORTS step waits a bounded moment for automatic PDF indexing to
     // settle. Best effort only: indexing never fails the run. Skipped entirely
     // while the kill switch is off, so existing runs are untouched.
-    if (process.env.TDN_PAGEINDEX_CLOUD_ENABLED === 'true' && !controller.signal.aborted) {
-      try { await this.pageIndexStatesForRun(fresh.workspaceId, fresh.runId); } catch { /* indexing never breaks reporting */ }
+    if (this.#pageIndexEnabled() && !controller.signal.aborted) {
+      try { await this.#processRunPdfs(fresh.runId, start.reports); } catch { /* indexing never breaks reporting */ }
     }
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
@@ -1873,6 +2048,11 @@ export class ResearchAutomationService {
     }
     const putCaptures = async (values: NonNullable<ReturnType<typeof captureEnvelopes>>): Promise<void> => {
       for (const { capture, body } of values) {
+        if (stepId === 'COLLECTION' && capture.responseBytes && !aborted &&
+          Buffer.from(capture.responseBytes.subarray(0, 5)).toString('utf8') === '%PDF-') {
+          try { await this.#retainRunPdf(runId, `source-${captures.length + 1}.pdf`, capture.responseBytes); }
+          catch { /* Source retention/indexing failure never invents a citation. */ }
+        }
         const artifact = await this.#artifacts.put(body);
         captures.push({ row: {
           stepId, ordinal: captures.length, artifactSha256: artifact.sha256, mediaType: 'application/vnd.tdn.research-automation.capture+json', provider: capture.provider.toLowerCase(),

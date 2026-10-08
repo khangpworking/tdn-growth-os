@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { estimatePageIndexBalance, PageIndexBalanceError } from '../../src/modules/analysis/pageindex-balance.js';
+import { estimatePageIndexBalance, estimatePageIndexLedgerBalance, PageIndexBalanceError } from '../../src/modules/analysis/pageindex-balance.js';
 
 test('balance subtracts indexed pages and prorated active pages above the free allowance', () => {
   const estimate = estimatePageIndexBalance({
@@ -25,6 +25,18 @@ test('first 1000 active pages are free', () => {
   assert.equal(estimate.activeCostMicroDollars, 0);
   assert.equal(estimate.estimatedMonthlyCostMicroDollars, 0);
   assert.equal(estimate.state, 'OK');
+});
+
+test('ledger storage accrues across calendar months and counts uncertain reservations', () => {
+  const estimate = estimatePageIndexLedgerBalance({ startingCreditMicroDollars: 20_000_000,
+    now: new Date('2026-03-16T12:00:00.000Z'), documents: [{ pageCount: 1500, uploadAttempted: true,
+      uploadAttemptedAt: '2026-01-16T12:00:00.000Z' }] });
+  // Half January + full February + half March, above the shared 1000-page allowance.
+  assert.equal(estimate.activeCostMicroDollars, 1_000_000);
+  assert.equal(estimate.indexedCostMicroDollars, 15_000_000);
+  assert.equal(estimate.balanceMicroDollars, 4_000_000);
+  assert.equal(estimate.estimatedMonthlyCostMicroDollars, 500_000);
+  assert.equal(estimate.state, 'WARNING');
 });
 
 test('WARNING at max(20%, $2) and BLOCKED at $0.50', () => {

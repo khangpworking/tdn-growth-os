@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '../ConfirmDialog';
-import { cancelRun, loadRun, reportUrl, ResearchAutomationError } from './api';
-import type { ResearchAutomationReportKind, ResearchAutomationRun } from './api';
+import { attachRunPdf, cancelRun, loadRun, loadRunPdfs, reportUrl, ResearchAutomationError } from './api';
+import type { ResearchAutomationReportKind, ResearchAutomationRun, ResearchAutomationRunPdfStates } from './api';
 import { coverageStateLabel, datasetLabel, formatDay, formatTime, limitationLabel, modeLabel, pdfUnavailableLabel, providerLabel, reportsLabel, runPhase, shouldPoll, statusLabel, stepStateLabel } from './run-status';
 import type { RunPhase } from './run-status';
 import ScopeConfirm from './ScopeConfirm';
 import StepNav from './StepNav';
 import ReaderReportPanel from './ReaderReportPanel';
+import PageIndexPdfNotice from './PageIndexPdfNotice';
 
 const POLL_MS = 4000;
 
@@ -85,7 +86,67 @@ export default function RunView({ workspaceId, runId, ownerToken, writesAvailabl
     {/* The automated draft stays server-side for AI and audit; the OWNER sees only the reader page. */}
     {run.status === 'DRAFT_READY' && <ReaderReportPanel key={run.runId} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} />}
     {phase === 'scope' ? <ScopeConfirm key={`${run.runId}:${run.revision}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} onConfirmed={() => { notify('Đã xác nhận phạm vi. Hệ thống bắt đầu thu thập.'); reload(); }} onConflict={conflict} /> : <RunProgress run={run} phase={phase} workspaceId={workspaceId} />}
+    <RunPdfPanel key={`${workspaceId}:${runId}`} workspaceId={workspaceId} runId={runId} ownerToken={ownerToken} writesAvailable={writesAvailable} attachmentAllowed={run.status === 'AWAITING_SCOPE' || run.status === 'DRAFT_READY'} />
   </section><aside className="ra-inspector" aria-labelledby="ra-run-facts"><h2 id="ra-run-facts">Phiên nghiên cứu</h2><p className={`status-pill ${phase === 'finished' && run.status !== 'FAILED' && run.status !== 'CANCELLED' && run.status !== 'INTERRUPTED' ? 'good' : ''}`}>{statusLabel(run.status)}</p><dl className="ra-kv"><div><dt>Từ khóa</dt><dd>{run.keyword}</dd></div><div><dt>Chế độ</dt><dd>{modeLabel(run.mode)}</dd></div><div><dt>Kỳ yêu cầu</dt><dd>{formatDay(run.requestedPeriod.startDate)} → {formatDay(run.requestedPeriod.endDate)} · {run.requestedPeriod.dayCount} ngày</dd></div><div><dt>Thị trường</dt><dd>Việt Nam</dd></div><div><dt>Báo cáo</dt><dd>{reportsLabel(run.reports)}</dd></div><div><dt>Bắt đầu</dt><dd>{formatTime(run.createdAt)}</dd></div><div><dt>Cập nhật</dt><dd>{formatTime(run.updatedAt)}</dd></div></dl><h3>Chi phí và lượt gọi</h3><UsageSummary run={run}/><p className="ra-muted">Ưu tiên đủ dữ liệu · Không đặt trần chi phí. Chưa có số liệu nghĩa là nguồn chưa báo, không phải bằng 0.</p>{phase !== 'finished' && <><button type="button" className="button danger" disabled={!canWrite || cancelPending} onClick={() => setCancelOpen(true)}>{cancelPending ? 'Đang hủy…' : 'Hủy phiên nghiên cứu'}</button>{!canWrite && <p className="ra-muted">Mở khóa OWNER để hủy phiên.</p>}</>}{cancelOpen && <ConfirmDialog titleId="ra-cancel-title" descriptionId="ra-cancel-description" title="Hủy phiên nghiên cứu này?" confirmLabel="Hủy phiên" pending={cancelPending} onCancel={() => setCancelOpen(false)} onConfirm={() => void cancel()}><p id="ra-cancel-description">Hệ thống dừng các bước còn lại. Dữ liệu và chi phí đã phát sinh vẫn được ghi lại. Muốn chạy lại cần tạo phiên mới.</p></ConfirmDialog>}</aside></div>;
+}
+
+function RunPdfPanel({ workspaceId, runId, ownerToken, writesAvailable, attachmentAllowed }: Pick<RunViewProps, 'workspaceId' | 'runId' | 'ownerToken' | 'writesAvailable'> & { readonly attachmentAllowed: boolean }) {
+  const [data, setData] = useState<ResearchAutomationRunPdfStates | null>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [error, setError] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const [tick, setTick] = useState(0);
+  const upload = useRef<AbortController | null>(null);
+  const fileInput = useRef<HTMLInputElement | null>(null);
+  const active = useRef(true);
+  const inFlight = useRef(false);
+  useEffect(() => { active.current = true; return () => { active.current = false; upload.current?.abort(); }; }, []);
+  useEffect(() => {
+    const controller = new AbortController(); let alive = true; let timer: number | undefined;
+    const load = async () => {
+      try {
+        const result = await loadRunPdfs(workspaceId, runId, controller.signal);
+        if (!alive) return;
+        setData(result); setError('');
+        if (result.documents.some(document => document.state === 'INDEXING')) timer = window.setTimeout(() => void load(), POLL_MS);
+      } catch (failure) {
+        if (alive && !controller.signal.aborted) setError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được trạng thái PDF.');
+      }
+    };
+    void load();
+    return () => { alive = false; controller.abort(); if (timer !== undefined) window.clearTimeout(timer); };
+  }, [workspaceId, runId, tick]);
+  const attach = async () => {
+    if (!attachmentAllowed || !file || !ownerToken || !writesAvailable || inFlight.current) return;
+    inFlight.current = true; setUploading(true); setError('');
+    const controller = new AbortController(); upload.current = controller;
+    try {
+      const result = await attachRunPdf(workspaceId, runId, file, ownerToken, controller.signal);
+      if (!active.current) return;
+      setData(result); setFile(null); if (fileInput.current) fileInput.current.value = ''; setTick(value => value + 1);
+    } catch (failure) {
+      if (active.current && !controller.signal.aborted) setError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa biết máy chủ đã lưu PDF. Tải lại trạng thái trước khi gửi lại.');
+    } finally { if (active.current) { inFlight.current = false; setUploading(false); } }
+  };
+  return <div>
+    {data && <PageIndexPdfNotice documents={data.documents} paused={data.paused}
+      pausedCopy={data.usageLimited ? 'Đã tạm dừng gửi PDF mới. Dịch vụ lập chỉ mục báo đã hết số dư.'
+        : data.documents.some(document => document.state === 'DISABLED') ? 'Lập chỉ mục tự động đang tắt; PDF mới không được gửi.'
+          : data.documents.some(document => document.state === 'SKIPPED_LOW_BALANCE') ? 'Đã tạm dừng gửi PDF mới vì số dư thấp.'
+            : 'Đã tạm dừng gửi PDF mới. Kiểm tra kết nối và số dư ở bảng Nguồn dữ liệu.'} />}
+    <section className="ra-block" aria-labelledby="ra-pdf-attach-title">
+      <h3 id="ra-pdf-attach-title">Đính kèm PDF cho phiên này</h3>
+      <p className="ra-muted">Tối đa 32 MiB. Tệp có thể được gửi lập chỉ mục và phát sinh chi phí nếu kết nối đang bật. Chỉ trích dẫn đã kiểm chứng mới được lưu; báo cáo hiện có không tự thay đổi.</p>
+      {!data && !error && <p role="status">Đang tải trạng thái PDF.</p>}
+      {error && <div className="ra-message error" role="alert"><p>{error}</p><button type="button" className="button" disabled={uploading} onClick={() => setTick(value => value + 1)}>Tải lại trạng thái PDF</button></div>}
+      <div className="ra-label"><label htmlFor="ra-run-pdf">Tệp PDF</label>
+        <input id="ra-run-pdf" className="ra-field" type="file" accept="application/pdf,.pdf" disabled={!attachmentAllowed || !ownerToken || !writesAvailable || uploading}
+          ref={fileInput} onChange={event => setFile(event.currentTarget.files?.[0] ?? null)} /></div>
+      <div className="ra-actions"><button type="button" className="button" disabled={!attachmentAllowed || !ownerToken || !writesAvailable || !file || uploading} onClick={() => void attach()}>{uploading ? 'Đang đính kèm PDF…' : 'Đính kèm PDF'}</button></div>
+      {!attachmentAllowed && <p className="ra-muted">Đính kèm PDF khi phiên đang chờ xác nhận phạm vi hoặc đã có bản nháp.</p>}
+      {(!ownerToken || !writesAvailable) && <p className="ra-muted">Mở khóa OWNER để đính kèm PDF.</p>}
+    </section>
+  </div>;
 }
 
 function runSteps(run: ResearchAutomationRun, phase: RunPhase) {

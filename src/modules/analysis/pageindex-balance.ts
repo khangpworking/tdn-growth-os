@@ -108,3 +108,46 @@ export function estimatePageIndexBalance(input: PageIndexBalanceInput): PageInde
     lowBalance: state !== 'OK',
   };
 }
+
+/** Accrued storage is integrated over calendar months, including earlier months.
+ * Reservations without an acknowledgement remain conservatively billable. */
+export function estimatePageIndexLedgerBalance(input: {
+  startingCreditMicroDollars: number;
+  now: Date;
+  documents: readonly { pageCount: number; uploadAttempted: boolean; uploadAttemptedAt: string | null }[];
+}): PageIndexBalanceEstimate {
+  const end = input.now.getTime();
+  if (!Number.isFinite(end)) throw new PageIndexBalanceError('INVALID_BALANCE_INPUT');
+  const events = input.documents.filter(row => row.uploadAttempted).map(row => {
+    const at = Date.parse(row.uploadAttemptedAt ?? '');
+    if (!Number.isFinite(at) || at > end || !Number.isSafeInteger(row.pageCount) || row.pageCount < 1)
+      throw new PageIndexBalanceError('INVALID_BALANCE_INPUT');
+    return { at, pages: row.pageCount };
+  }).sort((a, b) => a.at - b.at);
+  let active = 0; let accrued = 0;
+  for (let index = 0; index < events.length; index += 1) {
+    const event = events[index]!; active += event.pages;
+    const until = events[index + 1]?.at ?? end;
+    let from = event.at;
+    // Bound date/accounting work independently of malformed external timestamps.
+    if (end - from > 100 * 366 * 86400_000) throw new PageIndexBalanceError('INVALID_BALANCE_INPUT');
+    while (from < until) {
+      const date = new Date(from);
+      const monthStart = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1);
+      const nextMonth = Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 1);
+      const to = Math.min(until, nextMonth);
+      accrued += Math.max(0, active - DEFAULT_PAGEINDEX_BALANCE_CONFIG.freeActivePages) *
+        DEFAULT_PAGEINDEX_BALANCE_CONFIG.activeCostMicroDollarsPerPagePerMonth * (to - from) / (nextMonth - monthStart);
+      from = to;
+    }
+  }
+  const base = estimatePageIndexBalance({ startingCreditMicroDollars: input.startingCreditMicroDollars,
+    indexedPagesTotal: active, activePages: active, activeMonthFraction: 0 });
+  const activeCostMicroDollars = Math.round(accrued);
+  if (!Number.isSafeInteger(activeCostMicroDollars)) throw new PageIndexBalanceError('INVALID_BALANCE_INPUT');
+  const balanceMicroDollars = base.balanceMicroDollars - activeCostMicroDollars;
+  const warning = Math.max(Math.ceil(input.startingCreditMicroDollars * DEFAULT_PAGEINDEX_BALANCE_CONFIG.warningFraction),
+    DEFAULT_PAGEINDEX_BALANCE_CONFIG.warningAbsoluteMicroDollars);
+  const state: PageIndexBalanceState = balanceMicroDollars <= DEFAULT_PAGEINDEX_BALANCE_CONFIG.blockedMicroDollars ? 'BLOCKED' : balanceMicroDollars <= warning ? 'WARNING' : 'OK';
+  return { ...base, activeCostMicroDollars, balanceMicroDollars, state, lowBalance: state !== 'OK' };
+}

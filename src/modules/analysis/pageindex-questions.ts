@@ -7,7 +7,30 @@
  * of scope here (package P8): this module only produces verified quotes ready
  * for `CitationRegistry`.
  */
+import { execFile } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
 export type PageIndexVerifierDropReason = 'PAGE_OUT_OF_RANGE' | 'QUOTE_NOT_ON_PAGE';
+
+/** Extract text from these exact PDF bytes locally; bounded process and output. */
+export async function extractPageIndexPdf(bytes: Uint8Array): Promise<readonly PageIndexLocalPage[]> {
+  if (bytes.length > 32 * 1024 * 1024 || Buffer.from(bytes.subarray(0, 5)).toString('utf8') !== '%PDF-')
+    throw new Error('PAGEINDEX_LOCAL_PDF_INVALID');
+  return new Promise((resolve, reject) => {
+    const child = execFile(process.env.TDN_PAGEINDEX_PYTHON ?? 'python3',
+      [fileURLToPath(new URL('../../../scripts/read-pageindex-pdf.py', import.meta.url))],
+      { timeout: 30_000, maxBuffer: 2 * 1024 * 1024, encoding: 'utf8' }, (error, stdout) => {
+        try {
+          if (error) throw error;
+          const pages: unknown = JSON.parse(stdout);
+          if (!Array.isArray(pages) || pages.length < 1 || pages.length > 1000 ||
+            pages.some((page, index) => !page || page.page !== index + 1 || typeof page.text !== 'string')) throw new Error();
+          resolve(pages as PageIndexLocalPage[]);
+        } catch { reject(new Error('PAGEINDEX_LOCAL_PDF_INVALID')); }
+      });
+    child.stdin?.on('error', () => undefined); child.stdin?.end(bytes);
+  });
+}
 
 export interface PageIndexLocalPage {
   readonly page: number;

@@ -15,7 +15,7 @@ function pageindexEntry(): ResearchAutomationSourceStatusEntry {
   return entry({ source: 'PAGEINDEX', dataCount: 2, lastUsageAt: '2026-10-07T00:00:00.000Z', pageindex: {
     automaticState: 'INDEXING_PDFS', documentsSent: 2, balanceMicroDollars: 9_990_000,
     balanceCheckedAt: '2026-10-07T00:00:00.000Z', billingUrl: 'https://billing.example.invalid/pageindex',
-    activePages: 500, estimatedMonthlyCostMicroDollars: 0,
+    activePages: 500, estimatedMonthlyCostMicroDollars: 0, usageLimited: false,
   } });
 }
 
@@ -48,10 +48,10 @@ test('run-page notice lists every PDF state and the paused banner', async () => 
   try {
     await act(async () => root.render(createElement(notice.default, {
       documents: [
-        { fileName: 'a.pdf', state: 'READY' },
-        { fileName: 'b.pdf', state: 'INDEXING' },
-        { fileName: 'c.pdf', state: 'FAILED' },
-        { fileName: 'd.pdf', state: 'SKIPPED_LOW_BALANCE' },
+        { fileName: 'a.pdf', sourceSha256: '1'.repeat(64), state: 'READY' },
+        { fileName: 'b.pdf', sourceSha256: '2'.repeat(64), state: 'INDEXING' },
+        { fileName: 'c.pdf', sourceSha256: '3'.repeat(64), state: 'FAILED' },
+        { fileName: 'd.pdf', sourceSha256: '4'.repeat(64), state: 'SKIPPED_LOW_BALANCE' },
       ],
       paused: true,
     })));
@@ -59,7 +59,7 @@ test('run-page notice lists every PDF state and the paused banner', async () => 
     for (const label of ['Sẵn sàng', 'Đang lập chỉ mục', 'Lỗi — báo cáo không có trích dẫn từ tài liệu này', 'Bỏ qua vì số dư thấp', 'Đã tạm dừng gửi PDF mới']) {
       assert.ok(text.includes(label), `missing copy: ${label}`);
     }
-    assert.equal(document.querySelector('[role="alert"]')?.textContent, 'Đã tạm dừng gửi PDF mới. PageIndex báo đã hết số dư.');
+    assert.equal(document.querySelector('[role="alert"]')?.textContent, 'Đã tạm dừng gửi PDF mới vì số dư thấp.');
   } finally { await act(async () => root.unmount()); dom.cleanup(); }
 });
 

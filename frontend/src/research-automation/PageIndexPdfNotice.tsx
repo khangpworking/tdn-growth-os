@@ -8,6 +8,7 @@ export type PageIndexPdfState =
 
 export interface PageIndexPdfDocument {
   readonly fileName: string;
+  readonly sourceSha256: string;
   readonly state: PageIndexPdfState;
 }
 
@@ -38,12 +39,12 @@ export default function PageIndexPdfNotice({ documents, paused, pausedCopy }: Pa
   if (documents.length === 0 && !paused) return null;
   return <section className="ra-block" aria-labelledby="ra-pageindex-title">
     <h3 id="ra-pageindex-title">Tài liệu PDF</h3>
-    {paused && <div className="ra-message error" role="alert"><p>{pausedCopy ?? 'Đã tạm dừng gửi PDF mới. PageIndex báo đã hết số dư.'}</p></div>}
+    {paused && <div className="ra-message error" role="alert"><p>{pausedCopy ?? 'Đã tạm dừng gửi PDF mới vì số dư thấp.'}</p></div>}
     {documents.length === 0
       ? <p className="ra-muted">Phiên này chưa dùng tài liệu PDF nào.</p>
       : <ul className="ra-source-list">{documents.map(document => {
         const copy = pageIndexPdfStateCopy(document.state);
-        return <li key={document.fileName}><div><b>{document.fileName}</b></div><span className="status-pill">{copy.label}</span><p className="ra-muted">{copy.detail}</p></li>;
+        return <li key={document.sourceSha256}><div style={{ overflowWrap: 'anywhere' }}><b>{document.fileName}</b></div><span className="status-pill">{copy.label}</span><p className="ra-muted">{copy.detail}</p></li>;
       })}</ul>}
   </section>;
 }

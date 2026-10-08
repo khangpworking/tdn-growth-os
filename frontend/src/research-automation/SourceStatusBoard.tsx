@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FrontendMode } from '../data-source';
-import { loadSourceStatus, ResearchAutomationError } from './api';
+import { loadSourceStatus, recheckPageIndex, ResearchAutomationError } from './api';
 import type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry } from './api';
 import { formatTime } from './run-status';
 import './source-status.css';
@@ -8,6 +8,8 @@ import './source-status.css';
 export interface SourceStatusBoardProps {
   readonly mode: FrontendMode;
   readonly workspaceId: string;
+  readonly ownerToken?: string | null;
+  readonly writesAvailable?: boolean;
 }
 
 const SOURCE_COPY: Record<ResearchAutomationSourceStatusEntry['source'], { readonly name: string; readonly role: string; readonly unit: string }> = {
@@ -49,11 +51,13 @@ export function pageIndexAutomaticCopy(state: 'INDEXING_PDFS' | 'PAUSED_LOW_BALA
   }
 }
 
-export default function SourceStatusBoard({ mode, workspaceId }: SourceStatusBoardProps) {
+export default function SourceStatusBoard({ mode, workspaceId, ownerToken = null, writesAvailable = false }: SourceStatusBoardProps) {
   const [data, setData] = useState<ResearchAutomationSourceStatus | null>(null);
   const [error, setError] = useState<{ readonly workspaceId: string; readonly message: string } | null>(null);
   const [loadingWorkspace, setLoadingWorkspace] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
+  const [rechecking, setRechecking] = useState(false);
+  const recheck = useRef<AbortController | null>(null);
   const status = data?.workspaceId === workspaceId ? data : null;
   const message = error?.workspaceId === workspaceId ? error.message : '';
   useEffect(() => {
@@ -63,6 +67,18 @@ export default function SourceStatusBoard({ mode, workspaceId }: SourceStatusBoa
     void loadSourceStatus(workspaceId, controller.signal).then(value => { if (active) { setData(value); setError(null); setLoadingWorkspace(null); } }).catch(failure => { if (active && !controller.signal.aborted) { setError({ workspaceId, message: failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được trạng thái nguồn dữ liệu.' }); setLoadingWorkspace(null); } });
     return () => { active = false; controller.abort(); };
   }, [mode, workspaceId, tick]);
+  useEffect(() => { setRechecking(false); return () => { recheck.current?.abort(); recheck.current = null; }; }, [workspaceId, mode]);
+  const checkPdfConnector = async () => {
+    if (mode === 'demo' || !ownerToken || !writesAvailable || recheck.current) return;
+    const controller = new AbortController(); recheck.current = controller; setRechecking(true);
+    try {
+      const result = await recheckPageIndex(workspaceId, ownerToken, controller.signal);
+      if (controller.signal.aborted) return;
+      setData(result); setError(null);
+    } catch (failure) {
+      if (!controller.signal.aborted) setError({ workspaceId, message: failure instanceof ResearchAutomationError ? failure.message : 'Chưa kiểm tra được kết nối PDF.' });
+    } finally { if (recheck.current === controller) { recheck.current = null; setRechecking(false); } }
+  };
 
   return <section className="ra-sources surface" aria-labelledby="ra-sources-title">
     <div className="ra-sources-head"><div><h2 id="ra-sources-title">Nguồn dữ liệu</h2><p className="ra-muted">Tình trạng kết nối của từng nguồn{status ? ` · kiểm tra lúc ${formatTime(status.checkedAt)}` : ''}.</p></div>{mode !== 'demo' && <button type="button" className="button" onClick={() => setTick(value => value + 1)}>Kiểm tra lại</button>}</div>
@@ -79,15 +95,20 @@ export default function SourceStatusBoard({ mode, workspaceId }: SourceStatusBoa
                 <dl>
                   <dt>Khóa</dt><dd>{credentialLabel(entry.credential)}</dd>
                   <dt>Chi phí</dt><dd>{entry.paid ? 'Trả phí theo lượt' : 'Không tốn phí'}</dd>
-                  <dt>Dữ liệu</dt><dd>{entry.dataCount ? `${entry.dataCount} ${copy.unit} · gần nhất ${entry.lastDataAt ? formatTime(entry.lastDataAt) : '—'}` : 'Chưa có trong workspace'}</dd>
+                  <dt>Dữ liệu</dt><dd>{entry.dataCount === null ? 'Chưa rõ' : entry.dataCount ? `${entry.dataCount} ${copy.unit} · gần nhất ${entry.lastDataAt ? formatTime(entry.lastDataAt) : '-'}` : 'Chưa có trong workspace'}</dd>
                   {entry.paid && <><dt>Gọi gần nhất</dt><dd>{entry.lastUsageAt ? formatTime(entry.lastUsageAt) : 'Chưa gọi'}</dd></>}
                   {entry.source === 'PAGEINDEX' && entry.pageindex && <>
                     <dt>Số dư (ước tính)</dt><dd>{formatMicroDollars(entry.pageindex.balanceMicroDollars)}{entry.pageindex.balanceCheckedAt ? ` · kiểm tra lúc ${formatTime(entry.pageindex.balanceCheckedAt)}` : ''}{entry.pageindex.billingUrl ? <> · <a href={entry.pageindex.billingUrl} target="_blank" rel="noopener noreferrer">Thanh toán</a></> : null}</dd>
-                    <dt>Trang đang lưu</dt><dd>{`${entry.pageindex.activePages} trang · khoảng ${formatMicroDollars(entry.pageindex.estimatedMonthlyCostMicroDollars)}/tháng`}</dd>
+                    <dt>Tài liệu đã gửi</dt><dd>{entry.pageindex.documentsSent ?? 'Chưa rõ'}</dd>
+                    <dt>Trang đang lưu</dt><dd>{entry.pageindex.activePages === null ? 'Chưa rõ' : `${entry.pageindex.activePages} trang`} · khoảng {formatMicroDollars(entry.pageindex.estimatedMonthlyCostMicroDollars)}/tháng</dd>
                     <dt>Tự động</dt><dd>{pageIndexAutomaticCopy(entry.pageindex.automaticState)}</dd>
                   </>}
                 </dl>
-                {entry.source === 'PAGEINDEX' && entry.pageindex && entry.pageindex.automaticState !== 'INDEXING_PDFS' && <div className="ra-message error" role="alert"><p>{entry.pageindex.automaticState === 'PAUSED_LOW_BALANCE' ? 'Đã tạm dừng gửi PDF mới. PageIndex báo đã hết số dư.' : 'Lập chỉ mục tự động đang tắt; PDF mới không được gửi.'}</p></div>}
+                {entry.source === 'PAGEINDEX' && entry.pageindex && <>
+                  {entry.pageindex.automaticState !== 'INDEXING_PDFS' && <div className="ra-message error" role="alert"><p>{entry.pageindex.automaticState === 'PAUSED_LOW_BALANCE' ? entry.pageindex.usageLimited ? 'Đã tạm dừng gửi PDF mới. PageIndex báo đã hết số dư.' : 'Đã tạm dừng gửi PDF mới vì số dư thấp.' : 'Lập chỉ mục tự động đang tắt; PDF mới không được gửi.'}</p></div>}
+                  <button type="button" className="button" disabled={!ownerToken || !writesAvailable || rechecking} onClick={() => void checkPdfConnector()}>{rechecking ? 'Đang kiểm tra PDF…' : 'Kiểm tra lại PDF'}</button>
+                  <small>Chỉ đọc danh sách tài liệu miễn phí, không gửi PDF hoặc câu hỏi.</small>
+                </>}
               </li>;
             })}</ul>
             <p className="ra-muted ra-sources-note">Bảng chỉ đọc cấu hình và lịch sử đã lưu, không gọi thử nguồn nên không tốn phí. “Đã kết nối” nghĩa là khóa đã được cài, chưa chứng minh khóa còn hạn hoặc còn hạn mức.</p>

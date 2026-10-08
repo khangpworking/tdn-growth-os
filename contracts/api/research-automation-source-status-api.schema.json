@@ -3,7 +3,7 @@
   "$id": "https://tdn.local/contracts/api/research-automation-source-status-api.schema.json",
   "title": "ResearchAutomationSourceStatusApiContract",
   "description": "Read-only board of research data sources. Built from executor configuration and stored history only; reading it never calls a provider and never reveals a credential value.",
-  "oneOf": [{ "$ref": "#/$defs/status" }],
+  "oneOf": [{ "$ref": "#/$defs/status" }, { "$ref": "#/$defs/runPdfStates" }, { "$ref": "#/$defs/attachPdfRequest" }],
   "$defs": {
     "uuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
     "timestamp": { "type": "string", "minLength": 20, "maxLength": 40 },
@@ -26,7 +26,7 @@
         "wiredIntoRuns": { "type": "boolean" },
         "paid": { "type": "boolean" },
         "lastDataAt": { "description": "Latest stored capture or finalized upload in this workspace.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
-        "dataCount": { "description": "Stored captures or finalized uploads in this workspace.", "$ref": "#/$defs/count" },
+        "dataCount": {"description":"Stored captures or uploads; null if the PDF ledger is unavailable.","anyOf":[{"$ref":"#/$defs/count"},{"type":"null"}]},
         "lastUsageAt": { "description": "Latest recorded provider usage in this workspace; null for manual imports.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
         "pageindex": { "$ref": "#/$defs/pageindexDetail" }
       }
@@ -35,15 +35,120 @@
       "title": "ResearchAutomationPageIndexDetail",
       "description": "Document-indexing connector detail. Present only on the PAGEINDEX entry. Money is integer micro-dollars.",
       "type": "object", "additionalProperties": false,
-      "required": ["automaticState", "documentsSent", "balanceMicroDollars", "balanceCheckedAt", "billingUrl", "activePages", "estimatedMonthlyCostMicroDollars"],
+      "required": ["automaticState", "documentsSent", "balanceMicroDollars", "balanceCheckedAt", "billingUrl", "activePages", "estimatedMonthlyCostMicroDollars", "usageLimited"],
       "properties": {
         "automaticState": { "description": "Whether new PDFs are currently sent for indexing.", "enum": ["INDEXING_PDFS", "PAUSED_LOW_BALANCE", "DISABLED"] },
-        "documentsSent": { "description": "PDFs ever uploaded for indexing.", "$ref": "#/$defs/count" },
+        "documentsSent": { "description": "PDFs ever uploaded for indexing.", "anyOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }] },
         "balanceMicroDollars": { "description": "Estimated remaining credit, or null when unknown.", "anyOf": [{ "type": "integer" }, { "type": "null" }] },
         "balanceCheckedAt": { "description": "When the estimate was computed.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
         "billingUrl": { "description": "Vendor billing page.", "anyOf": [{ "type": "string", "minLength": 8, "maxLength": 300 }, { "type": "null" }] },
-        "activePages": { "description": "Stored pages that accrue monthly cost.", "$ref": "#/$defs/count" },
-        "estimatedMonthlyCostMicroDollars": { "description": "Full-month active-page cost at the current page count.", "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] }
+        "activePages": { "description": "Stored pages that accrue monthly cost.", "anyOf": [{ "$ref": "#/$defs/count" }, { "type": "null" }] },
+        "estimatedMonthlyCostMicroDollars": { "description": "Full-month active-page cost at the current page count.", "anyOf": [{ "type": "integer", "minimum": 0 }, { "type": "null" }] },
+        "usageLimited": { "type": "boolean" }
+      }
+    },
+    "pdfState": {
+      "title": "ResearchAutomationPdfState",
+      "enum": [
+        "INDEXING",
+        "READY",
+        "FAILED",
+        "SKIPPED_LOW_BALANCE",
+        "SKIPPED_USAGE_LIMIT",
+        "DISABLED"
+      ]
+    },
+    "pdfDocument": {
+      "title": "ResearchAutomationPdfDocument",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileName",
+        "sourceSha256",
+        "state",
+        "cloudDocId"
+      ],
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240
+        },
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "state": {
+          "$ref": "#/$defs/pdfState"
+        },
+        "cloudDocId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "runPdfStates": {
+      "title": "ResearchAutomationRunPdfStates",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "workspaceId",
+        "runId",
+        "paused",
+        "usageLimited",
+        "documents"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "research-automation-run-pdfs-v1"
+        },
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "usageLimited": {
+          "type": "boolean"
+        },
+        "documents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/pdfDocument"
+          }
+        }
+      }
+    },
+    "attachPdfRequest": {
+      "title": "ResearchAutomationAttachPdfRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "fileName"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "research-automation-pdf-attach-v1"
+        },
+        "fileName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 240,
+          "pattern": "^[^/\\\\\\u0000-\\u001f]+\\.[pP][dD][fF]$"
+        }
       }
     },
     "status": {

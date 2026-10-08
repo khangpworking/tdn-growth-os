@@ -86,6 +86,36 @@ test('upload happens once per sha across runs and reaches READY through the boun
   } finally { close(); }
 });
 
+test('simultaneous callers reserve the SHA before dispatching one upload', async () => {
+  const { db, close } = migratedDb();
+  try {
+    const bytes = pdfBytes(); let uploads = 0;
+    const transport = deps(db, { upload: async () => { uploads += 1; await Promise.resolve(); return { cloudDocId: 'pi-reserved', pageCount: 1 }; } });
+    const results = await Promise.all([ensureIndexed({ sha256: shaOf(bytes), fileName: 'a.pdf', bytes }, transport),
+      ensureIndexed({ sha256: shaOf(bytes), fileName: 'a.pdf', bytes }, transport)]);
+    assert.equal(uploads, 1);
+    assert.equal(results.reduce((sum, result) => sum + result.uploadCalls, 0), 1);
+    assert.equal((await ensureIndexed({ sha256: shaOf(bytes), fileName: 'a.pdf', bytes }, transport)).outcome, 'READY');
+  } finally { close(); }
+});
+
+test('a failed acknowledgement write retains the reservation and truthful call count', async () => {
+  const { db, close } = migratedDb();
+  try {
+    const bytes = pdfBytes(); let uploads = 0;
+    db.exec(`CREATE TRIGGER reject_upload_ack BEFORE UPDATE ON analysis_pageindex_documents
+      WHEN NEW.cloud_doc_id IS NOT NULL BEGIN SELECT RAISE(ABORT, 'synthetic_ack_failure'); END;`);
+    const transport = deps(db, { upload: async () => { uploads += 1; return { cloudDocId: 'pi-uncertain', pageCount: 1 }; } });
+    const first = await ensureIndexed({ sha256: shaOf(bytes), fileName: 'a.pdf', bytes }, transport);
+    assert.equal(first.uploadCalls, 1);
+    db.exec('DROP TRIGGER reject_upload_ack');
+    const second = await ensureIndexed({ sha256: shaOf(bytes), fileName: 'a.pdf', bytes }, transport);
+    assert.equal(second.uploadCalls, 0);
+    assert.equal(uploads, 1);
+    assert.equal(second.outcome, 'INDEXING');
+  } finally { close(); }
+});
+
 test('kill switch, low balance and usage limit make zero upload calls', async () => {
   const { db, close } = migratedDb();
   try {

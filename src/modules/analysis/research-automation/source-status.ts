@@ -9,13 +9,14 @@ export interface PageIndexStatusSummary {
   /** False when the TDN_PAGEINDEX_CLOUD_ENABLED kill switch is off. */
   readonly enabled: boolean;
   readonly lastCallAt: string | null;
-  readonly documentsSent: number;
+  readonly documentsSent: number | null;
   readonly balanceMicroDollars: number | null;
   readonly balanceCheckedAt: string | null;
   readonly billingUrl: string | null;
-  readonly activePages: number;
+  readonly activePages: number | null;
   readonly estimatedMonthlyCostMicroDollars: number | null;
   readonly lowBalance: boolean;
+  readonly usageLimited: boolean;
 }
 
 export interface SourceStatusInput {
@@ -65,16 +66,17 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
         wiredIntoRuns: pageindexUsable,
         paid: true,
         lastDataAt: null,
-        dataCount: pageindex?.documentsSent ?? 0,
+        dataCount: pageindex?.documentsSent ?? null,
         lastUsageAt: pageindex?.lastCallAt ?? null,
         pageindex: {
-          automaticState: !pageindex?.enabled ? 'DISABLED' : pageindex.lowBalance ? 'PAUSED_LOW_BALANCE' : 'INDEXING_PDFS',
-          documentsSent: pageindex?.documentsSent ?? 0,
+          automaticState: !input.executorEnabled || !pageindexUsable ? 'DISABLED' : pageindex?.lowBalance || pageindex?.usageLimited ? 'PAUSED_LOW_BALANCE' : 'INDEXING_PDFS',
+          documentsSent: pageindex?.documentsSent ?? null,
           balanceMicroDollars: pageindex?.balanceMicroDollars ?? null,
           balanceCheckedAt: pageindex?.balanceCheckedAt ?? null,
           billingUrl: pageindex?.billingUrl ?? null,
-          activePages: pageindex?.activePages ?? 0,
+          activePages: pageindex?.activePages ?? null,
           estimatedMonthlyCostMicroDollars: pageindex?.estimatedMonthlyCostMicroDollars ?? null,
+          usageLimited: pageindex?.usageLimited ?? false,
         },
       },
     ],
