@@ -15,6 +15,9 @@
     },
     {
       "$ref": "#/$defs/defaultRequest"
+    },
+    {
+      "$ref": "#/$defs/crosscheckRequest"
     }
   ],
   "$defs": {
@@ -267,6 +270,74 @@
         },
         "defaultInsight": {
           "$ref": "#/$defs/defaultSelection"
+        }
+      }
+    },
+    "crosscheckRequest": {
+      "title": "AutomationInsightCrosscheckReportRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "previousPairId",
+        "sources",
+        "defaultInsight",
+        "crosscheckInsight"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-insight-crosscheck-report-revision-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "previousPairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sources": {
+          "$ref": "#/$defs/requestSources"
+        },
+        "defaultInsight": {
+          "$ref": "#/$defs/defaultSelection"
+        },
+        "crosscheckInsight": {
+          "$ref": "#/$defs/crosscheckSelection"
+        }
+      }
+    },
+    "crosscheckSelection": {
+      "title": "InsightCrosscheckSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "snapshotSha256",
+        "firstProposalId",
+        "firstProposalSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-crosscheck-select-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "snapshotSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "firstProposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "firstProposalSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       }
     }

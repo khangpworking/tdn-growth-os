@@ -144,3 +144,28 @@ Scoped SHA256 at release:
 - `src/modules/analysis/research-automation/service.ts`: `c35a96d6d5ccc0704eacfe507d75e66072f1d061bd06bff8a78b16b884c3f18e`.
 
 Next: independent review and full hosted exact-head CI for this composed final candidate, then coordinator-owned eligible normal merge. No helper-only settlement or blanket Ultimate completion is claimed. The worker remains available under this dispatch until the coordinator concludes the original integration phase.
+
+
+## Reviewed main187 crosscheck prerequisite composition — 2026-10-09
+
+Fresh private follow-up task `task_0254b7e8d058` / `ctx_7e7c397355e0` temporarily owns this reader prerequisite under explicit sole GLOBAL/central grant `msg_513dac454443`. Private work is committed and preserved on `khangpworking/ultimate-private-default-coding-sol` at `34d6c3a416b5c140a665742e235c8a06c6bc389e`; **none of that WIP enters this reader candidate**. Original reader59 remains the merge parent, not an obsolete branch replay or squash-merged implementation.
+
+Normal merge of exact reviewed main187 `5f38281680a51bae1c49539060d655e093789f2f` had one conflict: `src/api/research-automation-api.ts` route allowlist. Resolution is the precise union of reader OWNER insight build/decision-v2/list-v2 and incoming crosscheck OWNER preparation/read/availability routes. Service and all canonical/generated/generator modules auto-merged. No method, source policy, cap, ledger or migration changes. Incoming private22 and default21/23 literal verification branches remain intact; crosscheck23 source/report/read/retry retains the incoming reviewed implementation.
+
+Reader still supports exact17/18/19/21/22 only. This composition **does not add reader23 crosscheck interpretation** or private default coding/renderer25. Unsupported versions fail the existing reader gate rather than being reinterpreted under historical builders. Coordinator informed in `msg_dda581d4d6c2`.
+
+Byte equality verified:
+
+- Against original59: reader input/API schemas, insight input/projection/template, reader ledger, ReaderReportPanel and migration0050 unchanged. Input/API hashes remain `4124eaa05a188465db2e53b31801746a073a2f4472bf54a306f0a15e1697521c` / `f78d30926573f07c1707531434f88d52e869e314890084df6045506a0f61acd5`. Migration0050 remains `f054576516a11471ef8a448a05ed9ee429a4686ab9e2839df9aaf9837ac0c3fe`.
+- Against incoming reviewed187: reports.ts, model.ts, private-review-corpus.ts, insight-coding.ts and insight-model-execution.ts exactly equal. The only service diff relative to main187 is preserved original reader integration; API conflict adds no semantics outside the union.
+- Existing canonical/browser generators PASS; zero unstaged generated drift across contracts/frontend declarations. Strict backend typecheck and direct frontend TypeScript check PASS.
+
+Focused owning backend and frontend acceptance is running at pinned Node24.15.0/npm11.12.1, concurrency2; final results, frozen composed SHA and explicit lease release follow. No full local suite, runtime/provider/model data, live calls, deployment or configuration changes. Original59 review/CI is not approval of this composed head; fresh independent review and full hosted exact-head Check remain required.
+
+Final affected checks for this composed reader checkpoint:
+
+- Backend **53 PASS, 0 FAIL/SKIP**, 127.9s: exact reader input/template gates, actual OWNER19/21/22 build/read/list/decision/retry, source/digest corruption negatives, populated0050 migration/rollback/FKs/triggers, private22 source-only/literal/KEEP replay, historical raw/private report SHA256, historical Market owning service/API, crosscheck23 execution/source lineage/read/retry and default/native/adopted compatibility. Log `/tmp/tdn-reader187-focused.log`.
+- Frontend **10 PASS, 0 FAIL/SKIP**, 76.0s: mounted explicit reader builders-v1/v2/v3 OWNER flows/retry/rebuild, unit-spec intake and incoming crosscheck action/read/confirmation flow. Log `/tmp/tdn-reader187-frontend-focused.log`.
+- Backend strict typecheck and direct frontend tsc **exit0**, logs `/tmp/tdn-reader187-typecheck.log`, `/tmp/tdn-reader187-frontend-tsc.log`. Canonical/browser generators exit0; zero generated drift, logs `/tmp/tdn-reader187-generation.log`, `/tmp/tdn-reader187-validators.log`. Working/staged whitespace PASS. No test assertion, fixture or original fingerprint was changed for this composition.
+
+All checks used fake transports/synthetic SQLite/CAS and pinned Node24.15.0/npm11.12.1, focused concurrency2. No full local suite. Incoming crosscheck/provider configuration remains opt-in and no live provider was activated. Private default source WIP stayed outside this branch. Freeze/push and explicit GLOBAL/central release receipts are sent through the fresh dispatch, followed by return to the preserved private branch. Coordinator owns fresh independent composed-head review, full hosted exact-head CI and normal merge; no eligibility inferred from original59 CI/review.
