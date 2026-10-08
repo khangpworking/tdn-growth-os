@@ -1,11 +1,14 @@
 // Reader-report rule lint on the final HTML (F1–F8, plus offline assets).
 // Display checks at desktop, 375 px and A4 run separately in a browser.
+import { lintVisibleReportText } from '../report-visible-text-lint.js';
 export type LintResult = { rule: string; ok: boolean; detail: string };
 export type LintOptions = {
   providers?: readonly string[];
   sectionIds?: readonly string[];
   /** Family label every web number must carry; defaults to the snapshot wording. */
   familyLabel?: string;
+  /** New versioned renderers only. Historical gates remain byte-identical. */
+  visibleTextRules?: boolean;
 };
 
 // Data providers that must never be named in a report (owner rule).
@@ -40,7 +43,7 @@ function decodeCss(css: string): string {
   });
 }
 
-export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm' }: LintOptions = {}): LintResult[] {
+export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
   const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
@@ -149,5 +152,6 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
     new RegExp(`\\b${p}\\b`, 'i').test(decodeAttr(l))));
   add('W6 nhãn thu thập không nêu tên nhà cung cấp', hitLabels.length === 0,
     hitLabels.length ? 'thấy: ' + hitLabels.slice(0, 2).map(s => s.slice(0, 60)).join(' | ') : `${captured.length} nhãn đã kiểm`);
+  if (visibleTextRules) out.push(...lintVisibleReportText(html));
   return out;
 }

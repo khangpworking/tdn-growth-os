@@ -14,7 +14,7 @@ export type Sha256 = string;
 export type Timestamp = string;
 
 export interface ResearchAutomationReaderBuildRequest {
-  contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1';
+  contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1' | 'reader-report-build-v1.2';
   requestKey: string;
   metricPackageId: string;
   /**
@@ -32,6 +32,7 @@ export interface ResearchAutomationReaderBuildRequest {
     [k: string]: unknown;
   };
   webSnapshotSha256?: Sha256;
+  unitPrices?: UnitPrices;
 }
 export interface Profile {
   slug: string;
@@ -146,6 +147,64 @@ export interface Source {
 }
 export interface PlatformDisplay {
   displayedRevenueVnd: number | null;
+}
+export interface UnitPrices {
+  contractVersion: 'market-unit-prices-v1';
+  /**
+   * @minItems 1
+   * @maxItems 500
+   */
+  sources: {
+    sha256: string;
+    role: 'LISTING_SPEC' | 'OWNER_DECLARATION';
+  }[];
+  /**
+   * @maxItems 500
+   */
+  records: {
+    rowI: number;
+    source: {
+      sourceSha256: string;
+      locator: string;
+    };
+    observation: UnitPriceObservation;
+    quantityOverride?: {
+      source: {
+        sourceSha256: string;
+        locator: string;
+      };
+      observation: UnitPriceObservation;
+    };
+  }[];
+}
+export interface UnitPriceObservation {
+  platform: 'shopee' | 'tiktok';
+  listing: string;
+  variant: string;
+  category: {
+    label: string;
+    kind: 'MASS' | 'VOLUME' | 'COUNT' | 'DURABLE' | 'COMBO';
+    massBasis: 'NET' | 'DRAINED' | 'NOT_APPLICABLE';
+    countKind: string | null;
+    specGroup: string | null;
+  };
+  price: {
+    value: number | null;
+    currency: 'VND';
+    kind: 'LISTED' | 'PAYMENT' | 'CONDITIONAL_PROMO';
+    /**
+     * @maxItems 20
+     */
+    conditions: string[];
+  };
+  quantity: {
+    value: number | null;
+    unit: 'g' | 'ml' | 'count' | 'item' | 'combo';
+  };
+  period: {
+    start: string;
+    end: string;
+  };
 }
 export interface ResearchAutomationReaderBuildReceipt {
   contractVersion: 'reader-report-build-receipt-v1';

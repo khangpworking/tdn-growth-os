@@ -17,6 +17,8 @@ import { ReaderMetricRowsError, readerRowsFromMetricWorkbook } from '../../src/m
 import { DEFAULT_MARKET_PEER_RULE, verifyDefaultMarketPeers } from '../../src/modules/analysis/default-market-peers.js';
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
+import { unitPriceFixture } from '../helpers/market-unit-price-fixture.js';
+import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -71,6 +73,51 @@ async function readyRun(t: TestContext, rows?: ReaderRowsReader, sources: { sour
   assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
   return { db, service, artifacts, build, packageId: prepared.packageId };
 }
+
+test('reader owner build-v1.2 verifies retained unit prices, publishes findings and replays exact bytes beside old v1', async t => {
+  const retainedRows = [0, 1, 2, 3, 4, 5].map(i => ({ i, platform: 'shopee' as const, listing: `listing-${i}`, shop: `shop-${i}`,
+    cat: 'Hũ', title: `Hũ thử ${i}`, brand: '(không ghi)', rev: (i + 1) * 100, units: 2, asp: (i + 1) * 50, start: null }));
+  const f = await readyRun(t, () => retainedRows);
+  const legacyRequest = f.build('10000000-0000-4000-8000-000000000951');
+  const legacy = await f.service.buildReaderReport(workspaceId, runId, legacyRequest, owner);
+  const legacyBytes = (await f.service.readReaderReport(workspaceId, runId, legacy.revision.revisionId)).bytes;
+  const units = unitPriceFixture(retainedRows);
+  // The owning service receives hashes only and resolves the actual artifact.
+  for (const retained of units.retained) assert.equal((await f.artifacts.put(retained.bytes)).sha256, retained.sha256);
+  const request = { ...f.build('10000000-0000-4000-8000-000000000952'), contractVersion: 'reader-report-build-v1.2', unitPrices: units.packet };
+  const built = await f.service.buildReaderReport(workspaceId, runId, request, owner);
+  const row = f.db.prepare('SELECT input_sha256,builder_version,metrics_sha256,claims_sha256 FROM analysis_reader_report_revisions WHERE revision_id=?').get(built.revision.revisionId) as { input_sha256: string; builder_version: string; metrics_sha256: string; claims_sha256: string };
+  assert.equal(row.builder_version, 'reader-report-market-v4');
+  const recordBytes = await f.artifacts.read(row.input_sha256), record = JSON.parse(recordBytes.toString());
+  assert.equal(record.input.contractVersion, '1.4.0');
+  assert.deepEqual(record.input.unitPrices, units.packet);
+  assert.deepEqual(record.input.peerRule, DEFAULT_MARKET_PEER_RULE);
+  const published = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId), html = published.bytes.toString();
+  assert.equal((html.match(/<b>Nhận định:<\/b>/g) ?? []).length, 6);
+  assert.match(html, /đồng\/100g/); assert.match(html, /đồng\/100ml/); assert.match(html, /đồng\/combo/);
+  assert.ok(lintVisibleReportText(html).every(result => result.ok));
+  const claims = JSON.parse((await f.artifacts.read(row.claims_sha256)).toString());
+  assert.ok(claims.lint.some((result: { rule: string; ok: boolean }) => result.rule === 'U13_PENDING_NUMBER' && result.ok));
+  const metrics = JSON.parse((await f.artifacts.read(row.metrics_sha256)).toString());
+  assert.ok(metrics.some((metric: { id: string; value: number }) => metric.id === 'unitPrice.0.standard' && metric.value === 5000));
+  const revisions = f.db.prepare('SELECT count(*) n FROM analysis_reader_report_revisions').get() as { n: number };
+  assert.deepEqual(await f.service.buildReaderReport(workspaceId, runId, request, owner), { ...built, exactRetry: true });
+  assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes, published.bytes);
+  assert.deepEqual(await f.artifacts.read(row.input_sha256), recordBytes);
+  assert.equal((f.db.prepare('SELECT count(*) n FROM analysis_reader_report_revisions').get() as { n: number }).n, revisions.n);
+  assert.deepEqual(await f.service.buildReaderReport(workspaceId, runId, legacyRequest, owner), {
+    ...legacy, exactRetry: true, revision: { ...legacy.revision, state: 'SUPERSEDED' },
+  });
+  assert.deepEqual((await f.service.readReaderReport(workspaceId, runId, legacy.revision.revisionId)).bytes, legacyBytes);
+  const invalid = structuredClone(request); (invalid.unitPrices as typeof units.packet).records[0]!.observation.variant = 'Wrong variant';
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, { ...invalid, requestKey: '10000000-0000-4000-8000-000000000953' }, owner), /Không xác minh được quy cách hoặc giá/);
+  const absent = structuredClone(units.packet); absent.sources[0]!.sha256 = 'f'.repeat(64); absent.records.forEach(r => { r.source.sourceSha256 = 'f'.repeat(64); });
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, f.build('10000000-0000-4000-8000-000000000954', { contractVersion: 'reader-report-build-v1.2', unitPrices: absent }), owner), /Không đọc được/);
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, {
+    ...request, requestKey: '10000000-0000-4000-8000-000000000955', profile: { ...profile, product: 'Sản phẩm tốt nhất' },
+  }, owner), /chưa đạt kiểm tra bằng chứng hoặc cách trình bày/);
+  assert.equal((f.db.prepare('SELECT count(*) n FROM analysis_reader_report_revisions').get() as { n: number }).n, revisions.n);
+});
 
 test('new reader retains its frozen peer rule, eligible/excluded membership and selected result through exact retries and byte reads', async t => {
   const rows: ReaderRowsReader = () => [0, 1, 2].map(i => ({

@@ -12,6 +12,7 @@ import { readerDefaultPeers } from './default-peers.js';
 import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 import { READER_SECTION_ANCHORS } from './layout.js';
 import { lint, type LintResult } from './lint.js';
+import { projectMarketUnitPrices, type RetainedUnitPriceSource, type UnitPriceProjection } from './market-unit-prices.js';
 import { scopeMetrics, type Scope } from './scope-metrics.js';
 import {
   checkDerivedSource,
@@ -73,7 +74,7 @@ export function verifyReaderReportInput(value: unknown): ReaderReportInput {
     if (source === undefined) throw new ReaderReportInputError('thiếu nguồn số liệu của bản đọc');
     return checkRowsAndSource(input, source);
   }
-  if ((input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0') && input.webSnapshot === undefined) {
+  if ((input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0' || input.contractVersion === '1.4.0') && input.webSnapshot === undefined) {
     if (input.webSnapshotSha256 !== undefined) fail('thiếu webSnapshot');
     if (input.source === undefined) fail('thiếu nguồn số liệu của bản đọc');
     return checkRowsAndSource(input, input.source!);
@@ -83,7 +84,7 @@ export function verifyReaderReportInput(value: unknown): ReaderReportInput {
   }
   const facts = verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
   const rowCap = input.source?.rowCap ?? input.rows.length;
-  const derived = deriveReaderSource(facts, rowCap, { nullable: input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0' });
+  const derived = deriveReaderSource(facts, rowCap, { nullable: input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0' || input.contractVersion === '1.4.0' });
   if (input.source !== undefined) checkDerivedSource(input.source, derived);
   return checkRowsAndSource({ ...input, source: derived }, derived);
 }
@@ -124,6 +125,7 @@ export type ReaderReportData = {
   /** R1–R4 reconciliation warnings between the xlsx rows and the snapshot. */
   webReconciliation: WebReconciliationWarning[];
   defaultMarketPeers: DefaultMarketPeers | null;
+  unitPrices: UnitPriceProjection[];
 };
 
 /**
@@ -131,8 +133,9 @@ export type ReaderReportData = {
  * scopes separate; historical inputs retain their original "both.*" arithmetic.
  * "src.*" states how much of the displayed source the exported rows cover.
  */
-export function computeReaderReportData(value: unknown): ReaderReportData {
+export function computeReaderReportData(value: unknown, retainedUnitPriceSources: readonly RetainedUnitPriceSource[] = []): ReaderReportData {
   const input = verifyReaderReportInput(value);
+  const unitPrices = projectMarketUnitPrices(input, retainedUnitPriceSources);
   const { brandAlias, ...rest } = input.profile;
   const profile: Profile = { ...rest, signals: rest.signals.map(([label = '', re = '']) => [label, re] as [string, string]) } as Profile;
   const rows: Row[] = input.rows.map(r => ({ ...r }));
@@ -143,12 +146,12 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
   const ruleHits = classify(rows, profile);
   const B = new Bundle();
   const scopes: Partial<Record<ReaderPlatform, Scope>> = {};
-  if (input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0') {
+  if (input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0' || input.contractVersion === '1.4.0') {
     const completePositive = rows.every(row => row.rev !== null && row.rev > 0 && row.units !== null && row.units > 0 && row.asp !== null) && input.platforms.every(P => {
       const core = rows.filter(row => row.platform === P && profile.core.includes(row.seg!));
       return core.length > 0 && core.reduce((s, row) => s + row.rev!, 0) > 0 && core.reduce((s, row) => s + row.units!, 0) > 0;
     });
-    if (completePositive) for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(row => row.platform === P) as LegacyRow[], profile);
+    if (completePositive && input.contractVersion !== '1.4.0') for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(row => row.platform === P) as LegacyRow[], profile);
     computeNullableReaderMetrics(B, input, rows, profile);
     for (const [key, value, fmt] of [['src.hl.rev', input.source!.displayedHeadlines.revenueVnd, 'ty1'], ['src.hl.listings', input.source!.displayedHeadlines.soldListings, 'num'], ['src.hl.shops', input.source!.displayedHeadlines.shops, 'num'], ['src.hl.units', input.source!.displayedHeadlines.units, 'num'], ['src.rowCap', input.source!.rowCap, 'num']] as const) {
       if (value === null) B.setMissing(key, fmt); else B.set(key, value, fmt);
@@ -156,7 +159,7 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
     B.setMissing('src.cover.rev', 'pct0'); B.setMissing('src.cover.listings', 'pct0');
     for (const P of input.platforms) B.set(`src.${P}.rows`, rows.filter(row => row.platform === P).length, 'num');
     const webFacts = input.webSnapshot === undefined ? null : verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
-    return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys: webFacts === null ? [] : setWebBundleKeys(B, webFacts), webReconciliation: webFacts === null ? [] : reconcileWebWithRows(webFacts, rows, { perPlatformOnly: true }), defaultMarketPeers: readerDefaultPeers(input, rows) };
+    return { input, profile, rows, bundle: B, scopes, ruleHits, unitPrices, webFacts, webKeys: webFacts === null ? [] : setWebBundleKeys(B, webFacts), webReconciliation: webFacts === null ? [] : reconcileWebWithRows(webFacts, rows, { perPlatformOnly: true }), defaultMarketPeers: readerDefaultPeers(input, rows) };
   }
   for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(r => r.platform === P) as LegacyRow[], profile);
 
@@ -193,7 +196,7 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
     webKeys = setWebBundleKeys(B, webFacts);
     webReconciliation = reconcileWebWithRows(webFacts, rows as LegacyRow[]);
   }
-  return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys, webReconciliation, defaultMarketPeers: null };
+  return { input, profile, rows, bundle: B, scopes, ruleHits, unitPrices, webFacts, webKeys, webReconciliation, defaultMarketPeers: null };
 }
 
 export type PublishedReaderReport = {
@@ -207,10 +210,10 @@ export type PublishedReaderReport = {
  */
 export async function publishReaderReport(
   store: ContentAddressedArtifactStore,
-  { html, narrator, extraOk = [], sectionIds = READER_SECTION_ANCHORS }:
-    { html: string; narrator: Narrator; extraOk?: readonly string[]; sectionIds?: readonly string[] },
+  { html, narrator, extraOk = [], sectionIds = READER_SECTION_ANCHORS, visibleTextRules = false }:
+    { html: string; narrator: Narrator; extraOk?: readonly string[]; sectionIds?: readonly string[]; visibleTextRules?: boolean },
 ): Promise<PublishedReaderReport> {
-  const lintResults = lint(html, { sectionIds });
+  const lintResults = lint(html, { sectionIds, visibleTextRules });
   const { checked, hardcoded } = narrator.checkHardcoded(extraOk);
   const notInBundle = narrator.notInBundle(extraOk);
   const failed = lintResults.filter(r => !r.ok);
