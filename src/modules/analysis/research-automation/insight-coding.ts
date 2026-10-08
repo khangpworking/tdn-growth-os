@@ -10,6 +10,7 @@ import snapshotSchema from '../../../../contracts/analysis/automation-insight-co
 import type {
   AutomationInsightCodingAcceptedSnapshot,
   AutomationInsightCodingDraftSnapshot,
+  AutomationInsightCodingFamilyDraftSnapshot,
   AutomationInsightCodingSnapshot,
 } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
 import type { InsightReportSelection, InsightDraftSelection } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
@@ -18,7 +19,7 @@ import type { AutomationInsightSelection } from '../../../../contracts/analysis/
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { validateLocatedInsightInput, buildLocatedInsightMethods } from '../located-insight-methods.js';
-import { projectSelectedInsightCandidates } from './selected-insight-projection.js';
+import { projectSelectedInsightCandidates, projectDraftInsightGroupCounts } from './selected-insight-projection.js';
 import { proposeLiteralCodebook } from './literal-codebook-proposal.js';
 import { AutomationInsightModelExecution, validateInsightModelRequest, type InsightModelAI } from './insight-model-execution.js';
 import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
@@ -55,7 +56,7 @@ type Request = InsightCodingEvidence['request'];
 type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
 interface Row { evidence_id: string; kind: Kind; run_id: string; pair_sha256: string; parent_id: string | null; request_key: string; sequence: number | bigint; artifact_sha256: string; artifact_json: string }
 interface Owner { actorId: string; role: 'OWNER' }
-export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input'] }
+export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE' }
 type SourceReads = Map<string, Promise<InsightSourceContext>>;
 interface Options {
   db: Database.Database; artifacts: ContentAddressedArtifactStore; staging?: RequestScopedArtifactStore;
@@ -317,7 +318,7 @@ export class AutomationInsightCoding {
    * The derived computation input explicitly selects current method semantics;
    * retained evidence, binding and provenance are never rewritten.
    */
-  async resolveDraftProposal(workspaceId: string, runId: string, proposalId: string) {
+  async resolveDraftProposal(workspaceId: string, runId: string, proposalId: string, version: InsightDraftSelection['contractVersion'] = 'insight-draft-select-v1') {
     const sourceReads: SourceReads = new Map();
     const proposal = await this.read(proposalId, workspaceId, runId, false, sourceReads);
     if (proposal.request.contractVersion !== 'insight-coding-propose-v1') invalid();
@@ -326,32 +327,34 @@ export class AutomationInsightCoding {
     const context = await this.context(workspaceId, runId, proposal.binding.pairId, sourceReads);
     const input = this.compose(context, adoption.request, proposal.request);
     input.semanticsVersion = '1.1.0';
-    input.draftCountsVersion = 'draft-counts-v1';
+    input.draftCountsVersion = version === 'insight-draft-select-v2' ? 'draft-counts-v2' : 'draft-counts-v1';
     const { output } = buildLocatedInsightMethods(input);
-    return { binding: proposal.binding, adoption, proposal, receipts: [] as InsightCodingEvidence[], output };
+    return { binding: proposal.binding, adoption, proposal, receipts: [] as InsightCodingEvidence[], output,
+      ...(version === 'insight-draft-select-v2' ? { groupCounts: projectDraftInsightGroupCounts(output, context.verifiedPlatform) } : {}) };
   }
 
   /** A report freezes exactly the named draft proposal with zero receipts, not an implicit latest. */
-  async reportDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDraftSelection, current = false): Promise<AutomationInsightCodingDraftSnapshot> {
-    const resolved = await this.resolveDraftProposal(workspaceId, runId, draft.proposalId);
+  async reportDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDraftSelection, current = false): Promise<AutomationInsightCodingDraftSnapshot | AutomationInsightCodingFamilyDraftSnapshot> {
+    const resolved = await this.resolveDraftProposal(workspaceId, runId, draft.proposalId, draft.contractVersion);
     if (resolved.binding.pairId !== pairId) conflict();
     if (current) {
       await this.currentAdoption(resolved.adoption);
       if (this.latest(resolved.adoption.evidenceId, 'PROPOSAL')?.evidence_id !== resolved.proposal.evidenceId) conflict();
     }
     const snapshot = {
-      contractVersion: 'automation-insight-coding-snapshot-v2', binding: resolved.binding,
+      contractVersion: draft.contractVersion === 'insight-draft-select-v2' ? 'automation-insight-coding-snapshot-v3' : 'automation-insight-coding-snapshot-v2', binding: resolved.binding,
       selection: { proposalId: draft.proposalId, receiptIds: [] as string[] },
       adoptionId: resolved.adoption.evidenceId, proposalSha256: hash(resolved.proposal),
       receipts: [] as { receiptId: string; sha256: string }[],
-      draftSelection: { contractVersion: 'insight-draft-select-v1' as const, proposalId: draft.proposalId },
+      draftSelection: clone(draft),
       output: resolved.output,
+      ...(resolved.groupCounts ? { groupCounts: resolved.groupCounts } : {}),
     };
     if (!snapshotValid(snapshot)) corrupt();
     return snapshot;
   }
 
-  async verifyReportDraftSnapshot(value: unknown, workspaceId: string, runId: string, pairId: string, draft: InsightDraftSelection): Promise<AutomationInsightCodingDraftSnapshot> {
+  async verifyReportDraftSnapshot(value: unknown, workspaceId: string, runId: string, pairId: string, draft: InsightDraftSelection): Promise<AutomationInsightCodingDraftSnapshot | AutomationInsightCodingFamilyDraftSnapshot> {
     if (!snapshotValid(value)) corrupt();
     const expected = await this.reportDraftSnapshot(workspaceId, runId, pairId, draft);
     if (json(expected) !== json(value)) corrupt();

@@ -134,7 +134,7 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
   // disposition. PENDING, UNCLEAR, UNCODED or missing dispositions never enter
   // draft code counts. Drafts never unlock ratios, rewrite provenance, or
   // clear the pending tallies above.
-  if (input.draftCountsVersion !== 'draft-counts-v1') return countsBase;
+  if (input.draftCountsVersion === undefined) return countsBase;
   if (input.semanticsVersion !== '1.1.0') fail('DRAFT_REQUIRES_CURRENT_SEMANTICS');
   const eligibleDisposition = new Set<string>();
   for (const [key, disposition] of states) {
@@ -166,7 +166,7 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
         annotationPointers: [...records.values()].flat(),
         label: 'đề xuất, chờ chủ duyệt' as const };
     }),
-    draftLabel: 'đề xuất, chờ chủ duyệt' as const, draftCountsVersion: 'draft-counts-v1' as const };
+    draftLabel: 'đề xuất, chờ chủ duyệt' as const, draftCountsVersion: input.draftCountsVersion };
 }
 
 /** Called by the located-method boundary after schema and exact-span validation. */

@@ -630,7 +630,7 @@ test('an oversized quote view preserves the independent Market report and full r
   for (const pair of versions)
     assert.deepEqual(await state.service.readInsightSourceContext(workspaceId, runId, pair.pairId), { binding: { workspaceId, runId, pairId: pair.pairId, scopeSha256,
       reportSha256: pair.outputs.find(output => output.kind === 'INSIGHT')!.versionId, sourceKind: 'EXACT_SHOPEE',
-      sourcePackageSha256: sha(semantic.locatedReviewFallback.sourcePackage), inputSha256: sha(adoptedInput) }, input: adoptedInput },
+      sourcePackageSha256: sha(semantic.locatedReviewFallback.sourcePackage), inputSha256: sha(adoptedInput) }, input: adoptedInput, verifiedPlatform: 'SHOPEE' },
     'the fallback pair and its KEEP successor bind the full retained adopted input, not the shortened presentation');
   assert.deepEqual(state.db.prepare('SELECT total_changes() n').get(), before);
   assert.equal(calls, 1);

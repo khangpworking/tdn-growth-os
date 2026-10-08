@@ -1,12 +1,12 @@
 /* Generated from reader-report-input.schema.json. Do not edit by hand. */
 
 /**
- * Versioned reader inputs. Historical 1.0.0/1.1.0 retain numeric constraints; 1.2.0 preserves null separately from observed zero and never authorizes cross-platform totals. 1.3.0 adds a frozen E11 default-peer rule and optional separately retained owner additions.
+ * Versioned reader inputs. Historical 1.0.0/1.1.0 retain numeric constraints; 1.2.0 preserves null separately from observed zero and never authorizes cross-platform totals. 1.3.0 adds a frozen E11 default-peer rule and optional separately retained owner additions. 1.4.0 adds evidence-linked category unit prices and unordered Market findings; old branches remain unchanged.
  */
 export type ReaderReportInput = {
   [k: string]: unknown;
 } & {
-  contractVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
+  contractVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0' | '1.4.0';
   profile: Profile;
   /**
    * @minItems 1
@@ -37,6 +37,7 @@ export type ReaderReportInput = {
    * @maxItems 100
    */
   ownerPeerProductIds?: string[];
+  unitPrices?: UnitPrices;
 };
 export type Text = string;
 export type SegmentKey = string;
@@ -174,4 +175,200 @@ export interface Rule1 {
   boundary: 'MINIMAL_PREFIX_REVENUE_DESC_IDENTITY_ASC';
   identity: 'EXACT_TITLE_LABEL_OR_SOURCE_SHOP_PER_PLATFORM';
   denominator: 'COMPLETE_COMPATIBLE_GROUP_SAMPLE';
+}
+export interface UnitPrices {
+  contractVersion: 'market-unit-prices-v1';
+  /**
+   * @minItems 1
+   * @maxItems 500
+   */
+  sources: [
+    {
+      sha256: string;
+      role: 'LISTING_SPEC' | 'OWNER_DECLARATION';
+    },
+    ...{
+      sha256: string;
+      role: 'LISTING_SPEC' | 'OWNER_DECLARATION';
+    }[],
+  ];
+  /**
+   * @maxItems 500
+   */
+  records: {
+    rowI: number;
+    source: {
+      sourceSha256: string;
+      locator: string;
+    };
+    observation: UnitPriceObservation;
+    quantityOverride?: {
+      source: {
+        sourceSha256: string;
+        locator: string;
+      };
+      observation: UnitPriceObservation;
+    };
+  }[];
+}
+export interface UnitPriceObservation {
+  platform: Platform;
+  listing: string;
+  variant: string;
+  category: {
+    label: string;
+    kind: 'MASS' | 'VOLUME' | 'COUNT' | 'DURABLE' | 'COMBO';
+    massBasis: 'NET' | 'DRAINED' | 'NOT_APPLICABLE';
+    countKind: string | null;
+    specGroup: string | null;
+  };
+  price: {
+    value: number | null;
+    currency: 'VND';
+    kind: 'LISTED' | 'PAYMENT' | 'CONDITIONAL_PROMO';
+    /**
+     * @maxItems 20
+     */
+    conditions:
+      | []
+      | [string]
+      | [string, string]
+      | [string, string, string]
+      | [string, string, string, string]
+      | [string, string, string, string, string]
+      | [string, string, string, string, string, string]
+      | [string, string, string, string, string, string, string]
+      | [string, string, string, string, string, string, string, string]
+      | [string, string, string, string, string, string, string, string, string]
+      | [string, string, string, string, string, string, string, string, string, string]
+      | [string, string, string, string, string, string, string, string, string, string, string]
+      | [string, string, string, string, string, string, string, string, string, string, string, string]
+      | [string, string, string, string, string, string, string, string, string, string, string, string, string]
+      | [string, string, string, string, string, string, string, string, string, string, string, string, string, string]
+      | [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+        ]
+      | [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+        ]
+      | [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+        ]
+      | [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+        ]
+      | [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+        ]
+      | [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+        ];
+  };
+  quantity: {
+    value: number | null;
+    unit: 'g' | 'ml' | 'count' | 'item' | 'combo';
+  };
+  period: {
+    start: Date;
+    end: Date;
+  };
 }

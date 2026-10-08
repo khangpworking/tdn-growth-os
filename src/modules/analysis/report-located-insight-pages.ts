@@ -60,7 +60,7 @@ function locatedAt<T>(rows: readonly T[], pointer: string, prefix: string): T {
 }
 
 function sliceNote(ctx: RenderContext, total: number, noun: string): string {
-  return total <= PAGE_LIMIT ? '' : `<p class="sec-note">Đang hiển thị ${PAGE_LIMIT} trong ${total} ${esc(noun)}, theo thứ tự của hồ sơ. ${ctx.bundleDownload ? `Phần còn lại nằm trong bản tải đầy đủ. ${download}.` : 'Phần còn lại được giữ trong hồ sơ phương pháp đã lưu; trang này không hiển thị toàn bộ.'}</p>`;
+  return total <= PAGE_LIMIT ? '' : `<p class="sec-note"${ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? ' data-classified="pending"' : ''}>Đang hiển thị ${PAGE_LIMIT} trong ${total} ${esc(noun)}, theo thứ tự của hồ sơ${ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? ' (đề xuất, chờ chủ duyệt)' : ''}. ${ctx.bundleDownload ? `Phần còn lại nằm trong bản tải đầy đủ. ${download}.` : 'Phần còn lại được giữ trong hồ sơ phương pháp đã lưu; trang này không hiển thị toàn bộ.'}</p>`;
 }
 
 function table(caption: string, headings: readonly string[], rows: readonly string[]): string {
@@ -104,7 +104,7 @@ function originalRecords(ctx: RenderContext): string {
   return `<h4>Toàn văn bản ghi được trích</h4><p class="sec-note">Số “Bản ghi N” đếm từ 1; chỉ số bản ghi trong con trỏ của hồ sơ phương pháp đếm từ 0, nên Bản ghi N ứng với chỉ số N − 1. Vị trí trong nguồn được giữ đúng như nguồn ghi.</p>${[...ctx.records].map(index => {
     const record = ctx.output.input.records[index]!;
     const paths = ctx.output.input.sources.filter(item => item.sha256 === record.sourceSha256).map(item => item.logicalPath);
-    return `<details id="located-${ctx.sectionId}-record-${index}"><summary>Bản ghi ${index + 1}: nguyên văn và thông tin nguồn</summary><p class="sec-note">Giữ nguyên lời nguồn, kể cả phủ định, điều kiện và lời kể lại. Các mã hóa phía trên là khai báo cần được xem xét cùng toàn văn.</p><div style="white-space:pre-wrap">${record.text === null ? 'Bản ghi không đọc được.' : storedLiteral(record.text, 'Nguyên văn được giữ trong bản lưu nguồn; không đưa vào bản đọc này.')}</div><dl>${definition('Ghi nguồn, nguyên văn', attributionText(record.sourceAttribution, 'Chưa có ghi nhận nguồn'))}${definition('Tệp nguồn', paths.map(technicalLiteral).join('<br>'))}${definition('Vị trí trong nguồn', `<code>${technicalLiteral(record.locator)}</code>`)}${definition('SHA-256 nguồn', `<code>${esc(record.sourceSha256)}</code>`)}${definition('Thời điểm theo nguồn', textOrUnset(record.timeText))}</dl></details>`;
+    return `<details id="located-${ctx.sectionId}-record-${index}"><summary>Bản ghi ${index + 1}: nguyên văn và thông tin nguồn</summary><p class="sec-note">Giữ nguyên lời nguồn, kể cả phủ định, điều kiện và lời kể lại. Các mã hóa phía trên là khai báo cần được xem xét cùng toàn văn.</p><div style="white-space:pre-wrap">${record.text === null ? 'Bản ghi không đọc được.' : ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? retainedQuoteHtml(record.text, 'blockquote') : storedLiteral(record.text, 'Nguyên văn được giữ trong bản lưu nguồn; không đưa vào bản đọc này.')}</div><dl>${definition('Ghi nguồn, nguyên văn', attributionText(record.sourceAttribution, 'Chưa có ghi nhận nguồn'))}${definition('Tệp nguồn', paths.map(technicalLiteral).join('<br>'))}${definition('Vị trí trong nguồn', `<code>${technicalLiteral(record.locator)}</code>`)}${definition('SHA-256 nguồn', `<code>${esc(record.sourceSha256)}</code>`)}${definition('Thời điểm theo nguồn', textOrUnset(record.timeText))}</dl></details>`;
   }).join('')}`;
 }
 
@@ -151,9 +151,11 @@ function annotationRow(ctx: RenderContext, sectionId: LocatedId, pointer: string
     }
     case 'I06': {
       const row = locatedAt(input.i06, pointer, '/input/i06/'); annotation = row;
-      const ordered = ctx.output.sections.I06.sequences.some(item => item.annotationPointer === pointer);
+      const sequences = ctx.output.input.draftCountsVersion === 'draft-counts-v2'
+        ? ctx.output.sections.I06.draftSequences ?? [] : ctx.output.sections.I06.sequences;
+      const ordered = sequences.some(item => item.annotationPointer === pointer);
       body = ordered ? `<p>Thứ tự do nguồn nêu trong cùng bản ghi:</p><ol><li>${quote(row.firstEvent)}</li><li>${quote(row.secondEvent)}</li></ol>`
-        : `<p><b>Chưa xác lập thứ tự.</b></p>${nestedDefinitions}${definition('Sự kiện thứ nhất trong khai báo', quote(row.firstEvent))}${definition('Sự kiện thứ hai trong khai báo', quote(row.secondEvent))}</dl>`;
+        : `<p><b>Chưa xác lập thứ tự.</b></p>${nestedDefinitions}${definition(ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? 'Sự kiện đầu tiên trong khai báo' : 'Sự kiện thứ nhất trong khai báo', quote(row.firstEvent))}${definition('Sự kiện thứ hai trong khai báo', quote(row.secondEvent))}</dl>`;
       body += relation(row.relation);
       break;
     }
@@ -169,7 +171,9 @@ function annotationRow(ctx: RenderContext, sectionId: LocatedId, pointer: string
     }
     case 'I09': {
       const row = locatedAt(input.i09, pointer, '/input/i09/'); annotation = row;
-      const candidate = ctx.output.sections.I09.candidates.find(item => item.annotationPointer === pointer);
+      const candidates = ctx.output.input.draftCountsVersion === 'draft-counts-v2'
+        ? ctx.output.sections.I09.draftCandidates ?? [] : ctx.output.sections.I09.candidates;
+      const candidate = candidates.find(item => item.annotationPointer === pointer);
       body = `<p><b>${candidate ? label(candidate.state) : 'Mã hóa đang chờ xử lý'}</b></p>${nestedDefinitions}${definition('Mong muốn', quote(row.desiredState))}${definition('Hiện trạng', quote(row.currentState))}${definition('Cách xoay xở được nêu', field(row.workaround))}</dl>${relation(row.relation)}<p class="sec-note">${candidate === undefined ? 'Chờ xử lý mã hóa; chưa đưa ra ứng viên từ chú giải này.' : candidate.unmetNeedCandidate ? 'Ứng viên nhu cầu chưa đáp ứng từ cặp chênh lệch đã khai báo; cần xem xét ý nghĩa trong nguồn.' : 'Chưa đủ cặp chênh lệch để ghi nhận ứng viên nhu cầu chưa đáp ứng.'}</p>`;
       break;
     }
@@ -189,7 +193,8 @@ const SECTION_LEAD: Readonly<Record<LocatedId, string>> = {
 
 function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
   const section = ctx.output.sections[sectionId];
-  const flagged = ctx.output.input.draftCountsVersion === 'draft-counts-v1';
+  const flagged = ctx.output.input.draftCountsVersion !== undefined;
+  const draftV2 = ctx.output.input.draftCountsVersion === 'draft-counts-v2';
   let body = `<p class="sec-note">${SECTION_LEAD[sectionId]}</p>`;
   if (draftMode(section) && 'draftAnnotationPointers' in section) {
     // Draft mode: the leading totals ARE the eligible draft numbers with the
@@ -198,7 +203,7 @@ function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
     const pointers = section.draftAnnotationPointers ?? [];
     const label = 'draftLabel' in section ? section.draftLabel ?? 'đề xuất, chờ chủ duyệt' : 'đề xuất, chờ chủ duyệt';
     const count = 'draftLocatedRecordCount' in section ? section.draftLocatedRecordCount ?? pointers.length : pointers.length;
-    body += `<p>${count} bản ghi (${label}). Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
+    body += `<p${draftV2 ? ' data-classified="pending"' : ''}>${count} bản ghi (${label}). Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
   } else if (flagged) {
     // Unsupported family in a draft view: withhold classified totals with an
     // explicit unavailable explanation instead of showing bare accepted
@@ -207,9 +212,9 @@ function locatedBody(ctx: RenderContext, sectionId: LocatedId): string {
   } else {
     body += `<p>${section.locatedRecordCount} bản ghi có mã hóa được hồ sơ đưa vào kết quả${ctx.showAnnotationPendingCount ? `; ${section.pendingAnnotationPointers.length} chú giải đang chờ xử lý` : ''}. Các khai báo này chưa được xác thực về ý nghĩa hay phê duyệt.</p>`;
   }
-  if (sectionId === 'I05' && ctx.output.sections.I05.recordPolarities.length) {
-    const polarities = ctx.output.sections.I05.recordPolarities;
-    body += table('Sắc thái theo bản ghi, không quy đổi thành tỷ lệ', ['Bản ghi nguồn', 'Sắc thái khai báo'], polarities.slice(0, PAGE_LIMIT).map(item => {
+  const polarities = draftV2 ? ctx.output.sections.I05.draftRecordPolarities ?? [] : ctx.output.sections.I05.recordPolarities;
+  if (sectionId === 'I05' && polarities.length) {
+    body += table(draftV2 ? 'Sắc thái theo bản ghi (đề xuất, chờ chủ duyệt), không quy đổi thành tỷ lệ' : 'Sắc thái theo bản ghi, không quy đổi thành tỷ lệ', ['Bản ghi nguồn', 'Sắc thái khai báo'], polarities.slice(0, PAGE_LIMIT).map(item => {
       locatedAt(ctx.output.input.records, item.recordPointer, '/input/records/');
       const index = Number(item.recordPointer.slice('/input/records/'.length));
       return `<tr><td>${source(ctx, index)}</td><td>${label(item.polarity)}</td></tr>`;
@@ -238,10 +243,12 @@ function draftMode(section: { readonly annotationPointers: readonly string[]; re
 function draftSummaryTable(ctx: RenderContext, sectionId: LocatedId, section: { readonly annotationPointers: readonly string[]; readonly pendingAnnotationPointers: readonly string[]; readonly draftAnnotationPointers?: readonly string[]; readonly draftLocatedRecordCount?: number; readonly draftLabel?: string }): string {
   const pointers = section.draftAnnotationPointers ?? [];
   const label = section.draftLabel ?? 'đề xuất, chờ chủ duyệt';
-  return table(`Chú giải ${label} (${pointers.length})`,
+  const html = table(`Chú giải ${label} (${pointers.length})`,
     ['Nội dung đề xuất', 'Nguồn và ngữ cảnh'],
     pointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer))) +
     sliceNote(ctx, pointers.length, 'chú giải đề xuất');
+  return ctx.output.input.draftCountsVersion === 'draft-counts-v2'
+    ? html.replace('<caption>', '<caption data-classified="pending">') : html;
 }
 
 function pendingDetails(ctx: RenderContext, sectionId: LocatedId, section: { readonly annotationPointers: readonly string[]; readonly pendingAnnotationPointers: readonly string[]; readonly draftAnnotationPointers?: readonly string[] }): string {
@@ -250,7 +257,8 @@ function pendingDetails(ctx: RenderContext, sectionId: LocatedId, section: { rea
   const copy = section.draftAnnotationPointers === undefined
     ? `<details><summary>Chú giải đang chờ xử lý (${section.pendingAnnotationPointers.length})</summary><p>Gợi ý AI hoặc bất đồng chưa phân xử được giữ riêng, chưa đưa vào kết quả mã hóa.</p>${table('Chú giải đang chờ, chưa đưa vào kết quả', ['Nội dung đề xuất', 'Nguồn và điều còn chờ'], section.pendingAnnotationPointers.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer)))}${sliceNote(ctx, section.pendingAnnotationPointers.length, 'chú giải đang chờ')}</details>`
     : !remaining.length ? '' : `<details><summary>Bất đồng chưa phân xử (${remaining.length})</summary><p>Các chú giải này còn bất đồng về mã hóa, được giữ riêng và chưa đưa vào kết quả đề xuất.</p>${table('Bất đồng chưa phân xử', ['Nội dung đề xuất', 'Nguồn và điều còn chờ'], remaining.slice(0, PAGE_LIMIT).map(pointer => annotationRow(ctx, sectionId, pointer)))}${sliceNote(ctx, remaining.length, 'bất đồng')}</details>`;
-  return copy;
+  return ctx.output.input.draftCountsVersion === 'draft-counts-v2'
+    ? copy.replace(`<summary>Bất đồng chưa phân xử (${remaining.length})`, `<summary data-classified="pending">Bất đồng chưa phân xử (${remaining.length}; đề xuất, chờ chủ duyệt)`) : copy;
 }
 
 function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
@@ -266,8 +274,10 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
       return table(pending ? 'Cụm nhắc đang chờ xử lý' : 'Cụm nhắc nguyên văn, không xếp hạng', ['Cụm được nhắc', 'Nguồn và lời quy thuộc'], rows) + sliceNote(ctx, pointers.length, 'cụm nhắc');
     };
     body += section.mentionPointers.length ? mentions(section.mentionPointers, false) : '<p>Chưa có cụm nhắc nguyên văn được đưa vào danh mục.</p>';
-    body += `<p>${section.pendingMentionPointers.length} cụm nhắc đang chờ xử lý.</p>`;
-    if (section.pendingMentionPointers.length) body += `<details><summary>Xem cụm nhắc đang chờ (${section.pendingMentionPointers.length})</summary>${mentions(section.pendingMentionPointers, true)}</details>`;
+    body += ctx.output.input.draftCountsVersion === 'draft-counts-v2'
+      ? `<p data-classified="pending">${section.pendingMentionPointers.length} cụm nhắc đang chờ xử lý (đề xuất, chờ chủ duyệt).</p>`
+      : `<p>${section.pendingMentionPointers.length} cụm nhắc đang chờ xử lý.</p>`;
+    if (section.pendingMentionPointers.length) body += `<details><summary${ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? ' data-classified="pending"' : ''}>Xem cụm nhắc đang chờ (${section.pendingMentionPointers.length}${ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? '; đề xuất, chờ chủ duyệt' : ''})</summary>${mentions(section.pendingMentionPointers, true)}</details>`;
   }
   if (!section.corpora.length) body += '<p>Chưa có tập bản ghi và bộ mã cho bảng đếm. Cần khai báo phạm vi, thành viên và tình trạng mã hóa trước khi có tỷ lệ.</p>';
   for (const result of section.corpora.slice(0, PAGE_LIMIT)) {
@@ -322,7 +332,7 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
           return `<li>${quote(assignment.span)}${source(ctx, assignment.recordIndex)}${provenance(assignment.provenance)}</li>`;
         }).join('');
         const evidence = refs ? `<details><summary>Đoạn nguồn cho mã này</summary><ul class="limits">${refs}</ul>${sliceNote(ctx, count.annotationPointers.length, 'chú giải nguồn')}</details>` : '';
-        return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${textOrUnset(code.phrase)}</small>` : ''}</th><td>${count.recordCount} (${count.label})${evidence}</td><td>Chưa công bố</td></tr>`;
+        return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${textOrUnset(code.phrase)}</small>` : ''}</th><td>${ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? `<span data-classified="pending">${count.recordCount} (${count.label})</span>` : `${count.recordCount} (${count.label})`}${evidence}</td><td>Chưa công bố</td></tr>`;
       });
       body += table(`Số bản ghi theo mã (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'})`, ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], draftRows) + sliceNote(ctx, result.draftCounts.length, 'mã đề xuất');
     }

@@ -4,11 +4,134 @@
  * Retained coding snapshot: accepted receipts (v1, legacy) or one versioned receipt-free draft selection (v2). Exactly one branch validates; historical v1 payloads match only the accepted branch.
  */
 export type AutomationInsightCodingSnapshot =
-  AutomationInsightCodingAcceptedSnapshot | AutomationInsightCodingDraftSnapshot;
+  | AutomationInsightCodingAcceptedSnapshot
+  | AutomationInsightCodingDraftSnapshot
+  | AutomationInsightCodingFamilyDraftSnapshot;
+export type LocatedInsightMethods = {
+  [k: string]: unknown;
+} & {
+  contractVersion: '1.0.0';
+  methodId: 'located-insight-methods';
+  methodVersion: '1.0.0' | '1.1.0';
+  methodOutputId: string;
+  input: Input;
+  sections: {
+    I01: {
+      briefPointer: '/input/brief' | null;
+      briefSha256: string | null;
+      unresolvedFields: Strings;
+      reviewState: 'DECLARED_NOT_AUTHENTICATED';
+      blockers: Strings;
+      workingQuestion?: {
+        state: 'AI_PROPOSED_AWAITING_OWNER' | 'OWNER_SUPPLIED';
+        label: string | null;
+        text: string | null;
+        /**
+         * @maxItems 10000
+         */
+        ownerFieldsToAdd: string[];
+      };
+    };
+    I02: Section;
+    I04: Section;
+    I05: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      recordPolarities: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+      draftRecordPointers?: Pointers3;
+      draftAnnotationPointers?: Pointers4;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftRecordPolarities?: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+    };
+    I06: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      sequences: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+      draftRecordPointers?: Pointers5;
+      draftAnnotationPointers?: Pointers6;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftSequences?: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+    };
+    I07: Section;
+    I08: Section;
+    I09: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      candidates: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+      draftRecordPointers?: Pointers7;
+      draftAnnotationPointers?: Pointers8;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftCandidates?: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+    };
+    I10: CorpusSection;
+    I13: CorpusSection;
+  };
+  limitations: Strings;
+};
 /**
  * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
  */
-export type DraftCountsVersion = 'draft-counts-v1';
+export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
 /**
  * @maxItems 10000
  */
@@ -33,6 +156,284 @@ export type Pointers2 = string[];
  * Same-sentence label required on every AI-proposed draft number. Never a release claim.
  */
 export type DraftCountLabel = 'đề xuất, chờ chủ duyệt';
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers3 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers4 = string[];
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers5 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers6 = string[];
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers7 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers8 = string[];
+export type LocatedInsightMethods1 = {
+  [k: string]: unknown;
+} & {
+  contractVersion: '1.0.0';
+  methodId: 'located-insight-methods';
+  methodVersion: '1.0.0' | '1.1.0';
+  methodOutputId: string;
+  input: Input;
+  sections: {
+    I01: {
+      briefPointer: '/input/brief' | null;
+      briefSha256: string | null;
+      unresolvedFields: Strings;
+      reviewState: 'DECLARED_NOT_AUTHENTICATED';
+      blockers: Strings;
+      workingQuestion?: {
+        state: 'AI_PROPOSED_AWAITING_OWNER' | 'OWNER_SUPPLIED';
+        label: string | null;
+        text: string | null;
+        /**
+         * @maxItems 10000
+         */
+        ownerFieldsToAdd: string[];
+      };
+    };
+    I02: Section;
+    I04: Section;
+    I05: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      recordPolarities: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+      draftRecordPointers?: Pointers3;
+      draftAnnotationPointers?: Pointers4;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftRecordPolarities?: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+    };
+    I06: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      sequences: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+      draftRecordPointers?: Pointers5;
+      draftAnnotationPointers?: Pointers6;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftSequences?: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+    };
+    I07: Section;
+    I08: Section;
+    I09: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      candidates: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+      draftRecordPointers?: Pointers7;
+      draftAnnotationPointers?: Pointers8;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftCandidates?: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+    };
+    I10: CorpusSection;
+    I13: CorpusSection;
+  };
+  limitations: Strings;
+};
+export type LocatedInsightMethods2 = {
+  [k: string]: unknown;
+} & {
+  contractVersion: '1.0.0';
+  methodId: 'located-insight-methods';
+  methodVersion: '1.0.0' | '1.1.0';
+  methodOutputId: string;
+  input: Input;
+  sections: {
+    I01: {
+      briefPointer: '/input/brief' | null;
+      briefSha256: string | null;
+      unresolvedFields: Strings;
+      reviewState: 'DECLARED_NOT_AUTHENTICATED';
+      blockers: Strings;
+      workingQuestion?: {
+        state: 'AI_PROPOSED_AWAITING_OWNER' | 'OWNER_SUPPLIED';
+        label: string | null;
+        text: string | null;
+        /**
+         * @maxItems 10000
+         */
+        ownerFieldsToAdd: string[];
+      };
+    };
+    I02: Section;
+    I04: Section;
+    I05: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      recordPolarities: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+      draftRecordPointers?: Pointers3;
+      draftAnnotationPointers?: Pointers4;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftRecordPolarities?: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+    };
+    I06: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      sequences: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+      draftRecordPointers?: Pointers5;
+      draftAnnotationPointers?: Pointers6;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftSequences?: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+    };
+    I07: Section;
+    I08: Section;
+    I09: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      candidates: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+      draftRecordPointers?: Pointers7;
+      draftAnnotationPointers?: Pointers8;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftCandidates?: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+    };
+    I10: CorpusSection;
+    I13: CorpusSection;
+  };
+  limitations: Strings;
+};
 
 export interface AutomationInsightCodingAcceptedSnapshot {
   contractVersion: 'automation-insight-coding-snapshot-v1';
@@ -74,86 +475,6 @@ export interface InsightReportSelection {
    * @maxItems 1000
    */
   receiptIds: [string, ...string[]];
-}
-export interface LocatedInsightMethods {
-  contractVersion: '1.0.0';
-  methodId: 'located-insight-methods';
-  methodVersion: '1.0.0' | '1.1.0';
-  methodOutputId: string;
-  input: Input;
-  sections: {
-    I01: {
-      briefPointer: '/input/brief' | null;
-      briefSha256: string | null;
-      unresolvedFields: Strings;
-      reviewState: 'DECLARED_NOT_AUTHENTICATED';
-      blockers: Strings;
-      workingQuestion?: {
-        state: 'AI_PROPOSED_AWAITING_OWNER' | 'OWNER_SUPPLIED';
-        label: string | null;
-        text: string | null;
-        /**
-         * @maxItems 10000
-         */
-        ownerFieldsToAdd: string[];
-      };
-    };
-    I02: Section;
-    I04: Section;
-    I05: {
-      recordPointers: Pointers;
-      annotationPointers: Pointers;
-      pendingAnnotationPointers: Pointers;
-      locatedRecordCount: number;
-      semanticValidation: 'DECLARED_NOT_VERIFIED';
-      blockers: Strings;
-      /**
-       * @maxItems 10000
-       */
-      recordPolarities: {
-        recordPointer: string;
-        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
-      }[];
-    };
-    I06: {
-      recordPointers: Pointers;
-      annotationPointers: Pointers;
-      pendingAnnotationPointers: Pointers;
-      locatedRecordCount: number;
-      semanticValidation: 'DECLARED_NOT_VERIFIED';
-      blockers: Strings;
-      /**
-       * @maxItems 10000
-       */
-      sequences: {
-        annotationPointer: string;
-        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
-        identityScope: 'RECORD_LOCAL';
-        sequenceState: 'SOURCE_STATED_ORDER';
-      }[];
-    };
-    I07: Section;
-    I08: Section;
-    I09: {
-      recordPointers: Pointers;
-      annotationPointers: Pointers;
-      pendingAnnotationPointers: Pointers;
-      locatedRecordCount: number;
-      semanticValidation: 'DECLARED_NOT_VERIFIED';
-      blockers: Strings;
-      /**
-       * @maxItems 10000
-       */
-      candidates: {
-        annotationPointer: string;
-        unmetNeedCandidate: boolean;
-        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
-      }[];
-    };
-    I10: CorpusSection;
-    I13: CorpusSection;
-  };
-  limitations: Strings;
 }
 export interface Input {
   contractVersion: '1.0.0';
@@ -523,8 +844,8 @@ export interface AutomationInsightCodingDraftSnapshot {
    * @maxItems 0
    */
   receipts: [];
-  draftSelection: InsightDraftSelection;
-  output: LocatedInsightMethods;
+  draftSelection: InsightDraftSelectionV1;
+  output: LocatedInsightMethods1;
 }
 /**
  * Explicit empty selection echo of a versioned draft selection.
@@ -539,7 +860,92 @@ export interface InsightDraftSelectionEcho {
 /**
  * Versioned receipt-free draft selection of one exact retained proposal. Zero receipts by construction; never an implicit latest, never approval.
  */
-export interface InsightDraftSelection {
+export interface InsightDraftSelectionV1 {
   contractVersion: 'insight-draft-select-v1';
   proposalId: string;
+}
+/**
+ * Zero receipts by construction with an explicit draft selection echo. Never an implicit latest, never approval.
+ */
+export interface AutomationInsightCodingFamilyDraftSnapshot {
+  contractVersion: 'automation-insight-coding-snapshot-v3';
+  binding: InsightSourceBinding;
+  selection: InsightDraftSelectionEcho1;
+  adoptionId: string;
+  proposalSha256: string;
+  /**
+   * @maxItems 0
+   */
+  receipts: [];
+  draftSelection: InsightDraftSelectionV2;
+  output: LocatedInsightMethods2;
+  groupCounts: InsightDraftGroupCounts;
+}
+/**
+ * Explicit empty selection echo of a versioned draft selection.
+ */
+export interface InsightDraftSelectionEcho1 {
+  proposalId: string;
+  /**
+   * @maxItems 0
+   */
+  receiptIds: [];
+}
+/**
+ * Versioned receipt-free draft selection of one exact retained proposal. Zero receipts by construction; never an implicit latest, never approval.
+ */
+export interface InsightDraftSelectionV2 {
+  contractVersion: 'insight-draft-select-v2';
+  proposalId: string;
+}
+export interface InsightDraftGroupCounts {
+  contractVersion: 'insight-draft-group-counts-v1';
+  state: 'PARTIAL_UNREVIEWED_DRAFT';
+  platform: 'SHOPEE' | null;
+  /**
+   * @maxItems 10000
+   */
+  groups: {
+    platform: 'SHOPEE';
+    buyerType: null;
+    corpusIndex: number;
+    sectionId: 'I10' | 'I13';
+    codebookRevision: string | null;
+    scope: {
+      unit: string | null;
+      period: string | null;
+      frame: string | null;
+      channel: string | null;
+      inclusionRule: string | null;
+    };
+    /**
+     * @maxItems 10000
+     */
+    memberRecordPointers: string[];
+    memberCount: number;
+    /**
+     * @maxItems 10000
+     */
+    counts: {
+      code: string;
+      /**
+       * @maxItems 10000
+       */
+      recordPointers: string[];
+      recordCount: number | null;
+      state: 'UNAVAILABLE' | 'PROPOSED_COUNT';
+      label: 'đề xuất, chờ chủ duyệt';
+    }[];
+    /**
+     * @maxItems 10000
+     */
+    blockers: string[];
+  }[];
+  rates: null;
+  differences: null;
+  label: 'đề xuất, chờ chủ duyệt';
+  /**
+   * @maxItems 10000
+   */
+  blockers: string[];
 }

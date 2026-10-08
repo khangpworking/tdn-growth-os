@@ -1322,7 +1322,10 @@ export class ResearchAutomationService {
     const input = structuredClone(snapshot.output.input);
     return { binding: { workspaceId, runId, pairId, scopeSha256, reportSha256: report.versionId,
       sourceKind: verifiedNative ? 'NATIVE' as const : 'EXACT_SHOPEE' as const,
-      sourcePackageSha256: digest(snapshot.sourcePackage), inputSha256: digest(input) }, input };
+      sourcePackageSha256: digest(snapshot.sourcePackage), inputSha256: digest(input) }, input,
+      // These two replay-verified adapters bind exact Shopee listings. No platform is inferred from text,
+      // source attribution or a missing field; another adapter must supply its own authenticated proof.
+      ...(verifiedNative?.nativeSource.selected || located?.proposal ? { verifiedPlatform: 'SHOPEE' as const } : {}) };
   }
 
   adoptInsightCodingRules(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
