@@ -151,8 +151,8 @@ function monthValues(months: Readonly<Record<string, MetricWebMonthFact>>): { mo
 
 /**
  * Monthly peak/low/last3-vs-prior-3 for one platform, from W4 revenues only.
- * No sums across platforms. Null when fewer than six dated months carry
- * values, or when the prior window sums to zero.
+ * No sums across platforms. The final six calendar months must be consecutive
+ * and carry values; missing months never compress a comparison window.
  */
 export function webMonthlyStats(months: Readonly<Record<string, MetricWebMonthFact>>): {
   peak: { month: string; value: number } | null;
@@ -168,9 +168,14 @@ export function webMonthlyStats(months: Readonly<Record<string, MetricWebMonthFa
     if (low === undefined || point.value < low.value) low = point;
   }
   let last3vsPrev3: number | null = null;
-  if (ordered.length >= 6) {
-    const last3 = ordered.slice(-3);
-    const prev3 = ordered.slice(-6, -3);
+  const calendar = Object.keys(months).sort().slice(-6);
+  const monthIndex = (month: string): number => Number(month.slice(0, 4)) * 12 + Number(month.slice(5));
+  if (calendar.length === 6 && calendar.every((month, i) =>
+    Number.isFinite(months[month]?.revenue.value) && months[month]?.revenue.value !== null &&
+    (i === 0 || monthIndex(month) === monthIndex(calendar[i - 1]!) + 1))) {
+    const window = calendar.map(month => ({ month, value: months[month]!.revenue.value! }));
+    const last3 = window.slice(-3);
+    const prev3 = window.slice(0, 3);
     const lastSum = last3.reduce((sum, point) => sum + point.value, 0);
     const prevSum = prev3.reduce((sum, point) => sum + point.value, 0);
     if (prevSum > 0 && Number.isFinite(lastSum) && Number.isFinite(prevSum)) {

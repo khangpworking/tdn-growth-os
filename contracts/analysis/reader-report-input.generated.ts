@@ -30,6 +30,12 @@ export interface ReaderReportInput {
     [k: string]: unknown;
   };
   webSnapshotSha256?: string;
+  /**
+   * Retained workbook identity supplied by the application, never inferred from the displayed row values.
+   */
+  rowLineage?: {
+    sha256: string;
+  };
 }
 export interface Profile {
   slug: string;

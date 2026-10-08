@@ -40,6 +40,39 @@ export function barChart(cats: readonly string[], series: readonly BarSeries[], 
 
 export type ParetoLine = { name: string; ys: number[]; color?: string };
 
+/** Calendar line chart. Missing points break the line and are never drawn at zero. */
+export function lineChart(months: readonly string[], series: readonly { name: string; values: readonly (number | null)[]; color: string }[]): string {
+  const w = 760, h = 300, left = 58, right = 24, top = 34, bottom = 55;
+  const present = series.flatMap(s => s.values.filter((v): v is number => v !== null));
+  const max = Math.max(0, ...present) || 1;
+  const X = (i: number) => left + i * (w - left - right) / Math.max(1, months.length - 1);
+  const Y = (value: number) => top + (h - top - bottom) * (1 - value / max);
+  let body = '';
+  for (let i = 0; i <= 4; i++) {
+    const value = max * i / 4;
+    body += `<line x1="${left}" x2="${w - right}" y1="${Y(value)}" y2="${Y(value)}" class="gl"/>` + tx(left - 6, Y(value) + 4, sp(value.toFixed(1)), 'ax', 'end');
+  }
+  months.forEach((month, i) => { body += tx(X(i), h - bottom + 22, month, 'ax', 'middle'); });
+  let legendX = left;
+  for (const s of series) {
+    body += `<rect x="${legendX}" y="6" width="11" height="11" fill="${s.color}"/>` + tx(legendX + 15, 16, s.name, 'lg');
+    legendX += 30 + s.name.length * 7;
+    let segment: string[] = [];
+    const flush = () => {
+      if (segment.length > 1) body += `<polyline fill="none" stroke="${s.color}" stroke-width="2.5" points="${segment.join(' ')}"/>`;
+      segment = [];
+    };
+    months.forEach((month, i) => {
+      const value = s.values[i] ?? null;
+      if (value === null) { flush(); return; }
+      segment.push(`${X(i).toFixed(1)},${Y(value).toFixed(1)}`);
+      body += `<circle data-month="${esc(month)}" data-series="${esc(s.name)}" cx="${X(i).toFixed(1)}" cy="${Y(value).toFixed(1)}" r="3" fill="${s.color}"/>`;
+    });
+    flush();
+  }
+  return svgWrap(w, h, body);
+}
+
 /** Cumulative revenue share (Pareto) per marketplace, log x axis. */
 export function paretoChart(lines: readonly ParetoLine[], { w = 760, h = 300, xLabel = 'Số gian hàng (sắp xếp theo doanh thu giảm dần)', maxN = 0 } = {}): string {
   const L = 48, R = 20, T = 30, Bm = 44, n = maxN || Math.max(...lines.map(l => l.ys.length));

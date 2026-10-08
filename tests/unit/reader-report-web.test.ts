@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
@@ -32,6 +33,9 @@ import {
   webSnapshotDigest,
 } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { Bundle } from '../../src/modules/analysis/reader-report/bundle.js';
+import apiSchema from '../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
+import readerApiSchema from '../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
+import readerInputSchema from '../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
 
 // P2 reader report over the metric web snapshot: contract versions, derived
 // source, bundle keys, exhibits, lint, reconciliation and citations.
@@ -83,6 +87,24 @@ const input11 = (mutate?: (x: Record<string, unknown>) => void): ReaderReportInp
   return x as unknown as ReaderReportInput;
 };
 const options = { limitations: ['Phân loại sản phẩm chưa được chủ duyệt.'], builtOn: '06/10/2026', flint: false } as const;
+
+test('snapshot build API accepts explicit new version without source and rejects legacy or unpaired snapshot fields', () => {
+  const require = createRequire(import.meta.url);
+  const { Ajv2020 } = require('ajv/dist/2020.js');
+  const ajv = new Ajv2020({ strict: true });
+  require('ajv-formats')(ajv);
+  ajv.addSchema(apiSchema).addSchema(readerInputSchema).addSchema(readerApiSchema);
+  const valid = ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildRequest` });
+  const s = snapshot();
+  const body = { contractVersion: 'reader-report-build-v1.1', requestKey: '10000000-0000-4000-8000-000000000001',
+    metricPackageId: '20000000-0000-4000-8000-000000000001', platforms: ['shopee', 'tiktok'], profile: profile(), cover: null,
+    webSnapshot: s, webSnapshotSha256: webSnapshotDigest(s) };
+  assert.ok(valid(body), JSON.stringify(valid.errors));
+  assert.ok(!valid({ ...body, contractVersion: 'reader-report-build-v1', source: input10().source }));
+  const { webSnapshotSha256: _digest, ...withoutDigest } = body;
+  assert.ok(!valid(withoutDigest));
+  assert.ok(!valid({ ...body, unexpected: 'untrusted' }));
+});
 
 async function withStore<T>(f: (store: ContentAddressedArtifactStore) => Promise<T>): Promise<T> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'reader-web-'));
@@ -154,6 +176,81 @@ test('helpers: digest, labels and monthly stats', () => {
     (e: unknown) => e instanceof MetricWebSnapshotError, 'a non-digest sha is rejected');
 });
 
+test('monthly comparisons require six consecutive calendar months with values', () => {
+  const facts = verifyWebSnapshot(snapshot(), webSnapshotDigest(snapshot()));
+  assert.ok(!('absent' in facts.monthly));
+  const template = Object.values(facts.monthly.shopee ?? {})[0]!;
+  const months = Object.fromEntries(['2026-01', '2026-02', '2026-03', '2026-07', '2026-08', '2026-09']
+    .map((month, i) => [month, { ...template, revenue: { ...template.revenue, value: i < 3 ? 100 : 200 } }]));
+  assert.equal(webMonthlyStats(months).last3vsPrev3, null);
+  const nullLast = { ...months, '2026-10': { ...template, revenue: { ...template.revenue, value: null } } };
+  assert.equal(webMonthlyStats(nullLast).last3vsPrev3, null);
+});
+
+test('web lint checks block boundaries, platform sums and all captured provider names', () => {
+  const fails = (html: string) => lint(html).filter(r => !r.ok && r.rule.startsWith('W')).map(r => r.rule.slice(0, 2));
+  assert.deepEqual(fails('<div class="webex"><div><p>12,3 tỷ</p></div></div><p>toàn kết quả tìm kiếm</p>'), ['W1']);
+  assert.deepEqual(fails('<p>Tổng hai sàn đạt 10 tỷ toàn kết quả tìm kiếm.</p>'), ['W3']);
+  for (const provider of ['OpenCLI', 'Apify', 'PageIndex', 'SerpApi', 'Agent-Reach', 'zen-studio']) {
+    assert.deepEqual(fails(`<div class="webex" data-web-label="${provider}">toàn kết quả tìm kiếm</div>`), ['W6']);
+  }
+});
+
+test('1.1.0 cites every web result and quoted snippet, and M10 historical numbers', async () => {
+  const r = await buildMarketReport(computeReaderReportData(input11()), { ...options,
+    webResults: [{ position: 1, title: 'Synthetic independent source', url: 'https://example.org/evidence?token=discard',
+      snippet: 'Verbatim synthetic quote.', retrievedAt: '2026-10-06T00:00:00Z' }] });
+  const m10 = r.html.match(/<section id="phan-10">[\s\S]*?<\/section>/)![0];
+  assert.match(m10, /class="cite"/);
+  const webTable = r.html.match(/<table class="pl-web">[\s\S]*?<\/table>/)![0];
+  assert.equal([...webTable.matchAll(/class="cite"/g)].length, 2);
+  const register = r.html.match(/<section class="citation-register">[\s\S]*?<\/section>/)![0];
+  assert.match(register, /https:\/\/example.org\/evidence<\/a>/);
+  const providers = await buildMarketReport(computeReaderReportData(input11()), { ...options,
+    webResults: [{ position: 1, title: 'OpenCLI synthetic title', site: 'Apify source', url: 'https://example.org/evidence',
+      snippet: 'PageIndex synthetic quote.', retrievedAt: '2026-10-06T00:00:00Z' }] });
+  assert.doesNotMatch(visibleText(providers.html), /OpenCLI|Apify|PageIndex/);
+});
+
+test('monthly fallback is a line with an actual gap and no fabricated missing point', async () => {
+  const s = snapshot();
+  const groups = s['groups'] as Record<string, unknown>;
+  groups['W4_monthly'] = (groups['W4_monthly'] as { platform: string; month: string }[])
+    .filter(point => !(point.platform === 'shopee' && point.month === '2026-03'));
+  const r = await buildMarketReport(computeReaderReportData(input11(x => {
+    x['webSnapshot'] = s; x['webSnapshotSha256'] = webSnapshotDigest(s);
+  })), options);
+  const figure = r.html.match(/<figure class="ex">(?:(?!<figure class="ex">)[\s\S])*?Hình 3\.2[\s\S]*?<\/figure>/)![0];
+  assert.match(figure, /<polyline/);
+  assert.match(figure, /data-month="2026-03" data-series="TikTok Shop"/);
+  assert.doesNotMatch(figure, /data-month="2026-03" data-series="Shopee"/);
+  assert.equal([...figure.matchAll(/<polyline/g)].length, 3, 'Shopee line breaks into two segments; TikTok remains continuous');
+});
+
+test('all rounded web exhibits show their precision and lineage rows never invent a source', async () => {
+  const s = snapshot();
+  const round = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    const object = value as Record<string, unknown>;
+    if ('precision' in object) object['precision'] = 'display_rounded';
+    for (const child of Object.values(object)) round(child);
+  };
+  round(s);
+  const r = await buildMarketReport(computeReaderReportData(input11(x => {
+    x['webSnapshot'] = s; x['webSnapshotSha256'] = webSnapshotDigest(s); x['rowLineage'] = { sha256: 'b'.repeat(64) };
+  })), options);
+  for (const number of ['3.2', '4.2', '4.3', '4.4', '6.3', '7.2', '7.3', '7.4', '7.5', '7.6', '8.3']) {
+    const escaped = number.replace('.', '\\.');
+    const table = r.html.match(new RegExp(`<div class="ex">(?:(?!<div class="ex">)[\\s\\S])*?Bảng ${escaped}[\\s\\S]*?</table>[\\s\\S]*?</div>`))![0];
+    assert.match(table, /số làm tròn như trên trang/, number);
+  }
+  assert.doesNotMatch(r.html, /Chưa có nguồn/);
+  const numbers = [...r.html.matchAll(/<sup class="cite">\[(\d+)\]<\/sup>/g)].map(match => Number(match[1]));
+  assert.deepEqual([...new Set(numbers)], [...new Set(numbers)].map((_, index) => index + 1));
+  const uncited = await buildMarketReport(computeReaderReportData(input11()), options);
+  assert.match(uncited.html, /Chưa có nguồn/);
+});
+
 test('1.0.0 computes and renders without any web key', async () => {
   const d = computeReaderReportData(input10());
   assert.equal(d.webFacts, null);
@@ -162,6 +259,8 @@ test('1.0.0 computes and renders without any web key', async () => {
   assert.ok(!d.bundle.toJSON().some(m => m.id.startsWith('web.') || m.id.startsWith('cite.')));
   await withStore(async store => {
     const r = await buildMarketReport(d, options);
+    assert.equal(createHash('sha256').update(r.html).digest('hex'), 'e2094fdf8d70fb529f5bdd7db974bbe475839693086506a662a4ae8e48682535',
+      'legacy fixture HTML remains byte-identical to the pre-fix renderer at 42b2787');
     const pub = await publishReaderReport(store, { html: r.html, narrator: r.narrator, extraOk: r.extraOk });
     assert.ok(pub.lint.every(x => x.ok), JSON.stringify(pub.lint.filter(x => !x.ok)));
     assert.doesNotMatch(r.html, /webex|Nguồn tham khảo/);

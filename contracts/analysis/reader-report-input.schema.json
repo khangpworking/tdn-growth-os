@@ -22,8 +22,16 @@
       "description": "Opaque web snapshot (automation-metric-web-snapshot-v1). Allowed only in 1.1.0; validated at runtime.",
       "type": "object"
     },
-    "webSnapshotSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" }
+    "webSnapshotSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "rowLineage": {
+      "description": "Retained workbook identity supplied by the application, never inferred from the displayed row values.",
+      "type": "object", "additionalProperties": false, "required": ["sha256"],
+      "properties": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } }
+    }
   },
+  "if": { "properties": { "contractVersion": { "const": "1.0.0" } }, "required": ["contractVersion"] },
+  "then": { "properties": { "source": {}, "webSnapshot": false, "webSnapshotSha256": false, "rowLineage": false }, "required": ["source"] },
+  "else": { "properties": { "webSnapshot": {}, "webSnapshotSha256": {} }, "required": ["webSnapshot", "webSnapshotSha256"] },
   "$defs": {
     "platform": { "enum": ["shopee", "tiktok"] },
     "text": { "type": "string", "minLength": 1, "maxLength": 500 },

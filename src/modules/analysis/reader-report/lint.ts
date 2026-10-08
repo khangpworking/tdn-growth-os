@@ -10,6 +10,7 @@ export type LintOptions = {
 
 // Data providers that must never be named in a report (owner rule).
 export const FORBIDDEN_PROVIDER_NAMES: readonly string[] = ['Metric', 'Kalodata', 'TradeInt', 'Dami'];
+const CAPTURED_PROVIDER_NAMES: readonly string[] = [...FORBIDDEN_PROVIDER_NAMES, 'SerpApi', 'Apify', 'PageIndex', 'Agent-Reach', 'OpenCLI', 'zen-studio'];
 
 export function visibleText(html: string): string {
   return html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
@@ -104,11 +105,11 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   webexOpens.forEach((m, i) => {
     const start = (m.index ?? 0) + m[0].length;
     const rest = html.slice(start);
-    const nextOpen = rest.indexOf('<div class="webex"');
-    const nextClose = rest.indexOf('</section>');
-    let end = rest.length;
-    if (nextOpen !== -1) end = Math.min(end, nextOpen);
-    if (nextClose !== -1) end = Math.min(end, nextClose);
+    let depth = 1, end = rest.length;
+    for (const tag of rest.matchAll(/<\/?div\b[^>]*>/gi)) {
+      depth += tag[0].startsWith('</') ? -1 : 1;
+      if (depth === 0) { end = tag.index; break; }
+    }
     if (!visibleText(rest.slice(0, end)).toLowerCase().includes(family)) webexBad.push(`webex ${i + 1}`);
   });
   add('W1 số web mang nhãn họ', webexBad.length === 0,
@@ -121,7 +122,7 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
     mixed.length ? mixed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không lẫn hai họ số');
 
   const summed = sentences.filter(s =>
-    /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s) && !s.toLowerCase().includes(family));
+    /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s));
   add('W3 không cộng gộp sàn khi trang không ghi tổng', summed.length === 0,
     summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
 
@@ -142,7 +143,8 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('W5 M10 không có số dự báo', !forecastBad, forecastBad ? 'M10 có số kèm từ dự báo' : 'M10 chỉ xu hướng đã qua');
 
   const captured = [...html.matchAll(/data-web-label="([^"]*)"/g)].map(m => m[1] ?? '');
-  const hitLabels = captured.filter(l => providers.some(p => new RegExp(`\\b${p}\\b`, 'i').test(l)));
+  const hitLabels = captured.filter(l => [...providers, ...CAPTURED_PROVIDER_NAMES].some(p =>
+    new RegExp(`\\b${p}\\b`, 'i').test(decodeAttr(l))));
   add('W6 nhãn thu thập không nêu tên nhà cung cấp', hitLabels.length === 0,
     hitLabels.length ? 'thấy: ' + hitLabels.slice(0, 2).map(s => s.slice(0, 60)).join(' | ') : `${captured.length} nhãn đã kiểm`);
   return out;

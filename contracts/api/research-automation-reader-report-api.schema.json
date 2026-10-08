@@ -14,16 +14,21 @@
     "buildRequest": {
       "title": "ResearchAutomationReaderBuildRequest",
       "type": "object", "additionalProperties": false,
-      "required": ["contractVersion", "requestKey", "metricPackageId", "platforms", "profile", "cover", "source"],
+      "required": ["contractVersion", "requestKey", "metricPackageId", "platforms", "profile", "cover"],
       "properties": {
-        "contractVersion": { "const": "reader-report-build-v1" },
+        "contractVersion": { "enum": ["reader-report-build-v1", "reader-report-build-v1.1"] },
         "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
         "metricPackageId": { "$ref": "research-automation-api.schema.json#/$defs/uuid" },
         "platforms": { "type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/platform" } },
         "profile": { "$ref": "../analysis/reader-report-input.schema.json#/$defs/profile" },
         "cover": { "anyOf": [{ "type": "null" }, { "$ref": "#/$defs/cover" }] },
-        "source": { "$ref": "../analysis/reader-report-input.schema.json#/$defs/source" }
-      }
+        "source": { "$ref": "../analysis/reader-report-input.schema.json#/$defs/source" },
+        "webSnapshot": { "type": "object", "description": "Opaque retained search-page snapshot; checked by the snapshot validator and canonical digest." },
+        "webSnapshotSha256": { "$ref": "#/$defs/sha256" }
+      },
+      "if": { "properties": { "contractVersion": { "const": "reader-report-build-v1" } }, "required": ["contractVersion"] },
+      "then": { "properties": { "source": {}, "webSnapshot": false, "webSnapshotSha256": false }, "required": ["source"] },
+      "else": { "properties": { "webSnapshot": {}, "webSnapshotSha256": {} }, "required": ["webSnapshot", "webSnapshotSha256"] }
     },
     "cover": {
       "title": "ResearchAutomationReaderCover",

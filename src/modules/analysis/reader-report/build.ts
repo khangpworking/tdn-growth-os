@@ -54,6 +54,10 @@ export function verifyReaderProfile(value: unknown): ReaderReportInput['profile'
 
 /** Schema plus the cross-field rules a JSON schema cannot express. */
 export function verifyReaderReportInput(value: unknown): ReaderReportInput {
+  if (typeof value === 'object' && value !== null && 'contractVersion' in value && value.contractVersion === '1.0.0' &&
+    ('webSnapshot' in value || 'webSnapshotSha256' in value || 'rowLineage' in value)) {
+    fail('webSnapshot và nguồn dòng chỉ dùng với contractVersion 1.1.0');
+  }
   if (!validateInput(value)) throw new ReaderReportInputError(`đầu vào bản đọc sai khuôn: ${shapeErrors(validateInput.errors)}`);
   const input = value;
   if (input.contractVersion === '1.0.0') {
