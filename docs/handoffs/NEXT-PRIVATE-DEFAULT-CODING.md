@@ -82,3 +82,9 @@ U03/U18 private default owning consumer slice is delivered locally. U11 statisti
 
 Unresolved: coordinator independent final-head review, full hosted exact-head Check and normal merge. No deployment or production acceptance is claimed.
 Next action: review the exact pushed draft head and run mandatory hosted full checks; obtain a fresh scoped grant for any correction or later reader25/private-crosscheck work.
+
+Delivery:
+
+- Draft PR190: https://github.com/khangpworking/tdn-growth-os/pull/190 (base `main`). First clean pushed release head `b949c1583f10cad7387ad2d13656d75dca88aae5`; tested code checkpoint remains `5b6557b82b827a56e565483a754dc8a163bb760d`.
+- Exact central/source and parent/child frontend releases sent in `msg_5dc26ee33353` with final stable source hashes. GLOBAL was previously released and fingerprints remain unchanged. No shared code edit after those releases.
+- Final PR head includes only this delivery-note addition after the passing source/UI checks. Independent review and hosted full Check must target that final pushed head, reported in the fresh Task/Dispatch completion; worker does not merge PR190.
