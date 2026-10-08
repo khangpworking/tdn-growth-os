@@ -24,11 +24,12 @@ import { seedNativeDamiPackage } from '../helpers/native-dami-package-fixture.js
 import { literalRunId as runId, literalWorkspaceId as workspaceId, literalSelected } from '../helpers/insight-literal-fixture.js';
 import { buildInsightLiteralEvidence } from '../../src/modules/analysis/insight-literal-evidence.js';
 import { syntheticWebSource } from '../helpers/research-synthetic-sources.js';
+import { sourceEvidenceForReport } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 const now = () => new Date('2026-10-08T00:00:00.000Z');
 const url = 'https://shopee.vn/product/78085196/17678138164';
-async function fixture(t: TestContext, { native = false, seller = false, starsAbsent = false, injectUntrustedLiteral = false, defaultRenderer = false, sourcePolicy = false, detailMetrics = true,
-  extraRows = [] }: { native?: boolean; seller?: boolean; starsAbsent?: boolean; injectUntrustedLiteral?: boolean; defaultRenderer?: boolean; sourcePolicy?: boolean; detailMetrics?: boolean;
+async function fixture(t: TestContext, { native = false, seller = false, starsAbsent = false, injectUntrustedLiteral = false, defaultRenderer = false, sourcePolicy = false, detailMetrics = true, keywordUnavailable = false,
+  extraRows = [] }: { native?: boolean; seller?: boolean; starsAbsent?: boolean; injectUntrustedLiteral?: boolean; defaultRenderer?: boolean; sourcePolicy?: boolean; detailMetrics?: boolean; keywordUnavailable?: boolean;
   extraRows?: { comment: string | null; star: unknown; id: string }[] } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-insight-literal-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
@@ -64,9 +65,9 @@ async function fixture(t: TestContext, { native = false, seller = false, starsAb
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, now, uuid: () => runId,
     metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')),
     workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), ...(source ? { source } : {}),
-    ...(sourcePolicy ? { sourceEvidence: { modelIdentity: 'synthetic-keyword-model', promptVersion: 'synthetic-v1', transport: {
+    ...(sourcePolicy ? { sourceEvidence: { modelIdentity: 'synthetic-keyword-model', promptVersion: 'synthetic-v1', ...(keywordUnavailable ? {} : { transport: {
       async draftLists() { keywordCalls++; return { keywords: ['sản phẩm'], exclusions: [{ term: 'thạch dứa', reason: 'Khác nghĩa' }] }; },
-    } }, webSource: syntheticWebSource(() => { webCalls++; }, [
+    } }) }, webSource: syntheticWebSource(() => { webCalls++; }, [
       { position: 1, title: 'Sản phẩm trong mẫu', link: 'https://example.test/included', snippet: 'Nguồn mẫu' },
       { position: 2, title: 'Sản phẩm thạch dứa', link: 'https://example.test/excluded', snippet: 'Nguồn loại' },
       { position: 3, title: 'san pham', link: 'https://example.test/unclear', snippet: 'Chưa rõ' },
@@ -283,6 +284,8 @@ for (const accepted of [false, true]) test(`literal revision inherits explicitly
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString('utf8'));
   assert.equal(semantic.rendererVersion, 'automation-report-kit-v19');
   assert.equal(codingSemantic.rendererVersion, 'automation-report-kit-v18');
+  assert.deepEqual(semantic.sourceEvidence.admission.result.accounting, { included: 1, excluded: 1, unclear: 1,
+    byReason: { EXCLUDED_TERM: 1, UNRESOLVED_UNDIACRITICIZED: 1 } });
   assert.deepEqual(semantic.sourceEvidence, codingSemantic.sourceEvidence, 'source appendix and L9 stay composed with the literal renderer');
   assert.deepEqual(semantic.insightCoding, codingSemantic.insightCoding, 'literal projection preserves exact proposal/adoption/selection binding');
   assert.equal(semantic.insightLiteral.selectedRecordCount, 6);
@@ -396,7 +399,7 @@ test('exact-source literal projection preserves the established equal-native-ID 
 });
 
 for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal19 composes Source18 appendix and adds only seller captures actually consumed without metric observations`, async t => {
-  const f = await fixture(t, { native, seller: true, sourcePolicy: true, detailMetrics: false });
+  const f = await fixture(t, { native, seller: true, sourcePolicy: true, detailMetrics: false, keywordUnavailable: true });
   const old = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId);
   const oldSemantic = JSON.parse((await f.artifacts.read(old.versionId)).toString('utf8'));
   assert.equal(oldSemantic.rendererVersion, 'automation-report-kit-v18');
@@ -415,13 +418,18 @@ for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString('utf8'));
   assert.equal(semantic.rendererVersion, 'automation-report-kit-v19');
   assert.deepEqual(semantic.sourceEvidence.admission, oldSemantic.sourceEvidence.admission);
-  assert.deepEqual(semantic.sourceEvidence.admission.result.accounting, { included: 1, excluded: 1, unclear: 1,
-    byReason: { EXCLUDED_TERM: 1, UNRESOLVED_UNDIACRITICIZED: 1 } });
+  assert.equal(semantic.sourceEvidence.admission, null);
+  assert.equal(semantic.sourceEvidence.unavailableReason, 'MODEL_NOT_CONFIGURED');
   const used = semantic.sourceEvidence.sourceAppendix.rows as { registryId: string; binding: { kind: string; ref: string } }[];
   const prior = oldSemantic.sourceEvidence.sourceAppendix.rows as typeof used;
   const added = used.filter(row => !prior.some(oldRow => oldRow.registryId === row.registryId && oldRow.binding.ref === row.binding.ref));
   assert.deepEqual(added.map(row => [row.registryId, row.binding.kind, row.binding.ref]).sort(), detailDigests.map(ref => ['S02', 'capture', ref]).sort());
   assert.equal(used.filter(row => row.registryId === (native ? 'S27' : 'S05')).length, 1);
+  // A verified literal source retains its registry binding even when the legacy
+  // source-method view is unavailable; the packet does not require that view.
+  const literalOnly = sourceEvidenceForReport(oldSemantic.sourceEvidence, { collection: bound.collection,
+    insightLiteral: semantic.insightLiteral }, 'INSIGHT');
+  assert.deepEqual(literalOnly, semantic.sourceEvidence);
   for (const row of used.filter(row => row.registryId === 'S02')) {
     assert.ok(semantic.insightLiteral.input.sellerStatements.some((statement: { sourceSha256: string }) => statement.sourceSha256 === row.binding.ref)
       || prior.some(previous => previous.binding.ref === row.binding.ref), 'unrelated captures do not enter the appendix');
