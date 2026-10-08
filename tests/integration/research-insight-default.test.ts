@@ -127,7 +127,8 @@ test('default source proposal needs no adoption; exact batches, unapproved codeb
       target: { state: 'SOURCE_STATED', span }, speakerAttribution: { state: 'NOT_STATED', span: null }, qualifiers: [], counterevidence: [],
       provenance: { basis: 'HUMAN_REVIEWED', coderRole: 'forged owner', adjudication: 'forged approval', disagreement: null } });
     annotations.corpora.push({ corpusIndex: 0, assignments: [{ recordIndex: row.recordIndex, code: 'C1', span,
-      provenance: { basis: 'PENDING_AI', coderRole: 'fixture', adjudication: null, disagreement: null } }], dispositions: [] });
+      provenance: { basis: 'PENDING_AI', coderRole: 'fixture', adjudication: null, disagreement: null } }], dispositions: [{ recordIndex: row.recordIndex, state: 'CODED',
+      provenance: { basis: 'PENDING_AI', coderRole: 'fixture', adjudication: null, disagreement: null } }] });
     return { text: JSON.stringify({ codebooks: calls === 1 ? [{ corpusIndex: 0, codes: [{ code: 'C1', label: 'kích thước', phrase: 'kích thước', firstRecordIndex: row.recordIndex, firstSpan: span }] }] : [], annotations }) };
   } } };
   const first = await f.service.proposeDefaultModelInsightCoding(workspaceId, runId, request, owner, ai);
@@ -173,6 +174,17 @@ test('default source proposal needs no adoption; exact batches, unapproved codeb
   assert.deepEqual(semantic.insightCoding.draftSelection, selected);
   assert.deepEqual(semantic.insightCoding.receipts, []);
   assert.equal(semantic.insightCoding.groupCounts.rates, null);
+  assert.equal(semantic.insightCoding.output.sections.I10.corpora[0].draftCounts[0].recordCount, 2);
+  assert.equal(semantic.insightCoding.output.sections.I10.corpora[0].draftCounts[0].label, 'đề xuất, chờ chủ duyệt');
+  assert.equal(semantic.insightCoding.output.sections.I10.corpora[0].counts[0].recordCount, 0, 'unapproved rows never enter accepted counts');
+  const retained = f.db.prepare('SELECT admission_sha256, prompt_sha256, configuration_sha256 FROM analysis_research_automation_ai_executions WHERE execution_id=?')
+    .get(first.execution.executionId) as { admission_sha256: string; prompt_sha256: string; configuration_sha256: string };
+  const retainedSource = JSON.parse((await f.artifacts.read(retained.admission_sha256)).toString());
+  assert.deepEqual(retainedSource.request, request); assert.deepEqual(retainedSource.binding, source.binding);
+  assert.equal(retainedSource.defaultRuleSha256, proposed.request.defaultRuleSha256);
+  assert.equal(retainedSource.codebookSha256, insightCodingDigest(retainedSource.input.corpora.map((corpus: { codebook: unknown }) => corpus.codebook)));
+  assert.equal(JSON.parse((await f.artifacts.read(retained.prompt_sha256)).toString()).contractVersion, 'insight-model-prompt-v5');
+  assert.deepEqual(JSON.parse((await f.artifacts.read(retained.configuration_sha256)).toString()), configuration);
   const html = report.bytes.toString();
   assert.match(html, /đề xuất, chờ chủ duyệt/); assert.match(html, /Quy tắc và bộ mã là đề xuất/);
   assert.match(html, /lô không hợp lệ/);

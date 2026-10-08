@@ -25,6 +25,8 @@ Changed paths: Insight-specific `insight-default-coding.ts`, `insight-coding.ts`
 
 Task-local Node24.15.0/npm11.12.1; synthetic Foundation/exact/native sources, fake model/collector transports and loopback HTTP only. No local full suite or generation ran.
 
+Additional retained-count proof: the real service fake model supplies pending CODED dispositions, yields exactly2 proposed I10 records while accepted count stays0, and binds exact source/default/codebook/prompt-v5/model-configuration artifacts. Focused service1/1PASS (`/tmp/ultimate-default-recovery-counts.log`).
+
 Backend stable source phase: `ef48b2c855a70bcdae1d378f35b28590dd2d4e21`.
 
 - `npm run typecheck`: PASS (`/tmp/ultimate-default-recovery-typecheck.log`).
@@ -37,7 +39,7 @@ Backend stable source phase: `ef48b2c855a70bcdae1d378f35b28590dd2d4e21`.
 
 Coordinator review additionally found that the initial default builder expanded an explicit corpus to all included source rows. The corrected builder preserves each declared corpus and codebook verbatim except for separately proposed assignments/dispositions; the unit proof retains a one-record incomplete subset, refuses an out-of-corpus assignment, keeps `CORPUS_MEMBERSHIP_INCOMPLETE` and withholds ratios. Unit plus mounted default UI9/9PASS (`/tmp/ultimate-default-recovery-scope-ui.log`).
 
-The unfinished inherited HTTP fixture initially used a token without a digit and lacked early gateway cleanup; fixing the synthetic token and cleanup exposed the real missing route allowlist. The actual default report frontend action then exposed missing client dispatch for the new revision contract; both production paths were fixed. Assertions for authentication, exact identity and no-call/no-write replay were retained and expanded.
+The unfinished inherited HTTP fixture initially used a token without a digit and lacked early gateway cleanup; the synthetic token and cleanup were corrected without changing the auth assertions. The default route uses the same authenticated model-write dispatch as the adopted route. The actual default report frontend action then exposed missing client dispatch for the new revision contract; the missing client dispatch was fixed. Assertions for authentication, exact identity and no-call/no-write replay were retained and expanded.
 
 ## Ownership and next action
 
