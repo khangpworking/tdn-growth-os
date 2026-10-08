@@ -15,6 +15,9 @@ import { createResearchAutomationProviderRegistry, type ProviderTransport } from
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { FixtureShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
 import { MAX_CAPTURES_PER_STEP } from '../../src/modules/analysis/research-automation/model.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+import type { DefaultMarketPeers } from '../../contracts/analysis/default-market-peers.generated.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -23,6 +26,8 @@ const period = { startDate: '2026-09-01', endDate: '2026-09-30' } as const;
 const now = () => new Date('2026-10-02T00:00:00.000Z');
 
 interface SavedSemantic {
+  readonly rendererVersion?: string;
+  readonly defaultMarketPeers?: DefaultMarketPeers;
   readonly kind: 'MARKET' | 'INSIGHT';
   readonly descriptiveMethods?: DescriptiveMarketMethods;
   readonly descriptiveMethodFailure?: string;
@@ -35,16 +40,40 @@ interface SavedSemantic {
 }
 
 async function fixture(t: TestContext, kind: 'MARKET' | 'INSIGHT' | 'BOTH' = 'MARKET', fault?: 'method' | 'normalization' | 'step-lineage' | 'capture-bound' | 'unsettled', reviews = false,
-  eventInput?: { launchDates: readonly string[]; period: { startDate: string; endDate: string } }) {
+  eventInput?: { launchDates: readonly string[]; period: { startDate: string; endDate: string } }, legacyStart = false) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-automation-methods-'));
   const db = openDatabase({ databasePath: path.join(root, 'db.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   let calls = 0;
   let detailIndex = 0;
+  let checkedFrozenStart = false;
+  async function storeJson(value: unknown) {
+    const stored = await artifacts.put(Buffer.from(canonicalJson(value)));
+    db.prepare(`INSERT INTO artifact_manifests(sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at)
+      VALUES (?,?,'application/json',?,?,'1.0.0','active',?) ON CONFLICT(sha256) DO NOTHING`)
+      .run(stored.sha256, stored.byteSize, stored.relativePath, now().toISOString(), now().toISOString());
+    return stored;
+  }
+  function replaceStart(sha: string) {
+    // Simulate a pre-versioned/corrupted synthetic fixture, then restore its production guard.
+    const guard = db.prepare("SELECT sql FROM sqlite_master WHERE name='analysis_research_automation_runs_guard'").get() as { sql: string };
+    db.transaction(() => {
+      db.exec('DROP TRIGGER analysis_research_automation_runs_guard');
+      db.prepare('UPDATE analysis_research_automation_runs SET start_request_sha256=? WHERE run_id=?').run(sha, runId);
+      db.exec(guard.sql);
+    })();
+  }
   const transport: ProviderTransport = {
     now: () => now().getTime(),
     sleep: async () => {},
     fetch: (async (input, init) => {
+      if (!checkedFrozenStart) {
+        const row = db.prepare('SELECT start_request_sha256 sha FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { sha: string };
+        const snapshot = JSON.parse((await artifacts.read(row.sha)).toString());
+        assert.deepEqual(snapshot.defaultPeerRule, legacyStart ? undefined : DEFAULT_MARKET_PEER_RULE,
+          'the exact policy must already be committed before the first discovery or sales request');
+        checkedFrozenStart = true;
+      }
       calls += 1;
       const url = new URL(String(input));
       let payload: unknown;
@@ -92,8 +121,8 @@ async function fixture(t: TestContext, kind: 'MARKET' | 'INSIGHT' | 'BOTH' = 'MA
       const rendered = buildResearchAutomationReport(input, kind);
       // A presentation adapter can omit the method payload. Its retention must
       // still be owned by the service rather than depending on this adapter.
-      const { descriptiveMethods: _methods, ...semantic } = rendered.semantic as Record<string, unknown>;
-      return { ...rendered, semantic };
+      const { descriptiveMethods: _methods, defaultMarketPeers: _peers, ...semantic } = rendered.semantic as Record<string, unknown>;
+      return { ...rendered, semantic: { ...semantic, defaultMarketPeers: { contractVersion: 'adapter-invented-peers' } } };
     },
   });
   const worker = new ResearchAutomationWorker({ service, db });
@@ -118,6 +147,14 @@ async function fixture(t: TestContext, kind: 'MARKET' | 'INSIGHT' | 'BOTH' = 'MA
     contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'PRODUCT', keyword: 'thermos', requestedPeriod: eventInput?.period ?? period, reports: kind === 'BOTH' ? ['MARKET', 'INSIGHT'] : [kind],
   });
+  if (legacyStart) {
+    // Synthetic retained historical start: the marker did not exist in that version.
+    const row = db.prepare('SELECT start_request_sha256 sha FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { sha: string };
+    const snapshot = JSON.parse((await artifacts.read(row.sha)).toString());
+    delete snapshot.defaultPeerRule;
+    const saved = await storeJson(snapshot);
+    replaceStart(saved.sha256);
+  }
   await worker.start();
   const awaiting = await waitFor('AWAITING_SCOPE');
   // Quick search fetches a detail too; the event sequence models collection windows only.
@@ -136,7 +173,8 @@ async function fixture(t: TestContext, kind: 'MARKET' | 'INSIGHT' | 'BOTH' = 'MA
   const semantic = JSON.parse((await artifacts.read(semanticSha)).toString('utf8')) as SavedSemantic;
   const changes = () => (db.prepare('SELECT total_changes() AS count').get() as { count: bigint }).count;
   const sourcePackages = new SourcePackageService({ db, artifactStore: artifacts, now });
-  return { root, db, artifacts, service, semantic, ready, sourcePackages, changes, calls: () => calls };
+  return { root, db, artifacts, service, semantic, ready, sourcePackages, changes, storeJson, replaceStart,
+    checkedFrozenStart: () => checkedFrozenStart, calls: () => calls };
 }
 
 // The owner boundary must generate, retain and replay method output; provider and
@@ -146,7 +184,13 @@ test('collection executes source-bound methods and saves zero-safe partial resul
   const methods = state.semantic.descriptiveMethods;
   assert.ok(methods, 'REPORTS must execute and persist the existing descriptive method');
   assert.equal(methods.methodId, 'source-bound-descriptive-market');
-  assert.equal(methods.methodVersion, '1.1.0');
+  assert.equal(methods.methodVersion, '1.2.0');
+  assert.equal(state.checkedFrozenStart(), true);
+  assert.deepEqual(methods.input.defaultPeerRule, DEFAULT_MARKET_PEER_RULE);
+  assert.equal(state.semantic.rendererVersion, 'automation-report-kit-v14');
+  assert.deepEqual(state.semantic.defaultMarketPeers?.input.rule, DEFAULT_MARKET_PEER_RULE);
+  assert.deepEqual(state.semantic.defaultMarketPeers?.input.records, []);
+  assert.deepEqual(state.semantic.defaultMarketPeers?.frames, [], 'detail-only observations never fabricate classified sales');
   assert.deepEqual(methods.input.m05.map(row => [row.measureLiteral, row.observation.state, row.observation.value]), [
     ['revenue', 'observed_zero', '0'], ['sales_volumn', 'observed_value', '7'],
   ]);
@@ -159,14 +203,18 @@ test('collection executes source-bound methods and saves zero-safe partial resul
   assert.equal(methods.sections.M07.mode, 'UNRANKED_INVENTORY');
   assert.deepEqual(methods.sections.M07.comparisons, []);
   assert.equal(state.semantic.completion.completedAnalyticalSections, 0);
-  assert.deepEqual(state.semantic.completion.boundedMethodOutputSectionIds, ['M05', 'M06', 'M07']);
-  assert.deepEqual(state.semantic.completion.boundedMethodNoUsableRecordSectionIds, ['M09']);
+  assert.deepEqual(state.semantic.completion.boundedMethodOutputSectionIds, ['M05', 'M06']);
+  assert.deepEqual(state.semantic.completion.boundedMethodNoUsableRecordSectionIds, ['M07', 'M09']);
   assert.equal(state.semantic.state, 'PARTIAL_UNREVIEWED_DRAFT');
 
   const retained = await state.sourcePackages.readVerified(methods.input.sourcePackage.packageId);
   assert.equal(retained.manifestArtifactSha256, methods.input.sourcePackage.manifestArtifactSha256);
   assert.equal(retained.packageContentSha256, methods.input.sourcePackage.packageContentSha256);
   assert.ok(retained.files.some(file => file.representationRole === 'primary' && file.mediaType === 'application/vnd.tdn.research-automation.capture+json'));
+  assert.equal(retained.manifest.packageKey, `automation-method:${runId}-descriptive-v3`);
+  const normalized = JSON.parse(retained.files.find(file => file.path === 'normalized/observations.json')!.bytes.toString());
+  assert.equal(normalized.contractVersion, 'automation-descriptive-normalization-v3');
+  assert.deepEqual(normalized.start.defaultPeerRule, DEFAULT_MARKET_PEER_RULE);
   assert.equal((state.db.prepare('SELECT count(*) AS count FROM analysis_metric_input_preparations').get() as { count: bigint }).count, 0n);
 
   const before = { changes: state.changes(), calls: state.calls() };
@@ -176,6 +224,58 @@ test('collection executes source-bound methods and saves zero-safe partial resul
   assert.deepEqual(replay.bytes, first.bytes);
   assert.match(first.bytes.toString('utf8'), /revenue/);
   assert.match(first.bytes.toString('utf8'), /sales_volumn/);
+  assert.match(first.bytes.toString('utf8'), /Nhu cầu, đo bằng doanh số \(ước tính\) trong mẫu/);
+  assert.deepEqual({ changes: state.changes(), calls: state.calls() }, before);
+});
+
+test('marker-free historical starts retain descriptive v2 packages and original M07 dispatch on immutable reads', async t => {
+  const state = await fixture(t, 'MARKET', undefined, false, undefined, true);
+  const methods = state.semantic.descriptiveMethods!;
+  assert.equal(methods.methodVersion, '1.1.0');
+  assert.equal(methods.input.defaultPeerRule, undefined);
+  assert.equal(state.semantic.defaultMarketPeers, undefined, 'adapter-invented peers have no authority even on legacy runs');
+  assert.equal(state.semantic.rendererVersion, 'automation-report-kit-v13');
+  assert.deepEqual(state.semantic.completion.boundedMethodOutputSectionIds, ['M05', 'M06', 'M07']);
+  const retained = await state.sourcePackages.readVerified(methods.input.sourcePackage.packageId);
+  assert.equal(retained.manifest.packageKey, `automation-method:${runId}-descriptive-v2`);
+  const normalized = JSON.parse(retained.files.find(file => file.path === 'normalized/observations.json')!.bytes.toString());
+  assert.equal(normalized.start.defaultPeerRule, undefined);
+  const before = { changes: state.changes(), calls: state.calls() };
+  const first = await state.service.readReport(workspaceId, runId, 'MARKET');
+  assert.deepEqual((await state.service.readReport(workspaceId, runId, 'MARKET')).bytes, first.bytes);
+  assert.deepEqual({ changes: state.changes(), calls: state.calls() }, before);
+});
+
+test('owning read rejects missing or rebound peer snapshots and invalid frozen policy without source calls or writes', async t => {
+  const state = await fixture(t);
+  const originalSha = state.ready.outputs!.market!.versionId;
+  const original = JSON.parse((await state.artifacts.read(originalSha)).toString());
+  const guard = state.db.prepare("SELECT sql FROM sqlite_master WHERE name='analysis_research_automation_outputs_no_update'").get() as { sql: string };
+  const replaceVersion = (sha: string) => state.db.transaction(() => {
+    state.db.exec('DROP TRIGGER analysis_research_automation_outputs_no_update');
+    state.db.prepare("UPDATE analysis_research_automation_outputs SET version_sha256=? WHERE run_id=? AND report_kind='MARKET'").run(sha, runId);
+    state.db.exec(guard.sql);
+  })();
+  assert.throws(() => state.db.prepare("UPDATE analysis_research_automation_outputs SET version_sha256=? WHERE run_id=? AND report_kind='MARKET'").run(originalSha, runId),
+    /immutable/, 'normal writes cannot replace retained output identities');
+  for (const fault of ['omitted', 'owner-additions'] as const) {
+    const changed = structuredClone(original);
+    if (fault === 'omitted') delete changed.defaultMarketPeers;
+    else changed.defaultMarketPeers.input.ownerAdditions.push('not-in-frozen-scope');
+    const stored = await state.storeJson(changed);
+    replaceVersion(stored.sha256);
+    const before = { changes: state.changes(), calls: state.calls() };
+    await assert.rejects(state.service.readReport(workspaceId, runId, 'MARKET'), /default peers differ/);
+    assert.deepEqual({ changes: state.changes(), calls: state.calls() }, before);
+  }
+  replaceVersion(originalSha);
+  const row = state.db.prepare('SELECT start_request_sha256 sha FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { sha: string };
+  const start = JSON.parse((await state.artifacts.read(row.sha)).toString());
+  start.defaultPeerRule.thresholdPercent = 49;
+  const stored = await state.storeJson(start);
+  state.replaceStart(stored.sha256);
+  const before = { changes: state.changes(), calls: state.calls() };
+  await assert.rejects(state.service.readReport(workspaceId, runId, 'MARKET'), /default peer rule is invalid/);
   assert.deepEqual({ changes: state.changes(), calls: state.calls() }, before);
 });
 

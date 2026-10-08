@@ -37,6 +37,7 @@ const insightCodingApiSchema = await readSchema('contracts/api/research-automati
 const insightModelSchema = await readSchema('contracts/analysis/automation-insight-model.schema.json');
 const insightModelApiSchema = await readSchema('contracts/api/research-automation-insight-model-api.schema.json');
 const insightRevisionSchema = await readSchema('contracts/analysis/automation-insight-report-revision.schema.json');
+const defaultPeerSchema = await readSchema('contracts/analysis/default-market-peers.schema.json');
 const readerInputSchema = await readSchema('contracts/analysis/reader-report-input.schema.json');
 const readerApiSchema = await readSchema('contracts/api/research-automation-reader-report-api.schema.json');
 const reportReviewTargetSchema = await readSchema('contracts/analysis/report-review-target.schema.json');
@@ -45,6 +46,7 @@ const ownerReportReviewTargetApiSchema = await readSchema('contracts/api/owner-r
 
 const ajv = new Ajv2020({ allErrors: true, strict: true, code: { source: true, esm: true } });
 addFormats(ajv);
+ajv.addSchema(defaultPeerSchema);
 ajv.addSchema(reportReviewTargetSchema);
 ajv.addSchema(reportReviewTargetCreateRequestSchema);
 ajv.addSchema(reportApiSchema);

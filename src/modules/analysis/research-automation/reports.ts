@@ -5,6 +5,8 @@ import type { AutomationDecisionPacket } from '../../../../contracts/analysis/au
 import { quoteMethodSection, quoteMethodUsable } from './quote-method-report.js';
 import { renderReportMethodPacketSection } from '../report-method-packets-pages.js';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
+import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
+import { classifiedMetricDefaultPeers } from '../default-market-peers.js';
 import type { AutomationSourceClaims } from '../../../../contracts/analysis/automation-source-claims.generated.js';
 import type { AutomationM01EvidenceInventory } from '../../../../contracts/analysis/automation-m01-evidence-inventory.generated.js';
 import type { AutomationI14EvidenceAdmission } from '../../../../contracts/analysis/automation-i14-evidence-admission.generated.js';
@@ -30,7 +32,7 @@ import { marketInventorySection } from './market-inventory-report.js';
 import type { ResearchAutomationRun } from '../../../../contracts/api/research-automation-api.generated.js';
 import { REPORT_KIT_CSS as REPORT_KIT_BASE_CSS } from '../report-kit-theme.js';
 import { reportKitFontCss } from '../report-kit-fonts.js';
-import { attributionText, describeDescriptiveSection, descriptiveAppendix, escapeHtml, isDescriptiveSectionId, readerSafe, reviewRecordMark, retainedEvidenceHtml, retainedQuoteHtml, technicalLiteral, sourceMemberLabel, storedLiteral, type DescriptiveSectionView, type ReportCitations } from './descriptive-report.js';
+import { attributionText, describeDescriptiveSection, descriptiveAppendix, escapeHtml, isDescriptiveSectionId, readerSafe, readerPointer, reviewRecordMark, retainedEvidenceHtml, retainedQuoteHtml, technicalLiteral, sourceMemberLabel, storedLiteral, type DescriptiveSectionView, type ReportCitations } from './descriptive-report.js';
 import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, StepWebResult, TypedComparable } from './model.js';
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
@@ -382,6 +384,33 @@ function peerEvidence(input: AutomationReportInput, captures: ReadonlyMap<number
   });
 }
 
+function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitations): string {
+  const mark = (ref: DefaultMarketPeers['input']['records'][number]['source']): string => {
+    if (ref === null) return 'Chưa có nguồn';
+    const pointer = readerPointer(ref.locator);
+    return citations.mark({ sourceKind: 'CAPTURE', identity: ref.sourceSha256, locator: pointer.locator,
+      label: 'Doanh thu trong tệp nguồn đã lưu', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
+      technical: { sourceSha256: ref.sourceSha256, ...(pointer.technical === null ? {} : { locator: pointer.technical }) } });
+  };
+  const states: Record<DefaultMarketPeers['frames'][number]['state'], string> = {
+    SELECTED: 'Tập mặc định đã tính từ doanh thu nhóm trong mẫu.',
+    NO_SALES: 'Chưa có doanh số tương thích; không hiển thị phần thiếu bằng 0.',
+    ZERO_REVENUE: 'Doanh thu nhóm được nguồn ghi bằng 0; chưa chọn đối thủ.',
+    INCOMPLETE: 'Chưa đủ nguồn, doanh thu, nhóm hoặc danh tính để chọn đối thủ.',
+  };
+  const frames = snapshot.frames.map(result => {
+    const frame = result.frame;
+    const platform = frame.platform === 'shopee' ? 'Shopee' : frame.platform === 'tiktok' ? 'TikTok Shop' : storedLiteral(frame.platform, 'Sàn được giữ trong bản lưu');
+    const rows = result.selected.map(member => `<tr><td>${storedLiteral(member.identity.label, 'Danh tính nguồn được giữ trong bản lưu')}</td><td>${member.identity.kind === 'TITLE_LABEL' ? 'Nhãn thương hiệu theo tiêu đề người bán' : 'Gian hàng nguồn; chưa rõ thương hiệu'}</td><td>${escape(member.revenue)} VND ${member.sources.map(mark).join('')}</td></tr>`).join('');
+    return `<h3>${platform} · ${storedLiteral(frame.group, 'Nhóm được giữ trong bản lưu')}</h3><p>${states[result.state]} Kỳ ${escape(frame.period.start)} đến ${escape(frame.period.end)}.</p><p>Doanh thu nhóm trong mẫu: ${result.totalRevenue === null ? 'Chưa đủ dữ liệu' : `${escape(result.totalRevenue)} VND`}; doanh thu tập đã chọn: ${result.selectedRevenue === null ? 'Chưa đủ dữ liệu' : `${escape(result.selectedRevenue)} VND`}. ${result.eligible.map(mark).join('')}</p>${rows ? `<table><caption>Đối thủ mặc định trong nhóm, đặt cạnh nhau</caption><thead><tr><th>Nhãn nguồn</th><th>Căn cứ danh tính</th><th>Doanh thu ước tính</th></tr></thead><tbody>${rows}</tbody></table>` : ''}`;
+  }).join('');
+  const exclusions = snapshot.frames.flatMap(frame => frame.excluded);
+  const additions = snapshot.input.ownerAdditions.length
+    ? `<ul>${snapshot.input.ownerAdditions.map(id => `<li>Đối tượng nguồn: ${escape(sourceMemberLabel(id))}</li>`).join('')}</ul>`
+    : '<p>Chưa có bổ sung của chủ.</p>';
+  return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}% doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || '<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải 0.</p>'}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
+}
+
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
   if (input.run.runId !== input.scope.runId || input.run.workspaceId !== input.start.workspaceId || input.run.workspaceId !== input.scope.workspaceId) throw new Error('Report lineage mismatch');
   if (input.collection && (input.collection.runId !== input.run.runId || input.collection.stepId !== 'COLLECTION')) throw new Error('Report collection lineage mismatch');
@@ -399,6 +428,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const prefix = kind === 'MARKET' ? 'M' : 'I';
   const contextSections = kind === 'MARKET' ? ['M02', 'M13'] : ['I01', 'I03', 'I17'];
   const descriptive = kind === 'MARKET' ? input.descriptiveMethods : undefined;
+  const defaultMarketPeers = kind === 'MARKET' && input.start.defaultPeerRule !== undefined
+    ? classifiedMetricDefaultPeers(input.metricClassified?.result.input, input.start.defaultPeerRule, [...input.scope.peerProductIds]) : undefined;
   if (input.nativeReview && (input.locatedReview || input.reviewCorpus)) throw new Error('Native and exact-collection review lineage cannot be substituted');
   const located = kind === 'INSIGHT' ? input.nativeReview ?? (input.locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? input.locatedReview : undefined) : undefined;
   if (located && located.runId !== input.run.runId) throw new Error('Report corpus trace lineage mismatch');
@@ -521,6 +552,13 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       sectionId: section.sectionId, title: section.title, state: 'SOURCE_CONTEXT', method: 'automation-source-context-v1', rows: section.sectionId === 'M13' ? observations : [],
       explanation: section.sectionId === 'I01' ? 'Yêu cầu nghiên cứu ghi lại từ phạm vi đã xác nhận; không phải nhận định AI hay insight đã duyệt.' : 'Phạm vi yêu cầu, độ phủ thực tế và dấu vết nguồn của lượt này. Không thay thế phương pháp tính chuyên biệt của từng mục.',
     };
+    if (section.sectionId === 'M07' && defaultMarketPeers) {
+      locatedViews.set(section.sectionId, () => defaultPeerSection(defaultMarketPeers, citations));
+      const usable = defaultMarketPeers.frames.some(frame => frame.state === 'SELECTED' || frame.state === 'ZERO_REVENUE');
+      return { sectionId: section.sectionId, title: section.title, state: usable ? 'METHOD_OUTPUT' : 'METHOD_NO_USABLE_RECORDS',
+        method: defaultMarketPeers.input.rule.version, rows: [],
+        explanation: 'Đã áp dụng quy tắc đối thủ mặc định trên doanh thu cùng nhóm, kỳ và khung nguồn đã lưu; phần thiếu giữ nguyên, bổ sung của chủ giữ riêng. Kết quả có giới hạn trong mẫu, chưa phải mục phân tích hoàn chỉnh hoặc quyết định đã duyệt.' };
+    }
     const view = descriptive && isDescriptiveSectionId(section.sectionId) ? describeDescriptiveSection(descriptive, section.sectionId, citations) : undefined;
     if (view) views.set(section.sectionId, view);
     const methodOutput = view && descriptive ? { methodOutputId: descriptive.methodOutputId, locatedRecordCount: view.locatedRecordCount, unresolvedPointers: view.unresolvedPointers, blockers: view.blockers } : undefined;
@@ -556,13 +594,15 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     contextSections: ids('SOURCE_CONTEXT').length, sourceTableSections: ids('SOURCE_TABLE').length, blockedSections: ids('BLOCKED').length,
   };
   const sourceScope = kind === 'MARKET' ? projectMarketSourceScope(input) : undefined;
-  // Draft M05 (SYNC-1): only a MARKET report that carries a non-legacy descriptive method version renders under a new
-  // kit identity; historical 1.0.0 descriptive output and every INSIGHT report keep `automation-report-kit-v12`.
+  // The frozen peer policy selects v14 even for Metric-only drafts. Marker-free
+  // Market drafts retain v12/v13 dispatch; every Insight keeps its original identity.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
-  const rendererVersion = descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
+  const rendererVersion = defaultMarketPeers ? 'automation-report-kit-v14'
+    : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {
     ...(sourceScope ? { sourceScope } : {}),
+    ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
     ...(kind === 'MARKET' && input.quoteMethods ? { quoteMethods: input.quoteMethods } : {}),
     ...(input.boundedMethods ? { boundedMethods: input.boundedMethods } : {}),
     contractVersion: 'research-automation-report-v1', rendererVersion, kind, state: 'PARTIAL_UNREVIEWED_DRAFT',
