@@ -7,7 +7,8 @@ Run/task/dispatch: `run_adc3551f8ed8` / `task_c24db5535f5a` / `ctx_29c19b97f3c5`
 Worker terminal: `term_7728757b-d524-4e29-8e11-5b9fb1242853`; coordinator: `term_f78f7d8d-0a0e-4b5d-8a29-1f7a4912317d`.
 Preserved dispatched Sol/high launcher; no model/account/configuration changes or delegation.
 
-Implementation head: `3ab0ac7f7d172a50950636e226be725bac12b717`.
+Implementation head: `6bf702f2d287ee5b7d89efddf993dca85ca05c5b`.
+Earlier reviewed reader implementation: `3ab0ac7f7d172a50950636e226be725bac12b717`; retained integrity/rebuild corrections: `6537156a42ef3229bdbb728b4a248c5504a04e52`.
 Boundary-test head: `25bf5d16cb0ab1a5901e95ba643f764d477b685c` (same implementation, additional synthetic tests).
 Reviewed main dependency: `b6b6911fd9cec16cc41cf24e7d8ae4abd8f6233b` (PR185), normally merged in `03f0b86`; no private worker WIP imported or squash-merged branch replay.
 
@@ -132,3 +133,14 @@ Focused evidence (Node24.15.0/npm11.12.1, concurrency2):
 Frontend final evidence, exact implementation checkpoint and lease-release receipts follow below. Full hosted CI and independent review for the composed head remain mandatory; `edd040f`'s successful full37829260746 attempt2 and independent150-PASS review do not cover this new composed delta. Worker never merges. No runtime data, private corpus, live application providers/models/collectors, credentials/config/caps, deployment or paidU40 were accessed or changed. U11/U26/U32 remain blocked.
 
 Frontend Insight/intake: **9 PASS**, zero failures/skips, including explicit mounted builder-v3/source selection/owner decision flow and preserved uncertain-retry versus deliberate rebuild semantics; `/tmp/insight-reader-private-v3-frontend.log`. Repeated canonical/browser generation compared every generated output byte-for-byte with zero drift.
+
+
+Stable composed implementation: `6bf702f2d287ee5b7d89efddf993dca85ca05c5b`, clean and pushed to draft PR186. GLOBAL explicitly RELEASED in `msg_95c4e473eeb0`; central service explicitly RELEASED in `msg_303d1ea61712`, both at that exact checkpoint. Only own handoff/PR metadata updated after release. No shared/canonical/generated/generator/AJV/browser/migration/API/service/model/dispatcher writes without a fresh precise grant.
+
+Scoped SHA256 at release:
+
+- `contracts/analysis/insight-reader-input.schema.json`: `4124eaa05a188465db2e53b31801746a073a2f4472bf54a306f0a15e1697521c`.
+- `contracts/api/research-automation-reader-report-api.schema.json`: `f78d30926573f07c1707531434f88d52e869e314890084df6045506a0f61acd5`.
+- `src/modules/analysis/research-automation/service.ts`: `c35a96d6d5ccc0704eacfe507d75e66072f1d061bd06bff8a78b16b884c3f18e`.
+
+Next: independent review and full hosted exact-head CI for this composed final candidate, then coordinator-owned eligible normal merge. No helper-only settlement or blanket Ultimate completion is claimed. The worker remains available under this dispatch until the coordinator concludes the original integration phase.
