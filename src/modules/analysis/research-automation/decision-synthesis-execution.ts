@@ -40,6 +40,9 @@ const CODES = [
   'CLAIM_CITED_AS_SUPPORT_AND_COUNTEREVIDENCE', 'COUNTEREVIDENCE_RELATION_UNBOUND', 'COUNTEREVIDENCE_RELATION_DUPLICATE',
   'COUNTEREVIDENCE_TARGET_NOT_IN_CANDIDATE', 'COUNTEREVIDENCE_RELATION_MISSING',
   'CITED_BEHAVIOR_CONTEXT_MISSING',
+  // U-07/U-16 rejections raised by the 1.2.0 version guards. They are model-response defects, so a rejected response
+  // is retained as INVALID instead of escaping as a dispatch failure.
+  'CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT', 'CANDIDATE_PROPOSAL_FIELDS_REQUIRED', 'PURCHASE_SUGGESTION_NOT_ALLOWED',
 ] as const;
 type DecisionValidationCode = typeof CODES[number];
 const validationCodes: ReadonlySet<string> = new Set(CODES);

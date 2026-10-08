@@ -99,6 +99,39 @@ test('wrong-section configuration cannot dispatch and a stored invalid candidate
   assert.equal((fixture.db.prepare('SELECT count(*) n FROM analysis_research_automation_ai_executions WHERE candidates_sha256 IS NOT NULL').get() as { n: bigint }).n, 0n);
 });
 
+// U-07/U-16: the new version guards reject a model response, and a rejection must be retained as an INVALID verdict
+// instead of escaping the adapter as a dispatch failure. All ports are synthetic.
+test('new-version proposal rejections are stored and replayed as INVALID without redispatch', async t => {
+  const fixture = await pausedI14Parent({ reports: ['MARKET', 'INSIGHT'] });
+  t.after(() => fixture.cleanup());
+  const words = ['Alpha', 'Beta', 'Gamma', 'Delta'];
+  const versionedSource = (sectionId: typeof sections[number]) => ({ sectionId, packetVersion: '1.2.0' as const,
+    evidence: { ...syntheticI14Input(), admissionVersion: '1.0.0' as const } });
+  const proposal = (sectionId: typeof sections[number], index: number, overrides: Record<string, unknown> = {}) => ({
+    ...response(sectionId).aiCandidates[0], text: `Retained observation reviewed for ${words[index]}`,
+    immediateTask: `Owner reviews the retained observation for ${words[index]}`,
+    proposedOwner: 'Owner to confirm', proposedDeadline: 'Within two weeks', ...overrides });
+  const cases = [
+    { sectionId: 'M11' as const, code: 'CANDIDATE_PROPOSAL_FIELDS_REQUIRED',
+      aiCandidates: [(() => { const { immediateTask: _omitted, ...rest } = proposal('M11', 0) as Record<string, unknown>; return rest; })()] },
+    { sectionId: 'M12' as const, code: 'CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT',
+      aiCandidates: [0, 1, 2, 3].map(index => proposal('M12', index)) },
+    { sectionId: 'I15' as const, code: 'PURCHASE_SUGGESTION_NOT_ALLOWED',
+      aiCandidates: [proposal('I15', 0, { immediateTask: 'Owner reviews whether to mua thử one item' })] },
+  ];
+  let calls = 0;
+  for (const { sectionId, code, aiCandidates } of cases) {
+    const owner = new AutomationDecisionSynthesisExecutions({ ...fixture, artifactStore: fixture.artifacts, now: i14Now, sectionId });
+    const port = { async generateText() { calls += 1; return { text: JSON.stringify({ aiCandidates }) }; } };
+    const outcome = await owner.execute({ parent: fixture.parent, source: versionedSource(sectionId), ai: { port, configuration: configuration(sectionId) } });
+    assert.equal(outcome.status, 'INVALID', `${sectionId} must retain an invalid verdict`);
+    if (outcome.status !== 'INVALID') throw new Error('Expected retained invalid verdict');
+    assert.equal(outcome.validationCode, code);
+    assert.deepEqual(await owner.execute({ parent: fixture.parent, source: versionedSource(sectionId), ai: null }), { ...outcome, dispatched: false });
+  }
+  assert.equal(calls, 3, 'a retained invalid verdict is never redispatched');
+});
+
 test('I14 recovery cannot settle an active decision dispatch, and retained candidate corruption fails replay', async t => {
   const fixture = await pausedI14Parent({ reports: ['MARKET', 'INSIGHT'] });
   t.after(() => fixture.cleanup());
