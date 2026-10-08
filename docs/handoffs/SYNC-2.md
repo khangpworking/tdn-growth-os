@@ -78,3 +78,19 @@ Initial canonical lease release was `msg_8dd043e51d4f`; final generation lease g
 Ancillary requested documentation reviews were read-only: `5fc483d7a4c54ab0aaf72283c7d2bd8f9a36c4f9` PASS (PR163 exact head/merge/full Linux CI and 76 local link targets); `07d81006e28157c3048de0ec86ac24c82ed68505` PASS (PR164 exact head/merge/full Linux CI/preview, bounded U02/U05/U07/U16, partial U04/U12/B03/U32 and 100 local link targets). No coordinator-owned document was edited.
 
 Independent coordinator source review accepted at `984a0320c0e2e5637b317dfb375ed7f8862270eb` with a separate 33/33 core, draft-peer and owning-method test run (`msg_fd39462a78b4`). Subsequent worker commits change only this handoff; source/test/schema hashes are unchanged. Final hosted full CI remains pending.
+
+## Hosted CI fixture correction
+
+Full hosted Check `37770019234` at `e98ddb9c0977fcecd7383865982cb2ab7561cca5` failed one backend test: the source-bound prepared Metric confirmation fixture hashed a hand-built marker-free start, while new service starts correctly retain `defaultPeerRule`. The strict production binding rejected that stale source as `METRIC_SOURCE_RUN_MISMATCH`; no production correction or binding exemption was needed. Coordinator authorized and independently confirmed this fixture cause under the fresh review dispatch (`msg_951a6e3f5008`, `msg_d6bb6a5d6f13`).
+
+The affected fixture now reads the exact retained start artifact before preparing its admitted source. An additional negative assertion retains the marker-free source, verifies its rejection with the same mismatch code and confirms no confirmation/admission writes occur. Existing positive binding, exact source selection, later alternatives, retained-method reuse and immutable read assertions remain intact. Only `tests/integration/research-automation-metric-methods.test.ts` and this handoff changed; production source, schemas, generated files and shared documents remain unchanged.
+
+The original failing case was reproduced before editing. The corrected Metric file passed 16/16, then the final fixture plus affected U-01/core/draft/owning-method checks passed 49/49 with no skips or failures:
+
+```sh
+node --import tsx --test --test-concurrency=2 tests/integration/research-automation-metric-methods.test.ts tests/unit/default-market-peers.test.ts tests/unit/default-peer-reports.test.ts tests/integration/research-automation-methods.test.ts
+npm run typecheck
+git diff --check
+```
+
+Backend typecheck and diff checks pass. G-02 remains pending a new exact-head hosted full Check, and the coordinator owns review and merge; no full local suite, generation, provider call, deployment or merge was performed.
