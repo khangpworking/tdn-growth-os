@@ -1,0 +1,189 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-automation-insight-persona-api.schema.json",
+  "title": "ResearchAutomationInsightPersonaApi",
+  "$defs": {
+    "request": {
+      "title": "ResearchPersonaModelRequest",
+      "$ref": "../analysis/automation-insight-persona.schema.json#/$defs/request"
+    },
+    "entry": {
+      "title": "ResearchPersonaEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence",
+        "sha256"
+      ],
+      "properties": {
+        "evidence": {
+          "$ref": "../analysis/automation-insight-persona.schema.json#/$defs/evidence"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "view": {
+      "title": "ResearchPersonaView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "source",
+        "evidence",
+        "releaseEligibility"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-view-v1"
+        },
+        "binding": {
+          "$ref": "../analysis/automation-insight-persona.schema.json#/$defs/binding"
+        },
+        "source": {
+          "$ref": "../analysis/automation-insight-persona.schema.json#/$defs/source"
+        },
+        "evidence": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/entry"
+          }
+        },
+        "releaseEligibility": {
+          "const": "UNAVAILABLE"
+        }
+      }
+    },
+    "response": {
+      "title": "ResearchPersonaModelResponse",
+      "oneOf": [
+        {
+          "title": "ResearchPersonaProposed",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "executionId",
+            "proposal"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-persona-model-response-v1"
+            },
+            "status": {
+              "const": "PROPOSED"
+            },
+            "executionId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "proposal": {
+              "$ref": "#/$defs/entry"
+            }
+          }
+        },
+        {
+          "title": "ResearchPersonaNotDispatched",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "reason"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-persona-model-response-v1"
+            },
+            "status": {
+              "const": "NOT_DISPATCHED"
+            },
+            "reason": {
+              "enum": [
+                "INSUFFICIENT_EVIDENCE",
+                "AI_NOT_CONFIGURED"
+              ]
+            }
+          }
+        },
+        {
+          "title": "ResearchPersonaPrepared",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "executionId"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-persona-model-response-v1"
+            },
+            "status": {
+              "const": "PREPARED"
+            },
+            "executionId": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        },
+        {
+          "title": "ResearchPersonaInvalid",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "executionId",
+            "code"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-persona-model-response-v1"
+            },
+            "status": {
+              "enum": [
+                "INVALID",
+                "DISPATCH_UNKNOWN"
+              ]
+            },
+            "executionId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "code": {
+              "enum": [
+                "RESPONSE_NOT_TEXT",
+                "RESPONSE_TOO_LARGE",
+                "RESPONSE_NOT_JSON",
+                "INVALID_INSIGHT_CODING_RESPONSE",
+                "INTERRUPTED_AFTER_CLAIM",
+                "TRANSPORT_OUTCOME_AMBIGUOUS",
+                "RESPONSE_NOT_RETAINED"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/view"
+    },
+    {
+      "$ref": "#/$defs/response"
+    },
+    {
+      "$ref": "#/$defs/entry"
+    }
+  ]
+}

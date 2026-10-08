@@ -26,6 +26,8 @@ const contracts = [
   ['analysis', 'automation-insight-coding'],
   ['analysis', 'automation-insight-model'],
   ['analysis', 'automation-insight-crosscheck'],
+  ['analysis', 'automation-insight-persona'],
+  ['api', 'research-automation-insight-persona-api'],
   ['analysis', 'automation-insight-report-revision'],
   ['analysis', 'insight-literal-evidence'],
   ['analysis', 'automation-insight-coding-snapshot'],

@@ -1,19 +1,14 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import locatedSchema from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
-import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
-import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
+import type { PersonaSource, PersonaQuoteSelection, Span } from '../../../../contracts/analysis/automation-insight-persona.generated.js';
+export type { PersonaQuoteSelection } from '../../../../contracts/analysis/automation-insight-persona.generated.js';
 import type { AutomationPrivateShopeeSource } from '../../../../contracts/analysis/automation-private-shopee-source.generated.js';
 import type { PrivateShopeeCollectionReader, VerifiedPrivateShopeeCollection } from '../../foundation/shopee-collection-service.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { privateReviewCorpus, privateReviewReportView } from './private-review-contracts.js';
 import { buildPrivateReviewReportView, readPrivateReviewCollection, verifyPrivateReviewCorpus, type PrivateReviewBinding } from './private-review-corpus.js';
 
-type Input = LocatedInsightMethods['input'];
-type Span = Input['i04'][number]['span'];
-/** Provisional pure selection using existing canonical quote/locator types, never a wire/persisted contract. */
-export type PersonaQuoteSelection = Pick<Input['i04'][number], 'recordIndex' | 'span'> &
-  Pick<PrivateReviewReportView['records'][number], 'recordId' | 'locator'>;
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const ajv = new Ajv2020({ strict: true });
@@ -76,7 +71,7 @@ export async function readPrivatePersonaEvidence(input: {
     taxonomySample: { version: 'retained-source-order-first-300-v1' as const, recordIndexes: eligibleIndexes.slice(0, 300) },
     sourceDateEligibility: 'UNKNOWN' as const,
     limits: ['UNDATED_QUALITATIVE_CONTEXT_ONLY', 'VERBATIM_TEXT_MAY_CONTAIN_PERSONAL_DATA',
-      'SOURCE_REPORTED_AUTHORS_NOT_INDEPENDENTLY_VERIFIED_PEOPLE', 'NO_CROSS_PLATFORM_JOIN_OR_SUM', 'U11_RELEASE_UNAVAILABLE'] };
+      'SOURCE_REPORTED_AUTHORS_NOT_INDEPENDENTLY_VERIFIED_PEOPLE', 'NO_CROSS_PLATFORM_JOIN_OR_SUM', 'U11_RELEASE_UNAVAILABLE'] } satisfies PersonaSource;
 
   function quote(selection: PersonaQuoteSelection) {
     const index = selection.recordIndex;
