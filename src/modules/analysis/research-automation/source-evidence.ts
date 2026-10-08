@@ -3,7 +3,7 @@ import schema from '../../../../contracts/analysis/automation-source-evidence.sc
 import filterSchema from '../../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import appendixSchema from '../../../../contracts/analysis/source-appendix-projection.schema.json' with { type: 'json' };
 import type { AutomationSourceEvidence } from '../../../../contracts/analysis/automation-source-evidence.generated.js';
-import type { KeywordListDraftRecord } from '../keyword-list-draft-record.js';
+import type { RetainedKeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import { buildSourceAppendixProjection, type SourceAppendixUsage } from '../source-appendix-projection.js';
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -19,7 +19,7 @@ export function checkSourceEvidence(value: unknown): asserts value is Automation
   if (value.admission && (value.admission.dataVersion !== value.admission.result.dataVersion || canonicalJson(value.admission.includedRecordIds) !== canonicalJson(value.admission.result.results.filter(r => r.decision === 'INCLUDED').map(r => r.recordId)))) throw new ResearchAutomationIntegrityError('Source evidence admitted IDs differ from decisions');
 }
 export function buildSourceEvidence(input: {
-  draft: KeywordListDraftRecord | null; draftDigest: string | null;
+  draft: RetainedKeywordListDraftRecord | null; draftDigest: string | null;
   unavailableReason: AutomationSourceEvidence['unavailableReason'];
   webResults: readonly StepWebResult[]; captures: readonly CaptureRecord[];
   additionalUsages?: readonly SourceAppendixUsage[];
@@ -33,10 +33,18 @@ export function buildSourceEvidence(input: {
   });
   const admission = input.draft ? filterSerpApiResults({ results: located, filter: input.draft.output }) : null;
   const usages: SourceAppendixUsage[] = [...(input.additionalUsages ?? [])];
+  // The owning service replayed each cell against its original confirmed
+  // package before calling this method. A card or an unconsumed upload adds no use.
+  if (input.draft?.contractVersion === 'l9-keyword-list-draft-record-v3') for (const ref of input.draft.salesNameRefs) {
+    if (!('kind' in ref)) continue;
+    const manifest = ref.sourcePackage.manifestArtifactSha256;
+    if (!usages.some(row => row.registryId === 'S01' && row.binding.kind === 'package' && row.binding.ref === manifest))
+      usages.push({ registryId: 'S01', binding: { kind: 'package', ref: manifest }, l9: null, l10SourceType: null });
+  }
   for (const capture of [...input.captures].sort((a, b) => a.stepId.localeCompare(b.stepId) || a.ordinal - b.ordinal)) {
     const registryId = capture.provider === 'kalodata' ? 'S02' : capture.provider === 'serpapi'
       ? capture.operation === 'serpapi.google.trends' ? 'S20' : 'S19' : null;
-    const used = registryId === 'S02' ? input.draft?.salesNameRefs.some(ref => ref.captureDigest === capture.artifactSha256) || input.usedCaptureDigests?.includes(capture.artifactSha256)
+    const used = registryId === 'S02' ? input.draft?.salesNameRefs.some(ref => 'captureDigest' in ref && ref.captureDigest === capture.artifactSha256) || input.usedCaptureDigests?.includes(capture.artifactSha256)
       : registryId === 'S19' ? admission && located.some(row => row.captureId === capture.artifactSha256) : false;
     if (!used || !registryId || usages.some(u => u.registryId === registryId && u.binding.ref === capture.artifactSha256)) continue;
     const rows = admission?.result.results.filter(row => row.recordId.startsWith(`${capture.artifactSha256}#`)) ?? [];

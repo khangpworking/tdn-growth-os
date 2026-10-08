@@ -60,7 +60,7 @@ async function fixture(t: TestContext, cells: Record<string, unknown> = {}, prof
     scope: JSON.parse((await artifacts.read(row.scopeSha)).toString()), scopeConfirmedAt: row.confirmedAt };
   const options = { artifacts, reader: new FoundationSourcePackageReader(new SourcePackageService({ db, artifactStore: artifacts })),
     authority: new AutomationMetricMethodBridge({ db, artifactStore: artifacts, workspaces, now }) };
-  return { root, db, artifacts, service, sources, input, sourceSetDigest: row.sourceSha, options };
+  return { root, db, artifacts, service, workspaces, sources, input, sourceSetDigest: row.sourceSha, options };
 }
 
 async function retainedFixture(t: TestContext) {
@@ -239,6 +239,25 @@ test('new versioned dispatch retains and replays historical v2 bytes identically
   assert.equal(oldReceipt.digest, digest(record));
   assert.deepEqual(await replaySourceKeywordListDraft(store, oldReceipt.digest), await replayKeywordListDraft(store, oldReceipt.digest));
   assert.equal((await store.read(oldReceipt.digest)).toString(), canonicalJson(record));
+});
+
+test('explicit Metric-only keyword draft uses confirmed cells but never manufactures approved product collection', async t => {
+  const f = await fixture(t);
+  let calls = 0;
+  const configured = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, workspaceReader: f.workspaces, now,
+    sourceEvidence: { modelIdentity: 'synthetic-metric-only', promptVersion: 'synthetic-v1', transport: { draftLists: async input => {
+      calls++; assert.deepEqual(input.productNames, [title, 'Thạch dứa riêng biệt']);
+      return { keywords: ['thạch dừa'], exclusions: [{ term: 'thạch dứa', reason: 'Synthetic separate term' }] };
+    } } } });
+  const receipt = await configured.draftSourceKeywords(workspaceId, runId); assert.ok(receipt.digest);
+  const record = await configured.readSourceKeywordDraft(workspaceId, runId, receipt.digest);
+  assert.equal(record.contractVersion, 'l9-keyword-list-draft-record-v3');
+  await configured.processNext();
+  const run = await configured.getRun(workspaceId, runId);
+  assert.equal(run.steps.find(row => row.stepId === 'COLLECTION')!.state, 'SKIPPED');
+  assert.equal(run.steps.find(row => row.stepId === 'COLLECTION')!.code, 'NO_APPROVED_PRODUCT_REFS');
+  assert.equal(run.usage.requestCount, 0); assert.equal(calls, 1);
+  assert.equal(await configured.readSourceEvidence(workspaceId, runId), null);
 });
 
 test('OWNER HTTP workbook upload and explicit package confirmation supply authenticated exact Metric cells', async t => {
