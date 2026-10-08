@@ -93,6 +93,8 @@ export interface Input {
     span: Span;
     provenance: Provenance;
   }[];
+  semanticsVersion?: '1.0.0' | '1.1.0';
+  workingQuestionProposal?: string | null;
 }
 export interface Record {
   sourceSha256: string;
@@ -348,7 +350,7 @@ export interface InsightModelInput {
   }[];
 }
 export interface InsightModelPrompt {
-  contractVersion: 'insight-model-prompt-v1';
+  contractVersion: 'insight-model-prompt-v1' | 'insight-model-prompt-v2';
   systemText: string;
 }
 export interface InsightModelConfiguration {

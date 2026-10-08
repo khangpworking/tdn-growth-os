@@ -4,8 +4,10 @@ import { createHash } from 'node:crypto';
 import type { VerifiedFinalizedSourcePackage } from '../../src/modules/foundation/source-package-service.js';
 import type { SourceBackedReportBundle } from '../../src/modules/analysis/source-backed-report.js';
 import { buildReportMethodPacketsExtension } from '../../src/modules/analysis/report-method-packets-extension.js';
+import { renderReportMethodPacketSection } from '../../src/modules/analysis/report-method-packets-pages.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { reportMethodPacketsFixture } from '../helpers/report-method-packets-fixture.js';
+import { boundedAnalysisGatesFixture } from '../helpers/bounded-analysis-gates-fixture.js';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
 import { createResearchReportPacket } from '../../src/modules/analysis/versioned-report-packet.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
@@ -114,4 +116,110 @@ test('synthesis rejects fabricated packet values and reference digests despite i
     updateDescriptor(state);
     await assert.rejects(buildReportMethodPacketsExtension(state.fixture.logicalPath, state.bundle, state.reader), /METHOD_PACKET_CLAIM_REPLAY_MISMATCH|METHOD_PACKET_UNRESOLVED_POINTER/);
   }
+});
+
+test('U-04 descriptive rates are built only from retained INCLUDED text records resolved at the package boundary', async () => {
+  const RECORDS_PATH = 'method-packets/located-records.json';
+  const ALIAS_PATH = 'method-packets/located-records-copy.json';
+  const build = async (mode: 'plain' | 'excluded' | 'aliased' | 'declared') => {
+    const records = Array.from({ length: 71 }, (_, index) => ({ disposition: 'INCLUDED', text: `Retained text record ${index}` }));
+    if (mode === 'excluded') records[0] = { disposition: 'EXCLUDED', text: 'Retained but excluded record' };
+    const recordsBytes = bytesOf(records);
+    const recordsSha256 = sha(recordsBytes);
+    // 'aliased' retains the same record bytes a second time under another logical path: one record, two paths.
+    const member = (index: number) => ({ logicalPath: mode === 'aliased' && index === 0 ? ALIAS_PATH : RECORDS_PATH,
+      sha256: recordsSha256, locator: `/${index}` });
+    const gates = boundedAnalysisGatesFixture();
+    const base = gates.i11!.cells[0]!;
+    const cell = (pointer: string, platform: string, buyer: string | null, members: readonly number[], numeratorMembers: readonly number[],
+      extra: readonly { logicalPath: string; sha256: string; locator: string }[] = []) => ({
+      ...structuredClone(base), source: { ...base.source, locator: pointer }, group: null,
+      countUnit: 'LOCATED_RECORD' as const, identityEvidence: null,
+      numerator: { state: 'observed_value' as const, value: String(numeratorMembers.length) },
+      denominator: { state: 'observed_value' as const, value: String(members.length + extra.length) },
+      memberSources: [...extra, ...members.map(member)], numeratorMemberSources: numeratorMembers.map(member),
+      groupBasis: {
+        platform: { state: 'SOURCE_STATED' as const, value: platform, source: { ...base.source, locator: `${pointer}/groupBasis/platform` } },
+        buyerType: buyer === null
+          ? { state: 'NOT_STATED' as const, value: null, source: null }
+          : { state: 'SOURCE_STATED' as const, value: buyer, source: { ...base.source, locator: `${pointer}/groupBasis/buyerType` } },
+      },
+    });
+    gates.semanticsVersion = '1.1.0';
+    // 'declared' keeps the source's declared group labels but no source-stated platform/buyer basis for the cell.
+    if (mode === 'declared') {
+      const { groupBasis: _basis, ...basisless } = cell('/i11/cells/0', 'Shopee', null,
+        Array.from({ length: 40 }, (_, index) => index), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+      gates.i11 = { ...gates.i11!, cells: [{ ...basisless, group: 'B' }] };
+    }
+    else gates.i11 = { ...gates.i11!, groupPolicy: null, cells: [
+      // 'aliased' declares 40 references, but record 0 is retained under two paths, so only 39 records are distinct.
+      cell('/i11/cells/0', 'Shopee', null, Array.from({ length: mode === 'aliased' ? 39 : 40 }, (_, index) => index),
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        mode === 'aliased' ? [{ logicalPath: RECORDS_PATH, sha256: recordsSha256, locator: '/0' }] : []),
+      cell('/i11/cells/1', 'Lazada', 'RETAIL', Array.from({ length: 31 }, (_, index) => 40 + index), [40, 41, 42, 43, 44]),
+    ] };
+    const resultBytes = bytesOf(calculateMetricScopes(metricFixture()));
+    const catalogBytes = bytesOf(catalog);
+    const packet = createResearchReportPacket(resultBytes, sha(resultBytes), catalogBytes, sha(catalogBytes)).packet;
+    const packetBytes = bytesOf(packet);
+    const fixture = reportMethodPacketsFixture(packet, sha(resultBytes), false, gates);
+    fixture.files.push({ path: RECORDS_PATH, bytes: recordsBytes, sha256: recordsSha256, byteSize: recordsBytes.length,
+      mediaType: 'application/json', evidenceFamily: 'synthetic-located-records', representationRole: 'structured',
+      independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic retained text records' });
+    if (mode === 'aliased') fixture.files.push({ path: ALIAS_PATH, bytes: recordsBytes, sha256: recordsSha256, byteSize: recordsBytes.length,
+      mediaType: 'application/json', evidenceFamily: 'synthetic-located-records-alias', representationRole: 'structured',
+      independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic duplicate retained path' });
+    const manifest = { contractVersion: '1.0.0', packageId: '00000000-0000-4000-8000-000000000001', packageKey: 'synthetic:methods', version: 1,
+      sourceAcquiredAt: null, sourceLabel: 'Synthetic method source declarations', finalizedAt: '2026-10-01T00:00:00Z',
+      packageContentSha256: 'b'.repeat(64), files: fixture.files.map(({ bytes: _fileBytes, ...file }) => file) };
+    const reader: { readFinalizedSourcePackage: () => Promise<VerifiedFinalizedSourcePackage> } = {
+      readFinalizedSourcePackage: async () => ({ packageId: manifest.packageId, manifestArtifactSha256: 'a'.repeat(64),
+        packageContentSha256: 'b'.repeat(64), manifest, files: fixture.files }) as unknown as VerifiedFinalizedSourcePackage };
+    const bundle = { packet, files: new Map([['packet.json', packetBytes], ['metric-result.json', resultBytes]]),
+      envelope: { artifacts: { packetSha256: sha(packetBytes), metricResultSha256: sha(resultBytes) },
+        sourcePackage: { packageId: manifest.packageId, manifestArtifactSha256: 'a'.repeat(64), packageContentSha256: 'b'.repeat(64),
+          manifest: structuredClone(manifest) } } } as unknown as SourceBackedReportBundle;
+    return { logicalPath: fixture.logicalPath, bundle, reader };
+  };
+
+  const state = await build('plain');
+  const built = (await buildReportMethodPacketsExtension(state.logicalPath, state.bundle, state.reader))!;
+  assert.deepEqual(built.gates!.sections.I11.partitions[0]!.groupOrder, ['Shopee', 'Lazada / RETAIL']);
+  assert.deepEqual(built.gates!.sections.I11.rates, { recordsPerGroupMinimum: 30, groups: [
+    { partition: 0, group: 'Shopee', numerator: 12, denominator: 40, rate: 0.3 },
+    { partition: 0, group: 'Lazada / RETAIL', numerator: 5, denominator: 31, rate: 5 / 31 },
+  ] });
+  // The page must show the same platform-only group the gate counted, keep rates attached to their partition, and
+  // never invent a buyer category for a source that stated none.
+  const html = renderReportMethodPacketSection({ gates: built.gates! }, 'I11')!;
+  assert.match(html, /<th scope="row">Shopee<small>/);
+  assert.match(html, /<th scope="row">Lazada \/ RETAIL<small>/);
+  assert.match(html, /<th scope="row">Phạm vi 1<\/th><td>Shopee<\/td>/);
+  assert.match(html, /<th scope="row">Phạm vi 1<\/th><td>Lazada \/ RETAIL<\/td>/);
+  assert.doesNotMatch(html, /UNSPECIFIED/);
+
+  // A member that resolves to a retained but excluded record is not text-record membership, so no rate is built.
+  const excluded = await build('excluded');
+  await assert.rejects(buildReportMethodPacketsExtension(excluded.logicalPath, excluded.bundle, excluded.reader),
+    /METHOD_PACKET_MEMBER_NOT_AN_INCLUDED_TEXT_RECORD/);
+
+  // A declared label with valid members but no source-stated basis is not a group the source states, so the
+  // partition stays counts-only and the missing basis is named.
+  const declared = await build('declared');
+  const declaredBuilt = (await buildReportMethodPacketsExtension(declared.logicalPath, declared.bundle, declared.reader))!;
+  assert.equal(declaredBuilt.gates!.sections.I11.rates, null);
+  assert.deepEqual(declaredBuilt.gates!.sections.I11.partitions[0]!.groupOrder, ['B']);
+  assert.ok(declaredBuilt.gates!.sections.I11.partitions[0]!.blockers.includes('I11_GROUP_NOT_SOURCE_BACKED'));
+  assert.ok(declaredBuilt.gates!.sections.I11.partitions[0]!.blockers.includes('I11_DECLARED_GROUP_NOT_SOURCE_BACKED'));
+  assert.doesNotMatch(renderReportMethodPacketSection({ gates: declaredBuilt.gates! }, 'I11')!, /Tỷ lệ mô tả theo nhóm/);
+
+  // The same record retained under two logical paths is one record: it can neither fill a declared denominator nor
+  // be counted twice, so the partition stays counts-only with the reason named.
+  const aliased = await build('aliased');
+  const aliasedBuilt = (await buildReportMethodPacketsExtension(aliased.logicalPath, aliased.bundle, aliased.reader))!;
+  assert.equal(aliasedBuilt.gates!.sections.I11.rates, null);
+  assert.ok(aliasedBuilt.gates!.sections.I11.partitions[0]!.blockers.includes('I11_MEMBER_REFERENCES_NOT_DISTINCT'));
+  const aliasedHtml = renderReportMethodPacketSection({ gates: aliasedBuilt.gates! }, 'I11')!;
+  assert.doesNotMatch(aliasedHtml, /Tỷ lệ mô tả theo nhóm/);
 });

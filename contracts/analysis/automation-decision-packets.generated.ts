@@ -24,6 +24,7 @@ export type PacketItems = DecisionPacketItem[];
  * @maxItems 10
  */
 export type EvidenceGaps = (
+  | 'WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER'
   | 'OWNER_QUESTION_UNSET'
   | 'NO_ELIGIBLE_UPSTREAM_CLAIMS'
   | 'NO_SOURCE_OBSERVATION_CLAIMS'
@@ -36,6 +37,10 @@ export type EvidenceGaps = (
   | 'SUPPORT_ADAPTER_ADMITS_LITERAL_OBSERVATIONS_AND_CONTAINED_BEHAVIOR_NOT_VERIFIED_PATTERNS'
 )[];
 /**
+ * Untrusted layer-3 draft text. It must contain a non-space character and no Unicode number character; numeric facts stay application-owned claim bindings.
+ */
+export type AiText = string;
+/**
  * @minItems 1
  * @maxItems 30
  */
@@ -44,10 +49,6 @@ export type AutomationDecisionCandidates =
   AutomationM11DecisionCandidates | AutomationI15DecisionCandidates | AutomationM12DecisionCandidates;
 export type CandidateInsufficientEvidence =
   ('NO_ADMISSIBLE_SOURCE_STATED_USE_CONTEXT' | 'NO_ADMISSIBLE_DECISION_SUPPORT') | null;
-/**
- * Untrusted layer-3 draft text. It must contain a non-space character and no Unicode number character; numeric facts stay application-owned claim bindings.
- */
-export type AiText = string;
 /**
  * Exact upstream claim ids that the CURRENT adapter admits as use-context anchors of the bound packet. Candidate ids or indexes are not evidence.
  *
@@ -94,7 +95,7 @@ export type RequiredAiTexts2 = AiText[];
 export interface AutomationM11DecisionPacket {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
   sectionId: 'M11';
   runId: Uuid;
   workspaceId: Uuid;
@@ -118,6 +119,12 @@ export interface AutomationM11DecisionPacket {
     risk: Unset;
     expectedReturn: Unset;
     priority: null;
+    aiProposal?: {
+      label: Text;
+      immediateTask: AiText | null;
+      proposedOwner: AiText | null;
+      proposedDeadline: AiText | null;
+    };
   };
   limitations: Limitations;
 }
@@ -194,7 +201,7 @@ export interface CandidateEligibility {
 export interface AutomationI15DecisionPacket {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
   sectionId: 'I15';
   runId: Uuid;
   workspaceId: Uuid;
@@ -220,13 +227,19 @@ export interface AutomationI15DecisionPacket {
     cost: Unset;
     reviewTrigger: Unset;
     preferredOption: null;
+    aiProposal?: {
+      label: Text;
+      immediateTask: AiText | null;
+      proposedOwner: AiText | null;
+      proposedDeadline: AiText | null;
+    };
   };
   limitations: Limitations;
 }
 export interface AutomationM12DecisionPacket {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
   sectionId: 'M12';
   runId: Uuid;
   workspaceId: Uuid;
@@ -253,6 +266,12 @@ export interface AutomationM12DecisionPacket {
     timing: Unset;
     chosen: null;
     executionAuthorization: null;
+    aiProposal?: {
+      label: Text;
+      immediateTask: AiText | null;
+      proposedOwner: AiText | null;
+      proposedDeadline: AiText | null;
+    };
   };
   limitations: Limitations;
 }
@@ -275,7 +294,7 @@ export interface AutomationM11DecisionCandidates {
 }
 export interface PacketBinding {
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
   packetSha256: Digest;
 }
 export interface DecisionHypothesisCandidate {
@@ -291,6 +310,9 @@ export interface DecisionHypothesisCandidate {
   unknowns: OptionalAiTexts;
   evidenceGaps: OptionalAiTexts;
   limitations: RequiredAiTexts;
+  immediateTask?: AiText | null;
+  proposedOwner?: AiText | null;
+  proposedDeadline?: AiText | null;
 }
 /**
  * A PROPOSED layer-3 draft saying how one referenced upstream claim may counter this candidate. It is not a verified counterclaim, a new source claim or owner input. Only the claim reference and the exact target binding are machine-checked. Whether the claim counters the target, and every compatibility statement, are unverified human-review drafts, not machine proof.
@@ -355,6 +377,9 @@ export interface DecisionStrategyOptionCandidate {
   unknowns: OptionalAiTexts;
   evidenceGaps: OptionalAiTexts;
   limitations: RequiredAiTexts;
+  immediateTask?: AiText | null;
+  proposedOwner?: AiText | null;
+  proposedDeadline?: AiText | null;
 }
 export interface AutomationM12DecisionCandidates {
   contractVersion: '1.0.0';
@@ -387,4 +412,7 @@ export interface DecisionActionOptionCandidate {
   unknowns: OptionalAiTexts;
   evidenceGaps: OptionalAiTexts;
   limitations: RequiredAiTexts;
+  immediateTask?: AiText | null;
+  proposedOwner?: AiText | null;
+  proposedDeadline?: AiText | null;
 }

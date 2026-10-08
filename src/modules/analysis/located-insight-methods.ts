@@ -184,20 +184,45 @@ function summary(input: Input, rows: Located[]): Section {
   };
 }
 
-function businessQuestion(input: Input): LocatedInsightMethods['sections']['I01'] {
+/** U-02 (E7): input semantics version. Absence retains 1.0.0 bytes exactly. */
+type SemanticsVersion = '1.0.0' | '1.1.0';
+const WORKING_QUESTION_LABEL = 'câu hỏi làm việc do AI đề xuất, chờ chủ duyệt';
+
+function businessQuestion(input: Input, version: SemanticsVersion): LocatedInsightMethods['sections']['I01'] {
   const unresolvedFields = briefFields.filter(field => !input.brief || input.brief[field].state === 'UNSET');
-  return {
-    briefPointer: input.brief ? '/input/brief' : null,
-    briefSha256: input.brief ? createHash('sha256').update(canonicalJson(input.brief)).digest('hex') : null,
-    unresolvedFields, reviewState: 'DECLARED_NOT_AUTHENTICATED',
+  const briefPointer = input.brief ? '/input/brief' : null;
+  const briefSha256 = input.brief ? createHash('sha256').update(canonicalJson(input.brief)).digest('hex') : null;
+  if (version === '1.0.0') return {
+    briefPointer, briefSha256, unresolvedFields, reviewState: 'DECLARED_NOT_AUTHENTICATED',
     blockers: [...(unresolvedFields.includes('questionText') ? ['I01_OWNER_QUESTION_REQUIRED'] : []),
       ...unresolvedFields.filter(field => field !== 'questionText').map(field => `I01_${field.toUpperCase()}_UNSET`)],
+  };
+  // 1.1.0: a missing owner question is no longer a hard stop. A labelled AI-proposed working question stands in and
+  // names every owner field the owner still has to add (the question plus the supplementary brief fields); the owner
+  // question, when supplied, is carried as OWNER_SUPPLIED instead. The proposal never filters or selects evidence.
+  const questionUnset = unresolvedFields.includes('questionText');
+  const supplementaryFields = unresolvedFields.filter(field => field !== 'questionText');
+  const ownerText = input.brief?.questionText.text ?? null;
+  const proposal = input.workingQuestionProposal ?? null;
+  return {
+    briefPointer, briefSha256,
+    unresolvedFields: supplementaryFields,
+    reviewState: 'DECLARED_NOT_AUTHENTICATED',
+    workingQuestion: {
+      state: questionUnset ? 'AI_PROPOSED_AWAITING_OWNER' : 'OWNER_SUPPLIED',
+      label: questionUnset ? WORKING_QUESTION_LABEL : null,
+      text: questionUnset ? proposal : ownerText,
+      ownerFieldsToAdd: questionUnset ? ['questionText', ...supplementaryFields] : supplementaryFields,
+    },
+    blockers: supplementaryFields.map(field => `I01_${field.toUpperCase()}_UNSET`),
   };
 }
 
 /** Located coding is retained as declared coding; no NLP classifier or authority flag promotes a suggestion. */
 export function buildLocatedInsightMethods(untrustedInput: unknown): { output: LocatedInsightMethods; bytes: Buffer } {
   const input = validateCore(untrustedInput);
+  // U-02: an omitted semanticsVersion is the historical 1.0.0 (hard owner-question blocker, no working question).
+  const version: SemanticsVersion = input.semanticsVersion ?? '1.0.0';
   const corpus = buildInsightCorpusCounts(input);
   const i02 = located(input, 'i02'); const i04 = located(input, 'i04'); const i05 = located(input, 'i05');
   const i06 = located(input, 'i06'); const i07 = located(input, 'i07'); const i08 = located(input, 'i08'); const i09 = located(input, 'i09');
@@ -226,9 +251,9 @@ export function buildLocatedInsightMethods(untrustedInput: unknown): { output: L
     return [{ annotationPointer: pointer, state, unmetNeedCandidate: state === 'EXPLICIT_GAP' }];
   });
   const body: Omit<LocatedInsightMethods, 'methodOutputId'> = {
-    contractVersion: '1.0.0', methodId: 'located-insight-methods', methodVersion: '1.0.0', input,
+    contractVersion: '1.0.0', methodId: 'located-insight-methods', methodVersion: version, input,
     sections: {
-      I01: businessQuestion(input), I02: summary(input, i02), I04: summary(input, i04),
+      I01: businessQuestion(input, version), I02: summary(input, i02), I04: summary(input, i04),
       I05: { ...summary(input, i05), recordPolarities },
       I06: { ...summary(input, i06), sequences, blockers: unique([...summary(input, i06).blockers,
         ...(i06.some(({ row }) => !(row as Input['i06'][number]).relation) ? ['I06_EVENT_ORDER_UNRESOLVED'] : [])]) },

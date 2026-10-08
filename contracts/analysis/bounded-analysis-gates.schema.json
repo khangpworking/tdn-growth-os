@@ -21,7 +21,10 @@
       "const": "bounded-analysis-gates"
     },
     "methodVersion": {
-      "const": "1.0.0"
+      "enum": [
+        "1.0.0",
+        "1.1.0"
+      ]
     },
     "methodOutputId": {
       "$ref": "#/$defs/digest"
@@ -587,6 +590,104 @@
                       },
                       "denominator": {
                         "$ref": "#/$defs/value"
+                      },
+                      "groupBasis": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": [
+                          "platform",
+                          "buyerType"
+                        ],
+                        "properties": {
+                          "platform": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "state",
+                              "value",
+                              "source"
+                            ],
+                            "properties": {
+                              "state": {
+                                "enum": [
+                                  "SOURCE_STATED",
+                                  "NOT_STATED"
+                                ]
+                              },
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/$defs/text"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "source": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/$defs/source"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          },
+                          "buyerType": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "state",
+                              "value",
+                              "source"
+                            ],
+                            "properties": {
+                              "state": {
+                                "enum": [
+                                  "SOURCE_STATED",
+                                  "NOT_STATED"
+                                ]
+                              },
+                              "value": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/$defs/text"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              },
+                              "source": {
+                                "anyOf": [
+                                  {
+                                    "$ref": "#/$defs/source"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ]
+                              }
+                            }
+                          }
+                        }
+                      },
+                      "memberSources": {
+                        "type": "array",
+                        "maxItems": 10000,
+                        "items": {
+                          "$ref": "#/$defs/source"
+                        }
+                      },
+                      "numeratorMemberSources": {
+                        "type": "array",
+                        "maxItems": 10000,
+                        "items": {
+                          "$ref": "#/$defs/source"
+                        }
                       }
                     }
                   }
@@ -842,6 +943,12 @@
               "type": "null"
             }
           ]
+        },
+        "semanticsVersion": {
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
         }
       }
     },
@@ -1014,7 +1121,59 @@
           }
         },
         "rates": {
-          "type": "null"
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "recordsPerGroupMinimum",
+                "groups"
+              ],
+              "properties": {
+                "recordsPerGroupMinimum": {
+                  "const": 30
+                },
+                "groups": {
+                  "type": "array",
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "partition",
+                      "group",
+                      "numerator",
+                      "denominator",
+                      "rate"
+                    ],
+                    "properties": {
+                      "partition": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "group": {
+                        "$ref": "#/$defs/text"
+                      },
+                      "numerator": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "denominator": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "rate": {
+                        "type": "number"
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
         },
         "differences": {
           "type": "null"
