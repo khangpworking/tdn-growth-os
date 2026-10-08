@@ -20,7 +20,10 @@ export default function InsightDefaultProposalPanel({ run, pairId, view, ownerTo
   const live = useRef({ ownerToken, block }); live.current = { ownerToken, block };
   const busy = running || held !== null || ready !== null || confirm || report !== null || reportRetry !== null;
   useEffect(() => { onBusyChanged(busy); }, [busy, onBusyChanged]);
-  useEffect(() => () => { mounted.current = false; stop.current = true; active.current?.abort(); onBusyChanged(false); }, [onBusyChanged]);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; stop.current = true; active.current?.abort(); onBusyChanged(false); };
+  }, [onBusyChanged]);
   useEffect(() => { if (token.current !== null && ownerToken !== token.current) { stop.current = true; active.current?.abort(); } }, [ownerToken]);
   const corpus = modelCorpus(view.context.input.records), batches = modelBatches(corpus.eligible), proposals = defaultProposals(view);
   const chosen = proposals.find(item => item.evidence.evidenceId === selected);

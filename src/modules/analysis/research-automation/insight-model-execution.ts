@@ -17,7 +17,7 @@ import type { InsightProposedAnnotations } from '../../../../contracts/analysis/
 import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { validateLocatedInsightInput } from '../located-insight-methods.js';
-import { appendDefaultCodebooks, composeDefaultInsightInput, insightCodingDigest } from './insight-default-coding.js';
+import { appendDefaultCodebooks, composeDefaultInsightInput, insightCodingDigest, mergeInsightBatch, retainedDefaultAnnotations } from './insight-default-coding.js';
 import { validateSemanticCodingResponse } from './semantic-coding-response.js';
 import {
   AutomationSynthesisExecutionKernel, AutomationSynthesisExecutionError, AutomationSynthesisExecutionIntegrityError,
@@ -193,7 +193,8 @@ function defaultCandidates(value: unknown, source: InsightDefaultModelSource): I
   const annotations = validateSemanticCodingResponse(value.annotations, composed, source.request.recordIndexes);
   composeDefaultInsightInput(composed, { ruleId: 'source-default-coding-v1', revision: 1, question: composed.question!,
     inclusionRule: composed.inclusionRule, adjudicationRule: composed.adjudicationRule,
-    corpora: composed.corpora.map(corpus => ({ ...corpus, assignments: [] as [], dispositions: [] as [] })) }, annotations);
+    corpora: composed.corpora.map(corpus => ({ ...corpus, assignments: [] as [], dispositions: [] as [] })) },
+    mergeInsightBatch(annotations, retainedDefaultAnnotations(source.input), source.request.recordIndexes));
   return { codebooks: structuredClone(value.codebooks), annotations };
 }
 interface DefaultTypes {

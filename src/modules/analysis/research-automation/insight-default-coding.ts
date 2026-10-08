@@ -75,6 +75,13 @@ export function appendDefaultCodebooks(input: LocatedInsightMethods['input'], ad
   return validateLocatedInsightInput(composed);
 }
 
+/** Read annotations bound into a default execution's source, independently of its model-facing batch. */
+export function retainedDefaultAnnotations(input: LocatedInsightMethods['input']): InsightProposedAnnotations {
+  return { i02: input.i02 ?? [], i04: input.i04, i05: input.i05, i06: input.i06, i07: input.i07,
+    i08: input.i08, i09: input.i09, i13Mentions: input.i13Mentions,
+    corpora: input.corpora.map((corpus, corpusIndex) => ({ corpusIndex, assignments: corpus.assignments, dispositions: corpus.dispositions })) };
+}
+
 /** Replace only explicit batch rows. Prior source code meanings and other batches remain retained. */
 export function mergeInsightBatch(current: InsightProposedAnnotations, previous: InsightProposedAnnotations | undefined,
   recordIndexes: readonly number[]): InsightProposedAnnotations {

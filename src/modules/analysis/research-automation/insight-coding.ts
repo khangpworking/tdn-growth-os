@@ -207,7 +207,8 @@ export class AutomationInsightCoding {
       previous = prior.request;
     }
     const rules = previous?.rules ?? root.request.rules;
-    const input = composeDefaultInsightInput(context.input, rules);
+    // Retain predecessor annotations for full continuation validation, never as model input.
+    const input = composeDefaultInsightInput(context.input, rules, previous?.annotations);
     const source = { contractVersion: 'insight-default-model-source-v1' as const, request, binding: context.binding,
       defaultRuleId: root.evidenceId, defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: owner.actorId, input };
     const execution = new AutomationInsightDefaultModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now });
@@ -252,7 +253,7 @@ export class AutomationInsightCoding {
       previous = prior.request;
     } else if (request.previousProposalSha256 !== null) corrupt();
     const rules = previous?.rules ?? root.request.rules;
-    const input = composeDefaultInsightInput(context.input, rules);
+    const input = composeDefaultInsightInput(context.input, rules, previous?.annotations);
     const first = root.request.originatingRequestKey === request.requestKey;
     const source = { contractVersion: 'insight-default-model-source-v1' as const, binding: value.binding, defaultRuleId: root.evidenceId,
       defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: value.actorId, input,

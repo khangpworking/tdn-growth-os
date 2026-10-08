@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { act, createElement } from 'react';
+import { act, createElement, StrictMode } from 'react';
 import { tsImport } from 'tsx/esm/api';
 import { locatedInsightFixture } from '../../tests/helpers/located-insight-fixture';
 import { sourceDefaultInsightRules } from '../../src/modules/analysis/research-automation/insight-default-coding';
@@ -66,20 +66,20 @@ function server(size = 150, step?: Step) {
   }) as typeof fetch;
   return { fetcher, evidence, posts, calls: () => calls, reads: () => reads };
 }
-async function mount(api: ReturnType<typeof server>) {
+async function mount(api: ReturnType<typeof server>, strict = false) {
   const dom = setupDom(), original = globalThis.fetch; globalThis.fetch = api.fetcher;
   const { createRoot } = await import('react-dom/client');
   const { default: Panel } = await tsImport('../src/research-automation/InsightCodingPanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/InsightCodingPanel');
   const root = createRoot(dom.container); let busy = false, activity = 0;
-  await act(async () => root.render(createElement(Panel, { run, pairId, versionNumber: 1, ownerToken: 'synthetic-only', disabled: false, reportBlock: null,
-    onBusyChanged: (value: boolean) => { busy = value; }, onActivityChanged: () => { activity++; } })));
+  await act(async () => root.render(createElement(strict ? StrictMode : 'div', null, createElement(Panel, { run, pairId, versionNumber: 1, ownerToken: 'synthetic-only', disabled: false, reportBlock: null,
+    onBusyChanged: (value: boolean) => { busy = value; }, onActivityChanged: () => { activity++; } }))));
   await until(() => Boolean([...dom.container.querySelectorAll('button')].find(item => item.textContent === START)), 'source loaded');
   return { ...dom, text: () => dom.container.textContent ?? '', busy: () => busy, activity: () => activity,
     unmount: () => act(async () => root.render(null)), cleanup: async () => { await act(async () => root.unmount()); globalThis.fetch = original; dom.cleanup(); } };
 }
 
-test('actual default UI and clients need no selected adoption; confirmation, exact batches and explicit selected draft action remain separate', async () => {
-  const api = server(), dom = await mount(api);
+test('actual app StrictMode default UI needs no selected adoption; verified batches release controls and explicit selected draft action remains separate', async () => {
+  const api = server(), dom = await mount(api, true);
   try {
     assert.equal(dom.container.querySelector<HTMLSelectElement>('#ic-rule')!.value, '');
     assert.equal(api.evidence.length, 0); assert.equal(api.posts.length, 0);
@@ -120,7 +120,7 @@ for (const step of ['lose', 'mismatch'] as const) test(`${step}: explicit retry 
   } finally { await dom.cleanup(); }
 });
 test('default unmount aborts pending transport without read-back or another batch', async () => {
-  const api = server(150, 'hold'), dom = await mount(api);
+  const api = server(150, 'hold'), dom = await mount(api, true);
   try {
     await click(dom.container, START); await click(dialog(), CONFIRM); await until(() => api.posts.length === 1, 'pending transport');
     const reads = api.reads(); await dom.unmount(); await settle();

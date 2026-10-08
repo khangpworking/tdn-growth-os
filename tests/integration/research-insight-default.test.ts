@@ -19,7 +19,8 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { FixtureShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import type { InsightDefaultModelRequest } from '../../contracts/analysis/automation-insight-model.generated.js';
-import { insightCodingDigest } from '../../src/modules/analysis/research-automation/insight-default-coding.js';
+import { AutomationInsightCoding } from '../../src/modules/analysis/research-automation/insight-coding.js';
+import { insightCodingDigest, sourceDefaultInsightRules } from '../../src/modules/analysis/research-automation/insight-default-coding.js';
 import type { InsightCodingAdoptRequest } from '../../contracts/analysis/automation-insight-coding.generated.js';
 import type { InsightProposedAnnotations } from '../../contracts/analysis/automation-insight-coding.generated.js';
 import { locatedSpan } from '../helpers/located-insight-fixture.js';
@@ -310,4 +311,70 @@ test('authenticated native-source HTTP default action reaches fake model and sel
     assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), settled);
     assert.equal(calls, 1);
   } finally { await application.close(); await new Promise<void>(resolve => server.close(() => resolve())); await new Promise<void>(resolve => gateway.close(() => resolve())); }
+});
+
+for (const multiCode of [false, undefined, true] as const) test(`repeated source continuation validates merged codes before settlement; retained multiCode=${multiCode}`, async t => {
+  const f = await fixture(t, ['size and taste']);
+  const pair = (await f.service.listReportVersions(workspaceId, runId))[0]!;
+  const retained = await f.service.readInsightSourceContext(workspaceId, runId, pair.pairId);
+  // Owning context interface supplies a valid located input with an allowed repeated pointer.
+  // Same production owning coding service and real execution/evidence storage, synthetic sources only.
+  const input = structuredClone(retained.input);
+  input.records.push(structuredClone(input.records[0]!));
+  if (multiCode !== undefined) {
+    input.corpora = sourceDefaultInsightRules(input).corpora;
+    input.corpora[0]!.multiCode = multiCode;
+  }
+  const context = { ...retained, input, binding: { ...retained.binding, inputSha256: insightCodingDigest(input) } };
+  const coding = new AutomationInsightCoding({ db: f.db, artifacts: f.artifacts,
+    staging: new RequestScopedArtifactStore(f.artifactRoot), now,
+    context: async () => context, assertCurrent: async () => {} });
+  let calls = 0;
+  const ai = { configuration, port: { async generateText({ userText }: { userText: string }) {
+    calls++;
+    const modelInput = JSON.parse(userText);
+    assert.deepEqual(modelInput.records.map((row: { recordIndex: number }) => row.recordIndex), [calls - 1]);
+    assert.ok(modelInput.corpora.every((corpus: object) => !('assignments' in corpus) && !('dispositions' in corpus)), 'predecessor annotations remain model-blind');
+    assert.ok(!('i04' in modelInput));
+    const row = JSON.parse(userText).records[0], phrase = calls === 1 ? 'size' : 'taste', code = calls === 1 ? 'C1' : 'C2';
+    const annotations = emptyAnnotations(), span = locatedSpan(row.record.text, phrase);
+    annotations.corpora = [{ corpusIndex: 0, assignments: [{ recordIndex: row.recordIndex, code, span,
+      provenance: { basis: 'PENDING_AI', coderRole: 'fake', adjudication: null, disagreement: null } }], dispositions: [] }];
+    return { text: JSON.stringify({ codebooks: [{ corpusIndex: 0, codes: [{ code, label: phrase, phrase, firstRecordIndex: row.recordIndex, firstSpan: span }] }], annotations }) };
+  } } };
+  const request: InsightDefaultModelRequest = { contractVersion: 'insight-default-model-request-v1', requestKey: randomUUID(), binding: context.binding,
+    defaultRuleId: null, defaultRuleSha256: null, previousProposalId: null, previousProposalSha256: null, recordIndexes: [0] };
+  const first = await coding.proposeDefaultModel(workspaceId, runId, request, owner, ai);
+  assert.ok(first.proposal); const previous = first.proposal.evidence.request;
+  if (previous.contractVersion !== 'insight-coding-default-propose-v1') throw Error('wrong contract');
+  const continuation = { ...request, requestKey: randomUUID(), defaultRuleId: previous.defaultRuleId, defaultRuleSha256: previous.defaultRuleSha256,
+    previousProposalId: first.proposal.evidence.evidenceId, previousProposalSha256: first.proposal.sha256, recordIndexes: [1] };
+  const outcome = await coding.proposeDefaultModel(workspaceId, runId, continuation, owner, ai);
+  assert.equal(outcome.execution.status, multiCode === true ? 'VALID' : 'INVALID');
+  const ledger = f.db.prepare('SELECT state,validation_status,validation_code FROM analysis_research_automation_ai_executions WHERE coding_request_key=?').get(continuation.requestKey);
+  assert.deepEqual(ledger, { state: 'COMPLETED', validation_status: multiCode === true ? 'VALID' : 'INVALID',
+    validation_code: multiCode === true ? null : 'INVALID_INSIGHT_CODING_RESPONSE' });
+  const artifacts = f.db.prepare('SELECT admission_sha256,input_sha256 FROM analysis_research_automation_ai_executions WHERE coding_request_key=?')
+    .get(continuation.requestKey) as { admission_sha256: string; input_sha256: string };
+  const admission = JSON.parse((await f.artifacts.read(artifacts.admission_sha256)).toString());
+  assert.equal(admission.request.previousProposalSha256, first.proposal.sha256);
+  assert.deepEqual(admission.input.records, input.records);
+  assert.deepEqual(admission.input.corpora[0].assignments.map((row: { code: string }) => row.code), ['C1'], 'predecessor annotations are frozen in retained source');
+  const modelInput = JSON.parse((await f.artifacts.read(artifacts.input_sha256)).toString());
+  assert.deepEqual(modelInput.records.map((row: { recordIndex: number }) => row.recordIndex), [1]);
+  assert.ok(modelInput.corpora.every((corpus: object) => !('assignments' in corpus) && !('dispositions' in corpus)));
+  if (multiCode === true) {
+    assert.ok(outcome.proposal);
+    const proposed = outcome.proposal.evidence.request;
+    if (proposed.contractVersion !== 'insight-coding-default-propose-v1') throw Error('wrong contract');
+    assert.deepEqual(proposed.annotations.corpora[0]!.assignments.map(row => row.code), ['C1', 'C2']);
+  } else assert.equal(outcome.proposal, undefined, 'conflicting completion creates no partial proposal');
+  const beforeRetry = f.db.prepare('SELECT total_changes() n').get();
+  const retried = await coding.proposeDefaultModel(workspaceId, runId, continuation, owner, null);
+  assert.deepEqual(retried.execution, { ...outcome.execution, dispatched: false });
+  const evidence = await coding.view(workspaceId, runId, pair.pairId);
+  assert.deepEqual(evidence.context.input.records, input.records, 'source and repeated exact locator remain intact');
+  assert.equal(evidence.evidence.filter(row => row.kind === 'PROPOSAL').length, multiCode === true ? 2 : 1);
+  assert.equal(calls, 2);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), beforeRetry, 'terminal replay and source reads do not write');
 });
