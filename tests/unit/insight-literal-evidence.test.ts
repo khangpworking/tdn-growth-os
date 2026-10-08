@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import type { CitationInput } from '../../src/modules/analysis/citation-registry.js';
 import test from 'node:test';
 import { buildInsightLiteralEvidence } from '../../src/modules/analysis/insight-literal-evidence.js';
 import { nativeLiteralReviews, literalSellerStatements } from '../../src/modules/analysis/research-automation/insight-literal-source.js';
@@ -38,6 +39,7 @@ test('identical text at distinct locators remains two records while reference du
   assert.deepEqual(output.duplicateTexts.map(item => [item.recordPointers, item.label]), [[['/input/reviews/0', '/input/reviews/1'], 'trùng nguyên văn, có thể cùng một người']]);
   assert.deepEqual(output.excludedRecordPointers, ['/input/reviews/2', '/input/reviews/3', '/input/reviews/4']);
   assert.equal(output.stars.bins[4]!.recordPointers.length, 2);
+  assert.throws(() => buildInsightLiteralEvidence({ binding, reviews: [reviews[0]!, { ...reviews[0]!, text: 'Changed under same retained reference' }], sellerStatements: [] }), /LITERAL_REFERENCE_CONFLICT/);
   assert.equal(output.sellerLayer.statementPointers.length, 0);
 });
 
@@ -65,8 +67,8 @@ test('seller statements require exact documented approved detail fields and cann
 test('literal views render verified method counts and verbatim quotes with shared wording lint', async () => {
   const { insightLiteralSection } = await import('../../src/modules/analysis/research-automation/review-corpus-report.js');
   const { lintVisibleReportText } = await import('../../src/modules/analysis/report-visible-text-lint.js');
-  const refs: { identity: string | null; locator: string | null }[] = [];
-  const citations = { mark: (ref: { identity: string | null; locator: string | null }) => { refs.push(ref); return `[${refs.length}]`; } };
+  const refs: CitationInput[] = [];
+  const citations = { mark: (ref: CitationInput) => { refs.push(ref); return `[${refs.length}]`; } };
   const raw = [row('1', 'Nguyên văn tốt nhất <script>source</script>', 5), row('2', 'Nguyên văn tốt nhất <script>source</script>', 1)];
   const source = literalNativeFile(raw);
   const output = buildInsightLiteralEvidence({ binding, reviews: nativeLiteralReviews(source, literalSelected),
@@ -92,4 +94,5 @@ test('literal views render verified method counts and verbatim quotes with share
   const absentHtml = insightLiteralSection(absent, 'I05', citations);
   assert.match(absentHtml, /nguồn không có số sao; chưa có phân bố số sao, không thay bằng 0/);
   assert.doesNotMatch(absentHtml, /<td>[1-5]\/5<\/td>/);
+  assert.ok(refs.some(ref => ref.identity === absent.input.reviews[0]!.sourceRefs[0]!.sourceSha256 && ref.locator === '/0'), 'absent field cites its existing row rather than a fabricated field locator');
 });

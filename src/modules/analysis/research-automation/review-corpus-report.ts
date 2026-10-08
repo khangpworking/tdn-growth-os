@@ -32,8 +32,8 @@ export function insightLiteralSection(output: import('../insight-literal-evidenc
     if (!row) throw new TypeError('LITERAL_REVIEW_POINTER_MISSING');
     return row;
   };
-  const marks = (pointer: string, field: 'text' | 'rating' = 'text') => review(pointer).sourceRefs.map(ref => citations.mark({
-    sourceKind: 'REVIEW', identity: ref.sourceSha256, locator: field === 'rating' ? ref.ratingLocator : ref.textLocator ?? ref.rowLocator,
+  const marks = (pointer: string, field: 'text' | 'rating' | 'row' = 'text') => review(pointer).sourceRefs.map(ref => citations.mark({
+    sourceKind: 'REVIEW', identity: ref.sourceSha256, locator: field === 'rating' ? ref.ratingLocator : field === 'row' ? ref.rowLocator : ref.textLocator ?? ref.rowLocator,
     label: 'Đánh giá khách hàng trên Shopee', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
   })).join(' ');
   if (id === 'I05') {
@@ -43,11 +43,11 @@ export function insightLiteralSection(output: import('../insight-literal-evidenc
     else if (stars.state === 'NO_USABLE_RECORDS') html += '<p>Chưa có bản ghi nguồn tương thích để lập phân bố số sao; không suy ra nguồn không có review.</p>';
     else html += `<div class="table-wrap"><table><caption>Số sao nguồn ghi trong tập bản ghi, chưa đối chiếu với tác giả</caption><thead><tr><th>Số sao</th><th>Số bản ghi</th><th>Vị trí nguồn</th></tr></thead><tbody>${stars.bins.map(bin => `<tr><td>${bin.value}/5</td><td>${bin.recordCount}</td><td>${bin.recordPointers.map(pointer => marks(pointer, 'rating')).join(' ') || 'Không có bản ghi trong tập ở mức sao này'}</td></tr>`).join('')}</tbody></table></div>`;
     const states = [
-      ['nguồn không có số sao', stars.absentField], ['Nguồn có trường sao nhưng thiếu giá trị', stars.missingValue],
-      ['Giá trị số sao không hợp lệ; không tự bỏ phần chữ', stars.invalidValue],
-      ['Không có chữ; cảm nhận chưa biết', stars.textlessUnknown], ['Phần chữ không đọc được; cảm nhận chưa biết', stars.unreadableText],
+      ['nguồn không có số sao', stars.absentField, 'row'], ['Nguồn có trường sao nhưng thiếu giá trị', stars.missingValue, 'rating'],
+      ['Giá trị số sao không hợp lệ; không tự bỏ phần chữ', stars.invalidValue, 'rating'],
+      ['Không có chữ; cảm nhận chưa biết', stars.textlessUnknown, 'text'], ['Phần chữ không đọc được; cảm nhận chưa biết', stars.unreadableText, 'text'],
     ] as const;
-    html += `<div class="table-wrap"><table><caption>Phần còn thiếu và trạng thái phần chữ, giữ riêng với phân bố sao</caption><thead><tr><th>Trạng thái</th><th>Số bản ghi</th><th>Vị trí nguồn</th></tr></thead><tbody>${states.map(([state, count]) => `<tr><td>${state}</td><td>${count.recordCount}</td><td>${count.recordPointers.map(pointer => marks(pointer)).join(' ') || 'Không có bản ghi thuộc trạng thái này trong tập'}</td></tr>`).join('')}</tbody></table></div>`;
+    html += `<div class="table-wrap"><table><caption>Phần còn thiếu và trạng thái phần chữ, giữ riêng với phân bố sao</caption><thead><tr><th>Trạng thái</th><th>Số bản ghi</th><th>Vị trí nguồn</th></tr></thead><tbody>${states.map(([state, count, field]) => `<tr><td>${state}</td><td>${count.recordCount}</td><td>${count.recordPointers.map(pointer => marks(pointer, field)).join(' ') || 'Không có bản ghi thuộc trạng thái này trong tập'}</td></tr>`).join('')}</tbody></table></div>`;
     return html;
   }
   if (id === 'I17') return '<h4>Đối chiếu nguyên văn trùng ở các vị trí nguồn</h4><p>Trùng chữ không xác minh cùng tác giả. Những bản ghi có vị trí nguồn khác nhau vẫn giữ riêng và vẫn tính theo quy tắc của tập nguồn; tham chiếu nguồn trùng hệt và nhóm định danh mâu thuẫn giữ quy tắc xử lý cũ.</p>' +
