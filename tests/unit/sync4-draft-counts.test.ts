@@ -152,6 +152,23 @@ test('U-03 renderers label every draft number in the same sentence and leave leg
   assert.match(draftSummary, /2 bản ghi \(đề xuất, chờ chủ duyệt\)\./);
 });
 
+test('U-03 draft view suppresses ratios without touching raw complete counts', () => {
+  const input = corpusFixture(false);
+  input.corpora[0]!.assignments = [{ recordIndex: 0, code: 'T001', span: { start: 0, end: 9, quote: 'packaging' }, provenance: { ...REVIEWED } }];
+  input.corpora[0]!.dispositions = [0, 1, 2, 3].map(recordIndex => ({ recordIndex,
+    state: recordIndex === 0 ? 'CODED' as const : 'UNCODED' as const, provenance: { ...REVIEWED } }));
+  input.semanticsVersion = '1.1.0';
+  input.draftCountsVersion = 'draft-counts-v1';
+  const corpus = buildLocatedInsightMethods(input).output.sections.I10.corpora[0]!;
+  assert.equal(corpus.ratioStatus, 'COMPLETE');
+  assert.deepEqual(corpus.counts[0]!.ratio, { numerator: 1, denominator: 4 }, 'Raw accepted ratio still publishes when complete');
+  assert.deepEqual(corpus.draftCounts![0]!.recordCount, 1);
+  const html = renderLocatedInsightSection(buildLocatedInsightMethods(input).output, 'I10')!;
+  assert.match(html, /1 \(đề xuất, chờ chủ duyệt\)/);
+  assert.match(html, /Chưa công bố/, 'Draft display never publishes ratios, even when raw counts are complete');
+  assert.equal(html.includes('1/3'), false);
+});
+
 test('U-03 draft requires current method semantics and enforces the declared single-code invariant', () => {
   const stale = summaryFixture(true);
   delete stale.semanticsVersion;
