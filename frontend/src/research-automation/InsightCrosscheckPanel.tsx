@@ -39,6 +39,8 @@ export default function InsightCrosscheckPanel({ run, view, ownerToken, block, r
   const selectedRuleId = proposal?.request.contractVersion === 'insight-coding-default-propose-v1' ? proposal.request.defaultRuleId : null;
   const latest = proposal && proposal.request.contractVersion === 'insight-coding-default-propose-v1' && !proposals.some(item => item.request.contractVersion === 'insight-coding-default-propose-v1' && item.request.defaultRuleId === selectedRuleId && item.sequence > proposal.sequence);
   const gate = block ?? (!ownerToken ? 'Cần khóa OWNER để gửi lượt thứ hai.' : !proposal ? 'Chọn đúng đề xuất mặc định đã lưu.' : !latest ? 'Đề xuất này đã có bản mới hơn; chỉ đọc bằng chứng cũ.' : !availability?.secondConfiguration ? 'Máy chủ chưa cấu hình model độc lập cho lượt thứ hai.' : null);
+  // A verified retained selection needs no current second-model configuration or latest-proposal choice.
+  const reportGate = block ?? (!ownerToken ? 'Cần khóa OWNER để tạo báo cáo nháp.' : null);
   const open = () => {
     if (gate || busy || inFlight.current || !proposal || proposal.request.contractVersion !== 'insight-coding-default-propose-v1' || !availability?.secondConfigurationSha256) return;
     const seed = [...crypto.getRandomValues(new Uint8Array(32))].map(byte => byte.toString(16).padStart(2, '0')).join('');
@@ -75,7 +77,7 @@ export default function InsightCrosscheckPanel({ run, view, ownerToken, block, r
       else { setReportHeld(body); setNotice('Chưa xác minh được phiên bản. Chỉ thử lại đúng yêu cầu báo cáo đã giữ.'); } } }
     finally { inFlight.current = false; if (mounted.current) setRunning(false); }
   };
-  const openReport = () => { if (!valid || gate || reportBlock || busy) return;
+  const openReport = () => { if (!valid || reportGate || reportBlock || busy) return;
     const request = valid.snapshot.request;
     setReport({ contractVersion: 'automation-insight-crosscheck-report-revision-v1', requestKey: crypto.randomUUID(), previousPairId: request.binding.pairId,
       sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
@@ -111,7 +113,7 @@ export default function InsightCrosscheckPanel({ run, view, ownerToken, block, r
       <details><summary>Xem hai kết quả và vị trí nguồn đã lưu</summary>{valid.snapshot.literalRows.map(row => <details key={`${row.sourceSha256}:${row.locator}`}><summary>Bản ghi {row.recordIndex + 1}</summary>
         <p>Vị trí: {row.locator}</p><blockquote>{row.text}</blockquote><p>Lượt đầu — đề xuất AI chờ xem xét</p><pre>{JSON.stringify(row.first, null, 2)}</pre><p>Lượt thứ hai — đề xuất AI chờ xem xét</p><pre>{JSON.stringify(row.second, null, 2)}</pre>
         <p>Danh sách khác nguyên dạng: {row.literalDifferences.join(', ') || 'không có'}. Chưa đối chiếu thống kê hay phân xử nghĩa.</p></details>)}</details>
-      <button type="button" className="button" disabled={busy || Boolean(gate || reportBlock)} onClick={openReport}>Tạo báo cáo nháp với phụ lục lượt thứ hai đã chọn</button></>}
+      <button type="button" className="button" disabled={busy || Boolean(reportGate || reportBlock)} onClick={openReport}>Tạo báo cáo nháp với phụ lục lượt thứ hai đã chọn</button></>}
     {notice && <p role="status">{notice}</p>}
     {confirm && <InsightCrosscheckConfirmation proposalLabel={`đề xuất ${proposal?.sequence}`} eligibleCount={eligible} firstExecutionIds={proposals.filter(item => item.request.contractVersion === 'insight-coding-default-propose-v1' && item.request.defaultRuleId === selectedRuleId && item.sequence <= (proposal?.sequence ?? 0)).map(item => item.request.contractVersion === 'insight-coding-default-propose-v1' ? item.request.executionId : '')} secondModel={`${availability!.secondConfiguration!.providerId}/${availability!.secondConfiguration!.modelId}`} onCancel={() => setConfirm(null)} onConfirm={() => void execute(confirm)} />}
     {report && <ConfirmDialog titleId="ic-crosscheck-report-title" title="Tạo báo cáo với phụ lục đã chọn?" confirmLabel="Tạo bản nháp có phụ lục" onCancel={() => setReport(null)} onConfirm={() => void reportAction(report)}><p>Dùng đúng đề xuất và hai kết quả đã lưu vừa xác minh. Không gọi model mới; chưa có thống kê kiểm chéo U11 hay phát hành.</p></ConfirmDialog>}
