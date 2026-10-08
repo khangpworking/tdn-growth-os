@@ -4,6 +4,7 @@ import automationApiSchema from '../../../../contracts/api/research-automation-a
 import sourceConfirmSchema from '../../../../contracts/api/research-automation-source-api.schema.json' with { type: 'json' };
 import sourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set.schema.json' with { type: 'json' };
 import revisionSchema from '../../../../contracts/analysis/automation-report-revision.schema.json' with { type: 'json' };
+import marketPresentationRevisionSchema from '../../../../contracts/analysis/automation-market-presentation-revision.schema.json' with { type: 'json' };
 import classifiedRevisionSchema from '../../../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import insightRevisionSchema from '../../../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
 import boundedRevisionSchema from '../../../../contracts/analysis/automation-bounded-report-revision.schema.json' with { type: 'json' };
@@ -297,6 +298,7 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const sourceAjv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(sourceAjv);
 sourceAjv.addSchema(automationApiSchema);
+sourceAjv.addSchema(marketPresentationRevisionSchema);
 const validateSourceConfirm = sourceAjv.compile<ResearchAutomationSourceConfirmRequest>(sourceConfirmSchema);
 const validateSourceSet = sourceAjv.compile<AutomationConfirmedSourceSet>(sourceSetSchema);
 sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchema); sourceAjv.addSchema(insightRevisionSchema); sourceAjv.addSchema(boundedRevisionSchema); sourceAjv.addSchema(quoteRevisionSchema);
