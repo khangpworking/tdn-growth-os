@@ -378,7 +378,7 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 - **Cập nhật 07/10:**
   - Chân dung khách hàng được phép theo E4 (từ lời khách) và lớp "người bán nhắm tới" theo E5 (từ lời người bán, có số liệu củng cố). Hai lớp hiển thị riêng, không trộn.
   - Khi nguồn có mã người viết, đếm người viết trong cùng nền tảng (L2).
-  - Nên tìm hoàn cảnh dùng sản phẩm ở các nguồn ngoài review sàn (bình luận video, nhóm mạng xã hội, công thức), vì review sàn thường không nói người mua là ai (mục 6).
+  - Nên tìm hoàn cảnh dùng sản phẩm ở các nguồn ngoài review sàn (bình luận dưới video, công thức, bài hướng dẫn), vì review sàn thường không nói người mua là ai (mục 6).
 
 ### I03 · Phương pháp nghiên cứu — EXISTING_BOUNDED
 

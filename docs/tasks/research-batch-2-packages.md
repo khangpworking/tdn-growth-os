@@ -5,9 +5,9 @@ Process: `docs/runbooks/agent-pipeline.md`. Workers check every item below and r
 
 ## Tóm tắt (cho chủ shop)
 
-Phần việc còn lại của 3 kế hoạch được gom thành **9 gói**, chạy theo 3 đợt:
+Phần việc còn lại của 3 kế hoạch được gom thành **10 gói**, chạy theo 3 đợt:
 - **Đợt 1 (4 gói):** chạy song song ngay. Mỗi gói sửa một nhóm file riêng, nên các gói không đụng nhau.
-- **Đợt 2 (4 gói):** bắt đầu khi điều kiện của từng gói đã xong. Gói P10 (số liệu Cục Thống kê) thêm ngày 08/10/2026.
+- **Đợt 2 (5 gói):** bắt đầu khi điều kiện của từng gói đã xong. Gói P10 (số liệu Cục Thống kê) và P9 (đọc video, bình luận TikTok) thêm ngày 08/10/2026.
 - **Đợt 3 (1 gói):** đưa tất cả nguồn mới lên báo cáo, làm sau khi các gói trước đã merge.
 
 Agent làm theo checklist bên dưới: mỗi việc có mã riêng (ví dụ `P1-04`), và agent phải báo lại từng mã. Sau đó có model khác review, rồi chạy test. Đạt hết thì agent tự mở PR nháp. Merge và deploy vẫn chỉ do chủ shop quyết.
@@ -24,6 +24,7 @@ Agent làm theo checklist bên dưới: mỗi việc có mã riêng (ví dụ `P
 | P6 | Metric automation through OpenCLI, capture archive, R2 copy, numbers-used ledger | #127 PR A + Ph2b 8 | 2 | owner installed the OpenCLI extension on Fedora | Metric executor, intake sharing, archive |
 | P7 | Social bundle intake, classification, evidence cards, personas | #124 Ph3 | 2 | server side: none; collection side: owner picks the social account | new social modules |
 | P8 | Presentation of all new sources in both reports | #124 Ph4 + #125 Ph2 quotes in reports | 3 | P1–P5 and P7 merged | report renderers (after P1 and P2) |
+| P9 | Video content reading and TikTok comments for every product category | Ultimate Method §6.2, E5, E11; source registry S07, S14 | 2 | P4 merged (done 08/10/2026); live collection needs an owner-approved charge cap | new TikTok comment collector and intake, video-reading intake, their contracts and API routes |
 | P10 | Official statistics intake (Cục Thống kê, nso.gov.vn) for every product category | Ultimate Method v1.5, E12 and §6.4 | 2 | none; start after P4 has merged (contract registry line) | new official-statistics intake module, its contract, its API route and its fetch script |
 
 **Ownership rule.**
@@ -345,6 +346,8 @@ Checklist:
 
 **Functional when:** a synthetic bundle produces cards, personas and journey counts ("x/y bài trong mẫu") that pass every rule above.
 
+Owner decision 2026-10-08: Facebook group posts are **not** collected (joining dozens of groups per category is not feasible). Collection covers public posts only, and Facebook is a secondary source (registry S08).
+
 ---
 
 ## P8. Presentation of all new sources (wave 3; after P1–P5 and P7)
@@ -365,6 +368,69 @@ Checklist:
 - [ ] P8-10 Once P10 has merged: official-statistics blocks in M05, M08, M09, I02 and I12 follow Ultimate E12. Each block names the statistics group and says it is wider than the product category, shows the value status (ước tính / sơ bộ / chính thức) and publication date, sits beside the sample numbers without arithmetic between them, and cites "Cục Thống kê (nso.gov.vn)" with file, sheet and row.
 
 **Functional when:** a fixture run with every new source renders both reports with all blocks cited, and both lints pass.
+
+---
+
+## P9. Video content reading and TikTok comments (wave 2; after P4)
+
+Business rules: Ultimate Method §6.2 (reading seller videos), E5 (seller-targeted persona), E11 (default rules, codebook cross-check), L1, L2, L7. Source registry: **S07** (TikTok comments) and **S14** (video content). Test evidence: `docs/research/ultimate-method/input-data-sources-test-log.md`, ST-20261008-17 to -19. Works for **every product category**.
+
+**Owned paths:**
+- new `src/platform/collectors/apify-tiktok-comments.ts` (modelled on `apify-shopee.ts`);
+- new `src/modules/analysis/research-automation/tiktok-comment-intake.ts`;
+- new `src/modules/analysis/research-automation/video-reading-intake.ts`;
+- new contracts `contracts/analysis/tiktok-comment-collection-v1.schema.json` and `contracts/analysis/video-reading-v1.schema.json`, with their generated files and registry lines (after merging `main`);
+- the new upload and collect routes in `src/api/research-automation-api.ts` (only the new routes);
+- new tests and synthetic fixtures;
+- `docs/handoffs/P9.md`.
+
+No migration: reuse the source-package storage. Comments enter the same located-record review corpus as Shopee reviews (`review-corpus.ts`), with their own source family.
+
+Checklist:
+- [ ] P9-01 **Video selection** from a P4 video table, by a rule fixed before reading any comment:
+  - option A: the top 20% of videos by revenue in the sample;
+  - option C: the videos that together make 80% of revenue;
+  - plus operator-added review-video URLs, marked `REVIEW_VIDEO` (người xem) instead of `SELLER_VIDEO`.
+
+  A cap of 30 videos per run by default. The selection rule, the option used and the list are stored with the run.
+- [ ] P9-02 **Comment collector** behind the existing provider configuration:
+  - default actor `datadoping/tiktok-comment-reply-scraper`, fallback `clockworks/tiktok-comments-scraper`;
+  - a run is refused without an owner-approved `maxTotalChargeUsd` cap;
+  - ≤200 top-level comments per video by default; no replies;
+  - fake transport in tests, never the network.
+- [ ] P9-03 **Dedupe** on `(video_id, comment_id)`. Keep the raw returned pages privately for audit, and record how many duplicate rows were dropped. The ST-20261008-19 run had 9.8% duplicates.
+- [ ] P9-04 **Personal data:**
+  - hash author IDs with a private salt;
+  - strip phone numbers, emails and @handles from the text;
+  - never store author names or profile links.
+- [ ] P9-05 **One located record per comment:**
+  - text, creation time, like count;
+  - locator = video URL + comment ID (the actors return no per-comment link);
+  - default voice `VIEWER` ("lời người xem");
+  - comments by the video owner or a brand account are marked `SELLER_OR_CREATOR`, not deleted;
+  - an empty comment is excluded with a reason, never counted.
+- [ ] P9-06 **Insight path:** records feed the existing coding path for I02, I04–I10 and I13 as source S07. No new coding method. The E11 codebook cross-check applies. Counts say "bình luận thu được", never "toàn bộ bình luận".
+- [ ] P9-07 **Video-reading intake:** accepts an operator-produced JSON per video, made with the `/watch` tool on the operator machine (local engine, no cloud upload unless the owner approves). Fields:
+  - video URL and kind;
+  - duration;
+  - transcript segments with start and end seconds, and caption source (native or speech-to-text);
+  - on-screen text;
+  - frame references with hashes.
+
+  It is validated and stored as an S14 source package. It is read as seller voice (L7); a `REVIEW_VIDEO` reading is read as creator voice.
+- [ ] P9-08 **No model calls in this package.** Coding the §6.2 fields (hook, format, CTA, positioning) is a later step under the E11 codebook cross-check.
+- [ ] P9-09 **Citations** through `CitationRegistry`: "bình luận công khai dưới video TikTok, <link video>, mã bình luận <id>, ngày <date>" and "nội dung video, <link video>, giây <start>–<end>". No provider names in owner-facing text (G-08).
+- [ ] P9-10 **Tests:**
+  - the selection rule under options A and C;
+  - a refused run without a cap;
+  - dedupe with injected duplicates;
+  - PII stripping;
+  - empty comments;
+  - the seller or creator mark;
+  - a corpus round trip with citations;
+  - video-reading validation (good file, missing segments, bad timestamps).
+
+**Functional when:** a fixture run with a synthetic P4 video table selects videos, collects fake comments through the fake transport, dedupes them, and shows cited S07 records in the Insight corpus. A synthetic video-reading JSON is stored as a cited S14 package.
 
 ---
 
@@ -424,6 +490,8 @@ Checklist:
 ---
 
 ## Owner gates (not agent work)
+
+- P9 live comment collection: an owner-approved charge cap per run.
 
 - Phase 0 spike (#124): ≤6 paid calls. **Approved 2026-10-07.** Run it with `docs/runbooks/agent-pipeline.md` §7.
 - Install the OpenCLI extension in Chrome on Fedora (unblocks P6).
