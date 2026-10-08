@@ -189,12 +189,12 @@ function summary(input: Input, rows: Located[], sectionId: 'I02' | 'I04' | 'I05'
   // by stable record identity. Disagreements stay pending and provenance is
   // never rewritten to approved. Record INCLUDED membership is enforced by
   // input validation; the pointers below reuse the same stable identity.
-  if (sectionId !== 'I02' || input.draftCountsVersion !== 'draft-counts-v1') return { ...base };
+  if (input.draftCountsVersion === undefined || (input.draftCountsVersion === 'draft-counts-v1' && sectionId !== 'I02')) return { ...base };
   const draft = rows.filter(({ row }) => row.provenance.disagreement === null);
   const draftRecordPointers = unique(draft.map(row => row.recordPointer));
   return { ...base, draftRecordPointers, draftAnnotationPointers: draft.map(row => row.pointer),
     draftLocatedRecordCount: draftRecordPointers.length,
-    draftLabel: 'đề xuất, chờ chủ duyệt', draftCountsVersion: 'draft-counts-v1' as const };
+    draftLabel: 'đề xuất, chờ chủ duyệt', draftCountsVersion: input.draftCountsVersion };
 }
 
 /** U-02 (E7): input semantics version. Absence retains 1.0.0 bytes exactly. */
@@ -265,16 +265,42 @@ export function buildLocatedInsightMethods(untrustedInput: unknown): { output: L
         gap.desiredState || gap.currentState ? 'RELATION_UNCLEAR' : 'UNLOCATED';
     return [{ annotationPointer: pointer, state, unmetNeedCandidate: state === 'EXPLICIT_GAP' }];
   });
-  const body: Omit<LocatedInsightMethods, 'methodOutputId'> = {
+  // v2 adds separate draft semantics; accepted arrays and provenance keep their historical meaning.
+  const draftV2 = input.draftCountsVersion === 'draft-counts-v2';
+  const draftPolarities = new Map<string, Set<Input['i05'][number]['polarity']>>();
+  if (draftV2) for (const item of i05) {
+    if (item.row.provenance.disagreement !== null) continue;
+    const codes = draftPolarities.get(item.recordPointer) ?? new Set<Input['i05'][number]['polarity']>();
+    codes.add((item.row as Input['i05'][number]).polarity);
+    draftPolarities.set(item.recordPointer, codes);
+  }
+  const draftRecordPolarities = [...draftPolarities].map(([recordPointer, values]) => ({ recordPointer,
+    polarity: values.has('MIXED') || (values.has('POSITIVE') && values.has('NEGATIVE')) ? 'MIXED' as const :
+      values.size === 1 ? [...values][0]! : 'UNCLEAR' as const,
+  }));
+  const draftSequences = draftV2 ? i06.flatMap(({ row, pointer }) => {
+    if (row.provenance.disagreement !== null || !(row as Input['i06'][number]).relation) return [];
+    return [{ annotationPointer: pointer, sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD' as const,
+      identityScope: 'RECORD_LOCAL' as const, sequenceState: 'SOURCE_STATED_ORDER' as const }];
+  }) : [];
+  const draftCandidates = draftV2 ? i09.flatMap(({ row, pointer }) => {
+    if (row.provenance.disagreement !== null) return [];
+    const gap = row as Input['i09'][number];
+    const state = gap.desiredState && gap.currentState && gap.relation ? 'EXPLICIT_GAP' as const :
+      gap.desiredState && !gap.currentState ? 'DESIRE_ONLY' as const : !gap.desiredState && gap.currentState ? 'CURRENT_STATE_ONLY' as const :
+        gap.desiredState || gap.currentState ? 'RELATION_UNCLEAR' as const : 'UNLOCATED' as const;
+    return [{ annotationPointer: pointer, state, unmetNeedCandidate: state === 'EXPLICIT_GAP' }];
+  }) : [];
+  const body: Pick<LocatedInsightMethods, 'contractVersion' | 'methodId' | 'methodVersion' | 'input' | 'sections' | 'limitations'> = {
     contractVersion: '1.0.0', methodId: 'located-insight-methods', methodVersion: version, input,
     sections: {
       I01: businessQuestion(input, version), I02: summary(input, i02, 'I02'), I04: summary(input, i04, 'I04'),
-      I05: { ...summary(input, i05, 'I05'), recordPolarities },
-      I06: { ...summary(input, i06, 'I06'), sequences, blockers: unique([...summary(input, i06, 'I06').blockers,
+      I05: { ...summary(input, i05, 'I05'), recordPolarities, ...(draftV2 ? { draftRecordPolarities } : {}) },
+      I06: { ...summary(input, i06, 'I06'), sequences, ...(draftV2 ? { draftSequences } : {}), blockers: unique([...summary(input, i06, 'I06').blockers,
         ...(i06.some(({ row }) => !(row as Input['i06'][number]).relation) ? ['I06_EVENT_ORDER_UNRESOLVED'] : [])]) },
       I07: summary(input, i07, 'I07'), I08: summary(input, i08, 'I08'),
-      I09: { ...summary(input, i09, 'I09'), candidates, blockers: unique([...summary(input, i09, 'I09').blockers,
-        ...(candidates.some(row => !row.unmetNeedCandidate) ? ['I09_INCOMPLETE_GAP_EVIDENCE'] : [])]) },
+      I09: { ...summary(input, i09, 'I09'), candidates, ...(draftV2 ? { draftCandidates } : {}), blockers: unique([...summary(input, i09, 'I09').blockers,
+        ...((draftV2 ? draftCandidates : candidates).some(row => !row.unmetNeedCandidate) ? ['I09_INCOMPLETE_GAP_EVIDENCE'] : [])]) },
       ...corpus,
     },
     limitations: [
