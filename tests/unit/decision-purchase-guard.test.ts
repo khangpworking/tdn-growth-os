@@ -30,6 +30,8 @@ test('explicit prohibitions and descriptive retained/public evidence remain avai
     'Review reports a customer buying a product',
     'Nguồn ghi mua tặng; cần kiểm tra nhu cầu người nhận.', 'Nguồn synthetic nêu mua tặng.',
     'Review owner purchase history and public reviews',
+    'Review purchase behavior in public sources', 'Đối chiếu hành vi mua qua nguồn công khai',
+    'Order retained source entries for review',
     'Đối chiếu lịch sử mua hàng do chủ cung cấp',
     'Review public data in order to assess quality',
   ]) assert.equal(hasAuthoredPurchaseProposal(text), false, text);
