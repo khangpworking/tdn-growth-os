@@ -24,21 +24,21 @@ Pinned Node24.15.0/npm11.12.1; synthetic exact/native Foundation source intake, 
 
 At implementation head `250d3c535a377062b6df913d8d158d111b4fc8a3`:
 
-```text
-node --import tsx --test --test-concurrency=2
-  tests/unit/insight-literal-evidence.test.ts
-  tests/integration/research-insight-literal.test.ts
-  tests/unit/next-insight-draft-counts.test.ts
-  tests/unit/report-located-insight-pages.test.ts
-  tests/unit/report-located-insight-extension.test.ts
-  tests/integration/research-insight-prompt-retention.test.ts
-  tests/integration/research-automation-source-evidence.test.ts
-  tests/integration/research-automation-source-api.test.ts
-  tests/unit/research-automation-reports.test.ts
+```bash
+node --import tsx --test --test-concurrency=2 \
+  tests/unit/insight-literal-evidence.test.ts \
+  tests/integration/research-insight-literal.test.ts \
+  tests/unit/next-insight-draft-counts.test.ts \
+  tests/unit/report-located-insight-pages.test.ts \
+  tests/unit/report-located-insight-extension.test.ts \
+  tests/integration/research-insight-prompt-retention.test.ts \
+  tests/integration/research-automation-source-evidence.test.ts \
+  tests/integration/research-automation-source-api.test.ts \
+  tests/unit/research-automation-reports.test.ts \
   tests/unit/report-visible-text-lint.test.ts
 ```
 
-Result: **61 PASS, 0 FAIL, 1 existing optional Chromium PDF SKIP** (`TDN_RESEARCH_PDF_CHROMIUM` unset). Log: `/tmp/insight-literal-final-focused.log`. Literal-specific checks:21/21 PASS within that run. `npm run typecheck` PASS (`/tmp/insight-literal-final-typecheck.log`). No local full suite was run.
+Result: **61 PASS, 0 FAIL, 1 existing optional Chromium PDF SKIP** (`TDN_RESEARCH_PDF_CHROMIUM` unset). Literal-specific checks:21/21 PASS within that run. `npm run typecheck` PASS. No local full suite was run.
 
 - Real OWNER POST202 → verified GET200 → exact retry200; unauthorized401/malformed400 create no attempts. Optional presentation adapter cannot inject/replace owning literal evidence.
 - Exact/native8-row fixture admits6 records, excludes conflicting native-ID7, preserves two legitimate identical-text records, and yields star bins1:1/2:1/3:0/4:1/5:1. Null stars remain missing and outside bins. Entirely absent star fields retain6 absent records and no bins. Equal same-ID occurrence collapses while keeping both original source references.
@@ -46,7 +46,7 @@ Result: **61 PASS, 0 FAIL, 1 existing optional Chromium PDF SKIP** (`TDN_RESEARC
 - Count, seller text, locator and previous-pair tampering fail method/full source replay, including rehashed fabricated input. Malformed states/provenance/extra approval fields fail AJV. Actual source titles/quotes remain exact and escaped; injected generated superlatives fail new literal lint.
 - Source18/19 tests exercise both successful fake keyword drafting with retained L9 accounting (included1/excluded1/unclear1), and unavailable keyword transport with no metric observations where only the new literal use adds seller capture bindings. The first new fixture incorrectly assumed those captures were unused while keyword drafting had consumed them; the fixture was corrected to disable that transport for the seller-only case. Its unused-source assertion was preserved.
 - Existing historical method/HTML/prompt hashes and marker-free source/fallback bytes replay unchanged. Real Foundation service fixtures have generated package UUIDs/timestamps, so cross-run artifact hashes are unsuitable; new tests compare exact retained bytes within each run. No valid historical assertion was weakened.
-- `npm run contracts:generate` PASS with zero schema/generated/script drift after Source candidate reconciliation (`/tmp/insight-literal-source-generation.log`). Contracts/generator inputs remained unchanged through actual main refresh. Working/final committed-range whitespace checks PASS.
+- `npm run contracts:generate` PASS with zero schema/generated/script drift after Source candidate reconciliation. Contracts/generator inputs remained unchanged through actual main refresh. Working/final committed-range whitespace checks PASS.
 - Pinned humanizer-vi SKILL and preservation/register rules at revision `576c80fb445a8b2e9ec1993a6490ab6529b89d12` were read. Neutral deterministic Vietnamese preserves quotes, facts, numbers, scope, uncertainty and missing-data limits; no prompt or historical interpretation was rewritten.
 
 ## Ownership and next action
