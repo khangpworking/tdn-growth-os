@@ -135,17 +135,25 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
   // draft code counts. Drafts never unlock ratios, rewrite provenance, or
   // clear the pending tallies above.
   if (input.draftCountsVersion !== 'draft-counts-v1') return countsBase;
+  if (input.semanticsVersion !== '1.1.0') fail('DRAFT_REQUIRES_CURRENT_SEMANTICS');
   const eligibleDisposition = new Set<string>();
   for (const [key, disposition] of states) {
     if (disposition.state === 'CODED' && disposition.provenance.disagreement === null) eligibleDisposition.add(key);
   }
   const draftRecords = new Map<string, Map<string, string[]>>();
   for (const code of corpus.codebook.codes) draftRecords.set(code.code, new Map());
+  const draftCodes = new Map<string, Set<string>>();
   for (const [assignmentIndex, assignment] of corpus.assignments.entries()) {
     if (assignment.provenance.disagreement !== null) continue;
     if (input.records[assignment.recordIndex]!.disposition !== 'INCLUDED') continue;
     const key = recordKey(input, assignment.recordIndex);
     if (!eligibleDisposition.has(key)) continue;
+    if (!corpus.multiCode) {
+      const codes = draftCodes.get(key) ?? new Set<string>();
+      codes.add(assignment.code);
+      draftCodes.set(key, codes);
+      if (codes.size > 1) fail('DRAFT_MULTICODE_NOT_ALLOWED');
+    }
     const perCode = draftRecords.get(assignment.code)!;
     const pointers = perCode.get(key) ?? [];
     pointers.push(`/input/corpora/${corpusIndex}/assignments/${assignmentIndex}`);

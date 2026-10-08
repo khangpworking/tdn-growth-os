@@ -40,7 +40,7 @@ function summaryFixture(withDraftFlag: boolean): Input {
     { ...i02Row(draftable, pendingAi()) },
     { ...i02Row(contested, disputed()) },
   ];
-  if (withDraftFlag) input.draftCountsVersion = 'draft-counts-v1';
+  if (withDraftFlag) { input.semanticsVersion = '1.1.0'; input.draftCountsVersion = 'draft-counts-v1'; }
   return input;
 }
 
@@ -101,7 +101,7 @@ function corpusFixture(withDraftFlag: boolean): Input {
       { recordIndex: 3, state: 'PENDING' as const, provenance: { ...PENDING } },
     ],
   }];
-  if (withDraftFlag) input.draftCountsVersion = 'draft-counts-v1';
+  if (withDraftFlag) { input.semanticsVersion = '1.1.0'; input.draftCountsVersion = 'draft-counts-v1'; }
   return input;
 }
 
@@ -150,6 +150,19 @@ test('U-03 renderers label every draft number in the same sentence and leave leg
   assert.equal(legacySummary.includes(DRAFT_LABEL), false);
   const draftSummary = renderLocatedInsightSection(buildLocatedInsightMethods(summaryFixture(true)).output, 'I02')!;
   assert.match(draftSummary, /2 bản ghi \(đề xuất, chờ chủ duyệt\)\./);
+});
+
+test('U-03 draft requires current method semantics and enforces the declared single-code invariant', () => {
+  const stale = summaryFixture(true);
+  delete stale.semanticsVersion;
+  assert.throws(() => buildLocatedInsightMethods(stale), /DRAFT_REQUIRES_CURRENT_SEMANTICS/);
+  const old = summaryFixture(true);
+  old.semanticsVersion = '1.0.0';
+  assert.throws(() => buildLocatedInsightMethods(old), /DRAFT_REQUIRES_CURRENT_SEMANTICS/);
+  const single = corpusFixture(true);
+  single.corpora[0]!.multiCode = false;
+  assert.throws(() => buildLocatedInsightMethods(single), /DRAFT_MULTICODE_NOT_ALLOWED/,
+    'One record with draft assignments in two codes violates the declared single-code corpus');
 });
 
 test('U-03 prompt v3 carries draft fragments while released v1/v2 bytes stay frozen', () => {

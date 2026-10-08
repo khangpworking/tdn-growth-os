@@ -1131,6 +1131,7 @@ export class ResearchAutomationService {
         await this.#readAttemptSources(this.#current(runId)!, prior);
         if (prior.state === 'COMMITTED') await this.#readAttemptPair(this.#current(runId)!, prior);
         if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, input.previousPairId, input.acceptedInsight);
+        if ('draftInsight' in input) await this.#insightCoding.reportDraftSnapshot(workspaceId, runId, input.previousPairId, input.draftInsight);
         if ('boundedMethods' in input) await this.#loadBoundedMethods(this.#current(runId)!, input);
         if ('quoteMethods' in input) await this.#loadQuoteMethods(this.#current(runId)!, input);
         return revisionReceipt(prior, true);
@@ -1147,6 +1148,7 @@ export class ResearchAutomationService {
       for (const output of previous.outputs) await this.readReport(workspaceId, runId, output.kind, false, previous.pairId);
       if ('acceptedMetric' in input) await this.#classifiedMetric.project(workspaceId, runId, previous.pairId, input.acceptedMetric, true);
       if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, previous.pairId, input.acceptedInsight, true);
+      if ('draftInsight' in input) await this.#insightCoding.reportDraftSnapshot(workspaceId, runId, previous.pairId, input.draftInsight, true);
       if ('boundedMethods' in input) await this.#loadBoundedMethods(run, input);
       if ('quoteMethods' in input) await this.#loadQuoteMethods(run, input);
       const start = await this.#readStartSnapshot(run.startSha, workspaceId);
@@ -1388,7 +1390,9 @@ export class ResearchAutomationService {
     }
     const insightRequest = attempt ? await this.#insightCodingRequest(frozenRun, attempt) : undefined;
     if (kind === 'INSIGHT' && insightRequest) {
-      const snapshot = await this.#insightCoding.verifyReportSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.acceptedInsight);
+      const snapshot = 'draftInsight' in insightRequest
+        ? await this.#insightCoding.verifyReportDraftSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.draftInsight)
+        : await this.#insightCoding.verifyReportSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.acceptedInsight);
       const source = verifiedNative ?? (verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? verifiedLocated : undefined);
       if (!source || snapshot.binding.scopeSha256 !== frozenRun.scopeSha || snapshot.binding.inputSha256 !== digest(source.output.input) ||
           snapshot.binding.sourcePackageSha256 !== digest(source.sourcePackage))
@@ -1836,6 +1840,9 @@ export class ResearchAutomationService {
       if (revisionRequest && 'acceptedInsight' in revisionRequest) {
         insightCoding = await this.#insightCoding.reportSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.acceptedInsight);
       }
+      if (revisionRequest && 'draftInsight' in revisionRequest) {
+        insightCoding = await this.#insightCoding.reportDraftSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.draftInsight);
+      }
       if (start.reports.includes('MARKET')) {
         if (priorMarket && revisionRequest?.sources.metric.decision === 'KEEP') {
           metricMethods = priorMarket.metricMethods as AutomationMetricMethodSnapshot | undefined;
@@ -1914,7 +1921,7 @@ export class ResearchAutomationService {
         let i14Synthesis: AutomationI14ExecutionOutcome | undefined;
         if (builtI14) {
           const parent = await this.#i14Parent(fresh, attempt);
-          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
+          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
             // Selected coding changes deterministic methods, not the frozen AI evidence package.
             const retained = await this.#i14Executions.read(parent, admissionInput);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -1937,7 +1944,7 @@ export class ResearchAutomationService {
           decisionPackets.push(buildAutomationDecisionPacket(source).artifact);
           const parent = await this.#i14Parent(fresh, attempt);
           let outcome: AutomationDecisionExecutionOutcome | undefined;
-          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
+          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
             // Deterministic revisions preserve the source-bound draft, without authorizing new AI calls.
             const retained = await this.#decisionExecutions[sectionId].read(parent, source);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -2439,13 +2446,14 @@ export class ResearchAutomationService {
     if (!attempt) return { kind: 'INITIAL_REPORTS', runId: run.runId };
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight execution revision request failed verification.');
-    return 'acceptedMetric' in request || 'acceptedInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
+    return 'acceptedMetric' in request || 'acceptedInsight' in request || 'draftInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
       : { kind: 'SUPPLEMENTAL_ATTEMPT', runId: run.runId, attemptId: attempt.attemptId };
   }
   async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationInsightReportRevisionRequest | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight coding revision request failed verification.');
     if ('acceptedInsight' in request) return request;
+    if ('draftInsight' in request) return request;
     if (request.sources.nativeReview.decision !== 'KEEP') return undefined;
     const previous = this.#previousAttempt(run, attempt);
     return previous ? this.#insightCodingRequest(run, previous) : undefined;

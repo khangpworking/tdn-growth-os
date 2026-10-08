@@ -1,6 +1,11 @@
 /* Generated from automation-insight-coding-snapshot.schema.json. Do not edit by hand. */
 
 /**
+ * Retained coding snapshot: accepted receipts (v1, legacy) or one versioned receipt-free draft selection (v2). Exactly one branch validates; historical v1 payloads match only the accepted branch.
+ */
+export type AutomationInsightCodingSnapshot =
+  AutomationInsightCodingAcceptedSnapshot | AutomationInsightCodingDraftSnapshot;
+/**
  * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
  */
 export type DraftCountsVersion = 'draft-counts-v1';
@@ -29,7 +34,7 @@ export type Pointers2 = string[];
  */
 export type DraftCountLabel = 'đề xuất, chờ chủ duyệt';
 
-export interface AutomationInsightCodingSnapshot {
+export interface AutomationInsightCodingAcceptedSnapshot {
   contractVersion: 'automation-insight-coding-snapshot-v1';
   selectionContractVersion?: 'automation-insight-selection-v2';
   binding: InsightSourceBinding;
@@ -504,4 +509,37 @@ export interface CorpusSection {
   countUnit: 'LOCATED_RECORDS';
   semanticValidation: 'DECLARED_NOT_VERIFIED';
   blockers: Strings;
+}
+/**
+ * Zero receipts by construction with an explicit draft selection echo. Never an implicit latest, never approval.
+ */
+export interface AutomationInsightCodingDraftSnapshot {
+  contractVersion: 'automation-insight-coding-snapshot-v2';
+  binding: InsightSourceBinding;
+  selection: InsightDraftSelectionEcho;
+  adoptionId: string;
+  proposalSha256: string;
+  /**
+   * @maxItems 0
+   */
+  receipts: [];
+  draftSelection: InsightDraftSelection;
+  output: LocatedInsightMethods;
+}
+/**
+ * Explicit empty selection echo of a versioned draft selection.
+ */
+export interface InsightDraftSelectionEcho {
+  proposalId: string;
+  /**
+   * @maxItems 0
+   */
+  receiptIds: [];
+}
+/**
+ * Versioned receipt-free draft selection of one exact retained proposal. Zero receipts by construction; never an implicit latest, never approval.
+ */
+export interface InsightDraftSelection {
+  contractVersion: 'insight-draft-select-v1';
+  proposalId: string;
 }

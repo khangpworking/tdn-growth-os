@@ -236,6 +236,8 @@ export function buildLocatedInsightMethods(untrustedInput: unknown): { output: L
   const input = validateCore(untrustedInput);
   // U-02: an omitted semanticsVersion is the historical 1.0.0 (hard owner-question blocker, no working question).
   const version: SemanticsVersion = input.semanticsVersion ?? '1.0.0';
+  // U-03 draft eligibility is defined against current method semantics only.
+  if (input.draftCountsVersion !== undefined && version !== '1.1.0') fail('DRAFT_REQUIRES_CURRENT_SEMANTICS');
   const corpus = buildInsightCorpusCounts(input);
   const i02 = located(input, 'i02'); const i04 = located(input, 'i04'); const i05 = located(input, 'i05');
   const i06 = located(input, 'i06'); const i07 = located(input, 'i07'); const i08 = located(input, 'i08'); const i09 = located(input, 'i09');
