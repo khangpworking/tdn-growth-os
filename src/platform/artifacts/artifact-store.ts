@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
+import callbackFs from 'node:fs';
 import path from 'node:path';
 
 export interface StoredArtifact {
@@ -88,25 +89,50 @@ export class ContentAddressedArtifactStore {
   }
 
   async #readBounded(filePath: string, expectedDigest: string, maxBytes: number): Promise<Buffer> {
-    const handle = await fs.open(filePath, 'r');
-    try {
-      const opened = await handle.stat();
-      if (!opened.isFile()) throw new ArtifactIntegrityError(`Artifact is not a regular file: ${expectedDigest}`);
-      if (opened.size > maxBytes) throw new ArtifactIntegrityError(`Artifact exceeds read limit: ${expectedDigest}`);
-      const bytes = Buffer.alloc(opened.size);
-      let offset = 0;
-      while (offset < opened.size) {
-        const read = await handle.read(bytes, offset, opened.size - offset, offset);
-        if (read.bytesRead === 0) throw new ArtifactIntegrityError(`Artifact truncated while reading: ${expectedDigest}`);
-        offset += read.bytesRead;
-      }
-      const closed = await handle.stat();
-      if (closed.size !== opened.size) throw new ArtifactIntegrityError(`Artifact changed while reading: ${expectedDigest}`);
-      if (digest(bytes) !== expectedDigest) throw new ArtifactIntegrityError(`Artifact digest mismatch: ${expectedDigest}`);
-      return bytes;
-    } finally {
-      await handle.close();
-    }
+    // Keep descriptor IO asynchronous without FileHandle's per-operation promise
+    // machinery. Every read still authenticates the opened file and exact bytes.
+    return new Promise<Buffer>((resolve, reject) => {
+      callbackFs.open(filePath, 'r', (openError, fd) => {
+        if (openError) { reject(openError); return; }
+        let closing = false;
+        const finish = (outcome: { bytes: Buffer } | { error: unknown }): void => {
+          if (closing) return;
+          closing = true;
+          try {
+            callbackFs.close(fd, closeError => {
+              // Match the original finally: close errors override earlier errors.
+              if (closeError) reject(closeError);
+              else if ('error' in outcome) reject(outcome.error);
+              else resolve(outcome.bytes);
+            });
+          } catch (error) { reject(error); }
+        };
+        const attempt = (operation: () => void): void => {
+          try { operation(); } catch (error) { finish({ error }); }
+        };
+        attempt(() => callbackFs.fstat(fd, (statError, opened) => attempt(() => {
+          if (statError) throw statError;
+          if (!opened.isFile()) throw new ArtifactIntegrityError(`Artifact is not a regular file: ${expectedDigest}`);
+          if (opened.size > maxBytes) throw new ArtifactIntegrityError(`Artifact exceeds read limit: ${expectedDigest}`);
+          const bytes = Buffer.alloc(opened.size);
+          let offset = 0;
+          const verify = (): void => attempt(() => callbackFs.fstat(fd, (statError, closed) => attempt(() => {
+            if (statError) throw statError;
+            if (closed.size !== opened.size) throw new ArtifactIntegrityError(`Artifact changed while reading: ${expectedDigest}`);
+            if (digest(bytes) !== expectedDigest) throw new ArtifactIntegrityError(`Artifact digest mismatch: ${expectedDigest}`);
+            finish({ bytes });
+          })));
+          const read = (): void => attempt(() => callbackFs.read(fd, bytes, offset, opened.size - offset, offset,
+            (readError, bytesRead) => attempt(() => {
+              if (readError) throw readError;
+              if (bytesRead === 0) throw new ArtifactIntegrityError(`Artifact truncated while reading: ${expectedDigest}`);
+              offset += bytesRead;
+              if (offset < opened.size) read(); else verify();
+            })));
+          if (opened.size === 0) verify(); else read();
+        })));
+      });
+    });
   }
 }
 
