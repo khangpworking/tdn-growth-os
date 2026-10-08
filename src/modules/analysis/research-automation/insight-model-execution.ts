@@ -234,3 +234,39 @@ export class AutomationInsightDefaultModelExecution {
       adoptionId: source.defaultRuleId, requestKey: source.request.requestKey, previousProposalId: source.request.previousProposalId }, source, ai, signal });
   }
 }
+
+/** Query-only, verified artifacts of an existing VALID default execution. No transport or current config. */
+export async function readInsightDefaultExecutionArtifacts(options: {
+  db: Database.Database; artifactStore: ContentAddressedArtifactStore; now(): Date;
+}, executionId: string) {
+  function fail(): never { throw new AutomationSynthesisExecutionIntegrityError(); }
+  const row = options.db.prepare(`SELECT execution_id, admission_sha256, input_sha256, prompt_sha256,
+    configuration_sha256, candidates_sha256 FROM analysis_research_automation_ai_executions
+    WHERE execution_id=? AND section_id='INSIGHT_CODING' AND state='COMPLETED' AND validation_status='VALID'`).get(executionId) as
+    { execution_id: string; admission_sha256: string; input_sha256: string; prompt_sha256: string;
+      configuration_sha256: string; candidates_sha256: string } | undefined;
+  if (!row) fail();
+  async function read<V>(digest: string, maxBytes: number, validate: (value: unknown) => value is V) {
+    const manifest = options.db.prepare(`SELECT byte_size, media_type, relative_path, acquired_at, contract_version,
+      retention_status FROM artifact_manifests WHERE sha256=?`).get(digest) as
+      { byte_size: number | bigint; media_type: string; relative_path: string; acquired_at: string;
+        contract_version: string; retention_status: string } | undefined;
+    if (!manifest || manifest.media_type !== 'application/json' || manifest.relative_path !== `sha256/${digest.slice(0, 2)}/${digest}` ||
+      manifest.contract_version !== '1.0.0' || manifest.retention_status !== 'active' || !manifest.acquired_at?.trim() ||
+      BigInt(manifest.byte_size) > BigInt(maxBytes)) fail();
+    try {
+      const bytes = await options.artifactStore.read(digest, { maxBytes });
+      const value: unknown = JSON.parse(bytes.toString('utf8'));
+      if (BigInt(bytes.length) !== BigInt(manifest.byte_size) || !validate(value) || !json(value).equals(bytes)) fail();
+      return { sha256: digest, value, bytes };
+    } catch { return fail(); }
+  }
+  const admission = await read<InsightDefaultModelSource>(row.admission_sha256, MAX_BYTES, validateDefaultSource);
+  const outcome = await new AutomationInsightDefaultModelExecution(options).read(admission.value);
+  if (outcome.status !== 'VALID' || outcome.executionId !== executionId || outcome.candidates.sha256 !== row.candidates_sha256) fail();
+  // The existing kernel verifies all cross-artifact bindings and revalidates the retained merged default output.
+  const input = await read<InsightModelInput>(row.input_sha256, 1024 * 1024, validateInput);
+  const prompt = await read<InsightDefaultModelPrompt>(row.prompt_sha256, 256 * 1024, validateDefaultPrompt);
+  const configuration = await read<InsightModelConfiguration>(row.configuration_sha256, 64 * 1024, validateConfiguration);
+  return { executionId, admission, input, prompt, configuration, candidates: outcome.candidates };
+}

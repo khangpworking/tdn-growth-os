@@ -91,7 +91,7 @@ export async function createReportRevision(workspaceId: string, runId: string, b
   assertUuid(workspaceId, 'Workspace ID');
   assertUuid(runId, 'Run ID');
   const valid = body.contractVersion === 'automation-classified-report-revision-v1' ? classifiedReportRevision(body)
-    : body.contractVersion === 'automation-insight-report-revision-v1' || body.contractVersion === 'automation-insight-default-report-revision-v1' ? insightReportRevision(body)
+    : body.contractVersion === 'automation-insight-report-revision-v1' || body.contractVersion === 'automation-insight-default-report-revision-v1' || body.contractVersion === 'automation-insight-crosscheck-report-revision-v1' ? insightReportRevision(body)
     : body.contractVersion === 'automation-bounded-report-revision-v1' ? boundedReportRevision(body)
     : body.contractVersion === 'automation-quote-report-revision-v1' ? quoteReportRevision(body) : researchAutomationRevision(body);
   if (!valid) throw new ResearchAutomationError('rejected', 'Yêu cầu tạo phiên bản báo cáo không đúng contract.');

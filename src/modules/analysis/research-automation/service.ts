@@ -57,6 +57,8 @@ import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPr
 import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
 import { AutomationMetricMembership, type MetricMembershipContext } from './metric-membership.js';
+import { AutomationInsightCrosscheck } from './insight-crosscheck.js';
+import type { InsightCrosscheckSnapshot, InsightCrosscheckSelection } from '../../../../contracts/analysis/automation-insight-crosscheck.generated.js';
 import { AutomationInsightCoding, type InsightSourceContext } from './insight-coding.js';
 import type { AutomationMetricRuleAdoptionList, AutomationMetricRuleAdoptionReceipt } from '../../../../contracts/analysis/automation-metric-rule-adoption.generated.js';
 import { readPreparedMetricSources } from './metric-source-inventory.js';
@@ -181,6 +183,7 @@ export interface ResearchAutomationReportInput {
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly insightCoding?: AutomationInsightCodingSnapshot;
+  readonly insightCrosscheck?: InsightCrosscheckSnapshot;
   readonly insightLiteral?: InsightLiteralEvidence;
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
@@ -358,6 +361,7 @@ export class ResearchAutomationService {
   readonly #readerReports: AutomationReaderReports;
   readonly #metricMembership: AutomationMetricMembership;
   readonly #insightCoding: AutomationInsightCoding;
+  readonly #insightCrosscheck: AutomationInsightCrosscheck;
   readonly #insightLiteral: AutomationInsightLiteralEvidence;
   readonly #classifiedMetric: AutomationClassifiedMetric;
   readonly #i14Executions: AutomationI14SynthesisExecutions;
@@ -424,6 +428,8 @@ export class ResearchAutomationService {
           throw new ResearchAutomationConflictError('revision_conflict', 'The Insight report changed before coding confirmation.');
       },
     });
+    this.#insightCrosscheck = new AutomationInsightCrosscheck({ db: this.#db, artifactStore: this.#artifacts, now: this.#now,
+      readLineage: (...args) => this.#insightCoding.readDefaultModelLineage(...args) });
   }
 
   /** Additive draft operation: no human adoption gate, no recollection or mutation of a saved report. */
@@ -1258,6 +1264,7 @@ export class ResearchAutomationService {
         }
         if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, input.previousPairId, input.acceptedInsight);
         if ('defaultInsight' in input) await this.#insightCoding.reportDefaultDraftSnapshot(workspaceId, runId, input.previousPairId, input.defaultInsight);
+        if ('crosscheckInsight' in input) await this.#crosscheckSnapshot(workspaceId, runId, input.previousPairId, input.crosscheckInsight);
         if ('draftInsight' in input) await this.#insightCoding.reportDraftSnapshot(workspaceId, runId, input.previousPairId, input.draftInsight);
         if ('boundedMethods' in input) await this.#loadBoundedMethods(this.#current(runId)!, input);
         if ('quoteMethods' in input) await this.#loadQuoteMethods(this.#current(runId)!, input);
@@ -1280,6 +1287,11 @@ export class ResearchAutomationService {
       if ('acceptedMetric' in input) await this.#classifiedMetric.project(workspaceId, runId, previous.pairId, input.acceptedMetric, true);
       if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, previous.pairId, input.acceptedInsight, true);
       if ('defaultInsight' in input) await this.#insightCoding.reportDefaultDraftSnapshot(workspaceId, runId, previous.pairId, input.defaultInsight, true);
+      if ('crosscheckInsight' in input) {
+        if (input.crosscheckInsight.firstProposalId !== input.defaultInsight.proposalId || input.crosscheckInsight.firstProposalSha256 !== input.defaultInsight.proposalSha256)
+          throw new ResearchAutomationValidationError('Crosscheck and default report selections differ.');
+        await this.#crosscheckSnapshot(workspaceId, runId, previous.pairId, input.crosscheckInsight, true);
+      }
       if ('draftInsight' in input) await this.#insightCoding.reportDraftSnapshot(workspaceId, runId, previous.pairId, input.draftInsight, true);
       if ('boundedMethods' in input) await this.#loadBoundedMethods(run, input);
       if ('quoteMethods' in input) await this.#loadQuoteMethods(run, input);
@@ -1409,6 +1421,23 @@ export class ResearchAutomationService {
   proposeDefaultModelInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' },
     ai: import('./insight-model-execution.js').InsightModelAI, signal?: AbortSignal) {
     return this.#insightCoding.proposeDefaultModel(workspaceId, runId, value, owner, ai, signal);
+  }
+  prepareInsightCrosscheck(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' },
+    ai: import('./insight-model-execution.js').InsightModelAI, signal?: AbortSignal) {
+    return this.#insightCrosscheck.prepare(workspaceId, runId, value, owner, ai, signal);
+  }
+  readInsightCrosscheck(workspaceId: string, runId: string, requestKey: string) {
+    return this.#insightCrosscheck.read(workspaceId, runId, requestKey);
+  }
+  async #crosscheckSnapshot(workspaceId: string, runId: string, pairId: string, selection: InsightCrosscheckSelection, current = false): Promise<InsightCrosscheckSnapshot> {
+    const response = await this.#insightCrosscheck.read(workspaceId, runId, selection.requestKey);
+    if (response.status !== 'VALID' || response.snapshotSha256 !== selection.snapshotSha256 ||
+      response.snapshot.request.binding.pairId !== pairId || response.snapshot.request.firstProposalId !== selection.firstProposalId ||
+      response.snapshot.request.firstProposalSha256 !== selection.firstProposalSha256)
+      throw new ResearchAutomationIntegrityError('Selected crosscheck differs from retained proposal/source/output.');
+    if (current && (await this.listReportVersions(workspaceId, runId)).at(-1)?.pairId !== pairId)
+      throw new ResearchAutomationConflictError('revision_conflict', 'Crosscheck report parent changed.');
+    return response.snapshot;
   }
   acceptInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
     return this.#insightCoding.accept(workspaceId, runId, value, owner);
@@ -1601,7 +1630,7 @@ export class ResearchAutomationService {
         captures: await this.#captureRecords(runId) });
       const literalRendererValid = sourceStart.privateShopeeSource
         ? semantic.rendererVersion === 'automation-report-kit-v22'
-        : semantic.rendererVersion === 'automation-report-kit-v19' || (semantic.rendererVersion === 'automation-report-kit-v21' && semantic.insightCoding && typeof semantic.insightCoding === 'object' && 'contractVersion' in semantic.insightCoding && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v4');
+        : semantic.rendererVersion === 'automation-report-kit-v19' || ((semantic.rendererVersion === 'automation-report-kit-v21' || semantic.rendererVersion === 'automation-report-kit-v23') && semantic.insightCoding && typeof semantic.insightCoding === 'object' && 'contractVersion' in semantic.insightCoding && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v4');
       if (!literalRendererValid) throw new ResearchAutomationIntegrityError('Literal evidence renderer identity differs.');
     } else if (semantic.insightLiteral !== undefined) {
       throw new ResearchAutomationIntegrityError('Literal evidence lacks an explicit source-bound revision request.');
@@ -1619,6 +1648,14 @@ export class ResearchAutomationService {
         throw new ResearchAutomationIntegrityError('Insight coding snapshot differs from the retained source.');
     } else if (semantic.insightCoding !== undefined && semantic.insightCoding !== null) {
       throw new ResearchAutomationIntegrityError('Insight coding snapshot lacks an explicit revision request.');
+    }
+    const crosscheckRequest = attempt ? await this.#crosscheckRequest(frozenRun, attempt) : undefined;
+    if (kind === 'INSIGHT' && crosscheckRequest) {
+      const expected = await this.#crosscheckSnapshot(workspaceId, runId, crosscheckRequest.previousPairId, crosscheckRequest.crosscheckInsight);
+      if (semantic.rendererVersion !== 'automation-report-kit-v23' || canonicalJson(semantic.insightCrosscheck) !== canonicalJson(expected))
+        throw new ResearchAutomationIntegrityError('Report crosscheck differs from selected retained evidence.');
+    } else if (semantic.insightCrosscheck !== undefined) {
+      throw new ResearchAutomationIntegrityError('Report crosscheck lacks an explicit selection.');
     }
     const boundedRequest = attempt ? await this.#boundedRequest(frozenRun, attempt) : undefined;
     if (boundedRequest && boundedRequest.boundedMethods.decision === 'USE_PACKAGE') {
@@ -2030,6 +2067,7 @@ export class ResearchAutomationService {
       let metricMethods: AutomationMetricMethodSnapshot | undefined;
       let metricClassified: AutomationClassifiedMetricSnapshot | undefined;
       let insightCoding: AutomationInsightCodingSnapshot | undefined;
+      let insightCrosscheck: InsightCrosscheckSnapshot | undefined;
       let insightLiteral: InsightLiteralEvidence | undefined;
       let metricProof: StoredArtifact | null = null;
       let metricMethodsFailure: MetricMethodFailureCode | undefined;
@@ -2044,6 +2082,7 @@ export class ResearchAutomationService {
       let locatedReviewFailure: 'LOCATED_REVIEW_METHOD_FAILED' | undefined;
       if (priorInsight && revisionRequest?.sources.nativeReview.decision === 'KEEP') {
         insightCoding = priorInsight.insightCoding as AutomationInsightCodingSnapshot | undefined;
+        insightCrosscheck = priorInsight.insightCrosscheck as InsightCrosscheckSnapshot | undefined;
         insightLiteral = priorInsight.insightLiteral as InsightLiteralEvidence | undefined;
         reviewCorpus = priorInsight.reviewCorpus as ResearchReviewCorpus | undefined;
         reviewCorpusFailure = priorInsight.reviewCorpusFailure as typeof reviewCorpusFailure;
@@ -2082,13 +2121,19 @@ export class ResearchAutomationService {
         privateReviewCorpus = buildPrivateReviewReportView(corpus);
       }
       if (revisionRequest && 'acceptedInsight' in revisionRequest) {
+        insightCrosscheck = undefined;
         insightCoding = await this.#insightCoding.reportSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.acceptedInsight);
       }
       if (revisionRequest && 'defaultInsight' in revisionRequest) {
+        insightCrosscheck = undefined;
         insightCoding = await this.#insightCoding.reportDefaultDraftSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.defaultInsight);
       }
       if (revisionRequest && 'draftInsight' in revisionRequest) {
+        insightCrosscheck = undefined;
         insightCoding = await this.#insightCoding.reportDraftSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.draftInsight);
+      }
+      if (revisionRequest && 'crosscheckInsight' in revisionRequest) {
+        insightCrosscheck = await this.#crosscheckSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.crosscheckInsight);
       }
       if (start.reports.includes('MARKET')) {
         if (priorMarket && revisionRequest?.sources.metric.decision === 'KEEP') {
@@ -2152,6 +2197,7 @@ export class ResearchAutomationService {
           ...(kind === 'INSIGHT' && locatedReviewFallback ? { locatedReviewFallback } : {}),
           ...(kind === 'INSIGHT' && nativeReview ? { nativeReview } : {}),
           ...(kind === 'INSIGHT' && insightCoding ? { insightCoding } : {}),
+          ...(kind === 'INSIGHT' && insightCrosscheck ? { insightCrosscheck } : {}),
           ...(kind === 'INSIGHT' && insightLiteral ? { insightLiteral } : {}),
           ...(kind === 'INSIGHT' && nativeReviewFailure ? { nativeReviewFailure } : {}),
           ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
@@ -2235,7 +2281,7 @@ export class ResearchAutomationService {
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
@@ -2260,6 +2306,7 @@ export class ResearchAutomationService {
             ...(kind === 'INSIGHT' && input.locatedReviewFallback ? { locatedReviewFallback: input.locatedReviewFallback } : {}),
             ...(kind === 'INSIGHT' ? { nativeReview: input.nativeReview ?? null } : {}),
             ...(kind === 'INSIGHT' && insightCoding ? { insightCoding } : {}),
+          ...(kind === 'INSIGHT' && insightCrosscheck ? { insightCrosscheck } : {}),
           ...(kind === 'INSIGHT' && insightLiteral ? { insightLiteral } : {}),
             ...(kind === 'INSIGHT' && input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
             ...(kind === 'INSIGHT' && input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
@@ -2741,6 +2788,14 @@ export class ResearchAutomationService {
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight execution revision request failed verification.');
     return 'acceptedMetric' in request || 'acceptedInsight' in request || 'defaultInsight' in request || 'draftInsight' in request || 'literalInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request || request.contractVersion === 'automation-market-presentation-revision-v1' ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
       : { kind: 'SUPPLEMENTAL_ATTEMPT', runId: run.runId, attemptId: attempt.attemptId };
+  }
+  async #crosscheckRequest(run: RunRow, attempt: AttemptRow): Promise<Extract<AutomationInsightReportRevisionRequest, { crosscheckInsight: unknown }> | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Crosscheck revision request failed verification.');
+    if ('crosscheckInsight' in request) return request;
+    if ('defaultInsight' in request || 'draftInsight' in request || 'acceptedInsight' in request || request.sources.nativeReview.decision !== 'KEEP') return undefined;
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#crosscheckRequest(run, previous) : undefined;
   }
   async #literalInsightRequest(run: RunRow, attempt: AttemptRow): Promise<Extract<AutomationInsightReportRevisionRequest, { literalInsight: unknown }> | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');

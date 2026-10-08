@@ -1,0 +1,22 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { crosscheckRequestValid, crosscheckInputValid } from '../../src/modules/analysis/research-automation/insight-crosscheck-contracts.js';
+import { blindedCrosscheckBatch } from '../../src/modules/analysis/research-automation/insight-crosscheck-preparation.js';
+import { nextInsightFixture } from '../helpers/next-insight-fixture.js';
+import originalRevision from '../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+const digest = 'a'.repeat(64), uuid = '11111111-1111-4111-8111-111111111111';
+test('closed canonical request/projection reject prediction fields, missing identities and incorrect versions', () => {
+  const binding = { workspaceId: uuid, runId: uuid, pairId: digest, scopeSha256: digest, reportSha256: digest, sourceKind: 'NATIVE', sourcePackageSha256: digest, inputSha256: digest };
+  const request = { contractVersion: 'insight-crosscheck-request-v1', requestKey: uuid, binding, firstProposalId: uuid, firstProposalSha256: digest, codebookSha256: digest, seed: digest, secondConfigurationSha256: digest };
+  assert.ok(crosscheckRequestValid(request));
+  assert.equal(crosscheckRequestValid({ ...request, seed: 'random' }), false);
+  assert.equal(crosscheckRequestValid({ ...request, secondConfigurationSha256: undefined }), false);
+  assert.equal(crosscheckRequestValid({ ...request, receiptIds: [] }), false);
+  const projection = blindedCrosscheckBatch(nextInsightFixture(), [0]);
+  assert.ok(crosscheckInputValid(projection));
+  assert.equal(crosscheckInputValid({ ...projection, i04: [] }), false);
+  assert.equal(crosscheckInputValid({ ...projection, projectionVersion: 'unversioned' }), false);
+  projection.corpora[0]!.codes[0] = { ...projection.corpora[0]!.codes[0]!, firstRecordIndex: 0 } as never;
+  assert.equal(crosscheckInputValid(projection), false);
+  assert.equal(originalRevision.$defs.defaultRequest.properties.contractVersion.const, 'automation-insight-default-report-revision-v1');
+});
