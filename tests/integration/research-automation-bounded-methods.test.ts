@@ -13,6 +13,8 @@ import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../s
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import { reportMethodPacketsFixture } from '../helpers/report-method-packets-fixture.js';
+import { boundedAnalysisGatesFixture } from '../helpers/bounded-analysis-gates-fixture.js';
+import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 import type { AutomationBoundedMethodSnapshot } from '../../contracts/analysis/automation-bounded-method-snapshot.generated.js';
 
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -46,7 +48,12 @@ test('exact non-Metric package flows through a bounded revision, frozen replay, 
   const original = (await service.listReportVersions(workspaceId, runId))[0]!;
   const originalHtml = (await service.readReport(workspaceId, runId, 'MARKET')).bytes;
   const packages = new SourcePackageService({ db, artifactStore: artifacts, now });
-  const fixture = reportMethodPacketsFixture();
+  const gateInput = boundedAnalysisGatesFixture();
+  gateInput.m10!.series[0]!.entityLiteral = 'Metric reporting series';
+  gateInput.i11!.groupPolicy!.revision = 'Metric sample policy';
+  gateInput.i12!.records[0]!.touchpoint = 'Metric sample touchpoint';
+  gateInput.i16!.fields.question = 'Metric sample question';
+  const fixture = reportMethodPacketsFixture(undefined, undefined, false, gateInput);
   const intake = async (decisions = false, drift = false) => {
     const descriptor = structuredClone(fixture.descriptor);
     if (!decisions) descriptor.decisions = null;
@@ -112,8 +119,14 @@ test('exact non-Metric package flows through a bounded revision, frozen replay, 
       assert.equal(link.hasAttribute('download'), false);
     }
     assert.equal(doc.querySelector('a[href="report-method-evidence.json"]'), null);
-    assert.deepEqual(JSON.parse(doc.querySelector('#bounded-method-evidence pre')!.textContent!), current);
+    // The semantic artifact above retains the exact machine object. Reader HTML must not dump provider-bearing keys.
+    assert.equal(doc.querySelector('#bounded-method-evidence pre'), null);
+    assert.match(doc.querySelector('#bounded-method-evidence')!.textContent!, /Hồ sơ kỹ thuật đầy đủ được giữ nguyên trong bản lưu nguồn/);
     assert.equal(doc.querySelectorAll('script').length, 0);
+    const html = report.bytes.toString();
+    assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), [], 'reader text keeps provider names, digests and status codes out');
+    assert.deepEqual(providerNameViolations(html), [], 'no disclosure may name the provider');
+    assert.deepEqual(citationRegisterViolations(doc), [], 'one register holds exactly the cited sources');
   }
   const keep = await service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-report-revision-v1',
     requestKey: randomUUID(), previousPairId: pair.pairId, sources: request.sources });

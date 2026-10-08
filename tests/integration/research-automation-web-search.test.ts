@@ -3,13 +3,16 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test, { type TestContext } from 'node:test';
+import { JSDOM } from 'jsdom';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import type { StepResultDocument } from '../../src/modules/analysis/research-automation/model.js';
 import { SYNTHETIC_CARD_ID, SYNTHETIC_SERP_KEY, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
+import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -28,7 +31,7 @@ async function confirmed(t: TestContext, sources: { source?: AutomationSourcePor
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId, now });
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'web-search', title: 'Synthetic web search run' });
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
-    uuid: () => runId, now, ...sources });
+    uuid: () => runId, now, renderer: (input, kind) => buildResearchAutomationReport(input, kind), ...sources });
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'CATEGORY', keyword: 'bình giữ nhiệt', requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['MARKET'] });
@@ -55,7 +58,7 @@ async function runToDraft(t: TestContext, sources: { source?: AutomationSourcePo
   for (let i = 0; i < 10 && (await f.service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await f.service.processNext();
   const state = await f.read();
   assert.equal(state.run.status, 'DRAFT_READY');
-  return { ...state, artifacts: f.artifacts };
+  return { ...state, artifacts: f.artifacts, service: f.service };
 }
 
 test('confirmed products run one web search beside the product lane, offset past its captures', async t => {
@@ -76,6 +79,21 @@ test('confirmed products run one web search beside the product lane, offset past
   assert.equal((await f.artifacts.read(f.captures[1]!.sha)).toString('utf8').includes(SYNTHETIC_SERP_KEY), false, 'the key never reaches a capture');
   assert.deepEqual(f.usage.filter(u => u.provider === 'serpapi').map(u => u.n), [1]);
   assert.equal(f.run.blockers.some(b => b.code === 'SERPAPI_NOT_EXECUTED' || b.code === 'KALODATA_NOT_EXECUTED'), false);
+  const report = await f.service.readReport(workspaceId, runId, 'MARKET').catch(() => null);
+  assert.ok(report, 'the web search run must still produce a draft');
+  const html = report.bytes.toString();
+  const doc = new JSDOM(html).window.document;
+  const webTable = doc.querySelector('#M13 [aria-label="Kết quả tìm kiếm trên web đã lưu"] table')!;
+  const webRows = [...webTable.querySelectorAll('tbody tr')];
+  assert.equal(webRows.length, 2, 'the stored web results stay readable');
+  const webMarks = webRows.map(row => row.querySelector('.cite')?.textContent ?? row.querySelector('.cite-missing')?.textContent);
+  assert.deepEqual(webMarks, ['[3]', '[4]'], 'the canonical https results are cited, in source order');
+  const register = doc.querySelector('.citation-register')!;
+  assert.deepEqual([...register.querySelectorAll('a')].map(link => link.getAttribute('href')),
+    ['https://example.test/guide', 'https://example.test/brand'], 'the register prints the canonical URLs without query or fragment');
+  assert.deepEqual(visibleTextViolations(reportVisibleText(doc)), [], 'reader text keeps provider names, digests and status codes out');
+  assert.deepEqual(providerNameViolations(html), [], 'no disclosure may name the provider');
+  assert.deepEqual(citationRegisterViolations(doc), [], 'one register holds exactly the cited sources');
 });
 
 test('without confirmed products the collection is skipped and no paid web search is made', async t => {

@@ -4,6 +4,9 @@ import { createHash } from 'node:crypto';
 import type { GenericQuoteUnit } from '../../contracts/analysis/generic-quote-unit.generated.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { buildGenericQuoteUnit, verifyGenericQuoteUnit } from '../../src/modules/analysis/generic-quote-unit.js';
+import type { AutomationQuoteMethodSnapshot } from '../../contracts/analysis/automation-quote-method-snapshot.generated.js';
+import { quoteMethodSection } from '../../src/modules/analysis/research-automation/quote-method-report.js';
+import { JSDOM } from 'jsdom';
 
 type Input = GenericQuoteUnit['input'];
 type Quote = Input['quotes'][number];
@@ -32,6 +35,33 @@ function fixture(): Input {
     }],
   };
 }
+
+test('accepted quote metadata stays in retained input while unsafe reader literals are withheld', () => {
+  for (const literal of ['Metric sample', 'a'.repeat(64), 'SOURCE_STATED_METADATA']) for (const field of ['offerText', 'packText', 'variantId', 'condition']) {
+    const input = fixture();
+    const quote = input.quotes[0]!;
+    if (field === 'variantId') quote.identity.variantId = literal;
+    else if (field === 'condition') quote.price.conditions = [{ literal, binding: ref('/offer/condition') }];
+    else if (field === 'offerText') quote.offerText = literal;
+    else quote.packText = literal;
+    quote.source.locator = 'quote.json' + quote.source.fieldPointer;
+    const output = buildGenericQuoteUnit(input).output;
+    const original = JSON.stringify(output);
+    const snapshot: AutomationQuoteMethodSnapshot = {
+      contractVersion: 'automation-quote-method-snapshot-v1',
+      binding: { workspaceId: '00000000-0000-4000-8000-000000000001', runId: '00000000-0000-4000-8000-000000000002', startSha256: '1'.repeat(64), scopeSha256: '2'.repeat(64), previousPairId: '3'.repeat(64) },
+      selection: { decision: 'USE_PACKAGE', packageId: input.sourcePackage.packageId, manifestArtifactSha256: input.sourcePackage.manifestArtifactSha256, packageContentSha256: input.sourcePackage.packageContentSha256, descriptorPath: 'quote-methods/input.json' },
+      descriptorSha256: output.inputSha256, output,
+      sourceMetadata: [{ path: 'quote.json', sha256: sourceSha256, byteSize: 1, mediaType: 'application/json', evidenceFamily: 'synthetic', representationRole: 'structured', independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic source' }],
+    };
+    const html = quoteMethodSection(snapshot, { mark: () => 'Source 1' });
+    const dom = new JSDOM(html);
+    try { assert.ok(!dom.window.document.body.textContent?.includes(literal), field); } finally { dom.window.close(); }
+    assert.equal(JSON.stringify(output), original);
+    assert.ok(original.includes(literal));
+    assert.deepEqual(output.input, input);
+  }
+});
 const first = (input: Input) => buildGenericQuoteUnit(input).output.quotes[0]!;
 const quote = (input: Input) => input.quotes[0]!;
 

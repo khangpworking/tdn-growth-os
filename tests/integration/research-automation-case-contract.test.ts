@@ -22,6 +22,7 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { bindResearchAutomationProvider } from '../../src/modules/analysis/research-automation/source-binding.js';
 import { createResearchAutomationProviderRegistry, type ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import { seedNativeDamiPackage } from '../helpers/native-dami-package-fixture.js';
+import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const now = () => new Date('2026-10-02T01:00:00.000Z');
@@ -257,6 +258,11 @@ test('one database routes three industries to their own retained review source a
         assert.ok(!dom.window.document.querySelector('script, iframe, [onerror]'));
         for (const other of fixture.cases.filter(row => row.id !== c.id))
           assert.ok(!section.textContent?.includes(other.expected.i04Quote), 'Another industry quote must not contaminate this report');
+        const html = report.bytes.toString();
+        const visible = reportVisibleText(dom.window.document);
+        assert.deepEqual(visibleTextViolations(visible), [], `${kind}: reader text keeps provider names, digests and status codes out`);
+        assert.deepEqual(providerNameViolations(html), [], `${kind}: no disclosure may name the provider`);
+        assert.deepEqual(citationRegisterViolations(dom.window.document), [], `${kind}: one register holds exactly the cited sources`);
       } finally { dom.window.close(); }
       retainedReads.push({ runId: c.runId, kind, bytes: report.bytes,
         claimsSha256: (kind === 'MARKET' ? market : insight).sourceClaimsArtifact.sha256,

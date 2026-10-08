@@ -18,6 +18,7 @@ import { createResearchAutomationProviderRegistry, type ProviderTransport } from
 import { seedNativeDamiPackage } from '../helpers/native-dami-package-fixture.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import type { AutomationI14ExecutionRequest } from '../../src/modules/analysis/research-automation/i14-synthesis-execution.js';
+import { citationRegisterViolations, providerNameViolations, reportVisibleText, visibleTextViolations } from '../helpers/report-visible-text.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
@@ -462,7 +463,8 @@ test('ambiguous native confirmation is rejected before admission; damage after f
 test('a native capture reaches adopted Insight declarations without Zen lineage or replay calls', async t => {
   const state = await fixture(t);
   const seeded = await seedNativeDamiPackage(state.packages, { rawRows: [
-    { type: 'review', shopid: '78085196', itemid: '17678138164', cmtid: '1', comment: 'Tôi đã dùng sản phẩm.', rating_star: 5 },
+    { type: 'review', shopid: '78085196', itemid: '17678138164', cmtid: '1', comment: 'Tôi đã dùng sản phẩm.', rating_star: 5,
+      review_date: 'Metric reporting month' },
     { type: 'review', shopid: '78085196', itemid: '17678138164', cmtid: '2', comment: '“Tôi đã mua sản phẩm. <script>bad()</script>”', rating_star: 5 },
     { type: 'review', shopid: '78085196', itemid: '17678138164', cmtid: '3', comment: '', rating_star: 5 },
   ] });
@@ -477,6 +479,7 @@ test('a native capture reaches adopted Insight declarations without Zen lineage 
   assert.equal(semantic.reviewCorpus, null);
   assert.equal(semantic.locatedReview, null);
   assert.equal(semantic.nativeReview.contractVersion, 'automation-native-review-snapshot-v1');
+  assert.equal(semantic.nativeReview.output.input.records[0].timeText, 'Metric reporting month');
   assert.deepEqual(semantic.nativeReview.nativeSource.sourcePackage, seeded.identity);
   assert.deepEqual(semantic.nativeReview.output.input.i04.map((row: { span: { quote: string }; provenance: { basis: string } }) =>
     [row.span.quote, row.provenance.basis]), [['Tôi đã dùng sản phẩm', 'DECLARED']]);
@@ -519,9 +522,21 @@ test('a native capture reaches adopted Insight declarations without Zen lineage 
       new RegExp(`Lượt này có ${records} bản ghi review trong lớp mã hóa, nhưng chưa có kết quả cho I06`));
     assert.doesNotMatch(dom.window.document.body.textContent!, /Chưa nối phương pháp/);
     assert.equal(dom.window.document.querySelectorAll('script, img, [onerror]').length, 0);
+    const reviewNumbers = new Set(semantic.citationEntries.filter((entry: { sourceKind: string }) => entry.sourceKind === 'REVIEW')
+      .map((entry: { number: number }) => entry.number));
+    const reviewEntries = semantic.citations.entries.filter((entry: { number: number }) => reviewNumbers.has(entry.number));
+    assert.equal(reviewEntries.length, 3, 'each native retained record gets an exact-source review citation');
+    assert.deepEqual(reviewEntries.map((entry: { identity: string; technical: { locator: string } }) => [entry.identity, entry.technical.locator]),
+      semantic.nativeReview.output.input.records.map((record: { sourceSha256: string; locator: string }) => [record.sourceSha256, record.locator]));
+    assert.equal(dom.window.document.querySelector('#I04 tbody .cite')?.textContent, `[${reviewEntries[0].number}]`, 'the admitted quote cites the same record as I17');
+    assert.deepEqual(citationRegisterViolations(dom.window.document), []);
+    assert.deepEqual(providerNameViolations(view.bytes.toString()), []);
+    assert.deepEqual(visibleTextViolations(reportVisibleText(dom.window.document)), []);
   } finally { dom.window.close(); }
   assert.deepEqual((await state.service.readReport(workspaceId, runId, 'INSIGHT')).bytes, view.bytes);
-  await state.service.readReport(workspaceId, runId, 'MARKET');
+  const marketView = await state.service.readReport(workspaceId, runId, 'MARKET');
+  assert.deepEqual(providerNameViolations(marketView.bytes.toString()), []);
+  assert.deepEqual(visibleTextViolations(reportVisibleText(marketView.bytes.toString())), []);
   assert.deepEqual(state.db.prepare('SELECT total_changes() n').get(), before);
   const dataset = seeded.identity.manifest.files.find(file => file.path === 'capture/dataset.json')!.sha256;
   await fs.writeFile(path.join(state.root, 'artifacts', 'sha256', dataset.slice(0, 2), dataset), 'corrupt');

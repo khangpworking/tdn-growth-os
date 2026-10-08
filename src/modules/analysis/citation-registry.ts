@@ -164,6 +164,20 @@ export class CitationRegistry {
     return [...this.#entries];
   }
 
+  /** Final page composition can differ from renderer invocation order. Keep only cited entries, in page order. */
+  orderByAppearance(numbers: readonly number[]): ReadonlyMap<number, number> {
+    const order = [...new Set(numbers)];
+    const entries = order.map(number => this.#entries[number - 1]);
+    if (entries.some(entry => entry === undefined)) throw new CitationLabelError('INVALID_INPUT');
+    const trace = order.map(number => this.#trace[number - 1]!);
+    const mapping = new Map(order.map((number, index) => [number, index + 1]));
+    this.#entries.splice(0, this.#entries.length, ...entries.map((entry, index) => Object.freeze({ ...entry!, number: index + 1 })));
+    this.#trace.splice(0, this.#trace.length, ...trace.map((entry, index) => Object.freeze({ ...entry, number: index + 1 })));
+    this.#numberById.clear();
+    for (const entry of this.#entries) this.#numberById.set(entry.citationId, entry.number);
+    return mapping;
+  }
+
   technicalTrace(): CitationTrace {
     return { contractVersion: 'citation-trace-v1', entries: [...this.#trace] };
   }

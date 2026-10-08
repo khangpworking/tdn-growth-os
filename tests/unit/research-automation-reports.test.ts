@@ -27,6 +27,10 @@ function fixture(): AutomationReportInput {
   };
 }
 
+type CitationTrace = { entries: { number: number; identity: string }[] };
+/** The stored semantic is opaque to the renderer contract; this reads its declared citation trace field for tests. */
+const citationsOf = (report: { semantic: object }): CitationTrace => (report.semantic as { citations: CitationTrace }).citations;
+
 test('separate deterministic drafts keep all 30 section slots truthful and user text inert', () => {
   const input = fixture();
   const market = buildResearchAutomationReport(input, 'MARKET');
@@ -59,12 +63,20 @@ test('peer evidence requires every explicit peer, exact compatible period and in
   assert.equal(render(rows.slice(0, 1)).querySelector('table'), null);
   assert.equal(render([rows[0]!, { ...rows[1]!, window: { ...capture.window, startDate: '2025-11-01' } }]).querySelector('table'), null);
   assert.equal(render(rows, [{ ...capture, truncated: true }]).querySelector('table'), null);
+  const market = buildResearchAutomationReport({ ...input, captures, collection: { ...input.collection!, comparables: rows } }, 'MARKET');
+  const marketDocument = new JSDOM(market.html.toString()).window.document;
+  const entries = citationsOf(market).entries;
+  const numberToIdentity = new Map(entries.map(entry => [entry.number, entry.identity]));
   for (const section of ['M07', 'M13']) {
-    const evidenceRows = [...document().querySelectorAll(`#${section} table.observations tbody tr`)];
+    const evidenceRows = [...marketDocument.querySelectorAll(`#${section} table.observations tbody tr`)];
     assert.equal(evidenceRows.length, 2);
-    assert.equal(evidenceRows[0]!.querySelector('code')!.textContent, capture.artifactSha256);
-    assert.equal(evidenceRows[1]!.querySelector('code')!.textContent, second.artifactSha256);
+    // P1-02/P1-01: a row's number resolves to its own capture digest in the stored trace, and the same capture keeps
+    // one number in every section; the digest itself is the citation identity, never reader text.
+    assert.deepEqual(evidenceRows.map(row => numberToIdentity.get(Number(row.querySelector('.cite')!.textContent!.replace(/\D/g, '')))),
+      [capture.artifactSha256, second.artifactSha256]);
   }
+  assert.deepEqual(entries.filter(entry => [capture.artifactSha256, second.artifactSha256].includes(entry.identity)).map(entry => entry.identity).sort(),
+    [capture.artifactSha256, second.artifactSha256].sort(), 'each capture owns exactly one entry');
   assert.throws(() => document(rows, [...captures, { ...capture, artifactSha256: 'd'.repeat(64) }]), /capture ordinal/i);
 });
 
@@ -127,12 +139,12 @@ test('selected listing observations remain inspectable without silently approvin
   const document = new JSDOM(report.html.toString()).window.document;
   const rows = document.querySelectorAll('#M13 table.observations tbody tr');
   assert.equal(rows.length, 1);
-  assert.match(rows[0]!.textContent!, /kalodata:1/);
-  assert.match(rows[0]!.textContent!, /UNITS_SOLD/);
+  assert.equal(rows[0]!.querySelectorAll('td')[0]!.textContent, '1');
+  assert.match(rows[0]!.textContent!, /Lượt bán/);
   assert.equal(rows[0]!.querySelectorAll('td')[2]!.textContent, '0');
-  assert.match(rows[0]!.textContent!, new RegExp(capture.artifactSha256));
+  assert.equal(rows[0]!.querySelector('.cite')!.textContent, '[1]');
   assert.equal(document.querySelector('#M07 table'), null);
-  assert.match(document.getElementById('M03')!.textContent!, /Lượt này không có gói Metric gắn kèm và không có inventory từ bản thu nguồn/);
+  assert.match(document.getElementById('M03')!.textContent!, /Lượt này không có gói số liệu thị trường gắn kèm và không có inventory từ bản thu nguồn/);
   assert.match(document.body.textContent!, /Mục phân tích hoàn chỉnh: 0\./);
 });
 
@@ -200,7 +212,11 @@ test('supplied descriptive method output renders source records per section with
   assert.match(m05.textContent!, /Tổng theo khung thành viên nguồn đã khai báo: 20 lượt tìm kiếm/);
   assert.match(m05.textContent!, /Không tính tổng\. Chưa đủ điều kiện cộng các dòng; không hiển thị bằng 0\./);
   assert.match(m05.textContent!, /2026-01-01 đến 2026-01-31/);
-  assert.match(m05.textContent!, /kalodata\/listings\.json/);
+  // P1-02: the provider-named path, family and raw locator stay in the citation trace; the reader sees the number and
+  // the provenance gloss. P1 changed this assertion (the stored path used to be reader text).
+  assert.equal(m05.querySelectorAll('sup.cite').length, 4, 'every located record keeps its own numbered source');
+  assert.equal(m05.querySelector('tbody tr td:last-child')!.textContent, '[1] Nhà cung cấp tự báo');
+  assert.doesNotMatch(m05.textContent!, /kalodata/i);
   assert.match(m05.textContent!, /không phải nhu cầu hay quy mô thị trường/);
   const m06 = document.getElementById('M06')!;
   assert.match(m06.textContent!, /Phương pháp đã chạy · Không có bản ghi dùng được/);
@@ -264,7 +280,7 @@ test('absent, empty or unresolvable descriptive output keeps M05-M09 honest inst
   const absentDocument = marketDocument(absent);
   for (const id of ['M05', 'M06', 'M07', 'M09']) assert.match(absentDocument.getElementById(id)!.textContent!, /Phương pháp mô tả không có kết quả trong lượt này: lượt này không có quan sát sản phẩm từ bản thu nguồn mới\./);
   assert.match(absentDocument.querySelector('#sections > .warning')!.textContent!, /Không có kết quả phương pháp mô tả thị trường: lượt này không có quan sát sản phẩm từ bản thu nguồn mới\./);
-  assert.match(absentDocument.getElementById('M13')!.textContent!, /Hồ sơ phương pháp mô tả thị trường\s*Không có kết quả trong lượt này\./);
+  assert.match(absentDocument.getElementById('M13')!.textContent!, /Hồ sơ đối chiếu phương pháp mô tả thị trường\s*Không có kết quả trong lượt này\./);
   assert.equal((absent.semantic as { descriptiveMethods: unknown }).descriptiveMethods, null);
 
   const failed = marketDocument(buildResearchAutomationReport({ ...input, descriptiveMethodFailure: 'DESCRIPTIVE_METHOD_FAILED' }, 'MARKET'));
