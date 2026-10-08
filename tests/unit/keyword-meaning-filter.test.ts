@@ -99,6 +99,39 @@ test('an explicit accented look-alike never resolves into the keyword meaning', 
   assert.equal(result.accounting.included, 0);
 });
 
+test('frozen keyword/exclusion binding preserves exact input bytes', () => {
+  const decomposedKeyword = 'thạch dừa'.normalize('NFD');
+  const decomposedExclusion = 'thạch dứa'.normalize('NFD');
+  assert.ok(decomposedKeyword !== decomposedKeyword.normalize('NFC'), 'fixture must be non-NFC');
+  const data: KeywordMeaningFilterData = { ...thachDuaData(),
+    keywords: [decomposedKeyword],
+    exclusions: [{ term: decomposedExclusion, reason: 'Thạch làm từ dứa' }] };
+  const result = filterKeywordMeanings(data, [
+    { recordId: 'd-1', text: 'Thạch dừa An Nhiên' },
+    { recordId: 'd-2', text: 'thạch dứa hộp' },
+  ]);
+  assert.deepEqual(result.keywords, [decomposedKeyword]);
+  assert.deepEqual(result.exclusions, [{ term: decomposedExclusion, reason: 'Thạch làm từ dứa' }]);
+  assert.equal(result.results[0]?.decision, 'INCLUDED');
+  assert.equal(result.results[0]?.matchedKeyword, decomposedKeyword);
+  assert.equal(result.results[1]?.decision, 'EXCLUDED');
+  assert.equal(result.results[1]?.excludedBy, decomposedExclusion);
+  assert.equal(validatesKeywordMeaningFilterResult(result), true);
+});
+
+test('context resolves only candidates present as undiacritized spans', () => {
+  const data: KeywordMeaningFilterData = { ...thachDuaData(), keywords: ['thạch dừa', 'rau câu'], exclusions: [] };
+  // 'rau câu' appears in context but never as an undiacritized span in the text:
+  // it must not be admitted through the other keyword's ambiguity.
+  const negative = filterKeywordMeanings(data, [{ recordId: 'c-1', text: 'thach dua an ngon', contextText: 'rau câu nấu chè' }]);
+  assert.equal(negative.results[0]?.decision, 'UNCLEAR');
+  assert.equal(negative.results[0]?.matchedKeyword, null);
+  assert.equal(negative.accounting.included, 0);
+  // Positive control: the spanned candidate resolves from marked context.
+  const positive = filterKeywordMeanings(data, [{ recordId: 'c-2', text: 'thach dua an ngon', contextText: 'thạch dừa An Nhiên' }]);
+  assert.deepEqual([positive.results[0]?.decision, positive.results[0]?.matchedKeyword], ['INCLUDED', 'thạch dừa']);
+});
+
 test('frozen results bind exact input references and exclusion reasons', () => {
   const data = thachDuaData();
   const result = filterKeywordMeanings(data, [

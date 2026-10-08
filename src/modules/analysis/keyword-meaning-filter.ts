@@ -70,16 +70,17 @@ function strippedKey(text: string): string {
 function checkData(data: KeywordMeaningFilterData): { keywords: string[]; strippedKeywords: string[]; exclusions: { term: string; folded: string; reason: string }[] } {
   if (!validateFilterData(data)) fail('filter data failed canonical schema validation');
   // Shape and bounds are canonical (AJV); only semantic uniqueness needs code.
+  // Stored terms keep their exact input bytes: matching folds internally, but
+  // the frozen result binds the originals, never normalized copies.
   const seen = new Set<string>();
   const keywords = data.keywords.map(term => {
-    const clean = term.normalize('NFC');
-    const key = foldKey(clean);
-    if (seen.has(key)) fail(`duplicate keyword: ${clean}`);
+    const key = foldKey(term);
+    if (seen.has(key)) fail(`duplicate keyword: ${term}`);
     seen.add(key);
-    return clean;
+    return term;
   });
   const exclusions = data.exclusions.map(entry => ({
-    term: entry.term.normalize('NFC'), folded: foldKey(entry.term), reason: entry.reason,
+    term: entry.term, folded: foldKey(entry.term), reason: entry.reason,
   }));
   return { keywords, strippedKeywords: keywords.map(strippedKey), exclusions };
 }
@@ -167,12 +168,14 @@ export function filterKeywordMeanings(data: KeywordMeaningFilterData, records: r
       return { recordId, decision: 'INCLUDED', reason: 'MATCHED_KEYWORD', matchedKeyword: hit, excludedBy: null, exclusionReason: null, ...frozen };
     }
     // Undiacritized text can match several meanings: resolve only from the
-    // record's own context, which keeps its marks. An explicitly accented
-    // look-alike in the text itself (e.g. thạch dứa for keyword thạch dừa)
-    // is a different product even when no exclusion lists it: it stays
-    // UNCLEAR and context may never promote it into the keyword's meaning.
+    // record's own context, which keeps its marks, and only among the
+    // candidates actually present as undiacritized spans in the text. An
+    // explicitly accented look-alike in the text itself (e.g. thạch dứa for
+    // keyword thạch dừa) is a different product even when no exclusion lists
+    // it: it stays UNCLEAR and context may never promote it into the
+    // keyword's meaning.
     const stripped = strippedKey(text);
-    let resolvable = false;
+    const candidates: string[] = [];
     for (const [index, keyword] of prepared.keywords.entries()) {
       const strippedKeyword = prepared.strippedKeywords[index]!;
       if (!stripped.includes(strippedKeyword) || folded.includes(foldKey(keyword))) continue;
@@ -181,10 +184,10 @@ export function filterKeywordMeanings(data: KeywordMeaningFilterData, records: r
         return { recordId, decision: 'UNCLEAR', reason: 'UNLISTED_ACCENTED_LOOKALIKE', matchedKeyword: null,
           excludedBy: null, exclusionReason: null, ...frozen };
       }
-      if (verdict === 'UNDIACRITICIZED') resolvable = true;
+      if (verdict === 'UNDIACRITICIZED') candidates.push(keyword);
     }
-    if (resolvable) {
-      const resolved = prepared.keywords.find(keyword => foldedContext.includes(foldKey(keyword)));
+    if (candidates.length > 0) {
+      const resolved = candidates.find(keyword => foldedContext.includes(foldKey(keyword)));
       if (resolved !== undefined) {
         return { recordId, decision: 'INCLUDED', reason: 'RESOLVED_BY_CONTEXT', matchedKeyword: resolved, excludedBy: null, exclusionReason: null, ...frozen };
       }
