@@ -1,3 +1,4 @@
+import { buildResearchAutomationReport } from './reports.js';
 import { draftKeywordLists, type KeywordListDraftTransport } from '../keyword-list-drafting.js';
 import { retainKeywordListDraft, replayKeywordListDraft, type KeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import { readSalesNameEvidence } from './sales-name-evidence.js';
@@ -1512,10 +1513,11 @@ export class ResearchAutomationService {
     } else if (semantic.defaultMarketPeers !== undefined) {
       throw new ResearchAutomationIntegrityError('Stored default peers lack a frozen Market rule.');
     }
+    let verifiedLiteral: InsightLiteralEvidence | undefined;
     const literalRequest = attempt ? await this.#literalInsightRequest(frozenRun, attempt) : undefined;
     if (kind === 'INSIGHT' && literalRequest) {
       if (!frozenRun.scopeSha || !frozenRun.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Literal evidence lacks frozen scope.');
-      await this.#insightLiteral.verify(semantic.insightLiteral, { runId,
+      verifiedLiteral = await this.#insightLiteral.verify(semantic.insightLiteral, { runId,
         start: await this.#readStartSnapshot(frozenRun.startSha, workspaceId),
         scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId), scopeConfirmedAt: frozenRun.scopeConfirmedAt,
         previousPairId: literalRequest.previousPairId, collection: await this.#reportCollection(runId, sources, Boolean(attempt)),
@@ -1673,6 +1675,7 @@ export class ResearchAutomationService {
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
       const basePacket = (await this.#stepDocument(runId, 'COLLECTION'))?.sourceEvidence ?? buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
       const expected = sourceEvidenceForReport(basePacket, { collection,
+        ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
         ...(semantic.metricMethods ? { metricMethods: semantic.metricMethods as AutomationMetricMethodSnapshot } : {}),
         ...(semantic.metricClassified ? { metricClassified: semantic.metricClassified as AutomationClassifiedMetricSnapshot } : {}),
         ...(semantic.reviewCorpus ? { reviewCorpus: semantic.reviewCorpus as ResearchReviewCorpus } : {}),
@@ -3046,4 +3049,7 @@ function blockerList(steps: readonly StepRow[], documents: ReadonlyMap<StepId, S
 function coverageBlocker(state: ResearchAutomationCoverageSource['state']): string { return state === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : `COVERAGE_${state}`; }
 function dedupeBlockers(values: ResearchAutomationRun['blockers']): ResearchAutomationRun['blockers'] { const seen = new Set<string>(); return values.filter((value) => { const key = `${value.code}:${value.scope}:${value.provider ?? ''}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
 function safeStepMessage(code: string): string { try { return message(code); } catch { return 'This step has a recorded limitation; review the source coverage and run again if needed.'; } }
-function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARKET' | 'INSIGHT'): ResearchAutomationRenderedReport { const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }
+function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARKET' | 'INSIGHT'): ResearchAutomationRenderedReport {
+  // Only the explicit new literal branch changes the historical fallback.
+  if (kind === 'INSIGHT' && input.insightLiteral) return { ...buildResearchAutomationReport(input, kind), pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' };
+  const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }

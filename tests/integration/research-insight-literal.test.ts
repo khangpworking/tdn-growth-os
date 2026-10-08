@@ -23,11 +23,12 @@ import { createResearchAutomationProviderRegistry, type ProviderTransport } from
 import { seedNativeDamiPackage } from '../helpers/native-dami-package-fixture.js';
 import { literalRunId as runId, literalWorkspaceId as workspaceId, literalSelected } from '../helpers/insight-literal-fixture.js';
 import { buildInsightLiteralEvidence } from '../../src/modules/analysis/insight-literal-evidence.js';
+import { syntheticWebSource } from '../helpers/research-synthetic-sources.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 const now = () => new Date('2026-10-08T00:00:00.000Z');
 const url = 'https://shopee.vn/product/78085196/17678138164';
-async function fixture(t: TestContext, { native = false, seller = false, starsAbsent = false, injectUntrustedLiteral = false, defaultRenderer = false,
-  extraRows = [] }: { native?: boolean; seller?: boolean; starsAbsent?: boolean; injectUntrustedLiteral?: boolean; defaultRenderer?: boolean;
+async function fixture(t: TestContext, { native = false, seller = false, starsAbsent = false, injectUntrustedLiteral = false, defaultRenderer = false, sourcePolicy = false, detailMetrics = true,
+  extraRows = [] }: { native?: boolean; seller?: boolean; starsAbsent?: boolean; injectUntrustedLiteral?: boolean; defaultRenderer?: boolean; sourcePolicy?: boolean; detailMetrics?: boolean;
   extraRows?: { comment: string | null; star: unknown; id: string }[] } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-insight-literal-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
@@ -46,7 +47,7 @@ async function fixture(t: TestContext, { native = false, seller = false, starsAb
   if (native) await seedNativeDamiPackage(new SourcePackageService({ db, artifactStore: artifacts, now }), { rawRows: raw.map(row => ({
     type: 'review', shopid: literalSelected.shopId, itemid: literalSelected.itemId, cmtid: row.id, comment: row.comment,
     ...(row.star === undefined ? {} : { rating_star: row.star }) })) });
-  let providerCalls = 0, collectorStarts = 0;
+  let providerCalls = 0, collectorStarts = 0, keywordCalls = 0, webCalls = 0;
   const transport: ProviderTransport = { now: () => now().getTime(), sleep: async () => {}, fetch: (async (input, init) => {
     providerCalls++;
     const endpoint = new URL(String(input)), body = init?.body ? JSON.parse(String(init.body)) : {};
@@ -54,7 +55,7 @@ async function fixture(t: TestContext, { native = false, seller = false, starsAb
       : endpoint.pathname.endsWith('/product/rank') ? [{ product_id: '101', product_name: 'Tiêu đề người bán tốt nhất', unit_price: 100 }]
         : { product_id: body.product_id, product_region: 'vn', currency: 'VND', date_range: body.date_range,
           product_name: 'Tiêu đề người bán tốt nhất', product_description: [{ text: 'Người bán tự nêu: có an toàn không? Sản phẩm dành cho người bận rộn.' }],
-          revenue: 100, sales_volumn: 1, unit_price: 100 };
+          ...(detailMetrics ? { revenue: 100, sales_volumn: 1, unit_price: 100 } : {}) };
     return new Response(JSON.stringify({ success: true, data }), { status: 200 });
   }) as typeof fetch };
   const source = seller ? bindResearchAutomationProvider(createResearchAutomationProviderRegistry({ kalodataSecretKey: 'synthetic-secret', serpApiKey: null,
@@ -63,6 +64,13 @@ async function fixture(t: TestContext, { native = false, seller = false, starsAb
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, now, uuid: () => runId,
     metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')),
     workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), ...(source ? { source } : {}),
+    ...(sourcePolicy ? { sourceEvidence: { modelIdentity: 'synthetic-keyword-model', promptVersion: 'synthetic-v1', transport: {
+      async draftLists() { keywordCalls++; return { keywords: ['sản phẩm'], exclusions: [{ term: 'thạch dứa', reason: 'Khác nghĩa' }] }; },
+    } }, webSource: syntheticWebSource(() => { webCalls++; }, [
+      { position: 1, title: 'Sản phẩm trong mẫu', link: 'https://example.test/included', snippet: 'Nguồn mẫu' },
+      { position: 2, title: 'Sản phẩm thạch dứa', link: 'https://example.test/excluded', snippet: 'Nguồn loại' },
+      { position: 3, title: 'san pham', link: 'https://example.test/unclear', snippet: 'Chưa rõ' },
+    ]) } : {}),
     shopeeCollectorFactory: () => { collectorStarts++; return { requestsIssued: () => 0, collector: new FixtureShopeeCollector(Buffer.from(JSON.stringify(exactRows))) }; },
     ...(defaultRenderer ? {} : { renderer: (input, kind) => {
       if (kind === 'INSIGHT') reportInput = input;
@@ -85,7 +93,7 @@ async function fixture(t: TestContext, { native = false, seller = false, starsAb
     const confirmed = db.prepare('SELECT scope_confirmed_at confirmedAt FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { confirmedAt: string };
     return { runId, start: reportInput.start, scope: reportInput.scope, scopeConfirmedAt: confirmed.confirmedAt, previousPairId,
       collection: reportInput.collection, captures: reportInput.captures };
-  }, providerCalls: () => providerCalls, collectorStarts: () => collectorStarts };
+  }, providerCalls: () => providerCalls, collectorStarts: () => collectorStarts, keywordCalls: () => keywordCalls, webCalls: () => webCalls };
 }
 async function waitPair(service: ResearchAutomationService, attemptId: string) {
   for (let poll = 0; poll < 400; poll++) {
@@ -211,7 +219,7 @@ for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal
 });
 
 for (const accepted of [false, true]) test(`literal revision inherits explicitly selected ${accepted ? 'accepted' : 'draft-v3'} coding with adoption lineage and never recalls the fake model`, async t => {
-  const f = await fixture(t, { native: true, seller: true });
+  const f = await fixture(t, { native: true, seller: true, sourcePolicy: true });
   const source = await f.service.readInsightSourceContext(workspaceId, runId, f.pair.pairId);
   const owner = { actorId: 'owner:synthetic-literal', role: 'OWNER' as const };
   const text = source.input.records[0]!.text!;
@@ -266,7 +274,7 @@ for (const accepted of [false, true]) test(`literal revision inherits explicitly
   const codingPair = await waitPair(f.service, codingQueued.attemptId);
   const codingReport = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, codingPair);
   const codingSemantic = JSON.parse((await f.artifacts.read(codingReport.versionId)).toString('utf8'));
-  const calls = [modelCalls, f.providerCalls(), f.collectorStarts()];
+  const calls = [modelCalls, f.providerCalls(), f.collectorStarts(), f.keywordCalls(), f.webCalls()];
   const literalRequest = { contractVersion: 'automation-insight-literal-report-revision-v1', requestKey: randomUUID(), previousPairId: codingPair,
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } };
   const literalQueued = await f.service.requestReportRevision(workspaceId, runId, literalRequest); f.worker.wake();
@@ -274,6 +282,8 @@ for (const accepted of [false, true]) test(`literal revision inherits explicitly
   const report = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pairId);
   const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString('utf8'));
   assert.equal(semantic.rendererVersion, 'automation-report-kit-v19');
+  assert.equal(codingSemantic.rendererVersion, 'automation-report-kit-v18');
+  assert.deepEqual(semantic.sourceEvidence, codingSemantic.sourceEvidence, 'source appendix and L9 stay composed with the literal renderer');
   assert.deepEqual(semantic.insightCoding, codingSemantic.insightCoding, 'literal projection preserves exact proposal/adoption/selection binding');
   assert.equal(semantic.insightLiteral.selectedRecordCount, 6);
   assert.deepEqual(semantic.insightLiteral.sellerLayer.customerCodingMembership, []);
@@ -290,7 +300,7 @@ for (const accepted of [false, true]) test(`literal revision inherits explicitly
   assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT', false, codingPair)).bytes, codingReport.bytes);
   assert.equal((await f.service.requestReportRevision(workspaceId, runId, literalRequest)).exactRetry, true);
   await f.service.proposeModelInsightCoding(workspaceId, runId, modelRequest, owner, null);
-  assert.deepEqual([modelCalls, f.providerCalls(), f.collectorStarts()], calls);
+  assert.deepEqual([modelCalls, f.providerCalls(), f.collectorStarts(), f.keywordCalls(), f.webCalls()], calls);
   assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
   assert.equal(Number((f.db.prepare("SELECT count(*) n FROM analysis_insight_coding_evidence WHERE kind='ADOPTION'").get() as { n: number }).n), 1);
   assert.equal(Number((f.db.prepare("SELECT count(*) n FROM analysis_insight_coding_evidence WHERE kind='PROPOSAL'").get() as { n: number }).n), 1);
@@ -383,4 +393,45 @@ test('exact-source literal projection preserves the established equal-native-ID 
   assert.deepEqual(collapsed.sourceRefs.map(ref => ref.rowLocator), ['/0', '/8']);
   assert.equal(output.duplicateTexts[0]!.recordPointers.length, 2, 'distinct IDs with identical text still count separately');
   assert.equal(output.stars.bins[4]!.recordCount, 1, 'the equal same-ID occurrence does not inflate its count');
+});
+
+for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal19 composes Source18 appendix and adds only seller captures actually consumed without metric observations`, async t => {
+  const f = await fixture(t, { native, seller: true, sourcePolicy: true, detailMetrics: false });
+  const old = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId);
+  const oldSemantic = JSON.parse((await f.artifacts.read(old.versionId)).toString('utf8'));
+  assert.equal(oldSemantic.rendererVersion, 'automation-report-kit-v18');
+  const bound = f.literalInput(f.pair.pairId);
+  assert.deepEqual(bound.collection!.comparables, []);
+  const detailDigests = bound.captures.filter(capture => capture.stepId === 'COLLECTION' && capture.operation === 'kalodata.product.detail').map(capture => capture.artifactSha256);
+  assert.ok(detailDigests.length > 0);
+  assert.equal(oldSemantic.sourceEvidence.sourceAppendix.rows.some((row: { binding: { ref: string } }) => detailDigests.includes(row.binding.ref)), false,
+    'the old packet does not attribute unused detail text just because a capture exists');
+  const calls = [f.providerCalls(), f.collectorStarts(), f.keywordCalls(), f.webCalls()];
+  const request = { contractVersion: 'automation-insight-literal-report-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } };
+  const queued = await f.service.requestReportRevision(workspaceId, runId, request); f.worker.wake();
+  const pairId = await waitPair(f.service, queued.attemptId);
+  const report = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pairId);
+  const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString('utf8'));
+  assert.equal(semantic.rendererVersion, 'automation-report-kit-v19');
+  assert.deepEqual(semantic.sourceEvidence.admission, oldSemantic.sourceEvidence.admission);
+  assert.deepEqual(semantic.sourceEvidence.admission.result.accounting, { included: 1, excluded: 1, unclear: 1,
+    byReason: { EXCLUDED_TERM: 1, UNRESOLVED_UNDIACRITICIZED: 1 } });
+  const used = semantic.sourceEvidence.sourceAppendix.rows as { registryId: string; binding: { kind: string; ref: string } }[];
+  const prior = oldSemantic.sourceEvidence.sourceAppendix.rows as typeof used;
+  const added = used.filter(row => !prior.some(oldRow => oldRow.registryId === row.registryId && oldRow.binding.ref === row.binding.ref));
+  assert.deepEqual(added.map(row => [row.registryId, row.binding.kind, row.binding.ref]).sort(), detailDigests.map(ref => ['S02', 'capture', ref]).sort());
+  assert.equal(used.filter(row => row.registryId === (native ? 'S27' : 'S05')).length, 1);
+  for (const row of used.filter(row => row.registryId === 'S02')) {
+    assert.ok(semantic.insightLiteral.input.sellerStatements.some((statement: { sourceSha256: string }) => statement.sourceSha256 === row.binding.ref)
+      || prior.some(previous => previous.binding.ref === row.binding.ref), 'unrelated captures do not enter the appendix');
+  }
+  assert.match(report.bytes.toString('utf8'), /class="source-evidence"/);
+  assert.match(report.bytes.toString('utf8'), /Người bán tự nêu: có an toàn không/);
+  const before = f.db.prepare('SELECT total_changes() n').get();
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pairId)).bytes, report.bytes);
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId)).bytes, old.bytes);
+  assert.equal((await f.service.requestReportRevision(workspaceId, runId, request)).exactRetry, true);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
+  assert.deepEqual([f.providerCalls(), f.collectorStarts(), f.keywordCalls(), f.webCalls()], calls);
 });
