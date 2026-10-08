@@ -513,6 +513,9 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 |---|---|---|---|
 | WARNING at ≤ max(20%, $2), BLOCKED at ≤ $0.50 | P3-05 | Warn early enough to top up before a run fails. $0.50 is about 50 indexed pages at $0.01 per page, roughly one mid-size report PDF | Convention |
 | ≤1 question per section per PDF, ≤10 per run | P3-10 | Bounds paid retrieval per run; one fixed question per section keeps answers comparable across PDFs | Convention |
+| `rowCap` from 1 to 20,000 | P2 snapshot-source validation | Retains the existing input-schema bound and limits report processing. The upper bound is an engineering convention, not an experimentally established sample size | Convention |
+| First 2 lint diagnostics; 80-character W2/W3 and 60-character W6 excerpts | P2 reader-report lint | Keeps diagnostic output bounded and readable. These output lengths are not detection or statistical thresholds | Convention |
+| 40-character W4 and 25-character W5 negation windows | P2 reader-report lint | Bounds the local text heuristic around a claim. These are conventions, not validated Vietnamese linguistic thresholds | Convention |
 | ≤32 MiB per retained PDF member | P3 upload and local verification | Reuses the bounded intake size to limit transfer, extraction and retained artifact memory. This is an engineering ceiling, not a verified cloud API limit | Convention |
 | ≤64 KiB manifest allowance above the PDF aggregate budget | P3 REPORTS package reader | Allows bounded metadata for a one-member Foundation package at the 32 MiB member boundary, consistent with the prepared-intake budget pattern | Convention |
 | ≤100 configurable questions per run (default 10) | P3 fixed-question planning | Prevents a configuration mistake from allowing unbounded paid retrieval. The default stays 10; the ceiling is not a measured quality or cost threshold | Convention |

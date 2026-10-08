@@ -3,11 +3,20 @@ import inputSchema from '../../../../contracts/analysis/reader-report-input.sche
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/index.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
+import type { MetricWebFacts } from '../research-automation/metric-web-facts.js';
 import { Bundle, type HardcodedNumber, type Narrator } from './bundle.js';
 import { classify, profileRe, type Profile, type Row } from './classify.js';
 import { READER_SECTION_ANCHORS } from './layout.js';
 import { lint, type LintResult } from './lint.js';
 import { scopeMetrics, type Scope } from './scope-metrics.js';
+import {
+  checkDerivedSource,
+  deriveReaderSource,
+  reconcileWebWithRows,
+  setWebBundleKeys,
+  verifyWebSnapshot,
+  type WebReconciliationWarning,
+} from './web-facts.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -45,9 +54,36 @@ export function verifyReaderProfile(value: unknown): ReaderReportInput['profile'
 
 /** Schema plus the cross-field rules a JSON schema cannot express. */
 export function verifyReaderReportInput(value: unknown): ReaderReportInput {
+  if (typeof value === 'object' && value !== null && 'contractVersion' in value && value.contractVersion === '1.0.0' &&
+    ('webSnapshot' in value || 'webSnapshotSha256' in value || 'rowLineage' in value)) {
+    fail('webSnapshot và nguồn dòng chỉ dùng với contractVersion 1.1.0');
+  }
   if (!validateInput(value)) throw new ReaderReportInputError(`đầu vào bản đọc sai khuôn: ${shapeErrors(validateInput.errors)}`);
   const input = value;
-  const { platforms, rows, source } = input;
+  if (input.contractVersion === '1.0.0') {
+    if (input.webSnapshot !== undefined || input.webSnapshotSha256 !== undefined) {
+      fail('webSnapshot chỉ dùng với contractVersion 1.1.0');
+    }
+    const source = input.source;
+    if (source === undefined) throw new ReaderReportInputError('thiếu nguồn số liệu của bản đọc');
+    return checkRowsAndSource(input, source);
+  }
+  if (input.webSnapshot === undefined || input.webSnapshotSha256 === undefined) {
+    fail('đầu vào 1.1.0 thiếu webSnapshot hoặc webSnapshotSha256');
+  }
+  const facts = verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
+  const rowCap = input.source?.rowCap ?? input.rows.length;
+  const derived = deriveReaderSource(facts, rowCap);
+  if (input.source !== undefined) checkDerivedSource(input.source, derived);
+  return checkRowsAndSource({ ...input, source: derived }, derived);
+}
+
+/** Row/platform/period/rowCap rules shared by both contract versions. */
+function checkRowsAndSource(
+  input: ReaderReportInput,
+  source: NonNullable<ReaderReportInput['source']>,
+): ReaderReportInput {
+  const { platforms, rows } = input;
   verifyReaderProfile(input.profile);
   const ids = new Set<number>();
   for (const r of rows) {
@@ -61,7 +97,7 @@ export function verifyReaderReportInput(value: unknown): ReaderReportInput {
   }
   if (source.measurementPeriod.start > source.measurementPeriod.end) fail('kỳ đo có ngày bắt đầu sau ngày kết thúc');
   if (rows.length > source.rowCap) fail('số dòng vượt giới hạn tải của nguồn');
-  return input;
+  return { ...input, source };
 }
 
 function conditionPatterns(c: ReaderReportInput['profile']['rules'][number]['when']): string[] {
@@ -71,6 +107,12 @@ function conditionPatterns(c: ReaderReportInput['profile']['rules'][number]['whe
 export type ReaderReportData = {
   input: ReaderReportInput; profile: Profile; rows: Row[]; bundle: Bundle;
   scopes: Partial<Record<ReaderPlatform, Scope>>; ruleHits: Record<number, number>;
+  /** Normalised web facts; null for 1.0.0 inputs without a snapshot. */
+  webFacts: MetricWebFacts | null;
+  /** Web bundle ids set from the snapshot, in deterministic order. */
+  webKeys: string[];
+  /** R1–R4 reconciliation warnings between the xlsx rows and the snapshot. */
+  webReconciliation: WebReconciliationWarning[];
 };
 
 /**
@@ -104,7 +146,9 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
   }
   B.set('both.minRev', Math.min(...rows.map(r => r.rev)), 'tr');
 
-  const { displayedHeadlines: hl, platformBreakdown: pb, rowCap } = input.source;
+  const src = input.source;
+  if (src === undefined) throw new ReaderReportInputError('thiếu nguồn số liệu của bản đọc');
+  const { displayedHeadlines: hl, platformBreakdown: pb, rowCap } = src;
   B.set('src.hl.rev', hl.revenueVnd, 'ty1'); B.set('src.hl.listings', hl.soldListings, 'num');
   B.set('src.hl.shops', hl.shops, 'num'); B.set('src.hl.units', hl.units, 'num');
   B.set('src.rows', rows.length, 'num'); B.set('src.rowCap', rowCap, 'num');
@@ -115,7 +159,15 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
     B.set(`src.${P}.rows`, rows.filter(r => r.platform === P).length, 'num');
     B.set(`src.${P}.cover`, 100 * scopes[P]!.total / pb[P]!.displayedRevenueVnd, 'pct');
   }
-  return { input, profile, rows, bundle: B, scopes, ruleHits };
+  let webFacts: MetricWebFacts | null = null;
+  let webKeys: string[] = [];
+  let webReconciliation: WebReconciliationWarning[] = [];
+  if (input.webSnapshot !== undefined && input.webSnapshotSha256 !== undefined) {
+    webFacts = verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
+    webKeys = setWebBundleKeys(B, webFacts);
+    webReconciliation = reconcileWebWithRows(webFacts, rows);
+  }
+  return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys, webReconciliation };
 }
 
 export type PublishedReaderReport = {

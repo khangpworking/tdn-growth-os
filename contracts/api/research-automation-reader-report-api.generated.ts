@@ -14,7 +14,7 @@ export type Sha256 = string;
 export type Timestamp = string;
 
 export interface ResearchAutomationReaderBuildRequest {
-  contractVersion: 'reader-report-build-v1';
+  contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1';
   requestKey: string;
   metricPackageId: string;
   /**
@@ -24,7 +24,14 @@ export interface ResearchAutomationReaderBuildRequest {
   platforms: Platform[];
   profile: Profile;
   cover: null | ResearchAutomationReaderCover;
-  source: Source;
+  source?: Source;
+  /**
+   * Opaque retained search-page snapshot; checked by the snapshot validator and canonical digest.
+   */
+  webSnapshot?: {
+    [k: string]: unknown;
+  };
+  webSnapshotSha256?: Sha256;
 }
 export interface Profile {
   slug: string;

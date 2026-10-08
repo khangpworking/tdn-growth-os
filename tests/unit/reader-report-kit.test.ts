@@ -106,7 +106,7 @@ test('a full reader page embeds local fonts and passes lint', () => {
   assert.ok(count >= 4);
   const results = lint(html, { sectionIds: READER_SECTION_ANCHORS });
   assert.deepEqual(results.filter(r => !r.ok), []);
-  assert.equal(results.length, 9);
+  assert.equal(results.length, 15);
 });
 
 test('lint catches provider names, remote fonts and missing sources', () => {

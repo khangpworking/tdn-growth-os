@@ -4,6 +4,7 @@ import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import test, { type TestContext } from 'node:test';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
@@ -11,6 +12,7 @@ import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { readerLimitationsFromDraft, type ReaderRowsReader } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
+import { webSnapshotDigest } from '../../src/modules/analysis/reader-report/web-facts.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook } from '../../src/modules/analysis/reader-report/metric-rows.js';
 import type { AutomationSourcePort } from '../../src/modules/analysis/research-automation/source-binding.js';
 import { SYNTHETIC_CARD_ID, syntheticProductSource, syntheticWebSource } from '../helpers/research-synthetic-sources.js';
@@ -22,7 +24,7 @@ const owner = { actorId: 'owner:synthetic', role: 'OWNER' as const };
 const period = { startDate: '2026-01-01', endDate: '2026-01-29' };
 
 function workbook(cells: Record<string, unknown> = {}): Buffer {
-  const generated = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], { input: JSON.stringify({ profile: 'v2', cells }), maxBuffer: 4 * 1024 * 1024 });
+  const generated = spawnSync(process.platform === 'win32' ? 'python' : 'python3', ['-I', 'tests/fixtures/metric-workbook.py'], { input: JSON.stringify({ profile: 'v2', cells }), maxBuffer: 4 * 1024 * 1024 });
   assert.equal(generated.status, 0, generated.stderr.toString());
   return generated.stdout;
 }
@@ -71,6 +73,46 @@ async function readyRun(t: TestContext, rows?: ReaderRowsReader, sources: { sour
 
 const decide = (requestKey: string, revisionId: string, decision: 'APPROVED' | 'REJECTED', reason: string | null = null) =>
   ({ contractVersion: 'reader-report-decision-v1', requestKey, revisionId, decision, reason });
+
+test('snapshot build reaches the service without source, retains exact retries and checks derived period and digest before writes', async t => {
+  const f = await readyRun(t);
+  const snapshot = JSON.parse(readFileSync(new URL('../fixtures/metric-web-snapshot/full.json', import.meta.url), 'utf8'));
+  const periods = (value: unknown): void => {
+    if (!value || typeof value !== 'object') return;
+    const object = value as Record<string, unknown>;
+    if ('startDate' in object && 'endDate' in object) Object.assign(object, period);
+    for (const entry of Object.values(object)) periods(entry);
+  };
+  periods(snapshot);
+  snapshot.groups.W4_monthly = { absent: true, reason: 'NOT_ON_PAGE' };
+  const request = f.build('10000000-0000-4000-8000-000000000991', {
+    contractVersion: 'reader-report-build-v1.1', webSnapshot: snapshot, webSnapshotSha256: webSnapshotDigest(snapshot),
+  });
+  delete (request as Record<string, unknown>).source;
+  const built = await f.service.buildReaderReport(workspaceId, runId, request, owner);
+  assert.equal(built.exactRetry, false);
+  assert.deepEqual(await f.service.buildReaderReport(workspaceId, runId, request, owner), { ...built, exactRetry: true });
+  const html = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
+  assert.match(html, /toàn kết quả tìm kiếm/);
+  assert.match(html, /Số liệu đã tính từ nguồn đã lưu/);
+  assert.match(html, /Dòng số liệu nguồn/);
+  assert.doesNotMatch(html, /Chưa có nguồn/);
+  const count = () => Number((f.db.prepare('SELECT count(*) n FROM analysis_reader_report_revisions').get() as { n: number | bigint }).n);
+  assert.equal(count(), 1);
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, { ...request, webSnapshotSha256: 'f'.repeat(64) }, owner),
+    (error: Error & { code?: string }) => error.code === 'request_key_conflict');
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, { ...request,
+    requestKey: '10000000-0000-4000-8000-000000000992', webSnapshotSha256: 'f'.repeat(64) }, owner), /webSnapshotSha256/);
+  const different = structuredClone(snapshot);
+  different.scope.period.startDate = '2025-12-31';
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, { ...request,
+    requestKey: '10000000-0000-4000-8000-000000000993', webSnapshot: different, webSnapshotSha256: webSnapshotDigest(different) }, owner), /Kỳ số liệu khai báo khác kỳ/);
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, { ...request,
+    requestKey: '10000000-0000-4000-8000-000000000994', source: source() }, owner), /READER_SOURCE_MISMATCH/);
+  await assert.rejects(f.service.buildReaderReport(workspaceId, runId, { ...request,
+    requestKey: '10000000-0000-4000-8000-000000000995', unexpected: 'untrusted' }, owner), /không hợp lệ/);
+  assert.equal(count(), 1);
+});
 
 test('reader page restates a ready draft: exact retry, deterministic rebuild, latest-only decisions and immutable rows', async t => {
   const f = await readyRun(t);

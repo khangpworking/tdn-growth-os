@@ -13,10 +13,11 @@ import { canonicalJson } from '../../foundation/canonical-json.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/artifact-store.js';
 import {
   buildMarketReport, computeReaderReportData, publishReaderReport, ReaderAssetError, ReaderReportGateError, ReaderReportInputError,
-  storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
+  ReaderSourceError, storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
+import { MetricWebSnapshotError } from './metric-web-snapshot.js';
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from './model.js';
 
 const require = createRequire(import.meta.url);
@@ -103,7 +104,8 @@ export class AutomationReaderReports {
 
     if (request.metricPackageId !== context.metric.packageId) throw new ResearchAutomationIntegrityError('Reader build context names another package.');
     const period = context.metric.measurementPeriod;
-    if (request.source.measurementPeriod.start !== period.startDate || request.source.measurementPeriod.end !== period.endDate)
+    if (request.contractVersion === 'reader-report-build-v1' && request.source !== undefined &&
+      (request.source.measurementPeriod.start !== period.startDate || request.source.measurementPeriod.end !== period.endDate))
       throw new ResearchAutomationValidationError('Kỳ số liệu khai báo khác kỳ của tệp đã gắn vào lượt.');
     const latest = this.#latest(context.runId);
     if (latest?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc mới nhất đã được chủ duyệt.');
@@ -117,10 +119,31 @@ export class AutomationReaderReports {
       throw error;
     }
     // computeReaderReportData re-validates the whole input against its schema.
-    const input = { contractVersion: '1.0.0', profile: request.profile, platforms, rows, source: request.source } as unknown as ReaderReportInput;
+    // A 1.1.0 request may carry a web snapshot; the effective (derived) period
+    // is checked against the attached file below, after compute.
+    const input = {
+      contractVersion: request.contractVersion === 'reader-report-build-v1' ? '1.0.0' : '1.1.0',
+      profile: request.profile, platforms, rows,
+      ...(request.source === undefined ? {} : { source: request.source }),
+      ...(request.contractVersion === 'reader-report-build-v1' ? {} : {
+        webSnapshot: request.webSnapshot,
+        webSnapshotSha256: request.webSnapshotSha256,
+        rowLineage: { sha256: sha(context.metric.workbook) },
+      }),
+    } as unknown as ReaderReportInput;
     let data;
     try { data = computeReaderReportData(input); }
-    catch (error) { if (error instanceof ReaderReportInputError) throw new ResearchAutomationValidationError(error.message); throw error; }
+    catch (error) {
+      if (error instanceof ReaderReportInputError || error instanceof ReaderSourceError || error instanceof MetricWebSnapshotError) {
+        throw new ResearchAutomationValidationError(error.message);
+      }
+      throw error;
+    }
+    const effectivePeriod = data.input.source?.measurementPeriod;
+    if (effectivePeriod !== undefined &&
+      (effectivePeriod.start !== period.startDate || effectivePeriod.end !== period.endDate)) {
+      throw new ResearchAutomationValidationError('Kỳ số liệu khai báo khác kỳ của tệp đã gắn vào lượt.');
+    }
 
     // Cover photo and profile are stored as artifacts first: the page is built only from stored, checked bytes.
     let stored: StoredCoverImage | null = null, coverBytes: Buffer | null = null;

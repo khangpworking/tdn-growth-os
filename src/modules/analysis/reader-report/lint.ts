@@ -1,10 +1,16 @@
 // Reader-report rule lint on the final HTML (F1–F8, plus offline assets).
 // Display checks at desktop, 375 px and A4 run separately in a browser.
 export type LintResult = { rule: string; ok: boolean; detail: string };
-export type LintOptions = { providers?: readonly string[]; sectionIds?: readonly string[] };
+export type LintOptions = {
+  providers?: readonly string[];
+  sectionIds?: readonly string[];
+  /** Family label every web number must carry; defaults to the snapshot wording. */
+  familyLabel?: string;
+};
 
 // Data providers that must never be named in a report (owner rule).
 export const FORBIDDEN_PROVIDER_NAMES: readonly string[] = ['Metric', 'Kalodata', 'TradeInt', 'Dami'];
+const CAPTURED_PROVIDER_NAMES: readonly string[] = [...FORBIDDEN_PROVIDER_NAMES, 'SerpApi', 'Apify', 'PageIndex', 'Agent-Reach', 'OpenCLI', 'zen-studio'];
 
 export function visibleText(html: string): string {
   return html.replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ').replace(/<[^>]+>/g, ' ').replace(/&nbsp;/g, ' ').replace(/\s+/g, ' ');
@@ -34,7 +40,7 @@ function decodeCss(css: string): string {
   });
 }
 
-export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [] }: LintOptions = {}): LintResult[] {
+export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm' }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
   const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
@@ -90,5 +96,58 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
 
   const secs = [...html.matchAll(/<section id="([^"]+)"/g)].map(m => m[1] ?? '');
   if (sectionIds.length) add('Cấu trúc: đủ Phần 1–12 và Phụ lục', sectionIds.every(s => secs.includes(s)), secs.join(' '));
+
+  // Web snapshot rules (W1–W6). Pages without a snapshot have no webex block
+  // and pass all of them unchanged.
+  const family = familyLabel.toLowerCase();
+  const webexOpens = [...html.matchAll(/<div class="webex"[^>]*>/g)];
+  const webexBad: string[] = [];
+  webexOpens.forEach((m, i) => {
+    const start = (m.index ?? 0) + m[0].length;
+    const rest = html.slice(start);
+    let depth = 1, end = rest.length;
+    for (const tag of rest.matchAll(/<\/?div\b[^>]*>/gi)) {
+      depth += tag[0].startsWith('</') ? -1 : 1;
+      if (depth === 0) { end = tag.index; break; }
+    }
+    if (!visibleText(rest.slice(0, end)).toLowerCase().includes(family)) webexBad.push(`webex ${i + 1}`);
+  });
+  add('W1 số web mang nhãn họ', webexBad.length === 0,
+    webexBad.length ? 'thiếu nhãn: ' + webexBad.join(', ') : `${webexOpens.length} khối web đều có nhãn`);
+
+  const sentencesIn = (markup: string): string[] => markup.replace(QUOTED, ' ')
+    .split(/<\/(?:p|li|tr|h[1-6]|section|div|figcaption)>|<br\s*\/?>/i)
+    .flatMap(block => visibleText(block).split(/[!?…\n]+|(?<!\d)\.|\.(?!\d)/));
+  const sentences = sentencesIn(html);
+  const mixed = sentences.filter(s => /trong mẫu/i.test(s) && s.toLowerCase().includes(family) &&
+    /[+−-]|\btổng\b/i.test(s));
+  add('W2 không cộng trừ hai họ số', mixed.length === 0,
+    mixed.length ? mixed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không lẫn hai họ số');
+
+  const summed = sentences.filter(s =>
+    /tổng\s+(hai sàn|cả hai sàn|shopee và tiktok|tiktok và shopee)/i.test(s));
+  add('W3 không cộng gộp sàn khi trang không ghi tổng', summed.length === 0,
+    summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
+
+  const shareHits = [...vis.matchAll(/(.{0,40})thị phần/gi)]
+    .filter(m => !/không|chưa|không phải/i.test(m[1] ?? ''));
+  add('W4 không dùng từ "thị phần"', shareHits.length === 0,
+    shareHits.length ? `thấy ${shareHits.length} lần không phủ định` : 'không thấy thị phần');
+
+  const m10 = html.match(/<section id="phan-10">[\s\S]*?<\/section>/)?.[0] ?? '';
+  const forecastBad = sentencesIn(m10).some(sentence => {
+    if (!/\d[\d.,]*\s*(tỷ|triệu|nghìn|%|đồng|đ\b)/i.test(sentence)) return false;
+    return [...sentence.matchAll(/(dự báo|dự kiến)/gi)].some(m => {
+      const before = sentence.slice(Math.max(0, (m.index ?? 0) - 25), m.index ?? 0);
+      return !/không|chưa/i.test(before);
+    });
+  });
+  add('W5 M10 không có số dự báo', !forecastBad, forecastBad ? 'M10 có số kèm từ dự báo' : 'M10 chỉ xu hướng đã qua');
+
+  const captured = [...html.matchAll(/data-web-label="([^"]*)"/g)].map(m => m[1] ?? '');
+  const hitLabels = captured.filter(l => [...providers, ...CAPTURED_PROVIDER_NAMES].some(p =>
+    new RegExp(`\\b${p}\\b`, 'i').test(decodeAttr(l))));
+  add('W6 nhãn thu thập không nêu tên nhà cung cấp', hitLabels.length === 0,
+    hitLabels.length ? 'thấy: ' + hitLabels.slice(0, 2).map(s => s.slice(0, 60)).join(' | ') : `${captured.length} nhãn đã kiểm`);
   return out;
 }
