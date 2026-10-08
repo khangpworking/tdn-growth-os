@@ -31,7 +31,7 @@ const runId = '22222222-2222-4222-8222-222222222222';
 const url = 'https://shopee.vn/product/78085196/17678138164';
 const now = () => new Date('2026-10-04T00:00:00.000Z');
 
-async function fixture(t: TestContext, texts: string[], native = false) {
+async function fixture(t: TestContext, texts: string[], native = false, withRenderer = true) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-insight-prompt-retention-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -42,7 +42,7 @@ async function fixture(t: TestContext, texts: string[], native = false) {
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')),
     uuid: () => runId, now, shopeeCollectorFactory: () => ({ requestsIssued: () => 0, collector: new FixtureShopeeCollector(raw) }),
-    renderer: (input, kind) => buildResearchAutomationReport(input, kind) });
+    ...(withRenderer ? { renderer: (input: Parameters<typeof buildResearchAutomationReport>[0], kind: 'MARKET' | 'INSIGHT') => buildResearchAutomationReport(input, kind) } : {}) });
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: '33333333-3333-4333-8333-333333333333',
     mode: 'PRODUCT', keyword: 'Synthetic prompt retention', requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['INSIGHT'] });
@@ -109,6 +109,35 @@ async function waitRevision(service: ResearchAutomationService, attemptId: strin
   }
   throw new Error('Synthetic revision did not commit');
 }
+
+test('actual service without a presentation adapter builds and reads only the explicit default report21 branch; old fallback replays unchanged', async t => {
+  const f = await fixture(t, ['Tôi thích kích thước.'], false, false);
+  const pair = (await f.service.listReportVersions(workspaceId, runId))[0]!;
+  const old = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pair.pairId);
+  assert.match(old.bytes.toString(), /Draft, unreviewed/);
+  const source = await f.service.readInsightSourceContext(workspaceId, runId, pair.pairId);
+  const request: InsightDefaultModelRequest = { contractVersion: 'insight-default-model-request-v1', requestKey: randomUUID(), binding: source.binding,
+    defaultRuleId: null, defaultRuleSha256: null, previousProposalId: null, previousProposalSha256: null, recordIndexes: [0] };
+  let calls = 0;
+  const proposed = await f.service.proposeDefaultModelInsightCoding(workspaceId, runId, request, owner, { configuration, port: { async generateText() {
+    calls++; return { text: JSON.stringify({ codebooks: [], annotations: emptyAnnotations() }) };
+  } } });
+  assert.ok(proposed.proposal);
+  const body = { contractVersion: 'automation-insight-default-report-revision-v1', requestKey: randomUUID(), previousPairId: pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, defaultInsight: { contractVersion: 'insight-default-draft-select-v1',
+      proposalId: proposed.proposal.evidence.evidenceId, proposalSha256: proposed.proposal.sha256 } };
+  const receipt = await f.service.requestReportRevision(workspaceId, runId, body), next = await waitRevision(f.service, receipt.attemptId);
+  const report = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, next.pairId);
+  const semantic = JSON.parse((await f.artifacts.read(report.versionId)).toString());
+  assert.equal(semantic.rendererVersion, 'automation-report-kit-v21');
+  assert.equal(semantic.insightCoding.contractVersion, 'automation-insight-coding-snapshot-v4');
+  assert.match(report.bytes.toString(), /Quy tắc và bộ mã là đề xuất/);
+  const before = f.db.prepare('SELECT total_changes() n').get();
+  assert.deepEqual(await f.service.readReport(workspaceId, runId, 'INSIGHT', false, next.pairId), report);
+  await f.service.requestReportRevision(workspaceId, runId, body);
+  assert.deepEqual(await f.service.readReport(workspaceId, runId, 'INSIGHT', false, pair.pairId), old);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before); assert.equal(calls, 1);
+});
 
 test('default source proposal needs no adoption; exact batches, unapproved codebook, retained report21 and replay use actual service', async t => {
   const texts = ['Tôi thích kích thước.', 'Tôi thích kích thước.'];

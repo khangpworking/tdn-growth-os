@@ -25,6 +25,8 @@ Changed paths: Insight-specific `insight-default-coding.ts`, `insight-coding.ts`
 
 Task-local Node24.15.0/npm11.12.1; synthetic Foundation/exact/native sources, fake model/collector transports and loopback HTTP only. No local full suite or generation ran.
 
+No-adapter proof: the new actual service test first failed on missing renderer21 identity (`/tmp/ultimate-default-recovery-no-adapter-before.log`). Under the fresh exact central grant, only explicit snapshot-v4 default reports now invoke the owning builder when no presentation adapter exists; the actual fake service→proposal→report21/read/retry passes1/1 with unchanged historical fallback bytes and no additional model calls or database writes (`/tmp/ultimate-default-recovery-no-adapter.log`).
+
 Additional retained-count proof: the real service fake model supplies pending CODED dispositions, yields exactly2 proposed I10 records while accepted count stays0, and binds exact source/default/codebook/prompt-v5/model-configuration artifacts. Focused service1/1PASS (`/tmp/ultimate-default-recovery-counts.log`).
 
 Backend stable source phase: `ef48b2c855a70bcdae1d378f35b28590dd2d4e21`.
