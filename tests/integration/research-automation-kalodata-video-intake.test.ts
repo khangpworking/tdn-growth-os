@@ -136,6 +136,13 @@ test('derived metrics never divide by zero and never invent zero', () => {
   assert.equal(deriveAdShare('1', '0.0000000000'), null);
 });
 
+test('cited derived metrics admit the full supported source numeric range', () => {
+  const largest = '9'.repeat(40);
+  const table = buildVideoTable(Buffer.from(`${VIDEO_TABLE_HEADERS.join(',')}\nv,c,0.0000000001,1,${largest},${largest},,`), 'export.csv', 'video');
+  assert.equal(table.videos[0]?.unitsPer1000Views, `${largest}000`);
+  assert.equal(table.videos[0]?.adShare, `${largest}0000000000`);
+});
+
 test('csv parsing keeps quoted commas and rejects malformed quotes', () => {
   const grid = parseVideoCsv(Buffer.from('"a,b",c\r\n1,2\r\n'));
   assert.deepEqual(grid, [['a,b', 'c'], ['1', '2']]);

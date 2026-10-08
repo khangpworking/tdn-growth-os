@@ -18,6 +18,8 @@ export type NonEmptyText = string;
 export type NullableText = string | null;
 export type NullableDecimal = string | null;
 export type DateText = string | null;
+export type NullableUnitsPer1000Views = string | null;
+export type NullableAdShare = string | null;
 export type Uuid = string;
 
 export interface KalodataVideoPrepareRequest {
@@ -59,8 +61,8 @@ export interface KalodataVideoRow {
   adSpend: NullableDecimal;
   publishDate: DateText;
   productLink: NullableText;
-  unitsPer1000Views: NullableDecimal;
-  adShare: NullableDecimal;
+  unitsPer1000Views: NullableUnitsPer1000Views;
+  adShare: NullableAdShare;
 }
 export interface KalodataCreatorRow {
   line: NonEmptyText;
