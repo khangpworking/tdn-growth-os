@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.5 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.6 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -15,8 +15,9 @@ File hợp nhất:
 7. **v1.3 (07/10/2026):** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu; ngưỡng thu review mở rộng (mục 6.3).
 8. **v1.4 (07/10/2026):** giữ song song nhiều cách tính ngưỡng (số cố định, độ bão hoà, hiệu chỉnh theo dữ liệu, 80/20); không mua hàng (L8); phụ lục giải thích các nguyên tắc chuyên môn.
 9. **v1.5 (08/10/2026):** thống kê chính thức của Cục Thống kê làm nguồn bối cảnh vĩ mô cho mọi ngành hàng (E12, mục 6.4).
+10. **v1.6 (08/10/2026):** tách danh mục nguồn sang file riêng [sources.md](sources.md), có mã nguồn S01…, hạng tin cậy A–D, độ đại diện và bảng section dùng nguồn nào.
 
-Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn).
+Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [sources.md](sources.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn).
 
 Quy ước trạng thái:
 
@@ -216,6 +217,8 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 ---
 
 ## 3. Bảng tổng quan 30 section
+
+Nguồn dữ liệu của từng section: [sources.md, mục 3](sources.md#3-section-dùng-nguồn-nào).
 
 | # | ID | Tiêu đề | Nhóm | Phương pháp lõi (latest) | Trạng thái |
 |---:|---|---|---|---|---|
@@ -462,26 +465,16 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 
 ### 6.1 Danh mục nguồn
 
-Cột "Tiếng nói" theo mục 1: **Khách**, **Người bán**, **Thị trường**. Tên nhà cung cấp chỉ dùng trong tài liệu kỹ thuật, không xuất hiện trong báo cáo.
+Danh mục đầy đủ nằm ở **[sources.md](sources.md)** (từ v1.6). File đó gồm:
+- mã nguồn S01…;
+- ba loại tiếng nói (khách, người bán, thị trường);
+- hạng tin cậy A–D và độ đại diện;
+- trạng thái thử nghiệm, chi phí, ràng buộc;
+- bảng section dùng nguồn nào;
+- nguồn đã xét và không dùng;
+- nhật ký thử nguồn.
 
-| Nguồn | Tiếng nói | Section dùng | Ràng buộc chính |
-|---|---|---|---|
-| Review Shopee của nhiều sản phẩm, có số sao | Khách | I02, I04–I10 | L6 cho số sao; thu thật cần chủ duyệt chi phí (E8) |
-| Review TikTok Shop | Khách | I02, I04–I10 | Như trên; cần kiểm khả năng thu |
-| Ảnh khách đính kèm trong review | Khách | I05, I08 (bằng chứng phụ) | Chỉ minh họa cho lời khách, không tự thành nhận định |
-| Bình luận dưới video bán hàng (TikTok, YouTube) | Khách | I02, I05, I07, I08, E5 phép kiểm 4 | Lọc tài khoản bán hàng; ẩn danh người viết |
-| Facebook/Instagram: bài viết, bình luận, nhóm | Khách | I02, I05–I08, E4, E5 phép kiểm 4 | Chỉ nội dung công khai hoặc nhóm tài khoản tham gia hợp lệ; xóa số điện thoại, email, tên tài khoản; hash mã người viết; đánh dấu và loại tài khoản bán hàng; dùng tài khoản riêng để thu |
-| Nhóm khách mua sỉ (chủ quán đồ uống, quán chè…) trên mạng xã hội | Khách | I02, I07, I08 | Như trên; báo cáo tách riêng nhóm mua sỉ với người mua lẻ |
-| Công thức, bài hướng dẫn dùng sản phẩm | Khách/creator | I02 (hoàn cảnh dùng) | Không suy tỷ lệ cách dùng |
-| Nội dung video bán hàng: lời thoại, hình, chữ trên màn hình | Người bán | I12, I13, M07, E5 phép kiểm 1 | L7; mỗi kết quả có link và mốc giây; mục 6.2 |
-| Bài đăng, Reels trên trang thương hiệu | Người bán | I12, I13, M07, E5 phép kiểm 1 | L7 |
-| Thư viện quảng cáo công khai (Meta) | Người bán + tín hiệu trả tiền | I12, I13, E5 phép kiểm 3 | Với quảng cáo thương mại ở Việt Nam chỉ có ngày bắt đầu, trạng thái, phiên bản, nền tảng; không có số tiền chi |
-| Trang bán: tiêu đề, mô tả, ảnh, quy cách | Người bán | I07 (đặt cạnh), I13, M07 | L7 |
-| Số liệu video và creator: doanh thu, lượt xem, đơn vị bán, chi quảng cáo | Thị trường | I12, I13, M07, M08 (E1), M09, E5 phép kiểm 2–3 | Số ước tính, kèm miễn trừ E1; Ad Spend chỉ sau khi xác nhận trường |
-| Google Trends, tìm kiếm mở rộng | Thị trường | M05, M09, M10, I05, I07, I08, I10, I12, I13 | Mức quan tâm tìm kiếm không phải nhu cầu (M05) |
-| Tin an toàn thực phẩm, báo cáo ngành, tài liệu PDF | Bối cảnh | M09, I13 | Theo khung M09; không gắn nhãn số liệu toàn thị trường |
-| Thống kê chính thức của Cục Thống kê (nso.gov.vn): giá tiêu dùng, bán lẻ, chi tiêu hộ, sản xuất, xuất nhập khẩu, dân số, internet và mạng xã hội | Thị trường (vĩ mô) | M02, M05, M06, M08, M09, M10, M13, I02, I03, I12 | Theo E12 và mục 6.4; miễn phí, có file Excel và PDF; bắt buộc ghi nguồn |
-| Dữ liệu của chính shop chủ: đơn hàng, đổi trả, tin nhắn, đánh giá | Khách | Nhiều section | Chỉ khi chủ cung cấp; lọc thông tin cá nhân; tách khỏi dữ liệu công khai |
+Quy tắc ở file này (E, L, mục 6.2–6.4) áp cho mọi nguồn trong danh mục. Khi file này và sources.md khác nhau về **quy tắc**, theo file này; về **danh mục, trạng thái, hạng**, theo sources.md.
 
 **Không dùng:** khảo sát, phỏng vấn, tuyển người trả lời, người trả lời giả lập (quy tắc 6).
 
@@ -614,6 +607,7 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.3 — 07/10/2026:** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu (tập đối thủ từ dữ liệu bán hàng, nhóm so sánh theo sàn và mua lẻ/mua sỉ, không xếp ưu tiên, bộ mã kiểm chéo bằng model thứ hai); mục 6.3 ngưỡng thu review mở rộng kèm căn cứ.
 - **v1.4 — 07/10/2026:** E5 và mục 6.3 giữ song song cách A (số cố định), cách B (độ bão hoà hoặc hiệu chỉnh theo dữ liệu) và cách C (80/20); L8 không mua hàng; ghi chú chủ chưa duyệt chuyên môn mốc κ; thêm phụ lục giải thích nguyên tắc chuyên môn kèm nguồn.
 - **v1.5 — 08/10/2026:** E12 thống kê chính thức của Cục Thống kê làm bối cảnh vĩ mô, được ghi tên nguồn; mục 6.4 bảng nguồn số liệu và ánh xạ ngành hàng → nhóm thống kê, dùng chung cho mọi ngành hàng; thêm dòng nguồn vào mục 6.1.
+- **v1.6 — 08/10/2026:** danh mục nguồn chuyển sang [sources.md](sources.md), thêm mã nguồn S, hạng tin cậy A–D, độ đại diện, bảng section dùng nguồn nào, nguồn không dùng và nhật ký thử nguồn; mục 6.1 chỉ còn trỏ tới file đó.
 
 ---
 
