@@ -12,6 +12,9 @@
     },
     {
       "$ref": "#/$defs/literalRequest"
+    },
+    {
+      "$ref": "#/$defs/defaultRequest"
     }
   ],
   "$defs": {
@@ -210,6 +213,60 @@
         },
         "literalInsight": {
           "$ref": "#/$defs/literalSelection"
+        }
+      }
+    },
+    "defaultSelection": {
+      "title": "InsightDefaultDraftSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "proposalId",
+        "proposalSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-default-draft-select-v1"
+        },
+        "proposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "proposalSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "defaultRequest": {
+      "title": "AutomationInsightDefaultReportRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "previousPairId",
+        "sources",
+        "defaultInsight"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-insight-default-report-revision-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "previousPairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sources": {
+          "$ref": "#/$defs/requestSources"
+        },
+        "defaultInsight": {
+          "$ref": "#/$defs/defaultSelection"
         }
       }
     }

@@ -6,7 +6,8 @@
 export type AutomationInsightCodingSnapshot =
   | AutomationInsightCodingAcceptedSnapshot
   | AutomationInsightCodingDraftSnapshot
-  | AutomationInsightCodingFamilyDraftSnapshot;
+  | AutomationInsightCodingFamilyDraftSnapshot
+  | AutomationInsightCodingDefaultDraftSnapshot;
 export type LocatedInsightMethods = {
   [k: string]: unknown;
 } & {
@@ -314,6 +315,127 @@ export type LocatedInsightMethods1 = {
   limitations: Strings;
 };
 export type LocatedInsightMethods2 = {
+  [k: string]: unknown;
+} & {
+  contractVersion: '1.0.0';
+  methodId: 'located-insight-methods';
+  methodVersion: '1.0.0' | '1.1.0';
+  methodOutputId: string;
+  input: Input;
+  sections: {
+    I01: {
+      briefPointer: '/input/brief' | null;
+      briefSha256: string | null;
+      unresolvedFields: Strings;
+      reviewState: 'DECLARED_NOT_AUTHENTICATED';
+      blockers: Strings;
+      workingQuestion?: {
+        state: 'AI_PROPOSED_AWAITING_OWNER' | 'OWNER_SUPPLIED';
+        label: string | null;
+        text: string | null;
+        /**
+         * @maxItems 10000
+         */
+        ownerFieldsToAdd: string[];
+      };
+    };
+    I02: Section;
+    I04: Section;
+    I05: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      recordPolarities: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+      draftRecordPointers?: Pointers3;
+      draftAnnotationPointers?: Pointers4;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftRecordPolarities?: {
+        recordPointer: string;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
+    };
+    I06: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      sequences: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+      draftRecordPointers?: Pointers5;
+      draftAnnotationPointers?: Pointers6;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftSequences?: {
+        annotationPointer: string;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+    };
+    I07: Section;
+    I08: Section;
+    I09: {
+      recordPointers: Pointers;
+      annotationPointers: Pointers;
+      pendingAnnotationPointers: Pointers;
+      locatedRecordCount: number;
+      semanticValidation: 'DECLARED_NOT_VERIFIED';
+      blockers: Strings;
+      /**
+       * @maxItems 10000
+       */
+      candidates: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+      draftRecordPointers?: Pointers7;
+      draftAnnotationPointers?: Pointers8;
+      draftLocatedRecordCount?: number;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftCandidates?: {
+        annotationPointer: string;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
+    };
+    I10: CorpusSection;
+    I13: CorpusSection;
+  };
+  limitations: Strings;
+};
+export type LocatedInsightMethods3 = {
   [k: string]: unknown;
 } & {
   contractVersion: '1.0.0';
@@ -948,4 +1070,39 @@ export interface InsightDraftGroupCounts {
    * @maxItems 10000
    */
   blockers: string[];
+}
+/**
+ * Exact unapproved source-default proposal; storage compatibility root is not human adoption.
+ */
+export interface AutomationInsightCodingDefaultDraftSnapshot {
+  contractVersion: 'automation-insight-coding-snapshot-v4';
+  binding: InsightSourceBinding;
+  selection: InsightDraftSelectionEcho2;
+  proposalSha256: string;
+  /**
+   * @maxItems 0
+   */
+  receipts: [];
+  draftSelection: InsightDefaultDraftSelection;
+  output: LocatedInsightMethods3;
+  groupCounts: InsightDraftGroupCounts;
+  defaultRuleId: string;
+  defaultRuleSha256: string;
+  codebookSha256: string;
+  executionId: string;
+}
+/**
+ * Explicit empty selection echo of a versioned draft selection.
+ */
+export interface InsightDraftSelectionEcho2 {
+  proposalId: string;
+  /**
+   * @maxItems 0
+   */
+  receiptIds: [];
+}
+export interface InsightDefaultDraftSelection {
+  contractVersion: 'insight-default-draft-select-v1';
+  proposalId: string;
+  proposalSha256: string;
 }

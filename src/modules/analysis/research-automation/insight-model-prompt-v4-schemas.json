@@ -1,0 +1,1386 @@
+{
+  "annotations": {
+    "title": "InsightProposedAnnotations",
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "i06",
+      "i09",
+      "i13Mentions",
+      "corpora"
+    ],
+    "dependentRequired": {
+      "i02": [
+        "i04",
+        "i05",
+        "i07",
+        "i08"
+      ],
+      "i04": [
+        "i02",
+        "i05",
+        "i07",
+        "i08"
+      ],
+      "i05": [
+        "i02",
+        "i04",
+        "i07",
+        "i08"
+      ],
+      "i07": [
+        "i02",
+        "i04",
+        "i05",
+        "i08"
+      ],
+      "i08": [
+        "i02",
+        "i04",
+        "i05",
+        "i07"
+      ]
+    },
+    "properties": {
+      "i02": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i02"
+      },
+      "i04": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i04"
+      },
+      "i05": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i05"
+      },
+      "i07": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i07"
+      },
+      "i08": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i08"
+      },
+      "i06": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i06"
+      },
+      "i09": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i09"
+      },
+      "i13Mentions": {
+        "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i13Mentions"
+      },
+      "corpora": {
+        "type": "array",
+        "maxItems": 100,
+        "items": {
+          "title": "InsightProposedCorpusCoding",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "corpusIndex",
+            "assignments",
+            "dispositions"
+          ],
+          "properties": {
+            "corpusIndex": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 99
+            },
+            "assignments": {
+              "$ref": "located-insight-methods.schema.json#/$defs/corpus/properties/assignments"
+            },
+            "dispositions": {
+              "$ref": "located-insight-methods.schema.json#/$defs/corpus/properties/dispositions"
+            }
+          }
+        }
+      }
+    }
+  },
+  "locatedDefinitions": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "text": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "pattern": "\\S"
+    },
+    "nullableText": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/text"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "index": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 9999
+    },
+    "strings": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "span": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end",
+        "quote"
+      ],
+      "properties": {
+        "start": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 1000000
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "quote": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000000
+        }
+      },
+      "description": "Half-open UTF-16 offsets in the exact record text, with no Unicode or whitespace normalization."
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basis",
+        "coderRole",
+        "adjudication",
+        "disagreement"
+      ],
+      "properties": {
+        "basis": {
+          "enum": [
+            "DECLARED",
+            "HUMAN_REVIEWED",
+            "PENDING_AI"
+          ]
+        },
+        "coderRole": {
+          "$ref": "#/$defs/text"
+        },
+        "adjudication": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "disagreement": {
+          "$ref": "#/$defs/nullableText"
+        }
+      },
+      "description": "Declared annotation provenance, never authenticated application approval. Pointer resolution proves text location only, not semantic truth or human authority. AI suggestions remain pending."
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceSha256",
+        "locator",
+        "text",
+        "sourceAttribution",
+        "timeText",
+        "disposition",
+        "dispositionReason"
+      ],
+      "properties": {
+        "sourceSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "locator": {
+          "type": "string",
+          "pattern": "^(?:/(?:[^~/]|~[01])*)+$",
+          "maxLength": 2000
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000000
+        },
+        "sourceAttribution": {
+          "$ref": "#/$defs/text"
+        },
+        "timeText": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "disposition": {
+          "enum": [
+            "INCLUDED",
+            "EXCLUDED",
+            "UNREADABLE"
+          ]
+        },
+        "dispositionReason": {
+          "$ref": "#/$defs/nullableText"
+        }
+      }
+    },
+    "field": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "span"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "SOURCE_STATED",
+            "NOT_STATED",
+            "UNKNOWN",
+            "CONFLICTING",
+            "UNLOCATED"
+          ]
+        },
+        "span": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "ownerField": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "text"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "SUPPLIED",
+            "UNSET"
+          ]
+        },
+        "text": {
+          "$ref": "#/$defs/nullableText"
+        }
+      }
+    },
+    "brief": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "questionText",
+        "decisionToInform",
+        "intendedAudience",
+        "scope",
+        "knownConstraints",
+        "selectedSectionIds"
+      ],
+      "properties": {
+        "version": {
+          "$ref": "#/$defs/text"
+        },
+        "questionText": {
+          "$ref": "#/$defs/ownerField"
+        },
+        "decisionToInform": {
+          "$ref": "#/$defs/ownerField"
+        },
+        "intendedAudience": {
+          "$ref": "#/$defs/ownerField"
+        },
+        "scope": {
+          "$ref": "#/$defs/ownerField"
+        },
+        "knownConstraints": {
+          "$ref": "#/$defs/ownerField"
+        },
+        "selectedSectionIds": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "string",
+            "pattern": "^(M(0[1-9]|1[0-3])|I(0[1-9]|1[0-7]))$"
+          },
+          "uniqueItems": true
+        }
+      }
+    },
+    "facet": {
+      "enum": [
+        "PRICE_COST",
+        "ACCESS_AVAILABILITY",
+        "FIT_NEED",
+        "PRODUCT_ATTRIBUTE",
+        "INFORMATION_TRUST",
+        "OTHER_EXPLICIT",
+        "UNCLEAR"
+      ]
+    },
+    "relation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "context",
+        "link"
+      ],
+      "properties": {
+        "context": {
+          "$ref": "#/$defs/span"
+        },
+        "link": {
+          "$ref": "#/$defs/span"
+        }
+      }
+    },
+    "pointers": {
+      "type": "array",
+      "maxItems": 10000,
+      "items": {
+        "type": "string",
+        "pattern": "^/input/",
+        "maxLength": 2000
+      },
+      "uniqueItems": true
+    },
+    "draftLabel": {
+      "title": "DraftCountLabel",
+      "description": "Same-sentence label required on every AI-proposed draft number. Never a release claim.",
+      "const": "đề xuất, chờ chủ duyệt"
+    },
+    "draftCountsVersion": {
+      "title": "DraftCountsVersion",
+      "description": "Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.",
+      "enum": [
+        "draft-counts-v1",
+        "draft-counts-v2"
+      ]
+    },
+    "section": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordPointers",
+        "annotationPointers",
+        "pendingAnnotationPointers",
+        "locatedRecordCount",
+        "semanticValidation",
+        "blockers"
+      ],
+      "properties": {
+        "recordPointers": {
+          "$ref": "#/$defs/pointers"
+        },
+        "annotationPointers": {
+          "$ref": "#/$defs/pointers"
+        },
+        "pendingAnnotationPointers": {
+          "$ref": "#/$defs/pointers"
+        },
+        "locatedRecordCount": {
+          "$ref": "#/$defs/count"
+        },
+        "draftRecordPointers": {
+          "description": "Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.",
+          "$ref": "#/$defs/pointers"
+        },
+        "draftAnnotationPointers": {
+          "description": "Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.",
+          "$ref": "#/$defs/pointers"
+        },
+        "draftLocatedRecordCount": {
+          "$ref": "#/$defs/count"
+        },
+        "draftLabel": {
+          "$ref": "#/$defs/draftLabel"
+        },
+        "draftCountsVersion": {
+          "$ref": "#/$defs/draftCountsVersion"
+        },
+        "semanticValidation": {
+          "const": "DECLARED_NOT_VERIFIED"
+        },
+        "blockers": {
+          "$ref": "#/$defs/strings"
+        }
+      }
+    },
+    "context": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "provenance",
+        "qualifiers",
+        "counterevidence",
+        "role",
+        "situation",
+        "task",
+        "setting",
+        "time"
+      ],
+      "properties": {
+        "recordIndex": {
+          "$ref": "#/$defs/index"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "qualifiers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "counterevidence": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "role": {
+          "$ref": "#/$defs/field"
+        },
+        "situation": {
+          "$ref": "#/$defs/field"
+        },
+        "task": {
+          "$ref": "#/$defs/field"
+        },
+        "setting": {
+          "$ref": "#/$defs/field"
+        },
+        "time": {
+          "$ref": "#/$defs/field"
+        }
+      }
+    },
+    "behavior": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "provenance",
+        "qualifiers",
+        "counterevidence",
+        "span",
+        "eventKind",
+        "attribution"
+      ],
+      "properties": {
+        "recordIndex": {
+          "$ref": "#/$defs/index"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "qualifiers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "counterevidence": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "span": {
+          "$ref": "#/$defs/span"
+        },
+        "eventKind": {
+          "enum": [
+            "ATTEMPT_REPORTED",
+            "ACTION_REPORTED",
+            "COMPLETION_REPORTED",
+            "NO_ACTION_EXPLICIT",
+            "NOT_REPORTED",
+            "UNKNOWN"
+          ]
+        },
+        "attribution": {
+          "enum": [
+            "SOURCE_LOGGED",
+            "SELF_REPORTED",
+            "OTHER_REPORTED",
+            "UNKNOWN"
+          ]
+        }
+      }
+    },
+    "attitude": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "provenance",
+        "qualifiers",
+        "counterevidence",
+        "span",
+        "polarity",
+        "target",
+        "speakerAttribution"
+      ],
+      "properties": {
+        "recordIndex": {
+          "$ref": "#/$defs/index"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "qualifiers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "counterevidence": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "span": {
+          "$ref": "#/$defs/span"
+        },
+        "polarity": {
+          "enum": [
+            "POSITIVE",
+            "NEGATIVE",
+            "MIXED",
+            "NEUTRAL",
+            "UNCLEAR",
+            "NOT_STATED"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/field"
+        },
+        "speakerAttribution": {
+          "$ref": "#/$defs/field"
+        }
+      }
+    },
+    "journey": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "provenance",
+        "qualifiers",
+        "counterevidence",
+        "firstEvent",
+        "secondEvent",
+        "relation"
+      ],
+      "properties": {
+        "recordIndex": {
+          "$ref": "#/$defs/index"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "qualifiers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "counterevidence": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "firstEvent": {
+          "$ref": "#/$defs/span"
+        },
+        "secondEvent": {
+          "$ref": "#/$defs/span"
+        },
+        "relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/relation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "reason": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "provenance",
+        "qualifiers",
+        "counterevidence",
+        "choiceText",
+        "reasonClause",
+        "relation",
+        "reasonFacet",
+        "reasonPolarity",
+        "speakerBasis",
+        "resultState"
+      ],
+      "properties": {
+        "recordIndex": {
+          "$ref": "#/$defs/index"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "qualifiers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "counterevidence": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "choiceText": {
+          "$ref": "#/$defs/span"
+        },
+        "reasonClause": {
+          "$ref": "#/$defs/span"
+        },
+        "relation": {
+          "$ref": "#/$defs/relation"
+        },
+        "reasonFacet": {
+          "$ref": "#/$defs/facet"
+        },
+        "reasonPolarity": {
+          "enum": [
+            "AFFIRMED",
+            "NEGATED",
+            "CONDITIONAL",
+            "UNCLEAR"
+          ]
+        },
+        "speakerBasis": {
+          "enum": [
+            "SELF_STATED",
+            "OTHER_REPORTED",
+            "SOURCE_ATTRIBUTED",
+            "UNKNOWN"
+          ]
+        },
+        "resultState": {
+          "$ref": "#/$defs/field"
+        }
+      }
+    },
+    "barrier": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "provenance",
+        "qualifiers",
+        "counterevidence",
+        "attemptedTask",
+        "obstacleClause",
+        "relation",
+        "barrierFacet",
+        "resolutionState"
+      ],
+      "properties": {
+        "recordIndex": {
+          "$ref": "#/$defs/index"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "qualifiers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "counterevidence": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "attemptedTask": {
+          "$ref": "#/$defs/span"
+        },
+        "obstacleClause": {
+          "$ref": "#/$defs/span"
+        },
+        "relation": {
+          "$ref": "#/$defs/relation"
+        },
+        "barrierFacet": {
+          "$ref": "#/$defs/facet"
+        },
+        "resolutionState": {
+          "$ref": "#/$defs/field"
+        }
+      }
+    },
+    "gap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordIndex",
+        "provenance",
+        "qualifiers",
+        "counterevidence",
+        "desiredState",
+        "currentState",
+        "relation",
+        "workaround"
+      ],
+      "properties": {
+        "recordIndex": {
+          "$ref": "#/$defs/index"
+        },
+        "provenance": {
+          "$ref": "#/$defs/provenance"
+        },
+        "qualifiers": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "counterevidence": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/span"
+          }
+        },
+        "desiredState": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "currentState": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/span"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/relation"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "workaround": {
+          "$ref": "#/$defs/field"
+        }
+      }
+    },
+    "corpus": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sectionId",
+        "recordIndexes",
+        "question",
+        "unit",
+        "period",
+        "frame",
+        "channel",
+        "inclusionRule",
+        "membershipComplete",
+        "multiCode",
+        "externalSampling",
+        "codebook",
+        "assignments",
+        "dispositions"
+      ],
+      "properties": {
+        "sectionId": {
+          "enum": [
+            "I10",
+            "I13"
+          ]
+        },
+        "recordIndexes": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/index"
+          }
+        },
+        "question": {
+          "$ref": "#/$defs/text"
+        },
+        "unit": {
+          "$ref": "#/$defs/text"
+        },
+        "period": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "frame": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "channel": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "inclusionRule": {
+          "$ref": "#/$defs/text"
+        },
+        "membershipComplete": {
+          "type": "boolean"
+        },
+        "multiCode": {
+          "type": "boolean"
+        },
+        "externalSampling": {
+          "$ref": "#/$defs/text"
+        },
+        "codebook": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "revision",
+            "codes"
+          ],
+          "properties": {
+            "revision": {
+              "$ref": "#/$defs/text"
+            },
+            "codes": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "code",
+                  "label",
+                  "phrase",
+                  "firstRecordIndex",
+                  "firstSpan"
+                ],
+                "properties": {
+                  "code": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "label": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "phrase": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "firstRecordIndex": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/index"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  },
+                  "firstSpan": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/$defs/span"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        "assignments": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "recordIndex",
+              "code",
+              "span",
+              "provenance"
+            ],
+            "properties": {
+              "recordIndex": {
+                "$ref": "#/$defs/index"
+              },
+              "code": {
+                "$ref": "#/$defs/text"
+              },
+              "span": {
+                "$ref": "#/$defs/span"
+              },
+              "provenance": {
+                "$ref": "#/$defs/provenance"
+              }
+            }
+          }
+        },
+        "dispositions": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "recordIndex",
+              "state",
+              "provenance"
+            ],
+            "properties": {
+              "recordIndex": {
+                "$ref": "#/$defs/index"
+              },
+              "state": {
+                "enum": [
+                  "CODED",
+                  "UNCODED",
+                  "UNCLEAR",
+                  "PENDING"
+                ]
+              },
+              "provenance": {
+                "$ref": "#/$defs/provenance"
+              }
+            }
+          }
+        }
+      }
+    },
+    "corpusSection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "corpora",
+        "mentionPointers",
+        "pendingMentionPointers",
+        "countUnit",
+        "semanticValidation",
+        "blockers"
+      ],
+      "properties": {
+        "corpora": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "corpusIndex",
+              "membershipCount",
+              "includedRecordCount",
+              "excludedCount",
+              "unreadableCount",
+              "pendingCount",
+              "unclearCount",
+              "uncodedCount",
+              "codedCount",
+              "multiCodedCount",
+              "duplicateReferenceCount",
+              "codingComplete",
+              "ratioStatus",
+              "counts",
+              "blockers"
+            ],
+            "properties": {
+              "corpusIndex": {
+                "$ref": "#/$defs/index"
+              },
+              "membershipCount": {
+                "$ref": "#/$defs/count"
+              },
+              "includedRecordCount": {
+                "$ref": "#/$defs/count"
+              },
+              "excludedCount": {
+                "$ref": "#/$defs/count"
+              },
+              "unreadableCount": {
+                "$ref": "#/$defs/count"
+              },
+              "pendingCount": {
+                "$ref": "#/$defs/count"
+              },
+              "unclearCount": {
+                "$ref": "#/$defs/count"
+              },
+              "uncodedCount": {
+                "$ref": "#/$defs/count"
+              },
+              "codedCount": {
+                "$ref": "#/$defs/count"
+              },
+              "multiCodedCount": {
+                "$ref": "#/$defs/count"
+              },
+              "duplicateReferenceCount": {
+                "$ref": "#/$defs/count"
+              },
+              "codingComplete": {
+                "type": "boolean"
+              },
+              "ratioStatus": {
+                "enum": [
+                  "COMPLETE",
+                  "PARTIAL",
+                  "ZERO_DENOMINATOR"
+                ]
+              },
+              "counts": {
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "code",
+                    "recordCount",
+                    "ratio",
+                    "annotationPointers"
+                  ],
+                  "properties": {
+                    "code": {
+                      "$ref": "#/$defs/text"
+                    },
+                    "recordCount": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "ratio": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "numerator",
+                            "denominator"
+                          ],
+                          "properties": {
+                            "numerator": {
+                              "$ref": "#/$defs/count"
+                            },
+                            "denominator": {
+                              "type": "integer",
+                              "minimum": 1,
+                              "maximum": 10000
+                            }
+                          }
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "annotationPointers": {
+                      "$ref": "#/$defs/pointers"
+                    }
+                  }
+                }
+              },
+              "draftCounts": {
+                "description": "Per-code draft counts from eligible retained AI proposals. Accepted counts unchanged; no ratios, never released.",
+                "type": "array",
+                "maxItems": 10000,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "code",
+                    "recordCount",
+                    "annotationPointers",
+                    "label"
+                  ],
+                  "properties": {
+                    "code": {
+                      "$ref": "#/$defs/text"
+                    },
+                    "recordCount": {
+                      "$ref": "#/$defs/count"
+                    },
+                    "annotationPointers": {
+                      "$ref": "#/$defs/pointers"
+                    },
+                    "label": {
+                      "$ref": "#/$defs/draftLabel"
+                    }
+                  }
+                }
+              },
+              "draftLabel": {
+                "$ref": "#/$defs/draftLabel"
+              },
+              "draftCountsVersion": {
+                "$ref": "#/$defs/draftCountsVersion"
+              },
+              "blockers": {
+                "$ref": "#/$defs/strings"
+              }
+            }
+          }
+        },
+        "mentionPointers": {
+          "$ref": "#/$defs/pointers"
+        },
+        "pendingMentionPointers": {
+          "$ref": "#/$defs/pointers"
+        },
+        "countUnit": {
+          "const": "LOCATED_RECORDS"
+        },
+        "semanticValidation": {
+          "const": "DECLARED_NOT_VERIFIED"
+        },
+        "blockers": {
+          "$ref": "#/$defs/strings"
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "codebookId",
+        "profileSha256",
+        "adoptionSha256",
+        "question",
+        "inclusionRule",
+        "codingUnit",
+        "adjudicationRule",
+        "sources",
+        "records",
+        "brief",
+        "i02",
+        "i04",
+        "i05",
+        "i06",
+        "i07",
+        "i08",
+        "i09",
+        "corpora",
+        "i13Mentions"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "1.0.0"
+        },
+        "codebookId": {
+          "const": "located-evidence-v1-draft"
+        },
+        "profileSha256": {
+          "const": "6bae6b549273d163899c6a342082a84b85a11bffc69ab0d6e34131a311dfaded"
+        },
+        "adoptionSha256": {
+          "const": "5c5d1ea4d6d8b8aebfbdc3d92cb51718351890184cc290aac82411722636b7e7"
+        },
+        "question": {
+          "$ref": "#/$defs/nullableText"
+        },
+        "inclusionRule": {
+          "$ref": "#/$defs/text"
+        },
+        "codingUnit": {
+          "const": "LOCATED_RECORD"
+        },
+        "adjudicationRule": {
+          "$ref": "#/$defs/text"
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "logicalPath",
+              "sha256"
+            ],
+            "properties": {
+              "logicalPath": {
+                "$ref": "#/$defs/text"
+              },
+              "sha256": {
+                "$ref": "#/$defs/digest"
+              }
+            }
+          }
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/record"
+          }
+        },
+        "brief": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/brief"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "i02": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/context"
+          }
+        },
+        "i04": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/behavior"
+          }
+        },
+        "i05": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/attitude"
+          }
+        },
+        "i06": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/journey"
+          }
+        },
+        "i07": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/reason"
+          }
+        },
+        "i08": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/barrier"
+          }
+        },
+        "i09": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/gap"
+          }
+        },
+        "corpora": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/corpus"
+          }
+        },
+        "i13Mentions": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "recordIndex",
+              "span",
+              "provenance"
+            ],
+            "properties": {
+              "recordIndex": {
+                "$ref": "#/$defs/index"
+              },
+              "span": {
+                "$ref": "#/$defs/span"
+              },
+              "provenance": {
+                "$ref": "#/$defs/provenance"
+              }
+            }
+          }
+        },
+        "semanticsVersion": {
+          "enum": [
+            "1.0.0",
+            "1.1.0"
+          ]
+        },
+        "draftCountsVersion": {
+          "$ref": "#/$defs/draftCountsVersion"
+        },
+        "workingQuestionProposal": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/text"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}
