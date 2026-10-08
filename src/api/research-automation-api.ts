@@ -60,6 +60,7 @@ import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, Resea
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
+  readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
   readonly databasePath: string;
   readonly artifactRoot: string;
   readonly origin: string;
@@ -133,6 +134,8 @@ const validates = {
   insightModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/request` }),
   insightModelResponse: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/response` }),
   sourceStatus: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/status` }),
+  runPdfs: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/runPdfStates` }),
+  attachPdf: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/attachPdfRequest` }),
   readerBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildRequest` }),
   readerBuildReceipt: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildReceipt` }),
   readerDecision: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionRequest` }),
@@ -199,7 +202,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   const modelRequests = new Map<AbortController, Promise<unknown>>();
   const artifacts = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
   const create = (db: BetterSqlite3.Database, extra: Partial<ConstructorParameters<typeof ResearchAutomationService>[0]> = {}) => new ResearchAutomationService({
-    db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })), ...extra,
+    db, artifactStore: artifacts, ...(configuration.pageIndex ? { pageIndex: configuration.pageIndex } : {}), workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })), ...extra,
   });
   let readService: ResearchAutomationService;
   let writeService: ResearchAutomationService | undefined;
@@ -272,7 +275,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     if (url.search) return fail(response, 400, 'bad_request', 'Query parameters are not supported');
     const statusMatch = /^\/api\/workspaces\/([0-9a-f-]{36})\/research-automation\/source-status$/.exec(url.pathname);
     if (statusMatch) return sourceStatus(request, response, statusMatch[1]!);
-    const match = /^\/(api|owner-api)\/workspaces\/([0-9a-f-]{36})\/research-automation\/runs(?:\/([0-9a-f-]{36})(?:\/(.+))?)?$/.exec(url.pathname);
+    const recheckMatch = /^\/owner-api\/workspaces\/([0-9a-f-]{36})\/research-automation\/source-status\/pageindex\/recheck$/.exec(url.pathname);
+    const match = recheckMatch ? [recheckMatch[0], 'owner-api', recheckMatch[1], undefined, 'pageindex-recheck']
+      : /^\/(api|owner-api)\/workspaces\/([0-9a-f-]{36})\/research-automation\/runs(?:\/([0-9a-f-]{36})(?:\/(.+))?)?$/.exec(url.pathname);
     if (!match) return fail(response, 404, 'not_found', 'Route not found');
     const [, prefix, workspaceId, runId, action] = match;
     const originalReport = /^reports\/(market|insight)(\/pdf)?$/.exec(action ?? '');
@@ -292,8 +297,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel) || action === 'reader-reports' || action === 'reader-reports/decisions'
-      : !action || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel) || action === 'reader-reports' || action === 'reader-reports/decisions'
+      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -313,6 +318,12 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     try {
       if (!mutation) {
         if (!runId) return sendApiJson(response, 200, await readService.listRuns(workspaceId!));
+        if (action === 'pageindex') {
+          const result = { contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId,
+            ...await readService.pageIndexStatesForRun(workspaceId!, runId) };
+          if (!validates.runPdfs(result)) throw new Error('PDF state projection failed validation');
+          return sendApiJson(response, 200, result);
+        }
         if (membershipReview || membershipRead) {
           const result = membershipReview ? await readService.readMetricMembership(workspaceId!, runId, membershipReview[1]!, membershipReview[2]!)
             : membershipRead![1] === 'proposals' ? await readService.readMetricMembershipProposal(workspaceId!, runId, membershipRead![2]!)
@@ -385,6 +396,39 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       }
       await ready;
       if (startupFailed || worker?.lastError !== undefined) return fail(response, 503, 'service_unavailable', 'Research executor is unavailable');
+      if (action === 'pageindex-recheck') {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Thông tin kiểm tra không đúng định dạng.'); }
+        if (typeof input !== 'object' || input === null || Array.isArray(input) || Object.keys(input).length)
+          return fail(response, 400, 'bad_request', 'Kiểm tra lại không nhận tham số.');
+        await readService.readSourceActivity(workspaceId!);
+        await writeService!.recheckPageIndex();
+        const result = await sourceStatusProjection(workspaceId!);
+        return sendApiJson(response, 200, result);
+      }
+      if (action === 'source-pdfs') {
+        const contentType = singleHeader(request.headers['content-type']);
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Hãy chọn một tệp PDF.');
+        const bytes = await readOwnerBytes(request, 32 * 1024 * 1024 + 16 * 1024);
+        let form: FormData;
+        try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(bytes) }).formData(); }
+        catch { return fail(response, 400, 'bad_request', 'Không đọc được biểu mẫu PDF.'); }
+        const metadata = form.get('metadata'); const pdf = form.get('pdf');
+        if ([...form.entries()].length !== 2 || form.getAll('metadata').length !== 1 || form.getAll('pdf').length !== 1 ||
+            typeof metadata !== 'string' || Buffer.byteLength(metadata) > 4096 || !(pdf instanceof File))
+          return fail(response, 400, 'bad_request', 'Cần một bộ thông tin và một tệp PDF.');
+        if (pdf.size > 32 * 1024 * 1024) return fail(response, 413, 'payload_too_large', 'PDF vượt giới hạn 32 MiB.');
+        if (!pdf.size || !['', 'application/pdf', 'application/octet-stream'].includes(pdf.type))
+          return fail(response, 400, 'bad_request', 'Tệp được chọn phải là PDF.');
+        let input: unknown;
+        try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Thông tin PDF không đúng định dạng.'); }
+        if (!validates.attachPdf(input)) return fail(response, 400, 'bad_request', 'Thông tin PDF không đúng định dạng.');
+        const result = { contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId,
+          ...await writeService!.attachRunPdf(workspaceId!, runId!, (input as { fileName: string }).fileName, new Uint8Array(await pdf.arrayBuffer())) };
+        if (!validates.runPdfs(result)) throw new Error('PDF state projection failed validation');
+        return sendApiJson(response, 200, result);
+      }
       if (action === 'sources/supplemental') {
         const contentType = singleHeader(request.headers['content-type']);
         if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Source upload requires multipart/form-data');
@@ -562,6 +606,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       worker!.wake();
       sendApiJson(response, action === 'cancel' || receipt.exactRetry ? 200 : 202, receipt);
     } catch (error) {
+      if (action === 'source-pdfs' && error instanceof ResearchAutomationValidationError)
+        return fail(response, 400, 'bad_request', 'Tài liệu PDF không hợp lệ hoặc vượt giới hạn dung lượng.');
       if (error instanceof AutomationSynthesisExecutionError) {
         if (error.code === 'INVALID_SYNTHESIS_CONFIGURATION') return fail(response, 503, 'service_unavailable', 'Research model is unavailable');
         return fail(response, 409, 'revision_conflict', 'Research state changed or an execution is pending; refresh before submitting');
@@ -589,17 +635,20 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     response.setHeader('Allow', 'GET');
     if (request.method !== 'GET') return fail(response, 405, 'method_not_allowed', 'Method is not supported');
     try {
-      const result = buildResearchAutomationSourceStatus({
-        workspaceId, checkedAt: new Date().toISOString(), executorEnabled: Boolean(writeService), providers: configuration.providers,
-        wired: SOURCES_WIRED_INTO_RUNS, activity: await readService.readSourceActivity(workspaceId),
-      });
-      if (!validates.sourceStatus(result)) throw new Error('Source status projection failed validation');
+      const result = await sourceStatusProjection(workspaceId);
       return sendApiJson(response, 200, result);
     } catch (error) {
       if (error instanceof ResearchAutomationNotFoundError) return fail(response, 404, error.code, 'Research record or output was not found');
       if (error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', 'Research request failed validation');
       return fail(response, 500, 'integrity_error', 'Stored research evidence failed verification');
     }
+  }
+  async function sourceStatusProjection(workspaceId: string) {
+    const result = buildResearchAutomationSourceStatus({ workspaceId, checkedAt: new Date().toISOString(),
+      executorEnabled: Boolean(writeService), providers: configuration.providers, wired: SOURCES_WIRED_INTO_RUNS,
+      activity: await readService.readSourceActivity(workspaceId), pageindex: (writeService ?? readService).pageIndexStatusSummary() });
+    if (!validates.sourceStatus(result)) throw new Error('Source status projection failed validation');
+    return result;
   }
 }
 function fail(response: ServerResponse, status: number, code: string, message: string): void { sendApiJson(response, status, { error: { code, message } }); }

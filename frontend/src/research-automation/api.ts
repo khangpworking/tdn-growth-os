@@ -11,9 +11,9 @@ import type {
 import type { ResearchAutomationSourceConfirmRequest } from '../../../contracts/api/research-automation-source-api.generated';
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricEntry, ResearchAutomationPreparedMetricList } from '../../../contracts/api/research-automation-metric-intake-api.generated';
 import type { ResearchAutomationSupplementalPrepareRequest, ResearchAutomationSupplementalPrepareReceipt, ResearchAutomationSupplementalPreparedList } from '../../../contracts/api/research-automation-supplemental-intake-api.generated';
-import type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry } from '../../../contracts/api/research-automation-source-status-api.generated';
+import type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry, ResearchAutomationRunPdfStates, ResearchAutomationAttachPdfRequest } from '../../../contracts/api/research-automation-source-status-api.generated';
 import { supplementalSourcePrepare, supplementalSourcePrepared, supplementalSourcePreparedList } from '../generated/report-validators.generated.js';
-import { researchAutomationSourceStatus } from '../generated/report-validators.generated.js';
+import { researchAutomationSourceStatus, researchAutomationRunPdfs, researchAutomationAttachPdf } from '../generated/report-validators.generated.js';
 import { researchAutomationReceipt, researchAutomationRun, researchAutomationRunList, researchAutomationMetricPrepared, researchAutomationMetricPreparedList } from '../generated/report-validators.generated.js';
 
 export type { ResearchAutomationRun, ResearchAutomationRunList };
@@ -23,6 +23,7 @@ export type { ResearchAutomationSourceConfirmRequest, ResearchAutomationMetricPr
 export type { ResearchAutomationSupplementalPrepareRequest, ResearchAutomationSupplementalPrepareReceipt };
 export type { ResearchAutomationSupplementalPreparedList };
 export type { ResearchAutomationSourceStatus, ResearchAutomationSourceStatusEntry };
+export type { ResearchAutomationRunPdfStates };
 export type ResearchAutomationCancelBody = ResearchAutomationCancelRequest;
 export type ResearchAutomationReceipt = ResearchAutomationMutationReceipt;
 export type ResearchAutomationInterview = NonNullable<ResearchAutomationStartRequest['interview']>;
@@ -55,6 +56,43 @@ export async function loadSourceStatus(workspaceId: string, signal: AbortSignal)
 
 export async function loadRun(workspaceId: string, runId: string, signal: AbortSignal): Promise<ResearchAutomationRun> {
   return verifiedRun(await request(`/api${base(workspaceId)}/${encodeURIComponent(runId)}`, { headers: { Accept: 'application/json' }, signal }), workspaceId, runId);
+}
+
+export async function recheckPageIndex(workspaceId: string, token: string, signal?: AbortSignal): Promise<ResearchAutomationSourceStatus> {
+  const value = await request(`/owner-api/workspaces/${encodeURIComponent(workspaceId)}/research-automation/source-status/pageindex/recheck`,
+    { ...ownerPost({}, token), ...(signal ? { signal } : {}) }, [200]);
+  if (!researchAutomationSourceStatus(value) || (value as ResearchAutomationSourceStatus).workspaceId !== workspaceId)
+    throw new ResearchAutomationError('integrity', 'Trạng thái nguồn không đúng workspace đang xem.');
+  return value as ResearchAutomationSourceStatus;
+}
+
+function verifiedPdfs(value: unknown, workspaceId: string, runId: string): ResearchAutomationRunPdfStates {
+  if (!researchAutomationRunPdfs(value)) throw new ResearchAutomationError('integrity', 'Không xác minh được trạng thái PDF.');
+  const result = value as ResearchAutomationRunPdfStates;
+  if (result.workspaceId !== workspaceId || result.runId !== runId || new Set(result.documents.map(file => file.sourceSha256)).size !== result.documents.length)
+    throw new ResearchAutomationError('integrity', 'Danh sách PDF không thuộc phiên nghiên cứu đang xem.');
+  return result;
+}
+
+export async function loadRunPdfs(workspaceId: string, runId: string, signal: AbortSignal): Promise<ResearchAutomationRunPdfStates> {
+  return verifiedPdfs(await request(`/api${base(workspaceId)}/${encodeURIComponent(runId)}/pageindex`,
+    { headers: { Accept: 'application/json' }, signal }, [200]), workspaceId, runId);
+}
+
+export async function attachRunPdf(workspaceId: string, runId: string, pdf: File, token: string, signal?: AbortSignal): Promise<ResearchAutomationRunPdfStates> {
+  if (!token) throw new ResearchAutomationError('authorization', 'Mở khóa OWNER để đính kèm PDF.');
+  const metadata: ResearchAutomationAttachPdfRequest = { contractVersion: 'research-automation-pdf-attach-v1', fileName: pdf.name };
+  if (!researchAutomationAttachPdf(metadata) || pdf.size === 0 || pdf.size > 32 * 1024 * 1024)
+    throw new ResearchAutomationError('rejected', 'Chọn một PDF không rỗng, tối đa 32 MiB.');
+  const digest = await crypto.subtle.digest('SHA-256', await pdf.arrayBuffer());
+  const sourceSha256 = [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
+  const form = new FormData(); form.append('metadata', JSON.stringify(metadata)); form.append('pdf', pdf, pdf.name);
+  const result = verifiedPdfs(await request(`/owner-api${base(workspaceId)}/${encodeURIComponent(runId)}/source-pdfs`, {
+    method: 'POST', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, body: form, ...(signal ? { signal } : {}),
+  }, [200]), workspaceId, runId);
+  if (!result.documents.some(document => document.sourceSha256 === sourceSha256))
+    throw new ResearchAutomationError('integrity', 'Danh sách PDF không chứa đúng tệp vừa gửi. Tải lại trạng thái trước khi tiếp tục.');
+  return result;
 }
 
 export async function startRun(workspaceId: string, body: ResearchAutomationStartBody, token: string): Promise<ResearchAutomationRun> {
