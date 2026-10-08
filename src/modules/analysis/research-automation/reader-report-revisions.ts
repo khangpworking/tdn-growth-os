@@ -315,7 +315,7 @@ export class AutomationReaderReports {
     }
     const createdAt = this.now().toISOString(), revisionId = randomUUID();
     const record = await this.artifacts.put(json({ contractVersion: 'insight-reader-build-record-v1', input,
-      revisionId, requestSha256: requestSha, htmlSha256: published.html.sha256, citationTrace: context.page.registry.technicalTrace(), actorId: actor.actorId, createdAt }));
+      revisionId, requestSha256: requestSha, htmlSha256: published.html.sha256, citationTrace: built.citationTrace, actorId: actor.actorId, createdAt }));
     this.db.exec('BEGIN IMMEDIATE');
     try {
       const raced = this.#byRequestKey(request.requestKey);

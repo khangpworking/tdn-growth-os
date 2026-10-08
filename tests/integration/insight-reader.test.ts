@@ -3,13 +3,7 @@ import test from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { insightReaderFixture, readerRunId, readerWorkspaceId, readerOwner, readerNow } from '../helpers/insight-reader-fixture.js';
 import { AutomationReaderReports, type InsightReaderDraftContext } from '../../src/modules/analysis/research-automation/reader-report-revisions.js';
-import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
-import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
-import { renderCitationMarkOrMissing } from '../../src/modules/analysis/citation-register-html.js';
-import { renderLocatedInsightSection } from '../../src/modules/analysis/report-located-insight-pages.js';
-import { insightLiteralSection } from '../../src/modules/analysis/research-automation/review-corpus-report.js';
-import { projectInsightFindings } from '../../src/modules/analysis/reader-report/insight-projection.js';
-import type { InsightReaderSection } from '../../src/modules/analysis/reader-report/insight-template.js';
+import { prepareInsightReaderBuild } from '../../src/modules/analysis/reader-report/insight-build-v1.js';
 
 const sha = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
 const binding = { workspaceId: readerWorkspaceId, runId: readerRunId };
@@ -27,26 +21,16 @@ test('synthetic Insight-only run retains exact literal source methods without a 
 
 test('Insight ledger retains actual method pages, exact retries and owner decisions without Metric fields', async t => {
   const fixture = await insightReaderFixture(t);
-  const input = fixture.input, registry = new CitationRegistry();
-  const citations = { mark: (value: Parameters<CitationRegistry['cite']>[0]) => renderCitationMarkOrMissing(registry.cite(value)) };
-  const sections: InsightReaderSection[] = (['I01', 'I02', 'I04', 'I05', 'I07', 'I08'] as const).map(id => ({ id,
-    body: renderLocatedInsightSection(input.nativeReview!.output, id, { bundleDownload: false, showAnnotationPendingCount: false, citations })!,
-    explanation: 'Khai báo bám lời nguồn, chưa phải nhận định đã xác thực.' }));
-  for (const id of ['I05', 'I07', 'I08', 'I13', 'I17'] as const) {
-    const body = insightLiteralSection(input.insightLiteral!, id, citations), existing = sections.find(section => section.id === id);
-    if (existing) sections[sections.indexOf(existing)] = { ...existing, body: existing.body + body };
-    else sections.push({ id, body, explanation: 'Số sao, nguyên văn trùng và lời người bán giữ riêng theo nguồn.' });
-  }
   const frozen = fixture.db.prepare('SELECT start_request_sha256 start,scope_request_sha256 scope FROM analysis_research_automation_runs WHERE run_id=?')
     .get(readerRunId) as { start: string; scope: string };
-  const context: InsightReaderDraftContext = { ...binding,
-    input: { contractVersion: 'insight-reader-input-v1', reportKind: 'INSIGHT', builderVersion: 'reader-report-insight-v1', ...binding,
-      draftPairId: fixture.pair.pairId, semanticSha256: fixture.report.versionId, sourceReportSha256: sha(fixture.report.bytes),
-      frozenStartSha256: frozen.start, frozenScopeSha256: frozen.scope, sourceRendererVersion: 'automation-report-kit-v19',
-      scope: { keyword: input.start.keyword, definition: input.scope.definition, requestedPeriod: { startDate: input.start.requestedPeriod.startDate, endDate: input.start.requestedPeriod.endDate } },
-      retainedMethods: [{ kind: 'NATIVE', sha256: sha(canonicalJson(input.nativeReview)) }, { kind: 'LITERAL', sha256: sha(canonicalJson(input.insightLiteral)) }] },
-    page: { keyword: input.start.keyword, definition: input.scope.definition,
-      period: { startDate: input.start.requestedPeriod.startDate, endDate: input.start.requestedPeriod.endDate }, sections, registry, findings: projectInsightFindings(input) } };
+  const identity = { ...binding, draftPairId: fixture.pair.pairId,
+    semanticSha256: fixture.report.versionId, sourceReportSha256: sha(fixture.report.bytes),
+    frozenStartSha256: frozen.start, frozenScopeSha256: frozen.scope, sourceRendererVersion: 'automation-report-kit-v19' as const };
+  const prepared = prepareInsightReaderBuild(identity, fixture.input);
+  assert.throws(() => prepareInsightReaderBuild(identity, { ...fixture.input, scope: { ...fixture.input.scope, definition: 'Injected scope' } }), /authenticated frozen scope/);
+  assert.throws(() => prepareInsightReaderBuild(identity, { ...fixture.input, start: { ...fixture.input.start, keyword: 'Injected keyword' } }), /authenticated frozen scope/);
+  assert.throws(() => prepareInsightReaderBuild({ ...identity, runId: randomUUID() }, fixture.input), /authenticated frozen scope/);
+  const context: InsightReaderDraftContext = { ...binding, ...prepared };
   // Direct ledger coverage only; HTTP owning-service reconstruction is tested in the serial integration phase.
   const readers = new AutomationReaderReports(fixture.db, fixture.artifacts, readerNow, { flint: false });
   const request = { contractVersion: 'insight-reader-build-v1', reportKind: 'INSIGHT', requestKey: randomUUID(),
@@ -66,6 +50,7 @@ test('Insight ledger retains actual method pages, exact retries and owner decisi
   await assert.rejects(readers.buildInsight(context, { ...request, semanticSha256: '0'.repeat(64) }, readerOwner), /binding/);
   await assert.rejects(readers.buildInsight(context, request, { ...readerOwner, actorId: 'other-owner' }), /Mã yêu cầu/);
   const second = await readers.buildInsight(context, { ...request, requestKey: randomUUID() }, readerOwner);
+  assert.equal(second.revision.htmlSha256, first.revision.htmlSha256, 'repeat composition preserves exact citation numbering and HTML');
   assert.deepEqual(readers.listV2(binding).revisions.map(revision => revision.state), ['SUPERSEDED', 'PENDING_OWNER_REVIEW']);
   const decision = { contractVersion: 'reader-report-decision-v2', reportKind: 'INSIGHT', requestKey: randomUUID(),
     revisionId: second.revision.revisionId, htmlSha256: second.revision.htmlSha256, decision: 'APPROVED', reason: null };

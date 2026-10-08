@@ -1,4 +1,4 @@
-import type { CitationRegistry } from '../citation-registry.js';
+import { CitationRegistry, type CitationTrace } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { storedLiteral } from '../research-automation/descriptive-report.js';
 import { Narrator } from './bundle.js';
@@ -34,7 +34,17 @@ export interface InsightReaderPage {
 
 /** Presentation only. All section bodies come from existing verified method
  * renderers. Missing methods stay visible; rendering performs no calculation. */
-export function buildInsightReaderTemplate(input: InsightReaderPage): { html: string; narrator: Narrator } {
+export function buildInsightReaderTemplate(input: InsightReaderPage): { html: string; narrator: Narrator; citationTrace: CitationTrace } {
+  // Section bodies already contain their original registry numbers. Reordering
+  // that registry would invalidate those numbers on a repeat build of this page.
+  const registry = new CitationRegistry(), trace = input.registry.technicalTrace();
+  for (const entry of input.registry.entries()) {
+    const source = trace.entries.find(item => item.citationId === entry.citationId);
+    if (!source) throw new Error('Insight citation is missing its retained identity');
+    registry.cite({ sourceKind: entry.sourceKind, identity: source.identity, locator: source.locator,
+      label: entry.label, retrievedAt: entry.retrievedAt, url: entry.url, quote: entry.quote,
+      quoteVerification: entry.quoteVerification, technical: source.technical });
+  }
   const narrator = new Narrator(input.findings.bundle);
   const known = new Map<InsightSectionId, InsightReaderSection>();
   for (const section of input.sections) {
@@ -44,7 +54,7 @@ export function buildInsightReaderTemplate(input: InsightReaderPage): { html: st
   const findings = input.findings.findings;
   const summary = findings.length ? `<ul class="insight-findings">${findings.map(finding => {
     if (!known.get(finding.sectionId)?.body) throw new Error('Insight finding requires its retained method section');
-    const marks = finding.citations.map(citation => renderCitationMarkOrMissing(input.registry.cite(citation))).join(' ');
+    const marks = finding.citations.map(citation => renderCitationMarkOrMissing(registry.cite(citation))).join(' ');
     if (!marks || marks.includes('cite-missing')) throw new Error('Insight finding requires exact source citations');
     return `<li><p${finding.template.includes('đề xuất, chờ chủ duyệt') ? ' data-classified="pending"' : ''}><b>Nhận định:</b> ${narrator.nar(finding.template, 'insight-findings')}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">${esc(INSIGHT_TITLES[finding.sectionId])}</a> ${marks}</p><p><b>Trạng thái:</b> ${esc(finding.status)}</p><p><b>Phạm vi:</b> ${esc(finding.scope)}</p></li>`;
   }).join('')}</ul>` : '';
@@ -58,12 +68,12 @@ export function buildInsightReaderTemplate(input: InsightReaderPage): { html: st
       : '<p>Chưa có kết quả phương pháp đã xác minh cho mục này. Không suy ra không có hiện tượng trong nguồn.</p>';
     return `<section id="${id}"><div class="sh"><span class="sid">${id}</span><h2>${esc(INSIGHT_TITLES[id])}</h2></div><p class="ans">${esc(selected?.explanation ?? 'Chưa đủ bằng chứng cho mục này.')}</p>${selected?.body ?? missing}</section>`;
   }).join('\n');
-  body = orderReportCitations(body, input.registry);
-  body += renderCitationRegister(input.registry.entries(), { format: 'web' });
+  body = orderReportCitations(body, registry);
+  body += renderCitationRegister(registry.entries(), { format: 'web' });
   const html = page({ title: 'Báo cáo insight', coverHtml: cover(null, storedLiteral(input.keyword, 'Từ khóa được giữ trong bản lưu'), ['Báo cáo', 'INSIGHT', 'Bản nháp · Chờ chủ duyệt']),
     extraCss: INSIGHT_CSS,
     intro: '<p>Bản đọc từ đúng nguồn và phương pháp đã lưu. Không có quyết định thay người dùng. Không cộng gộp nền tảng hoặc coi bản ghi là người.</p>',
     toc: [['insight-findings', 'Kết luận chính'], ...INSIGHT_SECTION_IDS.map(id => [id, INSIGHT_TITLES[id]] as const)],
     sections: [body], foot: '<p>Chưa được chủ duyệt. Quy tắc mã hóa hoặc biên nhận lựa chọn không xác nhận sự thật, độ đại diện hoặc điều kiện phát hành.</p>' });
-  return { html, narrator };
+  return { html, narrator, citationTrace: registry.technicalTrace() };
 }
