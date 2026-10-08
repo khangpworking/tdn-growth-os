@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import type { TestContext } from 'node:test';
 import { openDatabase } from '../../src/platform/db/index.js';
+import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
@@ -19,7 +20,7 @@ export const readerOwner = { actorId: 'owner:synthetic', role: 'OWNER' as const 
 export const readerNow = () => new Date('2026-10-08T00:00:00.000Z');
 
 /** Actual source intake/run/literal revision, fake transport only, no Metric file. */
-export async function insightReaderFixture(t: TestContext) {
+export async function insightReaderFixture(t: TestContext, default21 = false) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-insight-reader-'));
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
   const db = openDatabase({ databasePath, now: readerNow }).db;
@@ -35,7 +36,7 @@ export async function insightReaderFixture(t: TestContext) {
   let input: AutomationReportInput | undefined, calls = 0;
   const source = syntheticProductSource();
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), uuid: () => readerRunId,
-    now: readerNow, readerReportFlint: false, source: { ...source,
+    now: readerNow, metricAttachmentStore: new RequestScopedArtifactStore(artifactRoot), readerReportFlint: false, source: { ...source,
       quickSearch: async (...args) => { calls++; return source.quickSearch(...args); },
       collect: async (...args) => { calls++; return source.collect(...args); } },
     renderer: (value, kind) => { input = value; return buildResearchAutomationReport(value, kind); } });
@@ -60,5 +61,34 @@ export async function insightReaderFixture(t: TestContext) {
   const semantic = JSON.parse((await artifacts.read(report.versionId)).toString('utf8')) as Record<string, unknown>;
   assert.equal(semantic.rendererVersion, 'automation-report-kit-v19');
   assert.ok(input.insightLiteral); assert.ok(input.nativeReview);
-  return { root, db, artifacts, service, databasePath, artifactRoot, input, pair, report, semantic, calls: () => calls };
+  const literalReport = report;
+  let finalPair = pair, finalReport = report, finalSemantic = semantic, modelCalls = 0;
+  if (default21) {
+    const context = await service.readInsightSourceContext(readerWorkspaceId, readerRunId, pair.pairId);
+    const pending = { basis: 'PENDING_AI', coderRole: 'synthetic model', adjudication: null, disagreement: null };
+    const firstText = context.input.records[0]!.text!;
+    const annotations = { i02: [], i04: [{ recordIndex: 0, span: { start: 0, end: firstText.length, quote: firstText },
+      eventKind: 'ACTION_REPORTED', attribution: 'UNKNOWN', qualifiers: [], counterevidence: [], provenance: pending }],
+      i05: [], i06: [], i07: [], i08: [], i09: [], i13Mentions: [], corpora: [] };
+    const proposed = await service.proposeDefaultModelInsightCoding(readerWorkspaceId, readerRunId, {
+      contractVersion: 'insight-default-model-request-v1', requestKey: randomUUID(), binding: context.binding,
+      defaultRuleId: null, defaultRuleSha256: null, previousProposalId: null, previousProposalSha256: null, recordIndexes: [0],
+    }, readerOwner, { configuration: { contractVersion: 'insight-model-configuration-v1', providerId: 'synthetic', modelId: 'fixture-model',
+      temperature: null, maxOutputTokens: 4096, timeoutMs: 1000, maxResponseBytes: 65536 }, port: { async generateText() {
+        modelCalls++; return { text: JSON.stringify({ codebooks: [], annotations }) };
+      } } });
+    assert.equal(proposed.execution.status, 'VALID'); assert.ok(proposed.proposal);
+    const revision21 = await service.requestReportRevision(readerWorkspaceId, readerRunId, {
+      contractVersion: 'automation-insight-default-report-revision-v1', requestKey: randomUUID(), previousPairId: pair.pairId,
+      sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+      defaultInsight: { contractVersion: 'insight-default-draft-select-v1', proposalId: proposed.proposal.evidence.evidenceId, proposalSha256: proposed.proposal.sha256 } });
+    await service.processNext();
+    finalPair = (await service.listReportVersions(readerWorkspaceId, readerRunId)).find(row => row.attemptId === revision21.attemptId)!;
+    assert.ok(finalPair);
+    finalReport = await service.readReport(readerWorkspaceId, readerRunId, 'INSIGHT', false, finalPair.pairId);
+    finalSemantic = JSON.parse((await artifacts.read(finalReport.versionId)).toString()) as Record<string, unknown>;
+    assert.equal(finalSemantic.rendererVersion, 'automation-report-kit-v21');
+    assert.deepEqual(await service.readReport(readerWorkspaceId, readerRunId, 'INSIGHT', false, pair.pairId), literalReport);
+  }
+  return { root, db, artifacts, service, databasePath, artifactRoot, input, pair: finalPair, report: finalReport, semantic: finalSemantic, literalReport, literalPair: pair, modelCalls: () => modelCalls, calls: () => calls };
 }

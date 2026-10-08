@@ -468,7 +468,7 @@ export class AutomationReaderReports {
     let revision: ResearchAutomationReaderRevisionV2;
     if (row.report_kind === 'MARKET') revision = { ...this.#project(row), reportKind: 'MARKET', builderVersion: row.builder_version };
     else {
-      if (row.semantic_sha256 === null || row.source_report_sha256 === null || row.builder_version !== 'reader-report-insight-v1')
+      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2'))
         throw new ResearchAutomationIntegrityError('Stored Insight reader revision is invalid.');
       const latest = this.#latest(row.run_id, 'INSIGHT');
       revision = { reportKind: 'INSIGHT', builderVersion: row.builder_version, revisionId: row.revision_id,

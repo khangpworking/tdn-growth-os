@@ -22,7 +22,9 @@ export type Platform = 'shopee' | 'tiktok';
 export type Sha256 = string;
 export type Timestamp = string;
 export type ResearchAutomationReaderRevisionV2 =
-  ResearchAutomationMarketReaderRevisionV2 | ResearchAutomationInsightReaderRevision;
+  | ResearchAutomationMarketReaderRevisionV2
+  | ResearchAutomationInsightReaderRevision
+  | ResearchAutomationInsightReaderRevisionV2;
 
 export interface ResearchAutomationReaderBuildRequest {
   contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1' | 'reader-report-build-v1.2';
@@ -380,6 +382,25 @@ export interface ResearchAutomationInsightReaderRevision {
   };
   reportKind: 'INSIGHT';
   builderVersion: 'reader-report-insight-v1';
+  semanticSha256: Sha256;
+  sourceReportSha256: Sha256;
+}
+export interface ResearchAutomationInsightReaderRevisionV2 {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v2';
   semanticSha256: Sha256;
   sourceReportSha256: Sha256;
 }

@@ -2,145 +2,297 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/contracts/analysis/insight-reader-input.schema.json",
   "title": "InsightReaderInput",
-  "type": "object",
-  "additionalProperties": false,
-  "required": [
-    "contractVersion",
-    "reportKind",
-    "builderVersion",
-    "workspaceId",
-    "runId",
-    "draftPairId",
-    "semanticSha256",
-    "sourceReportSha256",
-    "frozenStartSha256",
-    "frozenScopeSha256",
-    "sourceRendererVersion",
-    "scope",
-    "retainedMethods"
+  "description": "Exact retained Insight reader build identity; frozen scope comes from authenticated start/scope. Method references bind owning-service-verified retained outputs, never injected summaries or copied private corpus. No calculation, model call, Metric profile or implicit approval.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/v1"
+    },
+    {
+      "$ref": "#/$defs/v2"
+    }
   ],
-  "properties": {
-    "contractVersion": {
-      "const": "insight-reader-input-v1"
-    },
-    "reportKind": {
-      "const": "INSIGHT"
-    },
-    "builderVersion": {
-      "const": "reader-report-insight-v1"
-    },
-    "workspaceId": {
-      "type": "string",
-      "format": "uuid"
-    },
-    "runId": {
-      "type": "string",
-      "format": "uuid"
-    },
-    "draftPairId": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    },
-    "semanticSha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    },
-    "sourceReportSha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    },
-    "frozenStartSha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    },
-    "frozenScopeSha256": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    },
-    "sourceRendererVersion": {
-      "enum": [
-        "automation-report-kit-v17",
-        "automation-report-kit-v18",
-        "automation-report-kit-v19"
-      ]
-    },
-    "scope": {
-      "title": "InsightReaderFrozenScope",
+  "$defs": {
+    "v1": {
+      "title": "InsightReaderInputV1",
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "keyword",
-        "definition",
-        "requestedPeriod"
+        "contractVersion",
+        "reportKind",
+        "builderVersion",
+        "workspaceId",
+        "runId",
+        "draftPairId",
+        "semanticSha256",
+        "sourceReportSha256",
+        "frozenStartSha256",
+        "frozenScopeSha256",
+        "sourceRendererVersion",
+        "scope",
+        "retainedMethods"
       ],
       "properties": {
-        "keyword": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 120,
-          "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$"
+        "contractVersion": {
+          "const": "insight-reader-input-v1"
         },
-        "definition": {
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 2000,
-          "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*\\S[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+        "reportKind": {
+          "const": "INSIGHT"
         },
-        "requestedPeriod": {
-          "title": "InsightReaderRequestedPeriod",
+        "builderVersion": {
+          "const": "reader-report-insight-v1"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "draftPairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "semanticSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceReportSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenStartSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenScopeSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceRendererVersion": {
+          "enum": [
+            "automation-report-kit-v17",
+            "automation-report-kit-v18",
+            "automation-report-kit-v19"
+          ]
+        },
+        "scope": {
+          "title": "InsightReaderFrozenScope",
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "startDate",
-            "endDate"
+            "keyword",
+            "definition",
+            "requestedPeriod"
           ],
           "properties": {
-            "startDate": {
+            "keyword": {
               "type": "string",
-              "format": "date"
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$"
             },
-            "endDate": {
+            "definition": {
               "type": "string",
-              "format": "date"
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*\\S[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+            },
+            "requestedPeriod": {
+              "title": "InsightReaderRequestedPeriod",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "startDate",
+                "endDate"
+              ],
+              "properties": {
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
+          }
+        },
+        "retainedMethods": {
+          "type": "array",
+          "items": {
+            "title": "InsightReaderMethodReference",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "sha256"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "CODING",
+                  "LITERAL",
+                  "LOCATED",
+                  "NATIVE",
+                  "CORPUS",
+                  "BOUNDED",
+                  "SOURCE_EVIDENCE",
+                  "SOURCE_CLAIMS",
+                  "DECISION_PACKET",
+                  "DECISION_SYNTHESIS",
+                  "I14_ADMISSION",
+                  "I14_SYNTHESIS"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
             }
           }
         }
       }
     },
-    "retainedMethods": {
-      "type": "array",
-      "items": {
-        "title": "InsightReaderMethodReference",
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "kind",
-          "sha256"
-        ],
-        "properties": {
-          "kind": {
-            "enum": [
-              "CODING",
-              "LITERAL",
-              "LOCATED",
-              "NATIVE",
-              "CORPUS",
-              "BOUNDED",
-              "SOURCE_EVIDENCE",
-              "SOURCE_CLAIMS",
-              "DECISION_PACKET",
-              "DECISION_SYNTHESIS",
-              "I14_ADMISSION",
-              "I14_SYNTHESIS"
-            ]
-          },
-          "sha256": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$"
+    "v2": {
+      "title": "InsightReaderInputV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reportKind",
+        "builderVersion",
+        "workspaceId",
+        "runId",
+        "draftPairId",
+        "semanticSha256",
+        "sourceReportSha256",
+        "frozenStartSha256",
+        "frozenScopeSha256",
+        "sourceRendererVersion",
+        "scope",
+        "retainedMethods"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-reader-input-v2"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-v2"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "draftPairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "semanticSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceReportSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenStartSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenScopeSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceRendererVersion": {
+          "const": "automation-report-kit-v21"
+        },
+        "scope": {
+          "title": "InsightReaderFrozenScope",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "keyword",
+            "definition",
+            "requestedPeriod"
+          ],
+          "properties": {
+            "keyword": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "definition": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*\\S[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+            },
+            "requestedPeriod": {
+              "title": "InsightReaderRequestedPeriod",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "startDate",
+                "endDate"
+              ],
+              "properties": {
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
+          }
+        },
+        "retainedMethods": {
+          "type": "array",
+          "items": {
+            "title": "InsightReaderMethodReference",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "sha256"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "CODING",
+                  "LITERAL",
+                  "LOCATED",
+                  "NATIVE",
+                  "CORPUS",
+                  "BOUNDED",
+                  "SOURCE_EVIDENCE",
+                  "SOURCE_CLAIMS",
+                  "DECISION_PACKET",
+                  "DECISION_SYNTHESIS",
+                  "I14_ADMISSION",
+                  "I14_SYNTHESIS"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
           }
         }
       }
     }
-  },
-  "description": "Exact retained Insight reader build identity; frozen scope comes from authenticated start/scope. Method references bind owning-service-verified retained outputs, never injected summaries or copied private corpus. No calculation, model call, Metric profile or implicit approval."
+  }
 }

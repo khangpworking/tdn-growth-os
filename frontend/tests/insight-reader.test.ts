@@ -62,7 +62,8 @@ test('v2 reader client validates independent kind histories and rejects stale, r
   } finally { globalThis.fetch = original; }
 });
 
-test('Insight panel requires explicit source selection and owner action, with separate Market approval', async () => {
+for (const builderVersion of ['reader-report-insight-v1', 'reader-report-insight-v2'] as const) test(`Insight panel ${builderVersion} requires explicit source selection and owner action, with separate Market approval`, async () => {
+  const visibleRevision = { ...revision, builderVersion };
   const dom = setupDom(), original = globalThis.fetch;
   const { createRoot } = await import('react-dom/client');
   const { default: Panel } = await tsImport('../src/research-automation/ReaderReportPanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/ReaderReportPanel');
@@ -71,16 +72,16 @@ test('Insight panel requires explicit source selection and owner action, with se
   globalThis.fetch = (async (url, init) => {
     if (!init?.method) {
       if (String(url).endsWith('report-versions')) return json({ contractVersion: 'automation-report-version-list-v1', workspaceId, runId,
-        versions: [{ pairId: revision.draftPairId, versionNumber: 1, attemptId: null, outputs: [{ kind: 'INSIGHT', versionId: revision.semanticSha256, pdfAvailable: false }] }] });
+        versions: [{ pairId: visibleRevision.draftPairId, versionNumber: 1, attemptId: null, outputs: [{ kind: 'INSIGHT', versionId: visibleRevision.semanticSha256, pdfAvailable: false }] }] });
       return json(list(rows));
     }
     const body = JSON.parse(String(init.body)); writes.push(body);
     assert.equal((init.headers as Record<string, string>).Authorization, `Bearer ${token}`);
     if (String(url).endsWith('/insight')) {
-      rows = [...rows, revision]; return json({ contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision }, 201);
+      rows = [...rows, visibleRevision]; return json({ contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: visibleRevision }, 201);
     }
-    assert.equal(body.reportKind, 'INSIGHT'); assert.equal(body.revisionId, revision.revisionId); assert.equal(body.htmlSha256, revision.htmlSha256);
-    rows = [rows[0]!, { ...revision, state: 'APPROVED', decision: { decision: 'APPROVED', reason: null, decidedAt: revision.createdAt } }];
+    assert.equal(body.reportKind, 'INSIGHT'); assert.equal(body.revisionId, visibleRevision.revisionId); assert.equal(body.htmlSha256, visibleRevision.htmlSha256);
+    rows = [rows[0]!, { ...visibleRevision, state: 'APPROVED', decision: { decision: 'APPROVED', reason: null, decidedAt: visibleRevision.createdAt } }];
     return json({ contractVersion: 'reader-report-decision-receipt-v2', exactRetry: false, revision: rows[1] }, 201);
   }) as typeof fetch;
   const run = { workspaceId, runId, reports: ['INSIGHT'], status: 'DRAFT_READY' } as ResearchAutomationRun;
@@ -91,11 +92,11 @@ test('Insight panel requires explicit source selection and owner action, with se
     await act(async () => root.render(createElement(Panel, { run, ownerToken: token, writesAvailable: true })));
     assert.equal(button('Dựng bản đọc insight').disabled, true);
     const select = document.querySelectorAll<HTMLSelectElement>('select')[1]!;
-    await act(async () => { select.value = revision.draftPairId; select.dispatchEvent(new Event('change', { bubbles: true })); });
+    await act(async () => { select.value = visibleRevision.draftPairId; select.dispatchEvent(new Event('change', { bubbles: true })); });
     assert.equal(button('Dựng bản đọc insight').disabled, false); assert.equal(writes.length, 0);
     await act(async () => button('Dựng bản đọc insight').click());
-    assert.equal(writes.length, 1); assert.equal(writes[0]!.draftPairId, revision.draftPairId); assert.equal(writes[0]!.semanticSha256, revision.semanticSha256);
-    assert.match(dom.container.textContent!, /reader-report-insight-v1/); assert.match(dom.container.textContent!, /Chờ bạn duyệt/);
+    assert.equal(writes.length, 1); assert.equal(writes[0]!.draftPairId, visibleRevision.draftPairId); assert.equal(writes[0]!.semanticSha256, visibleRevision.semanticSha256);
+    assert.match(dom.container.textContent!, new RegExp(builderVersion)); assert.match(dom.container.textContent!, /Chờ bạn duyệt/);
     await act(async () => button('Duyệt').click()); assert.equal(writes.length, 1);
     const dialog = document.querySelector('[role=dialog]')!;
     await act(async () => [...dialog.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === 'Duyệt')!.click());

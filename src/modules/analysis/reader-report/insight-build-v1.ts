@@ -4,7 +4,7 @@ import { CitationRegistry } from '../citation-registry.js';
 import { renderCitationMarkOrMissing } from '../citation-register-html.js';
 import { renderLocatedInsightSection } from '../report-located-insight-pages.js';
 import { renderReportMethodPacketSection } from '../report-method-packets-pages.js';
-import type { AutomationReportInput } from '../research-automation/reports.js';
+import { insightCodingView, draftInsightGroupsView, insightCodingTrace, literalPendingSection, type CodingFamily, type AutomationReportInput } from '../research-automation/reports.js';
 import { attributionText, retainedEvidenceHtml, retainedQuoteHtml, storedLiteral, technicalLiteral, type ReportCitations } from '../research-automation/descriptive-report.js';
 import { insightLiteralSection, reviewCorpusSection } from '../research-automation/review-corpus-report.js';
 import { sourceEvidenceHtml } from '../research-automation/source-evidence-report.js';
@@ -29,9 +29,9 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       digest(methods.start) !== identity.frozenStartSha256 || digest(methods.scope) !== identity.frozenScopeSha256)
     throw new ReaderReportInputError('Insight reader methods differ from authenticated frozen scope.');
   if (methods.nativeReview && (methods.locatedReview || methods.reviewCorpus)) throw new ReaderReportInputError('Insight reader cannot substitute native and collected sources.');
-  // The coding renderer helpers are a separately reviewed main dependency.
-  // Until that dependency is placed, no substitute coding summary is admitted.
-  if (methods.insightCoding) throw new ReaderReportInputError('Reviewed coding renderer integration is pending.');
+  const default21 = identity.sourceRendererVersion === 'automation-report-kit-v21';
+  if (default21 !== (methods.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
+    throw new ReaderReportInputError('Insight source renderer and coding snapshot versions differ.');
   const scope = { keyword: methods.start.keyword, definition: methods.scope.definition,
     requestedPeriod: { startDate: methods.start.requestedPeriod.startDate, endDate: methods.start.requestedPeriod.endDate } };
   const references: InsightReaderInput['retainedMethods'] = [];
@@ -42,13 +42,13 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
     }
   };
   ref('NATIVE', methods.nativeReview); ref('LOCATED', methods.locatedReview); ref('CORPUS', methods.reviewCorpus);
-  ref('LITERAL', methods.insightLiteral); ref('BOUNDED', methods.boundedMethods); ref('SOURCE_EVIDENCE', methods.sourceEvidence);
+  ref('CODING', methods.insightCoding); ref('LITERAL', methods.insightLiteral); ref('BOUNDED', methods.boundedMethods); ref('SOURCE_EVIDENCE', methods.sourceEvidence);
   ref('SOURCE_CLAIMS', methods.sourceClaims); ref('SOURCE_CLAIMS', methods.decisionSourceClaims);
   ref('I14_ADMISSION', methods.i14Admission); ref('I14_SYNTHESIS', methods.i14Synthesis);
   for (const packet of methods.decisionPackets ?? []) ref('DECISION_PACKET', packet);
   for (const outcome of Object.values(methods.decisionSynthesis ?? {})) ref('DECISION_SYNTHESIS', outcome);
-  const input: InsightReaderInput = { ...identity, contractVersion: 'insight-reader-input-v1', reportKind: 'INSIGHT',
-    builderVersion: 'reader-report-insight-v1', scope, retainedMethods: references };
+  const input = { ...identity, contractVersion: default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
+    builderVersion: default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references } as InsightReaderInput;
   verifyInsightReaderInput(input, input);
   const registry = new CitationRegistry();
   const citations: ReportCitations = { mark: value => renderCitationMarkOrMissing(registry.cite(value)) };
@@ -59,8 +59,12 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   const source = methods.nativeReview ?? (methods.locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? methods.locatedReview : undefined);
   if (source) {
     for (const id of ['I01', 'I02', 'I04', 'I05', 'I07', 'I08'] as const) {
+      const coding = methods.insightCoding;
+      if (id !== 'I01' && coding && ('draftSelection' in coding ||
+          ('selectionContractVersion' in coding && coding.selectionContractVersion === 'automation-insight-selection-v2'))) continue;
       const body = renderLocatedInsightSection(source.output, id, { bundleDownload: false, showAnnotationPendingCount: false, citations });
-      if (body) append(id, body, 'Khai báo bám lời nguồn; chưa xác thực độc lập và chưa phải mục phân tích hoàn chỉnh.');
+      const pending = id === 'I01' ? undefined : literalPendingSection(source, id, citations);
+      if (body) append(id, (pending?.notice ?? '') + body + (pending?.details ?? ''), 'Khai báo bám lời nguồn; chưa xác thực độc lập và chưa phải mục phân tích hoàn chỉnh.');
     }
     append('I03', '<p>Đơn vị là bản ghi định vị trong tập nguồn đã lưu, không phải số người. Quy tắc đọc chỉ cho phép khai báo bám lời nguồn; không xác nhận OWNER đã duyệt từng nhãn. Ngày nguồn không tự xác lập độ phủ kỳ yêu cầu.</p>',
       'Giữ riêng nguồn, trạng thái đọc và giới hạn phương pháp.');
@@ -70,6 +74,19 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       return `<tr><td>${mark}<br><code>${technicalLiteral(record.sourceSha256)}</code><br><code>${technicalLiteral(record.locator)}</code><br>${attributionText(record.sourceAttribution, 'Chưa có ghi nhận nguồn')}</td><td>${record.text === null ? 'Không có văn bản đọc được' : retainedQuoteHtml(record.text, 'blockquote')}</td><td>${storedLiteral(record.disposition, 'Trạng thái giữ trong bản lưu')}<br>${record.timeText === null ? 'Chưa có ngày nguồn' : storedLiteral(record.timeText, 'Ngày giữ trong bản lưu')}</td></tr>`;
     }).join('');
     append('I17', `<h3>Bản ghi và vị trí nguồn</h3><p>Các bản ghi giữ nguyên vị trí và phần chữ. Không nối tác giả hoặc cộng số giữa các nguồn. Toàn văn có thể chứa thông tin cá nhân.</p><div class="table-wrap" role="region" aria-label="Bản ghi lời nguồn đã lưu" tabindex="0"><table><caption>Bản ghi nguồn, tách khỏi diễn giải AI</caption><thead><tr><th>Truy nguồn</th><th>Nguyên văn</th><th>Trạng thái và ngày nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="3">Không có bản ghi trong đầu vào phương pháp; không suy ra nguồn không có phản hồi.</td></tr>'}</tbody></table></div>`, 'Phụ lục giữ nguyên nguồn và giới hạn của bản lưu.');
+  }
+  if (methods.insightCoding) {
+    const coding = methods.insightCoding;
+    const families: CodingFamily[] = 'draftSelection' in coding ||
+      ('selectionContractVersion' in coding && coding.selectionContractVersion === 'automation-insight-selection-v2')
+      ? ['I02', 'I04', 'I05', 'I06', 'I07', 'I08', 'I09', 'I10', 'I13'] : ['I06', 'I09', 'I10', 'I13'];
+    for (const family of families) {
+      const view = insightCodingView(coding, family, citations);
+      append(family, view.html, view.explanation);
+    }
+    for (const id of ['I03', 'I17'] as const) append(id, insightCodingTrace(coding, id), 'Giữ nguyên dấu vết và trạng thái lựa chọn mã hóa đã lưu.');
+    if (coding.contractVersion === 'automation-insight-coding-snapshot-v3' || coding.contractVersion === 'automation-insight-coding-snapshot-v4')
+      append('I11', draftInsightGroupsView(coding, citations), 'Số đề xuất giữ riêng theo sàn; chưa có tỷ lệ hoặc bằng chứng mua lẻ và mua sỉ.');
   }
   if (methods.reviewCorpus) for (const id of ['I03', 'I17'] as const)
     append(id, reviewCorpusSection(methods.reviewCorpus, id, citations), 'Tập thu nguồn giữ riêng với phần mã hóa.');

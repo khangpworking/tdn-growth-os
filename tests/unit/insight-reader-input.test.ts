@@ -28,3 +28,15 @@ test('Insight reader canonical identity requires exact authenticated source/scop
   const duplicate = input(); duplicate.retainedMethods.push({ ...duplicate.retainedMethods[0]! });
   assert.throws(() => verifyInsightReaderInput(duplicate, duplicate), ReaderReportInputError);
 });
+
+
+test('default21 reader requires explicit input-v2 and builder-v2 with strict source pairing', () => {
+  const previous = input();
+  const next: InsightReaderInput = { ...previous, contractVersion: 'insight-reader-input-v2', builderVersion: 'reader-report-insight-v2', sourceRendererVersion: 'automation-report-kit-v21' };
+  assert.deepEqual(verifyInsightReaderInput(next, next), next);
+  for (const wrong of [
+    { ...next, contractVersion: previous.contractVersion }, { ...next, builderVersion: previous.builderVersion },
+    { ...next, sourceRendererVersion: previous.sourceRendererVersion },
+  ]) assert.throws(() => verifyInsightReaderInput(wrong, next), ReaderReportInputError);
+  assert.deepEqual(verifyInsightReaderInput(previous, previous), previous);
+});
