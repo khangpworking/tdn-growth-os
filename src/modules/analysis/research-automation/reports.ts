@@ -490,7 +490,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Views are composed on first render so that [n] numbers follow the page, not the section-array build order.
   const locatedViews = new Map<string, () => string>();
   const registry = new CitationRegistry();
-  const citations: ReportCitations = { mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
+  const citations: ReportCitations = { ...(input.start.sourceEvidenceVersion ? { distinctEntityWording: true } : {}), mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
   // Sections whose retained decision synthesis is VALID; candidate prose never makes a section analytically complete.
   const decisionGeneratedIds: string[] = [];
   const decisionProposedIds: string[] = [];
@@ -751,7 +751,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
-    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure);
+    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion));
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
       const codingNotice = located
         ? `<p class="warning">Đã áp dụng quy tắc đã duyệt để đưa các khai báo rõ nghĩa vào phạm vi hẹp, có vị trí nguyên văn. ${located.projection.pending.length} mục còn chờ được giữ cùng bản đề xuất ban đầu; không tính thành mục phân tích hoàn chỉnh. Khi mở lại, hệ thống đọc kết quả đã lưu, không chạy lại parser hoặc gọi nguồn.</p>`

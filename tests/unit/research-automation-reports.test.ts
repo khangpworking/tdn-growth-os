@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import test from 'node:test';
 import { JSDOM } from 'jsdom';
 import type { DescriptiveMarketMethods } from '../../contracts/analysis/descriptive-market-methods.generated.js';
@@ -525,4 +526,23 @@ test('frozen M01 sources with zero eligible claims and retained non-query source
   assert.match(captureRow, /Lượt này không có bản thu từ truy vấn nguồn mới\. Nguồn đã lưu và gắn với lượt vẫn được dùng ở: bằng chứng đầu nguồn \(M01\)\./);
   const plain = marketDocument(buildResearchAutomationReport(input, 'MARKET')).querySelector('#M13 [aria-label="Bản thu từ truy vấn nguồn"] tbody tr')!.textContent!;
   assert.equal(plain, 'Lượt này không có bản thu từ truy vấn nguồn mới.');
+});
+
+test('v18 neutral method identity wording preserves retained input and marker-free renderer bytes', () => {
+  const input = fixture();
+  const output = methods({ m06: [{ observation: literal('/rows/0', 'Sản phẩm mẫu', 'observed_value', '1'),
+    objectLiteral: 'Sản phẩm', statusLiteral: null, dateMeaning: 'Ngày quan sát' }] });
+  output.input.scope.variantRule = 'Giữ mã sản phẩm của nguồn; chưa hợp nhất listing hoặc chuẩn hóa biến thể.';
+  const retainedInput = structuredClone(output.input);
+  const legacy = buildResearchAutomationReport({ ...input, descriptiveMethods: output }, 'MARKET');
+  assert.match(legacy.html.toString(), /Số đối tượng duy nhất/);
+  assert.match(legacy.html.toString(), /chưa hợp nhất listing/);
+  const packet = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
+  const current = buildResearchAutomationReport({ ...input, descriptiveMethods: output,
+    start: { ...input.start, sourceEvidenceVersion: 'automation-source-evidence-v1' }, sourceEvidence: packet }, 'MARKET');
+  assert.equal((current.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v18');
+  assert.match(current.html.toString(), /Số đối tượng phân biệt/);
+  assert.match(current.html.toString(), /chưa gộp listing/);
+  assert.deepEqual(output.input, retainedInput);
+  assert.deepEqual(buildResearchAutomationReport({ ...input, descriptiveMethods: output }, 'MARKET'), legacy);
 });

@@ -1,58 +1,76 @@
-# Handoff — NEXT-SOURCES keyword filter integrations and source evidence (U-12/G-13, U-27)
+# Handoff — NEXT-SOURCES recovery (U12/G13 and U27)
 
 Updated: 2026-10-08
-Worktree/branch: `khangpworking/ultimate-next-sources` (base `9985490`, PR169 merged)
-Completed: versioned AI keyword/exclusion drafting with fake transport; P5 SerpApi L9 consumer module (service wiring explicitly deferred); U-27 source-appendix projection module. No P9/U23 collectors exist — left unbuilt with no shim, no false completion.
+Worktree/branch: `khangpworking/ultimate-next-sources`, PR172. Recovery preserved original head `7f1fec2b9c32c8becfd52f7e8e05b2702db60ec5`; implementation checkpoint `a246004`; normal merge checkpoint `3a13c51` includes main `1c58d2532f254ec476ef71879cf589400d106927` (PR174/175). No reset, rebase, historical replay, merge to main, deployment or live application call.
+
+Completed:
+
+- Replaced unapproved duplicate request/record/appendix interfaces and manual validators with canonical JSON Schemas, generated types and AJV trust-boundary checks.
+- Actual owning service drafts lists during new-version collection from selected/peer Kalodata rank/detail product names verified against exact retained response bytes. Product cards and caller-supplied names never establish source authenticity. Every name binds a retained raw digest, exact JSON pointer and admitted capture digest; replay checks connector operation, selected product identity, exact source bytes and frozen run/scope/source-set membership.
+- Generic content-addressed storage retains record v2: original scope seed strings, names, workspace/run, scope/source-set digests, category/dataVersion, full prompt and hash, prompt version, model identity, nonsecret dispatch configuration and complete validated output. Record and capture reads use existing bounded stores, with no new table or migration.
+- Collection calls L9 with capture-digest plus result-position identity. It retains included/excluded/unclear rows and reasons, without deleting raw search evidence. The actual report service, renderer and reader preparation admit only included web records; missing prerequisites withhold main web counts/quotes. Owner-service reads authenticate exact dependencies and recompute the complete retained admission packet. No human adoption gate, scope-revision policy, recollection or automatic retry was added.
+- Real API composition freezes `automation-source-evidence-v1` for new runs. Keyword drafting is independently disabled by default, requiring explicit `TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED=true`, `TDN_RESEARCH_KEYWORD_DRAFT_AI_MODEL`, CLIProxy and the OWNER writer. Other AI flags do not enable it. No environment configuration changed. The adapter reuses existing single-call bounded HTTP mechanics, with cancellation, timeout, no redirects/retry and full retained generation identity.
+- Source appendix v2 uses operative registry v1.9 S01–S27 mappings, report names, group and attribution. D is excluded by schema; S19 remains ungraded by original page and S25 retains mixed B/C. Empty use lists and repeated registry IDs for distinct bindings work. L9 accounting cannot be duplicated across registry IDs for the same binding. S07 supports separate review-video/seller-video source type, and E12/E13 text is fixed by registry membership.
+- New auto report v18 displays the appendix in M13/I17 and inherits the shared U13 lint. Verified owning-method bindings add Market S01 and Insight S05/S27 separately. Historical marker-free starts, collection/report artifacts and renderer branches remain unchanged, including v17. Two fixed technical count explanations and one exact bridge-generated variant declaration use neutral display wording only under v18; retained input and quote bytes are unchanged.
+- Missing model, unsupported/unverifiable sales evidence, failed drafting and skipped/unavailable collection have explicit unavailable states. Cancellation during the awaited model call cannot commit successful collection or reopen a terminal run.
+
 Changed paths:
-- `src/modules/analysis/keyword-list-drafting.ts` (new)
-- `src/modules/analysis/keyword-meaning-filter.ts` (one additive export: data validator)
-- `src/modules/analysis/research-automation/serpapi-l9-filter.ts` (new)
-- `src/modules/analysis/source-appendix-projection.ts` (new)
-- `tests/unit/keyword-list-drafting.test.ts` (new)
-- `tests/unit/serpapi-l9-filter.test.ts` (new)
-- `tests/unit/source-appendix-projection.test.ts` (new)
-- `src/modules/analysis/keyword-list-draft-record.ts` (new: retained draft record retain/replay via generic CAS)
-- `tests/unit/keyword-list-draft-record.test.ts` (new)
-Pending (need explicit allocation/lease, not started):
-- service.ts collection/history hunks wiring the SerpApi L9 consumer (Insight exclusive lease; request exact hunks when ready)
-- canonical schemas + generated derivatives for the drafting request and appendix projection (single-writer lease ungranted; Insight first in queue)
-- P9/U23 collectors and their L9 callers (no code exists; packages unbuilt)
-- Market/Insight rendering of the appendix projection (Sol/OMP own templates; projection contract handoff to follow)
+
+- `contracts/analysis/{keyword-list-draft,keyword-list-draft-record,source-appendix-projection,automation-source-evidence}.{schema.json,generated.ts}` and exact registrations in `scripts/generate-foundation-contract.mjs`.
+- `src/modules/analysis/{keyword-list-drafting,keyword-list-draft-record,source-appendix-projection,source-registry}.ts`.
+- `src/modules/analysis/research-automation/{keyword-cliproxy-transport,sales-name-evidence,serpapi-l9-filter,source-evidence,source-evidence-report}.ts`.
+- Allocated integration hooks in `src/modules/analysis/research-automation/{service,model,reports,descriptive-report}.ts` and `src/api/{research-automation-api,operator-app}.ts`.
+- Focused unit tests for drafting, record authenticity, appendix, transport, configuration, report bindings and versioned renderer copy; two new synthetic service/API integration suites. Existing drafting/record/appendix tests were revised to test the canonical contract and stronger authenticity. The old seed-name length assertion changed from 201 to 501 to match the established 500-character connector product name bound; no approved assertion was weakened. Existing renderer tests only gained a new compatibility case.
+- This handoff only; shared status/plan documentation remains coordinator-owned.
+
 Evidence (commands, results, relevant revision):
-- Task-provided Node 24.15.0 / npm 11.12.1 runtime (per-command PATH).
-- `node scripts/typecheck.mjs` exit 0.
-- Focused suites exit 0: keyword-list-drafting 4/4, serpapi-l9-filter 4/4, source-appendix-projection 3/3, keyword-meaning-filter 12/12 (additive export covered, behavior unchanged).
-- `git diff --check` clean; service.ts, reports.ts, providers.ts, contracts, manifests untouched.
+
+- Node24.15.0/npm11.12 runtime; all focused tests use `--test-concurrency=2`.
+- `npm run contracts:generate` exit0; subsequent `git diff --exit-code contracts/` clean at merged checkpoint. No sibling schema changes beyond inherited main.
+- `npm run typecheck` passed after integration/main merge; final report-hook typecheck also passed.
+- Final focused source validation: 40/40 passed; direct source/API/report-binding validation: 8/8 passed, covering actual application composition with and without fake keyword model, full prompt/config retention, exact replay/corruption failure, excluded/unclear admission, marker-free historical path, no-selection unavailable appendix, active model cancellation and per-report package bindings.
+- Renderer plus historical version checks: 19 passed, 0 failed, one pre-existing optional local Chromium skip. New v18 test preserves retained input and marker-free bytes while exercising full shared lint. Earlier merged Insight draft revisions and reader regression suites passed (3 and 9 respectively).
+- Keyword/filter/appendix/transport/config tests cover full output validation, extra fields, mismatched versions, forged names/pointers, unselected sales product, missing/tampered dependency, repeated source bindings, duplicate accounting, registry/tier/attribution forgery, pre/active cancellation, failed dispatch without retry, response bounds and default/negative model configuration isolation.
+- `git diff --check` clean. Full local suite was not run. Full hosted `npm run check` is mandatory on the final reviewed head; no historical failure is waived.
+
 Unresolved:
-- Exact service collection/history integration hunks (awaiting allocation).
-- Canonical projection contracts (awaiting single-writer lease).
-- P9/U23 collector packages (unbuilt; explicit blocker).
-Next action: Astra independent review; coordinator owns review/CI/merge. No worker merge.
-Business decisions pending: none. Drafted lists are MODEL_DRAFTED versioned input, not approval; no caps set or changed.
+
+- U12 is implemented for the actual retained Kalodata sales-name lane and existing SerpApi web consumer. Metric-only drafting requires its owning verified name/locator projection; it currently returns explicit unavailable rather than treating a filename or display label as authentic sales evidence. No new keyword-selection API/UI route was authorized or added; the owning service exposes additive exact-digest drafting/read operations.
+- U27 is integrated for mapped sources actually consumed by these paths (Kalodata names/comparables, L9 web evidence, verified Metric and exact/native review methods). Unknown supplemental source families have no authoritative registry binding here; they are not assigned guessed IDs or tiers. S07/L10 and official statistics mappings are available in the tested projection contract, but no not-built collector is claimed functional.
+- P9/P10/U23 collectors/intake/browser adapters and their consumers remain package work outside this recovery slice. They need their own canonical/API/collector allocation and concrete transport/privacy/cap/locator inputs; no unused shim or board readiness flip was introduced. Existing application caller wiring is complete for the bounded lane above, not a claim that all Ultimate source packages are complete.
+- Humanizer-vi was not invoked: this slice authors deterministic method disclosure and labels, no Vietnamese AI interpretation. The keyword prompt is a new versioned English instruction. No historical report prose or source quote was rewritten, and no claim is made that a local or application humanizer ran.
+
+Next action:
+
+Coordinator independently reviews PR172 at exact pushed SHA, checks full hosted `npm run check`, and owns any merge. Final settlement supplies the exact SHA and CI status. Canonical/generator and service/API/model leases were explicitly released at `3a13c51`; report/descriptive hooks are released after the final validated commit. Future changes to those files require a fresh allocation. Subsequent source packages must be dispatched separately with their remaining requirements and blockers.
+
+Business decisions pending:
+
+U11, U26 and U32 remain unresolved; no statistical release, scope policy or aggregate reconciliation was invented. U40 paid/live acceptance remains unauthorized. No cost caps, application credentials, launcher model configuration or runtime data were changed.
 
 ## Checklist evidence
 
-| ID | Status | Evidence |
+| ID | Status | Evidence / remainder |
 |---|---|---|
-| U-12 | PARTIAL: drafting + P5 consumer module DONE; service wiring ESCALATED | DONE: AI drafts versioned keyword/exclusion lists from sales product names + frozen scope seeds through an injected fake transport; output validated against the canonical data contract with exact frozen term bytes; transport failures and malformed/duplicate output fail closed with nothing retained. P5 SerpApi consumer maps retained web results to stable URL+position identities and classifies via the merged L9 core, keeping excluded/unclear out of main counts with reason accounting. ESCALATED: service.ts collection/history wiring (exclusive lease; hunks to be allocated). |
-| U-27 | PARTIAL: projection DONE; contract/rendering ESCALATED | DONE: pure versioned projection expands one row per registry ID with actual IDs, single-or-mixed tiers (never aggregated), report names, L9 excluded/unclear counts with reasons, L10 video-comment source type, and E12/E13 attribution verbatim. ESCALATED: canonical schema + generated derivative (lease), Market/Insight template rendering (Sol/OMP). |
-| G-01 | DONE | This table (U-12/U-27 PARTIAL with explicit ESCALATED remainder; no B items assigned). |
-| G-02 | PENDING until exact-head CI | Typecheck + focused suites exit 0 (drafting 4, draft-record 3, serpapi-l9 4, appendix 4, filter 12); no local full suite (no concurrent suites); no waiver. |
+| U12 | DONE for existing sales/web lane; ESCALATED for missing lanes | Authenticated retained drafts and actual collection/report/reader L9 calls. Metric-only name projection and absent P9/U23 callers remain explicit prerequisites. |
+| U27 | DONE for mapped consumed sources; ESCALATED for unknown supplemental families | Canonical registry1.9 projection and actual v18 M13/I17 appendix, per-source accounting, mixed tiers, empty lists, repeated IDs and E12/E13. No guessed bindings. |
+| G01 | DONE | This per-item evidence and explicit remainder. |
+| G02 | DONE focused/static; ESCALATED hosted release gate | Typecheck/focused synthetic checks; coordinator must verify full hosted exact-head check before merge. |
+| G03 | N/A | No frontend changes. |
+| G04 | DONE | Canonical generation deterministic and committed. |
+| G05 | DONE | Allocated paths, narrow granted descriptive hook, clean diff checks. |
+| G06 | DONE | Synthetic fixtures/fake credentials only; no runtime data or real commercial records copied. Loopback test endpoints are synthetic transport fixtures. |
+| G07 | DONE | No live provider, model, collector or paid calls. |
+| G08 | DONE for deterministic disclosure | Plain fixed report names/labels, provider-free method disclosure; original data remains retained. Humanizer limitation above. |
+| G09 | DONE | Explicit unavailable states, no missing-to-zero or invented evidence. |
+| G10 | DONE | Exact stored-byte replay, marker-free branches and versioned lexical hook verified. |
+| G11 | DONE | Stronger authenticity tests; canonical fixture revisions documented above; no deleted/skipped assertions or new test waiver. |
+| G12 | DONE | Handoff fields, checklist, bounds and next steps recorded. |
+| G13 | DONE existing web consumer; ESCALATED absent callers | Included-only main evidence, exact capture/position identity, retained excluded/unclear reasons and per-source accounting. |
 
-## Bounds rationale (no business or cap invention)
+## Engineering bounds (not business defaults)
 
-- Term 200 chars, recordId 300 chars, reportName/attribution 300 chars, group 120 chars, reasons 200 chars: same bounds as the existing keyword-meaning-filter and source-status contracts.
-- Seed lists max 200 terms and prompt max 65536 bytes: engineering caps bounding model payload and artifact size (65536 matches the existing model max-response bound); drafted output lists re-validated by the canonical schema (max 500).
-- Appendix max 50 sources / 200 usages and 4 registry IDs per entry: engineering caps bounding report size; 4 matches the source-status contract maxItems.
-- Draft-record prompt/artifacts: 4 MiB replay bound as a read safety limit.
-| G-03 | N/A | No frontend changes. |
-| G-04 | PENDING | No contract edits (lease ungranted). |
-| G-05 | DONE | `git diff --check` clean; only owned new modules, one additive export, new tests, handoff. |
-| G-06 | DONE | Synthetic fixtures only; no secrets, paths, IPs, runtime data. |
-| G-07 | DONE | Fake transports only; no provider/model calls. |
-| G-08 | N/A | No owner-facing prose. |
-| G-09 | DONE | Missing stays missing (null snippets, absent context); no invented records or counts. |
-| G-10 | DONE | No report/render paths touched; deterministic replay asserted by rerun equality. |
-| G-11 | DONE | No existing tests touched. |
-| G-12 | DONE | This handoff with per-item evidence. |
-| G-13 | PARTIAL | Core + P5 consumer report included/excluded/unclear with reasons and versions; collection-path filtering and P9/U23 consumers remain with their packages (not claimed). |
+- Seed names ≤500 characters follow the existing connector/card name bound. Terms ≤200 and lists ≤500 follow the canonical L9 contract. Oversized genuine inputs fail closed; no term truncation changes frozen seed bytes.
+- Draft prompt ≤64KiB is a bounded single-request engineering ceiling, checked as UTF-8 bytes as well as schema character count; it is not a sampling rule. Draft JSON uses the existing 8MiB automation JSON artifact budget. Evidence replay uses the existing 16MiB raw capture and base64-envelope budget, rather than incorrectly applying the smaller draft JSON budget.
+- Appendix ≤1024 source bindings is a report memory/read safety ceiling aligned with two automation steps of ≤512 captures; it is not a source-count business threshold or aggregate sample rule. Extra unsupported bindings fail validation rather than silently dropping sources. Earlier arbitrary 50-source/4-ID caps were removed.
+- Model defaults reuse established research HTTP budgets (16384 output tokens, 300-second timeout, 256KiB declared response allowance), not a new provider/cost policy. The existing HTTP port separately bounds encoded request/response envelopes, refuses redirects and never retries. No runtime enabled flag or paid cap was changed.
