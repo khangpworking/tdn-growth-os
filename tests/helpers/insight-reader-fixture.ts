@@ -20,7 +20,7 @@ export const readerOwner = { actorId: 'owner:synthetic', role: 'OWNER' as const 
 export const readerNow = () => new Date('2026-10-08T00:00:00.000Z');
 
 /** Actual source intake/run/literal revision, fake transport only, no Metric file. */
-export async function insightReaderFixture(t: TestContext, default21 = false) {
+export async function insightReaderFixture(t: TestContext, default21 = false, options: { sourceRegistry?: boolean; injectedRendererScope?: boolean; familyDraft?: boolean } = {}) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-insight-reader-'));
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
   const db = openDatabase({ databasePath, now: readerNow }).db;
@@ -36,10 +36,13 @@ export async function insightReaderFixture(t: TestContext, default21 = false) {
   let input: AutomationReportInput | undefined, calls = 0;
   const source = syntheticProductSource();
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery), uuid: () => readerRunId,
+    ...(options.sourceRegistry ? { sourceEvidence: { modelIdentity: 'synthetic-unconfigured', promptVersion: 'synthetic-v1' } } : {}),
     now: readerNow, metricAttachmentStore: new RequestScopedArtifactStore(artifactRoot), readerReportFlint: false, source: { ...source,
       quickSearch: async (...args) => { calls++; return source.quickSearch(...args); },
       collect: async (...args) => { calls++; return source.collect(...args); } },
-    renderer: (value, kind) => { input = value; return buildResearchAutomationReport(value, kind); } });
+    renderer: (value, kind) => { input = value; const rendered = buildResearchAutomationReport(value, kind);
+      return options.injectedRendererScope ? { ...rendered, semantic: { ...rendered.semantic, scope: { definition: 'Injected scope must not appear', keyword: 'Injected keyword' },
+        sections: [{ sectionId: 'I04', title: 'Injected finding', state: 'METHOD_OUTPUT', methodOutput: { locatedRecordCount: 99999 } }] } } : rendered; } });
   await service.start(readerWorkspaceId, { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(), mode: 'PRODUCT', keyword: 'Synthetic Insight reader',
     requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['INSIGHT'] });
   await service.processNext();
@@ -50,7 +53,27 @@ export async function insightReaderFixture(t: TestContext, default21 = false) {
   await service.processNext(); await service.processNext();
   assert.equal((await service.getRun(readerWorkspaceId, readerRunId)).status, 'DRAFT_READY');
   const original = (await service.listReportVersions(readerWorkspaceId, readerRunId))[0]!;
-  const revision = await service.requestReportRevision(readerWorkspaceId, readerRunId, {
+  let revision;
+  if (options.familyDraft) {
+    const context = await service.readInsightSourceContext(readerWorkspaceId, readerRunId, original.pairId);
+    const adopted = await service.adoptInsightCodingRules(readerWorkspaceId, readerRunId, {
+      contractVersion: 'insight-coding-adopt-v1', requestKey: randomUUID(), binding: context.binding,
+      rules: { ruleId: 'synthetic-reader-draft', revision: 1, question: 'Which source-local statements occur?',
+        inclusionRule: 'Retained synthetic records', adjudicationRule: 'Keep uncertainty pending', corpora: [] },
+    }, readerOwner);
+    const text = context.input.records[0]!.text!;
+    const proposed = await service.proposeInsightCoding(readerWorkspaceId, readerRunId, {
+      contractVersion: 'insight-coding-propose-v1', requestKey: randomUUID(), adoptionId: adopted.evidence.evidenceId, previousProposalId: null,
+      annotations: { i02: [], i04: [{ recordIndex: 0, span: { start: 0, end: text.length, quote: text }, eventKind: 'ACTION_REPORTED', attribution: 'UNKNOWN',
+        qualifiers: [], counterevidence: [], provenance: { basis: 'PENDING_AI', coderRole: 'synthetic proposal', adjudication: null, disagreement: null } }],
+        i05: [], i06: [], i07: [], i08: [], i09: [], i13Mentions: [], corpora: [] },
+    }, readerOwner);
+    revision = await service.requestReportRevision(readerWorkspaceId, readerRunId, {
+      contractVersion: 'automation-insight-report-revision-v1', requestKey: randomUUID(), previousPairId: original.pairId,
+      sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+      draftInsight: { contractVersion: 'insight-draft-select-v2', proposalId: proposed.evidence.evidenceId },
+    });
+  } else revision = await service.requestReportRevision(readerWorkspaceId, readerRunId, {
     contractVersion: 'automation-insight-literal-report-revision-v1', requestKey: randomUUID(), previousPairId: original.pairId,
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } });
   await service.processNext();
@@ -59,8 +82,9 @@ export async function insightReaderFixture(t: TestContext, default21 = false) {
   const pair = (await service.listReportVersions(readerWorkspaceId, readerRunId)).find(row => row.pairId === attempt.pairId)!;
   const report = await service.readReport(readerWorkspaceId, readerRunId, 'INSIGHT', false, pair.pairId);
   const semantic = JSON.parse((await artifacts.read(report.versionId)).toString('utf8')) as Record<string, unknown>;
-  assert.equal(semantic.rendererVersion, 'automation-report-kit-v19');
-  assert.ok(input.insightLiteral); assert.ok(input.nativeReview);
+  assert.equal(semantic.rendererVersion, options.familyDraft ? options.sourceRegistry ? 'automation-report-kit-v18' : 'automation-report-kit-v17' : 'automation-report-kit-v19');
+  if (!options.familyDraft) assert.ok(input.insightLiteral);
+  assert.ok(input.nativeReview);
   const literalReport = report;
   let finalPair = pair, finalReport = report, finalSemantic = semantic, modelCalls = 0;
   if (default21) {
