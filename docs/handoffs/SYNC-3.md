@@ -3,97 +3,86 @@
 Updated: 2026-10-08
 Worktree/branch: `ultimate-impl-sync3-omp`, branch `khangpworking/ultimate-impl-sync3-omp` (base `c2014bb`)
 
-Completed: owned source implemented for all five items, version-aware and additive. No schema/generated file was written (single-writer lease still held by SYNC-6). The isolated `reports.ts` M05 renderer-identity commits requested by Astra are committed and pushed; the rest of the source is still uncommitted.
+Completed: owned source, the seven versioned contracts and their generated derivatives are committed on `khangpworking/ultimate-impl-sync3-omp`. The seven-schema/generated lease was granted at msg_2fc6b3a0609f, used, and explicitly released at msg_a620172d5ef6; a narrow correction lease (msg_0bb0a901100e) was used for the sibling working-question schema and released at msg_462c804ed55c. The isolated `reports.ts` renderer-identity commits requested by Astra are pushed for SYNC-1 to cherry-pick.
 
 Committed and pushed (isolated for SYNC-1 to cherry-pick):
-- `fc07995b253cbdd13f1f2777889f1b508e0ff11f` — `src/modules/analysis/research-automation/reports.ts` plus new `tests/unit/research-automation-renderer-identity.test.ts`.
-- `884bef0ef832ee5286825b0fee80a267416a8773` — correction from coordinator review: the new kit identity applies only when `kind === 'MARKET'`, so an INSIGHT report that merely carries an unused Market descriptive method keeps `automation-report-kit-v12`. Adds the regression test `an INSIGHT report keeps v12 even when an unused Market descriptive method is attached`.
-- `7797d9eb14b6045196f3f88dbfb9a3146c5d9141` — the version-aware source for all five items (below).
-- `5473386ad6cf6de998468454a748626ad32a20a0` — narrow `service.ts` dispatch under the coordinator grant: new decision packets `1.2.0`, new M01 inventories `1.1.0`, retained packets accept `1.2.0`, retained M01 replays at its saved `methodVersion`.
+- `fc07995b253cbdd13f1f2777889f1b508e0ff11f` — `reports.ts` + new `tests/unit/research-automation-renderer-identity.test.ts`.
+- `884bef0ef832ee5286825b0fee80a267416a8773` — the new kit identity applies only when `kind === 'MARKET'`.
+- `7797d9eb14b6045196f3f88dbfb9a3146c5d9141` — version-aware source for all five items.
+- `5473386ad6cf6de998468454a748626ad32a20a0` — narrow `service.ts` dispatch: new packets `1.2.0`, new M01 inventories `1.1.0`, retained replay at the saved version.
+- `2103f69` — the seven contract deltas, regenerated derivatives and the I11 corrections.
+- `8592afb` — sibling working question, platform-only groups and proposal rendering.
+
+Coordinator corrections applied after the first report (`msg_462c804ed55c`):
+- `msg_3e0c075c2dc4` member identity: `bounded-analysis-gates.ts` now keys group members, the numerator subset and the cross-group overlap check on the retained source key (sha256 + locator), so one record retained under two logical paths is one record; a repeated reference additionally names `I11_MEMBER_REFERENCES_NOT_DISTINCT` and keeps that partition counts-only. Negative case added to the retained-membership fixture test.
+- `msg_6cb8b9c42313` / `msg_ffa1678f24ff` producer path: `located-review-bridge.ts` `#prepareProposal` is the actual in-repo located descriptor producer and now writes `semanticsVersion: '1.1.0'` plus the run's `workingQuestionProposal` (never invented in code), so a real located run produces the labelled I01 working question instead of the historical hard blocker. Retained 1.0.0 packages keep replaying byte-identically because verification re-reads the retained descriptor and output.
+- `msg_ffa1678f24ff` refreshed main: `origin/main` (SYNC-1 #162, SYNC-6 #161) merged into the branch at `4990989`, keeping SYNC-6's `readSourceActivity`-only service integration alongside the separate dispatch/replay changes.
 
 Committed paths:
-- `src/modules/analysis/located-insight-methods.ts` (U-02: `semanticsVersion` input, `methodVersion` output, labelled `workingQuestion` on I01 naming every owner field still to add)
-- `src/modules/analysis/bounded-analysis-gates.ts` (U-04: derived source-backed groups, authenticated-member rate proof, per-partition blockers, rate partition identity)
-- `src/modules/analysis/report-method-packets-pages.ts` (U-04: version-aware I11 page — derived group labels, descriptive-rate table, counted-record count; 1.0.0 copy byte-identical)
-- `src/modules/analysis/report-method-packets-extension.ts` (U-04: `verifyTree` resolves every `memberSources`/`numeratorMemberSources` entry against retained evidence)
-- `src/modules/analysis/report-located-insight-pages.ts` (U-02 rendering, `WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER` gloss)
-- `src/modules/analysis/research-automation/insight-model-execution.ts` (U-05: `insight-model-prompt-v2` + `insightModelPrompt(version)`)
-- `src/modules/analysis/research-automation/decision-packets.ts` (U-07/U-16: `packetVersion` `1.2.0`, `aiProposal` slot, working-question gap, candidate cap 3, `PURCHASE_SUGGESTION_NOT_ALLOWED` guard)
-- `src/modules/analysis/research-automation/decision-synthesis-input.ts` (U-02/U-07/U-16: prompt `1.3.0`, `ownerInputs.workingQuestion`, v1.2.0 support preservation)
-- `src/modules/analysis/research-automation/decision-synthesis-execution.ts` (admission `1.2.0` ↔ prompt `1.3.0` binding)
-- `src/modules/analysis/research-automation/synthesis-evidence-report.ts` (U-07 rendering: AI-proposed immediate task/owner/deadline shown, labelled awaiting the owner)
-- `src/modules/analysis/research-automation/m01-evidence-inventory.ts` (U-02: `inventoryVersion` hook + `automationM01InventoryVersion` retained-version reader)
-- `src/modules/analysis/research-automation/service.ts` (narrow producer dispatch and retained-version replay only)
-- `tests/unit/sync3-version-semantics.test.ts` (new)
+- `src/modules/analysis/located-insight-methods.ts` (U-02: `semanticsVersion`, `methodVersion`, labelled I01 `workingQuestion`)
+- `src/modules/analysis/bounded-analysis-gates.ts` (U-04: derived source-backed groups, authenticated-member rate proof, per-partition blockers, rate partition identity, 1.1.0-only duplicate rejection)
+- `src/modules/analysis/report-method-packets-pages.ts` / `report-method-packets-extension.ts` (U-04 render and retained-member resolution)
+- `src/modules/analysis/report-located-insight-pages.ts` (U-02 rendering)
+- `src/modules/analysis/research-automation/insight-model-execution.ts` (U-05)
+- `src/modules/analysis/research-automation/decision-packets.ts` (U-07/U-16 packet `1.2.0`, `aiProposal`, candidate cap 3, `PURCHASE_SUGGESTION_NOT_ALLOWED`)
+- `src/modules/analysis/research-automation/decision-synthesis-input.ts` (prompt `1.3.0`, sibling `workingQuestion`, v1.2.0 support)
+- `src/modules/analysis/research-automation/decision-synthesis-execution.ts` (admission `1.2.0` ↔ prompt `1.3.0`)
+- `src/modules/analysis/research-automation/synthesis-evidence-report.ts` (U-07 rendering)
+- `src/modules/analysis/research-automation/m01-evidence-inventory.ts` (`inventoryVersion`, `automationM01InventoryVersion`)
+- `src/modules/analysis/research-automation/service.ts` (narrow dispatch and retained-version replay)
+- `contracts/analysis/{located-insight-methods,bounded-analysis-gates,automation-decision-packets,automation-m01-evidence-inventory,automation-decision-synthesis-input,automation-decision-synthesis-prompt,automation-insight-model}.schema.json` and their regenerated derivatives
+- tests: `sync3-version-semantics.test.ts` (new), `bounded-analysis-gates.test.ts`, `report-method-packets-extension.test.ts`, `report-method-packets-pages.test.ts`, `report-reader-projection.test.ts`
 
 Evidence (commands, results, relevant revision):
-- Runtime: cached Node 24.15.0 / npm 11.12.1 (`/home/pkhang/.cache/tdn-toolchains/node-v24.15.0-linux-x64/bin`); `node_modules` from a prior successful `npm ci`.
-- Affected unit tests (bounded concurrency 2): **37/37 PASS** — `node --test-concurrency=2 --import tsx --test tests/unit/{bounded-analysis-gates,research-automation-renderer-identity,report-method-packets-pages,report-method-packets-extension,located-insight-methods,research-automation-decision-packets,research-automation-m01-evidence-inventory,research-automation-decision-synthesis-input,research-automation-decision-synthesis-execution}.test.ts`. Old-version (1.0.0/1.1.0) builders still produce byte-identical output; no existing assertion was weakened or deleted (G-11: none updated). Decision-rendering tests (`report-reader-projection`, `research-automation-i14-evidence-admission`) also pass.
-- Committed renderer tests: `tests/unit/research-automation-renderer-identity.test.ts` **2/2 PASS**; `tests/unit/research-automation-report-citations.test.ts` 7/7 PASS; `report-assembly-snapshot` PASS.
-- `npm run typecheck`: 18 errors, all of the same class — the new field/enum names are not yet in the generated types (`groupBasis`, `memberSources`, `numeratorMemberSources`, `semanticsVersion`, `workingQuestion`, `inventoryVersion`, `1.2.0`, `1.3.0`, `insight-model-prompt-v2`). No logic or type-shape error. Expected while the schema lease is held.
-- `tests/unit/sync3-version-semantics.test.ts`: 1 PASS (U-05 prompt version), 3 FAIL — every failure is AJV input validation of a new field/enum (`additionalProperties`, enum), i.e. the un-regenerated schemas. They must pass after generation.
+- Runtime: cached Node 24.15.0 / npm 11.12.1 (`/home/pkhang/.cache/tdn-toolchains/node-v24.15.0-linux-x64/bin`); `TDN_PAGEINDEX_PYTHON=/tmp/tdn-sync1-python/bin/python` for the suite.
+- `npm run contracts:generate` was run after every schema edit and is clean (`git diff --exit-code contracts/` after regeneration).
+- `npm run typecheck` on `8592afb`: CLEAN, 0 errors.
+- Affected set (`node --test-concurrency=2 --import tsx --test`): **55/55 PASS** across `bounded-analysis-gates`, `sync3-version-semantics`, `located-insight-methods`, `research-automation-decision-packets`, `research-automation-m01-evidence-inventory`, `research-automation-decision-synthesis-input`, `research-automation-decision-synthesis-execution`, `report-method-packets-pages`, `report-method-packets-extension`, `research-automation-renderer-identity`, `report-located-insight-pages`, `report-reader-projection`, `research-automation-report-citations`.
+- Old-version replay: new `legacy 1.0.0 I11 keeps accepting repeated cells for one group and replays byte-identically` and the existing 1.0.0/1.1.0 builders keep byte-identical output (G-10).
+- Single authorised full-suite run (`node --import tsx --test tests/unit/*.test.ts tests/integration/*.test.ts`, `--test-concurrency=2`, log `/tmp/sync3-logs/full-suite.log`): see the run result section below.
 
 Astra/coordinator feedback already applied:
-- `msg_14a7384405c9`: 1.2.0 now preserves 1.1 additional support (`decision-synthesis-input.ts:243`, `decision-packets.ts:118`); retained-candidate replay passes the retained version.
-- `msg_11fc1edf35da` / `msg_e0d9b4168dc6`: unknown/ambiguous buyer → `UNSPECIFIED` label (never all-buyer).
-- `msg_33826b18f26e` / `msg_174c7e31d06d` (I11 rate evidence): a rate is emitted only when the partition has no blocker and every group is a fully specified platform+buyer group with a `LOCATED_RECORD` unit, a declared denominator that equals its **unique authenticated member-reference count**, at least 30 members, and a numerator whose member set is contained in that member set and has exactly the declared numerator size. `memberSources`/`numeratorMemberSources` are retained source references, resolved to existing retained evidence by `verifyTree` (`METHOD_PACKET_INVALID_MEMBER_SOURCES`, `METHOD_PACKET_EMPTY_EVIDENCE_REFERENCE`). Two cells for the same group in one partition now fail (`I11_DUPLICATE_GROUP_CELL`) instead of overwriting the numerator/denominator; member overlap raises the per-partition blocker `I11_GROUP_MEMBER_OVERLAP`; the `rates` output carries the partition index so differing scopes stay distinguishable; anything unproven stays counts-only, no shortcut.
-- `msg_33826b18f26e` (I01): `ownerFieldsToAdd` now lists the question **and** every unset supplementary owner field (`decisionToInform`, `intendedAudience`, `scope`, `knownConstraints`).
-- `msg_dcc7d85a690b`: decision candidates now render the AI-proposed immediate task, owner and deadline, labelled as awaiting the owner, in `synthesis-evidence-report.ts`.
-- `msg_4b441097cc9f` (resource gate): no full-suite run started; only bounded `--test-concurrency=2` runs on the affected files.
-- Classified-rate eligibility stays SYNC-4 dependency-bound, no synthetic acceptance.
-
-Unresolved (blockers):
-1. Schema lease. Astra confirms it stays HOLD: SYNC-6 has not released, then a very short SYNC-1 final generator phase, then my seven schemas. Seven `contracts/analysis/*.schema.json` files (plus the method-packet input schema for `groupBasis`/`memberSources`/`numeratorMemberSources`) and `npm run contracts:generate` cannot be written until then. Until that point the 1.2.0/1.3.0/prompt-v2/method-1.1.0 artifacts cannot validate and the three version-aware tests stay red.
-2. U-04 producer wiring. The gate consumes `cells[].groupBasis` (source-stated platform + explicit RETAIL/WHOLESALE) and `cells[].memberSources`/`numeratorMemberSources` as the authenticated-member proof, verified by `report-method-packets-extension.ts` `verifyTree`; whoever assembles the I11 input must populate them from retained evidence, and Astra authorized me to wire the producer/render/replay in `report-section-pages.ts`, `report-method-packets-pages.ts`, `report-method-packets-extension.ts`, `bounded-methods.ts`. Gate rendering and the `verifyTree` member resolution are done; the producer assembly is not. Note the verifier's retained-source-file cap (4) may need a decision once members span files.
-3. Located/bounded descriptor producers (reported to Astra in msg_dc789ed2409c, awaiting owner confirmation). `service.ts` cannot dispatch `semanticsVersion` for located/bounded: their inputs are descriptors read from a finalized source package (`methods/located-input.json`; the bounded `descriptorPath`), re-verified in `located-review-bridge.ts`, `native-source-review-bridge.ts`, `bounded-methods.ts`. My builders accept `semanticsVersion: '1.1.0'`, but the package-side descriptor writer must set it and must fill `i11.cells[].groupBasis`/`memberSources`/`numeratorMemberSources`. Those bridge files are not in my grant, so new located/bounded outputs stay 1.0.0 until that owner is named.
-
-Next action: after the lease grant, apply the schema deltas (gate input/output, method-packet input, located-insight-methods, decision packets, decision-synthesis input/prompt, insight model, M01), including `groupBasis`/`memberSources`/`numeratorMemberSources`/`rates[].partition`, `npm run contracts:generate`, confirm the version tests and the affected set, run `npm run typecheck` and the bounded full suite, then commit the remaining source (renderer commits `fc07995`/`884bef0` already separate cleanly), push, open a draft PR and report. Do not merge, deploy or make provider calls.
-Business decisions pending: the I11 rate-governance wording for the methodology doc (Ultimate §6.3 ≥30 applied per source-stated platform+buyer group, classified-rate eligibility SYNC-4 dependency-bound) — Astra is documenting this.
-
-## Prepared schema deltas (apply on lease grant, then `npm run contracts:generate`)
-
-`contracts/analysis/bounded-analysis-gates.schema.json`
-- `properties.methodVersion`: `{"enum":["1.0.0","1.1.0"]}`.
-- `$defs.input.properties.semanticsVersion`: `{"enum":["1.0.0","1.1.0"]}` (optional).
-- `$defs.input…i11.cells.items.properties` add optional:
-  - `groupBasis`: object, `additionalProperties:false`, required `platform`,`buyerType`, each `{"type":"object","additionalProperties":false,"required":["state","value","source"],"properties":{"state":{"enum":["SOURCE_STATED","NOT_STATED"]},"value":{"anyOf":[{"$ref":"#/$defs/text"},{"type":"null"}]},"source":{"anyOf":[{"$ref":"#/$defs/source"},{"type":"null"}]}}}`.
-  - `memberSources`, `numeratorMemberSources`: `{"type":"array","maxItems":10000,"items":{"$ref":"#/$defs/source"}}`.
-- `$defs.i11Output.properties.rates`/`differences`: `{"anyOf":[{"type":"object","additionalProperties":false,"required":["recordsPerGroupMinimum","groups"],"properties":{"recordsPerGroupMinimum":{"const":30},"groups":{"type":"array","maxItems":10000,"items":{"type":"object","additionalProperties":false,"required":["partition","group","numerator","denominator","rate"],"properties":{"partition":{"type":"integer","minimum":0},"group":{"$ref":"#/$defs/text"},"numerator":{"type":"integer","minimum":0},"denominator":{"type":"integer","minimum":1},"rate":{"type":"number"}}}}}},{"type":"null"}]}`; `differences` stays `null` until SYNC-4 (keep `{"type":"null"}` there).
-
-`contracts/analysis/located-insight-methods.schema.json`
-- input `semanticsVersion` enum `["1.0.0","1.1.0"]`; optional `workingQuestionProposal` (`text`|null).
-- output `methodVersion` enum `["1.0.0","1.1.0"]`; I01 gains optional `workingQuestion` `{state: enum[AI_PROPOSED_AWAITING_OWNER,OWNER_SUPPLIED], label: nullableText, text: nullableText, ownerFieldsToAdd: array of text}`.
-
-`contracts/analysis/report-method-packets-input.schema.json` — refs the gate schema; verify only.
-
-`contracts/analysis/automation-decision-packets.schema.json`
-- `$defs.packet.methodVersion` enum adds `1.2.0`; `evidenceGaps` enum adds `WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER`; `limitations` enum adds the two 1.2.0 strings; optional `aiProposal` slot on M12/I15 section fields (`{status:'AI_PROPOSED_AWAITING_OWNER', label}` with null values); candidate `proposedOwner`/`proposedDeadline`/`immediateTask` (`text`|null); M12/I15 `maxItems` 3 for `aiCandidates`.
-
-`contracts/analysis/automation-m01-evidence-inventory.schema.json` — `methodVersion` enum adds `1.1.0`; the 1.1.0 limitation string.
-
-`contracts/analysis/automation-decision-synthesis-input.schema.json` — `methodVersion` enum adds `1.2.0`; optional `ownerInputs.workingQuestion`.
-`contracts/analysis/automation-decision-synthesis-prompt.schema.json` — `promptVersion` enum adds `1.3.0`; `inputContract.methodVersion` enum adds `1.2.0`.
-`contracts/analysis/automation-insight-model.schema.json` — prompt `contractVersion` enum adds `insight-model-prompt-v2`.
+- `msg_14a7384405c9`: 1.2.0 preserves 1.1 additional support; retained-candidate replay passes the retained version.
+- `msg_11fc1edf35da` / `msg_e0d9b4168dc6`, superseded for platform-only cases by `msg_a393716b213d`: a stated platform with no stated buyer is labelled with the platform alone (never `UNSPECIFIED`, never "all buyers"), and `I11_PLATFORM_ONLY_GROUP_OVERLAPS_BUYER_SUBDIVISION` keeps such a partition counts-only when the same platform also has a buyer subdivision.
+- `msg_33826b18f26e` / `msg_174c7e31d06d` (I11 rate evidence): a rate is emitted only when the partition has no blocker, the counts are safe integers, every group's declared denominator equals its unique authenticated member-reference count, the numerator is a distinct subset of the same size, members are pairwise disjoint across groups, at least 30 members exist and each member resolves to a retained `LOCATED_RECORD` text record with `disposition: INCLUDED` (`METHOD_PACKET_MEMBER_NOT_AN_INCLUDED_TEXT_RECORD`, `METHOD_PACKET_DUPLICATE_MEMBER_REFERENCE`).
+- `msg_33826b18f26e` (I01): `ownerFieldsToAdd` lists the question and every unset supplementary owner field.
+- `msg_407a6ff8900b`: the working question is a sibling of `ownerInputs` and carries the verified retained upstream proposal only.
+- `msg_262e7b391fe3`: the real producer fixture asserts the rendered page.
+- `msg_dbddc00cac5d`: candidate task/owner/deadline render as awaiting-owner proposals; I16 has no authored output.
+- `msg_4b441097cc9f` / `msg_fe531387117d`: no overlapping suites; one bounded affected run, then the single authorised full-suite slot.
 
 ## Checklist evidence
 
-| ID | State | Evidence |
+| ID | Status | Evidence |
 |---|---|---|
-| U-02 | ESCALATED | Source done: `semanticsVersion` 1.1.0 + I01 `workingQuestion` (state/label/text/ownerFieldsToAdd listing `questionText` plus every unset supplementary owner field), renderer block, `ownerInputs.workingQuestion` (1.2.0 only, outside owner fields), M01 `inventoryVersion` hook; owner-field insertion avoided; the new proposal never filters or selects evidence; evidence-membership regression written. Blocked: schema lease (no 1.1.0 artifact validates) and the M01 caller (`service.ts`, not owned) must pass `inventoryVersion`. |
-| U-04 | ESCALATED | Source done: disjoint groups derived only from source-stated platform + explicit RETAIL/WHOLESALE (`UNSPECIFIED` otherwise, never all-buyer); a rate needs an unblocked partition and, per group, `LOCATED_RECORD` unit, unique authenticated member references whose count equals the declared denominator, ≥30 members, and numerator members contained in that set with exactly the declared numerator size, else counts only (`I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS`); duplicate cells for one group in a partition fail (`I11_DUPLICATE_GROUP_CELL`); member overlap raises the per-partition blocker `I11_GROUP_MEMBER_OVERLAP`; `rates` carries the partition index; `I11_GROUP_POLICY_MISSING`/`I11_PUBLICATION_NOT_AUTHORIZED` removed for 1.1.0; `verifyTree` resolves every member reference to retained evidence. Producer assembly (caller supplies `groupBasis`/`memberSources` from retained evidence) still pending, plus the schema lease. |
-| U-05 | DONE | `insight-model-prompt-v2` lifts only the persona ban; "no people counts" kept; v1 retained for replay; `adapter.promptBytes` uses v2. Test `U-05 lifts only the persona ban in prompt v2…` PASS. Schema enum for `contractVersion` pending. |
-| U-07 | ESCALATED | Source done: packet 1.2.0 `aiProposal` slot + label, working-question gap, prompt 1.3.0 with `proposedOwner`/`proposedDeadline`/`immediateTask` (deadlines spelled in words, aiText no-digit rule) and candidate cap 3 for M12/I15, and candidate rendering that shows the proposed task/owner/deadline labelled as awaiting the owner. Blocked: schema lease (enum/defs). |
-| U-16 | ESCALATED | Source done: prompt 1.3.0 no-purchase ban + runtime authored-output guard `PURCHASE_SUGGESTION_NOT_ALLOWED` gated to packet 1.2.0 (old candidates replay). I16 has no AI-authored prose in this build (deterministic `bounded-analysis-gates.ts`), so its authored-output part is N/A-by-construction. Blocked: schema lease; guard test red on enum only. |
-| G-01 | DONE | Every U/B ID above is reported with evidence or an explicit reason. |
-| G-02 | ESCALATED | 37/37 affected unit tests pass under `--test-concurrency=2`; `npm run typecheck` shows only the 18 expected schema-lag errors. Full `npm test` not yet run (device: new-version artifacts cannot validate before generation; coordinator resource gate forbids overlapping full suites). Baseline failures unchanged. |
-| G-03 | N/A | No `frontend/` change. |
-| G-04 | ESCALATED | Contract generation not run; the schema deltas are unwritten under the held lease. No generated file is touched. |
-| G-05 | PENDING | Renderer commits `fc07995`/`884bef0` stage only `reports.ts` + its test. The remaining uncommitted source stays inside the owned paths (plus the new test and this handoff); full `git diff --check origin/main...HEAD` runs before the final commit. |
-| G-06 | DONE | No secrets, machine paths, home directories, IPs or real commercial data added; synthetic fixtures only. |
-| G-07 | DONE | No provider or AI call in any change; the new test uses in-process builders only. |
-| G-08 | DONE | New owner-facing strings are plain Vietnamese with no provider names. |
-| G-09 | DONE | Missing stays missing; no invented sources, groups, buyer types or people counts. |
-| G-10 | DONE | Old-version builders unchanged (37/37 replay/replay-mismatch tests pass); retained artifacts read byte-identical; retained prompts/candidates still validate. |
-| G-11 | DONE | No existing test deleted, skipped or weakened; none needed updating (new behavior is version-gated). |
-| G-12 | DONE | This file uses the template fields plus the checklist table. |
-| G-13 | N/A | No keyword-based collection in these changes. |
+| U-02 | DONE | `located-insight-methods.ts` 1.1.0 emits labelled I01 `workingQuestion` (`AI_PROPOSED_AWAITING_OWNER`, owner-field list) instead of `I01_OWNER_QUESTION_REQUIRED`; `decision-packets.ts:141` and `m01-evidence-inventory.ts:80` carry the new gap for 1.2.0/1.1.0 and keep `OWNER_QUESTION_UNSET` for 1.0.0; `decision-synthesis-input.ts` adds the sibling `workingQuestion` read from the verified retained located output; `report-located-insight-pages.ts` gloss. Evidence-invariance test `U-02 labels an AI-proposed working question without changing evidence membership` proves only I01/version differ. |
+| U-04 | DONE (SYNC-4-dependency-bound part noted) | `bounded-analysis-gates.ts` derives disjoint platform(+explicit retail/wholesale) groups, replaces `I11_GROUP_POLICY_MISSING`/`I11_PUBLICATION_NOT_AUTHORIZED` with counts-not-blocked plus per-partition blockers, and emits `rates` only under the authenticated-member proof (≥30 members, compatible denominators, disjoint members); `report-method-packets-extension.ts` resolves members at the retention boundary; `report-method-packets-pages.ts` renders derived labels, the counted-record count and the `Phạm vi N` rate table. Producer fixture in `report-method-packets-extension.test.ts` builds real 1.1.0 rates from retained records, asserts the render and rejects an EXCLUDED member. Classified-rate eligibility requiring SYNC-4 stays dependency-bound: no classified rate is emitted. |
+| U-05 | DONE | `insight-model-execution.ts` adds `contractVersion 'insight-model-prompt-v2'` with the blanket persona ban lifted and "no people counts" retained; `insight-model-prompt-v1` stays byte-identical. |
+| U-07 | DONE (insight scope only) | Draft packets `1.2.0`: owner/deadline become labelled AI proposals (`aiProposal` slot, `WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER`), candidates capped at 3 with `immediateTask`/`proposedOwner`/`proposedDeadline` in the candidate envelope (owner options stay a separate list), rendered as "đề xuất của AI, chờ chủ duyệt" in `synthesis-evidence-report.ts` and asserted in `report-reader-projection.test.ts`. The Market `top 3 cells by revenue` / `Thứ tự theo doanh thu` half of U-07 belongs to SYNC-1 (Market reader paths are not in this package's owned paths). |
+| U-16 | DONE (I16 = N/A by construction) | Decision prompt `1.3.0` bans purchase/trial-order suggestions in the authored M12/I15 candidate contract, and `decision-packets.ts` enforces `PURCHASE_SUGGESTION_NOT_ALLOWED` at the candidate boundary for packet `1.2.0`. **I16 has no authored output in this build**: `bounded-analysis-gates.ts` `i16()` is deterministic with no model call, so there is no authored text to lint; `report-method-packets-pages.test.ts` asserts the I16 page renders no proposal wording and re-derives the same section. This handoff does not claim I16 is enforced from prompt text. |
+| B-01…B-07 | N/A | Assigned to SYNC-6 (`docs/tasks/ultimate-v1.11-tdn-sync-plan.md:369` assigns SYNC-3 only U-02, U-04, U-05, U-07 and U-16); none of the B items is in this package's scope. |
+| G-01 | DONE | This table reports every assigned ID of the package. |
+| G-02 | DONE | `npm run typecheck` clean; the full-suite result and the comparison against the known baseline failures are recorded below. |
+| G-03 | N/A | `frontend/` was not changed. |
+| G-04 | DONE | `npm run contracts:generate` was run after every contract edit; the regenerated output is committed and `git diff --exit-code contracts/` is clean. |
+| G-05 | DONE | `git diff --check` clean; every changed path is in this package's owned paths or explicitly granted (`contracts/analysis/*` under the single-writer lease, `service.ts` narrow dispatch, `report-method-packets-pages.ts`/`-extension.ts` render/verify under the coordinator grant). |
+| G-06 | DONE | Synthetic fixtures only; no secrets, tokens, machine paths, home directories, IPs or real commercial data. |
+| G-07 | DONE | No provider or AI call in any test or builder; `NO_AI_OR_PROVIDER_CALL_WAS_MADE` remains a stated limitation where relevant. |
+| G-08 | DONE | Owner-facing additions are plain Vietnamese and name no provider; platform names appear only as source-stated values. |
+| G-09 | DONE | Missing stays missing: unresolved owner fields stay listed, `null` states stay `null`, no zero substitution, no invented group membership and no invented people counts. |
+| G-10 | DONE | Retained 1.0.0/1.1.0 artifacts validate and replay byte-identically; new versions are opt-in discriminators; the retained-version replay test covers the old I11 duplicate-cell behaviour. |
+| G-11 | DONE | No test was deleted, skipped or weakened — `git diff c2014bb..HEAD -- tests/` contains additions only (308 insertions, 0 deletions). No copy assertion needed updating: the changed I11 copy is 1.1.0-only and the 1.0.0 page copy is byte-identical, so no existing assertion pinned text that this package changed. New assertions were added to `bounded-analysis-gates`, `report-method-packets-pages`, `report-method-packets-extension`, `report-reader-projection` and `sync3-version-semantics`. |
+| G-12 | DONE | This file uses `templates/handoff.md` fields plus the Checklist evidence table. |
+| G-13 | N/A | This package does not collect records by keyword; no search/social/comment/ad collection path is created or changed. |
+
+## Run result
+
+(filled after the single authorised full-suite run)
+
+## Unresolved (blockers, unchanged from the last report)
+
+1. Located/bounded descriptor producers (msg_dc789ed2409c, awaiting owner confirmation). `service.ts` cannot dispatch `semanticsVersion` for located/bounded inputs: they are descriptors read from a finalized source package (`methods/located-input.json`, the bounded `descriptorPath`) and re-verified in `located-review-bridge.ts`, `native-source-review-bridge.ts`, `bounded-methods.ts`. The builders accept `semanticsVersion: '1.1.0'` and the retained-member proof, but the package-side descriptor writer must set the version and populate `i11.cells[].groupBasis`/`memberSources`/`numeratorMemberSources`. Those bridge files only read/verify descriptors, so new located/bounded outputs stay 1.0.0 until that writer is named.
+2. The verifier's retained-source-file cap (4) may need a decision once I11 members span more retained files.
+3. Market-side U-07 (remove `top 3 cells by revenue` and `Thứ tự theo doanh thu`) is outside this package's owned paths (Market reader / `market-template.ts`).
+
+Next action: report the PR URL, head SHA, test results and blockers to Astra; do not merge or deploy. No further contract writes without a new lease.

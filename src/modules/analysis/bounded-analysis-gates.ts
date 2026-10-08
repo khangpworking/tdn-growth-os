@@ -210,7 +210,9 @@ function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sec
       if (version === '1.1.0' && values.has(label)) fail('I11_DUPLICATE_GROUP_CELL');
       values.set(label, {
         numerator: cell.numerator.value, denominator: cell.denominator.value, unit: cell.countUnit,
-        members: (cell.memberSources ?? []).map(canonicalJson), numeratorMembers: (cell.numeratorMemberSources ?? []).map(canonicalJson),
+        // Member identity is the retained source key (sha256 + locator): the same record retained under two logical
+        // paths is one record, so a path alias can neither inflate a denominator nor evade the overlap check.
+        members: (cell.memberSources ?? []).map(sourceKey), numeratorMembers: (cell.numeratorMemberSources ?? []).map(sourceKey),
       });
       groupValues.set(key, values);
     }
@@ -240,6 +242,11 @@ function i11(input: Input, version: SemanticsVersion): BoundedAnalysisGates['sec
     // partition stays counts-only rather than comparing them; the missing buyer type is never read as all buyers.
     for (const [group] of values) if (!group.includes(' / ') && values.some(([other]) => other.startsWith(`${group} / `)))
       partition.blockers = unique([...partition.blockers, 'I11_PLATFORM_ONLY_GROUP_OVERLAPS_BUYER_SUBDIVISION']);
+    // A member reference repeated under a path alias (or twice) proves nothing about a denominator, so the reason is
+    // named for the reader instead of silently dropping the rate.
+    if (values.some(([, value]) => value.members.length !== new Set(value.members).size ||
+        value.numeratorMembers.length !== new Set(value.numeratorMembers).size))
+      partition.blockers = unique([...partition.blockers, 'I11_MEMBER_REFERENCES_NOT_DISTINCT']);
     // An unknown assignment, scope or missing/zero denominator in the partition keeps every group counts-only.
     if (overlap || partition.blockers.length) continue;
     const proven = values.every(([, value]) => {

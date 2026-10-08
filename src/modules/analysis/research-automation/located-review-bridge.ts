@@ -53,6 +53,8 @@ function integrity(message: string): never { throw new ResearchAutomationIntegri
 
 interface Input extends ExactShopeeRunInput {
   reference: NonNullable<StepResultDocument['exactShopee']>;
+  /** AI-proposed working question text for U-02, supplied by the run that proposes it; absent means none was proposed. */
+  workingQuestionProposal?: string | null;
 }
 type Identity = Parameters<typeof buildPackageLocatedInsightExtension>[1] & {};
 export interface AutomationLocatedReviewProposalSnapshot {
@@ -138,8 +140,13 @@ export class AutomationLocatedReviewBridge {
     const coding = codeLiteralReviews(corpus, rules);
     // Until the specific rule revision is reviewed, no generated candidate is
     // admitted to a report's analytical sections. Candidate bytes remain intact.
+    // U-02 producer: every newly prepared located descriptor carries semanticsVersion 1.1.0, so I01 reports the
+    // labelled working-question state (with the owner fields to add) instead of the historical hard blocker. The
+    // proposal text is only ever what the run supplied; retained 1.0.0 packages keep building and replaying as-is.
     const descriptor: LocatedInsightMethods['input'] = {
-      contractVersion: '1.0.0', codebookId: coding.output.rules.codebookId,
+      contractVersion: '1.0.0', semanticsVersion: '1.1.0',
+      workingQuestionProposal: typeof input.workingQuestionProposal === 'string' ? input.workingQuestionProposal : null,
+      codebookId: coding.output.rules.codebookId,
       profileSha256: coding.output.rules.profileSha256, adoptionSha256: coding.output.rules.adoptionSha256,
       question: input.scope.definition, inclusionRule: 'Exact selected listing, readable nonconflicting records only. No category or period inference.',
       codingUnit: 'LOCATED_RECORD', adjudicationRule: 'Literal rules are a proposal. Generated candidates are retained separately and not admitted as report findings.',

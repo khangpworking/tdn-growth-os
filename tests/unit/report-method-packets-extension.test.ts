@@ -120,20 +120,24 @@ test('synthesis rejects fabricated packet values and reference digests despite i
 
 test('U-04 descriptive rates are built only from retained INCLUDED text records resolved at the package boundary', async () => {
   const RECORDS_PATH = 'method-packets/located-records.json';
-  const build = async (excludedFirstMember: boolean) => {
+  const ALIAS_PATH = 'method-packets/located-records-copy.json';
+  const build = async (mode: 'plain' | 'excluded' | 'aliased') => {
     const records = Array.from({ length: 71 }, (_, index) => ({ disposition: 'INCLUDED', text: `Retained text record ${index}` }));
-    if (excludedFirstMember) records[0] = { disposition: 'EXCLUDED', text: 'Retained but excluded record' };
+    if (mode === 'excluded') records[0] = { disposition: 'EXCLUDED', text: 'Retained but excluded record' };
     const recordsBytes = bytesOf(records);
     const recordsSha256 = sha(recordsBytes);
-    const member = (index: number) => ({ logicalPath: RECORDS_PATH, sha256: recordsSha256, locator: `/${index}` });
+    // 'aliased' retains the same record bytes a second time under another logical path: one record, two paths.
+    const member = (index: number) => ({ logicalPath: mode === 'aliased' && index === 0 ? ALIAS_PATH : RECORDS_PATH,
+      sha256: recordsSha256, locator: `/${index}` });
     const gates = boundedAnalysisGatesFixture();
     const base = gates.i11!.cells[0]!;
-    const cell = (pointer: string, platform: string, buyer: string | null, members: readonly number[], numeratorMembers: readonly number[]) => ({
+    const cell = (pointer: string, platform: string, buyer: string | null, members: readonly number[], numeratorMembers: readonly number[],
+      extra: readonly { logicalPath: string; sha256: string; locator: string }[] = []) => ({
       ...structuredClone(base), source: { ...base.source, locator: pointer }, group: null,
       countUnit: 'LOCATED_RECORD' as const, identityEvidence: null,
       numerator: { state: 'observed_value' as const, value: String(numeratorMembers.length) },
-      denominator: { state: 'observed_value' as const, value: String(members.length) },
-      memberSources: members.map(member), numeratorMemberSources: numeratorMembers.map(member),
+      denominator: { state: 'observed_value' as const, value: String(members.length + extra.length) },
+      memberSources: [...extra, ...members.map(member)], numeratorMemberSources: numeratorMembers.map(member),
       groupBasis: {
         platform: { state: 'SOURCE_STATED' as const, value: platform, source: { ...base.source, locator: `${pointer}/groupBasis/platform` } },
         buyerType: buyer === null
@@ -143,7 +147,10 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
     });
     gates.semanticsVersion = '1.1.0';
     gates.i11 = { ...gates.i11!, groupPolicy: null, cells: [
-      cell('/i11/cells/0', 'Shopee', null, Array.from({ length: 40 }, (_, index) => index), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+      // 'aliased' declares 40 references, but record 0 is retained under two paths, so only 39 records are distinct.
+      cell('/i11/cells/0', 'Shopee', null, Array.from({ length: mode === 'aliased' ? 39 : 40 }, (_, index) => index),
+        [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11],
+        mode === 'aliased' ? [{ logicalPath: RECORDS_PATH, sha256: recordsSha256, locator: '/0' }] : []),
       cell('/i11/cells/1', 'Lazada', 'RETAIL', Array.from({ length: 31 }, (_, index) => 40 + index), [40, 41, 42, 43, 44]),
     ] };
     const resultBytes = bytesOf(calculateMetricScopes(metricFixture()));
@@ -154,6 +161,9 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
     fixture.files.push({ path: RECORDS_PATH, bytes: recordsBytes, sha256: recordsSha256, byteSize: recordsBytes.length,
       mediaType: 'application/json', evidenceFamily: 'synthetic-located-records', representationRole: 'structured',
       independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic retained text records' });
+    if (mode === 'aliased') fixture.files.push({ path: ALIAS_PATH, bytes: recordsBytes, sha256: recordsSha256, byteSize: recordsBytes.length,
+      mediaType: 'application/json', evidenceFamily: 'synthetic-located-records-alias', representationRole: 'structured',
+      independence: 'non_independent', providerProvenance: 'synthetic', provenanceBasis: 'Synthetic duplicate retained path' });
     const manifest = { contractVersion: '1.0.0', packageId: '00000000-0000-4000-8000-000000000001', packageKey: 'synthetic:methods', version: 1,
       sourceAcquiredAt: null, sourceLabel: 'Synthetic method source declarations', finalizedAt: '2026-10-01T00:00:00Z',
       packageContentSha256: 'b'.repeat(64), files: fixture.files.map(({ bytes: _fileBytes, ...file }) => file) };
@@ -167,7 +177,7 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
     return { logicalPath: fixture.logicalPath, bundle, reader };
   };
 
-  const state = await build(false);
+  const state = await build('plain');
   const built = (await buildReportMethodPacketsExtension(state.logicalPath, state.bundle, state.reader))!;
   assert.deepEqual(built.gates!.sections.I11.partitions[0]!.groupOrder, ['Shopee', 'Lazada / RETAIL']);
   assert.deepEqual(built.gates!.sections.I11.rates, { recordsPerGroupMinimum: 30, groups: [
@@ -184,7 +194,16 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
   assert.doesNotMatch(html, /UNSPECIFIED/);
 
   // A member that resolves to a retained but excluded record is not text-record membership, so no rate is built.
-  const excluded = await build(true);
+  const excluded = await build('excluded');
   await assert.rejects(buildReportMethodPacketsExtension(excluded.logicalPath, excluded.bundle, excluded.reader),
     /METHOD_PACKET_MEMBER_NOT_AN_INCLUDED_TEXT_RECORD/);
+
+  // The same record retained under two logical paths is one record: it can neither fill a declared denominator nor
+  // be counted twice, so the partition stays counts-only with the reason named.
+  const aliased = await build('aliased');
+  const aliasedBuilt = (await buildReportMethodPacketsExtension(aliased.logicalPath, aliased.bundle, aliased.reader))!;
+  assert.equal(aliasedBuilt.gates!.sections.I11.rates, null);
+  assert.ok(aliasedBuilt.gates!.sections.I11.partitions[0]!.blockers.includes('I11_MEMBER_REFERENCES_NOT_DISTINCT'));
+  const aliasedHtml = renderReportMethodPacketSection({ gates: aliasedBuilt.gates! }, 'I11')!;
+  assert.doesNotMatch(aliasedHtml, /Tỷ lệ mô tả theo nhóm/);
 });

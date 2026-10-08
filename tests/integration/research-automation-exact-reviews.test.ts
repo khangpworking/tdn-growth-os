@@ -469,6 +469,16 @@ test('explicit listing scope flows through collection and frozen corpus to both 
   assert.equal(semantic.locatedReview.proposal.contractVersion, 'automation-located-review-snapshot-v1');
   assert.equal(semantic.locatedReview.proposal.authorityState, 'RULE_PROPOSAL_ONLY');
   assert.deepEqual(semantic.locatedReview.proposal.output.input.i04, [], 'the original proposal is retained without analytical admission');
+  // U-02 producer path: the run's own located descriptor is prepared with the new semantics, so I01 reports the
+  // labelled working question awaiting the owner instead of the historical hard blocker.
+  assert.equal(semantic.locatedReview.proposal.output.methodVersion, '1.1.0');
+  assert.equal(semantic.locatedReview.proposal.output.input.semanticsVersion, '1.1.0');
+  assert.deepEqual(semantic.locatedReview.proposal.output.sections.I01.workingQuestion, {
+    state: 'AI_PROPOSED_AWAITING_OWNER', label: 'câu hỏi làm việc do AI đề xuất, chờ chủ duyệt', text: null,
+    ownerFieldsToAdd: ['questionText', 'decisionToInform', 'intendedAudience', 'scope', 'knownConstraints'] });
+  assert.ok(!semantic.locatedReview.proposal.output.sections.I01.blockers.includes('I01_OWNER_QUESTION_REQUIRED'),
+    'a missing owner question is no longer a hard stop for a new located run');
+  assert.equal(semantic.locatedReview.output.input.semanticsVersion, '1.1.0');
   assert.deepEqual(semantic.locatedReview.output.input.i04.map((row: { span: { quote: string }; provenance: { basis: string } }) =>
     [row.span.quote, row.provenance.basis]), [['Tôi đã dùng sản phẩm', 'DECLARED']]);
   assert.ok(semantic.locatedReview.projection.pending.some((row: { reason: string }) => row.reason === 'QUOTED_TEXT_SCOPE'));
