@@ -32,7 +32,7 @@ export type AutomationDecisionSynthesisInput = {
    */
   packet: {
     methodId: 'automation-decision-packet';
-    methodVersion: '1.0.0' | '1.1.0';
+    methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
     packetSha256: Digest;
     status: 'UNRANKED_EVIDENCE_INVENTORY';
     candidateEligibility: {
