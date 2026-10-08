@@ -16,6 +16,14 @@ test('U16 general purchase and trial-order proposals are blocked in Vietnamese a
     'Do not buy this product or recommend purchasing another one',
     'Sau khi đã mua sản phẩm, kiểm tra chất lượng',
     'Review quality in order to buy a sample',
+    'Order a competitor’s product to assess quality',
+    "Order a competitor's product to assess quality",
+    'Order two units of the competitor product for quality assessment',
+    'Order three low-cost competitor products for testing',
+    'No purchase is needed; order a competitor product for testing',
+    'No purchase is needed to assess quality and buy a sample',
+    'No purchase is needed to assess quality or order a competitor product',
+    'Not only order a competitor product but inspect its quality',
   ]) assert.equal(hasAuthoredPurchaseProposal(text), true, text);
 });
 
@@ -35,6 +43,15 @@ test('explicit prohibitions and descriptive retained/public evidence remain avai
     'Order retained source entries for review',
     'Đối chiếu lịch sử mua hàng do chủ cung cấp',
     'Review public data in order to assess quality',
+    'No purchase is needed to assess quality; use public sources and owner data',
+    'No purchase required for quality assessment',
+    'No purchase is necessary; review public evidence',
+    'Order source records about the product for quality review',
+    'Order competitor product records by rating',
+    'Order product reviews by date',
+    'Order public reviews by product rating',
+    'Review order history for the competitor product',
+    'Source states the customer ordered a product',
   ]) assert.equal(hasAuthoredPurchaseProposal(text), false, text);
 });
 
@@ -47,4 +64,5 @@ test('every nested authored field is guarded; source evidence is not an argument
   assert.equal(hasDecisionPurchaseProposal([{ counterevidenceRelations: [{ compatibility: { scope: 'Purchase a product to inspect it' } }] }]), true);
   assert.equal(hasDecisionPurchaseProposal([{ text: 'Assess public reviews; do not buy products', citedClaimRefs: ['claim-synthetic'] }]), false);
   assert.equal(hasDecisionPurchaseProposal([{ text: 'Review public evidence', citedClaimRefs: ['buy'], counterevidenceRefs: ['mua'], counterevidenceRelations: [{ claimRef: 'purchase' }] }]), false);
+  assert.equal(hasDecisionPurchaseProposal([{ counterevidenceRelations: [{ compatibility: { scope: 'Order two units of the competitor product for quality assessment' } }] }]), true);
 });

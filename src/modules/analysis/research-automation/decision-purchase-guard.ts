@@ -26,11 +26,17 @@ export function hasAuthoredPurchaseProposal(text: string): boolean {
       prohibited = directProhibition || coordinatedProhibition;
       previousEnd = match.index + match[0].length;
       if (prohibited) continue;
+      // A directly negated purchase noun is a prohibition, not a buying verb.
+      // It cannot exempt another purchase later in the same or a separate clause.
+      if (/^purchase$/iu.test(match[0]) && /^\s*no$/iu.test(before) &&
+          /^\s+(?:(?:is|was)\s+)?(?:needed|required|necessary)\b/iu.test(after)) continue;
       if (REPORTED_PAST.test(before) || SOURCE_DESCRIPTION.test(before) || DATA_NOUN.test(before)) continue;
       // English noun phrases describing retained evidence are not proposed actions.
       if (/^(?:purchase|order)$/iu.test(match[0]) && /^\s+(?:history|records|receipts|data|evidence|behavior)\b/iu.test(after)) continue;
       // Ordering source records / "in order to" are not orders for goods.
-      if (/^order(?:ing)?$/iu.test(match[0]) && !/^\s+(?:(?:a|an|the|one|two|three|competitor|competitor's)\s+){0,3}(?:product|products|sample|samples|trial|test|goods|merchandise)\b/iu.test(after)) continue;
+      // Possessives, adjectives and quantities may precede a goods noun. Stop
+      // before record/evidence nouns or purpose clauses used for source ordering.
+      if (/^order(?:ing)?$/iu.test(match[0]) && !/^\s+(?:(?!to\b|for\b|by\b|records?\b|entries\b|reviews?\b|results?\b|history\b|data\b|evidence\b)[\p{L}\p{N}][\p{L}\p{N}'’-]*\s+){0,8}(?:product|products|sample|samples|trial|test|goods|merchandise)\b(?!\s+(?:records?|entries|reviews?|results?|history|data|evidence)\b)/iu.test(after)) continue;
       return true;
     }
   }

@@ -26,6 +26,8 @@ const token = 'synthetic-owner-token-1234567890-abcdefghijklmnopqrstuvwxyz';
 const sections = ['M11', 'M12', 'I15'] as const;
 const sourceText = 'Tôi mua tặng sản phẩm.';
 const prohibited = ['Mua sản phẩm đối thủ để kiểm tra chất lượng', 'Buy a competitor product to assess its quality'];
+const orderProposals = ['Order a competitor’s product to assess quality', 'Order two units of the competitor product for quality assessment'];
+const safeNegation = 'No purchase is needed to assess quality; use public sources and owner data';
 function proposal(sectionId: typeof sections[number], claimId: string) {
   return { candidateType: sectionId === 'M12' ? 'ACTION_OPTION' : sectionId === 'I15' ? 'STRATEGY_OPTION' : 'HYPOTHESIS',
     candidateStatus: 'HUMAN_REVIEW_REQUIRED', layer: 3,
@@ -60,7 +62,7 @@ test('OWNER HTTP action retains U16 INVALID, renders blocked proposals, and read
   });
   seed.close();
   const sourceBytes = native.files.get('capture/dataset.json')!;
-  let bad = true;
+  let scenario = 'purchase';
   const requests: { sectionId: string; input: Record<string, any>; system: string }[] = [];
   const errors: unknown[] = [];
   const gateway = http.createServer(async (request, response) => {
@@ -81,8 +83,11 @@ test('OWNER HTTP action retains U16 INVALID, renders blocked proposals, and read
       assert.equal(input.supportEligible[0].contextFields[0].quote, 'mua tặng');
       requests.push({ sectionId, input, system: body.messages[0].content });
       const candidate = proposal(sectionId, input.supportEligible[0].claimId);
-      if (bad && sectionId === 'M12') candidate.text = prohibited[0]!;
-      if (bad && sectionId === 'I15') candidate.immediateTask = prohibited[1]!;
+      if (scenario === 'purchase' && sectionId === 'M12') candidate.text = prohibited[0]!;
+      if (scenario === 'purchase' && sectionId === 'I15') candidate.immediateTask = prohibited[1]!;
+      if (scenario === 'order' && sectionId === 'M12') candidate.text = orderProposals[0]!;
+      if (scenario === 'order' && sectionId === 'I15') candidate.immediateTask = orderProposals[1]!;
+      if (scenario === 'safe-negation') candidate.immediateTask = safeNegation;
       response.writeHead(200, { 'content-type': 'application/json' });
       response.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: JSON.stringify({ aiCandidates: [candidate] }) }, finish_reason: 'stop' }] }));
     } catch (error) { errors.push(error); response.writeHead(500); response.end('Synthetic assertion failed'); }
@@ -131,8 +136,9 @@ test('OWNER HTTP action retains U16 INVALID, renders blocked proposals, and read
     } finally { db.close(); }
   };
   await api(true, async base => {
-    for (const invalid of [true, false]) {
-      bad = invalid;
+    for (const mode of ['purchase', 'order', 'safe-negation', 'public-evidence']) {
+      scenario = mode;
+      const invalid = mode === 'purchase' || mode === 'order';
       const start = { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(), mode: 'PRODUCT', keyword: 'Synthetic U16',
         requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-30' }, reports: ['MARKET', 'INSIGHT'] };
       assert.equal((await post(base, '', start, false)).status, 401);
@@ -177,14 +183,15 @@ test('OWNER HTTP action retains U16 INVALID, renders blocked proposals, and read
         reports[kind] = await response.text();
         const visible = reportVisibleText(reports[kind]!);
         assert.deepEqual(visibleTextViolations(visible), []);
-        for (const phrase of prohibited) assert.equal(visible.includes(phrase), false);
+        for (const phrase of [...prohibited, ...orderProposals]) assert.equal(visible.includes(phrase), false);
         assert.equal(visible.includes('Đề xuất AI bị chặn'), invalid);
         if (!invalid || kind === 'market') assert.match(visible, /review công khai và dữ liệu chủ cung cấp/);
+        if (mode === 'safe-negation') assert.ok(visible.includes(safeNegation));
       }
       history.push({ runId, confirm, reports, pairId });
     }
   });
-  assert.equal(requests.length, 6);
+  assert.equal(requests.length, 12);
   assert.deepEqual(await artifacts.read(native.identity.manifest.files.find(file => file.path === 'capture/dataset.json')!.sha256), sourceBytes);
   const before = rows();
   const allBefore = persisted();
@@ -200,7 +207,7 @@ test('OWNER HTTP action retains U16 INVALID, renders blocked proposals, and read
       }
     }
   });
-  assert.equal(requests.length, 6, 'reopening with no model config never redispatches');
+  assert.equal(requests.length, 12, 'reopening with no model config never redispatches');
   assert.deepEqual(rows(), before, 'stored verdicts/inputs are immutable on read and exact action retry');
   assert.equal(persisted(), allBefore, 'OWNER retry and immutable report reads add no rows or artifact manifests');
 });

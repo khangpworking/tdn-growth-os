@@ -36,10 +36,20 @@ test('packet/input 1.3 and prompt 1.4 enforce U16 without reinterpreting 1.2', (
     assert.deepEqual(verifyAutomationDecisionCandidates(good.artifact, source), good.artifact);
     const fields = ['text', 'conciseEvidenceLinkedRationale', 'immediateTask', 'proposedOwner', 'proposedDeadline',
       'assumptions', 'unknowns', 'evidenceGaps', 'limitations', ...(sectionId === 'M12' ? ['prerequisites'] : sectionId === 'I15' ? ['conditions'] : [])];
-    for (const field of fields) {
-      const bad = { ...candidate(sectionId), [field]: ['assumptions', 'unknowns', 'evidenceGaps', 'limitations', 'prerequisites', 'conditions'].includes(field)
-        ? ['Buy a competitor product to assess its quality'] : 'Mua sản phẩm đối thủ để kiểm tra chất lượng' };
-      assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [bad] }, source), /PURCHASE_SUGGESTION_NOT_ALLOWED/, field);
+    for (const text of ['Mua sản phẩm đối thủ để kiểm tra chất lượng', 'Buy a competitor product to assess its quality',
+      'Order a competitor’s product to assess quality', "Order a competitor's product to assess quality",
+      'Order two units of the competitor product for quality assessment']) {
+      for (const field of fields) {
+        const bad = { ...candidate(sectionId), [field]: ['assumptions', 'unknowns', 'evidenceGaps', 'limitations', 'prerequisites', 'conditions'].includes(field)
+          ? [text] : text };
+        assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [bad] }, source), /PURCHASE_SUGGESTION_NOT_ALLOWED/, `${field}: ${text}`);
+      }
+    }
+    for (const text of ['No purchase is needed to assess quality; use public sources and owner data',
+      'No purchase required for quality assessment', 'No purchase is necessary; review public evidence',
+      'Order source records about the product for quality review', 'Review order history for the competitor product']) {
+      const safe = validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(sectionId), text }] }, source);
+      assert.deepEqual(verifyAutomationDecisionCandidates(safe.artifact, source), safe.artifact);
     }
     const historical = { ...source, packetVersion: '1.2.0' as const };
     const formerlyAdmitted = validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(sectionId), text: 'Mua sản phẩm đối thủ để kiểm tra chất lượng' }] }, historical);
@@ -80,11 +90,23 @@ test('new generic renderer gate preserves source and default-peer renderer prece
     buildAutomationDecisionPacket({ sectionId, packetVersion, evidence }).artifact);
   const old = { ...base, decisionPackets: packets('1.2.0'), decisionSourceClaims: evidence.sourceClaims as Parameters<typeof decisionPacketSection>[1] };
   const historical = buildResearchAutomationReport(old, 'MARKET');
-  const latest = { ...old, decisionPackets: packets('1.3.0') };
+  const generated = { ...old, decisionPackets: packets('1.3.0') };
+  const latest = { ...generated, decisionSynthesis: { M12: {
+    status: 'INVALID' as const, executionId: 'synthetic-executed-1.3', dispatched: false, validationCode: 'INVALID_DECISION_CANDIDATES' as const,
+  } } };
   const current = buildResearchAutomationReport(latest, 'MARKET');
   assert.equal((current.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v24');
   assert.equal((historical.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
   assert.deepEqual(buildResearchAutomationReport(old, 'MARKET'), historical);
+  assert.equal((buildResearchAutomationReport(generated, 'MARKET').semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
+  for (const outcome of [
+    { status: 'NOT_DISPATCHED' as const, reason: 'AI_NOT_CONFIGURED' as const },
+    { status: 'PREPARED' as const, executionId: 'synthetic-prepared' },
+  ]) {
+    assert.equal((buildResearchAutomationReport({ ...generated, decisionSynthesis: { M12: outcome } }, 'MARKET').semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
+  }
+  // An execution in another section does not prove execution of the new packet.
+  assert.equal((buildResearchAutomationReport({ ...generated, decisionPackets: [generated.decisionPackets[0]!] , decisionSynthesis: latest.decisionSynthesis }, 'MARKET').semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
   const sourceEvidence = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
   const source = buildResearchAutomationReport({ ...latest, sourceEvidence, start: { ...latest.start, sourceEvidenceVersion: 'automation-source-evidence-v1' } }, 'MARKET');
   assert.equal((source.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v18');
