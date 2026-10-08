@@ -1,8 +1,11 @@
+import { buildResearchAutomationReport } from './reports.js';
 import { draftKeywordLists, type KeywordListDraftTransport } from '../keyword-list-drafting.js';
 import { retainKeywordListDraft, replayKeywordListDraft, type KeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import { readSalesNameEvidence } from './sales-name-evidence.js';
 import { buildSourceEvidence, sourceEvidenceForReport, verifySourceEvidence, admitWebResults, checkSourceEvidence, type AutomationSourceEvidence } from './source-evidence.js';
 import { createHash, randomUUID } from 'node:crypto';
+import { AutomationInsightLiteralEvidence } from './insight-literal-bridge.js';
+import type { InsightLiteralEvidence } from '../../../../contracts/analysis/insight-literal-evidence.generated.js';
 import { createRequire } from 'node:module';
 import automationApiSchema from '../../../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import sourceConfirmSchema from '../../../../contracts/api/research-automation-source-api.schema.json' with { type: 'json' };
@@ -167,6 +170,7 @@ export interface ResearchAutomationReportInput {
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly insightCoding?: AutomationInsightCodingSnapshot;
+  readonly insightLiteral?: InsightLiteralEvidence;
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
@@ -338,6 +342,7 @@ export class ResearchAutomationService {
   readonly #readerReports: AutomationReaderReports;
   readonly #metricMembership: AutomationMetricMembership;
   readonly #insightCoding: AutomationInsightCoding;
+  readonly #insightLiteral: AutomationInsightLiteralEvidence;
   readonly #classifiedMetric: AutomationClassifiedMetric;
   readonly #i14Executions: AutomationI14SynthesisExecutions;
   readonly #i14Ai: AutomationI14ExecutionRequest['ai'];
@@ -369,6 +374,7 @@ export class ResearchAutomationService {
     };
     this.#methods = new AutomationDescriptiveMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#locatedReviews = new AutomationLocatedReviewBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
+    this.#insightLiteral = new AutomationInsightLiteralEvidence({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#nativeReviews = new AutomationNativeSourceReviewBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#shopee = new AutomationExactShopeeBridge(this.#db, this.#artifacts, options.shopeeCollectorFactory);
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
@@ -1211,6 +1217,8 @@ export class ResearchAutomationService {
     const requestSha = digest(input);
     return withDatabaseMutationMutex(this.#db, async () => {
       await this.getRun(workspaceId, runId);
+      if ('literalInsight' in input && !this.#current(runId)!.reports.split(',').includes('INSIGHT'))
+        throw new ResearchAutomationValidationError('Literal evidence requires an Insight report in this run.');
       const previousRequest = this.#attemptRequest(input.requestKey);
       if (previousRequest) {
         const prior = this.#attempt(previousRequest.attemptId)!;
@@ -1244,6 +1252,8 @@ export class ResearchAutomationService {
       const bound = { runId, start, scope, scopeConfirmedAt: run.scopeConfirmedAt };
       const priorAttempt = previous.attemptId ? this.#attempt(previous.attemptId)! : undefined;
       const priorSources = priorAttempt ? await this.#readAttemptSources(run, priorAttempt) : await this.#readFrozenSources(run);
+      if ('literalInsight' in input) await this.#insightLiteral.build({ ...bound, previousPairId: input.previousPairId,
+        collection: await this.#reportCollection(runId, priorSources, Boolean(priorAttempt)), captures: await this.#captureRecords(runId) });
       let metric: AutomationConfirmedSourceSet['metric'];
       if (input.sources.metric.decision === 'USE_PREPARED')
         metric = { decision: 'ADMITTED', sourcePackage: await this.#metricMethods.inspectPrepared(bound, input.sources.metric.packageId) };
@@ -1503,6 +1513,19 @@ export class ResearchAutomationService {
     } else if (semantic.defaultMarketPeers !== undefined) {
       throw new ResearchAutomationIntegrityError('Stored default peers lack a frozen Market rule.');
     }
+    let verifiedLiteral: InsightLiteralEvidence | undefined;
+    const literalRequest = attempt ? await this.#literalInsightRequest(frozenRun, attempt) : undefined;
+    if (kind === 'INSIGHT' && literalRequest) {
+      if (!frozenRun.scopeSha || !frozenRun.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Literal evidence lacks frozen scope.');
+      verifiedLiteral = await this.#insightLiteral.verify(semantic.insightLiteral, { runId,
+        start: await this.#readStartSnapshot(frozenRun.startSha, workspaceId),
+        scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId), scopeConfirmedAt: frozenRun.scopeConfirmedAt,
+        previousPairId: literalRequest.previousPairId, collection: await this.#reportCollection(runId, sources, Boolean(attempt)),
+        captures: await this.#captureRecords(runId) });
+      if (semantic.rendererVersion !== 'automation-report-kit-v19') throw new ResearchAutomationIntegrityError('Literal evidence renderer identity differs.');
+    } else if (semantic.insightLiteral !== undefined) {
+      throw new ResearchAutomationIntegrityError('Literal evidence lacks an explicit source-bound revision request.');
+    }
     const insightRequest = attempt ? await this.#insightCodingRequest(frozenRun, attempt) : undefined;
     if (kind === 'INSIGHT' && insightRequest) {
       const snapshot = 'draftInsight' in insightRequest
@@ -1652,6 +1675,7 @@ export class ResearchAutomationService {
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
       const basePacket = (await this.#stepDocument(runId, 'COLLECTION'))?.sourceEvidence ?? buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
       const expected = sourceEvidenceForReport(basePacket, { collection,
+        ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
         ...(semantic.metricMethods ? { metricMethods: semantic.metricMethods as AutomationMetricMethodSnapshot } : {}),
         ...(semantic.metricClassified ? { metricClassified: semantic.metricClassified as AutomationClassifiedMetricSnapshot } : {}),
         ...(semantic.reviewCorpus ? { reviewCorpus: semantic.reviewCorpus as ResearchReviewCorpus } : {}),
@@ -1921,6 +1945,7 @@ export class ResearchAutomationService {
       let metricMethods: AutomationMetricMethodSnapshot | undefined;
       let metricClassified: AutomationClassifiedMetricSnapshot | undefined;
       let insightCoding: AutomationInsightCodingSnapshot | undefined;
+      let insightLiteral: InsightLiteralEvidence | undefined;
       let metricProof: StoredArtifact | null = null;
       let metricMethodsFailure: MetricMethodFailureCode | undefined;
       let reviewCorpus: ResearchReviewCorpus | undefined;
@@ -1932,6 +1957,7 @@ export class ResearchAutomationService {
       let locatedReviewFailure: 'LOCATED_REVIEW_METHOD_FAILED' | undefined;
       if (priorInsight && revisionRequest?.sources.nativeReview.decision === 'KEEP') {
         insightCoding = priorInsight.insightCoding as AutomationInsightCodingSnapshot | undefined;
+        insightLiteral = priorInsight.insightLiteral as InsightLiteralEvidence | undefined;
         reviewCorpus = priorInsight.reviewCorpus as ResearchReviewCorpus | undefined;
         reviewCorpusFailure = priorInsight.reviewCorpusFailure as typeof reviewCorpusFailure;
         locatedReview = priorInsight.locatedReview as AutomationLocatedReviewSnapshot | undefined;
@@ -2003,6 +2029,10 @@ export class ResearchAutomationService {
         }
         }
       }
+      if (revisionRequest && 'literalInsight' in revisionRequest) {
+        insightLiteral = await this.#insightLiteral.build({ runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt!,
+          previousPairId: revisionRequest.previousPairId, collection: reviewCollection, captures });
+      }
       // Market decision packets can cite the paired Insight. Render the sibling
       // first to bind its exact immutable version without a circular reference.
       for (const kind of (['INSIGHT', 'MARKET'] as const).filter(kind => start.reports.includes(kind))) {
@@ -2020,6 +2050,7 @@ export class ResearchAutomationService {
           ...(kind === 'INSIGHT' && locatedReviewFallback ? { locatedReviewFallback } : {}),
           ...(kind === 'INSIGHT' && nativeReview ? { nativeReview } : {}),
           ...(kind === 'INSIGHT' && insightCoding ? { insightCoding } : {}),
+          ...(kind === 'INSIGHT' && insightLiteral ? { insightLiteral } : {}),
           ...(kind === 'INSIGHT' && nativeReviewFailure ? { nativeReviewFailure } : {}),
           ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
           ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
@@ -2049,7 +2080,7 @@ export class ResearchAutomationService {
         let i14Synthesis: AutomationI14ExecutionOutcome | undefined;
         if (builtI14) {
           const parent = await this.#i14Parent(fresh, attempt);
-          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
+          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
             // Selected coding changes deterministic methods, not the frozen AI evidence package.
             const retained = await this.#i14Executions.read(parent, admissionInput);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -2072,7 +2103,7 @@ export class ResearchAutomationService {
           decisionPackets.push(buildAutomationDecisionPacket(source).artifact);
           const parent = await this.#i14Parent(fresh, attempt);
           let outcome: AutomationDecisionExecutionOutcome | undefined;
-          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
+          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
             // Deterministic revisions preserve the source-bound draft, without authorizing new AI calls.
             const retained = await this.#decisionExecutions[sectionId].read(parent, source);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -2100,7 +2131,7 @@ export class ResearchAutomationService {
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = rendered.semantic as Record<string, unknown>;
@@ -2123,6 +2154,7 @@ export class ResearchAutomationService {
             ...(kind === 'INSIGHT' && input.locatedReviewFallback ? { locatedReviewFallback: input.locatedReviewFallback } : {}),
             ...(kind === 'INSIGHT' ? { nativeReview: input.nativeReview ?? null } : {}),
             ...(kind === 'INSIGHT' && insightCoding ? { insightCoding } : {}),
+          ...(kind === 'INSIGHT' && insightLiteral ? { insightLiteral } : {}),
             ...(kind === 'INSIGHT' && input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
             ...(kind === 'INSIGHT' && input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
             ...(kind === 'INSIGHT' && input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}),
@@ -2593,10 +2625,18 @@ export class ResearchAutomationService {
     if (!attempt) return { kind: 'INITIAL_REPORTS', runId: run.runId };
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight execution revision request failed verification.');
-    return 'acceptedMetric' in request || 'acceptedInsight' in request || 'draftInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
+    return 'acceptedMetric' in request || 'acceptedInsight' in request || 'draftInsight' in request || 'literalInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
       : { kind: 'SUPPLEMENTAL_ATTEMPT', runId: run.runId, attemptId: attempt.attemptId };
   }
-  async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationInsightReportRevisionRequest | undefined> {
+  async #literalInsightRequest(run: RunRow, attempt: AttemptRow): Promise<Extract<AutomationInsightReportRevisionRequest, { literalInsight: unknown }> | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Literal revision request failed verification.');
+    if ('literalInsight' in request) return request;
+    if (request.sources.nativeReview.decision !== 'KEEP') return undefined;
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#literalInsightRequest(run, previous) : undefined;
+  }
+  async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<Exclude<AutomationInsightReportRevisionRequest, { literalInsight: unknown }> | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight coding revision request failed verification.');
     if ('acceptedInsight' in request) return request;
@@ -3009,4 +3049,7 @@ function blockerList(steps: readonly StepRow[], documents: ReadonlyMap<StepId, S
 function coverageBlocker(state: ResearchAutomationCoverageSource['state']): string { return state === 'UNAVAILABLE' ? 'PROVIDER_NOT_CONFIGURED' : `COVERAGE_${state}`; }
 function dedupeBlockers(values: ResearchAutomationRun['blockers']): ResearchAutomationRun['blockers'] { const seen = new Set<string>(); return values.filter((value) => { const key = `${value.code}:${value.scope}:${value.provider ?? ''}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
 function safeStepMessage(code: string): string { try { return message(code); } catch { return 'This step has a recorded limitation; review the source coverage and run again if needed.'; } }
-function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARKET' | 'INSIGHT'): ResearchAutomationRenderedReport { const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }
+function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARKET' | 'INSIGHT'): ResearchAutomationRenderedReport {
+  // Only the explicit new literal branch changes the historical fallback.
+  if (kind === 'INSIGHT' && input.insightLiteral) return { ...buildResearchAutomationReport(input, kind), pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' };
+  const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }

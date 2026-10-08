@@ -17,7 +17,8 @@ import type { AutomationI14ExecutionOutcome } from './i14-synthesis-execution.js
 import type { AutomationDecisionSectionId } from './decision-packets.js';
 import type { AutomationDecisionExecutionOutcome } from './decision-synthesis-execution.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
-import { reviewCorpusSection } from './review-corpus-report.js';
+import { verifyInsightLiteralEvidence, type InsightLiteralEvidence } from '../insight-literal-evidence.js';
+import { reviewCorpusSection, insightLiteralSection } from './review-corpus-report.js';
 import { projectCorpusTrace, type CorpusTrace } from './corpus-trace-projection.js';
 import { projectMarketSourceScope, marketSourceScopeSection } from './market-scope-report.js';
 import type { AutomationMarketMethodSnapshot } from './market-method-bridge.js';
@@ -72,6 +73,7 @@ export interface AutomationReportInput {
   readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   /** Verified coding selections; v2 also supplies explicitly selected semantic families. Original source snapshots remain retained. */
   readonly insightCoding?: AutomationInsightCodingSnapshot;
+  readonly insightLiteral?: InsightLiteralEvidence;
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
   readonly metricMethods?: AutomationMetricMethodSnapshot;
@@ -474,6 +476,9 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (binding.sourceKind === 'NATIVE' ? input.locatedReview || input.locatedReviewFallback : input.nativeReview || input.nativeReviewFallback) throw new Error('Report insight coding source kind mismatch');
   }
   const insightCoding = kind === 'INSIGHT' ? input.insightCoding : undefined;
+  const insightLiteral = kind === 'INSIGHT' && input.insightLiteral ? verifyInsightLiteralEvidence(input.insightLiteral) : undefined;
+  if (insightLiteral && (insightLiteral.input.binding.runId !== input.run.runId || insightLiteral.input.binding.workspaceId !== input.run.workspaceId))
+    throw new Error('Literal Insight run binding differs');
   const captures = collectionCaptureMap(input);
   const evidence = peerEvidence(input, captures);
   const observations = observedRows(input, captures);
@@ -645,6 +650,13 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       sectionId: section.sectionId, title: section.title, state: 'BLOCKED', method: `${section.methodId}@${section.methodVersion}`, rows: [],
       explanation: 'Phương pháp đã được nối nhưng dữ liệu nguồn không vượt qua kiểm tra inventory. Chưa có kết quả được xác minh; không tự gọi lại nguồn.',
     };
+    if (insightLiteral && ['I05', 'I07', 'I08', 'I13'].includes(section.sectionId)) return {
+      sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
+      method: `${insightLiteral.methodId}@${insightLiteral.methodVersion}`,
+      explanation: section.sectionId === 'I05'
+        ? 'Đã giữ riêng số sao từ nguồn và trạng thái phần chữ. Đây là hồ sơ bản ghi, chưa phải phân loại cảm nhận hoặc kết luận về khách hàng.'
+        : 'Lớp lời người bán được đối chiếu riêng theo trường và vị trí nguồn; phần thiếu được ghi rõ. Không thay thế lời khách hoặc kết quả mã hóa.',
+    };
     fallbackIds.add(section.sectionId);
     return { sectionId: section.sectionId, title: section.title, state: 'BLOCKED', method: `${section.methodId}@${section.methodVersion}`, rows: [], explanation: blockedGuidance(section) };
   });
@@ -663,7 +675,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -683,6 +695,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, locatedReview: input.locatedReview ?? null, nativeReview: input.nativeReview ?? null,
       ...(input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
       ...(input.insightCoding ? { insightCoding: input.insightCoding } : {}),
+      ...(insightLiteral ? { insightLiteral } : {}),
       ...(input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
       ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
       ...(input.descriptiveMethodFailure ? { descriptiveMethodFailure: input.descriptiveMethodFailure } : {}),
@@ -778,12 +791,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     return '';
   };
   const methodBody = (section: DraftSection): string => {
+    const literal = insightLiteral && ['I05', 'I07', 'I08', 'I13', 'I17'].includes(section.sectionId)
+      ? insightLiteralSection(insightLiteral, section.sectionId as 'I05' | 'I07' | 'I08' | 'I13' | 'I17', citations) : '';
     const locatedView = locatedViews.get(section.sectionId);
-    if (section.state === 'EVIDENCE_INVENTORY') return locatedView ? locatedView() : '';
-    if (section.state !== 'METHOD_OUTPUT' && section.state !== 'METHOD_NO_USABLE_RECORDS') return '';
+    if (section.state === 'EVIDENCE_INVENTORY') return (locatedView ? locatedView() : '') + literal;
+    if (section.state !== 'METHOD_OUTPUT' && section.state !== 'METHOD_NO_USABLE_RECORDS') return literal;
     // Metric has its own scoped tables and source trace in appendix(), not a descriptive-method view.
     if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return '';
-    return locatedView ? locatedView() : views.get(section.sectionId)!.html;
+    return (locatedView ? locatedView() : views.get(section.sectionId)!.html) + literal;
   };
   const body = orderReportCitations(`<p class="warning">${escape(headline)}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations)}${appendix(section.sectionId)}<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details></section>`).join(''), registry);
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${escape(title)} · ${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`
