@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/keyword-meaning-filter.schema.json",
+  "title": "KeywordMeaningFilter",
+  "description": "Deterministic L9 keyword-meaning filter (Ultimate v1.8+, plan U-12). Versioned keyword/exclusion data plus frozen included/excluded/unclear decisions retaining exact record/context references and reasons. Matching keeps Vietnamese diacritics; undiacritized candidates resolve only from their own marked context. No provider, model or approval semantics.",
+  "oneOf": [{ "$ref": "#/$defs/data" }, { "$ref": "#/$defs/result" }, { "$ref": "#/$defs/records" }],
+  "$defs": {
+    "nonEmptyText": { "type": "string", "minLength": 1, "maxLength": 10000, "pattern": "\\S" },
+    "term": { "type": "string", "minLength": 1, "maxLength": 200, "pattern": "\\S" },
+    "reasonText": { "type": "string", "minLength": 1, "maxLength": 500, "pattern": "\\S" },
+    "provenance": {
+      "title": "KeywordListProvenance",
+      "description": "Who drafted the keyword/exclusion data. Source and model-drafted provenance stay distinct; neither implies human approval.",
+      "enum": ["OPERATOR_SUPPLIED", "MODEL_DRAFTED"]
+    },
+    "decision": { "title": "KeywordMeaningDecision", "enum": ["INCLUDED", "EXCLUDED", "UNCLEAR"] },
+    "reason": {
+      "title": "KeywordMeaningReason",
+      "enum": ["MATCHED_KEYWORD", "RESOLVED_BY_CONTEXT", "EXCLUDED_TERM", "EXCLUDED_CONTEXT",
+        "UNRESOLVED_UNDIACRITICIZED", "UNLISTED_ACCENTED_LOOKALIKE", "NO_KEYWORD_MATCH", "EMPTY_TEXT"]
+    },
+    "exclusion": {
+      "title": "KeywordMeaningExclusion",
+      "type": "object", "additionalProperties": false,
+      "required": ["term", "reason"],
+      "properties": {
+        "term": { "$ref": "#/$defs/term" },
+        "reason": { "$ref": "#/$defs/reasonText" }
+      }
+    },
+    "data": {
+      "title": "KeywordMeaningFilterData",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "dataVersion", "category", "provenance", "keywords", "exclusions"],
+      "properties": {
+        "contractVersion": { "const": "l9-keyword-data-v1" },
+        "dataVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "keywords": { "type": "array", "items": { "$ref": "#/$defs/term" }, "minItems": 1, "maxItems": 500 },
+        "exclusions": { "type": "array", "items": { "$ref": "#/$defs/exclusion" }, "maxItems": 500 }
+      }
+    },
+    "record": {
+      "title": "KeywordMeaningRecord",
+      "description": "One collected candidate record at the trust boundary. Empty text is admitted and classifies UNCLEAR; identity is byte-exact.",
+      "type": "object", "additionalProperties": false,
+      "required": ["recordId", "text"],
+      "properties": {
+        "recordId": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "text": { "type": "string", "maxLength": 10000 },
+        "contextText": { "anyOf": [{ "type": "string", "maxLength": 10000 }, { "type": "null" }] }
+      }
+    },
+    "records": {
+      "title": "KeywordMeaningRecords",
+      "type": "array", "items": { "$ref": "#/$defs/record" }, "maxItems": 5000
+    },
+    "recordResult": {
+      "title": "KeywordMeaningRecordResult",
+      "type": "object", "additionalProperties": false,
+      "required": ["recordId", "decision", "reason", "matchedKeyword", "excludedBy", "exclusionReason", "text", "contextText"],
+      "properties": {
+        "recordId": { "type": "string", "minLength": 1, "maxLength": 300 },
+        "decision": { "$ref": "#/$defs/decision" },
+        "reason": { "$ref": "#/$defs/reason" },
+        "matchedKeyword": { "anyOf": [{ "$ref": "#/$defs/term" }, { "type": "null" }] },
+        "excludedBy": { "anyOf": [{ "$ref": "#/$defs/term" }, { "type": "null" }] },
+        "exclusionReason": { "anyOf": [{ "$ref": "#/$defs/reasonText" }, { "type": "null" }] },
+        "text": { "type": "string", "maxLength": 10000 },
+        "contextText": { "anyOf": [{ "type": "string", "maxLength": 10000 }, { "type": "null" }] }
+      }
+    },
+    "result": {
+      "title": "KeywordMeaningFilterResult",
+      "type": "object", "additionalProperties": false,
+      "required": ["contractVersion", "dataVersion", "category", "provenance", "keywords", "exclusions", "results", "accounting"],
+      "properties": {
+        "contractVersion": { "const": "keyword-meaning-filter-v1" },
+        "dataVersion": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "category": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "provenance": { "$ref": "#/$defs/provenance" },
+        "keywords": { "type": "array", "items": { "$ref": "#/$defs/term" }, "minItems": 1, "maxItems": 500 },
+        "exclusions": { "type": "array", "items": { "$ref": "#/$defs/exclusion" }, "maxItems": 500 },
+        "results": { "type": "array", "items": { "$ref": "#/$defs/recordResult" }, "maxItems": 5000 },
+        "accounting": {
+          "type": "object", "additionalProperties": false,
+          "required": ["included", "excluded", "unclear", "byReason"],
+          "properties": {
+            "included": { "type": "integer", "minimum": 0 },
+            "excluded": { "type": "integer", "minimum": 0 },
+            "unclear": { "type": "integer", "minimum": 0 },
+            "byReason": { "type": "object", "additionalProperties": { "type": "integer", "minimum": 0 } }
+          }
+        }
+      }
+    }
+  }
+}
