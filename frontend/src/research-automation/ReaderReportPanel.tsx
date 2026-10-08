@@ -84,7 +84,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
           if (mounted.current) setNotice('Đã lưu quy cách của phiên này. Bản đọc chưa được dựng xong và chưa được duyệt.');
         });
       if (!mounted.current) return;
-      setNotice(`Đã lưu quy cách và dựng bản đọc lần ${receipt.revision.revisionNumber}. Bản đọc vẫn chờ bạn duyệt.`); reload();
+      setNotice(`Đã lưu quy cách và dựng bản đọc lần ${receipt.revision.revisionNumber}. ${receipt.revision.state === 'PENDING_OWNER_REVIEW' ? 'Bản đọc vẫn chờ bạn duyệt.' : `Trạng thái: ${STATE_LABEL[receipt.revision.state]}.`}`); reload();
     } catch (failure) {
       if (mounted.current) setIntakeError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa lưu được quy cách và dựng bản đọc. Thử lại với cùng tệp yêu cầu.');
     } finally { if (mounted.current) setPending(false); }
@@ -99,7 +99,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
       const receipt = await buildInsightReader(run.workspaceId, run.runId, { contractVersion: 'insight-reader-build-v1', reportKind: 'INSIGHT',
         requestKey, draftPairId: selectedPair.pairId, semanticSha256: insightSource.versionId }, ownerToken);
       if (!mounted.current) return;
-      setNotice(`Đã dựng bản đọc insight lần ${receipt.revision.revisionNumber}. Bản này vẫn chờ bạn duyệt.`); reload();
+      setNotice(`Đã dựng bản đọc insight lần ${receipt.revision.revisionNumber}. Trạng thái: ${STATE_LABEL[receipt.revision.state]}.`); reload();
     } catch (failure) { if (mounted.current) setSourceError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa dựng được bản đọc insight. Thử lại với cùng phiên bản nguồn.'); }
     finally { if (mounted.current) setPending(false); }
   };
