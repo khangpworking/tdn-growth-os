@@ -10,6 +10,7 @@ import path from 'node:path';
 import test, { type TestContext } from 'node:test';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
+import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
@@ -33,7 +34,7 @@ async function allBytes(root: string): Promise<Buffer> {
   }
   return Buffer.concat(buffers);
 }
-async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, mismatch = false, maxReviewsPerProduct = 20) {
+async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, mismatch = false, maxReviewsPerProduct = 20, withRenderer = true) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-private-consumer-run-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -58,8 +59,9 @@ async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, 
     retainReturnedPages: true, maxReviewsPerProduct, fetch: transport }, mismatch
       ? createShopeePrivateIntake({ salt: Buffer.alloc(32, 8), keyId }) : privacy);
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
+    metricAttachmentStore: new RequestScopedArtifactStore(path.join(root, 'artifacts')),
     uuid: () => runId, now, sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'synthetic-v1' }, privateShopee: { source: { contractVersion: 'automation-private-shopee-source-v1', profile: privacy.profile },
-      factory: () => ({ collector, requestsIssued: () => calls.length }) }, renderer: buildResearchAutomationReport });
+      factory: () => ({ collector, requestsIssued: () => calls.length }) }, ...(withRenderer ? { renderer: buildResearchAutomationReport } : {}) });
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(),
     mode: 'PRODUCT', keyword: 'Synthetic product', requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['MARKET', 'INSIGHT'] });
@@ -258,4 +260,46 @@ test('valid SUCCEEDED capped private capture stays PARTIAL/truncated and retains
   assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT')).bytes, report.report.bytes);
   assert.equal(await f.service.processNext(), false); assert.equal(f.calls.length, 2);
   leakCheck(await allBytes(path.join(f.root, 'artifacts'))); leakCheck(await allBytes(path.join(f.root, 'journal')));
+});
+
+
+test('private source-only renderer22 and literal replay work without an adapter; default coding stays unavailable without calls or writes', async t => {
+  const f = await fixture(t, 'SUCCEEDED', false, false, 20, false);
+  await f.service.confirmScope(workspaceId, runId, f.confirm);
+  await f.service.processNext(); await f.service.processNext();
+  const first = (await f.service.listReportVersions(workspaceId, runId))[0]!;
+  const original = await semantic(f, first.pairId);
+  assert.equal(original.value.rendererVersion, 'automation-report-kit-v22');
+  assert.equal(original.value.privateReviewCorpus.records.length, 5);
+  const before = f.db.prepare('SELECT total_changes() n').get();
+  await assert.rejects(f.service.readInsightSourceContext(workspaceId, runId, first.pairId), /no verified adopted review source/);
+  let modelCalls = 0;
+  const corpus = JSON.parse((await f.artifacts.read(original.value.privateReviewCorpus.corpus.artifactSha256)).toString());
+  const request = { contractVersion: 'insight-default-model-request-v1', requestKey: randomUUID(),
+    binding: { workspaceId, runId, pairId: first.pairId, scopeSha256: corpus.binding.scopeSha256,
+      reportSha256: original.report.versionId, sourceKind: 'EXACT_SHOPEE', sourcePackageSha256: 'f'.repeat(64), inputSha256: 'e'.repeat(64) },
+    defaultRuleId: null, defaultRuleSha256: null, previousProposalId: null, previousProposalSha256: null, recordIndexes: [0] };
+  await assert.rejects(f.service.proposeDefaultModelInsightCoding(workspaceId, runId, request, { actorId: 'owner:private-test', role: 'OWNER' },
+    { configuration: { contractVersion: 'insight-model-configuration-v1', providerId: 'synthetic', modelId: 'fixture-model', temperature: null,
+      maxOutputTokens: 4096, timeoutMs: 1000, maxResponseBytes: 65536 }, port: { async generateText() {
+      modelCalls++; throw new Error('Private source must not dispatch default coding');
+    } } }), /no verified adopted review source/);
+  assert.equal(modelCalls, 0); assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
+  await f.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-insight-literal-report-revision-v1',
+    requestKey: randomUUID(), previousPairId: first.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } },
+    literalInsight: { contractVersion: 'insight-literal-select-v1' } });
+  await f.service.processNext();
+  const current = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+  const revised = await semantic(f, current.pairId);
+  assert.equal(revised.value.rendererVersion, 'automation-report-kit-v22');
+  assert.equal(revised.value.insightLiteral.input.reviews.length, 5);
+  assert.equal(revised.value.privateReviewCorpus.corpus.artifactSha256, original.value.privateReviewCorpus.corpus.artifactSha256);
+  assert.equal(revised.value.insightCoding, undefined);
+  const reader = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts,
+    workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db: f.db, artifactStore: f.artifacts })),
+    now: () => { throw new Error('Replay must not request time'); } });
+  const replayChanges = f.db.prepare('SELECT total_changes() n').get();
+  assert.deepEqual((await reader.readReport(workspaceId, runId, 'INSIGHT', false, current.pairId)).bytes, revised.report.bytes);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), replayChanges);
+  assert.equal(modelCalls, 0); assert.equal(f.calls.length, 2);
 });

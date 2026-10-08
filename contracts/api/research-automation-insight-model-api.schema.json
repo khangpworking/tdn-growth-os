@@ -3,58 +3,158 @@
   "$id": "https://tdn.local/contracts/api/research-automation-insight-model-api.schema.json",
   "title": "ResearchAutomationInsightModelApi",
   "description": "Explicit OWNER model proposal, never annotation acceptance or report regeneration. Unknown dispatch must not be retried under a new identity automatically.",
-  "oneOf": [{ "$ref": "#/$defs/request" }, { "$ref": "#/$defs/response" }],
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/response"
+    },
+    {
+      "$ref": "#/$defs/defaultRequest"
+    }
+  ],
   "$defs": {
-    "request": { "$ref": "../analysis/automation-insight-model.schema.json#/$defs/request" },
-    "version": { "const": "insight-model-response-v1" },
-    "uuid": { "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/uuid" },
+    "request": {
+      "$ref": "../analysis/automation-insight-model.schema.json#/$defs/request"
+    },
+    "version": {
+      "const": "insight-model-response-v1"
+    },
+    "uuid": {
+      "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/uuid"
+    },
     "response": {
       "title": "ResearchInsightModelResponse",
       "oneOf": [
         {
-          "type": "object", "additionalProperties": false,
-          "required": ["contractVersion", "status", "executionId", "proposal"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "executionId",
+            "proposal"
+          ],
           "properties": {
-            "contractVersion": { "$ref": "#/$defs/version" }, "status": { "const": "PROPOSED" },
-            "executionId": { "$ref": "#/$defs/uuid" },
-            "proposal": { "$ref": "research-automation-insight-coding-api.schema.json#/$defs/mutation" }
+            "contractVersion": {
+              "$ref": "#/$defs/version"
+            },
+            "status": {
+              "const": "PROPOSED"
+            },
+            "executionId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "proposal": {
+              "$ref": "research-automation-insight-coding-api.schema.json#/$defs/mutation"
+            }
           }
         },
         {
-          "type": "object", "additionalProperties": false,
-          "required": ["contractVersion", "status", "reason"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "reason"
+          ],
           "properties": {
-            "contractVersion": { "$ref": "#/$defs/version" }, "status": { "const": "NOT_DISPATCHED" },
-            "reason": { "enum": ["AI_NOT_CONFIGURED", "INSUFFICIENT_EVIDENCE"] }
+            "contractVersion": {
+              "$ref": "#/$defs/version"
+            },
+            "status": {
+              "const": "NOT_DISPATCHED"
+            },
+            "reason": {
+              "enum": [
+                "AI_NOT_CONFIGURED",
+                "INSUFFICIENT_EVIDENCE"
+              ]
+            }
           }
         },
         {
-          "type": "object", "additionalProperties": false,
-          "required": ["contractVersion", "status", "executionId"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "executionId"
+          ],
           "properties": {
-            "contractVersion": { "$ref": "#/$defs/version" }, "status": { "const": "PREPARED" },
-            "executionId": { "$ref": "#/$defs/uuid" }
+            "contractVersion": {
+              "$ref": "#/$defs/version"
+            },
+            "status": {
+              "const": "PREPARED"
+            },
+            "executionId": {
+              "$ref": "#/$defs/uuid"
+            }
           }
         },
         {
-          "type": "object", "additionalProperties": false,
-          "required": ["contractVersion", "status", "executionId", "code"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "executionId",
+            "code"
+          ],
           "properties": {
-            "contractVersion": { "$ref": "#/$defs/version" }, "status": { "const": "INVALID" },
-            "executionId": { "$ref": "#/$defs/uuid" },
-            "code": { "enum": ["RESPONSE_NOT_TEXT", "RESPONSE_TOO_LARGE", "RESPONSE_NOT_JSON", "INVALID_INSIGHT_CODING_RESPONSE"] }
+            "contractVersion": {
+              "$ref": "#/$defs/version"
+            },
+            "status": {
+              "const": "INVALID"
+            },
+            "executionId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "code": {
+              "enum": [
+                "RESPONSE_NOT_TEXT",
+                "RESPONSE_TOO_LARGE",
+                "RESPONSE_NOT_JSON",
+                "INVALID_INSIGHT_CODING_RESPONSE"
+              ]
+            }
           }
         },
         {
-          "type": "object", "additionalProperties": false,
-          "required": ["contractVersion", "status", "executionId", "code"],
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "status",
+            "executionId",
+            "code"
+          ],
           "properties": {
-            "contractVersion": { "$ref": "#/$defs/version" }, "status": { "const": "DISPATCH_UNKNOWN" },
-            "executionId": { "$ref": "#/$defs/uuid" },
-            "code": { "enum": ["INTERRUPTED_AFTER_CLAIM", "TRANSPORT_OUTCOME_AMBIGUOUS", "RESPONSE_NOT_RETAINED"] }
+            "contractVersion": {
+              "$ref": "#/$defs/version"
+            },
+            "status": {
+              "const": "DISPATCH_UNKNOWN"
+            },
+            "executionId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "code": {
+              "enum": [
+                "INTERRUPTED_AFTER_CLAIM",
+                "TRANSPORT_OUTCOME_AMBIGUOUS",
+                "RESPONSE_NOT_RETAINED"
+              ]
+            }
           }
         }
       ]
+    },
+    "defaultRequest": {
+      "$ref": "../analysis/automation-insight-model.schema.json#/$defs/defaultRequest"
     }
   }
 }

@@ -2,6 +2,11 @@ import { registerPrivateReviewSchemas, privateShopeeMarker, privateReviewReportV
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from './private-review-corpus.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import { buildResearchAutomationReport } from './reports.js';
+import { readerRowsFromMetricWorkbook } from '../reader-report/metric-rows.js';
+import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
+import { buildAutomationMarketPresentation, verifyAutomationMarketPresentation, type MarketPresentationBinding, type MarketPresentationInput } from './market-presentation-method.js';
+import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
+import type { AutomationMarketPresentationRevisionRequest } from '../../../../contracts/analysis/automation-market-presentation-revision.generated.js';
 import { draftKeywordLists, type KeywordListDraftTransport } from '../keyword-list-drafting.js';
 import { retainKeywordListDraft, replayKeywordListDraft, type KeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import { readSalesNameEvidence } from './sales-name-evidence.js';
@@ -14,6 +19,7 @@ import automationApiSchema from '../../../../contracts/api/research-automation-a
 import sourceConfirmSchema from '../../../../contracts/api/research-automation-source-api.schema.json' with { type: 'json' };
 import sourceSetSchema from '../../../../contracts/analysis/automation-confirmed-source-set.schema.json' with { type: 'json' };
 import revisionSchema from '../../../../contracts/analysis/automation-report-revision.schema.json' with { type: 'json' };
+import marketPresentationRevisionSchema from '../../../../contracts/analysis/automation-market-presentation-revision.schema.json' with { type: 'json' };
 import classifiedRevisionSchema from '../../../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import insightRevisionSchema from '../../../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
 import boundedRevisionSchema from '../../../../contracts/analysis/automation-bounded-report-revision.schema.json' with { type: 'json' };
@@ -60,7 +66,7 @@ import { SourcePackageService } from '../../foundation/source-package-service.js
 import { videoPackageKeyPrefix } from './kalodata-video-intake.js';
 import { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import type { AutomationReportRevisionRequest as SourceReportRevisionRequest } from '../../../../contracts/analysis/automation-report-revision.generated.js';
-type AutomationReportRevisionRequest = SourceReportRevisionRequest | AutomationClassifiedReportRevisionRequest | AutomationInsightReportRevisionRequest | AutomationBoundedReportRevisionRequest | AutomationQuoteReportRevisionRequest;
+type AutomationReportRevisionRequest = AutomationMarketPresentationRevisionRequest | SourceReportRevisionRequest | AutomationClassifiedReportRevisionRequest | AutomationInsightReportRevisionRequest | AutomationBoundedReportRevisionRequest | AutomationQuoteReportRevisionRequest;
 import type { ResearchAutomationReportPair, ResearchAutomationRevisionReceipt } from '../../../../contracts/api/research-automation-revision-api.generated.js';
 export type { ResearchAutomationReportPair, ResearchAutomationRevisionReceipt } from '../../../../contracts/api/research-automation-revision-api.generated.js';
 import type { AutomationConfirmedSourceSet } from '../../../../contracts/analysis/automation-confirmed-source-set.generated.js';
@@ -171,6 +177,7 @@ export interface ResearchAutomationReportInput {
   readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
+  readonly marketPresentation?: AutomationMarketPresentationMethod;
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly insightCoding?: AutomationInsightCodingSnapshot;
@@ -315,10 +322,11 @@ const sourceAjv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(sourceAjv);
 sourceAjv.addSchema(automationApiSchema);
 registerPrivateReviewSchemas(sourceAjv);
+sourceAjv.addSchema(marketPresentationRevisionSchema);
 const validateSourceConfirm = sourceAjv.compile<ResearchAutomationSourceConfirmRequest>(sourceConfirmSchema);
 const validateSourceSet = sourceAjv.compile<AutomationConfirmedSourceSet>(sourceSetSchema);
 sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchema); sourceAjv.addSchema(insightRevisionSchema); sourceAjv.addSchema(boundedRevisionSchema); sourceAjv.addSchema(quoteRevisionSchema);
-const validateRevision = sourceAjv.compile<AutomationReportRevisionRequest>({ oneOf: [{ $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
+const validateRevision = sourceAjv.compile<AutomationReportRevisionRequest>({ oneOf: [{ $ref: marketPresentationRevisionSchema.$id }, { $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
 const validateM01Reference = sourceAjv.compile<AutomationM01InventoryReference>(m01ReferenceSchema);
 const validateI14Reference = sourceAjv.compile<AutomationI14AdmissionReference>(i14ReferenceSchema);
 sourceAjv.addSchema(metricIntakeSchema);
@@ -1243,9 +1251,14 @@ export class ResearchAutomationService {
         await this.#readAttemptSources(this.#current(runId)!, prior);
         if (prior.state === 'COMMITTED') await this.#readAttemptPair(this.#current(runId)!, prior);
         if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, input.previousPairId, input.acceptedInsight);
+        if ('defaultInsight' in input) await this.#insightCoding.reportDefaultDraftSnapshot(workspaceId, runId, input.previousPairId, input.defaultInsight);
         if ('draftInsight' in input) await this.#insightCoding.reportDraftSnapshot(workspaceId, runId, input.previousPairId, input.draftInsight);
         if ('boundedMethods' in input) await this.#loadBoundedMethods(this.#current(runId)!, input);
         if ('quoteMethods' in input) await this.#loadQuoteMethods(this.#current(runId)!, input);
+        if (input.contractVersion === 'automation-market-presentation-revision-v1') {
+          if (prior.state === 'COMMITTED') await this.readReport(workspaceId, runId, 'MARKET', false, prior.pairId!);
+          else await this.#marketPresentationInputs(this.#current(runId)!, input, true);
+        }
         return revisionReceipt(prior, true);
       }
       const run = this.#current(runId)!;
@@ -1260,9 +1273,11 @@ export class ResearchAutomationService {
       for (const output of previous.outputs) await this.readReport(workspaceId, runId, output.kind, false, previous.pairId);
       if ('acceptedMetric' in input) await this.#classifiedMetric.project(workspaceId, runId, previous.pairId, input.acceptedMetric, true);
       if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, previous.pairId, input.acceptedInsight, true);
+      if ('defaultInsight' in input) await this.#insightCoding.reportDefaultDraftSnapshot(workspaceId, runId, previous.pairId, input.defaultInsight, true);
       if ('draftInsight' in input) await this.#insightCoding.reportDraftSnapshot(workspaceId, runId, previous.pairId, input.draftInsight, true);
       if ('boundedMethods' in input) await this.#loadBoundedMethods(run, input);
       if ('quoteMethods' in input) await this.#loadQuoteMethods(run, input);
+      if (input.contractVersion === 'automation-market-presentation-revision-v1') await this.#marketPresentationInputs(run, input, true);
       const start = await this.#readStartSnapshot(run.startSha, workspaceId);
       const scope = await this.#readScopeSnapshot(run.scopeSha, workspaceId, runId);
       const bound = { runId, start, scope, scopeConfirmedAt: run.scopeConfirmedAt };
@@ -1384,6 +1399,10 @@ export class ResearchAutomationService {
   proposeModelInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' },
     ai: import('./insight-model-execution.js').InsightModelAI, signal?: AbortSignal) {
     return this.#insightCoding.proposeModel(workspaceId, runId, value, owner, ai, signal);
+  }
+  proposeDefaultModelInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' },
+    ai: import('./insight-model-execution.js').InsightModelAI, signal?: AbortSignal) {
+    return this.#insightCoding.proposeDefaultModel(workspaceId, runId, value, owner, ai, signal);
   }
   acceptInsightCoding(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
     return this.#insightCoding.accept(workspaceId, runId, value, owner);
@@ -1519,6 +1538,27 @@ export class ResearchAutomationService {
         scope: await this.#readScopeSnapshot(frozen.scopeSha, workspaceId, runId), scopeConfirmedAt: frozen.scopeConfirmedAt,
         ...(metricSources ? { sourceSelection: metricSelection(metricSources.value) } : {}) });
     }
+    if (semantic.marketPresentation !== undefined || semantic.marketPresentationArtifact !== undefined) {
+      if (kind !== 'MARKET' || !attempt || !isRecord(semantic.marketPresentationArtifact))
+        throw new ResearchAutomationIntegrityError('Market presentation lacks its owning revision.');
+      const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+      if (!validateRevision(request) || request.contractVersion !== 'automation-market-presentation-revision-v1')
+        throw new ResearchAutomationIntegrityError('Market presentation lacks an explicit revision request.');
+      const ref = semantic.marketPresentationArtifact;
+      if (typeof ref.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(ref.sha256) || !Number.isSafeInteger(ref.byteSize))
+        throw new ResearchAutomationIntegrityError('Market presentation artifact reference is invalid.');
+      const bytes = await this.#readArtifact(ref.sha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+      if (bytes.byteLength !== ref.byteSize || !bytes.equals(Buffer.from(canonicalJson(semantic.marketPresentation))))
+        throw new ResearchAutomationIntegrityError('Market presentation differs from its retained authoritative artifact.');
+      const verified = await this.#marketPresentationInputs(frozenRun, request, false, semantic.marketPresentation as AutomationMarketPresentationMethod);
+      const method = verifyAutomationMarketPresentation(semantic.marketPresentation, verified.binding);
+      if (canonicalJson(method.input) !== canonicalJson(verified.input) || semantic.rendererVersion !== 'automation-report-kit-v20')
+        throw new ResearchAutomationIntegrityError('Market presentation retained inputs differ.');
+    } else if (kind === 'MARKET' && attempt) {
+      const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+      if (request.contractVersion === 'automation-market-presentation-revision-v1')
+        throw new ResearchAutomationIntegrityError('Market presentation revision lacks its authoritative artifact.');
+    }
     const classifiedRequest = attempt ? await this.#classifiedRequest(frozenRun, attempt) : undefined;
     if (kind === 'MARKET' && classifiedRequest) {
       if (!semantic.metricMethods) throw new ResearchAutomationIntegrityError('Classified Metric result lacks its source preparation.');
@@ -1553,13 +1593,18 @@ export class ResearchAutomationService {
         scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId), scopeConfirmedAt: frozenRun.scopeConfirmedAt,
         previousPairId: literalRequest.previousPairId, collection: await this.#reportCollection(runId, sources, Boolean(attempt)),
         captures: await this.#captureRecords(runId) });
-      if (semantic.rendererVersion !== (sourceStart.privateShopeeSource ? 'automation-report-kit-v22' : 'automation-report-kit-v19')) throw new ResearchAutomationIntegrityError('Literal evidence renderer identity differs.');
+      const literalRendererValid = sourceStart.privateShopeeSource
+        ? semantic.rendererVersion === 'automation-report-kit-v22'
+        : semantic.rendererVersion === 'automation-report-kit-v19' || (semantic.rendererVersion === 'automation-report-kit-v21' && semantic.insightCoding && typeof semantic.insightCoding === 'object' && 'contractVersion' in semantic.insightCoding && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v4');
+      if (!literalRendererValid) throw new ResearchAutomationIntegrityError('Literal evidence renderer identity differs.');
     } else if (semantic.insightLiteral !== undefined) {
       throw new ResearchAutomationIntegrityError('Literal evidence lacks an explicit source-bound revision request.');
     }
     const insightRequest = attempt ? await this.#insightCodingRequest(frozenRun, attempt) : undefined;
     if (kind === 'INSIGHT' && insightRequest) {
-      const snapshot = 'draftInsight' in insightRequest
+      const snapshot = 'defaultInsight' in insightRequest
+        ? await this.#insightCoding.verifyReportDefaultDraftSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.defaultInsight)
+        : 'draftInsight' in insightRequest
         ? await this.#insightCoding.verifyReportDraftSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.draftInsight)
         : await this.#insightCoding.verifyReportSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.acceptedInsight);
       const source = verifiedNative ?? (verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? verifiedLocated : undefined);
@@ -1952,7 +1997,7 @@ export class ResearchAutomationService {
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
     const collection = await this.#stepDocument(fresh.runId, 'COLLECTION');
     const captures = await this.#captureRecords(fresh.runId);
-    const outputArtifacts: Array<{ kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; privateCorpus: StoredArtifact | null; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
+    const outputArtifacts: Array<{ marketPresentation: StoredArtifact | null; kind: 'MARKET' | 'INSIGHT'; claims: StoredArtifact; privateCorpus: StoredArtifact | null; m01: StoredArtifact | null; i14: StoredArtifact | null; metricProof: StoredArtifact | null; semantic: StoredArtifact; html: StoredArtifact; pdf: StoredArtifact | null; pdfCode: 'PDF_RENDERER_NOT_CONFIGURED' | 'PDF_RENDER_FAILED' | null }> = [];
     try {
       controller.signal.throwIfAborted();
       const sources = attempt ? await this.#readAttemptSources(fresh, attempt) : await this.#readFrozenSources(fresh);
@@ -1974,6 +2019,8 @@ export class ResearchAutomationService {
       let descriptiveMethodFailure: 'DESCRIPTIVE_METHOD_FAILED' | undefined;
       let marketInventory: AutomationMarketMethodSnapshot | undefined;
       let marketInventoryFailure: 'MARKET_INVENTORY_FAILED' | undefined;
+      let marketPresentation: AutomationMarketPresentationMethod | undefined;
+      let marketPresentationArtifact: StoredArtifact | null = null;
       let metricMethods: AutomationMetricMethodSnapshot | undefined;
       let metricClassified: AutomationClassifiedMetricSnapshot | undefined;
       let insightCoding: AutomationInsightCodingSnapshot | undefined;
@@ -2031,6 +2078,9 @@ export class ResearchAutomationService {
       if (revisionRequest && 'acceptedInsight' in revisionRequest) {
         insightCoding = await this.#insightCoding.reportSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.acceptedInsight);
       }
+      if (revisionRequest && 'defaultInsight' in revisionRequest) {
+        insightCoding = await this.#insightCoding.reportDefaultDraftSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.defaultInsight);
+      }
       if (revisionRequest && 'draftInsight' in revisionRequest) {
         insightCoding = await this.#insightCoding.reportDraftSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.draftInsight);
       }
@@ -2069,6 +2119,11 @@ export class ResearchAutomationService {
         }
         }
       }
+      if (revisionRequest?.contractVersion === 'automation-market-presentation-revision-v1') {
+        const verified = await this.#marketPresentationInputs(fresh, revisionRequest, true);
+        marketPresentation = buildAutomationMarketPresentation(verified.binding, verified.input, verified.retained);
+        marketPresentationArtifact = await this.#artifacts.put(Buffer.from(canonicalJson(marketPresentation)));
+      }
       if (revisionRequest && 'literalInsight' in revisionRequest) {
         insightLiteral = await this.#insightLiteral.build({ runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt!,
           previousPairId: revisionRequest.previousPairId, collection: reviewCollection, captures });
@@ -2096,6 +2151,7 @@ export class ResearchAutomationService {
           ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
           ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
           ...(kind === 'MARKET' && marketInventoryFailure ? { marketInventoryFailure } : {}),
+          ...(kind === 'MARKET' && marketPresentation ? { marketPresentation } : {}),
           ...(kind === 'MARKET' && metricMethods ? { metricMethods } : {}),
           ...(kind === 'MARKET' && metricClassified ? { metricClassified } : {}),
           ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
@@ -2121,7 +2177,7 @@ export class ResearchAutomationService {
         let i14Synthesis: AutomationI14ExecutionOutcome | undefined;
         if (builtI14) {
           const parent = await this.#i14Parent(fresh, attempt);
-          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
+          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
             // Selected coding changes deterministic methods, not the frozen AI evidence package.
             const retained = await this.#i14Executions.read(parent, admissionInput);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -2144,7 +2200,7 @@ export class ResearchAutomationService {
           decisionPackets.push(buildAutomationDecisionPacket(source).artifact);
           const parent = await this.#i14Parent(fresh, attempt);
           let outcome: AutomationDecisionExecutionOutcome | undefined;
-          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest)) {
+          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
             // Deterministic revisions preserve the source-bound draft, without authorizing new AI calls.
             const retained = await this.#decisionExecutions[sectionId].read(parent, source);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -2166,17 +2222,19 @@ export class ResearchAutomationService {
         const defaultMarketPeers = kind === 'MARKET' && start.defaultPeerRule !== undefined
           ? classifiedMetricDefaultPeers(metricClassified?.result.input, start.defaultPeerRule, [...scope.peerProductIds]) : undefined;
         const render = async () => {
-          const rendered = this.#renderer ? await this.#renderer(input, kind, controller.signal) : defaultRenderedReport(input, kind);
+          const authoritative = input.marketPresentation ? buildResearchAutomationReport(input, kind) : undefined;
+          const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(input.marketPresentation ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
           if (typeof rendered.semantic !== 'object' || rendered.semantic === null || Array.isArray(rendered.semantic)) throw new ResearchAutomationIntegrityError('Research report semantic output is not an object.');
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            privateReviewCorpus: _untrustedPrivateCorpus, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
-            i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = rendered.semantic as Record<string, unknown>;
-          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: 'automation-report-kit-v22' } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
+            i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
+          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: 'automation-report-kit-v22' } : {}),
+            ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentation, marketPresentationArtifact: { sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
             ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
             ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
             sourceClaimsArtifact: { contractVersion: 'automation-source-claims-reference-v1', sha256: claimsArtifact.sha256, byteSize: builtClaims.bytes.length },
@@ -2207,6 +2265,10 @@ export class ResearchAutomationService {
             ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}) };
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
+          if (authoritative) {
+            if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError('Market presentation HTML differs from authoritative method rendering.');
+            if (presentation.rendererVersion !== 'automation-report-kit-v20') throw new ResearchAutomationIntegrityError('Market presentation renderer identity differs.');
+          }
           return { rendered, semanticBytes, html };
         };
         let prepared = await render();
@@ -2235,7 +2297,7 @@ export class ResearchAutomationService {
           if (pdfBytes.byteLength > MAX_PDF_BYTES || !pdfBytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new ResearchAutomationIntegrityError('Research PDF output failed validation.');
           pdf = await this.#artifacts.put(pdfBytes);
         }
-        outputArtifacts.push({ kind, privateCorpus: kind === 'INSIGHT' ? privateCorpusArtifact ?? null : null, claims: claimsArtifact, m01: m01Artifact, i14: i14Artifact, metricProof: kind === 'MARKET' ? metricProof : null, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
+        outputArtifacts.push({ marketPresentation: kind === 'MARKET' ? marketPresentationArtifact : null, kind, privateCorpus: kind === 'INSIGHT' ? privateCorpusArtifact ?? null : null, claims: claimsArtifact, m01: m01Artifact, i14: i14Artifact, metricProof: kind === 'MARKET' ? metricProof : null, semantic, html: htmlArtifact, pdf, pdfCode: pdf ? null : rendered.pdfUnavailableCode ?? 'PDF_RENDERER_NOT_CONFIGURED' });
       }
     } catch {
       if (attempt) { await this.#settleAttempt(attempt.attemptId, controller.signal.aborted ? 'CANCELLED' : 'FAILED'); return true; }
@@ -2264,6 +2326,7 @@ export class ResearchAutomationService {
             if (output.m01) this.#registerManifest(output.m01, 'application/json', finished);
             if (output.i14) this.#registerManifest(output.i14, 'application/json', finished);
             if (output.metricProof) this.#registerManifest(output.metricProof, 'application/json', finished);
+            if (output.marketPresentation) this.#registerManifest(output.marketPresentation, 'application/json', finished);
             this.#registerManifest(output.semantic, 'application/json', finished);
             this.#registerManifest(output.html, 'text/html; charset=utf-8', finished);
             if (output.pdf) this.#registerManifest(output.pdf, 'application/pdf', finished);
@@ -2670,7 +2733,7 @@ export class ResearchAutomationService {
     if (!attempt) return { kind: 'INITIAL_REPORTS', runId: run.runId };
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight execution revision request failed verification.');
-    return 'acceptedMetric' in request || 'acceptedInsight' in request || 'draftInsight' in request || 'literalInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
+    return 'acceptedMetric' in request || 'acceptedInsight' in request || 'defaultInsight' in request || 'draftInsight' in request || 'literalInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request || request.contractVersion === 'automation-market-presentation-revision-v1' ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
       : { kind: 'SUPPLEMENTAL_ATTEMPT', runId: run.runId, attemptId: attempt.attemptId };
   }
   async #literalInsightRequest(run: RunRow, attempt: AttemptRow): Promise<Extract<AutomationInsightReportRevisionRequest, { literalInsight: unknown }> | undefined> {
@@ -2685,11 +2748,50 @@ export class ResearchAutomationService {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight coding revision request failed verification.');
     if ('acceptedInsight' in request) return request;
+    if ('defaultInsight' in request) return request;
     if ('draftInsight' in request) return request;
     if (request.sources.nativeReview.decision !== 'KEEP') return undefined;
     const previous = this.#previousAttempt(run, attempt);
     return previous ? this.#insightCodingRequest(run, previous) : undefined;
   }
+  async #marketPresentationInputs(run: RunRow, request: AutomationMarketPresentationRevisionRequest,
+    parseRows: boolean, frozen?: AutomationMarketPresentationMethod) {
+    if (!run.scopeSha) throw new ResearchAutomationIntegrityError('Market presentation lacks confirmed scope.');
+    const prior = await this.readReport(run.workspaceId, run.runId, 'MARKET', false, request.previousPairId);
+    const semantic = await this.#readJson<Record<string, unknown>>(prior.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const metric = semantic.metricMethods as AutomationMetricMethodSnapshot | undefined;
+    const binding: MarketPresentationBinding = { workspaceId: run.workspaceId, runId: run.runId,
+      previousPairId: request.previousPairId, scopeSha256: run.scopeSha, metric: null };
+    const input: MarketPresentationInput = { metric: metric?.result ?? null, rows: [], unitSpec: null };
+    const retained: { sha256: string; bytes: Buffer }[] = [];
+    if (metric) {
+      const source = await this.#boundedSourceReader().readFinalizedSourcePackage(metric.originalSourcePackage.packageId,
+        { maxFileBytes: MAX_METRIC_UPLOAD_BYTES, maxTotalBytes: MAX_METRIC_UPLOAD_BYTES + 64 * 1024 });
+      if (source.manifestArtifactSha256 !== metric.originalSourcePackage.manifestArtifactSha256 || source.packageContentSha256 !== metric.originalSourcePackage.packageContentSha256)
+        throw new ResearchAutomationIntegrityError('Market presentation source package differs.');
+      const workbooks = source.files.filter(file => file.mediaType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        && metric.result.input.sources.some(ref => ref.sha256 === file.sha256));
+      const workbook = workbooks[0];
+      if (!workbook || workbooks.length !== 1)
+        throw new ResearchAutomationIntegrityError('Market presentation workbook differs from retained Metric input.');
+      binding.metric = { sourcePackage: metric.originalSourcePackage, workbookSha256: workbook.sha256, resultSha256: digest(metric.result) };
+      const platform = metric.result.input.scope.platform;
+      input.rows = frozen?.input.rows ?? [];
+      if (request.unitSpecIntakeSha256) {
+        const intakes = new ReaderUnitSpecIntakes(this.#db, this.#artifacts, undefined, this.#now);
+        const record = await intakes.read({ workspaceId: run.workspaceId, runId: run.runId, draftPairId: request.previousPairId,
+          metricPackageId: metric.originalSourcePackage.packageId, workbookSha256: workbook.sha256, rows: input.rows }, request.unitSpecIntakeSha256);
+        if (!record.request.platforms.includes(platform))
+          throw new ResearchAutomationValidationError('Unit-spec receipt platform differs from exact Metric scope.');
+        input.rows = parseRows ? readerRowsFromMetricWorkbook(workbook.bytes, record.request.platforms) : frozen?.input.rows ?? [];
+        input.unitSpec = { sha256: request.unitSpecIntakeSha256, record };
+        for (const source of record.request.unitPrices.sources) retained.push({ sha256: source.sha256,
+          bytes: await this.#readArtifact(source.sha256, 2 * 1024 * 1024, 'application/json') });
+      }
+    } else if (request.unitSpecIntakeSha256) throw new ResearchAutomationValidationError('Unit-spec receipt requires the exact retained Metric source.');
+    return { binding, input, retained };
+  }
+
   async #previousSemantic(run: RunRow, attempt: AttemptRow, kind: 'MARKET' | 'INSIGHT'): Promise<Record<string, unknown>> {
     const report = await this.readReport(run.workspaceId, run.runId, kind, false, attempt.previousPairId);
     return this.#readJson<Record<string, unknown>>(report.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
@@ -3128,6 +3230,7 @@ function coverageBlocker(state: ResearchAutomationCoverageSource['state']): stri
 function dedupeBlockers(values: ResearchAutomationRun['blockers']): ResearchAutomationRun['blockers'] { const seen = new Set<string>(); return values.filter((value) => { const key = `${value.code}:${value.scope}:${value.provider ?? ''}`; if (seen.has(key)) return false; seen.add(key); return true; }); }
 function safeStepMessage(code: string): string { try { return message(code); } catch { return 'This step has a recorded limitation; review the source coverage and run again if needed.'; } }
 function defaultRenderedReport(input: ResearchAutomationReportInput, kind: 'MARKET' | 'INSIGHT'): ResearchAutomationRenderedReport {
-  // Explicit new literal/private branches select the report kit; historical fallback remains frozen.
-  if (kind === 'INSIGHT' && (input.insightLiteral || input.start.privateShopeeSource)) return { ...buildResearchAutomationReport(input, kind), pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' };
+  // Explicit literal/private/default branches use the owning builder; historical fallback bytes stay unchanged.
+  if (kind === 'INSIGHT' && (input.insightLiteral || input.start.privateShopeeSource || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
+    return { ...buildResearchAutomationReport(input, kind), pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' };
   const title = kind === 'MARKET' ? 'Market research draft' : 'Insight research draft'; const escape = (value: string) => value.replace(/[&<>"']/g, (char) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]!)); const semantic = { contractVersion: 'research-automation-report-v1', kind, runId: input.run.runId, workspaceId: input.run.workspaceId, status: 'UNREVIEWED', scope: input.scope.definition, blockers: input.run.blockers }; const html = Buffer.from(`<!doctype html><html lang="en"><head><meta charset="utf-8"><title>${escape(title)}</title></head><body><h1>${escape(title)}</h1><p>Draft, unreviewed. Scope: ${escape(input.scope.definition)}</p><p>Evidence remains source-bound; no unsupported totals were inferred.</p></body></html>`, 'utf8'); return { semantic, html, pdfUnavailableCode: 'PDF_RENDERER_NOT_CONFIGURED' }; }

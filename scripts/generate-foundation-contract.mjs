@@ -5,6 +5,8 @@ import { compileFromFile } from 'json-schema-to-typescript';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const contracts = [
+  ['analysis', 'automation-market-presentation-revision'],
+  ['analysis', 'automation-market-presentation-method'],
   ['analysis', 'keyword-list-draft'],
   ['analysis', 'keyword-list-draft-record'],
   ['analysis', 'source-appendix-projection'],
@@ -224,7 +226,7 @@ for (const [module, contract] of contracts) {
   const schemaPath = path.join(root, `contracts/${module}/${contract}.schema.json`);
   const outputPath = path.join(root, `contracts/${module}/${contract}.generated.ts`);
   const generated = await compileFromFile(schemaPath, {
-    ...(['research-automation-metric-intake-api', 'research-automation-reader-report-api', 'research-automation-supplemental-intake-api', 'research-automation-source-api', 'automation-i14-evidence-admission', 'automation-i14-candidates', 'automation-quote-method-snapshot', 'automation-decision-packets', 'automation-decision-synthesis-input', 'automation-decision-synthesis-prompt', 'automation-insight-model', 'default-market-peers'].includes(contract) ? { ignoreMinAndMaxItems: true } : {}),
+    ...(['automation-market-presentation-method', 'research-automation-metric-intake-api', 'research-automation-reader-report-api', 'research-automation-supplemental-intake-api', 'research-automation-source-api', 'automation-i14-evidence-admission', 'automation-i14-candidates', 'automation-quote-method-snapshot', 'automation-decision-packets', 'automation-decision-synthesis-input', 'automation-decision-synthesis-prompt', 'automation-insight-model', 'default-market-peers'].includes(contract) ? { ignoreMinAndMaxItems: true } : {}),
     // A3 arrays are assembled incrementally; AJV enforces their canonical schema bounds.
     ...(['report-section-catalog', 'versioned-report-packet', 'report-semantic-content', 'prepared-report-semantic-content', 'report-assembly-snapshot', 'report-review-state', 'report-interpretation-request', 'report-interpretation-output', 'report-interpretation-artifact', 'report-review-target', 'report-version-record', 'report-api', 'research-automation-api', 'research-automation-revision-api', 'generic-quote-unit', 'temporal-window-method', 'research-review-corpus', 'automation-private-shopee-source', 'research-private-review-corpus', 'private-review-report-view', 'insight-literal-evidence', 'shopee-exact-request', 'shopee-exact-collection', 'shopee-private-collection', 'shopee-private-rows', 'shopee-private-projection'].includes(contract)
       ? { ignoreMinAndMaxItems: true }

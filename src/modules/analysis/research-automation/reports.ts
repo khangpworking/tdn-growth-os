@@ -1,5 +1,8 @@
 import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
+import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
+import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
+import { renderAutomationMarketFindings, renderAutomationMarketUnitPrices } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { sourceEvidenceHtml } from './source-evidence-report.js';
 import fs from 'node:fs';
@@ -38,6 +41,7 @@ import type { ResearchAutomationRun } from '../../../../contracts/api/research-a
 import { REPORT_KIT_CSS as REPORT_KIT_BASE_CSS } from '../report-kit-theme.js';
 import { reportKitFontCss } from '../report-kit-fonts.js';
 import { attributionText, describeDescriptiveSection, descriptiveAppendix, escapeHtml, isDescriptiveSectionId, readerSafe, readerPointer, reviewRecordMark, retainedEvidenceHtml, retainedQuoteHtml, technicalLiteral, sourceMemberLabel, storedLiteral, type DescriptiveSectionView, type ReportCitations } from './descriptive-report.js';
+import { DEFAULT_INSIGHT_MULTICODE_LIMIT } from './insight-default-coding.js';
 import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, StepWebResult, TypedComparable } from './model.js';
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
@@ -79,6 +83,7 @@ export interface AutomationReportInput {
   readonly insightLiteral?: InsightLiteralEvidence;
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
+  readonly marketPresentation?: AutomationMarketPresentationMethod;
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
@@ -119,7 +124,7 @@ const metricFailureCopy: Readonly<Record<MetricMethodFailureCode, { explanation:
   },
 };
 interface CatalogSection { sectionId: string; title: string; methodId: string; methodVersion: string; requiredInputs: string[] }
-interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
+export interface MethodOutputRef { methodOutputId: string; locatedRecordCount: number; unresolvedPointers: readonly string[]; blockers: readonly string[] }
 interface DraftSection { sectionId: string; title: string; state: 'SOURCE_CONTEXT' | 'SOURCE_TABLE' | 'EVIDENCE_INVENTORY' | 'METHOD_OUTPUT' | 'METHOD_NO_USABLE_RECORDS' | 'BLOCKED'; method: string; explanation: string; rows: readonly TypedComparable[]; methodOutput?: MethodOutputRef }
 const catalog = JSON.parse(fs.readFileSync(new URL('../../../../docs/research/report-section-catalog-v1.json', import.meta.url), 'utf8')) as { sections: CatalogSection[] };
 const escape = escapeHtml;
@@ -204,8 +209,8 @@ function reviewOutcomeNotice(value: ReviewOutcome, kind: 'MARKET' | 'INSIGHT'): 
     + '<p><strong>Phần vẫn dùng được:</strong> doanh thu, giá, đối thủ, nhu cầu tìm kiếm.</p></div>';
 }
 
-type DeclarationSnapshot = Extract<AutomationLocatedReviewSnapshot, { contractVersion: 'automation-located-review-snapshot-v2' }> | NativeSourceReviewSnapshot;
-function literalPendingSection(snapshot: DeclarationSnapshot, family: LiteralFamily, citations: ReportCitations): { notice: string; details: string } {
+export type DeclarationSnapshot = Extract<AutomationLocatedReviewSnapshot, { contractVersion: 'automation-located-review-snapshot-v2' }> | NativeSourceReviewSnapshot;
+export function literalPendingSection(snapshot: DeclarationSnapshot, family: LiteralFamily, citations: ReportCitations): { notice: string; details: string } {
   const pending = snapshot.projection.pending.filter(row => row.family === family);
   const blocked = snapshot.projection.blocked.filter(row => row.family === family);
   const coverage = snapshot.projection.coverage.families[family];
@@ -226,7 +231,7 @@ function nativeReviewContext(snapshot: NativeSourceReviewSnapshot): string {
   return summary;
 }
 
-function corpusTraceSection(trace: CorpusTrace, sectionId: 'I03' | 'I17', citations: ReportCitations): string {
+export function corpusTraceSection(trace: CorpusTrace, sectionId: 'I03' | 'I17', citations: ReportCitations): string {
   const c = trace.counts;
   const summary = `<h3>Độ phủ của lớp mã hóa lời nguồn</h3><p>Đơn vị đếm là bản ghi ở đúng mã băm tệp và vị trí nguồn, không phải người dùng. Tập này có thể nhỏ hơn toàn bộ dữ liệu thu vì còn dòng tách riêng ở lớp nguồn thô.</p><dl><dt>Dòng đầu vào phương pháp</dt><dd>${c.inputRows}</dd><dt>Bản ghi duy nhất</dt><dd>${c.uniqueRecords} (${c.duplicateRows} dòng trùng đồng nhất)</dd><dt>Trạng thái đọc</dt><dd>${c.included} đưa vào đọc, ${c.excluded} loại khỏi đọc, ${c.unreadable} không đọc được</dd><dt>Khai báo được đưa vào</dt><dd>${c.admittedCandidates} khai báo thuộc ${c.admittedRecords} bản ghi</dd><dt>Còn chờ xử lý</dt><dd>${c.pendingItems} mục thuộc ${c.pendingRecords} bản ghi</dd><dt>Ứng viên bị giữ lại</dt><dd>${c.blockedCandidates} ứng viên thuộc ${c.blockedRecords} bản ghi</dd></dl><p class="warning">Một bản ghi có thể vừa có khai báo được đưa vào, vừa có mục chờ hoặc ứng viên bị giữ lại. Không cộng các nhóm này thành tổng review. Quy tắc được duyệt chỉ cho phép đọc khai báo bám lời nguồn; không có nghĩa OWNER đã duyệt từng nhãn hoặc nhận định phân tích. Chưa có tỷ lệ chủ đề hay mẫu số khách hàng.</p>`;
   if (sectionId === 'I03') return summary + `<div class="table-wrap" role="region" aria-label="Độ phủ theo nhóm mã hóa lời nguồn" tabindex="0"><table><caption>Các nhóm có thể dùng chung một bản ghi, không cộng dồn thành số người</caption><thead><tr><th scope="col">Mục báo cáo</th><th scope="col">Khai báo được đưa vào</th><th scope="col">Bản ghi duy nhất</th></tr></thead><tbody>${trace.families.map(row => `<tr><th scope="row"><a href="#${row.family}">${row.family}</a></th><td>${row.admittedCandidates}</td><td>${row.admittedRecords}</td></tr>`).join('')}</tbody></table></div>`;
@@ -234,7 +239,7 @@ function corpusTraceSection(trace: CorpusTrace, sectionId: 'I03' | 'I17', citati
   return `<h3>Đối chiếu bản ghi với lớp mã hóa</h3><p>Giữ nguyên toàn văn, ngày nguồn và trạng thái đọc. Nội dung tự do có thể chứa thông tin cá nhân. Các số trong mỗi hàng đếm những loại mục khác nhau, không cộng thành số review hoặc số người. ${recordNumberNote}</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu gói phương pháp của lớp mã hóa</summary><p>Gói phương pháp: <code>${escape(trace.sourcePackage.packageId)}</code>. Bản kê: <code>${escape(trace.sourcePackage.manifestArtifactSha256)}</code>. Kết quả: <code>${escape(trace.methodOutputId)}</code>. Bản chiếu khai báo: <code>${escape(trace.projectionSha256)}</code>. Quy tắc: <code>${escape(trace.policySha256)}</code>.</p></details><details><summary>Đối chiếu ${c.uniqueRecords} bản ghi duy nhất trong lớp mã hóa</summary><div class="table-wrap" role="region" aria-label="Bản ghi và trạng thái mã hóa lời nguồn" tabindex="0"><table><caption>Vị trí nguồn chính xác và trạng thái từng bản ghi</caption><thead><tr><th scope="col">Mã băm / Vị trí / Ghi nguồn</th><th scope="col">Nguyên văn / Ngày nguồn</th><th scope="col">Trạng thái đọc và mã hóa</th></tr></thead><tbody>${rows || '<tr><td colspan="3">Không có bản ghi đầu vào phương pháp; không suy ra không có phản hồi khách hàng.</td></tr>'}</tbody></table></div></details>`;
 }
 
-type CodingFamily = 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09' | 'I10' | 'I13';
+export type CodingFamily = 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09' | 'I10' | 'I13';
 const codingFamilies: readonly CodingFamily[] = ['I06', 'I09', 'I10', 'I13'];
 const semanticCodingFamilies: readonly CodingFamily[] = ['I02', 'I04', 'I05', 'I06', 'I07', 'I08', 'I09', 'I10', 'I13'];
 const usesCodingFamily = (coding: AutomationInsightCodingSnapshot | undefined, id: string): boolean => {
@@ -253,7 +258,7 @@ function codedRecordIndex(output: LocatedInsightMethods, pointer: string): numbe
 }
 
 /** Usability comes from the calculated section contract, never from the mere presence of a selection snapshot. */
-function insightCodingView(coding: AutomationInsightCodingSnapshot, family: CodingFamily, citations: ReportCitations): { usable: boolean; explanation: string; html: string; methodOutput: MethodOutputRef } {
+export function insightCodingView(coding: AutomationInsightCodingSnapshot, family: CodingFamily, citations: ReportCitations): { usable: boolean; explanation: string; html: string; methodOutput: MethodOutputRef } {
   const output = coding.output;
   const draft = 'draftSelection' in coding;
   let usable: boolean, records: number, pending: readonly string[], blockers: readonly string[], completeRatio = false;
@@ -310,7 +315,7 @@ function insightCodingView(coding: AutomationInsightCodingSnapshot, family: Codi
   };
 }
 
-function draftInsightGroupsView(coding: Extract<AutomationInsightCodingSnapshot, { contractVersion: 'automation-insight-coding-snapshot-v3' }>, citations: ReportCitations): string {
+export function draftInsightGroupsView(coding: Extract<AutomationInsightCodingSnapshot, { contractVersion: 'automation-insight-coding-snapshot-v3' | 'automation-insight-coding-snapshot-v4' }>, citations: ReportCitations): string {
   const result = coding.groupCounts;
   let html = '<p>Số đề xuất từ cùng hồ sơ mã hóa đã lưu; bản nháp này không dùng biên nhận chấp nhận. Mỗi tập giữ riêng bộ mã, kỳ, khung thu thập và thành viên; không cộng các tập hoặc các mã thành một tổng.</p><p>Chưa có bằng chứng phân biệt mua lẻ và mua sỉ; không tự đoán từ tên người viết hoặc câu chữ. Chưa công bố tỷ lệ hay chênh lệch từ mã hóa bản nháp; kiểm chéo và điều kiện so nhóm còn thiếu.</p>';
   if (!result.groups.length) return html + '<p>Chưa có nhóm với bằng chứng nền tảng và mã hóa tương thích; chưa có số đếm dùng được. Đây không phải kết quả bằng 0.</p>';
@@ -332,7 +337,11 @@ function draftInsightGroupsView(coding: Extract<AutomationInsightCodingSnapshot,
   return html + '<p>Chỉ có nguồn Shopee trong hồ sơ này; chưa có đối chiếu nền tảng khác. Đơn vị là bản ghi trong mẫu, không phải người hoặc tỷ lệ khách hàng.</p>';
 }
 
-function insightCodingTrace(coding: AutomationInsightCodingSnapshot, sectionId: 'I03' | 'I17'): string {
+export function insightCodingTrace(coding: AutomationInsightCodingSnapshot, sectionId: 'I03' | 'I17'): string {
+  if (coding.contractVersion === 'automation-insight-coding-snapshot-v4') {
+    const binding = coding.binding;
+    return `<h3>${sectionId === 'I03' ? 'Phương pháp mã hóa mặc định' : 'Dấu vết mã hóa mặc định'} (đề xuất, chờ chủ duyệt)</h3><p>Quy tắc và bộ mã là đề xuất theo nguồn đã lưu; chưa có duyệt của chủ. Không dùng biên nhận chấp nhận. ${codingCaveat}</p><p>${escape(DEFAULT_INSIGHT_MULTICODE_LIMIT)}</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu đề xuất mặc định</summary><dl><dt>Quy tắc đề xuất</dt><dd><code>${escape(coding.defaultRuleId)}</code> · <code>${escape(coding.defaultRuleSha256)}</code></dd><dt>Đề xuất</dt><dd><code>${escape(coding.selection.proposalId)}</code> · <code>${escape(coding.proposalSha256)}</code></dd><dt>Bộ mã SHA-256</dt><dd><code>${escape(coding.codebookSha256)}</code></dd><dt>Lần thực thi model</dt><dd><code>${escape(coding.executionId)}</code></dd><dt>Cặp nguồn</dt><dd><code>${escape(binding.pairId)}</code></dd><dt>Gói nguồn</dt><dd><code>${escape(binding.sourcePackageSha256)}</code></dd><dt>Đầu vào</dt><dd><code>${escape(binding.inputSha256)}</code></dd></dl></details>`;
+  }
   const count = coding.receipts.length;
   const draft = 'draftSelection' in coding;
   const families = ('draftSelection' in coding) || ('selectionContractVersion' in coding && coding.selectionContractVersion === 'automation-insight-selection-v2') ? semanticCodingFamilies : codingFamilies;
@@ -482,6 +491,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   if (privateView && (!input.start.privateShopeeSource || input.reviewCorpus || input.locatedReview || input.nativeReview || !input.collection?.privateShopee ||
     privateView.corpus.collectionSha256 !== input.collection.privateShopee.collectionSha256)) throw new Error('Private report source lineage mismatch');
   const insightCoding = kind === 'INSIGHT' ? input.insightCoding : undefined;
+  const marketPresentation = kind === 'MARKET' && input.marketPresentation
+    ? verifyAutomationMarketPresentation(input.marketPresentation, input.marketPresentation.binding) : undefined;
+  if (marketPresentation && (marketPresentation.binding.workspaceId !== input.run.workspaceId || marketPresentation.binding.runId !== input.run.runId))
+    throw new Error('Market presentation run binding differs');
   const insightLiteral = kind === 'INSIGHT' && input.insightLiteral ? verifyInsightLiteralEvidence(input.insightLiteral) : undefined;
   if (insightLiteral && (insightLiteral.input.binding.runId !== input.run.runId || insightLiteral.input.binding.workspaceId !== input.run.workspaceId))
     throw new Error('Literal Insight run binding differs');
@@ -501,7 +514,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Views are composed on first render so that [n] numbers follow the page, not the section-array build order.
   const locatedViews = new Map<string, () => string>();
   const registry = new CitationRegistry();
-  const citations: ReportCitations = { ...(input.start.sourceEvidenceVersion ? { distinctEntityWording: true } : {}), mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
+  const citations: ReportCitations = { ...((input.start.sourceEvidenceVersion || marketPresentation) ? { distinctEntityWording: true } : {}), mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
   // Sections whose retained decision synthesis is VALID; candidate prose never makes a section analytically complete.
   const decisionGeneratedIds: string[] = [];
   const decisionProposedIds: string[] = [];
@@ -534,6 +547,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     return `Chưa có kết quả cho mục này trong lượt. Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy.${needs}${sourceObservationNote}`;
   };
   const sections: DraftSection[] = catalog.sections.filter(section => section.sectionId.startsWith(prefix)).map(section => {
+    if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
+      locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
+        ? renderAutomationMarketFindings(marketPresentation, citations) : renderAutomationMarketUnitPrices(marketPresentation, citations));
+      return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
+        method: marketPresentation.methodVersion,
+        explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả bằng chứng đã lưu trong phạm vi khai báo; chưa được chủ duyệt.'
+          : 'Đối chiếu quy cách và giá theo đúng bản lưu; phần thiếu giữ riêng, chưa phải phân tích kinh tế đơn vị hoàn chỉnh.' };
+    }
     const decisionPacket = input.decisionPackets?.find(packet => packet.sectionId === section.sectionId);
     if (decisionPacket && input.decisionSourceClaims) {
       const synthesis = input.decisionSynthesis?.[decisionPacket.sectionId];
@@ -556,7 +577,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
         method: `${methods.output.methodId}@${methods.output.methodVersion}`,
         explanation: 'Đã kiểm tra trường nguồn và tính riêng từng cơ sở giá có đủ dữ liệu. Kết quả giới hạn trong các chào bán được chọn; chưa phải phân tích kinh tế đơn vị hoàn chỉnh.' };
     }
-    if (kind === 'INSIGHT' && section.sectionId === 'I11' && insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3') {
+    if (kind === 'INSIGHT' && section.sectionId === 'I11' && (insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4')) {
       const groups = insightCoding.groupCounts;
       const usable = groups.groups.some(group => group.counts.some(count => count.recordCount !== null && count.recordCount > 0));
       locatedViews.set(section.sectionId, () => draftInsightGroupsView(insightCoding, citations));
@@ -681,13 +702,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = kind === 'INSIGHT' && input.start.privateShopeeSource ? 'automation-report-kit-v22' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? 'automation-report-kit-v22' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
     : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {
+    ...(marketPresentation ? { marketPresentation } : {}),
     ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}),
     ...(sourceScope ? { sourceScope } : {}),
     ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
@@ -764,14 +786,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations);
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
-      if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations) : '');
+      if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation)) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
       if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
-    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion));
+    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion || marketPresentation));
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
       if (privateView) return privateReviewCorpusSection(privateView, sectionId, citations);
       const codingNotice = located
@@ -819,9 +841,9 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Source appendix v18 also serves existing Market and accepted Insight
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
-  if (draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3') {
+  if (marketPresentation || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))) {
     const failed = lintVisibleReportText(html).filter(check => !check.ok);
-    if (failed.length) throw new TypeError(`INSIGHT_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
+    if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
   return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(html, 'utf8') };
 }

@@ -2,7 +2,7 @@
 
 Updated: 2026-10-09
 Worktree/branch: `ultimate-impl-sync6-opencode`, `khangpworking/ultimate-source-privacy-consumer`, base `a8e9b8439797bef3f3077399e0f34ac306cc236d`.
-Draft PR: [#184](https://github.com/khangpworking/tdn-growth-os/pull/184), pushed implementation/cap-correction head `607e69fb77b5288bf44c4eb26bc6c5274403255d`; final documentation head follows. Merge conflicts with pending main composition remain queued for an exact coordinator lease.
+Draft PR: [#184](https://github.com/khangpworking/tdn-growth-os/pull/184). Preserved private checkpoint `a4d7d841fb426af57bd452f0f405ba64748c51b5`; normally merged reviewed main `b6b6911fd9cec16cc41cf24e7d8ae4abd8f6233b` after explicit sole central/GLOBAL grant `msg_8da7a2d670b7`. Final composed SHA is reported through the fresh lifecycle and PR.
 
 Lifecycle: sole run `run_adc3551f8ed8`, fresh task `task_a6c3d448c7f5`, dispatch `ctx_4de259d35233`; exact Orca executable `/home/pkhang/.local/bin/orca-ide`, observed GPT-6.1-Sol high unchanged. Previous abandoned dispatch fenced; ten preserved WIP paths inspected without reset/switch/discard.
 
@@ -47,14 +47,24 @@ Unresolved / limits:
 - This is one Shopee source/literal consumer, not all U18/U19. P9/TikTok, private default/adopted coding input, personas, cross-platform analysis and live paid acceptance are not complete or enabled. No source cards or model/provider permissions changed.
 - Comments stay verbatim and may contain personal data; metadata privacy is not free-text anonymization. Hashes attest reported IDs only within one Shopee/key capture, never verified people. Missing-ID wording and distinct-content fallback remain evidence limitations, not admission decisions.
 - Existing8MiB corpus/semantic and16MiB HTML bounds remain; oversized private corpus/report fails explicitly without shortening quotes or rewriting retained Foundation pages. No new taxonomy, sampling/caps/admission policy.
-- Main PR183 composition/canonical reconciliation is queued under coordinator instruction; no unreviewed default changes were adopted. Global writer and later default integration remain serial. Independent review and full hosted `npm run check` on exact final head remain required before coordinator merge; no merge authorization claimed by this worker.
+- Reviewed PR183 Market20 and PR185 default21 are normally composed from exact main `b6b6911`; no sibling WIP or reader0050 branch was imported. Independent review and full hosted `npm run check` on exact final head remain required before coordinator merge; no merge authorization claimed by this worker.
 
 Next action:
 
 Central phase released at `fa4dbae6dad2342755f0ad6f745316bbd4a07f47`. Final cap-correction/private-service/source/golden suite17/17 passed, strict typecheck exit0 (`/tmp/tdn-private-consumer-cap-typecheck.log`). Coordinator source-review correction: capped capture coverage truthfulness is fixed and proven with real collector/fake fetch (5 synthetic dataset rows, configured test cap3, 3 retained rows, PARTIAL/truncated, no extra call); Foundation validation and runtime caps unchanged.
 
-Then then authorized final-main reconciliation if allocated, push/draft PR and exact SHA/test/lease handoff. Canonical release remains in force; any generation requires a renewed short lease. Coordinator owns README/STATUS/plan and merge.
+Final main reconciliation follows the exact phase below. Coordinator owns README/STATUS/plan and merge; the worker retains this dispatch for concrete review fixes and will settle only when directed.
 
 Business decisions pending:
 
 U11/U26/U32 remain blocked; U40 live paid acceptance unauthorized. Pinned humanizer-vi revision `576c80fb445a8b2e9ec1993a6490ab6529b89d12` SKILL/preservation rules were read from reviewed task-local copies. New Vietnamese text is deterministic source limitation/display wording, no AI interpretations or application prompt integration; source quotes/numbers/scope/uncertainty remain intact.
+
+
+Final reviewed-main composition phase:
+
+- Exact coordinator lease `msg_8da7a2d670b7` permitted normal fetch/merge of reviewed `b6b6911fd9cec16cc41cf24e7d8ae4abd8f6233b`, including PR185 correction head `7e825c94e6654d3c87e9d73a825101ece40c8500`. The only conflicts were `service.ts` and `reports.ts`; the precise union keeps AJV registrations, Market20 authoritative rendering/artifact ownership, default21 snapshot-v4 and literal19 verification, private22 verification, and all historical fallback/version branches. `model.ts` and `source-evidence.ts` merged without new edits; no source semantics changed outside owned paths.
+- GLOBAL reconciliation used the existing contracts and frontend-validator generators only. Both PASS, with zero unstaged tracked drift in `contracts`, `scripts`, and `frontend/src/generated` (`/tmp/tdn-private-consumer-main-generation.log`, `/tmp/tdn-private-consumer-main-validators.log`). No new contract, old definition, migration, manifest or configuration decision was introduced in this phase. Reviewed API/frontend/default-source changes arrive solely through the exact main merge.
+- Backend typecheck PASS (`/tmp/tdn-private-consumer-main-typecheck.log`), direct frontend TypeScript check PASS (`/tmp/tdn-private-consumer-main-frontend-tsc.log`); working/staged whitespace checks PASS.
+- An additional actual private service test runs without a presentation adapter, retains renderer22/source evidence, produces literal evidence with the same corpus digest, and replays with collector/salt/clock absent. The merged default coding action rejects this source before a model call or database write, even with synthetic model configuration supplied; private coding/personas remain unavailable. Existing private collector/profile/marker/substitution/cancellation/cap/API/KEEP/SKIP/retry cases run unchanged.
+- Final affected run at Node24.15.0/npm11.12.1, concurrency2: **70 PASS, 0 FAIL, 1 existing optional Chromium PDF SKIP** (`/tmp/tdn-private-consumer-final-main-focused.log`). Exact files: both private integration tests, private historical golden, `research-insight-default`, `research-insight-literal`, `research-insight-prompt-retention`, `research-automation-reports`, Market presentation contract/method/report, and visible-text lint. This covers reviewed default21 actual OWNER HTTP/fake model/source-only rejection, Market20 authoritative adapter handling, literal19/KEEP, adopted prompt replay, and every unchanged frozen hash listed above. No full local suite ran.
+- Shared lease release: final stable composed implementation is committed/pushed and its full SHA supplied through current Task/Dispatch. GLOBAL (all canonical/generator/validator derivatives) and central `model.ts`, `service.ts`, `reports.ts`, `source-evidence.ts` are explicitly released at that checkpoint; no further shared edits/generation without a fresh precise grant. Independent final-head review and full hosted Check remain pending; this dispatch remains active for author fixes until coordinator settlement.
