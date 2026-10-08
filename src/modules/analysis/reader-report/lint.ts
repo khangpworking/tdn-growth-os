@@ -115,9 +115,12 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('W1 số web mang nhãn họ', webexBad.length === 0,
     webexBad.length ? 'thiếu nhãn: ' + webexBad.join(', ') : `${webexOpens.length} khối web đều có nhãn`);
 
-  const sentences = vis.split(/[.!?…\n]+/);
+  const sentencesIn = (markup: string): string[] => markup.replace(QUOTED, ' ')
+    .split(/<\/(?:p|li|tr|h[1-6]|section|div|figcaption)>|<br\s*\/?>/i)
+    .flatMap(block => visibleText(block).split(/[!?…\n]+|(?<!\d)\.|\.(?!\d)/));
+  const sentences = sentencesIn(html);
   const mixed = sentences.filter(s => /trong mẫu/i.test(s) && s.toLowerCase().includes(family) &&
-    /[+−-]|\btổng\b/i.test(s) && !/phủ/i.test(s));
+    /[+−-]|\btổng\b/i.test(s));
   add('W2 không cộng trừ hai họ số', mixed.length === 0,
     mixed.length ? mixed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không lẫn hai họ số');
 
@@ -132,8 +135,7 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
     shareHits.length ? `thấy ${shareHits.length} lần không phủ định` : 'không thấy thị phần');
 
   const m10 = html.match(/<section id="phan-10">[\s\S]*?<\/section>/)?.[0] ?? '';
-  const m10Text = visibleText(m10);
-  const forecastBad = m10Text.split(/[.!?…\n]+/).some(sentence => {
+  const forecastBad = sentencesIn(m10).some(sentence => {
     if (!/\d[\d.,]*\s*(tỷ|triệu|nghìn|%|đồng|đ\b)/i.test(sentence)) return false;
     return [...sentence.matchAll(/(dự báo|dự kiến)/gi)].some(m => {
       const before = sentence.slice(Math.max(0, (m.index ?? 0) - 25), m.index ?? 0);

@@ -400,7 +400,7 @@ export function reconcileWebWithRows(
     warnings.push({
       code: 'METRIC_WEB_XLSX_MISMATCH',
       check: 'R4',
-      detail: `doanh thu mẫu theo sàn vượt doanh thu toàn kết quả tìm kiếm của sàn: ${Object.keys(breached).sort().join(', ')}`,
+      detail: `doanh thu mẫu theo sàn vượt doanh thu toàn kết quả tìm kiếm của sàn: ${Object.keys(breached).sort().map(platform => platform === 'shopee' ? 'Shopee' : 'TikTok Shop').join(', ')}`,
       numbers,
     });
   }

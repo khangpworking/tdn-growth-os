@@ -20,6 +20,7 @@ export function q(values: readonly number[], p: number): number {
 
 export const FMT: Readonly<Record<string, (v: number) => string>> = {
   ty, ty1, num,
+  grouped: v => v.toLocaleString('vi-VN'),
   int: v => String(Math.round(v)),
   dong: v => num(v) + 'đ',
   dong100: v => num(r100(v)) + 'đ',

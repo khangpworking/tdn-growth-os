@@ -304,6 +304,45 @@ test('reconciliation R1–R4 fire on crafted breaches with numbers', () => {
   assert.deepEqual(r4.map(w => w.check), ['R4']);
   assert.equal(r4[0]?.code, 'METRIC_WEB_XLSX_MISMATCH');
   assert.ok((r4[0]?.numbers['tiktok'] ?? 0) > 0 && (r4[0]?.numbers['web.tiktok'] ?? 0) > 0, 'R4 carries both numbers');
+  assert.match(r4[0]?.detail ?? '', /TikTok Shop/);
+  assert.doesNotMatch(r4[0]?.detail ?? '', /\btiktok\b/);
+});
+
+test('rendered reconciliation warnings retain bundle evidence, citations and web precision', async () => {
+  const s = snapshot();
+  const groups = s['groups'] as Record<string, any>;
+  groups['W2_kpi'].soldListings.current.value = 2;
+  groups['W2_kpi'].soldListings.current.displayed = '2';
+  for (const key of ['revenue', 'units', 'soldListings']) groups['W2_kpi'][key].current.precision = 'display_rounded';
+  for (const split of groups['W3_platformSplit']) split.revenue.precision = 'display_rounded';
+  const d = computeReaderReportData(input11(x => {
+    x['rows'] = rows(['shopee', 'tiktok']).map(row => ({ ...row, rev: 3_750_000_000, units: 100_005.5 }));
+    x['webSnapshot'] = s; x['webSnapshotSha256'] = webSnapshotDigest(s);
+    x['rowLineage'] = { sha256: 'b'.repeat(64) };
+  }));
+  assert.deepEqual(d.webReconciliation.map(w => w.check), ['R1', 'R2', 'R3', 'R4']);
+  const r = await buildMarketReport(d, options);
+  const warningBox = r.html.match(/<div class="box"><h3>Đối chiếu tệp mẫu với trang<\/h3><ul>([\s\S]*?)<\/ul><\/div>/)![1]!;
+  assert.equal([...warningBox.matchAll(/<sup class="cite">/g)].length, 10, 'every sample and web warning amount has a source');
+  assert.equal([...warningBox.matchAll(/class="web-precision"/g)].length, 5, 'rounded KPI and platform amounts keep the page precision notice');
+  for (const value of ['90.000.000.000', '12.312.345.678', '2.400.132', '1.234.567', '24', '2', '45.000.000.000', '8.012.345.678', '4.300.000.000']) {
+    assert.ok(warningBox.includes(`${value}<sup class="cite">`), value);
+  }
+  const sourceOf = (value: string): string => warningBox.match(new RegExp(` ${value.replaceAll('.', '\\.') }<sup class="cite">\\[(\\d+)\\]`))![1]!;
+  assert.notEqual(sourceOf('90.000.000.000'), sourceOf('12.312.345.678'), 'sample and web amounts cite distinct evidence');
+  assert.equal(sourceOf('90.000.000.000'), sourceOf('2.400.132'));
+  assert.equal(sourceOf('90.000.000.000'), sourceOf('24'));
+  assert.equal(sourceOf('12.312.345.678'), sourceOf('1.234.567'));
+  assert.equal(sourceOf('12.312.345.678'), sourceOf('2'));
+  assert.notEqual(sourceOf('12.312.345.678'), sourceOf('8.012.345.678'), 'platform evidence uses its own snapshot group');
+  assert.equal(sourceOf('8.012.345.678'), sourceOf('4.300.000.000'));
+  const warnings = r.narrator.entries.filter(entry => entry.where.startsWith('M02.reconcile.'));
+  assert.equal(warnings.length, 4, 'the number gate checks every warning');
+  assert.deepEqual(r.narrator.checkHardcoded(r.extraOk).hardcoded.filter(entry => entry.where.startsWith('M02.reconcile.')), []);
+  assert.deepEqual(r.narrator.notInBundle(r.extraOk).filter(entry => entry.where.startsWith('M02.reconcile.')), []);
+  assert.match(visibleText(warningBox), /Shopee/);
+  assert.match(visibleText(warningBox), /TikTok Shop/);
+  assert.doesNotMatch(visibleText(warningBox), /\b(?:shopee|tiktok)\b/);
 });
 
 test('1.1.0 renders web exhibits, the monthly chart, citations and passes every gate', async () => {
@@ -359,9 +398,12 @@ test('lint W-rules reject crafted breaches and pass consistent pages', async () 
   assert.deepEqual(fails('<div class="webex" data-web-label="x"><p>12,3 tỷ</p></div>'), ['W1 số web mang nhãn họ']);
   assert.deepEqual(fails('<p>Trong mẫu 5 sản phẩm đạt 1 tỷ + 2 tỷ toàn kết quả tìm kiếm.</p>'), ['W2 không cộng trừ hai họ số']);
   assert.deepEqual(fails('<p>Tệp trong mẫu 5 sản phẩm phủ 10% toàn kết quả tìm kiếm.</p>'), [], 'the M02 coverage ratio is allowed');
+  assert.deepEqual(fails('<p>Trong mẫu 5 sản phẩm phủ 1 tỷ + 2 tỷ toàn kết quả tìm kiếm.</p>'), ['W2 không cộng trừ hai họ số'], 'coverage wording does not exempt cross-family addition');
+  assert.deepEqual(fails('<p>Trong mẫu 5 sản phẩm phủ 1.200 tỷ + 2.300 tỷ toàn kết quả tìm kiếm.</p>'), ['W2 không cộng trừ hai họ số'], 'grouping dots do not split a cross-family statement');
   assert.deepEqual(fails('<p>Tổng hai sàn đạt 10 tỷ.</p>'), ['W3 không cộng gộp sàn khi trang không ghi tổng']);
   assert.deepEqual(fails('<p>Thị phần Shopee là 60%.</p>'), ['W4 không dùng từ "thị phần"']);
   assert.deepEqual(fails('<section id="phan-10"><p>Dự báo đạt 15 tỷ.</p></section>'), ['W5 M10 không có số dự báo']);
+  assert.deepEqual(fails('<section id="phan-10"><p>Dự báo đạt 15.000 tỷ.</p></section>'), ['W5 M10 không có số dự báo']);
   assert.deepEqual(fails('<section id="phan-10"><p>Chưa dự báo: không có chuỗi.</p></section>'), []);
   assert.deepEqual(fails('<div class="webex" data-web-label="Số liệu Metric">ok</div>'),
     ['W1 số web mang nhãn họ', 'W6 nhãn thu thập không nêu tên nhà cung cấp']);

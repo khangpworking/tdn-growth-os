@@ -85,6 +85,7 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
   const N = new Narrator(B);
   const WEB = d.webFacts;
   const webRegistry = input.contractVersion === '1.1.0' ? new CitationRegistry() : null;
+  const metricSources = new Map<string, string>();
   const sampleCitation = (row?: Row): number | null => {
     if (webRegistry === null || input.rowLineage === undefined) return null;
     return webRegistry.cite({ sourceKind: 'METRIC_ROW', identity: input.rowLineage.sha256,
@@ -98,6 +99,7 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
     return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
   };
   const metricCitation = (id: string): number | null => {
+    id = metricSources.get(id) ?? id;
     if (webRegistry === null || id.startsWith('cite.')) return null;
     if (id.startsWith('web.') || id.startsWith('src.hl.')) {
       const group = id.startsWith('web.kpi.') || /^src\.hl\.(rev|listings|shops|units)$/.test(id) ? 'kpi'
@@ -119,6 +121,7 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
     return (no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no)) + roundedNote(id);
   };
   const roundedNote = (id: string): string => {
+    id = metricSources.get(id) ?? id;
     if (WEB === null || WEB === undefined) return '';
     const parts = id.split('.');
     let cell: unknown;
@@ -350,6 +353,24 @@ ${m01Trend}
     'Số ước tính; % là tỷ trọng trong mẫu của từng sàn. Phân nhóm ' + statusLabel + ' (Phần 2).'));
 
   // ---------- Phần 2 ----------
+  const reconciliationItems = d.webReconciliation.map(w => {
+    const amount = (field: string, source?: string): string => {
+      const id = `reconcile.${w.check}.${field}`;
+      B.set(id, w.numbers[field]!, 'grouped');
+      if (source !== undefined) metricSources.set(id, source);
+      return `{{${id}}}`;
+    };
+    let template: string;
+    switch (w.check) {
+      case 'R1': template = `Doanh thu tệp mẫu vượt doanh thu ${WEB_FAMILY_LABEL}: mẫu ${amount('sampleRev')}, trang ${amount('webRev', 'web.kpi.rev')}.`; break;
+      case 'R2': template = `Đơn vị bán tệp mẫu vượt đơn vị bán ${WEB_FAMILY_LABEL}: mẫu ${amount('sampleUnits')}, trang ${amount('webUnits', 'web.kpi.units')}.`; break;
+      case 'R3': template = `Số sản phẩm tệp mẫu vượt số sản phẩm có lượt bán ${WEB_FAMILY_LABEL}: mẫu ${amount('sampleRows')}, trang ${amount('webListings', 'web.kpi.listings')}.`; break;
+      case 'R4': template = `Doanh thu mẫu theo sàn vượt doanh thu ${WEB_FAMILY_LABEL} của sàn: ` +
+        Object.keys(w.numbers).filter(key => !key.startsWith('web.')).sort().map(P =>
+          `${PLATFORM_LABEL[P]}, mẫu ${amount(P)}, trang ${amount(`web.${P}`, `web.${P}.rev`)}`).join('; ') + '.'; break;
+    }
+    return `<li>${nar(template, `M02.reconcile.${w.check}`)}</li>`;
+  }).join('');
   const ruleRows = prof.rules.map((r, k) => [k + 1, L(segName(r.seg)), esc(r.why ?? ''), n(num(d.ruleHits[k] ?? 0))]);
   const m02Web = WEB !== null && WEB !== undefined
     ? webex(
@@ -367,7 +388,7 @@ ${m01Trend}
 <p>${hlNum(nar(`Tệp trong mẫu {{src.rows}} sản phẩm phủ {{src.cover.listings}} số sản phẩm và {{src.cover.rev}} doanh thu ${WEB_FAMILY_LABEL}; mỗi sàn tính riêng, đây là tỷ lệ duy nhất so hai họ số.${citeRef('kpi')}`, 'M02.webcover'))}</p>
 <p class="ex-note">Cách tính các mốc tháng: ${esc(WEB_MONTHLY_METHOD)}.</p>
 ${d.webReconciliation.length
-    ? `<div class="box"><h3>Đối chiếu tệp mẫu với trang</h3><ul>${d.webReconciliation.map(w => `<li>${esc(w.detail)}</li>`).join('')}</ul></div>`
+    ? `<div class="box"><h3>Đối chiếu tệp mẫu với trang</h3><ul>${reconciliationItems}</ul></div>`
     : '<p class="ex-note">Đối chiếu tệp mẫu với trang: khớp, không chênh lệch.</p>'}`,
       [...WEB.scope.keywords, ...WEB.scope.ticks, ...WEB.scope.exclusions,
         ...WEB.scope.advancedFilters.map(f => `${f.label}: ${f.displayed}`),
