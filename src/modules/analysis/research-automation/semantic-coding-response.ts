@@ -1,3 +1,5 @@
+import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { registerPrivateReviewSchemas } from './private-review-contracts.js';
 import { createRequire } from 'node:module';
 import codingSchema from '../../../../contracts/analysis/automation-insight-coding.schema.json' with { type: 'json' };
 import locatedSchema from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
@@ -11,6 +13,7 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const ajv = new Ajv2020({ strict: true, allErrors: false });
 (require('ajv-formats') as typeof import('ajv-formats')).default(ajv);
+registerPrivateReviewSchemas(ajv); ajv.addSchema(privateSourceSchema);
 for (const schema of [locatedSchema, selectionSchema, codingSchema]) ajv.addSchema(schema);
 const validate = ajv.compile<InsightProposedAnnotations>({ $ref: `${codingSchema.$id}#/$defs/annotations` });
 const families = ['i02', 'i04', 'i05', 'i06', 'i07', 'i08', 'i09', 'i13Mentions'] as const;

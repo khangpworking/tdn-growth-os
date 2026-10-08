@@ -108,7 +108,7 @@ function candidates(userText: string) {
 test('authentic private source22 -> no-adoption default model-v2 -> immutable pending snapshot5/report25 -> exact read/retry without calls or writes', async t => {
   const f = await fixture(t);
   assert.equal(f.semantic.rendererVersion, 'automation-report-kit-v22');
-  const context = await f.service.readInsightSourceContext(workspaceId, runId, f.pair.pairId);
+  const context = await f.service.readInsightSourceContextV2(workspaceId, runId, f.pair.pairId);
   assert.equal(context.binding.sourceKind, 'PRIVATE_SHOPEE');
   if (context.binding.sourceKind !== 'PRIVATE_SHOPEE') throw new Error('Wrong source fixture');
   assert.equal(context.binding.contractVersion, 'insight-source-binding-v2');
@@ -176,7 +176,7 @@ test('authentic private source22 -> no-adoption default model-v2 -> immutable pe
 });
 
 test('private coding rejects binding/locator/membership/CAS substitutions before dispatch or ledger mutation', async t => {
-  const f = await fixture(t), context = await f.service.readInsightSourceContext(workspaceId, runId, f.pair.pairId);
+  const f = await fixture(t), context = await f.service.readInsightSourceContextV2(workspaceId, runId, f.pair.pairId);
   if (context.binding.sourceKind !== 'PRIVATE_SHOPEE') throw new Error('Wrong source fixture');
   const body = privateRequest(context.binding); let calls = 0;
   const ai = { configuration, port: { async generateText() { calls++; throw new Error('Invalid source must not dispatch'); } } };
@@ -201,12 +201,12 @@ test('private coding rejects binding/locator/membership/CAS substitutions before
     const file = path.join(f.artifactRoot, 'sha256', digest.slice(0, 2), digest), saved = await fs.readFile(file);
     await fs.writeFile(file, 'synthetic corruption');
     try {
-      await assert.rejects(f.service.readInsightSourceContext(workspaceId, runId, f.pair.pairId));
+      await assert.rejects(f.service.readInsightSourceContextV2(workspaceId, runId, f.pair.pairId));
       await assert.rejects(f.service.proposeDefaultModelInsightCoding(workspaceId, runId, body, owner, ai));
       assert.equal(fingerprint(f), before); assert.equal(calls, 0);
     } finally { await fs.writeFile(file, saved); }
   }
-  assert.deepEqual(await f.reader().readInsightSourceContext(workspaceId, runId, f.pair.pairId), context);
+  assert.deepEqual(await f.reader().readInsightSourceContextV2(workspaceId, runId, f.pair.pairId), context);
 });
 
 

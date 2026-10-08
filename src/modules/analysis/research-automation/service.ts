@@ -59,7 +59,9 @@ import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-
 import { AutomationMetricMembership, type MetricMembershipContext } from './metric-membership.js';
 import { AutomationInsightCrosscheck } from './insight-crosscheck.js';
 import type { InsightCrosscheckSnapshot, InsightCrosscheckSelection } from '../../../../contracts/analysis/automation-insight-crosscheck.generated.js';
-import { AutomationInsightCoding, type InsightSourceContext } from './insight-coding.js';
+import { projectPrivateInsightSource } from './private-insight-source.js';
+import type { PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
+import { AutomationInsightCoding, type InsightSourceContext, type InsightCodingSourceContext } from './insight-coding.js';
 import type { AutomationMetricRuleAdoptionList, AutomationMetricRuleAdoptionReceipt } from '../../../../contracts/analysis/automation-metric-rule-adoption.generated.js';
 import { readPreparedMetricSources } from './metric-source-inventory.js';
 import { AutomationReaderReports, type ReaderDraftContext, type ReaderRowsReader } from './reader-report-revisions.js';
@@ -422,7 +424,7 @@ export class ResearchAutomationService {
     this.#classifiedMetric = new AutomationClassifiedMetric(this.#metricMembership);
     this.#insightCoding = new AutomationInsightCoding({ db: this.#db, artifacts: this.#artifacts, now: this.#now,
       ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}),
-      context: (workspaceId, runId, pairId) => this.readInsightSourceContext(workspaceId, runId, pairId),
+      context: (workspaceId, runId, pairId) => this.readInsightSourceContextV2(workspaceId, runId, pairId),
       assertCurrent: async binding => {
         if ((await this.listReportVersions(binding.workspaceId, binding.runId)).at(-1)?.pairId !== binding.pairId)
           throw new ResearchAutomationConflictError('revision_conflict', 'The Insight report changed before coding confirmation.');
@@ -1405,6 +1407,20 @@ export class ResearchAutomationService {
       ...(verifiedNative?.nativeSource.selected || located?.proposal ? { verifiedPlatform: 'SHOPEE' as const } : {}) };
   }
 
+  /** Additive private source context; the historical public v1 context stays private-ineligible. */
+  async readInsightSourceContextV2(workspaceId: string, runId: string, pairId: string): Promise<InsightCodingSourceContext> {
+    if (!/^[0-9a-f]{64}$/.test(pairId)) throw new ResearchAutomationValidationError('Invalid exact report pair.');
+    const verified = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId, true);
+    if (!verified.verifiedPrivateSource) return this.readInsightSourceContext(workspaceId, runId, pairId);
+    if (!verified.scopeSha256 || verified.verifiedNative || verified.verifiedLocated)
+      throw new ResearchAutomationIntegrityError('Private coding context has inconsistent source lineage.');
+    const privateSource = structuredClone(verified.verifiedPrivateSource);
+    return { binding: { contractVersion: 'insight-source-binding-v2', sourceKind: 'PRIVATE_SHOPEE', workspaceId, runId, pairId,
+      scopeSha256: verified.scopeSha256, reportSha256: verified.report.versionId, sourcePackageSha256: privateSource.corpus.artifactSha256,
+      inputSha256: digest(privateSource.input), corpus: privateSource.corpus, projectionSha256: digest(privateSource) },
+      input: privateSource.input, privateSource, verifiedPlatform: 'SHOPEE' };
+  }
+
   adoptInsightCodingRules(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
     return this.#insightCoding.adopt(workspaceId, runId, value, owner);
   }
@@ -1453,9 +1469,10 @@ export class ResearchAutomationService {
     return this.#insightCoding.resolve(workspaceId, runId, proposalId, receiptIds);
   }
 
-  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined): Promise<{
+  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false): Promise<{
     report: ResearchAutomationReadReport; scopeSha256: string | null;
     verifiedLocated: AutomationLocatedReviewSnapshot | undefined; verifiedNative: NativeSourceReviewSnapshot | undefined;
+    verifiedPrivateSource: PrivateInsightSourceProjection | undefined;
   }> {
     const run = await this.getRun(workspaceId, runId);
     const frozenRun = this.#current(runId)!;
@@ -1501,8 +1518,9 @@ export class ResearchAutomationService {
         captures: await this.#captureRecords(runId),
       });
     }
-    if (kind === 'INSIGHT' && sourceStart.privateShopeeSource && semantic.rendererVersion !== 'automation-report-kit-v22') throw new ResearchAutomationIntegrityError('Private report renderer identity differs.');
+    if (kind === 'INSIGHT' && sourceStart.privateShopeeSource && semantic.rendererVersion !== (isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : 'automation-report-kit-v22')) throw new ResearchAutomationIntegrityError('Private report renderer identity differs.');
     let verifiedPrivateView: PrivateReviewReportView | undefined;
+    let verifiedPrivateSource: PrivateInsightSourceProjection | undefined;
     if (semantic.privateReviewCorpus !== undefined) {
       const view = privateReviewReportView(semantic.privateReviewCorpus);
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
@@ -1513,6 +1531,10 @@ export class ResearchAutomationService {
         scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId), scopeConfirmedAt: frozenRun.scopeConfirmedAt }, await this.#privateCorpusBinding(frozenRun));
       verifiedPrivateView = buildPrivateReviewReportView(corpus);
       if (canonicalJson(view) !== canonicalJson(verifiedPrivateView)) throw new ResearchAutomationIntegrityError('Private report view differs from retained corpus.');
+      if (privateCodingSource || (isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5')) {
+        try { verifiedPrivateSource = projectPrivateInsightSource(corpus, verifiedPrivateView).output; }
+        catch { throw new ResearchAutomationIntegrityError('Private coding source projection differs from retained corpus.'); }
+      }
     } else if (kind === 'INSIGHT' && (await this.#reportCollection(runId, sources, Boolean(attempt)))?.privateShopee) throw new ResearchAutomationIntegrityError('Private report lacks retained corpus.');
     if (semantic.reviewCorpus !== undefined && semantic.reviewCorpus !== null) {
       const frozen = this.#current(runId);
@@ -1629,7 +1651,7 @@ export class ResearchAutomationService {
         previousPairId: literalRequest.previousPairId, collection: await this.#reportCollection(runId, sources, Boolean(attempt)),
         captures: await this.#captureRecords(runId) });
       const literalRendererValid = sourceStart.privateShopeeSource
-        ? semantic.rendererVersion === 'automation-report-kit-v22'
+        ? semantic.rendererVersion === 'automation-report-kit-v22' || (semantic.rendererVersion === 'automation-report-kit-v25' && isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5')
         : semantic.rendererVersion === 'automation-report-kit-v19' || ((semantic.rendererVersion === 'automation-report-kit-v21' || semantic.rendererVersion === 'automation-report-kit-v23') && semantic.insightCoding && typeof semantic.insightCoding === 'object' && 'contractVersion' in semantic.insightCoding && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v4');
       if (!literalRendererValid) throw new ResearchAutomationIntegrityError('Literal evidence renderer identity differs.');
     } else if (semantic.insightLiteral !== undefined) {
@@ -1643,7 +1665,13 @@ export class ResearchAutomationService {
         ? await this.#insightCoding.verifyReportDraftSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.draftInsight)
         : await this.#insightCoding.verifyReportSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.acceptedInsight);
       const source = verifiedNative ?? (verifiedLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? verifiedLocated : undefined);
-      if (!source || snapshot.binding.scopeSha256 !== frozenRun.scopeSha || snapshot.binding.inputSha256 !== digest(source.output.input) ||
+      if (snapshot.contractVersion === 'automation-insight-coding-snapshot-v5') {
+        if (!verifiedPrivateSource || source || semantic.rendererVersion !== 'automation-report-kit-v25' ||
+            snapshot.binding.scopeSha256 !== frozenRun.scopeSha || snapshot.binding.inputSha256 !== digest(verifiedPrivateSource.input) ||
+            snapshot.binding.sourcePackageSha256 !== verifiedPrivateSource.corpus.artifactSha256 ||
+            snapshot.binding.projectionSha256 !== digest(verifiedPrivateSource) || canonicalJson(snapshot.privateSource) !== canonicalJson(verifiedPrivateSource))
+          throw new ResearchAutomationIntegrityError('Private coding snapshot differs from the retained source.');
+      } else if (verifiedPrivateSource || !source || snapshot.binding.scopeSha256 !== frozenRun.scopeSha || snapshot.binding.inputSha256 !== digest(source.output.input) ||
           snapshot.binding.sourcePackageSha256 !== digest(source.sourcePackage))
         throw new ResearchAutomationIntegrityError('Insight coding snapshot differs from the retained source.');
     } else if (semantic.insightCoding !== undefined && semantic.insightCoding !== null) {
@@ -1806,7 +1834,7 @@ export class ResearchAutomationService {
     const bytes = await this.#readArtifact(sha, pdf ? 64 * 1024 * 1024 : MAX_HTML_BYTES, pdf ? 'application/pdf' : 'text/html; charset=utf-8');
     if (pdf && !bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new ResearchAutomationIntegrityError('Stored PDF has an invalid header.');
     return { report: { kind, versionId: output.versionSha, bytes, mediaType: pdf ? 'application/pdf' : 'text/html; charset=utf-8' },
-      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative };
+      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative, verifiedPrivateSource };
   }
 
   /** Worker entry point: claims and settles at most one durable step. */
@@ -2274,8 +2302,9 @@ export class ResearchAutomationService {
         const defaultMarketPeers = kind === 'MARKET' && start.defaultPeerRule !== undefined
           ? classifiedMetricDefaultPeers(metricClassified?.result.input, start.defaultPeerRule, [...scope.peerProductIds]) : undefined;
         const render = async () => {
-          const authoritative = input.marketPresentation ? buildResearchAutomationReport(input, kind) : undefined;
-          const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(input.marketPresentation ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
+          const privateDefault = kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5';
+          const authoritative = input.marketPresentation || privateDefault ? buildResearchAutomationReport(input, kind) : undefined;
+          const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(input.marketPresentation || privateDefault ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
           if (typeof rendered.semantic !== 'object' || rendered.semantic === null || Array.isArray(rendered.semantic)) throw new ResearchAutomationIntegrityError('Research report semantic output is not an object.');
           // Method persistence is owned here, not delegated to an optional presentation adapter.
@@ -2285,7 +2314,7 @@ export class ResearchAutomationService {
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
-          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: 'automation-report-kit-v22' } : {}),
+          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: privateDefault ? 'automation-report-kit-v25' : 'automation-report-kit-v22' } : {}),
             ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentation, marketPresentationArtifact: { sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
             ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
             ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
@@ -2319,8 +2348,8 @@ export class ResearchAutomationService {
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
           if (authoritative) {
-            if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError('Market presentation HTML differs from authoritative method rendering.');
-            if (presentation.rendererVersion !== 'automation-report-kit-v20') throw new ResearchAutomationIntegrityError('Market presentation renderer identity differs.');
+            if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError(privateDefault ? 'Private default HTML differs from authoritative method rendering.' : 'Market presentation HTML differs from authoritative method rendering.');
+            if (presentation.rendererVersion !== (privateDefault ? 'automation-report-kit-v25' : 'automation-report-kit-v20')) throw new ResearchAutomationIntegrityError(privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
           }
           return { rendered, semanticBytes, html };
         };

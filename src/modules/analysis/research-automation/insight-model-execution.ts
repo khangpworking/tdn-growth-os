@@ -289,12 +289,12 @@ export async function readInsightDefaultExecutionArtifacts(options: {
       return { sha256: digest, value, bytes };
     } catch { return fail(); }
   }
-  const admission = await read<InsightDefaultModelSource>(row.admission_sha256, MAX_BYTES, validateDefaultSource);
+  const admission = await read<InsightDefaultModelSource>(row.admission_sha256, MAX_BYTES, (value): value is InsightDefaultModelSource => validateDefaultSource(value) && value.contractVersion === 'insight-default-model-source-v1');
   const outcome = await new AutomationInsightDefaultModelExecution(options).read(admission.value);
   if (outcome.status !== 'VALID' || outcome.executionId !== executionId || outcome.candidates.sha256 !== row.candidates_sha256) fail();
   // The existing kernel verifies all cross-artifact bindings and revalidates the retained merged default output.
   const input = await read<InsightModelInput>(row.input_sha256, 1024 * 1024, validateInput);
-  const prompt = await read<InsightDefaultModelPrompt>(row.prompt_sha256, 256 * 1024, validateDefaultPrompt);
+  const prompt = await read<InsightDefaultModelPrompt>(row.prompt_sha256, 256 * 1024, (value): value is InsightDefaultModelPrompt => validateDefaultPrompt(value) && value.contractVersion === 'insight-model-prompt-v5');
   const configuration = await read<InsightModelConfiguration>(row.configuration_sha256, 64 * 1024, validateConfiguration);
   return { executionId, admission, input, prompt, configuration, candidates: outcome.candidates };
 }
