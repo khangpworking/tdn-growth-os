@@ -57,6 +57,8 @@ export const attributionText = (value: string | null | undefined, fallback: stri
  * first appearance on the page and the register matches the marks exactly.
  */
 export interface ReportCitations {
+  /** New source-policy renderer only; default preserves historical method wording. */
+  readonly distinctEntityWording?: boolean;
   /** The `[n]` mark for this source, or "Chưa có nguồn" when it has no lineage. */
   mark(input: CitationInput): string;
 }
@@ -165,8 +167,8 @@ function sourceCell(input: Input, ref: Ref, citations: ReportCitations): string 
 }
 const entityCell = (row: Observation): string => `${row.entityLabel === null ? tag('Nguồn không nêu đối tượng', 'warn') : storedLiteral(row.entityLabel, WITHHELD.entity)}<br><small>${storedLiteral(row.measureLiteral, WITHHELD.measure)}</small>`;
 
-function limitations(methods: DescriptiveMarketMethods): string {
-  return `<h3>Giới hạn của phương pháp</h3><ul class="limits">${methods.limitations.map(code => `<li>${escape(LIMITATION_TEXT[code] ?? code)}</li>`).join('')}</ul>`;
+function limitations(methods: DescriptiveMarketMethods, citations: ReportCitations): string {
+  return `<h3>Giới hạn của phương pháp</h3><ul class="limits">${methods.limitations.map(code => `<li>${escape(citations.distinctEntityWording && code === 'M06_LOCATED_RECORDS_NOT_UNIQUE_ENTITIES_STOCK_OR_TOTAL_SUPPLY' ? 'M06 đếm bản ghi; không phải đối tượng phân biệt, tồn kho hay toàn bộ nguồn cung.' : LIMITATION_TEXT[code] ?? code)}</li>`).join('')}</ul>`;
 }
 function methodNote(usable: boolean): string {
   return `<p class="sec-note">${usable ? 'Hồ sơ phương pháp và gói bằng chứng đã lưu nằm ở phụ lục M13.' : 'Không có bản ghi nguồn dùng được cho mục này; không có giá trị không đồng nghĩa với 0. Hồ sơ phương pháp nằm ở phụ lục M13.'}</p>`;
@@ -211,7 +213,7 @@ function m06(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
     usable ||= hasSourceValue(row);
     return `<tr><td>${entityCell(row)}<br><small>${storedLiteral(record.objectLiteral, WITHHELD.entity)} · ${storedLiteral(row.sourceWording, WITHHELD.wording)}</small></td><td>${record.statusLiteral === null ? tag('Nguồn không nêu', 'warn') : storedLiteral(record.statusLiteral, WITHHELD.status)}</td><td>${storedLiteral(row.measureLiteral, WITHHELD.measure)}<br>${valueCell(row)}</td><td>${periodCell(row.period)}<br><small>Ý nghĩa ngày: ${storedLiteral(record.dateMeaning, WITHHELD.basis)}</small></td><td>${sourceCell(methods.input, row.source, citations)}</td></tr>`;
   }).join('');
-  const lead = `<p>${escape(section.locatedRecordCount)} bản ghi cung do nguồn nêu. Số đối tượng duy nhất: chưa xác định. Bản ghi listing không phải sản phẩm độc lập, tồn kho, năng lực hay toàn bộ nguồn cung.</p>`;
+  const lead = `<p>${escape(section.locatedRecordCount)} bản ghi cung do nguồn nêu. Số đối tượng ${citations.distinctEntityWording ? 'phân biệt' : 'duy nhất'}: chưa xác định. Bản ghi listing không phải sản phẩm độc lập, tồn kho, năng lực hay toàn bộ nguồn cung.</p>`;
   const body = `${lead}${rows ? table('Bản ghi nguồn cung theo trạng thái nguồn nêu.', ['Đối tượng nguồn nêu', 'Trạng thái theo nguồn', 'Thước đo / giá trị nguồn', 'Kỳ', 'Vị trí nguồn'], rows) : ''}${blockerList(section.blockers)}`;
   return { usable, locatedRecordCount: section.locatedRecordCount, unresolvedPointers: unresolved, blockers: section.blockers, body };
 }
@@ -261,16 +263,19 @@ function m09(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
 
 export function describeDescriptiveSection(methods: DescriptiveMarketMethods, sectionId: DescriptiveSectionId, citations: ReportCitations): DescriptiveSectionView {
   const { body, ...view } = { M05: m05, M06: m06, M07: m07, M09: m09 }[sectionId](methods, citations);
-  return { ...view, html: `${methodNote(view.usable)}${body}${limitations(methods)}` };
+  return { ...view, html: `${methodNote(view.usable)}${body}${limitations(methods, citations)}` };
 }
 
 /** Package and method identity belong in the M13 appendix, not in the analytical sections. */
-export function descriptiveAppendix(methods: DescriptiveMarketMethods | undefined, failure?: 'DESCRIPTIVE_METHOD_FAILED'): string {
+export function descriptiveAppendix(methods: DescriptiveMarketMethods | undefined, failure?: 'DESCRIPTIVE_METHOD_FAILED', distinctEntityWording = false): string {
   if (methods === undefined && failure) return '<h3>Hồ sơ đối chiếu phương pháp mô tả thị trường</h3><p>Đã thử chạy phương pháp mô tả nhưng đầu vào hoặc phương pháp không vượt qua kiểm tra. Không có kết quả phương pháp dùng được cho M05, M06, M07 và M09. Bản thu nguồn vẫn được giữ trong bản kê phía trên; cần kiểm tra lỗi trước khi tạo phiên bản mới, không tự động gọi lại nguồn.</p>'
     + `<details class="evidence-trace"><summary>Mã đối chiếu của lần chạy lỗi</summary><p><code>${escape(failure)}</code></p></details>`;
   if (methods === undefined) return '<h3>Hồ sơ đối chiếu phương pháp mô tả thị trường</h3><p>Không có kết quả trong lượt này. Phương pháp chỉ chạy khi lượt có quan sát sản phẩm hợp lệ từ bản thu nguồn. Các mục M05, M06, M07 và M09 không có kết quả phương pháp.</p>';
   const pkg = methods.input.sourcePackage;
   const config = methods.input.configuration;
+  // Only this owning-bridge declaration has revised display copy; retained snapshots and source words are unchanged.
+  const variantRule = distinctEntityWording && methods.input.scope.variantRule === 'Giữ mã sản phẩm của nguồn; chưa hợp nhất listing hoặc chuẩn hóa biến thể.'
+    ? 'Giữ mã sản phẩm của nguồn; chưa gộp listing hoặc chuẩn hóa biến thể.' : methods.input.scope.variantRule;
   const sources = methods.input.sources.map(source => `<tr><td>${storedLiteral(source.logicalPath, 'Tệp được giữ trong bản lưu nguồn')}</td><td>${storedLiteral(source.evidenceFamily, 'Nhóm nguồn được giữ trong bản lưu')}</td><td>${escape(PROVENANCE_TEXT[source.providerProvenance])}</td><td><code>${escape(source.sha256)}</code></td></tr>`).join('');
-  return `<details class="evidence-trace"><summary>Hồ sơ đối chiếu phương pháp mô tả thị trường: gói nguồn, cấu hình và tệp</summary><dl><dt>Phương pháp</dt><dd>${escape(methods.methodId)}@${escape(methods.methodVersion)}</dd><dt>Mã kết quả</dt><dd><code>${escape(methods.methodOutputId)}</code></dd><dt>Gói nguồn</dt><dd>${escape(pkg.packageId)} · phiên bản ${escape(pkg.version)}</dd><dt>Bản kê gói</dt><dd><code>${escape(pkg.manifestArtifactSha256)}</code></dd><dt>Nội dung gói</dt><dd><code>${escape(pkg.packageContentSha256)}</code></dd><dt>Cấu hình</dt><dd>${escape(config.profileId)}@${escape(config.profileVersion)} · ${storedLiteral(config.policyRevision, 'Phiên bản chính sách được giữ trong bản lưu nguồn')}</dd><dt>Câu hỏi</dt><dd>${storedLiteral(methods.input.question, 'Câu hỏi được giữ trong bản lưu')}</dd><dt>Phạm vi khai báo</dt><dd>${scopeText(methods.input.scope)}<br><small>Gồm: ${storedLiteral(methods.input.scope.inclusionRule, withheldScope)} · Loại: ${storedLiteral(methods.input.scope.exclusionRule, withheldScope)} · Biến thể: ${storedLiteral(methods.input.scope.variantRule, withheldScope)}</small></dd></dl>${table('Tệp nguồn của hồ sơ phương pháp. Hash chỉ chứng minh tính toàn vẹn, không chứng minh nội dung đúng.', ['Tệp logic', 'Nhóm bằng chứng', 'Nguồn gốc', 'SHA-256'], sources)}</details>`;
+  return `<details class="evidence-trace"><summary>Hồ sơ đối chiếu phương pháp mô tả thị trường: gói nguồn, cấu hình và tệp</summary><dl><dt>Phương pháp</dt><dd>${escape(methods.methodId)}@${escape(methods.methodVersion)}</dd><dt>Mã kết quả</dt><dd><code>${escape(methods.methodOutputId)}</code></dd><dt>Gói nguồn</dt><dd>${escape(pkg.packageId)} · phiên bản ${escape(pkg.version)}</dd><dt>Bản kê gói</dt><dd><code>${escape(pkg.manifestArtifactSha256)}</code></dd><dt>Nội dung gói</dt><dd><code>${escape(pkg.packageContentSha256)}</code></dd><dt>Cấu hình</dt><dd>${escape(config.profileId)}@${escape(config.profileVersion)} · ${storedLiteral(config.policyRevision, 'Phiên bản chính sách được giữ trong bản lưu nguồn')}</dd><dt>Câu hỏi</dt><dd>${storedLiteral(methods.input.question, 'Câu hỏi được giữ trong bản lưu')}</dd><dt>Phạm vi khai báo</dt><dd>${scopeText(methods.input.scope)}<br><small>Gồm: ${storedLiteral(methods.input.scope.inclusionRule, withheldScope)} · Loại: ${storedLiteral(methods.input.scope.exclusionRule, withheldScope)} · Biến thể: ${storedLiteral(variantRule, withheldScope)}</small></dd></dl>${table('Tệp nguồn của hồ sơ phương pháp. Hash chỉ chứng minh tính toàn vẹn, không chứng minh nội dung đúng.', ['Tệp logic', 'Nhóm bằng chứng', 'Nguồn gốc', 'SHA-256'], sources)}</details>`;
 }

@@ -8,6 +8,7 @@ import defaultPeerSchema from '../../../../contracts/analysis/default-market-pee
 import type {
   ResearchAutomationReaderBuildRequest, ResearchAutomationReaderBuildReceipt, ResearchAutomationReaderDecisionRequest,
   ResearchAutomationReaderDecisionReceipt, ResearchAutomationReaderRevision, ResearchAutomationReaderRevisionList,
+  ResearchAutomationIntakeBoundReaderBuildRequest,
 } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -17,6 +18,8 @@ import {
   buildMarketReport, computeReaderReportData, publishReaderReport, ReaderAssetError, ReaderReportGateError, ReaderReportInputError,
   ReaderSourceError, storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
+import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
+import type { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
 import { MetricSourceRejection } from '../metric-source-profile.js';
@@ -31,6 +34,7 @@ addFormats(ajv);
 ajv.addSchema(defaultPeerSchema); ajv.addSchema(apiSchema); ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
 const def = <T>(name: string) => ajv.compile<T>({ $ref: `${readerApiSchema.$id}#/$defs/${name}` });
 const validBuild = def<ResearchAutomationReaderBuildRequest>('buildRequest');
+const validIntakeBuild = def<ResearchAutomationIntakeBoundReaderBuildRequest>('intakeBoundBuildRequest');
 const validDecision = def<ResearchAutomationReaderDecisionRequest>('decisionRequest');
 const validRevision = def<ResearchAutomationReaderRevision>('revision');
 
@@ -94,16 +98,52 @@ const builtOn = (at: Date): string => new Date(at.getTime() + 7 * 3_600_000).toI
  */
 export class AutomationReaderReports {
   readonly #rows: ReaderRowsReader;
+  readonly #unitSpecs: ReaderUnitSpecIntakes;
   constructor(private readonly db: Database.Database, private readonly artifacts: ContentAddressedArtifactStore,
-    private readonly now: () => Date, private readonly options: { flint?: boolean; rows?: ReaderRowsReader } = {}) {
+    private readonly now: () => Date, private readonly options: { flint?: boolean; rows?: ReaderRowsReader; staging?: RequestScopedArtifactStore } = {}) {
     this.#rows = options.rows ?? readerRowsFromMetricWorkbook;
+    this.#unitSpecs = new ReaderUnitSpecIntakes(db, artifacts, options.staging, now);
+  }
+
+  async prepareUnitSpecs(context: ReaderDraftContext, value: unknown, files: ReadonlyMap<string, Uint8Array>, actor: { actorId: string; role: 'OWNER' }) {
+    this.#owner(actor);
+    const platforms = (value as { platforms?: unknown } | null)?.platforms;
+    if (!Array.isArray(platforms) || !platforms.length || platforms.some(p => p !== 'shopee' && p !== 'tiktok'))
+      throw new ResearchAutomationValidationError('Chọn đúng sàn cho quy cách.');
+    return this.#unitSpecs.prepare(this.#unitSpecContext(context, platforms), value, files, actor);
+  }
+
+  async buildFromUnitSpecs(context: ReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    this.#owner(actor);
+    if (!validIntakeBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc từ quy cách không hợp lệ.');
+    const envelope = JSON.parse(canonicalJson(value)) as ResearchAutomationIntakeBoundReaderBuildRequest;
+    await this.#unitSpecs.read(this.#unitSpecContext(context, envelope.request.platforms), envelope.intakeSha256,
+      { contractVersion: 'reader-unit-spec-intake-v1', metricPackageId: envelope.request.metricPackageId,
+        platforms: envelope.request.platforms, unitPrices: envelope.request.unitPrices! });
+    return this.#build(context, envelope.request, actor, envelope);
+  }
+
+  #unitSpecContext(context: ReaderDraftContext, platforms: readonly ReaderPlatform[]) {
+    let rows: ReaderRow[];
+    try { rows = this.#rows(context.metric.workbook, platforms); }
+    catch (error) {
+      if (error instanceof ReaderMetricRowsError || error instanceof MetricSourceRejection)
+        throw new ResearchAutomationValidationError('Không đọc được tệp sản phẩm để đối chiếu quy cách.');
+      throw error;
+    }
+    return { workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId,
+      metricPackageId: context.metric.packageId, workbookSha256: sha(context.metric.workbook), rows };
   }
 
   async build(context: ReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceipt> {
+    return this.#build(context, value, actor);
+  }
+
+  async #build(context: ReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }, intakeEnvelope?: ResearchAutomationIntakeBoundReaderBuildRequest): Promise<ResearchAutomationReaderBuildReceipt> {
     this.#owner(actor);
     if (!validBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc không hợp lệ.');
     const request = JSON.parse(canonicalJson(value)) as ResearchAutomationReaderBuildRequest;
-    const requestSha = sha(canonicalJson(request));
+    const requestSha = sha(canonicalJson(intakeEnvelope ?? request));
     const prior = this.#byRequestKey(request.requestKey);
     if (prior) return { contractVersion: 'reader-report-build-receipt-v1', exactRetry: true, revision: this.#exactBuildRetry(prior, context, requestSha, actor) };
 
@@ -197,6 +237,7 @@ export class AutomationReaderReports {
     const profile = (await storeReaderProfile(this.artifacts, request.profile)).artifact;
     const record = await this.artifacts.put(json({
       contractVersion: 'reader-report-build-record-v1', builderVersion, revisionId,
+      ...(intakeEnvelope ? { unitSpecIntakeSha256: intakeEnvelope.intakeSha256 } : {}),
       workspaceId: context.workspaceId, runId: context.runId, draftPairId: context.draftPairId, metricPackageId: request.metricPackageId,
       requestSha256: requestSha, profileSha256: profile.sha256, input, limitations, webResults: built.webResults,
       defaultMarketPeers: data.defaultMarketPeers,

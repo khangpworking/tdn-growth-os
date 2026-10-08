@@ -1,0 +1,9 @@
+@prefix ex: <urn:onto:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+ex:UnresolvedShape a sh:NodeShape;  ex:status "proposed";
+
+
+ sh:targetClass ex:UnknownRecord;
+ sh:property [ sh:path ex:inWide; sh:hasValue false; sh:maxCount 1; sh:message "Unresolved phải ở ngoài WIDE theo chính sách đã chốt" ];
+ sh:property [ sh:path ex:inAll; sh:hasValue true; sh:maxCount 1; sh:message "Unresolved phải được giữ trong ALL để kiểm tra" ] .

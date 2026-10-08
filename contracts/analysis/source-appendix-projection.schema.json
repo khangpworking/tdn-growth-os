@@ -1,0 +1,354 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/source-appendix-projection.schema.json",
+  "title": "SourceAppendixContract",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/input"
+    },
+    {
+      "$ref": "#/$defs/projection"
+    }
+  ],
+  "$defs": {
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "usages"
+      ],
+      "properties": {
+        "usages": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "registryId",
+              "binding",
+              "l9",
+              "l10SourceType"
+            ],
+            "properties": {
+              "registryId": {
+                "enum": [
+                  "S01",
+                  "S02",
+                  "S03",
+                  "S04",
+                  "S05",
+                  "S06",
+                  "S07",
+                  "S08",
+                  "S09",
+                  "S10",
+                  "S11",
+                  "S12",
+                  "S13",
+                  "S14",
+                  "S15",
+                  "S16",
+                  "S17",
+                  "S18",
+                  "S19",
+                  "S20",
+                  "S21",
+                  "S22",
+                  "S23",
+                  "S24",
+                  "S25",
+                  "S26",
+                  "S27"
+                ]
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "package",
+                      "capture",
+                      "upload",
+                      "fetch"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "pattern": "\\S"
+                  }
+                }
+              },
+              "l9": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "excluded",
+                      "unclear",
+                      "byReason"
+                    ],
+                    "properties": {
+                      "excluded": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "unclear": {
+                        "type": "integer",
+                        "minimum": 0,
+                        "maximum": 9007199254740991
+                      },
+                      "byReason": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 200,
+                          "pattern": "\\S"
+                        },
+                        "additionalProperties": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 9007199254740991
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "l10SourceType": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "review-video",
+                      "seller-video"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "title": "SourceAppendixUsage"
+          },
+          "minItems": 0,
+          "maxItems": 1024
+        }
+      },
+      "title": "SourceAppendixProjectionInput"
+    },
+    "projection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "registryVersion",
+        "rows"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "source-appendix-projection-v2"
+        },
+        "registryVersion": {
+          "const": "1.9"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "registryId",
+              "tier",
+              "tierDetail",
+              "group",
+              "reportName",
+              "binding",
+              "l9Excluded",
+              "l9Unclear",
+              "l9Reasons",
+              "l10SourceType",
+              "attribution"
+            ],
+            "properties": {
+              "registryId": {
+                "enum": [
+                  "S01",
+                  "S02",
+                  "S03",
+                  "S04",
+                  "S05",
+                  "S06",
+                  "S07",
+                  "S08",
+                  "S09",
+                  "S10",
+                  "S11",
+                  "S12",
+                  "S13",
+                  "S14",
+                  "S15",
+                  "S16",
+                  "S17",
+                  "S18",
+                  "S19",
+                  "S20",
+                  "S21",
+                  "S22",
+                  "S23",
+                  "S24",
+                  "S25",
+                  "S26",
+                  "S27"
+                ]
+              },
+              "tier": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "A",
+                      "B",
+                      "C"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "tierDetail": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300,
+                    "pattern": "\\S"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "group": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120,
+                "pattern": "\\S"
+              },
+              "reportName": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "pattern": "\\S"
+              },
+              "binding": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "kind",
+                  "ref"
+                ],
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "package",
+                      "capture",
+                      "upload",
+                      "fetch"
+                    ]
+                  },
+                  "ref": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500,
+                    "pattern": "\\S"
+                  }
+                }
+              },
+              "l9Excluded": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "l9Unclear": {
+                "anyOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0,
+                    "maximum": 9007199254740991
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "l9Reasons": {
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 200,
+                  "pattern": "\\S"
+                },
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 9007199254740991
+                }
+              },
+              "l10SourceType": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "review-video",
+                      "seller-video"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "attribution": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300,
+                    "pattern": "\\S"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "title": "SourceAppendixRow"
+          },
+          "minItems": 0,
+          "maxItems": 1024
+        }
+      },
+      "title": "SourceAppendixProjection"
+    }
+  }
+}

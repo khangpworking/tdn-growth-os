@@ -1,3 +1,4 @@
+import { createKeywordCliproxyTransport, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -41,6 +42,7 @@ import kalodataVideoIntakeSchema from '../../contracts/analysis/kalodata-video-i
 import { AutomationKalodataVideoIntake, KalodataVideoRejection, MAX_VIDEO_UPLOAD_BYTES, readPreparedKalodataVideoSources } from '../modules/analysis/research-automation/kalodata-video-intake.js';
 import { FoundationSourcePackageReader } from '../modules/foundation/source-package-reader.js';
 import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mutex.js';
+import { MAX_UNIT_SPEC_FILE_BYTES, MAX_UNIT_SPEC_TOTAL_BYTES, MAX_UNIT_SPEC_FILES } from '../modules/analysis/research-automation/reader-unit-spec-intake.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import { SourcePackageRequestConflictError, SourcePackageService } from '../modules/foundation/source-package-service.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
@@ -61,6 +63,8 @@ import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, Resea
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
+  /** Independently configured list drafting; other model flags grant no calls here. */
+  readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
   readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
   readonly databasePath: string;
   readonly artifactRoot: string;
@@ -138,7 +142,9 @@ const validates = {
   sourceStatus: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/status` }),
   runPdfs: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/runPdfStates` }),
   attachPdf: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/attachPdfRequest` }),
-  readerBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildRequest` }),
+  readerBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildSubmission` }),
+  unitSpecIntake: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/unitSpecIntakeRequest` }),
+  unitSpecIntakeReceipt: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/unitSpecIntakeReceipt` }),
   readerBuildReceipt: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildReceipt` }),
   readerDecision: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionRequest` }),
   readerDecisionReceipt: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionReceipt` }),
@@ -181,6 +187,10 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     }
   }
   if (configuration.i14Synthesis && !configuration.owner) throw new TypeError('Automation I14 synthesis requires the OWNER writer');
+  if (configuration.keywordDrafting && !configuration.owner) throw new TypeError('Keyword drafting requires the OWNER writer');
+  const keywordTransport = configuration.keywordDrafting ? createKeywordCliproxyTransport(configuration.keywordDrafting) : undefined;
+  const sourceEvidence = { modelIdentity: configuration.keywordDrafting ? `cliproxy:${configuration.keywordDrafting.configuration.modelId}` : 'unconfigured',
+    promptVersion: 'l9-keyword-prompt-v1', ...(configuration.keywordDrafting ? { configuration: configuration.keywordDrafting.configuration } : {}) };
   const i14SynthesisAi = configuration.i14Synthesis ? createI14CliproxySynthesisAi(configuration.i14Synthesis) : undefined;
   if (configuration.insightCoding && !configuration.owner) throw new TypeError('Automation Insight coding requires the OWNER writer');
   const insightCodingAi = configuration.insightCoding ? createInsightCodingCliproxyAi(configuration.insightCoding) : null;
@@ -204,7 +214,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   const modelRequests = new Map<AbortController, Promise<unknown>>();
   const artifacts = new ContentAddressedArtifactStore(path.resolve(configuration.artifactRoot));
   const create = (db: BetterSqlite3.Database, extra: Partial<ConstructorParameters<typeof ResearchAutomationService>[0]> = {}) => new ResearchAutomationService({
-    db, artifactStore: artifacts, ...(configuration.pageIndex ? { pageIndex: configuration.pageIndex } : {}), workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })), ...extra,
+    db, artifactStore: artifacts, sourceEvidence, ...(configuration.pageIndex ? { pageIndex: configuration.pageIndex } : {}), workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db, artifactStore: artifacts })), ...extra,
   });
   let readService: ResearchAutomationService;
   let writeService: ResearchAutomationService | undefined;
@@ -221,6 +231,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
+        sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
         ...(i14SynthesisAi ? { i14SynthesisAi } : {}),
@@ -294,12 +305,13 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const insightWrite = action !== undefined && Object.hasOwn(insightWrites, action) ? insightWrites[action as keyof typeof insightWrites] : undefined;
     const insightModelWrite = action === 'insight-coding-model-proposals';
     const readerHtml = /^reader-reports\/([0-9a-f-]{36})\/html$/.exec(action ?? '');
-    const readerAction = action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml);
+    const readerUnitSpecIntake = action === 'reader-reports/unit-spec-intakes';
+    const readerAction = readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml);
     const report = originalReport?.[1] ?? versionReport?.[2];
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel) || action === 'reader-reports' || action === 'reader-reports/decisions'
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
       : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
@@ -408,6 +420,37 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         await writeService!.recheckPageIndex();
         const result = await sourceStatusProjection(workspaceId!);
         return sendApiJson(response, 200, result);
+      }
+      if (readerUnitSpecIntake) {
+        // Exact Origin, configured write permission and OWNER authentication already passed.
+        const contentType = singleHeader(request.headers['content-type']);
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Chọn các tệp quy cách bằng biểu mẫu tải lên.');
+        const bytes = await readOwnerBytes(request, MAX_UNIT_SPEC_TOTAL_BYTES + 512 * 1024 + 64 * 1024);
+        let form: FormData;
+        try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(bytes) }).formData(); }
+        catch { return fail(response, 400, 'bad_request', 'Không đọc được biểu mẫu quy cách.'); }
+        const fields = [...form.entries()], metadata = form.get('metadata');
+        if (typeof metadata !== 'string' || Buffer.byteLength(metadata) > 512 * 1024 || form.getAll('metadata').length !== 1 || fields.length < 2 || fields.length > MAX_UNIT_SPEC_FILES + 1)
+          return fail(response, 400, 'bad_request', 'Cần một bộ thông tin và từ một đến 16 tệp quy cách.');
+        let input: unknown;
+        try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Thông tin quy cách phải là JSON hợp lệ.'); }
+        if (!validates.unitSpecIntake(input)) return fail(response, 400, 'bad_request', 'Thông tin quy cách không đúng định dạng.');
+        const files = new Map<string, Uint8Array>(); let total = 0;
+        for (const [field, file] of fields) {
+          if (field === 'metadata') continue;
+          if (!/^file:[0-9a-f]{64}$/.test(field) || !(file instanceof File) || files.has(field.slice(5)))
+            return fail(response, 400, 'bad_request', 'Các tệp quy cách không khớp danh sách nguồn.');
+          if (!file.size || !['', 'application/json', 'application/octet-stream', 'text/plain'].includes(file.type))
+            return fail(response, 400, 'bad_request', 'Mỗi nguồn cần một tệp JSON có nội dung.');
+          total += file.size;
+          if (file.size > MAX_UNIT_SPEC_FILE_BYTES || total > MAX_UNIT_SPEC_TOTAL_BYTES)
+            return fail(response, 413, 'payload_too_large', 'Mỗi tệp tối đa 2 MiB, tổng tối đa 8 MiB.');
+          files.set(field.slice(5), new Uint8Array(await file.arrayBuffer()));
+        }
+        const receipt = await writeService!.prepareReaderUnitSpecs(workspaceId!, runId!, input, files,
+          { actorId: configuration.owner!.actorId, role: 'OWNER' });
+        if (!validates.unitSpecIntakeReceipt(receipt)) throw new Error('Unit-spec intake receipt failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
       if (action === 'source-pdfs') {
         const contentType = singleHeader(request.headers['content-type']);
@@ -581,7 +624,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (action === 'reader-reports' || action === 'reader-reports/decisions') {
         const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
         if (action === 'reader-reports') {
-          const receipt = await writeService!.buildReaderReport(workspaceId!, runId!, body, owner);
+          const receipt = (body as { contractVersion: string }).contractVersion === 'reader-report-unit-spec-build-v1'
+            ? await writeService!.buildReaderReportFromUnitSpecs(workspaceId!, runId!, body, owner)
+            : await writeService!.buildReaderReport(workspaceId!, runId!, body, owner);
           if (!validates.readerBuildReceipt(receipt)) throw new Error('Reader build receipt failed validation');
           // Building restates a finished draft: no wake, provider request or draft change.
           return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
