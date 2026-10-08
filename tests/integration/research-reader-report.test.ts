@@ -3,6 +3,10 @@ import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import fs from 'node:fs/promises';
 import os from 'node:os';
+import http from 'node:http';
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
+import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
 import path from 'node:path';
 import { readFileSync } from 'node:fs';
 import test, { type TestContext } from 'node:test';
@@ -71,7 +75,7 @@ async function readyRun(t: TestContext, rows?: ReaderRowsReader, sources: { sour
     expectedRevision: awaiting.revision, ...scope, sources: { metric: { decision: 'USE_PREPARED', packageId: prepared.packageId }, nativeReview: 'SKIP' } });
   for (let i = 0; i < 10 && (await service.getRun(workspaceId, runId)).status !== 'DRAFT_READY'; i++) await service.processNext();
   assert.equal((await service.getRun(workspaceId, runId)).status, 'DRAFT_READY');
-  return { db, service, artifacts, build, packageId: prepared.packageId };
+  return { root, db, service, artifacts, build, packageId: prepared.packageId };
 }
 
 test('reader owner build-v1.2 verifies retained unit prices, publishes findings and replays exact bytes beside old v1', async t => {
@@ -312,4 +316,102 @@ test('reader page cites the run web results in the appendix with links and never
   assert.match(html, /Báo Mẫu · đăng 2 thg 9, 2026/, 'site and publish date flow from the search result to the citation');
   assert.match(html, /Thị phần hũ thủy tinh/, 'a result is not dropped for its own wording');
   assert.doesNotMatch(html, /SerpApi|Kalodata/i);
+});
+
+
+test('authenticated HTTP unit-spec intake binds exact source bytes through v1.2 build and immutable read', async t => {
+  const f = await readyRun(t);
+  const rows = readerRowsFromMetricWorkbook(workbook(), ['shopee']);
+  const units = unitPriceFixture(rows);
+  // Preserve noncanonical whitespace. Owner quantity is a separate retained declaration.
+  const listingBytes = Buffer.from(JSON.stringify(JSON.parse(units.retained[0]!.bytes.toString()), null, 2) + '\n');
+  const digest = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
+  const listingSha = digest(listingBytes);
+  units.packet.sources[0]!.sha256 = listingSha;
+  units.packet.records.forEach(record => { record.source.sourceSha256 = listingSha; });
+  const declared = { ...units.packet.records[0]!.observation, quantity: { value: 400, unit: 'g' as const } };
+  const ownerBytes = Buffer.from(JSON.stringify({ declaration: declared }, null, 4) + '\n');
+  const ownerSha = digest(ownerBytes);
+  units.packet.sources.push({ sha256: ownerSha, role: 'OWNER_DECLARATION' });
+  units.packet.records[0]!.quantityOverride = { source: { sourceSha256: ownerSha, locator: '/declaration' }, observation: declared };
+  const metadata = { contractVersion: 'reader-unit-spec-intake-v1', metricPackageId: f.packageId, platforms: ['shopee'], unitPrices: units.packet };
+  const token = 'synthetic-reader-owner-token-123456-abcdefghijklmnopqrstuvwxyz';
+  const probe = http.createServer(); probe.listen(0, '127.0.0.1'); await once(probe, 'listening');
+  const port = (probe.address() as AddressInfo).port; await new Promise<void>(resolve => probe.close(() => resolve()));
+  const base = `http://127.0.0.1:${port}`;
+  const api = openResearchAutomationApi({ databasePath: path.join(f.root, 'test.sqlite'), artifactRoot: path.join(f.root, 'artifacts'), origin: base,
+    providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false },
+    owner: { writeEnabled: true, databasePath: path.join(f.root, 'test.sqlite'), artifactRoot: path.join(f.root, 'artifacts'), token, allowedOrigin: base, actorId: owner.actorId } });
+  const server = http.createServer(api.handler); server.listen(port, '127.0.0.1'); await once(server, 'listening');
+  const root = (wid = workspaceId, rid = runId) => `${base}/owner-api/workspaces/${wid}/research-automation/runs/${rid}/reader-reports`;
+  const upload = (input: unknown = metadata, files = new Map([[listingSha, listingBytes], [ownerSha, ownerBytes]]), authorized = true, wid = workspaceId, rid = runId) => {
+    const form = new FormData(); form.set('metadata', JSON.stringify(input));
+    for (const [sha, bytes] of files) form.set(`file:${sha}`, new Blob([new Uint8Array(bytes)], { type: 'application/json' }), '../../inert.json');
+    return fetch(`${root(wid, rid)}/unit-spec-intakes`, { method: 'POST', headers: { Origin: base, ...(authorized ? { Authorization: `Bearer ${token}` } : {}) }, body: form });
+  };
+  const postBuild = (body: unknown, wid = workspaceId, rid = runId) => fetch(root(wid, rid), { method: 'POST',
+    headers: { Origin: base, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const count = () => Number((f.db.prepare('SELECT count(*) n FROM analysis_reader_report_revisions').get() as { n: number | bigint }).n);
+  const manifests = () => Number((f.db.prepare('SELECT count(*) n FROM artifact_manifests').get() as { n: number | bigint }).n);
+  try {
+    const initial = manifests();
+    assert.equal((await upload(metadata, undefined, false)).status, 401);
+    assert.equal(manifests(), initial, 'unauthenticated bytes are never registered');
+    assert.equal((await upload(metadata, undefined, true, '99999999-9999-4999-8999-999999999999')).status, 404);
+    assert.equal((await upload(metadata, undefined, true, workspaceId, '99999999-9999-4999-8999-999999999999')).status, 404);
+    const bad = structuredClone(metadata); bad.unitPrices.records[0]!.observation.variant = 'wrong';
+    assert.equal((await upload(bad)).status, 400);
+    const wrongLocator = structuredClone(metadata); wrongLocator.unitPrices.records[0]!.source.locator = '/observations/99';
+    assert.equal((await upload(wrongLocator)).status, 400);
+    const wrongListing = structuredClone(metadata); wrongListing.unitPrices.records[0]!.observation.listing = 'wrong-listing';
+    assert.equal((await upload(wrongListing)).status, 400);
+    assert.equal((await upload(metadata, new Map([[listingSha, Buffer.from('{}')], [ownerSha, ownerBytes]]))).status, 400);
+    const malformed = Buffer.from('{ broken'); const malformedSha = digest(malformed);
+    const invalidJson = structuredClone(metadata); invalidJson.unitPrices.sources[0]!.sha256 = malformedSha;
+    invalidJson.unitPrices.records.forEach(record => { record.source.sourceSha256 = malformedSha; });
+    assert.equal((await upload(invalidJson, new Map([[malformedSha, malformed], [ownerSha, ownerBytes]]))).status, 400);
+    const invalidUtf8 = Buffer.from([0xff]); const utfSha = digest(invalidUtf8);
+    const invalidEncoding = structuredClone(invalidJson); invalidEncoding.unitPrices.sources[0]!.sha256 = utfSha;
+    invalidEncoding.unitPrices.records.forEach(record => { record.source.sourceSha256 = utfSha; });
+    assert.equal((await upload(invalidEncoding, new Map([[utfSha, invalidUtf8], [ownerSha, ownerBytes]]))).status, 400);
+    assert.equal((await upload(metadata, new Map([[listingSha, Buffer.alloc(2 * 1024 * 1024 + 1)], [ownerSha, ownerBytes]]))).status, 413);
+    assert.equal(manifests(), initial, 'invalid uploads publish no manifests');
+    await assert.rejects(fs.stat(f.artifacts.pathForDigest(listingSha)), /ENOENT/);
+    assert.equal(count(), 0);
+    const created = await upload(); assert.equal(created.status, 201); const receipt = await created.json() as any;
+    assert.equal(receipt.workspaceId, workspaceId); assert.equal(receipt.runId, runId); assert.deepEqual(receipt.request, metadata);
+    assert.deepEqual(await f.artifacts.read(listingSha), listingBytes); assert.deepEqual(await f.artifacts.read(ownerSha), ownerBytes);
+    const record = JSON.parse((await f.artifacts.read(receipt.intakeSha256)).toString());
+    assert.equal(record.actorId, owner.actorId); assert.equal(record.workbookSha256, digest(workbook()));
+    assert.equal(record.draftPairId, (await f.service.listReportVersions(workspaceId, runId)).at(-1)!.pairId);
+    const retry = await upload(); assert.equal(retry.status, 200); assert.deepEqual(await retry.json(), { ...receipt, exactRetry: true });
+    assert.equal(count(), 0, 'intake does not create a report or decision');
+    const request = { ...f.build('10000000-0000-4000-8000-000000008001'), contractVersion: 'reader-report-build-v1.2', unitPrices: units.packet };
+    const envelope = { contractVersion: 'reader-report-unit-spec-build-v1', intakeSha256: receipt.intakeSha256, request };
+    const wrongPacket = structuredClone(envelope); (wrongPacket.request.unitPrices as typeof units.packet).records[0]!.observation.variant = 'wrong';
+    assert.equal((await postBuild(wrongPacket)).status, 400);
+    assert.equal((await postBuild({ ...envelope, intakeSha256: listingSha })).status, 400);
+    assert.equal((await postBuild({ ...envelope, request: { ...request, metricPackageId: '99999999-9999-4999-8999-999999999999' } })).status, 400);
+    assert.equal(count(), 0);
+    const builtResponse = await postBuild(envelope); assert.equal(builtResponse.status, 201, await builtResponse.clone().text());
+    const built = await builtResponse.json() as any;
+    const url = `${base}/api/workspaces/${workspaceId}/research-automation/runs/${runId}/reader-reports/${built.revision.revisionId}/html`;
+    const read = await fetch(url); assert.equal(read.status, 200); const html = Buffer.from(await read.arrayBuffer());
+    assert.equal(digest(html), built.revision.htmlSha256); assert.match(html.toString(), /đồng\/100g/); assert.match(html.toString(), /chủ khai báo/);
+    const saved = f.db.prepare('SELECT input_sha256 FROM analysis_reader_report_revisions WHERE revision_id=?').get(built.revision.revisionId) as { input_sha256: string };
+    assert.equal(JSON.parse((await f.artifacts.read(saved.input_sha256)).toString()).unitSpecIntakeSha256, receipt.intakeSha256);
+    const buildRetry = await postBuild(envelope); assert.equal(buildRetry.status, 200);
+    assert.deepEqual(await buildRetry.json(), { ...built, exactRetry: true });
+    assert.deepEqual(Buffer.from(await (await fetch(url)).arrayBuffer()), html); assert.equal(count(), 1);
+    // Forging only bytes cannot mint an authenticated registered receipt.
+    const forged = { ...record, runId: '99999999-9999-4999-8999-999999999999' };
+    const forgedArtifact = await f.artifacts.put(Buffer.from(JSON.stringify(forged)));
+    assert.equal((await postBuild({ ...envelope, intakeSha256: forgedArtifact.sha256, request: { ...request, requestKey: '10000000-0000-4000-8000-000000008002' } })).status, 400);
+    // A registered receipt with a different context is still rejected by actual bindings.
+    f.db.prepare(`INSERT INTO artifact_manifests SELECT ?,?,media_type,?,acquired_at,contract_version,retention_status,created_at FROM artifact_manifests WHERE sha256=?`)
+      .run(forgedArtifact.sha256, forgedArtifact.byteSize, forgedArtifact.relativePath, receipt.intakeSha256);
+    assert.equal((await postBuild({ ...envelope, intakeSha256: forgedArtifact.sha256 })).status, 400);
+    assert.equal(count(), 1);
+    assert.deepEqual(await fs.readdir(path.join(f.root, 'artifacts', '.owner-api-requests')), []);
+  } finally { await new Promise<void>(resolve => server.close(() => resolve())); await api.close(); }
 });

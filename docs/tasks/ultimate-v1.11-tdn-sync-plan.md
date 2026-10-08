@@ -1,5 +1,13 @@
 # Plan: bring TDN in line with Ultimate v1.12, and show the approved data sources on the source board
 
+Implementation evidence update (2026-10-08): PR #174 and PR #175 are merged after
+independent review and exact-head full hosted checks. Their bounded U-03/U-04/U-13
+and reader U-29/U-34 changes and remaining dependencies are recorded in
+[STATUS](../STATUS.md#ultimate-alignment--implementation-run-08102026). Existing
+unchecked requirements below remain operative; these merges do not establish
+full Ultimate completion, U-11 release, U-26 policy or U-32 aggregate eligibility.
+
+
 > **Implementation coordination update (2026-10-08):** Operative sources are Ultimate v1.12 and registry v1.9; the filename and original audit references below are retained for traceability. Shared schemas/generated outputs have one explicitly leased writer. SYNC-1 owns reader/M05 methods; SYNC-3 owns draft/Insight defaults and `reports.ts`; SYNC-6 owns source-board/history integration. Shared service/config and later Insight work are serialized. SYNC-7 depends on SYNC-1, SYNC-3 and SYNC-4 label contracts. Package handoffs and exact-head review/CI evidence determine completion, not these assignments.
 >
 > U-32 positive cross-platform totals remain **ESCALATED** pending reconciliation with R3/L5; implement per-platform correction only. U-26 revision/recollection/admission policy and U-11 family-level multi-code κ remain **ESCALATED**. Staging/provider execution under U-40 is not authorized in this implementation wave. Existing PageIndex owner POST remains unchanged: only GET is configuration/history-only, and account/global totals must be labelled separately from workspace activity. B1 contains **11 cards**; Trends is an operation in the SerpApi card.

@@ -17,7 +17,7 @@ const equal = (a: unknown, b: unknown): boolean => canonicalJson(a) === canonica
  * binds every value to the actual retained bytes, never a title or sales average.
  * The supported evidence format is an operator-retained JSON spec observation;
  * this verifies declarations, not seller/provider authenticity. */
-export function projectMarketUnitPrices(input: ReaderReportInput, retained: readonly RetainedUnitPriceSource[] = []): UnitPriceProjection[] {
+export function projectMarketUnitPrices(input: Pick<ReaderReportInput, 'contractVersion' | 'unitPrices'> & { readonly rows: readonly ReaderReportInput['rows'][number][] }, retained: readonly RetainedUnitPriceSource[] = []): UnitPriceProjection[] {
   const packet = input.unitPrices;
   if (packet === undefined) return [];
   if (input.contractVersion !== '1.4.0') fail('UNIT_PRICE_VERSION_REQUIRED');

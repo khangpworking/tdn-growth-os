@@ -1,0 +1,296 @@
+[
+  {
+    "file": "tests/valid/E4-identified.ttl",
+    "rule": "E4",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/valid/E4-unverified.ttl",
+    "rule": "E4",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/E4-two-cards.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "3 thẻ"
+  },
+  {
+    "file": "tests/invalid/E4-four-authors.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "5 mã"
+  },
+  {
+    "file": "tests/invalid/E4-missing-label.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "nhãn"
+  },
+  {
+    "file": "tests/invalid/E4-missing-attribute-quote.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "câu trích"
+  },
+  {
+    "file": "tests/invalid/E4-missing-card-quote.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "câu trích"
+  },
+  {
+    "file": "tests/invalid/E4-missing-locator.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "locator"
+  },
+  {
+    "file": "tests/invalid/E4-cross-platform.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "nền tảng"
+  },
+  {
+    "file": "tests/invalid/E4-missing-flag.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "Thiếu cờ chưa xác minh là 5 người ở nhánh không có mã"
+  },
+  {
+    "file": "tests/invalid/E4-four-contents.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "Chỉ có 4 nội dung khác nhau ở nhánh không có mã"
+  },
+  {
+    "file": "tests/valid/L10-review.ttl",
+    "rule": "L10",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/valid/L10-sales.ttl",
+    "rule": "L10",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/L10-creator.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "người làm video"
+  },
+  {
+    "file": "tests/valid/L10-creator-excluded.ttl",
+    "rule": "L10",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/L10-brand.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "thương hiệu"
+  },
+  {
+    "file": "tests/valid/L10-brand-excluded.ttl",
+    "rule": "L10",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/L10-tagOnly.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "gắn thẻ"
+  },
+  {
+    "file": "tests/valid/L10-tagOnly-excluded.ttl",
+    "rule": "L10",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/L10-emojiOnly.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "biểu tượng"
+  },
+  {
+    "file": "tests/valid/L10-emojiOnly-excluded.ttl",
+    "rule": "L10",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/L10-missing-source.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "loại nguồn"
+  },
+  {
+    "file": "tests/valid/E12-complete.ttl",
+    "rule": "E12",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/E12-missing-attribution.ttl",
+    "rule": "E12",
+    "expected": false,
+    "reason": "ghi nguồn"
+  },
+  {
+    "file": "tests/invalid/E12-missing-file.ttl",
+    "rule": "E12",
+    "expected": false,
+    "reason": "file"
+  },
+  {
+    "file": "tests/invalid/E12-missing-sheet.ttl",
+    "rule": "E12",
+    "expected": false,
+    "reason": "sheet"
+  },
+  {
+    "file": "tests/invalid/E12-missing-row.ttl",
+    "rule": "E12",
+    "expected": false,
+    "reason": "dòng"
+  },
+  {
+    "file": "tests/invalid/E12-invalid-status.ttl",
+    "rule": "E12",
+    "expected": false,
+    "reason": "Trạng thái"
+  },
+  {
+    "file": "tests/invalid/E12-missing-status.ttl",
+    "rule": "E12",
+    "expected": false,
+    "reason": "Trạng thái"
+  },
+  {
+    "file": "tests/valid/E13-complete.ttl",
+    "rule": "E13",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/E13-missing-attribution.ttl",
+    "rule": "E13",
+    "expected": false,
+    "reason": "ghi nguồn"
+  },
+  {
+    "file": "tests/invalid/E13-missing-file.ttl",
+    "rule": "E13",
+    "expected": false,
+    "reason": "file"
+  },
+  {
+    "file": "tests/invalid/E13-missing-sheet.ttl",
+    "rule": "E13",
+    "expected": false,
+    "reason": "sheet"
+  },
+  {
+    "file": "tests/invalid/E13-missing-row.ttl",
+    "rule": "E13",
+    "expected": false,
+    "reason": "dòng"
+  },
+  {
+    "file": "tests/invalid/E13-invalid-status.ttl",
+    "rule": "E13",
+    "expected": false,
+    "reason": "Trạng thái"
+  },
+  {
+    "file": "tests/invalid/E13-missing-status.ttl",
+    "rule": "E13",
+    "expected": false,
+    "reason": "Trạng thái"
+  },
+  {
+    "file": "tests/valid/UNKNOWN-retained.ttl",
+    "rule": "UNKNOWN",
+    "expected": true,
+    "reason": "conforms"
+  },
+  {
+    "file": "tests/invalid/UNKNOWN-wide.ttl",
+    "rule": "UNKNOWN",
+    "expected": false,
+    "reason": "ngoài WIDE"
+  },
+  {
+    "file": "tests/invalid/UNKNOWN-hidden.ttl",
+    "rule": "UNKNOWN",
+    "expected": false,
+    "reason": "giữ trong ALL"
+  },
+  {
+    "file": "tests/invalid/L10-creator-voice-only.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "creator: voice-only"
+  },
+  {
+    "file": "tests/invalid/L10-creator-count-only.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "creator: count-only"
+  },
+  {
+    "file": "tests/invalid/L10-brand-voice-only.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "brand: voice-only"
+  },
+  {
+    "file": "tests/invalid/L10-brand-count-only.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "brand: count-only"
+  },
+  {
+    "file": "tests/invalid/L10-tagOnly-voice-only.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "tagOnly: voice-only"
+  },
+  {
+    "file": "tests/invalid/L10-tagOnly-count-only.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "tagOnly: count-only"
+  },
+  {
+    "file": "tests/invalid/L10-emojiOnly-voice-only.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "emojiOnly: voice-only"
+  },
+  {
+    "file": "tests/invalid/L10-emojiOnly-count-only.ttl",
+    "rule": "L10",
+    "expected": false,
+    "reason": "emojiOnly: count-only"
+  },
+  {
+    "file": "tests/invalid/E4-missing-attribute-locator.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "Đặc điểm thiếu locator"
+  },
+  {
+    "file": "tests/invalid/E4-duplicate-author.ttl",
+    "rule": "E4",
+    "expected": false,
+    "reason": "5 literal tác giả nhưng chỉ 4 mã khác nhau"
+  }
+]
