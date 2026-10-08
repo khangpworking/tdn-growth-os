@@ -47,7 +47,10 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
   const regionText = new Map<number, string[]>();
   for (const { chunks, region } of blocks) {
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
-    if (/(?:^|\s)(?:nhất|hàng đầu|tốt nhất|rẻ nhất)(?=\s|[.,;:!?]|$)/iu.test(own)) superlatives.push(own);
+    // Numeric lower bounds are measurement/method conditions, not a claim
+    // that a product is superior (for example the frozen E11 threshold).
+    const findings = own.replace(/ít nhất(?=\s+\d)/giu, 'tối thiểu');
+    if (/(?:^|\s)(?:nhất|hàng đầu|tốt nhất|rẻ nhất)(?=\s|[.,;:!?]|$)/iu.test(findings)) superlatives.push(own);
     regionText.set(region, [...(regionText.get(region) ?? []), own]);
     // Keep decimal points intact. Sentences separated by punctuation, including
     // across inline tags, cannot borrow a draft label from their neighbour.
