@@ -1,48 +1,8 @@
 /* Generated from located-insight-methods.schema.json. Do not edit by hand. */
 
-export type Digest = string;
-export type NullableText = Text | null;
-export type Text = string;
-export type Index = number;
-export type Facet =
-  | 'PRICE_COST'
-  | 'ACCESS_AVAILABILITY'
-  | 'FIT_NEED'
-  | 'PRODUCT_ATTRIBUTE'
-  | 'INFORMATION_TRUST'
-  | 'OTHER_EXPLICIT'
-  | 'UNCLEAR';
-/**
- * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
- */
-export type DraftCountsVersion = 'draft-counts-v1';
-/**
- * @maxItems 10000
- */
-export type Strings = Text[];
-/**
- * @maxItems 10000
- */
-export type Pointers = string[];
-export type Count = number;
-/**
- * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
- *
- * @maxItems 10000
- */
-export type Pointers1 = string[];
-/**
- * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
- *
- * @maxItems 10000
- */
-export type Pointers2 = string[];
-/**
- * Same-sentence label required on every AI-proposed draft number. Never a release claim.
- */
-export type DraftCountLabel = 'đề xuất, chờ chủ duyệt';
-
-export interface LocatedInsightMethods {
+export type LocatedInsightMethods = {
+  [k: string]: unknown;
+} & {
   contractVersion: '1.0.0';
   methodId: 'located-insight-methods';
   methodVersion: '1.0.0' | '1.1.0';
@@ -81,6 +41,18 @@ export interface LocatedInsightMethods {
         recordPointer: Text;
         polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
       }[];
+      draftRecordPointers?: Pointers3;
+      draftAnnotationPointers?: Pointers4;
+      draftLocatedRecordCount?: Count;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftRecordPolarities?: {
+        recordPointer: Text;
+        polarity: 'POSITIVE' | 'NEGATIVE' | 'MIXED' | 'NEUTRAL' | 'UNCLEAR' | 'NOT_STATED';
+      }[];
     };
     I06: {
       recordPointers: Pointers;
@@ -93,6 +65,20 @@ export interface LocatedInsightMethods {
        * @maxItems 10000
        */
       sequences: {
+        annotationPointer: Text;
+        sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
+        identityScope: 'RECORD_LOCAL';
+        sequenceState: 'SOURCE_STATED_ORDER';
+      }[];
+      draftRecordPointers?: Pointers5;
+      draftAnnotationPointers?: Pointers6;
+      draftLocatedRecordCount?: Count;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftSequences?: {
         annotationPointer: Text;
         sequenceBasis: 'SOURCE_EXPLICIT_SAME_RECORD';
         identityScope: 'RECORD_LOCAL';
@@ -116,12 +102,103 @@ export interface LocatedInsightMethods {
         unmetNeedCandidate: boolean;
         state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
       }[];
+      draftRecordPointers?: Pointers7;
+      draftAnnotationPointers?: Pointers8;
+      draftLocatedRecordCount?: Count;
+      draftLabel?: DraftCountLabel;
+      draftCountsVersion?: DraftCountsVersion;
+      /**
+       * @maxItems 10000
+       */
+      draftCandidates?: {
+        annotationPointer: Text;
+        unmetNeedCandidate: boolean;
+        state: 'EXPLICIT_GAP' | 'DESIRE_ONLY' | 'CURRENT_STATE_ONLY' | 'RELATION_UNCLEAR' | 'UNLOCATED';
+      }[];
     };
     I10: CorpusSection;
     I13: CorpusSection;
   };
   limitations: Strings;
-}
+};
+export type Digest = string;
+export type NullableText = Text | null;
+export type Text = string;
+export type Index = number;
+export type Facet =
+  | 'PRICE_COST'
+  | 'ACCESS_AVAILABILITY'
+  | 'FIT_NEED'
+  | 'PRODUCT_ATTRIBUTE'
+  | 'INFORMATION_TRUST'
+  | 'OTHER_EXPLICIT'
+  | 'UNCLEAR';
+/**
+ * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
+ */
+export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
+/**
+ * @maxItems 10000
+ */
+export type Strings = Text[];
+/**
+ * @maxItems 10000
+ */
+export type Pointers = string[];
+export type Count = number;
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers1 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers2 = string[];
+/**
+ * Same-sentence label required on every AI-proposed draft number. Never a release claim.
+ */
+export type DraftCountLabel = 'đề xuất, chờ chủ duyệt';
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers3 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers4 = string[];
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers5 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers6 = string[];
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers7 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers8 = string[];
+
 export interface Input {
   contractVersion: '1.0.0';
   codebookId: 'located-evidence-v1-draft';

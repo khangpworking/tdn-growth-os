@@ -198,6 +198,50 @@
                   }
                 }
               }
+            },
+            "draftRecordPointers": {
+              "description": "Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.",
+              "$ref": "#/$defs/pointers"
+            },
+            "draftAnnotationPointers": {
+              "description": "Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.",
+              "$ref": "#/$defs/pointers"
+            },
+            "draftLocatedRecordCount": {
+              "$ref": "#/$defs/count"
+            },
+            "draftLabel": {
+              "$ref": "#/$defs/draftLabel"
+            },
+            "draftCountsVersion": {
+              "$ref": "#/$defs/draftCountsVersion"
+            },
+            "draftRecordPolarities": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "recordPointer",
+                  "polarity"
+                ],
+                "properties": {
+                  "recordPointer": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "polarity": {
+                    "enum": [
+                      "POSITIVE",
+                      "NEGATIVE",
+                      "MIXED",
+                      "NEUTRAL",
+                      "UNCLEAR",
+                      "NOT_STATED"
+                    ]
+                  }
+                }
+              }
             }
           }
         },
@@ -233,6 +277,51 @@
               "$ref": "#/$defs/strings"
             },
             "sequences": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "annotationPointer",
+                  "sequenceBasis",
+                  "identityScope",
+                  "sequenceState"
+                ],
+                "properties": {
+                  "annotationPointer": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "sequenceBasis": {
+                    "const": "SOURCE_EXPLICIT_SAME_RECORD"
+                  },
+                  "identityScope": {
+                    "const": "RECORD_LOCAL"
+                  },
+                  "sequenceState": {
+                    "const": "SOURCE_STATED_ORDER"
+                  }
+                }
+              }
+            },
+            "draftRecordPointers": {
+              "description": "Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.",
+              "$ref": "#/$defs/pointers"
+            },
+            "draftAnnotationPointers": {
+              "description": "Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.",
+              "$ref": "#/$defs/pointers"
+            },
+            "draftLocatedRecordCount": {
+              "$ref": "#/$defs/count"
+            },
+            "draftLabel": {
+              "$ref": "#/$defs/draftLabel"
+            },
+            "draftCountsVersion": {
+              "$ref": "#/$defs/draftCountsVersion"
+            },
+            "draftSequences": {
               "type": "array",
               "maxItems": 10000,
               "items": {
@@ -300,6 +389,53 @@
               "$ref": "#/$defs/strings"
             },
             "candidates": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "annotationPointer",
+                  "unmetNeedCandidate",
+                  "state"
+                ],
+                "properties": {
+                  "annotationPointer": {
+                    "$ref": "#/$defs/text"
+                  },
+                  "unmetNeedCandidate": {
+                    "type": "boolean"
+                  },
+                  "state": {
+                    "enum": [
+                      "EXPLICIT_GAP",
+                      "DESIRE_ONLY",
+                      "CURRENT_STATE_ONLY",
+                      "RELATION_UNCLEAR",
+                      "UNLOCATED"
+                    ]
+                  }
+                }
+              }
+            },
+            "draftRecordPointers": {
+              "description": "Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.",
+              "$ref": "#/$defs/pointers"
+            },
+            "draftAnnotationPointers": {
+              "description": "Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.",
+              "$ref": "#/$defs/pointers"
+            },
+            "draftLocatedRecordCount": {
+              "$ref": "#/$defs/count"
+            },
+            "draftLabel": {
+              "$ref": "#/$defs/draftLabel"
+            },
+            "draftCountsVersion": {
+              "$ref": "#/$defs/draftCountsVersion"
+            },
+            "draftCandidates": {
               "type": "array",
               "maxItems": 10000,
               "items": {
@@ -618,7 +754,10 @@
     "draftCountsVersion": {
       "title": "DraftCountsVersion",
       "description": "Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.",
-      "const": "draft-counts-v1"
+      "enum": [
+        "draft-counts-v1",
+        "draft-counts-v2"
+      ]
     },
     "section": {
       "type": "object",
@@ -1627,5 +1766,135 @@
         }
       }
     }
-  }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "input": {
+            "properties": {
+              "draftCountsVersion": {
+                "const": "draft-counts-v2"
+              }
+            },
+            "required": [
+              "draftCountsVersion"
+            ],
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "then": {
+        "properties": {
+          "sections": {
+            "properties": {
+              "I05": {
+                "required": [
+                  "draftRecordPolarities",
+                  "draftCountsVersion",
+                  "draftAnnotationPointers",
+                  "draftRecordPointers",
+                  "draftLocatedRecordCount",
+                  "draftLabel"
+                ],
+                "type": "object",
+                "properties": {
+                  "draftRecordPolarities": {},
+                  "draftCountsVersion": {},
+                  "draftAnnotationPointers": {},
+                  "draftRecordPointers": {},
+                  "draftLocatedRecordCount": {},
+                  "draftLabel": {}
+                }
+              },
+              "I06": {
+                "required": [
+                  "draftSequences",
+                  "draftCountsVersion",
+                  "draftAnnotationPointers",
+                  "draftRecordPointers",
+                  "draftLocatedRecordCount",
+                  "draftLabel"
+                ],
+                "type": "object",
+                "properties": {
+                  "draftSequences": {},
+                  "draftCountsVersion": {},
+                  "draftAnnotationPointers": {},
+                  "draftRecordPointers": {},
+                  "draftLocatedRecordCount": {},
+                  "draftLabel": {}
+                }
+              },
+              "I09": {
+                "required": [
+                  "draftCandidates",
+                  "draftCountsVersion",
+                  "draftAnnotationPointers",
+                  "draftRecordPointers",
+                  "draftLocatedRecordCount",
+                  "draftLabel"
+                ],
+                "type": "object",
+                "properties": {
+                  "draftCandidates": {},
+                  "draftCountsVersion": {},
+                  "draftAnnotationPointers": {},
+                  "draftRecordPointers": {},
+                  "draftLocatedRecordCount": {},
+                  "draftLabel": {}
+                }
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "else": {
+        "properties": {
+          "sections": {
+            "properties": {
+              "I05": {
+                "not": {
+                  "required": [
+                    "draftRecordPolarities"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "draftRecordPolarities": {}
+                  }
+                }
+              },
+              "I06": {
+                "not": {
+                  "required": [
+                    "draftSequences"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "draftSequences": {}
+                  }
+                }
+              },
+              "I09": {
+                "not": {
+                  "required": [
+                    "draftCandidates"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "draftCandidates": {}
+                  }
+                }
+              }
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      }
+    }
+  ]
 }
