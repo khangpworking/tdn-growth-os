@@ -134,7 +134,7 @@ Plan đồng bộ có checklist, dựa trên lần rà code ngày 08/10/2026: [u
   |---|---|
   | Số liệu video và creator | P4 |
   | Trends, tìm kiếm mở rộng | P5 (chờ chạy thử) |
-  | Facebook/Instagram, chân dung E4 | P7 (chờ chủ chọn tài khoản thu) |
+  | Chân dung E4 từ review và bình luận (không thu mạng xã hội, đổi phạm vi 08/10) | P7 |
   | Thống kê chính thức của Cục Thống kê (mọi ngành hàng) | P10 |
   | Hiển thị tất cả nguồn mới | P8 |
   | Đọc nội dung video, bình luận dưới video, thư viện quảng cáo, chân dung E5 | Chưa có gói. Đề xuất gói P9, làm sau P4 |

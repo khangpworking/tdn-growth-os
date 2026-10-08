@@ -40,11 +40,10 @@ This file is a plan with checklists. It does not assign work to agents; the owne
 **Phần B: thêm nguồn đã duyệt lên màn hình "Nguồn dữ liệu".**
 
 - **Hiện có 5 thẻ:** Kalodata, SerpApi, Apify review Shopee, Metric, PageIndex.
-- **Thêm 8 thẻ:**
+- **Thêm 7 thẻ:**
   - file video Kalodata;
   - bình luận TikTok;
   - đọc nội dung video;
-  - bài mạng xã hội công khai;
   - thư viện quảng cáo Meta;
   - Cục Thống kê;
   - Ngân hàng Thế giới;
@@ -167,7 +166,7 @@ Where things live:
   - Each category has a versioned keyword list and exclusion list stored as data. The AI drafts them from product names in sales data (E11); the scope include/exclude terms seed them.
   - Matching keeps Vietnamese diacritics. Text without diacritics is resolved from the record's own context or marked "chưa rõ có đúng sản phẩm không".
   - Excluded records are counted with a reason and shown in M13/I17. Unclear records stay out of the main counts.
-  - P5, P7 and P9 call this module (G-13).
+  - P5 and P9 call this module (G-13).
 - [ ] U-13 **Report lint for rule 5/L4 and L3, both lanes and Insight.**
   - Flag superlatives as findings: "nhất" forms, "hàng đầu", "tốt nhất", "rẻ nhất". Verbatim customer quotes and section titles are allowed.
   - Flag "làm ngay… tiếp theo…" ordering without a dependency note.
@@ -216,10 +215,9 @@ Where things live:
   - Allow platforms other than Shopee in the review corpus (`research-review-corpus.schema.json` `platform` const), starting with TikTok comments from P9.
   - Each platform gets its own column; no cross-platform sums, no person merges.
   - Comments under review videos and seller videos count as customer voice, with their source type (L10). Creator and brand accounts are excluded.
-- [ ] U-20 **E4 personas from reviews and comments**, not only social posts (P7-08 covers social).
+- [ ] U-20 **E4 personas from reviews and comments.** This is the re-scoped package P7 (2026-10-08); do it once.
   - ≥3 evidence cards, ≥5 authors (or the U-18 fallback), every attribute with a quote, unquoted attributes dropped, no inferred demographics.
   - The label "Chân dung do AI tổng hợp từ lời khách thật, không phải một khách hàng có thật", and the size as "x/y bản ghi trong mẫu".
-  - Use one shared builder with P7.
 - [ ] U-21 **E5 seller-targeted persona layer.**
   - Four checks, each computed by methods A/B/C where they apply, and the report states which methods passed.
   - Signals come from ≥2 platforms. Show the n/N match rate beside the owner's 70% as a hypothesis, plus counter-evidence.
@@ -256,7 +254,7 @@ Where things live:
 
 ### B1. Sources to show
 
-Only sources that are in use or approved in the source registry. Sources marked "không đạt", "không dùng được" or only "đề xuất" stay off the board: S03, S06, S09, S11, S16, S17, S18, S24, S27. S12 (owner shop data) is added when an upload path exists.
+Only sources that are in use or approved in the source registry. Sources marked "không đạt", "không dùng được" or only "đề xuất" stay off the board: S03, S06, S09, S11, S16, S17, S18, S24, S27. S08 (Facebook public posts) and S10 (X) stay off too: S08 is paused (owner, 08/10) and S10 is only an occasional secondary source. S12 (owner shop data) is added when an upload path exists.
 
 | Card | Registry IDs | Group | How data arrives | Paid | Built by | State until built |
 |---|---|---|---|---|---|---|
@@ -265,9 +263,8 @@ Only sources that are in use or approved in the source registry. Sources marked 
 | Kalodata video and creator file | S02 | Bán hàng và thị trường | File upload | No (subscription) | P4 (merged) | — |
 | Apify: Shopee reviews | S05 | Lời khách | API with a charge cap | Yes | done | — |
 | Apify: TikTok comments | S07 | Lời khách | API, cap $3 per test run (owner, 08/10) | Yes | P9 | Chưa có bộ thu (gói P9) |
-| Social public posts (Facebook, X) | S08, S10 | Lời khách (secondary) | Bundle from the operator machine | No | P7 | Chưa có bộ thu (gói P7) |
 | Video content reading | S14 | Lời người bán | JSON from the operator machine | No | P9 | Chưa có bộ thu (gói P9) |
-| Meta Ad Library | S15 | Lời người bán, quảng cáo | Manual entry for now | No | no package yet | Chưa có bộ thu |
+| Meta Ad Library | S15 | Lời người bán, quảng cáo | Manual entry; Agent-Reach only if the 08/10 test passes | No | no package yet | Chưa có bộ thu |
 | SerpApi: expanded search | S19 (S13, S26) | Thị trường | API | Yes | P5 | existing card; per-operation rows |
 | SerpApi: Google Trends | S20 | Thị trường | API | Yes | P5 | row inside the SerpApi card |
 | Official statistics (Cục Thống kê) | S21 | Số liệu vĩ mô | File upload + fetch script | No | P10 | Chưa có bộ thu (gói P10) |
@@ -277,7 +274,7 @@ Only sources that are in use or approved in the source registry. Sources marked 
 ### B2. Checklist
 
 - [ ] B-01 **Contract (additive).**
-  - New source ids: `KALODATA_VIDEO_FILE`, `APIFY_TIKTOK_COMMENTS`, `SOCIAL_BUNDLE`, `VIDEO_READING`, `META_AD_LIBRARY`, `OFFICIAL_STATS`, `WORLD_BANK`.
+  - New source ids: `KALODATA_VIDEO_FILE`, `APIFY_TIKTOK_COMMENTS`, `VIDEO_READING`, `META_AD_LIBRARY`, `OFFICIAL_STATS`, `WORLD_BANK`.
   - New state `NOT_BUILT`, plus an optional `pendingPackage`.
   - Optional per-entry fields:
     - `registryIds` (e.g. `["S07"]`);
@@ -296,7 +293,6 @@ Only sources that are in use or approved in the source registry. Sources marked 
     - Kalodata video file uploads;
     - TikTok comment captures and usage;
     - video-reading uploads;
-    - social bundles;
     - official-statistics and World Bank rows;
     - SerpApi per operation (search vs Trends).
   - Each package that adds a source adds its reader and flips its card from `NOT_BUILT`, in the same PR.
