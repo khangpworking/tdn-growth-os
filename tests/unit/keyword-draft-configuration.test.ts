@@ -1,0 +1,31 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import test from 'node:test';
+import { operatorAppConfigurationFromEnvironment } from '../../src/api/operator-app.js';
+test('keyword drafting flags require explicit model, OWNER and CLIProxy and stay isolated from other models', t => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'tdn-keyword-config-'));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  const frontendDist = path.join(root, 'dist'); fs.mkdirSync(frontendDist);
+  fs.writeFileSync(path.join(frontendDist, 'index.html'), '<!doctype html><p>Synthetic app</p>');
+  const defaults = { frontendDist, version: 'synthetic' };
+  const base = { TDN_WORKSPACE_DB: path.join(root, 'test.sqlite'), TDN_ARTIFACT_ROOT: path.join(root, 'artifacts') };
+  const read = (env: NodeJS.ProcessEnv) => operatorAppConfigurationFromEnvironment({ ...base, ...env }, defaults);
+  assert.equal(read({}).researchKeywordDraftAi, undefined);
+  assert.equal(read({ TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED: 'false', TDN_RESEARCH_KEYWORD_DRAFT_AI_MODEL: 'unused-model' }).researchKeywordDraftAi, undefined);
+  assert.throws(() => read({ TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED: 'yes' }), /exactly true or false/);
+  assert.throws(() => read({ TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED: 'true' }), /explicit model/);
+  const keyword = { TDN_RESEARCH_KEYWORD_DRAFT_AI_ENABLED: 'true', TDN_RESEARCH_KEYWORD_DRAFT_AI_MODEL: 'synthetic-keyword-model' };
+  assert.throws(() => read(keyword), /CLIProxy and OWNER/);
+  const gateway = { TDN_CLIPROXY_BASE_URL: 'http://127.0.0.1:9876', TDN_CLIPROXY_API_KEY: 'synthetic-secret' };
+  const owner = { TDN_OWNER_API_ENABLED: 'true', TDN_OWNER_API_TOKEN: 'synthetic-owner-token-1234567890', TDN_OWNER_API_ACTOR_ID: 'synthetic-owner' };
+  assert.throws(() => read({ ...keyword, ...gateway }), /CLIProxy and OWNER/);
+  assert.throws(() => read({ ...keyword, ...owner }), /CLIProxy and OWNER/);
+  const selected = read({ ...keyword, ...gateway, ...owner });
+  assert.equal(selected.researchKeywordDraftAi!.modelId, 'synthetic-keyword-model');
+  assert.equal(selected.researchI14Ai, undefined); assert.equal(selected.researchInsightCodingAi, undefined); assert.equal(selected.researchDecisionAi, undefined);
+  const other = read({ ...gateway, ...owner, TDN_RESEARCH_I14_AI_ENABLED: 'true', TDN_RESEARCH_I14_AI_MODEL: 'synthetic-i14-model',
+    TDN_RESEARCH_INSIGHT_CODING_AI_ENABLED: 'true', TDN_RESEARCH_INSIGHT_CODING_AI_MODEL: 'synthetic-coding-model' });
+  assert.equal(other.researchKeywordDraftAi, undefined);
+});
