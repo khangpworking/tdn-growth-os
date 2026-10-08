@@ -9,7 +9,8 @@ export type ResearchAutomationInsightCodingApi =
   | InsightLiteralProposeRequest
   | InsightCodingAcceptRequest
   | ResearchInsightCodingMutation
-  | ResearchInsightCodingView;
+  | ResearchInsightCodingView
+  | ResearchInsightCodingDefaultView;
 /**
  * @maxItems 10000
  */
@@ -72,6 +73,20 @@ export type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
  * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
  */
 export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
+/**
+ * Verified immutable evidence without actor identity. sha256 is the digest of the full verified artifact and is the exact proposalSha256 an acceptance must name.
+ */
+export type ResearchInsightDefaultEvidenceView = {
+  evidenceId: string;
+  kind: 'DEFAULT_RULE' | 'PROPOSAL';
+  sequence: number;
+  binding: InsightSourceBinding;
+  request: InsightDefaultRuleRequest | InsightDefaultCodingProposeRequest;
+  createdAt: string;
+  sha256: string;
+} & {
+  [k: string]: unknown;
+};
 
 export interface InsightCodingAdoptRequest {
   contractVersion: 'insight-coding-adopt-v1';
@@ -455,4 +470,47 @@ export interface ResearchInsightCodingEvidenceView {
   request: InsightCodingAdoptRequest | InsightCodingProposeRequest | InsightCodingAcceptRequest;
   createdAt: string;
   sha256: string;
+}
+/**
+ * Exact source context and the full bounded coding history of one explicit report pair. An over-limit history is rejected, never truncated.
+ */
+export interface ResearchInsightCodingDefaultView {
+  contractVersion: 'insight-coding-view-v2';
+  context: ResearchInsightSourceContext1;
+  /**
+   * @maxItems 1000
+   */
+  evidence: (ResearchInsightCodingEvidenceView | ResearchInsightDefaultEvidenceView)[];
+}
+export interface ResearchInsightSourceContext1 {
+  binding: InsightSourceBinding;
+  input: Input;
+}
+export interface InsightDefaultRuleRequest {
+  contractVersion: 'insight-coding-default-rule-v1';
+  kind: 'DEFAULT_RULE';
+  status: 'PROPOSED';
+  requestKey: string;
+  originatingRequestKey: string;
+  binding: InsightSourceBinding;
+  policyVersion: 'source-default-coding-v1';
+  rules: InsightCodingRules;
+}
+export interface InsightDefaultCodingProposeRequest {
+  contractVersion: 'insight-coding-default-propose-v1';
+  status: 'PROPOSED';
+  requestKey: string;
+  defaultRuleId: string;
+  defaultRuleSha256: string;
+  previousProposalId: string | null;
+  previousProposalSha256: string | null;
+  executionId: string;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: [number, ...number[]];
+  rules: InsightCodingRules;
+  codebookSha256: string;
+  annotations: InsightProposedAnnotations;
 }

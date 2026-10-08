@@ -12,6 +12,9 @@
     },
     {
       "$ref": "#/$defs/familyDraftSnapshot"
+    },
+    {
+      "$ref": "#/$defs/defaultDraftSnapshot"
     }
   ],
   "$defs": {
@@ -490,6 +493,119 @@
             "type": "string",
             "minLength": 1
           }
+        }
+      }
+    },
+    "defaultDraftSnapshot": {
+      "title": "AutomationInsightCodingDefaultDraftSnapshot",
+      "description": "Exact unapproved source-default proposal; storage compatibility root is not human adoption.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "selection",
+        "proposalSha256",
+        "receipts",
+        "draftSelection",
+        "output",
+        "groupCounts",
+        "defaultRuleId",
+        "defaultRuleSha256",
+        "codebookSha256",
+        "executionId"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-insight-coding-snapshot-v4"
+        },
+        "binding": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/binding"
+        },
+        "selection": {
+          "title": "InsightDraftSelectionEcho",
+          "description": "Explicit empty selection echo of a versioned draft selection.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "proposalId",
+            "receiptIds"
+          ],
+          "properties": {
+            "proposalId": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "receiptIds": {
+              "type": "array",
+              "maxItems": 0
+            }
+          }
+        },
+        "proposalSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "receipts": {
+          "type": "array",
+          "maxItems": 0,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "receiptId",
+              "sha256"
+            ],
+            "properties": {
+              "receiptId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        "draftSelection": {
+          "$ref": "automation-insight-report-revision.schema.json#/$defs/defaultSelection"
+        },
+        "output": {
+          "$ref": "located-insight-methods.schema.json",
+          "allOf": [
+            {
+              "properties": {
+                "input": {
+                  "properties": {
+                    "draftCountsVersion": {
+                      "const": "draft-counts-v2"
+                    }
+                  },
+                  "required": [
+                    "draftCountsVersion"
+                  ],
+                  "type": "object"
+                }
+              },
+              "type": "object"
+            }
+          ]
+        },
+        "groupCounts": {
+          "$ref": "#/$defs/groupCounts"
+        },
+        "defaultRuleId": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+        },
+        "defaultRuleSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "codebookSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "executionId": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
         }
       }
     }

@@ -138,8 +138,9 @@ const validates = {
   insightLiteralPropose: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/literalProposeRequest` }),
   insightAccept: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/acceptRequest` }),
   insightMutation: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/mutation` }),
-  insightView: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/view` }),
-  insightModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/request` }),
+  insightView: ajv.compile({ $ref: `${insightCodingApiSchema.$id}#/$defs/anyView` }),
+  insightDefaultModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/defaultRequest` }),
+    insightModelRequest: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/request` }),
   insightModelResponse: ajv.compile({ $ref: `${insightModelApiSchema.$id}#/$defs/response` }),
   sourceStatus: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/status` }),
   runPdfs: ajv.compile({ $ref: `${sourceStatusSchema.$id}#/$defs/runPdfStates` }),
@@ -305,7 +306,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const membershipWrite = action === 'metric-membership-proposals' || action === 'metric-membership-receipts';
     const insightRead = /^insight-coding\/([0-9a-f]{64})$/.exec(action ?? '');
     const insightWrite = action !== undefined && Object.hasOwn(insightWrites, action) ? insightWrites[action as keyof typeof insightWrites] : undefined;
-    const insightModelWrite = action === 'insight-coding-model-proposals';
+    const insightDefaultModelWrite = action === 'insight-coding-default-model-proposals';
+    const insightModelWrite = action === 'insight-coding-model-proposals' || insightDefaultModelWrite;
     const readerHtml = /^reader-reports\/([0-9a-f-]{36})\/html$/.exec(action ?? '');
     const readerUnitSpecIntake = action === 'reader-reports/unit-spec-intakes';
     const readerAction = readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml);
@@ -313,7 +315,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
       : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
@@ -556,7 +558,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       try { body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, insightWrite ? MAX_INSIGHT_CODING_BYTES : action === 'reader-reports' ? MAX_READER_BUILD_BYTES : 16 * 1024))); }
       catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Request body must be valid UTF-8 JSON'); }
       const validate = !runId ? validates.start : action === 'confirm-scope' ? validates.confirm
-        : insightModelWrite ? validates.insightModelRequest
+        : insightModelWrite ? insightDefaultModelWrite ? validates.insightDefaultModelRequest : validates.insightModelRequest
         : insightWrite ? insightWrite.validate
         : membershipWrite ? action === 'metric-membership-proposals' ? validates.membershipPropose : validates.membershipAccept
         : action === 'metric-rule-adoptions' ? validates.metricRuleAdopt
@@ -569,7 +571,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         const disconnected = () => { if (!response.writableEnded) controller.abort(); };
         response.once('close', disconnected);
         if (response.destroyed) controller.abort();
-        const pending = writeService!.proposeModelInsightCoding(workspaceId!, runId!, body,
+        const pending = (insightDefaultModelWrite ? writeService!.proposeDefaultModelInsightCoding.bind(writeService!) : writeService!.proposeModelInsightCoding.bind(writeService!))(workspaceId!, runId!, body,
           { actorId: configuration.owner!.actorId, role: 'OWNER' }, insightCodingAi, controller.signal);
         modelRequests.set(controller, pending);
         try {

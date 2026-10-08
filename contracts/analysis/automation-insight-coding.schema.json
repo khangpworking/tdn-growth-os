@@ -2,114 +2,612 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://tdn.local/contracts/analysis/automation-insight-coding.schema.json",
   "title": "AutomationInsightCoding",
-  "oneOf": [{ "$ref": "#/$defs/adopt" }, { "$ref": "#/$defs/propose" }, { "$ref": "#/$defs/accept" }, { "$ref": "#/$defs/evidence" }],
+  "oneOf": [
+    {
+      "$ref": "#/$defs/adopt"
+    },
+    {
+      "$ref": "#/$defs/propose"
+    },
+    {
+      "$ref": "#/$defs/accept"
+    },
+    {
+      "$ref": "#/$defs/evidence"
+    },
+    {
+      "$ref": "#/$defs/defaultRule"
+    },
+    {
+      "$ref": "#/$defs/defaultPropose"
+    },
+    {
+      "$ref": "#/$defs/defaultEvidence"
+    }
+  ],
   "$defs": {
-    "uuid": { "type": "string", "format": "uuid" },
-    "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "binding": {
-      "title": "InsightSourceBinding", "type": "object", "additionalProperties": false,
-      "required": ["workspaceId", "runId", "pairId", "scopeSha256", "reportSha256", "sourceKind", "sourcePackageSha256", "inputSha256"],
+      "title": "InsightSourceBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId",
+        "pairId",
+        "scopeSha256",
+        "reportSha256",
+        "sourceKind",
+        "sourcePackageSha256",
+        "inputSha256"
+      ],
       "properties": {
-        "workspaceId": { "$ref": "#/$defs/uuid" }, "runId": { "$ref": "#/$defs/uuid" },
-        "pairId": { "$ref": "#/$defs/digest" }, "scopeSha256": { "$ref": "#/$defs/digest" },
-        "reportSha256": { "$ref": "#/$defs/digest" }, "sourceKind": { "enum": ["NATIVE", "EXACT_SHOPEE"] },
-        "sourcePackageSha256": { "$ref": "#/$defs/digest" }, "inputSha256": { "$ref": "#/$defs/digest" }
+        "workspaceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "pairId": {
+          "$ref": "#/$defs/digest"
+        },
+        "scopeSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "reportSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "sourceKind": {
+          "enum": [
+            "NATIVE",
+            "EXACT_SHOPEE"
+          ]
+        },
+        "sourcePackageSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "inputSha256": {
+          "$ref": "#/$defs/digest"
+        }
       }
     },
     "rules": {
-      "title": "InsightCodingRules", "type": "object", "additionalProperties": false,
-      "required": ["ruleId", "revision", "question", "inclusionRule", "adjudicationRule", "corpora"],
+      "title": "InsightCodingRules",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ruleId",
+        "revision",
+        "question",
+        "inclusionRule",
+        "adjudicationRule",
+        "corpora"
+      ],
       "properties": {
-        "ruleId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$" },
-        "revision": { "type": "integer", "minimum": 1, "maximum": 1000000 },
-        "question": { "type": "string", "minLength": 1, "maxLength": 4000 },
-        "inclusionRule": { "type": "string", "minLength": 1, "maxLength": 4000 },
-        "adjudicationRule": { "type": "string", "minLength": 1, "maxLength": 4000 },
-        "corpora": { "type": "array", "maxItems": 100, "items": {
-          "allOf": [
-            { "$ref": "located-insight-methods.schema.json#/$defs/corpus" },
-            { "type": "object", "properties": { "assignments": { "type": "array", "maxItems": 0 }, "dispositions": { "type": "array", "maxItems": 0 } } }
-          ]
-        } }
+        "ruleId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]{0,99}$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "question": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "inclusionRule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "adjudicationRule": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "corpora": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "allOf": [
+              {
+                "$ref": "located-insight-methods.schema.json#/$defs/corpus"
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "assignments": {
+                    "type": "array",
+                    "maxItems": 0
+                  },
+                  "dispositions": {
+                    "type": "array",
+                    "maxItems": 0
+                  }
+                }
+              }
+            ]
+          }
+        }
       }
     },
     "adopt": {
-      "title": "InsightCodingAdoptRequest", "type": "object", "additionalProperties": false,
-      "required": ["contractVersion", "requestKey", "binding", "rules"],
+      "title": "InsightCodingAdoptRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "binding",
+        "rules"
+      ],
       "properties": {
-        "contractVersion": { "const": "insight-coding-adopt-v1" }, "requestKey": { "$ref": "#/$defs/uuid" },
-        "binding": { "$ref": "#/$defs/binding" }, "rules": { "$ref": "#/$defs/rules" }
+        "contractVersion": {
+          "const": "insight-coding-adopt-v1"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "rules": {
+          "$ref": "#/$defs/rules"
+        }
       }
     },
     "annotations": {
-      "title": "InsightProposedAnnotations", "type": "object", "additionalProperties": false,
-      "required": ["i06", "i09", "i13Mentions", "corpora"],
+      "title": "InsightProposedAnnotations",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "i06",
+        "i09",
+        "i13Mentions",
+        "corpora"
+      ],
       "dependentRequired": {
-        "i02": ["i04", "i05", "i07", "i08"],
-        "i04": ["i02", "i05", "i07", "i08"],
-        "i05": ["i02", "i04", "i07", "i08"],
-        "i07": ["i02", "i04", "i05", "i08"],
-        "i08": ["i02", "i04", "i05", "i07"]
+        "i02": [
+          "i04",
+          "i05",
+          "i07",
+          "i08"
+        ],
+        "i04": [
+          "i02",
+          "i05",
+          "i07",
+          "i08"
+        ],
+        "i05": [
+          "i02",
+          "i04",
+          "i07",
+          "i08"
+        ],
+        "i07": [
+          "i02",
+          "i04",
+          "i05",
+          "i08"
+        ],
+        "i08": [
+          "i02",
+          "i04",
+          "i05",
+          "i07"
+        ]
       },
       "properties": {
-        "i02": { "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i02" },
-        "i04": { "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i04" },
-        "i05": { "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i05" },
-        "i07": { "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i07" },
-        "i08": { "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i08" },
-        "i06": { "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i06" },
-        "i09": { "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i09" },
-        "i13Mentions": { "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i13Mentions" },
-        "corpora": { "type": "array", "maxItems": 100, "items": {
-          "title": "InsightProposedCorpusCoding", "type": "object", "additionalProperties": false,
-          "required": ["corpusIndex", "assignments", "dispositions"],
-          "properties": {
-            "corpusIndex": { "type": "integer", "minimum": 0, "maximum": 99 },
-            "assignments": { "$ref": "located-insight-methods.schema.json#/$defs/corpus/properties/assignments" },
-            "dispositions": { "$ref": "located-insight-methods.schema.json#/$defs/corpus/properties/dispositions" }
+        "i02": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i02"
+        },
+        "i04": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i04"
+        },
+        "i05": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i05"
+        },
+        "i07": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i07"
+        },
+        "i08": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i08"
+        },
+        "i06": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i06"
+        },
+        "i09": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i09"
+        },
+        "i13Mentions": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input/properties/i13Mentions"
+        },
+        "corpora": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "title": "InsightProposedCorpusCoding",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "corpusIndex",
+              "assignments",
+              "dispositions"
+            ],
+            "properties": {
+              "corpusIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 99
+              },
+              "assignments": {
+                "$ref": "located-insight-methods.schema.json#/$defs/corpus/properties/assignments"
+              },
+              "dispositions": {
+                "$ref": "located-insight-methods.schema.json#/$defs/corpus/properties/dispositions"
+              }
+            }
           }
-        } }
+        }
       }
     },
     "propose": {
-      "title": "InsightCodingProposeRequest", "type": "object", "additionalProperties": false,
-      "required": ["contractVersion", "requestKey", "adoptionId", "previousProposalId", "annotations"],
+      "title": "InsightCodingProposeRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "adoptionId",
+        "previousProposalId",
+        "annotations"
+      ],
       "properties": {
-        "contractVersion": { "const": "insight-coding-propose-v1" }, "requestKey": { "$ref": "#/$defs/uuid" },
-        "adoptionId": { "$ref": "#/$defs/uuid" }, "previousProposalId": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] },
-        "annotations": { "$ref": "#/$defs/annotations" }
+        "contractVersion": {
+          "const": "insight-coding-propose-v1"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "adoptionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "previousProposalId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotations"
+        }
       }
     },
     "literalPropose": {
-      "title": "InsightLiteralProposeRequest", "type": "object", "additionalProperties": false,
+      "title": "InsightLiteralProposeRequest",
+      "type": "object",
+      "additionalProperties": false,
       "description": "Generate only literal phrase candidates under an exact adopted codebook. No semantic inference, acceptance, provider call or implicit predecessor selection.",
-      "required": ["contractVersion", "requestKey", "adoptionId", "previousProposalId"],
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "adoptionId",
+        "previousProposalId"
+      ],
       "properties": {
-        "contractVersion": { "const": "insight-coding-literal-propose-v1" },
-        "requestKey": { "$ref": "#/$defs/uuid" }, "adoptionId": { "$ref": "#/$defs/uuid" },
-        "previousProposalId": { "anyOf": [{ "$ref": "#/$defs/uuid" }, { "type": "null" }] }
+        "contractVersion": {
+          "const": "insight-coding-literal-propose-v1"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "adoptionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "previousProposalId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
       }
     },
     "accept": {
-      "title": "InsightCodingAcceptRequest", "type": "object", "additionalProperties": false,
-      "required": ["contractVersion", "requestKey", "proposalId", "proposalSha256", "selection"],
+      "title": "InsightCodingAcceptRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "proposalId",
+        "proposalSha256",
+        "selection"
+      ],
       "properties": {
-        "contractVersion": { "const": "insight-coding-accept-v1" }, "requestKey": { "$ref": "#/$defs/uuid" },
-        "proposalId": { "$ref": "#/$defs/uuid" }, "proposalSha256": { "$ref": "#/$defs/digest" },
-        "selection": { "$ref": "automation-insight-selection.schema.json" }
+        "contractVersion": {
+          "const": "insight-coding-accept-v1"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "proposalId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "proposalSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "selection": {
+          "$ref": "automation-insight-selection.schema.json"
+        }
       }
     },
     "evidence": {
-      "title": "InsightCodingEvidence", "type": "object", "additionalProperties": false,
-      "required": ["contractVersion", "evidenceId", "sequence", "binding", "request", "parentSha256", "actorId", "actorRole", "createdAt"],
+      "title": "InsightCodingEvidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "evidenceId",
+        "sequence",
+        "binding",
+        "request",
+        "parentSha256",
+        "actorId",
+        "actorRole",
+        "createdAt"
+      ],
       "properties": {
-        "contractVersion": { "const": "insight-coding-evidence-v1" }, "evidenceId": { "$ref": "#/$defs/uuid" },
-        "sequence": { "type": "integer", "minimum": 1, "maximum": 1000000 },
-        "binding": { "$ref": "#/$defs/binding" },
-        "request": { "oneOf": [{ "$ref": "#/$defs/adopt" }, { "$ref": "#/$defs/propose" }, { "$ref": "#/$defs/accept" }] },
-        "parentSha256": { "anyOf": [{ "$ref": "#/$defs/digest" }, { "type": "null" }] },
-        "actorId": { "type": "string", "minLength": 1, "maxLength": 200 }, "actorRole": { "const": "OWNER" },
-        "createdAt": { "type": "string", "format": "date-time" }
+        "contractVersion": {
+          "const": "insight-coding-evidence-v1"
+        },
+        "evidenceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "request": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/adopt"
+            },
+            {
+              "$ref": "#/$defs/propose"
+            },
+            {
+              "$ref": "#/$defs/accept"
+            }
+          ]
+        },
+        "parentSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "actorRole": {
+          "const": "OWNER"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "defaultRule": {
+      "title": "InsightDefaultRuleRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "kind",
+        "status",
+        "requestKey",
+        "originatingRequestKey",
+        "binding",
+        "policyVersion",
+        "rules"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-coding-default-rule-v1"
+        },
+        "kind": {
+          "const": "DEFAULT_RULE"
+        },
+        "status": {
+          "const": "PROPOSED"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "originatingRequestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "policyVersion": {
+          "const": "source-default-coding-v1"
+        },
+        "rules": {
+          "$ref": "#/$defs/rules"
+        }
+      }
+    },
+    "defaultPropose": {
+      "title": "InsightDefaultCodingProposeRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "status",
+        "requestKey",
+        "defaultRuleId",
+        "defaultRuleSha256",
+        "previousProposalId",
+        "previousProposalSha256",
+        "executionId",
+        "recordIndexes",
+        "rules",
+        "codebookSha256",
+        "annotations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-coding-default-propose-v1"
+        },
+        "status": {
+          "const": "PROPOSED"
+        },
+        "requestKey": {
+          "$ref": "#/$defs/uuid"
+        },
+        "defaultRuleId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "defaultRuleSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "previousProposalId": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/uuid"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "previousProposalSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "executionId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "recordIndexes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 100,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "rules": {
+          "$ref": "#/$defs/rules"
+        },
+        "codebookSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "annotations": {
+          "$ref": "#/$defs/annotations"
+        }
+      }
+    },
+    "defaultEvidence": {
+      "title": "InsightDefaultCodingEvidence",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "evidenceId",
+        "sequence",
+        "binding",
+        "request",
+        "parentSha256",
+        "actorId",
+        "actorRole",
+        "createdAt"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-coding-default-evidence-v1"
+        },
+        "evidenceId": {
+          "$ref": "#/$defs/uuid"
+        },
+        "sequence": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "request": {
+          "oneOf": [
+            {
+              "$ref": "#/$defs/defaultRule"
+            },
+            {
+              "$ref": "#/$defs/defaultPropose"
+            }
+          ]
+        },
+        "parentSha256": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/digest"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "actorRole": {
+          "const": "OWNER"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        }
       }
     }
   }

@@ -3,7 +3,8 @@
 /**
  * Explicit OWNER model proposal, never annotation acceptance or report regeneration. Unknown dispatch must not be retried under a new identity automatically.
  */
-export type ResearchAutomationInsightModelApi = InsightModelRequest | ResearchInsightModelResponse;
+export type ResearchAutomationInsightModelApi =
+  InsightModelRequest | ResearchInsightModelResponse | InsightDefaultModelRequest;
 export type ResearchInsightModelResponse =
   | {
       contractVersion: Version;
@@ -35,6 +36,22 @@ export type ResearchInsightModelResponse =
     };
 export type Version = 'insight-model-response-v1';
 export type Uuid = string;
+export type InsightDefaultModelRequest = {
+  contractVersion: 'insight-default-model-request-v1';
+  requestKey: Uuid;
+  binding: InsightSourceBinding;
+  defaultRuleId: Uuid | null;
+  defaultRuleSha256: string | null;
+  previousProposalId: Uuid | null;
+  previousProposalSha256: string | null;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: [number, ...number[]];
+} & {
+  [k: string]: unknown;
+};
 
 export interface InsightModelRequest {
   contractVersion: 'insight-model-request-v1';
@@ -52,4 +69,14 @@ export interface ResearchInsightCodingMutation {
   kind: 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
   evidenceId: Uuid;
   exactRetry: boolean;
+}
+export interface InsightSourceBinding {
+  workspaceId: Uuid;
+  runId: Uuid;
+  pairId: string;
+  scopeSha256: string;
+  reportSha256: string;
+  sourceKind: 'NATIVE' | 'EXACT_SHOPEE';
+  sourcePackageSha256: string;
+  inputSha256: string;
 }

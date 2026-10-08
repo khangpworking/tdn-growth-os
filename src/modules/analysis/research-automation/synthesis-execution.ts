@@ -442,9 +442,10 @@ export class AutomationSynthesisExecutionKernel<T extends AutomationSynthesisAda
         WHERE run_id=? AND state='COMMITTED' ORDER BY version_number DESC LIMIT 1`).get(parent.runId) as { pairId: string } | undefined;
       const superseded = this.#db.prepare(`SELECT 1 FROM analysis_insight_coding_evidence
         WHERE run_id=? AND pair_sha256=? AND kind='ADOPTION'
+          AND json_extract(artifact_json,'$.request.contractVersion')=json_extract(?,'$.request.contractVersion')
           AND json_extract(artifact_json,'$.request.rules.ruleId')=json_extract(?,'$.request.rules.ruleId')
           AND json_extract(artifact_json,'$.request.rules.revision')>json_extract(?,'$.request.rules.revision') LIMIT 1`)
-        .get(parent.runId, coding.pairId, coding.artifact, coding.artifact);
+        .get(parent.runId, coding.pairId, coding.artifact, coding.artifact, coding.artifact);
       const proposal = this.#db.prepare(`SELECT evidence_id id FROM analysis_insight_coding_evidence
         WHERE parent_id=? AND kind='PROPOSAL' ORDER BY sequence DESC LIMIT 1`).get(parent.adoptionId) as { id: string } | undefined;
       if ((latestPair && latestPair.pairId !== coding.pairId) || superseded || (proposal?.id ?? null) !== parent.previousProposalId)
