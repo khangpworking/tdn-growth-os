@@ -34,7 +34,7 @@ async function allBytes(root: string): Promise<Buffer> {
   }
   return Buffer.concat(buffers);
 }
-async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, mismatch = false, maxReviewsPerProduct = 20, withRenderer = true) {
+async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, mismatch = false, maxReviewsPerProduct = 20, withRenderer = true, reports: ('MARKET' | 'INSIGHT')[] = ['MARKET', 'INSIGHT']) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-private-consumer-run-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -64,7 +64,7 @@ async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, 
       factory: () => ({ collector, requestsIssued: () => calls.length }) }, ...(withRenderer ? { renderer: buildResearchAutomationReport } : {}) });
   t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
   await service.start(workspaceId, { contractVersion: 'research-automation-start-v1', requestKey: randomUUID(),
-    mode: 'PRODUCT', keyword: 'Synthetic product', requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports: ['MARKET', 'INSIGHT'] });
+    mode: 'PRODUCT', keyword: 'Synthetic product', requestedPeriod: { startDate: '2025-10-01', endDate: '2026-09-30' }, reports });
   await service.processNext();
   const awaiting = await service.getRun(workspaceId, runId);
   const confirm = { contractVersion: 'research-automation-confirm-v1', requestKey: randomUUID(), expectedRevision: awaiting.revision,
@@ -302,4 +302,98 @@ test('private source-only renderer22 and literal replay work without an adapter;
   assert.deepEqual((await reader.readReport(workspaceId, runId, 'INSIGHT', false, current.pairId)).bytes, revised.report.bytes);
   assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), replayChanges);
   assert.equal(modelCalls, 0); assert.equal(f.calls.length, 2);
+});
+
+test('committed private literal and KEEP exact retries verify retained corpus and source pages without config, calls, time or writes', async t => {
+  const f = await fixture(t);
+  await f.service.confirmScope(workspaceId, runId, f.confirm);
+  await f.service.processNext(); await f.service.processNext();
+  const first = (await f.service.listReportVersions(workspaceId, runId))[0]!;
+  const literal = { contractVersion: 'automation-insight-literal-report-revision-v1', requestKey: randomUUID(), previousPairId: first.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } };
+  await f.service.requestReportRevision(workspaceId, runId, literal); await f.service.processNext();
+  const literalPair = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+  const keep = { contractVersion: 'automation-report-revision-v1', requestKey: randomUUID(), previousPairId: literalPair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };
+  await f.service.requestReportRevision(workspaceId, runId, keep); await f.service.processNext();
+  const keepPair = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+  const retained = await semantic(f, keepPair.pairId);
+  await f.service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-report-revision-v1',
+    requestKey: randomUUID(), previousPairId: keepPair.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'SKIP' } } });
+  await f.service.processNext();
+  const skippedPair = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+  assert.equal((await semantic(f, skippedPair.pairId)).value.privateReviewCorpus, undefined, 'current SKIP cannot replace historical private retry selection');
+  const corpusSha = retained.value.privateReviewCorpus.corpus.artifactSha256;
+  const corpus = JSON.parse((await f.artifacts.read(corpusSha)).toString());
+  const reader = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts,
+    workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db: f.db, artifactStore: f.artifacts })),
+    now: () => { throw new Error('Exact retry must not request time'); } });
+  const changes = f.db.prepare('SELECT total_changes() n').get();
+  const attempts = [{ request: literal, pairId: literalPair.pairId }, { request: keep, pairId: keepPair.pairId }];
+  for (const attempt of attempts) assert.equal((await reader.requestReportRevision(workspaceId, runId, attempt.request)).exactRetry, true);
+  for (const artifactSha of [corpusSha, corpus.projection.records[0].locator.pageSha256]) {
+    const file = f.artifacts.pathForDigest(artifactSha);
+    const bytes = await fs.readFile(file);
+    await fs.writeFile(file, 'corrupt synthetic retained evidence');
+    try {
+      for (const attempt of attempts) {
+        await assert.rejects(reader.readReport(workspaceId, runId, 'INSIGHT', false, attempt.pairId));
+        await assert.rejects(reader.requestReportRevision(workspaceId, runId, attempt.request));
+      }
+      assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changes); assert.equal(f.calls.length, 2);
+      if (artifactSha === corpusSha) {
+        await assert.rejects(reader.requestReportRevision(workspaceId, runId, { ...literal, previousPairId: keepPair.pairId }), /request key is bound/);
+        let application: ReturnType<typeof openResearchAutomationApi> | undefined;
+        const server = http.createServer((request, response) => application!.handler(request, response));
+        server.listen(0, '127.0.0.1'); await once(server, 'listening');
+        const origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+        const token = 'SyntheticOwnerToken12345678901234567890';
+        try {
+          application = openResearchAutomationApi({ databasePath: path.join(f.root, 'test.sqlite'), artifactRoot: path.join(f.root, 'artifacts'),
+            origin, providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false }, pageIndex: { enabled: false },
+            owner: { writeEnabled: true, databasePath: path.join(f.root, 'test.sqlite'), artifactRoot: path.join(f.root, 'artifacts'),
+              allowedOrigin: origin, actorId: 'synthetic:owner', token } });
+          const fingerprint = () => {
+            const tables = f.db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[];
+            return JSON.stringify(tables.map(({ name }) => [name, f.db.prepare(`SELECT * FROM "${name}"`).all()]),
+              (_, value) => typeof value === 'bigint' ? value.toString() : value);
+          };
+          const beforeApi = fingerprint();
+          for (const attempt of attempts) {
+            const response = await fetch(`${origin}/owner-api/workspaces/${workspaceId}/research-automation/runs/${runId}/report-revisions`,
+              { method: 'POST', headers: { Origin: origin, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify(attempt.request) });
+            assert.equal(response.status, 500);
+            assert.equal((await response.json()).error.code, 'integrity_error');
+          }
+          assert.equal(fingerprint(), beforeApi); assert.equal(f.calls.length, 2);
+        } finally {
+          if (application) await application.close();
+          server.closeAllConnections(); await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+        }
+      }
+    } finally { await fs.writeFile(file, bytes); }
+  }
+  for (const attempt of attempts) assert.equal((await reader.requestReportRevision(workspaceId, runId, attempt.request)).exactRetry, true);
+  assert.deepEqual((await reader.readReport(workspaceId, runId, 'INSIGHT', false, keepPair.pairId)).bytes, retained.report.bytes);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changes); assert.equal(f.calls.length, 2);
+});
+
+
+test('committed Market-only private revision retries require no Insight report or runtime configuration', async t => {
+  const f = await fixture(t, 'SUCCEEDED', false, false, 20, false, ['MARKET']);
+  await f.service.confirmScope(workspaceId, runId, f.confirm);
+  await f.service.processNext(); await f.service.processNext();
+  const first = (await f.service.listReportVersions(workspaceId, runId))[0]!;
+  const request = { contractVersion: 'automation-report-revision-v1', requestKey: randomUUID(), previousPairId: first.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };
+  await f.service.requestReportRevision(workspaceId, runId, request); await f.service.processNext();
+  const pair = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+  assert.deepEqual(pair.outputs.map(output => output.kind), ['MARKET']);
+  const reader = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts,
+    workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db: f.db, artifactStore: f.artifacts })),
+    now: () => { throw new Error('Market-only retry must not request time'); } });
+  const changes = f.db.prepare('SELECT total_changes() n').get();
+  assert.equal((await reader.requestReportRevision(workspaceId, runId, request)).exactRetry, true);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changes); assert.equal(f.calls.length, 2);
 });

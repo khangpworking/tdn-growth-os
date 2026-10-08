@@ -1248,8 +1248,14 @@ export class ResearchAutomationService {
         const prior = this.#attempt(previousRequest.attemptId)!;
         if (previousRequest.kind !== 'CREATE' || previousRequest.sha !== requestSha || prior.runId !== runId)
           throw new ResearchAutomationConflictError('request_key_conflict', 'This request key is bound to another revision.');
-        await this.#readAttemptSources(this.#current(runId)!, prior);
-        if (prior.state === 'COMMITTED') await this.#readAttemptPair(this.#current(runId)!, prior);
+        const priorSources = await this.#readAttemptSources(this.#current(runId)!, prior);
+        if (prior.state === 'COMMITTED') {
+          const pair = await this.#readAttemptPair(this.#current(runId)!, prior);
+          // Private replay must verify the retained corpus, public view and literal evidence
+          // for this exact committed pair, even after a newer source SKIP revision.
+          if (priorSources.value.privateShopeeSource && pair.outputs.some(output => output.kind === 'INSIGHT'))
+            await this.readReport(workspaceId, runId, 'INSIGHT', false, pair.pairId);
+        }
         if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, input.previousPairId, input.acceptedInsight);
         if ('defaultInsight' in input) await this.#insightCoding.reportDefaultDraftSnapshot(workspaceId, runId, input.previousPairId, input.defaultInsight);
         if ('draftInsight' in input) await this.#insightCoding.reportDraftSnapshot(workspaceId, runId, input.previousPairId, input.draftInsight);
