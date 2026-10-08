@@ -8,6 +8,38 @@ export {
   type ResearchAutomationReadReport,
 } from './service.js';
 export { ResearchAutomationWorker } from './worker.js';
+export {
+  AutomationKalodataVideoIntake,
+  KalodataVideoRejection,
+  PreparedVideoSourceError,
+  buildVideoTable,
+  byVideoPath,
+  deriveAdShare,
+  deriveUnitsPer1000Views,
+  expectedVideoMetadata,
+  formatMissingVideoValue,
+  parseVideoContext,
+  parseVideoCsv,
+  parseVideoTable,
+  parseVideoWorkbook,
+  readPreparedKalodataVideoSources,
+  verifyPreparedVideoSource,
+  videoPackageKey,
+  videoPackageKeyPrefix,
+  videoRunBindingSha256,
+  CREATOR_TABLE_HEADERS,
+  MAX_VIDEO_CELL_CHARS,
+  MAX_VIDEO_TABLE_ROWS,
+  MAX_VIDEO_UPLOAD_BYTES,
+  MISSING_VIDEO_VALUE_DISPLAY,
+  VIDEO_CONTEXT_PATH,
+  VIDEO_DESCRIPTOR_PATH,
+  VIDEO_READ_BUDGET,
+  VIDEO_TABLE_HEADERS,
+  VIDEO_TABLE_PATH,
+  type VideoRunBinding,
+  type VideoSourceContext,
+} from './kalodata-video-intake.js';
 export { bindResearchAutomationProvider, type AutomationSourcePort } from './source-binding.js';
 export {
   ResearchAutomationValidationError,

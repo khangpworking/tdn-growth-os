@@ -1,13 +1,13 @@
 # Research batch 2: work packages and checklists
 
-Updated: 2026-10-07 · Base: `origin/main` `d9bd883` · Plans: #124, #125, #127
+Updated: 2026-10-08 · Base: `origin/main` `d9bd883` · Plans: #124, #125, #127 · P10: Ultimate Method v1.5, E12
 Process: `docs/runbooks/agent-pipeline.md`. Workers check every item below and report each ID in their handoff.
 
 ## Tóm tắt (cho chủ shop)
 
-Phần việc còn lại của 3 kế hoạch được gom thành **8 gói**, chạy theo 3 đợt:
+Phần việc còn lại của 3 kế hoạch được gom thành **9 gói**, chạy theo 3 đợt:
 - **Đợt 1 (4 gói):** chạy song song ngay. Mỗi gói sửa một nhóm file riêng, nên các gói không đụng nhau.
-- **Đợt 2 (3 gói):** bắt đầu khi điều kiện của từng gói đã xong.
+- **Đợt 2 (4 gói):** bắt đầu khi điều kiện của từng gói đã xong. Gói P10 (số liệu Cục Thống kê) thêm ngày 08/10/2026.
 - **Đợt 3 (1 gói):** đưa tất cả nguồn mới lên báo cáo, làm sau khi các gói trước đã merge.
 
 Agent làm theo checklist bên dưới: mỗi việc có mã riêng (ví dụ `P1-04`), và agent phải báo lại từng mã. Sau đó có model khác review, rồi chạy test. Đạt hết thì agent tự mở PR nháp. Merge và deploy vẫn chỉ do chủ shop quyết.
@@ -24,6 +24,7 @@ Agent làm theo checklist bên dưới: mỗi việc có mã riêng (ví dụ `P
 | P6 | Metric automation through OpenCLI, capture archive, R2 copy, numbers-used ledger | #127 PR A + Ph2b 8 | 2 | owner installed the OpenCLI extension on Fedora | Metric executor, intake sharing, archive |
 | P7 | Social bundle intake, classification, evidence cards, personas | #124 Ph3 | 2 | server side: none; collection side: owner picks the social account | new social modules |
 | P8 | Presentation of all new sources in both reports | #124 Ph4 + #125 Ph2 quotes in reports | 3 | P1–P5 and P7 merged | report renderers (after P1 and P2) |
+| P10 | Official statistics intake (Cục Thống kê, nso.gov.vn) for every product category | Ultimate Method v1.5, E12 and §6.4 | 2 | none; start after P4 has merged (contract registry line) | new official-statistics intake module, its contract, its API route and its fetch script |
 
 **Ownership rule.**
 - A package edits only its own paths.
@@ -42,7 +43,7 @@ Agent làm theo checklist bên dưới: mỗi việc có mã riêng (ví dụ `P
 - [ ] G-05 `git diff --check origin/main...HEAD` is clean. Every changed path is inside the package's owned paths.
 - [ ] G-06 No secrets, tokens, cookies, machine paths, home directories, IPs or real commercial data in the code, tests, fixtures, commits or handoff.
 - [ ] G-07 No real provider or AI call in tests. Fakes and synthetic fixtures only.
-- [ ] G-08 Owner-facing text: plain Vietnamese, no provider names (Metric, Kalodata, TradeInt, Dami, SerpApi, Apify, PageIndex, Agent-Reach, OpenCLI, zen-studio), no raw codes. "Shopee", "TikTok Shop", "Google", "Facebook", "Instagram" and "X" are allowed. The internal source-status board may name providers.
+- [ ] G-08 Owner-facing text: plain Vietnamese, no provider names (Metric, Kalodata, TradeInt, Dami, SerpApi, Apify, PageIndex, Agent-Reach, OpenCLI, zen-studio), no raw codes. "Shopee", "TikTok Shop", "Google", "Facebook", "Instagram" and "X" are allowed. "Cục Thống kê (nso.gov.vn)" is required as the citation of official statistics (Ultimate E12). The internal source-status board may name providers.
 - [ ] G-09 Missing stays missing (never 0). No invented sources, competitors or numbers.
 - [ ] G-10 Stored report versions read back byte-identical. Old inputs and old runs keep working.
 - [ ] G-11 No existing test is deleted, skipped or weakened. An assertion that pins copy the package was told to change may be updated; list each one in the handoff.
@@ -361,8 +362,64 @@ Checklist:
 - [ ] P8-07 A coverage notice when a source is missing, e.g. "Không có dữ liệu Instagram cho lần chạy này".
 - [ ] P8-08 The M13/I17 appendix lists sources, caps, sample sizes, κ, and what was not collected.
 - [ ] P8-09 Both renderers (auto draft and reader report) pass the P1-12/P1-13 visible-text rules and the P2 lint.
+- [ ] P8-10 Once P10 has merged: official-statistics blocks in M05, M08, M09, I02 and I12 follow Ultimate E12. Each block names the statistics group and says it is wider than the product category, shows the value status (ước tính / sơ bộ / chính thức) and publication date, sits beside the sample numbers without arithmetic between them, and cites "Cục Thống kê (nso.gov.vn)" with file, sheet and row.
 
 **Functional when:** a fixture run with every new source renders both reports with all blocks cited, and both lints pass.
+
+---
+
+## P10. Official statistics intake: Cục Thống kê (wave 2; start after P4 has merged)
+
+Business rules: Ultimate Method v1.5, exception **E12** and section **6.4** (`docs/research/ultimate-method/ultimate-method-30-sections.md`). The intake works for **every product category**; nothing in it is specific to one category.
+
+**Owned paths:**
+- new `src/modules/analysis/research-automation/official-statistics-intake.ts`;
+- new `src/modules/analysis/research-automation/official-statistics-category-map.json` (Ultimate §6.4 as data, versioned);
+- a new contract `contracts/analysis/official-statistics-intake-v1.schema.json` with its generated file and one registry line in `scripts/generate-foundation-contract.mjs` (after P4 has merged);
+- the upload route in `src/api/research-automation-api.ts` (only the new route);
+- new operator script `scripts/fetch-official-statistics.ts`;
+- new tests and synthetic fixtures (workbooks built inside the tests; no real downloaded files in Git);
+- `docs/handoffs/P10.md`.
+
+No migration: reuse the existing source-package storage, the same way as the supplemental intake (`supplemental-source-intake.ts`). The yearbook and the living-standards survey are PDF and go through P3, not this package.
+
+Checklist:
+- [ ] P10-01 The intake accepts operator-supplied XLSX files of two kinds: the monthly statistical tables ("Biểu") and the monthly CPI workbook. It is modelled on `metric-source-intake.ts`: validation, a size cap (≤20 MB), inert preparation, no automatic confirm.
+- [ ] P10-02 Fixed sheet profiles, one per table used:
+  - monthly tables: retail sales (Tổng mức bán lẻ), CPI, industrial production index, main industrial products, exports, imports;
+  - CPI workbook: whole country, regions, provinces.
+
+  Each profile pins the sheet title text and a hash of the header rows. An unknown layout raises a typed error `OFFICIAL_STATS_LAYOUT_UNKNOWN` naming the sheet. No guessing of columns.
+- [ ] P10-03 Each value becomes one row with:
+  - file sha256, source URL, publication date;
+  - sheet, row and column;
+  - the label path (group → subgroup) exactly as written in the file;
+  - period, unit, and comparison base (for example "cùng kỳ năm trước = 100");
+  - the status written in the column header: `UOC_TINH` (ước tính), `SO_BO` (sơ bộ) or `CHINH_THUC` (chính thức).
+
+  The value is kept as the exact decimal string; nothing is rounded in storage.
+- [ ] P10-04 Index values stay indexes. A "+x%" form is computed only at display time, with the base stated next to it.
+- [ ] P10-05 Blank cells and "-" stay missing, never 0.
+- [ ] P10-06 A newer file for the same period supersedes the older one. Both are kept, and readers get the newest with a "đã cập nhật" flag.
+- [ ] P10-07 `official-statistics-category-map.json` encodes Ultimate §6.4: product-category group → statistics group names, exactly as written in the source files. A category not in the map returns "chưa ánh xạ". No fuzzy matching.
+- [ ] P10-08 The fetch script lists files through the site's public WordPress API (`/wp-json/wp/v2/media`, filtered by spreadsheet MIME type and date):
+  - at least 2 s between requests and at most 20 files per run;
+  - it saves each file privately with its sha256 and source URL, outside Git;
+  - it is run by the operator only. Tests use a fake transport, never the network.
+- [ ] P10-09 Every value is cited through `CitationRegistry` as "Cục Thống kê (nso.gov.vn), <file>, bảng <sheet>, dòng <n>, công bố <date>". The provider-name lint allows "Cục Thống kê" and "nso.gov.vn" for this source only.
+- [ ] P10-10 E12 guard: the module exposes no helper that adds, subtracts or divides a sample value with an official value. Values are returned for side-by-side display only. A test shows that an attempted ratio raises a typed error.
+- [ ] P10-11 Tests:
+  - one synthetic workbook per profile;
+  - an unknown layout;
+  - blank and "-" cells;
+  - the three value statuses;
+  - a revision superseding an older file;
+  - a category missing from the map;
+  - the fetch script with a fake transport, including the rate limit and the file cap;
+  - the citation text;
+  - the provider-name lint exception.
+
+**Functional when:** uploading a synthetic monthly-tables file and a synthetic CPI file to a fixture run stores validated, cited official-statistics rows. For any category in the map, the rows can be read back for side-by-side display beside sample numbers, ready for P8-10.
 
 ---
 
