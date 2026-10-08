@@ -305,6 +305,9 @@ test('three industries classify a new report from complete selected acceptance w
       ...(sectionId === 'I14' ? {} : { counterevidenceRelations: [] }),
       ...(sectionId === 'M12' ? { prerequisites: ['Chỉ thực hiện sau khi người dùng duyệt.'] } : {}),
       ...(sectionId === 'I15' ? { conditions: ['Cần xác nhận mục tiêu kinh doanh.'] } : {}),
+      // U-07 applies to the decision sections only; I14 keeps its own candidate contract.
+      ...(sectionId === 'I14' ? {} : { immediateTask: 'Người dùng xem lại đề xuất synthetic trước khi quyết định.',
+        proposedOwner: 'Người dùng xác nhận', proposedDeadline: 'Trong hai tuần' }),
     };
     response.writeHead(200, { 'content-type': 'application/json' });
     response.end(JSON.stringify({ choices: [{ message: { role: 'assistant', content: JSON.stringify({ aiCandidates: [candidate] }) }, finish_reason: 'stop' }] }));

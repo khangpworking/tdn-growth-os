@@ -84,6 +84,24 @@ test('validated I14 and decision candidates keep original proposal bytes while a
   }
 });
 
+test('U-07 author-proposed task, owner and deadline render as an unapproved AI proposal', () => {
+  const evidence = syntheticI14Input();
+  for (const sectionId of ['M11', 'M12', 'I15'] as const) {
+    const input = { sectionId, packetVersion: '1.2.0' as const, evidence: { ...evidence, admissionVersion: '1.0.0' as const } };
+    const packet = buildAutomationDecisionPacket(input).artifact;
+    const proposal = { ...structuredClone(validI14Response(evidence)).aiCandidates[0], candidateType: sectionId === 'M11' ? 'HYPOTHESIS' : sectionId === 'M12' ? 'ACTION_OPTION' : 'STRATEGY_OPTION',
+      counterevidenceRelations: [], ...(sectionId === 'M12' ? { prerequisites: ['Owner confirms the retained observation'] } : sectionId === 'I15' ? { conditions: ['Owner confirms the retained observation'] } : {}),
+      immediateTask: 'Review the stated barrier with the owner', proposedOwner: 'Owner to confirm', proposedDeadline: 'Within two weeks' };
+    const candidates = validateAutomationDecisionCandidateResponse({ aiCandidates: [proposal] }, input);
+    const html = decisionPacketSection(packet, validateAutomationSourceClaims(evidence.sourceClaims),
+      { status: 'VALID', executionId: 'synthetic', dispatched: true, candidates: { ...candidates, sha256: createHash('sha256').update(candidates.bytes).digest('hex') } });
+    assert.match(html, /Việc làm ngay AI đề xuất:<\/b> Review the stated barrier with the owner/);
+    assert.match(html, /Người phụ trách AI đề xuất:<\/b> Owner to confirm/);
+    assert.match(html, /Thời hạn AI đề xuất:<\/b> Within two weeks/);
+    assert.equal((html.match(/đề xuất của AI, chờ chủ duyệt; chưa phải cam kết hay phân công/g) ?? []).length, 3, sectionId);
+  }
+});
+
 test('accepted located protocols, brief, corpus and coding provenance use safe reader projections without altering retained source records', () => {
   const fields = ['inclusionRule', 'adjudicationRule', 'brief.version', 'brief.questionText.text', 'brief.decisionToInform.text', 'brief.intendedAudience.text', 'brief.scope.text', 'i02.0.provenance.coderRole', 'i04.0.provenance.coderRole', 'i05.0.provenance.coderRole', 'i06.0.provenance.coderRole', 'i07.0.provenance.coderRole', 'i08.0.provenance.coderRole', 'i09.0.provenance.coderRole', 'i13Mentions.0.provenance.coderRole', 'corpora.0.question', 'corpora.0.unit', 'corpora.0.inclusionRule', 'corpora.0.externalSampling', 'corpora.0.codebook.revision', 'corpora.0.codebook.codes.0.label', 'corpora.0.assignments.0.provenance.coderRole', 'corpora.0.dispositions.0.provenance.coderRole'];
   for (const field of fields) for (const literal of unsafe) {

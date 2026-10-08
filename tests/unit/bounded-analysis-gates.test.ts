@@ -114,6 +114,20 @@ test('I11 preserves owner order, unknown assignment and incompatible raw cells w
   assert.throws(() => buildBoundedAnalysisGates(input), /I11_SOURCE_ASSIGNMENT_EVIDENCE_REQUIRED/);
 });
 
+test('legacy 1.0.0 I11 keeps accepting repeated cells for one group and replays byte-identically', () => {
+  const input = boundedAnalysisGatesFixture();
+  const repeated = structuredClone(input.i11!.cells[1]!);
+  repeated.source.locator = '/i11/cells/9';
+  repeated.numerator = { state: 'observed_value', value: '9' };
+  input.i11!.cells.push(repeated);
+  const first = buildBoundedAnalysisGates(input).output;
+  assert.deepEqual(first.sections.I11.partitions[0]!.groupOrder, ['B', 'A']);
+  assert.equal(first.sections.I11.rates, null);
+  assert.equal(first.methodVersion, '1.0.0');
+  assert.deepEqual(verifyBoundedAnalysisGates(first).output, first);
+  assert.equal(canonicalJson(buildBoundedAnalysisGates(structuredClone(input)).output), canonicalJson(first));
+});
+
 test('I12 presence never becomes exposure and raw exposure/outcome event counts never become a conversion', () => {
   const input = boundedAnalysisGatesFixture();
   const result = buildBoundedAnalysisGates(input).output.sections.I12;

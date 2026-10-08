@@ -38,7 +38,8 @@
     "methodVersion": {
       "enum": [
         "1.0.0",
-        "1.1.0"
+        "1.1.0",
+        "1.2.0"
       ]
     },
     "sectionId": {
@@ -109,7 +110,8 @@
         "methodVersion": {
           "enum": [
             "1.0.0",
-            "1.1.0"
+            "1.1.0",
+            "1.2.0"
           ]
         },
         "packetSha256": {
@@ -390,6 +392,48 @@
       "items": {
         "$ref": "#/$defs/text"
       }
+    },
+    "workingQuestion": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "label",
+            "text",
+            "ownerFieldsToAdd"
+          ],
+          "properties": {
+            "state": {
+              "const": "AI_PROPOSED_AWAITING_OWNER"
+            },
+            "label": {
+              "$ref": "#/$defs/text"
+            },
+            "text": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ownerFieldsToAdd": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "allOf": [

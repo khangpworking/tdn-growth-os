@@ -411,6 +411,8 @@ export interface Input {
    */
   corpora: Corpus[];
   i13Mentions: I13Mentions;
+  semanticsVersion?: '1.0.0' | '1.1.0';
+  workingQuestionProposal?: string | null;
 }
 export interface Record {
   sourceSha256: string;
