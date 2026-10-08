@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShopeePrivateRows",
+  "description": "Closed sanitized metadata allowlist, preserves source comment strings verbatim; invalid evidence scalars are null. Missing field and invalid ID differ. No raw author ID/name/profile fields. Bound2500 follows5 listings times500 existing collection ceiling.",
+  "type": "array",
+  "maxItems": 2500,
+  "items": {
+    "type": "object",
+    "additionalProperties": false,
+    "required": [
+      "reviewId",
+      "shopId",
+      "itemId",
+      "ratingStar",
+      "comment",
+      "createdAt",
+      "region",
+      "authorIdentity"
+    ],
+    "properties": {
+      "reviewId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[1-9][0-9]{0,19}$"
+      },
+      "shopId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[1-9][0-9]{0,19}$"
+      },
+      "itemId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[1-9][0-9]{0,19}$"
+      },
+      "ratingStar": {
+        "type": [
+          "integer",
+          "null"
+        ],
+        "minimum": 1,
+        "maximum": 5
+      },
+      "comment": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "maxLength": 20000
+      },
+      "createdAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "format": "date-time"
+      },
+      "region": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "pattern": "^[A-Z]{2}$"
+      },
+      "authorIdentity": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state",
+              "hash"
+            ],
+            "properties": {
+              "state": {
+                "const": "HASHED"
+              },
+              "hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "state",
+              "hash"
+            ],
+            "properties": {
+              "state": {
+                "enum": [
+                  "MISSING",
+                  "INVALID"
+                ]
+              },
+              "hash": {
+                "type": "null"
+              }
+            }
+          }
+        ]
+      }
+    }
+  }
+}

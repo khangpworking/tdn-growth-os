@@ -1,0 +1,193 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ShopeePrivateProjection",
+  "description": "Declared finalized source read projection; exact sanitized page locators, within-platform reported-ID accounting and E4 requirement disclosure. Does not decide persona eligibility or assert a total person count.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "collectionId",
+    "collectionSha256",
+    "privacy",
+    "records",
+    "accounting",
+    "missingIdentityLabel",
+    "fallbackRequirement",
+    "limits"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "shopee-private-projection-v1"
+    },
+    "collectionId": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "collectionSha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "privacy": {
+      "$ref": "shopee-private-collection.schema.json#/properties/privacy"
+    },
+    "records": {
+      "type": "array",
+      "maxItems": 2500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reviewId",
+          "shopId",
+          "itemId",
+          "ratingStar",
+          "comment",
+          "createdAt",
+          "region",
+          "authorIdentity",
+          "admission",
+          "locator"
+        ],
+        "properties": {
+          "reviewId": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/reviewId"
+          },
+          "shopId": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/shopId"
+          },
+          "itemId": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/itemId"
+          },
+          "ratingStar": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/ratingStar"
+          },
+          "comment": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/comment"
+          },
+          "createdAt": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/createdAt"
+          },
+          "region": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/region"
+          },
+          "authorIdentity": {
+            "$ref": "shopee-private-rows.schema.json#/items/properties/authorIdentity"
+          },
+          "admission": {
+            "enum": [
+              "SELECTED_TEXT",
+              "OTHER_LISTING",
+              "UNRESOLVED_LISTING",
+              "NO_READABLE_TEXT"
+            ]
+          },
+          "locator": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "collectionId",
+              "pageSha256",
+              "pageIndex",
+              "rowIndex",
+              "textPointer"
+            ],
+            "properties": {
+              "collectionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "pageSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "pageIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 24
+              },
+              "rowIndex": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 2499
+              },
+              "textPointer": {
+                "type": "string",
+                "pattern": "^/(0|[1-9][0-9]*)/comment$"
+              }
+            }
+          }
+        }
+      }
+    },
+    "accounting": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "retainedRecords",
+        "selectedTextRecords",
+        "distinctContents",
+        "missingIdentityRecords",
+        "invalidIdentityRecords",
+        "reportedAuthorHashes",
+        "identityCoverage"
+      ],
+      "properties": {
+        "retainedRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "selectedTextRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "distinctContents": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "missingIdentityRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "invalidIdentityRecords": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2500
+        },
+        "reportedAuthorHashes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 2500
+        },
+        "identityCoverage": {
+          "enum": [
+            "UNAVAILABLE",
+            "PARTIAL",
+            "COMPLETE_IN_CAPTURE"
+          ]
+        }
+      }
+    },
+    "missingIdentityLabel": {
+      "const": "nguồn không có mã người viết"
+    },
+    "fallbackRequirement": {
+      "const": ">=5 distinct contents, chưa xác minh là 5 người"
+    },
+    "limits": {
+      "const": [
+        "SOURCE_REPORTED_IDS_NOT_INDEPENDENTLY_VERIFIED_PEOPLE",
+        "WITHIN_SHOPEE_AND_ONE_KEY_ONLY",
+        "VERBATIM_TEXT_MAY_CONTAIN_PERSONAL_DATA",
+        "SANITIZED_BYTES_NOT_ERASED_RAW_BYTE_RECONSTRUCTION",
+        "NO_PERSONA_ELIGIBILITY_DECISION"
+      ]
+    }
+  }
+}
