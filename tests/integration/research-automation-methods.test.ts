@@ -146,7 +146,7 @@ test('collection executes source-bound methods and saves zero-safe partial resul
   const methods = state.semantic.descriptiveMethods;
   assert.ok(methods, 'REPORTS must execute and persist the existing descriptive method');
   assert.equal(methods.methodId, 'source-bound-descriptive-market');
-  assert.equal(methods.methodVersion, '1.0.0');
+  assert.equal(methods.methodVersion, '1.1.0');
   assert.deepEqual(methods.input.m05.map(row => [row.measureLiteral, row.observation.state, row.observation.value]), [
     ['revenue', 'observed_zero', '0'], ['sales_volumn', 'observed_value', '7'],
   ]);
