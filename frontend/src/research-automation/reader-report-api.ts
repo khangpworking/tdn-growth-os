@@ -4,11 +4,16 @@ import type {
   ResearchAutomationReaderDecisionRequest,
   ResearchAutomationReaderRevision,
   ResearchAutomationReaderRevisionList,
+  ResearchAutomationInsightReaderBuildRequest, ResearchAutomationReaderBuildReceiptV2,
+  ResearchAutomationReaderDecisionRequestV2, ResearchAutomationReaderDecisionReceiptV2,
+  ResearchAutomationReaderRevisionV2, ResearchAutomationReaderRevisionListV2,
 } from '../../../contracts/api/research-automation-reader-report-api.generated';
 import { readerReportBuild, readerReportBuildReceipt, readerUnitSpecIntakeReceipt, readerReportDecision, readerReportDecisionReceipt, readerReportList } from '../generated/report-validators.generated.js';
 import { ResearchAutomationError } from './api';
+import { insightReaderBuild, readerReportBuildReceiptV2, readerReportListV2, readerReportDecisionV2, readerReportDecisionReceiptV2 } from '../generated/report-validators.generated.js';
 
 export type { ResearchAutomationReaderBuildRequest, ResearchAutomationReaderDecisionRequest, ResearchAutomationReaderRevision, ResearchAutomationReaderRevisionList };
+export type { ResearchAutomationInsightReaderBuildRequest, ResearchAutomationReaderRevisionV2, ResearchAutomationReaderRevisionListV2 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const base = (workspaceId: string, runId: string) =>
@@ -25,6 +30,54 @@ export async function loadReaderReports(workspaceId: string, runId: string, sign
     if (revision.revisionNumber !== index + 1 || revision.workspaceId !== workspaceId || revision.runId !== runId) throw integrity('Chuỗi bản đọc bị lặp hoặc đứt thứ tự.');
   });
   return list;
+}
+
+/** Authoritative history of both kinds; sequence and review currency are per kind. */
+export async function loadReaderReportsV2(workspaceId: string, runId: string, signal: AbortSignal): Promise<ResearchAutomationReaderRevisionListV2> {
+  assertUuid(workspaceId); assertUuid(runId);
+  const value = (await requestWithStatus(`/api${base(workspaceId, runId)}/reader-reports/v2`, { headers: { Accept: 'application/json' }, signal }, [200])).value;
+  if (!readerReportListV2(value)) throw integrity('Danh sách bản đọc không vượt qua kiểm tra contract.');
+  const list = value as ResearchAutomationReaderRevisionListV2;
+  if (list.workspaceId !== workspaceId || list.runId !== runId) throw integrity('Danh sách bản đọc không thuộc đúng phiên nghiên cứu.');
+  const latest = new Map<'MARKET' | 'INSIGHT', ResearchAutomationReaderRevisionV2>(), ids = new Set<string>();
+  for (const revision of list.revisions) {
+    if (revision.workspaceId !== workspaceId || revision.runId !== runId || ids.has(revision.revisionId) ||
+        revision.revisionNumber !== (latest.get(revision.reportKind)?.revisionNumber ?? 0) + 1) throw integrity('Chuỗi bản đọc bị lặp hoặc đứt thứ tự.');
+    ids.add(revision.revisionId); latest.set(revision.reportKind, revision);
+  }
+  for (const revision of list.revisions) {
+    const expected = revision.decision?.decision ?? (latest.get(revision.reportKind)?.revisionId === revision.revisionId ? 'PENDING_OWNER_REVIEW' : 'SUPERSEDED');
+    if (revision.state !== expected) throw integrity('Trạng thái bản đọc không khớp lịch sử của đúng loại báo cáo.');
+  }
+  return list;
+}
+
+export async function buildInsightReader(workspaceId: string, runId: string, body: ResearchAutomationInsightReaderBuildRequest, token: string): Promise<ResearchAutomationReaderBuildReceiptV2> {
+  assertUuid(workspaceId); assertUuid(runId);
+  if (!insightReaderBuild(body)) throw new ResearchAutomationError('rejected', 'Chọn đúng phiên bản báo cáo nguồn để dựng insight.');
+  if (!token) throw new ResearchAutomationError('authorization', 'Mở khóa OWNER để dựng bản đọc insight.');
+  const result = await requestWithStatus(`/owner-api${base(workspaceId, runId)}/reader-reports/insight`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) }, [200, 201]);
+  if (!readerReportBuildReceiptV2(result.value)) throw integrity('Biên nhận bản đọc insight không đúng contract.');
+  const receipt = result.value as ResearchAutomationReaderBuildReceiptV2;
+  if (receipt.exactRetry !== (result.status === 200) || receipt.revision.reportKind !== 'INSIGHT' || receipt.revision.workspaceId !== workspaceId ||
+      receipt.revision.runId !== runId || receipt.revision.draftPairId !== body.draftPairId || receipt.revision.semanticSha256 !== body.semanticSha256)
+    throw integrity('Biên nhận bản đọc insight không khớp nguồn đã chọn.');
+  return receipt;
+}
+
+export async function decideReaderReportV2(workspaceId: string, runId: string, body: ResearchAutomationReaderDecisionRequestV2, token: string): Promise<ResearchAutomationReaderDecisionReceiptV2> {
+  assertUuid(workspaceId); assertUuid(runId);
+  if (!readerReportDecisionV2(body)) throw new ResearchAutomationError('rejected', 'Quyết định chưa chỉ đúng loại và nội dung bản đọc.');
+  if (!token) throw new ResearchAutomationError('authorization', 'Mở khóa OWNER để duyệt bản đọc.');
+  const result = await requestWithStatus(`/owner-api${base(workspaceId, runId)}/reader-reports/decisions/v2`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' }, body: JSON.stringify(body) }, [200, 201]);
+  if (!readerReportDecisionReceiptV2(result.value)) throw integrity('Biên nhận quyết định bản đọc không đúng contract.');
+  const receipt = result.value as ResearchAutomationReaderDecisionReceiptV2;
+  if (receipt.exactRetry !== (result.status === 200) || receipt.revision.reportKind !== body.reportKind || receipt.revision.workspaceId !== workspaceId || receipt.revision.runId !== runId ||
+      receipt.revision.revisionId !== body.revisionId || receipt.revision.htmlSha256 !== body.htmlSha256 || receipt.revision.decision?.decision !== body.decision ||
+      receipt.revision.decision.reason !== (body.reason?.trim() || null)) throw integrity('Biên nhận quyết định không khớp bản đọc bạn đã xem.');
+  return receipt;
 }
 
 /** Same-origin reader page; served with its own CSP and no draft content. */

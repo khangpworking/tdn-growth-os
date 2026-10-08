@@ -64,13 +64,13 @@ test('reader intake panel requires owner and selected files, sends only explicit
   const { default: Panel } = await tsImport('../src/research-automation/ReaderReportPanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/ReaderReportPanel');
   const root = createRoot(dom.container); let writes = 0; let rejectBuild = true;
   globalThis.fetch = (async (url, init) => {
-    if (!init?.method) return json({ contractVersion: 'reader-report-list-v1', workspaceId, runId, revisions: writes && !rejectBuild ? [revision] : [] });
+    if (!init?.method) return json({ contractVersion: 'reader-report-list-v2', workspaceId, runId, revisions: writes && !rejectBuild ? [{ ...revision, reportKind: 'MARKET', builderVersion: 'reader-report-market-v4' }] : [] });
     writes++;
     if (String(url).endsWith('unit-spec-intakes')) return json({ ...intakeReceipt, exactRetry: writes > 2 }, writes > 2 ? 200 : 201);
     if (rejectBuild) return json({ error: { code: 'bad_request', message: 'Quy cách không khớp biến thể.' } }, 400);
     return json({ contractVersion: 'reader-report-build-receipt-v1', exactRetry: false, revision }, 201);
   }) as typeof fetch;
-  const run = { workspaceId, runId, status: 'DRAFT_READY' } as ResearchAutomationRun;
+  const run = { workspaceId, runId, status: 'DRAFT_READY', reports: ['MARKET'] } as ResearchAutomationRun;
   const buildButton = () => [...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Lưu quy cách và dựng bản đọc')!;
   const select = async (input: HTMLInputElement, files: File[]) => act(async () => {
     Object.defineProperty(input, 'files', { configurable: true, value: files }); input.dispatchEvent(new Event('change', { bubbles: true }));

@@ -9,6 +9,8 @@ export type LintOptions = {
   familyLabel?: string;
   /** New versioned renderers only. Historical gates remain byte-identical. */
   visibleTextRules?: boolean;
+  /** Opt-in Insight v1; defaults preserve the historical Market gate. */
+  reportKind?: 'MARKET' | 'INSIGHT';
 };
 
 // Data providers that must never be named in a report (owner rule).
@@ -43,7 +45,7 @@ function decodeCss(css: string): string {
   });
 }
 
-export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false }: LintOptions = {}): LintResult[] {
+export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, sectionIds = [], familyLabel = 'toàn kết quả tìm kiếm', visibleTextRules = false, reportKind = 'MARKET' }: LintOptions = {}): LintResult[] {
   const out: LintResult[] = [], add = (rule: string, ok: boolean, detail: string) => { out.push({ rule, ok, detail }); };
   const all = visibleText(html), vis = visibleText(html.replace(QUOTED, ' ')), svgText = [...html.matchAll(/<svg[\s\S]*?<\/svg>/g)].map(m => m[0].replace(/<[^>]+>/g, ' ')).join(' ');
   const titleTag = html.match(/<title>[\s\S]*?<\/title>/)?.[0] ?? '';
@@ -59,21 +61,25 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('F3 không sót undefined/NaN/null/{{}}', junk.length === 0, junk.length ? junk.slice(0, 5).join(', ') : 'sạch');
 
   const rank = [...vis.matchAll(/(.{0,30})xếp hạng/g)].filter(m => !/không\s*(phải\s*)?$/i.test(m[1] ?? '')).length;
-  const whole = [...vis.matchAll(/(.{0,40})(thị phần|toàn thị trường|quy mô thị trường)/g)].filter(m => !/không|chưa|không phải/.test(m[1] ?? '')).length;
+  // The existing located-method disclaimer is longer than the historical
+  // forty-character lookback. Recognize its explicit negation only in Insight.
+  const insightDisclaimer = (before: string): boolean => reportKind === 'INSIGHT' && /Không suy rộng thành số người, tỷ lệ dân số hay\s*$/iu.test(before);
+  const whole = [...vis.matchAll(/(.{0,40})(thị phần|toàn thị trường|quy mô thị trường)/g)].filter(m => !/không|chưa|không phải/.test(m[1] ?? '') && !insightDisclaimer(vis.slice(0, (m.index ?? 0) + (m[1]?.length ?? 0)))).length;
   add('F5 không khẳng định toàn thị trường; "sắp xếp" thay "xếp hạng"', rank === 0 && whole === 0, `xếp hạng không phủ định: ${rank}; thị phần/toàn thị trường không phủ định: ${whole}`);
 
-  const m12 = html.match(/<section id="phan-12">[\s\S]*?<\/section>/)?.[0] ?? '';
+  const m12 = reportKind === 'INSIGHT' ? html.match(/<section id="I15">[\s\S]*?<\/section>/)?.[0] ?? '' : html.match(/<section id="phan-12">[\s\S]*?<\/section>/)?.[0] ?? '';
   const okRec = /đề xuất/i.test(m12) && /chờ chủ duyệt/i.test(m12), okCls = /đề xuất, chờ (chủ )?duyệt|chờ duyệt/.test(vis);
-  add('F6 khuyến nghị và phân loại mang nhãn đề xuất, chờ duyệt', okRec && okCls, `Phần 12: ${okRec ? 'có' : 'THIẾU'}; phân loại: ${okCls ? 'có' : 'THIẾU'}`);
+  add('F6 khuyến nghị và phân loại mang nhãn đề xuất, chờ duyệt', okRec && okCls, `Phần ${reportKind === 'INSIGHT' ? '15' : '12'}: ${okRec ? 'có' : 'THIẾU'}; phân loại: ${okCls ? 'có' : 'THIẾU'}`);
 
   const have = new Set([...html.matchAll(/class="exn">(Hình|Bảng) ([\w.]+)</g)].map(m => `${m[1]} ${m[2]}`));
   const refs = [...vis.matchAll(/(Hình|Bảng) (\d+\.\d+|PL\.\d+)((?:,\s*\d+\.\d+)*)/g)]
     .flatMap(m => [`${m[1]} ${m[2]}`, ...(m[3] ?? '').split(',').map(s => s.trim()).filter(Boolean).map(s => `${m[1]} ${s}`)]);
   const dangling = [...new Set(refs.filter(r => !have.has(r)))];
-  const parts = [...vis.matchAll(/Phần (\d+)/g)].map(m => Number(m[1])).filter(x => x < 1 || x > 12);
+  const maxPart = reportKind === 'INSIGHT' ? 17 : 12;
+  const parts = [...vis.matchAll(/Phần (\d+)/g)].map(m => Number(m[1])).filter(x => x < 1 || x > maxPart);
   const pl = [...have].filter(x => /PL\./.test(x)).map(x => Number(x.split('.')[1])).sort((a, b) => a - b);
   const plOk = pl.every((v, i) => v === i + 1);
-  add('F7 tham chiếu chéo trỏ tới thứ có thật; PL liên tục', dangling.length === 0 && parts.length === 0 && plOk, `${refs.length} tham chiếu; treo: ${dangling.join(', ') || 0}; Phần ngoài 1–12: ${parts.length}; PL: ${pl.join(',')}`);
+  add('F7 tham chiếu chéo trỏ tới thứ có thật; PL liên tục', dangling.length === 0 && parts.length === 0 && plOk, `${refs.length} tham chiếu; treo: ${dangling.join(', ') || 0}; Phần ngoài 1–${maxPart}: ${parts.length}; PL: ${pl.join(',')}`);
 
   const cov = html.match(/<header class="cover"[\s\S]*?<\/header>/)?.[0].replace(/style="[^"]*"/, '') ?? '';
   const covTxt = cov.replace(/<[^>]+>/g, ' ');
@@ -98,7 +104,15 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('F0 không tải tài nguyên ngoài (font, ảnh, script cục bộ)', remote.length === 0, remote.length ? remote.slice(0, 3).join(' | ') : 'cục bộ');
 
   const secs = [...html.matchAll(/<section id="([^"]+)"/g)].map(m => m[1] ?? '');
-  if (sectionIds.length) add('Cấu trúc: đủ Phần 1–12 và Phụ lục', sectionIds.every(s => secs.includes(s)), secs.join(' '));
+  if (sectionIds.length) add(reportKind === 'INSIGHT' ? 'Cấu trúc: đủ I01–I17 và Kết luận chính' : 'Cấu trúc: đủ Phần 1–12 và Phụ lục', sectionIds.every(s => secs.includes(s)), secs.join(' '));
+  if (reportKind === 'INSIGHT') {
+    const citationIds = [...html.matchAll(/\bid="cite-(\d+)"/g)].map(m => m[1]);
+    const marks = [...html.matchAll(/<sup class="cite">\[(\d+)\]<\/sup>/g)].map(m => m[1]);
+    const targets = [...html.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]);
+    const links = [...html.matchAll(/\bhref="#([^"]+)"/g)].map(m => m[1]);
+    add('I_CITATIONS nguồn và vị trí chính xác', new Set(citationIds).size === citationIds.length && marks.every(n => citationIds.includes(n)) && links.every(id => targets.includes(id)), 'Tham chiếu phải có đúng vị trí trên bản đọc.');
+    add('I_ACTIONS tối đa ba đề xuất', [...m12.matchAll(/data-insight-action="candidate"/g)].length <= 3, 'Phương án của chủ giữ riêng với đề xuất AI.');
+  }
 
   // Web snapshot rules (W1–W6). Pages without a snapshot have no webex block
   // and pass all of them unchanged.
@@ -133,7 +147,7 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
     summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
 
   const shareHits = [...vis.matchAll(/(.{0,40})thị phần/gi)]
-    .filter(m => !/không|chưa|không phải/i.test(m[1] ?? ''));
+    .filter(m => !/không|chưa|không phải/i.test(m[1] ?? '') && !insightDisclaimer(vis.slice(0, (m.index ?? 0) + (m[1]?.length ?? 0))));
   add('W4 không dùng từ "thị phần"', shareHits.length === 0,
     shareHits.length ? `thấy ${shareHits.length} lần không phủ định` : 'không thấy thị phần');
 
