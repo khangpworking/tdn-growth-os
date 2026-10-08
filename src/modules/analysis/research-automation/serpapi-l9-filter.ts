@@ -32,9 +32,13 @@ export interface SerpApiL9FilterOutput {
   readonly result: KeywordMeaningFilterResult;
 }
 
-/** Stable provider-reported identity: endpoint URL plus result position. */
+/**
+ * Stable retained identity: the capture holding the result plus its position
+ * within that capture. URLs are provider-reported text and can repeat or
+ * shift across pages, so they never serve as identity.
+ */
 export function serpApiResultRecordId(result: WebDiscoveryResult): string {
-  return `${result.url}#${result.position}`;
+  return `${result.captureId}#${result.position}`;
 }
 
 function candidateText(result: WebDiscoveryResult): string {

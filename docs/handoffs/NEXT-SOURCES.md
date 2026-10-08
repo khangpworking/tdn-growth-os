@@ -11,6 +11,8 @@ Changed paths:
 - `tests/unit/keyword-list-drafting.test.ts` (new)
 - `tests/unit/serpapi-l9-filter.test.ts` (new)
 - `tests/unit/source-appendix-projection.test.ts` (new)
+- `src/modules/analysis/keyword-list-draft-record.ts` (new: retained draft record retain/replay via generic CAS)
+- `tests/unit/keyword-list-draft-record.test.ts` (new)
 Pending (need explicit allocation/lease, not started):
 - service.ts collection/history hunks wiring the SerpApi L9 consumer (Insight exclusive lease; request exact hunks when ready)
 - canonical schemas + generated derivatives for the drafting request and appendix projection (single-writer lease ungranted; Insight first in queue)
@@ -35,7 +37,14 @@ Business decisions pending: none. Drafted lists are MODEL_DRAFTED versioned inpu
 | U-12 | PARTIAL: drafting + P5 consumer module DONE; service wiring ESCALATED | DONE: AI drafts versioned keyword/exclusion lists from sales product names + frozen scope seeds through an injected fake transport; output validated against the canonical data contract with exact frozen term bytes; transport failures and malformed/duplicate output fail closed with nothing retained. P5 SerpApi consumer maps retained web results to stable URL+position identities and classifies via the merged L9 core, keeping excluded/unclear out of main counts with reason accounting. ESCALATED: service.ts collection/history wiring (exclusive lease; hunks to be allocated). |
 | U-27 | PARTIAL: projection DONE; contract/rendering ESCALATED | DONE: pure versioned projection expands one row per registry ID with actual IDs, single-or-mixed tiers (never aggregated), report names, L9 excluded/unclear counts with reasons, L10 video-comment source type, and E12/E13 attribution verbatim. ESCALATED: canonical schema + generated derivative (lease), Market/Insight template rendering (Sol/OMP). |
 | G-01 | DONE | This table (U-12/U-27 PARTIAL with explicit ESCALATED remainder; no B items assigned). |
-| G-02 | PENDING until exact-head CI | Typecheck + 23 focused tests exit 0; no local full suite (no concurrent suites); no waiver. |
+| G-02 | PENDING until exact-head CI | Typecheck + focused suites exit 0 (drafting 4, draft-record 3, serpapi-l9 4, appendix 4, filter 12); no local full suite (no concurrent suites); no waiver. |
+
+## Bounds rationale (no business or cap invention)
+
+- Term 200 chars, recordId 300 chars, reportName/attribution 300 chars, group 120 chars, reasons 200 chars: same bounds as the existing keyword-meaning-filter and source-status contracts.
+- Seed lists max 200 terms and prompt max 65536 bytes: engineering caps bounding model payload and artifact size (65536 matches the existing model max-response bound); drafted output lists re-validated by the canonical schema (max 500).
+- Appendix max 50 sources / 200 usages and 4 registry IDs per entry: engineering caps bounding report size; 4 matches the source-status contract maxItems.
+- Draft-record prompt/artifacts: 4 MiB replay bound as a read safety limit.
 | G-03 | N/A | No frontend changes. |
 | G-04 | PENDING | No contract edits (lease ungranted). |
 | G-05 | DONE | `git diff --check` clean; only owned new modules, one additive export, new tests, handoff. |
