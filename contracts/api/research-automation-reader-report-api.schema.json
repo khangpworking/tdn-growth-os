@@ -18,6 +18,18 @@
     },
     {
       "$ref": "#/$defs/list"
+    },
+    {
+      "$ref": "#/$defs/unitSpecIntakeRequest"
+    },
+    {
+      "$ref": "#/$defs/unitSpecIntakeRecord"
+    },
+    {
+      "$ref": "#/$defs/unitSpecIntakeReceipt"
+    },
+    {
+      "$ref": "#/$defs/intakeBoundBuildRequest"
     }
   ],
   "$defs": {
@@ -390,6 +402,169 @@
           }
         }
       }
+    },
+    "unitSpecIntakeRequest": {
+      "title": "ResearchAutomationUnitSpecIntakeRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "metricPackageId",
+        "platforms",
+        "unitPrices"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "reader-unit-spec-intake-v1"
+        },
+        "metricPackageId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/platform"
+          }
+        },
+        "unitPrices": {
+          "$ref": "../analysis/reader-report-input.schema.json#/$defs/unitPrices",
+          "type": "object",
+          "properties": {
+            "sources": {
+              "type": "array",
+              "maxItems": 16
+            },
+            "records": {
+              "type": "array",
+              "minItems": 1
+            }
+          }
+        }
+      }
+    },
+    "unitSpecIntakeRecord": {
+      "title": "ResearchAutomationUnitSpecIntakeRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "workspaceId",
+        "runId",
+        "draftPairId",
+        "workbookSha256",
+        "actorId",
+        "request"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "reader-unit-spec-intake-record-v1"
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "workbookSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "\\S"
+        },
+        "request": {
+          "$ref": "#/$defs/unitSpecIntakeRequest"
+        }
+      }
+    },
+    "unitSpecIntakeReceipt": {
+      "title": "ResearchAutomationUnitSpecIntakeReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "exactRetry",
+        "intakeSha256",
+        "workspaceId",
+        "runId",
+        "request"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "reader-unit-spec-intake-receipt-v1"
+        },
+        "exactRetry": {
+          "type": "boolean"
+        },
+        "intakeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "request": {
+          "$ref": "#/$defs/unitSpecIntakeRequest"
+        }
+      }
+    },
+    "intakeBoundBuildRequest": {
+      "title": "ResearchAutomationIntakeBoundReaderBuildRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "intakeSha256",
+        "request"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "reader-report-unit-spec-build-v1"
+        },
+        "intakeSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "request": {
+          "allOf": [
+            {
+              "$ref": "#/$defs/buildRequest"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "contractVersion": {
+                  "const": "reader-report-build-v1.2"
+                },
+                "unitPrices": {}
+              },
+              "required": [
+                "unitPrices"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    "buildSubmission": {
+      "title": "ResearchAutomationReaderBuildSubmission",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/buildRequest"
+        },
+        {
+          "$ref": "#/$defs/intakeBoundBuildRequest"
+        }
+      ]
     }
   }
 }
