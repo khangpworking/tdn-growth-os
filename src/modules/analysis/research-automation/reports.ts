@@ -36,6 +36,7 @@ import { attributionText, describeDescriptiveSection, descriptiveAppendix, escap
 import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, StepWebResult, TypedComparable } from './model.js';
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
+import { lintVisibleReportText } from '../report-visible-text-lint.js';
 
 const REPORT_KIT_CSS = REPORT_KIT_BASE_CSS + SYNTHESIS_EVIDENCE_CSS;
 
@@ -301,6 +302,28 @@ function insightCodingView(coding: AutomationInsightCodingSnapshot, family: Codi
   };
 }
 
+function draftInsightGroupsView(coding: Extract<AutomationInsightCodingSnapshot, { contractVersion: 'automation-insight-coding-snapshot-v3' }>, citations: ReportCitations): string {
+  const result = coding.groupCounts;
+  let html = '<p>Số đề xuất từ cùng hồ sơ mã hóa đã lưu; bản nháp này không dùng biên nhận chấp nhận. Mỗi tập giữ riêng bộ mã, kỳ, khung thu thập và thành viên; không cộng các tập hoặc các mã thành một tổng.</p><p>Chưa có bằng chứng phân biệt mua lẻ và mua sỉ; không tự đoán từ tên người viết hoặc câu chữ. Chưa công bố tỷ lệ hay chênh lệch từ mã hóa bản nháp; kiểm chéo và điều kiện so nhóm còn thiếu.</p>';
+  if (!result.groups.length) return html + '<p>Chưa có nhóm với bằng chứng nền tảng và mã hóa tương thích; chưa có số đếm dùng được. Đây không phải kết quả bằng 0.</p>';
+  for (const group of result.groups) {
+    const corpus = coding.output.input.corpora[group.corpusIndex]!;
+    const metadata = (value: string | null) => value === null ? 'Chưa khai báo' : storedLiteral(value, 'Thông tin được giữ trong hồ sơ nguồn');
+    html += `<h4>Shopee · ${group.sectionId === 'I10' ? 'Chủ đề và mối quan tâm' : 'Thương hiệu và đối thủ'}</h4><p data-classified="pending">Phạm vi nhóm có ${group.memberCount} bản ghi có chữ (đề xuất, chờ chủ duyệt); đây là thành viên nguồn, chưa phải số đã mã hóa xong.</p><dl><dt>Kỳ</dt><dd>${metadata(group.scope.period)}</dd><dt>Khung thu thập</dt><dd>${metadata(group.scope.frame)}</dd><dt>Đơn vị</dt><dd>${metadata(group.scope.unit)}</dd><dt>Phiên bản bộ mã</dt><dd>${metadata(group.codebookRevision)}</dd></dl>`;
+    const rows = group.counts.slice(0, 20).map(count => {
+      const code = corpus.codebook.codes.find(item => item.code === count.code)!;
+      const refs = count.recordPointers.slice(0, 20).map(pointer => {
+        const record = coding.output.input.records[Number(pointer.slice('/input/records/'.length))]!;
+        return `<li>${reviewRecordMark(record, citations)}</li>`;
+      }).join('');
+      return `<tr><td>${metadata(code.label)}</td><td${count.recordCount === null ? '' : ' data-classified="pending"'}>${count.recordCount === null ? 'Chưa có số đề xuất dùng được' : `${count.recordCount} bản ghi (${escape(count.label)})`}</td><td>${refs ? `<ul>${refs}</ul>` : 'Chưa có đoạn được đưa vào số đề xuất'}</td></tr>`;
+    }).join('');
+    html += `<div class="table-wrap"><table class="obs"><caption>Số theo mã trong nhóm (đề xuất, chờ chủ duyệt)</caption><thead><tr><th>Mã hóa đề xuất</th><th>Số bản ghi</th><th>Vị trí nguồn</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+    if (group.counts.length > 20) html += '<p>Bảng hiển thị một phần theo thứ tự bộ mã; hồ sơ đã lưu giữ toàn bộ kết quả.</p>';
+  }
+  return html + '<p>Chỉ có nguồn Shopee trong hồ sơ này; chưa có đối chiếu nền tảng khác. Đơn vị là bản ghi trong mẫu, không phải người hoặc tỷ lệ khách hàng.</p>';
+}
+
 function insightCodingTrace(coding: AutomationInsightCodingSnapshot, sectionId: 'I03' | 'I17'): string {
   const count = coding.receipts.length;
   const draft = 'draftSelection' in coding;
@@ -514,6 +537,17 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
         method: `${methods.output.methodId}@${methods.output.methodVersion}`,
         explanation: 'Đã kiểm tra trường nguồn và tính riêng từng cơ sở giá có đủ dữ liệu. Kết quả giới hạn trong các chào bán được chọn; chưa phải phân tích kinh tế đơn vị hoàn chỉnh.' };
     }
+    if (kind === 'INSIGHT' && section.sectionId === 'I11' && insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3') {
+      const groups = insightCoding.groupCounts;
+      const usable = groups.groups.some(group => group.counts.some(count => count.recordCount !== null && count.recordCount > 0));
+      locatedViews.set(section.sectionId, () => draftInsightGroupsView(insightCoding, citations));
+      return { sectionId: section.sectionId, title: section.title, state: usable ? 'METHOD_OUTPUT' : 'METHOD_NO_USABLE_RECORDS', rows: [],
+        method: groups.contractVersion,
+        explanation: 'Số đếm theo cách xếp nhóm do AI đề xuất, chờ chủ duyệt, từ đúng bộ mã và bản ghi đã lưu. Nhóm theo sàn được xác định từ nguồn đã đối chiếu; chưa có bằng chứng phân biệt mua lẻ và mua sỉ. Chưa công bố tỷ lệ, chênh lệch hoặc suy luận giữa nhóm.',
+        methodOutput: { methodOutputId: insightCoding.output.methodOutputId,
+          locatedRecordCount: new Set(groups.groups.flatMap(group => group.counts.flatMap(count => count.recordPointers))).size,
+          unresolvedPointers: [], blockers: groups.blockers } };
+    }
     if (input.boundedMethods && ['M10', 'I11', 'I12', 'I16'].includes(section.sectionId)) {
       const html = renderReportMethodPacketSection({ gates: input.boundedMethods.output }, section.sectionId, { evidenceAnchorId: 'bounded-method-evidence' });
       if (html !== undefined) locatedViews.set(section.sectionId, () => html);
@@ -621,7 +655,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = draftInsight ? 'automation-report-kit-v15'
+  const rendererVersion = draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
+    : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
     : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
@@ -747,5 +782,9 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   + `@media screen and (max-width:800px){.table-wrap:not(:has(>.evidence-table)){container-type:inline-size;background:linear-gradient(90deg,#fff 30%,#fff0) left/24px 100% no-repeat local,linear-gradient(270deg,#fff 30%,#fff0) right/24px 100% no-repeat local,radial-gradient(farthest-side at 0 50%,#0f172a33,#0000) left/10px 100% no-repeat scroll,radial-gradient(farthest-side at 100% 50%,#0f172a33,#0000) right/10px 100% no-repeat scroll}.table-wrap:not(:has(>.evidence-table))::before{content:"Nếu bảng vượt chiều rộng màn hình, vuốt ngang để xem đủ cột. Bàn phím: Tab để chọn bảng, rồi dùng phím mũi tên.";display:block;position:sticky;left:0;padding:0 0 6px;color:var(--mut);font-size:12px}.table-wrap:not(:has(>.evidence-table)) caption{position:sticky;left:0;max-width:100cqi;box-sizing:border-box}.table-wrap:focus-visible{outline-offset:-3px}}`
   + `.reader-summary,.section-reading,.reader-guide{max-width:72ch}.reader-context{margin-bottom:24px}.method-reference{margin-top:24px;color:var(--mut)}.method-reference summary{cursor:pointer}.reader-summary{font-weight:500}td,dd{font-variant-numeric:tabular-nums}`
   + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}.citation-register a::after{content:" (" attr(href) ")"}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div><p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div></div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${body}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng 0.</p></footer></main></body></html>`;
+  if (rendererVersion === 'automation-report-kit-v17') {
+    const failed = lintVisibleReportText(html).filter(check => !check.ok);
+    if (failed.length) throw new TypeError(`INSIGHT_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
+  }
   return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(html, 'utf8') };
 }

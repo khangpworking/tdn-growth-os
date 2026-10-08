@@ -71,7 +71,7 @@ export type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
 /**
  * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
  */
-export type DraftCountsVersion = 'draft-counts-v1';
+export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
 
 export interface InsightCodingAdoptRequest {
   contractVersion: 'insight-coding-adopt-v1';

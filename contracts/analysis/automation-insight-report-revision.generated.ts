@@ -5,6 +5,7 @@
  */
 export type AutomationInsightReportRevisionRequest =
   AutomationInsightAcceptedReportRevisionRequest | AutomationInsightDraftReportRevisionRequest;
+export type InsightDraftSelection = InsightDraftSelectionV1 | InsightDraftSelectionV2;
 
 export interface AutomationInsightAcceptedReportRevisionRequest {
   contractVersion: 'automation-insight-report-revision-v1';
@@ -38,7 +39,14 @@ export interface AutomationInsightDraftReportRevisionRequest {
 /**
  * Versioned receipt-free draft selection of one exact retained proposal. Zero receipts by construction; never an implicit latest, never approval.
  */
-export interface InsightDraftSelection {
+export interface InsightDraftSelectionV1 {
   contractVersion: 'insight-draft-select-v1';
+  proposalId: string;
+}
+/**
+ * Versioned receipt-free draft selection of one exact retained proposal. Zero receipts by construction; never an implicit latest, never approval.
+ */
+export interface InsightDraftSelectionV2 {
+  contractVersion: 'insight-draft-select-v2';
   proposalId: string;
 }
