@@ -11,19 +11,20 @@ export const DEFAULT_INSIGHT_POLICY = 'source-default-coding-v1';
 export const DEFAULT_INSIGHT_MULTICODE_LIMIT = 'Khi nguồn chưa khai báo cho phép nhiều mã, đề xuất mặc định chỉ nhận một mã khác nhau cho mỗi bản ghi trong từng tập I10/I13. Nếu model gắn nhiều mã, lô không hợp lệ; giữ nguyên lời nguồn và kết quả không hợp lệ đã lưu, không tự chọn bỏ mã. Đây là giới hạn của bản nháp, chưa phải quyết định về mã hóa nhiều mã hay kiểm chéo U11.';
 export const insightCodingDigest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
-/** Source membership is frozen before dispatch. Empty codebooks are proposals, never owner rules. */
+/** Source membership/scope is frozen before dispatch. Defaults fill only absent corpora. */
 export function sourceDefaultInsightRules(input: LocatedInsightMethods['input']): InsightCodingRules {
   validateLocatedInsightInput(input);
   const question = input.question ?? input.workingQuestionProposal ?? 'Nguồn đã lưu nêu những bối cảnh, hành động, nhận xét và trạng thái nào?';
   const recordIndexes = input.records.flatMap((record, index) => record.disposition === 'INCLUDED' ? [index] : []);
-  const corpora: InsightCodingRules['corpora'] = (['I10', 'I13'] as const).map(sectionId => {
-    const source = input.corpora.find(corpus => corpus.sectionId === sectionId);
-    return { sectionId, recordIndexes: [...recordIndexes], question, unit: 'source-native record',
-      period: source?.period ?? null, frame: source?.frame ?? null, channel: source?.channel ?? null,
-      inclusionRule: input.inclusionRule, membershipComplete: true, multiCode: source?.multiCode ?? false,
-      externalSampling: source?.externalSampling ?? 'UNKNOWN',
-      codebook: { revision: DEFAULT_INSIGHT_POLICY, codes: [] }, assignments: [], dispositions: [] };
-  });
+  const corpora: InsightCodingRules['corpora'] = structuredClone(input.corpora).map(corpus => ({ ...corpus,
+    assignments: [] as [], dispositions: [] as [] }));
+  for (const sectionId of ['I10', 'I13'] as const) {
+    if (corpora.some(corpus => corpus.sectionId === sectionId)) continue;
+    corpora.push({ sectionId, recordIndexes: [...recordIndexes], question, unit: 'source-native record',
+      period: null, frame: null, channel: null, inclusionRule: input.inclusionRule,
+      membershipComplete: true, multiCode: false, externalSampling: 'UNKNOWN',
+      codebook: { revision: DEFAULT_INSIGHT_POLICY, codes: [] }, assignments: [], dispositions: [] });
+  }
   return { ruleId: DEFAULT_INSIGHT_POLICY, revision: 1, question, inclusionRule: input.inclusionRule,
     adjudicationRule: input.adjudicationRule, corpora };
 }
