@@ -193,4 +193,9 @@ The 49-row unchanged baseline table is retained in its separate baseline receipt
 
 ## Delivery
 
-Implementation: `4ff2870998bee48b5096326d759497dbaee525ed`. Evidence commit follows; draft PR URL is recorded after creation.
+Implementation: `4ff2870998bee48b5096326d759497dbaee525ed`.
+Evidence: `f6fd705` (`ONTO-2: record final verdict matrix and escalated repository gate`).
+Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/181
+Verified draft=true, base=main, head=pkg/ONTO-2-open-ontologies.
+Only the assigned work branch was pushed. Final delivery-receipt commit records
+this URL; all tested shape/fixture/runner hashes remain identical. No merge/deploy.
