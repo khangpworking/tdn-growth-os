@@ -1,3 +1,4 @@
+import { personaRequestValid, personaResponseValid, personaViewValid, personaEvidenceValid } from '../modules/analysis/research-automation/insight-persona-contracts.js';
 import { createKeywordCliproxyTransport, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
@@ -314,6 +315,9 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const crosscheckRead = /^insight-crosscheck-preparations\/([0-9a-f-]{36})$/.exec(action ?? '');
     const crosscheckAvailability = /^insight-crosscheck-availability\/([0-9a-f]{64})$/.exec(action ?? '');
     const insightRead = /^insight-coding\/([0-9a-f]{64})$/.exec(action ?? '');
+    const personaWrite = action === 'insight-persona-model-proposals';
+    const personaList = /^insight-personas\/([0-9a-f]{64})$/.exec(action ?? '');
+    const personaRead = /^insight-persona-evidence\/([0-9a-f-]{36})$/.exec(action ?? '');
     const insightWrite = action !== undefined && Object.hasOwn(insightWrites, action) ? insightWrites[action as keyof typeof insightWrites] : undefined;
     const insightDefaultModelWrite = action === 'insight-coding-default-model-proposals';
     const insightModelWrite = action === 'insight-coding-model-proposals' || insightDefaultModelWrite;
@@ -324,8 +328,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
-      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
+      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -367,6 +371,12 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (crosscheckRead) {
           const result = await readService.readInsightCrosscheck(workspaceId!, runId, crosscheckRead[1]!);
           if (!crosscheckResponseValid(result)) throw new Error('Crosscheck retained read failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (personaList || personaRead) {
+          const result = personaList ? await readService.listPersonaEvidence(workspaceId!, runId, personaList[1]!)
+            : await readService.readPersonaEvidence(workspaceId!, runId, personaRead![1]!);
+          if (personaList ? !personaViewValid(result) : !personaEvidenceValid((result as { evidence: unknown }).evidence)) throw new Error('Persona read failed validation');
           return sendApiJson(response, 200, result);
         }
         if (insightRead) {
@@ -578,6 +588,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       try { body = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, insightWrite ? MAX_INSIGHT_CODING_BYTES : action === 'reader-reports' ? MAX_READER_BUILD_BYTES : 16 * 1024))); }
       catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Request body must be valid UTF-8 JSON'); }
       const validate = !runId ? validates.start : action === 'confirm-scope' ? validates.confirm
+        : personaWrite ? personaRequestValid
         : crosscheckWrite ? crosscheckRequestValid
         : insightModelWrite ? insightDefaultModelWrite ? validates.insightDefaultModelRequest : validates.insightModelRequest
         : insightWrite ? insightWrite.validate
@@ -586,6 +597,20 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
         : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
+      if (personaWrite) {
+        if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
+        const controller = new AbortController();
+        const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+        response.once('close', disconnected); if (response.destroyed) controller.abort();
+        const pending = writeService!.proposePersonaModel(workspaceId!, runId!, body,
+          { actorId: configuration.owner!.actorId, role: 'OWNER' }, insightCodingAi, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!personaResponseValid(result)) throw new Error('Persona response failed validation');
+          return sendApiJson(response, result.status === 'PROPOSED' ? 201 : 200, result);
+        } finally { modelRequests.delete(controller); response.removeListener('close', disconnected); }
+      }
       if (crosscheckWrite) {
         if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
         const controller = new AbortController();
@@ -698,6 +723,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (error.code === 'INVALID_SYNTHESIS_CONFIGURATION') return fail(response, 503, 'service_unavailable', 'Research model is unavailable');
         return fail(response, 409, 'revision_conflict', 'Research state changed or an execution is pending; refresh before submitting');
       }
+      if (personaWrite && error instanceof TypeError && /^INVALID_INSIGHT_PERSONA_/.test(error.message))
+        return fail(response, 400, 'bad_request', 'Persona source or model stage failed validation');
       if (error instanceof TypeError && ['INSIGHT_MODEL_RECORD_NOT_ELIGIBLE', 'INSIGHT_MODEL_INPUT_TOO_LARGE'].includes(error.message))
         return fail(response, 400, 'bad_request', 'Research model batch failed validation');
       if (error instanceof ResearchAutomationNotFoundError) return fail(response, 404, error.code, 'Research record or output was not found');

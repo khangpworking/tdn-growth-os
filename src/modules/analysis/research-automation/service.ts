@@ -1,4 +1,9 @@
+import type { InsightModelAI } from './insight-model-execution.js';
 import { registerPrivateReviewSchemas, privateShopeeMarker, privateReviewReportView } from './private-review-contracts.js';
+import { readPrivatePersonaEvidence } from './insight-persona-evidence.js';
+import { personaDigest, checkPersonaBinding } from './insight-persona-contracts.js';
+import type { PersonaSourceContext } from './insight-persona-projection.js';
+import { ShopeeCollectionService } from '../../foundation/shopee-collection-service.js';
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from './private-review-corpus.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import { buildResearchAutomationReport } from './reports.js';
@@ -96,7 +101,7 @@ import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } f
 import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot, type NativeSourceReviewReference } from './native-source-review-bridge.js';
 import { buildAutomationSourceClaims, validateAutomationSourceClaimsReference, MAX_SOURCE_CLAIMS_BYTES } from './source-claims.js';
 import type { AutomationSourceClaims } from '../../../../contracts/analysis/automation-source-claims.generated.js';
-import { AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory, type PrivateShopeeConfiguration } from './exact-shopee-bridge.js';
+import { exactShopeeRequest, AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory, type PrivateShopeeConfiguration } from './exact-shopee-bridge.js';
 import { EXACT_SHOPEE_OUTCOMES, MAX_PROVIDER_MESSAGE_LENGTH, type ExactShopeeOutcome } from './exact-shopee-outcome.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
@@ -423,6 +428,12 @@ export class ResearchAutomationService {
     this.#insightCoding = new AutomationInsightCoding({ db: this.#db, artifacts: this.#artifacts, now: this.#now,
       ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}),
       context: (workspaceId, runId, pairId) => this.readInsightSourceContext(workspaceId, runId, pairId),
+      personaSource: (workspaceId, runId, pairId) => this.#personaSourceContext(workspaceId, runId, pairId),
+      assertPersonaCurrent: async binding => {
+        const run = await this.getRun(binding.workspaceId, binding.runId);
+        if (run.status !== 'DRAFT_READY' || (await this.listReportVersions(binding.workspaceId, binding.runId)).at(-1)?.pairId !== binding.pairId)
+          throw new ResearchAutomationConflictError('revision_conflict', 'The source report changed before persona proposal publication.');
+      },
       assertCurrent: async binding => {
         if ((await this.listReportVersions(binding.workspaceId, binding.runId)).at(-1)?.pairId !== binding.pairId)
           throw new ResearchAutomationConflictError('revision_conflict', 'The Insight report changed before coding confirmation.');
@@ -1403,6 +1414,41 @@ export class ResearchAutomationService {
       // These two replay-verified adapters bind exact Shopee listings. No platform is inferred from text,
       // source attribution or a missing field; another adapter must supply its own authenticated proof.
       ...(verifiedNative?.nativeSource.selected || located?.proposal ? { verifiedPlatform: 'SHOPEE' as const } : {}) };
+  }
+
+  /** Exact safe source selection; internal author proof never leaves the owning closure. */
+  async #personaSourceContext(workspaceId: string, runId: string, pairId: string): Promise<PersonaSourceContext> {
+    if (!/^[0-9a-f]{64}$/.test(pairId)) throw new ResearchAutomationValidationError('Invalid exact persona pair.');
+    const { report } = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId);
+    const run = this.#current(runId)!;
+    const start = await this.#readStartSnapshot(run.startSha, workspaceId);
+    if (!start.privateShopeeSource || !run.scopeSha || !run.scopeConfirmedAt) throw new ResearchAutomationConflictError('invalid_state', 'This exact report has no supported private persona source.');
+    const semantic = await this.#readJson<Record<string, unknown>>(report.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const view = privateReviewReportView(semantic.privateReviewCorpus);
+    const scope = await this.#readScopeSnapshot(run.scopeSha, workspaceId, runId);
+    const corpus = await this.#readJson<unknown>(view.corpus.artifactSha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const evidence = await readPrivatePersonaEvidence({ reader: new ShopeeCollectionService(this.#db, this.#artifacts), retainedCorpus: corpus,
+      retainedView: view, corpusSha256: view.corpus.artifactSha256, binding: await this.#privateCorpusBinding(run),
+      request: exactShopeeRequest({ runId, start, scope, scopeConfirmedAt: run.scopeConfirmedAt }), marker: start.privateShopeeSource });
+    const safe = evidence.publicSource();
+    const binding = { ...safe.binding, pairId, semanticSha256: report.versionId, corpusSha256: safe.corpus.artifactSha256,
+      collectionId: safe.corpus.collectionId, collectionSha256: safe.corpus.collectionSha256, sourceRequestSha256: safe.corpus.requestSha256,
+      viewSha256: safe.viewSha256, sourceSha256: personaDigest(safe) };
+    checkPersonaBinding(binding, safe);
+    return { binding, evidence };
+  }
+  async readPersonaSourceContext(workspaceId: string, runId: string, pairId: string) {
+    const context = await this.#personaSourceContext(workspaceId, runId, pairId);
+    return { binding: context.binding, source: context.evidence.publicSource() };
+  }
+  proposePersonaModel(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }, ai: InsightModelAI, signal?: AbortSignal) {
+    return this.#insightCoding.proposePersonaModel(workspaceId, runId, value, owner, ai, signal);
+  }
+  readPersonaEvidence(workspaceId: string, runId: string, evidenceId: string) {
+    return this.#insightCoding.readPersonaEvidence(evidenceId, workspaceId, runId);
+  }
+  listPersonaEvidence(workspaceId: string, runId: string, pairId: string) {
+    return this.#insightCoding.personaView(workspaceId, runId, pairId);
   }
 
   adoptInsightCodingRules(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
