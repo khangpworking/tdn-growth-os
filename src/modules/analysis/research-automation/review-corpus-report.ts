@@ -1,3 +1,4 @@
+import { lintVisibleReportText } from '../report-visible-text-lint.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
 import { escapeHtml as escape, readerPointer, retainedQuoteHtml, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
@@ -24,7 +25,7 @@ export function reviewCorpusSection(corpus: ResearchReviewCorpus, id: 'I03' | 'I
 }
 
 /** New literal method view only. Historical reviewCorpusSection bytes are frozen. */
-export function insightLiteralSection(output: import('../insight-literal-evidence.js').InsightLiteralEvidence,
+function renderInsightLiteralSection(output: import('../insight-literal-evidence.js').InsightLiteralEvidence,
   id: 'I05' | 'I07' | 'I08' | 'I13' | 'I17', citations: ReportCitations): string {
   const review = (pointer: string) => {
     const index = /^\/input\/reviews\/(0|[1-9]\d*)$/.exec(pointer)?.[1];
@@ -67,4 +68,14 @@ export function insightLiteralSection(output: import('../insight-literal-evidenc
       technical: { responseSha256: statement.responseSha256, productId: statement.productId } });
     return `<li><p>${statement.sourceType === 'LISTING_TITLE' ? 'Tiêu đề người bán' : 'Mô tả người bán'} ${mark}</p>${retainedQuoteHtml(statement.text, 'blockquote')}</li>`;
   }).join('')}</ul>`;
+}
+
+/** Check only new literal prose here; historical accepted views keep their
+ * original semantics. The report dispatcher separately gates eligible drafts. */
+export function insightLiteralSection(output: import('../insight-literal-evidence.js').InsightLiteralEvidence,
+  id: 'I05' | 'I07' | 'I08' | 'I13' | 'I17', citations: ReportCitations): string {
+  const html = renderInsightLiteralSection(output, id, citations);
+  const failed = lintVisibleReportText(html).filter(check => !check.ok);
+  if (failed.length) throw new TypeError(`INSIGHT_LITERAL_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
+  return html;
 }

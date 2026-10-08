@@ -84,6 +84,8 @@ test('literal views render verified method counts and verbatim quotes with share
     }
     if (id === 'I08') assert.match(html, /không đưa vào rào cản của khách/);
   }
+  const generatedSuperlative = structuredClone(output); Object.assign(generatedSuperlative.duplicateTexts[0]!, { label: 'tốt nhất' });
+  assert.throws(() => insightLiteralSection(generatedSuperlative, 'I17', citations), /INSIGHT_LITERAL_VISIBLE_TEXT_LINT_FAILED/);
   assert.ok(refs.some(ref => ref.identity === source.sha256 && ref.locator === '/0/rating_star'));
   assert.ok(refs.some(ref => ref.identity === source.sha256 && ref.locator === '/1/comment'));
   assert.ok(refs.some(ref => ref.locator === '/data/product_description/0/text'));
