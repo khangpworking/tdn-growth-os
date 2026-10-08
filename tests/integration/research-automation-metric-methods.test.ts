@@ -93,6 +93,18 @@ test('source-bound confirmation admits the prepared Metric bytes before collecti
       endDate: input.start.requestedPeriod.endDate }, reports: ['MARKET'] });
   await service.processNext();
   const awaiting = await service.getRun(workspaceId, runId);
+  // New starts freeze the peer policy before discovery. A prepared source must
+  // bind that exact retained start, not the marker-free historical fixture.
+  const stale = await f.attach(input, { preparedKey: 'prepared-metric:marker-free' });
+  const beforeStale = f.changes();
+  await assert.rejects(service.confirmScope(workspaceId, runId, {
+    contractVersion: 'research-automation-confirm-v2', requestKey: '45454545-4545-4545-8545-454545454545',
+    expectedRevision: awaiting.revision, definition: input.scope.definition, includeTerms: [], excludeTerms: [],
+    selectedProductIds: [], peerProductIds: [], sources: { metric: { decision: 'USE_PREPARED', packageId: stale.packageId }, nativeReview: 'SKIP' },
+  }), (error: unknown) => metricMethodFailureCode(error) === 'METRIC_SOURCE_RUN_MISMATCH');
+  assert.equal(f.changes(), beforeStale, 'A mismatched prepared source cannot persist confirmation or admission.');
+  const startRow = f.db.prepare('SELECT start_request_sha256 sha FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { sha: string };
+  input.start = JSON.parse((await f.artifactStore.read(startRow.sha)).toString()) as MetricRunInput['start'];
   const source = await f.attach(input, { preparedKey: 'prepared-metric:first' });
   const request = { contractVersion: 'research-automation-confirm-v2', requestKey: '44444444-4444-4444-8444-444444444444',
     expectedRevision: awaiting.revision, definition: input.scope.definition, includeTerms: [], excludeTerms: [],

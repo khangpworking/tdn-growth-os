@@ -6,6 +6,7 @@ import manifestSchema from '../../../contracts/analysis/metric-source-manifest.s
 import labelsSchema from '../../../contracts/analysis/metric-source-labels.schema.json' with { type: 'json' };
 import inputSchema from '../../../contracts/analysis/metric-scope-input.schema.json' with { type: 'json' };
 import descriptiveMethodsSchema from '../../../contracts/analysis/descriptive-market-methods.schema.json' with { type: 'json' };
+import defaultPeerSchema from '../../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
 import descriptiveProvenanceSchema from '../../../contracts/analysis/m13-provenance-appendix.schema.json' with { type: 'json' };
 import locatedMethodsSchema from '../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import methodPacketsSchema from '../../../contracts/analysis/report-method-packets-input.schema.json' with { type: 'json' };
@@ -37,6 +38,7 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
+ajv.addSchema(defaultPeerSchema);
 ajv.addSchema(inputSchema);
 ajv.addSchema(apiSchema);
 ajv.addSchema([

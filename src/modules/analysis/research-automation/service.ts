@@ -58,6 +58,7 @@ import type { ResearchAutomationSourceConfirmRequest } from '../../../../contrac
 import type Database from 'better-sqlite3';
 import type { DescriptiveMarketMethods } from '../../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { AutomationDescriptiveMethodBridge } from './descriptive-method-bridge.js';
+import { DEFAULT_MARKET_PEER_RULE, classifiedMetricDefaultPeers, verifyDefaultMarketPeerRule } from '../default-market-peers.js';
 import { AutomationMarketMethodBridge, type AutomationMarketMethodSnapshot } from './market-method-bridge.js';
 import { AutomationMetricMethodBridge, metricMethodFailureCode, type AutomationMetricMethodSnapshot, type MetricMethodFailureCode } from './metric-method-bridge.js';
 import { PageIndexCloudClient } from '../pageindex-cloud.js';
@@ -408,6 +409,7 @@ export class ResearchAutomationService {
         keyword: input.keyword, description: input.description ?? null, interview: input.interview ?? null,
         requestedPeriod: { startDate: input.requestedPeriod.startDate, endDate: input.requestedPeriod.endDate, dayCount: inclusiveDays(input.requestedPeriod) },
         reports: [...input.reports],
+        defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE },
       };
       const stored = await this.#putJson(start, createdAt);
       const run = this.#db.transaction(() => {
@@ -1386,6 +1388,18 @@ export class ResearchAutomationService {
     } else if (semantic.metricClassified !== undefined && semantic.metricClassified !== null) {
       throw new ResearchAutomationIntegrityError('Classified Metric snapshot lacks an explicit revision request.');
     }
+    const peerStart = await this.#readStartSnapshot(frozenRun.startSha, workspaceId);
+    if (kind === 'MARKET' && peerStart.defaultPeerRule !== undefined) {
+      if (!frozenRun.scopeSha) throw new ResearchAutomationIntegrityError('Stored peers lack their frozen scope.');
+      const peerScope = await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId);
+      const expectedPeers = classifiedMetricDefaultPeers(
+        (semantic.metricClassified as AutomationClassifiedMetricSnapshot | undefined)?.result.input,
+        peerStart.defaultPeerRule, [...peerScope.peerProductIds]);
+      if (semantic.defaultMarketPeers === undefined || canonicalJson(semantic.defaultMarketPeers) !== canonicalJson(expectedPeers))
+        throw new ResearchAutomationIntegrityError('Stored default peers differ from the frozen rule and classified sales.');
+    } else if (semantic.defaultMarketPeers !== undefined) {
+      throw new ResearchAutomationIntegrityError('Stored default peers lack a frozen Market rule.');
+    }
     const insightRequest = attempt ? await this.#insightCodingRequest(frozenRun, attempt) : undefined;
     if (kind === 'INSIGHT' && insightRequest) {
       const snapshot = await this.#insightCoding.verifyReportSnapshot(semantic.insightCoding, workspaceId, runId, insightRequest.previousPairId, insightRequest.acceptedInsight);
@@ -1955,6 +1969,9 @@ export class ResearchAutomationService {
         input = { ...input, decisionPackets, decisionSynthesis, decisionSourceClaims: decisionClaims.artifact,
           sourceClaims: builtClaims.artifact, ...(builtM01 ? { m01Inventory: builtM01.artifact } : {}),
           ...(builtI14 ? { i14Admission: builtI14.artifact } : {}), ...(i14Synthesis ? { i14Synthesis } : {}) };
+        // Compute before calling any optional renderer; its semantic peer payload has no authority.
+        const defaultMarketPeers = kind === 'MARKET' && start.defaultPeerRule !== undefined
+          ? classifiedMetricDefaultPeers(metricClassified?.result.input, start.defaultPeerRule, [...scope.peerProductIds]) : undefined;
         const render = async () => {
           const rendered = this.#renderer ? await this.#renderer(input, kind, controller.signal) : defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
@@ -1962,11 +1979,12 @@ export class ResearchAutomationService {
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = rendered.semantic as Record<string, unknown>;
           const reportSemantic = { ...presentation, decisionPackets, decisionPairedInsightVersionId,
+            ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
             ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
             sourceClaimsArtifact: { contractVersion: 'automation-source-claims-reference-v1', sha256: claimsArtifact.sha256, byteSize: builtClaims.bytes.length },
             ...(boundedMethods ? { boundedMethods } : {}),
@@ -2660,6 +2678,10 @@ function assertStartSnapshot(value: unknown, workspaceId: string): asserts value
       !Array.isArray(value.reports) || (value.reports.length !== 1 && value.reports.length !== 2) ||
       value.reports.some((item) => item !== 'MARKET' && item !== 'INSIGHT') || new Set(value.reports).size !== value.reports.length ||
       (value.reports.length === 2 && (value.reports[0] !== 'MARKET' || value.reports[1] !== 'INSIGHT'))) throw new ResearchAutomationIntegrityError('Stored start snapshot has inconsistent identity.');
+  if (value.defaultPeerRule !== undefined) {
+    try { verifyDefaultMarketPeerRule(value.defaultPeerRule); }
+    catch { throw new ResearchAutomationIntegrityError('Stored default peer rule is invalid.'); }
+  }
 }
 
 function assertScopeSnapshot(value: unknown, workspaceId: string, runId: string): asserts value is ScopeSnapshot {

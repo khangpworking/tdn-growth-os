@@ -22,6 +22,7 @@ export type Blockers = (
   | 'VALUE_UNKNOWN'
   | 'NON_EXACT_VALUE'
   | 'M07_PEER_SET_UNAPPROVED'
+  | 'M07_FROZEN_SALES_GROUP_MEMBERSHIP_REQUIRED'
   | 'M07_IDENTITY_UNRESOLVED'
   | 'M07_PERIOD_INCOMPATIBLE'
   | 'M07_UNIVERSE_OR_MEASURE_INCOMPATIBLE'
@@ -33,7 +34,7 @@ export type Blockers = (
 export interface DescriptiveMarketMethods {
   contractVersion: '1.0.0';
   methodId: 'source-bound-descriptive-market';
-  methodVersion: '1.0.0' | '1.1.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
   methodOutputId: Digest;
   input: DescriptiveMarketInput;
   sections: {
@@ -70,6 +71,7 @@ export interface DescriptiveMarketMethods {
 }
 export interface DescriptiveMarketInput {
   contractVersion: '1.0.0';
+  defaultPeerRule?: Rule;
   sourcePackage: {
     packageId: string;
     version: number;
@@ -121,6 +123,13 @@ export interface DescriptiveMarketInput {
    * @maxItems 10000
    */
   m09: AttributedMarketEvent[];
+}
+export interface Rule {
+  version: 'e11-sales-peers-v1';
+  thresholdPercent: 50;
+  boundary: 'MINIMAL_PREFIX_REVENUE_DESC_IDENTITY_ASC';
+  identity: 'EXACT_TITLE_LABEL_OR_SOURCE_SHOP_PER_PLATFORM';
+  denominator: 'COMPLETE_COMPATIBLE_GROUP_SAMPLE';
 }
 export interface EvidenceRef {
   sourceSha256: string;
