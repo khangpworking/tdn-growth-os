@@ -21,13 +21,14 @@ import { readMetricSalesNameEvidence } from '../../src/modules/analysis/research
 import type { AutomationConfirmedSourceSet } from '../../contracts/analysis/automation-confirmed-source-set.generated.js';
 import type { MetricRunInput } from '../../src/modules/analysis/research-automation/metric-method-bridge.js';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
+import { draftKeywordLists } from '../../src/modules/analysis/keyword-list-drafting.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
 const runId = '22222222-2222-4222-8222-222222222222';
 const now = () => new Date('2026-10-09T00:00:00.000Z');
 const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 const title = '  Thạch dừa  nguyên văn – An Nhiên 350g  ';
-async function fixture(t: TestContext, cells: Record<string, unknown> = {}) {
+async function fixture(t: TestContext, cells: Record<string, unknown> = {}, profile = 'v2') {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-sales-names-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -43,7 +44,7 @@ async function fixture(t: TestContext, cells: Record<string, unknown> = {}) {
   const scope = { definition: 'Synthetic retained Metric names', includeTerms: ['thạch dừa'], excludeTerms: ['thạch dứa'],
     selectedProductIds: [], peerProductIds: [] };
   const raw = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], {
-    input: JSON.stringify({ profile: 'v2', cells: { A2: { type: 's', value: title }, A3: { type: 's', value: 'Thạch dứa riêng biệt' }, ...cells } }), maxBuffer: 4 * 1024 * 1024 });
+    input: JSON.stringify({ profile, cells: { A2: { type: 's', value: title }, ...(profile === 'v2' ? { A3: { type: 's', value: 'Thạch dứa riêng biệt' } } : {}), ...cells } }), maxBuffer: 4 * 1024 * 1024 });
   assert.equal(raw.status, 0, raw.stderr.toString());
   const prepared = await service.prepareMetricSource(workspaceId, runId, { contractVersion: 'automation-metric-prepare-v1',
     requestKey: randomUUID(), expectedRevision: (await service.getRun(workspaceId, runId)).revision, scope,
@@ -114,6 +115,27 @@ test('legitimate equal title strings retain both original cells and identities',
   const result = await readMetricSalesNameEvidence(f.options, f.input, f.sources, f.sourceSetDigest);
   assert.ok(result);
   assert.deepEqual(result.names, [{ name: title, row: 2, locator: 'Sheet1!A2' }, { name: title, row: 3, locator: 'Sheet1!A3' }]);
+});
+
+test('combined current-header workbook uses only the existing normalizer selected-platform rows', async t => {
+  const f = await fixture(t, {}, 'v3');
+  const evidence = await readMetricSalesNameEvidence(f.options, f.input, f.sources, f.sourceSetDigest);
+  assert.ok(evidence);
+  assert.deepEqual(evidence.names, [{ name: title, row: 2, locator: 'Sheet1!A2' }, { name: 'Synthetic B', row: 4, locator: 'Sheet1!A4' }]);
+});
+
+test('exact long title cells remain untruncated and the existing keyword seed budget rejects before a model call', async t => {
+  const longTitle = 'Thạch dừa '.repeat(51);
+  const f = await fixture(t, { A2: { type: 's', value: longTitle } });
+  const evidence = await readMetricSalesNameEvidence(f.options, f.input, f.sources, f.sourceSetDigest);
+  assert.ok(evidence);
+  assert.equal(evidence.names[0]!.name, longTitle);
+  let calls = 0;
+  await assert.rejects(draftKeywordLists({ draftLists: async () => { calls++; return { keywords: ['thạch dừa'], exclusions: [] }; } }, {
+    contractVersion: 'l9-keyword-list-draft-v1', category: 'thạch dừa', dataVersion: 'synthetic-long-title',
+    seeds: { productNames: evidence.names.map(row => row.name) as [string, ...string[]], includeTerms: ['thạch dừa'], excludeTerms: [] },
+  }), /canonical schema/);
+  assert.equal(calls, 0);
 });
 
 test('absent/skipped Metric and mismatched source-set digest perform no package discovery or inspection', async t => {

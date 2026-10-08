@@ -4,7 +4,7 @@ import type { AutomationMetricSourceV2 } from '../../../../contracts/analysis/au
 import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import type { FinalizedSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
-import { METRIC_CURRENT_HEADERS, readMetricSheetRows } from '../metric-source-profile.js';
+import { METRIC_CURRENT_HEADERS, normalizeMetricWorkbookInput, readMetricSheetRows } from '../metric-source-profile.js';
 import type { AutomationMetricMethodBridge, MetricRunInput } from './metric-method-bridge.js';
 import { ResearchAutomationIntegrityError } from './model.js';
 
@@ -42,16 +42,22 @@ export async function readMetricSalesNameEvidence(options: {
   if (descriptor.contractVersion !== 'automation-metric-source-v2') fail();
   const workbook = retained.files.find(file => file.path === descriptor.workbookPath);
   if (!workbook || hash(workbook.bytes) !== workbook.sha256 || workbook.bytes.length !== workbook.byteSize) fail();
+  const manifest = retained.files.find(file => file.path === descriptor.manifestPath);
+  if (!manifest) fail();
+  // The existing normalizer owns platform membership, including interleaved
+  // combined exports. Never infer it from a filename or reproduce its ID rules.
+  const selectedRows = new Set(normalizeMetricWorkbookInput(workbook.bytes, manifest.bytes).receipt.evidence.map(row => row.row));
   const rows = readMetricSheetRows(workbook.bytes);
   const header = rows[0];
   if (!header || header.row !== 1 || header.cells.some(cell => cell.type !== 'text') ||
       canonicalJson(header.cells.map(cell => cell.value)) !== canonicalJson(METRIC_CURRENT_HEADERS)) fail();
   const titleColumn = METRIC_CURRENT_HEADERS.indexOf('Tên sản phẩm');
   if (titleColumn !== 0 || rows.length < 2 || rows.some((row, index) => row.row !== index + 1)) fail();
-  const names = rows.slice(1).map(row => {
+  const names = rows.slice(1).filter(row => selectedRows.has(row.row)).map(row => {
     const cell = row.cells[titleColumn];
     if (!cell || cell.type !== 'text' || typeof cell.value !== 'string' || !cell.value.trim()) fail();
     return { name: cell.value, row: row.row, locator: `Sheet1!A${row.row}` };
   });
+  if (names.length !== selectedRows.size) fail();
   return { sourcePackage: selected, workbook: { logicalPath: workbook.path, sha256: workbook.sha256, byteSize: workbook.byteSize }, names };
 }
