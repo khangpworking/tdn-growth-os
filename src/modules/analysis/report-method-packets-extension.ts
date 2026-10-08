@@ -106,6 +106,28 @@ export function buildVerifiedMethodPacketSources(logicalPath: string, retained: 
         if (resolve(object[key] as {logicalPath: string; sha256: string; locator: string}) === null) fail('METHOD_PACKET_EMPTY_EVIDENCE_REFERENCE');
       }
     }
+    // U-04: each counted member must be one exact retained, eligible text record — resolving to a number, a container
+    // object or an excluded/unreadable record is not text-record membership, so rates must not be built from it.
+    for (const key of ['memberSources', 'numeratorMemberSources']) {
+      const list = object[key];
+      if (list === undefined) continue;
+      if (!Array.isArray(list)) fail('METHOD_PACKET_INVALID_MEMBER_SOURCES');
+      const seen = new Set<string>();
+      for (const entry of list) {
+        if (entry === null || typeof entry !== 'object' || !('logicalPath' in entry) || !('sha256' in entry) || !('locator' in entry) ||
+            typeof entry.logicalPath !== 'string' || typeof entry.sha256 !== 'string' || typeof entry.locator !== 'string') {
+          fail('METHOD_PACKET_INVALID_MEMBER_SOURCES');
+        }
+        const ref = { logicalPath: entry.logicalPath, sha256: entry.sha256, locator: entry.locator };
+        if (seen.has(canonicalJson(ref))) fail('METHOD_PACKET_DUPLICATE_MEMBER_REFERENCE');
+        seen.add(canonicalJson(ref));
+        const record = resolve(ref);
+        if (record === null || typeof record !== 'object' || Array.isArray(record) ||
+            (record as Record<string, unknown>).disposition !== 'INCLUDED' ||
+            typeof (record as Record<string, unknown>).text !== 'string' || !((record as Record<string, unknown>).text as string).trim())
+          fail('METHOD_PACKET_MEMBER_NOT_AN_INCLUDED_TEXT_RECORD');
+      }
+    }
     for (const [key, child] of Object.entries(object)) if (!['source', 'protocolRef', 'identityEvidence'].includes(key)) verifyTree(child);
   }
   if (input.gates !== null) verifyTree(input.gates);

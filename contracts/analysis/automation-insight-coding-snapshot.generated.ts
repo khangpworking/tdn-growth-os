@@ -53,7 +53,7 @@ export interface InsightReportSelection {
 export interface LocatedInsightMethods {
   contractVersion: '1.0.0';
   methodId: 'located-insight-methods';
-  methodVersion: '1.0.0';
+  methodVersion: '1.0.0' | '1.1.0';
   methodOutputId: string;
   input: Input;
   sections: {
@@ -63,6 +63,15 @@ export interface LocatedInsightMethods {
       unresolvedFields: Strings;
       reviewState: 'DECLARED_NOT_AUTHENTICATED';
       blockers: Strings;
+      workingQuestion?: {
+        state: 'AI_PROPOSED_AWAITING_OWNER' | 'OWNER_SUPPLIED';
+        label: string | null;
+        text: string | null;
+        /**
+         * @maxItems 10000
+         */
+        ownerFieldsToAdd: string[];
+      };
     };
     I02: Section;
     I04: Section;
@@ -182,6 +191,8 @@ export interface Input {
     span: Span;
     provenance: Provenance;
   }[];
+  semanticsVersion?: '1.0.0' | '1.1.0';
+  workingQuestionProposal?: string | null;
 }
 export interface Record {
   sourceSha256: string;

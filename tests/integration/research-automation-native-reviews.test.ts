@@ -108,6 +108,10 @@ test('adopted context reaches four synthesis sections, retains exact report depe
           evidenceGaps: ['Thiếu ý kiến người nhận.'], limitations: ['Không đại diện toàn thị trường.'],
           ...(sectionId === 'M12' ? { prerequisites: ['Chỉ thực hiện sau khi người dùng duyệt.'] } : {}),
           ...(sectionId === 'I15' ? { conditions: ['Chỉ xét khi mục tiêu người dùng phù hợp.'] } : {}),
+          // U-07: a 1.2.0 candidate must carry the labelled proposal fields, so a synthetic response that is
+          // meant to be accepted has to supply them.
+          immediateTask: 'Người dùng xem lại đề xuất synthetic trước khi quyết định.',
+          proposedOwner: 'Người dùng xác nhận', proposedDeadline: 'Trong hai tuần',
         }] }) };
       } },
     };

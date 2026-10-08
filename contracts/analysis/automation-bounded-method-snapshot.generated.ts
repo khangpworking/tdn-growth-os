@@ -33,7 +33,7 @@ export interface BoundedMethodPackageSelection {
 export interface BoundedAnalysisGates {
   contractVersion: '1.0.0';
   methodId: 'bounded-analysis-gates';
-  methodVersion: '1.0.0';
+  methodVersion: '1.0.0' | '1.1.0';
   methodOutputId: string;
   input: Input;
   sections: {
@@ -126,6 +126,26 @@ export interface Input {
       scope: Scope;
       numerator: Value;
       denominator: Value;
+      groupBasis?: {
+        platform: {
+          state: 'SOURCE_STATED' | 'NOT_STATED';
+          value: string | null;
+          source: Source | null;
+        };
+        buyerType: {
+          state: 'SOURCE_STATED' | 'NOT_STATED';
+          value: string | null;
+          source: Source | null;
+        };
+      };
+      /**
+       * @maxItems 10000
+       */
+      memberSources?: Source[];
+      /**
+       * @maxItems 10000
+       */
+      numeratorMemberSources?: Source[];
     }[];
   } | null;
   i12: {
@@ -181,6 +201,7 @@ export interface Input {
       denominator: Value;
     }[];
   } | null;
+  semanticsVersion?: '1.0.0' | '1.1.0';
 }
 export interface Source {
   logicalPath: string;
@@ -269,7 +290,19 @@ export interface I11Output {
      */
     blockers: string[];
   }[];
-  rates: null;
+  rates: {
+    recordsPerGroupMinimum: 30;
+    /**
+     * @maxItems 10000
+     */
+    groups: {
+      partition: number;
+      group: string;
+      numerator: number;
+      denominator: number;
+      rate: number;
+    }[];
+  } | null;
   differences: null;
   publicationStatus: 'NOT_AUTHORIZED';
   /**

@@ -93,6 +93,26 @@ export interface Input {
       scope: Scope;
       numerator: Value;
       denominator: Value;
+      groupBasis?: {
+        platform: {
+          state: 'SOURCE_STATED' | 'NOT_STATED';
+          value: string | null;
+          source: Source | null;
+        };
+        buyerType: {
+          state: 'SOURCE_STATED' | 'NOT_STATED';
+          value: string | null;
+          source: Source | null;
+        };
+      };
+      /**
+       * @maxItems 10000
+       */
+      memberSources?: Source[];
+      /**
+       * @maxItems 10000
+       */
+      numeratorMemberSources?: Source[];
     }[];
   } | null;
   i12: {
@@ -148,6 +168,7 @@ export interface Input {
       denominator: Value;
     }[];
   } | null;
+  semanticsVersion?: '1.0.0' | '1.1.0';
 }
 export interface Source {
   logicalPath: string;

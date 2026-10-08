@@ -8,7 +8,7 @@ export type AutomationDecisionSynthesisInput = {
 } & {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-synthesis-input';
-  methodVersion: '1.0.0' | '1.1.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
   sectionId: 'M11' | 'I15' | 'M12';
   runId: Uuid;
   workspaceId: Uuid;
@@ -32,7 +32,7 @@ export type AutomationDecisionSynthesisInput = {
    */
   packet: {
     methodId: 'automation-decision-packet';
-    methodVersion: '1.0.0' | '1.1.0';
+    methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
     packetSha256: Digest;
     status: 'UNRANKED_EVIDENCE_INVENTORY';
     candidateEligibility: {
@@ -168,6 +168,15 @@ export type AutomationDecisionSynthesisInput = {
    * @maxItems 30
    */
   limitations: Text[];
+  workingQuestion?: {
+    state: 'AI_PROPOSED_AWAITING_OWNER';
+    label: Text;
+    text: Text | null;
+    /**
+     * @maxItems 10000
+     */
+    ownerFieldsToAdd: Text[];
+  } | null;
 };
 export type Uuid = string;
 export type Digest = string;
