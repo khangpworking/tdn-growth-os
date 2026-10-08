@@ -104,7 +104,9 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 - M11: định nghĩa giao 3 tín hiệu.
 - E2, E3 cho luồng tự động; điều chỉnh mục "Cấm" của M01, M12.
 
-### Từ Ultimate v1.1 đến v1.4 (07/10)
+### Từ Ultimate v1.1 đến v1.5 (07–08/10)
+
+- v1.5: E12 thống kê chính thức của Cục Thống kê cho mọi ngành hàng; gói P10 nhập file Excel của Cục Thống kê; P8-10 hiển thị.
 
 - v1.4: E5 và mục 6.3 tính ngưỡng theo nhiều cách song song (số cố định, độ bão hoà hoặc hiệu chỉnh theo dữ liệu, 80/20) và ghi đạt theo cách nào; L8 không đề xuất mua hàng.
 
@@ -124,6 +126,7 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
   | Số liệu video và creator | P4 |
   | Trends, tìm kiếm mở rộng | P5 (chờ chạy thử) |
   | Facebook/Instagram, chân dung E4 | P7 (chờ chủ chọn tài khoản thu) |
+  | Thống kê chính thức của Cục Thống kê (mọi ngành hàng) | P10 |
   | Hiển thị tất cả nguồn mới | P8 |
   | Đọc nội dung video, bình luận dưới video, thư viện quảng cáo, chân dung E5 | Chưa có gói. Đề xuất gói P9, làm sau P4 |
   | Review TikTok Shop | Chưa có bộ thu; cần chạy thử |

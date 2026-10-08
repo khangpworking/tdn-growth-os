@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.4 · ngày 07/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.5 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -14,6 +14,7 @@ File hợp nhất:
 6. **v1.2 (07/10/2026):** M08 tính giá theo đơn vị chuẩn của từng ngành hàng, và ngoại lệ E9 cho phép so cạnh nhau có điều kiện.
 7. **v1.3 (07/10/2026):** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu; ngưỡng thu review mở rộng (mục 6.3).
 8. **v1.4 (07/10/2026):** giữ song song nhiều cách tính ngưỡng (số cố định, độ bão hoà, hiệu chỉnh theo dữ liệu, 80/20); không mua hàng (L8); phụ lục giải thích các nguyên tắc chuyên môn.
+9. **v1.5 (08/10/2026):** thống kê chính thức của Cục Thống kê làm nguồn bối cảnh vĩ mô cho mọi ngành hàng (E12, mục 6.4).
 
 Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn).
 
@@ -193,6 +194,24 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     | Ưu tiên giữa các hướng, phương án (M11, I14, I15) | Không xếp ưu tiên, chỉ liệt kê (chủ chọn 07/10/2026) |
     | Duyệt cách xếp nhóm (quy tắc 8, L3) | AI lập bộ mã và gắn mã. Một model khác, độc lập, gắn mã lại toàn bộ khi tập có ≤200 bản ghi, hoặc một mẫu ngẫu nhiên 200 bản ghi khi lớn hơn. Độ đồng thuận κ ≥ 0,6: số đếm được dùng ở bản phát hành, nhãn "phân loại do AI, đã kiểm chéo". κ < 0,6: nhãn "độ tin cậy thấp", không đưa số đếm vào Kết luận chính. Bản ghi hai model gắn khác nhau liệt kê ở phụ lục. **Ghi chú:** chủ chưa có chuyên môn để duyệt mốc κ (07/10/2026); mốc 0,6 giữ theo chuẩn thường dùng, xem lại khi có người có chuyên môn. Giải thích: Phụ lục G2, G7 |
     | Đơn vị chuẩn khi tính giá (M08) | Theo bảng đơn vị chuẩn ở M08. Hàng bán theo khối lượng dùng khối lượng tịnh; ghi thêm khối lượng cái khi trang bán có |
+
+**Ngoại lệ ngày 08/10/2026 (mới ở v1.5)**
+
+- **E12 · Thống kê chính thức của Cục Thống kê làm bối cảnh vĩ mô, cho mọi ngành hàng.**
+  - **Căn cứ:** chủ đồng ý ngày 08/10/2026. Trang nso.gov.vn yêu cầu *"ghi rõ nguồn trang Thông tin điện tử Cục Thống kê (www.nso.gov.vn) khi trích lại thông tin"*.
+  - **Được phép:**
+    - dùng số liệu của Cục Thống kê (giá tiêu dùng, bán lẻ, chi tiêu hộ, sản xuất công nghiệp, xuất nhập khẩu, dân số, thu nhập, dùng internet và mạng xã hội) làm **bối cảnh** cho M02, M05, M06, M08, M09, M10, M13, I02, I03, I12;
+    - ghi tên **"Cục Thống kê (nso.gov.vn)"** trong báo cáo. Đây là ngoại lệ của quy tắc không nêu tên nhà cung cấp dữ liệu, vì trang yêu cầu ghi nguồn.
+  - **Bắt buộc:**
+    1. **Khác phạm vi với mẫu.** Ghi rõ "toàn quốc" (hoặc vùng, tỉnh) và tên nhóm thống kê. Đặt cạnh số trong mẫu, không cộng, trừ hay chia với số trong mẫu (quy tắc 3, 4).
+    2. **Trạng thái số liệu.** Ghi "ước tính", "sơ bộ" hay "chính thức" đúng như file nguồn, kèm ngày công bố. Số tháng thường được sửa ở kỳ sau; kỳ sau có số mới thì dùng số mới và ghi đã cập nhật.
+    3. **Truy nguồn.** Trích tới file, bảng (sheet), dòng; với PDF là số trang và số bảng.
+    4. **Nhóm thống kê rộng hơn ngành hàng.** Chọn nhóm hẹp nhất chứa ngành hàng theo mục 6.4 và ghi rõ, ví dụ "sản phẩm này thuộc nhóm thống kê 'Đồ dùng, dụng cụ trang thiết bị gia đình'; nhóm này rộng hơn ngành hàng đang xét". Ngành hàng nằm giữa hai nhóm thì ghi cả hai, không tự chia phần.
+  - **Vẫn cấm:**
+    - suy quy mô hay thị phần của một ngành hàng từ số của nhóm thống kê (ví dụ "ngành hàng X chiếm y% bán lẻ thực phẩm");
+    - suy nhân quả (ví dụ "giá tiêu dùng tăng nên doanh số trong mẫu giảm");
+    - dùng làm lời khách, đặc điểm chân dung hay độ tiếp cận kênh;
+    - dùng để dự báo ngoài điều kiện của M10.
 
 ---
 
@@ -461,6 +480,7 @@ Cột "Tiếng nói" theo mục 1: **Khách**, **Người bán**, **Thị trư�
 | Số liệu video và creator: doanh thu, lượt xem, đơn vị bán, chi quảng cáo | Thị trường | I12, I13, M07, M08 (E1), M09, E5 phép kiểm 2–3 | Số ước tính, kèm miễn trừ E1; Ad Spend chỉ sau khi xác nhận trường |
 | Google Trends, tìm kiếm mở rộng | Thị trường | M05, M09, M10, I05, I07, I08, I10, I12, I13 | Mức quan tâm tìm kiếm không phải nhu cầu (M05) |
 | Tin an toàn thực phẩm, báo cáo ngành, tài liệu PDF | Bối cảnh | M09, I13 | Theo khung M09; không gắn nhãn số liệu toàn thị trường |
+| Thống kê chính thức của Cục Thống kê (nso.gov.vn): giá tiêu dùng, bán lẻ, chi tiêu hộ, sản xuất, xuất nhập khẩu, dân số, internet và mạng xã hội | Thị trường (vĩ mô) | M02, M05, M06, M08, M09, M10, M13, I02, I03, I12 | Theo E12 và mục 6.4; miễn phí, có file Excel và PDF; bắt buộc ghi nguồn |
 | Dữ liệu của chính shop chủ: đơn hàng, đổi trả, tin nhắn, đánh giá | Khách | Nhiều section | Chỉ khi chủ cung cấp; lọc thông tin cá nhân; tách khỏi dữ liệu công khai |
 
 **Không dùng:** khảo sát, phỏng vấn, tuyển người trả lời, người trả lời giả lập (quy tắc 6).
@@ -515,6 +535,42 @@ Chủ đồng ý ngày 07/10/2026. Thu tới khi đạt đủ các ngưỡng (E8
 - Báo cáo ghi rõ đã dùng cách nào cho từng tiêu chí.
 - Điều kiện "≥30 review có chữ" giải thích ở Phụ lục G4.
 
+### 6.4 Thống kê chính thức: chọn bảng theo ngành hàng (mới ở v1.5)
+
+Dùng chung cho mọi ngành hàng. Với mỗi ngành hàng, chọn **nhóm thống kê hẹp nhất** chứa nó trong từng loại số liệu, theo E12.
+
+**Các loại số liệu và nơi lấy (kiểm tra ngày 08/10/2026):**
+
+| Loại số liệu | Chia nhỏ tới | Tần suất | Nơi lấy |
+|---|---|---|---|
+| Giá tiêu dùng (CPI) theo 11 nhóm, có nhóm con lương thực, thực phẩm, ăn uống ngoài gia đình | Cả nước, thành thị/nông thôn, 6 vùng, tỉnh | Hằng tháng, khoảng ngày 3–6 tháng sau | File Excel CPI hằng tháng |
+| Tổng mức bán lẻ hàng hoá và doanh thu dịch vụ tiêu dùng | Tháng: 4 nhóm lớn (bán lẻ hàng hoá, lưu trú – ăn uống, du lịch, dịch vụ khác). Năm: theo nhóm hàng và theo tỉnh | Tháng; năm | File Excel "Biểu" hằng tháng; Niên giám thống kê |
+| Chi tiêu bình quân 1 người/tháng theo khoản chi, có chi tiết lương thực, thực phẩm | Thành thị/nông thôn, 6 vùng, 5 nhóm thu nhập | 2 năm một lần (năm chẵn) | Sách Khảo sát mức sống dân cư (PDF) |
+| Thu nhập, dùng internet, dùng mạng xã hội theo tuổi, vùng | Thành thị/nông thôn, giới tính, nhóm tuổi, vùng | Hằng năm | File Excel Khảo sát mức sống |
+| Chỉ số sản xuất công nghiệp theo ngành; sản lượng một số sản phẩm công nghiệp | Ngành cấp 2; một số sản phẩm | Hằng tháng | File Excel "Biểu" và IIP |
+| Xuất khẩu, nhập khẩu theo nhóm hàng | Nhóm hàng | Hằng tháng | File Excel "Biểu" |
+| Dân số, số hộ, nông nghiệp theo tỉnh | Tỉnh | Hằng năm | Niên giám thống kê (PDF) |
+
+- Cục Thống kê **không** có số theo sản phẩm, thương hiệu, gian hàng hay sàn thương mại điện tử, và không có lời khách.
+- Số liệu nông nghiệp chi tiết của từng tỉnh (ví dụ một loại cây không có trong bảng quốc gia) nằm ở niên giám của Cục Thống kê tỉnh, không phải niên giám quốc gia.
+
+**Ánh xạ ngành hàng → nhóm thống kê:**
+
+| Nhóm ngành hàng | Ví dụ | Giá tiêu dùng (CPI) | Bán lẻ theo nhóm hàng (năm) | Chi tiêu hộ (Khảo sát mức sống) | Sản xuất, xuất nhập khẩu |
+|---|---|---|---|---|---|
+| Thực phẩm chế biến, đồ ngọt, ăn vặt | Thạch, bánh kẹo, mứt, đồ ăn vặt | Thực phẩm | Lương thực, thực phẩm | Đường, mật, sữa, bánh, mứt kẹo; Quả chín | Sản xuất, chế biến thực phẩm; xuất khẩu bánh kẹo và sản phẩm từ ngũ cốc |
+| Sữa và sản phẩm sữa | Sữa tươi, sữa bột, sữa chua | Thực phẩm | Lương thực, thực phẩm | Đường, mật, sữa, bánh, mứt kẹo | Sản lượng sữa tươi, sữa bột; nhập khẩu sữa và sản phẩm sữa |
+| Đồ uống | Nước giải khát, trà, cà phê | Đồ uống và thuốc lá | Lương thực, thực phẩm | Chè, cà phê; Đồ uống khác; Rượu, bia | Sản xuất đồ uống |
+| Nguyên liệu cho quán ăn uống (khách mua sỉ) | Topping, nguyên liệu pha chế | Ăn uống ngoài gia đình | Dịch vụ lưu trú, ăn uống (bảng tháng) | Ăn uống ngoài gia đình | — |
+| Đồ gia dụng, đồ dùng nhà bếp, thiết bị nhỏ | Bình giữ nhiệt, quạt cầm tay, nồi, hộp đựng | Thiết bị và đồ dùng gia đình | Đồ dùng, dụng cụ trang thiết bị gia đình | Thiết bị và đồ dùng gia đình | Chỉ số sản xuất ngành tương ứng, nếu có |
+| Thời trang | Quần áo, giày dép, mũ | May mặc, mũ nón và giày dép | Hàng may mặc, giày dép | May mặc, mũ nón, giày dép | Xuất nhập khẩu dệt may, giày dép |
+| Văn phòng phẩm, sách, đồ chơi | Bút, vở, sách, đồ chơi | Giáo dục; Văn hoá, giải trí và du lịch | Vật phẩm, văn hoá, giáo dục | Giáo dục; Văn hoá, thể thao, giải trí | — |
+| Mỹ phẩm, chăm sóc cá nhân, đồ dùng khác | Mỹ phẩm, đồ vệ sinh cá nhân | Hàng hoá và dịch vụ khác (nhóm rất rộng) | Hàng hoá khác (nhóm rất rộng) | Chi phí về đồ dùng và dịch vụ khác | — |
+| Mọi ngành hàng | — | CPI chung, theo vùng | Bán lẻ theo tỉnh | Thu nhập; dùng internet, mạng xã hội theo tuổi, vùng | — |
+
+- Bảng ánh xạ là mặc định theo E11. Ngành hàng mới không có trong bảng thì chọn theo cùng nguyên tắc "nhóm hẹp nhất chứa ngành hàng" và ghi rõ đã chọn nhóm nào.
+- Tên nhóm phải ghi đúng như trong file nguồn của Cục Thống kê.
+
 ---
 
 ## 7. Đồng bộ với TDN
@@ -557,6 +613,7 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.2 — 07/10/2026:** M08 thêm bảng đơn vị chuẩn theo ngành hàng (khối lượng, thể tích, số lượng, hàng dùng lâu, combo); ngoại lệ E9 cho phép so cạnh nhau và sắp xếp giá theo đơn vị chuẩn khi cùng đơn vị, cùng loại giá, cùng kỳ, không kết luận "rẻ nhất / tốt nhất".
 - **v1.3 — 07/10/2026:** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu (tập đối thủ từ dữ liệu bán hàng, nhóm so sánh theo sàn và mua lẻ/mua sỉ, không xếp ưu tiên, bộ mã kiểm chéo bằng model thứ hai); mục 6.3 ngưỡng thu review mở rộng kèm căn cứ.
 - **v1.4 — 07/10/2026:** E5 và mục 6.3 giữ song song cách A (số cố định), cách B (độ bão hoà hoặc hiệu chỉnh theo dữ liệu) và cách C (80/20); L8 không mua hàng; ghi chú chủ chưa duyệt chuyên môn mốc κ; thêm phụ lục giải thích nguyên tắc chuyên môn kèm nguồn.
+- **v1.5 — 08/10/2026:** E12 thống kê chính thức của Cục Thống kê làm bối cảnh vĩ mô, được ghi tên nguồn; mục 6.4 bảng nguồn số liệu và ánh xạ ngành hàng → nhóm thống kê, dùng chung cho mọi ngành hàng; thêm dòng nguồn vào mục 6.1.
 
 ---
 
