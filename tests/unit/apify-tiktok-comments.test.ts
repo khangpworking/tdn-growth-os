@@ -140,3 +140,25 @@ test('full30-video200-comment bound reaches existing L9 in deterministic batches
   assert.deepEqual(buildTikTokCommentCorpus({ selection: frozen,
     selectionSha256: createHash('sha256').update(canonicalJson(frozen)).digest('hex') }, capture, keywordData), corpus);
 });
+
+test('located corpus rejects changed selection, sanitized page bytes, digest and coordinates without extra transport calls', async () => {
+  const f = fake([row('1')]);
+  const capture = await new ApifyTikTokCommentsCollector({ transport: f.transport, privacy: privacy(), approvedMaxTotalChargeUsd: 3 })
+    .collect([url], '5'.repeat(64));
+  const beforeCalls = [...f.calls];
+  assert.throws(() => buildTikTokCommentCorpus({ ...selected,
+    selection: { ...selection, option: 'C_CUMULATIVE_80_PERCENT' } }, capture, keywordData));
+  for (const field of ['sha256', 'offset', 'bytes'] as const) {
+    const original = capture.pages[0]!;
+    const changed = { ...original, [field]: field === 'sha256' ? 'f'.repeat(64) : field === 'offset' ? 1 : Buffer.from('[]') };
+    assert.throws(() => buildTikTokCommentCorpus(selected, { ...capture, pages: [changed] }, keywordData));
+  }
+  for (const field of ['pageIndex', 'rowIndex', 'videoUrl'] as const) {
+    const original = capture.pages[0]!;
+    const changedRows = original.rows.map(value => ({ ...value, [field]: field === 'videoUrl' ? 'https://www.tiktok.com/@wrong/video/1234' : 1 }));
+    const bytes = Buffer.from(canonicalJson(changedRows));
+    assert.throws(() => buildTikTokCommentCorpus(selected, { ...capture,
+      pages: [{ ...original, rows: changedRows, bytes, sha256: createHash('sha256').update(bytes).digest('hex') }] }, keywordData));
+  }
+  assert.deepEqual(f.calls, beforeCalls);
+});
