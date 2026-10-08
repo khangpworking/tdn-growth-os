@@ -230,10 +230,12 @@
           "const": "insight-default-draft-select-v1"
         },
         "proposalId": {
-          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+          "type": "string",
+          "format": "uuid"
         },
         "proposalSha256": {
-          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         }
       }
     },
@@ -253,10 +255,12 @@
           "const": "automation-insight-default-report-revision-v1"
         },
         "requestKey": {
-          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+          "type": "string",
+          "format": "uuid"
         },
         "previousPairId": {
-          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
         },
         "sources": {
           "$ref": "#/$defs/requestSources"
