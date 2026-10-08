@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/api/research-automation-insight-crosscheck-api.schema.json",
+  "title": "ResearchAutomationInsightCrosscheckApiContract",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/available"
+    },
+    {
+      "$ref": "#/$defs/response"
+    }
+  ],
+  "$defs": {
+    "request": {
+      "$ref": "../analysis/automation-insight-crosscheck.schema.json#/$defs/request"
+    },
+    "available": {
+      "title": "ResearchInsightCrosscheckAvailability",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "secondConfiguration",
+        "secondConfigurationSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-crosscheck-availability-v1"
+        },
+        "binding": {
+          "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/binding"
+        },
+        "secondConfiguration": {
+          "anyOf": [
+            {
+              "$ref": "../analysis/automation-insight-model.schema.json#/$defs/configuration"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "secondConfigurationSha256": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "valid": {
+      "title": "ResearchInsightCrosscheckValid",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "status",
+        "requestKey",
+        "snapshotSha256",
+        "snapshot",
+        "exactRetry"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-crosscheck-response-v1"
+        },
+        "status": {
+          "const": "VALID"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "snapshotSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "snapshot": {
+          "$ref": "../analysis/automation-insight-crosscheck.schema.json#/$defs/snapshot"
+        },
+        "exactRetry": {
+          "type": "boolean"
+        }
+      }
+    },
+    "notDispatched": {
+      "title": "ResearchInsightCrosscheckNotDispatched",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "status",
+        "requestKey",
+        "reason"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-crosscheck-response-v1"
+        },
+        "status": {
+          "const": "NOT_DISPATCHED"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reason": {
+          "enum": [
+            "AI_NOT_CONFIGURED",
+            "INSUFFICIENT_EVIDENCE"
+          ]
+        }
+      }
+    },
+    "pending": {
+      "title": "ResearchInsightCrosscheckPending",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "status",
+        "requestKey",
+        "executionId"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-crosscheck-response-v1"
+        },
+        "status": {
+          "enum": [
+            "PREPARED",
+            "DISPATCHING",
+            "INCOMPLETE"
+          ]
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executionId": {
+          "type": "string",
+          "format": "uuid"
+        }
+      }
+    },
+    "invalid": {
+      "title": "ResearchInsightCrosscheckInvalid",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "status",
+        "requestKey",
+        "executionId",
+        "code",
+        "rawCompletion"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-crosscheck-response-v1"
+        },
+        "status": {
+          "const": "INVALID"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "code": {
+          "enum": [
+            "RESPONSE_NOT_TEXT",
+            "RESPONSE_TOO_LARGE",
+            "RESPONSE_NOT_JSON",
+            "INVALID_INSIGHT_CROSSCHECK_RESPONSE"
+          ]
+        },
+        "rawCompletion": {
+          "const": "NOT_RETAINED"
+        }
+      }
+    },
+    "unknown": {
+      "title": "ResearchInsightCrosscheckUnknown",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "status",
+        "requestKey",
+        "executionId",
+        "code",
+        "rawCompletion"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-crosscheck-response-v1"
+        },
+        "status": {
+          "const": "DISPATCH_UNKNOWN"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "executionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "code": {
+          "enum": [
+            "INTERRUPTED_AFTER_CLAIM",
+            "TRANSPORT_OUTCOME_AMBIGUOUS",
+            "RESPONSE_NOT_RETAINED"
+          ]
+        },
+        "rawCompletion": {
+          "const": "NOT_RETAINED"
+        }
+      }
+    },
+    "response": {
+      "title": "ResearchInsightCrosscheckResponse",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/valid"
+        },
+        {
+          "$ref": "#/$defs/notDispatched"
+        },
+        {
+          "$ref": "#/$defs/pending"
+        },
+        {
+          "$ref": "#/$defs/invalid"
+        },
+        {
+          "$ref": "#/$defs/unknown"
+        }
+      ]
+    }
+  }
+}

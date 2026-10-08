@@ -37,6 +37,8 @@ const insightCodingSchema = await readSchema('contracts/analysis/automation-insi
 const insightCodingApiSchema = await readSchema('contracts/api/research-automation-insight-coding-api.schema.json');
 const insightModelSchema = await readSchema('contracts/analysis/automation-insight-model.schema.json');
 const insightModelApiSchema = await readSchema('contracts/api/research-automation-insight-model-api.schema.json');
+const insightCrosscheckSchema = await readSchema('contracts/analysis/automation-insight-crosscheck.schema.json');
+const insightCrosscheckApiSchema = await readSchema('contracts/api/research-automation-insight-crosscheck-api.schema.json');
 const insightRevisionSchema = await readSchema('contracts/analysis/automation-insight-report-revision.schema.json');
 const defaultPeerSchema = await readSchema('contracts/analysis/default-market-peers.schema.json');
 const readerInputSchema = await readSchema('contracts/analysis/reader-report-input.schema.json');
@@ -72,6 +74,8 @@ ajv.addSchema(insightCodingSchema);
 ajv.addSchema(insightCodingApiSchema);
 ajv.addSchema(insightModelSchema);
 ajv.addSchema(insightModelApiSchema);
+ajv.addSchema(insightCrosscheckSchema);
+ajv.addSchema(insightCrosscheckApiSchema);
 ajv.addSchema(insightRevisionSchema);
 ajv.addSchema(readerInputSchema);
 ajv.addSchema(readerApiSchema);
@@ -104,6 +108,9 @@ const validatorRefs = {
   insightCodingAnyView: `${insightCodingApiSchema.$id}#/$defs/anyView`,
   insightModelRequest: `${insightModelApiSchema.$id}#/$defs/request`,
   insightModelResponse: `${insightModelApiSchema.$id}#/$defs/response`,
+  insightCrosscheckRequest: `${insightCrosscheckApiSchema.$id}#/$defs/request`,
+  insightCrosscheckAvailability: `${insightCrosscheckApiSchema.$id}#/$defs/available`,
+  insightCrosscheckResponse: `${insightCrosscheckApiSchema.$id}#/$defs/response`,
   insightReportRevision: insightRevisionSchema.$id,
   readerReportBuild: `${readerApiSchema.$id}#/$defs/buildRequest`,
   readerReportBuildSubmission: `${readerApiSchema.$id}#/$defs/buildSubmission`,
