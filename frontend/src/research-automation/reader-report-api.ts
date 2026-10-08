@@ -1,13 +1,14 @@
 import type {
+  ResearchAutomationReaderBuildRequest, ResearchAutomationReaderBuildReceipt, ResearchAutomationUnitSpecIntakeReceipt,
   ResearchAutomationReaderDecisionReceipt,
   ResearchAutomationReaderDecisionRequest,
   ResearchAutomationReaderRevision,
   ResearchAutomationReaderRevisionList,
 } from '../../../contracts/api/research-automation-reader-report-api.generated';
-import { readerReportDecision, readerReportDecisionReceipt, readerReportList } from '../generated/report-validators.generated.js';
+import { readerReportBuild, readerReportBuildReceipt, readerUnitSpecIntakeReceipt, readerReportDecision, readerReportDecisionReceipt, readerReportList } from '../generated/report-validators.generated.js';
 import { ResearchAutomationError } from './api';
 
-export type { ResearchAutomationReaderDecisionRequest, ResearchAutomationReaderRevision, ResearchAutomationReaderRevisionList };
+export type { ResearchAutomationReaderBuildRequest, ResearchAutomationReaderDecisionRequest, ResearchAutomationReaderRevision, ResearchAutomationReaderRevisionList };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const base = (workspaceId: string, runId: string) =>
@@ -44,6 +45,60 @@ export async function decideReaderReport(workspaceId: string, runId: string, bod
     throw integrity('Biên nhận duyệt bản đọc không khớp yêu cầu.');
   }
   return receipt;
+}
+
+export const MAX_UNIT_SPEC_FILE_BYTES = 2 * 1024 * 1024;
+export const MAX_UNIT_SPEC_TOTAL_BYTES = 8 * 1024 * 1024;
+export const MAX_READER_REQUEST_BYTES = 4 * 1024 * 1024 + 512 * 1024;
+export type UnitSpecUpload = { readonly role: 'LISTING_SPEC' | 'OWNER_DECLARATION'; readonly file: File };
+
+/** Explicit owner action: retain original JSON bytes, then build with its bound receipt.
+ * Repeating the same files/request key is safe; no automatic retry or collection. */
+export async function buildReaderWithUnitSpecs(workspaceId: string, runId: string, request: ResearchAutomationReaderBuildRequest,
+  uploads: readonly UnitSpecUpload[], token: string, onRetained?: () => void): Promise<ResearchAutomationReaderBuildReceipt> {
+  assertUuid(workspaceId); assertUuid(runId);
+  if (!token) throw new ResearchAutomationError('authorization', 'Mở khóa OWNER để lưu quy cách và dựng bản đọc.');
+  if (!readerReportBuild(request) || request.contractVersion !== 'reader-report-build-v1.2' || !request.unitPrices || !request.unitPrices.records.length)
+    throw new ResearchAutomationError('rejected', 'Tệp yêu cầu cần có bộ quan sát quy cách và đúng phiên bản dựng bản đọc.');
+  if (!uploads.length || uploads.length > 16 || uploads.reduce((n, upload) => n + upload.file.size, 0) > MAX_UNIT_SPEC_TOTAL_BYTES)
+    throw new ResearchAutomationError('rejected', 'Chọn từ một đến 16 tệp, tổng không quá 8 MiB.');
+  const form = new FormData();
+  const metadata = { contractVersion: 'reader-unit-spec-intake-v1', metricPackageId: request.metricPackageId, platforms: request.platforms, unitPrices: request.unitPrices };
+  form.set('metadata', JSON.stringify(metadata));
+  const digests = new Set<string>();
+  for (const { file, role } of uploads) {
+    if (!file.size || file.size > MAX_UNIT_SPEC_FILE_BYTES) throw new ResearchAutomationError('rejected', 'Mỗi tệp quy cách cần có nội dung và không quá 2 MiB.');
+    const bytes = await file.arrayBuffer();
+    try { JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); }
+    catch { throw new ResearchAutomationError('rejected', 'Tệp quy cách phải là JSON UTF-8 hợp lệ.'); }
+    const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(b => b.toString(16).padStart(2, '0')).join('');
+    if (digests.has(digest) || !request.unitPrices.sources.some(source => source.sha256 === digest && source.role === role))
+      throw new ResearchAutomationError('rejected', 'Tệp không khớp nguồn và vai trò trong yêu cầu, hoặc đã chọn lặp.');
+    digests.add(digest); form.set(`file:${digest}`, file);
+  }
+  if (digests.size !== request.unitPrices.sources.length) throw new ResearchAutomationError('rejected', 'Chưa chọn đủ tệp nguồn trong yêu cầu.');
+  const intakeResult = await requestWithStatus(`/owner-api${base(workspaceId, runId)}/reader-reports/unit-spec-intakes`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}`, Accept: 'application/json' }, body: form }, [200, 201]);
+  if (!readerUnitSpecIntakeReceipt(intakeResult.value)) throw integrity('Biên nhận quy cách không đúng contract.');
+  const receipt = intakeResult.value as ResearchAutomationUnitSpecIntakeReceipt;
+  if (receipt.workspaceId !== workspaceId || receipt.runId !== runId || receipt.exactRetry !== (intakeResult.status === 200) || stable(receipt.request) !== stable(metadata))
+    throw integrity('Biên nhận quy cách không khớp phiên và dữ liệu đã gửi.');
+  onRetained?.();
+  const result = await requestWithStatus(`/owner-api${base(workspaceId, runId)}/reader-reports`,
+    { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ contractVersion: 'reader-report-unit-spec-build-v1', intakeSha256: receipt.intakeSha256, request }) }, [200, 201]);
+  if (!readerReportBuildReceipt(result.value)) throw integrity('Biên nhận dựng bản đọc không đúng contract.');
+  const built = result.value as ResearchAutomationReaderBuildReceipt;
+  if (built.exactRetry !== (result.status === 200) || built.revision.workspaceId !== workspaceId || built.revision.runId !== runId ||
+    built.revision.profileStatus !== request.profile.status || stable([...built.revision.platforms].sort()) !== stable([...request.platforms].sort()))
+    throw integrity('Biên nhận dựng bản đọc không khớp yêu cầu.');
+  return built;
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (typeof value === 'object' && value !== null) return `{${Object.keys(value).sort().map(key => `${JSON.stringify(key)}:${stable((value as Record<string, unknown>)[key])}`).join(',')}}`;
+  return JSON.stringify(value);
 }
 
 async function requestWithStatus(url: string, init: RequestInit, expectedStatuses: readonly number[]): Promise<{ readonly value: unknown; readonly status: number }> {

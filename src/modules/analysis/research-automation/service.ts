@@ -369,7 +369,8 @@ export class ResearchAutomationService {
     this.#metricRules = new AutomationMetricRuleAdoptions(this.#db, this.#artifacts, options.metricAttachmentStore, this.#now);
     this.#readerReports = new AutomationReaderReports(this.#db, this.#artifacts, this.#now, {
       ...(options.readerReportFlint === undefined ? {} : { flint: options.readerReportFlint }),
-      ...(options.readerRows ? { rows: options.readerRows } : {}) });
+      ...(options.readerRows ? { rows: options.readerRows } : {}),
+      ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}) });
     this.#metricMembership = new AutomationMetricMembership({ db: this.#db, artifacts: this.#artifacts, now: this.#now,
       ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}),
       context: (workspaceId, runId, pairId, adoptionId) => this.#metricMembershipContext(workspaceId, runId, pairId, adoptionId),
@@ -770,6 +771,21 @@ export class ResearchAutomationService {
     if (typeof packageId !== 'string') throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc không hợp lệ.');
     return withDatabaseMutationMutex(this.#db, async () =>
       this.#readerReports.build(await this.#readerContext(workspaceId, runId, packageId), value, actor));
+  }
+  async prepareReaderUnitSpecs(workspaceId: string, runId: string, value: unknown,
+    files: ReadonlyMap<string, Uint8Array>, actor: { actorId: string; role: 'OWNER' }) {
+    assertUuid(workspaceId); assertUuid(runId);
+    const packageId = (value as { metricPackageId?: unknown } | null)?.metricPackageId;
+    if (typeof packageId !== 'string') throw new ResearchAutomationValidationError('Thông tin quy cách không hợp lệ.');
+    return withDatabaseMutationMutex(this.#db, async () =>
+      this.#readerReports.prepareUnitSpecs(await this.#readerContext(workspaceId, runId, packageId), value, files, actor));
+  }
+  async buildReaderReportFromUnitSpecs(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    assertUuid(workspaceId); assertUuid(runId);
+    const packageId = (value as { request?: { metricPackageId?: unknown } } | null)?.request?.metricPackageId;
+    if (typeof packageId !== 'string') throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc từ quy cách không hợp lệ.');
+    return withDatabaseMutationMutex(this.#db, async () =>
+      this.#readerReports.buildFromUnitSpecs(await this.#readerContext(workspaceId, runId, packageId), value, actor));
   }
   async decideReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
     await this.getRun(workspaceId, runId);

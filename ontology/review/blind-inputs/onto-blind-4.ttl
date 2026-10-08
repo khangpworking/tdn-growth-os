@@ -1,0 +1,15 @@
+@prefix ex: <urn:onto:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+ex:MaskedShape a sh:NodeShape;  sh:targetClass ex:Comment;
+sh:property [ sh:path ex:sourceType; sh:minCount 1; sh:maxCount 1; sh:in ( "bình luận dưới video review" "bình luận dưới video bán hàng" ); sh:message "Thiếu hoặc sai loại nguồn bình luận" ];
+sh:property [ sh:path ex:creator; sh:minCount 1; sh:maxCount 1; sh:datatype xsd:boolean; sh:message "Thiếu trạng thái creator" ];
+sh:property [ sh:path ex:brand; sh:minCount 1; sh:maxCount 1; sh:datatype xsd:boolean; sh:message "Thiếu trạng thái brand" ];
+sh:property [ sh:path ex:tagOnly; sh:minCount 1; sh:maxCount 1; sh:datatype xsd:boolean; sh:message "Thiếu trạng thái tagOnly" ];
+sh:property [ sh:path ex:emojiOnly; sh:minCount 1; sh:maxCount 1; sh:datatype xsd:boolean; sh:message "Thiếu trạng thái emojiOnly" ];
+sh:property [ sh:path ex:customerVoice; sh:minCount 1; sh:maxCount 1; sh:datatype xsd:boolean; sh:message "Thiếu trạng thái customerVoice" ];
+sh:property [ sh:path ex:counted; sh:minCount 1; sh:maxCount 1; sh:datatype xsd:boolean; sh:message "Thiếu trạng thái counted" ] .
+ex:Masked_creator a sh:NodeShape; sh:targetClass ex:Comment; sh:message "Bình luận của người làm video không được là lời khách hoặc được đếm"; sh:or ( [ sh:property [ sh:path ex:creator; sh:hasValue false ] ] [ sh:property [ sh:path ex:customerVoice; sh:hasValue false ]; sh:property [ sh:path ex:counted; sh:hasValue false ] ] ) .
+ex:Masked_brand a sh:NodeShape; sh:targetClass ex:Comment; sh:message "Bình luận thương hiệu không được là lời khách hoặc được đếm"; sh:or ( [ sh:property [ sh:path ex:brand; sh:hasValue false ] ] [ sh:property [ sh:path ex:customerVoice; sh:hasValue false ]; sh:property [ sh:path ex:counted; sh:hasValue false ] ] ) .
+ex:Masked_tagOnly a sh:NodeShape; sh:targetClass ex:Comment; sh:message "Bình luận chỉ gắn thẻ không được là lời khách hoặc được đếm"; sh:or ( [ sh:property [ sh:path ex:tagOnly; sh:hasValue false ] ] [ sh:property [ sh:path ex:customerVoice; sh:hasValue false ]; sh:property [ sh:path ex:counted; sh:hasValue false ] ] ) .
+ex:Masked_emojiOnly a sh:NodeShape; sh:targetClass ex:Comment; sh:message "Bình luận chỉ có biểu tượng không được là lời khách hoặc được đếm"; sh:or ( [ sh:property [ sh:path ex:emojiOnly; sh:hasValue false ] ] [ sh:property [ sh:path ex:customerVoice; sh:hasValue false ]; sh:property [ sh:path ex:counted; sh:hasValue false ] ] ) .

@@ -1,0 +1,4 @@
+@prefix ex: <urn:onto:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+ex:c a ex:Comment; ex:sourceType "bình luận dưới video review"; ex:creator false; ex:brand false; ex:tagOnly false; ex:emojiOnly true; ex:customerVoice false; ex:counted true .
