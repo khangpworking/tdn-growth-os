@@ -97,6 +97,8 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 
 ## 5. Danh sách đồng bộ còn thiếu
 
+Plan đồng bộ có checklist, dựa trên lần rà code ngày 08/10/2026: [ultimate-v1.11-tdn-sync-plan.md](../../tasks/ultimate-v1.11-tdn-sync-plan.md).
+
 ### Từ Ultimate v1.0 (05/10), chưa bàn giao vào TDN
 
 - M06: kết quả kiểm chứng trong mẫu.
