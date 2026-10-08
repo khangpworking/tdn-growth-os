@@ -17,6 +17,15 @@ Both M05 lanes use estimated in-sample sales as a demand measure with source,
 period and estimate limits. Legacy reader/method outputs retain their saved
 semantics and synthetic byte-replay checks. See [SYNC-1 evidence](handoffs/SYNC-1.md).
 
+The bounded L9 keyword-meaning core is merged in [PR #163](https://github.com/khangpworking/tdn-growth-os/pull/163),
+after independent review and full Linux Check on head `3e71c25c98d44fa0eb02c7fdf6e41876d4fae48a`.
+Canonical schema validation covers its versioned keyword data and record inputs.
+The frozen result preserves original text, identifiers, keyword/exclusion bytes and
+reasons; accent-sensitive matching keeps unresolved records out of the included set.
+Context can resolve only a keyword present in the candidate text. This pure core
+makes no model or provider calls. AI list drafting, collector integration and
+M13/I17 disclosure remain pending; see [SYNC-5 evidence](handoffs/SYNC-5.md).
+
 Future collector activation and history readers remain with P5/P9/P10/U-23.
 This merge does not establish complete Ultimate alignment or business acceptance.
 U-26 revision/admission policy, U-32 positive cross-platform totals, and U-11

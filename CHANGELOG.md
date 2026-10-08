@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- L9: deterministic keyword-meaning core with canonical input validation, accent-sensitive decisions and exact frozen input/reason accounting. PR #163 merged after independent review and full exact-head CI; model drafting and report/collector integration remain pending.
+
 - Market reader: versioned nullable sales/source metrics, per-platform output and labels, neutral findings, three dependency-ordered proposals, and corrected M05 demand wording in both lanes. Legacy replay preserved; PR #162 merged after exact-head full CI. Positive cross-platform totals remain unresolved.
 
 - Source board: eleven cards with registry metadata, actual configured caps, stored workspace history and explicit future-collector placeholders. PageIndex account totals and its separate owner action are labelled distinctly. Merged in PR #161 after independent review and exact-head full CI; no collectors or deployment activated.
