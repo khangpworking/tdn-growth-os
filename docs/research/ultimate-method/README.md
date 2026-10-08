@@ -20,7 +20,7 @@ Nghiệp vụ luôn đi trước, hệ thống theo sau. Một quy tắc có tro
 | Lớp | Nói gì | Ở đâu | Ai quyết |
 |---|---|---|---|
 | Nghiệp vụ Ultimate | Quy tắc chung, ngoại lệ chủ đã duyệt, phương pháp từng section, nguồn dữ liệu được dùng | `docs/research/ultimate-method/ultimate-method-30-sections.md` | Chủ dự án quyết; AI soạn và ghi lại |
-| Nghiệp vụ: danh mục nguồn | Nguồn dữ liệu (mã S), hạng tin cậy, độ đại diện, section dùng nguồn nào, nhật ký thử nguồn | `docs/research/ultimate-method/sources.md` | Như trên |
+| Nghiệp vụ: Input data sources for 30 sections | Nguồn dữ liệu đầu vào (mã S), hạng tin cậy, độ đại diện, section dùng nguồn nào, nhật ký thử nguồn | `docs/research/ultimate-method/input-data-sources-30-sections.md` | Như trên |
 | TDN: recipe (A40) | Đặc tả kỹ thuật từng section, quyết định còn mở D01–D12 | `docs/research/section-methods-v1/` | Theo quy trình review kỹ thuật, không tự nới so với Ultimate |
 | TDN: cấu hình (A41) | Cấu hình có thể triển khai, khuyến nghị chính sách | `docs/research/method-configurations-v1/` | Như trên |
 | TDN: code và test | Phần thật sự chạy | `src/modules/analysis/` (research-automation, reader-report và các method), `tests/` | PR, review, chủ merge |
