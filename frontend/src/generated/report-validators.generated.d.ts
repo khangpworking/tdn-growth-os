@@ -68,3 +68,5 @@ export declare const insightPersonaRequest: PrecompiledValidator;
 export declare const insightPersonaResponse: PrecompiledValidator;
 export declare const insightPersonaView: PrecompiledValidator;
 export declare const insightPersonaEntry: PrecompiledValidator;
+export declare const insightPersonaReportRevision: PrecompiledValidator;
+export declare const insightPersonaSelectedReport: PrecompiledValidator;

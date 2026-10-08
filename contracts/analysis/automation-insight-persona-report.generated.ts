@@ -1,34 +1,31 @@
-/* Generated from research-automation-insight-persona-api.schema.json. Do not edit by hand. */
+/* Generated from automation-insight-persona-report.schema.json. Do not edit by hand. */
 
-export type ResearchAutomationInsightPersonaApi =
-  | ResearchPersonaModelRequest
-  | ResearchPersonaView
-  | ResearchPersonaModelResponse
-  | ResearchPersonaEntry
-  | ResearchPersonaReportRequest
-  | ResearchPersonaSelectedReport;
-export type ResearchPersonaModelRequest =
-  PersonaTaxonomyRequest | PersonaClassificationRequest | PersonaSynthesisRequest;
-export type PersonaEvidence = PersonaRuleEvidence | PersonaProposalEvidence;
-export type PersonaModelRequest = PersonaTaxonomyRequest | PersonaClassificationRequest | PersonaSynthesisRequest;
+/**
+ * Explicit pending persona selection from one authenticated retained SYNTHESIZE proposal and original source22 pair; no adoption, approval, receipt or implicit latest.
+ */
+export type AutomationInsightPersonaReport =
+  AutomationInsightPersonaReportRevisionRequest | PersonaSelectedReportSnapshot;
 export type PersonaClassification = PersonaClassifiedRecord | PersonaUnclassifiedRecord;
-export type ResearchPersonaModelResponse =
-  ResearchPersonaProposed | ResearchPersonaNotDispatched | ResearchPersonaPrepared | ResearchPersonaInvalid;
 
-export interface PersonaTaxonomyRequest {
-  contractVersion: 'insight-persona-model-request-v1';
+export interface AutomationInsightPersonaReportRevisionRequest {
+  contractVersion: 'automation-insight-persona-report-revision-v1';
   requestKey: string;
+  previousPairId: string;
+  sources: PersonaReportKeptSources;
+  personaInsight: PersonaReportSelection;
+}
+export interface PersonaReportKeptSources {
+  metric: PersonaReportKeep;
+  nativeReview: PersonaReportKeep;
+}
+export interface PersonaReportKeep {
+  decision: 'KEEP';
+}
+export interface PersonaReportSelection {
+  contractVersion: 'insight-persona-report-select-v1';
+  proposalId: string;
+  proposalSha256: string;
   binding: PersonaBinding;
-  rootId: null;
-  rootSha256: null;
-  previousProposalId: null;
-  previousProposalSha256: null;
-  stage: 'TAXONOMY';
-  /**
-   * @minItems 1
-   * @maxItems 300
-   */
-  recordIndexes: [number, ...number[]];
 }
 export interface PersonaBinding {
   workspaceId: string;
@@ -46,41 +43,12 @@ export interface PersonaBinding {
   viewSha256: string;
   sourceSha256: string;
 }
-export interface PersonaClassificationRequest {
-  contractVersion: 'insight-persona-model-request-v1';
-  requestKey: string;
-  binding: PersonaBinding;
-  rootId: string;
-  rootSha256: string;
-  previousProposalId: string;
-  previousProposalSha256: string;
-  stage: 'CLASSIFY';
-  /**
-   * @minItems 1
-   * @maxItems 100
-   */
-  recordIndexes: [number, ...number[]];
-}
-export interface PersonaSynthesisRequest {
-  contractVersion: 'insight-persona-model-request-v1';
-  requestKey: string;
-  binding: PersonaBinding;
-  rootId: string;
-  rootSha256: string;
-  previousProposalId: string;
-  previousProposalSha256: string;
-  stage: 'SYNTHESIZE';
-  /**
-   * @maxItems 0
-   */
-  recordIndexes: [];
-}
-export interface ResearchPersonaView {
-  contractVersion: 'insight-persona-view-v1';
-  binding: PersonaBinding;
+export interface PersonaSelectedReportSnapshot {
+  contractVersion: 'automation-insight-persona-report-snapshot-v1';
+  selection: PersonaReportSelection;
+  executionId: string;
   source: PersonaSource;
-  evidence: ResearchPersonaEntry[];
-  releaseEligibility: 'UNAVAILABLE';
+  snapshot: PersonaSnapshot;
 }
 export interface PersonaSource {
   evidenceVersion: 'persona-private-source-evidence-v1';
@@ -212,49 +180,6 @@ export interface PersonaTaxonomySample {
    * @maxItems 300
    */
   recordIndexes: number[];
-}
-export interface ResearchPersonaEntry {
-  evidence: PersonaEvidence;
-  sha256: string;
-}
-export interface PersonaRuleEvidence {
-  contractVersion: 'insight-persona-rule-evidence-v1';
-  evidenceId: string;
-  sequence: number;
-  binding: PersonaBinding;
-  parentSha256: string | null;
-  actorId: string;
-  actorRole: 'OWNER';
-  createdAt: string;
-  request: PersonaRuleRequest;
-}
-export interface PersonaRuleRequest {
-  contractVersion: 'insight-persona-rule-request-v1';
-  requestKey: string;
-  binding: PersonaBinding;
-  initiatingRequest: PersonaModelRequest;
-  rules: PersonaSourcePolicy;
-}
-export interface PersonaSourcePolicy {
-  ruleId: 'persona-source-minimums-v1';
-  revision: 1;
-  authority: 'APPLICATION_SOURCE_POLICY_NOT_OWNER_APPROVAL';
-}
-export interface PersonaProposalEvidence {
-  contractVersion: 'insight-persona-proposal-evidence-v1';
-  evidenceId: string;
-  sequence: number;
-  binding: PersonaBinding;
-  parentSha256: string | null;
-  actorId: string;
-  actorRole: 'OWNER';
-  createdAt: string;
-  request: PersonaModelRequest;
-  rootId: string;
-  rootSha256: string;
-  executionId: string;
-  candidatesSha256: string;
-  snapshot: PersonaSnapshot;
 }
 export interface PersonaSnapshot {
   contractVersion: 'insight-persona-snapshot-v1';
@@ -390,60 +315,4 @@ export interface PersonaProposal {
 export interface PersonaSampleSize {
   numerator: number;
   denominator: number;
-}
-export interface ResearchPersonaProposed {
-  contractVersion: 'insight-persona-model-response-v1';
-  status: 'PROPOSED';
-  executionId: string;
-  proposal: ResearchPersonaEntry;
-}
-export interface ResearchPersonaNotDispatched {
-  contractVersion: 'insight-persona-model-response-v1';
-  status: 'NOT_DISPATCHED';
-  reason: 'INSUFFICIENT_EVIDENCE' | 'AI_NOT_CONFIGURED';
-}
-export interface ResearchPersonaPrepared {
-  contractVersion: 'insight-persona-model-response-v1';
-  status: 'PREPARED';
-  executionId: string;
-}
-export interface ResearchPersonaInvalid {
-  contractVersion: 'insight-persona-model-response-v1';
-  status: 'INVALID' | 'DISPATCH_UNKNOWN';
-  executionId: string;
-  code:
-    | 'RESPONSE_NOT_TEXT'
-    | 'RESPONSE_TOO_LARGE'
-    | 'RESPONSE_NOT_JSON'
-    | 'INVALID_INSIGHT_CODING_RESPONSE'
-    | 'INTERRUPTED_AFTER_CLAIM'
-    | 'TRANSPORT_OUTCOME_AMBIGUOUS'
-    | 'RESPONSE_NOT_RETAINED';
-}
-export interface ResearchPersonaReportRequest {
-  contractVersion: 'automation-insight-persona-report-revision-v1';
-  requestKey: string;
-  previousPairId: string;
-  sources: PersonaReportKeptSources;
-  personaInsight: PersonaReportSelection;
-}
-export interface PersonaReportKeptSources {
-  metric: PersonaReportKeep;
-  nativeReview: PersonaReportKeep;
-}
-export interface PersonaReportKeep {
-  decision: 'KEEP';
-}
-export interface PersonaReportSelection {
-  contractVersion: 'insight-persona-report-select-v1';
-  proposalId: string;
-  proposalSha256: string;
-  binding: PersonaBinding;
-}
-export interface ResearchPersonaSelectedReport {
-  contractVersion: 'automation-insight-persona-report-snapshot-v1';
-  selection: PersonaReportSelection;
-  executionId: string;
-  source: PersonaSource;
-  snapshot: PersonaSnapshot;
 }

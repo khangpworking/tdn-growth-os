@@ -3,6 +3,8 @@ import { createRequire } from 'node:module';
 import type { ValidateFunction } from 'ajv';
 import type { Ajv2020 as AjvType } from 'ajv/dist/2020.js';
 import schema from '../../../../contracts/analysis/automation-insight-persona.schema.json' with { type: 'json' };
+import reportSchema from '../../../../contracts/analysis/automation-insight-persona-report.schema.json' with { type: 'json' };
+import type { AutomationInsightPersonaReportRevisionRequest, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
 import apiSchema from '../../../../contracts/api/research-automation-insight-persona-api.schema.json' with { type: 'json' };
 import locatedSchema from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import selectionSchema from '../../../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
@@ -20,7 +22,7 @@ import { registerPrivateReviewSchemas } from './private-review-contracts.js';
  * authenticate Foundation/CAS and private author proof before passing a source. */
 export function registerPersonaSchemas(ajv: AjvType): void {
   registerPrivateReviewSchemas(ajv);
-  for (const item of [locatedSchema, selectionSchema, codingSchema, modelSchema, schema, apiSchema])
+  for (const item of [locatedSchema, selectionSchema, codingSchema, modelSchema, schema, reportSchema, apiSchema])
     if (!ajv.getSchema(item.$id)) ajv.addSchema(item);
 }
 const require = createRequire(import.meta.url);
@@ -46,6 +48,8 @@ export const personaEvidenceValid = codec<PersonaEvidence>('evidence');
 export const personaSnapshotValid = codec<PersonaSnapshot>('snapshot');
 export const personaViewValid = codec<ResearchPersonaView>('view', true);
 export const personaResponseValid = codec<ResearchPersonaModelResponse>('response', true);
+export const personaReportRequestValid = ajv.compile<AutomationInsightPersonaReportRevisionRequest>({ $ref: `${reportSchema.$id}#/$defs/request` });
+export const personaSelectedReportValid = ajv.compile<PersonaSelectedReportSnapshot>({ $ref: `${reportSchema.$id}#/$defs/selectedSnapshot` });
 export const personaDigest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 const same = (a: unknown, b: unknown) => canonicalJson(a) === canonicalJson(b);
 function fail(): never { throw new TypeError('INVALID_INSIGHT_PERSONA_CONTRACT'); }
@@ -147,5 +151,16 @@ export function checkPersonaSynthesis(value: unknown, source: PersonaSource, tax
     }
     for (const attribute of persona.attributes) checkPersonaAttribute(attribute, source, members);
   }
+  return value;
+}
+
+
+/** Cross-field integrity only; owning reader must still authenticate the exact
+ * original source22 and final immutable proposal/execution before rendering. */
+export function checkPersonaSelectedReport(value: unknown): PersonaSelectedReportSnapshot {
+  if (!personaSelectedReportValid(value)) fail();
+  checkPersonaSource(value.source); checkPersonaBinding(value.selection.binding, value.source);
+  if (!same(value.snapshot.binding, value.selection.binding) || !value.snapshot.classificationComplete ||
+    !value.snapshot.taxonomy || value.snapshot.codebookSha256 !== personaDigest(value.snapshot.taxonomy)) fail();
   return value;
 }

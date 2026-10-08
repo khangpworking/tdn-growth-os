@@ -170,6 +170,14 @@
           }
         }
       ]
+    },
+    "personaReportRequest": {
+      "title": "ResearchPersonaReportRequest",
+      "$ref": "../analysis/automation-insight-persona-report.schema.json#/$defs/request"
+    },
+    "personaSelectedReport": {
+      "title": "ResearchPersonaSelectedReport",
+      "$ref": "../analysis/automation-insight-persona-report.schema.json#/$defs/selectedSnapshot"
     }
   },
   "oneOf": [
@@ -184,6 +192,12 @@
     },
     {
       "$ref": "#/$defs/entry"
+    },
+    {
+      "$ref": "#/$defs/personaReportRequest"
+    },
+    {
+      "$ref": "#/$defs/personaSelectedReport"
     }
   ]
 }

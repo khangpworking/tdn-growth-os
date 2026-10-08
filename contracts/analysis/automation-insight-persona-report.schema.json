@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-insight-persona-report.schema.json",
+  "title": "AutomationInsightPersonaReport",
+  "description": "Explicit pending persona selection from one authenticated retained SYNTHESIZE proposal and original source22 pair; no adoption, approval, receipt or implicit latest.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/request"
+    },
+    {
+      "$ref": "#/$defs/selectedSnapshot"
+    }
+  ],
+  "$defs": {
+    "keep": {
+      "title": "PersonaReportKeep",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "decision"
+      ],
+      "properties": {
+        "decision": {
+          "const": "KEEP"
+        }
+      }
+    },
+    "selection": {
+      "title": "PersonaReportSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "proposalId",
+        "proposalSha256",
+        "binding"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-persona-report-select-v1"
+        },
+        "proposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "proposalSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "binding": {
+          "$ref": "automation-insight-persona.schema.json#/$defs/binding"
+        }
+      }
+    },
+    "request": {
+      "title": "AutomationInsightPersonaReportRevisionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "previousPairId",
+        "sources",
+        "personaInsight"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-insight-persona-report-revision-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "previousPairId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sources": {
+          "title": "PersonaReportKeptSources",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "metric",
+            "nativeReview"
+          ],
+          "properties": {
+            "metric": {
+              "$ref": "#/$defs/keep"
+            },
+            "nativeReview": {
+              "$ref": "#/$defs/keep"
+            }
+          }
+        },
+        "personaInsight": {
+          "$ref": "#/$defs/selection"
+        }
+      }
+    },
+    "selectedSnapshot": {
+      "title": "PersonaSelectedReportSnapshot",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "selection",
+        "executionId",
+        "source",
+        "snapshot"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-insight-persona-report-snapshot-v1"
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        },
+        "executionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "source": {
+          "$ref": "automation-insight-persona.schema.json#/$defs/source"
+        },
+        "snapshot": {
+          "$ref": "automation-insight-persona.schema.json#/$defs/snapshot"
+        }
+      }
+    }
+  }
+}
