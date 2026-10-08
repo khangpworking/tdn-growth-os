@@ -1,0 +1,89 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "corpusId",
+    "binding",
+    "collection",
+    "projection",
+    "capture"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "research-private-review-corpus-v2"
+    },
+    "corpusId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId",
+        "startSha256",
+        "scopeSha256",
+        "confirmedSourceSetSha256",
+        "scopeConfirmedAt"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "startSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "confirmedSourceSetSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "scopeConfirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "collection": {
+      "$ref": "automation-private-shopee-source.schema.json#/$defs/reference"
+    },
+    "projection": {
+      "$ref": "../foundation/shopee-private-projection.schema.json"
+    },
+    "capture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "mode",
+        "retrievedAt"
+      ],
+      "properties": {
+        "mode": {
+          "enum": [
+            "fixture",
+            "live"
+          ]
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/research-private-review-corpus.schema.json",
+  "title": "ResearchPrivateReviewCorpus",
+  "description": "Source-only retained sanitized corpus bound to the exact frozen research run, scope, confirmed source set and Foundation collection. Rows and author identity remain within one Shopee/key capture; no semantic coding or independently verified person claim."
+}

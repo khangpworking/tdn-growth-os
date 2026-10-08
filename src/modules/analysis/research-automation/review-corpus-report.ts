@@ -79,3 +79,20 @@ export function insightLiteralSection(output: import('../insight-literal-evidenc
   if (failed.length) throw new TypeError(`INSIGHT_LITERAL_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   return html;
 }
+
+
+/** Author/key-free source-only renderer. No interpretation, coding or person count. */
+export function privateReviewCorpusSection(view: import('../../../../contracts/analysis/private-review-report-view.generated.js').PrivateReviewReportView,
+  id: 'I03' | 'I17', citations: ReportCitations): string {
+  const warning = `<p class="warning">${view.capture.mode === 'fixture' ? 'Dữ liệu giả lập dùng kiểm thử. ' : ''}Phản hồi gắn với mục sản phẩm trên sàn, chưa xác nhận đúng biến thể. Ngày từ nguồn được giữ; kỳ nghiên cứu không lọc ngày review. Chưa mã hóa nội dung; số bản ghi không phải số người hay mức phổ biến của nhu cầu. Nội dung nguyên văn vẫn có thể chứa thông tin cá nhân.</p>`;
+  const c = view.accounting;
+  if (id === 'I03') return warning + `<p>Đã giữ ${c.retainedRecords} bản ghi; ${c.selectedTextRecords} bản ghi đúng mục sản phẩm đã chọn có chữ đọc được, gồm ${c.distinctContents} nội dung khác nhau. Đây là số bản ghi trong tập thu, chưa phải số người.</p><p>${escape(view.missingIdentityLabel)}: ${c.missingIdentityRecords} bản ghi; mã không hợp lệ: ${c.invalidIdentityRecords} bản ghi. Yêu cầu khi thiếu mã: ${escape(view.fallbackRequirement)}. Chưa có quyết định đủ điều kiện xây dựng chân dung khách hàng.</p>`;
+  const rows = view.records.map(row => {
+    const rating = row.rating.state === 'VALID' ? `${row.rating.value}/5` : row.rating.state === 'ABSENT' ? 'nguồn không có số sao'
+      : row.rating.state === 'MISSING' ? 'Nguồn có trường sao nhưng thiếu giá trị' : `Điểm nguồn không hợp lệ${row.rating.value === null ? '' : `: ${row.rating.value}`}`;
+    const mark = citations.mark({ sourceKind: 'REVIEW', identity: row.locator.pageSha256, locator: row.locator.textPointer,
+      label: 'Đánh giá khách hàng trên Shopee', retrievedAt: view.capture.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+    return `<tr><td>${storedLiteral(row.shopId && row.itemId ? `shopee:${row.shopId}:${row.itemId}` : 'Chưa rõ mục sản phẩm', 'Mục sản phẩm từ nguồn')}<br>${escape(row.admission)}</td><td>${row.textState === 'READABLE' ? retainedQuoteHtml(row.text!, 'blockquote') : row.textState === 'EMPTY' ? 'Nguồn không có phần chữ' : 'Phần chữ không đọc được'}</td><td>${escape(rating)}</td><td>${row.createdAt === null ? 'Nguồn thiếu ngày' : escape(row.createdAt)}</td><td>${mark}</td></tr>`;
+  }).join('');
+  return warning + '<p>Các bản ghi có chữ giống nhau và vị trí nguồn khác nhau vẫn giữ riêng. Trùng chữ không xác minh cùng tác giả; không nối người giữa các nền tảng.</p>' + `<div class="table-wrap"><table><caption>Bản ghi nguồn đã giữ, gồm dòng tách riêng; chưa mã hóa</caption><thead><tr><th>Mục sản phẩm / trạng thái</th><th>Nguyên văn</th><th>Số sao nguồn</th><th>Ngày từ nguồn</th><th>Vị trí nguồn</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Không có bản ghi trong tập đã giữ; không suy ra nguồn không có review.</td></tr>'}</tbody></table></div>`;
+}
