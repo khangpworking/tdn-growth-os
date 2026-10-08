@@ -163,25 +163,29 @@ function vietnameseSystemText(sectionId: AutomationDecisionSectionId): string {
 }
 
 /**
- * U-07 + U-16: prompt 1.3.0 for M12/I15 caps candidates at three and adds the labelled proposal fields
- * (proposedOwner, proposedDeadline, immediateTask). It also carries the U-16 no-purchase rule. M11 keeps 1.2.0 bytes
- * plus the ban only. Vietnamese prose 1.2.0 and earlier stay byte-identical, so a retained prompt replays.
+ * U-07 + U-16: prompt 1.3.0 caps every section at three labelled candidates — M11 opportunities included — and requires
+ * the labelled proposal fields (proposedOwner, proposedDeadline, immediateTask) on each one, because packet 1.2.0
+ * rejects a candidate that omits them. It also carries the U-16 no-purchase rule. Vietnamese prose 1.2.0 and earlier
+ * stay byte-identical, so a retained prompt replays.
  */
 function proposalSystemText(sectionId: AutomationDecisionSectionId): string {
   const ban = 'Never propose, suggest or imply placing a trial order, buying a product or any other purchase action. Judge product quality only from public sources and owner-supplied data. This ban covers the candidate text and every assumption, unknown, gap, limitation, prerequisite, condition and proposal field.';
-  const capped = sectionId === 'M12' || sectionId === 'I15';
+  // Every section, M11 included, is capped at three candidates and must carry the three labelled proposal fields.
+  const required = 'Each candidate must include immediateTask, proposedOwner and proposedDeadline, each an explicit proposal awaiting the owner, never an assignment, decision or authorization. Spell a deadline in words, never digits.';
   const proposalRule = sectionId === 'M12'
-    ? 'Give prerequisites: what would have to be established before anyone decides. You may also add proposedOwner, proposedDeadline and immediateTask, each as an explicit proposal awaiting the owner, never as an assignment, decision or authorization. Spell a deadline in words, never digits.'
-    : 'You may also add proposedOwner and proposedDeadline to each option, each as an explicit proposal awaiting the owner, never as a decision. Spell a deadline in words, never digits.';
+    ? `Give prerequisites: what would have to be established before anyone decides. ${required}`
+    : sectionId === 'I15'
+    ? `Give each option its own immediate task, owner and deadline. ${required}`
+    : `Give each opportunity its own immediate task, owner and deadline. ${required}`;
   const lines = vietnameseSystemText(sectionId).split('\n')
     .filter(line => !(sectionId === 'M12' && line.startsWith('Give prerequisites')))
-    .map(line => capped && line.startsWith('aiCandidates holds at most 20 distinct objects')
+    .map(line => line.startsWith('aiCandidates holds at most 20 distinct objects')
       ? line.replace('at most 20 distinct objects', 'at most 3 distinct objects, each labelled as an AI proposal awaiting the owner')
-        .replace('and limitations (1 to 10 distinct strings).', 'limitations (1 to 10 distinct strings), proposedOwner, proposedDeadline and immediateTask (each a proposal awaiting the owner, a non-empty string of at most 1000 characters, with any deadline spelled in words).')
+        .replace('and limitations (1 to 10 distinct strings).', 'limitations (1 to 10 distinct strings), proposedOwner, proposedDeadline and immediateTask (required for this version, each a non-empty string of at most 1000 characters, each a proposal awaiting the owner, with any deadline spelled in words).')
       : line.startsWith('ownerInputs are unset.')
       ? 'The owner question is unset. A working question may be shown as an AI proposal awaiting the owner; never treat that proposal as the owner question. Do not infer, complete or choose the owner question, constraints or options, and never present a candidate as an owner option, preference, choice, decision or authorization to execute.'
       : line);
-  return [...lines, ...(capped ? [proposalRule] : []), ban].join('\n');
+  return [...lines, proposalRule, ban].join('\n');
 }
 
 /** The frozen prompt for one section. Retaining it records what a dispatch used; it activates and approves nothing. */

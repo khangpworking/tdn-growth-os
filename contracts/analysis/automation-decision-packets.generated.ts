@@ -310,6 +310,9 @@ export interface DecisionHypothesisCandidate {
   unknowns: OptionalAiTexts;
   evidenceGaps: OptionalAiTexts;
   limitations: RequiredAiTexts;
+  immediateTask?: AiText | null;
+  proposedOwner?: AiText | null;
+  proposedDeadline?: AiText | null;
 }
 /**
  * A PROPOSED layer-3 draft saying how one referenced upstream claim may counter this candidate. It is not a verified counterclaim, a new source claim or owner input. Only the claim reference and the exact target binding are machine-checked. Whether the claim counters the target, and every compatibility statement, are unverified human-review drafts, not machine proof.

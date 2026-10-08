@@ -86,11 +86,11 @@ test('validated I14 and decision candidates keep original proposal bytes while a
 
 test('U-07 author-proposed task, owner and deadline render as an unapproved AI proposal', () => {
   const evidence = syntheticI14Input();
-  for (const sectionId of ['M12', 'I15'] as const) {
+  for (const sectionId of ['M11', 'M12', 'I15'] as const) {
     const input = { sectionId, packetVersion: '1.2.0' as const, evidence: { ...evidence, admissionVersion: '1.0.0' as const } };
     const packet = buildAutomationDecisionPacket(input).artifact;
-    const proposal = { ...structuredClone(validI14Response(evidence)).aiCandidates[0], candidateType: sectionId === 'M12' ? 'ACTION_OPTION' : 'STRATEGY_OPTION',
-      counterevidenceRelations: [], ...(sectionId === 'M12' ? { prerequisites: ['Owner confirms the retained observation'] } : { conditions: ['Owner confirms the retained observation'] }),
+    const proposal = { ...structuredClone(validI14Response(evidence)).aiCandidates[0], candidateType: sectionId === 'M11' ? 'HYPOTHESIS' : sectionId === 'M12' ? 'ACTION_OPTION' : 'STRATEGY_OPTION',
+      counterevidenceRelations: [], ...(sectionId === 'M12' ? { prerequisites: ['Owner confirms the retained observation'] } : sectionId === 'I15' ? { conditions: ['Owner confirms the retained observation'] } : {}),
       immediateTask: 'Review the stated barrier with the owner', proposedOwner: 'Owner to confirm', proposedDeadline: 'Within two weeks' };
     const candidates = validateAutomationDecisionCandidateResponse({ aiCandidates: [proposal] }, input);
     const html = decisionPacketSection(packet, validateAutomationSourceClaims(evidence.sourceClaims),

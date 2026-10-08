@@ -1033,6 +1033,36 @@
         },
         "limitations": {
           "$ref": "#/$defs/requiredAiTexts"
+        },
+        "immediateTask": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposedOwner": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "proposedDeadline": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/aiText"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },

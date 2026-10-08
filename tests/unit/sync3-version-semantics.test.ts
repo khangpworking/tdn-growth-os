@@ -51,7 +51,13 @@ test('U-16 decision prompt 1.3.0 bans purchases and adds the labelled proposal f
     for (const field of extra) assert.ok(prompt.systemText.includes(field), `${sectionId} prompt must mention ${field}`);
   }
   const m11 = automationDecisionSynthesisPrompt('M11', '1.3.0').artifact;
-  assert.ok(m11.systemText.includes('at most 20 distinct objects'));
+  assert.ok(m11.systemText.includes('at most 3 distinct objects'));
+  for (const field of ['proposedOwner', 'proposedDeadline', 'immediateTask']) assert.ok(m11.systemText.includes(field), `M11 prompt must mention ${field}`);
+  assert.match(m11.systemText, /Each candidate must include immediateTask, proposedOwner and proposedDeadline/);
+  // 1.2.0 keeps its own cap and its optional wording, so a retained prompt still replays.
+  const older = automationDecisionSynthesisPrompt('M11', '1.2.0').artifact;
+  assert.ok(older.systemText.includes('at most 20 distinct objects'));
+  assert.ok(!older.systemText.includes('must include immediateTask'));
   assert.match(m11.systemText, /never propose, suggest or imply placing a trial order/i);
   // U-02: the owner question stays unset in every 1.3.0 prompt, with the working question called out as an AI proposal.
   assert.match(m11.systemText, /working question may be shown as an AI proposal awaiting the owner/i);

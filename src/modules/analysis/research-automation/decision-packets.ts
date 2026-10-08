@@ -253,9 +253,16 @@ export function validateAutomationDecisionCandidateResponse(untrustedResponse: u
   if (!validateCandidatesSchema(envelope)) fail(`INVALID_DECISION_CANDIDATES:${ajv.errorsText(validateCandidatesSchema.errors)}`);
   const artifact = JSON.parse(canonicalJson(envelope)) as AutomationDecisionCandidates;
   if (packet.methodVersion === '1.2.0') {
-    // U-07 (E2/E6): M12 and I15 admit at most three labelled proposals; U-16 rejects any authored purchase suggestion.
-    if ((packet.sectionId === 'M12' || packet.sectionId === 'I15') && artifact.aiCandidates.length > MAX_AI_CANDIDATES_V2)
-      fail('CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT');
+    // U-07 (E2/E6): every new-version section admits at most three labelled proposals — M11 opportunities included —
+    // and U-16 rejects any authored purchase suggestion.
+    if (artifact.aiCandidates.length > MAX_AI_CANDIDATES_V2) fail('CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT');
+    // U-07: each proposal must actually carry the immediate task, proposed owner and proposed deadline it is presented
+    // with. The schema keeps them optional so 1.0.0/1.1.0 candidates still validate; the version guard is what makes
+    // them required for a new packet. A present-but-empty value is not a proposal.
+    for (const candidate of artifact.aiCandidates) {
+      const fields = [candidate.immediateTask, candidate.proposedOwner, candidate.proposedDeadline];
+      if (fields.some(value => typeof value !== 'string' || !value.trim())) fail('CANDIDATE_PROPOSAL_FIELDS_REQUIRED');
+    }
     assertNoPurchaseSuggestion(artifact);
   }
   if (artifact.aiCandidates.length && packet.candidateEligibility.status !== 'SUPPORT_ANCHORS_AVAILABLE') fail('CANDIDATES_WITHOUT_ADMITTED_USE_CONTEXT');
