@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import ConfirmDialog from '../ConfirmDialog';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import { formatTime } from './run-status';
-import { decideReaderReport, loadReaderReports, readerReportUrl } from './reader-report-api';
-import type { ResearchAutomationReaderRevision } from './reader-report-api';
+import { buildReaderWithUnitSpecs, MAX_READER_REQUEST_BYTES, decideReaderReport, loadReaderReports, readerReportUrl } from './reader-report-api';
+import type { ResearchAutomationReaderBuildRequest, ResearchAutomationReaderRevision } from './reader-report-api';
 
 interface Props {
   readonly run: ResearchAutomationRun;
@@ -26,6 +26,10 @@ export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: 
   const [dialog, setDialog] = useState<Decision | null>(null);
   const [reason, setReason] = useState('');
   const [pending, setPending] = useState(false);
+  const [requestFile, setRequestFile] = useState<File | null>(null);
+  const [listingFiles, setListingFiles] = useState<readonly File[]>([]);
+  const [ownerFiles, setOwnerFiles] = useState<readonly File[]>([]);
+  const [intakeError, setIntakeError] = useState('');
   const requestKeys = useRef(new Map<string, string>());
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -41,6 +45,25 @@ export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: 
 
   const latest = revisions?.at(-1);
   const canWrite = writesAvailable && ownerToken !== null;
+  const buildWithSpecs = async () => {
+    if (!ownerToken || !requestFile || pending) return;
+    setPending(true); setIntakeError(''); setNotice('');
+    try {
+      if (!requestFile.size || requestFile.size > MAX_READER_REQUEST_BYTES) throw new ResearchAutomationError('rejected', 'Tệp yêu cầu trống hoặc vượt giới hạn 4,5 MiB.');
+      let request: ResearchAutomationReaderBuildRequest;
+      try { request = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await requestFile.arrayBuffer())) as ResearchAutomationReaderBuildRequest; }
+      catch { throw new ResearchAutomationError('rejected', 'Tệp yêu cầu phải là JSON UTF-8 hợp lệ.'); }
+      const receipt = await buildReaderWithUnitSpecs(run.workspaceId, run.runId, request,
+        [...listingFiles.map(file => ({ file, role: 'LISTING_SPEC' as const })), ...ownerFiles.map(file => ({ file, role: 'OWNER_DECLARATION' as const }))], ownerToken, () => {
+          if (mounted.current) setNotice('Đã lưu quy cách của phiên này. Bản đọc chưa được dựng xong và chưa được duyệt.');
+        });
+      if (!mounted.current) return;
+      setNotice(`Đã lưu quy cách và dựng bản đọc lần ${receipt.revision.revisionNumber}. Bản đọc vẫn chờ bạn duyệt.`); reload();
+    } catch (failure) {
+      if (mounted.current) setIntakeError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa lưu được quy cách và dựng bản đọc. Thử lại với cùng tệp yêu cầu.');
+    } finally { if (mounted.current) setPending(false); }
+  };
+
   const submit = async () => {
     if (!latest || !dialog || !ownerToken || pending) return;
     const trimmed = dialog === 'REJECTED' ? reason.trim() : '';
@@ -91,6 +114,22 @@ export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: 
             {' · '}{STATE_LABEL[revision.state]}{revision.decision?.reason ? ` · Lý do: ${revision.decision.reason}` : ''}</li>)}
         </ul></details>}
       </>}
+    {run.status === 'DRAFT_READY' && latest?.state !== 'APPROVED' && <details className="ra-reader-intake">
+      <summary>Bổ sung quy cách và dựng bản đọc</summary>
+      <p>Lưu tệp quy cách listing và khai báo số lượng của bạn riêng biệt. Hệ thống đối chiếu đúng sản phẩm, biến thể và vị trí trong tệp; việc lưu không xác thực lời người bán hay duyệt báo cáo.</p>
+      <p>Giữ nguyên tệp JSON nguồn. Mỗi tệp không quá 2 MiB, tổng không quá 8 MiB và tối đa 16 tệp. Không suy số lượng từ tiêu đề hoặc giá bán trung bình.</p>
+      <label className="ra-label">Tệp yêu cầu dựng bản đọc JSON<input className="ra-field" type="file" accept=".json,application/json" disabled={!canWrite || pending}
+        onChange={event => { setRequestFile(event.target.files?.[0] ?? null); setIntakeError(''); }} /></label>
+      <p className="ra-muted">Yêu cầu phải chọn tệp sản phẩm của phiên này và trỏ tới từng quan sát quy cách bằng mã kiểm tra, vị trí nguồn. Khi thử lại, dùng cùng tệp yêu cầu để tránh dựng lặp.</p>
+      <label className="ra-label">Tệp quy cách listing JSON<input className="ra-field" type="file" multiple accept=".json,application/json" disabled={!canWrite || pending}
+        onChange={event => { setListingFiles(Array.from(event.target.files ?? [])); setIntakeError(''); }} /></label>
+      <label className="ra-label">Tệp khai báo số lượng của bạn JSON (không bắt buộc)<input className="ra-field" type="file" multiple accept=".json,application/json" disabled={!canWrite || pending}
+        onChange={event => { setOwnerFiles(Array.from(event.target.files ?? [])); setIntakeError(''); }} /></label>
+      {!canWrite && <p className="ra-muted">Mở khóa OWNER và bật quyền ghi để bổ sung quy cách.</p>}
+      {intakeError && <p role="alert" className="ra-message error">{intakeError}</p>}
+      <button type="button" className="button" disabled={!canWrite || pending || !requestFile || !listingFiles.length} onClick={() => void buildWithSpecs()}>
+        {pending ? 'Đang xử lý…' : 'Lưu quy cách và dựng bản đọc'}</button>
+    </details>}
     {dialog && latest && <ConfirmDialog titleId="ra-reader-decision-title" descriptionId="ra-reader-decision-description"
       title={dialog === 'APPROVED' ? `Duyệt bản đọc lần ${latest.revisionNumber}?` : `Từ chối bản đọc lần ${latest.revisionNumber}?`}
       confirmLabel={dialog === 'APPROVED' ? 'Duyệt' : 'Từ chối'} pending={pending} onCancel={() => setDialog(null)} onConfirm={() => void submit()}>
