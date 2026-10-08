@@ -45,7 +45,7 @@ async function fixture(t: TestContext, rows: unknown[]) {
 
 test('authentic Foundation3 source projection preserves quotes, ratings, membership and native duplicate limits without private identity metadata', async t => {
   const { ratingStar: _star, ...absent } = row;
-  const f = await fixture(t, [row, row, { ...row, reviewId: '102' }, { ...absent, reviewId: '103', comment: '' },
+  const f = await fixture(t, [row, { ...row, authorId: '918273999' }, { ...row, reviewId: '102' }, { ...absent, reviewId: '103', comment: '' },
     { ...row, reviewId: '104', comment: null, ratingStar: null }, { ...row, reviewId: '105', ratingStar: 3.5 },
     { ...row, reviewId: '106', itemId: '3999' }, { ...row, reviewId: '107', shopId: null }]);
   const { output, sha256 } = projectPrivateInsightSource(f.corpus, f.view);
@@ -62,7 +62,7 @@ test('authentic Foundation3 source projection preserves quotes, ratings, members
   assert.deepEqual(sourceDefaultInsightRules(output.input).corpora.map(corpus => corpus.recordIndexes), [[0, 2, 5], [0, 2, 5]]);
   assert.deepEqual(output.corpus, f.view.corpus);
   const bytes = canonicalJson(output);
-  for (const forbidden of ['918273645', 'PRIVATE_AUTHOR_NAME', 'PRIVATE_AVATAR', 'authorIdentity', 'reportedAuthorHashes',
+  for (const forbidden of ['918273645', '918273999', 'PRIVATE_AUTHOR_NAME', 'PRIVATE_AVATAR', 'authorIdentity', 'reportedAuthorHashes',
     'keyId', keyId, 'keyCommitment', f.privacy.profile.keyCommitment, 'privacy', 'reviewId', 'profileVersion'])
     assert.equal(bytes.includes(forbidden), false, forbidden);
   assert.deepEqual(projectPrivateInsightSource(f.corpus, f.view), { output, sha256 }, 'exact deterministic replay');

@@ -17,7 +17,7 @@ import type { InsightReportSelection, InsightDraftSelection, InsightDefaultDraft
 import type { InsightCodingAdoptRequest, InsightCodingProposeRequest, InsightCodingAcceptRequest, InsightCodingEvidence, InsightSourceBinding, InsightDefaultCodingEvidence, InsightDefaultRuleRequest, InsightDefaultCodingProposeRequest, InsightPrivateDefaultCodingEvidence, InsightPrivateDefaultRuleRequest, InsightPrivateDefaultCodingProposeRequest } from '../../../../contracts/analysis/automation-insight-coding.generated.js';
 import type { AutomationInsightSelection } from '../../../../contracts/analysis/automation-insight-selection.generated.js';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
-import type { InsightPrivateSourceBinding, PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
+import type { PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
 import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
 import { registerPrivateReviewSchemas } from './private-review-contracts.js';
 import { DEFAULT_PRIVATE_INSIGHT_POLICY } from './insight-default-coding.js';
@@ -61,6 +61,7 @@ function tooLarge(): never { throw new ResearchAutomationConflictError('invalid_
 type Evidence = InsightCodingEvidence | InsightDefaultCodingEvidence | InsightPrivateDefaultCodingEvidence;
 type DefaultRule = InsightDefaultRuleRequest | InsightPrivateDefaultRuleRequest;
 type DefaultProposal = InsightDefaultCodingProposeRequest | InsightPrivateDefaultCodingProposeRequest;
+type InsightPrivateSourceBinding = InsightPrivateDefaultRuleRequest['binding'];
 export type AnyInsightSourceBinding = InsightSourceBinding | InsightPrivateSourceBinding;
 type Request = Evidence['request'];
 type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';

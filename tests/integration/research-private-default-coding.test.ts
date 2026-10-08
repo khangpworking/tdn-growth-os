@@ -137,10 +137,11 @@ test('authentic private source22 -> no-adoption default model-v2 -> immutable pe
   assert.equal(view.contractVersion, 'insight-coding-view-v3');
   assert.equal(view.evidence.filter(item => item.kind === 'ADOPTION' || item.kind === 'RECEIPT').length, 0);
   assert.equal(view.evidence.filter(item => item.kind === 'DEFAULT_RULE').length, 1); f.scan(view); f.scan(first.proposal);
-  const beforeRetry = fingerprint(f);
+  const beforeRetry = fingerprint(f), changesBeforeRetry = f.db.prepare('SELECT total_changes() n').get();
   const retry = await f.reader().proposeDefaultModelInsightCoding(workspaceId, runId, body, owner, null);
   assert.equal(retry.proposal!.exactRetry, true); assert.equal(fingerprint(f), beforeRetry); assert.equal(modelCalls, 1);
   assert.deepEqual(await f.reader().readInsightCoding(workspaceId, runId, f.pair.pairId), view);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changesBeforeRetry);
   const revision = { contractVersion: 'automation-insight-default-report-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, defaultInsight: { contractVersion: 'insight-default-draft-select-v1',
       proposalId: first.proposal.evidence.evidenceId, proposalSha256: first.proposal.sha256 } };
@@ -161,11 +162,11 @@ test('authentic private source22 -> no-adoption default model-v2 -> immutable pe
   for (const digest of Object.values(retained)) f.scan(await f.artifacts.read(digest));
   assert.equal(JSON.parse((await f.artifacts.read(retained.admission_sha256)).toString()).contractVersion, 'insight-default-model-source-v2');
   assert.equal(JSON.parse((await f.artifacts.read(retained.prompt_sha256)).toString()).contractVersion, 'insight-model-prompt-v6');
-  const settled = fingerprint(f);
+  const settled = fingerprint(f), changesBeforeRead = f.db.prepare('SELECT total_changes() n').get();
   assert.deepEqual(await f.reader().readReport(workspaceId, runId, 'INSIGHT', false, pair.pairId), report);
   assert.deepEqual(await f.reader().readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId), f.original);
   assert.equal((await f.reader().requestReportRevision(workspaceId, runId, revision)).exactRetry, true);
-  assert.equal(fingerprint(f), settled); assert.equal(modelCalls, 1); assert.equal(f.collectionCalls(), 1);
+  assert.equal(fingerprint(f), settled); assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changesBeforeRead); assert.equal(modelCalls, 1); assert.equal(f.collectionCalls(), 1);
   const keep = { contractVersion: 'automation-report-revision-v1', requestKey: randomUUID(), previousPairId: pair.pairId,
     sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };
   const kept = await committed(f, (await f.service.requestReportRevision(workspaceId, runId, keep)).attemptId);
