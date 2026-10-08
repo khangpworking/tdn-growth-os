@@ -3,7 +3,7 @@ import test from 'node:test';
 import { createHash } from 'node:crypto';
 import type { DefaultMarketPeers } from '../../contracts/analysis/default-market-peers.generated.js';
 import type { MetricScopeInput } from '../../contracts/analysis/metric-scope-input.generated.js';
-import { DEFAULT_MARKET_PEER_RULE, classifiedMetricDefaultPeers, deriveDefaultMarketPeers, verifyDefaultMarketPeers } from '../../src/modules/analysis/default-market-peers.js';
+import { DEFAULT_MARKET_PEER_RULE, classifiedMetricDefaultPeers, deriveDefaultMarketPeers, verifyDefaultMarketPeers, verifyDefaultMarketPeerRule } from '../../src/modules/analysis/default-market-peers.js';
 import { buildMarketReport, computeReaderReportData, lint, READER_SECTION_ANCHORS, visibleText } from '../../src/modules/analysis/reader-report/index.js';
 import { buildDescriptiveMarketMethods, verifyDescriptiveMarketMethods } from '../../src/modules/analysis/descriptive-market-methods.js';
 import { sync1Options, sync1ReaderFixture } from '../helpers/sync1-reader-fixture.js';
@@ -23,6 +23,17 @@ function fixture(): Input {
     })),
   };
 }
+
+test('retained rule validation rejects missing, altered or extra policy fields without inventing a marker', () => {
+  const retained = { ...DEFAULT_MARKET_PEER_RULE };
+  const verified = verifyDefaultMarketPeerRule(retained);
+  assert.deepEqual(verified, retained);
+  assert.notEqual(verified, retained);
+  for (const invalid of [undefined, null, {}, { ...retained, thresholdPercent: 49 },
+    { ...retained, version: 'future-rule' }, { ...retained, extra: true }]) {
+    assert.throws(() => verifyDefaultMarketPeerRule(invalid), /DEFAULT_PEER_RULE_INVALID|DEFAULT_PEER_RULE_UNSUPPORTED/);
+  }
+});
 
 test('frozen rule reaches the exact 50% boundary with stable ties and separate owner additions', () => {
   const input = fixture(), snapshot = deriveDefaultMarketPeers(input), frame = snapshot.frames[0]!;

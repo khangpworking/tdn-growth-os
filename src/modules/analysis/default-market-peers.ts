@@ -17,6 +17,7 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv); ajv.addSchema(schema);
 const validateInput = ajv.getSchema<Input>(`${schema.$id}#/$defs/input`)!;
+const validateRule = ajv.getSchema<Input['rule']>(`${schema.$id}#/$defs/rule`)!;
 const validateOutput = ajv.getSchema<DefaultMarketPeers>(schema.$id)!;
 const order = (a: string, b: string): number => a < b ? -1 : a > b ? 1 : 0;
 const key = (value: unknown): string => canonicalJson(value);
@@ -28,6 +29,13 @@ export const DEFAULT_MARKET_PEER_RULE: Readonly<Input['rule']> = Object.freeze({
   identity: 'EXACT_TITLE_LABEL_OR_SOURCE_SHOP_PER_PLATFORM',
   denominator: 'COMPLETE_COMPATIBLE_GROUP_SAMPLE',
 });
+
+/** Validate a retained start marker without supplying today's policy for old runs. */
+export function verifyDefaultMarketPeerRule(value: unknown): Input['rule'] {
+  if (!validateRule(value)) throw new TypeError('DEFAULT_PEER_RULE_INVALID');
+  if (key(value) !== key(DEFAULT_MARKET_PEER_RULE)) throw new TypeError('DEFAULT_PEER_RULE_UNSUPPORTED');
+  return JSON.parse(canonicalJson(value)) as Input['rule'];
+}
 
 function decimal(value: string, scale: number): bigint {
   const [whole, fraction = ''] = value.split('.');
