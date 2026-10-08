@@ -300,7 +300,12 @@ Checklist:
 
 ## P6. Metric automation through OpenCLI, archive, R2 copy, ledger (wave 2; gate: extension installed)
 
-Runs on Fedora only, because it needs the owner's Chrome. Follow #127 Phase 0–2 and step 8. A live Metric search or export needs the owner's yes for each run.
+Runs on Fedora only, because it needs the owner's Chrome. Follow #127 Phase 0–2 and step 8, with these owner decisions of 2026-10-08 (Ultimate E14):
+- searches and exports run automatically, with **no owner approval per run and none for the first live capture**;
+- **no Metric cap for now**; every search and export is logged;
+- prepared Metric sources are confirmed into the run automatically (this replaces #127 Phase 2 step 5 "confirmation stays explicit");
+- #127 Phase 3 (Facebook and Instagram) is dropped;
+- OpenCLI is **not yet set up on Fedora** (owner, 08/10), so Phase 0 is the first step.
 
 Checklist:
 - [ ] P6-01 Phase 0 setup:
@@ -329,7 +334,7 @@ Checklist:
   - `numbers-used.json` for every shown number;
   - an xlsx download "Tải bảng số liệu đã dùng";
   - `REPORT_NUMBER_UNLOGGED` and `REPORT_NUMBER_SOURCE_MISSING` block rendering.
-- [ ] P6-09 The Metric source card gets the states `READY` / `LOGIN_REQUIRED` / `BRIDGE_DISCONNECTED` / `EXECUTOR_DISABLED`, with manual upload as the fallback.
+- [ ] P6-09 The Metric source card gets the states `READY` / `LOGIN_REQUIRED` / `BRIDGE_DISCONNECTED` / `EXECUTOR_DISABLED`, with manual upload as the fallback. It shows the **remaining analysis lookups and download rows** read by `whoami` when Metric displays them (owner decision 08/10). Build it on the source-board contract of sync-plan B-01.
 - [ ] P6-10 Every #127 test bullet for the adapter, executor, archive, ledger and R2 copy. No live Metric in CI.
 
 **Functional when:** after one owner-approved live capture, a reader report builds from it with no hand-typed `source`, and its numbers match the owner's manual reading.
@@ -535,11 +540,11 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 
 ## Owner gates (not agent work)
 
-- P9 live comment collection: **approved for test runs on 2026-10-08 at a $3 cap per run** (`maxTotalChargeUsd` = 3). Each run is still announced before it starts (Ultimate E8).
+- P9 live comment collection: **approved for test runs on 2026-10-08 at a $3 cap per run** (`maxTotalChargeUsd` = 3). Runs start automatically within the cap and are logged (Ultimate E14).
 
 - Phase 0 spike (#124): ≤6 paid calls. **Approved 2026-10-07.** Run it with `docs/runbooks/agent-pipeline.md` §7.
 - Install the OpenCLI extension in Chrome on Fedora (unblocks P6).
 - Run the Meta Ad Library test through Agent-Reach (decides whether Agent-Reach stays for S15 or leaves the project). No cost.
-- Live Metric search or export: a yes per run (P6).
+- Set up OpenCLI and its Chrome extension on Fedora (P6 Phase 0). Metric searches and exports then run without a per-run yes (Ultimate E14).
 - Deploys: #125 Phase 3 (PageIndex key and `pypdf` venv on Fedora), P6 keepalive. Each deploy needs approval plus the exact merge SHA.
 - Every merge.
