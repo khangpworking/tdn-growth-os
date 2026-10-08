@@ -4,7 +4,8 @@ Updated: 2026-10-08
 Worktree/branch: ontology / `pkg/ONTO-1-open-ontologies`
 Completed: proposed offline SHACL metadata checks for E4, L10, E12, E13 and UNKNOWN;
 49 synthetic dataset checks; independent blind model review and source comparison;
-RDFS smoke and installed Lean certificate check. Draft PR delivery only.
+RDFS smoke and installed Lean certificate check. Draft PR: [#173](https://github.com/khangpworking/tdn-growth-os/pull/173).
+Implementation commit: `2518bf2`. Draft PR delivery only.
 Changed paths: `ontology/`, `docs/handoffs/ONTO-1.md`.
 Evidence (commands, results, relevant revision): base/main SHA
 `998549072ae62b9d619ffbf645ba59b22a920d4e`; installed Open Ontologies 2.0.1,
@@ -36,7 +37,7 @@ or request stronger evidence linkage; no pipeline integration authorized here.
 | O-09 | DONE | reason --certificate ran; installed oo-cert accepted 2 asserted triples/1 derivation, exit 0, theorem OOCert.certificate_sound. No Lean build or claim about business-rule correctness. |
 | O-10 | DONE | Different-model GPT-6-astra cold review of five masked inputs, retained transcript; implementer compared with Ultimate/written owner decision in five review notes. reviewed by model, not by a domain expert. Status proposed; unexpressed obligations ESCALATED. |
 | O-11 | DONE | Only ontology/ and docs/handoffs/ changed. No configuration/MCP/package changes, real data, merge or deployment. |
-| O-12 | DONE | This template-based handoff, ONTO-1 commit, branch push and draft PR; PR delivery evidence in final response/PR metadata. |
+| O-12 | DONE | This template-based handoff, ONTO-1 commit, branch push and draft PR; Draft PR #173; implementation commit 2518bf2 pushed to the assigned branch. |
 
 ## Exact datasets and results
 
