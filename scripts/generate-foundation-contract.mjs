@@ -54,6 +54,7 @@ const contracts = [
   ['analysis', 'm13-provenance-appendix'],
   ['analysis', 'i03-research-method'],
   ['analysis', 'i17-evidence-trace'],
+  ['analysis', 'kalodata-video-intake-v1'],
   ['analysis', 'research-chart-spec'],
   ['analysis', 'source-backed-report-request'],
   ['analysis', 'report-semantic-content'],
