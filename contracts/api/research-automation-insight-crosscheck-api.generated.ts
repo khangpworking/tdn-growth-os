@@ -382,7 +382,7 @@ export interface ResearchInsightCrosscheckInvalid {
   status: 'INVALID';
   requestKey: string;
   executionId: string;
-  code: 'RESPONSE_NOT_TEXT' | 'RESPONSE_TOO_LARGE' | 'RESPONSE_NOT_JSON' | 'INVALID_INSIGHT_CROSSCHECK_RESPONSE';
+  code: 'RESPONSE_NOT_TEXT' | 'RESPONSE_TOO_LARGE' | 'RESPONSE_NOT_JSON' | 'INVALID_INSIGHT_CODING_RESPONSE';
   rawCompletion: 'NOT_RETAINED';
 }
 export interface ResearchInsightCrosscheckUnknown {

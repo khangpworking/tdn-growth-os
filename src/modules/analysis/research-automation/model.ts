@@ -6,6 +6,8 @@ import type { NativeSourceReviewReference } from './native-source-review-bridge.
 import type { ExactShopeeOutcome } from './exact-shopee-outcome.js';
 import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 
+export type { InsightCrosscheckSnapshot, InsightCrosscheckSelection } from '../../../../contracts/analysis/automation-insight-crosscheck.generated.js';
+
 // New literal revisions retain their canonical output independently of coding.
 export type { InsightLiteralSelection, AutomationInsightLiteralReportRevisionRequest } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
 export type { InsightLiteralEvidence as AutomationInsightLiteralSnapshot } from '../../../../contracts/analysis/insight-literal-evidence.generated.js';

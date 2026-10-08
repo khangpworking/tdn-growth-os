@@ -89,6 +89,85 @@ test('owning default lineage reader verifies all predecessor model configuration
   const oldSelection = { ...selection, proposalId: firstEvidence.evidenceId, proposalSha256: first.proposal.sha256 };
   assert.equal((await coding.readDefaultModelLineage(workspaceId, runId, context.binding, oldSelection)).executions.length, 1);
   await assert.rejects(coding.readDefaultModelLineage(workspaceId, runId, context.binding, oldSelection, true));
+  const secondConfiguration = { ...makeAi('independent-second').configuration, providerId: 'synthetic-second' };
+  const crosscheckRequest = { contractVersion: 'insight-crosscheck-request-v1', requestKey: randomUUID(), binding: context.binding,
+    firstProposalId: selection.proposalId, firstProposalSha256: selection.proposalSha256, codebookSha256: lineage.codebookSha256,
+    seed: 'a'.repeat(64), secondConfigurationSha256: insightCodingDigest(secondConfiguration) };
+  let secondCalls = 0;
+  const wireText = `  ${JSON.stringify(blank())}\n`;
+  const captured: unknown[] = [];
+  const secondAi = { configuration: secondConfiguration, port: { async generateText(request: { userText: string; systemText: string }) {
+    secondCalls++; const projection = JSON.parse(request.userText); captured.push(projection);
+    const forbidden = new Set(['firstRecordIndex','firstSpan','assignments','dispositions','provenance','examples','trace','i04','i05']);
+    const inspect = (value: unknown) => { if (!value || typeof value !== 'object') return;
+      for (const [key, child] of Object.entries(value)) { assert.ok(!forbidden.has(key), `first leak ${key}`); inspect(child); } };
+    inspect(projection); assert.ok(!request.userText.includes('first-a')); assert.ok(!request.userText.includes('first-b'));
+    assert.equal(projection.codebookSha256, lineage.codebookSha256);
+    assert.deepEqual(projection.records.map((row: { locator: string }) => row.locator), context.input.records.map(row => row.locator));
+    assert.deepEqual(projection.corpora[0].codes, [{ code: 'C1', label: 'size', phrase: 'kích thước' }]);
+    return { text: wireText };
+  } } };
+  const beforeRejected = db.prepare('SELECT total_changes() n').get();
+  const sameAi = makeAi('first-a');
+  await assert.rejects(service.prepareInsightCrosscheck(workspaceId, runId, { ...crosscheckRequest, requestKey: randomUUID(), secondConfigurationSha256: insightCodingDigest(sameAi.configuration) }, owner, sameAi));
+  await assert.rejects(service.prepareInsightCrosscheck(workspaceId, runId, { ...crosscheckRequest, requestKey: randomUUID() }, owner, null));
+  await assert.rejects(service.prepareInsightCrosscheck(workspaceId, runId, { ...crosscheckRequest, requestKey: randomUUID(), codebookSha256: '0'.repeat(64) }, owner, secondAi));
+  for (const patch of [
+    { firstProposalId: oldSelection.proposalId, firstProposalSha256: oldSelection.proposalSha256 },
+    { firstProposalSha256: '0'.repeat(64) },
+    { secondConfigurationSha256: '0'.repeat(64) },
+    { binding: { ...context.binding, inputSha256: '0'.repeat(64) } },
+    { binding: { ...context.binding, workspaceId: randomUUID() } },
+    { binding: { ...context.binding, runId: randomUUID() } },
+  ]) await assert.rejects(service.prepareInsightCrosscheck(workspaceId, runId, { ...crosscheckRequest, requestKey: randomUUID(), ...patch }, owner, secondAi));
+  assert.deepEqual(db.prepare('SELECT total_changes() n').get(), beforeRejected); assert.equal(secondCalls, 0); assert.equal(calls, 2);
+  const prepared = await service.prepareInsightCrosscheck(workspaceId, runId, crosscheckRequest, owner, secondAi);
+  assert.equal(prepared.status, 'VALID');
+  if (prepared.status !== 'VALID') throw new Error(JSON.stringify(prepared));
+  assert.equal(prepared.snapshot.plan.sample.length, 2); assert.equal(prepared.snapshot.plan.eligible.length, 2);
+  assert.equal(prepared.snapshot.releaseState, 'U11_STATISTIC_UNAVAILABLE');
+  assert.deepEqual(prepared.snapshot.literalRows[0]!.second.corpora[0]!.dispositions, []);
+  assert.ok(prepared.snapshot.literalRows[0]!.literalDifferences.includes('corpora'));
+  const candidates = JSON.parse((await artifacts.read(prepared.snapshot.secondExecutions[0]!.candidatesSha256)).toString());
+  assert.equal(candidates.completionText, wireText, 'actual wire whitespace retained exactly');
+  const beforeReplay = db.prepare('SELECT total_changes() n').get();
+  const replayed = await service.prepareInsightCrosscheck(workspaceId, runId, crosscheckRequest, owner, { ...secondAi, configuration: { ...secondConfiguration, modelId: 'changed-current-model' } });
+  assert.deepEqual(replayed, { ...prepared, exactRetry: true });
+  assert.deepEqual(await service.readInsightCrosscheck(workspaceId, runId, crosscheckRequest.requestKey), replayed);
+  await assert.rejects(service.prepareInsightCrosscheck(workspaceId, runId, crosscheckRequest, { ...owner, actorId: 'owner:another-synthetic' }, secondAi));
+  await assert.rejects(service.prepareInsightCrosscheck(workspaceId, runId, { ...crosscheckRequest, seed: 'b'.repeat(64) }, owner, secondAi));
+  await assert.rejects(service.readInsightCrosscheck(randomUUID(), runId, crosscheckRequest.requestKey));
+  await assert.rejects(service.readInsightCrosscheck(workspaceId, randomUUID(), crosscheckRequest.requestKey));
+  assert.equal(secondCalls, 1); assert.deepEqual(db.prepare('SELECT total_changes() n').get(), beforeReplay);
+  const revision = await service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-insight-crosscheck-report-revision-v1', requestKey: randomUUID(), previousPairId: pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, defaultInsight: selection,
+    crosscheckInsight: { contractVersion: 'insight-crosscheck-select-v1', requestKey: crosscheckRequest.requestKey, snapshotSha256: prepared.snapshotSha256,
+      firstProposalId: selection.proposalId, firstProposalSha256: selection.proposalSha256 } });
+  await service.processNext();
+  assert.equal((await service.getReportRevision(workspaceId, runId, revision.attemptId)).state, 'COMMITTED', JSON.stringify(await service.getReportRevision(workspaceId, runId, revision.attemptId)));
+  const selectedPair = (await service.listReportVersions(workspaceId, runId)).find(pair => pair.attemptId === revision.attemptId)!;
+  const report = await service.readReport(workspaceId, runId, 'INSIGHT', false, selectedPair.pairId);
+  const semantic = JSON.parse((await artifacts.read(report.versionId)).toString());
+  assert.equal(semantic.rendererVersion, 'automation-report-kit-v23');
+  assert.deepEqual(semantic.insightCrosscheck, prepared.snapshot);
+  const html = report.bytes.toString('utf8');
+  assert.ok(html.includes('insight-crosscheck-evidence')); assert.ok(html.includes('Chưa có thống kê kiểm chéo U11'));
+  assert.ok(html.includes('Tôi thích kích thước.')); assert.equal(secondCalls, 1);
+  const beforeReportRead = db.prepare('SELECT total_changes() n').get();
+  assert.deepEqual(await service.readReport(workspaceId, runId, 'INSIGHT', false, selectedPair.pairId), report);
+  assert.deepEqual(await service.readInsightCrosscheck(workspaceId, runId, crosscheckRequest.requestKey), replayed);
+  assert.deepEqual(db.prepare('SELECT total_changes() n').get(), beforeReportRead);
+  assert.ok(revision.attemptId); assert.equal(captured.length, 1);
+  const inherited = await service.requestReportRevision(workspaceId, runId, { contractVersion: 'automation-report-revision-v1', requestKey: randomUUID(),
+    previousPairId: selectedPair.pairId, sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } });
+  await service.processNext();
+  const inheritedPair = (await service.listReportVersions(workspaceId, runId)).find(pair => pair.attemptId === inherited.attemptId)!;
+  assert.ok(inheritedPair, JSON.stringify(await service.getReportRevision(workspaceId, runId, inherited.attemptId)));
+  const inheritedReport = await service.readReport(workspaceId, runId, 'INSIGHT', false, inheritedPair.pairId);
+  const inheritedSemantic = JSON.parse((await artifacts.read(inheritedReport.versionId)).toString());
+  assert.equal(inheritedSemantic.rendererVersion, 'automation-report-kit-v23');
+  assert.deepEqual(inheritedSemantic.insightCrosscheck, prepared.snapshot, 'KEEP inherits the exact original selection, never latest');
+  assert.equal(secondCalls, 1); assert.equal(calls, 2);
   const configurationSha = lineage.executions[0]!.configuration.sha256;
   db.prepare("UPDATE artifact_manifests SET retention_status='held' WHERE sha256=?").run(configurationSha);
   const beforeCorrupt = db.prepare('SELECT total_changes() n').get();

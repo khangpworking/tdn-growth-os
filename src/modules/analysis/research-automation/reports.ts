@@ -39,6 +39,10 @@ import type { ResearchAutomationRun } from '../../../../contracts/api/research-a
 import { REPORT_KIT_CSS as REPORT_KIT_BASE_CSS } from '../report-kit-theme.js';
 import { reportKitFontCss } from '../report-kit-fonts.js';
 import { attributionText, describeDescriptiveSection, descriptiveAppendix, escapeHtml, isDescriptiveSectionId, readerSafe, readerPointer, reviewRecordMark, retainedEvidenceHtml, retainedQuoteHtml, technicalLiteral, sourceMemberLabel, storedLiteral, type DescriptiveSectionView, type ReportCitations } from './descriptive-report.js';
+import type { InsightCrosscheckSnapshot } from '../../../../contracts/analysis/automation-insight-crosscheck.generated.js';
+import { crosscheckSnapshotValid } from './insight-crosscheck-contracts.js';
+import { insightCrosscheckAppendix } from './insight-crosscheck-report.js';
+import { canonicalJson } from '../../foundation/canonical-json.js';
 import { DEFAULT_INSIGHT_MULTICODE_LIMIT } from './insight-default-coding.js';
 import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, StepWebResult, TypedComparable } from './model.js';
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
@@ -77,6 +81,7 @@ export interface AutomationReportInput {
   readonly locatedReviewFailure?: 'LOCATED_REVIEW_METHOD_FAILED';
   /** Verified coding selections; v2 also supplies explicitly selected semantic families. Original source snapshots remain retained. */
   readonly insightCoding?: AutomationInsightCodingSnapshot;
+  readonly insightCrosscheck?: InsightCrosscheckSnapshot;
   readonly insightLiteral?: InsightLiteralEvidence;
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
@@ -485,6 +490,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (binding.sourceKind === 'NATIVE' ? input.locatedReview || input.locatedReviewFallback : input.nativeReview || input.nativeReviewFallback) throw new Error('Report insight coding source kind mismatch');
   }
   const insightCoding = kind === 'INSIGHT' ? input.insightCoding : undefined;
+  const insightCrosscheck = kind === 'INSIGHT' ? input.insightCrosscheck : undefined;
+  if (insightCrosscheck && (!crosscheckSnapshotValid(insightCrosscheck) || insightCoding?.contractVersion !== 'automation-insight-coding-snapshot-v4' ||
+    insightCrosscheck.request.firstProposalId !== insightCoding.selection.proposalId || insightCrosscheck.request.firstProposalSha256 !== insightCoding.proposalSha256 ||
+    canonicalJson(insightCrosscheck.request.binding) !== canonicalJson(insightCoding.binding))) throw new TypeError('INVALID_INSIGHT_CROSSCHECK_REPORT_BINDING');
   const marketPresentation = kind === 'MARKET' && input.marketPresentation
     ? verifyAutomationMarketPresentation(input.marketPresentation, input.marketPresentation.binding) : undefined;
   if (marketPresentation && (marketPresentation.binding.workspaceId !== input.run.workspaceId || marketPresentation.binding.runId !== input.run.runId))
@@ -696,7 +705,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = insightCrosscheck ? 'automation-report-kit-v23' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -717,6 +726,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, locatedReview: input.locatedReview ?? null, nativeReview: input.nativeReview ?? null,
       ...(input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
       ...(input.insightCoding ? { insightCoding: input.insightCoding } : {}),
+      ...(insightCrosscheck ? { insightCrosscheck } : {}),
       ...(insightLiteral ? { insightLiteral } : {}),
       ...(input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
       ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
@@ -772,6 +782,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     (kind === 'MARKET' && sectionId === 'M13' && input.quoteMethods
       ? `<details open id="quote-method-evidence"><summary>Hồ sơ giá M08: nguồn, điều kiện và phép tính</summary><p>Xuất xứ trong manifest là khai báo đã lưu, không phải chứng nhận độc lập. Dữ liệu tổng hợp thủ công hoặc giả lập không trở thành dữ liệu nhà cung cấp đã xác minh.</p>${retainedEvidenceHtml(input.quoteMethods)}</details>` : '') +
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
+    (insightCrosscheck && sectionId === 'I17' ? insightCrosscheckAppendix(insightCrosscheck) : '') +
     (input.boundedMethods && (sectionId === 'M13' || sectionId === 'I17')
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
