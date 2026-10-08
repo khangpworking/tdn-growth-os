@@ -1,6 +1,6 @@
 # Input data sources for 30 sections
 
-Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.8 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.11
+Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.9 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.12
 
 Đây là **nguồn chuẩn về danh mục nguồn dữ liệu**. File này trả lời ba câu hỏi:
 - có những nguồn nào;
@@ -70,7 +70,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 
 | ID | Nguồn | Tiếng nói | Công cụ | Tên trong báo cáo | Hạng | Đại diện | Trạng thái | Chi phí | Ràng buộc |
 |---|---|---|---|---|---|---|---|---|---|
-| S05 | Review Shopee, có số sao | Khách | Bộ thu review Shopee (Apify, actor zen-studio) | "review công khai trên Shopee" | B | Thấp | Đang dùng | Theo lượt; cần chủ duyệt mỗi lần chi | L1, L6; mục 6.3 |
+| S05 | Review Shopee, có số sao | Khách | Bộ thu review Shopee (Apify, actor zen-studio) | "review công khai trên Shopee" | B | Thấp | Đang dùng | Theo lượt; trong trần chi đã cấu hình (E14) | L1, L6; mục 6.3 |
 | S06 | Review TikTok Shop | Khách | Chưa có bộ thu | "review công khai trên TikTok Shop" | B | Thấp | Đề xuất | — | Như S05 |
 | S07 | Bình luận dưới video TikTok | Khách | Apify (clockworks, datadoping) | "bình luận công khai dưới video" | B | Thấp | Đã test (R3, R4): dùng được. 10–32% lời khách ứng viên trên mẫu chấm, cao hơn hẳn tìm bài Facebook. Pilot dùng datadoping, dự phòng clockworks. Đưa vào hệ thống bằng gói P9 | ~$0,33 (datadoping) – $1,00 (clockworks) / 1.000 bình luận duy nhất | Ẩn danh người viết; lọc tài khoản bán hàng; **lọc trùng theo mã video + mã bình luận**; vị trí trích dẫn = link video + mã bình luận (không có link trực tiếp tới bình luận); E5 phép kiểm 4 |
 | S08 | Bài viết Facebook công khai | Khách | Agent-Reach (OpenCLI); Apify Facebook Posts Search | "bài viết công khai trên Facebook" | B | Thấp | **Tạm ngừng thu** (chủ quyết 08/10/2026). Đã test: Agent-Reach một phần; Apify tìm bài công khai R1 không đạt, R2 một phần. Bài công khai chủ yếu là bài bán hàng, chỉ 0–8% lời khách. Không thu bài trong nhóm (chủ quyết 08/10/2026) | Agent-Reach: không; Apify: ~$0,23–0,26 cho 75–86 bài | Ẩn danh; dùng tài khoản riêng; L5, L7; bài không có ngày không vào số đếm theo kỳ |
@@ -85,7 +85,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 | ID | Nguồn | Tiếng nói | Công cụ | Tên trong báo cáo | Hạng | Đại diện | Trạng thái | Chi phí | Ràng buộc |
 |---|---|---|---|---|---|---|---|---|---|
 | S14 | Nội dung video bán hàng: lời thoại, hình, chữ trên màn hình | Người bán | Công cụ đọc video `/watch` | "nội dung video của người bán" | B | Vừa (theo top video của S02) | Gói P9 (đã có checklist) | Không, nếu chạy trên máy | L7; mục 6.2; E5 phép kiểm 1 |
-| S15 | Thư viện quảng cáo Meta: ngày bắt đầu, trạng thái đang chạy, một số thẻ có ngưỡng chi (ví dụ ">1 triệu đồng") | Người bán + tín hiệu trả tiền | Agent-Reach (OpenCLI browser); xem tay | "thư viện quảng cáo công khai của Meta" | B | Vừa | Đã test (08/10, T6): một phần, có ngày bắt đầu và trạng thái nhưng lẫn quảng cáo không liên quan. Bài test quyết định giữ hay bỏ Agent-Reach đã giao ngày 08/10/2026 (ST-20261008-21); không đạt thì chỉ còn xem tay | Không | E5 phép kiểm 3; ngưỡng chi chỉ là dấu hiệu "có trả tiền", không phải số chi; G6 |
+| S15 | Thư viện quảng cáo Meta: ngày bắt đầu, trạng thái đang chạy, một số thẻ có ngưỡng chi (ví dụ ">1 triệu đồng") | Người bán + tín hiệu trả tiền | OpenCLI (lệnh browser), đọc theo trang; cùng công cụ với Metric (gói P6) | "thư viện quảng cáo công khai của Meta" | B | Vừa | Đã test (ST-20261008-22): **Đạt** cả 5 tiêu chí khi đọc theo trang (3/3 trang, 39/39 quảng cáo đúng sản phẩm, ngày bắt đầu khớp 10/10). Tìm theo từ khoá chỉ 1/50 và 9/50 quảng cáo đúng sản phẩm: chỉ dùng để tìm trang | Không | Đọc theo trang của thương hiệu trong tập đối thủ (E11); lọc nghĩa L9 khi tìm trang; số ngày tính tới ngày thu, không chứng minh chạy trả tiền liên tục; nền tảng đọc từ biểu tượng còn thiếu; E5 phép kiểm 3; G6 |
 | S16 | Quảng cáo nổi bật trên TikTok (Creative Center): nội dung, thương hiệu, CTR, lượt thích | Người bán + số nền tảng tự báo | Apify TikTok Ads Scraper | "thư viện quảng cáo nổi bật của TikTok" | B | Vừa | Đã test (R5): không đạt, actor lỗi và không trả quảng cáo nào. Tìm actor hoặc cách khác | ~$3 / 1.000 quảng cáo | CTR, lượt thích ghi "nền tảng tự báo"; E5 |
 | S17 | Thư viện quảng cáo Google: ngày hiện lần đầu, lần cuối, khoảng lượt hiển thị | Người bán + tín hiệu trả tiền | Apify Google Ads Scraper | "thư viện quảng cáo công khai của Google" | B | Vừa | Đã test (R6): một phần. Có ngày hiện đầu/cuối cho 100% quảng cáo. Nhưng 65% quảng cáo có hai bộ ngày lệch nhau, không có lượt hiển thị cho Việt Nam, chỉ 11% có chữ, và cần URL nhà quảng cáo trên trang minh bạch quảng cáo | ~$0,14 cho 100 quảng cáo | E5 phép kiểm 3: **chưa dùng** cho tới khi rõ nghĩa hai bộ ngày. Ưu tiên S15. Quảng cáo của một thương hiệu gồm nhiều ngành hàng, phải lọc đúng sản phẩm |
 | S18 | Trang thương hiệu Facebook: người theo dõi, đánh giá, có đang chạy quảng cáo | Người bán | Apify Facebook Pages Scraper | "trang thương hiệu trên Facebook" | B | Vừa | Đề xuất | ~$12 / 1.000 trang | L7 |
@@ -94,7 +94,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 
 | ID | Nguồn | Tiếng nói | Công cụ | Tên trong báo cáo | Hạng | Đại diện | Trạng thái | Chi phí | Ràng buộc |
 |---|---|---|---|---|---|---|---|---|---|
-| S19 | Kết quả tìm kiếm Google mở rộng, kể cả lọc theo khoảng thời gian và trong một trang báo | Tuỳ trang tìm thấy | SerpApi (gói P5) | "kết quả tìm kiếm Google" | Theo trang gốc | Thấp | Chờ chạy thử (Phase 0). Lọc theo thời gian và tìm trong một trang báo: chủ duyệt 08/10/2026 | Theo lượt; cần chủ duyệt | Mỗi kết quả được chấm hạng theo trang gốc; ghi ngày đăng tách ngày sự kiện (M09); lọc nghĩa theo L9 |
+| S19 | Kết quả tìm kiếm Google mở rộng, kể cả lọc theo khoảng thời gian và trong một trang báo | Tuỳ trang tìm thấy | SerpApi (gói P5) | "kết quả tìm kiếm Google" | Theo trang gốc | Thấp | Chờ chạy thử (Phase 0). Lọc theo thời gian và tìm trong một trang báo: chủ duyệt 08/10/2026 | Theo lượt; trong trần chi đã cấu hình (E14) | Mỗi kết quả được chấm hạng theo trang gốc; ghi ngày đăng tách ngày sự kiện (M09); lọc nghĩa theo L9 |
 | S20 | Google Trends: mức quan tâm tìm kiếm 0–100, từ khoá liên quan, theo vùng | Thị trường | SerpApi (gói P5) | "mức quan tâm tìm kiếm trên Google" | B | Vừa | Chờ chạy thử (Phase 0) | Theo lượt | Là chỉ số tương đối, không phải lượt tìm; tách riêng khỏi doanh số (E10) |
 
 ### 2.5 Thống kê và tài liệu
@@ -180,7 +180,7 @@ Cột "Nguồn chính" là nguồn cho phép tính hoặc bằng chứng chính 
 Lịch sử từng lần thử thu và kiểm định nằm ở **[Input data sources: test and validation log](input-data-sources-test-log.md)**. Mục này chỉ giữ các bài học rút ra.
 
 **Bài học từ bài test Apify:**
-- **Agent-Reach** (08/10/2026): Instagram không đạt; bài Facebook công khai chỉ một phần; nhóm Facebook đã bỏ. Chỉ còn giữ cho thư viện quảng cáo Meta (S15) nếu bài test giữ hay bỏ đạt; không đạt thì bỏ hẳn khỏi dự án (chủ quyết). Gói P7 bỏ phần thu mạng xã hội, chuyển sang dựng chân dung từ review và bình luận.
+- **Agent-Reach** (08/10/2026): Instagram không đạt; bài Facebook công khai chỉ một phần; nhóm Facebook đã bỏ. Bài test thư viện quảng cáo Meta (S15) đạt khi đọc theo trang, chạy bằng lệnh browser của OpenCLI (ST-20261008-22). Dự án dùng OpenCLI trực tiếp cho S15 và Metric; không cần thêm lớp Agent-Reach. Gói P7 bỏ phần thu mạng xã hội, chuyển sang dựng chân dung từ review và bình luận.
 - Tìm theo từ khoá sản phẩm trên mạng xã hội chủ yếu ra **bài của người bán**. Muốn có lời khách, nguồn tốt hơn là bình luận dưới video (S07) và review (S05). Không thu bài trong nhóm Facebook (chủ quyết 08/10/2026).
 - Từ khoá tiếng Việt dễ ra kết quả lệch nghĩa. Từ v1.8, bước lọc nghĩa là quy tắc **L9** của file Ultimate. Ví dụ gặp trong bài test:
   - "thạch dừa" (thạch làm từ nước dừa lên men) lẫn với thạch rau câu nước dừa, thạch dừa xiêm nguyên quả, "thạch dứa", và các chữ "Thạch" trong tên riêng hay "thử thách";

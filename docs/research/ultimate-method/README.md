@@ -108,8 +108,9 @@ Plan đồng bộ có checklist, dựa trên lần rà code ngày 08/10/2026: [u
 - M11: định nghĩa giao 3 tín hiệu.
 - E2, E3 cho luồng tự động; điều chỉnh mục "Cấm" của M01, M12.
 
-### Từ Ultimate v1.1 đến v1.11 (07–08/10)
+### Từ Ultimate v1.1 đến v1.12 (07–08/10)
 
+- v1.12: E14 thu dữ liệu tự động không chờ chủ (plan mục U-26; gói P6, P9); thẻ Metric hiện số lượt còn lại (P6-09); thư viện quảng cáo Meta đọc theo trang qua OpenCLI (plan mục U-23).
 - v1.11: L10 mở rộng cho bình luận dưới video bán hàng (gói P9, mục P9-05).
 - v1.10: L10 bình luận dưới video review là lời khách (gói P9, mục P9-05).
 - v1.9: E5 phép kiểm 3 ghi các mốc tham khảo tuổi quảng cáo đã vượt (17 ngày, 3 tuần, 30 ngày, 60 ngày); ngưỡng đạt không đổi.

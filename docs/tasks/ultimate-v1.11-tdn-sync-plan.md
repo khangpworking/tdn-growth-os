@@ -57,7 +57,7 @@ This file is a plan with checklists. It does not assign work to agents; the owne
 - The Ultimate file wins over recipes, configs and code (Ultimate §1). Change code to match it, never the reverse.
 - Keep the global definition of done G-01…G-13 from [research-batch-2-packages.md](research-batch-2-packages.md#global-definition-of-done-every-package).
 - Stored report versions read back byte-identical (G-10). A changed renderer bumps its `rendererVersion`; old stored reports are not re-rendered.
-- No live provider or model call in tests. Live paid runs still follow E8: announce the list and the estimated cost first.
+- No live provider or model call in tests. Live collection runs automatically without owner approval, within each paid collector's configured cap, and every call is logged (Ultimate E14).
 - Every new numeric threshold needs a row in Ultimate Appendix G8 (business) or the "Numeric caps and why" table (engineering), in the same commit.
 - When an item merges, update the **TDN** column of the matching CHANGELOG rows and the TDN column of README §4.
 
@@ -228,14 +228,25 @@ Where things live:
   - Replace the "≤5 owner-picked listings" selection with coverage-based selection: products that together reach ≥50% of core revenue (method A) or ≥80% (method C), ≥5 brands, both platforms when a collector exists.
   - Collect about 300 reviews per product, at most 500. Stop per product by method A or by method B saturation (batches of 25, two base batches, ≤5% new codes).
   - Require ≥30 text reviews before comparing products. The report states which stopping method was used.
-  - Each paid run is announced with the list and the cost estimate (E8).
+  - Each paid run starts automatically within the configured cap and is logged with the list and cost (E8, E14).
   - Contract change in `shopee-collection.schema.json`.
 - [ ] U-24 **E12 / E13** are delivered by P10 (intake, World Bank P10-12) and P8-10 (display). Add a check that the citation text and the "no arithmetic with sample numbers" guard appear in every section listed in E12.
 - [ ] U-25 **M09** is delivered by P5-07…P5-09; **L10 collection** by P9-05. No extra item.
+- [ ] U-23 **Meta Ad Library collector (S15, E5 check 3).**
+  - Runs through OpenCLI browser commands on the operator machine (same tool as P6; no Agent-Reach layer). Test ST-20261008-22 passed when reading **by page**.
+  - Find each peer brand's Facebook page (E11 peer set) by search plus the L9 meaning filter; store the page id. Keyword search is used only to find pages: it returned 1/50 and 9/50 relevant ads.
+  - Per ad: library id, link, page name and id, start date as shown, status, platforms (nullable; icons are not always readable), versions count, spend or impression ranges as shown, first 200 characters of text.
+  - Days running are counted to the capture date; a stop date is used only when the page shows one. Never claim continuous paid running, effectiveness or profit (E1, E5).
+  - ≥30 s between commands; stop on captcha, block or login wall; no clicks on ads. Runs automatically (E14), free.
+  - Feeds E5 check 3 (U-21) with the G6 reference markers. Tests use saved synthetic pages.
+- [ ] U-26 **E14 in the run flow: no owner approval before collection.**
+  - The scope step (`ScopeConfirm.tsx`) no longer blocks paid collection: the AI proposes the scope from the owner's request and the quick search, labels it "phạm vi do AI đề xuất", and collection starts. The owner can still edit it, which creates a new revision.
+  - Prepared sources (Metric, supplemental files) are confirmed into the run automatically.
+  - Every collector checks only its configured cap and logs usage; no "waiting for owner" state remains in the collection path.
 
 ### A5. Acceptance and records
 
-- [ ] U-40 Re-run the three acceptance cases (thạch dừa, bình giữ nhiệt, quạt cầm tay) on a staging copy (synthetic or approved data only; paid calls announced first). For each section, record pass/fail against its Ultimate rules in a new `docs/research/ultimate-method/tdn-acceptance-<date>.md`.
+- [ ] U-40 Re-run the three acceptance cases (thạch dừa, bình giữ nhiệt, quạt cầm tay) on a staging copy (paid calls within the configured caps, logged per E14). For each section, record pass/fail against its Ultimate rules in a new `docs/research/ultimate-method/tdn-acceptance-<date>.md`.
 - [ ] U-41 Update the TDN column in README §4 and in every CHANGELOG row that this work closes (`Đã đồng bộ (PR …)`).
 
 ---
@@ -258,13 +269,13 @@ Only sources that are in use or approved in the source registry. Sources marked 
 
 | Card | Registry IDs | Group | How data arrives | Paid | Built by | State until built |
 |---|---|---|---|---|---|---|
-| Metric | S01, S04 | Bán hàng và thị trường | File upload; web snapshot | No (subscription) | done; automation in P6 | — |
+| Metric | S01, S04 | Bán hàng và thị trường | File upload today; automatic through OpenCLI in P6 (no cap; remaining lookups and download rows shown) | No (subscription quota) | done; automation in P6 | — |
 | Kalodata API | S02 | Bán hàng và thị trường | API | Yes | done | — |
 | Kalodata video and creator file | S02 | Bán hàng và thị trường | File upload | No (subscription) | P4 (merged) | — |
 | Apify: Shopee reviews | S05 | Lời khách | API with a charge cap | Yes | done | — |
 | Apify: TikTok comments | S07 | Lời khách | API, cap $3 per test run (owner, 08/10) | Yes | P9 | Chưa có bộ thu (gói P9) |
 | Video content reading | S14 | Lời người bán | JSON from the operator machine | No | P9 | Chưa có bộ thu (gói P9) |
-| Meta Ad Library | S15 | Lời người bán, quảng cáo | Manual entry; Agent-Reach only if the 08/10 test passes | No | no package yet | Chưa có bộ thu |
+| Meta Ad Library | S15 | Lời người bán, quảng cáo | OpenCLI on the operator machine, by page (test passed 08/10) | No | U-23 | Chưa có bộ thu |
 | SerpApi: expanded search | S19 (S13, S26) | Thị trường | API | Yes | P5 | existing card; per-operation rows |
 | SerpApi: Google Trends | S20 | Thị trường | API | Yes | P5 | row inside the SerpApi card |
 | Official statistics (Cục Thống kê) | S21 | Số liệu vĩ mô | File upload + fetch script | No | P10 | Chưa có bộ thu (gói P10) |
@@ -329,7 +340,7 @@ Items that edit the same file should not run in parallel.
 | `located-insight-methods.ts`, `decision-packets.ts`, `m01-evidence-inventory.ts`, `decision-synthesis-input.ts` | U-02, U-07 (draft, I15) |
 | `bounded-analysis-gates.ts` | U-04 |
 | `insight-model-execution.ts` | U-05, U-16 |
-| `ScopeConfirm.tsx`, `model.ts`, `descriptive-method-bridge.ts` | U-01 |
+| `ScopeConfirm.tsx`, `model.ts`, `descriptive-method-bridge.ts` | U-01, U-26 |
 | `contracts/foundation/shopee-collection.schema.json`, review corpus schema | U-19, U-22 |
 | `source-status.ts`, its contract, `SourceStatusBoard.tsx`, `service.ts` (`readSourceActivity`) | B-01…B-06; P3 also touched this contract (merged) |
 | `service.ts` collection step | P5 only (existing rule) |
@@ -353,4 +364,4 @@ None needed to start. Already decided and recorded:
 - E11 defaults;
 - no Facebook groups.
 
-Live paid runs and every merge still need the owner, as before.
+Every merge and deploy, and any change to a spending cap, still need the owner. Data collection does not (Ultimate E14, 08/10).

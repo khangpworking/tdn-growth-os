@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.11 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.12 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -21,6 +21,7 @@ File hợp nhất:
 13. **v1.9 (08/10/2026):** G6 thêm các mốc tham khảo tuổi quảng cáo 17 ngày, 3 tuần, 60 ngày; G8 ghi lý do chọn từng ngưỡng số.
 14. **v1.10 (08/10/2026):** L10 bình luận dưới video review là lời khách; bảng tổng quan 30 section cập nhật theo v1.5–v1.10.
 15. **v1.11 (08/10/2026):** L10 mở rộng: bình luận dưới video bán hàng cũng là lời khách.
+16. **v1.12 (08/10/2026):** E14 thu dữ liệu tự động, không chờ chủ duyệt, cho mọi nguồn; E8 và E11 sửa theo.
 
 Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [Input data sources for 30 sections](input-data-sources-30-sections.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn). Mọi ngưỡng số có lý do chọn ở Phụ lục G8.
 
@@ -177,7 +178,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 - **E8 · Thu review mở rộng không đặt trần chi phí.**
   - **Căn cứ:** chủ quyết "không có giới hạn trần, miễn là chất lượng báo cáo đạt" (07/10/2026).
   - **Được phép:** đề xuất thu review mở rộng với điều kiện dừng là đạt ngưỡng chất lượng, không phải hết ngân sách.
-  - **Vẫn bắt buộc:** mỗi lần gọi nhà cung cấp dữ liệu có tính phí phải báo trước danh sách và ước tính chi phí để chủ duyệt. Không mua hàng (L8).
+  - **Vẫn bắt buộc (sửa ở v1.12):** mỗi lần gọi nhà cung cấp dữ liệu có tính phí được ghi lại (danh sách, chi phí) và hiện trên màn hình nguồn, trong trần chi đã cấu hình. Không chờ chủ duyệt từng lần (E14). Không mua hàng (L8).
 
 **Ngoại lệ ngày 07/10/2026 (mới ở v1.2, phần Market)**
 
@@ -205,7 +206,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 - **E11 · Báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu.**
   - **Căn cứ:** chủ: "chủ có tham gia làm báo cáo hay có gì để input vào báo cáo đâu mà có phần chủ quyết" (07/10/2026).
   - **Nguyên tắc:** chỗ nào phương pháp ghi "chủ khai báo", "chủ duyệt" hay "chủ định nghĩa" cho **nội dung báo cáo**, hệ thống dùng quy tắc mặc định trong bảng dưới, ghi rõ quy tắc đã dùng trong phần phương pháp của báo cáo (M02, I03), và không dừng chờ chủ. Chủ sửa quy tắc bằng một quyết định mới, ghi vào file này.
-  - **Không áp cho:** chi tiền thật, merge và deploy, hành động ra bên ngoài (đặt hàng, đăng bài, nhắn tin). Những việc này vẫn cần chủ đồng ý từng lần.
+  - **Không áp cho:** merge và deploy, đổi trần chi, hành động ra bên ngoài (đăng bài, nhắn tin; đặt hàng bị cấm theo L8). Những việc này vẫn cần chủ đồng ý. Thu dữ liệu, kể cả nguồn trả tiền trong trần chi đã cấu hình, không chờ chủ (E14, sửa ở v1.12).
   - **Quy tắc mặc định:**
 
     | Chỗ trước đây cần chủ | Quy tắc mặc định |
@@ -252,6 +253,18 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     2. **Hai nguồn lệch nhau:** ghi cả hai cạnh nhau, kèm năm, đơn vị và cách tính (theo M01). Không chọn một.
     3. **Đơn vị tiền:** giữ đúng đơn vị của nguồn (ví dụ "USD theo giá năm 2015"). Không tự quy đổi sang đồng để đặt cạnh giá trong mẫu.
     4. Số do Ngân hàng Thế giới tự ước tính (khi dữ liệu có ghi chú) thì ghi "ước tính".
+
+**Ngoại lệ ngày 08/10/2026 (mới ở v1.12)**
+
+- **E14 · Thu dữ liệu tự động, không chờ chủ duyệt (mọi nguồn).**
+  - **Căn cứ:** chủ quyết ngày 08/10/2026: "tôi muốn hệ thống tự động thu thập dữ liệu chạy mà không cần chủ duyệt (không chỉ riêng metric nhé)"; với Metric: "chưa cần set giới hạn trần cho metric"; số lượt còn lại hiện trên thẻ Metric.
+  - **Được phép:** hệ thống tự thu từ mọi nguồn đang dùng hoặc đã duyệt trong [danh mục nguồn](input-data-sources-30-sections.md), không hỏi chủ trước mỗi lần, kể cả lần thu thật đầu tiên. Gồm: tìm và tải Metric (trừ lượt của gói thuê bao), các nguồn trả phí theo lượt, nguồn miễn phí. Nguồn đã chuẩn bị xong được tự xác nhận vào lần chạy.
+  - **Bắt buộc:**
+    1. **Nguồn trả tiền theo lượt** chạy trong trần chi đã cấu hình cho từng bộ thu (ví dụ bình luận TikTok $3 mỗi lượt chạy thử). Hết trần thì dừng thu nguồn đó và ghi "dừng vì chạm trần chi", không tự nâng trần.
+    2. **Metric:** chưa đặt trần (chủ quyết 08/10/2026). Mỗi lần tìm và tải được ghi lại; thẻ Metric trên màn hình nguồn hiện số lượt phân tích và số dòng tải còn lại khi trang Metric hiển thị.
+    3. Mỗi lần gọi được ghi vào nhật ký chi phí của lần chạy (nguồn, số lượt, chi phí, thời điểm) và hiện trên màn hình nguồn.
+    4. Lỗi, bị chặn, bắt đăng nhập hoặc captcha: dừng nguồn đó, ghi lý do, báo cáo chạy tiếp với phần còn lại và ghi rõ nguồn thiếu. Không vượt captcha, không đổi tài khoản.
+  - **Vẫn cần chủ:** merge và deploy; đổi trần chi; thêm nguồn mới vào danh mục; mọi hành động ra bên ngoài (đăng bài, nhắn tin). Không mua hàng (L8).
 
 ---
 
@@ -550,7 +563,7 @@ Mười câu hỏi dưới đây áp cho từng video. Cột "Nghĩa đúng" là
 
 ### 6.3 Ngưỡng chất lượng cho lần thu review mở rộng (mới ở v1.3)
 
-Chủ đồng ý ngày 07/10/2026. Thu tới khi đạt đủ các ngưỡng (E8); mỗi lần chi thật vẫn báo trước.
+Chủ đồng ý ngày 07/10/2026. Thu tới khi đạt đủ các ngưỡng (E8). Từ v1.12, thu tự động trong trần chi đã cấu hình, mỗi lần chi được ghi lại, không chờ duyệt (E14).
 
 | Tiêu chí | Ngưỡng | Căn cứ |
 |---|---|---|
@@ -661,6 +674,7 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.9 — 08/10/2026:** G6 thêm ba mốc tham khảo tuổi quảng cáo (17 ngày, 3 tuần, 60 ngày), kiểm không xung đột, và không chép câu "chắc chắn hiệu quả" vào báo cáo (E1, E5); E5 phép kiểm 3 ghi các mốc tham khảo đã vượt, ngưỡng đạt không đổi; thêm G8 ghi lý do chọn từng ngưỡng số và mức chắc chắn.
 - **v1.10 — 08/10/2026:** L10 bình luận công khai dưới video review là lời khách (trừ bình luận của người làm video và tài khoản người bán); mục 1 ghi thêm vào ba loại tiếng nói; bảng tổng quan 30 section cập nhật dòng M01, M09, I02 và thêm ghi chú các quy tắc áp cho nhiều section.
 - **v1.11 — 08/10/2026:** L10 mở rộng: bình luận công khai dưới video bán hàng cũng là lời khách, cùng điều kiện loại trừ; ghi loại nguồn "bình luận dưới video bán hàng" cạnh câu trích và số đếm.
+- **v1.12 — 08/10/2026:** E14 thu dữ liệu tự động từ mọi nguồn đã duyệt, không chờ chủ duyệt, kể cả lần thu đầu tiên; nguồn trả tiền chạy trong trần chi đã cấu hình; Metric chưa đặt trần, thẻ Metric hiện số lượt còn lại; E8, E11 và mục 6.3 sửa theo.
 
 ---
 
