@@ -1,3 +1,6 @@
+import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
+import { verifyAutomationMarketPresentation } from './market-presentation-method.js';
+import { renderAutomationMarketFindings, renderAutomationMarketUnitPrices } from './market-presentation-report.js';
 import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
 import { sourceEvidenceHtml } from './source-evidence-report.js';
 import fs from 'node:fs';
@@ -76,6 +79,7 @@ export interface AutomationReportInput {
   readonly insightLiteral?: InsightLiteralEvidence;
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
+  readonly marketPresentation?: AutomationMarketPresentationMethod;
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
@@ -476,6 +480,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (binding.sourceKind === 'NATIVE' ? input.locatedReview || input.locatedReviewFallback : input.nativeReview || input.nativeReviewFallback) throw new Error('Report insight coding source kind mismatch');
   }
   const insightCoding = kind === 'INSIGHT' ? input.insightCoding : undefined;
+  const marketPresentation = kind === 'MARKET' && input.marketPresentation
+    ? verifyAutomationMarketPresentation(input.marketPresentation, input.marketPresentation.binding) : undefined;
+  if (marketPresentation && (marketPresentation.binding.workspaceId !== input.run.workspaceId || marketPresentation.binding.runId !== input.run.runId))
+    throw new Error('Market presentation run binding differs');
   const insightLiteral = kind === 'INSIGHT' && input.insightLiteral ? verifyInsightLiteralEvidence(input.insightLiteral) : undefined;
   if (insightLiteral && (insightLiteral.input.binding.runId !== input.run.runId || insightLiteral.input.binding.workspaceId !== input.run.workspaceId))
     throw new Error('Literal Insight run binding differs');
@@ -495,7 +503,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Views are composed on first render so that [n] numbers follow the page, not the section-array build order.
   const locatedViews = new Map<string, () => string>();
   const registry = new CitationRegistry();
-  const citations: ReportCitations = { ...(input.start.sourceEvidenceVersion ? { distinctEntityWording: true } : {}), mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
+  const citations: ReportCitations = { ...((input.start.sourceEvidenceVersion || marketPresentation) ? { distinctEntityWording: true } : {}), mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
   // Sections whose retained decision synthesis is VALID; candidate prose never makes a section analytically complete.
   const decisionGeneratedIds: string[] = [];
   const decisionProposedIds: string[] = [];
@@ -528,6 +536,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     return `Chưa có kết quả cho mục này trong lượt. Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy.${needs}${sourceObservationNote}`;
   };
   const sections: DraftSection[] = catalog.sections.filter(section => section.sectionId.startsWith(prefix)).map(section => {
+    if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
+      locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
+        ? renderAutomationMarketFindings(marketPresentation, citations) : renderAutomationMarketUnitPrices(marketPresentation, citations));
+      return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
+        method: marketPresentation.methodVersion,
+        explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả bằng chứng đã lưu trong phạm vi khai báo; chưa được chủ duyệt.'
+          : 'Đối chiếu quy cách và giá theo đúng bản lưu; phần thiếu giữ riêng, chưa phải phân tích kinh tế đơn vị hoàn chỉnh.' };
+    }
     const decisionPacket = input.decisionPackets?.find(packet => packet.sectionId === section.sectionId);
     if (decisionPacket && input.decisionSourceClaims) {
       const synthesis = input.decisionSynthesis?.[decisionPacket.sectionId];
@@ -675,13 +691,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
     : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {
+    ...(marketPresentation ? { marketPresentation } : {}),
     ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}),
     ...(sourceScope ? { sourceScope } : {}),
     ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
@@ -757,14 +774,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations);
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
-      if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations) : '');
+      if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation)) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
       if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
-    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion));
+    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion || marketPresentation));
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
       const codingNotice = located
         ? `<p class="warning">Đã áp dụng quy tắc đã duyệt để đưa các khai báo rõ nghĩa vào phạm vi hẹp, có vị trí nguyên văn. ${located.projection.pending.length} mục còn chờ được giữ cùng bản đề xuất ban đầu; không tính thành mục phân tích hoàn chỉnh. Khi mở lại, hệ thống đọc kết quả đã lưu, không chạy lại parser hoặc gọi nguồn.</p>`
@@ -811,9 +828,9 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Source appendix v18 also serves existing Market and accepted Insight
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
-  if (draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3') {
+  if (marketPresentation || (draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3')) {
     const failed = lintVisibleReportText(html).filter(check => !check.ok);
-    if (failed.length) throw new TypeError(`INSIGHT_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
+    if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
   return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(html, 'utf8') };
 }

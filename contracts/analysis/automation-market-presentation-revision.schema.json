@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-market-presentation-revision.schema.json",
+  "title": "AutomationMarketPresentationRevisionRequest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "requestKey",
+    "previousPairId",
+    "sources"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "automation-market-presentation-revision-v1"
+    },
+    "requestKey": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "previousPairId": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "sources": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "nativeReview"
+      ],
+      "properties": {
+        "metric": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision"
+          ],
+          "properties": {
+            "decision": {
+              "const": "KEEP"
+            }
+          }
+        },
+        "nativeReview": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "decision"
+          ],
+          "properties": {
+            "decision": {
+              "const": "KEEP"
+            }
+          }
+        }
+      }
+    },
+    "unitSpecIntakeSha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  }
+}

@@ -1,0 +1,312 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-market-presentation-method.schema.json",
+  "title": "AutomationMarketPresentationMethod",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "methodVersion",
+    "binding",
+    "input",
+    "findings",
+    "unitPrices",
+    "advertising"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "automation-market-presentation-method-v1"
+    },
+    "methodVersion": {
+      "const": "market-presentation-v1"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId",
+        "previousPairId",
+        "scopeSha256",
+        "metric"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "previousPairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "metric": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sourcePackage",
+                "workbookSha256",
+                "resultSha256"
+              ],
+              "properties": {
+                "sourcePackage": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "packageId",
+                    "manifestArtifactSha256",
+                    "packageContentSha256"
+                  ],
+                  "properties": {
+                    "packageId": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "manifestArtifactSha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    },
+                    "packageContentSha256": {
+                      "type": "string",
+                      "pattern": "^[0-9a-f]{64}$"
+                    }
+                  }
+                },
+                "workbookSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "resultSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "metric",
+        "rows",
+        "unitSpec"
+      ],
+      "properties": {
+        "metric": {
+          "anyOf": [
+            {
+              "$ref": "metric-scope-output.schema.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "rows": {
+          "type": "array",
+          "maxItems": 10000,
+          "items": {
+            "$ref": "reader-report-input.schema.json#/$defs/row"
+          }
+        },
+        "unitSpec": {
+          "anyOf": [
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sha256",
+                "record"
+              ],
+              "properties": {
+                "sha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "record": {
+                  "$ref": "../api/research-automation-reader-report-api.schema.json#/$defs/unitSpecIntakeRecord"
+                }
+              }
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "statement",
+          "scope",
+          "sectionId",
+          "pending",
+          "evidence"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "inventory",
+              "demand",
+              "missing",
+              "precision",
+              "unit-prices"
+            ]
+          },
+          "statement": {
+            "type": "string",
+            "maxLength": 3000
+          },
+          "scope": {
+            "type": "string",
+            "maxLength": 2000
+          },
+          "sectionId": {
+            "enum": [
+              "M03",
+              "M08"
+            ]
+          },
+          "pending": {
+            "type": "boolean"
+          },
+          "evidence": {
+            "type": "array",
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sourceSha256",
+                "locator",
+                "label"
+              ],
+              "properties": {
+                "sourceSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "locator": {
+                  "type": "string",
+                  "maxLength": 1000
+                },
+                "label": {
+                  "type": "string",
+                  "maxLength": 300
+                }
+              }
+            },
+            "minItems": 1
+          }
+        }
+      }
+    },
+    "unitPrices": {
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rowI",
+          "observation",
+          "sources",
+          "value",
+          "standard",
+          "comparisonKey",
+          "missing",
+          "ownerDeclared"
+        ],
+        "properties": {
+          "rowI": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "observation": {
+            "$ref": "reader-report-input.schema.json#/$defs/unitPriceObservation"
+          },
+          "sources": {
+            "type": "array",
+            "maxItems": 2,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sourceSha256",
+                "locator"
+              ],
+              "properties": {
+                "sourceSha256": {
+                  "type": "string",
+                  "pattern": "^[0-9a-f]{64}$"
+                },
+                "locator": {
+                  "type": "string",
+                  "maxLength": 1000
+                }
+              }
+            },
+            "minItems": 1
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "standard": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "comparisonKey": {
+            "type": "string",
+            "maxLength": 4000
+          },
+          "missing": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ownerDeclared": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "advertising": {
+      "const": "UNAVAILABLE_UNCONFIRMED_RETAINED_SEMANTICS"
+    }
+  }
+}

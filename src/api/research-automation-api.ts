@@ -8,6 +8,7 @@ import addFormatsModule from 'ajv-formats';
 import schema from '../../contracts/api/research-automation-api.schema.json' with { type: 'json' };
 import sourceSchema from '../../contracts/api/research-automation-source-api.schema.json' with { type: 'json' };
 import revisionRequestSchema from '../../contracts/analysis/automation-report-revision.schema.json' with { type: 'json' };
+import marketPresentationRevisionSchema from '../../contracts/analysis/automation-market-presentation-revision.schema.json' with { type: 'json' };
 import classifiedRevisionRequestSchema from '../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import revisionSchema from '../../contracts/api/research-automation-revision-api.schema.json' with { type: 'json' };
 import metricIntakeSchema from '../../contracts/api/research-automation-metric-intake-api.schema.json' with { type: 'json' };
@@ -93,6 +94,7 @@ ajv.addSchema(defaultPeerSchema);
 ajv.addSchema(schema);
 ajv.addSchema(sourceSchema);
 ajv.addSchema(revisionRequestSchema);
+ajv.addSchema(marketPresentationRevisionSchema);
 ajv.addSchema(classifiedRevisionRequestSchema);
 ajv.addSchema(revisionSchema);
 ajv.addSchema(metricIntakeSchema);
@@ -111,7 +113,7 @@ const validates = {
   start: ajv.compile({ $ref: `${schema.$id}#/$defs/startRequest` }),
   confirm: ajv.compile({ oneOf: [{ $ref: `${schema.$id}#/$defs/confirmRequest` }, { $ref: sourceSchema.$id }] }),
   cancel: ajv.compile({ $ref: `${schema.$id}#/$defs/cancelRequest` }),
-  revision: ajv.compile({ oneOf: [{ $ref: revisionRequestSchema.$id }, { $ref: classifiedRevisionRequestSchema.$id }, { $ref: insightRevisionRequestSchema.$id }, { $ref: boundedRevisionRequestSchema.$id }, { $ref: quoteRevisionRequestSchema.$id }] }),
+  revision: ajv.compile({ oneOf: [{ $ref: revisionRequestSchema.$id }, { $ref: classifiedRevisionRequestSchema.$id }, { $ref: insightRevisionRequestSchema.$id }, { $ref: boundedRevisionRequestSchema.$id }, { $ref: quoteRevisionRequestSchema.$id }, { $ref: marketPresentationRevisionSchema.$id }] }),
   revisionCancel: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/cancelRequest` }),
   revisionReceipt: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/receipt` }),
   versionList: ajv.compile({ $ref: `${revisionSchema.$id}#/$defs/versionList` }),
