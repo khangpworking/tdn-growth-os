@@ -13,7 +13,9 @@
 
 - [PR #163](https://github.com/khangpworking/tdn-growth-os/pull/163): U-12 bounded L9 core complete; AI list drafting, P5/P9/U-23 callers and M13/I17 disclosure remain pending, so U-12 and G-13 remain partial. Reviewed head `3e71c25c98d44fa0eb02c7fdf6e41876d4fae48a`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37762429133) passed, merge `abaaf6749c4ae1ccd3af46246279d8e9f342581b`. See [SYNC-5](../handoffs/SYNC-5.md).
 
-The audit tables below describe the original baseline. Checked items refer to these merged packages and their [SYNC-1](../handoffs/SYNC-1.md)/[SYNC-6](../handoffs/SYNC-6.md) handoffs. U-07 stays unchecked until its separately owned draft/Insight part is complete. B-03 and U-32 stay unchecked while their stated remainder is unresolved.
+- [PR #164](https://github.com/khangpworking/tdn-growth-os/pull/164): U-02/U-05 and draft/Insight U-07 complete; U-16 guards cover authored M12/I15 output, with I16 deterministic and no authored output. U-04 safe descriptive gate is complete, classified-rate eligibility remains dependent on SYNC-4. Reviewed head `d4b0de135d0b85b4c546f36bf325595aac989432`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37766767995) and preview passed, merge `d7ad11fc8ecca6f437e27a5f3ad6528d3e6ca5aa`. See [SYNC-3](../handoffs/SYNC-3.md).
+
+The audit tables below describe the original baseline. Checked items refer to the merged packages and their linked handoffs. U-07 combines the Market and draft/Insight work. U-04, U-12, B-03 and U-32 stay unchecked while their stated remainder is unresolved.
 
 Updated: 2026-10-08 · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.12](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.9 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
 
@@ -143,7 +145,7 @@ Where things live:
   - Owner-picked peers become optional additions, shown as a separate list. Remove the "≥2 explicit peers" requirement in `reports.ts:320-323`, the "peers are never implied" invariant in `model.ts:40`, and `peerSet: null` in `descriptive-method-bridge.ts:232`.
   - Reader M07 uses the default set instead of "nhóm đối thủ chưa chốt".
   - Tests: set reproducibility, a brand-unknown fallback, owner additions kept apart, old stored runs unchanged.
-- [ ] U-02 **E7 working question.**
+- [x] U-02 **E7 working question.**
   - When the brief has no question, I01 shows a "câu hỏi làm việc do AI đề xuất, chờ chủ duyệt" plus the list of fields the owner may add (`decisionToInform`, `audience`, `scope`, `knownConstraints`).
   - Replace the blockers `I01_OWNER_QUESTION_REQUIRED` and `OWNER_QUESTION_UNSET` (`located-insight-methods.ts`, `decision-packets.ts:112`, `m01-evidence-inventory.ts:70`, `decision-synthesis-input.ts:112`) with that state.
   - The working question never filters or selects evidence; add a test that evidence sets are identical with and without it.
@@ -156,9 +158,9 @@ Where things live:
   - Groups by platform, plus retail vs wholesale only when the record itself says so (Ultimate I11 row in E11). Groups are disjoint.
   - Descriptive rates are shown only where the denominators are compatible and each group has ≥30 text records (the §6.3 comparison condition); otherwise counts only.
   - Remove `I11_GROUP_POLICY_MISSING` and `I11_PUBLICATION_NOT_AUTHORIZED` as hard blocks (`bounded-analysis-gates.ts:179-183`). Inference stays off.
-- [ ] U-05 **E4: lift the persona ban** in the coding prompt (`insight-model-execution.ts:41`). Keep "no people counts" until L2 data exists (U-18). The persona builder itself is U-20.
+- [x] U-05 **E4: lift the persona ban** in the coding prompt (`insight-model-execution.ts:41`). Keep "no people counts" until L2 data exists (U-18). The persona builder itself is U-20.
 - [x] U-06 **Rule 5 / L4 in Market M01.** Rewrite the M01 key points without superlatives ("lớn nhất", "nhiều … nhất"). State each group with its share side by side, with the figure pointer. Same for `market-template.ts:253`.
-- [ ] U-07 **E2, E6, E11: no ordering, proposed owner and deadline.**
+- [x] U-07 **E2, E6, E11: no ordering, proposed owner and deadline.**
   - Market M11/M12: stop picking "top 3 cells by revenue" and remove "Thứ tự theo doanh thu" (`market-template.ts:291,307`).
   - Up to 3 options, each with an immediate task, a proposed owner and a proposed deadline, all labelled "đề xuất, chờ chủ duyệt". Any order is stated as dependency order only (L4).
   - Draft packets: owner and deadline become AI-proposed with the label instead of UNSET (`decision-packets.ts:53-62`).
@@ -191,7 +193,7 @@ Where things live:
 - [ ] U-15 **L7 seller-voice layer.**
   - Anything inferred from titles, descriptions, videos or ads is written "người bán nhắm tới…" or "người bán định vị…".
   - In I07, I08 and I13 it sits beside customer reasons and is not merged into them. Seller-raised rebuttals are kept out of customer barriers (I08).
-- [ ] U-16 **L8 no purchases:** prompt and lint bans on trial orders or purchase suggestions in M12, I15 and I16. Quality is judged only from public sources and owner data.
+- [x] U-16 **L8 no purchases:** prompt and lint bans on trial orders or purchase suggestions in M12, I15 and I16. Quality is judged only from public sources and owner data. Current I16 is deterministic with no authored proposal text; M12/I15 guards apply to new versioned authored output.
 - [ ] U-17 **L1 note:** identical text at two locators gets the note "trùng nguyên văn, có thể cùng một người"; both records are still counted.
 
 ### A3. New or changed methods

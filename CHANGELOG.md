@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Draft/Insight: retained scope-based working-question proposals, source-backed I11 descriptive-rate gates, versioned coding prompts, and at most three task/owner/deadline proposals awaiting approval. New authored purchase suggestions are rejected and retained as invalid responses. PR #164 merged after independent review and full exact-head CI; classified-rate eligibility remains dependent on SYNC-4.
+
 - L9: deterministic keyword-meaning core with canonical input validation, accent-sensitive decisions and exact frozen input/reason accounting. PR #163 merged after independent review and full exact-head CI; model drafting and report/collector integration remain pending.
 
 - Market reader: versioned nullable sales/source metrics, per-platform output and labels, neutral findings, three dependency-ordered proposals, and corrected M05 demand wording in both lanes. Legacy replay preserved; PR #162 merged after exact-head full CI. Positive cross-platform totals remain unresolved.

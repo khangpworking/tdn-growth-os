@@ -26,8 +26,21 @@ Context can resolve only a keyword present in the candidate text. This pure core
 makes no model or provider calls. AI list drafting, collector integration and
 M13/I17 disclosure remain pending; see [SYNC-5 evidence](handoffs/SYNC-5.md).
 
+Draft/Insight defaults are merged in [PR #164](https://github.com/khangpworking/tdn-growth-os/pull/164),
+after independent review and full Linux Check on head `d4b0de135d0b85b4c546f36bf325595aac989432`.
+New located descriptors retain a scope-based system working-question proposal without
+changing owner inputs or evidence membership. I11 supports source-backed disjoint groups
+and descriptive rates only with authenticated compatible membership of at least 30 text
+records per group. Classified-rate eligibility remains dependent on SYNC-4.
+The new coding prompt lifts the blanket persona ban while keeping the ban on people counts.
+New decision packets allow at most three proposals, require task/owner/deadline fields,
+and label them as awaiting owner approval. Authored purchase suggestions are rejected;
+the execution ledger retains and replays those invalid responses without redispatch.
+Historical prompt and method versions keep their saved semantics and replay bytes.
+See [SYNC-3 evidence and remaining limitations](handoffs/SYNC-3.md).
+
 Future collector activation and history readers remain with P5/P9/P10/U-23.
-This merge does not establish complete Ultimate alignment or business acceptance.
+These merges do not establish complete Ultimate alignment or business acceptance.
 U-26 revision/admission policy, U-32 positive cross-platform totals, and U-11
 family-level multi-code κ remain unresolved; paid staging under U-40 was not run.
 See the [coordination plan](tasks/ultimate-v1.11-tdn-sync-plan.md) and
