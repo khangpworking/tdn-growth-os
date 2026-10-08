@@ -131,10 +131,19 @@ export class AutomationExactShopeeBridge {
     return readPrivateReviewCollection(this.#collections, reference, exactShopeeRequest(input), privateShopeeMarker(input.privateShopeeSource));
   }
   async privateCorpus(reference: PrivateReviewReference, input: ExactShopeeRunInput, binding: PrivateReviewBinding): Promise<ResearchPrivateReviewCorpus> {
+    this.#assertPrivateBinding(input, binding);
     return buildPrivateReviewCorpus(await this.readPrivate(reference, input), binding).output;
   }
   async verifyPrivateCorpus(value: unknown, reference: PrivateReviewReference, input: ExactShopeeRunInput, binding: PrivateReviewBinding): Promise<ResearchPrivateReviewCorpus> {
+    this.#assertPrivateBinding(input, binding);
     return verifyPrivateReviewCorpus(value, await this.readPrivate(reference, input), binding);
+  }
+
+  #assertPrivateBinding(input: ExactShopeeRunInput, binding: PrivateReviewBinding): void {
+    const hash = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
+    if (binding.runId !== input.runId || binding.workspaceId !== input.start.workspaceId || input.scope.runId !== input.runId ||
+      input.scope.workspaceId !== binding.workspaceId || binding.startSha256 !== hash(input.start) || binding.scopeSha256 !== hash(input.scope) ||
+      binding.scopeConfirmedAt !== input.scopeConfirmedAt) throw new Error('Private corpus frozen binding mismatch');
   }
 
   async read(reference: NonNullable<StepResultDocument['exactShopee']>, input: ExactShopeeRunInput): Promise<VerifiedExactShopeeCollection> {

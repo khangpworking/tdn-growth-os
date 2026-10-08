@@ -14,6 +14,9 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { AutomationExactShopeeBridge } from '../../src/modules/analysis/research-automation/exact-shopee-bridge.js';
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from '../../src/modules/analysis/research-automation/private-review-corpus.js';
 import { registerPrivateReviewSchemas, privateReviewReportView } from '../../src/modules/analysis/research-automation/private-review-contracts.js';
+import { AutomationInsightLiteralEvidence } from '../../src/modules/analysis/research-automation/insight-literal-bridge.js';
+import { privateReviewCorpusSection } from '../../src/modules/analysis/research-automation/review-corpus-report.js';
+import { lintVisibleReportText } from '../../src/modules/analysis/report-visible-text-lint.js';
 import { privateLiteralReviews } from '../../src/modules/analysis/research-automation/insight-literal-source.js';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -47,7 +50,7 @@ async function fixture(t: TestContext) {
   const input = { runId, start, scope, scopeConfirmedAt: now, privateShopeeSource: source };
   const binding: PrivateReviewBinding = { workspaceId, runId, startSha256: hash(start), scopeSha256: hash(scope),
     confirmedSourceSetSha256: 'b'.repeat(64), scopeConfirmedAt: now };
-  return { root, db, artifacts, bridge, input, binding, calls: () => calls };
+  return { root, db, artifacts, bridge, input, binding, collector, calls: () => calls };
 }
 
 test('private canonical AJV cascade accepts only explicit closed marker and author-free report view', () => {
@@ -83,6 +86,20 @@ test('configured private bridge -> Foundation3 -> exact retained corpus -> close
   assert.deepEqual(view.records.map(r => r.rating.state), ['VALID', 'VALID', 'ABSENT', 'MISSING', 'INVALID']);
   assert.equal(view.records[4]!.rating.value, 3.5);
   const literal = privateLiteralReviews(source);
+  const literalBridge = new AutomationInsightLiteralEvidence({ db: f.db, artifactStore: f.artifacts, now: () => new Date(now) });
+  const literalInput = { ...f.input, previousPairId: 'a'.repeat(64), captures: [],
+    collection: { contractVersion: 'research-automation-step-result-v1' as const, runId, stepId: 'COLLECTION' as const,
+      outcome: 'PARTIAL' as const, productCards: [], comparables: [], coverage: [], limitations: [], privateShopee: result.privateReference } };
+  const literalResult = await literalBridge.build(literalInput);
+  assert.equal(literalResult.input.reviews.length, 5);
+  assert.equal(literalResult.duplicateTexts[0]!.recordPointers.length, 5);
+  await literalBridge.verify(literalResult, literalInput);
+  const html = privateReviewCorpusSection(view, 'I03', { mark: () => '[1]' }) + privateReviewCorpusSection(view, 'I17', { mark: () => '[1]' });
+  assert.equal(lintVisibleReportText(html).filter(c => !c.ok).length, 0);
+  assert.equal(html.split(row.comment).length - 1, 5);
+  assert.ok(html.includes(row.createdAt));
+  await assert.rejects(literalBridge.build({ ...literalInput, collection: { ...literalInput.collection,
+    exactShopee: result.privateReference } }), /substitute/);
   assert.equal(literal.length, 5); assert.equal(literal[4]!.rating.state, 'INVALID'); assert.equal(literal[4]!.rating.value, null);
   for (const value of [source, corpus, literal, view]) for (const forbidden of ['918273645', 'PRIVATE_AUTHOR', 'PRIVATE_AVATAR', Buffer.alloc(32, 7).toString('hex')])
     assert.equal(JSON.stringify(value).includes(forbidden), false, forbidden);
@@ -115,4 +132,35 @@ test('private opt-in is unavailable without exact configured profile and pre-can
   const cancelled = await f.bridge.collect(f.input, controller.signal);
   assert.equal(cancelled.coverage.state, 'CANCELLED'); assert.equal(cancelled.privateReference, undefined); assert.equal(f.calls(), 0);
   assert.equal((f.db.prepare('SELECT count(*) n FROM foundation_shopee_collections').get() as { n: bigint }).n, 0n);
+});
+
+
+test('private bridge failure/incomplete/cancellation stays diagnostics-only and profile drift makes no call', async t => {
+  for (const status of ['FAILED', 'ABORTED', 'TIMED-OUT', 'INCOMPLETE', 'CANCELLED']) await t.test(status, async t => {
+    const f = await fixture(t); let calls = 0;
+    const controller = new AbortController();
+    const collector = { mode: f.collector.mode, privacyProfile: f.collector.privacyProfile,
+      collect: async (...args: Parameters<typeof f.collector.collect>) => {
+        calls++; const capture = await f.collector.collect(...args);
+        if (status === 'CANCELLED') controller.abort();
+        else if (status === 'INCOMPLETE') capture.actor.stopReason = 'review_limit';
+        else capture.actor.status = status;
+        return capture;
+      } };
+    const bridge = new AutomationExactShopeeBridge(f.db, f.artifacts, undefined,
+      { source: f.input.privateShopeeSource, factory: () => ({ collector, requestsIssued: () => calls }) });
+    const result = await bridge.collect(f.input, controller.signal);
+    assert.equal(result.privateReference, undefined); assert.equal(calls, 1);
+    assert.equal(result.coverage.state, status === 'CANCELLED' ? 'CANCELLED' : 'FAILED');
+    assert.equal((f.db.prepare('SELECT count(*) n FROM foundation_shopee_collections').get() as { n: bigint }).n, 0n);
+    assert.equal((f.db.prepare('SELECT count(*) n FROM artifact_manifests').get() as { n: bigint }).n, 0n);
+  });
+  const f = await fixture(t); let calls = 0;
+  const changedProfile = createShopeePrivateIntake({ salt: Buffer.alloc(32, 8), keyId }).profile;
+  const bridge = new AutomationExactShopeeBridge(f.db, f.artifacts, undefined,
+    { source: f.input.privateShopeeSource, factory: () => ({ collector: { mode: 'fixture', privacyProfile: changedProfile,
+      collect: async () => { calls++; throw new Error('Profile mismatch must precede calls'); } }, requestsIssued: () => calls }) });
+  assert.equal((await bridge.collect(f.input)).coverage.state, 'FAILED'); assert.equal(calls, 0);
+  const { privateShopeeSource: _marker, ...historical } = f.input;
+  assert.equal((await f.bridge.collect(historical)).coverage.state, 'UNAVAILABLE'); assert.equal(f.calls(), 0);
 });
