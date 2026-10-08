@@ -8,7 +8,11 @@ export type ResearchAutomationReaderReportApi =
   | ResearchAutomationReaderBuildReceipt
   | ResearchAutomationReaderDecisionRequest
   | ResearchAutomationReaderDecisionReceipt
-  | ResearchAutomationReaderRevisionList;
+  | ResearchAutomationReaderRevisionList
+  | ResearchAutomationUnitSpecIntakeRequest
+  | ResearchAutomationUnitSpecIntakeRecord
+  | ResearchAutomationUnitSpecIntakeReceipt
+  | ResearchAutomationIntakeBoundReaderBuildRequest;
 export type Platform = 'shopee' | 'tiktok';
 export type Sha256 = string;
 export type Timestamp = string;
@@ -252,4 +256,50 @@ export interface ResearchAutomationReaderRevisionList {
    * @maxItems 10000
    */
   revisions: ResearchAutomationReaderRevision[];
+}
+export interface ResearchAutomationUnitSpecIntakeRequest {
+  contractVersion: 'reader-unit-spec-intake-v1';
+  metricPackageId: string;
+  /**
+   * @minItems 1
+   * @maxItems 2
+   */
+  platforms: Platform[];
+  unitPrices: UnitPrices & {
+    /**
+     * @maxItems 16
+     */
+    sources?: unknown[];
+    /**
+     * @minItems 1
+     */
+    records?: unknown[];
+    [k: string]: unknown;
+  };
+}
+export interface ResearchAutomationUnitSpecIntakeRecord {
+  contractVersion: 'reader-unit-spec-intake-record-v1';
+  workspaceId: string;
+  runId: string;
+  draftPairId: Sha256;
+  workbookSha256: Sha256;
+  actorId: string;
+  request: ResearchAutomationUnitSpecIntakeRequest;
+}
+export interface ResearchAutomationUnitSpecIntakeReceipt {
+  contractVersion: 'reader-unit-spec-intake-receipt-v1';
+  exactRetry: boolean;
+  intakeSha256: Sha256;
+  workspaceId: string;
+  runId: string;
+  request: ResearchAutomationUnitSpecIntakeRequest;
+}
+export interface ResearchAutomationIntakeBoundReaderBuildRequest {
+  contractVersion: 'reader-report-unit-spec-build-v1';
+  intakeSha256: Sha256;
+  request: ResearchAutomationReaderBuildRequest & {
+    contractVersion?: 'reader-report-build-v1.2';
+    unitPrices: unknown;
+    [k: string]: unknown;
+  };
 }
