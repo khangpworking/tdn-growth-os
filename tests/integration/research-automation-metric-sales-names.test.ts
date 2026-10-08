@@ -260,6 +260,23 @@ test('explicit Metric-only keyword draft uses confirmed cells but never manufact
   assert.equal(await configured.readSourceEvidence(workspaceId, runId), null);
 });
 
+test('cancelled confirmed Metric-only run refuses explicit drafting without model, DB or CAS writes', async t => {
+  const f = await fixture(t);
+  let calls = 0;
+  const configured = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, workspaceReader: f.workspaces, now,
+    sourceEvidence: { modelIdentity: 'synthetic-stopped-model', promptVersion: 'synthetic-v1', transport: { draftLists: async () => {
+      calls++; return { keywords: ['thạch dừa'], exclusions: [] };
+    } } } });
+  await configured.cancel(workspaceId, runId, { contractVersion: 'research-automation-cancel-v1', requestKey: randomUUID(),
+    expectedRevision: (await configured.getRun(workspaceId, runId)).revision });
+  const databaseBefore = Buffer.from(f.db.serialize());
+  const casBefore = (await fs.readdir(path.join(f.root, 'artifacts'), { recursive: true })).sort();
+  await assert.rejects(configured.draftSourceKeywords(workspaceId, runId), /stopped run/);
+  assert.equal(calls, 0);
+  assert.deepEqual(f.db.serialize(), databaseBefore);
+  assert.deepEqual((await fs.readdir(path.join(f.root, 'artifacts'), { recursive: true })).sort(), casBefore);
+});
+
 test('OWNER HTTP workbook upload and explicit package confirmation supply authenticated exact Metric cells', async t => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-names-owner-'));
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');

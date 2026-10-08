@@ -26,7 +26,7 @@ const kalodataName = 'Thạch dừa tên nguồn Kalodata riêng';
 const period = { startDate: '2026-08-17', endDate: '2026-09-15' };
 const hash = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
 
-async function fixture(t: TestContext, enabled = true, cancelDuringModel = false) {
+async function fixture(t: TestContext, enabled = true, cancelDuringModel = false, cancelDuringRetention = false) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-keyword-owner-'));
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
   const db = openDatabase({ databasePath }).db;
@@ -74,6 +74,20 @@ async function fixture(t: TestContext, enabled = true, cancelDuringModel = false
       db.close(); await fs.rm(root, { recursive: true, force: true });
     }
   });
+  let retentionCancelled = false;
+  if (cancelDuringRetention) {
+    const originalRead = ContentAddressedArtifactStore.prototype.read;
+    t.mock.method(ContentAddressedArtifactStore.prototype, 'read', async function(this: ContentAddressedArtifactStore,
+      ...args: Parameters<ContentAddressedArtifactStore['read']>) {
+      const bytes = await originalRead.apply(this, args);
+      // Suspend the real retained workbook read after the fake model responded,
+      // then cancel through the owning HTTP API before authenticity verification resumes.
+      if (modelRequests.length > 0 && !retentionCancelled && bytes.subarray(0, 2).equals(Buffer.from('PK'))) {
+        retentionCancelled = true; await cancelModel!();
+      }
+      return bytes;
+    });
+  }
   const configuration = keywordDraftConfiguration('synthetic-metric-keyword-model');
   app = openResearchAutomationApi({ databasePath, artifactRoot, origin,
     providers: { kalodataSecretKey: 'synthetic-sales-key', serpApiKey: 'synthetic-web-key', apifyTokenConfigured: false },
@@ -129,7 +143,7 @@ async function fixture(t: TestContext, enabled = true, cancelDuringModel = false
   assert.ok(confirmedSources.metric.decision === 'ADMITTED');
   const sourcePackage = confirmedSources.metric.sourcePackage;
   assert.equal(sourcePackage.packageId, prepared.packageId);
-  await wait(cancelDuringModel ? 'CANCELLED' : 'DRAFT_READY');
+  await wait(cancelDuringModel || cancelDuringRetention ? 'CANCELLED' : 'DRAFT_READY');
   const callsAfterReady = calls.length, modelCallsAfterReady = modelRequests.length;
   const retry = await post(`${ownerRoot}/${id}/confirm-scope`, confirmBody, 200); assert.equal(retry.exactRetry, true);
   assert.equal(retry.run.runId, confirm.run.runId); assert.equal(calls.length, callsAfterReady); assert.equal(modelRequests.length, modelCallsAfterReady);
@@ -206,5 +220,16 @@ test('OWNER cancellation during actual Metric-seeded fake model dispatch admits 
   const run = await f.service.getRun(workspaceId, f.id);
   assert.equal(run.status, 'CANCELLED'); assert.equal(run.steps.find(row => row.stepId === 'COLLECTION')!.state, 'CANCELLED');
   assert.equal(run.steps.find(row => row.stepId === 'REPORTS')!.state, 'SKIPPED');
+  await assert.rejects(f.service.readReport(workspaceId, f.id, 'MARKET'));
+});
+
+test('OWNER cancellation during post-model workbook revalidation prevents draft retention and L9 admission', async t => {
+  const f = await fixture(t, true, false, true);
+  assert.equal(f.modelRequests.length, 1);
+  assert.equal(f.packet.draftDigest, null); assert.equal(f.packet.admission, null);
+  assert.equal(f.packet.unavailableReason, 'DRAFT_FAILED');
+  assert.equal(f.packet.sourceAppendix.rows.some(row => row.registryId === 'S01'), false);
+  assert.deepEqual(f.db.prepare("SELECT sha256 FROM artifact_manifests WHERE media_type='application/vnd.tdn.keyword-draft+json'").all(), []);
+  assert.equal((await f.service.getRun(workspaceId, f.id)).status, 'CANCELLED');
   await assert.rejects(f.service.readReport(workspaceId, f.id, 'MARKET'));
 });

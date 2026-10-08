@@ -106,8 +106,10 @@ export async function verifyKeywordDraftEvidence(store: ContentAddressedArtifact
     if (readJsonPointer(source, ref.locator) !== record.seeds.productNames[index]) fail('product name differs from exact retained source bytes');
   }
 }
-export async function retainKeywordListDraft(store: ContentAddressedArtifactStore, record: KeywordListDraftRecord): Promise<{ digest: string; byteSize: number }> {
+export async function retainKeywordListDraft(store: ContentAddressedArtifactStore, record: KeywordListDraftRecord,
+  checkCancellation?: () => void): Promise<{ digest: string; byteSize: number }> {
   await verifyKeywordDraftEvidence(store, record);
+  checkCancellation?.();
   const bytes = Buffer.from(canonicalJson(record));
   if (bytes.length > MAX_KEYWORD_DRAFT_BYTES) fail('draft artifact exceeds safety budget');
   const stored = await store.put(bytes);
@@ -156,9 +158,10 @@ export async function verifySourceKeywordDraftEvidence(store: ContentAddressedAr
 }
 
 export async function retainSourceKeywordListDraft(store: ContentAddressedArtifactStore, record: RetainedKeywordListDraftRecord,
-  context?: MetricKeywordDraftEvidenceContext): Promise<{ digest: string; byteSize: number }> {
-  if (record.contractVersion === 'l9-keyword-list-draft-record-v2') return retainKeywordListDraft(store, record);
+  context?: MetricKeywordDraftEvidenceContext, checkCancellation?: () => void): Promise<{ digest: string; byteSize: number }> {
+  if (record.contractVersion === 'l9-keyword-list-draft-record-v2') return retainKeywordListDraft(store, record, checkCancellation);
   await verifySourceKeywordDraftEvidence(store, record, context);
+  checkCancellation?.();
   const bytes = Buffer.from(canonicalJson(record));
   if (bytes.length > MAX_KEYWORD_DRAFT_BYTES) fail('draft artifact exceeds safety budget');
   const stored = await store.put(bytes);
