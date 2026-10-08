@@ -50,6 +50,19 @@ remains distinct. Historical marker-free versions preserve their saved bytes.
 U-26 automatic collection and admission policy remain unresolved. See
 [SYNC-2 evidence](handoffs/SYNC-2.md).
 
+Bounded receipt-free Insight drafts are merged in [PR #166](https://github.com/khangpworking/tdn-growth-os/pull/166),
+after independent review and full Linux [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37780693321) on head `503b43a089fbc2b610c02faaad946be3a0ac82d1`.
+An explicit revision selects one exact retained proposal with no acceptance receipts;
+its existing proposal-adoption lineage remains required. I02 summaries and I10/I13
+corpus counts retain original provenance and label eligible draft counts in the same
+sentence. Unsupported family totals are withheld, and draft views do not publish raw
+completion or ratio claims. Synthetic checks cover exact report-byte replay without
+extra writes or calls, binding/forged-snapshot rejection, stable record deduplication,
+disposition gates and historical method/HTML/prompt byte equality.
+U-03 remains partial: other semantic families, I11 consumption and U-11 release
+cross-checks remain pending. This path does not remove all owner prerequisites.
+See [SYNC-4 evidence and limitations](handoffs/SYNC-4.md).
+
 Future collector activation and history readers remain with P5/P9/P10/U-23.
 These merges do not establish complete Ultimate alignment or business acceptance.
 U-26 revision/admission policy, U-32 positive cross-platform totals, and U-11

@@ -1,6 +1,6 @@
 # Phương pháp 30 section: nghiệp vụ Ultimate và phần TDN đang áp dụng
 
-Cập nhật: 07/10/2026
+Cập nhật: 08/10/2026
 
 ## Tóm tắt (cho chủ dự án)
 
@@ -31,7 +31,7 @@ Ba loại báo cáo đang dùng các lớp khác nhau:
 
 | Báo cáo | Theo lớp nào | Ghi chú |
 |---|---|---|
-| Bản nháp tự động (research automation) | Recipe A40 và code | Chặt nhất. Chưa có E1–E8 |
+| Bản nháp tự động (research automation) | Recipe A40 và code | Đã có các phần E2/E7, prompt E4 và draft-count có giới hạn qua PR #164/#166; chưa đủ mọi ngoại lệ |
 | Bản đọc Market (`src/modules/analysis/reader-report/`) | Ultimate v1.0 (E1–E3) qua phần trình bày và lint | Chỉ có mẫu Market trong repo |
 | Bản đọc Insight | Ultimate v1.1 | Hiện **dựng tay ngoài repo** (báo cáo thạch dừa 05–07/10). Chưa có mẫu Insight trong code |
 
@@ -57,28 +57,29 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 
 ## 4. Đối chiếu 30 section
 
-- Hiện đang làm phần business rule; cột **TDN code** tạm giữ nguyên, chưa cập nhật.
-- Cột **TDN code** lấy từ bảng điều hành ngày 04/10/2026 (`research-30-section-progress.md`). "Nối" nghĩa là luồng chạy có gọi phương pháp, **chưa** có nghĩa là đúng hay đã nghiệm thu. Tới 04/10 chưa section nào nghiệm thu đủ trên ba case (thạch dừa, bình giữ nhiệt, quạt cầm tay).
+- Cột **TDN code** cập nhật các gói đã merge ngày 08/10; bằng chứng review/CI và phần còn thiếu ở [kế hoạch đồng bộ](../../tasks/ultimate-v1.11-tdn-sync-plan.md). Đây chưa phải nghiệm thu dữ liệu thật trên ba case.
+- Các cột Ultimate/recipe giữ bản tóm tắt lịch sử; nguồn nghiệp vụ hiện hành là Ultimate v1.12 và registry v1.9. Thông báo supersession trong recipe dẫn về nguồn hiện hành, không phải bằng chứng đã triển khai.
+- Các dòng chưa có cập nhật PR giữ mốc của bảng điều hành ngày 04/10/2026 (`research-30-section-progress.md`). "Nối" nghĩa là luồng chạy có gọi phương pháp, **chưa** có nghĩa là đúng hay đã nghiệm thu. Tới 04/10 chưa section nào nghiệm thu đủ trên ba case (thạch dừa, bình giữ nhiệt, quạt cầm tay).
 - Các PR sau 04/10 (#118–#137) thêm nguồn và trích dẫn (tìm kiếm web, trạng thái review Shopee, sổ trích dẫn, lưu trữ, Trends) nhưng không đổi phương pháp section.
 
-| ID | Ultimate v1.1 | TDN recipe (A40) | TDN code (04/10) | Cần đồng bộ |
+| ID | Ultimate v1.1 | TDN recipe (A40) | TDN code (cập nhật 08/10) | Cần đồng bộ |
 |---|---|---|---|---|
-| M01 | PROPOSED + E3 | Chờ chính sách chủ | Inventory claim từ M05; chưa có tóm tắt Market | E3 vào recipe và luồng tự động |
+| M01 | PROPOSED + E3 | Chờ chính sách chủ | Bản đọc bỏ nhận định bậc nhất, giữ số từng nhóm cạnh nhau (PR #162); inventory bản nháp có câu hỏi đề xuất (PR #164) | E3 đầy đủ và U-29 còn thiếu |
 | M02 | EXISTING_BOUNDED | A22 | Đã nối | — |
 | M03 | EXISTING_BOUNDED | A32/A37 | Đã nối | — |
 | M04 | EXISTING_BOUNDED | A27 | Đã nối | — |
-| M05 | PROPOSED | Đề xuất; chưa chốt proxy nhu cầu | Mô tả hẹp; replay thật 2 case | Cập nhật 05/10: thêm review không tự nâng giá trị claim |
+| M05 | PROPOSED | Đề xuất; chưa chốt proxy nhu cầu | Cả bản đọc và bản nháp ghi doanh số ước tính trong mẫu là thước đo nhu cầu, kèm nguồn/kỳ/giới hạn (PR #162) | Không suy ra quy mô toàn thị trường |
 | M06 | PROPOSED + VALIDATED_IN_SAMPLE | Đề xuất | Inventory hẹp; replay thật 2 case | Kết quả kiểm chứng 05/10 |
-| M07 | PROPOSED | Đề xuất; chưa có tập đối thủ | So sánh peer tường minh, không xếp hạng | Nguồn so sánh chốt 05/10; nội dung video đối thủ (v1.1, mục 6) |
-| M08 | BOUNDED + BENCHMARK + E1 + E9 | Chỉ số học một quote (A24) | Phép tính giá/gói/đơn vị/100g | E1 (ROAS/CPA, miễn trừ). **Đã quyết 07/10 (v1.2):** giá theo đơn vị chuẩn của từng ngành hàng và so cạnh nhau theo E9; phép 100g nay có căn cứ cho hàng bán theo khối lượng, nhưng phải theo bảng đơn vị chuẩn và điều kiện E9 |
+| M07 | PROPOSED | Đề xuất; chưa có tập đối thủ | Bản đọc và bản nháp dùng tập peer mặc định phủ ≥50% doanh thu tương thích; lưu quy tắc, đầu vào/kết quả và phần chủ thêm riêng (PR #167) | U-26 thu/admission tự động và nguồn video còn thiếu |
+| M08 | BOUNDED + BENCHMARK + E1 + E9 | Chỉ số học một quote (A24) | Bản đọc giữ thiếu khác 0, không suy quy cách từ tiêu đề, không trộn loại giá (PR #162); phép tính quote cũ giữ nguyên | U-34 bảng đơn vị chuẩn đầy đủ và U-33 E1 còn thiếu |
 | M09 | PROPOSED | Đề xuất | Inventory ngày ra mắt; replay thật 2 case | Kênh báo cáo ngành 05/10 |
 | M10 | BLOCKED | Gate | Gate đã nối | Nguyên tắc kịch bản có điều kiện 05/10 |
-| M11 | PROPOSED | Chờ chính sách chủ | Packet bản nháp chờ review | Định nghĩa cơ hội = giao 3 tín hiệu (05/10) |
-| M12 | PROPOSED + E2 | Chờ chính sách chủ | Packet; không tự chọn | E2 vào luồng tự động (bản đọc Market đã áp) |
+| M11 | PROPOSED | Chờ chính sách chủ | Bản đọc bỏ ưu tiên theo doanh thu (PR #162); packet bản nháp vẫn có giới hạn | Định nghĩa giao 3 tín hiệu đầy đủ còn thiếu |
+| M12 | PROPOSED + E2 | Chờ chính sách chủ | Bản đọc và bản nháp có tối đa 3 đề xuất task/owner/deadline chờ chủ duyệt; bản nháp chặn đề xuất mua thử (PR #162/#164) | Chưa có nghiệm thu thật ba case |
 | M13 | EXISTING_BOUNDED | A23 | Đã nối | — |
 | Kết luận Insight | E6 | Không có trong danh mục 30 section | Không có | Thêm khi đưa bản đọc Insight vào app |
-| I01 | PROPOSED + E7 | Câu hỏi phải do chủ viết | Brief đã nối; thiếu thì UNSET | E7 (câu hỏi làm việc có nhãn) |
-| I02 | PROPOSED + E4 + E5 | Coding bản ghi; không persona, không đếm người (D06) | Đề xuất/duyệt coding đã nối; bảng điều hành ghi "không dựng persona" | **Đã quyết 07/10: theo Ultimate, cho dựng chân dung (E4).** TDN sửa recipe I02 và D06. Gói P7 đã có chân dung E4 cho mạng xã hội. E5 chưa có ở đâu |
+| I01 | PROPOSED + E7 | Câu hỏi phải do chủ viết | Thiếu câu hỏi chủ thì lưu câu hỏi làm việc đề xuất từ phạm vi; không đổi thành viên bằng chứng (PR #164) | Bản đọc Insight còn riêng |
+| I02 | PROPOSED + E4 + E5 | Coding bản ghi; không persona, không đếm người (D06) | Prompt mới bỏ cấm persona (PR #164); summary draft đếm đề xuất có nhãn, không dùng biên nhận chấp nhận (PR #166) | U-03 còn phần thiếu; không khẳng định đã làm persona U-20/E5 |
 | I03 | EXISTING_BOUNDED | A25 | Đã nối | Ghi riêng từng nguồn khi có nhiều nguồn |
 | I04 | PROPOSED | Đề xuất | Đã nối, chưa duyệt coding thật | — |
 | I05 | PROPOSED | Đề xuất | Đã nối | L6: số sao là phân bố riêng |
@@ -86,16 +87,18 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 | I07 | PROPOSED | Đề xuất | Đã nối | L7: lời người bán đặt cạnh, không gộp |
 | I08 | PROPOSED | Đề xuất | Đã nối | Tách phản bác người bán tự nêu khỏi rào cản của khách |
 | I09 | PROPOSED | Đề xuất | Đã nối | — |
-| I10 | PROPOSED | Đề xuất; chưa chốt tỷ lệ | Đếm và corpus đã nối | L3: bản nháp và bản phát hành |
-| I11 | PROPOSED | Chờ chủ định nghĩa nhóm | Gate đã nối | L5: so nhiều nền tảng cạnh nhau |
+| I10 | PROPOSED | Đề xuất; chưa chốt tỷ lệ | Đếm corpus draft có nhãn từ đề xuất đủ điều kiện; giữ provenance, không công bố n/N trong draft (PR #166) | U-11 kiểm chéo còn chưa chốt |
+| I11 | PROPOSED | Chờ chủ định nghĩa nhóm | Nhóm disjoint có bằng chứng nguồn; tỷ lệ mô tả cần ≥30 text records tương thích mỗi nhóm (PR #164) | U-04 còn eligibility số phân loại từ SYNC-4; không suy luận |
 | I12 | PROPOSED | Chờ chủ định nghĩa | Gate đã nối | Trường đọc video là PRESENCE (mục 6.2) |
-| I13 | PROPOSED + E5 | Đề xuất | Nhắc thương hiệu nguyên văn đã nối | L7, thương hiệu "theo tiêu đề người bán", E5 |
+| I13 | PROPOSED + E5 | Đề xuất | Đếm corpus draft có nhãn, loại bất đồng; giữ nguyên nhắc nguồn và dữ liệu cũ (PR #166) | U-11, L7 và E5 còn thiếu |
 | I14 | PROPOSED | Chờ chính sách chủ | Ứng viên AI, tắt mặc định | Nhãn "hướng AI đề xuất" |
-| I15 | PROPOSED + E6 | Chờ chính sách chủ | Packet; không tự chọn | E6 (đề xuất kèm người phụ trách và hạn) |
+| I15 | PROPOSED + E6 | Chờ chính sách chủ | Tối đa 3 đề xuất task/owner/deadline chờ chủ duyệt; chặn mua thử và lưu response invalid để replay (PR #164) | Kết luận Insight và bản đọc Insight đầy đủ còn thiếu |
 | I16 | PROPOSED | Thiết kế hoặc kết quả có sẵn | Gate đã nối | Ghi chú "so trước/sau không đo được hiệu quả" |
 | I17 | EXISTING_BOUNDED | A26 | Đã nối | Phụ lục liệt kê nguồn mới |
 
 ## 5. Danh sách đồng bộ còn thiếu
+
+Danh sách dưới đây giữ bối cảnh kế hoạch trước đợt triển khai 08/10; phần đã giao và phần còn thiếu được cập nhật ở cột TDN mục 4 và kế hoạch đồng bộ. Không dùng danh sách lịch sử này để phủ nhận gói đã merge hoặc để khẳng định hoàn tất toàn bộ.
 
 Plan đồng bộ có checklist, dựa trên lần rà code ngày 08/10/2026: [ultimate-v1.11-tdn-sync-plan.md](../../tasks/ultimate-v1.11-tdn-sync-plan.md).
 

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Insight drafts: explicit retained-proposal selection without acceptance receipts, labelled I02 summaries and I10/I13 corpus counts, and suppression of unsupported totals and raw completion/ratio claims. Required adoption lineage and historical bytes remain intact. PR #166 merged after independent review and full exact-head CI; U-03 remains partial and U-11 cross-check policy unresolved.
+
 - Default peers: reader and draft M07 select a deterministic peer set covering at least 50% of compatible in-sample revenue, with source-title labels, shop fallback and separate owner additions. The rule is frozen before discovery or sales reads; exact retained inputs/results and historical replay are verified. PR #167 merged after independent review and full exact-head CI; automatic collection and admission policy remain unresolved.
 
 - Draft/Insight: retained scope-based working-question proposals, source-backed I11 descriptive-rate gates, versioned coding prompts, and at most three task/owner/deadline proposals awaiting approval. New authored purchase suggestions are rejected and retained as invalid responses. PR #164 merged after independent review and full exact-head CI; classified-rate eligibility remains dependent on SYNC-4.
