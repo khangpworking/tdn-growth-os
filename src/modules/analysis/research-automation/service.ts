@@ -2470,7 +2470,7 @@ export class ResearchAutomationService {
     return 'acceptedMetric' in request || 'acceptedInsight' in request || 'draftInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
       : { kind: 'SUPPLEMENTAL_ATTEMPT', runId: run.runId, attemptId: attempt.attemptId };
   }
-  async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationInsightReportRevisionRequest | undefined> {
+  async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<Exclude<AutomationInsightReportRevisionRequest, { literalInsight: unknown }> | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight coding revision request failed verification.');
     if ('acceptedInsight' in request) return request;

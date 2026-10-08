@@ -1,4 +1,7 @@
 import { createHash } from 'node:crypto';
+import type { InsightLiteralEvidence } from '../../../../contracts/analysis/insight-literal-evidence.generated.js';
+export type LiteralReviewInput = InsightLiteralEvidence['input']['reviews'][number];
+export type LiteralSellerInput = InsightLiteralEvidence['input']['sellerStatements'][number];
 import type { VerifiedExactShopeeCollection } from '../../foundation/shopee-collection-service.js';
 import type { VerifiedSourcePackageFile } from '../../foundation/source-package-service.js';
 import { buildResearchReviewCorpus } from './review-corpus.js';
@@ -13,7 +16,7 @@ const textState = (text: string | null) => text === null ? 'UNREADABLE' as const
 
 /** The Foundation read already authenticates collection membership; corpus replay
  * preserves its native-ID collapse and conflict quarantine. No new raw fields. */
-export function exactLiteralReviews(source: VerifiedExactShopeeCollection) {
+export function exactLiteralReviews(source: VerifiedExactShopeeCollection): LiteralReviewInput[] {
   const corpus = buildResearchReviewCorpus(source).output;
   const pages = new Map(source.pages.map(page => [page.sha256, JSON.parse(page.bytes.toString('utf8')) as unknown[]]));
   return corpus.records.flatMap(record => record.versions.map(version => {
@@ -32,7 +35,7 @@ export function exactLiteralReviews(source: VerifiedExactShopeeCollection) {
 
 /** Uses the reviewed exact native mapping, including actual star-field presence
  * and native-ID conflicts. Empty/unreadable text does not erase a source rating. */
-export function nativeLiteralReviews(source: VerifiedSourcePackageFile, selected: DamiSelectedListing) {
+export function nativeLiteralReviews(source: VerifiedSourcePackageFile, selected: DamiSelectedListing): LiteralReviewInput[] {
   const mapped = mapDamiLocatedReviewSource(source, selected);
   return mapped.mapping.rows.map(row => {
     const record = mapped.records[row.recordIndex]!;
@@ -44,11 +47,10 @@ export function nativeLiteralReviews(source: VerifiedSourcePackageFile, selected
         ratingLocator: `${row.rowPointer}/rating_star` }] };
   });
 }
-export type LiteralReviewInput = ReturnType<typeof exactLiteralReviews>[number] | ReturnType<typeof nativeLiteralReviews>[number];
 
 /** Seller provenance comes solely from successful, approved, request/response-
  * bound product details. Public card wording or review wording is never proof. */
-export function literalSellerStatements(input: VerifyAutomationObservationsInput) {
+export function literalSellerStatements(input: VerifyAutomationObservationsInput): LiteralSellerInput[] {
   return verifyAutomationDetailCaptures(input).flatMap(detail => {
     const fields = [{ value: detail.data.product_name, locator: '/data/product_name', sourceType: 'LISTING_TITLE' as const },
       ...(Array.isArray(detail.data.product_description) ? detail.data.product_description.flatMap((block, index) =>
@@ -62,4 +64,3 @@ export function literalSellerStatements(input: VerifyAutomationObservationsInput
     }] : []);
   });
 }
-export type LiteralSellerInput = ReturnType<typeof literalSellerStatements>[number];

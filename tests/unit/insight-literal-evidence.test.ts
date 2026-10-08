@@ -96,3 +96,53 @@ test('literal views render verified method counts and verbatim quotes with share
   assert.doesNotMatch(absentHtml, /<td>[1-5]\/5<\/td>/);
   assert.ok(refs.some(ref => ref.identity === absent.input.reviews[0]!.sourceRefs[0]!.sourceSha256 && ref.locator === '/0'), 'absent field cites its existing row rather than a fabricated field locator');
 });
+
+test('canonical literal method rejects malformed states, provenance and forged recomputed outputs', async () => {
+  const { verifyInsightLiteralEvidence } = await import('../../src/modules/analysis/insight-literal-evidence.js');
+  const input = { binding, reviews: nativeLiteralReviews(literalNativeFile([row('1', 'Original text')]), literalSelected),
+    sellerStatements: literalSellerStatements(literalSellerFixture()) };
+  const output = buildInsightLiteralEvidence(input);
+  assert.deepEqual(verifyInsightLiteralEvidence(output), output);
+  for (const mutate of [
+    (value: typeof input) => { value.binding.runId = 'not-a-uuid'; },
+    (value: typeof input) => { value.reviews[0]!.rating.fieldPresent = false; },
+    (value: typeof input) => { value.reviews[0]!.text = null; },
+    (value: typeof input) => { value.reviews[0]!.sourceRefs[0]!.sourceSha256 = 'not-a-digest'; },
+    (value: typeof input) => { value.sellerStatements[0]!.sourceSha256 = 'not-a-digest'; },
+    (value: typeof input) => { value.sellerStatements[0]!.retrievedAt = 'unknown'; },
+  ]) {
+    const malformed = structuredClone(input); mutate(malformed);
+    assert.throws(() => buildInsightLiteralEvidence(malformed), /LITERAL_INPUT_INVALID/);
+  }
+  assert.throws(() => buildInsightLiteralEvidence({ ...input, fabricatedApproval: true }), /LITERAL_INPUT_INVALID/);
+  const altered = structuredClone(output); altered.stars.bins[0]!.recordCount = 9;
+  assert.throws(() => verifyInsightLiteralEvidence(altered), /LITERAL_METHOD_REPLAY_MISMATCH/);
+  const wrongMembership = structuredClone(output); wrongMembership.sellerLayer.customerCodingMembership = ['/input/reviews/0'];
+  assert.throws(() => verifyInsightLiteralEvidence(wrongMembership), /LITERAL_OUTPUT_INVALID/);
+});
+
+test('literal-only revision is closed and cannot change old selection payloads or source decisions', async () => {
+  const { createRequire } = await import('node:module');
+  const require = createRequire(import.meta.url);
+  const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+  const addFormats = require('ajv-formats') as typeof import('ajv-formats').default;
+  const { default: revision } = await import('../../contracts/analysis/automation-insight-report-revision.schema.json', { with: { type: 'json' } });
+  const { default: classified } = await import('../../contracts/analysis/automation-classified-report-revision.schema.json', { with: { type: 'json' } });
+  const ajv = new Ajv2020({ strict: true, allErrors: true }); addFormats(ajv); ajv.addSchema(classified);
+  const validate = ajv.compile(revision);
+  const common = { requestKey: literalRunId, previousPairId: binding.previousPairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } } };
+  const literal = { ...common, contractVersion: 'automation-insight-literal-report-revision-v1',
+    literalInsight: { contractVersion: 'insight-literal-select-v1' } };
+  assert.equal(validate(literal), true, JSON.stringify(validate.errors));
+  assert.equal(validate({ ...common, contractVersion: 'automation-insight-report-revision-v1', acceptedInsight: { proposalId: literalRunId, receiptIds: [literalWorkspaceId] } }), true);
+  for (const contractVersion of ['insight-draft-select-v1', 'insight-draft-select-v2']) assert.equal(validate({ ...common,
+    contractVersion: 'automation-insight-report-revision-v1', draftInsight: { contractVersion, proposalId: literalRunId } }), true);
+  for (const malformed of [
+    { ...literal, contractVersion: 'automation-insight-report-revision-v1' },
+    { ...literal, literalInsight: { contractVersion: 'insight-literal-select-v1', approval: true } },
+    { ...literal, draftInsight: { contractVersion: 'insight-draft-select-v2', proposalId: literalRunId } },
+    { ...literal, sources: { ...common.sources, nativeReview: { decision: 'REPLACE' } } },
+    { ...literal, previousPairId: 'invalid' },
+  ]) assert.equal(validate(malformed), false);
+});

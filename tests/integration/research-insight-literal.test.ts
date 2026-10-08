@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { randomUUID, createHash } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,6 +17,7 @@ import { bindResearchAutomationProvider } from '../../src/modules/analysis/resea
 import { createResearchAutomationProviderRegistry, type ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import { seedNativeDamiPackage } from '../helpers/native-dami-package-fixture.js';
 import { literalRunId as runId, literalWorkspaceId as workspaceId, literalSelected } from '../helpers/insight-literal-fixture.js';
+import { buildInsightLiteralEvidence } from '../../src/modules/analysis/insight-literal-evidence.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 const now = () => new Date('2026-10-08T00:00:00.000Z');
 const url = 'https://shopee.vn/product/78085196/17678138164';
@@ -123,16 +124,18 @@ for (const native of [false, true]) test(`${native ? 'native' : 'exact'} source-
   const bound = f.literalInput(f.pair.pairId);
   assert.deepEqual(await verifier.verify(literal, bound), literal);
   const altered = structuredClone(literal); altered.stars.bins[0].recordCount++;
-  await assert.rejects(verifier.verify(altered, bound), /exact source replay/);
+  await assert.rejects(verifier.verify(altered, bound), /LITERAL_METHOD_REPLAY_MISMATCH/);
   await assert.rejects(verifier.verify(literal, { ...bound, previousPairId: 'a'.repeat(64) }), /exact source replay/);
 });
 
 for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal bridge independently replays actual source and rejects count/provenance tampering`, async t => {
   const f = await fixture(t, native, true);
   const historical = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId);
-  assert.equal(createHash('sha256').update(historical.bytes).digest('hex'), native
-    ? '873fad41b6c7091098de9f80f71cc0a5c4912fce9ae45bb4de708c3c74881339'
-    : '174cb33186a6cd1779ec7d96e3dc1273ebe8922ef8e269ba3cff9f4aa6750cf4', 'historical marker-free report bytes stay frozen');
+  // These service artifacts contain freshly minted package/collection IDs.
+  // Their exact bytes must replay within this retained run, rather than match a
+  // different run's random identities. Deterministic historical renderer hashes
+  // are covered separately by the existing version fixtures.
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT', false, f.pair.pairId)).bytes, historical.bytes);
   const bound = f.literalInput(f.pair.pairId);
   assert.equal(Boolean(bound.collection?.nativeReview), native);
   assert.equal(Boolean(bound.collection?.exactShopee), !native);
@@ -151,11 +154,11 @@ for (const native of [false, true]) test(`${native ? 'native' : 'exact'} literal
   assert.equal(output.duplicateTexts[0]!.recordPointers.length, 2);
   assert.deepEqual(await verifier.verify(output, bound), output);
   const altered = structuredClone(output); altered.stars.bins[0]!.recordCount++;
-  await assert.rejects(verifier.verify(altered, bound), /exact source replay/);
+  await assert.rejects(verifier.verify(altered, bound), /LITERAL_METHOD_REPLAY_MISMATCH/);
   const sellerAltered = structuredClone(output); sellerAltered.input.sellerStatements[1]!.text = 'Invented customer barrier';
-  await assert.rejects(verifier.verify(sellerAltered, bound), /exact source replay/);
+  await assert.rejects(verifier.verify(buildInsightLiteralEvidence(sellerAltered.input), bound), /exact source replay/);
   const forgedLocator = structuredClone(output); forgedLocator.input.sellerStatements[0]!.locator = '/data/comment';
-  await assert.rejects(verifier.verify(forgedLocator, bound), /exact source replay/);
+  await assert.rejects(verifier.verify(buildInsightLiteralEvidence(forgedLocator.input), bound), /exact source replay/);
   await assert.rejects(verifier.verify(output, { ...bound, previousPairId: 'a'.repeat(64) }), /exact source replay/);
   assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), before);
   assert.deepEqual([f.providerCalls(), f.collectorStarts()], calls);

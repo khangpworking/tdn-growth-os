@@ -1,16 +1,28 @@
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import schema from '../../../contracts/analysis/insight-literal-evidence.schema.json' with { type: 'json' };
+import type { InsightLiteralEvidence } from '../../../contracts/analysis/insight-literal-evidence.generated.js';
+export type { InsightLiteralEvidence } from '../../../contracts/analysis/insight-literal-evidence.generated.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
-import type { LiteralReviewInput, LiteralSellerInput } from './research-automation/insight-literal-source.js';
+type LiteralReviewInput = InsightLiteralEvidence['input']['reviews'][number];
+type InsightLiteralInput = InsightLiteralEvidence['input'];
+const require = createRequire(import.meta.url);
+const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const addFormats = require('ajv-formats') as typeof import('ajv-formats').default;
+const ajv = new Ajv2020({ strict: true, allErrors: true });
+addFormats(ajv); ajv.addSchema(schema);
+const validateInput = ajv.getSchema<InsightLiteralInput>(`${schema.$id}#/$defs/input`)!;
+const validateOutput = ajv.getSchema<InsightLiteralEvidence>(schema.$id)!;
+const MAX_BYTES = 8 * 1024 * 1024;
 
 const hash = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
-export type InsightLiteralInput = {
-  binding: { workspaceId: string; runId: string; scopeSha256: string; previousPairId: string };
-  reviews: LiteralReviewInput[]; sellerStatements: LiteralSellerInput[];
-};
+
 
 /** Literal counts never map stars to sentiment or add seller statements to
  * customer coding. Identity remains the retained source hash plus row locator. */
-export function buildInsightLiteralEvidence(input: InsightLiteralInput) {
+export function buildInsightLiteralEvidence(untrusted: unknown): InsightLiteralEvidence {
+  if (Buffer.byteLength(canonicalJson(untrusted)) > MAX_BYTES || !validateInput(untrusted)) throw new TypeError('LITERAL_INPUT_INVALID');
+  const input = untrusted as InsightLiteralInput;
   const seen = new Map<string, LiteralReviewInput>();
   const reviews = input.reviews.filter(row => {
     const ref = row.sourceRefs[0]!;
@@ -36,7 +48,7 @@ export function buildInsightLiteralEvidence(input: InsightLiteralInput) {
   const duplicateTexts = [...byText].flatMap(([text, recordPointers]) => recordPointers.length > 1
     ? [{ textSha256: createHash('sha256').update(text).digest('hex'), recordPointers,
       label: 'trùng nguyên văn, có thể cùng một người' as const }] : []);
-  const body = { contractVersion: 'insight-literal-evidence-v1' as const, methodId: 'insight-literal-evidence' as const,
+  const body: Omit<InsightLiteralEvidence, 'methodOutputId'> = { contractVersion: 'insight-literal-evidence-v1' as const, methodId: 'insight-literal-evidence' as const,
     methodVersion: '1.0.0' as const, input: structuredClone({ ...input, reviews }),
     selectedRecordCount: selected.length, selectedRecordPointers: selected.map(item => item.pointer), excludedRecordPointers: reviews.flatMap((row, index) => row.admitted ? [] : [`/input/reviews/${index}`]),
     stars, duplicateTexts,
@@ -46,6 +58,16 @@ export function buildInsightLiteralEvidence(input: InsightLiteralInput) {
       customerCodingMembership: [] as string[] },
     limitations: ['SOURCE_RECORDS_NOT_UNIQUE_PEOPLE', 'STARS_NOT_TEXT_SENTIMENT', 'SELLER_WORDING_NOT_CUSTOMER_EVIDENCE',
       'NO_SELLER_TARGET_INFERENCE_OR_CROSS_PLATFORM_JOIN', 'RETAINED_FIELD_PROVENANCE_NOT_SELLER_AUTHENTICITY'] };
-  return { ...body, methodOutputId: hash(body) };
+  const output = { ...body, methodOutputId: hash(body) };
+  if (Buffer.byteLength(canonicalJson(output)) > MAX_BYTES || !validateOutput(output)) throw new TypeError('LITERAL_OUTPUT_INVALID');
+  return output;
 }
-export type InsightLiteralEvidence = ReturnType<typeof buildInsightLiteralEvidence>;
+
+/** Shape/hash/method replay alone is not source authentication; the owning
+ * bridge additionally rebuilds from verified retained source bytes. */
+export function verifyInsightLiteralEvidence(value: unknown): InsightLiteralEvidence {
+  if (Buffer.byteLength(canonicalJson(value)) > MAX_BYTES || !validateOutput(value)) throw new TypeError('LITERAL_OUTPUT_INVALID');
+  const rebuilt = buildInsightLiteralEvidence((value as InsightLiteralEvidence).input);
+  if (canonicalJson(value) !== canonicalJson(rebuilt)) throw new TypeError('LITERAL_METHOD_REPLAY_MISMATCH');
+  return rebuilt;
+}

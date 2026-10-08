@@ -2,7 +2,7 @@ import type Database from 'better-sqlite3';
 import { createHash } from 'node:crypto';
 import { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
-import { buildInsightLiteralEvidence, type InsightLiteralEvidence } from '../insight-literal-evidence.js';
+import { buildInsightLiteralEvidence, verifyInsightLiteralEvidence, type InsightLiteralEvidence } from '../insight-literal-evidence.js';
 import { exactLiteralReviews, literalSellerStatements, nativeLiteralReviews } from './insight-literal-source.js';
 import { AutomationExactShopeeBridge, type ExactShopeeRunInput } from './exact-shopee-bridge.js';
 import { AutomationNativeSourceReviewBridge } from './native-source-review-bridge.js';
@@ -30,7 +30,7 @@ export class AutomationInsightLiteralEvidence {
     if (!/^[0-9a-f]{64}$/.test(input.previousPairId) || input.start.workspaceId !== input.scope.workspaceId || input.scope.runId !== input.runId ||
         (input.collection !== null && input.collection.runId !== input.runId)) throw new ResearchAutomationIntegrityError('Literal evidence run binding differs.');
     if (input.collection?.exactShopee && input.collection.nativeReview) throw new ResearchAutomationIntegrityError('Literal evidence cannot substitute native and exact sources.');
-    let reviews: Parameters<typeof buildInsightLiteralEvidence>[0]['reviews'] = [];
+    let reviews: InsightLiteralEvidence['input']['reviews'] = [];
     if (input.collection?.exactShopee) reviews = exactLiteralReviews(await this.#exact.read(input.collection.exactShopee, input));
     if (input.collection?.nativeReview) {
       // The historical reference digest covers only the frozen run fields.
@@ -56,6 +56,7 @@ export class AutomationInsightLiteralEvidence {
     return output;
   }
   async verify(value: unknown, input: InsightLiteralBridgeInput): Promise<InsightLiteralEvidence> {
+    verifyInsightLiteralEvidence(value);
     const output = await this.build(input);
     if (canonicalJson(value) !== canonicalJson(output)) throw new ResearchAutomationIntegrityError('Literal evidence failed exact source replay.');
     return output;
