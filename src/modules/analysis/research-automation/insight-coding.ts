@@ -11,12 +11,16 @@ import type {
   AutomationInsightCodingAcceptedSnapshot,
   AutomationInsightCodingDraftSnapshot,
   AutomationInsightCodingFamilyDraftSnapshot, AutomationInsightCodingDefaultDraftSnapshot,
-  AutomationInsightCodingSnapshot,
+  AutomationInsightCodingSnapshot, AutomationInsightCodingPrivateDefaultDraftSnapshot,
 } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
 import type { InsightReportSelection, InsightDraftSelection, InsightDefaultDraftSelection } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
-import type { InsightCodingAdoptRequest, InsightCodingProposeRequest, InsightCodingAcceptRequest, InsightCodingEvidence, InsightSourceBinding, InsightDefaultCodingEvidence, InsightDefaultRuleRequest, InsightDefaultCodingProposeRequest } from '../../../../contracts/analysis/automation-insight-coding.generated.js';
+import type { InsightCodingAdoptRequest, InsightCodingProposeRequest, InsightCodingAcceptRequest, InsightCodingEvidence, InsightSourceBinding, InsightDefaultCodingEvidence, InsightDefaultRuleRequest, InsightDefaultCodingProposeRequest, InsightPrivateDefaultCodingEvidence, InsightPrivateDefaultRuleRequest, InsightPrivateDefaultCodingProposeRequest } from '../../../../contracts/analysis/automation-insight-coding.generated.js';
 import type { AutomationInsightSelection } from '../../../../contracts/analysis/automation-insight-selection.generated.js';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
+import type { InsightPrivateSourceBinding, PrivateInsightSourceProjection } from '../../../../contracts/analysis/private-insight-source-projection.generated.js';
+import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { registerPrivateReviewSchemas } from './private-review-contracts.js';
+import { DEFAULT_PRIVATE_INSIGHT_POLICY } from './insight-default-coding.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { validateLocatedInsightInput, buildLocatedInsightMethods } from '../located-insight-methods.js';
 import { projectSelectedInsightCandidates, projectDraftInsightGroupCounts } from './selected-insight-projection.js';
@@ -32,6 +36,7 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
+registerPrivateReviewSchemas(ajv); ajv.addSchema(privateSourceSchema);
 ajv.addSchema(locatedSchema); ajv.addSchema(selectionSchema); ajv.addSchema(schema);
 ajv.addSchema(classifiedRevisionSchema); ajv.addSchema(reportRevisionSchema);
 const snapshotValid = ajv.compile<AutomationInsightCodingSnapshot>(snapshotSchema);
@@ -40,7 +45,7 @@ const proposeValid = ajv.compile<InsightCodingProposeRequest>({ $ref: `${schema.
 type LiteralRequest = Omit<InsightCodingProposeRequest, 'contractVersion' | 'annotations'> & { contractVersion: 'insight-coding-literal-propose-v1' };
 const literalValid = ajv.compile<LiteralRequest>({ $ref: `${schema.$id}#/$defs/literalPropose` });
 const acceptValid = ajv.compile<InsightCodingAcceptRequest>({ $ref: `${schema.$id}#/$defs/accept` });
-const evidenceValid = ajv.compile<Evidence>({ oneOf: [{ $ref: `${schema.$id}#/$defs/evidence` }, { $ref: `${schema.$id}#/$defs/defaultEvidence` }] });
+const evidenceValid = ajv.compile<Evidence>({ oneOf: [{ $ref: `${schema.$id}#/$defs/evidence` }, { $ref: `${schema.$id}#/$defs/defaultEvidence` }, { $ref: `${schema.$id}#/$defs/privateDefaultEvidence` }] });
 const json = canonicalJson;
 const hash = (value: unknown): string => createHash('sha256').update(json(value)).digest('hex');
 const clone = <T>(value: T): T => JSON.parse(json(value)) as T;
@@ -53,20 +58,25 @@ function invalid(): never { throw new ResearchAutomationValidationError('Invalid
 function corrupt(): never { throw new ResearchAutomationIntegrityError('Insight coding evidence failed verification.'); }
 function conflict(): never { throw new ResearchAutomationConflictError('revision_conflict', 'Insight source, rules or proposal changed. Reload before confirming.'); }
 function tooLarge(): never { throw new ResearchAutomationConflictError('invalid_state', 'Insight coding history exceeds the bounded pair view.'); }
-type Evidence = InsightCodingEvidence | InsightDefaultCodingEvidence;
+type Evidence = InsightCodingEvidence | InsightDefaultCodingEvidence | InsightPrivateDefaultCodingEvidence;
+type DefaultRule = InsightDefaultRuleRequest | InsightPrivateDefaultRuleRequest;
+type DefaultProposal = InsightDefaultCodingProposeRequest | InsightPrivateDefaultCodingProposeRequest;
+export type AnyInsightSourceBinding = InsightSourceBinding | InsightPrivateSourceBinding;
 type Request = Evidence['request'];
 type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
 interface Row { evidence_id: string; kind: Kind; run_id: string; pair_sha256: string; parent_id: string | null; request_key: string; sequence: number | bigint; artifact_sha256: string; artifact_json: string }
 interface Owner { actorId: string; role: 'OWNER' }
-export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE' }
+export interface InsightSourceContext { binding: AnyInsightSourceBinding; privateSource?: PrivateInsightSourceProjection; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE' }
 type SourceReads = Map<string, Promise<InsightSourceContext>>;
 interface Options {
   db: Database.Database; artifacts: ContentAddressedArtifactStore; staging?: RequestScopedArtifactStore;
   context(workspaceId: string, runId: string, pairId: string): Promise<InsightSourceContext>;
-  assertCurrent(binding: InsightSourceBinding): Promise<void>; now(): Date;
+  assertCurrent(binding: AnyInsightSourceBinding): Promise<void>; now(): Date;
 }
-const kindOf = (request: Request): Kind => request.contractVersion === 'insight-coding-adopt-v1' || request.contractVersion === 'insight-coding-default-rule-v1' ? 'ADOPTION' : request.contractVersion === 'insight-coding-propose-v1' || request.contractVersion === 'insight-coding-default-propose-v1' ? 'PROPOSAL' : 'RECEIPT';
-const publicKind = (request: Request) => request.contractVersion === 'insight-coding-default-rule-v1' ? 'DEFAULT_RULE' as const : kindOf(request);
+const isDefaultRule = (request: Request): request is DefaultRule => ['insight-coding-default-rule-v1', 'insight-coding-default-rule-v2'].includes(request.contractVersion);
+const isDefaultProposal = (request: Request): request is DefaultProposal => ['insight-coding-default-propose-v1', 'insight-coding-default-propose-v2'].includes(request.contractVersion);
+const kindOf = (request: Request): Kind => request.contractVersion === 'insight-coding-adopt-v1' || isDefaultRule(request) ? 'ADOPTION' : request.contractVersion === 'insight-coding-propose-v1' || isDefaultProposal(request) ? 'PROPOSAL' : 'RECEIPT';
+const publicKind = (request: Request) => isDefaultRule(request) ? 'DEFAULT_RULE' as const : kindOf(request);
 
 /** Owns exact Insight rules, proposals and selected receipts; never runs a provider or approves a report. */
 export class AutomationInsightCoding {
@@ -186,41 +196,44 @@ export class AutomationInsightCoding {
     for (const index of request.recordIndexes) if (!context.input.records[index] || context.input.records[index]!.disposition !== 'INCLUDED' || context.input.records[index]!.text === null) invalid();
     const used = this.options.db.prepare('SELECT evidence_id FROM analysis_insight_coding_evidence WHERE request_key=?').get(request.requestKey);
     if (used && !this.options.db.prepare('SELECT execution_id FROM analysis_research_automation_ai_executions WHERE coding_request_key=?').get(request.requestKey)) conflict();
+    const privateSource = context.binding.sourceKind === 'PRIVATE_SHOPEE';
+    if (privateSource !== (request.contractVersion === 'insight-default-model-request-v2') || privateSource !== Boolean(context.privateSource)) invalid();
+    const policy = privateSource ? DEFAULT_PRIVATE_INSIGHT_POLICY : DEFAULT_INSIGHT_POLICY;
     let root: Evidence;
     if (request.defaultRuleId === null) {
       // Stable subordinate identity shares the existing immutable request ledger, never a parallel store.
-      const digest = hash({ policy: DEFAULT_INSIGHT_POLICY, requestKey: request.requestKey });
+      const digest = hash({ policy, requestKey: request.requestKey });
       const rootKey = `${digest.slice(0,8)}-${digest.slice(8,12)}-4${digest.slice(13,16)}-8${digest.slice(17,20)}-${digest.slice(20,32)}`;
-      const rootRequest: InsightDefaultRuleRequest = { contractVersion: 'insight-coding-default-rule-v1', kind: 'DEFAULT_RULE', status: 'PROPOSED',
-        requestKey: rootKey, originatingRequestKey: request.requestKey, binding: context.binding, policyVersion: DEFAULT_INSIGHT_POLICY, rules: sourceDefaultInsightRules(context.input) };
+      const rootRequest = { contractVersion: privateSource ? 'insight-coding-default-rule-v2' : 'insight-coding-default-rule-v1', kind: 'DEFAULT_RULE', status: 'PROPOSED',
+        requestKey: rootKey, originatingRequestKey: request.requestKey, binding: context.binding, policyVersion: policy, rules: sourceDefaultInsightRules(context.input) } as DefaultRule;
       root = (await this.write(workspaceId, runId, rootRequest, owner, async () => {
         await this.options.assertCurrent(context.binding);
         return { binding: context.binding, parent: null, sequence: 1 };
       })).evidence;
     } else root = await this.read(request.defaultRuleId, workspaceId, runId);
-    if (root.request.contractVersion !== 'insight-coding-default-rule-v1' || json(root.binding) !== json(request.binding) ||
+    if (!isDefaultRule(root.request) || json(root.binding) !== json(request.binding) ||
       (request.defaultRuleSha256 !== null && hash(root) !== request.defaultRuleSha256)) invalid();
-    let previous: InsightDefaultCodingProposeRequest | undefined;
+    let previous: DefaultProposal | undefined;
     if (request.previousProposalId !== null) {
       const prior = await this.read(request.previousProposalId, workspaceId, runId);
-      if (prior.request.contractVersion !== 'insight-coding-default-propose-v1' || prior.request.defaultRuleId !== root.evidenceId || hash(prior) !== request.previousProposalSha256) invalid();
+      if (!isDefaultProposal(prior.request) || prior.request.defaultRuleId !== root.evidenceId || hash(prior) !== request.previousProposalSha256) invalid();
       previous = prior.request;
     }
     const rules = previous?.rules ?? root.request.rules;
     // Retain predecessor annotations for full continuation validation, never as model input.
     const input = composeDefaultInsightInput(context.input, rules, previous?.annotations);
-    const source = { contractVersion: 'insight-default-model-source-v1' as const, request, binding: context.binding,
-      defaultRuleId: root.evidenceId, defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: owner.actorId, input };
+    const source = { contractVersion: privateSource ? 'insight-default-model-source-v2' : 'insight-default-model-source-v1', request, binding: context.binding,
+      defaultRuleId: root.evidenceId, defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: owner.actorId, input, ...(privateSource ? { privateSource: context.privateSource } : {}) } as import('./insight-model-execution.js').AnyInsightDefaultModelSource;
     const execution = new AutomationInsightDefaultModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now });
     const outcome = await execution.execute(source, ai, signal);
     if (outcome.status !== 'VALID') return { execution: outcome };
     const coded = appendDefaultCodebooks(input, outcome.candidates.artifact.codebooks, request.recordIndexes);
     const proposedRules = clone(rules); proposedRules.corpora = coded.corpora.map(corpus => ({ ...corpus, assignments: [] as [], dispositions: [] as [] }));
     const annotations = mergeInsightBatch(outcome.candidates.artifact.annotations, previous?.annotations, request.recordIndexes);
-    const proposalRequest: InsightDefaultCodingProposeRequest = { contractVersion: 'insight-coding-default-propose-v1', status: 'PROPOSED',
+    const proposalRequest = { contractVersion: privateSource ? 'insight-coding-default-propose-v2' : 'insight-coding-default-propose-v1', status: 'PROPOSED',
       requestKey: request.requestKey, defaultRuleId: root.evidenceId, defaultRuleSha256: hash(root), previousProposalId: request.previousProposalId,
       previousProposalSha256: request.previousProposalSha256, executionId: outcome.executionId, recordIndexes: request.recordIndexes as [number, ...number[]],
-      rules: proposedRules, codebookSha256: hash(proposedRules.corpora.map(corpus => corpus.codebook)), annotations };
+      rules: proposedRules, codebookSha256: hash(proposedRules.corpora.map(corpus => corpus.codebook)), annotations } as DefaultProposal;
     const proposal = await this.write(workspaceId, runId, proposalRequest, owner, async () => {
       await this.options.assertCurrent(root.binding);
       const prior = this.latest(root.evidenceId, 'PROPOSAL');
@@ -233,33 +246,35 @@ export class AutomationInsightCoding {
 
   private async verifyDefaultEvidence(value: Evidence, row: Row, context: InsightSourceContext, sourceReads: SourceReads) {
     const request = value.request;
-    if (request.contractVersion === 'insight-coding-default-rule-v1') {
+    if (isDefaultRule(request)) {
       if (row.parent_id !== null || value.parentSha256 !== null || Number(row.sequence) !== 1 || json(request.binding) !== json(value.binding) ||
         json(request.rules) !== json(sourceDefaultInsightRules(context.input))) corrupt();
       return;
     }
-    if (request.contractVersion !== 'insight-coding-default-propose-v1' || row.parent_id !== request.defaultRuleId || row.parent_id === value.evidenceId) corrupt();
+    if (!isDefaultProposal(request) || row.parent_id !== request.defaultRuleId || row.parent_id === value.evidenceId) corrupt();
     const rootRow = this.row(request.defaultRuleId);
     if (!rootRow || rootRow.kind !== 'ADOPTION' || rootRow.parent_id !== null) corrupt();
     const root = await this.read(request.defaultRuleId, value.binding.workspaceId, value.binding.runId, false, sourceReads);
-    if (root.request.contractVersion !== 'insight-coding-default-rule-v1' || hash(root) !== request.defaultRuleSha256 || value.parentSha256 !== hash(root) || json(root.binding) !== json(value.binding)) corrupt();
+    if (!isDefaultRule(root.request) || hash(root) !== request.defaultRuleSha256 || value.parentSha256 !== hash(root) || json(root.binding) !== json(value.binding)) corrupt();
     const priorRow = this.options.db.prepare(`SELECT * FROM analysis_insight_coding_evidence WHERE parent_id=? AND kind='PROPOSAL' AND sequence=?`)
       .get(root.evidenceId, Number(row.sequence) - 1) as Row | undefined;
     if ((priorRow?.evidence_id ?? null) !== request.previousProposalId || (Number(row.sequence) > 1 && !priorRow)) corrupt();
-    let previous: InsightDefaultCodingProposeRequest | undefined;
+    let previous: DefaultProposal | undefined;
     if (priorRow) {
       const prior = await this.read(priorRow.evidence_id, value.binding.workspaceId, value.binding.runId, false, sourceReads);
-      if (prior.request.contractVersion !== 'insight-coding-default-propose-v1' || hash(prior) !== request.previousProposalSha256) corrupt();
+      if (!isDefaultProposal(prior.request) || hash(prior) !== request.previousProposalSha256) corrupt();
       previous = prior.request;
     } else if (request.previousProposalSha256 !== null) corrupt();
     const rules = previous?.rules ?? root.request.rules;
     const input = composeDefaultInsightInput(context.input, rules, previous?.annotations);
     const first = root.request.originatingRequestKey === request.requestKey;
-    const source = { contractVersion: 'insight-default-model-source-v1' as const, binding: value.binding, defaultRuleId: root.evidenceId,
-      defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: value.actorId, input,
-      request: { contractVersion: 'insight-default-model-request-v1' as const, requestKey: request.requestKey, binding: value.binding,
+    const privateSource = value.binding.sourceKind === 'PRIVATE_SHOPEE';
+    if (privateSource !== (request.contractVersion === 'insight-coding-default-propose-v2') || privateSource !== Boolean(context.privateSource)) corrupt();
+    const source = { contractVersion: privateSource ? 'insight-default-model-source-v2' : 'insight-default-model-source-v1', binding: value.binding, defaultRuleId: root.evidenceId,
+      defaultRuleSha256: hash(root), codebookSha256: hash(input.corpora.map(corpus => corpus.codebook)), actorId: value.actorId, input, ...(privateSource ? { privateSource: context.privateSource } : {}),
+      request: { contractVersion: privateSource ? 'insight-default-model-request-v2' : 'insight-default-model-request-v1', requestKey: request.requestKey, binding: value.binding,
         defaultRuleId: first ? null : root.evidenceId, defaultRuleSha256: first ? null : hash(root), previousProposalId: request.previousProposalId,
-        previousProposalSha256: request.previousProposalSha256, recordIndexes: request.recordIndexes } };
+        previousProposalSha256: request.previousProposalSha256, recordIndexes: request.recordIndexes } } as import('./insight-model-execution.js').AnyInsightDefaultModelSource;
     const outcome = await new AutomationInsightDefaultModelExecution({ db: this.options.db, artifactStore: this.options.artifacts, now: this.options.now }).read(source);
     if (outcome.status !== 'VALID' || outcome.executionId !== request.executionId) corrupt();
     const coded = appendDefaultCodebooks(input, outcome.candidates.artifact.codebooks, request.recordIndexes);
@@ -269,25 +284,25 @@ export class AutomationInsightCoding {
     composeDefaultInsightInput(context.input, request.rules, request.annotations);
   }
 
-  async reportDefaultDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDefaultDraftSelection, current = false): Promise<AutomationInsightCodingDefaultDraftSnapshot> {
+  async reportDefaultDraftSnapshot(workspaceId: string, runId: string, pairId: string, draft: InsightDefaultDraftSelection, current = false): Promise<AutomationInsightCodingDefaultDraftSnapshot | AutomationInsightCodingPrivateDefaultDraftSnapshot> {
     const proposal = await this.read(draft.proposalId, workspaceId, runId);
-    if (proposal.request.contractVersion !== 'insight-coding-default-propose-v1' || hash(proposal) !== draft.proposalSha256) invalid();
+    if (proposal.!isDefaultProposal(request) || hash(proposal) !== draft.proposalSha256) invalid();
     if (proposal.binding.pairId !== pairId) conflict();
     if (current) await this.options.assertCurrent(proposal.binding);
     const context = await this.context(workspaceId, runId, pairId);
     const input = composeDefaultInsightInput(context.input, proposal.request.rules, proposal.request.annotations);
     input.semanticsVersion = '1.1.0'; input.draftCountsVersion = 'draft-counts-v2';
     const { output } = buildLocatedInsightMethods(input);
-    const snapshot: AutomationInsightCodingDefaultDraftSnapshot = { contractVersion: 'automation-insight-coding-snapshot-v4', binding: proposal.binding,
+    const snapshot = { contractVersion: context.binding.sourceKind === 'PRIVATE_SHOPEE' ? 'automation-insight-coding-snapshot-v5' : 'automation-insight-coding-snapshot-v4', binding: proposal.binding,
       selection: { proposalId: proposal.evidenceId, receiptIds: [] }, proposalSha256: hash(proposal), receipts: [], draftSelection: clone(draft),
       defaultRuleId: proposal.request.defaultRuleId, defaultRuleSha256: proposal.request.defaultRuleSha256, codebookSha256: proposal.request.codebookSha256,
-      executionId: proposal.request.executionId, output, groupCounts: projectDraftInsightGroupCounts(output, context.verifiedPlatform) };
+      executionId: proposal.request.executionId, output, groupCounts: projectDraftInsightGroupCounts(output, context.verifiedPlatform), ...(context.privateSource ? { privateSource: context.privateSource } : {}) } as AutomationInsightCodingDefaultDraftSnapshot | AutomationInsightCodingPrivateDefaultDraftSnapshot;
     if (!snapshotValid(snapshot)) corrupt();
     return snapshot;
   }
   async verifyReportDefaultDraftSnapshot(value: unknown, workspaceId: string, runId: string, pairId: string, draft: InsightDefaultDraftSelection) {
     if (!snapshotValid(value) || json(value) !== json(await this.reportDefaultDraftSnapshot(workspaceId, runId, pairId, draft))) corrupt();
-    return value as AutomationInsightCodingDefaultDraftSnapshot;
+    return value as AutomationInsightCodingDefaultDraftSnapshot | AutomationInsightCodingPrivateDefaultDraftSnapshot;
   }
 
   async accept(workspaceId: string, runId: string, value: unknown, owner: Owner) {
@@ -348,7 +363,7 @@ export class AutomationInsightCoding {
     const context = await this.context(workspaceId, runId, value.binding.pairId, sourceReads);
     if (json(context.binding) !== json(value.binding)) corrupt();
     try {
-      if (value.request.contractVersion === 'insight-coding-default-rule-v1' || value.request.contractVersion === 'insight-coding-default-propose-v1') {
+      if (isDefaultRule(value.request) || isDefaultProposal(value.request)) {
         await this.verifyDefaultEvidence(value, row, context, sourceReads);
       } else if (value.request.contractVersion === 'insight-coding-adopt-v1') {
         if (row.parent_id !== null || value.parentSha256 !== null || json(value.request.binding) !== json(value.binding)) corrupt();
@@ -389,8 +404,9 @@ export class AutomationInsightCoding {
       ORDER BY CASE kind WHEN 'ADOPTION' THEN 0 WHEN 'PROPOSAL' THEN 1 ELSE 2 END, parent_id, sequence, evidence_id LIMIT ?`)
       .all(runId, pairId, MAX_VIEW_EVIDENCE + 1) as { evidence_id: string }[];
     if (rows.length > MAX_VIEW_EVIDENCE) tooLarge();
-    const evidence: { evidenceId: string; kind: Kind | 'DEFAULT_RULE'; sequence: number; binding: InsightSourceBinding; request: Request; createdAt: string; sha256: string }[] = [];
-    const view = { contractVersion: 'insight-coding-view-v1' as 'insight-coding-view-v1' | 'insight-coding-view-v2', context: { binding: context.binding, input: context.input }, evidence };
+    const evidence: { evidenceId: string; kind: Kind | 'DEFAULT_RULE'; sequence: number; binding: AnyInsightSourceBinding; request: Request; createdAt: string; sha256: string }[] = [];
+    const view = { contractVersion: 'insight-coding-view-v1' as 'insight-coding-view-v1' | 'insight-coding-view-v2' | 'insight-coding-view-v3', context: { binding: context.binding, input: context.input, ...(context.privateSource ? { privateSource: context.privateSource } : {}) }, evidence };
+    if (context.privateSource) view.contractVersion = 'insight-coding-view-v3';
     let viewBytes = Buffer.byteLength(json(view));
     if (viewBytes > MAX_VIEW_BYTES) tooLarge();
     for (const { evidence_id: id } of rows) {
@@ -490,6 +506,12 @@ export class AutomationInsightCoding {
     if (!reading) { reading = this.options.context(workspaceId, runId, pairId); sourceReads?.set(key, reading); }
     const context = await reading;
     if (context.binding.workspaceId !== workspaceId || context.binding.runId !== runId || context.binding.pairId !== pairId || hash(context.input) !== context.binding.inputSha256) corrupt();
+    if (context.binding.sourceKind === 'PRIVATE_SHOPEE') {
+      if (!context.privateSource || hash(context.privateSource) !== context.binding.projectionSha256 ||
+          json(context.privateSource.corpus) !== json(context.binding.corpus) ||
+          context.binding.sourcePackageSha256 !== context.binding.corpus.artifactSha256 ||
+          json(context.privateSource.input) !== json(context.input)) corrupt();
+    } else if (context.privateSource !== undefined) corrupt();
     return context;
   }
   private compose(context: InsightSourceContext, adoption: InsightCodingAdoptRequest, proposal?: InsightCodingProposeRequest): LocatedInsightMethods['input'] {
@@ -536,7 +558,7 @@ export class AutomationInsightCoding {
   private row(id: string): Row | undefined { return this.options.db.prepare('SELECT * FROM analysis_insight_coding_evidence WHERE evidence_id=?').get(id) as Row | undefined; }
   private latest(parent: string, kind: Kind): Row | undefined { return this.options.db.prepare('SELECT * FROM analysis_insight_coding_evidence WHERE parent_id=? AND kind=? ORDER BY sequence DESC LIMIT 1').get(parent, kind) as Row | undefined; }
   private async write(workspaceId: string, runId: string, request: Request, owner: Owner,
-    prepare: () => Promise<{ binding: InsightSourceBinding; parent: Evidence | null; sequence: number }>) {
+    prepare: () => Promise<{ binding: AnyInsightSourceBinding; parent: Evidence | null; sequence: number }>) {
     const store = this.options.staging; if (!store || Buffer.byteLength(json(request)) > MAX_BYTES) invalid();
     return withDatabaseMutationMutex(this.options.db, () => store.withOwnership(async () => {
       this.options.db.exec('BEGIN IMMEDIATE');
@@ -549,7 +571,7 @@ export class AutomationInsightCoding {
           digest = prior.artifact_sha256; exactRetry = true;
         } else {
           const context = await prepare();
-          const candidate = { contractVersion: request.contractVersion.startsWith('insight-coding-default-') ? 'insight-coding-default-evidence-v1' : 'insight-coding-evidence-v1', evidenceId: randomUUID(), sequence: context.sequence, binding: context.binding, request,
+          const candidate = { contractVersion: request.contractVersion.startsWith('insight-coding-default-') ? (context.binding.sourceKind === 'PRIVATE_SHOPEE' ? 'insight-coding-default-evidence-v2' : 'insight-coding-default-evidence-v1') : 'insight-coding-evidence-v1', evidenceId: randomUUID(), sequence: context.sequence, binding: context.binding, request,
             parentSha256: context.parent ? hash(context.parent) : null, actorId: owner.actorId, actorRole: 'OWNER', createdAt: this.options.now().toISOString() };
           if (!evidenceValid(candidate)) corrupt();
           evidence = candidate;
