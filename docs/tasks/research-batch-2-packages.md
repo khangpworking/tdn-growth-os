@@ -512,6 +512,9 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 |---|---|---|---|
 | WARNING at ≤ max(20%, $2), BLOCKED at ≤ $0.50 | P3-05 | Warn early enough to top up before a run fails. $0.50 is about 50 indexed pages at $0.01 per page, roughly one mid-size report PDF | Convention |
 | ≤1 question per section per PDF, ≤10 per run | P3-10 | Bounds paid retrieval per run; one fixed question per section keeps answers comparable across PDFs | Convention |
+| `rowCap` from 1 to 20,000 | P2 snapshot-source validation | Retains the existing input-schema bound and limits report processing. The upper bound is an engineering convention, not an experimentally established sample size | Convention |
+| First 2 lint diagnostics; 80-character W2/W3 and 60-character W6 excerpts | P2 reader-report lint | Keeps diagnostic output bounded and readable. These output lengths are not detection or statistical thresholds | Convention |
+| 40-character W4 and 25-character W5 negation windows | P2 reader-report lint | Bounds the local text heuristic around a claim. These are conventions, not validated Vietnamese linguistic thresholds | Convention |
 | ≤5 Trends keywords | P5 (`SEARCH_TRENDS_LIMITS.maxKeywords`) | Google Trends compares at most 5 terms in one query | High (platform limit) |
 | ≤4 Trends calls | P5-02 | The plan is 1 time series (all keywords) + 2 related-query calls (one keyword per call) + 1 regional map | High (derived from the plan) |
 | ≤10 expanded searches | P5-02, P5-07 | Per-run cost ceiling for the Phase 0 trial. Dated and single-site queries share it, so they cannot raise cost. Revisit after the spike | Convention |
