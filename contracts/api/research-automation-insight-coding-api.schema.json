@@ -157,45 +157,47 @@
     },
     "defaultEvidence": {
       "title": "ResearchInsightDefaultEvidenceView",
-      "type": "object",
-      "additionalProperties": false,
       "description": "Verified immutable evidence without actor identity. sha256 is the digest of the full verified artifact and is the exact proposalSha256 an acceptance must name.",
-      "required": [
-        "evidenceId",
-        "kind",
-        "sequence",
-        "binding",
-        "request",
-        "createdAt",
-        "sha256"
-      ],
-      "properties": {
-        "evidenceId": {
-          "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/uuid"
-        },
-        "kind": {
-          "enum": [
-            "DEFAULT_RULE",
-            "PROPOSAL"
-          ]
-        },
-        "sequence": {
-          "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/evidence/properties/sequence"
-        },
-        "binding": {
-          "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/binding"
-        },
-        "request": {
-          "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/defaultEvidence/properties/request"
-        },
-        "createdAt": {
-          "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/evidence/properties/createdAt"
-        },
-        "sha256": {
-          "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/digest"
-        }
-      },
       "allOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "evidenceId",
+            "kind",
+            "sequence",
+            "binding",
+            "request",
+            "createdAt",
+            "sha256"
+          ],
+          "properties": {
+            "evidenceId": {
+              "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/uuid"
+            },
+            "kind": {
+              "enum": [
+                "DEFAULT_RULE",
+                "PROPOSAL"
+              ]
+            },
+            "sequence": {
+              "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/evidence/properties/sequence"
+            },
+            "binding": {
+              "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/binding"
+            },
+            "request": {
+              "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/defaultEvidence/properties/request"
+            },
+            "createdAt": {
+              "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/evidence/properties/createdAt"
+            },
+            "sha256": {
+              "$ref": "../analysis/automation-insight-coding.schema.json#/$defs/digest"
+            }
+          }
+        },
         {
           "if": {
             "properties": {
@@ -219,7 +221,8 @@
             }
           }
         }
-      ]
+      ],
+      "type": "object"
     },
     "viewV2": {
       "title": "ResearchInsightCodingDefaultView",

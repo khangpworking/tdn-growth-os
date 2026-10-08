@@ -78,6 +78,19 @@ export type I13Mentions = {
  */
 export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
 export type InsightDefaultModelRequest = {
+  contractVersion: 'insight-default-model-request-v1';
+  requestKey: string;
+  binding: InsightSourceBinding;
+  defaultRuleId: string | null;
+  defaultRuleSha256: string | null;
+  previousProposalId: string | null;
+  previousProposalSha256: string | null;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: number[];
+} & {
   [k: string]: unknown;
 };
 

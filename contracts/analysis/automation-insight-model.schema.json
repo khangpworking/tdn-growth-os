@@ -304,80 +304,82 @@
     },
     "defaultRequest": {
       "title": "InsightDefaultModelRequest",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "contractVersion",
-        "requestKey",
-        "binding",
-        "defaultRuleId",
-        "defaultRuleSha256",
-        "previousProposalId",
-        "previousProposalSha256",
-        "recordIndexes"
-      ],
-      "properties": {
-        "contractVersion": {
-          "const": "insight-default-model-request-v1"
-        },
-        "requestKey": {
-          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
-        },
-        "binding": {
-          "$ref": "automation-insight-coding.schema.json#/$defs/binding"
-        },
-        "defaultRuleId": {
-          "anyOf": [
-            {
-              "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "defaultRuleSha256": {
-          "anyOf": [
-            {
-              "$ref": "automation-insight-coding.schema.json#/$defs/digest"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "previousProposalId": {
-          "anyOf": [
-            {
-              "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "previousProposalSha256": {
-          "anyOf": [
-            {
-              "$ref": "automation-insight-coding.schema.json#/$defs/digest"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
-        "recordIndexes": {
-          "type": "array",
-          "minItems": 1,
-          "maxItems": 100,
-          "uniqueItems": true,
-          "items": {
-            "type": "integer",
-            "minimum": 0
-          }
-        }
-      },
       "allOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "requestKey",
+            "binding",
+            "defaultRuleId",
+            "defaultRuleSha256",
+            "previousProposalId",
+            "previousProposalSha256",
+            "recordIndexes"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-default-model-request-v1"
+            },
+            "requestKey": {
+              "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+            },
+            "binding": {
+              "$ref": "automation-insight-coding.schema.json#/$defs/binding"
+            },
+            "defaultRuleId": {
+              "anyOf": [
+                {
+                  "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "defaultRuleSha256": {
+              "anyOf": [
+                {
+                  "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "previousProposalId": {
+              "anyOf": [
+                {
+                  "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "previousProposalSha256": {
+              "anyOf": [
+                {
+                  "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recordIndexes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
         {
           "if": {
             "properties": {
@@ -432,7 +434,8 @@
             }
           }
         }
-      ]
+      ],
+      "type": "object"
     },
     "defaultSource": {
       "title": "InsightDefaultModelSource",

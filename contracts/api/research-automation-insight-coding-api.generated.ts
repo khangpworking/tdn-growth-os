@@ -77,6 +77,14 @@ export type DraftCountsVersion = 'draft-counts-v1' | 'draft-counts-v2';
  * Verified immutable evidence without actor identity. sha256 is the digest of the full verified artifact and is the exact proposalSha256 an acceptance must name.
  */
 export type ResearchInsightDefaultEvidenceView = {
+  evidenceId: string;
+  kind: 'DEFAULT_RULE' | 'PROPOSAL';
+  sequence: number;
+  binding: InsightSourceBinding;
+  request: InsightDefaultRuleRequest | InsightDefaultCodingProposeRequest;
+  createdAt: string;
+  sha256: string;
+} & {
   [k: string]: unknown;
 };
 
@@ -477,4 +485,32 @@ export interface ResearchInsightCodingDefaultView {
 export interface ResearchInsightSourceContext1 {
   binding: InsightSourceBinding;
   input: Input;
+}
+export interface InsightDefaultRuleRequest {
+  contractVersion: 'insight-coding-default-rule-v1';
+  kind: 'DEFAULT_RULE';
+  status: 'PROPOSED';
+  requestKey: string;
+  originatingRequestKey: string;
+  binding: InsightSourceBinding;
+  policyVersion: 'source-default-coding-v1';
+  rules: InsightCodingRules;
+}
+export interface InsightDefaultCodingProposeRequest {
+  contractVersion: 'insight-coding-default-propose-v1';
+  status: 'PROPOSED';
+  requestKey: string;
+  defaultRuleId: string;
+  defaultRuleSha256: string;
+  previousProposalId: string | null;
+  previousProposalSha256: string | null;
+  executionId: string;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: [number, ...number[]];
+  rules: InsightCodingRules;
+  codebookSha256: string;
+  annotations: InsightProposedAnnotations;
 }
