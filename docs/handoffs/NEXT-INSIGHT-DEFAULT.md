@@ -1,0 +1,60 @@
+# Handoff — NEXT-INSIGHT-DEFAULT
+
+Updated: 2026-10-09
+Worktree/branch: `ultimate-next-insight-sol` / `khangpworking/ultimate-insight-default`.
+Fresh recovery Task/Dispatch: `task_4666023fdc93` / `ctx_0dc567d4c4b3`, sole coordinator run `run_adc3551f8ed8`.
+Inherited canonical head: `8063d3d0cd2152ea23d3a72dd8c7617a3c2aa6a6`; preserved source hashes inventoried in the coordinator's `replacement-default-wip-snapshot.json` before recovery edits.
+Actual fetched main: `f084663a53342074577774e5e6b3a25de0fcf4c8` (PR180/182/183 included). Main reconciliation awaits the coordinator's exact shared phase.
+
+Completed: new explicit authenticated default-model proposal action through the owning service, API and actual frontend/client, without a prior human rule adoption or acceptance receipt. Source-default rule/codebook proposals and exact selected report snapshots are versioned independently of the historical adoption path. Internal draft reports use existing family/count methods with pending labels; no release or coding completion is inferred.
+
+Changed paths: Insight-specific `insight-default-coding.ts`, `insight-coding.ts`, `insight-model-execution.ts`, frozen `insight-model-prompt-v4-schemas.json`; leased `research-automation/{service,reports,synthesis-execution}.ts` and `src/api/research-automation-api.ts`; frontend `InsightCodingPanel.tsx`, `InsightDefaultProposalPanel.tsx`, `insight-default-ui.ts`, `insight-coding-api.ts`, `report-revisions-api.ts`; default unit/service/HTTP/mounted-UI tests; this handoff. The inherited canonical contracts were already committed before recovery; this worker did not generate or edit canonical schemas, generated types/validators, manifests or migrations.
+
+## Behavior and bounds
+
+- An OWNER action freezes exact workspace/run/pair/source-package/scope/input identity and admitted source-locator membership. The retained source-native record, full original text, exact quote offsets, source disposition and model batch indexes remain bound. Identical text at distinct locators stays distinct; repeated pointers retain the existing stable-source identity semantics.
+- `source-default-coding-v1` creates an explicitly proposed root with empty versioned I10/I13 codebooks. The fake/model output may append directly located codebook entries, preserving prior code identities and meanings on exact predecessor-bound continuation. Source membership is never replaced with the batch. Root and proposal are publicly `DEFAULT_RULE`/`PROPOSAL`, status `PROPOSED`; normalized annotation provenance is always `PENDING_AI`, with no adjudication. A malicious completion cannot fabricate approval.
+- Existing immutable evidence/execution storage is reused. Its internal `ADOPTION` parent slot and `coding_adoption_id` column retain their legacy storage names; the distinct default contract and public `DEFAULT_RULE` kind prevent them from representing a human adoption. Historical adoption queries and supersession remain restricted to the human-adoption contract. Human rules, proposals and acceptance receipts stay available separately; a default proposal cannot be passed to the old adoption/acceptance path.
+- Missing `multiCode` has no approved multi-code decision. The default uses the existing explicit single-code corpus constraint as a bounded draft limitation (`source?.multiCode ?? false`), keeps an actual retained declaration when present, and discloses the limitation in the new prompt/UI/method trace. Conflicting distinct codes on the same source identity make the whole response `INVALID`; it never chooses or discards a code to make the batch pass. The original source and terminal invalid execution remain readable; the existing execution ledger does **not** store raw invalid completion text. This is not a new multi-code methodology or a U11 statistic.
+- `insight-model-prompt-v5` applies only to default proposals. Released prompts v1–v4 embed their frozen schema fragments; historical adopted executions and report branches retain their original bytes. Ordinary model configuration, OWNER, run/scope/current-parent, batch/response size, timeout and cancellation gates remain in effect. No runtime model was enabled or called during development.
+- `automation-insight-default-report-revision-v1` names one exact proposal ID and digest. Snapshot v4 binds the default root, final codebook, execution, exact source binding and zero receipts; renderer21 shows pending numbers in the same sentence, applies existing visible-text lint and exposes method lineage. It never chooses latest. New report build/read replays the selected proposal; old report bytes remain unchanged. A later KEEP revision retains the same explicit coding lineage.
+- Frontend starts with no rule or proposal selected. Opening/canceling confirmation, opening source/history or selecting an old retained proposal performs no write/model call. Each batch is read back and verified before continuation; ambiguous transport/read-back holds the exact key/body. Explicit retry sends only the held batch and replays its execution; remaining batches require renewed confirmation. Unmount/cancel aborts the pending transport, and a retained unknown/invalid outcome stops the chain. Separate busy guards preserve optional manual-rule editing and receipt selections.
+- Full admitted membership is not coding completion. Missing dispositions and omitted annotations stay pending; raw accepted counts/completion and draft ratios remain unavailable. U11 release/cross-check, U26 policy and U32 positive aggregates remain blocked. No customer/person inference, cross-platform aggregate or new taxonomy/formula is added.
+
+## Evidence
+
+Task-local Node24.15.0/npm11.12.1; synthetic Foundation/exact/native sources, fake model/collector transports and loopback HTTP only. No local full suite or generation ran.
+
+Backend stable source phase: `ef48b2c855a70bcdae1d378f35b28590dd2d4e21`.
+
+- `npm run typecheck`: PASS (`/tmp/ultimate-default-recovery-typecheck.log`).
+- `node --import tsx --test --test-concurrency=2 tests/unit/insight-default-coding.test.ts tests/integration/research-insight-default.test.ts`: 5/5 PASS (`/tmp/ultimate-default-recovery-final-service.log`). Actual service/default proposal→report21/read/retry, actual OWNER HTTP→fake OpenAI-compatible loopback→selected report, bad auth/route/source/proposal digest, frozen memberships/codebooks/provenance, missing model configuration, conflicting multi-code INVALID, pre-dispatch and in-flight cancellation, terminal no-call/no-write replay and old report equality are covered.
+- `node --import tsx --test --test-concurrency=2 tests/integration/research-insight-prompt-retention.test.ts tests/unit/research-automation-reports.test.ts`: 19 PASS, 0 FAIL, 1 existing optional Chromium PDF SKIP (`/tmp/ultimate-default-recovery-compatibility.log`). Historical adopted model provenance/prompt replay and existing report dispatch/lint stay intact.
+- Mounted frontend/default and existing adoption/client/revision checks: 29/29 PASS (`/tmp/ultimate-default-recovery-ui-final.log`). Actual frontend/client action, exact100/50 batches, explicit selected older proposal, canceled confirmations, held exact retry, remnant confirmation, unmount/unknown, old optional adopt→propose→accept/report behavior and client request/response verification are covered.
+- Direct frontend `tsc -p frontend/tsconfig.json --noEmit` without validator generation: PASS before the final frontend additions; repeated exact final check recorded below after reconciliation.
+- `git diff --check`: PASS.
+- Pinned `humanizer-vi` SKILL, preservation rules and registers at revision `576c80fb445a8b2e9ec1993a6490ab6529b89d12` were read from the retained skill resources. New neutral Vietnamese preserves source quotes, numbers, scope, uncertainty and missing-data limits. No historical report/interpretation or application model prose was rewritten; semantic model quality is not demonstrated by fakes.
+
+The unfinished inherited HTTP fixture initially used a token without a digit and lacked early gateway cleanup; fixing the synthetic token and cleanup exposed the real missing route allowlist. The actual default report frontend action then exposed missing client dispatch for the new revision contract; both production paths were fixed. Assertions for authentication, exact identity and no-call/no-write replay were retained and expanded.
+
+## Ownership and next action
+
+Exact central lease `research-automation/{service,reports,model,synthesis-execution}.ts`, `src/api/research-automation-api.ts` was explicitly released at stable tested commit `ef48b2c` through `msg_4727b6fd66ae`. `model.ts` stayed unchanged. Requested `insightCodingView`, `draftInsightGroupsView`, `insightCodingTrace`, `literalPendingSection`, `corpusTraceSection` and necessary type exports are available; only additive export hooks affect historical branches. No shared source edits after this release.
+
+Unresolved: short coordinator-controlled main conflict reconciliation for `reports.ts`/`service.ts`, final exact-head affected verification, independent review, draft PR and mandatory full hosted `npm run check`. Local optional Chromium PDF remains unavailable. Main must be merged normally only during the fresh exact shared phase; no worker merge of the PR.
+
+Next action: finish independent frontend commit, acquire exact reconciliation phase, normally merge reviewed main, resolve scoped conflicts preserving both source and Market additions, release the phase explicitly, verify final head, push/draft PR for coordinator review and hosted checks.
+
+Business decisions pending: U11 statistic and release; U26 collection/admission; U32 positive aggregate. U40 paid/live staging is unauthorized.
+
+| Gate | State | Evidence / remainder |
+|---|---|---|
+| U03 | Default draft path delivered locally; overall partial | Receipt/adoption-free action and exact retained draft counts; U11 release still blocked. |
+| U04 | Existing bounded groups reused | Rates stay unavailable; no buyer/platform evidence invented. |
+| G01/G05/G06/G07/G09/G11/G12 | Done for current bounded source/frontend | Named ownership, synthetic tests, preserved assertions, exact evidence and limits. |
+| G02 | Partial | Affected checks pass; final exact-head hosted check/review required. |
+| G03 | Affected mounted UI pass | Default plus historical flow/client behavior tested. |
+| G04 | Inherited canonical baseline only | No canonical edits/generation authorized in recovery. |
+| G08 | Preservation rules applied to new copy | Source quotes and historical text untouched; fake tests do not certify model prose. |
+| G10 | Affected compatibility pass | Old prompt/renderer replay and actual old report equality; final reconciliation checks pending. |
+| G13 | Existing source/filter path unchanged | No new keyword collector/consumer claim. |
