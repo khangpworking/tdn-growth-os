@@ -1,12 +1,13 @@
 import type {
   LocatedInsightMethods, Field, Provenance, Relation, Span,
 } from '../../../contracts/analysis/located-insight-methods.generated.js';
+import { attributionText, retainedQuoteHtml, reviewRecordMark, storedLiteral, technicalLiteral, type ReportCitations } from './research-automation/descriptive-report.js';
 
 type Input = LocatedInsightMethods['input'];
 type LocatedId = 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09';
 type Annotation = Input['i02'][number] | Input['i04'][number] | Input['i05'][number]
   | Input['i06'][number] | Input['i07'][number] | Input['i08'][number] | Input['i09'][number];
-type RenderContext = { output: LocatedInsightMethods; sectionId: string; records: Set<number>; bundleDownload: boolean; showAnnotationPendingCount: boolean };
+type RenderContext = { output: LocatedInsightMethods; sectionId: string; records: Set<number>; bundleDownload: boolean; showAnnotationPendingCount: boolean; citations: ReportCitations | undefined };
 
 const PAGE_LIMIT = 20;
 const esc = (value: string | number): string => String(value).replace(/[&<>"']/g, character => ({
@@ -44,7 +45,7 @@ const CODE_GLOSS: Readonly<Record<string, string>> = {
   CORPUS_RATIOS_ONLY_FOR_THE_EXPLICIT_FROZEN_CORPUS: 'tỷ lệ chỉ áp dụng trong tập bản ghi đã chốt',
   I13_EXACT_LITERAL_PHRASE_COUNTS_ONLY_NO_ALIAS_OR_SEMANTIC_CATEGORY_MAPPING: 'chỉ đếm cụm từ nguyên văn, không gộp từ đồng nghĩa hay nhóm ý nghĩa',
 };
-const codeItem = (code: string): string => `<li><code>${esc(code)}</code>${CODE_GLOSS[code] ? ` <small>${esc(CODE_GLOSS[code])}</small>` : ''}</li>`;
+const codeItem = (code: string): string => `<li><code>${technicalLiteral(code)}</code>${CODE_GLOSS[code] ? ` <small>${esc(CODE_GLOSS[code])}</small>` : ''}</li>`;
 const BRIEF_FIELDS = [
   ['questionText', 'Câu hỏi kinh doanh'], ['decisionToInform', 'Quyết định cần thông tin'],
   ['intendedAudience', 'Người đọc dự kiến'], ['scope', 'Phạm vi'], ['knownConstraints', 'Ràng buộc đã biết'],
@@ -66,9 +67,9 @@ function table(caption: string, headings: readonly string[], rows: readonly stri
 }
 
 const quote = (span: Span | null): string => span === null ? '<span>Chưa có đoạn nguồn</span>'
-  : `<q style="white-space:pre-wrap">${esc(span.quote)}</q>`;
+  : retainedQuoteHtml(span.quote);
 const field = (value: Field): string => `${value.span === null ? '' : `${quote(value.span)}<br>`}<small>${label(value.state)}</small>`;
-const textOrUnset = (value: string | null): string => value === null ? 'Chưa khai báo' : esc(value);
+const textOrUnset = (value: string | null): string => value === null ? 'Chưa khai báo' : storedLiteral(value, 'Thông tin được giữ trong bản lưu nguồn');
 const definition = (name: string, html: string): string => `<dt>${esc(name)}</dt><dd>${html}</dd>`;
 // Table cells cannot afford the theme's separate 120px label column.
 const nestedDefinitions = '<dl style="grid-template-columns:minmax(0,1fr);gap:4px">';
@@ -76,20 +77,20 @@ const nestedDefinitions = '<dl style="grid-template-columns:minmax(0,1fr);gap:4p
 function provenance(value: Provenance): string {
   const basis = value.basis === 'PENDING_AI' ? 'Gợi ý AI đang chờ xử lý'
     : value.basis === 'HUMAN_REVIEWED' ? 'Hồ sơ khai báo đã được người rà soát' : 'Mã hóa do hồ sơ khai báo';
-  return `<details><summary>Nguồn gốc mã hóa</summary><p>${basis}. Khai báo này chưa được xác thực thành phê duyệt.</p>${nestedDefinitions}${definition('Vai trò người mã hóa', esc(value.coderRole))}${definition('Ghi chú phân xử', textOrUnset(value.adjudication))}${definition('Bất đồng còn lại', textOrUnset(value.disagreement))}</dl></details>`;
+  return `<details><summary>Nguồn gốc mã hóa</summary><p>${basis}. Khai báo này chưa được xác thực thành phê duyệt.</p>${nestedDefinitions}${definition('Vai trò người mã hóa', textOrUnset(value.coderRole))}${definition('Ghi chú phân xử', textOrUnset(value.adjudication))}${definition('Bất đồng còn lại', textOrUnset(value.disagreement))}</dl></details>`;
 }
 
 function source(ctx: RenderContext, recordIndex: number): string {
   const record = ctx.output.input.records[recordIndex];
   if (!record) throw new TypeError('located insight HTML: UNKNOWN_RECORD');
   ctx.records.add(recordIndex);
-  return `<p>Bản ghi ${recordIndex + 1}<br><small>Thời điểm theo nguồn: ${textOrUnset(record.timeText)}</small></p><a href="#located-${ctx.sectionId}-record-${recordIndex}">Đọc toàn văn và vị trí nguồn của bản ghi ${recordIndex + 1}</a>`;
+  return `<p>Bản ghi ${recordIndex + 1} ${ctx.citations ? reviewRecordMark(record, ctx.citations) : ''}<br><small>Thời điểm theo nguồn: ${textOrUnset(record.timeText)}</small></p><a href="#located-${ctx.sectionId}-record-${recordIndex}">Đọc toàn văn và vị trí nguồn của bản ghi ${recordIndex + 1}</a>`;
 }
 
 function annotationContext(ctx: RenderContext, row: Annotation): string {
   const qualifiers = row.qualifiers.length === 0 ? '' : `<h5>Điều kiện và giới hạn được giữ lại</h5><ul class="limits">${row.qualifiers.map(span => `<li>${quote(span)}</li>`).join('')}</ul>`;
   const counter = row.counterevidence.length === 0 ? '' : `<h5>Bằng chứng ngược trong bản ghi</h5><ul class="limits">${row.counterevidence.map(span => `<li>${quote(span)}</li>`).join('')}</ul>`;
-  return `${source(ctx, row.recordIndex)}${qualifiers}${counter}${provenance(row.provenance)}<details><summary>Ghi nguồn, nguyên văn</summary><p>${esc(ctx.output.input.records[row.recordIndex]!.sourceAttribution)}</p></details>`;
+  return `${source(ctx, row.recordIndex)}${qualifiers}${counter}${provenance(row.provenance)}<details><summary>Ghi nguồn, nguyên văn</summary><p>${attributionText(ctx.output.input.records[row.recordIndex]!.sourceAttribution, 'Chưa có ghi nhận nguồn')}</p></details>`;
 }
 
 function relation(value: Relation | null): string {
@@ -102,12 +103,12 @@ function originalRecords(ctx: RenderContext): string {
   return `<h4>Toàn văn bản ghi được trích</h4><p class="sec-note">Số “Bản ghi N” đếm từ 1; chỉ số bản ghi trong con trỏ của hồ sơ phương pháp đếm từ 0, nên Bản ghi N ứng với chỉ số N − 1. Vị trí trong nguồn được giữ đúng như nguồn ghi.</p>${[...ctx.records].map(index => {
     const record = ctx.output.input.records[index]!;
     const paths = ctx.output.input.sources.filter(item => item.sha256 === record.sourceSha256).map(item => item.logicalPath);
-    return `<details id="located-${ctx.sectionId}-record-${index}"><summary>Bản ghi ${index + 1}: nguyên văn và thông tin nguồn</summary><p class="sec-note">Giữ nguyên lời nguồn, kể cả phủ định, điều kiện và lời kể lại. Các mã hóa phía trên là khai báo cần được xem xét cùng toàn văn.</p><div style="white-space:pre-wrap">${record.text === null ? 'Bản ghi không đọc được.' : esc(record.text)}</div><dl>${definition('Ghi nguồn, nguyên văn', esc(record.sourceAttribution))}${definition('Tệp nguồn', paths.map(esc).join('<br>'))}${definition('Vị trí trong nguồn', `<code>${esc(record.locator)}</code>`)}${definition('SHA-256 nguồn', `<code>${esc(record.sourceSha256)}</code>`)}${definition('Thời điểm theo nguồn', textOrUnset(record.timeText))}</dl></details>`;
+    return `<details id="located-${ctx.sectionId}-record-${index}"><summary>Bản ghi ${index + 1}: nguyên văn và thông tin nguồn</summary><p class="sec-note">Giữ nguyên lời nguồn, kể cả phủ định, điều kiện và lời kể lại. Các mã hóa phía trên là khai báo cần được xem xét cùng toàn văn.</p><div style="white-space:pre-wrap">${record.text === null ? 'Bản ghi không đọc được.' : storedLiteral(record.text, 'Nguyên văn được giữ trong bản lưu nguồn; không đưa vào bản đọc này.')}</div><dl>${definition('Ghi nguồn, nguyên văn', attributionText(record.sourceAttribution, 'Chưa có ghi nhận nguồn'))}${definition('Tệp nguồn', paths.map(technicalLiteral).join('<br>'))}${definition('Vị trí trong nguồn', `<code>${technicalLiteral(record.locator)}</code>`)}${definition('SHA-256 nguồn', `<code>${esc(record.sourceSha256)}</code>`)}${definition('Thời điểm theo nguồn', textOrUnset(record.timeText))}</dl></details>`;
   }).join('')}`;
 }
 
 function footer(ctx: RenderContext, blockers: readonly string[]): string {
-  return `${originalRecords(ctx)}<p class="sec-note">Các bản ghi và khai báo mã hóa có vị trí nguồn; vị trí đúng chưa chứng minh cách hiểu đúng hoặc quyền phê duyệt. ${ctx.bundleDownload ? `${download}.` : 'Hồ sơ đầy đủ được giữ cùng kết quả phương pháp đã lưu.'}</p><details><summary>Giới hạn và thông tin đối chiếu</summary><p>Đơn vị là bản ghi định vị trong hồ sơ này. Không suy rộng thành số người, tỷ lệ dân số hay thị phần.</p><dl>${definition('Bộ mã', esc(ctx.output.input.codebookId))}${definition('Quy tắc đưa vào', esc(ctx.output.input.inclusionRule))}${definition('Quy tắc phân xử', esc(ctx.output.input.adjudicationRule))}${definition('Mã kết quả', `<code>${esc(ctx.output.methodOutputId)}</code>`)}</dl>${blockers.length ? `<p>Điều kiện còn thiếu hoặc cần xử lý:</p><ul class="limits">${blockers.map(codeItem).join('')}</ul>` : ''}<ul class="limits">${ctx.output.limitations.map(codeItem).join('')}</ul></details>`;
+  return `${originalRecords(ctx)}<p class="sec-note">Các bản ghi và khai báo mã hóa có vị trí nguồn; vị trí đúng chưa chứng minh cách hiểu đúng hoặc quyền phê duyệt. ${ctx.bundleDownload ? `${download}.` : 'Hồ sơ đầy đủ được giữ cùng kết quả phương pháp đã lưu.'}</p><details><summary>Giới hạn và thông tin đối chiếu</summary><p>Đơn vị là bản ghi định vị trong hồ sơ này. Không suy rộng thành số người, tỷ lệ dân số hay thị phần.</p><dl>${definition('Bộ mã', textOrUnset(ctx.output.input.codebookId))}${definition('Quy tắc đưa vào', textOrUnset(ctx.output.input.inclusionRule))}${definition('Quy tắc phân xử', textOrUnset(ctx.output.input.adjudicationRule))}${definition('Mã kết quả', `<code>${esc(ctx.output.methodOutputId)}</code>`)}</dl>${blockers.length ? `<p>Điều kiện còn thiếu hoặc cần xử lý:</p><ul class="limits">${blockers.map(codeItem).join('')}</ul>` : ''}<ul class="limits">${ctx.output.limitations.map(codeItem).join('')}</ul></details>`;
 }
 
 function briefBody(ctx: RenderContext): string {
@@ -115,9 +116,9 @@ function briefBody(ctx: RenderContext): string {
   const fields = BRIEF_FIELDS.map(([key, title]) => {
     const value = brief?.[key];
     return definition(title, value?.state === 'SUPPLIED' && value.text !== null
-      ? `<div style="white-space:pre-wrap">${esc(value.text)}</div>` : '<span class="tag warn">Chưa cung cấp (UNSET)</span>');
+      ? `<div style="white-space:pre-wrap">${textOrUnset(value.text)}</div>` : '<span class="tag warn">Chưa cung cấp (UNSET)</span>');
   }).join('');
-  return `<p class="sec-note">Brief do hồ sơ khai báo. Nội dung và phiên bản này chưa được xác thực thành phê duyệt của chủ dự án.</p>${brief === null ? '<p>Chưa có brief. Cần bổ sung các trường dưới đây trước khi dùng làm câu hỏi nghiên cứu đã chốt.</p>' : `<p>Phiên bản brief: ${esc(brief.version)}.</p>`}<dl>${fields}</dl>${brief ? `<p>Các mục được chọn trong brief: ${brief.selectedSectionIds.length ? brief.selectedSectionIds.map(esc).join(', ') : 'chưa chọn'}.</p>` : ''}${footer(ctx, ctx.output.sections.I01.blockers)}`;
+  return `<p class="sec-note">Brief do hồ sơ khai báo. Nội dung và phiên bản này chưa được xác thực thành phê duyệt của chủ dự án.</p>${brief === null ? '<p>Chưa có brief. Cần bổ sung các trường dưới đây trước khi dùng làm câu hỏi nghiên cứu đã chốt.</p>' : `<p>Phiên bản brief: ${textOrUnset(brief.version)}.</p>`}<dl>${fields}</dl>${brief ? `<p>Các mục được chọn trong brief: ${brief.selectedSectionIds.length ? brief.selectedSectionIds.map(esc).join(', ') : 'chưa chọn'}.</p>` : ''}${footer(ctx, ctx.output.sections.I01.blockers)}`;
 }
 
 function annotationRow(ctx: RenderContext, sectionId: LocatedId, pointer: string): string {
@@ -221,7 +222,7 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
     const complete = result.codingComplete && result.ratioStatus === 'COMPLETE';
     const state = result.ratioStatus === 'ZERO_DENOMINATOR' ? 'Mẫu số bằng 0; không có tỷ lệ.'
       : complete ? 'Đã hoàn tất mẫu số và mã hóa theo khai báo của hồ sơ.' : 'Mã hóa hoặc thành viên chưa đầy đủ; chưa công bố n/N.';
-    body += `<h4>${esc(corpus.question)}</h4><p><b>${state}</b></p><p>${result.includedRecordCount} bản ghi thuộc diện đưa vào; ${result.pendingCount} bản ghi đang chờ mã hóa hoặc phân xử; ${result.unreadableCount} bản ghi không đọc được.</p><dl>${definition('Đơn vị khai báo', esc(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', esc(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', esc(corpus.externalSampling))}${definition('Phiên bản bộ mã', esc(corpus.codebook.revision))}</dl>`;
+    body += `<h4>${textOrUnset(corpus.question)}</h4><p><b>${state}</b></p><p>${result.includedRecordCount} bản ghi thuộc diện đưa vào; ${result.pendingCount} bản ghi đang chờ mã hóa hoặc phân xử; ${result.unreadableCount} bản ghi không đọc được.</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
     const coverage = [
       ['Thành viên duy nhất', result.membershipCount], ['Đưa vào', result.includedRecordCount],
       ['Loại ra', result.excludedCount], ['Không đọc được', result.unreadableCount],
@@ -239,7 +240,7 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
       }).join('');
       const evidence = refs ? `<details><summary>Đoạn nguồn cho mã này</summary><ul class="limits">${refs}</ul>${sliceNote(ctx, count.annotationPointers.length, 'chú giải nguồn')}</details>` : '';
       const ratio = complete && count.ratio !== null ? `${count.ratio.numerator}/${count.ratio.denominator}` : 'Chưa công bố';
-      return `<tr><th scope="row">${esc(code.label)}<small>Mã: ${esc(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${esc(code.phrase)}</small>` : ''}</th><td>${count.recordCount}${evidence}</td><td>${ratio}</td></tr>`;
+      return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${textOrUnset(code.phrase)}</small>` : ''}</th><td>${count.recordCount}${evidence}</td><td>${ratio}</td></tr>`;
     });
     body += table(complete ? 'Số bản ghi theo mã trong tập đã chốt' : 'Số bản ghi đã mã hóa, còn một phần', ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], rows) + sliceNote(ctx, result.counts.length, 'mã');
     body += `<p class="sec-note">${corpus.multiCode ? 'Một bản ghi có thể mang nhiều mã; không cộng các n hoặc tỷ lệ thành 100%.' : 'Hồ sơ khai báo mỗi bản ghi có tối đa một mã.'} Thứ tự theo bộ mã, không phải thứ hạng hay mức ưu tiên.</p>`;
@@ -249,8 +250,8 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
 }
 
 /** Render verified located-method output only; the caller retains the old path when the optional bundle is absent. */
-export function renderLocatedInsightSection(output: LocatedInsightMethods, sectionId: string, options: { bundleDownload?: boolean; showAnnotationPendingCount?: boolean } = {}): string | undefined {
-  const ctx: RenderContext = { output, sectionId, records: new Set(), bundleDownload: options.bundleDownload !== false, showAnnotationPendingCount: options.showAnnotationPendingCount !== false };
+export function renderLocatedInsightSection(output: LocatedInsightMethods, sectionId: string, options: { bundleDownload?: boolean; showAnnotationPendingCount?: boolean; citations?: ReportCitations } = {}): string | undefined {
+  const ctx: RenderContext = { output, sectionId, records: new Set(), bundleDownload: options.bundleDownload !== false, showAnnotationPendingCount: options.showAnnotationPendingCount !== false, citations: options.citations };
   switch (sectionId) {
     case 'I01': return briefBody(ctx);
     case 'I02': case 'I04': case 'I05': case 'I06': case 'I07': case 'I08': case 'I09': return locatedBody(ctx, sectionId);

@@ -9,6 +9,8 @@ import type { AutomationSourceClaims } from '../../contracts/analysis/automation
 import { prepareAutomationDecisionSynthesis } from '../../src/modules/analysis/research-automation/decision-synthesis-input.js';
 import { buildLocatedInsightMethods } from '../../src/modules/analysis/located-insight-methods.js';
 import type { LocatedInsightMethods } from '../../contracts/analysis/located-insight-methods.generated.js';
+import { decisionPacketSection } from '../../src/modules/analysis/research-automation/synthesis-evidence-report.js';
+import { JSDOM } from 'jsdom';
 
 // Primary owner for the new closed candidate and section contracts. Existing
 // I14 tests cannot catch a strategy/action accepted as a hypothesis or a model
@@ -119,6 +121,23 @@ test('a proposed M05 counterclaim requires its exact target and one retained hum
   const saved = run(candidate).artifact;
   assert.equal(saved.aiCandidates[0]!.counterevidenceRelations[0]!.relationStatus, 'HUMAN_REVIEW_REQUIRED');
   assert.equal(buildAutomationDecisionPacket(input).artifact.items[0]!.claimId, counter.claimId);
+  // This accepted relation crosses validation and the owning renderer together.
+  // Its exact target must remain in proposal bytes, even when withheld in prose.
+  for (const literal of ['Metric sample', 'a'.repeat(64), 'SOURCE_STATED_METADATA']) {
+    const changed = { ...candidate, text: literal, counterevidenceRelations: [{ ...relation, counteredTarget: literal,
+      compatibility: Object.fromEntries(Object.keys(relation.compatibility).map(key => [key, literal])), inferentialLimitations: [literal] }] };
+    const retained = run(changed);
+    const original = retained.bytes.toString();
+    const html = decisionPacketSection(buildAutomationDecisionPacket(input).artifact, evidence.sourceClaims,
+      { status: 'VALID', executionId: 'synthetic', dispatched: true, candidates: { ...retained, sha256: createHash('sha256').update(retained.bytes).digest('hex') } });
+    const dom = new JSDOM(html);
+    try {
+      dom.window.document.querySelectorAll('code, pre').forEach(node => node.remove());
+      assert.ok(!dom.window.document.body.textContent?.includes(literal));
+    } finally { dom.window.close(); }
+    assert.equal(retained.bytes.toString(), original);
+    assert.ok(original.includes(literal));
+  }
   for (const [changed, error] of [
     [{ ...candidate, counterevidenceRelations: [] }, /COUNTEREVIDENCE_RELATION_MISSING/],
     [{ ...candidate, counterevidenceRefs: [] }, /COUNTEREVIDENCE_RELATION_UNBOUND/],

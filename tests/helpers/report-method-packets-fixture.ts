@@ -54,7 +54,7 @@ function file(
 }
 
 /** Synthetic package-bound method inputs. Claims bind exact metric-result bytes. */
-export function reportMethodPacketsFixture(packet?: VersionedReportPacket, metricResultSha256?: string, includeSemanticInvalid = false): {
+export function reportMethodPacketsFixture(packet?: VersionedReportPacket, metricResultSha256?: string, includeSemanticInvalid = false, unpatchedGates: GateInput = boundedAnalysisGatesFixture()): {
   logicalPath: string;
   sourceDriftPath: string;
   claimDriftPath: string;
@@ -63,7 +63,6 @@ export function reportMethodPacketsFixture(packet?: VersionedReportPacket, metri
   descriptor: Input;
   files: VerifiedSourcePackageFile[];
 } {
-  const unpatchedGates = boundedAnalysisGatesFixture();
   const gateSourceBytes = json(stripSourceReferences(unpatchedGates));
   const gateSourceSha256 = digest(gateSourceBytes);
   const gates = patchSourceReferences(unpatchedGates, gateSourceSha256) as GateInput;

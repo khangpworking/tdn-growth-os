@@ -12,8 +12,25 @@ type TraceInput = Pick<Snapshot, 'projectionSha256' | 'policySha256'> & {
 };
 const families: readonly LiteralFamily[] = ['I02', 'I04', 'I05', 'I07', 'I08'];
 
+/** Read-only coverage of one retained corpus: counts per state plus the exact records behind them. */
+export interface CorpusTrace {
+  readonly sourcePackage: { readonly packageId: string; readonly manifestArtifactSha256: string; readonly packageContentSha256: string };
+  readonly methodOutputId: string;
+  readonly projectionSha256: string;
+  readonly policySha256: string;
+  readonly counts: {
+    readonly inputRows: number; readonly uniqueRecords: number; readonly duplicateRows: number;
+    readonly included: number; readonly excluded: number; readonly unreadable: number;
+    readonly admittedCandidates: number; readonly admittedRecords: number;
+    readonly pendingItems: number; readonly pendingRecords: number;
+    readonly blockedCandidates: number; readonly blockedRecords: number;
+  };
+  readonly families: readonly { readonly family: LiteralFamily; readonly admittedCandidates: number; readonly admittedRecords: number }[];
+  readonly records: readonly (RecordInput & { readonly inputIndexes: readonly number[]; readonly admitted: number; readonly pending: number; readonly blocked: number })[];
+}
+
 /** Read projection only. Owning bridges verify retained artifacts before calling this. */
-export function projectCorpusTrace(snapshot: TraceInput) {
+export function projectCorpusTrace(snapshot: TraceInput): CorpusTrace {
   const records: (RecordInput & { inputIndexes: number[]; admitted: number; pending: number; blocked: number })[] = [];
   const identities = new Map<string, number>();
   const inputIndexes: number[] = [];
