@@ -64,9 +64,28 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   // These retained located/corpus disclaimers exceed the historical lookback.
   // Recognize only their exact limitation wording, and only in Insight.
   const insightDisclaimer = (before: string, term = 'thị phần'): boolean => reportKind === 'INSIGHT' &&
-    (/Không suy rộng thành số người, tỷ lệ dân số hay\s*$/iu.test(before) ||
-      (term === 'toàn thị trường' && /Chưa mã hóa nội dung; số dòng không phải số khách hàng, tỷ lệ chủ đề hay độ phủ\s*$/iu.test(before)));
-  const whole = [...vis.matchAll(/(.{0,40})(thị phần|toàn thị trường|quy mô thị trường)/g)].filter(m => !/không|chưa|không phải/.test(m[1] ?? '') && !insightDisclaimer(vis.slice(0, (m.index ?? 0) + (m[1]?.length ?? 0)), m[2])).length;
+    (/Không suy rộng thành số người, tỷ lệ dân số hay[^\S\r\n]*$/iu.test(before) ||
+      (term === 'toàn thị trường' && /Chưa mã hóa nội dung; số dòng không phải số khách hàng, tỷ lệ chủ đề hay độ phủ[^\S\r\n]*$/iu.test(before)));
+  // Insight checks the negation governing this claim, not an unrelated earlier
+  // sentence/clause. Keep HTML block and literal line boundaries before the
+  // existing visible-text whitespace normalization. Source quotes stay inert.
+  const insightText = reportKind === 'INSIGHT' ? html.replace(QUOTED, ' ')
+    .replace(/<style[\s\S]*?<\/style>|<script[\s\S]*?<\/script>|<svg[\s\S]*?<\/svg>/g, ' ')
+    .split(/<\/?(?:p|li|tr|td|th|h[1-6]|section|div|figcaption|title|article|header|footer|main|aside|blockquote|dl|dt|dd|ul|ol|details|summary|br|hr)\b[^>]*>|[\r\n]+/i)
+    .map(visibleText).join('\n') : '';
+  const insightNegated = (before: string, term: string): boolean => {
+    if (insightDisclaimer(before, term)) return true;
+    const clause = before.split(/[.;!?…\n]|(?<![\p{L}\p{N}])(?:nhưng|tuy nhiên|song|but|however)(?![\p{L}\p{N}])/iu).at(-1) ?? '';
+    // Bounded direct limitations, including the existing source wording.
+    return /(?:không|chưa)\s+(?:(?:phải(?:\s+là)?|là)\s+)?$/iu.test(clause) ||
+      /(?:không|chưa)\s+(?:đại diện(?:\s+cho)?|bao phủ|chứng minh độ phủ|xác nhận độ phủ|khẳng định|(?:tự\s+)?suy ra)\s*$/iu.test(clause) ||
+      /(?:không|chưa)\s+(?:có|đủ)\s+(?:dữ liệu|bằng chứng)\s+(?:về|cho|để (?:xác nhận|khẳng định|ước tính))\s*$/iu.test(clause) ||
+      (term === 'quy mô thị trường' && /bản ghi định vị không phải số người, mức phổ biến,\s*$/iu.test(clause));
+  };
+  const insightClaims = (terms: RegExp) => [...insightText.matchAll(terms)]
+    .filter(match => !insightNegated(insightText.slice(0, match.index ?? 0), match[0]));
+  const whole = reportKind === 'INSIGHT' ? insightClaims(/thị phần|toàn thị trường|quy mô thị trường/gi).length
+    : [...vis.matchAll(/(.{0,40})(thị phần|toàn thị trường|quy mô thị trường)/g)].filter(m => !/không|chưa|không phải/.test(m[1] ?? '')).length;
   add('F5 không khẳng định toàn thị trường; "sắp xếp" thay "xếp hạng"', rank === 0 && whole === 0, `xếp hạng không phủ định: ${rank}; thị phần/toàn thị trường không phủ định: ${whole}`);
 
   const m12 = reportKind === 'INSIGHT' ? html.match(/<section id="I15">[\s\S]*?<\/section>/)?.[0] ?? '' : html.match(/<section id="phan-12">[\s\S]*?<\/section>/)?.[0] ?? '';
@@ -150,8 +169,8 @@ export function lint(html: string, { providers = FORBIDDEN_PROVIDER_NAMES, secti
   add('W3 không cộng gộp sàn khi trang không ghi tổng', summed.length === 0,
     summed.length ? summed.slice(0, 2).map(s => s.trim().slice(0, 80)).join(' | ') : 'không cộng gộp sàn');
 
-  const shareHits = [...vis.matchAll(/(.{0,40})thị phần/gi)]
-    .filter(m => !/không|chưa|không phải/i.test(m[1] ?? '') && !insightDisclaimer(vis.slice(0, (m.index ?? 0) + (m[1]?.length ?? 0))));
+  const shareHits = reportKind === 'INSIGHT' ? insightClaims(/thị phần/gi)
+    : [...vis.matchAll(/(.{0,40})thị phần/gi)].filter(m => !/không|chưa|không phải/i.test(m[1] ?? ''));
   add('W4 không dùng từ "thị phần"', shareHits.length === 0,
     shareHits.length ? `thấy ${shareHits.length} lần không phủ định` : 'không thấy thị phần');
 
