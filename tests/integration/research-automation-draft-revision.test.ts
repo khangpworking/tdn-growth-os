@@ -139,6 +139,8 @@ test('receipt-free draft revision retains one exact proposal with zero receipts 
   assert.match(html, /2 \(đề xuất, chờ chủ duyệt\)/, 'Draft corpus count renders nonzero with the same-sentence label');
   assert.match(html, /1 bản ghi \(đề xuất, chờ chủ duyệt\)\./, 'Draft I02 summary routes with the same-sentence label');
   assert.match(html, /Bản nháp này không dùng biên nhận chấp nhận; biên nhận đã lưu \(nếu có\) vẫn được giữ nguyên\./, 'Draft trace states no receipt use with history preserved');
+  assert.match(html, /Số cho mục I04 là số cũ theo khai báo đã lưu, không phải số đề xuất của bản nháp và chưa được chủ duyệt\./, 'Unsupported draft family explanation qualifies retained counts');
+  assert.match(html, /Bản nháp chưa tính số đề xuất cho mục I04 \(chỉ hỗ trợ I02\/I10\/I13\)\./, 'Unsupported draft family state says unavailable, not usable');
   assert.equal(html.includes('APPROVED'), false, 'No release claim leaks into the draft report');
   const i13Html = html.split('id="I13"')[1] ?? '';
   assert.match(i13Html, /Số bản ghi theo mã \(đề xuất, chờ chủ duyệt\)/, 'Draft I13 corpus table routes with the label');

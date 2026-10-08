@@ -248,15 +248,21 @@ function insightCodingView(coding: AutomationInsightCodingSnapshot, family: Codi
   const output = coding.output;
   const draft = 'draftSelection' in coding;
   let usable: boolean, records: number, pending: readonly string[], blockers: readonly string[], completeRatio = false;
+  // Draft classified counts exist only for I02 summaries and I10/I13 corpus
+  // counts. Other families keep their raw accepted-only method output; the
+  // explanation below qualifies it explicitly instead of relabelling it.
+  let draftUnsupportedFamily: string | null = null;
   if (family !== 'I10' && family !== 'I13') {
     const section = output.sections[family];
-    // Draft fields exist only on the plain summary sections (I02/I04/I07/I08);
-    // I05/I06/I09 keep accepted-only output by contract.
+    // Only I02 summaries ever carry draft fields; I04/I07/I08 share the
+    // section shape but the builder never emits them, and I05/I06/I09 keep
+    // accepted-only output by contract.
     const draftPointers = draft && 'draftAnnotationPointers' in section ? section.draftAnnotationPointers ?? [] : [];
     const draftRecords = draft && 'draftLocatedRecordCount' in section ? section.draftLocatedRecordCount ?? section.locatedRecordCount : section.locatedRecordCount;
+    if (draft && !('draftAnnotationPointers' in section && section.draftAnnotationPointers !== undefined)) draftUnsupportedFamily = family;
     const remainingPending = draft ? section.pendingAnnotationPointers.filter(pointer => !draftPointers.includes(pointer)) : section.pendingAnnotationPointers;
-    usable = section.annotationPointers.length > 0 || draftPointers.length > 0;
-    records = draft ? draftRecords : section.locatedRecordCount;
+    usable = draftUnsupportedFamily ? false : section.annotationPointers.length > 0 || draftPointers.length > 0;
+    records = draft && !draftUnsupportedFamily ? draftRecords : section.locatedRecordCount;
     pending = draft ? remainingPending : section.pendingAnnotationPointers;
     blockers = section.blockers;
   } else {
@@ -278,7 +284,9 @@ function insightCodingView(coding: AutomationInsightCodingSnapshot, family: Codi
     pending = [...section.pendingMentionPointers, ...section.corpora.flatMap((corpus, index) => corpus.pendingCount > 0 ? [`/sections/${family}/corpora/${index}`] : [])];
     blockers = [...new Set([...section.blockers, ...section.corpora.flatMap(corpus => corpus.blockers)])];
   }
-  const state = usable
+  const state = draftUnsupportedFamily
+    ? `Bản nháp chưa tính số đề xuất cho mục ${draftUnsupportedFamily} (chỉ hỗ trợ I02/I10/I13).`
+    : usable
     ? `${draft ? 'Đề xuất có kết quả dùng được (đề xuất, chờ chủ duyệt)' : 'Phần đã chọn có kết quả dùng được'}${pending.length ? '; phần chưa chọn vẫn chờ xử lý' : ''}.${completeRatio && !draft ? ' n/N chỉ tính trong tập bản ghi đã khai báo, không phải tỷ lệ thị trường.' : ''}`
     : pending.length ? 'Chưa có phần được chọn dùng được cho mục này; đề xuất chưa chọn vẫn chờ xử lý. Đây không phải kết quả bằng 0.'
     : blockers.length ? 'Chưa có kết quả dùng được vì hồ sơ phương pháp còn điều kiện chặn. Đây không phải kết quả bằng 0.'
@@ -288,7 +296,7 @@ function insightCodingView(coding: AutomationInsightCodingSnapshot, family: Codi
     : `<p class="warning">Dựa trên ${coding.receipts.length} biên nhận lựa chọn cho một đề xuất mã hóa. Biên nhận xác nhận lựa chọn của người dùng, không xác thực lời kể hoặc khai báo của người mã hóa. Bản ghi gốc, tập mẫu và phần chờ được giữ nguyên; dấu vết đối chiếu ở <a href="#I17">I17</a>.</p><p class="sec-note">Trên màn hình hẹp, cuộn ngang bảng để xem đủ nội dung và tỷ lệ. Có thể dùng phím mũi tên khi bảng được chọn bằng Tab.</p>`;
   return {
     usable, html: notice + renderLocatedInsightSection(output, family, { bundleDownload: false, citations })!,
-    explanation: `${draft ? 'Đoạn đề xuất là mã hóa bám lời nguồn trên đề xuất, chưa được chọn hay duyệt' : 'Đoạn được chọn là mã hóa bám lời nguồn trên đề xuất, theo quy tắc đã duyệt'}; không phải quan sát độc lập và chưa phải mục phân tích hoàn chỉnh. ${state}`,
+    explanation: `${draft ? 'Đoạn đề xuất là mã hóa bám lời nguồn trên đề xuất, chưa được chọn hay duyệt' : 'Đoạn được chọn là mã hóa bám lời nguồn trên đề xuất, theo quy tắc đã duyệt'}; không phải quan sát độc lập và chưa phải mục phân tích hoàn chỉnh.${draftUnsupportedFamily ? ` Số cho mục ${draftUnsupportedFamily} là số cũ theo khai báo đã lưu, không phải số đề xuất của bản nháp và chưa được chủ duyệt.` : ''} ${state}`,
     methodOutput: { methodOutputId: output.methodOutputId, locatedRecordCount: records, unresolvedPointers: pending, blockers },
   };
 }
