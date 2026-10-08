@@ -8,13 +8,31 @@
     "uuid": { "type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$" },
     "timestamp": { "type": "string", "minLength": 20, "maxLength": 40 },
     "count": { "type": "integer", "minimum": 0, "maximum": 9007199254740991 },
-    "sourceId": { "title": "ResearchAutomationSourceId", "enum": ["KALODATA", "SERPAPI", "APIFY_SHOPEE", "METRIC", "PAGEINDEX"] },
+    "sourceId": { "title": "ResearchAutomationSourceId", "enum": ["KALODATA", "SERPAPI", "APIFY_SHOPEE", "METRIC", "PAGEINDEX",
+      "KALODATA_VIDEO_FILE", "APIFY_TIKTOK_COMMENTS", "VIDEO_READING", "META_AD_LIBRARY", "OFFICIAL_STATS", "WORLD_BANK"] },
     "sourceState": {
       "title": "ResearchAutomationSourceState",
-      "description": "READY: configured and used by runs. CONFIGURED_NOT_WIRED: credential present but runs do not call it yet. NOT_CONFIGURED: credential or spending cap missing. MANUAL_IMPORT: data arrives only as an owner upload. EXECUTOR_DISABLED: this server cannot run research at all.",
-      "enum": ["READY", "CONFIGURED_NOT_WIRED", "NOT_CONFIGURED", "MANUAL_IMPORT", "EXECUTOR_DISABLED"]
+      "description": "READY: configured and used by runs. CONFIGURED_NOT_WIRED: credential present but runs do not call it yet. NOT_CONFIGURED: credential or spending cap missing. MANUAL_IMPORT: data arrives only as an owner upload. NOT_BUILT: the collector does not exist on this build yet; pendingPackage names the owning package. EXECUTOR_DISABLED: this server cannot run research at all.",
+      "enum": ["READY", "CONFIGURED_NOT_WIRED", "NOT_CONFIGURED", "MANUAL_IMPORT", "NOT_BUILT", "EXECUTOR_DISABLED"]
     },
     "credentialState": { "title": "ResearchAutomationCredentialState", "enum": ["CONFIGURED", "MISSING", "NOT_REQUIRED"] },
+    "sourceGroup": { "title": "ResearchAutomationSourceGroup", "enum": ["SALES_MARKET", "CUSTOMER_VOICE", "SELLER_VOICE", "MACRO", "DOCUMENTS"] },
+    "sourceTier": { "title": "ResearchAutomationSourceTier", "enum": ["A", "B", "C", "D"] },
+    "registryId": { "title": "ResearchAutomationRegistryId", "type": "string", "pattern": "^S[0-9]{1,2}$" },
+    "operation": {
+      "title": "ResearchAutomationSourceOperation",
+      "description": "One stored-history row per provider operation. Count unit is stored captures, never mixed with uploads or usage rows. Usage stays provider-level: lastUsageAt is null unless exact per-operation evidence exists.",
+      "type": "object", "additionalProperties": false,
+      "required": ["operation", "count", "lastDataAt", "lastUsageAt"],
+      "properties": {
+        "operation": { "type": "string", "minLength": 1, "maxLength": 80 },
+        "count": { "$ref": "#/$defs/count" },
+        "lastDataAt": { "description": "Latest stored capture for this operation.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "lastUsageAt": { "description": "Latest recorded provider usage for this operation; null when only provider-level usage exists.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "registryIds": { "type": "array", "items": { "$ref": "#/$defs/registryId" }, "minItems": 1, "maxItems": 4 },
+        "tier": { "description": "Single tier only when every registry ID on this operation shares it; otherwise null with no aggregate.", "anyOf": [{ "$ref": "#/$defs/sourceTier" }, { "type": "null" }] }
+      }
+    },
     "source": {
       "title": "ResearchAutomationSourceStatusEntry",
       "type": "object", "additionalProperties": false,
@@ -28,6 +46,14 @@
         "lastDataAt": { "description": "Latest stored capture or finalized upload in this workspace.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
         "dataCount": {"description":"Stored captures or uploads; null if the PDF ledger is unavailable.","anyOf":[{"$ref":"#/$defs/count"},{"type":"null"}]},
         "lastUsageAt": { "description": "Latest recorded provider usage in this workspace; null for manual imports.", "anyOf": [{ "$ref": "#/$defs/timestamp" }, { "type": "null" }] },
+        "pendingPackage": { "description": "Owning package that flips a NOT_BUILT card; null once built.", "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 24 }, { "type": "null" }] },
+        "registryIds": { "description": "Source registry IDs (input-data-sources-30-sections.md) covered by this card.", "type": "array", "items": { "$ref": "#/$defs/registryId" }, "minItems": 1, "maxItems": 4 },
+        "tier": { "description": "Single tier only when every registry ID on this card shares it; mixed connectors keep null with a per-ID tierDetail.", "anyOf": [{ "$ref": "#/$defs/sourceTier" }, { "type": "null" }] },
+        "tierDetail": { "description": "Per-ID tiers for mixed connectors, e.g. S01: C; S04: B.", "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 200 }, { "type": "null" }] },
+        "group": { "$ref": "#/$defs/sourceGroup" },
+        "reportName": { "description": "The report citation name from the registry.", "anyOf": [{ "type": "string", "minLength": 1, "maxLength": 300 }, { "type": "null" }] },
+        "spendCapUsd": { "description": "Configured USD charge cap, or null when none is configured. Never defaulted.", "anyOf": [{ "type": "number", "exclusiveMinimum": 0, "maximum": 10000 }, { "type": "null" }] },
+        "operations": { "description": "Per-operation history rows for multi-operation providers such as SerpApi.", "anyOf": [{ "type": "array", "items": { "$ref": "#/$defs/operation" }, "maxItems": 8 }, { "type": "null" }] },
         "pageindex": { "$ref": "#/$defs/pageindexDetail" }
       }
     },
@@ -160,7 +186,7 @@
         "workspaceId": { "$ref": "#/$defs/uuid" },
         "checkedAt": { "$ref": "#/$defs/timestamp" },
         "executorEnabled": { "type": "boolean" },
-        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" }, "maxItems": 5 }
+        "sources": { "type": "array", "items": { "$ref": "#/$defs/source" }, "maxItems": 11 }
       }
     }
   }

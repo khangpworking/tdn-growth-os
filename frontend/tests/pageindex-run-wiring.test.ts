@@ -143,8 +143,8 @@ test('a late free recheck cannot overwrite a different workspace or keep its but
   assert.equal(signal!.aborted, true);
   assert.equal(button()!.disabled, false);
   await act(async () => finish(json(status(workspaceId, 99))));
-  assert.match(dom.container.querySelector('[data-source="PAGEINDEX"]')!.textContent!, /7 tài liệu/);
-  assert.equal(dom.container.textContent!.includes('99 tài liệu'), false);
+  assert.match(dom.container.querySelector('[data-source="PAGEINDEX"]')!.textContent!, /7 PDF trong workspace này/);
+  assert.equal(dom.container.textContent!.includes('99 PDF trong workspace'), false);
 });
 
 test('PageIndex card recheck is an owner action, refreshes unknown data, and cannot duplicate or run in demo', async t => {
