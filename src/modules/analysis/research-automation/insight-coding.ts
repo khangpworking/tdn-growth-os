@@ -55,7 +55,7 @@ type Request = InsightCodingEvidence['request'];
 type Kind = 'ADOPTION' | 'PROPOSAL' | 'RECEIPT';
 interface Row { evidence_id: string; kind: Kind; run_id: string; pair_sha256: string; parent_id: string | null; request_key: string; sequence: number | bigint; artifact_sha256: string; artifact_json: string }
 interface Owner { actorId: string; role: 'OWNER' }
-export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input'] }
+export interface InsightSourceContext { binding: InsightSourceBinding; input: LocatedInsightMethods['input']; verifiedPlatform?: 'SHOPEE' }
 type SourceReads = Map<string, Promise<InsightSourceContext>>;
 interface Options {
   db: Database.Database; artifacts: ContentAddressedArtifactStore; staging?: RequestScopedArtifactStore;
