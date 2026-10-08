@@ -64,7 +64,8 @@ export function createTikTokCommentPrivacy(configuration: { salt: Uint8Array; ke
   const sellers = new Set(configuration.sellerAuthorIds ?? []); if ([...sellers].some(id => numericId(id) === null)) fail();
   const key = (domain: string, value: string) => createHmac('sha256', salt).update(`tdn:tiktok.com:${domain}:v1\0`).update(value).digest('hex');
   const profile = Object.freeze({ profileVersion: 'tiktok-comment-privacy-v1' as const, platform: 'tiktok' as const,
-    keyId: configuration.keyId, keyCommitment: key('key-continuity', 'configured'), algorithm: 'HMAC-SHA256' as const });
+    keyId: configuration.keyId, keyCommitment: key('key-continuity', 'configured'),
+    voicePolicyCommitment: key('declared-seller-policy', canonicalJson([...sellers].sort())), algorithm: 'HMAC-SHA256' as const });
   const sanitizePage = (actor: TikTokCommentActor, bytes: Buffer, selectedUrls: readonly string[], pageIndex: number) => {
     if (bytes.byteLength > 8 * 1024 * 1024) fail();
     let values: unknown; try { values = JSON.parse(bytes.toString('utf8')); } catch { return fail(); }

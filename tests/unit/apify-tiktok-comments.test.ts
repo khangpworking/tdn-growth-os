@@ -99,3 +99,25 @@ test('contradictory locators and unknown metadata never become source evidence o
   const empty = privacy().sanitizePage(TIKTOK_COMMENT_ACTORS.default, Buffer.from(JSON.stringify([row('13', '@friend 😍')])), [url], 0);
   assert.equal(empty[0]!.exclusionReason, 'TAG_ONLY');
 });
+
+
+test('cancellation at completed raw-page read cannot produce a successful capture or a retry call', async () => {
+  const f = fake([row('1')]), controller = new AbortController();
+  const read = f.transport.readPage;
+  f.transport.readPage = async (...args) => { const bytes = await read(...args); controller.abort(); return bytes; };
+  const collector = new ApifyTikTokCommentsCollector({ transport: f.transport, privacy: privacy(), approvedMaxTotalChargeUsd: 3 });
+  await assert.rejects(collector.collect([url], '2'.repeat(64), controller.signal));
+  const before = [...f.calls]; await assert.rejects(collector.collect([url], '2'.repeat(64))); assert.deepEqual(f.calls, before);
+});
+
+test('replies and equal duplicates do not consume distinct top-level quota; changed policy witness stays explicit', async () => {
+  const f = fake([row('1'), row('1'), { ...row('2'), item_type: 'reply', reply_to_comment_id: '1' }]);
+  const collector = new ApifyTikTokCommentsCollector({ transport: { ...f.transport,
+    start: async (actor, input, cap, signal) => { assert.equal(input.max_comments, 1); return f.transport.start(actor, input, cap, signal); }
+  }, privacy: privacy(), approvedMaxTotalChargeUsd: 3, maxCommentsPerVideo: 1 });
+  const captured = await collector.collect([url], '3'.repeat(64));
+  assert.equal(captured.pages[0]!.rows.length, 3);
+  const changed = createTikTokCommentPrivacy({ salt, keyId: privacy().profile.keyId, sellerAuthorIds: ['445'] });
+  assert.equal(changed.profile.keyCommitment, privacy().profile.keyCommitment);
+  assert.notEqual(changed.profile.voicePolicyCommitment, privacy().profile.voicePolicyCommitment);
+});
