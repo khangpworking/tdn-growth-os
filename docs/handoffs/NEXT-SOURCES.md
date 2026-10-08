@@ -46,16 +46,16 @@ Coordinator independently reviews PR172 at exact pushed SHA, checks full hosted 
 
 Business decisions pending:
 
-U11, U26 and U32 remain unresolved; no statistical release, scope policy or aggregate reconciliation was invented. U40 paid/live acceptance remains unauthorized. No cost caps, application credentials, launcher model configuration or runtime data were changed.
+U11, U26 and U32 remain ESCALATED material decisions; no statistical release, scope policy or aggregate reconciliation was invented. U40 paid/live acceptance remains unauthorized. No cost caps, application credentials, launcher model configuration or runtime data were changed.
 
 ## Checklist evidence
 
 | ID | Status | Evidence / remainder |
 |---|---|---|
-| U12 | DONE for existing sales/web lane; ESCALATED for missing lanes | Authenticated retained drafts and actual collection/report/reader L9 calls. Metric-only name projection and absent P9/U23 callers remain explicit prerequisites. |
-| U27 | DONE for mapped consumed sources; ESCALATED for unknown supplemental families | Canonical registry1.9 projection and actual v18 M13/I17 appendix, per-source accounting, mixed tiers, empty lists, repeated IDs and E12/E13. No guessed bindings. |
+| U12 | PARTIAL / DEPENDENT: existing sales/web lane DONE; other lanes pending | Authenticated retained drafts and actual collection/report/reader L9 calls. Metric-only name projection and absent P9/U23 callers remain explicit prerequisites. |
+| U27 | PARTIAL / DEPENDENT: mapped consumed sources DONE; supplemental bindings pending | Canonical registry1.9 projection and actual v18 M13/I17 appendix, per-source accounting, mixed tiers, empty lists, repeated IDs and E12/E13. No guessed bindings. |
 | G01 | DONE | This per-item evidence and explicit remainder. |
-| G02 | DONE focused/static; ESCALATED hosted release gate | Typecheck/focused synthetic checks; coordinator must verify full hosted exact-head check before merge. |
+| G02 | DONE focused/static; PENDING CI hosted release gate | Typecheck/focused synthetic checks; coordinator must verify full hosted exact-head check before merge. |
 | G03 | N/A | No frontend changes. |
 | G04 | DONE | Canonical generation deterministic and committed. |
 | G05 | DONE | Allocated paths, narrow granted descriptive hook, clean diff checks. |
@@ -66,7 +66,7 @@ U11, U26 and U32 remain unresolved; no statistical release, scope policy or aggr
 | G10 | DONE | Exact stored-byte replay, marker-free branches and versioned lexical hook verified. |
 | G11 | DONE | Stronger authenticity tests; canonical fixture revisions documented above; no deleted/skipped assertions or new test waiver. |
 | G12 | DONE | Handoff fields, checklist, bounds and next steps recorded. |
-| G13 | DONE existing web consumer; ESCALATED absent callers | Included-only main evidence, exact capture/position identity, retained excluded/unclear reasons and per-source accounting. |
+| G13 | PARTIAL / DEPENDENT: existing web consumer DONE; absent callers pending | Included-only main evidence, exact capture/position identity, retained excluded/unclear reasons and per-source accounting. |
 
 ## Engineering bounds (not business defaults)
 
