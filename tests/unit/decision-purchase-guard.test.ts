@@ -1,0 +1,42 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { hasAuthoredPurchaseProposal, hasDecisionPurchaseProposal } from '../../src/modules/analysis/research-automation/decision-purchase-guard.js';
+
+test('U16 general purchase and trial-order proposals are blocked in Vietnamese and English', () => {
+  for (const text of [
+    'Mua sản phẩm đối thủ để kiểm tra chất lượng', 'Buy a competitor product to assess its quality',
+    'Mua sản phẩm để kiểm tra', 'Purchase the product to inspect its quality',
+    'Đặt hàng thử sản phẩm đối thủ', 'Order a competitor product for testing',
+    'Buying a product for testing is a proposed prerequisite',
+    'Không chỉ mua sản phẩm để kiểm tra', 'Không thể không mua sản phẩm để kiểm tra',
+    'Do not review public data; instead purchase a competitor product',
+    'Không mua sản phẩm này nhưng mua sản phẩm khác để kiểm tra',
+    'Do not buy this product and buy another one',
+    'Review quality in order to buy a sample',
+  ]) assert.equal(hasAuthoredPurchaseProposal(text), true, text);
+});
+
+test('explicit prohibitions and descriptive retained/public evidence remain available', () => {
+  for (const text of [
+    'Không mua sản phẩm đối thủ; chỉ đánh giá qua nguồn công khai và dữ liệu chủ cung cấp',
+    'Không đề xuất mua sản phẩm để kiểm tra chất lượng',
+    'Do not buy a competitor product to assess quality', 'Never purchase a sample',
+    'Assess quality without purchasing products', 'Avoid buying a competitor product',
+    'Khách hàng đã mua sản phẩm, theo lời tự báo cáo',
+    'Nguồn ghi nhận khách hàng mua sản phẩm',
+    'Review reports a customer buying a product',
+    'Review owner purchase history and public reviews',
+    'Đối chiếu lịch sử mua hàng do chủ cung cấp',
+    'Review public data in order to assess quality',
+  ]) assert.equal(hasAuthoredPurchaseProposal(text), false, text);
+});
+
+test('every nested authored field is guarded; source evidence is not an argument to the guard', () => {
+  const fields = ['text', 'conciseEvidenceLinkedRationale', 'assumptions', 'unknowns', 'evidenceGaps',
+    'limitations', 'conditions', 'prerequisites', 'immediateTask', 'proposedOwner', 'proposedDeadline'];
+  for (const field of fields) {
+    assert.equal(hasDecisionPurchaseProposal([{ [field]: field === 'text' ? 'Mua sản phẩm để kiểm tra chất lượng' : ['Buy a product to assess quality'] }]), true, field);
+  }
+  assert.equal(hasDecisionPurchaseProposal([{ counterevidenceRelations: [{ compatibility: { scope: 'Purchase a product to inspect it' } }] }]), true);
+  assert.equal(hasDecisionPurchaseProposal([{ text: 'Assess public reviews; do not buy products', citedClaimRefs: ['claim-synthetic'] }]), false);
+});
