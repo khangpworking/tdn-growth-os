@@ -52,3 +52,10 @@ Preliminary checkpoint `db083495d9e55057aa9e4fe18e54c490dcddd1c4` was not an app
 - Corrected private validation:12/12 passed, zero failures/skips, including same-UUID/different-salt journal+Foundation negatives, no extra provider calls, rating states and an incomplete paginated dataset retaining sanitized diagnostics while publishing no Foundation collection. All six corrected schema/generated digests reproduced exactly on repeat generation.
 
 Canonical corrections are committed before explicit release; after release, further canonical edits require a new allocation. Central application/corpus integration remains the separately owned next dependency, not claimed complete by this source-owner roundtrip.
+
+## Draft delivery
+
+Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/182.
+Corrected implementation checkpoint: `0934fdd55234df9280ee7be323d65441dcbaffb3`; initial checkpoint `db083495d9e55057aa9e4fe18e54c490dcddd1c4` is explicitly preliminary. Final typecheck passed after all12 private tests were added. Canonical correction generation reproduced all six schema/generated files exactly. All shared canonical paths/generator were explicitly released through the current Orca dispatch at0934fdd; source-specific ownership continues only for independent review fixes. No code change follows this checkpoint in this handoff commit.
+
+Full hosted Check on the independently reviewed final pushed head is pending and mandatory; a green focused suite is not a waived CI gate. Coordinator owns review and any merge. Application/corpus hooks require their own exact allocation, and P9 remains separate; no report or board readiness completion is claimed.
