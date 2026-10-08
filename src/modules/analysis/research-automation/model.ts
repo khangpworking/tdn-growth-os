@@ -4,6 +4,7 @@ import type {
 } from '../../../../contracts/api/research-automation-api.generated.js';
 import type { NativeSourceReviewReference } from './native-source-review-bridge.js';
 import type { ExactShopeeOutcome } from './exact-shopee-outcome.js';
+import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 
 export type StepId = 'QUICK_SEARCH' | 'COLLECTION' | 'REPORTS';
 export type SourceStepId = Exclude<StepId, 'REPORTS'>;
@@ -35,6 +36,8 @@ export interface StartSnapshot {
   readonly interview: ResearchAutomationInterview | null;
   readonly requestedPeriod: { readonly startDate: string; readonly endDate: string; readonly dayCount: number };
   readonly reports: readonly ResearchAutomationReportKind[];
+  /** Frozen before discovery/sales reads; absent on historical starts. */
+  readonly defaultPeerRule?: DefaultMarketPeers['input']['rule'];
 }
 
 /** Exact owner-approved scope; peers are explicit and never implied by selection. */

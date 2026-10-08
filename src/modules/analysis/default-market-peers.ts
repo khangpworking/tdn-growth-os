@@ -142,8 +142,9 @@ export function verifyDefaultMarketPeers(value: unknown): DefaultMarketPeers {
 
 /** Already admitted classified sales input, never quick-search cards or unclassified keyword exports. */
 export function classifiedMetricDefaultPeers(
-  sales: MetricScopeInput, rule: Input['rule'], ownerAdditions: Input['ownerAdditions'],
+  sales: MetricScopeInput | undefined, rule: Input['rule'], ownerAdditions: Input['ownerAdditions'],
 ): DefaultMarketPeers {
+  if (sales === undefined) return deriveDefaultMarketPeers({ rule, frames: [], records: [], ownerAdditions });
   const groups = [...new Set(sales.records.filter(row => row.label?.classification === 'CORE_CANDIDATE').map(row => row.label!.group))].sort(order);
   const sampleKey = createHash('sha256').update(key([sales.scope.key, sales.sources.map(source => source.sha256).sort()])).digest('hex');
   const frames: Input['frames'] = groups.map(group => ({ platform: sales.scope.platform, group, sampleKey,
