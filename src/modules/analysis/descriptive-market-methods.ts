@@ -218,7 +218,7 @@ function comparePeers(input: Input, rows: Located<Observation>[]): DescriptiveMa
 }
 
 /** Pure offline section output; input is retained verbatim as normalized source declarations, never authenticated here. */
-export function buildDescriptiveMarketMethods(untrustedInput: unknown): { output: DescriptiveMarketMethods; bytes: Buffer } {
+export function buildDescriptiveMarketMethods(untrustedInput: unknown, options: { methodVersion?: '1.0.0' | '1.1.0' } = {}): { output: DescriptiveMarketMethods; bytes: Buffer } {
   const input = validateDescriptiveMarketInput(untrustedInput);
   const m05 = located(input.m05, 'm05', row => row.source);
   const grouped = new Map<string, Located<Observation>[]>();
@@ -241,7 +241,7 @@ export function buildDescriptiveMarketMethods(untrustedInput: unknown): { output
     return { recordPointer: pointer, blockers };
   });
   const body: Omit<DescriptiveMarketMethods, 'methodOutputId'> = {
-    contractVersion: '1.0.0', methodId: 'source-bound-descriptive-market', methodVersion: '1.0.0', input,
+    contractVersion: '1.0.0', methodId: 'source-bound-descriptive-market', methodVersion: options.methodVersion ?? '1.1.0', input,
     sections: {
       M05: { locatedRecordCount: m05.length, partitions, blockers: unique([
         ...(m05.length ? [] : ['NO_LOCATED_RECORDS' as const]), ...partitions.flatMap(partition => partition.blockers),
@@ -260,7 +260,7 @@ export function buildDescriptiveMarketMethods(untrustedInput: unknown): { output
       'NORMALIZED_SOURCE_DECLARATIONS_NOT_PROVIDER_AUTHENTICATION',
       'EXACT_PACKAGE_BYTES_AND_LOCATORS_REQUIRE_CALLER_VERIFICATION',
       'SOURCE_WORDING_IS_ATTRIBUTED_INERT_TEXT_NOT_A_CONCLUSION',
-      'M05_LITERAL_SOURCE_MEASURES_NOT_DEMAND_OR_MARKET_SIZE',
+      options.methodVersion === '1.0.0' ? 'M05_LITERAL_SOURCE_MEASURES_NOT_DEMAND_OR_MARKET_SIZE' : 'M05_ESTIMATED_SALES_IN_SAMPLE_DEMAND_PER_PLATFORM_SEARCH_SEPARATE',
       'SUBTOTAL_COMPLETENESS_ONLY_FOR_DECLARED_SOURCE_MEMBER_FRAME',
       'M06_LOCATED_RECORDS_NOT_UNIQUE_ENTITIES_STOCK_OR_TOTAL_SUPPLY',
       'M07_OWNER_DECLARED_SIDE_BY_SIDE_NO_RANK_SCORE_DIFFERENCE_OR_RATIO',
@@ -281,7 +281,7 @@ export function buildDescriptiveMarketMethods(untrustedInput: unknown): { output
 /** Recompute all section content, not just its digest, before accepting a retained normalized output. */
 export function verifyDescriptiveMarketMethods(untrustedOutput: unknown): { output: DescriptiveMarketMethods; bytes: Buffer } {
   if (!validateOutput(untrustedOutput)) fail(`INVALID_DESCRIPTIVE_MARKET_OUTPUT:${ajv.errorsText(validateOutput.errors)}`);
-  const rebuilt = buildDescriptiveMarketMethods((untrustedOutput as DescriptiveMarketMethods).input);
+  const rebuilt = buildDescriptiveMarketMethods((untrustedOutput as DescriptiveMarketMethods).input, { methodVersion: (untrustedOutput as DescriptiveMarketMethods).methodVersion });
   if (canonicalJson(untrustedOutput) !== canonicalJson(rebuilt.output)) fail('DESCRIPTIVE_MARKET_REPLAY_MISMATCH');
   return rebuilt;
 }

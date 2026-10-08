@@ -3,8 +3,10 @@
 // carry digits (segment names, price bands, brand or shop names) are collected
 // into extraOk so the number gate can tell them from measurements.
 import type { ReaderPlatform, ReaderReportData } from './build.js';
+import { currentProposals } from './market-proposals.js';
+import { buildMarketReportV2 } from './market-template-v2.js';
 import { Narrator } from './bundle.js';
-import type { Row } from './classify.js';
+import type { LegacyRow as Row } from './classify.js';
 import { renderChart, type FlintChartInput, type FlintPalette } from './flint.js';
 import { esc, num, sp } from './format.js';
 import { cover, hlNum, makeExhibits, n as numberCell, page, plat, platIcons, PLATFORM_LABEL, section, type CoverImage } from './layout.js';
@@ -78,13 +80,16 @@ const ps = (v: number): string => sp(v.toFixed(1)) + '%';
 
 /** Builds the generic market reader report. The caller gates and stores it with publishReaderReport. */
 export async function buildMarketReport(d: ReaderReportData, options: MarketReportOptions): Promise<BuiltMarketReport> {
-  const { input, profile: prof, bundle: B, rows } = d;
+  if (d.input.contractVersion === '1.2.0' && d.input.platforms.some(P => d.scopes[P] === undefined)) return buildMarketReportV2(d, options);
+  const current = d.input.contractVersion === '1.2.0';
+  const { input, profile: prof, bundle: B } = d;
+  const rows = d.rows as Row[];
   const PLATS = input.platforms;
   const S = d.scopes as Record<ReaderPlatform, Scope>;
   const two = PLATS.length === 2;
   const N = new Narrator(B);
   const WEB = d.webFacts;
-  const webRegistry = input.contractVersion === '1.1.0' ? new CitationRegistry() : null;
+  const webRegistry = input.contractVersion !== '1.0.0' ? new CitationRegistry() : null;
   const metricSources = new Map<string, string>();
   const sampleCitation = (row?: Row): number | null => {
     if (webRegistry === null || input.rowLineage === undefined) return null;
@@ -214,13 +219,13 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
       return { n: a.length, rev };
     });
     const known = sc.core.filter(r => typeof r.start === 'string' && r.start > '1971'), fresh = known.filter(r => r.start! >= period.start);
-    B.set(`${P}.coh.known`, known.length, 'num'); B.set(`${P}.coh.n`, fresh.length, 'num');
-    B.set(`${P}.coh.nShare`, known.length ? 100 * fresh.length / known.length : 0, 'pct0');
-    B.set(`${P}.coh.rev`, sum(fresh), 'ty'); B.set(`${P}.coh.revShare`, 100 * sum(fresh) / sc.cr, 'pct0');
+    B.set(`${P}.coh.known`, known.length, 'num'); if (!current) B.set(`${P}.coh.n`, fresh.length, 'num');
+    if (!current) B.set(`${P}.coh.nShare`, known.length ? 100 * fresh.length / known.length : 0, 'pct0');
+    if (!current) { B.set(`${P}.coh.rev`, sum(fresh), 'ty'); B.set(`${P}.coh.revShare`, 100 * sum(fresh) / sc.cr, 'pct0'); }
     B.set(`${P}.coh.nodate`, sc.core.length - known.length, 'num');
   }
   const named = (P: ReaderPlatform) => S[P].brands.filter(b => b.brand !== NO_BRAND);
-  if (two) {
+  if (two && !current) {
     const keys = (P: ReaderPlatform) => new Set(named(P).map(b => b.brand.toLowerCase()));
     const a = keys('shopee'), b = keys('tiktok');
     B.set('brand.bothCount', [...a].filter(k => b.has(k)).length, 'num');
@@ -320,7 +325,7 @@ export async function buildMarketReport(d: ReaderReportData, options: MarketRepo
   const intro = `<div class="box"><h3>Mục tiêu báo cáo</h3><p>Báo cáo mô tả thị trường ${product} bán ${each(onP, ' và ')} trong kỳ số liệu: bán gì, ai bán, giá bao nhiêu${two ? ', và hai sàn khác nhau ở đâu' : ''}. Mục đích là cho chủ dự án một bức tranh dựa trên số liệu để chốt câu hỏi kinh doanh và nhóm đối thủ.</p>
 <h3>Lưu ý khi đọc</h3><ol class="notes">
 <li>Doanh thu, đơn vị bán là <b>số ước tính</b>. Mọi % là tỷ trọng trong mẫu, không phải thị phần.</li>
-${two ? '<li><b>Mỗi sàn tính riêng.</b> Chỉ cộng hai sàn khi ghi rõ “hai sàn”.</li>' : ''}
+${two ? current ? '<li><b>Mỗi sàn tính riêng.</b> Chưa đủ căn cứ về kỳ, múi giờ, khung mẫu và tính rời nhau để cộng chéo sàn.</li>' : '<li><b>Mỗi sàn tính riêng.</b> Chỉ cộng hai sàn khi ghi rõ “hai sàn”.</li>' : ''}
 <li>"Lõi" là các nhóm sản phẩm chính của ngành; phân nhóm theo tiêu đề, ${statusLabel} (Phần 2).</li>
 <li>Giá trung bình = doanh thu ÷ đơn vị bán, đã gộp biến thể và khuyến mãi, không phải giá niêm yết.</li>
 <li>Bảng gian hàng/thương hiệu sắp theo doanh thu quan sát, <b>không phải xếp hạng năng lực</b>.</li></ol></div>${limits}`;
@@ -328,7 +333,7 @@ ${two ? '<li><b>Mỗi sàn tính riêng.</b> Chỉ cộng hai sàn khi ghi rõ �
   const secs: string[] = [];
 
   // ---------- Phần 1 ----------
-  const nonShare = two ? '{{both.non.share}}' : `{{${PLATS[0]}.non.share}}`;
+  const nonShare = current ? PLATS.map(P => `${PLATFORM_LABEL[P]} {{${P}.non.share}}`).join('; ') : two ? '{{both.non.share}}' : `{{${PLATS[0]}.non.share}}`;
   const m01WebKey = WEB !== null && WEB !== undefined && has('web.kpi.rev')
     ? `<li>${hlNum(nar(`<b>Toàn kết quả tìm kiếm.</b> Cả trang đạt {{web.kpi.rev}}${has('web.kpi.rev.chg') ? ' ({{web.kpi.rev.chg}} so với kỳ liền kề)' : ''}${citeRef('kpi')}.`, 'M01.web'))} <small>→ Bảng 3.2</small></li>`
     : '';
@@ -340,9 +345,9 @@ ${two ? '<li><b>Mỗi sàn tính riêng.</b> Chỉ cộng hai sàn khi ghi rõ �
     `<div class="grid4">${PLATS.map(P => kpi(bf(`${P}.core.rev`), `Doanh thu lõi ${PLATFORM_LABEL[P]}`)).join('')}${kpi(each(P => bf(`${P}.core.shops`), ' · '), `Gian hàng có doanh thu lõi (${platNames})`)}${kpi(each(P => bf(`${P}.core.asp`, 'dong'), ' · '), `Giá trung bình mỗi đơn vị (${platNames})`)}</div>
 <h3>Điểm chính</h3><ol class="keys">
 <li>${hlNum(nar(`<b>Mẫu có lẫn hàng ngoài lõi.</b> ${nonShare} doanh thu trong tệp là hàng ngoài lõi (phụ kiện, hàng khác). Mọi số trong báo cáo chỉ tính phần lõi.`, 'M01.k1'))} <small>→ Hình 3.1</small></li>
-<li>${hlNum(PLATS.map(P => { const k = topSeg(P); return `${nar(`<b>${PLATFORM_LABEL[P]}:</b> nhóm lớn nhất chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M01.k2.${P}`)} (${L(segName(k))}).`; }).join(' '))} <small>→ Hình 4.1</small></li>
-<li>${hlNum(nar(`<b>Mức tập trung theo gian hàng.</b> ${each(P => `Gian hàng lớn nhất ${onP(P)} giữ {{${P}.conc.1}}, top 10 giữ {{${P}.conc.10}} doanh thu lõi`, '. ')}.`, 'M01.k3'))} <small>→ Hình 4.2</small></li>
-<li>${hlNum(PLATS.map(P => { const j = topBand(P); return `${nar(`<b>Giá ${onP(P)}:</b> khoảng giá mang nhiều doanh thu nhất chiếm {{${P}.pb.${j}.share}} doanh thu lõi`, `M01.k4.${P}`)} (${L(MARKET_PRICE_BANDS[j]![0])}).`; }).join(' '))} <small>→ Hình 8.1</small></li>
+<li>${hlNum(PLATS.map(P => { if (current) return `${PLATFORM_LABEL[P]}: ` + coreSegs.map(k => nar(`${L(segName(k))} chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M01.k2.${P}.${k}`)).join('; ') + '.'; const k = topSeg(P); return `${nar(`<b>${PLATFORM_LABEL[P]}:</b> nhóm lớn nhất chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M01.k2.${P}`)} (${L(segName(k))}).`; }).join(' '))} <small>→ Hình 4.1</small></li>
+<li>${hlNum(nar(`<b>Mức tập trung theo gian hàng.</b> ${each(P => current ? `Một gian hàng có doanh thu quan sát cao ${onP(P)} giữ {{${P}.conc.1}}, nhóm mười gian hàng theo doanh thu giữ {{${P}.conc.10}} doanh thu lõi` : `Gian hàng lớn nhất ${onP(P)} giữ {{${P}.conc.1}}, top 10 giữ {{${P}.conc.10}} doanh thu lõi`, '. ')}.`, 'M01.k3'))} <small>→ Hình 4.2</small></li>
+<li>${hlNum(PLATS.map(P => { if (current) return `Giá ${onP(P)}: ` + MARKET_PRICE_BANDS.map((band, j) => nar(`${L(band[0])} chiếm {{${P}.pb.${j}.share}} doanh thu lõi`, `M01.k4.${P}.${j}`)).join('; ') + '.'; const j = topBand(P); return `${nar(`<b>Giá ${onP(P)}:</b> khoảng giá mang nhiều doanh thu nhất chiếm {{${P}.pb.${j}.share}} doanh thu lõi`, `M01.k4.${P}`)} (${L(MARKET_PRICE_BANDS[j]![0])}).`; }).join(' '))} <small>→ Hình 8.1</small></li>
 <li>${hlNum(nar(`<b>Sản phẩm mới mở bán trong kỳ.</b> ${each(P => `{{${P}.coh.revShare}} doanh thu lõi ${onP(P)}`, '; ')}.`, 'M01.k5'))} <small>→ Bảng 6.2</small></li>${m01WebKey}</ol>
 <p>${nar('<b>Đề xuất:</b> các phương án ở Phần 12 là đề xuất của TDN, chờ chủ duyệt. Việc làm ngay là viết câu hỏi kinh doanh và duyệt phân loại.', 'M01.rec')}</p>
 <div class="box"><h3>Báo cáo này chưa trả lời được</h3><ul>
@@ -389,7 +394,7 @@ ${m01Trend}
 <p class="ex-note">Cách tính các mốc tháng: ${esc(WEB_MONTHLY_METHOD)}.</p>
 ${d.webReconciliation.length
     ? `<div class="box"><h3>Đối chiếu tệp mẫu với trang</h3><ul>${reconciliationItems}</ul></div>`
-    : '<p class="ex-note">Đối chiếu tệp mẫu với trang: khớp, không chênh lệch.</p>'}`,
+    : current ? '<p class="ex-note">Đối chiếu riêng từng sàn: chưa thấy doanh thu mẫu vượt số trên trang. Phép đối chiếu chéo sàn chưa được thực hiện; số thiếu không được thay bằng không.</p>' : '<p class="ex-note">Đối chiếu tệp mẫu với trang: khớp, không chênh lệch.</p>'}`,
       [...WEB.scope.keywords, ...WEB.scope.ticks, ...WEB.scope.exclusions,
         ...WEB.scope.advancedFilters.map(f => `${f.label}: ${f.displayed}`),
         ...(WEB.scope.category === null ? [] : [WEB.scope.category])].join(' | '))
@@ -559,7 +564,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     chart_spec: { chartType: 'Line Chart', encodings: { x: 'hang', y: 'luy_ke', color: 'san' } },
   } as FlintChartInput, () => paretoChart(PLATS.map(P => ({ name: PLATFORM_LABEL[P]!, ys: cum(P), color: COL[P] }))));
   secs.push(section('M04', 'Cơ cấu thị trường',
-    hlNum(PLATS.map(P => { const k = topSeg(P); return `${nar(`Nhóm dẫn ${onP(P)} chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M04.ans.${P}`)} (${L(segName(k))}).`; }).join(' ')),
+    hlNum(PLATS.map(P => { if (current) return `${PLATFORM_LABEL[P]}: ` + coreSegs.map(k => nar(`${L(segName(k))} chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M01.k2.${P}.${k}`)).join('; ') + '.'; const k = topSeg(P); return `${nar(`Nhóm dẫn ${onP(P)} chiếm {{${P}.seg.${k}.revShare}} doanh thu lõi`, `M04.ans.${P}`)} (${L(segName(k))}).`; }).join(' ')),
     fig('4.1', 'Tỷ trọng doanh thu lõi theo nhóm, từng sàn', '% doanh thu lõi của sàn', await bars('m04-share', coreSegs.map(segName), (P, j) => B.v(`${P}.seg.${coreSegs[j]}.revShare`), 'Tỷ trọng doanh thu lõi (%)', ps)) +
     tbl('4.1', 'Số liệu theo nhóm lõi, từng sàn', 'doanh thu: tỷ đồng; giá: đồng', ['Sàn', 'Nhóm', n('Sản phẩm'), n('Gian hàng'), n('Doanh thu'), n('Tỷ trọng doanh thu'), n('Tỷ trọng đơn vị bán'), n('Giá trung bình')], segTbl) +
     fig('4.2', 'Mức tập trung doanh thu lõi theo gian hàng', '% doanh thu lõi cộng dồn', pareto,
@@ -570,12 +575,12 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   // ---------- Phần 5 ----------
   const sigLabels = prof.signals.map(([label]) => L(label));
   secs.push(section('M05', 'Nhu cầu (tín hiệu bán)',
-    prof.signals.length ? 'Phần này đọc tín hiệu từ tiêu đề của sản phẩm đang bán được: người bán ghi gì, sản phẩm ghi như vậy bán được bao nhiêu.' : 'Hồ sơ phân loại chưa khai báo tín hiệu tiêu đề nên phần này để trống.',
-    prof.signals.length ? `<p class="lead">Nguồn không đo nhu cầu trực tiếp.</p>` +
+    current ? 'Nhu cầu, đo bằng doanh số (ước tính) trong mẫu; tín hiệu tiêu đề giữ ở lớp lời người bán.' : prof.signals.length ? 'Phần này đọc tín hiệu từ tiêu đề của sản phẩm đang bán được: người bán ghi gì, sản phẩm ghi như vậy bán được bao nhiêu.' : 'Hồ sơ phân loại chưa khai báo tín hiệu tiêu đề nên phần này để trống.',
+    (current ? `<p class="lead">Nhu cầu, đo bằng doanh số (ước tính) trong mẫu: ${each(P => nar(`${PLATFORM_LABEL[P]} {{${P}.core.rev}}, {{${P}.core.units}} đơn vị bán`, `M05.sales.${P}`))}. Kỳ ${P0} – ${P1}; nguồn là dữ liệu bán hàng ước tính trên từng sàn. Mức quan tâm tìm kiếm ghi riêng, chưa có chuỗi tìm kiếm phù hợp trong bản này.</p><p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo; không suy ra quy mô ngoài mẫu, số người mua, nhu cầu chưa được đáp ứng hay dự báo.</p>` : '') + (prof.signals.length ? (current ? '' : `<p class="lead">Nguồn không đo nhu cầu trực tiếp.</p>`) +
       fig('5.1', 'Doanh thu lõi của sản phẩm có từng tín hiệu trong tiêu đề', '% doanh thu lõi của sàn', await bars('m05-signals', prof.signals.map(s => s[0]), (P, j) => B.v(`${P}.sig.${j}.revShare`), 'Tỷ trọng doanh thu lõi (%)', v => v.toFixed(0) + '%', 0),
         { note: 'Một sản phẩm có thể có nhiều tín hiệu nên các cột không cộng thành 100%.' }) +
       tbl('5.1', 'Tín hiệu tiêu đề theo sàn', '% doanh thu lõi của sàn', ['Tín hiệu', ...PLATS.map(P => n(PLATFORM_LABEL[P]!))], prof.signals.map((_, j) => [sigLabels[j], ...PLATS.map(P => n(bf(`${P}.sig.${j}.revShare`)))]))
-      : '',
+      : ''),
     'Tín hiệu tiêu đề cho biết người bán nhấn điều gì, không chứng minh khách mua vì điều đó.'));
 
   // ---------- Phần 6 ----------
@@ -591,9 +596,9 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     }), 'top 10 gian hàng')
     : '';
   secs.push(section('M06', 'Nguồn cung',
-    hlNum(nar(`Hàng không ghi thương hiệu chiếm ${each(P => `{{${P}.brand.none.share}} doanh thu lõi ${PLATFORM_LABEL[P]}`)}; top 5 thương hiệu giữ ${each(P => `{{${P}.brand.top5share}} ${onP(P)}`)}.${two ? ' {{brand.bothCount}} thương hiệu bán trên cả hai sàn.' : ''}`, 'M06.ans')),
+    hlNum(nar(`Hàng không ghi thương hiệu chiếm ${each(P => `{{${P}.brand.none.share}} doanh thu lõi ${PLATFORM_LABEL[P]}`)}; top 5 thương hiệu giữ ${each(P => `{{${P}.brand.top5share}} ${onP(P)}`)}.${two && !current ? ' {{brand.bothCount}} thương hiệu bán trên cả hai sàn.' : ''}`, 'M06.ans')),
     tbl('6.1', 'Top 10 thương hiệu theo doanh thu lõi, từng sàn', 'doanh thu: tỷ đồng', ['#', ...PLATS.flatMap(P => [PLATFORM_LABEL[P]!, n('Doanh thu'), n('Gian hàng')])], brandRows,
-      { note: 'Không tính sản phẩm không ghi thương hiệu. Tên thương hiệu theo cột thương hiệu của nguồn.' }) +
+      { note: current ? 'Nhãn thương hiệu theo tiêu đề người bán, giữ riêng từng sàn; tên giống nhau không chứng minh cùng thương hiệu hay cùng người bán.' : 'Không tính sản phẩm không ghi thương hiệu. Tên thương hiệu theo cột thương hiệu của nguồn.' }) +
     tbl('6.2', 'Sản phẩm lõi mới mở bán trong kỳ', 'doanh thu: tỷ đồng', ['Sàn', n('Sản phẩm lõi có ngày mở bán'), n('Mở bán trong kỳ'), n('Tỷ trọng sản phẩm'), n('Doanh thu'), n('Tỷ trọng doanh thu lõi')], coh,
        { note: nar(`“Mở bán trong kỳ” = ngày bắt đầu bán từ ${P0}. Sản phẩm không có ngày hợp lệ không tính (${each(P => `{{${P}.coh.nodate}} ${onP(P)}`)}).`, 'T6.2') }) +
     m06Web,
@@ -686,8 +691,8 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     }).join(' | '))
     : '';
   secs.push(section('M07', 'Đối thủ',
-    hlNum(nar(`Gian hàng lớn nhất đạt ${each(P => `{{${P}.shop.top.0.rev}} ${onP(P)}`)}; gian hàng điển hình (trung vị) đạt ${each(P => `{{${P}.shop.median}} triệu đồng ${onP(P)}`)}.`, 'M07.ans')),
-    tbl('7.1', 'Top 10 gian hàng theo doanh thu lõi, từng sàn', 'doanh thu: tỷ đồng', ['Sàn', '#', 'Gian hàng', 'Thương hiệu bán nhiều nhất', n('Sản phẩm lõi'), n('Doanh thu'), n('Tỷ trọng doanh thu lõi của sàn')],
+    hlNum(nar(`${current ? 'Một gian hàng có doanh thu quan sát cao' : 'Gian hàng lớn nhất'} đạt ${each(P => `{{${P}.shop.top.0.rev}} ${onP(P)}`)}; gian hàng điển hình (trung vị) đạt ${each(P => `{{${P}.shop.median}} triệu đồng ${onP(P)}`)}.`, 'M07.ans')),
+    tbl('7.1', 'Top 10 gian hàng theo doanh thu lõi, từng sàn', 'doanh thu: tỷ đồng', ['Sàn', '#', 'Gian hàng', current ? 'Nhãn thương hiệu thường gặp (theo tiêu đề người bán)' : 'Thương hiệu bán nhiều nhất', n('Sản phẩm lõi'), n('Doanh thu'), n('Tỷ trọng doanh thu lõi của sàn')],
       PLATS.flatMap(P => S[P].shops.slice(0, 10).map((s, j) => [plat(P), j + 1, L(s.name), L(brandOf(s.brands)), n(s.n), n(t1(s.rev / 1e9)), n(bf(`${P}.shop.top.${j}.share`))])),
       { note: 'Sắp theo doanh thu quan sát, không phải xếp hạng năng lực. Nhóm đối thủ để so trực tiếp chưa chốt (Phần 12).' }) +
     `<p>${hlNum(nar(`Số gian hàng dưới 100 triệu đồng doanh thu lõi: ${each(P => `{{${P}.shop.under100m}}/{{${P}.core.shops}} ${onP(P)}`)}.`, 'M07.p'))}</p>` +
@@ -722,7 +727,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     'Không có giá vốn, phí sàn, chi phí vận chuyển và quảng cáo nên chưa tính được lãi gộp. Giá trung bình thấp có thể do khuyến mãi hoặc biến thể rẻ.'));
 
   // ---------- Phần 9 ----------
-  const lead = PLATS.reduce((a, P) => B.v(`${P}.conc.3`) > B.v(`${a}.conc.3`) ? P : a, PLATS[0]!);
+  const lead = current ? PLATS[0]! : PLATS.reduce((a, P) => B.v(`${P}.conc.3`) > B.v(`${a}.conc.3`) ? P : a, PLATS[0]!);
   const webHasDetail = WEB !== null && WEB !== undefined && !('absent' in WEB.detailHistory);
   const m09WebRows: (readonly unknown[])[] = webHasMonthly && webMonthlyGroups !== null
     ? Object.keys(webMonthlyGroups).sort().map(platform => {
@@ -739,7 +744,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   secs.push(section('M09', 'Động lực và rủi ro',
     'Các tín hiệu dưới đây mới ở mức giả thuyết, chưa phải kết luận nguyên nhân.',
     tbl('9.1', 'Tín hiệu, cơ chế có thể và mức chắc chắn', '', ['Tín hiệu quan sát được', 'Cơ chế có thể ảnh hưởng', 'Cần đối chiếu thêm', 'Mức chắc chắn'], [
-      [hlNum(nar(`${PLATFORM_LABEL[lead]}: ba gian hàng lớn nhất giữ {{${lead}.conc.3}} doanh thu lõi`, 'T9.1a')), 'Doanh thu dựa vào vài gian hàng lớn; một gian hàng đổi giá hay ngừng bán là đổi cục diện', 'Lịch sử bán theo tháng của các gian hàng lớn', 'Thấp'],
+      [hlNum(nar(current ? each(P => `${PLATFORM_LABEL[P]}: ba gian hàng theo doanh thu quan sát giữ {{${P}.conc.3}} doanh thu lõi`, '; ') : `${PLATFORM_LABEL[lead]}: ba gian hàng lớn nhất giữ {{${lead}.conc.3}} doanh thu lõi`, 'T9.1a')), 'Doanh thu dựa vào vài gian hàng lớn; một gian hàng đổi giá hay ngừng bán là đổi cục diện', 'Lịch sử bán theo tháng của các gian hàng lớn', 'Thấp'],
       [hlNum(nar(`Sản phẩm mở bán trong kỳ: ${each(P => `{{${P}.coh.revShare}} doanh thu lõi ${PLATFORM_LABEL[P]}`)}`, 'T9.1b')), 'Mẫu xoay vòng nhanh thì sản phẩm mới phải liên tục ra mẫu', 'Chuỗi theo tháng của từng sản phẩm', 'Thấp'],
       [hlNum(nar(`Hàng không ghi thương hiệu: ${each(P => `{{${P}.brand.none.share}} doanh thu lõi ${PLATFORM_LABEL[P]}`)}`, 'T9.1c')), 'Khách chưa trung thành với thương hiệu, cạnh tranh bằng giá', 'Ý kiến khách hàng', 'Thấp'],
       ...m09WebRows],
@@ -767,9 +772,10 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     'Dữ liệu sàn không đủ để dự báo cho toàn thị trường.'));
 
   // ---------- Phần 11 + 12: largest platform × core segment cells ----------
-  const cells = PLATS.flatMap(P => coreSegs.map(k => ({ P, k, rev: B.v(`${P}.seg.${k}.rev`) }))).sort((a, b) => b.rev - a.rev).slice(0, 3);
+  const cells = current ? [] : PLATS.flatMap(P => coreSegs.map(k => ({ P, k, rev: B.v(`${P}.seg.${k}.rev`) }))).sort((a, b) => b.rev - a.rev).slice(0, 3);
   const st = (k: '' | 'pos', t: string): string => `<span class="st ${k}">${k === 'pos' ? 'Có tín hiệu' : 'Chưa có dữ liệu'}</span>${t ? '<br>' + t : ''}`;
   const hyp = (c: typeof cells[number]): string => `${L(segName(c.k))} ${onP(c.P)}`;
+  if (!current) {
   secs.push(section('M11', 'Cơ hội',
     'Các giả thuyết dưới đây chưa đủ cả 3 điều kiện của một cơ hội.',
     `<p class="lead">Một cơ hội cần đủ 3 điều kiện: nhu cầu có thật, đối thủ phục vụ chưa tốt, và mình đáp ứng được.</p>` +
@@ -790,6 +796,10 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
       ['3. Chốt nhóm đối thủ', 'Chủ dự án; TDN gợi ý từ Bảng 7.1', 'Hai tuần sau khi duyệt bản này', 'Danh sách gian hàng đối thủ'],
       ['4. Lấy ý kiến khách cho phương án A', 'TDN, sau khi chủ duyệt chi phí', 'Theo lịch chủ chốt', 'Báo cáo ý kiến khách hàng']]),
     'Đây là đề xuất, chờ chủ duyệt. Hạn là gợi ý; chủ dự án đổi theo lịch thật.'));
+
+  } else {
+    secs.push(...currentProposals({ PLATS, coreSegs, segName, bf, tbl, SRC }));
+  }
 
   // ---------- Phụ lục ----------
   const web = readerWebResults(options.webResults ?? [], webRegistry !== null);
@@ -836,7 +846,7 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
     const finalById = new Map(webRegistry.entries().map(entry => [entry.citationId, entry.number]));
     const finalByOld = new Map(before.map(entry => [entry.number, finalById.get(entry.citationId)]));
     for (const metric of B.m.values()) {
-      if (metric.id.startsWith('cite.')) {
+      if (metric.id.startsWith('cite.') && metric.value !== null) {
         const number = finalByOld.get(metric.value);
         if (number !== undefined) B.set(metric.id, number, metric.fmt);
       }
@@ -847,4 +857,3 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
   }
   return { html: platIcons(html, COL).html, narrator: N, extraOk: [...extraOk], charts, webResults: web };
 }
-

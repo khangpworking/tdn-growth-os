@@ -88,7 +88,7 @@ function requiredCount(value: number | null, field: string): number {
  * from W3. A null value raises READER_SOURCE_UNDERIVABLE naming the field and
  * is never read as 0. Pure and deterministic.
  */
-export function deriveReaderSource(facts: MetricWebFacts, rowCap: number): EffectiveSource {
+export function deriveReaderSource(facts: MetricWebFacts, rowCap: number, options: { nullable?: boolean } = {}): EffectiveSource {
   if (!Number.isInteger(rowCap) || rowCap < 1 || rowCap > 20000) {
     throw new ReaderSourceError('READER_SOURCE_UNDERIVABLE', 'thiếu số liệu rowCap, giới hạn tải không hợp lệ');
   }
@@ -96,15 +96,17 @@ export function deriveReaderSource(facts: MetricWebFacts, rowCap: number): Effec
     start: facts.scope.period.startDate,
     end: facts.scope.period.endDate,
   };
+  const number = (value: number | null, field: string): number | null => options.nullable ? value : requiredNumber(value, field);
+  const count = (value: number | null, field: string): number | null => options.nullable && value === null ? null : requiredCount(value, field);
   const displayedHeadlines = {
-    revenueVnd: requiredNumber(facts.kpi.revenue.current.value, 'displayedHeadlines.revenueVnd'),
-    soldListings: requiredCount(facts.kpi.soldListings.current.value, 'displayedHeadlines.soldListings'),
-    shops: requiredCount(facts.kpi.shops.current.value, 'displayedHeadlines.shops'),
-    units: requiredNumber(facts.kpi.units.current.value, 'displayedHeadlines.units'),
+    revenueVnd: number(facts.kpi.revenue.current.value, 'displayedHeadlines.revenueVnd'),
+    soldListings: count(facts.kpi.soldListings.current.value, 'displayedHeadlines.soldListings'),
+    shops: count(facts.kpi.shops.current.value, 'displayedHeadlines.shops'),
+    units: number(facts.kpi.units.current.value, 'displayedHeadlines.units'),
   };
   const platformBreakdown: EffectiveSource['platformBreakdown'] = {};
   for (const entry of facts.platformSplit) {
-    const revenue = requiredNumber(entry.revenue.value, `platformBreakdown.${entry.platform}.displayedRevenueVnd`);
+    const revenue = number(entry.revenue.value, `platformBreakdown.${entry.platform}.displayedRevenueVnd`);
     platformBreakdown[entry.platform] = { displayedRevenueVnd: revenue };
   }
   return { measurementPeriod, rowCap, displayedHeadlines, platformBreakdown };
@@ -337,7 +339,7 @@ export type WebReconciliationWarning = {
   numbers: Record<string, number>;
 };
 
-export type WebSampleRow = { platform: string; rev: number; units: number };
+export type WebSampleRow = { platform: string; rev: number | null; units: number | null };
 
 /** Grouped digits for owner-facing warning text; the raw numbers stay in `numbers`. */
 function grouped(value: number): string {
@@ -353,12 +355,14 @@ function grouped(value: number): string {
 export function reconcileWebWithRows(
   facts: MetricWebFacts,
   rows: readonly WebSampleRow[],
+  options: { perPlatformOnly?: boolean } = {},
 ): WebReconciliationWarning[] {
   const warnings: WebReconciliationWarning[] = [];
-  const sampleRev = rows.reduce((sum, row) => sum + row.rev, 0);
-  const sampleUnits = rows.reduce((sum, row) => sum + row.units, 0);
+  const combined = !options.perPlatformOnly || new Set(rows.map(row => row.platform)).size === 1;
+  const sampleRev = !combined || rows.some(row => row.rev === null) ? null : rows.reduce((sum, row) => sum + row.rev!, 0);
+  const sampleUnits = !combined || rows.some(row => row.units === null) ? null : rows.reduce((sum, row) => sum + row.units!, 0);
   const webRev = facts.kpi.revenue.current.value;
-  if (webRev !== null && Number.isFinite(webRev) && sampleRev > webRev) {
+  if (webRev !== null && Number.isFinite(webRev) && sampleRev !== null && sampleRev > webRev) {
     warnings.push({
       code: 'METRIC_WEB_XLSX_MISMATCH',
       check: 'R1',
@@ -367,7 +371,7 @@ export function reconcileWebWithRows(
     });
   }
   const webUnits = facts.kpi.units.current.value;
-  if (webUnits !== null && Number.isFinite(webUnits) && sampleUnits > webUnits) {
+  if (webUnits !== null && Number.isFinite(webUnits) && sampleUnits !== null && sampleUnits > webUnits) {
     warnings.push({
       code: 'METRIC_WEB_XLSX_MISMATCH',
       check: 'R2',
@@ -388,7 +392,9 @@ export function reconcileWebWithRows(
   for (const entry of facts.platformSplit) {
     const webPlatformRev = entry.revenue.value;
     if (webPlatformRev === null || !Number.isFinite(webPlatformRev)) continue;
-    const samplePlatformRev = rows.filter((row) => row.platform === entry.platform).reduce((sum, row) => sum + row.rev, 0);
+    const platformRows = rows.filter(row => row.platform === entry.platform);
+    if (platformRows.some(row => row.rev === null)) continue;
+    const samplePlatformRev = platformRows.reduce((sum, row) => sum + row.rev!, 0);
     if (samplePlatformRev > webPlatformRev) breached[entry.platform] = samplePlatformRev;
   }
   if (Object.keys(breached).length > 0) {

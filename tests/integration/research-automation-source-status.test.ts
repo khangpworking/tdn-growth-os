@@ -62,21 +62,39 @@ function seedHistory(databasePath: string): void {
     const run = db.prepare(`INSERT INTO analysis_research_automation_runs(run_id,workspace_id,revision,status,mode,keyword,period_start,period_end,reports,
       start_request_sha256,actor_id,created_at,updated_at) VALUES (?,?,1,'DRAFT_READY','CATEGORY','synthetic','2026-01-01','2026-01-30','MARKET',?,'owner:research',?,?)`);
     const capture = db.prepare(`INSERT INTO analysis_research_automation_captures(run_id,step_id,ordinal,artifact_sha256,media_type,provider,operation,retrieved_at,truncated,retained_at)
-      VALUES (?,'COLLECTION',?,?,'application/json',?,'synthetic.read',?,0,?)`);
+      VALUES (?,'COLLECTION',?,?,'application/json',?,?,?,0,?)`);
     const usage = db.prepare(`INSERT INTO analysis_research_automation_usage(run_id,step_id,ordinal,provider,operation,request_count,cost_state,recorded_at)
       VALUES (?,'COLLECTION',?,?,'synthetic.read',1,'UNKNOWN',?)`);
     const own = '22222222-2222-4222-8222-222222222222'; const other = '33333333-3333-4333-8333-333333333333';
     const sha = 'a'.repeat(64);
     run.run(own, workspaceId, sha, '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
     run.run(other, otherWorkspaceId, sha, '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
-    capture.run(own, 0, sha, 'kalodata', '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
-    capture.run(own, 1, sha, 'kalodata', '2026-02-03T00:00:00.000Z', '2026-02-03T00:00:00.000Z');
-    capture.run(own, 2, sha, 'apify-shopee', '2026-02-02T00:00:00.000Z', '2026-02-02T00:00:00.000Z');
+    capture.run(own, 0, sha, 'kalodata', 'kalodata.product.rank', '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
+    capture.run(own, 1, sha, 'kalodata', 'kalodata.product.detail', '2026-02-03T00:00:00.000Z', '2026-02-03T00:00:00.000Z');
+    capture.run(own, 2, sha, 'apify-shopee', 'reviews', '2026-02-02T00:00:00.000Z', '2026-02-02T00:00:00.000Z');
+    capture.run(own, 3, sha, 'serpapi', 'serpapi.google.search', '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z');
+    capture.run(own, 4, sha, 'serpapi', 'serpapi.google.search', '2026-02-04T00:00:00.000Z', '2026-02-04T00:00:00.000Z');
     usage.run(own, 0, 'kalodata', '2026-02-03T00:00:01.000Z');
+    usage.run(own, 1, 'serpapi', '2026-02-04T00:00:01.000Z');
     // Another workspace's later history must never leak into this board.
-    capture.run(other, 0, sha, 'kalodata', '2026-03-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z');
-    capture.run(other, 1, sha, 'serpapi', '2026-03-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z');
+    capture.run(other, 0, sha, 'kalodata', 'kalodata.product.rank', '2026-03-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z');
+    capture.run(other, 1, sha, 'serpapi', 'serpapi.google.search', '2026-03-01T00:00:00.000Z', '2026-03-01T00:00:00.000Z');
     usage.run(other, 0, 'serpapi', '2026-03-01T00:00:01.000Z');
+    // A retained P4 Kalodata video package bound to this workspace's run.
+    const manifest = 'b'.repeat(64);
+    db.prepare(`INSERT INTO artifact_manifests(sha256,byte_size,media_type,relative_path,acquired_at,contract_version,retention_status,created_at) VALUES (?,?,?, ?,?,'1.0.0','active',?)`)
+      .run(manifest, 10, 'application/json', 'synthetic/video-manifest.json', '2026-02-02T00:00:00.000Z', '2026-02-02T00:00:00.000Z');
+    const videoPackageId = '55555555-5555-4555-8555-555555555555';
+    db.prepare(`INSERT INTO foundation_source_packages(package_id,package_key,version,source_acquired_at,source_label,request_sha256,package_content_sha256,manifest_artifact_sha256,finalized_at)
+      VALUES (?,?,?,?,?,?,?,?,NULL)`).run(videoPackageId, `automation-video:${own}-66666666-6666-4666-8666-666666666666`, 1,
+      '2026-02-02T00:00:00.000Z', 'synthetic video', sha, sha, manifest);
+    db.prepare(`INSERT INTO foundation_source_attachment_origins(package_id,origin_kind,binding_sha256,manifest_artifact_sha256,marked_at)
+      VALUES (?,'AUTOMATION_ATTACHMENT',?,?,?)`).run(videoPackageId, 'c'.repeat(64), manifest, '2026-02-02T00:00:00.000Z');
+    db.prepare(`UPDATE foundation_source_packages SET finalized_at=? WHERE package_id=?`)
+      .run('2026-02-02T00:00:00.000Z', videoPackageId);
+    // One PDF attached to this workspace's run: workspace history, not an account total.
+    db.prepare(`INSERT INTO analysis_pageindex_run_pdfs(run_id,source_sha256,file_name,package_id,manifest_sha256,logical_path)
+      VALUES (?,?,?,?,?,?)`).run(own, manifest, 'workspace.pdf', videoPackageId, manifest, 'workspace.pdf');
   } finally { db.close(); }
 }
 
@@ -109,7 +127,7 @@ async function readStatus(base: string): Promise<{ text: string; body: Record<st
 
 const bySource = (body: Record<string, any>) => Object.fromEntries((body.sources as Array<Record<string, any>>).map(item => [item.source, item]));
 
-test('source status reports configuration and workspace history without exposing credential values', async () => {
+test('source status reports eleven cards with registry metadata, workspace history and no credential values', async () => {
   const fixture = await createFixture();
   seedHistory(fixture.databasePath);
   const providers: ResearchAutomationProviderConfig = { kalodataSecretKey: kalodataSecret, serpApiKey: serpApiSecret, apifyTokenConfigured: true };
@@ -119,29 +137,52 @@ test('source status reports configuration and workspace history without exposing
     for (const secret of [kalodataSecret, serpApiSecret, apifySecret, ownerToken]) assert.equal(text.includes(secret), false);
     assert.equal(body.workspaceId, workspaceId);
     assert.equal(body.executorEnabled, true);
-    assert.deepEqual(body.sources.map((item: Record<string, any>) => item.source), ['KALODATA', 'SERPAPI', 'APIFY_SHOPEE', 'METRIC', 'PAGEINDEX']);
+    assert.deepEqual(body.sources.map((item: Record<string, any>) => item.source), ['METRIC', 'KALODATA', 'KALODATA_VIDEO_FILE',
+      'APIFY_SHOPEE', 'APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'SERPAPI', 'OFFICIAL_STATS', 'WORLD_BANK', 'PAGEINDEX']);
     const sources = bySource(body);
     assert.deepEqual(sources.KALODATA, { source: 'KALODATA', state: 'READY', credential: 'CONFIGURED', wiredIntoRuns: true, paid: true,
-      lastDataAt: '2026-02-03T00:00:00.000Z', dataCount: 2, lastUsageAt: '2026-02-03T00:00:01.000Z' });
-    assert.equal(sources.SERPAPI.credential, 'CONFIGURED');
+      lastDataAt: '2026-02-03T00:00:00.000Z', dataCount: 2, lastUsageAt: '2026-02-03T00:00:01.000Z',
+      pendingPackage: null, registryIds: ['S02'], tier: 'C', tierDetail: null, group: 'SALES_MARKET',
+      reportName: 'dữ liệu video bán hàng (ước tính)', spendCapUsd: null, operations: null });
+    // P4 retained upload history surfaces on the video-file card with a null timestamp, never invented.
+    assert.equal(sources.KALODATA_VIDEO_FILE.state, 'MANUAL_IMPORT');
+    assert.equal(sources.KALODATA_VIDEO_FILE.dataCount, 1);
+    assert.equal(sources.KALODATA_VIDEO_FILE.lastDataAt, null);
+    assert.deepEqual(sources.KALODATA_VIDEO_FILE.registryIds, ['S02']);
+    // SerpApi per-operation history: observed search captures plus an honest empty Trends row.
     assert.equal(sources.SERPAPI.state, 'READY');
-    assert.equal(sources.SERPAPI.wiredIntoRuns, true);
-    assert.equal(sources.SERPAPI.dataCount, 0, 'Another workspace history is not counted');
-    assert.equal(sources.SERPAPI.lastUsageAt, null);
+    assert.equal(sources.SERPAPI.dataCount, 2, 'Another workspace history is not counted');
+    assert.deepEqual(sources.SERPAPI.operations, [
+      { operation: 'serpapi.google.search', count: 2, lastDataAt: '2026-02-04T00:00:00.000Z', lastUsageAt: null,
+        registryIds: ['S19', 'S13', 'S26'], tier: null },
+      { operation: 'serpapi.google.trends', count: 0, lastDataAt: null, lastUsageAt: null, registryIds: ['S20'], tier: 'B' },
+    ]);
+    assert.equal(sources.SERPAPI.lastUsageAt, '2026-02-04T00:00:01.000Z', 'Provider-level usage stays on the card, not the operations');
     // A token without a spending cap never starts a paid collection.
     assert.equal(sources.APIFY_SHOPEE.state, 'NOT_CONFIGURED');
     assert.equal(sources.APIFY_SHOPEE.credential, 'CONFIGURED');
     assert.equal(sources.APIFY_SHOPEE.dataCount, 1);
-    assert.deepEqual(sources.METRIC, { source: 'METRIC', state: 'MANUAL_IMPORT', credential: 'NOT_REQUIRED', wiredIntoRuns: true, paid: false,
-      lastDataAt: null, dataCount: 0, lastUsageAt: null });
-    // The document-indexing card is present before any live connector state is wired.
-    assert.deepEqual(sources.PAGEINDEX, { source: 'PAGEINDEX', state: 'NOT_CONFIGURED', credential: 'MISSING', wiredIntoRuns: false, paid: true,
-      lastDataAt: null, dataCount: 0, lastUsageAt: null, pageindex: { automaticState: 'DISABLED', documentsSent: 0,
-        balanceMicroDollars: null, balanceCheckedAt: null, billingUrl: 'https://dash.pageindex.ai', activePages: 0, estimatedMonthlyCostMicroDollars: null, usageLimited: false } });
+    assert.equal(sources.APIFY_SHOPEE.spendCapUsd, null);
+    // Unbuilt cards name their owning package and show honest zeros.
+    for (const id of ['APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'OFFICIAL_STATS', 'WORLD_BANK']) {
+      assert.equal(sources[id].state, 'NOT_BUILT', `${id} must not pretend its collector exists`);
+      assert.equal(sources[id].dataCount, 0);
+      assert.ok(sources[id].pendingPackage, `${id} names its owning package`);
+    }
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.pendingPackage, 'P9');
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.credential, 'CONFIGURED', 'Shared Apify token is honest credential evidence');
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.spendCapUsd, null, 'An absent TikTok cap is never defaulted to $3');
+    assert.deepEqual(sources.METRIC.registryIds, ['S01', 'S04']);
+    assert.equal(sources.METRIC.tier, null, 'Mixed S01/S04 tiers have no scalar aggregate');
+    assert.equal(sources.METRIC.tierDetail, 'S01: C; S04: B');
+    // PageIndex reconciliation: workspace history apart from account-wide connector numbers.
+    assert.equal(sources.PAGEINDEX.dataCount, 1, 'Workspace PDF history, not the account ledger');
+    assert.equal(sources.PAGEINDEX.lastDataAt, null);
+    assert.equal(sources.PAGEINDEX.pageindex.documentsSent, 0, 'Account ledger stays zero while one workspace PDF exists');
   });
 
   await withApi(fixture, true, { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: true,
-    apifyReviews: { token: apifySecret, maxChargeUsd: 2 } }, async base => {
+    apifyReviews: { token: apifySecret, maxChargeUsd: 2 }, apifyTikTokComments: { maxChargeUsd: 3 } }, async base => {
     const { text, body } = await readStatus(base);
     assert.equal(text.includes(apifySecret), false);
     const sources = bySource(body);
@@ -149,14 +190,29 @@ test('source status reports configuration and workspace history without exposing
     assert.equal(sources.KALODATA.credential, 'MISSING');
     assert.equal(sources.SERPAPI.state, 'NOT_CONFIGURED');
     assert.equal(sources.APIFY_SHOPEE.state, 'READY');
+    assert.equal(sources.APIFY_SHOPEE.spendCapUsd, 2);
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.state, 'NOT_BUILT', 'A configured cap alone does not build the collector');
+    assert.equal(sources.APIFY_TIKTOK_COMMENTS.spendCapUsd, 3);
   });
 
   await withApi(fixture, false, providers, async base => {
     const { body } = await readStatus(base);
     assert.equal(body.executorEnabled, false);
-    assert.deepEqual(body.sources.map((item: Record<string, any>) => item.state), ['EXECUTOR_DISABLED', 'EXECUTOR_DISABLED', 'EXECUTOR_DISABLED', 'EXECUTOR_DISABLED', 'EXECUTOR_DISABLED']);
+    assert.equal(body.sources.length, 11);
+    assert.ok(body.sources.every((item: Record<string, any>) => item.state === 'EXECUTOR_DISABLED'),
+      'Executor-disabled keeps precedence over every card including NOT_BUILT');
     assert.equal(bySource(body).KALODATA.credential, 'CONFIGURED');
+    assert.equal(bySource(body).APIFY_TIKTOK_COMMENTS.pendingPackage, 'P9');
   });
+});
+
+test('old five-card payloads still validate against the extended contract', async () => {
+  const legacy = { contractVersion: 'research-automation-source-status-v1', workspaceId,
+    checkedAt: '2026-02-03T00:00:00.000Z', executorEnabled: true,
+    sources: (['KALODATA', 'SERPAPI', 'APIFY_SHOPEE', 'METRIC', 'PAGEINDEX'] as const).map(source => ({
+      source, state: 'READY', credential: 'CONFIGURED', wiredIntoRuns: true, paid: true,
+      lastDataAt: null, dataCount: 0, lastUsageAt: null })) };
+  assert.equal(validateStatus(legacy), true, JSON.stringify(validateStatus.errors));
 });
 
 test('source status is read-only and scoped to an existing workspace', async () => {
@@ -234,6 +290,7 @@ test('PDF HTTP intake and free recheck are reachable, owner-only, and GET states
     assert.equal(validateStatus(board), true, JSON.stringify(validateStatus.errors));
     assert.equal(bySource(board).PAGEINDEX.pageindex.documentsSent, 1);
     assert.equal(bySource(board).PAGEINDEX.pageindex.balanceMicroDollars, 9_990_000);
+    assert.equal(bySource(board).PAGEINDEX.dataCount, 1, 'Workspace PDF history counts this workspace upload');
     assert.equal(JSON.stringify(board).includes('synthetic-pdf-secret-only'), false);
     assert.equal(lists, 1); assert.equal(uploads, 1); assert.equal(metadataReads, beforeRead[2]);
   }, pageIndex);

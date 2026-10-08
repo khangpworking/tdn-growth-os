@@ -33,6 +33,38 @@ test('balance formats as dollars and automatic states have plain copy', async ()
   assert.equal(board.pageIndexAutomaticCopy('DISABLED'), 'Đã tắt');
 });
 
+test('workspace PDF history separates unknown, zero and positive counts', async () => {
+  const board = await tsImport('../src/research-automation/SourceStatusBoard.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/SourceStatusBoard');
+  assert.equal(board.pageIndexWorkspaceCopy(null), 'Chưa rõ số PDF trong workspace này');
+  assert.equal(board.pageIndexWorkspaceCopy(0), 'Chưa có PDF nào trong workspace này');
+  assert.equal(board.pageIndexWorkspaceCopy(2), '2 PDF trong workspace này');
+
+  // Render level: a valid old payload with an unavailable ledger (null) must
+  // read unknown, never zero.
+  const dom = setupDom();
+  const originalFetch = globalThis.fetch;
+  const { createRoot } = await import('react-dom/client');
+  const { default: SourceStatusBoard } = board;
+  const root = createRoot(dom.container);
+  let dataCount: number | null = null;
+  globalThis.fetch = (async () => new Response(JSON.stringify(statusWith([{
+    ...pageindexEntry(), dataCount,
+  }])))) as unknown as typeof fetch;
+  try {
+    for (const expected of ['Chưa rõ số PDF trong workspace này', 'Chưa có PDF nào trong workspace này', '1 PDF trong workspace này'] as const) {
+      dataCount = expected === 'Chưa rõ số PDF trong workspace này' ? null : expected === 'Chưa có PDF nào trong workspace này' ? 0 : 1;
+      await act(async () => root.render(createElement(SourceStatusBoard, { key: expected, mode: 'real', workspaceId })));
+      const text = document.querySelector<HTMLElement>('.ra-source[data-source="PAGEINDEX"]')?.textContent ?? '';
+      assert.match(text, new RegExp(expected.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+    // The unknown copy never claims zero.
+    dataCount = null;
+    await act(async () => root.render(createElement(SourceStatusBoard, { key: 'unknown', mode: 'real', workspaceId })));
+    const text = document.querySelector<HTMLElement>('.ra-source[data-source="PAGEINDEX"]')?.textContent ?? '';
+    assert.equal(text.includes('Chưa có PDF nào'), false);
+  } finally { await act(async () => root.unmount()); globalThis.fetch = originalFetch; dom.cleanup(); }
+});
+
 test('run-page notice lists every PDF state and the paused banner', async () => {
   const notice = await tsImport('../src/research-automation/PageIndexPdfNotice.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/PageIndexPdfNotice');
   assert.equal(notice.pageIndexPdfStateCopy('INDEXING').label, 'Đang lập chỉ mục');
@@ -84,12 +116,13 @@ test('status board shows the PageIndex card and rechecks with GET only', async (
     assert.ok(card, 'PageIndex card renders');
     const text = card!.textContent ?? '';
     assert.match(text, /Đã kết nối/);
-    assert.match(text, /Số dư \(ước tính\).*\$9\.99/);
+    assert.match(text, /Số dư tài khoản \(ước tính\).*\$9\.99/);
     assert.match(text, /Thanh toán/);
     assert.ok(card!.querySelector('a[href="https://billing.example.invalid/pageindex"]'), 'billing link renders');
     assert.match(text, /500 trang/);
     assert.match(text, /Đang tự dùng cho PDF/);
-    assert.match(text, /2 tài liệu/);
+    assert.match(text, /2 PDF trong workspace này/);
+    assert.match(text, /Tài liệu đã gửi \(tài khoản\)/);
     assert.match(text, /Gọi gần nhất/);
     await act(async () => [...document.querySelectorAll('button')].find(item => item.textContent === 'Kiểm tra lại')!.click());
     assert.ok(methods.length >= 2 && methods.every(method => method === 'GET'), 'recheck never posts or spends');

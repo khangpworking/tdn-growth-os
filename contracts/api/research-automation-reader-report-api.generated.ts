@@ -134,10 +134,10 @@ export interface Source {
   };
   rowCap: number;
   displayedHeadlines: {
-    revenueVnd: number;
-    soldListings: number;
-    shops: number;
-    units: number;
+    revenueVnd: number | null;
+    soldListings: number | null;
+    shops: number | null;
+    units: number | null;
   };
   platformBreakdown: {
     shopee?: PlatformDisplay;
@@ -145,7 +145,7 @@ export interface Source {
   };
 }
 export interface PlatformDisplay {
-  displayedRevenueVnd: number;
+  displayedRevenueVnd: number | null;
 }
 export interface ResearchAutomationReaderBuildReceipt {
   contractVersion: 'reader-report-build-receipt-v1';

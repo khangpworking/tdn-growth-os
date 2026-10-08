@@ -1,5 +1,7 @@
 # Thirty section methods v1
 
+> **Current authority (2026-10-08):** This historical recipe set is superseded by [Ultimate v1.12](../ultimate-method/ultimate-method-30-sections.md) wherever they differ: E4/E11 (I02/D06 personas and coding defaults), E7 (I01 working question), E11 (I11 groups and M07 peers), and E2/E6/E11 (M12/I15 proposals). Preserve the evidence, provenance and human-action boundaries. This notice records document precedence, not implementation or operational acceptance.
+
 Draft registry · 2026-09-30 · catalog identity `market-insight-30-section-catalog-v1` 0.6.0. This directory contains method specifications, not completed report sections, runtime admission rules, or a new authority contract. See [common rules](common-rules.md) and [authority index](authority-index.md).
 
 ## Coverage and state

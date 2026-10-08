@@ -25,6 +25,22 @@ test('review collection configuration requires both a token and an explicit boun
   assert.throws(() => researchAutomationProviderConfigFromEnv({ TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '5' }), /requires/);
 });
 
+test('TikTok comment cap is independent, absent by default, and never defaulted to the approved test-run value', () => {
+  // Absent stays absent: the approved $3 test-run policy is not proof a cap is configured.
+  assert.equal(researchAutomationProviderConfigFromEnv({}).apifyTikTokComments, undefined);
+  assert.equal(researchAutomationProviderConfigFromEnv({ TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '5', TDN_APIFY_TOKEN: 'synthetic-apify-token-not-live' }).apifyTikTokComments, undefined);
+  // A configured cap is exposed exactly as set, independent of the Shopee cap.
+  assert.deepEqual(researchAutomationProviderConfigFromEnv({ TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD: '3' }).apifyTikTokComments, { maxChargeUsd: 3 });
+  assert.deepEqual(researchAutomationProviderConfigFromEnv({
+    TDN_APIFY_TOKEN: 'synthetic-apify-token-not-live', TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '5', TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD: '7.5',
+  }).apifyTikTokComments, { maxChargeUsd: 7.5 });
+  // Malformed values fail closed without echoing any credential.
+  for (const cap of ['0', '-1', 'NaN', 'Infinity', '10001', 'abc']) {
+    assert.throws(() => researchAutomationProviderConfigFromEnv({ TDN_APIFY_TOKEN: 'synthetic-apify-token-not-live', TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD: cap }),
+      error => error instanceof Error && !error.message.includes('synthetic-apify-token-not-live'));
+  }
+});
+
 test('review collection accepts an optional per-listing review limit from 1 to 500', () => {
   const token = 'synthetic-apify-token-not-live';
   const base = { TDN_APIFY_TOKEN: token, TDN_RESEARCH_SHOPEE_MAX_CHARGE_USD: '5' };

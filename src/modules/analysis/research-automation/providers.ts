@@ -346,6 +346,13 @@ export interface ResearchAutomationProviderConfig {
   readonly apifyTokenConfigured: boolean;
   /** Separate opt-in for exact-listing reviews; presence of a token alone does not enable spending. */
   readonly apifyReviews?: { readonly token: string; readonly maxChargeUsd: number; readonly maxReviewsPerProduct?: number };
+  /**
+   * Independent opt-in cap for TikTok comment test runs (P9, owner approved $3 per
+   * test run on 08/10/2026). Config exposure only: no TikTok collector is wired
+   * here and this never authorizes collection. Absent stays absent; it is never
+   * defaulted to the approved test-run value. Token custody belongs to P9.
+   */
+  readonly apifyTikTokComments?: { readonly maxChargeUsd: number };
 }
 
 export class ProviderConfigurationError extends Error {
@@ -370,11 +377,18 @@ export function researchAutomationProviderConfigFromEnv(env: NodeJS.ProcessEnv):
   const perListingValue = env.TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT;
   const perListing = perListingValue ? Number(perListingValue) : null;
   if (perListingValue && (cap === null || !/^\d+$/.test(perListingValue) || perListing === null || perListing < 1 || perListing > 500)) throw new ProviderConfigurationError('TDN_RESEARCH_SHOPEE_MAX_REVIEWS_PER_PRODUCT requires a whole number from 1 to 500 and an approved charge cap');
+  // Independent TikTok comment cap (P9). Absent is a distinct state from zero and
+  // is never defaulted: the approved $3 test-run policy is not proof a cap is
+  // configured. A malformed value fails closed like the Shopee cap.
+  const tiktokCapValue = env.TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD;
+  const tiktokCap = tiktokCapValue ? Number(tiktokCapValue) : null;
+  if (tiktokCapValue && (tiktokCap === null || !Number.isFinite(tiktokCap) || tiktokCap <= 0 || tiktokCap > 10000)) throw new ProviderConfigurationError('TDN_RESEARCH_TIKTOK_COMMENTS_MAX_CHARGE_USD requires an approved positive cap');
   return {
     kalodataSecretKey: credential(env[PROVIDER_CREDENTIAL_ENV.KALODATA], PROVIDER_CREDENTIAL_ENV.KALODATA),
     serpApiKey: credential(env[PROVIDER_CREDENTIAL_ENV.SERPAPI], PROVIDER_CREDENTIAL_ENV.SERPAPI),
     apifyTokenConfigured: token !== null,
     ...(token && cap !== null ? { apifyReviews: { token, maxChargeUsd: cap, ...(perListing !== null ? { maxReviewsPerProduct: perListing } : {}) } } : {}),
+    ...(tiktokCap !== null ? { apifyTikTokComments: { maxChargeUsd: tiktokCap } } : {}),
   };
 }
 

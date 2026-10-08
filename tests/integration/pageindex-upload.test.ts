@@ -156,6 +156,14 @@ test('low balance pauses automatic indexing on the status card', () => {
       serpapi: { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       'apify-shopee': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
       metric: { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      'kalodata-video': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      'apify-tiktok-comments': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      'video-reading': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      'meta-ad-library': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      'official-stats': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      'world-bank': { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      pageindex: { lastDataAt: null, dataCount: 0, lastUsageAt: null },
+      serpapiOperations: [],
     },
     pageindex: {
       keyConfigured: true, enabled: true, lastCallAt: null, documentsSent: 2,
@@ -167,6 +175,10 @@ test('low balance pauses automatic indexing on the status card', () => {
   const card = status.sources.find(entry => entry.source === 'PAGEINDEX')!;
   assert.equal(card.state, 'READY');
   assert.equal(card.pageindex?.automaticState, 'PAUSED_LOW_BALANCE');
+  // Reconciliation: workspace history stays workspace-scoped while the
+  // account-wide ledger numbers remain labelled inside the connector detail.
+  assert.equal(card.dataCount, 0);
+  assert.equal(card.pageindex?.documentsSent, 2);
 });
 
 test('production upload gates account for accrued storage, prospective indexing and unknown credit', async t => {
