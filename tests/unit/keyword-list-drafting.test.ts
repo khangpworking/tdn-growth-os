@@ -62,7 +62,7 @@ test('drafting rejects invalid requests and seeds without calling transport', as
     { ...request(), contractVersion: 'wrong-v1' },
     { ...request(), dataVersion: '' },
     { ...request(), seeds: { productNames: [], includeTerms: [], excludeTerms: [] } },
-    { ...request(), seeds: { productNames: ['x'.repeat(201)], includeTerms: [], excludeTerms: [] } },
+    { ...request(), seeds: { productNames: ['x'.repeat(501)], includeTerms: [], excludeTerms: [] } },
   ]) {
     await assert.rejects(draftKeywordLists(counting, bad as KeywordListDraftRequest), KeywordListDraftError);
   }

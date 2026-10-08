@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-source-evidence.schema.json",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "draftDigest",
+    "admission",
+    "unavailableReason",
+    "sourceAppendix"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "automation-source-evidence-v1"
+    },
+    "draftDigest": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "admission": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "dataVersion",
+            "includedRecordIds",
+            "result"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "serpapi-l9-filter-v1"
+            },
+            "dataVersion": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 80,
+              "pattern": "\\S"
+            },
+            "includedRecordIds": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 300,
+                "pattern": "\\S"
+              },
+              "minItems": 0,
+              "maxItems": 5000
+            },
+            "result": {
+              "$ref": "keyword-meaning-filter.schema.json#/$defs/result"
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "unavailableReason": {
+      "anyOf": [
+        {
+          "enum": [
+            "MODEL_NOT_CONFIGURED",
+            "SALES_NAMES_UNAVAILABLE",
+            "DRAFT_FAILED"
+          ]
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sourceAppendix": {
+      "$ref": "source-appendix-projection.schema.json#/$defs/projection"
+    }
+  },
+  "title": "AutomationSourceEvidence"
+}

@@ -18,7 +18,7 @@ import type { WebDiscoveryResult } from './providers.js';
 
 export interface SerpApiL9FilterInput {
   /** Retained SerpApi web results in provider order. */
-  readonly results: readonly WebDiscoveryResult[];
+  readonly results: readonly Pick<WebDiscoveryResult, 'captureId' | 'position' | 'title' | 'snippet'>[];
   /** Versioned keyword/exclusion data already validated at its boundary. */
   readonly filter: KeywordMeaningFilterData;
 }
@@ -27,7 +27,7 @@ export interface SerpApiL9FilterOutput {
   readonly contractVersion: 'serpapi-l9-filter-v1';
   readonly dataVersion: string;
   /** Record IDs admitted to main counts/quotations, in provider order. */
-  readonly includedRecordIds: readonly string[];
+  readonly includedRecordIds: string[];
   /** Full frozen filter result with per-record reasons and accounting. */
   readonly result: KeywordMeaningFilterResult;
 }
@@ -37,11 +37,11 @@ export interface SerpApiL9FilterOutput {
  * within that capture. URLs are provider-reported text and can repeat or
  * shift across pages, so they never serve as identity.
  */
-export function serpApiResultRecordId(result: WebDiscoveryResult): string {
+export function serpApiResultRecordId(result: Pick<WebDiscoveryResult, 'captureId' | 'position'>): string {
   return `${result.captureId}#${result.position}`;
 }
 
-function candidateText(result: WebDiscoveryResult): string {
+function candidateText(result: Pick<WebDiscoveryResult, 'title' | 'snippet'>): string {
   return [result.title, result.snippet ?? ''].filter(part => part.length > 0).join('\n');
 }
 

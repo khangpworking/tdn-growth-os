@@ -1,3 +1,5 @@
+import { admitWebResults, checkSourceEvidence } from './source-evidence.js';
+import { sourceEvidenceHtml } from './source-evidence-report.js';
 import fs from 'node:fs';
 import type { AutomationBoundedMethodSnapshot } from '../../../../contracts/analysis/automation-bounded-method-snapshot.generated.js';
 import type { AutomationQuoteMethodSnapshot } from '../../../../contracts/analysis/automation-quote-method-snapshot.generated.js';
@@ -40,6 +42,7 @@ import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegist
 const REPORT_KIT_CSS = REPORT_KIT_BASE_CSS + SYNTHESIS_EVIDENCE_CSS;
 
 export interface AutomationReportInput {
+  readonly sourceEvidence?: import('./source-evidence.js').AutomationSourceEvidence;
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly run: ResearchAutomationRun;
@@ -433,6 +436,11 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
+  if (input.start.sourceEvidenceVersion) {
+    if (!input.sourceEvidence) throw new Error('New report requires retained source admission');
+    checkSourceEvidence(input.sourceEvidence);
+    if (input.collection) input = { ...input, collection: { ...input.collection, webResults: admitWebResults(input.sourceEvidence, input.collection.webResults ?? [], input.captures) } };
+  } else if (input.sourceEvidence) throw new Error('Historical report cannot acquire source policy');
   if (input.run.runId !== input.scope.runId || input.run.workspaceId !== input.start.workspaceId || input.run.workspaceId !== input.scope.workspaceId) throw new Error('Report lineage mismatch');
   if (input.collection && (input.collection.runId !== input.run.runId || input.collection.stepId !== 'COLLECTION')) throw new Error('Report collection lineage mismatch');
   if (input.insightCoding) {
@@ -621,11 +629,12 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = draftInsight ? 'automation-report-kit-v15'
+  const rendererVersion = input.sourceEvidence ? 'automation-report-kit-v18' : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
     : descriptiveVersion && descriptiveVersion !== '1.0.0' ? 'automation-report-kit-v13' : 'automation-report-kit-v12';
   /** Everything except the citation trace, which only exists once every renderer has run. */
   const semanticBase = {
+    ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}),
     ...(sourceScope ? { sourceScope } : {}),
     ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
     ...(kind === 'MARKET' && input.quoteMethods ? { quoteMethods: input.quoteMethods } : {}),
@@ -688,6 +697,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const appendix = (sectionId: string): string =>
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
+    (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) : '') +
     (kind === 'MARKET' && sectionId === 'M13' && input.quoteMethods
       ? `<details open id="quote-method-evidence"><summary>Hồ sơ giá M08: nguồn, điều kiện và phép tính</summary><p>Xuất xứ trong manifest là khai báo đã lưu, không phải chứng nhận độc lập. Dữ liệu tổng hợp thủ công hoặc giả lập không trở thành dữ liệu nhà cung cấp đã xác minh.</p>${retainedEvidenceHtml(input.quoteMethods)}</details>` : '') +
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
