@@ -55,6 +55,8 @@ test('authentic Foundation3 source projection preserves quotes, ratings, members
   assert.deepEqual(output.records.map(record => record.locator), f.view.records.map(record => record.locator));
   assert.deepEqual(output.records.map(record => record.duplicateOfRecordIndex), [null, 0, null, null, null, null, null, null]);
   assert.deepEqual(output.input.records.map(record => record.disposition), ['INCLUDED', 'EXCLUDED', 'INCLUDED', 'EXCLUDED', 'UNREADABLE', 'INCLUDED', 'EXCLUDED', 'EXCLUDED']);
+  assert.deepEqual(output.records.map(record => record.disposition), output.input.records.map(record => record.disposition));
+  assert.deepEqual(output.records.map(record => record.dispositionReason), output.input.records.map(record => record.dispositionReason));
   assert.equal(output.input.records[1]!.dispositionReason, 'DUPLICATE_SOURCE_NATIVE_RECORD');
   assert.notEqual(output.input.records[0]!.locator, output.input.records[2]!.locator, 'same text with another native identity remains separate');
   assert.deepEqual(sourceDefaultInsightRules(output.input).corpora.map(corpus => corpus.recordIndexes), [[0, 2, 5], [0, 2, 5]]);

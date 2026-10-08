@@ -45,7 +45,11 @@ export function projectPrivateInsightSource(corpus: ResearchPrivateReviewCorpus,
       if (first) duplicateOfRecordIndex = first.index;
       else firstNative.set(native, { index: recordIndex, evidence });
     }
-    return { recordIndex, recordId: record.recordId, shopId: record.shopId, itemId: record.itemId,
+    const disposition = record.text === null ? 'UNREADABLE' as const
+      : record.admission !== 'SELECTED_TEXT' || duplicateOfRecordIndex !== null ? 'EXCLUDED' as const : 'INCLUDED' as const;
+    const dispositionReason = disposition === 'INCLUDED' ? null
+      : duplicateOfRecordIndex !== null ? 'DUPLICATE_SOURCE_NATIVE_RECORD' : record.text === null ? 'SOURCE_TEXT_UNREADABLE' : record.admission;
+    return { recordIndex, disposition, dispositionReason, recordId: record.recordId, shopId: record.shopId, itemId: record.itemId,
       textState: record.textState, rating: structuredClone(record.rating), region: record.region,
       admission: record.admission, locator: structuredClone(locator), duplicateOfRecordIndex };
   });
@@ -58,14 +62,10 @@ export function projectPrivateInsightSource(corpus: ResearchPrivateReviewCorpus,
     codingUnit: 'LOCATED_RECORD', adjudicationRule: 'PENDING_AI_REQUIRES_EXPLICIT_OWNER_REVIEW',
     sources: [...pages.entries()].sort(([a], [b]) => a - b).map(([index, sha256]) => ({ logicalPath: `private/pages/${index}.json`, sha256 })),
     records: view.records.map((record, index) => {
-      const duplicate = metadata[index]!.duplicateOfRecordIndex !== null;
-      const disposition = record.text === null ? 'UNREADABLE' as const
-        : record.admission !== 'SELECTED_TEXT' || duplicate ? 'EXCLUDED' as const : 'INCLUDED' as const;
       return { sourceSha256: record.locator.pageSha256,
         locator: `/pages/${record.locator.pageIndex}/rows/${record.locator.rowIndex}/comment`,
         text: record.text, sourceAttribution: 'SHOPEE_SOURCE_REPORTED_REVIEW', timeText: record.createdAt,
-        disposition, dispositionReason: disposition === 'INCLUDED' ? null
-          : duplicate ? 'DUPLICATE_SOURCE_NATIVE_RECORD' : record.text === null ? 'SOURCE_TEXT_UNREADABLE' : record.admission };
+        disposition: metadata[index]!.disposition, dispositionReason: metadata[index]!.dispositionReason };
     }),
     brief: null, i02: [], i04: [], i05: [], i06: [], i07: [], i08: [], i09: [], corpora: [], i13Mentions: [],
   };
