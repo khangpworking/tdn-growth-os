@@ -15,6 +15,8 @@
 
 - [PR #164](https://github.com/khangpworking/tdn-growth-os/pull/164): U-02/U-05 and draft/Insight U-07 complete; U-16 guards cover authored M12/I15 output, with I16 deterministic and no authored output. U-04 safe descriptive gate is complete, classified-rate eligibility remains dependent on SYNC-4. Reviewed head `d4b0de135d0b85b4c546f36bf325595aac989432`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37766767995) and preview passed, merge `d7ad11fc8ecca6f437e27a5f3ad6528d3e6ca5aa`. See [SYNC-3](../handoffs/SYNC-3.md).
 
+- [PR #167](https://github.com/khangpworking/tdn-growth-os/pull/167): bounded U-01 complete across reader and draft M07, including frozen rule/input/result retention, source identity, optional owner additions and historical replay. U-26 remains escalated. Reviewed head `0b78d866cf88334bc1f4d6c8fe3635a80d018f06`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37771543891) and web acceptance passed, merge `0d098a14d7716d47376f152870c28ffcfe06a145`. See [SYNC-2](../handoffs/SYNC-2.md).
+
 The audit tables below describe the original baseline. Checked items refer to the merged packages and their linked handoffs. U-07 combines the Market and draft/Insight work. U-04, U-12, B-03 and U-32 stay unchecked while their stated remainder is unresolved.
 
 Updated: 2026-10-08 · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.12](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.9 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
@@ -139,7 +141,7 @@ Where things live:
 
 ### A1. Remove the conflicts (code does what the rules forbid)
 
-- [ ] U-01 **E11 peer set by default.**
+- [x] U-01 **E11 peer set by default.**
   - Build the peer set from sales data in the frozen sample: same product group, same period. Add brands by in-sample revenue until they cover ≥50% of the group's revenue. Use the shop when the brand is unknown.
   - Freeze the rule before any number is read, and store the rule and the resulting list with the run. Brand names carry "theo tiêu đề người bán".
   - Owner-picked peers become optional additions, shown as a separate list. Remove the "≥2 explicit peers" requirement in `reports.ts:320-323`, the "peers are never implied" invariant in `model.ts:40`, and `peerSet: null` in `descriptive-method-bridge.ts:232`.

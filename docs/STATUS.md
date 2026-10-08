@@ -39,6 +39,17 @@ the execution ledger retains and replays those invalid responses without redispa
 Historical prompt and method versions keep their saved semantics and replay bytes.
 See [SYNC-3 evidence and remaining limitations](handoffs/SYNC-3.md).
 
+Default peers are merged in [PR #167](https://github.com/khangpworking/tdn-growth-os/pull/167),
+after independent review and full Linux Check on head `0b78d866cf88334bc1f4d6c8fe3635a80d018f06`.
+Reader and draft M07 use a deterministic minimal peer set covering at least 50%
+of compatible group/platform/period revenue. Seller-title brand labels and shop
+fallback preserve source identity; owner additions remain separate. The rule is
+frozen before discovery or sales reads, and the owning service retains and verifies
+the exact input/result. Missing or ambiguous data blocks inferred defaults; zero
+remains distinct. Historical marker-free versions preserve their saved bytes.
+U-26 automatic collection and admission policy remain unresolved. See
+[SYNC-2 evidence](handoffs/SYNC-2.md).
+
 Future collector activation and history readers remain with P5/P9/P10/U-23.
 These merges do not establish complete Ultimate alignment or business acceptance.
 U-26 revision/admission policy, U-32 positive cross-platform totals, and U-11
