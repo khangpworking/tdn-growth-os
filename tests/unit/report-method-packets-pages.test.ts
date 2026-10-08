@@ -97,6 +97,10 @@ test('method pages show null execution, estimate, conclusion, preference and aut
   const i16Html = renderReportMethodPacketSection({ gates: i16 }, 'I16')!;
   assert.match(i16Html, /NOT_EXECUTED/);
   assert.match(i16Html, /Ước lượng và độ bất định chưa có \(null\)/);
+  // U-16: I16 has no AI-authored prose in this build. The section is derived deterministically from the declared
+  // fields the source states, so there is no proposal wording to guard and no authored text to reject or rewrite.
+  assert.doesNotMatch(i16Html, /AI đề xuất|đề xuất của AI|chờ chủ duyệt/);
+  assert.deepEqual(i16.sections.I16, buildBoundedAnalysisGates(existingResultInput()).output.sections.I16);
 
   const decisions = buildDecisionEvidencePackets(decisionEvidencePacketsFixture()).output;
   assert.match(renderReportMethodPacketSection({ decisions }, 'M01')!, /Chưa có kết luận tổng hợp \(null\)/);

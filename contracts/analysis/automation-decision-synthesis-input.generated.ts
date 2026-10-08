@@ -113,15 +113,6 @@ export type AutomationDecisionSynthesisInput = {
       | 'tradeOffWeights'
       | 'weights'
     )[];
-    workingQuestion?: {
-      state: 'AI_PROPOSED_AWAITING_OWNER';
-      label: Text;
-      text: null;
-      /**
-       * @maxItems 10000
-       */
-      ownerFieldsToAdd: Text[];
-    };
   };
   /**
    * Claims the CURRENT adapter admits as support (I02 source-stated use-context anchors), in packet order, which is not a priority. Only these claim ids may be cited as support. A temporary adapter limit, not the business eligibility rule.
@@ -177,6 +168,15 @@ export type AutomationDecisionSynthesisInput = {
    * @maxItems 30
    */
   limitations: Text[];
+  workingQuestion?: {
+    state: 'AI_PROPOSED_AWAITING_OWNER';
+    label: Text;
+    text: Text | null;
+    /**
+     * @maxItems 10000
+     */
+    ownerFieldsToAdd: Text[];
+  } | null;
 };
 export type Uuid = string;
 export type Digest = string;

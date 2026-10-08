@@ -115,7 +115,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
     if (!basis || basis.platform.state !== 'SOURCE_STATED' || basis.platform.value === null) return null;
     const buyer = basis.buyerType;
     const stated = buyer && buyer.state === 'SOURCE_STATED' && (buyer.value === 'RETAIL' || buyer.value === 'WHOLESALE');
-    return `${basis.platform.value} / ${stated ? buyer.value : 'UNSPECIFIED'}`;
+    return stated ? `${basis.platform.value} / ${buyer.value}` : basis.platform.value;
   };
   function i11(output: BoundedAnalysisGates): string {
     const input = output.input.i11;
@@ -123,7 +123,7 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
     // U-04: 1.1.0 derives source-backed groups and may report a descriptive rate; 1.0.0 output stays byte-identical.
     const versioned = output.methodVersion !== '1.0.0';
     let body = versioned
-      ? '<p><b>Danh mục nhóm nội bộ.</b> Nhóm chỉ được lấy từ nguồn nêu rõ nền tảng và tự khai báo bán lẻ hoặc bán buôn; bản ghi chưa rõ người mua được để riêng và không gộp chung. Tỷ lệ mô tả chỉ hiện khi mọi nhóm đủ ba mươi bản ghi văn bản, mẫu số tương thích và các bản ghi được đếm không trùng nhau; không suy diễn và không so sánh giữa các nhóm.</p>'
+      ? '<p><b>Danh mục nhóm nội bộ.</b> Nhóm chỉ được lấy từ nguồn nêu rõ nền tảng, kèm bán lẻ hoặc bán buôn khi nguồn tự khai báo; nguồn chỉ nêu nền tảng thì nhóm chỉ còn nền tảng, và nhóm nền tảng không bao giờ được hiểu là gộp mọi người mua hay đặt cạnh nhóm đã chia người mua. Tỷ lệ mô tả chỉ hiện khi mọi nhóm đủ ba mươi bản ghi văn bản, mẫu số tương thích và các bản ghi được đếm không trùng nhau; không suy diễn và không so sánh giữa các nhóm.</p>'
       : '<p><b>Danh mục nhóm nội bộ.</b> Giữ nguyên ô số và cách gán nhóm của nguồn. Không tính tỷ lệ hoặc chênh lệch; chưa có quyền công bố.</p>' + codeMarker('NOT_AUTHORIZED', 'Mã trạng thái công bố');
     if (input === null || !section.partitions.length) body += '<p>Chưa có ô dữ liệu nhóm. Cần nguồn gán nhóm, thước đo, đơn vị và phạm vi tương ứng.</p>';
     if (input !== null) {
@@ -143,8 +143,9 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
             + `<td>${scope(cell.scope)}${context(cell, cell.source)}</td></tr>`;
         }), partition.cellPointers.length) + disclosure('Điều kiện của phạm vi này', list(partition.blockers));
       }
-      if (versioned && section.rates !== null) body += table('Tỷ lệ mô tả theo nhóm, chỉ mô tả và không suy diễn', ['Nhóm', 'Tử số', 'Mẫu số', 'Tỷ lệ'],
-        section.rates.groups.map(group => `<tr><th scope="row">${esc(group.group)}</th><td>${esc(group.numerator)}</td><td>${esc(group.denominator)}</td><td>${(group.rate * 100).toFixed(1)}%</td></tr>`));
+      // Rates keep their owning partition index, so two compatible partitions are never merged into one comparison.
+      if (versioned && section.rates !== null) body += table('Tỷ lệ mô tả theo nhóm, chỉ mô tả và không suy diễn', ['Phạm vi', 'Nhóm', 'Tử số', 'Mẫu số', 'Tỷ lệ'],
+        section.rates.groups.map(group => `<tr><th scope="row">Phạm vi ${group.partition + 1}</th><td>${esc(group.group)}</td><td>${esc(group.numerator)}</td><td>${esc(group.denominator)}</td><td>${(group.rate * 100).toFixed(1)}%</td></tr>`));
       body += disclosure('Nguồn danh mục nhóm', source(input.source));
     }
     return body + clipNote(section.partitions.length) + footer(output, section.blockers);

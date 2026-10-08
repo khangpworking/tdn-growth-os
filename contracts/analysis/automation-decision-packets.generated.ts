@@ -294,7 +294,7 @@ export interface AutomationM11DecisionCandidates {
 }
 export interface PacketBinding {
   methodId: 'automation-decision-packet';
-  methodVersion: '1.0.0' | '1.1.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
   packetSha256: Digest;
 }
 export interface DecisionHypothesisCandidate {

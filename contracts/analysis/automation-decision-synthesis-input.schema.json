@@ -294,34 +294,6 @@
               "weights"
             ]
           }
-        },
-        "workingQuestion": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "state",
-            "label",
-            "text",
-            "ownerFieldsToAdd"
-          ],
-          "properties": {
-            "state": {
-              "const": "AI_PROPOSED_AWAITING_OWNER"
-            },
-            "label": {
-              "$ref": "#/$defs/text"
-            },
-            "text": {
-              "type": "null"
-            },
-            "ownerFieldsToAdd": {
-              "type": "array",
-              "maxItems": 10000,
-              "items": {
-                "$ref": "#/$defs/text"
-              }
-            }
-          }
         }
       }
     },
@@ -419,6 +391,48 @@
       "items": {
         "$ref": "#/$defs/text"
       }
+    },
+    "workingQuestion": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "label",
+            "text",
+            "ownerFieldsToAdd"
+          ],
+          "properties": {
+            "state": {
+              "const": "AI_PROPOSED_AWAITING_OWNER"
+            },
+            "label": {
+              "$ref": "#/$defs/text"
+            },
+            "text": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/text"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "ownerFieldsToAdd": {
+              "type": "array",
+              "maxItems": 10000,
+              "items": {
+                "$ref": "#/$defs/text"
+              }
+            }
+          }
+        },
+        {
+          "type": "null"
+        }
+      ]
     }
   },
   "allOf": [

@@ -4,6 +4,7 @@ import { createHash } from 'node:crypto';
 import type { VerifiedFinalizedSourcePackage } from '../../src/modules/foundation/source-package-service.js';
 import type { SourceBackedReportBundle } from '../../src/modules/analysis/source-backed-report.js';
 import { buildReportMethodPacketsExtension } from '../../src/modules/analysis/report-method-packets-extension.js';
+import { renderReportMethodPacketSection } from '../../src/modules/analysis/report-method-packets-pages.js';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { reportMethodPacketsFixture } from '../helpers/report-method-packets-fixture.js';
 import { boundedAnalysisGatesFixture } from '../helpers/bounded-analysis-gates-fixture.js';
@@ -127,7 +128,7 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
     const member = (index: number) => ({ logicalPath: RECORDS_PATH, sha256: recordsSha256, locator: `/${index}` });
     const gates = boundedAnalysisGatesFixture();
     const base = gates.i11!.cells[0]!;
-    const cell = (pointer: string, platform: string, members: readonly number[], numeratorMembers: readonly number[]) => ({
+    const cell = (pointer: string, platform: string, buyer: string | null, members: readonly number[], numeratorMembers: readonly number[]) => ({
       ...structuredClone(base), source: { ...base.source, locator: pointer }, group: null,
       countUnit: 'LOCATED_RECORD' as const, identityEvidence: null,
       numerator: { state: 'observed_value' as const, value: String(numeratorMembers.length) },
@@ -135,13 +136,15 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
       memberSources: members.map(member), numeratorMemberSources: numeratorMembers.map(member),
       groupBasis: {
         platform: { state: 'SOURCE_STATED' as const, value: platform, source: { ...base.source, locator: `${pointer}/groupBasis/platform` } },
-        buyerType: { state: 'SOURCE_STATED' as const, value: 'RETAIL', source: { ...base.source, locator: `${pointer}/groupBasis/buyerType` } },
+        buyerType: buyer === null
+          ? { state: 'NOT_STATED' as const, value: null, source: null }
+          : { state: 'SOURCE_STATED' as const, value: buyer, source: { ...base.source, locator: `${pointer}/groupBasis/buyerType` } },
       },
     });
     gates.semanticsVersion = '1.1.0';
     gates.i11 = { ...gates.i11!, groupPolicy: null, cells: [
-      cell('/i11/cells/0', 'Shopee', Array.from({ length: 40 }, (_, index) => index), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
-      cell('/i11/cells/1', 'Lazada', Array.from({ length: 31 }, (_, index) => 40 + index), [40, 41, 42, 43, 44]),
+      cell('/i11/cells/0', 'Shopee', null, Array.from({ length: 40 }, (_, index) => index), [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]),
+      cell('/i11/cells/1', 'Lazada', 'RETAIL', Array.from({ length: 31 }, (_, index) => 40 + index), [40, 41, 42, 43, 44]),
     ] };
     const resultBytes = bytesOf(calculateMetricScopes(metricFixture()));
     const catalogBytes = bytesOf(catalog);
@@ -166,11 +169,19 @@ test('U-04 descriptive rates are built only from retained INCLUDED text records 
 
   const state = await build(false);
   const built = (await buildReportMethodPacketsExtension(state.logicalPath, state.bundle, state.reader))!;
-  assert.deepEqual(built.gates!.sections.I11.partitions[0]!.groupOrder, ['Shopee / RETAIL', 'Lazada / RETAIL']);
+  assert.deepEqual(built.gates!.sections.I11.partitions[0]!.groupOrder, ['Shopee', 'Lazada / RETAIL']);
   assert.deepEqual(built.gates!.sections.I11.rates, { recordsPerGroupMinimum: 30, groups: [
-    { partition: 0, group: 'Shopee / RETAIL', numerator: 12, denominator: 40, rate: 0.3 },
+    { partition: 0, group: 'Shopee', numerator: 12, denominator: 40, rate: 0.3 },
     { partition: 0, group: 'Lazada / RETAIL', numerator: 5, denominator: 31, rate: 5 / 31 },
   ] });
+  // The page must show the same platform-only group the gate counted, keep rates attached to their partition, and
+  // never invent a buyer category for a source that stated none.
+  const html = renderReportMethodPacketSection({ gates: built.gates! }, 'I11')!;
+  assert.match(html, /<th scope="row">Shopee<small>/);
+  assert.match(html, /<th scope="row">Lazada \/ RETAIL<small>/);
+  assert.match(html, /<th scope="row">Phạm vi 1<\/th><td>Shopee<\/td>/);
+  assert.match(html, /<th scope="row">Phạm vi 1<\/th><td>Lazada \/ RETAIL<\/td>/);
+  assert.doesNotMatch(html, /UNSPECIFIED/);
 
   // A member that resolves to a retained but excluded record is not text-record membership, so no rate is built.
   const excluded = await build(true);

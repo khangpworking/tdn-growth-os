@@ -8,6 +8,7 @@ import type { AutomationDecisionSynthesisPrompt } from '../../../../contracts/an
 import { buildAutomationDecisionPacket, DECISION_CANDIDATE_TYPES as CANDIDATE_TYPES, type AutomationDecisionPacketInput, type AutomationDecisionSectionId } from './decision-packets.js';
 import { buildAutomationI14EvidenceAdmission } from './i14-evidence-admission.js';
 import { validateAutomationSourceClaims, type AutomationSourceClaim } from './source-claims.js';
+import { verifyLocatedInsightMethods } from '../located-insight-methods.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { decisionAdditionalSupport } from './decision-support.js';
 
@@ -200,6 +201,18 @@ export function automationDecisionSynthesisPrompt(sectionId: AutomationDecisionS
   return { artifact: JSON.parse(canonicalJson(prompt)) as AutomationDecisionSynthesisPrompt, bytes, sha256: sha256(bytes) };
 }
 
+/**
+ * U-02 (E7): the AI-proposed working question is read from the verified retained located output, never authored here.
+ * Without a retained AI proposal it is null, so a missing owner question is never silently answered.
+ */
+function workingQuestion(locatedMethodOutput: unknown): AutomationDecisionSynthesisInput['workingQuestion'] {
+  const output = locatedMethodOutput === null || locatedMethodOutput === undefined ? null : verifyLocatedInsightMethods(locatedMethodOutput).output;
+  const proposal = output?.sections.I01.workingQuestion;
+  if (!proposal || proposal.state !== 'AI_PROPOSED_AWAITING_OWNER') return null;
+  return { state: 'AI_PROPOSED_AWAITING_OWNER', label: proposal.label ?? WORKING_QUESTION_LABEL, text: proposal.text,
+    ownerFieldsToAdd: proposal.ownerFieldsToAdd === undefined ? ['questionText'] : [...proposal.ownerFieldsToAdd] };
+}
+
 /** The packet's section owner block; every field must be UNSET, null or empty (M12 `decisionState` stays OPEN). */
 function unsetOwnerFields(packet: AutomationDecisionPacket): string[] {
   const block = ('opportunity' in packet ? packet.opportunity : 'strategy' in packet ? packet.strategy : packet.action) as Record<string, unknown>;
@@ -345,11 +358,10 @@ export function prepareAutomationDecisionSynthesis(input: AutomationDecisionPack
     sourceClaims: packet.sourceClaims,
     useContextAdmission: packet.useContextAdmission,
     authority: packet.authority,
-    ownerInputs: { question: packet.ownerQuestion, constraints: [...packet.ownerConstraints], options: [], unsetFields: unsetOwnerFields(packet),
-      // U-02 (E7): 1.2.0 only; the working question is never an owner field and carries only the AI-proposed state.
-      ...(packet.methodVersion === '1.2.0' ? { workingQuestion: {
-        state: 'AI_PROPOSED_AWAITING_OWNER', label: WORKING_QUESTION_LABEL, text: null, ownerFieldsToAdd: ['questionText'],
-      } } : {}) },
+    ownerInputs: { question: packet.ownerQuestion, constraints: [...packet.ownerConstraints], options: [], unsetFields: unsetOwnerFields(packet) },
+    // U-02 (E7): 1.2.0 only. The working question is a sibling of the owner inputs, never inside them, and carries the
+    // upstream AI proposal when one exists; with no retained proposal it stays null rather than being invented here.
+    ...(packet.methodVersion === '1.2.0' ? { workingQuestion: workingQuestion(input.evidence.locatedMethodOutput) } : {}),
     supportEligible,
     declarationContext,
     observedContext,
