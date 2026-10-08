@@ -1,5 +1,18 @@
 import { createHash, createHmac } from 'node:crypto';
+import { createRequire } from 'node:module';
+import keywordSchema from '../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
+import collectionSchema from '../../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
+import type { TikTokCommentRunReceipt, TikTokCommentRetainedCapture, TikTokCommentPrivacyProfile, SanitizedTikTokComment } from '../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
+export type { TikTokCommentRunReceipt, SanitizedTikTokComment } from '../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 import { canonicalJson } from '../../modules/foundation/canonical-json.js';
+
+const require = createRequire(import.meta.url);
+const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
+const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv); ajv.addSchema(keywordSchema); ajv.addSchema(collectionSchema);
+const validateProfile = ajv.compile<TikTokCommentPrivacyProfile>({ $ref: `${collectionSchema.$id}#/$defs/privacy` });
+const validateReceipt = ajv.compile<TikTokCommentRunReceipt>({ $ref: `${collectionSchema.$id}#/$defs/providerReceipt` });
+const validateCapture = ajv.compile<TikTokCommentRetainedCapture>({ $ref: `${collectionSchema.$id}#/$defs/capture` });
 
 export const TIKTOK_COMMENT_ACTORS = {
   default: 'datadoping/tiktok-comment-reply-scraper',
@@ -26,13 +39,6 @@ const count = (value: unknown): number | null => typeof value === 'number' && Nu
 const date = (value: unknown): string | null => typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z$/.test(value) && Number.isFinite(Date.parse(value)) ? value : null;
 const object = (value: unknown): Record<string, unknown> => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : fail();
 
-/** Provisional transport receipt type; replace with canonical generated output
- * during the leased schema phase. No fetch/global configuration fallback. */
-export interface TikTokCommentRunReceipt {
-  runId: string; datasetId: string; buildId: string | null;
-  status: 'SUCCEEDED' | 'FAILED' | 'CANCELLED' | 'INCOMPLETE';
-  retrievedAt: string; providerTotalRows: number | null; usageTotalUsd: number | null;
-}
 export interface TikTokCommentsTransport {
   start(actor: TikTokCommentActor, input: Readonly<Record<string, unknown>>, maxTotalChargeUsd: number, signal?: AbortSignal): Promise<TikTokCommentRunReceipt>;
   readPage(receipt: TikTokCommentRunReceipt, offset: number, limit: number, signal?: AbortSignal): Promise<Buffer>;
@@ -63,15 +69,16 @@ export function createTikTokCommentPrivacy(configuration: { salt: Uint8Array; ke
   if (['utf8', 'hex', 'base64', 'base64url'].some(encoding => salt.toString(encoding as BufferEncoding) === configuration.keyId)) fail();
   const sellers = new Set(configuration.sellerAuthorIds ?? []); if ([...sellers].some(id => numericId(id) === null)) fail();
   const key = (domain: string, value: string) => createHmac('sha256', salt).update(`tdn:tiktok.com:${domain}:v1\0`).update(value).digest('hex');
-  const profile = Object.freeze({ profileVersion: 'tiktok-comment-privacy-v1' as const, platform: 'tiktok' as const,
+  const profile: TikTokCommentPrivacyProfile = Object.freeze({ profileVersion: 'tiktok-comment-privacy-v1' as const, platform: 'tiktok' as const,
     keyId: configuration.keyId, keyCommitment: key('key-continuity', 'configured'),
     voicePolicyCommitment: key('declared-seller-policy', canonicalJson([...sellers].sort())), algorithm: 'HMAC-SHA256' as const });
+  if (!validateProfile(profile)) fail();
   const sanitizePage = (actor: TikTokCommentActor, bytes: Buffer, selectedUrls: readonly string[], pageIndex: number) => {
     if (bytes.byteLength > 8 * 1024 * 1024) fail();
     let values: unknown; try { values = JSON.parse(bytes.toString('utf8')); } catch { return fail(); }
     if (!Array.isArray(values) || values.length > 1000 || bytes.byteLength > 8 * 1024 * 1024 || !Number.isSafeInteger(pageIndex) || pageIndex < 0) fail();
     const selected = new Map(selectedUrls.map(url => [exactTikTokVideoUrl(url).videoId, exactTikTokVideoUrl(url)]));
-    return values.map((value, rowIndex) => {
+    return values.map((value, rowIndex): SanitizedTikTokComment => {
       const row = object(value), defaultActor = actor === TIKTOK_COMMENT_ACTORS.default;
       if (!defaultActor && actor !== TIKTOK_COMMENT_ACTORS.fallback) fail();
       const originalVideo = defaultActor ? numericId(row.video_id) : typeof row.videoWebUrl === 'string' ? exactTikTokVideoUrl(row.videoWebUrl).videoId : null;
@@ -112,7 +119,6 @@ export function createTikTokCommentPrivacy(configuration: { salt: Uint8Array; ke
   return Object.freeze({ profile, sanitizePage });
 }
 export type TikTokCommentPrivacy = ReturnType<typeof createTikTokCommentPrivacy>;
-export type SanitizedTikTokComment = ReturnType<TikTokCommentPrivacy['sanitizePage']>[number];
 
 /** Mechanics only. Owning service freezes/retains intent before dispatch and
  * authenticates completed storage on retries. No automatic fallback or retry. */
@@ -134,7 +140,7 @@ export class ApifyTikTokCommentsCollector {
     this.#attempts.set(requestSha256, { request });
     const receipt = await this.options.transport.start(actor, input, this.options.approvedMaxTotalChargeUsd, signal);
     signal?.throwIfAborted();
-    if (receipt.status !== 'SUCCEEDED' || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.runId) || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.datasetId) ||
+    if (!validateReceipt({ runId: receipt.runId, datasetId: receipt.datasetId, buildId: receipt.buildId, status: receipt.status, retrievedAt: receipt.retrievedAt, providerTotalRows: receipt.providerTotalRows, usageTotalUsd: receipt.usageTotalUsd }) || receipt.status !== 'SUCCEEDED' || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.runId) || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.datasetId) ||
       (receipt.buildId !== null && (typeof receipt.buildId !== 'string' || !/^[A-Za-z0-9_-]{1,100}$/.test(receipt.buildId))) || date(receipt.retrievedAt) === null || (receipt.providerTotalRows !== null && count(receipt.providerTotalRows) === null) ||
       (receipt.usageTotalUsd !== null && (!Number.isFinite(receipt.usageTotalUsd) || receipt.usageTotalUsd < 0 || receipt.usageTotalUsd > this.options.approvedMaxTotalChargeUsd))) fail();
     const pages: { sha256: string; bytes: Buffer; offset: number; rows: SanitizedTikTokComment[] }[] = [];
@@ -161,16 +167,18 @@ export class ApifyTikTokCommentsCollector {
     const result = { contractVersion: 'tiktok-comment-capture-v1' as const, actor, inputSha256: sha(canonicalJson(input)),
       privacy: this.privacyProfile, receipt: { runId: receipt.runId, datasetId: receipt.datasetId, buildId: receipt.buildId,
         status: receipt.status, retrievedAt: receipt.retrievedAt, providerTotalRows: receipt.providerTotalRows, usageTotalUsd: receipt.usageTotalUsd }, auditForm: 'SANITIZED_ALLOWLIST' as const, pages };
+    if (!validateCapture(retainedTikTokCapture(result))) fail();
     signal?.throwIfAborted(); this.#attempts.set(requestSha256, { request, result: cloneCapture(result) });
     return result;
   }
 }
 
-/** Provisional capture only, pending canonical lease; not a second schema. */
-export interface TikTokCommentCapture {
-  contractVersion: 'tiktok-comment-capture-v1'; actor: TikTokCommentActor; inputSha256: string;
-  privacy: TikTokCommentPrivacy['profile']; receipt: TikTokCommentRunReceipt; auditForm: 'SANITIZED_ALLOWLIST';
-  pages: { sha256: string; bytes: Buffer; offset: number; rows: SanitizedTikTokComment[] }[];
+/** Buffer bytes are transient mechanics; persisted membership is canonical. */
+export type TikTokCommentCapture = Omit<TikTokCommentRetainedCapture, 'pages'> & {
+  pages: (TikTokCommentRetainedCapture['pages'][number] & { bytes: Buffer })[];
+};
+export function retainedTikTokCapture(value: TikTokCommentCapture): TikTokCommentRetainedCapture {
+  return { ...value, pages: value.pages.map(({ bytes: _bytes, ...page }) => structuredClone(page)) };
 }
 function cloneCapture(value: TikTokCommentCapture): TikTokCommentCapture {
   return { ...value, privacy: { ...value.privacy }, receipt: { ...value.receipt },

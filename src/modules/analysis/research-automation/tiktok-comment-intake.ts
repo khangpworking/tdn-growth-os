@@ -1,5 +1,10 @@
 import { createHash } from 'node:crypto';
 import keywordFilterSchema from '../../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
+import { createRequire } from 'node:module';
+import corpusSchema from '../../../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
+import type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
+export type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
+import { retainedTikTokCapture } from '../../../platform/collectors/apify-tiktok-comments.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
 import { CitationRegistry } from '../citation-registry.js';
@@ -7,15 +12,24 @@ import type { LocatedInsightMethods } from '../../../../contracts/analysis/locat
 import type { TikTokCommentCapture, SanitizedTikTokComment } from '../../../platform/collectors/apify-tiktok-comments.js';
 import type { selectTikTokVideos } from './tiktok-video-selection.js';
 
+const require = createRequire(import.meta.url);
+const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
+const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
+ajv.addSchema(keywordFilterSchema); ajv.addSchema(corpusSchema);
+const validateCorpus = ajv.compile<TikTokCommentCorpus>({ $ref: `${corpusSchema.$id}#/$defs/corpus` });
+const validateCapture = ajv.compile({ $ref: `${corpusSchema.$id}#/$defs/capture` });
+const validateSelection = ajv.compile({ $ref: `${corpusSchema.$id}#/$defs/selection` });
+
 const sha = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
 function fail(): never { throw new Error('Không thể xác minh nguồn bình luận đã lưu.'); }
 export type SelectedTikTokVideos = Awaited<ReturnType<typeof selectTikTokVideos>>;
 
-/** Provisional deterministic projection while canonical ownership is queued.
+/** Deterministic canonical projection for the owning source intake.
  * Caller is the owning intake, not an operator-supplied string/name source.
  * No persistence or coding/model invocation occurs at this boundary. */
 export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture: TikTokCommentCapture, keywords: KeywordMeaningFilterData) {
-  if (sha(canonicalJson(selected.selection)) !== selected.selectionSha256 || capture.receipt.status !== 'SUCCEEDED' || capture.auditForm !== 'SANITIZED_ALLOWLIST') fail();
+  if (!validateSelection(selected.selection) || !validateCapture(retainedTikTokCapture(capture)) || sha(canonicalJson(selected.selection)) !== selected.selectionSha256 || capture.receipt.status !== 'SUCCEEDED' || capture.auditForm !== 'SANITIZED_ALLOWLIST') fail();
   const videos = new Map(selected.selection.videos.map(row => [row.videoId, row]));
   const groups = new Map<string, { row: SanitizedTikTokComment; versions: { row: SanitizedTikTokComment; sourceRefs: { pageSha256: string; pageIndex: number; rowIndex: number; textPointer: string }[] }[]; occurrenceCount: number }>();
   let offset = 0;
@@ -64,7 +78,7 @@ export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture
   });
   const byReason: Record<string, number> = {};
   for (const row of records) if (row.dispositionReason) byReason[row.dispositionReason] = (byReason[row.dispositionReason] ?? 0) + 1;
-  return { contractVersion: 'tiktok-comment-corpus-v1' as const, registryId: 'S07' as const, platform: 'tiktok' as const,
+  const corpus: TikTokCommentCorpus = { contractVersion: 'tiktok-comment-corpus-v1' as const, registryId: 'S07' as const, platform: 'tiktok' as const,
     selectionSha256: selected.selectionSha256, sourcePackage: selected.selection.sourcePackage, privacy: capture.privacy,
     auditForm: capture.auditForm, codingState: 'NOT_CODED' as const, sampleLabel: 'bình luận thu được' as const,
     keywordData: keywords, filterBatches, records,
@@ -78,12 +92,14 @@ export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture
       'Collected comments are a bounded sample, not all platform comments or verified buyers.',
       'Author identity is key-scoped within TikTok only; missing/invalid author IDs do not identify people.',
       'No coding, persona, cross-platform total or release eligibility is established.'] };
+  if (!validateCorpus(corpus)) fail();
+  return corpus;
 }
-export type TikTokCommentCorpus = ReturnType<typeof buildTikTokCommentCorpus>;
 
 /** Existing generic located-record shape; no new codebook or source admission.
  * Real source-bound coding context integration remains a separately leased phase. */
 export function tikTokLocatedRecords(corpus: TikTokCommentCorpus): LocatedInsightMethods['input']['records'] {
+  if (!validateCorpus(corpus)) fail();
   return corpus.records.map(row => ({ sourceSha256: row.versions[0]!.sourceRefs[0]!.pageSha256,
     locator: row.versions[0]!.sourceRefs[0]!.textPointer, text: row.text,
     sourceAttribution: row.sourceType === 'COMMENT_UNDER_REVIEW_VIDEO' ? 'bình luận dưới video review' : 'bình luận dưới video bán hàng',
@@ -93,6 +109,7 @@ export function tikTokLocatedRecords(corpus: TikTokCommentCorpus): LocatedInsigh
 /** Read projection uses only retained sanitized source evidence. Hashes and
  * author identity never enter the owner-facing citation entries or text. */
 export function citeTikTokCommentCorpus(corpus: TikTokCommentCorpus, registry: CitationRegistry) {
+  if (!validateCorpus(corpus)) fail();
   return corpus.records.filter(row => row.disposition === 'INCLUDED').map(row => ({
     text: row.text, sourceType: row.sourceType, voice: row.voice, createdAt: row.createdAt, likeCount: row.likeCount,
     citation: registry.cite({ sourceKind: 'REVIEW', identity: row.versions[0]!.sourceRefs[0]!.pageSha256,

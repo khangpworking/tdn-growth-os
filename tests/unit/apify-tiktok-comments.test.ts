@@ -24,6 +24,8 @@ function fake(values: unknown[], status = 'SUCCEEDED'): { transport: TikTokComme
 const keywordData: KeywordMeaningFilterData = { contractVersion: 'l9-keyword-data-v1' as const, dataVersion: 'synthetic-terms-v1', category: 'thạch dừa',
   keywords: ['thạch dừa'], exclusions: [{ term: 'thạch dứa', reason: 'Synthetic other product' }], provenance: 'MODEL_DRAFTED' as const };
 const selection = { contractVersion: 'tiktok-video-selection-v1' as const, workspaceId: '11111111-1111-4111-8111-111111111111', runId: '22222222-2222-4222-8222-222222222222',
+  scopeSha256: 'd'.repeat(64), sourceSetSha256: 'e'.repeat(64), requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' },
+  sourcePeriod: { state: 'UNKNOWN_UNVERIFIED' as const, startDate: null, endDate: null },
   sourcePackage: { packageId: '33333333-3333-4333-8333-333333333333', manifestArtifactSha256: 'a'.repeat(64), packageContentSha256: 'b'.repeat(64) }, tableSha256: 'c'.repeat(64),
   option: 'A_TOP_20_PERCENT' as const, tieRule: 'EXACT_SOURCE_ORDER' as const, maximumVideos: 30 as const, sampleVideoCount: 1, excluded: [],
   videos: [{ videoId: '1234', url, kind: 'SELLER_VIDEO' as const, sourceLine: 'CSV row 2', revenue: '1' }] };

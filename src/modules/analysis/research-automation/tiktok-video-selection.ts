@@ -1,7 +1,18 @@
 import { createHash } from 'node:crypto';
+import { createRequire } from 'node:module';
+import keywordSchema from '../../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
+import selectionSchema from '../../../../contracts/analysis/tiktok-comment-collection-v1.schema.json' with { type: 'json' };
+import type { TikTokRunBinding, TikTokVideoSelection, TikTokVideoSelectionRequest } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 import type { FinalizedSourcePackageReader, SourceAttachmentOriginReader } from '../../foundation/source-package-reader.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
-import { parseVideoTable, verifyPreparedVideoSource, VIDEO_READ_BUDGET, VIDEO_TABLE_PATH, type VideoRunBinding } from './kalodata-video-intake.js';
+import { parseVideoTable, verifyPreparedVideoSource, VIDEO_READ_BUDGET, VIDEO_TABLE_PATH } from './kalodata-video-intake.js';
+
+const require = createRequire(import.meta.url);
+const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
+const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv); ajv.addSchema(keywordSchema); ajv.addSchema(selectionSchema);
+const validateSelection = ajv.compile<TikTokVideoSelection>({ $ref: `${selectionSchema.$id}#/$defs/selection` });
+export type TikTokVideoSelectionBinding = Omit<TikTokRunBinding, 'sourcePeriod'>;
 
 export class TikTokVideoSelectionError extends Error { readonly code = 'INVALID_TIKTOK_VIDEO_SELECTION'; }
 function fail(): never { throw new TikTokVideoSelectionError('Tập video không khớp nguồn và phạm vi đã chọn.'); }
@@ -14,14 +25,10 @@ const scaled = (value: string): bigint => {
   return BigInt(whole! + fraction.padEnd(10, '0'));
 };
 
-/** Provisional request surface until the serial canonical phase; no persisted
- * request, hand-maintained schema, caller table or duplicate source parser. */
+/** Uses the existing P4 parser/verified reader; owning caller supplies frozen binding. */
 export async function selectTikTokVideos(reader: FinalizedSourcePackageReader & SourceAttachmentOriginReader,
-  bound: VideoRunBinding, request: {
-    sourcePackage: { packageId: string; manifestArtifactSha256: string; packageContentSha256: string };
-    option: 'A_TOP_20_PERCENT' | 'C_CUMULATIVE_80_PERCENT';
-    reviewVideoUrls: readonly string[];
-  }) {
+  bound: TikTokVideoSelectionBinding,
+  request: Pick<TikTokVideoSelectionRequest, 'sourcePackage' | 'option' | 'reviewVideoUrls'>) {
   if (!['A_TOP_20_PERCENT', 'C_CUMULATIVE_80_PERCENT'].includes(request.option) || request.reviewVideoUrls.length > 30) fail();
   const source = await reader.readFinalizedSourcePackage(request.sourcePackage.packageId, VIDEO_READ_BUDGET);
   if (source.manifestArtifactSha256 !== request.sourcePackage.manifestArtifactSha256 || source.packageContentSha256 !== request.sourcePackage.packageContentSha256) fail();
@@ -60,9 +67,10 @@ export async function selectTikTokVideos(reader: FinalizedSourcePackageReader & 
     videos.push({ videoId: video.videoId, url: video.url, kind: 'REVIEW_VIDEO', sourceLine: null, revenue: null });
   }
   if (videos.length > 30) fail();
-  const selection = { contractVersion: 'tiktok-video-selection-v1' as const, ...bound,
+  const selection: TikTokVideoSelection = { contractVersion: 'tiktok-video-selection-v1' as const, ...bound, sourcePeriod: { state: 'UNKNOWN_UNVERIFIED', startDate: null, endDate: null },
     sourcePackage: { ...request.sourcePackage }, tableSha256: member.sha256,
     option: request.option, tieRule: 'EXACT_SOURCE_ORDER' as const, maximumVideos: 30 as const,
     sampleVideoCount: candidates.length, excluded, videos };
+  if (!validateSelection(selection) || bound.requestedPeriod.startDate > bound.requestedPeriod.endDate) fail();
   return { selection, selectionSha256: sha(canonicalJson(selection)) };
 }

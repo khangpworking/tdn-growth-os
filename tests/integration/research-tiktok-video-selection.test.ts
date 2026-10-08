@@ -20,7 +20,7 @@ async function fixture(t: test.TestContext, revenues: (string | null)[], videos 
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
   const reader = new FoundationSourcePackageReader(new SourcePackageService({ db, artifactStore: artifacts }));
   const intake = new AutomationKalodataVideoIntake(new RequestScopedArtifactStore(path.join(root, 'artifacts')), db, () => new Date('2026-10-09T00:00:00Z'));
-  const binding = { workspaceId: randomUUID(), runId: randomUUID() };
+  const binding = { workspaceId: randomUUID(), runId: randomUUID(), scopeSha256: 'd'.repeat(64), sourceSetSha256: 'e'.repeat(64), requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' } };
   const csv = Buffer.from(['video,creator,revenue,views,units,ad_spend,publish_date,product_link',
     ...revenues.map((value, index) => `${videos[index]},synthetic,${value ?? ''},,,,,`)].join('\n'));
   const prepared = await intake.prepare({ contractVersion: 'automation-video-prepare-v1', requestKey: randomUUID(), table: 'video',
