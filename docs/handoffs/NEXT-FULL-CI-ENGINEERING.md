@@ -39,3 +39,27 @@ Unresolved:
 
 Next action: freeze/release this scoped engineering checkpoint and publish under coordinator authorization; independent reviewer and coordinator own final review, hosted gates and normal merge.
 Business decisions pending: none introduced by this compilation-only optimization.
+
+## Frozen checkpoint and remaining gates
+
+Stable code/test checkpoint: **`6c69ac06df494b9e6ec557817d4df8fb8ef9c71b`**, normally pushed after scoped checks. Explicit source/test RELEASE: **`msg_471fd0b390f5`**; only this handoff metadata follows. The final full SHA is reported in the fresh lifecycle and outside-Git report; no later source/test edit is authorized by this handoff.
+
+| Gate | Evidence / limit |
+|---|---|
+| G01 | Exact five-head/job-log diagnosis, granted scope, before/after and honest limits retained. |
+| G02 |69 final named after checks (68 affected+1 unchanged owning benchmark) and strict backend static pass; full exact-head hosted Check/readiness remain coordinator gates. |
+| G03 | No frontend change/materialization; protected frontend bytes/selection unchanged. No browser acceptance claim. |
+| G04 | Canonical/generated/generator/lock/workflow bytes unchanged;30 actual historical factory byte digests equal. No GLOBAL or generation used. |
+| G05 | Only two leased hooks, new helper/unit, additive Metric test and own new handoff; no P9 shared path changes. |
+| G06 | Fresh reviewer-owned synthetic SQLite/CAS/loopback fixtures only; no private/runtime data copies. |
+| G07 | Synthetic transports only; no live model/provider/collector/deploy or purchase call. |
+| G08 | Technical English only; no Vietnamese interpretation/source text rewritten or humanizer invocation claimed. |
+| G09 | No authority, source, calculation, statistic, product release or unfinished-CI success invented. |
+| G10 | Actual source/authenticated OWNER flow, unchanged historical factories/HTML and fresh configless cold read/retry/corruption/restoration proof retained. |
+| G11 | Every original test file/assertion preserved; new tests additive; intentional runner failure and initial static type failure logged honestly. |
+| G12 | Frozen scope, complete evidence/limits and source lease release supplied; independent review and hosted gates remain. |
+| G13 | Source/keyword/collection/filter admission unchanged; no capability activation. |
+
+Measured timing is one bounded local pair, not a guarantee of hosted completion. Runner CPU variation and remaining source authentication/I/O work still affect full wall time. Cache retention is one successful compilation per hook and contains schema validators only; peak-RSS measurements increased in this pair and do not establish a memory improvement. No timeout, concurrency, process isolation, ordering, env, source/CAS ownership, test enumeration or PDF requirement is changed.
+
+Temporary matching dependency links are removed before the clean checkpoint. Fresh fixture ledger/source/hash evidence is retained outside Git before disposable-store cleanup; previous review artifacts/branches remain untouched. Coordinator requested independent immutable final-head review and controls all hosted runs/readiness/normal merge. Opening the draft PR requires explicit confirmation for its automatic initial Check under the task's no-worker-CI restriction; no manual run/retry is authorized here.
