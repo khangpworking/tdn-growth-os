@@ -1,0 +1,69 @@
+{
+  "repository": {
+    "exit": 1,
+    "counts": {
+      "tests": 1326,
+      "pass": 1311,
+      "fail": 8,
+      "cancelled": 4,
+      "skipped": 3,
+      "todo": 0
+    },
+    "reported_failing_names": [
+      "Task045 disposable one-origin production runtime completes the authoritative OWNER B3→B10 journey and shuts down cleanly",
+      "Task045 disabled runtime keeps static/read/health and safe 403 byte-stable",
+      "Task045 launcher handles SIGTERM without leaking credentials, paths, or its reserved port",
+      "Cloud CLI persists private unreviewed results, preserves SQLite bytes, and cannot redispatch an existing attempt",
+      "fixture run indexes attached PDF once, persists verified quotes and exposes live stored states",
+      "the kit profile retains a distinct HTML presentation without changing prepared meaning or older replay",
+      "reader report fits desktop, 375 px and A4 (shopee)",
+      "an unrelated corrupt package cannot block exact retry of a committed report",
+      "three industries classify a new report from complete selected acceptance without changing old reports",
+      "one database routes three industries to their own retained review source and 365-day query inventory",
+      "F",
+      "T"
+    ]
+  },
+  "focused": {
+    "exit": 1,
+    "counts": {
+      "tests": 15,
+      "pass": 14,
+      "fail": 1,
+      "cancelled": 0,
+      "skipped": 0,
+      "todo": 0
+    },
+    "reported_failing_names": [
+      "fixture run indexes attached PDF once, persists verified quotes and exposes live stored states"
+    ]
+  },
+  "implementation_sha": "4ff2870998bee48b5096326d759497dbaee525ed",
+  "date": "2026-10-08",
+  "typecheck": {
+    "exit": 0,
+    "runtime": "Node 24.15.0"
+  },
+  "commands": [
+    "npm ci --ignore-scripts --no-audit --no-fund",
+    "npx --yes --package=node@24.15.0 -c 'node --version && npm rebuild better-sqlite3 && npm run typecheck && npm test'",
+    "npx --yes --package=node@24.15.0 -c 'node --import tsx --test --test-concurrency=1 tests/integration/pageindex-upload.test.ts tests/integration/prepared-report-version.test.ts'"
+  ],
+  "gates": {
+    "G-2": "ESCALATED: failures exceed documented baseline after 3 rounds; no fourth attempt",
+    "G-3": "N/A: no frontend changes",
+    "G-4": "N/A: no contract changes",
+    "G-5": "DONE: owned paths and diff check",
+    "G-6": "DONE: synthetic fixtures; changed-file scan; no private inputs",
+    "G-12": "DONE: templated handoff with checklist and dataset table",
+    "G-13": "N/A: no keyword collection"
+  },
+  "static_checks": [
+    "Python AST parses",
+    "all shape statuses proposed",
+    "12 independent expected verdicts unchanged",
+    "fixture hashes match final run",
+    "throwaway shape/datasets/state deleted",
+    "application/contracts/frontend/tests/scripts/manifests byte-unchanged from base"
+  ]
+}
