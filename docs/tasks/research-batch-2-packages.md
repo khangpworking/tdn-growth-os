@@ -22,7 +22,7 @@ Agent làm theo checklist bên dưới: mỗi việc có mã riêng (ví dụ `P
 | P4 | Kalodata video and creator intake | #124 Ph2 | 1 | none (transcription stays off) | new intake module and its API route |
 | P5 | Google Trends and expanded search inside runs | #124 Ph1b | 2 | Phase 0 spike says GO | SerpApi provider, collection step |
 | P6 | Metric automation through OpenCLI, capture archive, R2 copy, numbers-used ledger | #127 PR A + Ph2b 8 | 2 | owner installed the OpenCLI extension on Fedora | Metric executor, intake sharing, archive |
-| P7 | Social bundle intake, classification, evidence cards, personas | #124 Ph3 | 2 | server side: none; collection side: owner picks the social account | new social modules |
+| P7 | Evidence cards and personas from reviews and comments (re-scoped 2026-10-08; no social collection) | #124 Ph3, Ultimate E4, E11 | 2 | none; comment input after P9 | new persona and evidence-card modules |
 | P8 | Presentation of all new sources in both reports | #124 Ph4 + #125 Ph2 quotes in reports | 3 | P1–P5 and P7 merged | report renderers (after P1 and P2) |
 | P9 | Video content reading and TikTok comments for every product category | Ultimate Method §6.2, E5, E11; source registry S07, S14 | 2 | P4 merged (done 08/10/2026); live collection needs an owner-approved charge cap | new TikTok comment collector and intake, video-reading intake, their contracts and API routes |
 | P10 | Official statistics intake (Cục Thống kê, nso.gov.vn) for every product category | Ultimate Method v1.5, E12 and §6.4 | 2 | none; start after P4 has merged (contract registry line) | new official-statistics intake module, its contract, its API route and its fetch script |
@@ -336,25 +336,23 @@ Checklist:
 
 ---
 
-## P7. Social bundle intake, classification, evidence cards, personas (wave 2)
+## P7. Evidence cards and personas from reviews and comments (wave 2; re-scoped 2026-10-08)
 
-Server side with synthetic bundles only. Collection with Agent-Reach waits for the owner's account decision.
+**Re-scoped by the owner on 2026-10-08.** Agent-Reach collection of social posts and the "owner picks the social account" gate are dropped. Facebook public posts are paused (registry S08) because tests found mostly seller posts and only 0–8% customer voice, against 10–32% in TikTok comments (S07). The package now builds evidence cards and personas from the records that carry customer voice. It is the same work as items U-11 and U-20 of [the Ultimate v1.11 sync plan](ultimate-v1.11-tdn-sync-plan.md); do it once.
 
 Checklist:
-- [ ] P7-01 `social-bundle-intake.ts` validates the bundle row schema and the manifest (#124 Phase 3).
-- [ ] P7-02 It strips phones, emails and @handles from the text, and hashes author IDs.
-- [ ] P7-03 Dedupe works on the id hash, then the normalised text sha, then a fuzzy match. Storage is append-only, tagged by watermark.
-- [ ] P7-04 Commercial accounts are marked, not deleted, and excluded from insights.
-- [ ] P7-05 Stop gateways: a ≥90% duplicate batch is aborted, a saturation flag, and the manifest caps are enforced again.
-- [ ] P7-06 Taxonomy on a 300-post sample (no owner review; checked by a second model per Ultimate E11), then classification of topic, journey stage, sentiment and confidence. Low-confidence posts go to "unclassified".
-- [ ] P7-07 Every insight cites ≥2 verbatim quotes from different authors.
-- [ ] P7-08 Evidence cards per "nhóm hoàn cảnh". 3–6 personas, each with ≥3 cards and ≥5 authors. Every attribute cites quotes; an unsourced attribute is dropped. No inferred demographics. The label "Chân dung do AI tổng hợp từ bài viết thật — không phải khách hàng có thật".
-- [ ] P7-09 A κ check per Ultimate E11: a second, independent model re-codes every record when there are ≤200, else a random 200. κ < 0.6 shows "độ tin cậy thấp" and keeps the counts out of the main conclusions.
-- [ ] P7-10 Every #124 Phase 3 test bullet, with fake model calls.
+- [ ] P7-01 Inputs are located review records (S05) and, once P9 has merged, TikTok comment records (S07), each with platform and source type. No new collector and no social bundle intake.
+- [ ] P7-02 Comments by the video creator or by brand or shop accounts, and tag-only or emoji-only comments, are excluded from customer voice with a reason (Ultimate L10). Author IDs stay hashed; authors are counted only within one platform (L2).
+- [ ] P7-03 Taxonomy drafted by the AI on a 300-record sample (no owner review), then classification of topic, journey stage, sentiment and confidence. Low-confidence records go to "unclassified".
+- [ ] P7-04 κ check per Ultimate E11, reusing sync-plan U-11: a second, independent model re-codes every record when there are ≤200, else a random 200. κ < 0.6 shows "độ tin cậy thấp" and keeps the counts out of the main conclusions.
+- [ ] P7-05 Every insight cites ≥2 verbatim quotes from different authors.
+- [ ] P7-06 Evidence cards per "nhóm hoàn cảnh". 3–6 personas, each with ≥3 cards and ≥5 authors (or the "≥5 distinct contents, chưa xác minh là 5 người" fallback when the source has no author ID). Every attribute cites quotes; an unsourced attribute is dropped. No inferred demographics. The label is exactly the Ultimate E4 text: "Chân dung do AI tổng hợp từ lời khách thật, không phải một khách hàng có thật". Size as "x/y bản ghi trong mẫu".
+- [ ] P7-07 Platforms side by side (L5); no person is merged across platforms and no count is summed across them.
+- [ ] P7-08 Tests with synthetic review and comment records and fake model calls: exclusions, the κ labels, the persona minimums, the fallback label, and per-platform columns.
 
-**Functional when:** a synthetic bundle produces cards, personas and journey counts ("x/y bài trong mẫu") that pass every rule above.
+**Functional when:** synthetic reviews and comments produce cards, personas and journey counts ("x/y bản ghi trong mẫu") that pass every rule above.
 
-Owner decision 2026-10-08: Facebook group posts are **not** collected (joining dozens of groups per category is not feasible). Collection covers public posts only, and Facebook is a secondary source (registry S08).
+Owner decisions 2026-10-08: Facebook group posts are **not** collected. Facebook public posts are paused (S08). Agent-Reach is kept only for the Meta Ad Library (S15), and only if the Meta Ad Library test passes; otherwise it is dropped from the project.
 
 ---
 
@@ -523,10 +521,9 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 | ≤5 Trends keywords | P5 (`SEARCH_TRENDS_LIMITS.maxKeywords`) | Google Trends compares at most 5 terms in one query | High (platform limit) |
 | ≤4 Trends calls | P5-02 | The plan is 1 time series (all keywords) + 2 related-query calls (one keyword per call) + 1 regional map | High (derived from the plan) |
 | ≤10 expanded searches | P5-02, P5-07 | Per-run cost ceiling for the Phase 0 trial. Dated and single-site queries share it, so they cannot raise cost. Revisit after the spike | Convention |
-| ≥90% duplicate batch aborted | P7-05 | A batch that is almost all already-seen posts means the collector is looping or the topic is exhausted; continuing only costs | Convention |
-| 300-post taxonomy sample | P7-06 | Same order as the 300 reviews per product the owner set for the 06/10 trial (Ultimate §6.3) | Convention |
-| 3–6 personas | P7-08 | Fewer than 3 is not a segmentation; more than 6 cannot be read side by side in one section | Convention |
-| ≥2 quotes from different authors per insight | P7-07 | One quote is one opinion; two authors is the smallest number that shows it is not one person's view | Convention |
+| 300-record taxonomy sample | P7-03 | Same order as the 300 reviews per product the owner set for the 06/10 trial (Ultimate §6.3) | Convention |
+| 3–6 personas | P7-06 | Fewer than 3 is not a segmentation; more than 6 cannot be read side by side in one section | Convention |
+| ≥2 quotes from different authors per insight | P7-05 | One quote is one opinion; two authors is the smallest number that shows it is not one person's view | Convention |
 | 30 videos per run | P9-01 | 30 × 200 comments = 6,000 comments, about $2 at the tested rate (~$0.33 per 1,000 unique comments, ST-20261008-19) | Medium (one test) |
 | ≤200 top-level comments per video | P9-02 | The size used in the R3/R4 test. Spreads the sample over videos so one viral video does not dominate | Medium (one test) |
 | ≤20 MB per XLSX | P10-01 | The largest official-statistics workbook seen on 08/10 was about 1 MB; 20 MB leaves wide headroom and still blocks a wrong upload | Medium |
@@ -542,7 +539,7 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 
 - Phase 0 spike (#124): ≤6 paid calls. **Approved 2026-10-07.** Run it with `docs/runbooks/agent-pipeline.md` §7.
 - Install the OpenCLI extension in Chrome on Fedora (unblocks P6).
-- Choose the social collection account (unblocks P7 collection).
+- Run the Meta Ad Library test through Agent-Reach (decides whether Agent-Reach stays for S15 or leaves the project). No cost.
 - Live Metric search or export: a yes per run (P6).
 - Deploys: #125 Phase 3 (PageIndex key and `pypdf` venv on Fedora), P6 keepalive. Each deploy needs approval plus the exact merge SHA.
 - Every merge.
