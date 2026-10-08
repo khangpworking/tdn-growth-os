@@ -7,7 +7,7 @@ Lifecycle: sole run `run_adc3551f8ed8`, fresh task `task_a6c3d448c7f5`, dispatch
 Completed:
 
 - Explicit injected `privateShopee: {source, factory}` configuration freezes versioned public profile in new starts and confirmed source sets. No salt/config generation, environment write, runtime activation, new paid permission or historical rewriting. Marker-free confirm-v1 still creates no source set. Private confirm-v1 retains an explicit typed source set with `ABSENT` Metric and `NONE` review resolution, without manufacturing admission or approval.
-- Actual ResearchAutomationService collection calls Foundation `collectExact(...,{privacy:true})` with the configured sanitized collector. Raw/native substitution is rejected; unavailable collector/profile never selects raw or native data. Failed/cancelled/incomplete private capture remains diagnostic-only with no finalized private collection.
+- Actual ResearchAutomationService collection calls Foundation `collectExact(...,{privacy:true})` with the configured sanitized collector. Raw/native substitution is rejected; unavailable collector/profile never selects raw or native data. Failed/cancelled/incomplete private capture remains diagnostic-only with no finalized private collection. Valid SUCCEEDED cap-stopped captures remain eligible for retention but are PARTIAL/truncated; dataset-exhausted and complete fixtures remain COLLECTED.
 - Source-only `research-private-review-corpus-v2` is retained in the existing CAS/manifest ownership, bound to exact run/start/scope, original confirmed-source-set digest, collection/request and profile. Revisions preserve that original corpus digest across KEEP; SKIP removes review/literal input without rewriting earlier bytes or collecting again. No schemas, migrations or dependency manifests were added outside the exact additive canonical grant.
 - Closed `private-review-report-view-v1` carries source text, source dates/region, every locator and ABSENT/MISSING/INVALID/VALID stars (including invalid finite numeric values). It removes author IDs/hashes/native review ID/key/profile and reported-author counts. Only Foundation's declared source interface and retained source corpus expose within-Shopee/key hashed identity plus missing/invalid states. No person verification, cross-platform join or persona eligibility is inferred.
 - Explicit private Insight renderer `automation-report-kit-v22` and literal revision mapping consume verified retained source rows; legitimate equal-text rows remain separate. Existing literal-v1 definitions are untouched. Literal invalid numeric stars remain INVALID/null as required by the frozen literal schema; the original value remains in source/report evidence.
@@ -49,7 +49,9 @@ Unresolved / limits:
 
 Next action:
 
-Stable central commit/release to coordinator, then authorized final-main reconciliation if allocated, push/draft PR and exact SHA/test/lease handoff. Canonical release remains in force; any generation requires a renewed short lease. Coordinator owns README/STATUS/plan and merge.
+Central phase released at `fa4dbae6dad2342755f0ad6f745316bbd4a07f47`. Coordinator source-review correction: capped capture coverage truthfulness is fixed and proven with real collector/fake fetch (5 synthetic dataset rows, configured test cap3, 3 retained rows, PARTIAL/truncated, no extra call); Foundation validation and runtime caps unchanged.
+
+Then then authorized final-main reconciliation if allocated, push/draft PR and exact SHA/test/lease handoff. Canonical release remains in force; any generation requires a renewed short lease. Coordinator owns README/STATUS/plan and merge.
 
 Business decisions pending:
 

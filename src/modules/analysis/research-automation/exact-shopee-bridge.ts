@@ -115,10 +115,11 @@ export class AutomationExactShopeeBridge {
       const bytes = Buffer.from(canonicalJson(exactShopeeRequest(input)));
       const prior = await this.#collections.existingExact(bytes, attempt.collector.mode, { privacy: true });
       const source = await this.#collections.collectExact(bytes, attempt.collector, { privacy: true }, signal);
+      const complete = source.packet.actor.stopReason === 'dataset_exhausted' || source.packet.actor.stopReason === 'fixture_complete';
       return { privateReference: { privateVersion: '3.0.0', collectionId: source.packet.collectionId,
         collectionSha256: source.sha256, requestSha256: source.packet.requestSha256 }, requestsIssued: attempt.requestsIssued(),
         costUsd: prior ? '0' : source.packet.actor.usageTotalUsd === null ? null : safeCost(String(source.packet.actor.usageTotalUsd)),
-        coverage: { ...base, state: 'COLLECTED', note: 'Sanitized listing review capture retained; source dates do not constrain the research period.' },
+        coverage: { ...base, state: complete ? 'COLLECTED' : 'PARTIAL', truncated: !complete, note: 'Sanitized listing review capture retained; source dates do not constrain the research period.' },
         limitation: { provider: 'apify-shopee', code: 'PRIVATE_REVIEW_CAPTURE_ONLY', message: 'Source-reported identities are scoped to one Shopee key; no person verification or persona decision.' } };
     } catch {
       return { requestsIssued: attempt.requestsIssued(), costUsd: null,

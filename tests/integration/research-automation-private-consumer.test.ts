@@ -33,7 +33,7 @@ async function allBytes(root: string): Promise<Buffer> {
   }
   return Buffer.concat(buffers);
 }
-async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, mismatch = false) {
+async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, mismatch = false, maxReviewsPerProduct = 20) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-private-consumer-run-'));
   const db = openDatabase({ databasePath: path.join(root, 'test.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(root, 'artifacts'));
@@ -51,10 +51,11 @@ async function fixture(t: TestContext, status = 'SUCCEEDED', cancelled = false, 
       buildId: 'SyntheticBuild01', status, usageTotalUsd: 0.001, statusMessage: 'PRIVATE_STATUS authorId 918273645' } });
     assert.match(url.pathname, /\/datasets\/SyntheticData01\/items$/);
     if (cancelled) controller.abort();
-    return Response.json(rows, { headers: { 'x-apify-pagination-total': String(rows.length) } });
+    const offset = Number(url.searchParams.get('offset')); const limit = Number(url.searchParams.get('limit'));
+    return Response.json(rows.slice(offset, offset + limit), { headers: { 'x-apify-pagination-total': String(rows.length) } });
   };
   const collector = new ApifyShopeeCollector({ token: 'synthetic-token', maxChargeUsd: 1, journalRoot: path.join(root, 'journal'),
-    retainReturnedPages: true, maxReviewsPerProduct: 20, fetch: transport }, mismatch
+    retainReturnedPages: true, maxReviewsPerProduct, fetch: transport }, mismatch
       ? createShopeePrivateIntake({ salt: Buffer.alloc(32, 8), keyId }) : privacy);
   const service = new ResearchAutomationService({ db, artifactStore: artifacts, workspaceReader: new FlowDiscoveryWorkspaceReader(discovery),
     uuid: () => runId, now, sourceEvidence: { modelIdentity: 'synthetic', promptVersion: 'synthetic-v1' }, privateShopee: { source: { contractVersion: 'automation-private-shopee-source-v1', profile: privacy.profile },
@@ -235,4 +236,26 @@ test('service fail-closed retained source/marker/run/profile/collection/digest s
   await fs.writeFile(corpusPath, originalCorpusBytes);
   assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT')).bytes, original.report.bytes);
   assert.equal(f.calls.length, 2);
+});
+
+
+test('valid SUCCEEDED capped private capture stays PARTIAL/truncated and retains its exact corpus without another call', async t => {
+  const f = await fixture(t, 'SUCCEEDED', false, false, 3);
+  await f.service.confirmScope(workspaceId, runId, f.confirm);
+  await f.service.processNext(); await f.service.processNext();
+  const run = await f.service.getRun(workspaceId, runId);
+  const coverage = run.coverage.sources.find(source => source.provider === 'apify-shopee')!;
+  assert.equal(coverage.state, 'PARTIAL'); assert.equal(coverage.truncated, true);
+  const report = await semantic(f);
+  const view = report.value.privateReviewCorpus;
+  assert.equal(view.records.length, 3);
+  const foundation = await new ShopeeCollectionService(f.db, f.artifacts).readExact(view.corpus.collectionId, { privacy: true });
+  assert.equal(foundation.packet.actor.status, 'SUCCEEDED'); assert.equal(foundation.packet.actor.stopReason, 'collection_limit_reached');
+  assert.equal(foundation.packet.actor.providerTotalRows, 5); assert.equal(foundation.packet.actor.settings.maxReviewsPerProduct, 3);
+  assert.equal(foundation.pages.length, 1); assert.equal(JSON.parse(foundation.pages[0]!.bytes.toString()).length, 3);
+  const corpusBytes = await f.artifacts.read(view.corpus.artifactSha256);
+  assert.equal(JSON.parse(corpusBytes.toString()).projection.records.length, 3);
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT')).bytes, report.report.bytes);
+  assert.equal(await f.service.processNext(), false); assert.equal(f.calls.length, 2);
+  leakCheck(await allBytes(path.join(f.root, 'artifacts'))); leakCheck(await allBytes(path.join(f.root, 'journal')));
 });
