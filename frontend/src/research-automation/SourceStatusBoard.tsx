@@ -67,9 +67,12 @@ const costLabel = (entry: BoardEntry): string =>
 export function sourceStateView(entry: ResearchAutomationSourceStatusEntry): { readonly tone: 'ready' | 'partial' | 'missing' | 'manual' | 'off'; readonly label: string; readonly detail: string } {
   const state = entry.state;
   const pending = entry.pendingPackage;
+  const noKey = entry.credential === 'NOT_REQUIRED';
   switch (state) {
-    case 'READY': return { tone: 'ready', label: 'Đã kết nối', detail: 'Đã cài khóa và phiên nghiên cứu đang dùng nguồn này.' };
-    case 'CONFIGURED_NOT_WIRED': return { tone: 'partial', label: 'Có khóa, chưa dùng', detail: 'Đã cài khóa nhưng phiên nghiên cứu chưa gọi nguồn này.' };
+    case 'READY': return { tone: 'ready', label: 'Đã kết nối',
+      detail: noKey ? 'Không cần khóa; phiên nghiên cứu đang dùng nguồn này.' : 'Đã cài khóa và phiên nghiên cứu đang dùng nguồn này.' };
+    case 'CONFIGURED_NOT_WIRED': return { tone: 'partial', label: noKey ? 'Chưa dùng' : 'Có khóa, chưa dùng',
+      detail: noKey ? 'Không cần khóa; phiên nghiên cứu chưa gọi nguồn này.' : 'Đã cài khóa nhưng phiên nghiên cứu chưa gọi nguồn này.' };
     case 'MANUAL_IMPORT': return { tone: 'manual', label: 'Nhập tay', detail: 'Không cần khóa. Dữ liệu vào khi bạn tải file lên trong từng phiên.' };
     case 'EXECUTOR_DISABLED': return { tone: 'off', label: 'Máy chủ không chạy', detail: 'Máy chủ này chỉ đọc, không chạy phiên nghiên cứu nên không gọi nguồn nào.' };
     case 'NOT_BUILT': return { tone: 'missing', label: 'Chưa có bộ thu',
@@ -77,7 +80,8 @@ export function sourceStateView(entry: ResearchAutomationSourceStatusEntry): { r
     case 'NOT_CONFIGURED':
     default:
       return { tone: 'missing', label: 'Chưa kết nối', detail: entry.credential === 'CONFIGURED'
-        ? 'Đã có token nhưng thiếu hạn mức chi tối đa, nên không tự thu.' : 'Chưa cài khóa trên máy chủ.' };
+        ? 'Đã có token nhưng thiếu hạn mức chi tối đa, nên không tự thu.'
+        : noKey ? 'Nguồn này chưa được cấu hình cho phiên nghiên cứu.' : 'Chưa cài khóa trên máy chủ.' };
   }
 }
 

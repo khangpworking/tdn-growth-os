@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   buildResearchAutomationSourceStatus,
+  collectorCredentialUsable,
   futureCollectorState,
   SERPAPI_KNOWN_OPERATIONS,
   SOURCE_BOARD_ORDER,
@@ -156,6 +157,23 @@ test('future collector readiness never fabricates wiring or manual import for AP
     credentialPresent: true, capUsable: true }), 'MANUAL_IMPORT');
   assert.notEqual(futureCollectorState({ built: true, kind: SOURCE_REGISTRY.APIFY_TIKTOK_COMMENTS.arrival,
     credentialPresent: true, capUsable: true }), 'READY');
+});
+
+test('no-key collectors map usable NOT_REQUIRED credentials once built', () => {
+  assert.equal(collectorCredentialUsable('CONFIGURED'), true);
+  assert.equal(collectorCredentialUsable('NOT_REQUIRED'), true, 'No key required counts as usable evidence');
+  assert.equal(collectorCredentialUsable('MISSING'), false);
+  // Built no-key free collectors read configured-but-unwired, never stuck NOT_CONFIGURED.
+  assert.equal(futureCollectorState({ built: true, kind: 'FREE_COLLECT', credentialPresent: collectorCredentialUsable('NOT_REQUIRED'), capUsable: false }), 'CONFIGURED_NOT_WIRED');
+  assert.equal(futureCollectorState({ built: true, kind: 'FREE_COLLECT', credentialPresent: collectorCredentialUsable('MISSING'), capUsable: false }), 'NOT_CONFIGURED');
+  // Actual cards keep disabled/not-built precedence with their declared credentials.
+  const status = bySource(buildResearchAutomationSourceStatus(input()));
+  assert.equal(status('META_AD_LIBRARY').credential, 'NOT_REQUIRED');
+  assert.equal(status('META_AD_LIBRARY').state, 'NOT_BUILT');
+  assert.equal(status('WORLD_BANK').credential, 'NOT_REQUIRED');
+  assert.equal(status('WORLD_BANK').state, 'NOT_BUILT');
+  const disabled = bySource(buildResearchAutomationSourceStatus(input({ executorEnabled: false })));
+  assert.equal(disabled('WORLD_BANK').state, 'EXECUTOR_DISABLED');
 });
 
 test('SerpApi operations list known rows with observed counts and pass unknown operations through', () => {

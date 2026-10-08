@@ -29,6 +29,11 @@ export type SourceRegistryGroup = 'SALES_MARKET' | 'CUSTOMER_VOICE' | 'SELLER_VO
 /** How data can arrive once the collector exists. Determines the honest built-but-unwired state. */
 export type FutureCollectorKind = 'MANUAL_UPLOAD' | 'PAID_API' | 'FREE_COLLECT';
 
+/** A credential state usable for readiness: an installed key or explicitly no key required. MISSING is never usable. */
+export function collectorCredentialUsable(credential: 'CONFIGURED' | 'MISSING' | 'NOT_REQUIRED'): boolean {
+  return credential !== 'MISSING';
+}
+
 /**
  * Readiness of a future collector WITHOUT running any integration. Flipping
  * `built` to true never yields READY or run wiring: uploads read MANUAL_IMPORT,
@@ -157,7 +162,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     return {
       source,
       state: !input.executorEnabled ? 'EXECUTOR_DISABLED' : futureCollectorState({ built: card.built, kind: card.arrival,
-        credentialPresent: credential === 'CONFIGURED', capUsable: spendCapUsd !== null }),
+        credentialPresent: collectorCredentialUsable(credential), capUsable: spendCapUsd !== null }),
       credential, wiredIntoRuns: false, paid: card.paid, ...input.activity[key],
       ...meta(source), spendCapUsd, operations: null,
     };

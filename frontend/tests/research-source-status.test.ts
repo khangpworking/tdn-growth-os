@@ -56,6 +56,20 @@ test('NOT_BUILT cards name their owning package and never claim to run', async (
   assert.equal(formatCapUsd(undefined), 'Chưa cấu hình');
 });
 
+test('no-key states never claim an installed key', async () => {
+  const { sourceStateView } = await tsImport('../src/research-automation/SourceStatusBoard.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/SourceStatusBoard');
+  const unwired = sourceStateView(entry('SERPAPI', { state: 'CONFIGURED_NOT_WIRED', credential: 'NOT_REQUIRED', wiredIntoRuns: false }) as unknown as ResearchAutomationSourceStatusEntry);
+  assert.equal(unwired.label, 'Chưa dùng');
+  assert.match(unwired.detail, /Không cần khóa/);
+  assert.equal(unwired.detail.includes('Đã cài khóa'), false);
+  const ready = sourceStateView(entry('METRIC', { state: 'READY', credential: 'NOT_REQUIRED', paid: false }) as unknown as ResearchAutomationSourceStatusEntry);
+  assert.equal(ready.label, 'Đã kết nối');
+  assert.match(ready.detail, /Không cần khóa/);
+  const unconfigured = sourceStateView(entry('META_AD_LIBRARY', { state: 'NOT_CONFIGURED', credential: 'NOT_REQUIRED', wiredIntoRuns: false, paid: false }) as unknown as ResearchAutomationSourceStatusEntry);
+  assert.match(unconfigured.detail, /chưa được cấu hình/);
+  assert.equal(unconfigured.detail.includes('Chưa cài khóa'), false);
+});
+
 test('source board renders grouped cards, caps, operations and registry rows, rejects another workspace and never loads in demo', async () => {
   const dom = setupDom(); const originalFetch = globalThis.fetch;
   const { createRoot } = await import('react-dom/client');
