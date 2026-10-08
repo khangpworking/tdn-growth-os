@@ -1,0 +1,420 @@
+{
+  "date": "2026-10-08",
+  "commands": [
+    "OPENWIKI_TELEMETRY_DISABLED=1 python3 ontology/guide-checks.py",
+    "validate <throwaway-shape>",
+    "load <throwaway-dataset>",
+    "shacl --verified <throwaway-shape>"
+  ],
+  "environment": {
+    "OPENWIKI_TELEMETRY_DISABLED": "1",
+    "OPEN_ONTOLOGIES_STORAGE_MODE": "persistent",
+    "OO_SHACL": "installed checker"
+  },
+  "flags": [
+    "--no-connect",
+    "--data-dir <unique scratch>"
+  ],
+  "independent_model": "GPT-6-astra",
+  "cold_review": "GPT-6-astra: masked input 4 enforces exactly marker two; reviewed by model, not by a domain expert",
+  "rows": [
+    {
+      "dataset": "guide-v1",
+      "version": "v1",
+      "expected": true,
+      "actual": {
+        "conforms": true,
+        "covers": "SHACL Core under Shacl/Spec.lean. sh:sparql and user-defined constraint components are REFUSED by this evaluator rather than skipped, so a verdict here is about every constraint it read.",
+        "does_not_cover": "that Shacl/Spec.lean is the W3C Recommendation; it is a reading of it, measured against the Working Group's suite. Nor that the shapes compiler or the N-Triples parser is correct: both are outside the theorem and refuse rather than guess.",
+        "report": {
+          "checker": {
+            "means": "the digest of the FILE this process is running from, read at run time. Match it against the SHASUMS.txt of the release you expected. It does not make this binary honest: a hostile one can print any block it likes. It lets an honest build say which build it is.",
+            "name": "oo-shacl-x86_64-unknown-linux-gnu",
+            "self_sha256": "f965878d06c1a0ea9c80bb36b668dd02f0aec5ab4ccccb1474975af18de799da",
+            "toolchain": "4.33.1"
+          },
+          "conforms": true,
+          "data_triples": 2,
+          "ignored": [
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:ba5ac9a75574038d949ecb072e87bad0"
+            }
+          ],
+          "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
+          "results": [],
+          "shapes": 1,
+          "status": "verdict",
+          "theorem": "Shacl.validate_spec"
+        },
+        "theorem": "Shacl.validate_spec",
+        "verified": true
+      },
+      "pass_": true,
+      "dataset_sha256": "d1124b6f0081ae007e159270fff928a3acaac87e7c2981838a7ecc91991acc84",
+      "shape_sha256": "d88996aabae0c0a0fd262cd5ae311be16b1ad91bebd26c86c490348b1e14b26c",
+      "ttl": "@prefix o: <urn:onto:> .\no:r a o:GuideRecord; o:marker \"one\" ."
+    },
+    {
+      "dataset": "guide-v2",
+      "version": "v1",
+      "expected": false,
+      "actual": {
+        "conforms": false,
+        "covers": "SHACL Core under Shacl/Spec.lean. sh:sparql and user-defined constraint components are REFUSED by this evaluator rather than skipped, so a verdict here is about every constraint it read.",
+        "does_not_cover": "that Shacl/Spec.lean is the W3C Recommendation; it is a reading of it, measured against the Working Group's suite. Nor that the shapes compiler or the N-Triples parser is correct: both are outside the theorem and refuse rather than guess.",
+        "report": {
+          "checker": {
+            "means": "the digest of the FILE this process is running from, read at run time. Match it against the SHASUMS.txt of the release you expected. It does not make this binary honest: a hostile one can print any block it likes. It lets an honest build say which build it is.",
+            "name": "oo-shacl-x86_64-unknown-linux-gnu",
+            "self_sha256": "f965878d06c1a0ea9c80bb36b668dd02f0aec5ab4ccccb1474975af18de799da",
+            "toolchain": "4.33.1"
+          },
+          "conforms": false,
+          "data_triples": 2,
+          "ignored": [
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:cd583ac5c3568764fd32405467ea6fed"
+            }
+          ],
+          "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
+          "results": [
+            {
+              "focus": "<urn:onto:r>",
+              "path": "<urn:onto:marker>",
+              "sourceConstraintComponent": "<http://www.w3.org/ns/shacl#HasValueConstraintComponent>",
+              "sourceShape": "_:cd583ac5c3568764fd32405467ea6fed",
+              "value": null
+            }
+          ],
+          "shapes": 1,
+          "status": "verdict",
+          "theorem": "Shacl.validate_spec"
+        },
+        "theorem": "Shacl.validate_spec",
+        "verified": true
+      },
+      "pass_": true,
+      "dataset_sha256": "4c043a4567d88cb8120c539ef98980affa5de1306cbd12b4963f782decf1b87d",
+      "shape_sha256": "d88996aabae0c0a0fd262cd5ae311be16b1ad91bebd26c86c490348b1e14b26c",
+      "ttl": "@prefix o: <urn:onto:> .\no:r a o:GuideRecord; o:marker \"two\" ."
+    },
+    {
+      "dataset": "guide-v1",
+      "version": "v2",
+      "expected": false,
+      "actual": {
+        "conforms": false,
+        "covers": "SHACL Core under Shacl/Spec.lean. sh:sparql and user-defined constraint components are REFUSED by this evaluator rather than skipped, so a verdict here is about every constraint it read.",
+        "does_not_cover": "that Shacl/Spec.lean is the W3C Recommendation; it is a reading of it, measured against the Working Group's suite. Nor that the shapes compiler or the N-Triples parser is correct: both are outside the theorem and refuse rather than guess.",
+        "report": {
+          "checker": {
+            "means": "the digest of the FILE this process is running from, read at run time. Match it against the SHASUMS.txt of the release you expected. It does not make this binary honest: a hostile one can print any block it likes. It lets an honest build say which build it is.",
+            "name": "oo-shacl-x86_64-unknown-linux-gnu",
+            "self_sha256": "f965878d06c1a0ea9c80bb36b668dd02f0aec5ab4ccccb1474975af18de799da",
+            "toolchain": "4.33.1"
+          },
+          "conforms": false,
+          "data_triples": 2,
+          "ignored": [
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:e5e76b98f6de7b4bdb3536c81c1ab4e9"
+            }
+          ],
+          "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
+          "results": [
+            {
+              "focus": "<urn:onto:r>",
+              "path": "<urn:onto:marker>",
+              "sourceConstraintComponent": "<http://www.w3.org/ns/shacl#HasValueConstraintComponent>",
+              "sourceShape": "_:e5e76b98f6de7b4bdb3536c81c1ab4e9",
+              "value": null
+            }
+          ],
+          "shapes": 1,
+          "status": "verdict",
+          "theorem": "Shacl.validate_spec"
+        },
+        "theorem": "Shacl.validate_spec",
+        "verified": true
+      },
+      "pass_": true,
+      "dataset_sha256": "d1124b6f0081ae007e159270fff928a3acaac87e7c2981838a7ecc91991acc84",
+      "shape_sha256": "4b8172737b72f944399dcdef9f415806e4821f7a31ee0d117e376807d311db5c",
+      "ttl": "@prefix o: <urn:onto:> .\no:r a o:GuideRecord; o:marker \"one\" ."
+    },
+    {
+      "dataset": "guide-v2",
+      "version": "v2",
+      "expected": true,
+      "actual": {
+        "conforms": true,
+        "covers": "SHACL Core under Shacl/Spec.lean. sh:sparql and user-defined constraint components are REFUSED by this evaluator rather than skipped, so a verdict here is about every constraint it read.",
+        "does_not_cover": "that Shacl/Spec.lean is the W3C Recommendation; it is a reading of it, measured against the Working Group's suite. Nor that the shapes compiler or the N-Triples parser is correct: both are outside the theorem and refuse rather than guess.",
+        "report": {
+          "checker": {
+            "means": "the digest of the FILE this process is running from, read at run time. Match it against the SHASUMS.txt of the release you expected. It does not make this binary honest: a hostile one can print any block it likes. It lets an honest build say which build it is.",
+            "name": "oo-shacl-x86_64-unknown-linux-gnu",
+            "self_sha256": "f965878d06c1a0ea9c80bb36b668dd02f0aec5ab4ccccb1474975af18de799da",
+            "toolchain": "4.33.1"
+          },
+          "conforms": true,
+          "data_triples": 2,
+          "ignored": [
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:d7d143d8b8575e02e485f7ec43d36996"
+            }
+          ],
+          "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
+          "results": [],
+          "shapes": 1,
+          "status": "verdict",
+          "theorem": "Shacl.validate_spec"
+        },
+        "theorem": "Shacl.validate_spec",
+        "verified": true
+      },
+      "pass_": true,
+      "dataset_sha256": "4c043a4567d88cb8120c539ef98980affa5de1306cbd12b4963f782decf1b87d",
+      "shape_sha256": "4b8172737b72f944399dcdef9f415806e4821f7a31ee0d117e376807d311db5c",
+      "ttl": "@prefix o: <urn:onto:> .\no:r a o:GuideRecord; o:marker \"two\" ."
+    },
+    {
+      "dataset": "E12-blank-file",
+      "version": "before-fix",
+      "expected": true,
+      "actual": {
+        "conforms": true,
+        "covers": "SHACL Core under Shacl/Spec.lean. sh:sparql and user-defined constraint components are REFUSED by this evaluator rather than skipped, so a verdict here is about every constraint it read.",
+        "does_not_cover": "that Shacl/Spec.lean is the W3C Recommendation; it is a reading of it, measured against the Working Group's suite. Nor that the shapes compiler or the N-Triples parser is correct: both are outside the theorem and refuse rather than guess.",
+        "report": {
+          "checker": {
+            "means": "the digest of the FILE this process is running from, read at run time. Match it against the SHASUMS.txt of the release you expected. It does not make this binary honest: a hostile one can print any block it likes. It lets an honest build say which build it is.",
+            "name": "oo-shacl-x86_64-unknown-linux-gnu",
+            "self_sha256": "f965878d06c1a0ea9c80bb36b668dd02f0aec5ab4ccccb1474975af18de799da",
+            "toolchain": "4.33.1"
+          },
+          "conforms": true,
+          "data_triples": 6,
+          "ignored": [
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:cb7ed7074a7b680ee4f7bcc8fb21b57e"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:ec3807cd4c2be2460e664eb6983e58"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:a58c593fba523c67ad77fdd6245bb57f"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:cdca3fa21e6f92879ab21afe9ecf5c12"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:f42f7960bc3a230eaa69e29b03937862"
+            }
+          ],
+          "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
+          "results": [],
+          "shapes": 1,
+          "status": "verdict",
+          "theorem": "Shacl.validate_spec"
+        },
+        "theorem": "Shacl.validate_spec",
+        "verified": true
+      },
+      "pass_": true,
+      "dataset_sha256": "d33efd78cd3cb302b82ebc9deca0bff9774e5297af7224a8aa18a53c073d1b4f",
+      "shape_sha256": "7f1373d54fa170e52aaba6dc607cb78db14e8fdc22b37381f1d42ddf326f0675"
+    },
+    {
+      "dataset": "E12-wrong-attribution",
+      "version": "before-fix",
+      "expected": true,
+      "actual": {
+        "conforms": true,
+        "covers": "SHACL Core under Shacl/Spec.lean. sh:sparql and user-defined constraint components are REFUSED by this evaluator rather than skipped, so a verdict here is about every constraint it read.",
+        "does_not_cover": "that Shacl/Spec.lean is the W3C Recommendation; it is a reading of it, measured against the Working Group's suite. Nor that the shapes compiler or the N-Triples parser is correct: both are outside the theorem and refuse rather than guess.",
+        "report": {
+          "checker": {
+            "means": "the digest of the FILE this process is running from, read at run time. Match it against the SHASUMS.txt of the release you expected. It does not make this binary honest: a hostile one can print any block it likes. It lets an honest build say which build it is.",
+            "name": "oo-shacl-x86_64-unknown-linux-gnu",
+            "self_sha256": "f965878d06c1a0ea9c80bb36b668dd02f0aec5ab4ccccb1474975af18de799da",
+            "toolchain": "4.33.1"
+          },
+          "conforms": true,
+          "data_triples": 6,
+          "ignored": [
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:fc78f9aa06ea66a5a7c0a42ae97de9e"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:f4e39366d7d62eb03c622a1106acb045"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:a71181b771b81f95df8f238bd669a7ea"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:e5baf40a2bb5efcc956d73ab2e9c4d15"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:a3f3f46b8dec84e063c7c778d50a7a62"
+            }
+          ],
+          "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
+          "results": [],
+          "shapes": 1,
+          "status": "verdict",
+          "theorem": "Shacl.validate_spec"
+        },
+        "theorem": "Shacl.validate_spec",
+        "verified": true
+      },
+      "pass_": true,
+      "dataset_sha256": "2f5d593b7e7dc6bf8ab8c38107cdefb9b0c44b2d0c47bc5f4d84849d7deba765",
+      "shape_sha256": "7f1373d54fa170e52aaba6dc607cb78db14e8fdc22b37381f1d42ddf326f0675"
+    },
+    {
+      "dataset": "E13-missing-indicatorCode",
+      "version": "before-fix",
+      "expected": true,
+      "actual": {
+        "conforms": true,
+        "covers": "SHACL Core under Shacl/Spec.lean. sh:sparql and user-defined constraint components are REFUSED by this evaluator rather than skipped, so a verdict here is about every constraint it read.",
+        "does_not_cover": "that Shacl/Spec.lean is the W3C Recommendation; it is a reading of it, measured against the Working Group's suite. Nor that the shapes compiler or the N-Triples parser is correct: both are outside the theorem and refuse rather than guess.",
+        "report": {
+          "checker": {
+            "means": "the digest of the FILE this process is running from, read at run time. Match it against the SHASUMS.txt of the release you expected. It does not make this binary honest: a hostile one can print any block it likes. It lets an honest build say which build it is.",
+            "name": "oo-shacl-x86_64-unknown-linux-gnu",
+            "self_sha256": "f965878d06c1a0ea9c80bb36b668dd02f0aec5ab4ccccb1474975af18de799da",
+            "toolchain": "4.33.1"
+          },
+          "conforms": true,
+          "data_triples": 9,
+          "ignored": [
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:f14aea3c4c0dbcfdbee7d97882a8e6e3"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:b81df91ace0565b10f8dd389b198309e"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:beaca0eb9f1bd2060fdd0b5f2b36d8d1"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:ff983ad2f622c2b36cf4b11b34b9db2c"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:e24fa99526f378169be42ba5f872a6b9"
+            }
+          ],
+          "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
+          "results": [],
+          "shapes": 1,
+          "status": "verdict",
+          "theorem": "Shacl.validate_spec"
+        },
+        "theorem": "Shacl.validate_spec",
+        "verified": true
+      },
+      "pass_": true,
+      "dataset_sha256": "be211005169d0d7982fb3cd36ecf01d719576afcf56ebd4d4d666656d1edc99f",
+      "shape_sha256": "4ff2b71f9d49dc4a3118e13759e7ca00454c5a4c0f59f6aa95103af477c687cf"
+    },
+    {
+      "dataset": "E4-blank-author",
+      "version": "before-fix",
+      "expected": true,
+      "actual": {
+        "conforms": true,
+        "covers": "SHACL Core under Shacl/Spec.lean. sh:sparql and user-defined constraint components are REFUSED by this evaluator rather than skipped, so a verdict here is about every constraint it read.",
+        "does_not_cover": "that Shacl/Spec.lean is the W3C Recommendation; it is a reading of it, measured against the Working Group's suite. Nor that the shapes compiler or the N-Triples parser is correct: both are outside the theorem and refuse rather than guess.",
+        "report": {
+          "checker": {
+            "means": "the digest of the FILE this process is running from, read at run time. Match it against the SHASUMS.txt of the release you expected. It does not make this binary honest: a hostile one can print any block it likes. It lets an honest build say which build it is.",
+            "name": "oo-shacl-x86_64-unknown-linux-gnu",
+            "self_sha256": "f965878d06c1a0ea9c80bb36b668dd02f0aec5ab4ccccb1474975af18de799da",
+            "toolchain": "4.33.1"
+          },
+          "conforms": true,
+          "data_triples": 21,
+          "ignored": [
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:c2c4ed796fc51b8aa071a8c874e45e67"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:bf9bf9c0d72c85a65419e9ddfdc2d2e6"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:e06a4905abb9c1e33c626fb1f4b81226"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:c4cde3b69521ad94bde46ecb3789f7ef"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:f4f621b338a608cf050fb29fe4e87834"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:e5e215f6655acc4625f2475b7ddf33de"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:d7f4d2648914c14cb5097e61659b72f9"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:f1c77c9812b9cb657d7021fa95d11e77"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:c71ecae97a9a6dbaea53ccdfb20f371b"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:a086146363bdfeb7662561d414b5acf8"
+            },
+            {
+              "predicate": "<http://www.w3.org/ns/shacl#message>",
+              "subject": "_:ce260665287b8a8808a422998852b77f"
+            }
+          ],
+          "ignored_means": "these SHACL predicates are present in the shapes graph and had NO effect on the verdict or on any field of any result. sh:severity and sh:message are the two that carry meaning to a reader: a shapes graph marking a constraint sh:Warning produces the same verdict here as one marking it sh:Violation, and sh:resultSeverity is never emitted. Shacl.validate_spec is about conformance and says NOTHING about either of them. Listed rather than dropped in silence, because the rest of this compiler refuses what it cannot do and this was the one place it discarded instead.",
+          "results": [],
+          "shapes": 1,
+          "status": "verdict",
+          "theorem": "Shacl.validate_spec"
+        },
+        "theorem": "Shacl.validate_spec",
+        "verified": true
+      },
+      "pass_": true,
+      "dataset_sha256": "a7aa3f62d11b0217d3e974e30ea479bc7aa6404c035398fdd0495bb186b66617",
+      "shape_sha256": "cd32f33486339d2b677e49f80ef4e61f05f7baab425ca3a7c2ab5fbaa472c99c"
+    }
+  ],
+  "temporary_files_deleted": true,
+  "no_source_rule_or_changelog_changed": true
+}

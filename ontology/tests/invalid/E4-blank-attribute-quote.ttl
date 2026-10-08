@@ -1,0 +1,8 @@
+@prefix ex: <urn:onto:> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+ex:p a ex:Persona; ex:identityMode "author-ids"; ex:platform "synthetic-platform"; ex:author "a", "b", "c", "d", "e"; ex:aiLabel "Chân dung do AI tổng hợp từ lời khách thật, không phải một khách hàng có thật"; ex:card ex:c1, ex:c2, ex:c3; ex:attribute ex:attr .
+ex:c1 ex:quote "Synthetic quote c1"; ex:locator "synthetic:c1" .
+ex:c2 ex:quote "Synthetic quote c2"; ex:locator "synthetic:c2" .
+ex:c3 ex:quote "Synthetic quote c3"; ex:locator "synthetic:c3" .
+ex:attr ex:quote "   "; ex:locator "synthetic:attr" .
