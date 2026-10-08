@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import {
   buildResearchAutomationSourceStatus,
+  futureCollectorState,
   SERPAPI_KNOWN_OPERATIONS,
   SOURCE_BOARD_ORDER,
   SOURCE_REGISTRY,
@@ -133,6 +134,28 @@ test('TikTok cap is exposed exactly as configured and never defaulted', () => {
   })));
   assert.equal(shopee('APIFY_SHOPEE').state, 'NOT_CONFIGURED');
   assert.equal(shopee('APIFY_SHOPEE').spendCapUsd, null);
+});
+
+test('future collector readiness never fabricates wiring or manual import for API collectors', () => {
+  // Unbuilt stays NOT_BUILT no matter what evidence is present.
+  for (const kind of ['MANUAL_UPLOAD', 'PAID_API', 'FREE_COLLECT'] as const) {
+    assert.equal(futureCollectorState({ built: false, kind, credentialPresent: true, capUsable: true }), 'NOT_BUILT');
+  }
+  // Upload arrivals become manual import once built; collectors never do.
+  assert.equal(futureCollectorState({ built: true, kind: 'MANUAL_UPLOAD', credentialPresent: false, capUsable: false }), 'MANUAL_IMPORT');
+  // Paid API collectors: credential and cap evidence, never READY or MANUAL_IMPORT.
+  assert.equal(futureCollectorState({ built: true, kind: 'PAID_API', credentialPresent: false, capUsable: false }), 'NOT_CONFIGURED');
+  assert.equal(futureCollectorState({ built: true, kind: 'PAID_API', credentialPresent: true, capUsable: false }), 'NOT_CONFIGURED');
+  assert.equal(futureCollectorState({ built: true, kind: 'PAID_API', credentialPresent: true, capUsable: true }), 'CONFIGURED_NOT_WIRED');
+  // Free collectors: same ladder without a cap.
+  assert.equal(futureCollectorState({ built: true, kind: 'FREE_COLLECT', credentialPresent: false, capUsable: false }), 'NOT_CONFIGURED');
+  assert.equal(futureCollectorState({ built: true, kind: 'FREE_COLLECT', credentialPresent: true, capUsable: false }), 'CONFIGURED_NOT_WIRED');
+  // TikTok comments are a paid API arrival: flipping built must not invent a manual-upload capability.
+  assert.equal(SOURCE_REGISTRY.APIFY_TIKTOK_COMMENTS.arrival, 'PAID_API');
+  assert.notEqual(futureCollectorState({ built: true, kind: SOURCE_REGISTRY.APIFY_TIKTOK_COMMENTS.arrival,
+    credentialPresent: true, capUsable: true }), 'MANUAL_IMPORT');
+  assert.notEqual(futureCollectorState({ built: true, kind: SOURCE_REGISTRY.APIFY_TIKTOK_COMMENTS.arrival,
+    credentialPresent: true, capUsable: true }), 'READY');
 });
 
 test('SerpApi operations list known rows with observed counts and pass unknown operations through', () => {

@@ -26,6 +26,24 @@ export type SourceBoardId = ResearchAutomationSourceStatusEntry['source'];
 export type SourceRegistryTier = 'A' | 'B' | 'C' | 'D';
 export type SourceRegistryGroup = 'SALES_MARKET' | 'CUSTOMER_VOICE' | 'SELLER_VOICE' | 'MACRO' | 'DOCUMENTS';
 
+/** How data can arrive once the collector exists. Determines the honest built-but-unwired state. */
+export type FutureCollectorKind = 'MANUAL_UPLOAD' | 'PAID_API' | 'FREE_COLLECT';
+
+/**
+ * Readiness of a future collector WITHOUT running any integration. Flipping
+ * `built` to true never yields READY or run wiring: uploads read MANUAL_IMPORT,
+ * collectors read NOT_CONFIGURED until credential/cap evidence exists, then
+ * CONFIGURED_NOT_WIRED. Wiring into runs belongs to the owning package.
+ */
+export function futureCollectorState(input: { readonly built: boolean; readonly kind: FutureCollectorKind;
+  readonly credentialPresent: boolean; readonly capUsable: boolean },
+): 'NOT_BUILT' | 'MANUAL_IMPORT' | 'NOT_CONFIGURED' | 'CONFIGURED_NOT_WIRED' {
+  if (!input.built) return 'NOT_BUILT';
+  if (input.kind === 'MANUAL_UPLOAD') return 'MANUAL_IMPORT';
+  if (input.kind === 'PAID_API') return input.credentialPresent && input.capUsable ? 'CONFIGURED_NOT_WIRED' : 'NOT_CONFIGURED';
+  return input.credentialPresent ? 'CONFIGURED_NOT_WIRED' : 'NOT_CONFIGURED';
+}
+
 /** Generated-contract tuple shapes, shared so the builder cannot drift from the schema. */
 export type SourceBoardRegistryIds = NonNullable<ResearchAutomationSourceStatusEntry['registryIds']>;
 export type SourceBoardOperations = NonNullable<ResearchAutomationSourceStatusEntry['operations']>;
@@ -44,6 +62,8 @@ export interface SourceRegistryCard {
   readonly group: SourceRegistryGroup;
   readonly reportName: string;
   readonly paid: boolean;
+  /** Arrival kind for the built-but-unwired readiness mapping. */
+  readonly arrival: FutureCollectorKind;
   /** Owning package that flips the card from NOT_BUILT; null once built. */
   readonly pendingPackage: string | null;
   /** True when the collecting/retaining module is present on this build. Drives the NOT_BUILT transition. */
@@ -57,28 +77,28 @@ export interface SourceRegistryCard {
  */
 export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
   METRIC: { registryIds: ['S01', 'S04'], tier: null, tierDetail: 'S01: C; S04: B', group: 'SALES_MARKET',
-    reportName: 'dữ liệu bán hàng ước tính trên sàn; trang bán của người bán', paid: false, pendingPackage: null, built: true },
+    reportName: 'dữ liệu bán hàng ước tính trên sàn; trang bán của người bán', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   KALODATA: { registryIds: ['S02'], tier: 'C', tierDetail: null, group: 'SALES_MARKET',
-    reportName: 'dữ liệu video bán hàng (ước tính)', paid: true, pendingPackage: null, built: true },
+    reportName: 'dữ liệu video bán hàng (ước tính)', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   KALODATA_VIDEO_FILE: { registryIds: ['S02'], tier: 'C', tierDetail: null, group: 'SALES_MARKET',
-    reportName: 'dữ liệu video bán hàng (ước tính)', paid: false, pendingPackage: null, built: true },
+    reportName: 'dữ liệu video bán hàng (ước tính)', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   APIFY_SHOPEE: { registryIds: ['S05'], tier: 'B', tierDetail: null, group: 'CUSTOMER_VOICE',
-    reportName: 'review công khai trên Shopee', paid: true, pendingPackage: null, built: true },
+    reportName: 'review công khai trên Shopee', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   APIFY_TIKTOK_COMMENTS: { registryIds: ['S07'], tier: 'B', tierDetail: null, group: 'CUSTOMER_VOICE',
-    reportName: 'bình luận công khai dưới video', paid: true, pendingPackage: 'P9', built: false },
+    reportName: 'bình luận công khai dưới video', paid: true, pendingPackage: 'P9', built: false, arrival: 'PAID_API' },
   VIDEO_READING: { registryIds: ['S14'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
-    reportName: 'nội dung video của người bán', paid: false, pendingPackage: 'P9', built: false },
+    reportName: 'nội dung video của người bán', paid: false, pendingPackage: 'P9', built: false, arrival: 'MANUAL_UPLOAD' },
   META_AD_LIBRARY: { registryIds: ['S15'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
-    reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: 'U-23', built: false },
+    reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: 'U-23', built: false, arrival: 'FREE_COLLECT' },
   SERPAPI: { registryIds: ['S19', 'S13', 'S26', 'S20'], tier: null, tierDetail: 'S19: theo trang gốc; S13: C; S26: C; S20: B',
     group: 'SALES_MARKET', reportName: 'kết quả tìm kiếm Google; mức quan tâm tìm kiếm trên Google',
-    paid: true, pendingPackage: null, built: true },
+    paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
   OFFICIAL_STATS: { registryIds: ['S21'], tier: 'A', tierDetail: null, group: 'MACRO',
-    reportName: 'Cục Thống kê (nso.gov.vn)', paid: false, pendingPackage: 'P10', built: false },
+    reportName: 'Cục Thống kê (nso.gov.vn)', paid: false, pendingPackage: 'P10', built: false, arrival: 'MANUAL_UPLOAD' },
   WORLD_BANK: { registryIds: ['S23'], tier: 'A', tierDetail: null, group: 'MACRO',
-    reportName: 'Ngân hàng Thế giới (World Bank Open Data)', paid: false, pendingPackage: 'P10', built: false },
+    reportName: 'Ngân hàng Thế giới (World Bank Open Data)', paid: false, pendingPackage: 'P10', built: false, arrival: 'FREE_COLLECT' },
   PAGEINDEX: { registryIds: ['S22', 'S25'], tier: null, tierDetail: 'S22: A; S25: B/C', group: 'DOCUMENTS',
-    reportName: 'Cục Thống kê (nso.gov.vn); báo cáo đã công bố của nhà xuất bản', paid: true, pendingPackage: null, built: true },
+    reportName: 'Cục Thống kê (nso.gov.vn); báo cáo đã công bố của nhà xuất bản', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
 };
 
 /** Card order follows Plan B1. */
@@ -130,14 +150,18 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     credential: credentialPresent ? 'CONFIGURED' : 'MISSING',
     wiredIntoRuns: wired, paid: true, ...input.activity[key], ...meta(source), spendCapUsd, operations,
   });
-  /** Placeholder for a source whose collector is owned by a future package. Never pretends it is built. */
+  /** Placeholder for a source whose collector is owned by a future package. Never pretends it is built or wired. */
   const notBuilt = (source: SourceBoardId, key: ResearchAutomationSourceActivityKey, credential: 'MISSING' | 'NOT_REQUIRED' | 'CONFIGURED',
-    spendCapUsd: number | null): ResearchAutomationSourceStatusEntry => ({
-    source,
-    state: cardState(source, 'MANUAL_IMPORT'),
-    credential, wiredIntoRuns: false, paid: SOURCE_REGISTRY[source].paid, ...input.activity[key],
-    ...meta(source), spendCapUsd, operations: null,
-  });
+    spendCapUsd: number | null): ResearchAutomationSourceStatusEntry => {
+    const card = SOURCE_REGISTRY[source];
+    return {
+      source,
+      state: !input.executorEnabled ? 'EXECUTOR_DISABLED' : futureCollectorState({ built: card.built, kind: card.arrival,
+        credentialPresent: credential === 'CONFIGURED', capUsable: spendCapUsd !== null }),
+      credential, wiredIntoRuns: false, paid: card.paid, ...input.activity[key],
+      ...meta(source), spendCapUsd, operations: null,
+    };
+  };
   const apifyToken = Boolean(providers?.apifyTokenConfigured || providers?.apifyReviews);
   const pageindex = input.pageindex;
   const pageindexUsable = Boolean(pageindex?.keyConfigured && pageindex?.enabled);

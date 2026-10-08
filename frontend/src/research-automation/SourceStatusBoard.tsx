@@ -92,6 +92,13 @@ export function formatMicroDollars(value: number | null): string {
   return `${sign}$${Math.floor(abs / 1_000_000)}.${String(Math.floor((abs % 1_000_000) / 10_000)).padStart(2, '0')}`;
 }
 
+/** Workspace PDF history: null means the ledger is unavailable (unknown), never zero. */
+export function pageIndexWorkspaceCopy(dataCount: number | null): string {
+  if (dataCount === null) return 'Chưa rõ số PDF trong workspace này';
+  if (dataCount > 0) return `${dataCount} PDF trong workspace này`;
+  return 'Chưa có PDF nào trong workspace này';
+}
+
 /** Configured USD cap, e.g. 3 -> $3. Null stays unconfigured, never defaulted. */
 export function formatCapUsd(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value) || value <= 0) return 'Chưa cấu hình';
@@ -168,7 +175,7 @@ export default function SourceStatusBoard({ mode, workspaceId, ownerToken = null
                     {tier ? <><dt>Hạng</dt><dd>{entry.tier ?? ''}{entry.tier && entry.tierDetail ? ` (${entry.tierDetail})` : entry.tierDetail ?? ''}</dd></> : null}
                     {entry.reportName ? <><dt>Tên trong báo cáo</dt><dd>{entry.reportName}</dd></> : null}
                     <dt>Dữ liệu</dt><dd>{entry.source === 'PAGEINDEX'
-                      ? (entry.dataCount ? `${entry.dataCount} PDF trong workspace này` : 'Chưa có PDF nào trong workspace này')
+                      ? pageIndexWorkspaceCopy(entry.dataCount)
                       : (entry.dataCount === null ? 'Chưa rõ' : entry.dataCount ? `${entry.dataCount} ${copy.unit} · gần nhất ${entry.lastDataAt ? formatTime(entry.lastDataAt) : '-'}` : 'Chưa có trong workspace')}</dd>
                     {entry.paid && <><dt>Gọi gần nhất</dt><dd>{entry.lastUsageAt ? formatTime(entry.lastUsageAt) : 'Chưa gọi'}</dd></>}
                     {entry.source === 'SERPAPI' && (entry.operations ?? []).map(operation => {
