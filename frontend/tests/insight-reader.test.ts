@@ -134,3 +134,49 @@ test('changing runs clears source selections and ignores an old in-flight build 
     assert.doesNotMatch(dom.container.textContent!, /Đã dựng bản đọc insight lần/); assert.equal(writes, 1);
   } finally { await act(async () => root.unmount()); globalThis.fetch = original; dom.cleanup(); }
 });
+
+test('an uncertain Insight build retries the exact body; only a verified success retires its key for a deliberate rebuild', async () => {
+  const dom = setupDom(), original = globalThis.fetch;
+  const { createRoot } = await import('react-dom/client');
+  const { default: Panel } = await tsImport('../src/research-automation/ReaderReportPanel.tsx', { parentURL: import.meta.url, tsconfig: 'frontend/tsconfig.json' }) as typeof import('../src/research-automation/ReaderReportPanel');
+  const root = createRoot(dom.container), bodies: Record<string, unknown>[] = [];
+  let rows: ResearchAutomationReaderRevisionV2[] = [], nextNumber = 0;
+  globalThis.fetch = (async (url, init) => {
+    if (!init?.method) {
+      if (String(url).endsWith('report-versions')) return json({ contractVersion: 'automation-report-version-list-v1', workspaceId, runId,
+        versions: [{ pairId: revision.draftPairId, versionNumber: 1, attemptId: null, outputs: [{ kind: 'INSIGHT', versionId: revision.semanticSha256, pdfAvailable: false }] }] });
+      return json(list(rows));
+    }
+    const body = JSON.parse(String(init.body));
+    if (String(url).endsWith('/insight')) {
+      bodies.push(body);
+      if (bodies.length === 1) { rows = [revision]; nextNumber = 1; throw new TypeError('Synthetic lost response after durable server success'); }
+      if (bodies.length === 2) return json({ contractVersion: 'reader-report-build-receipt-v2', exactRetry: true,
+        revision: { ...revision, semanticSha256: '0'.repeat(64) } }); // A malformed receipt cannot retire the uncertain key.
+      if (bodies.length === 3) return json({ contractVersion: 'reader-report-build-receipt-v2', exactRetry: true, revision });
+      nextNumber++;
+      const next = { ...revision, revisionId: '77777777-7777-4777-8777-777777777777', revisionNumber: nextNumber };
+      rows = [...rows, next]; return json({ contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: next }, 201);
+    }
+    rows = [{ ...revision, state: 'REJECTED', decision: { decision: 'REJECTED', reason: null, decidedAt: revision.createdAt } }];
+    return json({ contractVersion: 'reader-report-decision-receipt-v2', exactRetry: false, revision: rows[0] }, 201);
+  }) as typeof fetch;
+  const run = { workspaceId, runId, reports: ['INSIGHT'], status: 'DRAFT_READY' } as ResearchAutomationRun;
+  const button = (name: string) => [...document.querySelectorAll<HTMLButtonElement>('button')].find(item => item.textContent === name)!;
+  try {
+    await act(async () => root.render(createElement(Panel, { run, ownerToken: token, writesAvailable: true })));
+    const source = document.querySelectorAll<HTMLSelectElement>('select')[1]!;
+    await act(async () => { source.value = revision.draftPairId; source.dispatchEvent(new Event('change', { bubbles: true })); });
+    await act(async () => button('Dựng bản đọc insight').click());
+    assert.equal(bodies.length, 1); assert.doesNotMatch(dom.container.textContent!, /Đã dựng bản đọc insight lần/);
+    await act(async () => button('Dựng bản đọc insight').click());
+    assert.deepEqual(bodies[1], bodies[0]); assert.doesNotMatch(dom.container.textContent!, /Đã dựng bản đọc insight lần/);
+    await act(async () => button('Dựng bản đọc insight').click());
+    assert.deepEqual(bodies[2], bodies[0]); assert.match(dom.container.textContent!, /Đã dựng bản đọc insight lần 1/);
+    await act(async () => button('Từ chối').click());
+    await act(async () => [...document.querySelectorAll<HTMLButtonElement>('[role=dialog] button')].find(item => item.textContent === 'Từ chối')!.click());
+    await act(async () => button('Dựng bản đọc insight').click());
+    assert.equal(bodies.length, 4); assert.notEqual(bodies[3]!.requestKey, bodies[0]!.requestKey); assert.equal(nextNumber, 2);
+    assert.match(dom.container.textContent!, /Đã dựng bản đọc insight lần 2/);
+  } finally { await act(async () => root.unmount()); globalThis.fetch = original; dom.cleanup(); }
+});

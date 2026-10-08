@@ -99,6 +99,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
       const receipt = await buildInsightReader(run.workspaceId, run.runId, { contractVersion: 'insight-reader-build-v1', reportKind: 'INSIGHT',
         requestKey, draftPairId: selectedPair.pairId, semanticSha256: insightSource.versionId }, ownerToken);
       if (!mounted.current) return;
+      requestKeys.current.delete(identity);
       setNotice(`Đã dựng bản đọc insight lần ${receipt.revision.revisionNumber}. Trạng thái: ${STATE_LABEL[receipt.revision.state]}.`); reload();
     } catch (failure) { if (mounted.current) setSourceError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa dựng được bản đọc insight. Thử lại với cùng phiên bản nguồn.'); }
     finally { if (mounted.current) setPending(false); }

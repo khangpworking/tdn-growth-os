@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { randomUUID, createHash } from 'node:crypto';
 import http from 'node:http';
+import fs from 'node:fs/promises';
+import path from 'node:path';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
@@ -56,6 +58,26 @@ for (const default21 of [false, true]) test(`authenticated OWNER Insight${defaul
   assert.ok(record.input.retainedMethods.some((method: { kind: string }) => method.kind === 'LITERAL'));
   assert.deepEqual((await (await fetch(root())).json()).revisions, [], 'list-v1 stays Market-only');
   assert.equal((await post('insight', request)).status, 200);
+  // The saved reader envelope and HTML both authenticate on GET and exact
+  // retries. Damage only task-owned fixture files and restore their exact bytes.
+  for (const artifactSha of [row.input_sha256, built.revision.htmlSha256]) {
+    const retainedPath = path.join(f.artifactRoot, 'sha256', artifactSha.slice(0, 2), artifactSha);
+    const saved = await fs.readFile(retainedPath);
+    const state = () => ({ revisions: f.db.prepare('SELECT * FROM analysis_reader_report_revisions').all(),
+      manifests: f.db.prepare('SELECT * FROM artifact_manifests ORDER BY sha256').all(),
+      decisions: f.db.prepare('SELECT * FROM analysis_reader_report_decisions').all() });
+    const priorState = state(), priorCalls = f.calls(), priorModels = f.modelCalls();
+    try {
+      await fs.writeFile(retainedPath, 'synthetic damaged reader artifact');
+      assert.equal((await getPage(built.revision.revisionId)).status, 500);
+      assert.equal((await post('insight', request)).status, 500);
+      assert.deepEqual(state(), priorState); assert.equal(f.calls(), priorCalls); assert.equal(f.modelCalls(), priorModels);
+      const conflicting = { ...request, draftPairId: f.literalPair.pairId, semanticSha256: f.literalReport.versionId };
+      if (default21) assert.equal((await post('insight', conflicting)).status, 409, 'request conflict precedes retained-artifact read');
+    } finally { await fs.writeFile(retainedPath, saved); }
+    assert.deepEqual(new Uint8Array(await (await getPage(built.revision.revisionId)).arrayBuffer()), bytes);
+    assert.equal((await post('insight', request)).status, 200);
+  }
   const secondResponse = await post('insight', { ...request, requestKey: randomUUID() });
   assert.equal(secondResponse.status, 201, await secondResponse.clone().text());
   const second = await secondResponse.json() as ResearchAutomationReaderBuildReceiptV2;

@@ -297,10 +297,11 @@ export class AutomationReaderReports {
         context.page.keyword !== input.scope.keyword || context.page.definition !== input.scope.definition || canonicalJson(context.page.period) !== canonicalJson(input.scope.requestedPeriod))
       throw new ResearchAutomationIntegrityError('Insight reader context differs from its exact frozen binding.');
     const requestSha = sha(canonicalJson(request));
-    const retry = (row: RevisionRow): ResearchAutomationReaderBuildReceiptV2 => {
+    const retry = async (row: RevisionRow): Promise<ResearchAutomationReaderBuildReceiptV2> => {
       if (row.report_kind !== 'INSIGHT' || row.workspace_id !== context.workspaceId || row.run_id !== context.runId || row.draft_pair_id !== input.draftPairId ||
           row.semantic_sha256 !== input.semanticSha256 || row.source_report_sha256 !== input.sourceReportSha256 || row.actor_id !== actor.actorId || row.request_sha256 !== requestSha)
         throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một lần dựng khác.');
+      await this.#verifiedInsightPage(row, input);
       return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: true, revision: this.#projectV2(row) };
     };
     const prior = this.#byRequestKey(request.requestKey); if (prior) return retry(prior);
@@ -422,6 +423,7 @@ export class AutomationReaderReports {
   async html(binding: ReaderBinding, revisionId: string): Promise<{ revision: ResearchAutomationReaderRevision | ResearchAutomationReaderRevisionV2; bytes: Buffer }> {
     const row = this.#byId(binding.runId, revisionId);
     if (!row || row.workspace_id !== binding.workspaceId) throw new ResearchAutomationNotFoundError('reader_report_not_found', 'Không tìm thấy bản đọc.');
+    if (row.report_kind === 'INSIGHT') return { revision: this.#projectV2(row), bytes: await this.#verifiedInsightPage(row) };
     const manifest = this.db.prepare('SELECT byte_size,media_type,relative_path,contract_version,retention_status FROM artifact_manifests WHERE sha256=?')
       .get(row.html_sha256) as { byte_size: number | bigint; media_type: string; relative_path: string; contract_version: string; retention_status: string } | undefined;
     if (!manifest || manifest.media_type !== 'text/html; charset=utf-8' || manifest.contract_version !== '1.0.0' || manifest.retention_status !== 'active' ||
@@ -431,6 +433,43 @@ export class AutomationReaderReports {
     if (BigInt(bytes.byteLength) !== BigInt(manifest.byte_size) || sha(bytes) !== row.html_sha256)
       throw new ResearchAutomationIntegrityError('Reader page failed verification.');
     return { revision: row.report_kind === 'MARKET' ? this.#project(row) : this.#projectV2(row), bytes };
+  }
+
+  /** Insight reads/retries authenticate only their frozen retained record and
+   * HTML. Never replay upstream, render again, calculate or write a manifest. */
+  async #verifiedInsightPage(row: RevisionRow, expected?: InsightReaderInput): Promise<Buffer> {
+    const bytes = await this.#verifiedInsightArtifact(row.input_sha256, 'application/json');
+    let record: Record<string, unknown>, input: InsightReaderInput;
+    try {
+      const parsed: unknown = JSON.parse(bytes.toString('utf8'));
+      if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed) || !bytes.equals(json(parsed)))
+        throw new Error('Invalid canonical record');
+      record = parsed as Record<string, unknown>;
+      const keys = ['contractVersion', 'input', 'revisionId', 'requestSha256', 'htmlSha256', 'citationTrace', 'actorId', 'createdAt'];
+      if (Object.keys(record).length !== keys.length || keys.some(key => !Object.hasOwn(record, key)))
+        throw new Error('Invalid record fields');
+      // The immutable ledger/CAS authenticates the frozen input on GET. On a
+      // retry the owning service additionally supplies its replayed exact input.
+      input = verifyInsightReaderInput(record.input, expected ?? record.input as InsightReaderInput);
+    } catch { throw new ResearchAutomationIntegrityError('Stored Insight reader build record failed verification.'); }
+    if (row.report_kind !== 'INSIGHT' || record.contractVersion !== 'insight-reader-build-record-v1' ||
+        record.revisionId !== row.revision_id || record.requestSha256 !== row.request_sha256 || record.actorId !== row.actor_id ||
+        record.createdAt !== row.created_at || record.htmlSha256 !== row.html_sha256 || input.reportKind !== row.report_kind ||
+        input.workspaceId !== row.workspace_id || input.runId !== row.run_id || input.draftPairId !== row.draft_pair_id ||
+        input.semanticSha256 !== row.semantic_sha256 || input.sourceReportSha256 !== row.source_report_sha256 || input.builderVersion !== row.builder_version)
+      throw new ResearchAutomationIntegrityError('Stored Insight reader build record differs from its immutable binding.');
+    return this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
+  }
+  async #verifiedInsightArtifact(digest: string, mediaType: string): Promise<Buffer> {
+    const manifest = this.db.prepare('SELECT byte_size,media_type,relative_path,contract_version,retention_status FROM artifact_manifests WHERE sha256=?')
+      .get(digest) as { byte_size: number | bigint; media_type: string; relative_path: string; contract_version: string; retention_status: string } | undefined;
+    if (!manifest || manifest.media_type !== mediaType || manifest.contract_version !== '1.0.0' || manifest.retention_status !== 'active' ||
+        manifest.relative_path !== `sha256/${digest.slice(0, 2)}/${digest}`)
+      throw new ResearchAutomationIntegrityError('Insight reader retained artifact manifest failed verification.');
+    const bytes = await this.artifacts.read(digest, { maxBytes: MAX_READER_HTML_BYTES });
+    if (BigInt(bytes.byteLength) !== BigInt(manifest.byte_size) || sha(bytes) !== digest)
+      throw new ResearchAutomationIntegrityError('Insight reader retained artifact failed verification.');
+    return bytes;
   }
 
   #owner(actor: { actorId: string; role: 'OWNER' }): void {
