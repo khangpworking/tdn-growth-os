@@ -161,15 +161,39 @@ function vietnameseSystemText(sectionId: AutomationDecisionSectionId): string {
   ].join('\n');
 }
 
+/**
+ * U-07 + U-16: prompt 1.3.0 for M12/I15 caps candidates at three and adds the labelled proposal fields
+ * (proposedOwner, proposedDeadline, immediateTask). It also carries the U-16 no-purchase rule. M11 keeps 1.2.0 bytes
+ * plus the ban only. Vietnamese prose 1.2.0 and earlier stay byte-identical, so a retained prompt replays.
+ */
+function proposalSystemText(sectionId: AutomationDecisionSectionId): string {
+  const ban = 'Never propose, suggest or imply placing a trial order, buying a product or any other purchase action. Judge product quality only from public sources and owner-supplied data. This ban covers the candidate text and every assumption, unknown, gap, limitation, prerequisite, condition and proposal field.';
+  const capped = sectionId === 'M12' || sectionId === 'I15';
+  const proposalRule = sectionId === 'M12'
+    ? 'Give prerequisites: what would have to be established before anyone decides. You may also add proposedOwner, proposedDeadline and immediateTask, each as an explicit proposal awaiting the owner, never as an assignment, decision or authorization. Spell a deadline in words, never digits.'
+    : 'You may also add proposedOwner and proposedDeadline to each option, each as an explicit proposal awaiting the owner, never as a decision. Spell a deadline in words, never digits.';
+  const lines = vietnameseSystemText(sectionId).split('\n')
+    .filter(line => !(sectionId === 'M12' && line.startsWith('Give prerequisites')))
+    .map(line => capped && line.startsWith('aiCandidates holds at most 20 distinct objects')
+      ? line.replace('at most 20 distinct objects', 'at most 3 distinct objects, each labelled as an AI proposal awaiting the owner')
+        .replace('and limitations (1 to 10 distinct strings).', 'limitations (1 to 10 distinct strings), proposedOwner, proposedDeadline and immediateTask (each a proposal awaiting the owner, a non-empty string of at most 1000 characters, with any deadline spelled in words).')
+      : line.startsWith('ownerInputs are unset.')
+      ? 'The owner question is unset. A working question may be shown as an AI proposal awaiting the owner; never treat that proposal as the owner question. Do not infer, complete or choose the owner question, constraints or options, and never present a candidate as an owner option, preference, choice, decision or authorization to execute.'
+      : line);
+  return [...lines, ...(capped ? [proposalRule] : []), ban].join('\n');
+}
+
 /** The frozen prompt for one section. Retaining it records what a dispatch used; it activates and approves nothing. */
-export function automationDecisionSynthesisPrompt(sectionId: AutomationDecisionSectionId, version: AutomationDecisionSynthesisPrompt['promptVersion'] = '1.0.0'): AutomationDecisionSynthesisRetainable<AutomationDecisionSynthesisPrompt> {
+export function automationDecisionSynthesisPrompt(sectionId: AutomationDecisionSectionId, version: AutomationDecisionSynthesisPrompt['promptVersion'] | '1.3.0' = '1.0.0'): AutomationDecisionSynthesisRetainable<AutomationDecisionSynthesisPrompt> {
   if (!Object.hasOwn(CANDIDATE_TYPES, sectionId)) fail('DECISION_SECTION_UNSUPPORTED');
+  const inputContractVersion = version === '1.2.0' ? '1.1.0' : version === '1.3.0' ? '1.2.0' : version;
   const prompt = {
     contractVersion: '1.0.0', methodId: 'automation-decision-synthesis-prompt', promptId: 'automation-decision-synthesis',
     promptVersion: version, sectionId, candidateTypes: [...CANDIDATE_TYPES[sectionId]],
-    inputContract: { methodId: 'automation-decision-synthesis-input', methodVersion: version === '1.2.0' ? '1.1.0' : version },
+    inputContract: { methodId: 'automation-decision-synthesis-input', methodVersion: inputContractVersion },
     responseContract: { methodId: 'automation-decision-candidates', methodVersion: '1.0.0', shape: 'JSON_OBJECT_WITH_ONLY_AI_CANDIDATES' },
-    systemText: version === '1.0.0' ? systemText(sectionId) : version === '1.1.0' ? expandedSystemText(sectionId) : vietnameseSystemText(sectionId),
+    systemText: version === '1.0.0' ? systemText(sectionId) : version === '1.1.0' ? expandedSystemText(sectionId)
+      : version === '1.2.0' ? vietnameseSystemText(sectionId) : proposalSystemText(sectionId),
   };
   if (!validatePromptSchema(prompt)) fail(`INVALID_DECISION_SYNTHESIS_PROMPT:${ajv.errorsText(validatePromptSchema.errors)}`);
   const bytes = json(prompt);
@@ -181,6 +205,11 @@ function unsetOwnerFields(packet: AutomationDecisionPacket): string[] {
   const block = ('opportunity' in packet ? packet.opportunity : 'strategy' in packet ? packet.strategy : packet.action) as Record<string, unknown>;
   return Object.entries(block).flatMap(([field, value]) => {
     if (field === 'decisionState') return value === 'OPEN' ? [] : fail('OWNER_INPUT_NOT_UNSET');
+    // U-07: the labelled AI-proposal slot is not an owner field; only its label may be non-null.
+    if (field === 'aiProposal') {
+      if (value === null || typeof value !== 'object') return fail('OWNER_INPUT_NOT_UNSET');
+      return Object.entries(value).every(([key, entry]) => key === 'label' || entry === null) ? [] : fail('OWNER_INPUT_NOT_UNSET');
+    }
     const unset = value === null || (Array.isArray(value) && value.length === 0) ||
       (typeof value === 'object' && !Array.isArray(value) && canonicalJson(value) === canonicalJson({ state: 'UNSET', text: null }));
     return unset ? [field] : fail('OWNER_INPUT_NOT_UNSET');
@@ -188,6 +217,8 @@ function unsetOwnerFields(packet: AutomationDecisionPacket): string[] {
 }
 
 const unique = (values: readonly string[]): string[] => [...new Set(values)];
+/** U-02: the same label the I01 working question uses, so both surfaces read identically. */
+const WORKING_QUESTION_LABEL = 'câu hỏi làm việc do AI đề xuất, chờ chủ duyệt';
 
 /**
  * Prepare the exact model-facing input and frozen prompt for one M11/I15/M12 packet. The packet, I14 admission and
@@ -208,7 +239,8 @@ export function prepareAutomationDecisionSynthesis(input: AutomationDecisionPack
       claims.workspaceId !== packet.workspaceId || claims.scopeSha256 !== packet.scopeSha256) fail('CLAIMS_IDENTITY_MISMATCH');
   const byId = new Map(claims.claims.map((claim) => [claim.claimId, claim]));
   const anchors = new Map(admission.anchors.map((anchor) => [anchor.claimId, anchor]));
-  const additional = packet.methodVersion === '1.1.0' ? decisionAdditionalSupport(claims.claims, admission, input.evidence) : null;
+  // 1.0.0 has no additional support; 1.1.0 and 1.2.0 both admit literal observations and contained behavior.
+  const additional = packet.methodVersion === '1.0.0' ? null : decisionAdditionalSupport(claims.claims, admission, input.evidence);
 
   const scopes = new Map<string, Record<string, unknown>>();
   const limitationSets = new Map<string, string[]>();
@@ -313,7 +345,11 @@ export function prepareAutomationDecisionSynthesis(input: AutomationDecisionPack
     sourceClaims: packet.sourceClaims,
     useContextAdmission: packet.useContextAdmission,
     authority: packet.authority,
-    ownerInputs: { question: packet.ownerQuestion, constraints: [...packet.ownerConstraints], options: [], unsetFields: unsetOwnerFields(packet) },
+    ownerInputs: { question: packet.ownerQuestion, constraints: [...packet.ownerConstraints], options: [], unsetFields: unsetOwnerFields(packet),
+      // U-02 (E7): 1.2.0 only; the working question is never an owner field and carries only the AI-proposed state.
+      ...(packet.methodVersion === '1.2.0' ? { workingQuestion: {
+        state: 'AI_PROPOSED_AWAITING_OWNER', label: WORKING_QUESTION_LABEL, text: null, ownerFieldsToAdd: ['questionText'],
+      } } : {}) },
     supportEligible,
     declarationContext,
     observedContext,
@@ -349,7 +385,7 @@ export function prepareAutomationDecisionSynthesis(input: AutomationDecisionPack
   const bytes = json(artifact);
   if (bytes.length > MAX_DECISION_SYNTHESIS_INPUT_BYTES) fail('DECISION_SYNTHESIS_INPUT_TOO_LARGE');
   const inputRetainable = { artifact: JSON.parse(canonicalJson(artifact)) as AutomationDecisionSynthesisInput, bytes, sha256: sha256(bytes) };
-  const prompt = automationDecisionSynthesisPrompt(packet.sectionId, packet.methodVersion === '1.1.0' ? '1.2.0' : '1.0.0');
+  const prompt = automationDecisionSynthesisPrompt(packet.sectionId, packet.methodVersion === '1.2.0' ? '1.3.0' : packet.methodVersion === '1.1.0' ? '1.2.0' : '1.0.0');
   const ids = (entries: readonly unknown[]): string[] => entries.map((entry) => (entry as { readonly claimId: string }).claimId);
   return {
     status: 'READY', packet: packetRetainable, input: inputRetainable, prompt,

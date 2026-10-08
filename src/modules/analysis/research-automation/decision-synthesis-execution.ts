@@ -86,7 +86,8 @@ function adapter(sectionId: AutomationDecisionSectionId): AutomationSynthesisAda
         canonicalJson(input.authority) === canonicalJson(admission.authority) &&
         prompt.inputContract.methodId === input.methodId && prompt.inputContract.methodVersion === input.methodVersion &&
         (admission.methodVersion === '1.0.0' ? prompt.promptVersion === '1.0.0'
-          : prompt.promptVersion === '1.1.0' || prompt.promptVersion === '1.2.0') && input.methodVersion === admission.methodVersion &&
+          : admission.methodVersion === '1.1.0' ? prompt.promptVersion === '1.1.0' || prompt.promptVersion === '1.2.0' : prompt.promptVersion === '1.3.0') &&
+        input.methodVersion === admission.methodVersion &&
         canonicalJson(prompt.candidateTypes) === canonicalJson(DECISION_CANDIDATE_TYPES[sectionId]);
     },
     systemText: prompt => prompt.systemText,

@@ -28,6 +28,8 @@ export interface AutomationM01EvidenceInventoryInput {
   readonly claimsSha256: string;
   /** Untrusted retained source-claims artifact; it is fully revalidated before use. */
   readonly sourceClaims: unknown;
+  /** U-02: opt-in inventory version. Absence retains the historical 1.0.0 limitation text and exact bytes. */
+  readonly inventoryVersion?: '1.0.0' | '1.1.0';
 }
 
 /** A reference to one upstream claim with its bindings; never a new M01 fact. Spans and statements stay upstream. */
@@ -55,8 +57,9 @@ export function buildAutomationM01EvidenceInventory(input: AutomationM01Evidence
   if (claims.claimsSha256 !== input.claimsSha256) fail('CLAIMS_IDENTITY_MISMATCH');
   // Group by catalog section only; within a section the upstream artifact order is kept unchanged.
   const items = SECTION_ORDER.flatMap((sectionId) => claims.claims.filter((claim) => claim.sectionId === sectionId).map(item));
+  const inventoryVersion = input.inventoryVersion ?? '1.0.0';
   const artifact: AutomationM01EvidenceInventory = {
-    contractVersion: '1.0.0', methodId: 'automation-m01-evidence-inventory', methodVersion: '1.0.0', sectionId: 'M01',
+    contractVersion: '1.0.0', methodId: 'automation-m01-evidence-inventory', methodVersion: inventoryVersion, sectionId: 'M01',
     runId: claims.runId, workspaceId: claims.workspaceId, scopeSha256: claims.scopeSha256,
     sourceClaims: { methodId: claims.methodId, methodVersion: claims.methodVersion, claimsSha256: claims.claimsSha256 },
     ownerQuestion: { state: 'UNSET', text: null },
@@ -67,7 +70,9 @@ export function buildAutomationM01EvidenceInventory(input: AutomationM01Evidence
     items,
     limitations: [
       'M01_ITEMS_REFERENCE_UPSTREAM_CLAIMS_AND_ARE_NOT_NEW_M01_FACTS',
-      'OWNER_QUESTION_UNSET_NO_RELEVANCE_SELECTION_OR_BUSINESS_OBJECTIVE',
+      inventoryVersion === '1.1.0'
+        ? 'OWNER_QUESTION_ABSENT_AI_PROPOSED_WORKING_QUESTION_AWAITS_OWNER_NO_RELEVANCE_SELECTION_OR_BUSINESS_OBJECTIVE'
+        : 'OWNER_QUESTION_UNSET_NO_RELEVANCE_SELECTION_OR_BUSINESS_OBJECTIVE',
       'CATALOG_SECTION_ORDER_AND_UPSTREAM_ARTIFACT_ORDER_ARE_NOT_PRIORITY_OR_RANK',
       'NO_CONCLUSION_STRATEGY_OR_ACTION_IS_GENERATED',
       'DECLARATIONS_ARE_ATTRIBUTED_SELF_REPORT_NOT_AUTHENTICATED_TRUTH',

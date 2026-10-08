@@ -109,25 +109,42 @@ export function renderReportMethodPacketSection(inputs: { gates?: BoundedAnalysi
     }
     return body + clipNote(section.partitions.length) + footer(output, section.blockers);
   }
+  /** Mirrors the gate's derived label so a derived cell shows exactly the group the gate counted. */
+  const derivedGroupLabel = (cell: NonNullable<BoundedAnalysisGates['input']['i11']>['cells'][number]): string | null => {
+    const basis = cell.groupBasis;
+    if (!basis || basis.platform.state !== 'SOURCE_STATED' || basis.platform.value === null) return null;
+    const buyer = basis.buyerType;
+    const stated = buyer && buyer.state === 'SOURCE_STATED' && (buyer.value === 'RETAIL' || buyer.value === 'WHOLESALE');
+    return `${basis.platform.value} / ${stated ? buyer.value : 'UNSPECIFIED'}`;
+  };
   function i11(output: BoundedAnalysisGates): string {
     const input = output.input.i11;
     const section = output.sections.I11;
-    let body = '<p><b>Danh mục nhóm nội bộ.</b> Giữ nguyên ô số và cách gán nhóm của nguồn. Không tính tỷ lệ hoặc chênh lệch; chưa có quyền công bố.</p>' + codeMarker('NOT_AUTHORIZED', 'Mã trạng thái công bố');
+    // U-04: 1.1.0 derives source-backed groups and may report a descriptive rate; 1.0.0 output stays byte-identical.
+    const versioned = output.methodVersion !== '1.0.0';
+    let body = versioned
+      ? '<p><b>Danh mục nhóm nội bộ.</b> Nhóm chỉ được lấy từ nguồn nêu rõ nền tảng và tự khai báo bán lẻ hoặc bán buôn; bản ghi chưa rõ người mua được để riêng và không gộp chung. Tỷ lệ mô tả chỉ hiện khi mọi nhóm đủ ba mươi bản ghi văn bản, mẫu số tương thích và các bản ghi được đếm không trùng nhau; không suy diễn và không so sánh giữa các nhóm.</p>'
+      : '<p><b>Danh mục nhóm nội bộ.</b> Giữ nguyên ô số và cách gán nhóm của nguồn. Không tính tỷ lệ hoặc chênh lệch; chưa có quyền công bố.</p>' + codeMarker('NOT_AUTHORIZED', 'Mã trạng thái công bố');
     if (input === null || !section.partitions.length) body += '<p>Chưa có ô dữ liệu nhóm. Cần nguồn gán nhóm, thước đo, đơn vị và phạm vi tương ứng.</p>';
     if (input !== null) {
       const policy = input.groupPolicy;
-      body += policy === null ? '<p>Chưa có quy tắc nhóm được khai báo.</p>'
+      body += policy === null
+        ? (versioned ? '<p>Chưa có quy tắc nhóm được khai báo. Nhóm bên dưới lấy trực tiếp từ nguồn nêu rõ nền tảng và người mua.</p>' : '<p>Chưa có quy tắc nhóm được khai báo.</p>')
         : disclosure('Quy tắc và thứ tự nhóm của nguồn', dl(pair('Phiên bản', text(policy.revision)) + pair('Chồng lấn', esc(policy.overlap))
           + pair('Bao phủ', esc(policy.exhaustiveness)) + pair('Quy tắc ẩn ô', text(policy.suppressionRule)))
           + list(policy.groups.map(group => group.label)) + source(policy.source));
       for (const partition of section.partitions.slice(0, LIMIT)) {
         body += table('Ô nhóm trong cùng phạm vi, chưa tính so sánh', ['Nhóm nguồn', 'Ô số nguồn', 'Phạm vi và ngữ cảnh'], partition.cellPointers.slice(0, LIMIT).map(pointer => {
           const cell = at(input.cells, pointer, '/input/i11/cells/');
-          return `<tr><th scope="row">${text(cell.group)}<small>${cell.assignment.state === 'SOURCE_ASSIGNED' ? 'Nguồn gán nhóm' : 'Chưa rõ cách gán nhóm'}</small>${codeMarker(cell.assignment.state, 'Mã cách gán nhóm')}</th>`
+          const label = cell.group ?? (versioned ? derivedGroupLabel(cell) : null);
+          const counted = versioned && cell.memberSources?.length ? `<small>Bản ghi nguồn được đếm: ${cell.memberSources.length}</small>` : '';
+          return `<tr><th scope="row">${text(label)}<small>${cell.assignment.state === 'SOURCE_ASSIGNED' ? 'Nguồn gán nhóm' : 'Chưa rõ cách gán nhóm'}</small>${counted}${codeMarker(cell.assignment.state, 'Mã cách gán nhóm')}</th>`
             + `<td>${dl(pair('Tử số nguồn', observation(cell.numerator)) + pair('Mẫu số nguồn', observation(cell.denominator)) + pair('Đơn vị đếm', esc(cell.countUnit)))}</td>`
             + `<td>${scope(cell.scope)}${context(cell, cell.source)}</td></tr>`;
         }), partition.cellPointers.length) + disclosure('Điều kiện của phạm vi này', list(partition.blockers));
       }
+      if (versioned && section.rates !== null) body += table('Tỷ lệ mô tả theo nhóm, chỉ mô tả và không suy diễn', ['Nhóm', 'Tử số', 'Mẫu số', 'Tỷ lệ'],
+        section.rates.groups.map(group => `<tr><th scope="row">${esc(group.group)}</th><td>${esc(group.numerator)}</td><td>${esc(group.denominator)}</td><td>${(group.rate * 100).toFixed(1)}%</td></tr>`));
       body += disclosure('Nguồn danh mục nhóm', source(input.source));
     }
     return body + clipNote(section.partitions.length) + footer(output, section.blockers);

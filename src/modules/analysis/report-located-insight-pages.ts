@@ -34,6 +34,7 @@ const LABELS: Readonly<Record<string, string>> = {
 const CODE_GLOSS: Readonly<Record<string, string>> = {
   NO_LOCATED_ANNOTATIONS: 'chưa có mã hóa định vị được chấp nhận', CODING_PENDING: 'còn mã hóa chờ xử lý',
   QUESTION_UNSET: 'chưa có câu hỏi nghiên cứu', I01_OWNER_QUESTION_REQUIRED: 'cần câu hỏi do người dùng đặt',
+  WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER: 'câu hỏi làm việc do AI đề xuất, chờ chủ dự án xác nhận',
   I06_EVENT_ORDER_UNRESOLVED: 'chưa xác lập thứ tự sự kiện', I09_INCOMPLETE_GAP_EVIDENCE: 'bằng chứng chênh lệch chưa đủ cả hai vế',
   NORMALIZED_DECLARATIONS_REQUIRE_RETAINED_SOURCE_BYTE_VERIFICATION: 'khai báo đã chuẩn hóa cần đối chiếu với byte nguồn đã lưu',
   POINTER_VALIDATION_IS_NOT_SEMANTIC_VERIFICATION_OR_OWNER_APPROVAL: 'con trỏ hợp lệ không có nghĩa nội dung đúng hay đã được duyệt',
@@ -118,7 +119,14 @@ function briefBody(ctx: RenderContext): string {
     return definition(title, value?.state === 'SUPPLIED' && value.text !== null
       ? `<div style="white-space:pre-wrap">${textOrUnset(value.text)}</div>` : '<span class="tag warn">Chưa cung cấp (UNSET)</span>');
   }).join('');
-  return `<p class="sec-note">Brief do hồ sơ khai báo. Nội dung và phiên bản này chưa được xác thực thành phê duyệt của chủ dự án.</p>${brief === null ? '<p>Chưa có brief. Cần bổ sung các trường dưới đây trước khi dùng làm câu hỏi nghiên cứu đã chốt.</p>' : `<p>Phiên bản brief: ${textOrUnset(brief.version)}.</p>`}<dl>${fields}</dl>${brief ? `<p>Các mục được chọn trong brief: ${brief.selectedSectionIds.length ? brief.selectedSectionIds.map(esc).join(', ') : 'chưa chọn'}.</p>` : ''}${footer(ctx, ctx.output.sections.I01.blockers)}`;
+  // U-02: the working question is separate from the owner brief. An AI-proposed one is labelled and never owner-authored.
+  const working = ctx.output.sections.I01.workingQuestion;
+  const workingBlock = working?.state === 'AI_PROPOSED_AWAITING_OWNER'
+    ? `<div class="sec-note"><p><span class="tag warn">${esc(working.label ?? CODE_GLOSS.WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER!)}</span></p>${working.text === null
+      ? '<p>Chưa có nội dung câu hỏi đề xuất; chủ dự án cần bổ sung câu hỏi.</p>'
+      : `<div style="white-space:pre-wrap">${storedLiteral(working.text, 'Nội dung được giữ trong bản lưu nguồn; không đưa vào bản đọc này.')}</div>`}<p>Câu hỏi này do AI đề xuất, chưa được chủ dự án xác nhận, và không được dùng để chọn lọc hay loại bỏ bằng chứng.</p></div>`
+    : working?.state === 'OWNER_SUPPLIED' ? '<p>Câu hỏi làm việc do chủ dự án cung cấp trong brief.</p>' : '';
+  return `<p class="sec-note">Brief do hồ sơ khai báo. Nội dung và phiên bản này chưa được xác thực thành phê duyệt của chủ dự án.</p>${workingBlock}${brief === null ? '<p>Chưa có brief. Cần bổ sung các trường dưới đây trước khi dùng làm câu hỏi nghiên cứu đã chốt.</p>' : `<p>Phiên bản brief: ${textOrUnset(brief.version)}.</p>`}<dl>${fields}</dl>${brief ? `<p>Các mục được chọn trong brief: ${brief.selectedSectionIds.length ? brief.selectedSectionIds.map(esc).join(', ') : 'chưa chọn'}.</p>` : ''}${footer(ctx, ctx.output.sections.I01.blockers)}`;
 }
 
 function annotationRow(ctx: RenderContext, sectionId: LocatedId, pointer: string): string {

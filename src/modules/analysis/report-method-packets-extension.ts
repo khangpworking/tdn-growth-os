@@ -106,6 +106,19 @@ export function buildVerifiedMethodPacketSources(logicalPath: string, retained: 
         if (resolve(object[key] as {logicalPath: string; sha256: string; locator: string}) === null) fail('METHOD_PACKET_EMPTY_EVIDENCE_REFERENCE');
       }
     }
+    // U-04: each counted member must be one exact retained text record, so the reference is resolved and must exist.
+    for (const key of ['memberSources', 'numeratorMemberSources']) {
+      const list = object[key];
+      if (list === undefined) continue;
+      if (!Array.isArray(list)) fail('METHOD_PACKET_INVALID_MEMBER_SOURCES');
+      for (const entry of list) {
+        if (entry === null || typeof entry !== 'object' || !('logicalPath' in entry) || !('sha256' in entry) || !('locator' in entry) ||
+            typeof entry.logicalPath !== 'string' || typeof entry.sha256 !== 'string' || typeof entry.locator !== 'string') {
+          fail('METHOD_PACKET_INVALID_MEMBER_SOURCES');
+        }
+        if (resolve({ logicalPath: entry.logicalPath, sha256: entry.sha256, locator: entry.locator }) === null) fail('METHOD_PACKET_EMPTY_EVIDENCE_REFERENCE');
+      }
+    }
     for (const [key, child] of Object.entries(object)) if (!['source', 'protocolRef', 'identityEvidence'].includes(key)) verifyTree(child);
   }
   if (input.gates !== null) verifyTree(input.gates);
