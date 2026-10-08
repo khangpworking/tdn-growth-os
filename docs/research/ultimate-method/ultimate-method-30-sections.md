@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.7 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.8 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -17,6 +17,7 @@ File hợp nhất:
 9. **v1.5 (08/10/2026):** thống kê chính thức của Cục Thống kê làm nguồn bối cảnh vĩ mô cho mọi ngành hàng (E12, mục 6.4).
 10. **v1.6 (08/10/2026):** tách danh mục nguồn sang file riêng [Input data sources for 30 sections](input-data-sources-30-sections.md), có mã nguồn S01…, hạng tin cậy A–D, độ đại diện và bảng section dùng nguồn nào.
 11. **v1.7 (08/10/2026):** file danh mục nguồn đổi tên thành [Input data sources for 30 sections](input-data-sources-30-sections.md); ghi kết quả bài test Apify.
+12. **v1.8 (08/10/2026):** L9 lọc nghĩa khi thu bằng từ khoá; E13 dữ liệu mở của Ngân hàng Thế giới; M09 tìm kiếm có lọc thời gian và tìm trong một trang báo.
 
 Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [Input data sources for 30 sections](input-data-sources-30-sections.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn).
 
@@ -75,6 +76,17 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 - **L6 · Số sao (quy tắc 1; I05).** Số sao là một phân bố riêng, không tự chuyển thành khen/chê. Review không có chữ thì cảm nhận là "chưa biết". Nguồn không có trường số sao thì ghi "nguồn không có số sao", không ghi 0.
 - **L7 · Lời người bán.** Mọi suy luận từ tiêu đề, mô tả, video, quảng cáo của người bán được viết là "người bán nhắm tới…" hoặc "người bán định vị…", không viết thành sự thật về khách.
 - **L8 · Không mua hàng (mới ở v1.4).** Báo cáo không đề xuất đặt hàng thử hay mua hàng dưới bất kỳ hình thức nào. Chất lượng sản phẩm chỉ được đánh giá qua nguồn công khai (review, ảnh khách đính kèm, tin an toàn thực phẩm) và dữ liệu chủ cung cấp. Căn cứ: chủ "không bao giờ có khả năng chi tiền thật" (07/10/2026).
+- **L9 · Từ khoá và nghĩa (mới ở v1.8; quy tắc 1, 2).** Mọi bản ghi thu bằng từ khoá (tìm kiếm, bài mạng xã hội, bình luận, quảng cáo) phải qua bước **lọc nghĩa** trước khi đếm hay trích.
+  - Mỗi ngành hàng có **danh sách từ khoá** và **danh sách loại trừ** (từ dễ lẫn vì dấu hoặc vì nghĩa), có số phiên bản. AI lập hai danh sách theo E11, từ tên sản phẩm trong dữ liệu bán hàng.
+  - Khớp từ khoá **giữ nguyên dấu tiếng Việt**. Không bỏ dấu khi so, vì bỏ dấu thì "thạch dứa" thành "thạch dừa".
+  - Bản ghi viết không dấu (ví dụ "thach dua") khớp được cả hai nghĩa, nên phải dựa vào ngữ cảnh của chính bản ghi hoặc của video, bài gốc.
+  - Bản ghi trùng chữ nhưng khác nghĩa bị loại khỏi số đếm. Số bản ghi bị loại và lý do ghi ở phụ lục nguồn (M13, I17). Không xoá lặng lẽ.
+  - Bản ghi chưa chắc nghĩa ghi "chưa rõ có đúng sản phẩm không" và không tính vào số đếm chính.
+  - Ví dụ gặp khi thử nguồn:
+    - "thạch dừa" lẫn với "thạch dứa", thạch rau câu nước dừa, chữ "thử thách";
+    - "bình giữ nhiệt" lẫn với bình nóng lạnh, hộp cơm giữ nhiệt, bình làm quà tặng kèm dịch vụ;
+    - tên thương hiệu trùng với thương hiệu ngành khác.
+  - **Căn cứ:** bài test nguồn ngày 08/10/2026 ([danh mục nguồn, mục 5](input-data-sources-30-sections.md#5-nhật-ký-thử-và-kiểm-định-nguồn)); chủ đồng ý ngày 08/10/2026.
 
 ### 2.2 Ngoại lệ đã được chủ duyệt
 
@@ -215,6 +227,22 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     - dùng làm lời khách, đặc điểm chân dung hay độ tiếp cận kênh;
     - dùng để dự báo ngoài điều kiện của M10.
 
+**Ngoại lệ ngày 08/10/2026 (mới ở v1.8)**
+
+- **E13 · Dữ liệu mở của Ngân hàng Thế giới làm bối cảnh vĩ mô (nguồn S23).**
+  - **Căn cứ:** chủ đồng ý ngày 08/10/2026. Dữ liệu dùng giấy phép mở CC BY 4.0, bắt buộc ghi nguồn khi dùng lại.
+  - **Được phép:**
+    - dùng chỉ số của Ngân hàng Thế giới (dân số, thu nhập, chi tiêu hộ bình quân đầu người, giá tiêu dùng theo năm, tỷ lệ dùng internet, thương mại) làm bối cảnh cho các section được dùng E12, khi:
+      - Cục Thống kê không có chỉ số tương đương; hoặc
+      - cần chuỗi nhiều năm cùng một cách tính; hoặc
+      - cần so với nước khác;
+    - ghi tên **"Ngân hàng Thế giới (World Bank Open Data)"**, kèm tên chỉ số, mã chỉ số, năm, và ngày dữ liệu được cập nhật. Đây là ngoại lệ của quy tắc không nêu tên nhà cung cấp, vì giấy phép yêu cầu ghi nguồn.
+  - **Bắt buộc:** cả bốn điều bắt buộc và mục "Vẫn cấm" của E12. Thêm:
+    1. **Không coi là xác nhận độc lập.** Nhiều chỉ số của Ngân hàng Thế giới lấy lại từ Cục Thống kê. Hai nguồn khớp nhau không được viết là "hai nguồn cùng xác nhận".
+    2. **Hai nguồn lệch nhau:** ghi cả hai cạnh nhau, kèm năm, đơn vị và cách tính (theo M01). Không chọn một.
+    3. **Đơn vị tiền:** giữ đúng đơn vị của nguồn (ví dụ "USD theo giá năm 2015"). Không tự quy đổi sang đồng để đặt cạnh giá trong mẫu.
+    4. Số do Ngân hàng Thế giới tự ước tính (khi dữ liệu có ghi chú) thì ghi "ước tính".
+
 ---
 
 ## 3. Bảng tổng quan 30 section
@@ -330,6 +358,10 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 
 - **Phương pháp:** inventory sự kiện/rủi ro có nguồn: tách ngày phát hành nguồn – ngày sự kiện – kỳ quan sát metric; trích đúng sự kiện/ngày/đối tượng/chiều hướng mà nguồn nêu; giữ mâu thuẫn song song; `documented_event` tách `candidate_driver_hypothesis` (chỉ người duyệt mới chuyển hạng).
 - **Kênh nguồn bổ sung (05/10):** báo cáo ngành đã công bố — iPOS × Nestlé Professional (F&B VN 2025 và 6T/2026) cho bối cảnh kênh tiêu thụ; báo cáo thường niên doanh nghiệp ngành (ví dụ GC Food 2024, mục quản trị rủi ro) làm case doanh nghiệp, **không gắn nhãn số liệu toàn thị trường 2025**; Metric cho tín hiệu sát SKU (biến động bán/giá/khuyến mãi/phản hồi).
+- **Tìm kiếm theo thời gian và trong một trang báo (08/10, v1.8):** tìm kiếm mở rộng (nguồn S19, gói P5) được lọc theo khoảng thời gian, và được tìm riêng trong một trang báo đã chọn. Mục đích là lập dòng thời gian sự kiện của đối thủ và ngành hàng: ra mắt sản phẩm, khuyến mãi lớn, tin an toàn thực phẩm, thu hồi.
+  - Mỗi kết quả ghi ba mốc tách nhau: ngày đăng bài, ngày sự kiện mà bài nêu, và khoảng thời gian đã lọc. Khoảng lọc không chứng minh ngày sự kiện.
+  - Hạng tin cậy chấm theo trang gốc. Kết quả qua bước lọc nghĩa L9 trước khi đếm.
+  - Căn cứ: chủ đồng ý ngày 08/10/2026.
 - **Khung diễn giải:** tín hiệu quan sát được → cơ chế có thể ảnh hưởng đến sản phẩm → bằng chứng đối chiếu → mức chắc chắn. Doanh số tăng chưa tự chứng minh nguyên nhân.
 - **Cấm:** nhân quả, xác suất/tác động, xếp hạng rủi ro, forecast từ sự kiện.
 
@@ -378,7 +410,7 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 - **Cập nhật 07/10:**
   - Chân dung khách hàng được phép theo E4 (từ lời khách) và lớp "người bán nhắm tới" theo E5 (từ lời người bán, có số liệu củng cố). Hai lớp hiển thị riêng, không trộn.
   - Khi nguồn có mã người viết, đếm người viết trong cùng nền tảng (L2).
-  - Nên tìm hoàn cảnh dùng sản phẩm ở các nguồn ngoài review sàn (bình luận video, nhóm mạng xã hội, công thức), vì review sàn thường không nói người mua là ai (mục 6).
+  - Nên tìm hoàn cảnh dùng sản phẩm ở các nguồn ngoài review sàn (bình luận dưới video, công thức, bài hướng dẫn), vì review sàn thường không nói người mua là ai (mục 6).
 
 ### I03 · Phương pháp nghiên cứu — EXISTING_BOUNDED
 
@@ -610,6 +642,7 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.5 — 08/10/2026:** E12 thống kê chính thức của Cục Thống kê làm bối cảnh vĩ mô, được ghi tên nguồn; mục 6.4 bảng nguồn số liệu và ánh xạ ngành hàng → nhóm thống kê, dùng chung cho mọi ngành hàng; thêm dòng nguồn vào mục 6.1.
 - **v1.6 — 08/10/2026:** danh mục nguồn chuyển sang [Input data sources for 30 sections](input-data-sources-30-sections.md), thêm mã nguồn S, hạng tin cậy A–D, độ đại diện, bảng section dùng nguồn nào, nguồn không dùng và nhật ký thử nguồn; mục 6.1 chỉ còn trỏ tới file đó.
 - **v1.7 — 08/10/2026:** đổi tên file danh mục nguồn thành `input-data-sources-30-sections.md` (Input data sources for 30 sections) theo yêu cầu của chủ; cập nhật trạng thái nguồn theo kết quả bài test Apify. Không đổi quy tắc.
+- **v1.8 — 08/10/2026:** L9 lọc nghĩa khi thu bằng từ khoá (danh sách từ khoá và danh sách loại trừ có phiên bản, giữ dấu, ghi số bị loại); E13 dữ liệu mở của Ngân hàng Thế giới làm bối cảnh vĩ mô theo điều kiện của E12; M09 tìm kiếm mở rộng có lọc thời gian và tìm trong một trang báo để lập dòng thời gian sự kiện.
 
 ---
 
