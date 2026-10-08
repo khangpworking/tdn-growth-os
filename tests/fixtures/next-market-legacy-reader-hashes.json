@@ -1,0 +1,29 @@
+{
+  "base": "998549072ae62b9d619ffbf645ba59b22a920d4e",
+  "cases": [
+    {
+      "version": "1.2.0",
+      "missing": false,
+      "html": "c45ee04895526bb20d5510f8a6dd1c3de37611e79a83d4ca5c172fe14059edb4",
+      "metrics": "06ca29038c3887b9267d5b0e481ada0983443688ce04efaa4a58dcc46ff50876"
+    },
+    {
+      "version": "1.2.0",
+      "missing": true,
+      "html": "62607ece2d8ef48b821aa8985364107272d81f1830fe51c3cc6023595f72583a",
+      "metrics": "b4ba39918ddb886d2507697c80e8e74f2594e2ef529dad7870be56cdc53cf960"
+    },
+    {
+      "version": "1.3.0",
+      "missing": false,
+      "html": "b69c7b6d4220598e5a8a1fd53e82cc569d374945c6b95079b408903458838cd8",
+      "metrics": "892a8721963d8bc57a7c62a96f2c21b2d96db1f681d2e7608d2a0851e478997e"
+    },
+    {
+      "version": "1.3.0",
+      "missing": true,
+      "html": "9d6118a89eaabf990be89cb22d39a2f376b90cf6bc07d726c0a590d4359e5801",
+      "metrics": "4b8610ccb6e97028918b8a01bcdc0c50ec5d82d1a42100e7ac4d27cb18587076"
+    }
+  ]
+}

@@ -9,7 +9,7 @@ import { n, plat } from './layout.js';
 
 /** Uses classified frozen workbook rows. Screen leader tables and quick-search cards never supply memberships. */
 export function readerDefaultPeers(input: ReaderReportInput, rows: NullableRow[]): DefaultMarketPeers | null {
-  if (input.contractVersion !== '1.3.0') return null;
+  if (input.contractVersion !== '1.3.0' && input.contractVersion !== '1.4.0') return null;
   const period = input.source!.measurementPeriod;
   const sampleKey = input.rowLineage?.sha256 ?? 'SOURCE_MISSING';
   const sourceRows = new Map(input.rows.map(row => [row.i, row]));

@@ -49,6 +49,7 @@ export type BuiltMarketReport = {
   charts: { id: string; engine: 'flint' | 'svg-fallback'; error?: string }[];
   /** The web results actually cited, with data-provider names masked. */
   webResults: ReaderWebResult[];
+  visibleTextRules?: boolean;
 };
 
 // A report never names a data provider, even inside a quotation: the name is
@@ -81,6 +82,7 @@ const ps = (v: number): string => sp(v.toFixed(1)) + '%';
 
 /** Builds the generic market reader report. The caller gates and stores it with publishReaderReport. */
 export async function buildMarketReport(d: ReaderReportData, options: MarketReportOptions): Promise<BuiltMarketReport> {
+  if (d.input.contractVersion === '1.4.0') return buildMarketReportV2(d, options);
   if ((d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0') && d.input.platforms.some(P => d.scopes[P] === undefined)) return buildMarketReportV2(d, options);
   const current = d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0';
   const { input, profile: prof, bundle: B } = d;
