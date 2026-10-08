@@ -3,6 +3,7 @@ import ConfirmDialog from '../ConfirmDialog';
 import InsightCodingDraftEditor from './InsightCodingDraftEditor';
 import InsightCodingRuleForm from './InsightCodingRuleForm';
 import { SourceRecordView } from './InsightCodingSpanPicker';
+import InsightCrosscheckPanel from './InsightCrosscheckPanel';
 import InsightDefaultProposalPanel from './InsightDefaultProposalPanel';
 import InsightModelProposalPanel from './InsightModelProposalPanel';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
@@ -66,13 +67,14 @@ export default function InsightCodingPanel({ run, pairId, versionNumber, ownerTo
   const [notice, setNotice] = useState('');
   const [modelHeld, setModelHeld] = useState(false);
   const [defaultHeld, setDefaultHeld] = useState(false);
+  const [crosscheckHeld, setCrosscheckHeld] = useState(false);
   const mounted = useRef(false), inFlight = useRef(false);
   const dialogOpener = useRef<HTMLElement | null>(null);
   const reload = () => setTick(value => value + 1);
 
   // The model sequence shares inFlight, so one write of either kind runs at a time.
   const manualHeld = pending || retry !== null || dialog !== null || discard || discardRule;
-  const held = manualHeld || modelHeld || defaultHeld;
+  const held = manualHeld || modelHeld || defaultHeld || crosscheckHeld;
   const draftCount = annotationCount(draft);
   const hasDraft = held || ruleEditing || editorEditing || draftCount > 0 || picks.size > 0 || receiptPicks.size > 0;
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
@@ -246,7 +248,9 @@ export default function InsightCodingPanel({ run, pairId, versionNumber, ownerTo
       </dl>
       {!included && records.length > 0 && <p className="ra-muted">Không có bản ghi nào được đưa vào, nên chưa thể đề xuất mã hóa từ nguồn này.</p>}
 
-      <InsightDefaultProposalPanel run={run} pairId={pairId} view={view} ownerToken={ownerToken} block={modelHeld ? 'Đang có lượt mã hóa theo quy tắc riêng; hoàn tất lượt đó trước.' : manualHeld || ruleEditing || editorEditing || draftCount || picks.size || receiptPicks.size ? 'Hoàn tất thao tác đang mở trước.' : block} reportBlock={reportBlock} inFlight={inFlight} onBusyChanged={setDefaultHeld} onVerified={setView} onActivityChanged={onActivityChanged} />
+      <InsightDefaultProposalPanel run={run} pairId={pairId} view={view} ownerToken={ownerToken} block={crosscheckHeld ? 'Đang xử lý lượt thứ hai; hoàn tất lượt đó trước.' : modelHeld ? 'Đang có lượt mã hóa theo quy tắc riêng; hoàn tất lượt đó trước.' : manualHeld || ruleEditing || editorEditing || draftCount || picks.size || receiptPicks.size ? 'Hoàn tất thao tác đang mở trước.' : block} reportBlock={reportBlock} inFlight={inFlight} onBusyChanged={setDefaultHeld} onVerified={setView} onActivityChanged={onActivityChanged} />
+      <InsightCrosscheckPanel run={run} view={view} ownerToken={ownerToken} block={manualHeld || modelHeld || defaultHeld || ruleEditing || editorEditing || draftCount || picks.size || receiptPicks.size ? 'Hoàn tất thao tác đang mở trước.' : block}
+        reportBlock={reportBlock} inFlight={inFlight} onBusyChanged={setCrosscheckHeld} onActivityChanged={onActivityChanged} />
       <label className="ra-label" htmlFor="ic-rule">Quy tắc mã hóa đã duyệt<select className="ra-field" id="ic-rule" value={adoptionId} disabled={held || draftLocked || ruleEditing} onChange={event => chooseAdoption(event.target.value)}>
         <option value="">Chọn quy tắc</option>{history.adoptions.map(item => <option key={item.evidence.evidenceId} value={item.evidence.evidenceId}>{item.label}{item.current ? '' : ' · đã có bản mới hơn'}</option>)}</select></label>
       {draftLocked && <p className="ra-muted">Đang có bản nháp theo {ruleLabel || 'quy tắc này'}. Lưu đề xuất hoặc bỏ bản nháp trước khi đổi quy tắc.</p>}
