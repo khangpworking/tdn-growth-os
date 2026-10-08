@@ -4,7 +4,9 @@
  * Owner report-revision request carrying either accepted coding receipts (v1) or one versioned receipt-free draft selection. Exactly one variant validates; historical v1 payloads match only the accepted branch.
  */
 export type AutomationInsightReportRevisionRequest =
-  AutomationInsightAcceptedReportRevisionRequest | AutomationInsightDraftReportRevisionRequest;
+  | AutomationInsightAcceptedReportRevisionRequest
+  | AutomationInsightDraftReportRevisionRequest
+  | AutomationInsightLiteralReportRevisionRequest;
 export type InsightDraftSelection = InsightDraftSelectionV1 | InsightDraftSelectionV2;
 
 export interface AutomationInsightAcceptedReportRevisionRequest {
@@ -49,4 +51,17 @@ export interface InsightDraftSelectionV1 {
 export interface InsightDraftSelectionV2 {
   contractVersion: 'insight-draft-select-v2';
   proposalId: string;
+}
+/**
+ * Explicit source-only literal projection from the exact previous pair. Does not create coding adoption or bypass existing inherited coding lineage.
+ */
+export interface AutomationInsightLiteralReportRevisionRequest {
+  contractVersion: 'automation-insight-literal-report-revision-v1';
+  requestKey: string;
+  previousPairId: string;
+  sources: InsightRevisionSources;
+  literalInsight: InsightLiteralSelection;
+}
+export interface InsightLiteralSelection {
+  contractVersion: 'insight-literal-select-v1';
 }

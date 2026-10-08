@@ -23,8 +23,9 @@ Canonical schema validation covers its versioned keyword data and record inputs.
 The frozen result preserves original text, identifiers, keyword/exclusion bytes and
 reasons; accent-sensitive matching keeps unresolved records out of the included set.
 Context can resolve only a keyword present in the candidate text. This pure core
-makes no model or provider calls. AI list drafting, collector integration and
-M13/I17 disclosure remain pending; see [SYNC-5 evidence](handoffs/SYNC-5.md).
+makes no model or provider calls. PR #172 below adds retained list drafting,
+a web consumer and bounded M13/I17 disclosure; other callers remain pending.
+See [SYNC-5 evidence](handoffs/SYNC-5.md).
 
 Draft/Insight defaults are merged in [PR #164](https://github.com/khangpworking/tdn-growth-os/pull/164),
 after independent review and full Linux Check on head `d4b0de135d0b85b4c546f36bf325595aac989432`.
@@ -84,10 +85,38 @@ Opt-in build v1.2/input 1.4/builder v4 produces scoped, unordered evidence findi
 and compatible unit-price tables from exact retained JSON spec observations.
 Shared lint checks superlatives, unsupported priority and same-sentence draft labels;
 the new Market reader and Insight v17 invoke it. Operator upload of these standalone
-spec blobs, native extraction and Market auto-report integration remain follow-ups.
+spec blobs was completed by PR #177 below; native extraction and Market auto-report integration remain follow-ups.
 Positive reader tests preseed artifacts and do not establish upload closure.
 ROAS/CPA remain unavailable without confirmed retained field provenance.
 See [NEXT-MARKET evidence](handoffs/NEXT-MARKET.md).
+
+Authenticated listing-spec intake is merged in [PR #177](https://github.com/khangpworking/tdn-growth-os/pull/177).
+Independent review covered exact head `ca64aec187d289449127fc9db34d1a2422b1c503`,
+with 13 focused tests passing and full hosted [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37798439499) passing.
+Merge: `ad3d9e45bb28cbbea861550dac9e112e3616097c`.
+The authenticated operator upload retains listing-spec and owner-declaration bytes,
+binds its receipt to the workspace, run, draft pair and exact Metric workbook,
+and supplies an additive receipt-bound reader build request. Existing build requests
+and retained bytes remain unchanged. Tests cover the actual HTTP upload/build/read
+path, rejected bindings and frontend retry behavior. The receipt authenticates the
+owner submission, not seller claims. Native extraction and auto-report integration
+remain follow-ups; see [intake evidence](handoffs/NEXT-MARKET-INTAKE.md).
+
+Retained keyword drafting and source evidence are merged in [PR #172](https://github.com/khangpworking/tdn-growth-os/pull/172).
+Independent review covered corrected head `2e361fe6f24d0b30ac847c4b571ec5fc139305e8`,
+with 28 final renderer/reader tests passing and one existing optional local Chromium
+skip, following the earlier source checks. Full hosted [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37800939748)
+and [web acceptance](https://github.com/khangpworking/tdn-growth-os/actions/runs/37800939758) passed.
+Merge: `22af557d326c2523c884fee81a129eb4b1bf96f2`.
+The owning collection path can retain keyword proposals from authenticated Kalodata
+sales names and frozen scope seeds, using separate disabled-by-default model
+configuration. Synthetic tests verify that excluded or unclear web evidence stays
+out of report counts and quotations, while raw evidence and L9 reasons remain saved.
+Renderer v18 adds source-registry disclosure and preserves applicable family-draft
+lint and historical report behavior. The initial hosted lint regression was corrected
+before merge; no failing check was waived. Metric-only sales-name drafting, other
+source mappings and not-yet-built consumers remain follow-ups, so U-12/U-27/G-13
+are partial. See [Sources evidence](handoffs/NEXT-SOURCES.md).
 
 Future collector activation and history readers remain with P5/P9/P10/U-23.
 These merges do not establish complete Ultimate alignment or business acceptance.
