@@ -17,7 +17,9 @@
 
 - [PR #167](https://github.com/khangpworking/tdn-growth-os/pull/167): bounded U-01 complete across reader and draft M07, including frozen rule/input/result retention, source identity, optional owner additions and historical replay. U-26 remains escalated. Reviewed head `0b78d866cf88334bc1f4d6c8fe3635a80d018f06`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37771543891) and web acceptance passed, merge `0d098a14d7716d47376f152870c28ffcfe06a145`. See [SYNC-2](../handoffs/SYNC-2.md).
 
-The audit tables below describe the original baseline. Checked items refer to the merged packages and their linked handoffs. U-07 combines the Market and draft/Insight work. U-04, U-12, B-03 and U-32 stay unchecked while their stated remainder is unresolved.
+- [PR #166](https://github.com/khangpworking/tdn-growth-os/pull/166): U-03 bounded I02 summary and I10/I13 corpus draft counts complete through explicit retained-proposal revision without acceptance receipts. Adoption lineage remains required; unsupported-family totals and draft completion/ratios are withheld. Other families, I11 consumption and U-11 cross-checks remain pending, so U-03 stays partial. Reviewed head `503b43a089fbc2b610c02faaad946be3a0ac82d1`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37780693321) and preview passed, merge `e074dbdefbf2ae6e8d2f11cbd1bdfc8759530dbc`. See [SYNC-4](../handoffs/SYNC-4.md).
+
+The audit tables below describe the original baseline. Checked items refer to the merged packages and their linked handoffs. U-07 combines the Market and draft/Insight work. U-03, U-04, U-12, B-03 and U-32 stay unchecked while their stated remainder is unresolved.
 
 Updated: 2026-10-08 · Audited at `origin/main` `99b4fe5`; rechecked at `5152240` after P1 and P2 merged · Business source of truth: [Ultimate Method v1.12](../research/ultimate-method/ultimate-method-30-sections.md) · Sources: [Input data sources for 30 sections](../research/ultimate-method/input-data-sources-30-sections.md) v1.9 · Related packages: [research-batch-2-packages.md](research-batch-2-packages.md)
 
