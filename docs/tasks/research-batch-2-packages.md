@@ -512,6 +512,10 @@ Every numeric cap in the packages has a reason here. Business thresholds (sample
 |---|---|---|---|
 | WARNING at ≤ max(20%, $2), BLOCKED at ≤ $0.50 | P3-05 | Warn early enough to top up before a run fails. $0.50 is about 50 indexed pages at $0.01 per page, roughly one mid-size report PDF | Convention |
 | ≤1 question per section per PDF, ≤10 per run | P3-10 | Bounds paid retrieval per run; one fixed question per section keeps answers comparable across PDFs | Convention |
+| ≤32 MiB per retained PDF member | P3 upload and local verification | Reuses the bounded intake size to limit transfer, extraction and retained artifact memory. This is an engineering ceiling, not a verified cloud API limit | Convention |
+| ≤64 KiB manifest allowance above the PDF aggregate budget | P3 REPORTS package reader | Allows bounded metadata for a one-member Foundation package at the 32 MiB member boundary, consistent with the prepared-intake budget pattern | Convention |
+| ≤100 configurable questions per run (default 10) | P3 fixed-question planning | Prevents a configuration mistake from allowing unbounded paid retrieval. The default stays 10; the ceiling is not a measured quality or cost threshold | Convention |
+| ≤250 characters in a PDF filename label | P3 upload API and transport validation | Bounds human-readable metadata consistently at both input boundaries. This is not a filesystem compatibility guarantee | Convention |
 | ≤5 Trends keywords | P5 (`SEARCH_TRENDS_LIMITS.maxKeywords`) | Google Trends compares at most 5 terms in one query | High (platform limit) |
 | ≤4 Trends calls | P5-02 | The plan is 1 time series (all keywords) + 2 related-query calls (one keyword per call) + 1 regional map | High (derived from the plan) |
 | ≤10 expanded searches | P5-02, P5-07 | Per-run cost ceiling for the Phase 0 trial. Dated and single-site queries share it, so they cannot raise cost. Revisit after the spike | Convention |
