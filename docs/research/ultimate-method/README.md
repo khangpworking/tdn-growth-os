@@ -106,7 +106,9 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 - M11: định nghĩa giao 3 tín hiệu.
 - E2, E3 cho luồng tự động; điều chỉnh mục "Cấm" của M01, M12.
 
-### Từ Ultimate v1.1 đến v1.5 (07–08/10)
+### Từ Ultimate v1.1 đến v1.8 (07–08/10)
+
+- v1.8: L9 lọc nghĩa khi thu bằng từ khoá (G-13 trong gói việc); E13 dữ liệu Ngân hàng Thế giới (P10-12); M09 tìm kiếm có lọc thời gian và tìm trong một trang báo (P5-07 tới P5-09).
 
 - v1.5: E12 thống kê chính thức của Cục Thống kê cho mọi ngành hàng; gói P10 nhập file Excel của Cục Thống kê; P8-10 hiển thị.
 

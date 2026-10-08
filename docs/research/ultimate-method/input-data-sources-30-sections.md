@@ -1,6 +1,6 @@
 # Input data sources for 30 sections
 
-Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.4 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.7
+Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.5 · ngày 08/10/2026 · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.8
 
 Đây là **nguồn chuẩn về danh mục nguồn dữ liệu**. File này trả lời ba câu hỏi:
 - có những nguồn nào;
@@ -42,7 +42,7 @@ Mỗi nguồn được chấm theo **hai trục riêng**, không gộp thành m�
 4. **Nguồn có độ đại diện thấp** luôn đi kèm "trong mẫu" và không được quy ra phần trăm khách hàng (quy tắc 2, 4).
 5. **Hạng dùng để chọn nguồn khi đi thu dữ liệu:** cùng một câu hỏi, ưu tiên nguồn hạng cao hơn nếu cách thu khả thi.
 6. **Hạng có thể đổi sau khi test.** Mỗi lần đổi ghi vào mục 5 và nhật ký thay đổi.
-7. **Trong báo cáo** không nêu tên nhà cung cấp, trừ khi quy tắc yêu cầu (E12). Báo cáo dùng cột "Tên trong báo cáo". Phụ lục M13/I17 liệt kê nguồn đã dùng kèm hạng.
+7. **Trong báo cáo** không nêu tên nhà cung cấp, trừ khi quy tắc yêu cầu (E12, E13). Báo cáo dùng cột "Tên trong báo cáo". Phụ lục M13/I17 liệt kê nguồn đã dùng kèm hạng.
 
 ---
 
@@ -94,7 +94,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 
 | ID | Nguồn | Tiếng nói | Công cụ | Tên trong báo cáo | Hạng | Đại diện | Trạng thái | Chi phí | Ràng buộc |
 |---|---|---|---|---|---|---|---|---|---|
-| S19 | Kết quả tìm kiếm Google mở rộng, kể cả lọc theo khoảng thời gian và trong một trang báo | Tuỳ trang tìm thấy | SerpApi (gói P5) | "kết quả tìm kiếm Google" | Theo trang gốc | Thấp | Chờ chạy thử (Phase 0) | Theo lượt; cần chủ duyệt | Mỗi kết quả được chấm hạng theo trang gốc |
+| S19 | Kết quả tìm kiếm Google mở rộng, kể cả lọc theo khoảng thời gian và trong một trang báo | Tuỳ trang tìm thấy | SerpApi (gói P5) | "kết quả tìm kiếm Google" | Theo trang gốc | Thấp | Chờ chạy thử (Phase 0). Lọc theo thời gian và tìm trong một trang báo: chủ duyệt 08/10/2026 | Theo lượt; cần chủ duyệt | Mỗi kết quả được chấm hạng theo trang gốc; ghi ngày đăng tách ngày sự kiện (M09); lọc nghĩa theo L9 |
 | S20 | Google Trends: mức quan tâm tìm kiếm 0–100, từ khoá liên quan, theo vùng | Thị trường | SerpApi (gói P5) | "mức quan tâm tìm kiếm trên Google" | B | Vừa | Chờ chạy thử (Phase 0) | Theo lượt | Là chỉ số tương đối, không phải lượt tìm; tách riêng khỏi doanh số (E10) |
 
 ### 2.5 Thống kê và tài liệu
@@ -103,7 +103,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 |---|---|---|---|---|---|---|---|---|---|
 | S21 | Cục Thống kê (nso.gov.vn): giá tiêu dùng, bán lẻ, chi tiêu hộ, sản xuất, xuất nhập khẩu, dân số, internet và mạng xã hội | Thị trường (vĩ mô) | File Excel qua API WordPress (gói P10); PDF qua gói P3 | **"Cục Thống kê (nso.gov.vn)"**, bắt buộc ghi | A | Cao | Đã kiểm 08/10; gói P10 | Không | E12; mục 6.4 |
 | S22 | Số liệu Cục Thống kê theo tỉnh (chuyên mục địa phương trên nso.gov.vn) | Thị trường (vĩ mô) | PDF qua gói P3 | "Cục Thống kê (nso.gov.vn)" | A | Cao (theo tỉnh) | Đã kiểm 08/10 | Không | E12 |
-| S23 | World Bank Data (API mở) | Thị trường (vĩ mô) | API World Bank | "Ngân hàng Thế giới" | A | Cao | Đề xuất, chờ chủ duyệt | Không | Như E12, nếu được duyệt |
+| S23 | World Bank Data (API mở) | Thị trường (vĩ mô) | API World Bank | "Ngân hàng Thế giới (World Bank Open Data)" | A | Cao | Đã duyệt (E13, 08/10/2026); đã kiểm API, chưa thu cho báo cáo | Không | E13: ghi nguồn; không coi là xác nhận độc lập với S21 |
 | S24 | UN Comtrade (API chính thức) | Thị trường (xuất nhập khẩu) | API UN Comtrade (cần đăng ký miễn phí) | "Cơ sở dữ liệu thương mại của Liên Hợp Quốc" | A | Cao (theo mã hàng) | Đề xuất | Không | M06, M09 |
 | S25 | Báo cáo ngành và báo cáo thường niên doanh nghiệp đã công bố | Bối cảnh | Tải tay; PDF qua gói P3 | "báo cáo đã công bố của …" | B (báo cáo thường niên đã kiểm toán) / C (khảo sát ngành) | Vừa | Đang dùng ở M09 (v1.0) | Không | Khung M09; không gắn nhãn số liệu toàn thị trường |
 | S26 | Báo chí, tin an toàn thực phẩm | Bối cảnh | Tìm kiếm mở rộng (S19) | "tin đã đăng trên …" | C | Thấp | Đề xuất | Theo S19 | M09: tách ngày phát hành với ngày sự kiện |
@@ -181,7 +181,7 @@ Lịch sử từng lần thử thu và kiểm định nằm ở **[Input data so
 
 **Bài học từ bài test Apify:**
 - Tìm theo từ khoá sản phẩm trên mạng xã hội chủ yếu ra **bài của người bán**. Muốn có lời khách, nguồn tốt hơn là bình luận dưới video (S07) và review (S05). Không thu bài trong nhóm Facebook (chủ quyết 08/10/2026).
-- Từ khoá tiếng Việt dễ ra kết quả lệch nghĩa. Ví dụ gặp trong bài test:
+- Từ khoá tiếng Việt dễ ra kết quả lệch nghĩa. Từ v1.8, bước lọc nghĩa là quy tắc **L9** của file Ultimate. Ví dụ gặp trong bài test:
   - "thạch dừa" (thạch làm từ nước dừa lên men) lẫn với thạch rau câu nước dừa, thạch dừa xiêm nguyên quả, "thạch dứa", và các chữ "Thạch" trong tên riêng hay "thử thách";
   - "bình giữ nhiệt" lẫn với bình nóng lạnh, thùng ủ sữa chua, hộp cơm giữ nhiệt, "giữ vững nhiệt huyết", và bình làm quà tặng kèm sữa, bảo hiểm, ngân hàng.
 - **Bình luận dưới video review là nguồn lời khách tốt nhất trong các lần thử** (S07: 10–32% bình luận là lời khách ứng viên, so với 0–8% khi tìm bài Facebook theo từ khoá). Bình luận còn cho câu hỏi trước khi mua, lời chê và cách bảo quản, chế biến (I07, I08). Người bình luận chưa chắc đã mua; ghi "lời người xem" khi chưa có dấu hiệu đã mua hoặc đã dùng.
