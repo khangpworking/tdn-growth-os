@@ -8,7 +8,7 @@ Trạng thái: modular monolith TypeScript/SQLite đã có các lát cắt found
 
 Ultimate alignment is being delivered in bounded, independently reviewed packages.
 The eleven-card source board, versioned Market reader corrections, bounded L9 core
-and draft/Insight defaults are merged; future collector placeholders remain inactive.
+draft/Insight defaults and sales-backed default peers are merged; future collector placeholders remain inactive.
 See [current implementation evidence and limits](docs/STATUS.md#ultimate-alignment--implementation-run-08102026).
 
 ## Bắt đầu
