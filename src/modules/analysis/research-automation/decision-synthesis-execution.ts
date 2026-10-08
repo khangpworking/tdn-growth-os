@@ -41,6 +41,12 @@ const CODES = [
   'COUNTEREVIDENCE_TARGET_NOT_IN_CANDIDATE', 'COUNTEREVIDENCE_RELATION_MISSING',
   'CITED_BEHAVIOR_CONTEXT_MISSING',
 ] as const;
+/** U-07/U-16 model-response rejections. The validator keeps its precise guard code, but the retained ledger only
+ * supports the stable generic decision-candidate code, so the stored verdict maps onto it. Without the mapping the
+ * rejection would escape the adapter as a dispatch failure instead of being retained as INVALID. */
+const VERSION_GUARD_CODES: ReadonlySet<string> = new Set([
+  'CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT', 'CANDIDATE_PROPOSAL_FIELDS_REQUIRED', 'PURCHASE_SUGGESTION_NOT_ALLOWED',
+]);
 type DecisionValidationCode = typeof CODES[number];
 const validationCodes: ReadonlySet<string> = new Set(CODES);
 interface DecisionAdapterTypes {
@@ -86,7 +92,8 @@ function adapter(sectionId: AutomationDecisionSectionId): AutomationSynthesisAda
         canonicalJson(input.authority) === canonicalJson(admission.authority) &&
         prompt.inputContract.methodId === input.methodId && prompt.inputContract.methodVersion === input.methodVersion &&
         (admission.methodVersion === '1.0.0' ? prompt.promptVersion === '1.0.0'
-          : prompt.promptVersion === '1.1.0' || prompt.promptVersion === '1.2.0') && input.methodVersion === admission.methodVersion &&
+          : admission.methodVersion === '1.1.0' ? prompt.promptVersion === '1.1.0' || prompt.promptVersion === '1.2.0' : prompt.promptVersion === '1.3.0') &&
+        input.methodVersion === admission.methodVersion &&
         canonicalJson(prompt.candidateTypes) === canonicalJson(DECISION_CANDIDATE_TYPES[sectionId]);
     },
     systemText: prompt => prompt.systemText,
@@ -99,6 +106,7 @@ function adapter(sectionId: AutomationDecisionSectionId): AutomationSynthesisAda
       } catch (error) {
         const code = error instanceof AutomationDecisionPacketValidationError ? error.message.split(':')[0] : undefined;
         if (code && validationCodes.has(code)) return { status: 'INVALID', code: code as DecisionValidationCode };
+        if (code && VERSION_GUARD_CODES.has(code)) return { status: 'INVALID', code: 'INVALID_DECISION_CANDIDATES' };
         throw error;
       }
     },

@@ -8,7 +8,7 @@
   "properties": {
     "contractVersion": { "const": "1.0.0" },
     "methodId": { "const": "automation-m01-evidence-inventory" },
-    "methodVersion": { "const": "1.0.0" },
+    "methodVersion": { "enum": ["1.0.0", "1.1.0"] },
     "sectionId": { "const": "M01" },
     "runId": { "$ref": "#/$defs/uuid" },
     "workspaceId": { "$ref": "#/$defs/uuid" },

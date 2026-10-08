@@ -31,7 +31,7 @@ import { readPreparedSupplementalSources, verifyPreparedSupplementalSource } fro
 import m01ReferenceSchema from '../../../../contracts/analysis/automation-m01-inventory-reference.schema.json' with { type: 'json' };
 import type { AutomationM01InventoryReference } from '../../../../contracts/analysis/automation-m01-inventory-reference.generated.js';
 import type { AutomationM01EvidenceInventory } from '../../../../contracts/analysis/automation-m01-evidence-inventory.generated.js';
-import { buildAutomationM01EvidenceInventory, MAX_M01_EVIDENCE_INVENTORY_BYTES } from './m01-evidence-inventory.js';
+import { automationM01InventoryVersion, buildAutomationM01EvidenceInventory, MAX_M01_EVIDENCE_INVENTORY_BYTES } from './m01-evidence-inventory.js';
 import i14ReferenceSchema from '../../../../contracts/analysis/automation-i14-admission-reference.schema.json' with { type: 'json' };
 import type { AutomationI14AdmissionReference } from '../../../../contracts/analysis/automation-i14-admission-reference.generated.js';
 import type { AutomationI14EvidenceAdmission } from '../../../../contracts/analysis/automation-i14-evidence-admission.generated.js';
@@ -1439,10 +1439,12 @@ export class ResearchAutomationService {
         if (!validateM01Reference(semantic.m01InventoryArtifact))
           throw new ResearchAutomationIntegrityError('Stored M01 inventory reference is invalid.');
         const m01Reference = semantic.m01InventoryArtifact;
+        const savedM01 = await this.#readArtifact(m01Reference.sha256, MAX_M01_EVIDENCE_INVENTORY_BYTES, 'application/json');
+        // The saved method version selects the replay semantics; historical 1.0.0 inventories stay byte-identical.
         const expectedM01 = buildAutomationM01EvidenceInventory({ run: { runId, workspaceId },
           scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
+          inventoryVersion: automationM01InventoryVersion(JSON.parse(savedM01.toString('utf8'))),
           sourceClaims: expected.artifact, claimsSha256: expected.artifact.claimsSha256 });
-        const savedM01 = await this.#readArtifact(m01Reference.sha256, MAX_M01_EVIDENCE_INVENTORY_BYTES, 'application/json');
         if (savedM01.length !== m01Reference.byteSize || !savedM01.equals(expectedM01.bytes))
           throw new ResearchAutomationIntegrityError('Stored M01 inventory differs from its exact upstream claims.');
       }
@@ -1508,7 +1510,7 @@ export class ResearchAutomationService {
           if (!isRecord(packet) || !isRecord(packet.useContextAdmission)) throw new Error('missing packet admission');
           const admissionVersion = packet.useContextAdmission.methodVersion;
           if (admissionVersion !== '1.0.0' && admissionVersion !== '1.1.0') throw new Error('unknown packet admission');
-          if (packet.methodVersion !== '1.0.0' && packet.methodVersion !== '1.1.0') throw new Error('unknown decision packet version');
+          if (!['1.0.0', '1.1.0', '1.2.0'].includes(packet.methodVersion as string)) throw new Error('unknown decision packet version');
           const source: AutomationDecisionPacketInput = { sectionId, packetVersion: packet.methodVersion, evidence: {
             run: { runId, workspaceId }, scope: decisionScope, admissionVersion,
             sourceClaims: rebuilt.artifact, claimsSha256: rebuilt.artifact.claimsSha256,
@@ -1898,7 +1900,7 @@ export class ResearchAutomationService {
             ...(kind === 'INSIGHT' && locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? { located: { snapshot: locatedReview } } : {}),
             ...(input.nativeReview ? { native: { snapshot: input.nativeReview } } : {}) });
         const claimsArtifact = await this.#artifacts.put(builtClaims.bytes);
-        const builtM01 = kind === 'MARKET' ? buildAutomationM01EvidenceInventory({ run, scope,
+        const builtM01 = kind === 'MARKET' ? buildAutomationM01EvidenceInventory({ run, scope, inventoryVersion: '1.1.0',
           sourceClaims: builtClaims.artifact, claimsSha256: builtClaims.artifact.claimsSha256 }) : undefined;
         const m01Artifact = builtM01 ? await this.#artifacts.put(builtM01.bytes) : null;
         const admissionInput = { run, scope,
@@ -1930,7 +1932,7 @@ export class ResearchAutomationService {
         const decisionSynthesis: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionOutcome>> = {};
         const decisionExecutionIds: Partial<Record<AutomationDecisionSectionId, string>> = {};
         for (const sectionId of (kind === 'MARKET' ? ['M11', 'M12'] as const : ['I15'] as const)) {
-          const source: AutomationDecisionPacketInput = { sectionId, packetVersion: '1.1.0', evidence: { ...admissionInput,
+          const source: AutomationDecisionPacketInput = { sectionId, packetVersion: '1.2.0', evidence: { ...admissionInput,
             sourceClaims: decisionClaims.artifact, claimsSha256: decisionClaims.artifact.claimsSha256 } };
           decisionPackets.push(buildAutomationDecisionPacket(source).artifact);
           const parent = await this.#i14Parent(fresh, attempt);

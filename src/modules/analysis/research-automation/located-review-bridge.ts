@@ -53,6 +53,20 @@ function integrity(message: string): never { throw new ResearchAutomationIntegri
 
 interface Input extends ExactShopeeRunInput {
   reference: NonNullable<StepResultDocument['exactShopee']>;
+  /** U-02: an explicit upstream (model or owner) proposal. When a run supplies one it is retained verbatim instead of
+   * the scope-derived system template; the located review run built by the service supplies none. */
+  workingQuestionProposal?: string | null;
+}
+
+/**
+ * U-02 scope question template. Deterministic, versioned with the method semantics and derived only from the frozen
+ * run scope. It is a system proposal awaiting the owner, is never written into an owner-authored brief field, and
+ * never selects, filters or weights evidence.
+ */
+export function locatedScopeWorkingQuestion(scopeDefinition: string): string {
+  return `Câu hỏi làm việc đề xuất (mẫu do hệ thống tạo từ phạm vi đã chốt, chưa phải kết luận của AI): `
+    + `khách hàng nêu rào cản, lý do, thái độ và mong muốn nào trong phạm vi "${scopeDefinition}"? `
+    + `Chủ dự án xác nhận hoặc thay bằng câu hỏi của mình.`;
 }
 type Identity = Parameters<typeof buildPackageLocatedInsightExtension>[1] & {};
 export interface AutomationLocatedReviewProposalSnapshot {
@@ -138,8 +152,14 @@ export class AutomationLocatedReviewBridge {
     const coding = codeLiteralReviews(corpus, rules);
     // Until the specific rule revision is reviewed, no generated candidate is
     // admitted to a report's analytical sections. Candidate bytes remain intact.
+    // U-02 producer: every newly prepared located descriptor carries semanticsVersion 1.1.0, so I01 reports the
+    // labelled working-question state (with the owner fields to add) instead of the historical hard blocker. The
+    // proposal text is only ever what the run supplied; retained 1.0.0 packages keep building and replaying as-is.
     const descriptor: LocatedInsightMethods['input'] = {
-      contractVersion: '1.0.0', codebookId: coding.output.rules.codebookId,
+      contractVersion: '1.0.0', semanticsVersion: '1.1.0',
+      workingQuestionProposal: typeof input.workingQuestionProposal === 'string' && input.workingQuestionProposal.trim()
+        ? input.workingQuestionProposal : locatedScopeWorkingQuestion(input.scope.definition),
+      codebookId: coding.output.rules.codebookId,
       profileSha256: coding.output.rules.profileSha256, adoptionSha256: coding.output.rules.adoptionSha256,
       question: input.scope.definition, inclusionRule: 'Exact selected listing, readable nonconflicting records only. No category or period inference.',
       codingUnit: 'LOCATED_RECORD', adjudicationRule: 'Literal rules are a proposal. Generated candidates are retained separately and not admitted as report findings.',

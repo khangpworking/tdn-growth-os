@@ -9,7 +9,7 @@ export type Decimal = string;
 export interface AutomationM01EvidenceInventory {
   contractVersion: '1.0.0';
   methodId: 'automation-m01-evidence-inventory';
-  methodVersion: '1.0.0';
+  methodVersion: '1.0.0' | '1.1.0';
   sectionId: 'M01';
   runId: Uuid;
   workspaceId: Uuid;

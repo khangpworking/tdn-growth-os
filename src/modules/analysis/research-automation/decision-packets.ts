@@ -33,6 +33,14 @@ const AUTHORITY = {
   policyRevision: 'a41-source-neutral-decision-packets-v1',
 } as const;
 const UNSET = { state: 'UNSET', text: null } as const;
+/**
+ * U-07 (E2/E6): packet 1.2.0 carries an explicit AI-proposal slot instead of hard UNSET, capped at three candidates.
+ * 1.0.0/1.1.0 keep their historical bytes; an omitted version retains 1.0.0.
+ */
+export type DecisionPacketVersion = '1.0.0' | '1.1.0' | '1.2.0';
+export const AI_PROPOSAL_LABEL = 'đề xuất, chờ chủ duyệt';
+const MAX_AI_CANDIDATES_V1 = 20;
+const MAX_AI_CANDIDATES_V2 = 3;
 const sha256 = (value: string | Buffer): string => createHash('sha256').update(value).digest('hex');
 export class AutomationDecisionPacketValidationError extends TypeError {}
 function fail(code: string): never { throw new AutomationDecisionPacketValidationError(code); }
@@ -40,7 +48,7 @@ function fail(code: string): never { throw new AutomationDecisionPacketValidatio
 export interface AutomationDecisionPacketInput {
   readonly sectionId: AutomationDecisionSectionId;
   /** Explicit opt-in; omission retains the historical adapter and exact bytes. */
-  readonly packetVersion?: '1.0.0' | '1.1.0';
+  readonly packetVersion?: DecisionPacketVersion;
   /**
    * The exact frozen inputs the owning report attempt used for its I14 admission, with the saved admission version.
    * `sourceClaims` must be the artifact the owning Analysis service reconstructed and replay-verified from the exact
@@ -55,12 +63,32 @@ const SECTION_LIMITATIONS: Readonly<Record<AutomationDecisionSectionId, string>>
   M12: 'M12_DECISION_IS_OPEN_WITH_NO_ACTOR_BUDGET_DEADLINE_CHOICE_OR_EXECUTION_AUTHORIZATION',
 };
 
-function sectionFields(sectionId: AutomationDecisionSectionId) {
-  if (sectionId === 'M11') return { opportunity: { ownerHypotheses: [], opportunityDefinition: UNSET, size: UNSET, weights: UNSET, risk: UNSET, expectedReturn: UNSET, priority: null } };
+/** Packet 1.2.0 declares an AI-proposal slot (label + null values); the values live only in the candidate envelope. */
+const AI_PROPOSAL_SLOT = { label: AI_PROPOSAL_LABEL, immediateTask: null, proposedOwner: null, proposedDeadline: null } as const;
+
+/**
+ * U-16 (L8): authored draft text must never suggest a trial order or a purchase. Applied only to packet 1.2.0 so a
+ * retained 1.0.0/1.1.0 candidate always replays. Text values only; ids, enums and locators never match these phrases.
+ */
+const PURCHASE_SUGGESTION = /(?:đặt\s*hàng\s*thử|mua\s*thử|thử\s*mua|đặt\s*mua|order\s+(?:a\s+|an\s+)?(?:trial|sample|test)\b|buy\s+(?:a\s+|an\s+)?(?:trial|sample|test)\b|place\s+(?:a\s+|an\s+)?(?:trial\s+)?order\b)/iu;
+function assertNoPurchaseSuggestion(candidates: AutomationDecisionCandidates): void {
+  const texts: string[] = [];
+  const collect = (value: unknown): void => {
+    if (typeof value === 'string') texts.push(value);
+    else if (Array.isArray(value)) value.forEach(collect);
+    else if (value && typeof value === 'object') Object.values(value).forEach(collect);
+  };
+  collect(candidates.aiCandidates);
+  if (texts.some(text => PURCHASE_SUGGESTION.test(text))) fail('PURCHASE_SUGGESTION_NOT_ALLOWED');
+}
+
+function sectionFields(sectionId: AutomationDecisionSectionId, version: DecisionPacketVersion) {
+  const proposal = version === '1.2.0' ? { aiProposal: AI_PROPOSAL_SLOT } : {};
+  if (sectionId === 'M11') return { opportunity: { ownerHypotheses: [], opportunityDefinition: UNSET, size: UNSET, weights: UNSET, risk: UNSET, expectedReturn: UNSET, priority: null, ...proposal } };
   if (sectionId === 'I15') return { strategy: { ownerOptions: [], objective: UNSET, horizon: UNSET, riskAppetite: UNSET, tradeOffWeights: UNSET,
-    capability: UNSET, cost: UNSET, reviewTrigger: UNSET, preferredOption: null } };
+    capability: UNSET, cost: UNSET, reviewTrigger: UNSET, preferredOption: null, ...proposal } };
   return { action: { decisionState: 'OPEN', ownerOptions: [], accountableOwner: UNSET, budget: UNSET, capability: UNSET, risk: UNSET,
-    criteria: UNSET, timing: UNSET, chosen: null, executionAuthorization: null } };
+    criteria: UNSET, timing: UNSET, chosen: null, executionAuthorization: null, ...proposal } };
 }
 
 function item(claim: AutomationSourceClaim, reason: DecisionPacketItem['currentAdapterReason'] | undefined): DecisionPacketItem {
@@ -87,7 +115,7 @@ export function buildAutomationDecisionPacket(input: AutomationDecisionPacketInp
   const claims = validateAutomationSourceClaims(input.evidence.sourceClaims);
   if (claims.claimsSha256 !== admission.sourceClaims.claimsSha256) fail('CLAIMS_IDENTITY_MISMATCH');
   const version = input.packetVersion ?? '1.0.0';
-  const additional = version === '1.1.0' ? decisionAdditionalSupport(claims.claims, admission, input.evidence) : null;
+  const additional = version === '1.0.0' ? null : decisionAdditionalSupport(claims.claims, admission, input.evidence);
   // CURRENT adapter coverage only: I14 admits I02 source-stated use contexts. M05 supported patterns/constraints and
   // I04 actions with related context are business-eligible support but await a content-specific admission; until then
   // they are recorded as not admitted by this adapter, never as ineligible evidence.
@@ -108,8 +136,9 @@ export function buildAutomationDecisionPacket(input: AutomationDecisionPacketInp
     }));
   const supportAvailable = items.some(entry => entry.currentAdapterSupport !== 'NOT_ADMITTED_BY_CURRENT_ADAPTER');
   const insufficient = version === '1.0.0' ? 'NO_ADMISSIBLE_SOURCE_STATED_USE_CONTEXT' : 'NO_ADMISSIBLE_DECISION_SUPPORT';
+  // U-02 (E7): packet 1.2.0 states the working-question state instead of the old hard "owner question unset" gap.
   const gaps: Gap[] = [
-    'OWNER_QUESTION_UNSET',
+    version === '1.2.0' ? 'WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER' : 'OWNER_QUESTION_UNSET',
     ...(items.length ? [] : ['NO_ELIGIBLE_UPSTREAM_CLAIMS'] as const),
     ...(items.some(({ sectionId }) => sectionId === 'M05') ? [] : ['NO_SOURCE_OBSERVATION_CLAIMS'] as const),
     ...(items.some(({ sectionId }) => sectionId !== 'M05') ? [] : ['NO_LOCATED_DECLARATION_CLAIMS'] as const),
@@ -136,7 +165,7 @@ export function buildAutomationDecisionPacket(input: AutomationDecisionPacketInp
       status: supportAvailable ? 'SUPPORT_ANCHORS_AVAILABLE' : 'INSUFFICIENT_EVIDENCE',
       insufficientEvidence: supportAvailable ? null : insufficient,
     },
-    ...sectionFields(input.sectionId),
+    ...sectionFields(input.sectionId, version),
     limitations: [
       'PACKET_ITEMS_REFERENCE_UPSTREAM_CLAIMS_AND_ARE_NOT_NEW_FACTS',
       'OWNER_QUESTION_CONSTRAINTS_AND_OPTIONS_ARE_UNSET_AND_ARE_NOT_INFERRED_OR_COMPLETED_BY_AI',
@@ -152,6 +181,10 @@ export function buildAutomationDecisionPacket(input: AutomationDecisionPacketInp
         'I04_SUPPORT_REQUIRES_ITS_EXACT_I02_CONTEXT_REFS_QUALIFIERS_AND_COUNTEREVIDENCE',
       ]),
       'A_BARE_PURCHASE_OR_USE_ALONE_DOES_NOT_SUPPORT_UNMET_NEED_OR_MARKET_GAP',
+      ...(version === '1.2.0' ? [
+        'OWNER_FIELDS_STAY_UNSET_AND_A_LABELLED_AI_PROPOSAL_AWAITING_OWNER_IS_A_SEPARATE_UNREVIEWED_DRAFT',
+        'AT_MOST_THREE_AI_PROPOSALS_FOR_M12_AND_I15_ARE_NEVER_OWNER_OPTIONS_PREFERRED_OR_DECIDED',
+      ] : []),
       'CO_LISTED_SECTIONS_DO_NOT_IMPLY_PRODUCT_PERSON_LISTING_OR_PERIOD_JOIN_DENOMINATOR_MERGE_OR_INDEPENDENCE',
       'DECLARATIONS_ARE_ATTRIBUTED_SELF_REPORT_NOT_AUTHENTICATED_TRUTH',
       'LOCATED_RECORD_IS_NOT_A_PERSON_OR_POPULATION',
@@ -219,6 +252,19 @@ export function validateAutomationDecisionCandidateResponse(untrustedResponse: u
   };
   if (!validateCandidatesSchema(envelope)) fail(`INVALID_DECISION_CANDIDATES:${ajv.errorsText(validateCandidatesSchema.errors)}`);
   const artifact = JSON.parse(canonicalJson(envelope)) as AutomationDecisionCandidates;
+  if (packet.methodVersion === '1.2.0') {
+    // U-07 (E2/E6): every new-version section admits at most three labelled proposals — M11 opportunities included —
+    // and U-16 rejects any authored purchase suggestion.
+    if (artifact.aiCandidates.length > MAX_AI_CANDIDATES_V2) fail('CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT');
+    // U-07: each proposal must actually carry the immediate task, proposed owner and proposed deadline it is presented
+    // with. The schema keeps them optional so 1.0.0/1.1.0 candidates still validate; the version guard is what makes
+    // them required for a new packet. A present-but-empty value is not a proposal.
+    for (const candidate of artifact.aiCandidates) {
+      const fields = [candidate.immediateTask, candidate.proposedOwner, candidate.proposedDeadline];
+      if (fields.some(value => typeof value !== 'string' || !value.trim())) fail('CANDIDATE_PROPOSAL_FIELDS_REQUIRED');
+    }
+    assertNoPurchaseSuggestion(artifact);
+  }
   if (artifact.aiCandidates.length && packet.candidateEligibility.status !== 'SUPPORT_ANCHORS_AVAILABLE') fail('CANDIDATES_WITHOUT_ADMITTED_USE_CONTEXT');
   const known = new Set(packet.items.map(({ claimId }) => claimId));
   const anchors = new Set(packet.items.filter(({ currentAdapterSupport }) => currentAdapterSupport !== 'NOT_ADMITTED_BY_CURRENT_ADAPTER').map(({ claimId }) => claimId));

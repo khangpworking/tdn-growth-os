@@ -46,6 +46,47 @@ test('decision packets keep owner authority unset and candidate types bound to t
   }
 });
 
+// U-07 (E2/E6): a new-version draft must carry the three labelled proposal fields on every candidate, and every
+// section — M11 opportunities included — is capped at three. Old 1.0.0/1.1.0 candidates keep their own acceptance.
+test('U-07 requires non-empty proposal fields and caps M11, M12 and I15 at three candidates', () => {
+  const evidence = { ...syntheticI14Input(), admissionVersion: '1.0.0' as const };
+  for (const sectionId of ['M11', 'M12', 'I15'] as const) {
+    const input = { sectionId, packetVersion: '1.2.0' as const, evidence };
+    const words = ['Alpha', 'Beta', 'Gamma', 'Delta'];
+    const candidate = (index: number) => ({ ...validI14Response(evidence).aiCandidates[0],
+      candidateType: sectionId === 'M11' ? 'HYPOTHESIS' : sectionId === 'M12' ? 'ACTION_OPTION' : 'STRATEGY_OPTION',
+      text: `Retained observation reviewed for ${words[index]}`, counterevidenceRelations: [],
+      ...(sectionId === 'M12' ? { prerequisites: ['Owner confirms the retained observation.'] } : {}),
+      ...(sectionId === 'I15' ? { conditions: ['Owner confirms the retained observation.'] } : {}),
+      immediateTask: `Owner reviews the retained observation for ${words[index]}`,
+      proposedOwner: 'Owner to confirm', proposedDeadline: 'Within two weeks' });
+    // The M11 hypothesis candidate gains the same three optional schema fields, so they are accepted and required.
+    const three = validateAutomationDecisionCandidateResponse({ aiCandidates: [candidate(0), candidate(1), candidate(2)] }, input).artifact;
+    assert.equal(three.aiCandidates.length, 3);
+    assert.deepEqual(verifyAutomationDecisionCandidates(three, input), three);
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [candidate(0), candidate(1), candidate(2), candidate(3)] }, input),
+      /CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT/);
+    const { immediateTask: _omitted, ...withoutImmediateTask } = candidate(0);
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [withoutImmediateTask] }, input),
+      /CANDIDATE_PROPOSAL_FIELDS_REQUIRED/);
+    // A whitespace-only value already fails the canonical aiText pattern, so it never reaches the version guard.
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(0), immediateTask: '   ' }] }, input),
+      /INVALID_DECISION_CANDIDATES/);
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(0), proposedOwner: null }] }, input),
+      /CANDIDATE_PROPOSAL_FIELDS_REQUIRED/);
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(0), proposedDeadline: null }] }, input),
+      /CANDIDATE_PROPOSAL_FIELDS_REQUIRED/);
+    // A retained older packet still accepts its own candidates: no proposal fields and up to twenty of them.
+    const older = { sectionId, packetVersion: '1.1.0' as const, evidence: { ...evidence, admissionVersion: '1.1.0' as const } };
+    const legacy = ['Alpha', 'Beta', 'Gamma', 'Delta'].map(index => ({ ...validI14Response(evidence).aiCandidates[0],
+      candidateType: sectionId === 'M11' ? 'HYPOTHESIS' : sectionId === 'M12' ? 'ACTION_OPTION' : 'STRATEGY_OPTION',
+      text: `Legacy retained observation reviewed for ${index}`, counterevidenceRelations: [],
+      ...(sectionId === 'M12' ? { prerequisites: ['Owner confirms the retained observation.'] } : {}),
+      ...(sectionId === 'I15' ? { conditions: ['Owner confirms the retained observation.'] } : {}) }));
+    assert.equal(validateAutomationDecisionCandidateResponse({ aiCandidates: legacy }, older).artifact.aiCandidates.length, 4);
+  }
+});
+
 test('missing evidence remains missing rather than generating owner choices or a free-standing option', () => {
   const base = syntheticI14Input();
   const source = base.sourceClaims as Record<string, unknown>;
