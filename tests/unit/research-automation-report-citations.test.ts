@@ -103,6 +103,29 @@ test('whole-HTML provider guard includes disclosures, preformatted evidence and 
   assert.deepEqual(providerNameViolations('<div data-label="Metric">Source</div>'), ['metric']);
 });
 
+test('provider-bearing descriptive period basis stays original in semantics and neutral on the whole page', () => {
+  const source = descriptiveMarketFixture();
+  source.descriptor.m05[0]!.period!.basis = 'Metric reporting month';
+  source.descriptor.m05[0]!.unit = 'Metric units';
+  const sourceBytes = source.files.map(file => Buffer.from(file.bytes));
+  const methods = buildDescriptiveMarketMethods({ ...source.descriptor, sourcePackage: {
+    packageId: '33333333-3333-4333-8333-333333333333', version: 1,
+    manifestArtifactSha256: 'd'.repeat(64), packageContentSha256: 'e'.repeat(64),
+  } }).output;
+  const before = JSON.stringify(methods);
+  const original = fixture();
+  const keyword = 'Kalodata sample';
+  const report = buildResearchAutomationReport({ ...original, run: { ...original.run, keyword }, start: { ...original.start, keyword },
+    scope: { ...original.scope, definition: 'Metric sample scope' }, descriptiveMethods: methods }, 'MARKET');
+  assert.equal(JSON.stringify(methods), before);
+  assert.deepEqual((report.semantic as { descriptiveMethods: unknown }).descriptiveMethods, methods);
+  assert.equal(methods.input.m05[0]!.period!.basis, 'Metric reporting month');
+  assert.equal((report.semantic as { keyword: string }).keyword, keyword);
+  source.files.forEach((file, index) => assert.deepEqual(file.bytes, sourceBytes[index]));
+  assert.deepEqual(visibleTextViolations(reportVisibleText(report.html.toString())), []);
+  assert.deepEqual(providerNameViolations(report.html.toString()), []);
+});
+
 test('provider-bearing web labels are withheld rather than rewritten or leaked into the report', () => {
   const original = fixture();
   const webResults = [{ position: 1, title: 'Metric Kalodata comparison', site: 'Apify', url: 'https://example.test/source',

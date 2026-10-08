@@ -22,7 +22,9 @@ const now = () => new Date('2026-10-03T01:00:00.000Z');
 const sha = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value));
 
-async function fixture(t: TestContext, invalidBinding = false) {
+async function fixture(t: TestContext, invalidBinding = false,
+  sourceMetadata = { periodBasis: 'Synthetic export measurement period', title: 'Synthetic A' }) {
+  const { periodBasis, title } = sourceMetadata;
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-metric-report-'));
   const db = openDatabase({ databasePath: path.join(directory, 'db.sqlite'), now }).db;
   const artifacts = new ContentAddressedArtifactStore(path.join(directory, 'artifacts'));
@@ -50,14 +52,15 @@ async function fixture(t: TestContext, invalidBinding = false) {
   const row = db.prepare('SELECT start_request_sha256 start,scope_request_sha256 scope,scope_confirmed_at confirmed FROM analysis_research_automation_runs WHERE run_id=?').get(runId) as { start: string; scope: string; confirmed: string };
   const input: MetricRunInput = { runId, start: JSON.parse((await artifacts.read(row.start)).toString()),
     scope: JSON.parse((await artifacts.read(row.scope)).toString()), scopeConfirmedAt: row.confirmed };
-  const generated = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], { input: JSON.stringify({ profile: 'v2' }), maxBuffer: 4 * 1024 * 1024 });
+  const generated = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], { input: JSON.stringify({ profile: 'v2',
+    cells: { A2: { type: 's', value: title } } }), maxBuffer: 4 * 1024 * 1024 });
   assert.equal(generated.status, 0, generated.stderr.toString());
   const workbook = generated.stdout;
   const manifest = json({ contractVersion: '1.0.0', profileId: 'metric-shopee-product-list-sheet1-v2', profileVersion: '2.0.0',
     source: { sha256: sha(workbook), label: 'Synthetic export', provenanceBasis: 'Synthetic fixture, not collected', evidenceFamily: 'synthetic-metric',
       sheetName: 'Sheet1', headerSha256: 'b5b493190917fac69bd1e2cf1aa618aae175a7fd314ec635e44bcf29aab6f7ac', lastRow: 3 },
     scope: { key: 'synthetic-subset', platform: 'shopee', selection: 'UNSPECIFIED', start: '2026-08-17', end: '2026-09-15',
-      periodBasis: 'Synthetic export measurement period', acquiredAt: null }, precision: { revenue: 'unknown', units: 'unknown' },
+      periodBasis, acquiredAt: null }, precision: { revenue: 'unknown', units: 'unknown' },
     labelCodebookVersion: 'unassigned-v1', wideUnknownPolicy: 'exclude' });
   const descriptor = json({ contractVersion: 'automation-metric-source-v1', runId, workspaceId,
     runBindingSha256: invalidBinding ? 'f'.repeat(64) : sha(json(input)), keyword: 'synthetic', workbookPath: 'metric/workbook.xlsx',
@@ -79,8 +82,21 @@ async function fixture(t: TestContext, invalidBinding = false) {
   assert.ok(ready.outputs?.market && ready.outputs.insight);
   const semantic = JSON.parse((await artifacts.read(ready.outputs.market.versionId)).toString()) as Record<string, unknown>;
   const insightSemantic = JSON.parse((await artifacts.read(ready.outputs.insight.versionId)).toString()) as Record<string, unknown>;
-  return { db, artifacts, service, workspaces, semantic, insightSemantic, marketInput: inputs.get('MARKET')! };
+  return { db, artifacts, service, workspaces, semantic, insightSemantic, marketInput: inputs.get('MARKET')!, manifest };
 }
+
+test('REPORTS retains a provider-bearing declared period basis without disclosing it in HTML', async t => {
+  const periodBasis = 'Metric reporting month';
+  const f = await fixture(t, false, { periodBasis, title: 'Metric source product' });
+  const snapshot = f.semantic.metricMethods as AutomationMetricMethodSnapshot;
+  assert.equal(snapshot.result.input.scope.periodBasis, periodBasis);
+  assert.equal(snapshot.result.input.records[0]!.title, 'Metric source product');
+  assert.deepEqual(await f.artifacts.read(sha(f.manifest)), f.manifest, 'original source manifest remains byte-identical');
+  const original = await f.service.readReport(workspaceId, runId, 'MARKET');
+  assert.deepEqual(providerNameViolations(original.bytes.toString()), []);
+  assert.deepEqual(visibleTextViolations(reportVisibleText(original.bytes.toString())), []);
+  assert.equal((f.marketInput.metricMethods!).result.input.scope.periodBasis, periodBasis);
+});
 
 // Primary owner is the REPORTS lifecycle: the bridge's tests cannot detect an
 // omitted service connection, wrong report-kind placement or presentation drift.

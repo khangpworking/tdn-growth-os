@@ -1,13 +1,13 @@
 import type {
   LocatedInsightMethods, Field, Provenance, Relation, Span,
 } from '../../../contracts/analysis/located-insight-methods.generated.js';
-import { attributionText, retainedQuoteHtml, storedLiteral, technicalLiteral } from './research-automation/descriptive-report.js';
+import { attributionText, retainedQuoteHtml, reviewRecordMark, storedLiteral, technicalLiteral, type ReportCitations } from './research-automation/descriptive-report.js';
 
 type Input = LocatedInsightMethods['input'];
 type LocatedId = 'I02' | 'I04' | 'I05' | 'I06' | 'I07' | 'I08' | 'I09';
 type Annotation = Input['i02'][number] | Input['i04'][number] | Input['i05'][number]
   | Input['i06'][number] | Input['i07'][number] | Input['i08'][number] | Input['i09'][number];
-type RenderContext = { output: LocatedInsightMethods; sectionId: string; records: Set<number>; bundleDownload: boolean; showAnnotationPendingCount: boolean };
+type RenderContext = { output: LocatedInsightMethods; sectionId: string; records: Set<number>; bundleDownload: boolean; showAnnotationPendingCount: boolean; citations: ReportCitations | undefined };
 
 const PAGE_LIMIT = 20;
 const esc = (value: string | number): string => String(value).replace(/[&<>"']/g, character => ({
@@ -84,7 +84,7 @@ function source(ctx: RenderContext, recordIndex: number): string {
   const record = ctx.output.input.records[recordIndex];
   if (!record) throw new TypeError('located insight HTML: UNKNOWN_RECORD');
   ctx.records.add(recordIndex);
-  return `<p>Bản ghi ${recordIndex + 1}<br><small>Thời điểm theo nguồn: ${textOrUnset(record.timeText)}</small></p><a href="#located-${ctx.sectionId}-record-${recordIndex}">Đọc toàn văn và vị trí nguồn của bản ghi ${recordIndex + 1}</a>`;
+  return `<p>Bản ghi ${recordIndex + 1} ${ctx.citations ? reviewRecordMark(record, ctx.citations) : ''}<br><small>Thời điểm theo nguồn: ${textOrUnset(record.timeText)}</small></p><a href="#located-${ctx.sectionId}-record-${recordIndex}">Đọc toàn văn và vị trí nguồn của bản ghi ${recordIndex + 1}</a>`;
 }
 
 function annotationContext(ctx: RenderContext, row: Annotation): string {
@@ -250,8 +250,8 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
 }
 
 /** Render verified located-method output only; the caller retains the old path when the optional bundle is absent. */
-export function renderLocatedInsightSection(output: LocatedInsightMethods, sectionId: string, options: { bundleDownload?: boolean; showAnnotationPendingCount?: boolean } = {}): string | undefined {
-  const ctx: RenderContext = { output, sectionId, records: new Set(), bundleDownload: options.bundleDownload !== false, showAnnotationPendingCount: options.showAnnotationPendingCount !== false };
+export function renderLocatedInsightSection(output: LocatedInsightMethods, sectionId: string, options: { bundleDownload?: boolean; showAnnotationPendingCount?: boolean; citations?: ReportCitations } = {}): string | undefined {
+  const ctx: RenderContext = { output, sectionId, records: new Set(), bundleDownload: options.bundleDownload !== false, showAnnotationPendingCount: options.showAnnotationPendingCount !== false, citations: options.citations };
   switch (sectionId) {
     case 'I01': return briefBody(ctx);
     case 'I02': case 'I04': case 'I05': case 'I06': case 'I07': case 'I08': case 'I09': return locatedBody(ctx, sectionId);
