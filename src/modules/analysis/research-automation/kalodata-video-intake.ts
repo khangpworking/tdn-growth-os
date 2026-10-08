@@ -15,7 +15,12 @@ import type {
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
 import type {
   AutomationSourcePackageLookup,
-  FinalizedSourcePackageReader,
+  // Pre-validate all member sizes before finalization
+  const totalSize = /* calculate total size of all members */;
+  if (totalSize > VIDEO_READ_BUDGET.maxTotalBytes) {
+    reject("VIDEO_PACKAGE_TOO_LARGE");
+  }
+    FinalizedSourcePackageReader,
   SourceAttachmentOriginReader,
 } from '../../foundation/source-package-reader.js';
 import { SourcePackageService, type VerifiedFinalizedSourcePackage } from '../../foundation/source-package-service.js';
@@ -137,11 +142,26 @@ export function deriveUnitsPer1000Views(units: string | null, views: string | nu
 /** Ad spend share of revenue, rounded to four places. Null when either side is missing or revenue is zero. */
 export function deriveAdShare(adSpend: string | null, revenue: string | null): string | null {
   if (adSpend === null || revenue === null || !DECIMAL_PATTERN.test(adSpend) || !DECIMAL_PATTERN.test(revenue)) return null;
-  const scale = 4;
-  const numerator = toScaled(adSpend, scale);
-  const denominator = toScaled(revenue, scale);
+  // Preserve full input precision; round only the final quotient
+  const adParts = adSpend.split('.');
+  const revParts = revenue.split('.');
+  const adFraction = (adParts[1] ?? '').padEnd(20, '0');
+  const revFraction = (revParts[1] ?? '').padEnd(20, '0');
+  const numerator = BigInt((adParts[0] ?? '0') + adFraction);
+  const denominator = BigInt((revParts[0] ?? '0') + revFraction);
   if (denominator === 0n) return null;
-  return divideToString(numerator, denominator, scale);
+  // Scale to get 4 decimal places in the result
+  const scaled = numerator * 10000n;
+  const quotient = scaled / denominator;
+  const remainder = scaled % denominator;
+  // Round half-up
+  const rounded = remainder * 2n >= denominator ? quotient + 1n : quotient;
+  const result = rounded.toString().padStart(5, '0');
+  const whole = result.slice(0, -4) || '0';
+  const frac = result.slice(-4);
+  // Trim trailing zeros
+  const trimmed = frac.replace(/0+$/, '');
+  return trimmed ? `${whole}.${trimmed}` : whole;
 }
 
 // ---------------------------------------------------------------------------
@@ -269,7 +289,7 @@ function unzipVideoWorkbook(bytes: Buffer): Map<string, Buffer> {
     const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
     const compressed = bytes.subarray(dataOffset, dataOffset + compressedSize);
     if (compressed.length !== compressedSize) reject('WORKBOOK_ARCHIVE_INVALID');
-    const data = method === 0 ? Buffer.from(compressed) : inflateRawSync(compressed);
+    const data = method === 0 ? Buffer.from(compressed) : inflateRawSync(compressed, { maxOutputLength: MAX_VIDEO_UPLOAD_BYTES });
     totalUncompressed += data.length;
     if (totalUncompressed > 64 * 1024 * 1024 || data.length > 32 * 1024 * 1024) reject('WORKBOOK_SIZE_LIMIT');
     members.set(name, data);
