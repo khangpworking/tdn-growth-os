@@ -76,3 +76,14 @@ Next action:
 Coordinator independently reviews the exact draft PR head and the owning service/API/source reconstruction, confirms exact hosted full checks, and performs any eligible normal merge. Worker never merges. Apply review corrections only on explicitly owned paths or after a fresh serial grant; preserve0050 and all historical Market bytes/decisions.
 
 Business decisions pending: unchanged U11/U26/U32 owner-decision blockers; no new methodology or authorization inferred.
+
+## Hosted CI correction — 2026-10-09
+
+Frozen source-review candidate `d2bc0b9691b6fd7f97a8de59fb5b0acbebfac7a4`, draft [PR186](https://github.com/khangpworking/tdn-growth-os/pull/186), failed hosted [Check37826718467](https://github.com/khangpworking/tdn-growth-os/actions/runs/37826718467). Frontend: 273 PASS. Backend: 1393 tests, 1380 PASS, 10 FAIL, 3 declared skips. Each failure was an exact final migration expectation of49 versus intended additive0050/version50; this failure is not waived or presented as a full-suite pass.
+
+Coordinator `msg_80bacfc00dc4` explicitly granted test/handoff-only correction of the ten affected files. Commit `f5995c840bf04d4c2c4ba8a85527ec0dfe1edcd4` updates only final currentVersion/user_version expectations and appends50 to exact applied/history lists in:
+`content-ai-migration.test.ts`, `content-brand.test.ts`, `content-campaign-migration.test.ts`, `content-catalog.test.ts`, `content-insight-migration.test.ts`, `content-package-migration.test.ts`, `content-prompt.test.ts`, `shopee-file-research.test.ts`, `source-package-intake.test.ts`, `sqlite-foundation.test.ts` under `tests/integration/`.
+
+All prior migration hashes, structural/table/trigger/FK/legal-state/idempotency/rollback assertions are unchanged. No production, central, schema, generation or DDL edits. Migration0050 SHA remains `f054576516a11471ef8a448a05ed9ee429a4686ab9e2839df9aaf9837ac0c3fe`.
+
+Pinned `node --import tsx --test --test-concurrency=2` on those exact ten files: **87 PASS, zero failures/skips**, 16.36s; task-local log `/tmp/insight-reader-ci-migration-correction.log`. `git diff --check` PASS. Independent reviewer must verify this precise test-only delta and the final head in addition to frozen source review; a fresh full hosted exact-head Check remains required. Central/GLOBAL leases remain released.
