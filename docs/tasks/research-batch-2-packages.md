@@ -346,10 +346,10 @@ Checklist:
 - [ ] P7-03 Dedupe works on the id hash, then the normalised text sha, then a fuzzy match. Storage is append-only, tagged by watermark.
 - [ ] P7-04 Commercial accounts are marked, not deleted, and excluded from insights.
 - [ ] P7-05 Stop gateways: a ≥90% duplicate batch is aborted, a saturation flag, and the manifest caps are enforced again.
-- [ ] P7-06 Taxonomy on a 300-post sample (one owner review), then classification of topic, journey stage, sentiment and confidence. Low-confidence posts go to "unclassified".
+- [ ] P7-06 Taxonomy on a 300-post sample (no owner review; checked by a second model per Ultimate E11), then classification of topic, journey stage, sentiment and confidence. Low-confidence posts go to "unclassified".
 - [ ] P7-07 Every insight cites ≥2 verbatim quotes from different authors.
 - [ ] P7-08 Evidence cards per "nhóm hoàn cảnh". 3–6 personas, each with ≥3 cards and ≥5 authors. Every attribute cites quotes; an unsourced attribute is dropped. No inferred demographics. The label "Chân dung do AI tổng hợp từ bài viết thật — không phải khách hàng có thật".
-- [ ] P7-09 A κ check on 100 human labels: κ < 0.6 shows "độ tin cậy thấp".
+- [ ] P7-09 A κ check per Ultimate E11: a second, independent model re-codes every record when there are ≤200, else a random 200. κ < 0.6 shows "độ tin cậy thấp" and keeps the counts out of the main conclusions.
 - [ ] P7-10 Every #124 Phase 3 test bullet, with fake model calls.
 
 **Functional when:** a synthetic bundle produces cards, personas and journey counts ("x/y bài trong mẫu") that pass every rule above.
@@ -501,6 +501,29 @@ Checklist:
   - tests use a fake transport.
 
 **Functional when:** uploading a synthetic monthly-tables file and a synthetic CPI file to a fixture run stores validated, cited official-statistics rows. For any category in the map, the rows can be read back for side-by-side display beside sample numbers, ready for P8-10.
+
+---
+
+## Numeric caps and why
+
+Every numeric cap in the packages has a reason here. Business thresholds (sample sizes, κ, persona minimums) are explained in Ultimate Appendix G8; this table covers cost, safety and engineering caps. A new or changed cap adds a row in the same commit. "Convention" means a clear limit chosen without outside evidence; revisit it with data. Reasons for caps set before 2026-10-08 were added on that date.
+
+| Cap | Where | Why this number | Certainty |
+|---|---|---|---|
+| WARNING at ≤ max(20%, $2), BLOCKED at ≤ $0.50 | P3-05 | Warn early enough to top up before a run fails. $0.50 is about 50 indexed pages at $0.01 per page, roughly one mid-size report PDF | Convention |
+| ≤1 question per section per PDF, ≤10 per run | P3-10 | Bounds paid retrieval per run; one fixed question per section keeps answers comparable across PDFs | Convention |
+| ≤5 Trends keywords | P5 (`SEARCH_TRENDS_LIMITS.maxKeywords`) | Google Trends compares at most 5 terms in one query | High (platform limit) |
+| ≤4 Trends calls | P5-02 | The plan is 1 time series (all keywords) + 2 related-query calls (one keyword per call) + 1 regional map | High (derived from the plan) |
+| ≤10 expanded searches | P5-02, P5-07 | Per-run cost ceiling for the Phase 0 trial. Dated and single-site queries share it, so they cannot raise cost. Revisit after the spike | Convention |
+| ≥90% duplicate batch aborted | P7-05 | A batch that is almost all already-seen posts means the collector is looping or the topic is exhausted; continuing only costs | Convention |
+| 300-post taxonomy sample | P7-06 | Same order as the 300 reviews per product the owner set for the 06/10 trial (Ultimate §6.3) | Convention |
+| 3–6 personas | P7-08 | Fewer than 3 is not a segmentation; more than 6 cannot be read side by side in one section | Convention |
+| ≥2 quotes from different authors per insight | P7-07 | One quote is one opinion; two authors is the smallest number that shows it is not one person's view | Convention |
+| 30 videos per run | P9-01 | 30 × 200 comments = 6,000 comments, about $2 at the tested rate (~$0.33 per 1,000 unique comments, ST-20261008-19) | Medium (one test) |
+| ≤200 top-level comments per video | P9-02 | The size used in the R3/R4 test. Spreads the sample over videos so one viral video does not dominate | Medium (one test) |
+| ≤20 MB per XLSX | P10-01 | The largest official-statistics workbook seen on 08/10 was about 1 MB; 20 MB leaves wide headroom and still blocks a wrong upload | Medium |
+| ≥2 s between requests, ≤20 files per run | P10-08 | Polite load on a government site. Monthly tables + CPI are 2 files per month, so 20 files cover about 10 months | Convention |
+| ≤6 paid calls | Phase 0 spike | Approved by the owner on 07/10 | Owner decision |
 
 ---
 
