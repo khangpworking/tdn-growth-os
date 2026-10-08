@@ -1,14 +1,21 @@
 /* Generated from automation-insight-report-revision.schema.json. Do not edit by hand. */
 
-export interface AutomationInsightReportRevisionRequest {
+/**
+ * Owner report-revision request carrying either accepted coding receipts (v1) or one versioned receipt-free draft selection. Exactly one variant validates; historical v1 payloads match only the accepted branch.
+ */
+export type AutomationInsightReportRevisionRequest =
+  AutomationInsightAcceptedReportRevisionRequest | AutomationInsightDraftReportRevisionRequest;
+
+export interface AutomationInsightAcceptedReportRevisionRequest {
   contractVersion: 'automation-insight-report-revision-v1';
   requestKey: string;
   previousPairId: string;
-  sources: {
-    metric: Keep;
-    nativeReview: Keep;
-  };
+  sources: InsightRevisionSources;
   acceptedInsight: InsightReportSelection;
+}
+export interface InsightRevisionSources {
+  metric: Keep;
+  nativeReview: Keep;
 }
 export interface Keep {
   decision: 'KEEP';
@@ -20,4 +27,18 @@ export interface InsightReportSelection {
    * @maxItems 1000
    */
   receiptIds: [string, ...string[]];
+}
+export interface AutomationInsightDraftReportRevisionRequest {
+  contractVersion: 'automation-insight-report-revision-v1';
+  requestKey: string;
+  previousPairId: string;
+  sources: InsightRevisionSources;
+  draftInsight: InsightDraftSelection;
+}
+/**
+ * Versioned receipt-free draft selection of one exact retained proposal. Zero receipts by construction; never an implicit latest, never approval.
+ */
+export interface InsightDraftSelection {
+  contractVersion: 'insight-draft-select-v1';
+  proposalId: string;
 }

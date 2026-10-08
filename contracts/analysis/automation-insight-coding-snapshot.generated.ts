@@ -1,6 +1,15 @@
 /* Generated from automation-insight-coding-snapshot.schema.json. Do not edit by hand. */
 
 /**
+ * Retained coding snapshot: accepted receipts (v1, legacy) or one versioned receipt-free draft selection (v2). Exactly one branch validates; historical v1 payloads match only the accepted branch.
+ */
+export type AutomationInsightCodingSnapshot =
+  AutomationInsightCodingAcceptedSnapshot | AutomationInsightCodingDraftSnapshot;
+/**
+ * Draft-eligibility semantics. Absent keeps the historical accepted-only output byte-identical.
+ */
+export type DraftCountsVersion = 'draft-counts-v1';
+/**
  * @maxItems 10000
  */
 export type Strings = string[];
@@ -8,8 +17,24 @@ export type Strings = string[];
  * @maxItems 10000
  */
 export type Pointers = string[];
+/**
+ * Unique record pointers of draft-eligible retained AI proposals. Accepted pointers unchanged.
+ *
+ * @maxItems 10000
+ */
+export type Pointers1 = string[];
+/**
+ * Draft-eligible retained AI proposals: PENDING_AI basis with no disagreement. Never owner-approved.
+ *
+ * @maxItems 10000
+ */
+export type Pointers2 = string[];
+/**
+ * Same-sentence label required on every AI-proposed draft number. Never a release claim.
+ */
+export type DraftCountLabel = 'đề xuất, chờ chủ duyệt';
 
-export interface AutomationInsightCodingSnapshot {
+export interface AutomationInsightCodingAcceptedSnapshot {
   contractVersion: 'automation-insight-coding-snapshot-v1';
   selectionContractVersion?: 'automation-insight-selection-v2';
   binding: InsightSourceBinding;
@@ -192,6 +217,7 @@ export interface Input {
     provenance: Provenance;
   }[];
   semanticsVersion?: '1.0.0' | '1.1.0';
+  draftCountsVersion?: DraftCountsVersion;
   workingQuestionProposal?: string | null;
 }
 export interface Record {
@@ -425,6 +451,11 @@ export interface Section {
   annotationPointers: Pointers;
   pendingAnnotationPointers: Pointers;
   locatedRecordCount: number;
+  draftRecordPointers?: Pointers1;
+  draftAnnotationPointers?: Pointers2;
+  draftLocatedRecordCount?: number;
+  draftLabel?: DraftCountLabel;
+  draftCountsVersion?: DraftCountsVersion;
   semanticValidation: 'DECLARED_NOT_VERIFIED';
   blockers: Strings;
 }
@@ -458,6 +489,19 @@ export interface CorpusSection {
       } | null;
       annotationPointers: Pointers;
     }[];
+    /**
+     * Per-code draft counts from eligible retained AI proposals. Accepted counts unchanged; no ratios, never released.
+     *
+     * @maxItems 10000
+     */
+    draftCounts?: {
+      code: string;
+      recordCount: number;
+      annotationPointers: Pointers;
+      label: DraftCountLabel;
+    }[];
+    draftLabel?: DraftCountLabel;
+    draftCountsVersion?: DraftCountsVersion;
     blockers: Strings;
   }[];
   mentionPointers: Pointers;
@@ -465,4 +509,37 @@ export interface CorpusSection {
   countUnit: 'LOCATED_RECORDS';
   semanticValidation: 'DECLARED_NOT_VERIFIED';
   blockers: Strings;
+}
+/**
+ * Zero receipts by construction with an explicit draft selection echo. Never an implicit latest, never approval.
+ */
+export interface AutomationInsightCodingDraftSnapshot {
+  contractVersion: 'automation-insight-coding-snapshot-v2';
+  binding: InsightSourceBinding;
+  selection: InsightDraftSelectionEcho;
+  adoptionId: string;
+  proposalSha256: string;
+  /**
+   * @maxItems 0
+   */
+  receipts: [];
+  draftSelection: InsightDraftSelection;
+  output: LocatedInsightMethods;
+}
+/**
+ * Explicit empty selection echo of a versioned draft selection.
+ */
+export interface InsightDraftSelectionEcho {
+  proposalId: string;
+  /**
+   * @maxItems 0
+   */
+  receiptIds: [];
+}
+/**
+ * Versioned receipt-free draft selection of one exact retained proposal. Zero receipts by construction; never an implicit latest, never approval.
+ */
+export interface InsightDraftSelection {
+  contractVersion: 'insight-draft-select-v1';
+  proposalId: string;
 }
