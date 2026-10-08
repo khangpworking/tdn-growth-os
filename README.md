@@ -11,7 +11,9 @@ The eleven-card source board, versioned Market reader corrections, bounded L9 co
 draft/Insight defaults, sales-backed default peers and bounded receipt-free Insight
 drafts are merged. PRs #174/#175 add family draft counts, an I11 count bridge,
 Market reader findings, retained-spec unit prices and shared visible-text lint.
-U-03 and U-34 remain partial; future collector placeholders remain inactive.
+PR #177 adds authenticated listing-spec intake; PR #172 adds retained keyword
+drafting, a web L9 consumer and bounded source disclosure. U-03, U-12, U-27 and
+U-34 remain partial; future collector placeholders remain inactive.
 See [current implementation evidence and limits](docs/STATUS.md#ultimate-alignment--implementation-run-08102026).
 
 ## Bắt đầu

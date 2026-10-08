@@ -1,0 +1,702 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/insight-literal-evidence.schema.json",
+  "title": "InsightLiteralEvidence",
+  "description": "Versioned source-bound literal Insight output. Stars are source ratings, never text sentiment; identical text preserves distinct admitted locators; typed retained listing voice never enters customer coding. Owning-service exact source replay is required in addition to schema validation.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "methodId",
+    "methodVersion",
+    "input",
+    "methodOutputId",
+    "selectedRecordCount",
+    "selectedRecordPointers",
+    "excludedRecordPointers",
+    "stars",
+    "duplicateTexts",
+    "sellerLayer",
+    "limitations"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "insight-literal-evidence-v1"
+    },
+    "methodId": {
+      "const": "insight-literal-evidence"
+    },
+    "methodVersion": {
+      "const": "1.0.0"
+    },
+    "input": {
+      "$ref": "#/$defs/input"
+    },
+    "methodOutputId": {
+      "$ref": "#/$defs/digest"
+    },
+    "selectedRecordCount": {
+      "$ref": "#/$defs/count"
+    },
+    "selectedRecordPointers": {
+      "$ref": "#/$defs/reviewPointers"
+    },
+    "excludedRecordPointers": {
+      "$ref": "#/$defs/reviewPointers"
+    },
+    "stars": {
+      "$ref": "#/$defs/stars"
+    },
+    "duplicateTexts": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/duplicateText"
+      }
+    },
+    "sellerLayer": {
+      "$ref": "#/$defs/sellerLayer"
+    },
+    "limitations": {
+      "type": "array",
+      "minItems": 5,
+      "maxItems": 5,
+      "items": {
+        "enum": [
+          "SOURCE_RECORDS_NOT_UNIQUE_PEOPLE",
+          "STARS_NOT_TEXT_SENTIMENT",
+          "SELLER_WORDING_NOT_CUSTOMER_EVIDENCE",
+          "NO_SELLER_TARGET_INFERENCE_OR_CROSS_PLATFORM_JOIN",
+          "RETAINED_FIELD_PROVENANCE_NOT_SELLER_AUTHENTICITY"
+        ]
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "count": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 10000
+    },
+    "pointer": {
+      "type": "string",
+      "pattern": "^/(?:[^~]|~[01])*$",
+      "maxLength": 2048
+    },
+    "reviewPointer": {
+      "type": "string",
+      "pattern": "^/input/reviews/(0|[1-9][0-9]*)$",
+      "maxLength": 64
+    },
+    "reviewPointers": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 10000,
+      "items": {
+        "$ref": "#/$defs/reviewPointer"
+      },
+      "uniqueItems": true
+    },
+    "sourceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceSha256",
+        "rowLocator",
+        "textLocator",
+        "ratingLocator"
+      ],
+      "properties": {
+        "sourceSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "rowLocator": {
+          "$ref": "#/$defs/pointer"
+        },
+        "textLocator": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/pointer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "ratingLocator": {
+          "$ref": "#/$defs/pointer"
+        }
+      }
+    },
+    "rating": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fieldPresent",
+        "state",
+        "value"
+      ],
+      "properties": {
+        "fieldPresent": {
+          "type": "boolean"
+        },
+        "state": {
+          "enum": [
+            "ABSENT",
+            "MISSING",
+            "INVALID",
+            "VALID"
+          ]
+        },
+        "value": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 5
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "VALID"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fieldPresent": {
+                "const": true
+              },
+              "value": {
+                "type": "integer"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "value": {
+                "type": "null"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "ABSENT"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "fieldPresent": {
+                "const": false
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "fieldPresent": {
+                "const": true
+              }
+            }
+          }
+        }
+      ]
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceKind",
+        "text",
+        "textState",
+        "rating",
+        "admitted",
+        "exclusionReasons",
+        "sourceRefs"
+      ],
+      "properties": {
+        "sourceKind": {
+          "enum": [
+            "EXACT_SHOPEE",
+            "NATIVE_SHOPEE"
+          ]
+        },
+        "text": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 1000000
+        },
+        "textState": {
+          "enum": [
+            "READABLE",
+            "EMPTY",
+            "UNREADABLE"
+          ]
+        },
+        "rating": {
+          "$ref": "#/$defs/rating"
+        },
+        "admitted": {
+          "type": "boolean"
+        },
+        "exclusionReasons": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 8,
+          "items": {
+            "enum": [
+              "UNRESOLVED_CONFLICT",
+              "WRONG_LISTING",
+              "UNRESOLVED_LISTING",
+              "NON_REVIEW_ROW",
+              "UNRESOLVED_ROW_TYPE",
+              "NATIVE_ID_TEXT_CONFLICT",
+              "NATIVE_ID_RATING_CONFLICT",
+              "NATIVE_ID_LISTING_CONFLICT"
+            ]
+          },
+          "uniqueItems": true
+        },
+        "sourceRefs": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 512,
+          "items": {
+            "$ref": "#/$defs/sourceRef"
+          },
+          "uniqueItems": true
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "textState": {
+                "const": "UNREADABLE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "text": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "text": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "textState": {
+                "const": "READABLE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "text": {
+                "pattern": "\\S",
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "textState": {
+                "const": "EMPTY"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "text": {
+                "pattern": "^\\s*$",
+                "type": "string"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "admitted": {
+                "const": true
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "exclusionReasons": {
+                "maxItems": 0,
+                "type": "array"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "seller": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "voice",
+        "platform",
+        "productId",
+        "sourceType",
+        "text",
+        "sourceSha256",
+        "responseSha256",
+        "locator",
+        "period",
+        "retrievedAt"
+      ],
+      "properties": {
+        "voice": {
+          "const": "SELLER"
+        },
+        "platform": {
+          "const": "TIKTOK_SHOP"
+        },
+        "productId": {
+          "type": "string",
+          "pattern": "^kalodata:[A-Za-z0-9_-]{1,64}$"
+        },
+        "sourceType": {
+          "enum": [
+            "LISTING_TITLE",
+            "LISTING_DESCRIPTION"
+          ]
+        },
+        "text": {
+          "type": "string",
+          "pattern": "\\S",
+          "maxLength": 1000000
+        },
+        "sourceSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "responseSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "locator": {
+          "$ref": "#/$defs/pointer"
+        },
+        "period": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "binding",
+        "reviews",
+        "sellerStatements"
+      ],
+      "properties": {
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "workspaceId",
+            "runId",
+            "scopeSha256",
+            "previousPairId"
+          ],
+          "properties": {
+            "workspaceId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "runId": {
+              "$ref": "#/$defs/uuid"
+            },
+            "scopeSha256": {
+              "$ref": "#/$defs/digest"
+            },
+            "previousPairId": {
+              "$ref": "#/$defs/digest"
+            }
+          }
+        },
+        "reviews": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/review"
+          }
+        },
+        "sellerStatements": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/seller"
+          }
+        }
+      }
+    },
+    "countedRecords": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordCount",
+        "recordPointers"
+      ],
+      "properties": {
+        "recordCount": {
+          "$ref": "#/$defs/count"
+        },
+        "recordPointers": {
+          "$ref": "#/$defs/reviewPointers"
+        }
+      }
+    },
+    "stars": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "bins",
+        "absentField",
+        "missingValue",
+        "invalidValue",
+        "textlessUnknown",
+        "unreadableText"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "NO_USABLE_RECORDS",
+            "SOURCE_FIELD_ABSENT",
+            "AVAILABLE"
+          ]
+        },
+        "bins": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 5,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "value",
+              "recordCount",
+              "recordPointers"
+            ],
+            "properties": {
+              "value": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 5
+              },
+              "recordCount": {
+                "$ref": "#/$defs/count"
+              },
+              "recordPointers": {
+                "$ref": "#/$defs/reviewPointers"
+              }
+            }
+          }
+        },
+        "absentField": {
+          "$ref": "#/$defs/countedRecords"
+        },
+        "missingValue": {
+          "$ref": "#/$defs/countedRecords"
+        },
+        "invalidValue": {
+          "$ref": "#/$defs/countedRecords"
+        },
+        "textlessUnknown": {
+          "$ref": "#/$defs/countedRecords"
+        },
+        "unreadableText": {
+          "$ref": "#/$defs/countedRecords"
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "AVAILABLE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "bins": {
+                "minItems": 5,
+                "type": "array"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "bins": {
+                "maxItems": 0,
+                "type": "array"
+              }
+            }
+          }
+        }
+      ]
+    },
+    "duplicateText": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "textSha256",
+        "recordPointers",
+        "label"
+      ],
+      "properties": {
+        "textSha256": {
+          "$ref": "#/$defs/digest"
+        },
+        "recordPointers": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 10000,
+          "items": {
+            "$ref": "#/$defs/reviewPointer"
+          },
+          "uniqueItems": true
+        },
+        "label": {
+          "const": "trùng nguyên văn, có thể cùng một người"
+        }
+      }
+    },
+    "sellerLayer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "state",
+        "statementPointers",
+        "blockers",
+        "customerCodingMembership"
+      ],
+      "properties": {
+        "state": {
+          "enum": [
+            "AVAILABLE",
+            "UNAVAILABLE"
+          ]
+        },
+        "statementPointers": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 10000,
+          "items": {
+            "type": "string",
+            "pattern": "^/input/sellerStatements/(0|[1-9][0-9]*)$",
+            "maxLength": 64
+          },
+          "uniqueItems": true
+        },
+        "blockers": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 1,
+          "items": {
+            "const": "TYPED_RETAINED_SELLER_SOURCE_REQUIRED"
+          },
+          "uniqueItems": true
+        },
+        "customerCodingMembership": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 0,
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "AVAILABLE"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "statementPointers": {
+                "minItems": 1,
+                "type": "array"
+              },
+              "blockers": {
+                "maxItems": 0,
+                "type": "array"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "statementPointers": {
+                "maxItems": 0,
+                "type": "array"
+              },
+              "blockers": {
+                "minItems": 1,
+                "type": "array"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

@@ -67,7 +67,7 @@ export function admitWebResults(packet: AutomationSourceEvidence, results: reado
 
 /** Registry membership follows verified owning-method identity, never filenames or URL guesses. Unknown future source families remain outside this mapping. */
 export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input: Pick<import('./service.js').ResearchAutomationReportInput,
-  'metricMethods' | 'metricClassified' | 'reviewCorpus' | 'collection' | 'nativeReview' | 'locatedReview'>, kind: 'MARKET' | 'INSIGHT'): AutomationSourceEvidence {
+  'metricMethods' | 'metricClassified' | 'reviewCorpus' | 'collection' | 'nativeReview' | 'locatedReview' | 'insightLiteral'>, kind: 'MARKET' | 'INSIGHT'): AutomationSourceEvidence {
   checkSourceEvidence(packet);
   const usages: SourceAppendixUsage[] = packet.sourceAppendix.rows.map(row => ({ registryId: row.registryId, binding: row.binding,
     l9: row.l9Excluded === null || row.l9Unclear === null ? null : { excluded: row.l9Excluded, unclear: row.l9Unclear, byReason: row.l9Reasons }, l10SourceType: row.l10SourceType }));
@@ -77,8 +77,18 @@ export function sourceEvidenceForReport(packet: AutomationSourceEvidence, input:
   };
   if (kind === 'MARKET' && input.metricMethods) add('S01', 'package', input.metricMethods.originalSourcePackage.manifestArtifactSha256);
   if (kind === 'INSIGHT') {
-    if ((input.reviewCorpus || input.locatedReview) && input.collection?.exactShopee) add('S05', 'capture', input.collection.exactShopee.collectionSha256);
+    if ((input.reviewCorpus || input.locatedReview || input.insightLiteral) && input.collection?.exactShopee) add('S05', 'capture', input.collection.exactShopee.collectionSha256);
     if (input.nativeReview) add('S27', 'package', input.nativeReview.nativeSource.sourcePackage.manifestArtifactSha256);
+    else if (input.insightLiteral && input.collection?.nativeReview) add('S27', 'package', input.collection.nativeReview.sourcePackage.manifestArtifactSha256);
+    // The literal snapshot is source-replayed by the owning service before this
+    // projection; only statement pointers actually consumed by its seller view
+    // contribute captures. Do not attribute unrelated detail captures.
+    if (input.insightLiteral) for (const pointer of input.insightLiteral.sellerLayer.statementPointers) {
+      const index = Number(pointer.slice('/input/sellerStatements/'.length));
+      const statement = input.insightLiteral.input.sellerStatements[index];
+      if (!statement) throw new ResearchAutomationIntegrityError('Literal seller source usage lacks its verified statement');
+      add('S02', 'capture', statement.sourceSha256);
+    }
   }
   return { ...packet, sourceAppendix: buildSourceAppendixProjection({ usages }) };
 }

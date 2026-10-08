@@ -204,9 +204,20 @@ test('auto presentation without a receipt preserves zero/missing, keeps referenc
   assert.ok(report.bytes.toString().includes('Chưa có trường ROAS hoặc CPA'));
 });
 
-test('actual auto revision never discovers an unselected prepared package or fabricates findings from missing inputs', async t => {
+test('actual auto revision composes retained literal19/Source18 with Market20 and never discovers an unselected prepared package', async t => {
   const f = await fixture(t, {}, false, true);
-  const revision = await f.service.requestReportRevision(workspaceId, runId, request(f.pair.pairId));
+  const literalRevision = await f.service.requestReportRevision(workspaceId, runId, {
+    contractVersion: 'automation-insight-literal-report-revision-v1', requestKey: randomUUID(), previousPairId: f.pair.pairId,
+    sources: { metric: { decision: 'KEEP' }, nativeReview: { decision: 'KEEP' } }, literalInsight: { contractVersion: 'insight-literal-select-v1' } });
+  await f.service.processNext();
+  const literal = await f.service.getReportRevision(workspaceId, runId, literalRevision.attemptId);
+  assert.equal(literal.state, 'COMMITTED');
+  const literalReport = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, literal.pairId!);
+  const literalSemantic = JSON.parse((await f.artifacts.read(literalReport.versionId)).toString());
+  assert.equal(literalSemantic.rendererVersion, 'automation-report-kit-v19');
+  assert.equal(literalSemantic.sourceEvidence.contractVersion, 'automation-source-evidence-v1');
+  const calls = [f.sourceCalls(), f.modelCalls()];
+  const revision = await f.service.requestReportRevision(workspaceId, runId, request(literal.pairId!));
   await f.service.processNext();
   const committed = await f.service.getReportRevision(workspaceId, runId, revision.attemptId);
   assert.equal(committed.state, 'COMMITTED');
@@ -215,6 +226,16 @@ test('actual auto revision never discovers an unselected prepared package or fab
   assert.equal(semantic.marketPresentation.binding.metric, null);
   assert.deepEqual(semantic.marketPresentation.findings, []);
   assert.deepEqual(semantic.marketPresentation.unitPrices, []);
+  assert.equal(semantic.rendererVersion, 'automation-report-kit-v20');
+  assert.equal(semantic.sourceEvidence.contractVersion, 'automation-source-evidence-v1');
+  const insight = await f.service.readReport(workspaceId, runId, 'INSIGHT', false, committed.pairId!);
+  const insightSemantic = JSON.parse((await f.artifacts.read(insight.versionId)).toString());
+  assert.equal(insightSemantic.rendererVersion, 'automation-report-kit-v19');
+  assert.deepEqual(insightSemantic.insightLiteral, literalSemantic.insightLiteral);
+  assert.deepEqual(insight.bytes, literalReport.bytes);
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'INSIGHT', false, literal.pairId!)).bytes, literalReport.bytes);
+  assert.deepEqual((await f.service.readReport(workspaceId, runId, 'MARKET', false, f.pair.pairId)).bytes, f.original.bytes);
+  assert.deepEqual([f.sourceCalls(), f.modelCalls()], calls);
   assert.ok(report.bytes.toString().includes('Chưa đủ bằng chứng để có bốn nhận định'));
   assert.ok(report.bytes.toString().includes('Chưa tính giá theo đơn vị chuẩn'));
 });

@@ -3,8 +3,8 @@
 Updated: 2026-10-08
 Worktree/branch: `ultimate-impl-sync1-codex` / `khangpworking/ultimate-market-auto`
 Assigned base: `ad3d9e45bb28cbbea861550dac9e112e3616097c` (reviewed/CI-merged Market intake PR177).
-Integrated main checkpoint: `22af557d326c2523c884fee81a129eb4b1bf96f2` (Sources18); literal19 composition is pending its reviewed merge.
-Completed: the versioned deterministic auto Market revision owning flow, authoritative retained method artifact, M01 findings/M08 verified unit tables, shared visible-text gate and immutable exact reads. Final composition, independent review and full exact-head hosted Check remain gates; this is no approval, release or deployment claim.
+Integrated main checkpoint: `7a4dd2a682423d967fe0372577d96a81d9780d34` (reviewed Sources18 and literal19). Normal merge composed both branches with Market20; no unmerged candidate was imported.
+Completed: the versioned deterministic auto Market revision owning flow, authoritative retained method artifact, M01 findings/M08 verified unit tables, shared visible-text gate and immutable exact reads. Final independent review and full exact-head hosted Check remain gates; this is no approval, release or deployment claim.
 
 Changed paths:
 
@@ -43,7 +43,8 @@ Environment: Node24.15/npm11.12; synthetic fixtures/fake transports; local test 
 - Owner API regression: `tests/integration/research-automation-api.test.ts`, 14/14 PASS at the API registration checkpoint.
 - Method/contract/owning-service focused tests: final9/9 PASS (3 actual owning-service cases +6 method/contract cases).
 - Historical affected tests: auto service/renderer/source/Metric/draft/reader files, 43 PASS, 0 failures, 1 existing opt-in local Chromium skip. Includes exact old auto14 and reader replay, source18 and draft17 lint, actual HTTP intake/build/read.
-- Backend `npm run typecheck` PASS; `git diff --check` PASS at the stable integration checkpoint.
+- Composed final checks: `node --import tsx --test --test-concurrency=2` on `market-presentation-report`, `research-insight-literal`, `research-automation-reports`, `market-presentation-method` and `market-presentation-contract`: 42 PASS, 0 failures, 1 preexisting opt-in local Chromium skip. Actual same-pair literal19/Source18 -> Market20 keeps Insight19 snapshot/HTML, old pair bytes and call counts unchanged.
+- Composed backend `npm run typecheck` PASS; canonical/frontend-validator generation repeated twice with `git diff --exit-code contracts/` PASS, staged/range whitespace PASS.
 - New real-service assertions cover original synthetic keyword call count, no extra revision/read calls, receipt/absent/zero/missing/SKIPPED flows, six wrong-context admissions, forged adapter HTML/semantic, actual M01/M08 scope/citations/lint, no-Python query-only reads, unchanged old bytes and corrupt retained source/method rejection.
 
 ## Checklist and partial scope
@@ -65,11 +66,11 @@ Environment: Node24.15/npm11.12; synthetic fixtures/fake transports; local test 
 | G07 | DONE | Fake transports only; new deterministic revisions/reads introduce no calls. |
 | G08 | DONE | Pinned Vietnamese preservation rules applied; no historical quote/prompt rewrite. |
 | G09 | DONE | Missing not zero; no approval, authenticity, COMPLETE or release invented. |
-| G10 | DONE for affected replay | Exact old auto14/Metric/reader bytes and immutable new reads; literal19 composition remains pending. |
+| G10 | DONE for affected replay | Exact old auto14/Metric/reader bytes and immutable new reads; literal19/Source18/Market20 same-pair composition and retained bytes verified. |
 | G11 | DONE | Additive meaningful negatives and historical checks; no valid assertion weakened. |
-| G12 | PARTIAL until final handoff | Exact final SHA/PR/checks/lease release supplied through fresh lifecycle. |
+| G12 | DONE for worker handoff | Exact final SHA/PR/checks/lease release supplied through fresh lifecycle; coordinator review/hosted CI follow. |
 | G13 | Retained existing Source18 boundary | New20 composes its source admission; no source/filter implementation changes. |
 
-Unresolved: reviewed literal19 main composition; final independent exact-head review/full hosted Check; genuine future ROAS/CPA provenance/native spec extraction; U11/U26/U32 decisions.
-Next action: release stable shared source phase, compose reviewed literal19 main only after coordinator confirmation, rerun changed-boundary focused checks, push scoped draft PR and hand off exact head. Coordinator owns review/hosted CI/normal merge; no worker merge/deployment.
+Unresolved: final independent exact-head review/full hosted Check; genuine future ROAS/CPA provenance/native spec extraction; U11/U26/U32 decisions.
+Next action: explicitly release composed shared source phase, push scoped draft PR and hand off exact head. Global canonical verification lease was explicitly released after deterministic generation; future source/canonical edits require a new grant. Coordinator owns review/hosted CI/normal merge; no worker merge/deployment.
 Business decisions pending: U11/U26/U32 remain with the owner; this implementation encodes none of them.

@@ -9,6 +9,9 @@
     },
     {
       "$ref": "#/$defs/draftRequest"
+    },
+    {
+      "$ref": "#/$defs/literalRequest"
     }
   ],
   "$defs": {
@@ -162,6 +165,51 @@
         "proposalId": {
           "type": "string",
           "format": "uuid"
+        }
+      }
+    },
+    "literalSelection": {
+      "title": "InsightLiteralSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-literal-select-v1"
+        }
+      }
+    },
+    "literalRequest": {
+      "title": "AutomationInsightLiteralReportRevisionRequest",
+      "description": "Explicit source-only literal projection from the exact previous pair. Does not create coding adoption or bypass existing inherited coding lineage.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "previousPairId",
+        "sources",
+        "literalInsight"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-insight-literal-report-revision-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "previousPairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sources": {
+          "$ref": "#/$defs/requestSources"
+        },
+        "literalInsight": {
+          "$ref": "#/$defs/literalSelection"
         }
       }
     }
