@@ -47,6 +47,7 @@ import { readPreparedMetricSources } from './metric-source-inventory.js';
 import { AutomationReaderReports, type ReaderDraftContext, type ReaderRowsReader } from './reader-report-revisions.js';
 import { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { SourcePackageService } from '../../foundation/source-package-service.js';
+import { videoPackageKeyPrefix } from './kalodata-video-intake.js';
 import { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import type { AutomationReportRevisionRequest as SourceReportRevisionRequest } from '../../../../contracts/analysis/automation-report-revision.generated.js';
 type AutomationReportRevisionRequest = SourceReportRevisionRequest | AutomationClassifiedReportRevisionRequest | AutomationInsightReportRevisionRequest | AutomationBoundedReportRevisionRequest | AutomationQuoteReportRevisionRequest;
@@ -166,8 +167,15 @@ export interface ResearchAutomationReportInput {
 }
 /** Alias retained for the report module's public renderer signature. */
 export type AutomationReportInput = ResearchAutomationReportInput;
-export type ResearchAutomationSourceActivityKey = 'kalodata' | 'serpapi' | 'apify-shopee' | 'metric';
+export type ResearchAutomationSourceActivityKey = 'kalodata' | 'serpapi' | 'apify-shopee' | 'metric'
+  | 'kalodata-video' | 'apify-tiktok-comments' | 'video-reading' | 'meta-ad-library' | 'official-stats' | 'world-bank' | 'pageindex';
 export interface ResearchAutomationSourceActivity { readonly lastDataAt: string | null; readonly dataCount: number; readonly lastUsageAt: string | null }
+/** One stored-capture row per SerpApi operation. Count unit is stored captures, never mixed with uploads or usage rows. lastUsageAt stays null: usage rows are a provider-level aggregate, never per-operation evidence. */
+export interface ResearchAutomationSerpApiOperation { readonly operation: string; readonly count: number; readonly lastDataAt: string | null; readonly lastUsageAt: string | null }
+export interface ResearchAutomationSourceActivityResult extends Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity> {
+  /** Per-operation SerpApi capture history for the board's operation rows. */
+  readonly serpapiOperations: readonly ResearchAutomationSerpApiOperation[];
+}
 
 /** One PDF of a run with its automatic-indexing state for the run page. */
 export interface PageIndexRunPdfDocument {
@@ -991,10 +999,11 @@ export class ResearchAutomationService {
   }
 
   /** Stored history per source for the status board. Reads rows only; never calls a provider. */
-  async readSourceActivity(workspaceId: string): Promise<Record<ResearchAutomationSourceActivityKey, ResearchAutomationSourceActivity>> {
+  async readSourceActivity(workspaceId: string): Promise<ResearchAutomationSourceActivityResult> {
     assertUuid(workspaceId);
     await this.#readWorkspace(workspaceId);
-    const activity = Object.fromEntries((['kalodata', 'serpapi', 'apify-shopee', 'metric'] as const)
+    const activity = Object.fromEntries((['kalodata', 'serpapi', 'apify-shopee', 'metric', 'kalodata-video',
+      'apify-tiktok-comments', 'video-reading', 'meta-ad-library', 'official-stats', 'world-bank', 'pageindex'] as const)
       .map(key => [key, { lastDataAt: null, dataCount: 0, lastUsageAt: null }])) as Record<ResearchAutomationSourceActivityKey, { lastDataAt: string | null; dataCount: number; lastUsageAt: string | null }>;
     const captures = this.#db.prepare(`SELECT c.provider provider,MAX(c.retrieved_at) lastAt,COUNT(*) total FROM analysis_research_automation_captures c
       JOIN analysis_research_automation_runs r ON r.run_id=c.run_id WHERE r.workspace_id=? AND c.provider IN ('kalodata','serpapi','apify-shopee') GROUP BY c.provider`).all(workspaceId) as Array<{ provider: 'kalodata' | 'serpapi' | 'apify-shopee'; lastAt: string; total: bigint | number }>;
@@ -1008,7 +1017,41 @@ export class ResearchAutomationService {
       JOIN analysis_research_automation_runs r ON substr(p.package_key,1,55)='automation-upload:'||r.run_id||'-'
       WHERE r.workspace_id=? AND p.finalized_at IS NOT NULL AND o.origin_kind='AUTOMATION_ATTACHMENT'`).get(workspaceId) as { lastAt: string | null; total: bigint | number };
     activity.metric.lastDataAt = metric.lastAt; activity.metric.dataCount = toNumber(metric.total);
-    return activity;
+    // P4 Kalodata video/creator uploads via the owning module's declared
+    // history-read interface: finalized attachment packages per run, metadata
+    // only. The interface exposes no timestamp, so lastDataAt stays null.
+    const videoReader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    const runIds = this.#db.prepare(`SELECT run_id runId FROM analysis_research_automation_runs WHERE workspace_id=?`).all(workspaceId) as Array<{ runId: string }>;
+    let videoCount = 0;
+    for (const { runId } of runIds) {
+      videoCount += (await videoReader.findAutomationAttachmentPackagesByKeyPrefix(videoPackageKeyPrefix(runId))).length;
+    }
+    activity['kalodata-video'].dataCount = videoCount;
+    // PageIndex workspace history only: PDFs attached to this workspace's runs
+    // and this workspace's recorded question attempts. Account-wide ledger
+    // numbers (balance, active pages, documents sent) are deliberately excluded
+    // here; the board renders them from the connector summary as account totals.
+    // analysis_pageindex_run_pdfs carries no timestamp, so lastDataAt stays null.
+    const workspacePdfs = this.#db.prepare(`SELECT COUNT(*) total FROM analysis_pageindex_run_pdfs p
+      JOIN analysis_research_automation_runs r ON r.run_id=p.run_id WHERE r.workspace_id=?`).get(workspaceId) as { total: bigint | number };
+    activity.pageindex.dataCount = toNumber(workspacePdfs.total);
+    const workspaceQuestions = this.#db.prepare(`SELECT MAX(q.attempted_at) lastAt FROM analysis_pageindex_questions q
+      JOIN analysis_research_automation_runs r ON r.run_id=q.run_id WHERE r.workspace_id=?`).get(workspaceId) as { lastAt: string | null };
+    activity.pageindex.lastUsageAt = workspaceQuestions.lastAt;
+    // SerpApi per-operation capture history (search vs Trends). Usage rows are a
+    // provider-level aggregate across the whole provider call, so per-operation
+    // lastUsageAt stays null: attributing it to one operation would mislabel it.
+    // The provider-level last usage remains on the card itself.
+    const operations = this.#db.prepare(`SELECT c.operation operation,MAX(c.retrieved_at) lastAt,COUNT(*) total
+      FROM analysis_research_automation_captures c
+      JOIN analysis_research_automation_runs r ON r.run_id=c.run_id WHERE r.workspace_id=? AND c.provider='serpapi' GROUP BY c.operation ORDER BY c.operation`).all(workspaceId) as Array<{ operation: string; lastAt: string; total: bigint | number }>;
+    const serpapiOperations: ResearchAutomationSerpApiOperation[] = operations.map(row => ({
+      operation: row.operation, count: toNumber(row.total), lastDataAt: row.lastAt, lastUsageAt: null }));
+    // No collectors exist yet for these sources; their readers and the
+    // NOT_BUILT flip belong to the owning packages (P9: TikTok comments and
+    // video reading; P10: official statistics and World Bank; U-23: Meta ads).
+    // Until then the board shows honest zeros, never invented history.
+    return { ...activity, serpapiOperations };
   }
 
   async getRun(workspaceId: string, runId: string): Promise<ResearchAutomationRun> {
