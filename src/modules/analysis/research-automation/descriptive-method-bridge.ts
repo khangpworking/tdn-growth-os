@@ -89,11 +89,15 @@ export class AutomationDescriptiveMethodBridge {
     // Mapping v2 adds located source date statements. Frozen v1 remains readable
     // without rerunning either mapping or replacing its original package identity.
     const revision = normalized.mappingRevision === 'kalodata-product-detail-descriptive-v1' ? 'v1'
-      : normalized.mappingRevision === 'kalodata-product-detail-descriptive-v2' ? 'v2' : null;
+      : normalized.mappingRevision === 'kalodata-product-detail-descriptive-v2' ? 'v2'
+      : normalized.mappingRevision === 'kalodata-product-detail-descriptive-v3' ? 'v3' : null;
     if (!revision || retained.manifest.packageKey !== `automation-method:${input.runId}-descriptive-${revision}` ||
         normalized.contractVersion !== `automation-descriptive-normalization-${revision}` ||
         normalized.runId !== input.runId || canonicalJson(normalized.start) !== canonicalJson(input.start) || canonicalJson(normalized.scope) !== canonicalJson(input.scope))
       throw new ResearchAutomationIntegrityError('Retained method normalization differs from the frozen run.');
+    if ((revision === 'v3') !== (input.start.defaultPeerRule !== undefined) ||
+        canonicalJson(output.input.defaultPeerRule ?? null) !== canonicalJson(input.start.defaultPeerRule ?? null))
+      throw new ResearchAutomationIntegrityError('Retained method peer rule differs from the frozen start.');
     // Authority and inputs are bound to the recorded snapshot, never current adoption constants.
     if (files.get(PROFILE)?.sha256 !== output.input.configuration.profileSha256 || files.get(ADOPTION)?.sha256 !== output.input.configuration.adoptionSha256)
       throw new ResearchAutomationIntegrityError('Retained method authority differs from the committed snapshot.');
@@ -204,10 +208,12 @@ export class AutomationDescriptiveMethodBridge {
         responseSha256: sha(detail.responseBytes), responseLocator: '/data/launch_date', productRef: detail.productRef,
         retrievedAt: detail.capture.retrievedAt, requestWindow: detail.capture.window });
     }
+    const revision = input.start.defaultPeerRule === undefined ? 'v2' : 'v3';
+    const mappingRevision = revision === 'v2' ? MAPPING_REVISION : 'kalodata-product-detail-descriptive-v3';
     const normalized = {
-      contractVersion: 'automation-descriptive-normalization-v2', mappingRevision: MAPPING_REVISION, runId: input.runId,
+      contractVersion: `automation-descriptive-normalization-${revision}`, mappingRevision, runId: input.runId,
       observations: literals, supply, events, eventLineage,
-      lineage: observations.map(value => ({ ...value.evidence, mappingRevision: MAPPING_REVISION, productRef: value.comparable.productId, metric: value.comparable.metric })),
+      lineage: observations.map(value => ({ ...value.evidence, mappingRevision, productRef: value.comparable.productId, metric: value.comparable.metric })),
       start: input.start, scope: input.scope,
     };
     const normalizedBytes = json(normalized);
@@ -222,6 +228,7 @@ export class AutomationDescriptiveMethodBridge {
     const records: LiteralMarketObservation[] = literals.map((value, index) => ({ ...value, source: sourceRef(`/observations/${index}`), aggregation: null }));
     const descriptor: Omit<Input, 'sourcePackage'> = {
       contractVersion: '1.0.0',
+      ...(input.start.defaultPeerRule === undefined ? {} : { defaultPeerRule: { ...input.start.defaultPeerRule } }),
       sources: [
         { logicalPath: NORMALIZED, sha256: normalizedSha, evidenceFamily: 'kalodata-automation', providerProvenance: 'provider_reported' },
         { logicalPath: CONFIGURATION, sha256: sha(configurationBytes), evidenceFamily: 'automation-method-configuration', providerProvenance: 'operator_supplied_unverified' },
@@ -259,7 +266,7 @@ export class AutomationDescriptiveMethodBridge {
     }
     return {
       files,
-      request: { contractVersion: '1.0.0', packageKey: `automation-method:${input.runId}-descriptive-v2`, version: 1,
+      request: { contractVersion: '1.0.0', packageKey: `automation-method:${input.runId}-descriptive-${revision}`, version: 1,
         sourceAcquiredAt: [...captures].map(value => value.retrievedAt).sort().at(-1) ?? null,
         sourceLabel: `Automation ${input.runId}: source-bound descriptive inputs`, files: metadata as SourcePackageIntakeRequest['files'] },
     };

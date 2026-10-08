@@ -8,7 +8,7 @@
   "properties": {
     "contractVersion": { "const": "1.0.0" },
     "methodId": { "const": "source-bound-descriptive-market" },
-    "methodVersion": { "enum": ["1.0.0", "1.1.0"] },
+    "methodVersion": { "enum": ["1.0.0", "1.1.0", "1.2.0"] },
     "methodOutputId": { "$ref": "#/$defs/digest" },
     "input": { "$ref": "#/$defs/input" },
     "sections": {
@@ -63,6 +63,9 @@
     },
     "limitations": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/text" } }
   },
+  "if": { "type": "object", "properties": { "methodVersion": { "const": "1.2.0" } } },
+  "then": { "type": "object", "properties": { "input": { "type": "object", "required": ["defaultPeerRule"], "properties": { "defaultPeerRule": {} } } } },
+  "else": { "type": "object", "properties": { "input": { "type": "object", "properties": { "defaultPeerRule": false } } } },
   "$defs": {
     "digest": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "text": { "type": "string", "minLength": 1, "maxLength": 2000, "pattern": "\\S" },
@@ -167,6 +170,7 @@
       "required": ["contractVersion", "sourcePackage", "sources", "configuration", "question", "scope", "m05", "m06", "m07", "peerSet", "m09"],
       "properties": {
         "contractVersion": { "const": "1.0.0" },
+        "defaultPeerRule": { "$ref": "default-market-peers.schema.json#/$defs/rule" },
         "sourcePackage": {
           "type": "object", "additionalProperties": false,
           "required": ["packageId", "version", "manifestArtifactSha256", "packageContentSha256"],
@@ -206,7 +210,7 @@
     },
     "blockers": {
       "type": "array", "uniqueItems": true,
-      "items": { "enum": ["NO_LOCATED_RECORDS", "PERIOD_MISSING", "UNIT_MISSING", "ADDITIVITY_UNDECLARED", "AGGREGATION_OVERLAP_UNRESOLVED", "AGGREGATION_FRAME_INCOMPATIBLE", "MEMBERSHIP_INCOMPLETE", "VALUE_MISSING", "VALUE_UNKNOWN", "NON_EXACT_VALUE", "M07_PEER_SET_UNAPPROVED", "M07_IDENTITY_UNRESOLVED", "M07_PERIOD_INCOMPATIBLE", "M07_UNIVERSE_OR_MEASURE_INCOMPATIBLE", "M09_EVENT_DATE_UNKNOWN", "M09_ENTITY_LINK_UNRESOLVED", "M09_COUNTEREVIDENCE_CONFLICT"] }
+      "items": { "enum": ["NO_LOCATED_RECORDS", "PERIOD_MISSING", "UNIT_MISSING", "ADDITIVITY_UNDECLARED", "AGGREGATION_OVERLAP_UNRESOLVED", "AGGREGATION_FRAME_INCOMPATIBLE", "MEMBERSHIP_INCOMPLETE", "VALUE_MISSING", "VALUE_UNKNOWN", "NON_EXACT_VALUE", "M07_PEER_SET_UNAPPROVED", "M07_FROZEN_SALES_GROUP_MEMBERSHIP_REQUIRED", "M07_IDENTITY_UNRESOLVED", "M07_PERIOD_INCOMPATIBLE", "M07_UNIVERSE_OR_MEASURE_INCOMPATIBLE", "M09_EVENT_DATE_UNKNOWN", "M09_ENTITY_LINK_UNRESOLVED", "M09_COUNTEREVIDENCE_CONFLICT"] }
     },
     "partition": {
       "title": "LiteralMarketPartition", "type": "object", "additionalProperties": false,

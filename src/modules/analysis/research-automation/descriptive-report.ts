@@ -100,6 +100,7 @@ const BLOCKER_TEXT: Readonly<Record<string, string>> = {
   VALUE_MISSING: 'Thiếu giá trị ở một số dòng.', VALUE_UNKNOWN: 'Có giá trị UNKNOWN.', NON_EXACT_VALUE: 'Có giá trị không chính xác tuyệt đối.',
   M07_PEER_SET_UNAPPROVED: 'Chưa có nhóm đối thủ do người dùng khai báo.', M07_IDENTITY_UNRESOLVED: 'Chưa xác định được bản ghi của mốc hoặc đối thủ.',
   M07_PERIOD_INCOMPATIBLE: 'Kỳ quan sát không tương thích.', M07_UNIVERSE_OR_MEASURE_INCOMPATIBLE: 'Phạm vi hoặc thước đo không tương thích.',
+  M07_FROZEN_SALES_GROUP_MEMBERSHIP_REQUIRED: 'Chưa có thành viên doanh số đã phân loại tương thích để chọn đối thủ mặc định.',
   M09_EVENT_DATE_UNKNOWN: 'Chưa rõ ngày của sự kiện.', M09_ENTITY_LINK_UNRESOLVED: 'Chưa liên kết sự kiện với đúng đối tượng.',
   M09_COUNTEREVIDENCE_CONFLICT: 'Có bằng chứng ngược chưa được giải quyết.',
 };
@@ -112,6 +113,7 @@ const LIMITATION_TEXT: Readonly<Record<string, string>> = {
   SUBTOTAL_COMPLETENESS_ONLY_FOR_DECLARED_SOURCE_MEMBER_FRAME: 'Tổng chỉ đầy đủ trong khung thành viên do nguồn khai báo.',
   M06_LOCATED_RECORDS_NOT_UNIQUE_ENTITIES_STOCK_OR_TOTAL_SUPPLY: 'M06 đếm bản ghi; không phải đối tượng duy nhất, tồn kho hay toàn bộ nguồn cung.',
   M07_OWNER_DECLARED_SIDE_BY_SIDE_NO_RANK_SCORE_DIFFERENCE_OR_RATIO: 'M07 chỉ đặt cạnh nhau nhóm đã khai báo; không xếp hạng, chấm điểm, tính chênh lệch hay tỷ lệ.',
+  M07_DEFAULT_PEERS_FROM_RETAINED_CLASSIFIED_SALES_OR_EXPLICIT_GAP_OWNER_ADDITIONS_SEPARATE: 'Đối thủ mặc định chỉ được chọn từ doanh thu cùng nhóm, kỳ và khung nguồn đã phân loại. Phần thiếu giữ nguyên; bổ sung của chủ được giữ riêng.',
   M09_ATTRIBUTED_EVENT_INVENTORY_NOT_CAUSAL_IMPACT_OR_FORECAST: 'M09 là danh mục sự kiện có nguồn; không phải tác động nhân quả hay dự báo.',
   NO_RATE_POPULATION_INFERENCE_OR_MARKET_SHARE: 'Không suy ra tỷ lệ, tổng thể hay thị phần.',
   UNREVIEWED_BOUNDED_METHOD_OUTPUT_NOT_COMPLETE_SECTION: 'Kết quả phương pháp có giới hạn, chưa duyệt; không phải mục hoàn chỉnh.',
@@ -179,7 +181,7 @@ function subtotalText(partition: Partition, current = false): string {
 
 function m05(methods: DescriptiveMarketMethods, citations: ReportCitations): Omit<DescriptiveSectionView, 'html'> & { body: string } {
   const section = methods.sections.M05;
-  const current = methods.methodVersion === '1.1.0';
+  const current = methods.methodVersion !== '1.0.0';
   const unresolved: string[] = [];
   let usable = false;
   const parts = section.partitions.map((partition, index) => {

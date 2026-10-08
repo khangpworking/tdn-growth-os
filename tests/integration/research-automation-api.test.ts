@@ -475,6 +475,15 @@ test('three industries classify a new report from complete selected acceptance w
         .get(classifiedAttempt.attemptId) as { version_sha256: string }; calculationDb.close();
       const semantic = JSON.parse((await new ContentAddressedArtifactStore(fixture.artifactRoot).read(output.version_sha256)).toString());
       const calculated = semantic.metricClassified.result;
+      assert.equal(semantic.rendererVersion, 'automation-report-kit-v14');
+      assert.equal(semantic.defaultMarketPeers.input.rule.version, 'e11-sales-peers-v1');
+      assert.deepEqual(semantic.defaultMarketPeers.input.ownerAdditions, semantic.scope.peerProductIds);
+      assert.equal(semantic.defaultMarketPeers.input.records.length, calculated.input.records.length,
+        'owning revision retains all classified source members, including explicit UNKNOWN');
+      assert.equal(semantic.defaultMarketPeers.frames[0].state, 'INCOMPLETE',
+        'an accepted UNKNOWN classification still cannot establish a complete group revenue denominator');
+      assert.deepEqual(semantic.defaultMarketPeers.frames[0].selected, []);
+      assert.match(classifiedHtml, /Bổ sung của chủ, giữ riêng/);
       assert.deepEqual(semantic.sourceScope.metric.scopes.map((scope: any) => [scope.scope, scope.status]),
         [['all', 'CALCULATED'], ['wide', 'CALCULATED'], ['core', 'CALCULATED']]);
       assert.deepEqual(semantic.sourceScope.metric.classification.receiptIds, semantic.metricClassified.selection.receiptIds);

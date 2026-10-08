@@ -25,6 +25,7 @@ import insightCodingApiSchema from '../../contracts/api/research-automation-insi
 import insightModelSchema from '../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
 import insightModelApiSchema from '../../contracts/api/research-automation-insight-model-api.schema.json' with { type: 'json' };
 import readerInputSchema from '../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
+import defaultPeerSchema from '../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
 import readerApiSchema from '../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
 import sourceStatusSchema from '../../contracts/api/research-automation-source-status-api.schema.json' with { type: 'json' };
 import { buildResearchAutomationSourceStatus } from '../modules/analysis/research-automation/source-status.js';
@@ -84,6 +85,7 @@ const Ajv = AjvModule.default;
 const addFormats = addFormatsModule.default;
 const ajv = new Ajv({ allErrors: false, strict: true });
 addFormats(ajv);
+ajv.addSchema(defaultPeerSchema);
 ajv.addSchema(schema);
 ajv.addSchema(sourceSchema);
 ajv.addSchema(revisionRequestSchema);

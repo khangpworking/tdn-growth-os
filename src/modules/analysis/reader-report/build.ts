@@ -1,5 +1,6 @@
 import { createRequire } from 'node:module';
 import inputSchema from '../../../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
+import defaultPeerSchema from '../../../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
 import type { ContentAddressedArtifactStore, StoredArtifact } from '../../../platform/artifacts/index.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -7,6 +8,8 @@ import type { MetricWebFacts } from '../research-automation/metric-web-facts.js'
 import { Bundle, type HardcodedNumber, type Narrator } from './bundle.js';
 import { classify, profileRe, type Profile, type NullableRow as Row, type LegacyRow } from './classify.js';
 import { computeNullableReaderMetrics } from './nullable-metrics.js';
+import { readerDefaultPeers } from './default-peers.js';
+import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
 import { READER_SECTION_ANCHORS } from './layout.js';
 import { lint, type LintResult } from './lint.js';
 import { scopeMetrics, type Scope } from './scope-metrics.js';
@@ -24,6 +27,7 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
+ajv.addSchema(defaultPeerSchema);
 const validateInput = ajv.compile<ReaderReportInput>(inputSchema);
 const validateProfile = ajv.getSchema<ReaderReportInput['profile']>(`${inputSchema.$id}#/$defs/profile`)!;
 
@@ -69,7 +73,7 @@ export function verifyReaderReportInput(value: unknown): ReaderReportInput {
     if (source === undefined) throw new ReaderReportInputError('thiếu nguồn số liệu của bản đọc');
     return checkRowsAndSource(input, source);
   }
-  if (input.contractVersion === '1.2.0' && input.webSnapshot === undefined) {
+  if ((input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0') && input.webSnapshot === undefined) {
     if (input.webSnapshotSha256 !== undefined) fail('thiếu webSnapshot');
     if (input.source === undefined) fail('thiếu nguồn số liệu của bản đọc');
     return checkRowsAndSource(input, input.source!);
@@ -79,7 +83,7 @@ export function verifyReaderReportInput(value: unknown): ReaderReportInput {
   }
   const facts = verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
   const rowCap = input.source?.rowCap ?? input.rows.length;
-  const derived = deriveReaderSource(facts, rowCap, { nullable: input.contractVersion === '1.2.0' });
+  const derived = deriveReaderSource(facts, rowCap, { nullable: input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0' });
   if (input.source !== undefined) checkDerivedSource(input.source, derived);
   return checkRowsAndSource({ ...input, source: derived }, derived);
 }
@@ -119,6 +123,7 @@ export type ReaderReportData = {
   webKeys: string[];
   /** R1–R4 reconciliation warnings between the xlsx rows and the snapshot. */
   webReconciliation: WebReconciliationWarning[];
+  defaultMarketPeers: DefaultMarketPeers | null;
 };
 
 /**
@@ -138,7 +143,7 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
   const ruleHits = classify(rows, profile);
   const B = new Bundle();
   const scopes: Partial<Record<ReaderPlatform, Scope>> = {};
-  if (input.contractVersion === '1.2.0') {
+  if (input.contractVersion === '1.2.0' || input.contractVersion === '1.3.0') {
     const completePositive = rows.every(row => row.rev !== null && row.rev > 0 && row.units !== null && row.units > 0 && row.asp !== null) && input.platforms.every(P => {
       const core = rows.filter(row => row.platform === P && profile.core.includes(row.seg!));
       return core.length > 0 && core.reduce((s, row) => s + row.rev!, 0) > 0 && core.reduce((s, row) => s + row.units!, 0) > 0;
@@ -151,7 +156,7 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
     B.setMissing('src.cover.rev', 'pct0'); B.setMissing('src.cover.listings', 'pct0');
     for (const P of input.platforms) B.set(`src.${P}.rows`, rows.filter(row => row.platform === P).length, 'num');
     const webFacts = input.webSnapshot === undefined ? null : verifyWebSnapshot(input.webSnapshot, input.webSnapshotSha256);
-    return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys: webFacts === null ? [] : setWebBundleKeys(B, webFacts), webReconciliation: webFacts === null ? [] : reconcileWebWithRows(webFacts, rows, { perPlatformOnly: true }) };
+    return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys: webFacts === null ? [] : setWebBundleKeys(B, webFacts), webReconciliation: webFacts === null ? [] : reconcileWebWithRows(webFacts, rows, { perPlatformOnly: true }), defaultMarketPeers: readerDefaultPeers(input, rows) };
   }
   for (const P of input.platforms) scopes[P] = scopeMetrics(B, P, rows.filter(r => r.platform === P) as LegacyRow[], profile);
 
@@ -188,7 +193,7 @@ export function computeReaderReportData(value: unknown): ReaderReportData {
     webKeys = setWebBundleKeys(B, webFacts);
     webReconciliation = reconcileWebWithRows(webFacts, rows as LegacyRow[]);
   }
-  return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys, webReconciliation };
+  return { input, profile, rows, bundle: B, scopes, ruleHits, webFacts, webKeys, webReconciliation, defaultMarketPeers: null };
 }
 
 export type PublishedReaderReport = {

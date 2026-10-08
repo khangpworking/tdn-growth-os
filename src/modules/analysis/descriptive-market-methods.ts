@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import schema from '../../../contracts/analysis/descriptive-market-methods.schema.json' with { type: 'json' };
+import defaultPeerSchema from '../../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
 import provenanceSchema from '../../../contracts/analysis/m13-provenance-appendix.schema.json' with { type: 'json' };
 import type { DescriptiveMarketMethods } from '../../../contracts/analysis/descriptive-market-methods.generated.js';
 import { canonicalJson } from '../foundation/canonical-json.js';
@@ -10,6 +11,7 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: true });
 addFormats(ajv);
+ajv.addSchema(defaultPeerSchema);
 ajv.addSchema(provenanceSchema);
 ajv.addSchema(schema);
 type Input = DescriptiveMarketMethods['input'];
@@ -180,11 +182,11 @@ function aggregate(rows: Located<Observation>[]): Partition {
   };
 }
 
-function comparePeers(input: Input, rows: Located<Observation>[]): DescriptiveMarketMethods['sections']['M07'] {
-  const peers = input.peerSet;
+function comparePeers(input: Input, rows: Located<Observation>[], current = false): DescriptiveMarketMethods['sections']['M07'] {
+  const peers = current ? null : input.peerSet;
   if (!peers) return {
     mode: 'UNRANKED_INVENTORY', recordPointers: rows.map(row => row.pointer), comparisons: [],
-    blockers: ['M07_PEER_SET_UNAPPROVED', ...(rows.length ? [] : ['NO_LOCATED_RECORDS' as const])],
+    blockers: [current ? 'M07_FROZEN_SALES_GROUP_MEMBERSHIP_REQUIRED' : 'M07_PEER_SET_UNAPPROVED', ...(rows.length ? [] : ['NO_LOCATED_RECORDS' as const])],
   };
   const byRef = new Map(rows.map(row => [refKey(row.row.source), row]));
   const anchor = byRef.get(refKey(peers.anchorRef));
@@ -218,8 +220,10 @@ function comparePeers(input: Input, rows: Located<Observation>[]): DescriptiveMa
 }
 
 /** Pure offline section output; input is retained verbatim as normalized source declarations, never authenticated here. */
-export function buildDescriptiveMarketMethods(untrustedInput: unknown, options: { methodVersion?: '1.0.0' | '1.1.0' } = {}): { output: DescriptiveMarketMethods; bytes: Buffer } {
+export function buildDescriptiveMarketMethods(untrustedInput: unknown, options: { methodVersion?: DescriptiveMarketMethods['methodVersion'] } = {}): { output: DescriptiveMarketMethods; bytes: Buffer } {
   const input = validateDescriptiveMarketInput(untrustedInput);
+  const methodVersion = options.methodVersion ?? (input.defaultPeerRule === undefined ? '1.1.0' : '1.2.0');
+  if ((methodVersion === '1.2.0') !== (input.defaultPeerRule !== undefined)) fail('DEFAULT_PEER_METHOD_VERSION_MISMATCH');
   const m05 = located(input.m05, 'm05', row => row.source);
   const grouped = new Map<string, Located<Observation>[]>();
   for (const row of m05) {
@@ -241,7 +245,7 @@ export function buildDescriptiveMarketMethods(untrustedInput: unknown, options: 
     return { recordPointer: pointer, blockers };
   });
   const body: Omit<DescriptiveMarketMethods, 'methodOutputId'> = {
-    contractVersion: '1.0.0', methodId: 'source-bound-descriptive-market', methodVersion: options.methodVersion ?? '1.1.0', input,
+    contractVersion: '1.0.0', methodId: 'source-bound-descriptive-market', methodVersion, input,
     sections: {
       M05: { locatedRecordCount: m05.length, partitions, blockers: unique([
         ...(m05.length ? [] : ['NO_LOCATED_RECORDS' as const]), ...partitions.flatMap(partition => partition.blockers),
@@ -251,7 +255,7 @@ export function buildDescriptiveMarketMethods(untrustedInput: unknown, options: 
         blockers: unique([...(m06.length ? [] : ['NO_LOCATED_RECORDS' as const]),
           ...m06.flatMap(({ row }) => observationBlockers(row.observation))]),
       },
-      M07: comparePeers(input, m07),
+      M07: comparePeers(input, m07, methodVersion === '1.2.0'),
       M09: { locatedRecordCount: m09.length, events, blockers: unique([
         ...(m09.length ? [] : ['NO_LOCATED_RECORDS' as const]), ...events.flatMap(event => event.blockers),
       ]) },
@@ -260,10 +264,10 @@ export function buildDescriptiveMarketMethods(untrustedInput: unknown, options: 
       'NORMALIZED_SOURCE_DECLARATIONS_NOT_PROVIDER_AUTHENTICATION',
       'EXACT_PACKAGE_BYTES_AND_LOCATORS_REQUIRE_CALLER_VERIFICATION',
       'SOURCE_WORDING_IS_ATTRIBUTED_INERT_TEXT_NOT_A_CONCLUSION',
-      options.methodVersion === '1.0.0' ? 'M05_LITERAL_SOURCE_MEASURES_NOT_DEMAND_OR_MARKET_SIZE' : 'M05_ESTIMATED_SALES_IN_SAMPLE_DEMAND_PER_PLATFORM_SEARCH_SEPARATE',
+      methodVersion === '1.0.0' ? 'M05_LITERAL_SOURCE_MEASURES_NOT_DEMAND_OR_MARKET_SIZE' : 'M05_ESTIMATED_SALES_IN_SAMPLE_DEMAND_PER_PLATFORM_SEARCH_SEPARATE',
       'SUBTOTAL_COMPLETENESS_ONLY_FOR_DECLARED_SOURCE_MEMBER_FRAME',
       'M06_LOCATED_RECORDS_NOT_UNIQUE_ENTITIES_STOCK_OR_TOTAL_SUPPLY',
-      'M07_OWNER_DECLARED_SIDE_BY_SIDE_NO_RANK_SCORE_DIFFERENCE_OR_RATIO',
+      methodVersion === '1.2.0' ? 'M07_DEFAULT_PEERS_FROM_RETAINED_CLASSIFIED_SALES_OR_EXPLICIT_GAP_OWNER_ADDITIONS_SEPARATE' : 'M07_OWNER_DECLARED_SIDE_BY_SIDE_NO_RANK_SCORE_DIFFERENCE_OR_RATIO',
       'M09_ATTRIBUTED_EVENT_INVENTORY_NOT_CAUSAL_IMPACT_OR_FORECAST',
       'NO_RATE_POPULATION_INFERENCE_OR_MARKET_SHARE',
       'UNREVIEWED_BOUNDED_METHOD_OUTPUT_NOT_COMPLETE_SECTION',

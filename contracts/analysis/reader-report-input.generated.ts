@@ -1,12 +1,12 @@
 /* Generated from reader-report-input.schema.json. Do not edit by hand. */
 
 /**
- * Versioned reader inputs. Historical 1.0.0/1.1.0 retain numeric constraints; 1.2.0 preserves null separately from observed zero and never authorizes cross-platform totals.
+ * Versioned reader inputs. Historical 1.0.0/1.1.0 retain numeric constraints; 1.2.0 preserves null separately from observed zero and never authorizes cross-platform totals. 1.3.0 adds a frozen E11 default-peer rule and optional separately retained owner additions.
  */
 export type ReaderReportInput = {
   [k: string]: unknown;
 } & {
-  contractVersion: '1.0.0' | '1.1.0' | '1.2.0';
+  contractVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
   profile: Profile;
   /**
    * @minItems 1
@@ -32,6 +32,11 @@ export type ReaderReportInput = {
   rowLineage?: {
     sha256: string;
   };
+  peerRule?: Rule1;
+  /**
+   * @maxItems 100
+   */
+  ownerPeerProductIds?: string[];
 };
 export type Text = string;
 export type SegmentKey = string;
@@ -162,4 +167,11 @@ export interface Source {
 }
 export interface PlatformDisplay {
   displayedRevenueVnd: number | null;
+}
+export interface Rule1 {
+  version: 'e11-sales-peers-v1';
+  thresholdPercent: 50;
+  boundary: 'MINIMAL_PREFIX_REVENUE_DESC_IDENTITY_ASC';
+  identity: 'EXACT_TITLE_LABEL_OR_SOURCE_SHOP_PER_PLATFORM';
+  denominator: 'COMPLETE_COMPATIBLE_GROUP_SAMPLE';
 }

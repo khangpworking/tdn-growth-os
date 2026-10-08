@@ -1,5 +1,6 @@
 import type { ReaderReportData } from './build.js';
 import { completeSum } from './nullable-metrics.js';
+import { readerPeerExhibit } from './default-peers.js';
 import { lineChart } from './svg-charts.js';
 import { Narrator } from './bundle.js';
 import { esc } from './format.js';
@@ -75,7 +76,13 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     if (units === null) B.setMissing(`${id}.units`, 'num'); else B.set(`${id}.units`, units, 'num');
     return [plat(P), label(members[0]?.shopName || shop), n(bf(`${id}.n`)), n(bf(`${id}.rev`)), n(bf(`${id}.units`))];
   }));
-  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops), 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
+  const peers = readerPeerExhibit(d.defaultMarketPeers, B, { text: label, metric: bf, sourceMark: ref => {
+    const no = registry.cite({ sourceKind: 'METRIC_ROW', identity: ref.sourceSha256,
+      locator: { kind: 'source-locator', value: ref.locator }, label: 'Dòng doanh số nguồn đã lưu',
+      retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
+    return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
+  } });
+  sections.push(section('M07', 'Đối thủ', 'Giữ số liệu của mỗi gian hàng trên từng sàn; phần thiếu không dùng để so sánh đầy đủ.', tbl('7.1', 'Gian hàng trong mẫu, theo thứ tự dòng nguồn', '', ['Sàn', 'Gian hàng', 'Dòng lõi', 'Doanh thu lõi', 'Đơn vị bán lõi'], shops) + peers, d.defaultMarketPeers === null ? 'Chưa có tập đối thủ đã đóng băng trong đầu vào bản này. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.' : 'Tập mặc định giữ riêng theo sàn và nhóm; nguồn thiếu hoặc doanh thu bằng không được ghi rõ. Không suy danh tính chéo sàn từ tên hoặc tiêu đề.'));
   sections.push(section('M08', 'Giá và kinh tế đơn vị', 'Giá trung bình chỉ có khi doanh thu và đơn vị bán cùng dòng đều có số, mẫu số khác không.', salesTable('8.1'), 'Không có giá vốn hoặc phép quy đổi đã xác minh; chưa tính lãi hay giá theo đơn vị chuẩn.'));
   sections.push(section('M09', 'Động lực và rủi ro', 'Chưa đủ bằng chứng để kết luận nguyên nhân.', tbl('9.1', 'Ngày mở bán do nguồn ghi, giữ riêng từng dòng', '', ['Sàn', 'Tiêu đề nguồn', 'Ngày mở bán'], rows.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, row.start === null || row.start === undefined ? 'Chưa rõ ngày' : label(row.start)]))));
   sections.push(section('M10', 'Dự báo và kịch bản', 'Chưa dự báo.', '<p>Cần chuỗi phù hợp và giả định đã kiểm chứng trước khi lập kịch bản.</p>'));

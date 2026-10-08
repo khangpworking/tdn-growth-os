@@ -1,0 +1,510 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/default-market-peers.schema.json",
+  "title": "DefaultMarketPeers",
+  "description": "Frozen E11 sales selection, retained compatible memberships/exclusions and separate owner additions; each group/platform is independent. Exact title labels are source labels, not verified legal brand identities. Caller authenticates source bytes.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "input",
+    "frames"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "default-market-peers-v1"
+    },
+    "input": {
+      "$ref": "#/$defs/input"
+    },
+    "frames": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "$ref": "#/$defs/result"
+      }
+    }
+  },
+  "$defs": {
+    "period": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "start",
+        "end"
+      ],
+      "properties": {
+        "start": {
+          "type": "string",
+          "format": "date"
+        },
+        "end": {
+          "type": "string",
+          "format": "date"
+        }
+      }
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sourceSha256",
+        "locator"
+      ],
+      "properties": {
+        "sourceSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "revenue": {
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
+    },
+    "rule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "thresholdPercent",
+        "boundary",
+        "identity",
+        "denominator"
+      ],
+      "properties": {
+        "version": {
+          "const": "e11-sales-peers-v1"
+        },
+        "thresholdPercent": {
+          "const": 50
+        },
+        "boundary": {
+          "const": "MINIMAL_PREFIX_REVENUE_DESC_IDENTITY_ASC"
+        },
+        "identity": {
+          "const": "EXACT_TITLE_LABEL_OR_SOURCE_SHOP_PER_PLATFORM"
+        },
+        "denominator": {
+          "const": "COMPLETE_COMPATIBLE_GROUP_SAMPLE"
+        }
+      }
+    },
+    "frame": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "group",
+        "sampleKey",
+        "period",
+        "unit",
+        "membershipBasis"
+      ],
+      "properties": {
+        "platform": {
+          "enum": [
+            "shopee",
+            "tiktok"
+          ]
+        },
+        "group": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "sampleKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "period": {
+          "$ref": "#/$defs/period"
+        },
+        "unit": {
+          "const": "VND"
+        },
+        "membershipBasis": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "platform",
+        "group",
+        "membership",
+        "sampleKey",
+        "period",
+        "unit",
+        "listingId",
+        "title",
+        "brandLabel",
+        "shopId",
+        "shopLabel",
+        "revenue",
+        "source"
+      ],
+      "properties": {
+        "platform": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "group": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "membership": {
+          "enum": [
+            "IN_GROUP",
+            "OTHER_GROUP",
+            "UNKNOWN"
+          ]
+        },
+        "sampleKey": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "period": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/period"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "unit": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "listingId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "brandLabel": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shopId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "shopLabel": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revenue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/revenue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "key",
+        "label",
+        "source"
+      ],
+      "properties": {
+        "kind": {
+          "enum": [
+            "TITLE_LABEL",
+            "SHOP"
+          ]
+        },
+        "key": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "source": {
+          "$ref": "#/$defs/source"
+        }
+      }
+    },
+    "member": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "identity",
+        "revenue",
+        "sources"
+      ],
+      "properties": {
+        "identity": {
+          "$ref": "#/$defs/identity"
+        },
+        "revenue": {
+          "$ref": "#/$defs/revenue"
+        },
+        "sources": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        }
+      }
+    },
+    "excluded": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "listingId",
+        "reason"
+      ],
+      "properties": {
+        "source": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/source"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "listingId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason": {
+          "enum": [
+            "PLATFORM_MISMATCH",
+            "FRAME_MISMATCH",
+            "PERIOD_MISMATCH",
+            "UNIT_MISMATCH",
+            "OTHER_GROUP",
+            "GROUP_UNKNOWN",
+            "SOURCE_MISSING",
+            "EXACT_REFERENCE_DUPLICATE",
+            "CONFLICTING_REFERENCE",
+            "LISTING_IDENTITY_AMBIGUOUS",
+            "REVENUE_MISSING",
+            "PEER_IDENTITY_AMBIGUOUS"
+          ]
+        }
+      }
+    },
+    "input": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "rule",
+        "frames",
+        "records",
+        "ownerAdditions"
+      ],
+      "properties": {
+        "rule": {
+          "$ref": "#/$defs/rule"
+        },
+        "frames": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "$ref": "#/$defs/frame"
+          }
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "$ref": "#/$defs/record"
+          }
+        },
+        "ownerAdditions": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          }
+        }
+      }
+    },
+    "result": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "frame",
+        "state",
+        "eligible",
+        "excluded",
+        "members",
+        "selected",
+        "totalRevenue",
+        "selectedRevenue"
+      ],
+      "properties": {
+        "frame": {
+          "$ref": "#/$defs/frame"
+        },
+        "state": {
+          "enum": [
+            "SELECTED",
+            "NO_SALES",
+            "ZERO_REVENUE",
+            "INCOMPLETE"
+          ]
+        },
+        "eligible": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "$ref": "#/$defs/source"
+          }
+        },
+        "excluded": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "$ref": "#/$defs/excluded"
+          }
+        },
+        "members": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "$ref": "#/$defs/member"
+          }
+        },
+        "selected": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "$ref": "#/$defs/member"
+          }
+        },
+        "totalRevenue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/revenue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "selectedRevenue": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/revenue"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

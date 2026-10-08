@@ -5,6 +5,7 @@
 import type { ReaderPlatform, ReaderReportData } from './build.js';
 import { currentProposals } from './market-proposals.js';
 import { buildMarketReportV2 } from './market-template-v2.js';
+import { readerPeerExhibit } from './default-peers.js';
 import { Narrator } from './bundle.js';
 import type { LegacyRow as Row } from './classify.js';
 import { renderChart, type FlintChartInput, type FlintPalette } from './flint.js';
@@ -80,8 +81,8 @@ const ps = (v: number): string => sp(v.toFixed(1)) + '%';
 
 /** Builds the generic market reader report. The caller gates and stores it with publishReaderReport. */
 export async function buildMarketReport(d: ReaderReportData, options: MarketReportOptions): Promise<BuiltMarketReport> {
-  if (d.input.contractVersion === '1.2.0' && d.input.platforms.some(P => d.scopes[P] === undefined)) return buildMarketReportV2(d, options);
-  const current = d.input.contractVersion === '1.2.0';
+  if ((d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0') && d.input.platforms.some(P => d.scopes[P] === undefined)) return buildMarketReportV2(d, options);
+  const current = d.input.contractVersion === '1.2.0' || d.input.contractVersion === '1.3.0';
   const { input, profile: prof, bundle: B } = d;
   const rows = d.rows as Row[];
   const PLATS = input.platforms;
@@ -690,13 +691,19 @@ ${tbl('2.2', `Quy tắc phân loại (${statusLabel})`, 'số sản phẩm', ['T
       return typeof c === 'object' && c !== null && 'text' in c ? [String((c as { text: unknown }).text)] : [];
     }).join(' | '))
     : '';
+  const defaultPeers = readerPeerExhibit(d.defaultMarketPeers, B, { text: L, metric: bf, sourceMark: ref => {
+    const no = webRegistry?.cite({ sourceKind: 'METRIC_ROW', identity: ref.sourceSha256,
+      locator: { kind: 'source-locator', value: ref.locator }, label: 'Dòng doanh số nguồn đã lưu',
+      retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' }) ?? null;
+    return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
+  } });
   secs.push(section('M07', 'Đối thủ',
     hlNum(nar(`${current ? 'Một gian hàng có doanh thu quan sát cao' : 'Gian hàng lớn nhất'} đạt ${each(P => `{{${P}.shop.top.0.rev}} ${onP(P)}`)}; gian hàng điển hình (trung vị) đạt ${each(P => `{{${P}.shop.median}} triệu đồng ${onP(P)}`)}.`, 'M07.ans')),
     tbl('7.1', 'Top 10 gian hàng theo doanh thu lõi, từng sàn', 'doanh thu: tỷ đồng', ['Sàn', '#', 'Gian hàng', current ? 'Nhãn thương hiệu thường gặp (theo tiêu đề người bán)' : 'Thương hiệu bán nhiều nhất', n('Sản phẩm lõi'), n('Doanh thu'), n('Tỷ trọng doanh thu lõi của sàn')],
       PLATS.flatMap(P => S[P].shops.slice(0, 10).map((s, j) => [plat(P), j + 1, L(s.name), L(brandOf(s.brands)), n(s.n), n(t1(s.rev / 1e9)), n(bf(`${P}.shop.top.${j}.share`))])),
-      { note: 'Sắp theo doanh thu quan sát, không phải xếp hạng năng lực. Nhóm đối thủ để so trực tiếp chưa chốt (Phần 12).' }) +
+      { note: d.defaultMarketPeers === null ? 'Sắp theo doanh thu quan sát, không phải xếp hạng năng lực. Nhóm đối thủ để so trực tiếp chưa chốt (Phần 12).' : 'Sắp theo doanh thu quan sát, không phải xếp hạng năng lực. Tập đối thủ mặc định và bổ sung của chủ được ghi riêng dưới đây.' }) +
     `<p>${hlNum(nar(`Số gian hàng dưới 100 triệu đồng doanh thu lõi: ${each(P => `{{${P}.shop.under100m}}/{{${P}.core.shops}} ${onP(P)}`)}.`, 'M07.p'))}</p>` +
-    m07BrandShare + m07BrandShop + m07Products + m07Shops + m07Brands,
+    m07BrandShare + m07BrandShop + m07Products + m07Shops + m07Brands + defaultPeers,
     'Doanh thu theo gian hàng chỉ tính sản phẩm có trong tệp; gian hàng có thể còn bán sản phẩm ngoài tệp.'));
   extraOk.add('100 triệu');
 
