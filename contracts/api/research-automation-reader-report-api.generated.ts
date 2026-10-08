@@ -265,17 +265,36 @@ export interface ResearchAutomationUnitSpecIntakeRequest {
    * @maxItems 2
    */
   platforms: Platform[];
-  unitPrices: UnitPrices & {
-    /**
-     * @maxItems 16
-     */
-    sources?: unknown[];
-    /**
-     * @minItems 1
-     */
-    records?: unknown[];
-    [k: string]: unknown;
-  };
+  unitPrices: UnitPrices1;
+}
+export interface UnitPrices1 {
+  contractVersion: 'market-unit-prices-v1';
+  /**
+   * @minItems 1
+   * @maxItems 500
+   */
+  sources: {
+    sha256: string;
+    role: 'LISTING_SPEC' | 'OWNER_DECLARATION';
+  }[];
+  /**
+   * @maxItems 500
+   */
+  records: {
+    rowI: number;
+    source: {
+      sourceSha256: string;
+      locator: string;
+    };
+    observation: UnitPriceObservation;
+    quantityOverride?: {
+      source: {
+        sourceSha256: string;
+        locator: string;
+      };
+      observation: UnitPriceObservation;
+    };
+  }[];
 }
 export interface ResearchAutomationUnitSpecIntakeRecord {
   contractVersion: 'reader-unit-spec-intake-record-v1';

@@ -430,24 +430,18 @@
           }
         },
         "unitPrices": {
-          "allOf": [
-            {
-              "$ref": "../analysis/reader-report-input.schema.json#/$defs/unitPrices"
+          "$ref": "../analysis/reader-report-input.schema.json#/$defs/unitPrices",
+          "type": "object",
+          "properties": {
+            "sources": {
+              "type": "array",
+              "maxItems": 16
             },
-            {
-              "type": "object",
-              "properties": {
-                "sources": {
-                  "type": "array",
-                  "maxItems": 16
-                },
-                "records": {
-                  "type": "array",
-                  "minItems": 1
-                }
-              }
+            "records": {
+              "type": "array",
+              "minItems": 1
             }
-          ]
+          }
         }
       }
     },
