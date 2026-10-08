@@ -36,8 +36,12 @@ import { MAX_INSIGHT_CODING_BYTES } from '../modules/analysis/research-automatio
 import { MetricSourceRejection } from '../modules/analysis/metric-source-profile.js';
 import { MAX_METRIC_UPLOAD_BYTES } from '../modules/analysis/research-automation/metric-source-intake.js';
 import { MAX_SUPPLEMENTAL_FILE_BYTES, MAX_SUPPLEMENTAL_TOTAL_BYTES, SupplementalSourceRejection } from '../modules/analysis/research-automation/supplemental-source-intake.js';
+import kalodataVideoIntakeSchema from '../../contracts/analysis/kalodata-video-intake-v1.schema.json' with { type: 'json' };
+import { AutomationKalodataVideoIntake, KalodataVideoRejection, MAX_VIDEO_UPLOAD_BYTES, readPreparedKalodataVideoSources } from '../modules/analysis/research-automation/kalodata-video-intake.js';
+import { FoundationSourcePackageReader } from '../modules/foundation/source-package-reader.js';
+import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mutex.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
-import { SourcePackageRequestConflictError } from '../modules/foundation/source-package-service.js';
+import { SourcePackageRequestConflictError, SourcePackageService } from '../modules/foundation/source-package-service.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../modules/flow/index.js';
 import { ResearchAutomationService } from '../modules/analysis/research-automation/service.js';
@@ -86,6 +90,7 @@ ajv.addSchema(classifiedRevisionRequestSchema);
 ajv.addSchema(revisionSchema);
 ajv.addSchema(metricIntakeSchema);
 ajv.addSchema([foundationIntakeSchema, supplementalIntakeSchema]);
+ajv.addSchema(kalodataVideoIntakeSchema);
 ajv.addSchema(metricRuleSchema);
 ajv.addSchema(membershipSchema); ajv.addSchema(membershipApiSchema);
 ajv.addSchema(insightRevisionRequestSchema);
@@ -107,6 +112,9 @@ const validates = {
   metricPrepare: ajv.compile({ $ref: `${metricIntakeSchema.$id}#/$defs/request` }),
   supplementalPrepare: ajv.compile({ $ref: `${supplementalIntakeSchema.$id}#/$defs/request` }),
   supplementalPrepared: ajv.compile({ $ref: `${supplementalIntakeSchema.$id}#/$defs/receipt` }),
+  videoPrepare: ajv.compile({ $ref: `${kalodataVideoIntakeSchema.$id}#/$defs/request` }),
+  videoPrepared: ajv.compile({ $ref: `${kalodataVideoIntakeSchema.$id}#/$defs/receipt` }),
+  videoPreparedList: ajv.compile({ $ref: `${kalodataVideoIntakeSchema.$id}#/$defs/preparedList` }),
   supplementalPreparedList: ajv.compile({ $ref: `${supplementalIntakeSchema.$id}#/$defs/preparedList` }),
   metricPrepared: ajv.compile({ $ref: `${metricIntakeSchema.$id}#/$defs/receipt` }),
   metricPreparedList: ajv.compile({ $ref: `${metricIntakeSchema.$id}#/$defs/preparedList` }),
@@ -284,8 +292,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel) || action === 'reader-reports' || action === 'reader-reports/decisions'
-      : !action || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
+      ? !runId || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || Boolean(revisionCancel) || action === 'reader-reports' || action === 'reader-reports/decisions'
+      : !action || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -346,6 +354,13 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           if (!validates.supplementalPreparedList(result)) throw new Error('Prepared supplemental inventory failed validation');
           return sendApiJson(response, 200, result);
         }
+        if (action === 'sources/kalodata-video') {
+          await readService.getRun(workspaceId!, runId);
+          const inventory = new FoundationSourcePackageReader(new SourcePackageService({ db: reader, artifactStore: artifacts }));
+          const result = await readPreparedKalodataVideoSources(inventory, { runId: runId!, workspaceId: workspaceId! });
+          if (!validates.videoPreparedList(result)) throw new Error('Prepared video inventory failed validation');
+          return sendApiJson(response, 200, result);
+        }
         if (action === 'report-versions') {
           const result = { contractVersion: 'automation-report-version-list-v1', workspaceId: workspaceId!, runId,
             versions: await readService.listReportVersions(workspaceId!, runId) };
@@ -394,6 +409,32 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         const receipt = await writeService!.prepareSupplementalSource(workspaceId!, runId!, input, files);
         if (!validates.supplementalPrepared(receipt)) throw new Error('Prepared supplemental projection failed validation');
         // Preparation is inert. Only a separate explicit revision can admit this package.
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
+      if (action === 'sources/kalodata-video') {
+        const contentType = singleHeader(request.headers['content-type']);
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Hãy tải tệp bằng biểu mẫu đính kèm.');
+        const bytes = await readOwnerBytes(request, MAX_VIDEO_UPLOAD_BYTES + 16 * 1024 + 4096);
+        let form: FormData;
+        try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(bytes) }).formData(); }
+        catch { return fail(response, 400, 'bad_request', 'Không đọc được biểu mẫu tải tệp.'); }
+        const fields = [...form.entries()];
+        const metadata = form.get('metadata'); const upload = form.get('file');
+        if (fields.length !== 2 || typeof metadata !== 'string' || Buffer.byteLength(metadata) > 16 * 1024 || !(upload instanceof File))
+          return fail(response, 400, 'bad_request', 'Cần một bộ thông tin nguồn và một tệp xuất.');
+        if (upload.size > MAX_VIDEO_UPLOAD_BYTES) return fail(response, 413, 'payload_too_large', 'Tệp xuất vượt giới hạn tải lên.');
+        if (!upload.size || !['', 'application/octet-stream', 'text/csv', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'].includes(upload.type))
+          return fail(response, 400, 'bad_request', 'Định dạng tệp xuất chưa được hỗ trợ.');
+        let input: unknown;
+        try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Không đọc được thông tin nguồn.'); }
+        if (!validates.videoPrepare(input)) return fail(response, 400, 'bad_request', 'Thông tin nguồn không hợp lệ.');
+        await readService.getRun(workspaceId!, runId!);
+        const store = new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot));
+        const intake = new AutomationKalodataVideoIntake(store, writer!, () => new Date());
+        const receipt = await withDatabaseMutationMutex(writer!, async () =>
+          intake.prepare(input, new Uint8Array(await upload.arrayBuffer()), upload.name, { runId: runId!, workspaceId: workspaceId! }));
+        if (!validates.videoPrepared(receipt)) throw new Error('Prepared video projection failed validation');
+        // Preparation is inert: no transcription, wake, or implicit confirmation.
         return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
       if (action === 'sources/metric') {
@@ -533,6 +574,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (readerAction && error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', error.message);
       if (error instanceof SourcePackageRequestConflictError)
         return fail(response, 409, 'request_key_conflict', 'This upload identity is already bound to different content');
+      if (error instanceof KalodataVideoRejection) return fail(response, 400, 'source_input_rejected', 'Tệp video không đúng cấu trúc được hỗ trợ.');
       if (error instanceof SupplementalSourceRejection) return fail(response, 400, 'source_input_rejected', 'The source package does not match a supported method profile');
       if (error instanceof MetricSourceRejection && !['INVALID_XLSX', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT'].includes(error.code))
         return fail(response, 400, 'source_input_rejected', 'The workbook does not match a supported source profile');
