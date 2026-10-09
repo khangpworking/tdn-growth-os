@@ -24,7 +24,7 @@ const PLATFORM_LABEL = { shopee: 'Shopee', tiktok: 'TikTok Shop' } as const;
 /** The only report surface the OWNER sees: the reader page and its Duyệt/Từ chối decision. The automated draft stays server-side. */
 export default function ReaderReportPanel({ run, ownerToken, writesAvailable, refreshToken }: Props) {
   // An in-flight write belongs to its original run, including its retry key and dialog.
-  return <ReaderReportPanelForRun key={`${run.workspaceId}:${run.runId}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} refreshToken={refreshToken} />;
+  return <ReaderReportPanelForRun key={`${run.workspaceId}:${run.runId}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} {...(refreshToken === undefined ? {} : { refreshToken })} />;
 }
 
 function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToken }: Props) {

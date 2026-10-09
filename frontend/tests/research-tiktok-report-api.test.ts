@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildTikTokReader, digestTikTokDraft, verifyTikTokCodingReadView, type TikTokCodingReadView } from '../src/research-automation/tiktok-report-api';
+import { buildTikTokReader, digestTikTokDraft, loadTikTokCodingView } from '../src/research-automation/tiktok-report-api';
+import type { TikTokDraftCoding } from '../../contracts/analysis/tiktok-coding-proposal-v1.generated';
 import { ResearchAutomationError } from '../src/research-automation/api';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -46,26 +47,48 @@ test('TikTok Reader build rejects a receipt whose report digest differs from the
   } finally { globalThis.fetch = original; }
 });
 
-test('TikTok coding read view rejects a report whose draft digest or counts differ from the draft', async () => {
-  const binding = { workspaceId, runId, scopeSha256: 'c'.repeat(64), sourceSetSha256: 'c'.repeat(64), requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-31' } };
-  const corpus = { packageId: '66666666-6666-4666-8666-666666666666', manifestArtifactSha256: 'c'.repeat(64), packageContentSha256: 'c'.repeat(64) };
+test('TikTok coding read view accepts a valid view for a distinct coding package and rejects digest or count drift', async () => {
+  const codingPackageId = '44444444-4444-4444-8444-444444444444';
+  const corpusPackageId = '66666666-6666-4666-8666-666666666666';
+  const proposalId = '77777777-7777-4777-8777-777777777777';
+  const sha = 'c'.repeat(64);
+  const binding = { workspaceId, runId, scopeSha256: sha, sourceSetSha256: sha, requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-31' } };
+  const corpus = { packageId: corpusPackageId, manifestArtifactSha256: sha, packageContentSha256: sha };
   const counts = { recordsCoded: 1, codesProposed: 1, quotesCited: 1 };
+  const citation = { citationId: 1, locator: 'comment 1', url: null };
   const draft = {
-    contractVersion: 'tiktok-draft-coding-v1', proposalId: '77777777-7777-4777-8777-777777777777', requestKey, binding, corpus,
-    keywordDigest: 'c'.repeat(64), promptVersion: 'tiktok-coding-prompt-v1', codes: [], counts, status: 'PROPOSED_AWAITING_REVIEW', limitations: ['synthetic'],
+    contractVersion: 'tiktok-draft-coding-v1', proposalId, requestKey, binding, corpus, keywordDigest: sha, promptVersion: 'tiktok-coding-prompt-v1',
+    codes: [{ code: 'C1', label: 'Synthetic code', recordIndex: 0, quote: { text: 'synthetic quote', start: 0, end: 15 }, citationId: 1 }],
+    counts, status: 'PROPOSED_AWAITING_REVIEW', limitations: ['synthetic limitation'],
   };
-  const draftSha256 = await digestTikTokDraft(draft as never);
+  const draftSha256 = await digestTikTokDraft(draft as TikTokDraftCoding);
   const report = {
-    contractVersion: 'tiktok-coded-report-v1', proposalId: draft.proposalId, draftSha256, corpus, keywordDigest: draft.keywordDigest,
-    findings: [], counts, status: 'PROPOSED_AWAITING_REVIEW', limitations: ['synthetic'],
+    contractVersion: 'tiktok-coded-report-v1', proposalId, draftSha256, corpus, keywordDigest: sha,
+    findings: [{ sectionId: 'I02', code: 'C1', label: 'Synthetic code', template: 'synthetic', status: 'PROPOSED_AWAITING_REVIEW', scope: 'synthetic', citations: [{ citationId: 1, locator: 'comment 1', url: null }] }],
+    counts, status: 'PROPOSED_AWAITING_REVIEW', limitations: ['synthetic limitation'],
   };
-  await verifyTikTokCodingReadView({ draft, report } as unknown as TikTokCodingReadView, workspaceId, runId, corpus.packageId);
-  await assert.rejects(verifyTikTokCodingReadView({ draft, report: { ...report, draftSha256: 'e'.repeat(64) } } as unknown as TikTokCodingReadView, workspaceId, runId, corpus.packageId),
-    (failure: unknown) => failure instanceof ResearchAutomationError && failure.kind === 'integrity');
-  await assert.rejects(verifyTikTokCodingReadView({ draft, report: { ...report, counts: { ...counts, quotesCited: 2 } } } as unknown as TikTokCodingReadView, workspaceId, runId, corpus.packageId),
-    (failure: unknown) => failure instanceof ResearchAutomationError && failure.kind === 'integrity');
-  await assert.rejects(verifyTikTokCodingReadView({ draft, report } as unknown as TikTokCodingReadView, workspaceId, runId, '99999999-9999-4999-8999-999999999999'),
-    (failure: unknown) => failure instanceof ResearchAutomationError && failure.kind === 'integrity');
+  const view = { contractVersion: 'tiktok-coding-read-v1', draft, report, citations: [citation], finalizedAt: '2026-10-09T00:00:00Z' };
+  const fetchView = (value: unknown) => {
+    const original = globalThis.fetch;
+    globalThis.fetch = (async () => json(value, 200)) as typeof fetch;
+    return () => { globalThis.fetch = original; };
+  };
+  const restore = fetchView(view);
+  try {
+    const loaded = await loadTikTokCodingView(workspaceId, runId, codingPackageId, new AbortController().signal);
+    assert.equal(loaded.draft.corpus.packageId, corpusPackageId);
+  } finally { restore(); }
+  const drifted = [
+    { ...view, report: { ...report, draftSha256: 'e'.repeat(64) } },
+    { ...view, report: { ...report, counts: { ...counts, quotesCited: 2 } } },
+  ];
+  for (const value of drifted) {
+    const undo = fetchView(value);
+    try {
+      await assert.rejects(loadTikTokCodingView(workspaceId, runId, codingPackageId, new AbortController().signal), (failure: unknown) =>
+        failure instanceof ResearchAutomationError && failure.kind === 'integrity');
+    } finally { undo(); }
+  }
 });
 
 test('TikTok Reader build without owner token sends no request', async () => {
