@@ -3,7 +3,8 @@
 /**
  * Exact retained Insight reader build identity; frozen scope comes from authenticated start/scope. Method references bind owning-service-verified retained outputs, never injected summaries or copied private corpus. No calculation, model call, Metric profile or implicit approval.
  */
-export type InsightReaderInput = InsightReaderInputV1 | InsightReaderInputV2 | InsightReaderInputV3;
+export type InsightReaderInput =
+  InsightReaderInputV1 | InsightReaderInputV2 | InsightReaderInputV3 | InsightReaderInputV4 | InsightReaderInputV5;
 
 export interface InsightReaderInputV1 {
   contractVersion: 'insight-reader-input-v1';
@@ -111,5 +112,78 @@ export interface InsightReaderRequestedPeriod2 {
 }
 export interface InsightReaderMethodReference2 {
   kind: 'PRIVATE_CORPUS' | 'LITERAL' | 'SOURCE_EVIDENCE';
+  sha256: string;
+}
+export interface InsightReaderInputV4 {
+  contractVersion: 'insight-reader-input-v4';
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v4';
+  workspaceId: string;
+  runId: string;
+  draftPairId: string;
+  semanticSha256: string;
+  sourceReportSha256: string;
+  frozenStartSha256: string;
+  frozenScopeSha256: string;
+  sourceRendererVersion: 'automation-report-kit-v23';
+  scope: InsightReaderFrozenScope3;
+  retainedMethods: {
+    [k: string]: unknown;
+  } & InsightReaderMethodReference3[];
+}
+export interface InsightReaderFrozenScope3 {
+  keyword: string;
+  definition: string;
+  requestedPeriod: InsightReaderRequestedPeriod3;
+}
+export interface InsightReaderRequestedPeriod3 {
+  startDate: string;
+  endDate: string;
+}
+export interface InsightReaderMethodReference3 {
+  kind:
+    | 'CODING'
+    | 'LITERAL'
+    | 'LOCATED'
+    | 'NATIVE'
+    | 'CORPUS'
+    | 'BOUNDED'
+    | 'SOURCE_EVIDENCE'
+    | 'SOURCE_CLAIMS'
+    | 'DECISION_PACKET'
+    | 'DECISION_SYNTHESIS'
+    | 'I14_ADMISSION'
+    | 'I14_SYNTHESIS'
+    | 'CROSSCHECK';
+  sha256: string;
+}
+export interface InsightReaderInputV5 {
+  contractVersion: 'insight-reader-input-v5';
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v5';
+  workspaceId: string;
+  runId: string;
+  draftPairId: string;
+  semanticSha256: string;
+  sourceReportSha256: string;
+  frozenStartSha256: string;
+  frozenScopeSha256: string;
+  sourceRendererVersion: 'automation-report-kit-v25';
+  scope: InsightReaderFrozenScope4;
+  retainedMethods: {
+    [k: string]: unknown;
+  } & InsightReaderMethodReference4[];
+}
+export interface InsightReaderFrozenScope4 {
+  keyword: string;
+  definition: string;
+  requestedPeriod: InsightReaderRequestedPeriod4;
+}
+export interface InsightReaderRequestedPeriod4 {
+  startDate: string;
+  endDate: string;
+}
+export interface InsightReaderMethodReference4 {
+  kind: 'PRIVATE_CORPUS' | 'LITERAL' | 'SOURCE_EVIDENCE' | 'CODING' | 'PRIVATE_PROJECTION';
   sha256: string;
 }

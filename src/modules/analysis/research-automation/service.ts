@@ -962,7 +962,8 @@ export class ResearchAutomationService {
     return withDatabaseMutationMutex(this.#db, async () => {
       const run = await this.getRun(workspaceId, runId);
       if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
-      const verified = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, request.draftPairId, false, true);
+      const verified = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, request.draftPairId, request.contractVersion === 'insight-reader-build-v2' && request.sourceKind === 'PRIVATE_DEFAULT', true,
+        request.contractVersion === 'insight-reader-build-v2' ? request.sourceKind : undefined);
       if (verified.report.versionId !== request.semanticSha256 || !verified.insightReader)
         throw new ResearchAutomationValidationError('Phiên bản insight không khớp cặp bản nháp đã chọn.');
       let context;
@@ -1665,7 +1666,7 @@ export class ResearchAutomationService {
     return this.#insightCoding.resolve(workspaceId, runId, proposalId, receiptIds);
   }
 
-  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false, forInsightReader = false): Promise<{
+  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false, forInsightReader = false, readerSourceKind?: 'CROSSCHECK' | 'PRIVATE_DEFAULT'): Promise<{
     insightReader?: { identity: Parameters<typeof prepareInsightReaderBuild>[0]; methods: ResearchAutomationReportInput };
     report: ResearchAutomationReadReport; scopeSha256: string | null;
     verifiedLocated: AutomationLocatedReviewSnapshot | undefined; verifiedNative: NativeSourceReviewSnapshot | undefined;
@@ -1890,11 +1891,13 @@ export class ResearchAutomationService {
     } else if (semantic.insightCoding !== undefined && semantic.insightCoding !== null) {
       throw new ResearchAutomationIntegrityError('Insight coding snapshot lacks an explicit revision request.');
     }
+    let verifiedCrosscheck: InsightCrosscheckSnapshot | undefined;
     const crosscheckRequest = attempt ? await this.#crosscheckRequest(frozenRun, attempt) : undefined;
     if (kind === 'INSIGHT' && crosscheckRequest) {
       const expected = await this.#crosscheckSnapshot(workspaceId, runId, crosscheckRequest.previousPairId, crosscheckRequest.crosscheckInsight);
       if (semantic.rendererVersion !== 'automation-report-kit-v23' || canonicalJson(semantic.insightCrosscheck) !== canonicalJson(expected))
         throw new ResearchAutomationIntegrityError('Report crosscheck differs from selected retained evidence.');
+      verifiedCrosscheck = expected;
     } else if (semantic.insightCrosscheck !== undefined) {
       throw new ResearchAutomationIntegrityError('Report crosscheck lacks an explicit selection.');
     }
@@ -2058,17 +2061,24 @@ export class ResearchAutomationService {
       if (kind !== 'INSIGHT' || pdf || !pairId || !frozenRun.scopeSha)
         throw new ResearchAutomationValidationError('Bản đọc insight cần đúng cặp và phạm vi đã chốt.');
       const rendererVersion = semantic.rendererVersion;
-      if (rendererVersion !== 'automation-report-kit-v17' && rendererVersion !== 'automation-report-kit-v18' && rendererVersion !== 'automation-report-kit-v19' && rendererVersion !== 'automation-report-kit-v21' && rendererVersion !== 'automation-report-kit-v22')
-        throw new ResearchAutomationValidationError('Phiên bản nguồn chưa được hỗ trợ bởi bản đọc insight này.');
+      // A new request explicitly selects one authenticated source family. The
+      // historical request retains its original closed version set.
+      const supported = readerSourceKind === 'CROSSCHECK'
+        ? rendererVersion === 'automation-report-kit-v23' && verifiedCrosscheck !== undefined && verifiedCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'
+        : readerSourceKind === 'PRIVATE_DEFAULT'
+        ? rendererVersion === 'automation-report-kit-v25' && verifiedPrivateSource !== undefined && verifiedPrivateView !== undefined && verifiedCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'
+        : rendererVersion === 'automation-report-kit-v17' || rendererVersion === 'automation-report-kit-v18' || rendererVersion === 'automation-report-kit-v19' || rendererVersion === 'automation-report-kit-v21' || rendererVersion === 'automation-report-kit-v22';
+      if (!supported) throw new ResearchAutomationValidationError('Phiên bản nguồn chưa được hỗ trợ bởi bản đọc insight này.');
       insightReader = { identity: { workspaceId, runId, draftPairId: pairId, semanticSha256: output.versionSha,
         sourceReportSha256: output.htmlSha, frozenStartSha256: frozenRun.startSha, frozenScopeSha256: frozenRun.scopeSha,
-        sourceRendererVersion: rendererVersion }, methods: {
+        sourceRendererVersion: rendererVersion as Parameters<typeof prepareInsightReaderBuild>[0]['sourceRendererVersion'] }, methods: {
         run, start: sourceStart, scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
         collection: await this.#reportCollection(runId, sources, Boolean(attempt)), captures: await this.#captureRecords(runId),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedNative ? { nativeReview: verifiedNative } : {}), ...(verifiedLocated ? { locatedReview: verifiedLocated } : {}),
         ...(semantic.reviewCorpus ? { reviewCorpus: semantic.reviewCorpus as ResearchReviewCorpus } : {}),
         ...(verifiedCoding ? { insightCoding: verifiedCoding } : {}), ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
+        ...(verifiedCrosscheck ? { insightCrosscheck: verifiedCrosscheck } : {}),
         ...(semantic.boundedMethods ? { boundedMethods: semantic.boundedMethods as AutomationBoundedMethodSnapshot } : {}),
         ...(semantic.sourceEvidence ? { sourceEvidence: semantic.sourceEvidence as AutomationSourceEvidence } : {}),
         ...(verifiedClaims ? { sourceClaims: verifiedClaims } : {}), ...(verifiedAdmission ? { i14Admission: verifiedAdmission } : {}),

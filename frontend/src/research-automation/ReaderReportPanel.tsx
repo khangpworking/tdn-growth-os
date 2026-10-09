@@ -29,6 +29,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
   const [revisions, setRevisions] = useState<readonly ResearchAutomationReaderRevisionV2[] | null>(null);
   const [kind, setKind] = useState<'MARKET' | 'INSIGHT'>(run.reports.includes('MARKET') ? 'MARKET' : 'INSIGHT');
   const [sourceVersions, setSourceVersions] = useState<ResearchAutomationReportVersionList | null>(null);
+  const [insightBuildKind, setInsightBuildKind] = useState<'HISTORICAL' | 'CROSSCHECK' | 'PRIVATE_DEFAULT'>('HISTORICAL');
   const [selectedPairId, setSelectedPairId] = useState('');
   const [sourceError, setSourceError] = useState('');
   const [error, setError] = useState('');
@@ -92,11 +93,12 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
 
   const buildInsight = async () => {
     if (!canWrite || !ownerToken || pending || !selectedPair || !insightSource) return;
-    const identity = `INSIGHT:${run.workspaceId}:${run.runId}:${selectedPair.pairId}:${insightSource.versionId}`;
+    const identity = `INSIGHT:${insightBuildKind}:${run.workspaceId}:${run.runId}:${selectedPair.pairId}:${insightSource.versionId}`;
     const requestKey = requestKeys.current.get(identity) ?? crypto.randomUUID(); requestKeys.current.set(identity, requestKey);
     setPending(true); setSourceError('');
     try {
-      const receipt = await buildInsightReader(run.workspaceId, run.runId, { contractVersion: 'insight-reader-build-v1', reportKind: 'INSIGHT',
+      const receipt = await buildInsightReader(run.workspaceId, run.runId, { ...(insightBuildKind === 'HISTORICAL' ? { contractVersion: 'insight-reader-build-v1' as const }
+        : { contractVersion: 'insight-reader-build-v2' as const, sourceKind: insightBuildKind }), reportKind: 'INSIGHT',
         requestKey, draftPairId: selectedPair.pairId, semanticSha256: insightSource.versionId }, ownerToken);
       if (!mounted.current) return;
       requestKeys.current.delete(identity);
@@ -177,6 +179,12 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
       <h3>Dựng bản đọc insight</h3><p>Chọn rõ phiên bản nguồn đã lưu. Bản đọc giữ nguyên bằng chứng, phần thiếu và trạng thái mã hóa; sau khi dựng bạn xem rồi quyết định duyệt.</p>
       <label className="ra-label">Phiên bản nguồn insight<select className="ra-field" value={selectedPairId} disabled={!canWrite || pending} onChange={event => setSelectedPairId(event.target.value)}>
         <option value="">Chọn phiên bản nguồn</option>{pairs.map(pair => <option key={pair.pairId} value={pair.pairId}>Phiên bản nguồn {pair.versionNumber}</option>)}
+      </select></label>
+      <label className="ra-label">Nội dung bản đọc<select className="ra-field" value={insightBuildKind} disabled={!canWrite || pending}
+        onChange={event => setInsightBuildKind(event.target.value as typeof insightBuildKind)}>
+        <option value="HISTORICAL">Nguồn và mã hóa đã lưu</option>
+        <option value="CROSSCHECK">Mẫu mã hóa bởi model thứ hai</option>
+        <option value="PRIVATE_DEFAULT">Mã hóa mặc định từ nguồn riêng</option>
       </select></label>
       {!canWrite && <p className="ra-muted">Mở khóa OWNER để dựng bản đọc insight.</p>}
       {sourceError && <p role="alert" className="ra-message error">{sourceError}</p>}
