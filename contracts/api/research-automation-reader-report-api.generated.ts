@@ -24,7 +24,8 @@ export type Timestamp = string;
 export type ResearchAutomationInsightReaderBuildRequest =
   | ResearchAutomationInsightReaderBuildRequestV1
   | ResearchAutomationInsightReaderBuildRequestV2
-  | ResearchAutomationInsightReaderBuildRequestV3;
+  | ResearchAutomationInsightReaderBuildRequestV3
+  | ResearchAutomationTikTokReaderBuildRequest;
 export type ResearchAutomationReaderRevisionV2 =
   | ResearchAutomationMarketReaderRevisionV2
   | ResearchAutomationInsightReaderRevision
@@ -365,6 +366,14 @@ export interface ResearchAutomationInsightReaderBuildRequestV3 {
   personaProposalSha256: Sha256;
   personaSourcePairId: Sha256;
   personaSourceSha256: Sha256;
+}
+export interface ResearchAutomationTikTokReaderBuildRequest {
+  contractVersion: 'insight-reader-build-tiktok-v1';
+  reportKind: 'INSIGHT';
+  requestKey: string;
+  draftPairId: string;
+  semanticSha256: Sha256;
+  sourceKind: 'TIKTOK';
 }
 export interface ResearchAutomationReaderBuildReceiptV2 {
   contractVersion: 'reader-report-build-receipt-v2';

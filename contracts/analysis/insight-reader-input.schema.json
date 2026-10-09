@@ -21,6 +21,9 @@
     },
     {
       "$ref": "#/$defs/v6"
+    },
+    {
+      "$ref": "#/$defs/v7"
     }
   ],
   "$defs": {
@@ -975,6 +978,147 @@
         "personaSourceSha256": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "v7": {
+      "title": "InsightReaderInputV7",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reportKind",
+        "builderVersion",
+        "workspaceId",
+        "runId",
+        "draftPairId",
+        "semanticSha256",
+        "sourceReportSha256",
+        "frozenStartSha256",
+        "frozenScopeSha256",
+        "sourceRendererVersion",
+        "scope",
+        "retainedMethods"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-reader-input-v7"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-tiktok-v1"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "draftPairId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "semanticSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceReportSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenStartSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "frozenScopeSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceRendererVersion": {
+          "const": "tiktok-reader-kit-v1"
+        },
+        "scope": {
+          "title": "InsightReaderFrozenScope",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "keyword",
+            "definition",
+            "requestedPeriod"
+          ],
+          "properties": {
+            "keyword": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 120,
+              "pattern": "^[^\\u0000-\\u001f\\u007f]*\\S[^\\u0000-\\u001f\\u007f]*$"
+            },
+            "definition": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 2000,
+              "pattern": "^[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*\\S[^\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f]*$"
+            },
+            "requestedPeriod": {
+              "title": "InsightReaderRequestedPeriod",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "startDate",
+                "endDate"
+              ],
+              "properties": {
+                "startDate": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "endDate": {
+                  "type": "string",
+                  "format": "date"
+                }
+              }
+            }
+          }
+        },
+        "retainedMethods": {
+          "type": "array",
+          "items": {
+            "title": "InsightReaderMethodReference",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "kind",
+              "sha256"
+            ],
+            "properties": {
+              "kind": {
+                "enum": [
+                  "TIKTOK_CODING"
+                ]
+              },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          },
+          "contains": {
+            "type": "object",
+            "required": [
+              "kind"
+            ],
+            "properties": {
+              "kind": {
+                "const": "TIKTOK_CODING"
+              }
+            }
+          },
+          "minContains": 1,
+          "maxContains": 1
         }
       }
     }

@@ -9,7 +9,8 @@ export type InsightReaderInput =
   | InsightReaderInputV3
   | InsightReaderInputV4
   | InsightReaderInputV5
-  | InsightReaderInputV6;
+  | InsightReaderInputV6
+  | InsightReaderInputV7;
 
 export interface InsightReaderInputV1 {
   contractVersion: 'insight-reader-input-v1';
@@ -224,5 +225,33 @@ export interface InsightReaderRequestedPeriod5 {
 }
 export interface InsightReaderMethodReference5 {
   kind: 'PERSONA' | 'PERSONA_SOURCE' | 'SOURCE_EVIDENCE';
+  sha256: string;
+}
+export interface InsightReaderInputV7 {
+  contractVersion: 'insight-reader-input-v7';
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-tiktok-v1';
+  workspaceId: string;
+  runId: string;
+  draftPairId: string;
+  semanticSha256: string;
+  sourceReportSha256: string;
+  frozenStartSha256: string;
+  frozenScopeSha256: string;
+  sourceRendererVersion: 'tiktok-reader-kit-v1';
+  scope: InsightReaderFrozenScope6;
+  retainedMethods: InsightReaderMethodReference6[];
+}
+export interface InsightReaderFrozenScope6 {
+  keyword: string;
+  definition: string;
+  requestedPeriod: InsightReaderRequestedPeriod6;
+}
+export interface InsightReaderRequestedPeriod6 {
+  startDate: string;
+  endDate: string;
+}
+export interface InsightReaderMethodReference6 {
+  kind: 'TIKTOK_CODING';
   sha256: string;
 }

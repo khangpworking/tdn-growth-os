@@ -592,6 +592,9 @@
         },
         {
           "$ref": "#/$defs/insightBuildRequestV3"
+        },
+        {
+          "$ref": "#/$defs/tiktokBuildRequest"
         }
       ]
     },
@@ -1576,6 +1579,40 @@
         },
         "personaSourceSha256": {
           "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "tiktokBuildRequest": {
+      "title": "ResearchAutomationTikTokReaderBuildRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reportKind",
+        "requestKey",
+        "draftPairId",
+        "semanticSha256",
+        "sourceKind"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-reader-build-tiktok-v1"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "requestKey": {
+          "$ref": "research-automation-api.schema.json#/$defs/requestKey"
+        },
+        "draftPairId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceKind": {
+          "const": "TIKTOK"
         }
       }
     }
