@@ -156,6 +156,11 @@ const validates = {
   readerDecision: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionRequest` }),
   readerDecisionReceipt: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionReceipt` }),
   readerList: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/list` }),
+  insightReaderBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/insightBuildRequest` }),
+  readerBuildReceiptV2: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/buildReceiptV2` }),
+  readerDecisionV2: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionRequestV2` }),
+  readerDecisionReceiptV2: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/decisionReceiptV2` }),
+  readerListV2: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/listV2` }),
 };
 /** Inline JSON body of a reader build: profile, declared source and an optional inline cover image. */
 const MAX_READER_BUILD_BYTES = 4 * 1024 * 1024 + 512 * 1024;
@@ -319,13 +324,16 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const insightModelWrite = action === 'insight-coding-model-proposals' || insightDefaultModelWrite;
     const readerHtml = /^reader-reports\/([0-9a-f-]{36})\/html$/.exec(action ?? '');
     const readerUnitSpecIntake = action === 'reader-reports/unit-spec-intakes';
-    const readerAction = readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml);
+    const insightReaderBuild = action === 'reader-reports/insight';
+    const readerDecisionV2 = action === 'reader-reports/decisions/v2';
+    const readerListV2 = action === 'reader-reports/v2';
+    const readerAction = insightReaderBuild || readerDecisionV2 || readerListV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml);
     const report = originalReport?.[1] ?? versionReport?.[2];
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
-      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
+      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -373,6 +381,11 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           // Explicit pair only: verified history, never an implicit latest pair or a currency claim.
           const result = await readService.readInsightCoding(workspaceId!, runId, insightRead[1]!);
           if (!validates.insightView(result)) throw new Error('Insight coding projection failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (readerListV2) {
+          const result = await readService.listReaderReportsV2(workspaceId!, runId);
+          if (!validates.readerListV2(result)) throw new Error('Reader report v2 list failed validation');
           return sendApiJson(response, 200, result);
         }
         if (action === 'reader-reports') {
@@ -583,6 +596,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         : insightWrite ? insightWrite.validate
         : membershipWrite ? action === 'metric-membership-proposals' ? validates.membershipPropose : validates.membershipAccept
         : action === 'metric-rule-adoptions' ? validates.metricRuleAdopt
+        : insightReaderBuild ? validates.insightReaderBuild : readerDecisionV2 ? validates.readerDecisionV2
         : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
         : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
@@ -658,6 +672,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         const receipt = { contractVersion: 'insight-coding-mutation-v1', kind: insightWrite.kind, evidenceId: result.evidence.evidenceId, exactRetry: result.exactRetry };
         if (!validates.insightMutation(receipt)) throw new Error('Insight coding receipt failed validation');
         // Coding evidence is not report admission, regeneration or provider dispatch.
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
+      if (insightReaderBuild || readerDecisionV2) {
+        const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
+        const receipt = insightReaderBuild ? await writeService!.buildInsightReaderReport(workspaceId!, runId!, body, owner)
+          : await writeService!.decideReaderReportV2(workspaceId!, runId!, body, owner);
+        if (!(insightReaderBuild ? validates.readerBuildReceiptV2 : validates.readerDecisionReceiptV2)(receipt))
+          throw new Error('Reader v2 receipt failed validation');
         return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
       if (action === 'reader-reports' || action === 'reader-reports/decisions') {

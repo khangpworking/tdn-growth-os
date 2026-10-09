@@ -222,6 +222,7 @@ const contracts = [
   ['flow', 'content-campaign-defaults-request'],
   ['analysis', 'report-assembly-snapshot'],
   ['analysis', 'reader-report-input'],
+  ['analysis', 'insight-reader-input'],
   ['api', 'research-automation-reader-report-api'],
 ];
 for (const [module, contract] of contracts) {

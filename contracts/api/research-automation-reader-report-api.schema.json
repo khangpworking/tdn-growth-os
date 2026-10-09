@@ -30,6 +30,21 @@
     },
     {
       "$ref": "#/$defs/intakeBoundBuildRequest"
+    },
+    {
+      "$ref": "#/$defs/insightBuildRequest"
+    },
+    {
+      "$ref": "#/$defs/buildReceiptV2"
+    },
+    {
+      "$ref": "#/$defs/decisionRequestV2"
+    },
+    {
+      "$ref": "#/$defs/decisionReceiptV2"
+    },
+    {
+      "$ref": "#/$defs/listV2"
     }
   ],
   "$defs": {
@@ -565,6 +580,583 @@
           "$ref": "#/$defs/intakeBoundBuildRequest"
         }
       ]
+    },
+    "insightBuildRequest": {
+      "title": "ResearchAutomationInsightReaderBuildRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reportKind",
+        "requestKey",
+        "draftPairId",
+        "semanticSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-reader-build-v1"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "requestKey": {
+          "$ref": "research-automation-api.schema.json#/$defs/requestKey"
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "marketRevisionV2": {
+      "title": "ResearchAutomationMarketReaderRevisionV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "revisionNumber",
+        "workspaceId",
+        "runId",
+        "state",
+        "draftPairId",
+        "platforms",
+        "profileStatus",
+        "htmlSha256",
+        "createdAt",
+        "decision",
+        "reportKind",
+        "builderVersion"
+      ],
+      "properties": {
+        "revisionId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "revisionNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "state": {
+          "enum": [
+            "PENDING_OWNER_REVIEW",
+            "APPROVED",
+            "REJECTED",
+            "SUPERSEDED"
+          ]
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "platforms": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/platform"
+          }
+        },
+        "profileStatus": {
+          "enum": [
+            "proposed",
+            "approved"
+          ]
+        },
+        "htmlSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "reason",
+                "decidedAt"
+              ],
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "APPROVED",
+                    "REJECTED"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "decidedAt": {
+                  "$ref": "#/$defs/timestamp"
+                }
+              }
+            }
+          ]
+        },
+        "reportKind": {
+          "const": "MARKET"
+        },
+        "builderVersion": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    },
+    "insightRevision": {
+      "title": "ResearchAutomationInsightReaderRevision",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "revisionNumber",
+        "workspaceId",
+        "runId",
+        "state",
+        "draftPairId",
+        "htmlSha256",
+        "createdAt",
+        "decision",
+        "reportKind",
+        "builderVersion",
+        "semanticSha256",
+        "sourceReportSha256"
+      ],
+      "properties": {
+        "revisionId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "revisionNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "state": {
+          "enum": [
+            "PENDING_OWNER_REVIEW",
+            "APPROVED",
+            "REJECTED",
+            "SUPERSEDED"
+          ]
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "htmlSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "reason",
+                "decidedAt"
+              ],
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "APPROVED",
+                    "REJECTED"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "decidedAt": {
+                  "$ref": "#/$defs/timestamp"
+                }
+              }
+            }
+          ]
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-v1"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceReportSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "revisionV2": {
+      "title": "ResearchAutomationReaderRevisionV2",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/marketRevisionV2"
+        },
+        {
+          "$ref": "#/$defs/insightRevision"
+        },
+        {
+          "$ref": "#/$defs/insightRevisionV2"
+        },
+        {
+          "$ref": "#/$defs/insightRevisionV3"
+        }
+      ]
+    },
+    "buildReceiptV2": {
+      "title": "ResearchAutomationReaderBuildReceiptV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "exactRetry",
+        "revision"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "reader-report-build-receipt-v2"
+        },
+        "exactRetry": {
+          "type": "boolean"
+        },
+        "revision": {
+          "$ref": "#/$defs/revisionV2"
+        }
+      }
+    },
+    "decisionReceiptV2": {
+      "title": "ResearchAutomationReaderDecisionReceiptV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "exactRetry",
+        "revision"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "reader-report-decision-receipt-v2"
+        },
+        "exactRetry": {
+          "type": "boolean"
+        },
+        "revision": {
+          "$ref": "#/$defs/revisionV2"
+        }
+      }
+    },
+    "decisionRequestV2": {
+      "title": "ResearchAutomationReaderDecisionRequestV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "revisionId",
+        "decision",
+        "reason",
+        "reportKind",
+        "htmlSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "reader-report-decision-v2"
+        },
+        "requestKey": {
+          "$ref": "research-automation-api.schema.json#/$defs/requestKey"
+        },
+        "revisionId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "decision": {
+          "enum": [
+            "APPROVED",
+            "REJECTED"
+          ]
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 1000,
+              "pattern": "\\S"
+            }
+          ]
+        },
+        "reportKind": {
+          "enum": [
+            "MARKET",
+            "INSIGHT"
+          ]
+        },
+        "htmlSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "listV2": {
+      "title": "ResearchAutomationReaderRevisionListV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "workspaceId",
+        "runId",
+        "revisions"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "reader-report-list-v2"
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "revisions": {
+          "type": "array",
+          "maxItems": 20000,
+          "items": {
+            "$ref": "#/$defs/revisionV2"
+          }
+        }
+      }
+    },
+    "insightRevisionV2": {
+      "title": "ResearchAutomationInsightReaderRevisionV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "revisionNumber",
+        "workspaceId",
+        "runId",
+        "state",
+        "draftPairId",
+        "htmlSha256",
+        "createdAt",
+        "decision",
+        "reportKind",
+        "builderVersion",
+        "semanticSha256",
+        "sourceReportSha256"
+      ],
+      "properties": {
+        "revisionId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "revisionNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "state": {
+          "enum": [
+            "PENDING_OWNER_REVIEW",
+            "APPROVED",
+            "REJECTED",
+            "SUPERSEDED"
+          ]
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "htmlSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "reason",
+                "decidedAt"
+              ],
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "APPROVED",
+                    "REJECTED"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "decidedAt": {
+                  "$ref": "#/$defs/timestamp"
+                }
+              }
+            }
+          ]
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-v2"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceReportSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "insightRevisionV3": {
+      "title": "ResearchAutomationInsightReaderRevisionV3",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "revisionNumber",
+        "workspaceId",
+        "runId",
+        "state",
+        "draftPairId",
+        "htmlSha256",
+        "createdAt",
+        "decision",
+        "reportKind",
+        "builderVersion",
+        "semanticSha256",
+        "sourceReportSha256"
+      ],
+      "properties": {
+        "revisionId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "revisionNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "state": {
+          "enum": [
+            "PENDING_OWNER_REVIEW",
+            "APPROVED",
+            "REJECTED",
+            "SUPERSEDED"
+          ]
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "htmlSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "reason",
+                "decidedAt"
+              ],
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "APPROVED",
+                    "REJECTED"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "decidedAt": {
+                  "$ref": "#/$defs/timestamp"
+                }
+              }
+            }
+          ]
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-v3"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceReportSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
     }
   }
 }
