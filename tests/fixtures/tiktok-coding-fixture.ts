@@ -72,9 +72,17 @@ export function fakeCodingAi(port: NonNullable<TikTokCodingAI>['port'], configur
 
 export async function tiktokFixture(t: TestContext) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-tiktok-coding-'));
+  const seeded = await seedTikTokCodingHarness(root);
+  t.after(async () => { seeded.close(); await fs.rm(root, { recursive: true, force: true }); });
+  return { root, ...seeded };
+}
+
+/** Seed keyword-v3 + P4 + S07 into an explicit root without cleanup. The caller owns
+ * close() (before an operator opens the same database) and later root removal. */
+export async function seedTikTokCodingHarness(root: string) {
   const databasePath = path.join(root, 'test.sqlite'), artifactRoot = path.join(root, 'artifacts');
   const db = openDatabase({ databasePath, now }).db, artifacts = new ContentAddressedArtifactStore(artifactRoot);
-  t.after(async () => { db.close(); await fs.rm(root, { recursive: true, force: true }); });
+  const close = async () => { db.close(); };
   const discovery = new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => workspaceId });
   await discovery.createWorkspace({ contractVersion: '1.0.0', workspaceKey: 'tiktok-coding-synthetic', title: 'Synthetic TikTok coding fixture' });
   const workspaceReader = new FlowDiscoveryWorkspaceReader(discovery);
@@ -129,6 +137,6 @@ export async function tiktokFixture(t: TestContext) {
   const packet = await service.readSourceEvidence(workspaceId, runId);
   assert.ok(packet?.draftDigest);
   const keyword = await service.readSourceKeywordDraft(workspaceId, runId, packet.draftDigest);
-  return { root, db, artifacts, databasePath, artifactRoot, workspaceReader, service, sourcePackage, selected,
-    collected, corpusPackage: collected.package, keywordDigest: packet.draftDigest, keyword, collector };
+  return { db, artifacts, databasePath, artifactRoot, workspaceReader, service, sourcePackage, selected,
+    collected, corpusPackage: collected.package, keywordDigest: packet.draftDigest, keyword, collector, close };
 }
