@@ -38,6 +38,9 @@ import p9ReadingSchema from '../../contracts/analysis/video-reading-v1.schema.js
 import p9KeywordSchema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import type { TikTokSourcePackageIdentity } from '../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 import { P9SourceError } from '../modules/analysis/research-automation/p9-source-intake.js';
+import tiktokCodingSchema from '../../contracts/analysis/tiktok-coding-proposal-v1.schema.json' with { type: 'json' };
+import { TikTokCodingError, TikTokCodingTransportError } from '../modules/analysis/research-automation/tiktok-coding.js';
+import type { TikTokCodingConfiguration } from '../../contracts/analysis/tiktok-coding-configuration-v1.generated.js';
 import { buildResearchAutomationSourceStatus } from '../modules/analysis/research-automation/source-status.js';
 import type { ResearchInsightModelResponse } from '../../contracts/api/research-automation-insight-model-api.generated.js';
 import type { InsightModelConfiguration } from '../modules/analysis/research-automation/insight-model-execution.js';
@@ -68,7 +71,7 @@ import { buildResearchAutomationReport } from '../modules/analysis/research-auto
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
 import { crosscheckRequestValid, crosscheckResponseValid } from '../modules/analysis/research-automation/insight-crosscheck-contracts.js';
 import { insightCodingDigest } from '../modules/analysis/research-automation/insight-default-coding.js';
-import { createI14CliproxySynthesisAi, createDecisionCliproxySynthesisAi, createInsightCodingCliproxyAi } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
+import { createI14CliproxySynthesisAi, createDecisionCliproxySynthesisAi, createInsightCodingCliproxyAi, createTikTokCodingCliproxyAi } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
 import type { AutomationDecisionSynthesisConfiguration, AutomationDecisionExecutionRequest } from '../modules/analysis/research-automation/decision-synthesis-execution.js';
 import type { AutomationDecisionSectionId } from '../modules/analysis/research-automation/decision-packets.js';
@@ -82,6 +85,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly reviewCollection?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['reviewCollection'];
   /** Explicit injected collector/profile and approved cap; absent never activates P9. */
   readonly tikTokCommentsCollector?: import('../platform/collectors/apify-tiktok-comments.js').ApifyTikTokCommentsCollector;
+  /** Explicit TikTok draft-coding model; absent refuses model dispatch, never a default model. */
+  readonly tiktokCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: TikTokCodingConfiguration };
   /** Independently configured list drafting; other model flags grant no calls here. */
   readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
   readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
@@ -131,8 +136,17 @@ ajv.addSchema(insightModelSchema); ajv.addSchema(insightModelApiSchema);
 ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
 ajv.addSchema(sourceStatusSchema);
 ajv.addSchema([p9KeywordSchema, p9CommentsSchema, p9ReadingSchema]);
+ajv.addSchema(tiktokCodingSchema);
 const historicalRevisionValid = ajv.compile({ oneOf: [{ $ref: revisionRequestSchema.$id }, { $ref: classifiedRevisionRequestSchema.$id }, { $ref: insightRevisionRequestSchema.$id }, { $ref: boundedRevisionRequestSchema.$id }, { $ref: quoteRevisionRequestSchema.$id }, { $ref: marketPresentationRevisionSchema.$id }] });
 const validates = {
+  tiktokPropose: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/proposeRequest` }),
+  tiktokReceipt: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/receipt` }),
+  tiktokHistory: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/history` }),
+  tiktokReadView: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/readView` }),
+  tiktokReport: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/report` }),
+  tiktokContext: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/context` }),
+  tiktokConsumption: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/consumptionView` }),
+  tiktokReaderBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/tiktokBuildRequest` }),
   p9Selection: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/selectionRequest` }),
   p9Package: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/sourcePackage` }),
   p9Receipt: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/receipt` }),
@@ -243,6 +257,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   if (configuration.insightCrosscheck && !configuration.owner) throw new TypeError('Crosscheck requires the OWNER writer');
   const insightCrosscheckAi = configuration.insightCrosscheck ? createInsightCodingCliproxyAi(configuration.insightCrosscheck) : null;
   const insightCodingAi = configuration.insightCoding ? createInsightCodingCliproxyAi(configuration.insightCoding) : null;
+  if (configuration.tiktokCoding && !configuration.owner) throw new TypeError('TikTok coding model requires the OWNER writer');
+  const tiktokCodingAi = configuration.tiktokCoding ? createTikTokCodingCliproxyAi(configuration.tiktokCoding) : null;
   if (configuration.decisionSynthesis && !configuration.owner) throw new TypeError('Automation decision synthesis requires the OWNER writer');
   const decisionSynthesisAi: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionRequest['ai']>> = {};
   if (configuration.decisionSynthesis) {
@@ -369,7 +385,13 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const insightReaderBuild = action === 'reader-reports/insight';
     const readerDecisionV2 = action === 'reader-reports/decisions/v2';
     const readerListV2 = action === 'reader-reports/v2';
-    const readerAction = insightReaderBuild || readerDecisionV2 || readerListV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml);
+    const tiktokContextRead = /^sources\/tiktok-coding\/context\/([0-9a-f-]{36})$/.exec(action ?? '');
+    const tiktokRead = /^sources\/tiktok-coding\/([0-9a-f-]{36})$/.exec(action ?? '');
+    const tiktokHistory = action === 'sources/tiktok-coding';
+    const tiktokConsumptionRead = action === 'sources/tiktok-coding/consumption';
+    const tiktokPropose = action === 'sources/tiktok-coding/proposals';
+    const tiktokReaderBuild = action === 'reader-reports/tiktok';
+    const readerAction = insightReaderBuild || readerDecisionV2 || readerListV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml) || tiktokReaderBuild || tiktokPropose;
     const report = originalReport?.[1] ?? versionReport?.[2];
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
@@ -377,8 +399,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const p9History = action === 'sources/tiktok-comments' || action === 'sources/video-reading';
     const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
-      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild
+      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead;
     if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -422,6 +444,28 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (p9History) {
           const history = await readService.readP9SourceHistory(workspaceId!, runId);
           return sendApiJson(response, 200, action === 'sources/tiktok-comments' ? history.comments : history.readings);
+        }
+        if (tiktokContextRead) {
+          const context = await readService.readTikTokCodingContext(workspaceId!, runId, tiktokContextRead[1]!);
+          if (!validates.tiktokContext(context)) throw new Error('TikTok coding context failed validation');
+          return sendApiJson(response, 200, context);
+        }
+        if (tiktokRead) {
+          const read = await readService.readTikTokCoding(workspaceId!, runId, tiktokRead[1]!);
+          const view = { contractVersion: 'tiktok-coding-read-v1', draft: read.draft, report: read.report,
+            citations: read.citations, finalizedAt: read.finalizedAt };
+          if (!validates.tiktokReadView(view)) throw new Error('TikTok coding read failed validation');
+          return sendApiJson(response, 200, view);
+        }
+        if (tiktokHistory) {
+          const history = await readService.listTikTokCodingHistory(workspaceId!, runId);
+          if (!validates.tiktokHistory(history)) throw new Error('TikTok coding history failed validation');
+          return sendApiJson(response, 200, history);
+        }
+        if (tiktokConsumptionRead) {
+          const consumption = await readService.readTikTokReportConsumption(workspaceId!, runId);
+          if (!validates.tiktokConsumption(consumption)) throw new Error('TikTok consumption ledger failed validation');
+          return sendApiJson(response, 200, consumption);
         }
         if (action === 'pageindex') {
           const result = { contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId,
@@ -562,6 +606,23 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         const result = await writeService!.prepareP9VideoReading(workspaceId!, runId!, input, frames);
         if (!validates.p9ReadingReceipt(result)) throw new Error('P9 video receipt failed validation');
         return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+      }
+      if (tiktokPropose) {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 64 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Malformed TikTok coding request'); }
+        if (!validates.tiktokPropose(input)) return fail(response, 400, 'bad_request', 'TikTok coding request failed validation');
+        if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
+        const controller = new AbortController();
+        const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+        response.once('close', disconnected); if (response.destroyed) controller.abort();
+        const pending = writeService!.proposeTikTokCoding(workspaceId!, runId!, input, tiktokCodingAi, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!validates.tiktokReceipt(result)) throw new Error('TikTok coding receipt failed validation');
+          return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+        } finally { modelRequests.delete(controller); response.removeListener('close', disconnected); }
       }
       if (action === 'pageindex-recheck') {
         let input: unknown;
@@ -746,6 +807,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         : membershipWrite ? action === 'metric-membership-proposals' ? validates.membershipPropose : validates.membershipAccept
         : action === 'metric-rule-adoptions' ? validates.metricRuleAdopt
         : insightReaderBuild ? validates.insightReaderBuild : readerDecisionV2 ? validates.readerDecisionV2
+        : tiktokReaderBuild ? validates.tiktokReaderBuild
         : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
         : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
@@ -845,6 +907,12 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           throw new Error('Reader v2 receipt failed validation');
         return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
+      if (tiktokReaderBuild) {
+        const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
+        const receipt = await writeService!.buildTikTokReaderReport(workspaceId!, runId!, body, owner);
+        if (!validates.readerBuildReceiptV2(receipt)) throw new Error('TikTok reader receipt failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
       if (action === 'reader-reports' || action === 'reader-reports/decisions') {
         const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
         if (action === 'reader-reports') {
@@ -878,6 +946,11 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       sendApiJson(response, action === 'cancel' || receipt.exactRetry ? 200 : 202, receipt);
     } catch (error) {
       if (error instanceof P9SourceError) return fail(response, 409, 'source_evidence_rejected', 'P9 source evidence or configured collection is unavailable');
+      if (error instanceof TikTokCodingError) return fail(response, 409, 'source_evidence_rejected', 'TikTok coding identity, retained evidence or request state differs.');
+      if (error instanceof TikTokCodingTransportError) {
+        if (error.code === 'MODEL_NOT_CONFIGURED') return fail(response, 400, 'bad_request', 'TikTok coding model is not configured.');
+        return fail(response, 409, 'source_evidence_rejected', 'TikTok coding dispatch outcome is unknown or invalid; retry with a new request key.');
+      }
       if (action === 'source-pdfs' && error instanceof ResearchAutomationValidationError)
         return fail(response, 400, 'bad_request', 'Tài liệu PDF không hợp lệ hoặc vượt giới hạn dung lượng.');
       if (error instanceof AutomationSynthesisExecutionError) {
