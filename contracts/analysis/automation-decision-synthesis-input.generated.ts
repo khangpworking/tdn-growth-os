@@ -8,7 +8,7 @@ export type AutomationDecisionSynthesisInput = {
 } & {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-synthesis-input';
-  methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
+  methodVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
   sectionId: 'M11' | 'I15' | 'M12';
   runId: Uuid;
   workspaceId: Uuid;
@@ -32,7 +32,7 @@ export type AutomationDecisionSynthesisInput = {
    */
   packet: {
     methodId: 'automation-decision-packet';
-    methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
+    methodVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
     packetSha256: Digest;
     status: 'UNRANKED_EVIDENCE_INVENTORY';
     candidateEligibility: {
