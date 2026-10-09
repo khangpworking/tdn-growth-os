@@ -63,6 +63,15 @@ export async function buildInsightReader(workspaceId: string, runId: string, bod
   if (receipt.exactRetry !== (result.status === 200) || receipt.revision.reportKind !== 'INSIGHT' || receipt.revision.workspaceId !== workspaceId ||
       receipt.revision.runId !== runId || receipt.revision.draftPairId !== body.draftPairId || receipt.revision.semanticSha256 !== body.semanticSha256)
     throw integrity('Biên nhận bản đọc insight không khớp nguồn đã chọn.');
+  const expectedBuilder = body.contractVersion === 'insight-reader-build-v3' ? 'reader-report-insight-v6'
+    : body.contractVersion === 'insight-reader-build-v2' ? body.sourceKind === 'CROSSCHECK' ? 'reader-report-insight-v4' : 'reader-report-insight-v5' : null;
+  if (expectedBuilder ? receipt.revision.builderVersion !== expectedBuilder
+    : !['reader-report-insight-v1', 'reader-report-insight-v2', 'reader-report-insight-v3'].includes(receipt.revision.builderVersion))
+    throw integrity('Biên nhận bản đọc insight không khớp nguồn đã chọn.');
+  if (body.contractVersion === 'insight-reader-build-v3' && (receipt.revision.builderVersion !== 'reader-report-insight-v6' ||
+      receipt.revision.personaProposalId !== body.personaProposalId || receipt.revision.personaProposalSha256 !== body.personaProposalSha256 ||
+      receipt.revision.personaSourcePairId !== body.personaSourcePairId || receipt.revision.personaSourceSha256 !== body.personaSourceSha256))
+    throw integrity('Biên nhận bản đọc insight không khớp nguồn đã chọn.');
   return receipt;
 }
 

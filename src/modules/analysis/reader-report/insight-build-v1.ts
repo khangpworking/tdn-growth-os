@@ -1,3 +1,4 @@
+import { insightPersonaSection } from '../research-automation/insight-persona-report.js';
 import { createHash } from 'node:crypto';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { CitationRegistry } from '../citation-registry.js';
@@ -30,6 +31,13 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       digest(methods.start) !== identity.frozenStartSha256 || digest(methods.scope) !== identity.frozenScopeSha256)
     throw new ReaderReportInputError('Insight reader methods differ from authenticated frozen scope.');
   if (methods.nativeReview && (methods.locatedReview || methods.reviewCorpus)) throw new ReaderReportInputError('Insight reader cannot substitute native and collected sources.');
+  const persona26 = identity.sourceRendererVersion === 'automation-report-kit-v26';
+  if (persona26 !== Boolean(methods.insightPersona) || (persona26 && (!methods.privateReviewCorpus ||
+      methods.insightPersona!.source.viewSha256 !== digest(methods.privateReviewCorpus) ||
+      methods.insightPersona!.selection.binding.workspaceId !== identity.workspaceId || methods.insightPersona!.selection.binding.runId !== identity.runId)))
+    throw new ReaderReportInputError('Persona Insight reader requires its verified final proposal and exact public source.');
+  if (persona26) methods = { run: methods.run, start: methods.start, scope: methods.scope, collection: methods.collection, captures: methods.captures,
+    insightPersona: methods.insightPersona!, ...(methods.sourceEvidence ? { sourceEvidence: methods.sourceEvidence } : {}) };
   const private22 = identity.sourceRendererVersion === 'automation-report-kit-v22';
   const private25 = identity.sourceRendererVersion === 'automation-report-kit-v25';
   const crosscheck23 = identity.sourceRendererVersion === 'automation-report-kit-v23';
@@ -61,6 +69,7 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
     }
   };
   if (private25 && methods.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5') ref('PRIVATE_PROJECTION', methods.insightCoding.privateSource);
+  if (methods.insightPersona) { ref('PERSONA', methods.insightPersona); ref('PERSONA_SOURCE', methods.insightPersona.source); }
   ref('CROSSCHECK', methods.insightCrosscheck);
   ref('PRIVATE_CORPUS', methods.privateReviewCorpus);
   ref('NATIVE', methods.nativeReview); ref('LOCATED', methods.locatedReview); ref('CORPUS', methods.reviewCorpus);
@@ -69,8 +78,11 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   ref('I14_ADMISSION', methods.i14Admission); ref('I14_SYNTHESIS', methods.i14Synthesis);
   for (const packet of methods.decisionPackets ?? []) ref('DECISION_PACKET', packet);
   for (const outcome of Object.values(methods.decisionSynthesis ?? {})) ref('DECISION_SYNTHESIS', outcome);
-  const input = { ...identity, contractVersion: private25 ? 'insight-reader-input-v5' : crosscheck23 ? 'insight-reader-input-v4' : private22 ? 'insight-reader-input-v3' : default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
-    builderVersion: private25 ? 'reader-report-insight-v5' : crosscheck23 ? 'reader-report-insight-v4' : private22 ? 'reader-report-insight-v3' : default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references } as InsightReaderInput;
+  const input = { ...identity, contractVersion: persona26 ? 'insight-reader-input-v6' : private25 ? 'insight-reader-input-v5' : crosscheck23 ? 'insight-reader-input-v4' : private22 ? 'insight-reader-input-v3' : default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
+    builderVersion: persona26 ? 'reader-report-insight-v6' : private25 ? 'reader-report-insight-v5' : crosscheck23 ? 'reader-report-insight-v4' : private22 ? 'reader-report-insight-v3' : default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references, ...(methods.insightPersona ? {
+      personaProposalId: methods.insightPersona.selection.proposalId, personaProposalSha256: methods.insightPersona.selection.proposalSha256,
+      personaSourcePairId: methods.insightPersona.selection.binding.pairId, personaSourceSha256: digest(methods.insightPersona.source),
+    } : {}) } as InsightReaderInput;
   verifyInsightReaderInput(input, input);
   const registry = new CitationRegistry();
   const citations: ReportCitations = { mark: value => renderCitationMarkOrMissing(registry.cite(value)) };
@@ -78,6 +90,9 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   const append = (id: InsightSectionId, body: string, explanation: string) => {
     const prior = sections.get(id); sections.set(id, { id, body: (prior?.body ?? '') + body, explanation: prior?.explanation ?? explanation });
   };
+  if (methods.insightPersona) for (const id of ['I02', 'I03', 'I17'] as const)
+    append(id, insightPersonaSection(methods.insightPersona.snapshot, methods.insightPersona.source, id, citations),
+      'Chân dung và thẻ bằng chứng là đề xuất AI từ lời nguồn đã lưu, chờ chủ duyệt; chưa đủ điều kiện phát hành kết luận.');
   const source = methods.nativeReview ?? (methods.locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? methods.locatedReview : undefined);
   if (source) {
     for (const id of ['I01', 'I02', 'I04', 'I05', 'I07', 'I08'] as const) {
@@ -149,5 +164,5 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   else append('I17', '<p>Phiên bản nguồn này chưa có bản kê nguồn với mã đăng ký, hạng và kết quả lọc nghĩa đã xác minh. Các vị trí nguồn đã có vẫn được giữ; không tự điền hạng hoặc kết quả lọc còn thiếu.</p>',
     'Phần còn thiếu của bản kê nguồn được giữ rõ, không thay bằng giá trị mặc định.');
   return { input, page: { keyword: scope.keyword, definition: scope.definition, period: scope.requestedPeriod,
-    registry, sections: [...sections.values()], findings: private25 || crosscheck23 ? projectRetainedInsightFindings(methods.insightCoding?.output, true) : projectInsightFindings(methods) } };
+    registry, sections: [...sections.values()], findings: persona26 ? projectRetainedInsightFindings(undefined, true) : private25 || crosscheck23 ? projectRetainedInsightFindings(methods.insightCoding?.output, true) : projectInsightFindings(methods) } };
 }

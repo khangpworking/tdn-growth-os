@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { loadPersonas, type ResearchPersonaView } from './persona-api';
 import ConfirmDialog from '../ConfirmDialog';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import { formatTime } from './run-status';
@@ -29,7 +30,11 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
   const [revisions, setRevisions] = useState<readonly ResearchAutomationReaderRevisionV2[] | null>(null);
   const [kind, setKind] = useState<'MARKET' | 'INSIGHT'>(run.reports.includes('MARKET') ? 'MARKET' : 'INSIGHT');
   const [sourceVersions, setSourceVersions] = useState<ResearchAutomationReportVersionList | null>(null);
-  const [insightBuildKind, setInsightBuildKind] = useState<'HISTORICAL' | 'CROSSCHECK' | 'PRIVATE_DEFAULT'>('HISTORICAL');
+  const [insightBuildKind, setInsightBuildKind] = useState<'HISTORICAL' | 'CROSSCHECK' | 'PRIVATE_DEFAULT' | 'PERSONA'>('HISTORICAL');
+  const [personaSourcePairId, setPersonaSourcePairId] = useState('');
+  const [personaView, setPersonaView] = useState<ResearchPersonaView | null>(null);
+  const [personaProposalId, setPersonaProposalId] = useState('');
+  const [personaError, setPersonaError] = useState('');
   const [selectedPairId, setSelectedPairId] = useState('');
   const [sourceError, setSourceError] = useState('');
   const [error, setError] = useState('');
@@ -64,6 +69,18 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
       .catch((failure: unknown) => { if (!controller.signal.aborted) setSourceError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được phiên bản nguồn insight.'); });
     return () => controller.abort();
   }, [kind, run.workspaceId, run.runId, run.status]);
+  useEffect(() => {
+    setPersonaView(null); setPersonaProposalId(''); setPersonaError('');
+    if (kind !== 'INSIGHT' || insightBuildKind !== 'PERSONA' || !personaSourcePairId || run.status !== 'DRAFT_READY') return;
+    const controller = new AbortController();
+    loadPersonas(run.workspaceId, run.runId, personaSourcePairId, controller.signal)
+      .then(view => { if (!controller.signal.aborted) setPersonaView(view); })
+      .catch((failure: unknown) => { if (!controller.signal.aborted) setPersonaError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được đề xuất chân dung.'); });
+    return () => controller.abort();
+  }, [kind, insightBuildKind, personaSourcePairId, run.workspaceId, run.runId, run.status]);
+  const personaProposals = personaView?.binding.pairId === personaSourcePairId ? personaView.evidence.filter(entry =>
+    entry.evidence.contractVersion === 'insight-persona-proposal-evidence-v1' && entry.evidence.request.stage === 'SYNTHESIZE') : [];
+  const personaProposal = personaProposals.find(entry => entry.evidence.evidenceId === personaProposalId);
   const history = revisions?.filter(revision => revision.reportKind === kind && revision.workspaceId === run.workspaceId && revision.runId === run.runId);
   const latest = history?.at(-1);
   const kindLabel = kind === 'INSIGHT' ? 'insight' : 'thị trường';
@@ -92,13 +109,17 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
   };
 
   const buildInsight = async () => {
-    if (!canWrite || !ownerToken || pending || !selectedPair || !insightSource) return;
-    const identity = `INSIGHT:${insightBuildKind}:${run.workspaceId}:${run.runId}:${selectedPair.pairId}:${insightSource.versionId}`;
+    if (!canWrite || !ownerToken || pending || !selectedPair || !insightSource ||
+        (insightBuildKind === 'PERSONA' && (!personaProposal || !personaView))) return;
+    const identity = `INSIGHT:${insightBuildKind}:${run.workspaceId}:${run.runId}:${selectedPair.pairId}:${insightSource.versionId}:${insightBuildKind === 'PERSONA' ? `${personaSourcePairId}:${personaProposal?.evidence.evidenceId}:${personaProposal?.sha256}:${personaView?.binding.sourceSha256}` : ''}`;
     const requestKey = requestKeys.current.get(identity) ?? crypto.randomUUID(); requestKeys.current.set(identity, requestKey);
     setPending(true); setSourceError('');
     try {
-      const receipt = await buildInsightReader(run.workspaceId, run.runId, { ...(insightBuildKind === 'HISTORICAL' ? { contractVersion: 'insight-reader-build-v1' as const }
-        : { contractVersion: 'insight-reader-build-v2' as const, sourceKind: insightBuildKind }), reportKind: 'INSIGHT',
+      const receipt = await buildInsightReader(run.workspaceId, run.runId, { ...(insightBuildKind === 'PERSONA' && personaView && personaProposal
+        ? { contractVersion: 'insight-reader-build-v3' as const, sourceKind: 'PERSONA' as const, personaProposalId: personaProposal.evidence.evidenceId,
+          personaProposalSha256: personaProposal.sha256, personaSourcePairId, personaSourceSha256: personaView.binding.sourceSha256 }
+        : insightBuildKind === 'HISTORICAL' ? { contractVersion: 'insight-reader-build-v1' as const }
+        : { contractVersion: 'insight-reader-build-v2' as const, sourceKind: insightBuildKind as 'CROSSCHECK' | 'PRIVATE_DEFAULT' }), reportKind: 'INSIGHT',
         requestKey, draftPairId: selectedPair.pairId, semanticSha256: insightSource.versionId }, ownerToken);
       if (!mounted.current) return;
       requestKeys.current.delete(identity);
@@ -185,10 +206,22 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
         <option value="HISTORICAL">Nguồn và mã hóa đã lưu</option>
         <option value="CROSSCHECK">Mẫu mã hóa bởi model thứ hai</option>
         <option value="PRIVATE_DEFAULT">Mã hóa mặc định từ nguồn riêng</option>
+        <option value="PERSONA">Thẻ bằng chứng và chân dung đề xuất</option>
       </select></label>
+      {insightBuildKind === 'PERSONA' && <>
+        <label className="ra-label">Phiên bản nguồn chân dung<select className="ra-field" value={personaSourcePairId} disabled={!canWrite || pending}
+          onChange={event => { setPersonaSourcePairId(event.target.value); setPersonaView(null); setPersonaProposalId(''); }}>
+          <option value="">Chọn phiên bản nguồn</option>{pairs.map(pair => <option key={pair.pairId} value={pair.pairId}>Phiên bản nguồn {pair.versionNumber}</option>)}
+        </select></label>
+        <label className="ra-label">Đề xuất chân dung đã lưu<select className="ra-field" value={personaProposalId} disabled={!canWrite || pending || !personaView}
+          onChange={event => setPersonaProposalId(event.target.value)}>
+          <option value="">Chọn chính xác đề xuất</option>{personaProposals.map(entry => <option key={entry.evidence.evidenceId} value={entry.evidence.evidenceId}>Tổng hợp chân dung · lượt {entry.evidence.sequence} · đề xuất, chờ chủ duyệt</option>)}
+        </select></label>
+        {personaError && <p role="alert" className="ra-message error">{personaError}</p>}
+      </>}
       {!canWrite && <p className="ra-muted">Mở khóa OWNER để dựng bản đọc insight.</p>}
       {sourceError && <p role="alert" className="ra-message error">{sourceError}</p>}
-      <button type="button" className="button" disabled={!canWrite || pending || !selectedPair || !insightSource} onClick={() => void buildInsight()}>{pending ? 'Đang xử lý…' : 'Dựng bản đọc insight'}</button>
+      <button type="button" className="button" disabled={!canWrite || pending || !selectedPair || !insightSource || (insightBuildKind === 'PERSONA' && !personaProposal)} onClick={() => void buildInsight()}>{pending ? 'Đang xử lý…' : 'Dựng bản đọc insight'}</button>
     </div>}
     {dialog && <ConfirmDialog titleId="ra-reader-decision-title" descriptionId="ra-reader-decision-description"
       title={dialog.decision === 'APPROVED' ? `Duyệt bản đọc ${dialog.revision.reportKind === 'INSIGHT' ? 'insight' : 'thị trường'} lần ${dialog.revision.revisionNumber}?` : `Từ chối bản đọc ${dialog.revision.reportKind === 'INSIGHT' ? 'insight' : 'thị trường'} lần ${dialog.revision.revisionNumber}?`}
