@@ -38,6 +38,9 @@ import { LocatedInsightValidationError } from '../modules/analysis/located-insig
 import { MAX_INSIGHT_CODING_BYTES } from '../modules/analysis/research-automation/insight-coding.js';
 import { MetricSourceRejection } from '../modules/analysis/metric-source-profile.js';
 import { MAX_METRIC_UPLOAD_BYTES } from '../modules/analysis/research-automation/metric-source-intake.js';
+import worldBankSourceSchema from '../../contracts/analysis/world-bank-intake-v1.schema.json' with { type: 'json' };
+import macroIntakeApiSchema from '../../contracts/api/research-automation-macro-intake-api.schema.json' with { type: 'json' };
+import { MAX_WORLD_BANK_FILE_BYTES, WorldBankSourceRejection } from '../modules/analysis/research-automation/world-bank-intake.js';
 import { MAX_SUPPLEMENTAL_FILE_BYTES, MAX_SUPPLEMENTAL_TOTAL_BYTES, SupplementalSourceRejection } from '../modules/analysis/research-automation/supplemental-source-intake.js';
 import kalodataVideoIntakeSchema from '../../contracts/analysis/kalodata-video-intake-v1.schema.json' with { type: 'json' };
 import { AutomationKalodataVideoIntake, KalodataVideoRejection, MAX_VIDEO_UPLOAD_BYTES, readPreparedKalodataVideoSources } from '../modules/analysis/research-automation/kalodata-video-intake.js';
@@ -159,6 +162,11 @@ const validates = {
 };
 /** Inline JSON body of a reader build: profile, declared source and an optional inline cover image. */
 const MAX_READER_BUILD_BYTES = 4 * 1024 * 1024 + 512 * 1024;
+// Independent compiler: this source does not alter any historical route's AJV profile or validators.
+const macroAjv = new Ajv({ strict: true, allErrors: true }); addFormats(macroAjv);
+macroAjv.addSchema(worldBankSourceSchema); macroAjv.addSchema(macroIntakeApiSchema);
+const macroValidates = Object.fromEntries(['prepareRequest', 'prepareReceipt', 'confirmRequest', 'view', 'history'].map(name =>
+  [name, macroAjv.getSchema(`${macroIntakeApiSchema.$id}#/$defs/${name}`)!]));
 const REPORT_CSP = "default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'";
 /** The reader page keeps its own small inline scripts (appendix filter); only their exact hashes may run. */
 function readerCsp(html: Buffer): string {
@@ -303,6 +311,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     if (!match) return fail(response, 404, 'not_found', 'Route not found');
     const [, prefix, workspaceId, runId, action] = match;
     const originalReport = /^reports\/(market|insight)(\/pdf)?$/.exec(action ?? '');
+    const worldBankRead = /^sources\/world-bank\/([0-9a-f-]{36})\/([0-9a-f]{64})\/([0-9a-f]{64})(?:\/(display|ratio))?$/.exec(action ?? '');
+    const worldBankWrite = action === 'sources/world-bank' || action === 'sources/world-bank/confirm';
     const versionReport = /^report-versions\/([0-9a-f]{64})\/reports\/(market|insight)(\/pdf)?$/.exec(action ?? '');
     const revisionRead = /^report-attempts\/([0-9a-f-]{36})$/.exec(action ?? '');
     const revisionCancel = /^report-attempts\/([0-9a-f-]{36})\/cancel$/.exec(action ?? '');
@@ -324,8 +334,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
-      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || Boolean(revisionCancel) || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions'
+      : !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead);
     if (!allowed) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -345,6 +355,23 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     try {
       if (!mutation) {
         if (!runId) return sendApiJson(response, 200, await readService.listRuns(workspaceId!));
+        if (action === 'sources/world-bank') {
+          const result = await readService.listWorldBankHistory(workspaceId!, runId);
+          if (!macroValidates.history!(result)) throw new Error('Macro history failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (worldBankRead) {
+          if (worldBankRead[4] === 'ratio') return fail(response, 400, 'macro_sample_arithmetic_forbidden', 'Không chia số liệu vĩ mô với số liệu trong mẫu.');
+          const result = await readService.readWorldBankSource(workspaceId!, runId, { packageId: worldBankRead[1]!,
+            manifestArtifactSha256: worldBankRead[2]!, packageContentSha256: worldBankRead[3]! });
+          if (!macroValidates.view!(result.view)) throw new Error('Macro retained source failed validation');
+          if (worldBankRead[4] === 'display') {
+            response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Security-Policy': REPORT_CSP,
+              'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store', 'Content-Length': result.display.byteLength });
+            response.end(result.display); return;
+          }
+          return sendApiJson(response, 200, result.view);
+        }
         if (action === 'pageindex') {
           const result = { contractVersion: 'research-automation-run-pdfs-v1', workspaceId, runId,
             ...await readService.pageIndexStatesForRun(workspaceId!, runId) };
@@ -497,6 +524,38 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           ...await writeService!.attachRunPdf(workspaceId!, runId!, (input as { fileName: string }).fileName, new Uint8Array(await pdf.arrayBuffer())) };
         if (!validates.runPdfs(result)) throw new Error('PDF state projection failed validation');
         return sendApiJson(response, 200, result);
+      }
+      if (action === 'sources/world-bank/confirm') {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 32 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError) throw error; return fail(response, 400, 'bad_request', 'Thông tin xác nhận nguồn phải là JSON hợp lệ.'); }
+        if (!macroValidates.confirmRequest!(input)) return fail(response, 400, 'bad_request', 'Thông tin xác nhận nguồn không đúng định dạng.');
+        const result = await writeService!.confirmWorldBankSource(workspaceId!, runId!, input);
+        if (!macroValidates.view!(result)) throw new Error('Macro confirmation failed validation');
+        return sendApiJson(response, 200, result);
+      }
+      if (action === 'sources/world-bank') {
+        const contentType = singleHeader(request.headers['content-type']);
+        if (!contentType?.startsWith('multipart/form-data;')) return fail(response, 400, 'bad_request', 'Hãy tải hai tệp dữ liệu và thông tin nguồn bằng biểu mẫu đính kèm.');
+        const bytes = await readOwnerBytes(request, 2 * MAX_WORLD_BANK_FILE_BYTES + 128 * 1024);
+        let form: FormData;
+        try { form = await new Request(origin.origin, { method: 'POST', headers: { 'Content-Type': contentType }, body: new Uint8Array(bytes) }).formData(); }
+        catch { return fail(response, 400, 'bad_request', 'Biểu mẫu tải nguồn không đúng định dạng.'); }
+        const metadata = form.get('metadata'), observations = form.get('observations'), indicator = form.get('indicator');
+        if ([...form.entries()].length !== 3 || form.getAll('metadata').length !== 1 || form.getAll('observations').length !== 1 || form.getAll('indicator').length !== 1 ||
+          typeof metadata !== 'string' || Buffer.byteLength(metadata) > 32 * 1024 || !(observations instanceof File) || !(indicator instanceof File))
+          return fail(response, 400, 'bad_request', 'Cần thông tin nguồn và đúng hai tệp JSON.');
+        for (const file of [observations, indicator]) {
+          if (file.size > MAX_WORLD_BANK_FILE_BYTES) return fail(response, 413, 'payload_too_large', 'Tệp nguồn vượt giới hạn dung lượng.');
+          if (!file.size || !['', 'application/json', 'application/octet-stream'].includes(file.type)) return fail(response, 400, 'bad_request', 'Tệp nguồn phải là JSON.');
+        }
+        let input: unknown;
+        try { input = JSON.parse(metadata); } catch { return fail(response, 400, 'bad_request', 'Thông tin nguồn phải là JSON hợp lệ.'); }
+        if (!macroValidates.prepareRequest!(input)) return fail(response, 400, 'bad_request', 'Thông tin nguồn không đúng định dạng.');
+        const result = await writeService!.prepareWorldBankSource(workspaceId!, runId!, input,
+          new Uint8Array(await observations.arrayBuffer()), new Uint8Array(await indicator.arrayBuffer()));
+        if (!macroValidates.prepareReceipt!(result)) throw new Error('Macro preparation failed validation');
+        return sendApiJson(response, result.exactRetry ? 200 : 201, result);
       }
       if (action === 'sources/supplemental') {
         const contentType = singleHeader(request.headers['content-type']);
@@ -706,6 +765,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (readerAction && error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', error.message);
       if (error instanceof SourcePackageRequestConflictError)
         return fail(response, 409, 'request_key_conflict', 'This upload identity is already bound to different content');
+      if (error instanceof WorldBankSourceRejection) return fail(response, error.code === 'REQUEST_KEY_CONFLICT' ? 409 : mutation ? 400 : 500,
+        error.code === 'REQUEST_KEY_CONFLICT' ? 'request_key_conflict' : mutation ? 'source_input_rejected' : 'integrity_error', 'Nguồn đã chọn không vượt qua kiểm tra dữ liệu và liên kết đã lưu.');
       if (error instanceof KalodataVideoRejection) return fail(response, 400, 'source_input_rejected', 'Tệp video không đúng cấu trúc được hỗ trợ.');
       if (error instanceof SupplementalSourceRejection) return fail(response, 400, 'source_input_rejected', 'The source package does not match a supported method profile');
       if (error instanceof MetricSourceRejection && !['INVALID_XLSX', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT'].includes(error.code))

@@ -55,6 +55,9 @@ import { automationI14AdmissionVersion, buildAutomationI14EvidenceAdmission, MAX
 import { AutomationI14SynthesisExecutions, type AutomationI14ExecutionRequest, type AutomationI14ExecutionOutcome, type AutomationI14ExecutionParent } from './i14-synthesis-execution.js';
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricList } from '../../../../contracts/api/research-automation-metric-intake-api.generated.js';
 import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
+import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory } from './world-bank-intake.js';
+import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
+import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
 import { AutomationMetricMembership, type MetricMembershipContext } from './metric-membership.js';
 import { AutomationInsightCrosscheck } from './insight-crosscheck.js';
@@ -356,6 +359,7 @@ export class ResearchAutomationService {
   readonly #marketInventory: AutomationMarketMethodBridge;
   readonly #metricMethods: AutomationMetricMethodBridge;
   readonly #metricIntake: AutomationMetricSourceIntake | undefined;
+  readonly #worldBankIntake: AutomationWorldBankSourceIntake | undefined;
   readonly #supplementalIntake: AutomationSupplementalSourceIntake | undefined;
   readonly #metricRules: AutomationMetricRuleAdoptions;
   readonly #readerReports: AutomationReaderReports;
@@ -401,6 +405,7 @@ export class ResearchAutomationService {
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#metricMethods = new AutomationMetricMethodBridge({ db: this.#db, artifactStore: this.#artifacts, workspaces: this.#workspaces, now: this.#now });
     if (options.metricAttachmentStore) this.#metricIntake = new AutomationMetricSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
+    if (options.metricAttachmentStore) this.#worldBankIntake = new AutomationWorldBankSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     if (options.metricAttachmentStore) this.#supplementalIntake = new AutomationSupplementalSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     this.#metricRules = new AutomationMetricRuleAdoptions(this.#db, this.#artifacts, options.metricAttachmentStore, this.#now);
     this.#readerReports = new AutomationReaderReports(this.#db, this.#artifacts, this.#now, {
@@ -562,6 +567,58 @@ export class ResearchAutomationService {
       }
       return this.#metricIntake!.prepare(input, workbook, { runId, start, scope });
     });
+  }
+
+  /** Explicit source intake; no collection, run transition, report rewrite or implicit admission. */
+  async prepareWorldBankSource(workspaceId: string, runId: string, value: unknown,
+    observations: Uint8Array, metadata: Uint8Array): Promise<WorldBankPrepareReceipt> {
+    if (!isRecord(value)) throw new ResearchAutomationValidationError('Invalid source preparation request.');
+    const input = JSON.parse(canonicalJson(value)) as { requestKey?: unknown };
+    const retainedObservations = Buffer.from(observations), retainedMetadata = Buffer.from(metadata);
+    if (!this.#worldBankIntake) throw new ResearchAutomationStateError('Source upload is unavailable on this handle.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const binding = await this.#worldBankBinding(workspaceId, runId);
+      const prior = typeof input.requestKey === 'string' && this.#worldBankIntake!.hasRequest(runId, input.requestKey);
+      if (!prior && this.#current(runId)!.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Prepare supplemental sources after the original reports are available.');
+      return this.#worldBankIntake!.prepare(input, retainedObservations, retainedMetadata, binding);
+    });
+  }
+
+  async confirmWorldBankSource(workspaceId: string, runId: string, value: unknown): Promise<WorldBankView> {
+    if (!isRecord(value)) throw new ResearchAutomationValidationError('Invalid source confirmation request.');
+    const input = JSON.parse(canonicalJson(value)) as { requestKey?: unknown };
+    if (!this.#worldBankIntake) throw new ResearchAutomationStateError('Source confirmation is unavailable on this handle.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const binding = await this.#worldBankBinding(workspaceId, runId);
+      const prior = typeof input.requestKey === 'string' && this.#worldBankIntake!.hasConfirmation(runId, input.requestKey);
+      if (!prior && this.#current(runId)!.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Confirm supplemental sources after the original reports are available.');
+      return this.#worldBankIntake!.confirm(input, binding, this.#actorId);
+    });
+  }
+
+  async readWorldBankSource(workspaceId: string, runId: string, source: WorldBankPackageRef): Promise<{ view: WorldBankView; display: Buffer }> {
+    const retainedReference = JSON.parse(canonicalJson(source)) as WorldBankPackageRef;
+    const binding = await this.#worldBankBinding(workspaceId, runId);
+    const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    return readConfirmedWorldBankSource(reader, retainedReference, binding);
+  }
+
+  async listWorldBankHistory(workspaceId: string, runId: string): Promise<WorldBankHistory> {
+    const binding = await this.#worldBankBinding(workspaceId, runId);
+    const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    return readWorldBankHistory(reader, binding);
+  }
+
+  async #worldBankBinding(workspaceId: string, runId: string): Promise<WorldBankBinding> {
+    assertUuid(workspaceId); assertUuid(runId);
+    const row = this.#current(runId);
+    if (!row || row.workspaceId !== workspaceId) throw new ResearchAutomationNotFoundError('run_not_found', 'Research run not found.');
+    if (!row.scopeSha || !row.sourceSetSha) throw new ResearchAutomationStateError('An existing versioned confirmed scope and source set are required.');
+    await this.#readStartSnapshot(row.startSha, workspaceId);
+    await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+    const sources = await this.#readFrozenSources(row);
+    if (!sources || sources.sha256 !== row.sourceSetSha) throw new ResearchAutomationIntegrityError('Confirmed source binding is invalid.');
+    return { workspaceId, runId, startSha256: row.startSha, scopeSha256: row.scopeSha, sourceSetSha256: row.sourceSetSha };
   }
 
   /** Supplemental uploads bind to the immutable confirmed scope, never to a client-authored run identity. */
@@ -1151,6 +1208,25 @@ export class ResearchAutomationService {
       videoCount += (await videoReader.findAutomationAttachmentPackagesByKeyPrefix(videoPackageKeyPrefix(runId))).length;
     }
     activity['kalodata-video'].dataCount = videoCount;
+    // S23 counts exact retained source rows, including missing observations, not economic values or people.
+    // Re-confirming one original package never counts it twice; different source revisions stay separate.
+    const macroRecords = new Set<string>();
+    for (const { runId } of runIds) {
+      const run = this.#current(runId)!;
+      if (!run.scopeSha || !run.sourceSetSha) {
+        // Marker-free historical runs cannot be silently upgraded to a new source-set binding.
+        if ((await videoReader.findAutomationAttachmentPackagesByKeyPrefix(`automation-world-bank-confirm:${runId}-`)).length)
+          throw new ResearchAutomationIntegrityError('Macro confirmation lacks its original source-set binding.');
+        continue;
+      }
+      const history = await this.listWorldBankHistory(workspaceId, runId);
+      for (const source of history.sources) {
+        const lastAt = source.confirmation.confirmedAt;
+        if (!activity['world-bank'].lastDataAt || activity['world-bank'].lastDataAt! < lastAt) activity['world-bank'].lastDataAt = lastAt;
+        for (const row of source.descriptor.projection.rows) macroRecords.add(`${source.confirmation.source.packageId}:${source.descriptor.projection.sourceSha256}:${row.locator}`);
+      }
+    }
+    activity['world-bank'].dataCount = macroRecords.size;
     // PageIndex workspace history only: PDFs attached to this workspace's runs
     // and this workspace's recorded question attempts. Account-wide ledger
     // numbers (balance, active pages, documents sent) are deliberately excluded

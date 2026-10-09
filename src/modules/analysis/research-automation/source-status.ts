@@ -101,7 +101,7 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
   OFFICIAL_STATS: { registryIds: ['S21'], tier: 'A', tierDetail: null, group: 'MACRO',
     reportName: 'Cục Thống kê (nso.gov.vn)', paid: false, pendingPackage: 'P10', built: false, arrival: 'MANUAL_UPLOAD' },
   WORLD_BANK: { registryIds: ['S23'], tier: 'A', tierDetail: null, group: 'MACRO',
-    reportName: 'Ngân hàng Thế giới (World Bank Open Data)', paid: false, pendingPackage: 'P10', built: false, arrival: 'FREE_COLLECT' },
+    reportName: 'Ngân hàng Thế giới (World Bank Open Data)', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   PAGEINDEX: { registryIds: ['S22', 'S25'], tier: null, tierDetail: 'S22: A; S25: B/C', group: 'DOCUMENTS',
     reportName: 'Cục Thống kê (nso.gov.vn); báo cáo đã công bố của nhà xuất bản', paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },
 };
@@ -170,7 +170,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
   const apifyToken = Boolean(providers?.apifyTokenConfigured || providers?.apifyReviews);
   const pageindex = input.pageindex;
   const pageindexUsable = Boolean(pageindex?.keyConfigured && pageindex?.enabled);
-  const manualSource = (source: 'METRIC' | 'KALODATA_VIDEO_FILE', key: 'metric' | 'kalodata-video'): ResearchAutomationSourceStatusEntry => ({
+  const manualSource = (source: 'METRIC' | 'KALODATA_VIDEO_FILE' | 'WORLD_BANK', key: 'metric' | 'kalodata-video' | 'world-bank'): ResearchAutomationSourceStatusEntry => ({
     source, state: cardState(source, 'MANUAL_IMPORT'), credential: 'NOT_REQUIRED',
     wiredIntoRuns: true, paid: false, ...input.activity[key], lastUsageAt: null, ...meta(source), spendCapUsd: null, operations: null,
   });
@@ -190,7 +190,7 @@ export function buildResearchAutomationSourceStatus(input: SourceStatusInput): R
     paidSource('SERPAPI', 'serpapi', Boolean(providers?.serpApiKey), Boolean(providers?.serpApiKey), input.wired.serpapi, null,
       buildSerpApiOperations(input.activity.serpapiOperations)),
     notBuilt('OFFICIAL_STATS', 'official-stats', 'NOT_REQUIRED', null),
-    notBuilt('WORLD_BANK', 'world-bank', 'NOT_REQUIRED', null),
+    manualSource('WORLD_BANK', 'world-bank'),
     {
       source: 'PAGEINDEX',
       state: cardState('PAGEINDEX', !pageindexUsable ? 'NOT_CONFIGURED' : 'READY'),
