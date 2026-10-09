@@ -1529,7 +1529,6 @@ export class ResearchAutomationService {
         captures: await this.#captureRecords(runId),
       });
     }
-    if (kind === 'INSIGHT' && sourceStart.privateShopeeSource && semantic.rendererVersion !== (sourceStart.reviewCollectionPolicy ? 'automation-report-kit-v27' : 'automation-report-kit-v22')) throw new ResearchAutomationIntegrityError('Private report renderer identity differs.');
     let verifiedPrivateView: PrivateReviewReportView | undefined;
     if (semantic.privateReviewCorpus !== undefined) {
       const view = privateReviewReportView(semantic.privateReviewCorpus);
@@ -1549,6 +1548,9 @@ export class ResearchAutomationService {
       verifiedReviewSample = await this.#shopee.verifySample(semantic.reviewSample, collection.privateShopee, { runId, start: sourceStart,
         scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId), scopeConfirmedAt: frozenRun.scopeConfirmedAt }, await this.#privateCorpusBinding(frozenRun));
     } else if (kind === 'INSIGHT' && sourceStart.reviewCollectionPolicy && verifiedPrivateView) throw new ResearchAutomationIntegrityError('Policy report lacks retained sample.');
+    if ((semantic.rendererVersion === 'automation-report-kit-v27' && !verifiedReviewSample) ||
+        (kind === 'INSIGHT' && sourceStart.privateShopeeSource && semantic.rendererVersion !== (verifiedReviewSample ? 'automation-report-kit-v27' : 'automation-report-kit-v22')))
+      throw new ResearchAutomationIntegrityError('Private report renderer identity differs.');
     if (semantic.reviewCorpus !== undefined && semantic.reviewCorpus !== null) {
       const frozen = this.#current(runId);
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
@@ -1664,7 +1666,7 @@ export class ResearchAutomationService {
         previousPairId: literalRequest.previousPairId, collection: await this.#reportCollection(runId, sources, Boolean(attempt)),
         captures: await this.#captureRecords(runId) });
       const literalRendererValid = sourceStart.privateShopeeSource
-        ? semantic.rendererVersion === (sourceStart.reviewCollectionPolicy ? 'automation-report-kit-v27' : 'automation-report-kit-v22')
+        ? semantic.rendererVersion === (verifiedReviewSample ? 'automation-report-kit-v27' : 'automation-report-kit-v22')
         : semantic.rendererVersion === 'automation-report-kit-v19' || ((semantic.rendererVersion === 'automation-report-kit-v21' || semantic.rendererVersion === 'automation-report-kit-v23') && semantic.insightCoding && typeof semantic.insightCoding === 'object' && 'contractVersion' in semantic.insightCoding && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v4');
       if (!literalRendererValid) throw new ResearchAutomationIntegrityError('Literal evidence renderer identity differs.');
     } else if (semantic.insightLiteral !== undefined) {
@@ -2311,6 +2313,8 @@ export class ResearchAutomationService {
         const defaultMarketPeers = kind === 'MARKET' && start.defaultPeerRule !== undefined
           ? classifiedMetricDefaultPeers(metricClassified?.result.input, start.defaultPeerRule, [...scope.peerProductIds]) : undefined;
         const render = async () => {
+          const privateRendererVersion = start.reviewCollectionPolicy && input.reviewSample && input.privateReviewCorpus && input.collection?.privateShopee
+            ? 'automation-report-kit-v27' : 'automation-report-kit-v22';
           const authoritative = input.marketPresentation || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
@@ -2322,7 +2326,7 @@ export class ResearchAutomationService {
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
-          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: start.reviewCollectionPolicy ? 'automation-report-kit-v27' : 'automation-report-kit-v22' } : {}),
+          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: privateRendererVersion } : {}),
             ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentation, marketPresentationArtifact: { sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
             ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
             ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
@@ -2358,7 +2362,7 @@ export class ResearchAutomationService {
           const html = Buffer.from(rendered.html);
           if (authoritative) {
             if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError('Market presentation HTML differs from authoritative method rendering.');
-            if (presentation.rendererVersion !== (input.marketPresentation ? 'automation-report-kit-v20' : 'automation-report-kit-v27')) throw new ResearchAutomationIntegrityError('Market presentation renderer identity differs.');
+            if (presentation.rendererVersion !== (input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError('Market presentation renderer identity differs.');
           }
           return { rendered, semanticBytes, html };
         };

@@ -78,3 +78,43 @@ Historical frozen hashes: Insight HTML `3f8ea54cfef0aa0b86016931febc1303b5dbed7b
 Unresolved: full U22 method prerequisites listed above; independent final-head review, exact hosted fullCI and coordinator readiness/normal merge. This worker neither merges nor closes Ultimate.
 Next action: scoped source commit, clean normal push and exact central/API release first. Coordinator message `msg_91832280882f` defers PR/hosted launch until reviewed optimizer PR192 merges and exact composition is granted; no self-directed branch movement, merge, source iteration or hosted run. Await named composition/settlement route, then independent frozen-head review/full exact-head CI; later authentic measurement/coding/collector inputs require a fresh bounded integration.
 Business decisions pending: no new decision requested or fabricated; accepted OWNER/U26 boundaries unchanged.
+
+
+## Source-exclusivity correction — 2026-10-09
+
+Correction task/dispatch: `task_29a8ad30695d` / `ctx_fef489ff38f0`, author terminal8ff; exact central lease `msg_eef07d6c3059` after persona shared-source release. Branch `khangpworking/ultimate-review-coverage-source-fix-sol`, parent frozen `4e1f5e4d4b0fff1aa93de33033ac9bca7f92c856`. Final correction SHA and complete direct hashes are recorded in the delivery report under `/tmp/ultimate-review-coverage-source-fix-sol`.
+
+Independent F1 found that empty exact-URL confirmation and a real-source SKIP revision both published renderer27 without a private corpus/sample. This append supersedes the earlier marker-only renderer description: renderer27 now requires the actual authenticated retained private3 source and verified sample; a policy-marked source-free/unavailable/SKIP report uses existing private22 fallback. Producer, owning semantic publication, general replay and literal replay agree. Read verification still reauthenticates the original corpus/sample/source on every access and refuses v27 without the verified sample. Nothing fabricates sample evidence or starts collection to satisfy the renderer gate.
+
+Changed paths only: `reports.ts` renderer selector; `service.ts` authoritative semantic/version/replay guards; NEW `tests/integration/review-coverage-source-exclusivity.test.ts`; this append. Source code hashes: reports `f80197d7316274f1e7faab42777c3bf1599b94dd2c8cf1a5396efedf242a983b`, service `c8232986d4eb95df50b248e9a2f073a9fe47fd4f239d2158e5447f905a7314f4`, regression `09fd7b6e802e5cee229d17ed2cf199b41d16d460c7ddff870f21e302fd0d7f88`.
+
+Evidence (pinned Node24.15.0/npm11.12.1, test concurrency2; synthetic transports/data only):
+
+- Original unchanged empty-URL/SKIP assertions reproduced 2FAIL before edits at4e1f (`before-unchanged-repro.log`, exit1), then both PASS after correction. Original review report/test/log hashes remain exact; rerun driver changes only its outside-Git evidence directory.
+- New durable owning regressions:3PASS,9.791s, exit0 (`regression.log`): source-free matching PDF/private22/noPOST, real sample+KEEP27/SKIP22 and configless historical-pair/PDF/exact-retry/no-write reads, collector-settings mismatch fallback/noPOST. Optional adapter semantic cannot promote a fallback to27.
+- Unchanged independent8 + existing owning6 + affected historical/source/citation/routing70:83PASS/1existing optional Chromium skip,53.227s, exit0 (`affected-after.log`). Both F1 assertions pass, actual OWNER HTTP/private3/sample27/currentpair/GET/activity/exactretry passes, matching fake PDF retained and differing adapter HTML rejected before publication. Overreturned301 still refuses before Foundation publication; no sampling/truncation or extra paid dispatch.
+- Complete strict `node scripts/typecheck.mjs`: exit0 (`typecheck.log`). No local full suite or generation.
+- Fresh child readonly/query-only replay:98 table contents and21 CAS entries/hashes equal, total_changes0, no CAS.put/external/clock effects;8 corrupt dependencies refuse and exact restoration succeeds. SourceActivity retains its genuine workspace requirement; configless report reads and authenticated Flow workspace activity are separately proved.
+- Fresh immutable main5f archive creates17 actual old artifacts; corrected owning readonly reader replays private22/Market/source/semantic/HTML exact, total_changes0 (`historical-create.log`, `historical-replay.log`). Actual HTML byte hashes private22 `edf4de91db65d64056c7e00fd63f1eab73ba496d99b84871c3c99f58e41affca`, Market `67ca6dbe7e8451cce751caa2da9e7a55502d8c477e8adbf15681067dc64bedba`. Actual Buffer-byte checks are separate from preserved original canonicalJson(Buffer) fingerprints.
+- All642 protected contract/prompt/frontend/Foundation/collector/migration/package files byte-identical to correction base; no schema/GLOBAL/generator/dependency/API/model/kernel/source-status changes (`protected-correction.json`). Existing tests untouched, valid assertions unchanged. Temporary dependency packages only, no mutable sibling application imports; links and own synthetic stores removed before clean freeze.
+
+| ID | Correction applicability/evidence |
+|---|---|
+| U22 renderer/source/PDF/replay | F1 corrected; actual source+sample27, unavailable/SKIP22, no bypass or recollection |
+| U22 revenue50/80/5brands/core/platform/B | Still unavailable; coveragefalse/AUTHENTIC_MEASUREMENT_PERIOD_UNAVAILABLE and SOURCE_BOUND_CODING_UNAVAILABLE unchanged |
+| U22 A300/hard500/text30/E14 | Existing samecap/onecollection/oneactor/count distinctions preserved;301 refuses; no U26 transition |
+| G-01 | All bounded requirements/limits and G items accounted |
+| G-02 | Strict/affected checks pass; distinct independent final review and full hosted exact-head/readiness remain coordinator gates |
+| G-03 | N/A frontend unchanged |
+| G-04 | N/A no canonical/generated changes or generation;642 protected bytes exact |
+| G-05 | Only four granted paths, whitespace clean, stable commit/hash/source RELEASE before transfer |
+| G-06 | Synthetic fixtures only; no runtime private copies or real secrets |
+| G-07 | Fake/throwing transports, no live/paid/model/browser application calls |
+| G-08 | No Vietnamese interpretation edited; original source prose/quotes preserved; humanizer not invoked by correction author |
+| G-09 | No invented sample/population/period/brand/cost; missing remains missing |
+| G-10 | Old17 artifacts exact and historical marker-free/private/source routing controls pass |
+| G-11 | Existing tests unchanged; original FAIL evidence and assertion bodies preserved |
+| G-12 | This append plus full outside-Git report records scope/commands/exits/hashes/limits/next step |
+| G-13 | N/A exact OWNER URLs; no new keyword collection or taxonomy |
+
+Scope stays bounded partial U22: ONE original OWNER<=5 listing collection, ONE configured actor dispatch, SAME original cap, configured300 and hard500 unchanged. No source feature, inferred coverage, caller policy, API/UI/DDL/default/model/credential/collector change or full Ultimate closure. U11/U26/U32/U40 remain unresolved. Next: freeze/source RELEASE, separately authorized fresh-branch publication, independent reviewer different from this correction author, exact composed-head hosted full/readiness and coordinator normal merge; no worker PR/CI/ready/merge.

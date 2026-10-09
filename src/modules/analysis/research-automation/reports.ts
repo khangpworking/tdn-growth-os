@@ -735,7 +735,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (input.start.reviewCollectionPolicy ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
