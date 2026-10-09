@@ -137,6 +137,18 @@ export class AutomationTikTokCoding {
     return p;
   }
 
+  /** Coding-package server origin: only an AUTOMATION_ATTACHMENT intake under the exact run
+   * binding (workspace/run/scope/source-set/requestedPeriod) authenticates a same-prefix package.
+   * Ordinary Foundation intake cannot acquire that origin, so a fabricated same-prefix package
+   * without it is refused here on lookup/read/exact retry alike. */
+  async #verifyCodingOrigin(binding: TikTokCodingRunBinding, retained: VerifiedFinalizedSourcePackage) {
+    const origin = await this.#reader.readAutomationAttachmentOrigin(retained.packageId, BUDGET);
+    const expectedBinding = { workspaceId: binding.workspaceId, runId: binding.runId, scopeSha256: binding.scopeSha256,
+      sourceSetSha256: binding.sourceSetSha256, requestedPeriod: { ...binding.requestedPeriod } };
+    if (!origin || origin.bindingSha256 !== sha(bytes(expectedBinding)) ||
+      origin.manifestArtifactSha256 !== retained.manifestArtifactSha256) fail();
+  }
+
   /** Read and bind the retained S07 corpus package to this exact run/scope/source set. */
   async #corpus(binding: TikTokCodingRunBinding, packageId: string, manifestArtifactSha256: string, packageContentSha256: string) {
     const retained = await this.#reader.readFinalizedSourcePackage(packageId, BUDGET);
@@ -161,9 +173,12 @@ export class AutomationTikTokCoding {
     const request = structuredClone(value);
     const prior = await this.#lookup(tiktokCodingPackagePrefix(binding.runId) + request.requestKey);
     if (prior) {
-      const kept = json<TikTokDraftCoding>(prior, 'draft-coding.json');
-      if (!validateDraftCoding(kept) || !equal(json(prior, 'proposal-request.json'), request)) fail();
-      return { contractVersion: 'tiktok-coding-receipt-v1', proposalId: kept.proposalId, requestKey: request.requestKey, exactRetry: true };
+      // Exact retry authenticates through the same owning read validation as a direct read,
+      // not just draft shape plus request bytes: origin, binding, corpus replay, keyword, quotes,
+      // report consistency, and membership are all re-verified before the retained receipt returns.
+      const checked = await this.read(binding, prior.packageId, prior.manifestArtifactSha256, prior.packageContentSha256);
+      if (checked.draft.requestKey !== request.requestKey || !equal(json(prior, 'proposal-request.json'), request)) fail();
+      return { contractVersion: 'tiktok-coding-receipt-v1', proposalId: checked.draft.proposalId, requestKey: request.requestKey, exactRetry: true };
     }
     if (!equal(request.binding, { workspaceId: binding.workspaceId, runId: binding.runId, scopeSha256: binding.scopeSha256,
       sourceSetSha256: binding.sourceSetSha256, requestedPeriod: { ...binding.requestedPeriod } })) fail();
@@ -328,9 +343,9 @@ export class AutomationTikTokCoding {
     }
     const prior = await this.#lookup(tiktokCodingPackagePrefix(binding.runId) + request.requestKey);
     if (!prior) fail();
-    const kept = json<TikTokDraftCoding>(prior, 'draft-coding.json');
-    if (!validateDraftCoding(kept) || !equal(json(prior, 'proposal-request.json'), request)) fail();
-    return { contractVersion: 'tiktok-coding-receipt-v1', proposalId: kept.proposalId, requestKey: request.requestKey, exactRetry: true };
+    const checked = await this.read(binding, prior.packageId, prior.manifestArtifactSha256, prior.packageContentSha256);
+    if (checked.draft.requestKey !== request.requestKey || !equal(json(prior, 'proposal-request.json'), request)) fail();
+    return { contractVersion: 'tiktok-coding-receipt-v1', proposalId: checked.draft.proposalId, requestKey: request.requestKey, exactRetry: true };
   }
 
   #settle(executionId: string, state: 'COMPLETED' | 'DISPATCH_UNKNOWN', validation: 'VALID' | 'INVALID' | null, code: string | null): void {
@@ -461,6 +476,7 @@ export class AutomationTikTokCoding {
     const retained = await this.#reader.readFinalizedSourcePackage(packageId, BUDGET);
     if (retained.manifestArtifactSha256 !== manifestArtifactSha256 || retained.packageContentSha256 !== packageContentSha256 ||
       !retained.manifest.packageKey.startsWith(tiktokCodingPackagePrefix(binding.runId)) || retained.manifest.version !== 1) fail();
+    await this.#verifyCodingOrigin(binding, retained);
     const paths = ['proposal-request.json', 'coding-source.json', 'coding-input.json', 'coding-prompt.json',
       'coding-configuration.json', 'model-response.json', 'keyword-draft.json', 'draft-coding.json', 'coded-report.json'];
     if (retained.files.length !== paths.length || retained.files.some(f => !paths.includes(f.path))) fail();
@@ -470,9 +486,20 @@ export class AutomationTikTokCoding {
         f.mediaType !== (f.path === 'keyword-draft.json' ? 'application/vnd.tdn.keyword-draft+json' : 'application/json')) fail();
     }
     const draft = json<TikTokDraftCoding>(retained, 'draft-coding.json');
-    if (!validateDraftCoding(draft) || draft.binding.workspaceId !== binding.workspaceId || draft.binding.runId !== binding.runId) fail();
+    if (!validateDraftCoding(draft)) fail();
+    const expectedDraftBinding = { workspaceId: binding.workspaceId, runId: binding.runId, scopeSha256: binding.scopeSha256,
+      sourceSetSha256: binding.sourceSetSha256, requestedPeriod: { ...binding.requestedPeriod } };
+    if (!equal(draft.binding, expectedDraftBinding)) fail();
     const report = json<TikTokCodedReport>(retained, 'coded-report.json');
     if (!validateReport(report) || report.proposalId !== draft.proposalId || report.draftSha256 !== sha(bytes(draft))) fail();
+    if (!equal(report.corpus, draft.corpus) || report.keywordDigest !== draft.keywordDigest ||
+      !equal(report.counts, draft.counts) || report.status !== draft.status) fail();
+    const memberIds = new Set(draft.codes.map(entry => `${entry.code}:${entry.citationId}`));
+    for (const finding of report.findings) {
+      for (const citation of finding.citations) {
+        if (!memberIds.has(`${finding.code}:${citation.citationId}`)) fail();
+      }
+    }
     const { corpus, acquiredAt } = await this.#corpus(binding, draft.corpus.packageId, draft.corpus.manifestArtifactSha256, draft.corpus.packageContentSha256);
     const keyword = await this.options.keywordDraft(draft.keywordDigest);
     if (!equal(keyword.output, corpus.keywordData)) fail();

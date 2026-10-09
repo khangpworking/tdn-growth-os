@@ -1,20 +1,26 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs/promises';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
+import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
+import { FoundationSourcePackageReader } from '../../src/modules/foundation/source-package-reader.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { DiscoveryWorkspaceService } from '../../src/modules/flow/index.js';
 import { openDatabase } from '../../src/platform/db/index.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { TikTokCodingError, TikTokCodingTransportError, AutomationTikTokCoding } from '../../src/modules/analysis/research-automation/tiktok-coding.js';
-import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
 import { TikTokCodingContextError } from '../../src/modules/analysis/research-automation/tiktok-coding-context.js';
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import type { TikTokCodingAI } from '../../src/modules/analysis/research-automation/tiktok-coding.js';
 import { tiktokFixture, workspaceId, runId, fakeCodingPort, fakeCodingAi } from '../fixtures/tiktok-coding-fixture.js';
 import { tiktokCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport.js';
+
+const CODING_BUDGET = { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 };
+function codingReader(f: Fixture) {
+  return new FoundationSourcePackageReader(new SourcePackageService({ db: f.db, artifactStore: f.artifacts }));
+}
 
 type Fixture = Awaited<ReturnType<typeof tiktokFixture>>;
 
@@ -246,4 +252,54 @@ test('cancelled dispatch records unknown outcome; configless cold reopen stays q
   const filesAfter = (await fs.readdir(f.artifactRoot, { recursive: true })).sort();
   assert.deepEqual(filesAfter, filesBefore, 'reads wrote no artifacts');
   assert.ok(Buffer.from(f.db.serialize()).equals(dbBefore), 'reads performed no database mutation');
+});
+
+test('fabricated same-prefix coding package without server origin is refused on retry and read', async t => {
+  const f = await tiktokFixture(t);
+  const port = fakeCodingPort();
+  const ai = fakeCodingAi(port);
+  const receipt = await f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, randomUUID()), ai);
+  assert.equal(receipt.exactRetry, false);
+  assert.equal(port.dispatches(), 1);
+  // Fabricate a valid-shape same-prefix package through ORDINARY intake: no AUTOMATION_ATTACHMENT origin.
+  const freshKey = randomUUID();
+  const freshRequest = proposeInput(f, freshKey);
+  const history = await f.service.listTikTokCodingHistory(workspaceId, runId);
+  const retained = await codingReader(f).readFinalizedSourcePackage(history.sources[0]!.packageId, CODING_BUDGET);
+  const requestBytes = Buffer.from(canonicalJson(freshRequest));
+  const files = new Map(retained.files.map(file => [file.path,
+    file.path === 'proposal-request.json' ? requestBytes : Buffer.from(file.bytes)] as const));
+  const ordinary = new SourcePackageService({ db: f.db, artifactStore: f.artifacts });
+  const fabricated = await ordinary.intake({ contractVersion: '1.0.0',
+    packageKey: `automation-tiktok-coding:${runId}-${freshKey}`, version: 1,
+    sourceLabel: 'Synthetic fabricated coding package', sourceAcquiredAt: null,
+    files: [...files].map(([filePath, value]) => ({ path: filePath, sha256: createHash('sha256').update(value).digest('hex'),
+      byteSize: value.byteLength,
+      mediaType: filePath === 'keyword-draft.json' ? 'application/vnd.tdn.keyword-draft+json' : 'application/json',
+      evidenceFamily: 'tiktok-coding-v1', representationRole: 'derived', independence: 'non_independent',
+      providerProvenance: 'operator_supplied_unverified',
+      provenanceBasis: 'Synthetic test fabrication without server origin.' })) }, files);
+  // Prior retry returns the fabricated draft receipt without origin: now refused, no redispatch.
+  await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, freshRequest, ai),
+    TikTokCodingError, 'origin-less retry refused');
+  assert.equal(port.dispatches(), 1);
+  // Direct read of the fabricated package is refused before trusting its draft.
+  await assert.rejects(f.service.readTikTokCoding(workspaceId, runId, fabricated.packageId),
+    TikTokCodingError, 'origin-less direct read refused');
+  assert.equal(port.dispatches(), 1);
+  // A retained package read under a foreign scope binding is refused even with valid origin math
+  // available: full draft binding agreement, not just workspace/run, is required.
+  const strict = new AutomationTikTokCoding({ db: f.db,
+    packages: new SourcePackageService({ db: f.db, artifactStore: f.artifacts }), artifacts: f.artifacts,
+    publish: async <T>(operation: () => Promise<T>): Promise<T> => operation(),
+    mutex: async <T>(operation: () => Promise<T>): Promise<T> => operation(),
+    keywordDraft: digest => f.service.readSourceKeywordDraft(workspaceId, runId, digest),
+    replayComments: async () => ({}) });
+  const foreign = { workspaceId, runId, scopeSha256: '0'.repeat(64),
+    sourceSetSha256: f.keyword.sourceSetDigest!,
+    requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' } };
+  const genuine = history.sources[0]!;
+  await assert.rejects(strict.read(foreign, genuine.packageId, genuine.manifestArtifactSha256, genuine.packageContentSha256),
+    TikTokCodingError, 'foreign scope binding refuses retained read');
+  assert.equal(port.dispatches(), 1);
 });
