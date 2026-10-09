@@ -140,3 +140,61 @@ Ultimate gaps and U11/U26/U32/U40 remain unresolved. Named reviewed-main normal
 composition, original PR195 FF/publication, distinct exact final review, fresh
 composed hosted full CI/readiness and normal merge each require their own
 coordinator gates; none is implied by this source-only correction.
+
+## Reviewed-main composition and fresh bounded validation
+
+Coordinator sourcecomposition grant `msg_37c870cf9660` supplied exact reviewed
+main `c4f22331d7359289138fb7ef5fbc1c22842921ed`. Normal merge produced
+`5e68b08a9071d2e1ee198330f1a2bf4069ee5154`, ordered parents corrected Meta
+`c4024d5c9a6d953c31bc737e1047aab40d5b4fff` and named main. All23 Meta and20
+main changed paths form the exact parent union. The sole overlap, service.ts,
+reverse-applies both independent deltas to reconstruct each opposing parent;
+no manual source resolution or fix occurred. Sourcecomposition RELEASE
+`msg_cc4f1f8f5954` retained only this append reservation. All439 original contract
+paths match reviewed main,433 also match original5f; six inherited U16
+schema/generated changes are separately attributed. Historical prompt bytes,
+prior owned refs and ignored artifacts remain exact.
+
+Actual generator34 literal schema inputs and their complete external-ref
+closure34, generator source and package/lock remain exact e2. The preserved
+a735 standalone validator is therefore compatible without generation/copy;
+U16 decision schemas are outside that dependency closure. Own Node24.15.0/
+npm11.12.1/ABI137 and SQLite3.53.2 smoke passed. The read-only proof initially
+failed to resolve a relative external ref; canonical `$id` URL resolution
+corrected the probe without source or assertion changes. Original failure
+artifacts remain preserved, and all bounded behavior/static stages pass.
+
+Authenticated coordinatorf78 generation4 preserved earlier grants and supplied
+soleheavy GO `msg_f36bc81be8a3`. One sequential bounded tree, concurrency2:
+backend/direct frontend statics exit0; mounted8 + Meta/status13 + budget1 +
+collector mechanics3 + contract1 + Foundation query6 + narrow owning cold1 +
+original historical5 = **38 fresh named PASS**, no failures/skips/cancellations.
+The unchanged actual OWNER reproduction renders two confirmed ad memberships
+with the corrected unit. Three independent readonly/fileMustExist/query_only
+FIRSTread children prove successful read/history/both retries, equal-length
+858-byte raw source corruption refusal and exact restoration, all98 tables,
+59 CAS members, total_changes0 and seven poisoned effect counters0.
+
+All13 actual retained draft/report read events equal reviewed main (SHA
+`e53bfd7c2447832f4e552e2b00163e1e9ed38d22d37932801a8d616c9f171dfe`);
+current new construction uses accepted U16 packet1.3. All30 actual packet/input/
+prompt byte hashes equal original and reviewed-main baselines (JSON SHA
+`4e9ff2b9ceebcfd077f8e2a0cd64d60f5b94033e55f1299d006a5c95f5cd58d2`).
+Two NEW old1.2 synthetic stores, built from own1894-file Git-exact5f archive,
+pass14 process stages, KEEP/exactretry with no redispatch,28 retained-execution
+corruption refusals/restoration and eight readonly report FIRSTreads with all
+rows/CAS/total_changes and six effect counters unchanged. These process counts
+are separate from38 named tests. No prior/runtime/private store was copied.
+
+Heavy RELEASE `msg_6d47737c3150` followed settled drivers; own two stores and
+two dependency links were removed. No full suite, generation/build/browser,
+paid/live/provider/model action or policy/default/cap change occurred. Broader
+unchanged literal/binding adversarial controls remain supporting evidence for
+the distinct reviewer. Exact final head/direct path hashes/parent union,
+original prefixes, raw argv/exits/counts/failures, cleanup and G01-G13 states
+are in `/tmp/ultimate-meta-activity-unit-correction-sol/FINAL-REPORT.md`.
+Source and append ownership release precedes a separate concrete original
+PR195 normal FF/body publication grant. Distinct final-head review, complete
+current hosted fullCI/readiness and normal coordinator merge remain gates;
+no runtime OpenCLI/DOM/U21/statistics/fullU23/Ultimate closure is claimed.
+U11/U26/U32/U40 remain unresolved.
