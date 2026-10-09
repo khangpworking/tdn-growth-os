@@ -1011,9 +1011,15 @@ export class ResearchAutomationService {
       const run = await this.getRun(workspaceId, runId);
       if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
       const verified = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, request.draftPairId, request.contractVersion === 'insight-reader-build-v2' && request.sourceKind === 'PRIVATE_DEFAULT', true,
-        request.contractVersion === 'insight-reader-build-v2' ? request.sourceKind : undefined);
+        request.contractVersion === 'insight-reader-build-v2' || request.contractVersion === 'insight-reader-build-v3' ? request.sourceKind : undefined);
       if (verified.report.versionId !== request.semanticSha256 || !verified.insightReader)
         throw new ResearchAutomationValidationError('Phiên bản insight không khớp cặp bản nháp đã chọn.');
+      if (request.contractVersion === 'insight-reader-build-v3') {
+        const selected = verified.insightReader.methods.insightPersona;
+        if (!selected || selected.selection.proposalId !== request.personaProposalId || selected.selection.proposalSha256 !== request.personaProposalSha256 ||
+            selected.selection.binding.pairId !== request.personaSourcePairId || digest(selected.source) !== request.personaSourceSha256)
+          throw new ResearchAutomationValidationError('Selected Persona reader differs from the exact retained source and final proposal.');
+      }
       let context;
       try { context = prepareInsightReaderBuild(verified.insightReader.identity, verified.insightReader.methods); }
       catch (error) {
@@ -1025,7 +1031,7 @@ export class ResearchAutomationService {
   }
   async listReaderReportsV2(workspaceId: string, runId: string) {
     await this.getRun(workspaceId, runId);
-    return this.#readerReports.listV2({ workspaceId, runId });
+    return this.#readerReports.listWithPersona({ workspaceId, runId });
   }
   async decideReaderReportV2(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
     await this.getRun(workspaceId, runId);
@@ -1735,7 +1741,7 @@ export class ResearchAutomationService {
     return this.#insightCoding.resolve(workspaceId, runId, proposalId, receiptIds);
   }
 
-  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false, forInsightReader = false, readerSourceKind?: 'CROSSCHECK' | 'PRIVATE_DEFAULT'): Promise<{
+  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false, forInsightReader = false, readerSourceKind?: 'CROSSCHECK' | 'PRIVATE_DEFAULT' | 'PERSONA'): Promise<{
     insightReader?: { identity: Parameters<typeof prepareInsightReaderBuild>[0]; methods: ResearchAutomationReportInput };
     report: ResearchAutomationReadReport; scopeSha256: string | null;
     verifiedLocated: AutomationLocatedReviewSnapshot | undefined; verifiedNative: NativeSourceReviewSnapshot | undefined;
@@ -1805,11 +1811,13 @@ export class ResearchAutomationService {
         catch { throw new ResearchAutomationIntegrityError('Private coding source projection differs from retained corpus.'); }
       }
     } else if (kind === 'INSIGHT' && (await this.#reportCollection(runId, sources, Boolean(attempt)))?.privateShopee) throw new ResearchAutomationIntegrityError('Private report lacks retained corpus.');
+    let verifiedPersona: PersonaSelectedReportSnapshot | undefined;
     if (personaRequest) {
       const expected = await this.#personaReportSnapshot(workspaceId, runId, personaRequest.personaInsight);
       if (!verifiedPrivateView || expected.source.viewSha256 !== digest(verifiedPrivateView) ||
         canonicalJson(semantic.insightPersona) !== canonicalJson(expected))
         throw new ResearchAutomationIntegrityError('Selected persona report differs from its verified source and final proposal.');
+      verifiedPersona = expected;
     } else if (semantic.insightPersona !== undefined || semantic.rendererVersion === 'automation-report-kit-v26')
       throw new ResearchAutomationIntegrityError('Persona report lacks an exact retained selection.');
     let verifiedReviewSample: AutomationReviewSample | undefined;
@@ -2147,7 +2155,9 @@ export class ResearchAutomationService {
       const rendererVersion = semantic.rendererVersion;
       // A new request explicitly selects one authenticated source family. The
       // historical request retains its original closed version set.
-      const supported = readerSourceKind === 'CROSSCHECK'
+      const supported = readerSourceKind === 'PERSONA'
+        ? rendererVersion === 'automation-report-kit-v26' && verifiedPersona !== undefined && verifiedPrivateView !== undefined
+        : readerSourceKind === 'CROSSCHECK'
         ? rendererVersion === 'automation-report-kit-v23' && verifiedCrosscheck !== undefined && verifiedCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'
         : readerSourceKind === 'PRIVATE_DEFAULT'
         ? rendererVersion === 'automation-report-kit-v25' && verifiedPrivateSource !== undefined && verifiedPrivateView !== undefined && verifiedCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'
@@ -2158,6 +2168,7 @@ export class ResearchAutomationService {
         sourceRendererVersion: rendererVersion as Parameters<typeof prepareInsightReaderBuild>[0]['sourceRendererVersion'] }, methods: {
         run, start: sourceStart, scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
         collection: await this.#reportCollection(runId, sources, Boolean(attempt)), captures: await this.#captureRecords(runId),
+        ...(verifiedPersona ? { insightPersona: verifiedPersona } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedNative ? { nativeReview: verifiedNative } : {}), ...(verifiedLocated ? { locatedReview: verifiedLocated } : {}),
         ...(semantic.reviewCorpus ? { reviewCorpus: semantic.reviewCorpus as ResearchReviewCorpus } : {}),

@@ -293,7 +293,8 @@ export class AutomationReaderReports {
     if (!validInsightBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc insight không hợp lệ.');
     const request = JSON.parse(canonicalJson(value)) as ResearchAutomationInsightReaderBuildRequest;
     const input = verifyInsightReaderInput(context.input, context.input);
-    const requestedBuilder = request.contractVersion === 'insight-reader-build-v2'
+    const requestedBuilder = request.contractVersion === 'insight-reader-build-v3' ? 'reader-report-insight-v6'
+      : request.contractVersion === 'insight-reader-build-v2'
       ? request.sourceKind === 'CROSSCHECK' ? 'reader-report-insight-v4' : 'reader-report-insight-v5'
       : undefined;
     if (requestedBuilder ? input.builderVersion !== requestedBuilder : !['reader-report-insight-v1', 'reader-report-insight-v2', 'reader-report-insight-v3'].includes(input.builderVersion))
@@ -301,13 +302,17 @@ export class AutomationReaderReports {
     if (input.workspaceId !== context.workspaceId || input.runId !== context.runId || input.draftPairId !== request.draftPairId || input.semanticSha256 !== request.semanticSha256 ||
         context.page.keyword !== input.scope.keyword || context.page.definition !== input.scope.definition || canonicalJson(context.page.period) !== canonicalJson(input.scope.requestedPeriod))
       throw new ResearchAutomationIntegrityError('Insight reader context differs from its exact frozen binding.');
+    if (request.contractVersion === 'insight-reader-build-v3' && (input.contractVersion !== 'insight-reader-input-v6' ||
+        input.personaProposalId !== request.personaProposalId || input.personaProposalSha256 !== request.personaProposalSha256 ||
+        input.personaSourcePairId !== request.personaSourcePairId || input.personaSourceSha256 !== request.personaSourceSha256))
+      throw new ResearchAutomationIntegrityError('Persona reader context differs from its exact selected proposal and source.');
     const requestSha = sha(canonicalJson(request));
     const retry = async (row: RevisionRow): Promise<ResearchAutomationReaderBuildReceiptV2> => {
       if (row.report_kind !== 'INSIGHT' || row.workspace_id !== context.workspaceId || row.run_id !== context.runId || row.draft_pair_id !== input.draftPairId ||
           row.semantic_sha256 !== input.semanticSha256 || row.source_report_sha256 !== input.sourceReportSha256 || row.actor_id !== actor.actorId || row.request_sha256 !== requestSha)
         throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một lần dựng khác.');
       await this.#verifiedInsightPage(row, input);
-      return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: true, revision: this.#projectV2(row) };
+      return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: true, revision: await this.#projectWithPersona(row) };
     };
     const prior = this.#byRequestKey(request.requestKey); if (prior) return retry(prior);
     if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
@@ -341,7 +346,7 @@ export class AutomationReaderReports {
       if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
       throw error;
     }
-    return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: this.#projectV2(this.#byId(context.runId, revisionId)!) };
+    return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: await this.#projectWithPersona(this.#byId(context.runId, revisionId)!) };
   }
 
   async decide(binding: ReaderBinding, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderDecisionReceipt> {
@@ -388,6 +393,11 @@ export class AutomationReaderReports {
     return { contractVersion: 'reader-report-list-v2', workspaceId: binding.workspaceId, runId: binding.runId, revisions: rows.map(row => this.#projectV2(row)) };
   }
 
+  async listWithPersona(binding: ReaderBinding): Promise<ResearchAutomationReaderRevisionListV2> {
+    const rows = this.db.prepare(`${SELECT} WHERE v.run_id=? AND v.workspace_id=? ORDER BY v.report_kind,v.revision_number`).all(binding.runId, binding.workspaceId) as RevisionRow[];
+    return { contractVersion: 'reader-report-list-v2', workspaceId: binding.workspaceId, runId: binding.runId, revisions: await Promise.all(rows.map(row => this.#projectWithPersona(row))) };
+  }
+
   async decideV2(binding: ReaderBinding, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderDecisionReceiptV2> {
     this.#owner(actor);
     if (!validDecisionV2(value)) throw new ResearchAutomationValidationError('Yêu cầu duyệt đúng bản đọc không hợp lệ.');
@@ -395,10 +405,11 @@ export class AutomationReaderReports {
     const row = this.#byId(binding.runId, request.revisionId);
     if (!row || row.workspace_id !== binding.workspaceId || row.report_kind !== request.reportKind || row.html_sha256 !== request.htmlSha256)
       throw new ResearchAutomationConflictError('revision_conflict', 'Loại hoặc nội dung bản đọc không khớp phiên bản bạn đã xem.');
+    if (row.report_kind === 'INSIGHT') await this.#verifiedInsightPage(row);
     if (request.reportKind === 'MARKET') {
       const result = await this.decide(binding, { contractVersion: 'reader-report-decision-v1', requestKey: request.requestKey,
         revisionId: request.revisionId, decision: request.decision, reason: request.reason }, actor);
-      return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: result.exactRetry, revision: this.#projectV2(this.#byId(binding.runId, request.revisionId)!) };
+      return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: result.exactRetry, revision: await this.#projectWithPersona(this.#byId(binding.runId, request.revisionId)!) };
     }
     const reason = request.reason === null ? null : request.reason.trim();
     const prior = this.db.prepare('SELECT revision_id FROM analysis_reader_report_decisions WHERE request_key=?').get(request.requestKey) as { revision_id: string } | undefined;
@@ -407,7 +418,7 @@ export class AutomationReaderReports {
       if (!decided || decided.revision_id !== request.revisionId || decided.workspace_id !== binding.workspaceId || decided.report_kind !== request.reportKind ||
           decided.html_sha256 !== request.htmlSha256 || decided.decision !== request.decision || decided.reason !== reason || decided.decision_actor_id !== actor.actorId)
         throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một quyết định khác.');
-      return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: true, revision: this.#projectV2(decided) };
+      return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: true, revision: await this.#projectWithPersona(decided) };
     }
     if (row.decision) throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc này đã có quyết định.');
     this.db.exec('BEGIN IMMEDIATE');
@@ -421,14 +432,14 @@ export class AutomationReaderReports {
       if (error instanceof Error && /UNIQUE constraint failed/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc này đã có quyết định.');
       throw error;
     }
-    return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: false, revision: this.#projectV2(this.#byId(binding.runId, request.revisionId)!) };
+    return { contractVersion: 'reader-report-decision-receipt-v2', exactRetry: false, revision: await this.#projectWithPersona(this.#byId(binding.runId, request.revisionId)!) };
   }
 
   /** Verified page bytes; the manifest must match before anything is served. */
   async html(binding: ReaderBinding, revisionId: string): Promise<{ revision: ResearchAutomationReaderRevision | ResearchAutomationReaderRevisionV2; bytes: Buffer }> {
     const row = this.#byId(binding.runId, revisionId);
     if (!row || row.workspace_id !== binding.workspaceId) throw new ResearchAutomationNotFoundError('reader_report_not_found', 'Không tìm thấy bản đọc.');
-    if (row.report_kind === 'INSIGHT') return { revision: this.#projectV2(row), bytes: await this.#verifiedInsightPage(row) };
+    if (row.report_kind === 'INSIGHT') return { revision: await this.#projectWithPersona(row), bytes: await this.#verifiedInsightPage(row) };
     const manifest = this.db.prepare('SELECT byte_size,media_type,relative_path,contract_version,retention_status FROM artifact_manifests WHERE sha256=?')
       .get(row.html_sha256) as { byte_size: number | bigint; media_type: string; relative_path: string; contract_version: string; retention_status: string } | undefined;
     if (!manifest || manifest.media_type !== 'text/html; charset=utf-8' || manifest.contract_version !== '1.0.0' || manifest.retention_status !== 'active' ||
@@ -437,12 +448,16 @@ export class AutomationReaderReports {
     const bytes = await this.artifacts.read(row.html_sha256, { maxBytes: MAX_READER_HTML_BYTES });
     if (BigInt(bytes.byteLength) !== BigInt(manifest.byte_size) || sha(bytes) !== row.html_sha256)
       throw new ResearchAutomationIntegrityError('Reader page failed verification.');
-    return { revision: row.report_kind === 'MARKET' ? this.#project(row) : this.#projectV2(row), bytes };
+    return { revision: row.report_kind === 'MARKET' ? this.#project(row) : await this.#projectWithPersona(row), bytes };
   }
 
   /** Insight reads/retries authenticate only their frozen retained record and
    * HTML. Never replay upstream, render again, calculate or write a manifest. */
   async #verifiedInsightPage(row: RevisionRow, expected?: InsightReaderInput): Promise<Buffer> {
+    await this.#verifiedInsightInput(row, expected);
+    return this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
+  }
+  async #verifiedInsightInput(row: RevisionRow, expected?: InsightReaderInput): Promise<InsightReaderInput> {
     const bytes = await this.#verifiedInsightArtifact(row.input_sha256, 'application/json');
     let record: Record<string, unknown>, input: InsightReaderInput;
     try {
@@ -463,7 +478,7 @@ export class AutomationReaderReports {
         input.workspaceId !== row.workspace_id || input.runId !== row.run_id || input.draftPairId !== row.draft_pair_id ||
         input.semanticSha256 !== row.semantic_sha256 || input.sourceReportSha256 !== row.source_report_sha256 || input.builderVersion !== row.builder_version)
       throw new ResearchAutomationIntegrityError('Stored Insight reader build record differs from its immutable binding.');
-    return this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
+    return input;
   }
   async #verifiedInsightArtifact(digest: string, mediaType: string): Promise<Buffer> {
     const manifest = this.db.prepare('SELECT byte_size,media_type,relative_path,contract_version,retention_status FROM artifact_manifests WHERE sha256=?')
@@ -508,19 +523,35 @@ export class AutomationReaderReports {
     if (!validRevision(revision)) throw new ResearchAutomationIntegrityError('Stored reader revision is invalid.');
     return revision;
   }
-  #projectV2(row: RevisionRow): ResearchAutomationReaderRevisionV2 {
+  async #projectWithPersona(row: RevisionRow): Promise<ResearchAutomationReaderRevisionV2> {
+    if (row.report_kind !== 'INSIGHT') return this.#projectV2(row);
+    // Authenticate the frozen record before dispatching by ledger version, so a
+    // corrupted v6 row cannot masquerade as an older saved Reader.
+    const input = await this.#verifiedInsightInput(row);
+    if (row.builder_version !== 'reader-report-insight-v6') return this.#projectV2(row);
+    await this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
+    if (input.contractVersion !== 'insight-reader-input-v6') throw new ResearchAutomationIntegrityError('Persona reader revision lacks its exact frozen input.');
+    return this.#projectV2(row, input);
+  }
+  #projectV2(row: RevisionRow, personaInput?: Extract<InsightReaderInput, { contractVersion: 'insight-reader-input-v6' }>): ResearchAutomationReaderRevisionV2 {
     let revision: ResearchAutomationReaderRevisionV2;
     if (row.report_kind === 'MARKET') revision = { ...this.#project(row), reportKind: 'MARKET', builderVersion: row.builder_version };
     else {
-      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3' && row.builder_version !== 'reader-report-insight-v4' && row.builder_version !== 'reader-report-insight-v5'))
+      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3' && row.builder_version !== 'reader-report-insight-v4' && row.builder_version !== 'reader-report-insight-v5' && row.builder_version !== 'reader-report-insight-v6'))
         throw new ResearchAutomationIntegrityError('Stored Insight reader revision is invalid.');
       const latest = this.#latest(row.run_id, 'INSIGHT');
-      revision = { reportKind: 'INSIGHT', builderVersion: row.builder_version, revisionId: row.revision_id,
+      const base = { reportKind: 'INSIGHT' as const, builderVersion: row.builder_version, revisionId: row.revision_id,
         revisionNumber: Number(row.revision_number), workspaceId: row.workspace_id, runId: row.run_id,
-        state: row.decision ?? (latest?.revision_id === row.revision_id ? 'PENDING_OWNER_REVIEW' : 'SUPERSEDED'),
+        state: row.decision ?? (latest?.revision_id === row.revision_id ? 'PENDING_OWNER_REVIEW' as const : 'SUPERSEDED' as const),
         draftPairId: row.draft_pair_id, semanticSha256: row.semantic_sha256, sourceReportSha256: row.source_report_sha256,
         htmlSha256: row.html_sha256, createdAt: row.created_at,
         decision: row.decision && row.decided_at ? { decision: row.decision, reason: row.reason, decidedAt: row.decided_at } : null };
+      if (row.builder_version === 'reader-report-insight-v6') {
+        const input = personaInput;
+        if (!input) throw new ResearchAutomationIntegrityError('Persona reader revision requires its verified frozen input.');
+        revision = { ...base, builderVersion: 'reader-report-insight-v6', personaProposalId: input.personaProposalId,
+          personaProposalSha256: input.personaProposalSha256, personaSourcePairId: input.personaSourcePairId, personaSourceSha256: input.personaSourceSha256 };
+      } else revision = { ...base, builderVersion: row.builder_version };
     }
     if (!validRevisionV2(revision)) throw new ResearchAutomationIntegrityError('Stored kind-bound reader revision is invalid.');
     return revision;

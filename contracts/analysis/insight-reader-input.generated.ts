@@ -4,7 +4,12 @@
  * Exact retained Insight reader build identity; frozen scope comes from authenticated start/scope. Method references bind owning-service-verified retained outputs, never injected summaries or copied private corpus. No calculation, model call, Metric profile or implicit approval.
  */
 export type InsightReaderInput =
-  InsightReaderInputV1 | InsightReaderInputV2 | InsightReaderInputV3 | InsightReaderInputV4 | InsightReaderInputV5;
+  | InsightReaderInputV1
+  | InsightReaderInputV2
+  | InsightReaderInputV3
+  | InsightReaderInputV4
+  | InsightReaderInputV5
+  | InsightReaderInputV6;
 
 export interface InsightReaderInputV1 {
   contractVersion: 'insight-reader-input-v1';
@@ -185,5 +190,39 @@ export interface InsightReaderRequestedPeriod4 {
 }
 export interface InsightReaderMethodReference4 {
   kind: 'PRIVATE_CORPUS' | 'LITERAL' | 'SOURCE_EVIDENCE' | 'CODING' | 'PRIVATE_PROJECTION';
+  sha256: string;
+}
+export interface InsightReaderInputV6 {
+  contractVersion: 'insight-reader-input-v6';
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v6';
+  workspaceId: string;
+  runId: string;
+  draftPairId: string;
+  semanticSha256: string;
+  sourceReportSha256: string;
+  frozenStartSha256: string;
+  frozenScopeSha256: string;
+  sourceRendererVersion: 'automation-report-kit-v26';
+  scope: InsightReaderFrozenScope5;
+  retainedMethods: {
+    [k: string]: unknown;
+  } & InsightReaderMethodReference5[];
+  personaProposalId: string;
+  personaProposalSha256: string;
+  personaSourcePairId: string;
+  personaSourceSha256: string;
+}
+export interface InsightReaderFrozenScope5 {
+  keyword: string;
+  definition: string;
+  requestedPeriod: InsightReaderRequestedPeriod5;
+}
+export interface InsightReaderRequestedPeriod5 {
+  startDate: string;
+  endDate: string;
+}
+export interface InsightReaderMethodReference5 {
+  kind: 'PERSONA' | 'PERSONA_SOURCE' | 'SOURCE_EVIDENCE';
   sha256: string;
 }
