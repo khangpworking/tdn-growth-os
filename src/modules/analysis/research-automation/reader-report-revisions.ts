@@ -293,6 +293,11 @@ export class AutomationReaderReports {
     if (!validInsightBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc insight không hợp lệ.');
     const request = JSON.parse(canonicalJson(value)) as ResearchAutomationInsightReaderBuildRequest;
     const input = verifyInsightReaderInput(context.input, context.input);
+    const requestedBuilder = request.contractVersion === 'insight-reader-build-v2'
+      ? request.sourceKind === 'CROSSCHECK' ? 'reader-report-insight-v4' : 'reader-report-insight-v5'
+      : undefined;
+    if (requestedBuilder ? input.builderVersion !== requestedBuilder : !['reader-report-insight-v1', 'reader-report-insight-v2', 'reader-report-insight-v3'].includes(input.builderVersion))
+      throw new ResearchAutomationValidationError('Insight reader request and frozen builder versions differ.');
     if (input.workspaceId !== context.workspaceId || input.runId !== context.runId || input.draftPairId !== request.draftPairId || input.semanticSha256 !== request.semanticSha256 ||
         context.page.keyword !== input.scope.keyword || context.page.definition !== input.scope.definition || canonicalJson(context.page.period) !== canonicalJson(input.scope.requestedPeriod))
       throw new ResearchAutomationIntegrityError('Insight reader context differs from its exact frozen binding.');
@@ -507,7 +512,7 @@ export class AutomationReaderReports {
     let revision: ResearchAutomationReaderRevisionV2;
     if (row.report_kind === 'MARKET') revision = { ...this.#project(row), reportKind: 'MARKET', builderVersion: row.builder_version };
     else {
-      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3'))
+      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3' && row.builder_version !== 'reader-report-insight-v4' && row.builder_version !== 'reader-report-insight-v5'))
         throw new ResearchAutomationIntegrityError('Stored Insight reader revision is invalid.');
       const latest = this.#latest(row.run_id, 'INSIGHT');
       revision = { reportKind: 'INSIGHT', builderVersion: row.builder_version, revisionId: row.revision_id,

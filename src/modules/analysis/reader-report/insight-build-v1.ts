@@ -11,7 +11,8 @@ import { sourceEvidenceHtml } from '../research-automation/source-evidence-repor
 import { decisionPacketSection, i14AdmissionSection, i14SynthesisSection } from '../research-automation/synthesis-evidence-report.js';
 import { ReaderReportInputError } from './build.js';
 import { verifyInsightReaderInput, type InsightReaderInput } from './insight-input-v1.js';
-import { projectInsightFindings, type InsightSectionId } from './insight-projection.js';
+import { insightCrosscheckAppendix } from '../research-automation/insight-crosscheck-report.js';
+import { projectRetainedInsightFindings, projectInsightFindings, type InsightSectionId } from './insight-projection.js';
 import type { InsightReaderPage, InsightReaderSection } from './insight-template.js';
 
 export type InsightReaderSourceIdentity = Pick<InsightReaderInput, 'workspaceId' | 'runId' | 'draftPairId' | 'semanticSha256' |
@@ -30,17 +31,25 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
     throw new ReaderReportInputError('Insight reader methods differ from authenticated frozen scope.');
   if (methods.nativeReview && (methods.locatedReview || methods.reviewCorpus)) throw new ReaderReportInputError('Insight reader cannot substitute native and collected sources.');
   const private22 = identity.sourceRendererVersion === 'automation-report-kit-v22';
-  if (private22 !== Boolean(methods.privateReviewCorpus) || (private22 && (methods.nativeReview || methods.locatedReview || methods.reviewCorpus ||
+  const private25 = identity.sourceRendererVersion === 'automation-report-kit-v25';
+  const crosscheck23 = identity.sourceRendererVersion === 'automation-report-kit-v23';
+  if (crosscheck23 !== Boolean(methods.insightCrosscheck) || (crosscheck23 && methods.insightCoding?.contractVersion !== 'automation-insight-coding-snapshot-v4'))
+    throw new ReaderReportInputError('Crosscheck Insight reader requires its verified retained selection.');
+  if (private25 && (methods.insightCoding?.contractVersion !== 'automation-insight-coding-snapshot-v5' ||
+      !methods.privateReviewCorpus || methods.nativeReview || methods.locatedReview || methods.reviewCorpus))
+    throw new ReaderReportInputError('Private default Insight reader requires its verified coding and source view.');
+  if ((private22 || private25) !== Boolean(methods.privateReviewCorpus) || (private22 && (methods.nativeReview || methods.locatedReview || methods.reviewCorpus ||
       methods.insightCoding)))
     throw new ReaderReportInputError('Private Insight reader requires its verified source-only view.');
   // The auto report also retains generic opportunity/decision packets. The
   // source-only reader admits only the verified source view, literal and registry.
-  if (private22) methods = { run: methods.run, start: methods.start, scope: methods.scope, collection: methods.collection, captures: methods.captures,
+  if (private22 || private25) methods = { run: methods.run, start: methods.start, scope: methods.scope, collection: methods.collection, captures: methods.captures,
     ...(methods.privateReviewCorpus ? { privateReviewCorpus: methods.privateReviewCorpus } : {}),
+    ...(private25 && methods.insightCoding ? { insightCoding: methods.insightCoding } : {}),
     ...(methods.insightLiteral ? { insightLiteral: methods.insightLiteral } : {}),
     ...(methods.sourceEvidence ? { sourceEvidence: methods.sourceEvidence } : {}) };
   const default21 = identity.sourceRendererVersion === 'automation-report-kit-v21';
-  if (default21 !== (methods.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
+  if ((default21 || crosscheck23) !== (methods.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
     throw new ReaderReportInputError('Insight source renderer and coding snapshot versions differ.');
   const scope = { keyword: methods.start.keyword, definition: methods.scope.definition,
     requestedPeriod: { startDate: methods.start.requestedPeriod.startDate, endDate: methods.start.requestedPeriod.endDate } };
@@ -51,6 +60,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       if (!references.some(reference => reference.kind === kind && reference.sha256 === sha256)) references.push({ kind, sha256 });
     }
   };
+  if (private25 && methods.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5') ref('PRIVATE_PROJECTION', methods.insightCoding.privateSource);
+  ref('CROSSCHECK', methods.insightCrosscheck);
   ref('PRIVATE_CORPUS', methods.privateReviewCorpus);
   ref('NATIVE', methods.nativeReview); ref('LOCATED', methods.locatedReview); ref('CORPUS', methods.reviewCorpus);
   ref('CODING', methods.insightCoding); ref('LITERAL', methods.insightLiteral); ref('BOUNDED', methods.boundedMethods); ref('SOURCE_EVIDENCE', methods.sourceEvidence);
@@ -58,8 +69,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   ref('I14_ADMISSION', methods.i14Admission); ref('I14_SYNTHESIS', methods.i14Synthesis);
   for (const packet of methods.decisionPackets ?? []) ref('DECISION_PACKET', packet);
   for (const outcome of Object.values(methods.decisionSynthesis ?? {})) ref('DECISION_SYNTHESIS', outcome);
-  const input = { ...identity, contractVersion: private22 ? 'insight-reader-input-v3' : default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
-    builderVersion: private22 ? 'reader-report-insight-v3' : default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references } as InsightReaderInput;
+  const input = { ...identity, contractVersion: private25 ? 'insight-reader-input-v5' : crosscheck23 ? 'insight-reader-input-v4' : private22 ? 'insight-reader-input-v3' : default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
+    builderVersion: private25 ? 'reader-report-insight-v5' : crosscheck23 ? 'reader-report-insight-v4' : private22 ? 'reader-report-insight-v3' : default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references } as InsightReaderInput;
   verifyInsightReaderInput(input, input);
   const registry = new CitationRegistry();
   const citations: ReportCitations = { mark: value => renderCitationMarkOrMissing(registry.cite(value)) };
@@ -96,11 +107,20 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       append(family, view.html, view.explanation);
     }
     for (const id of ['I03', 'I17'] as const) append(id, insightCodingTrace(coding, id), 'Giữ nguyên dấu vết và trạng thái lựa chọn mã hóa đã lưu.');
-    if (coding.contractVersion === 'automation-insight-coding-snapshot-v3' || coding.contractVersion === 'automation-insight-coding-snapshot-v4')
+    if (coding.contractVersion === 'automation-insight-coding-snapshot-v3' || coding.contractVersion === 'automation-insight-coding-snapshot-v4' || coding.contractVersion === 'automation-insight-coding-snapshot-v5')
       append('I11', draftInsightGroupsView(coding, citations), 'Số đề xuất giữ riêng theo sàn; chưa có tỷ lệ hoặc bằng chứng mua lẻ và mua sỉ.');
   }
+  if (methods.insightCrosscheck) {
+    const snapshot = methods.insightCrosscheck;
+    // Only the exact serialized retained provenance is inert quoted data. In
+    // particular its nullable configuration fields are not unresolved prose.
+    // The existing source renderer and every literal byte remain unchanged.
+    const provenance = technicalLiteral(canonicalJson({ request: snapshot.request, plan: snapshot.plan, secondExecutions: snapshot.secondExecutions }));
+    append('I17', insightCrosscheckAppendix(snapshot).replace(provenance, `<code data-quote>${provenance}</code>`),
+      'Giữ nguyên dấu vết và trạng thái lựa chọn mã hóa đã lưu.');
+  }
   if (methods.privateReviewCorpus) for (const id of ['I03', 'I17'] as const)
-    append(id, privateReviewCorpusSection(methods.privateReviewCorpus, id, citations), 'Tập nguồn đã giữ chưa có mã hóa; số bản ghi không phải số người.');
+    append(id, privateReviewCorpusSection(methods.privateReviewCorpus, id, citations), private25 ? 'Tập thu nguồn giữ riêng với phần mã hóa.' : 'Tập nguồn đã giữ chưa có mã hóa; số bản ghi không phải số người.');
   if (methods.reviewCorpus) for (const id of ['I03', 'I17'] as const)
     append(id, reviewCorpusSection(methods.reviewCorpus, id, citations), 'Tập thu nguồn giữ riêng với phần mã hóa.');
   if (methods.insightLiteral) for (const id of ['I05', 'I07', 'I08', 'I13', 'I17'] as const)
@@ -129,5 +149,5 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   else append('I17', '<p>Phiên bản nguồn này chưa có bản kê nguồn với mã đăng ký, hạng và kết quả lọc nghĩa đã xác minh. Các vị trí nguồn đã có vẫn được giữ; không tự điền hạng hoặc kết quả lọc còn thiếu.</p>',
     'Phần còn thiếu của bản kê nguồn được giữ rõ, không thay bằng giá trị mặc định.');
   return { input, page: { keyword: scope.keyword, definition: scope.definition, period: scope.requestedPeriod,
-    registry, sections: [...sections.values()], findings: projectInsightFindings(methods) } };
+    registry, sections: [...sections.values()], findings: private25 || crosscheck23 ? projectRetainedInsightFindings(methods.insightCoding?.output, true) : projectInsightFindings(methods) } };
 }

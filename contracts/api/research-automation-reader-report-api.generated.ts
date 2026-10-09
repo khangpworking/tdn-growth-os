@@ -21,11 +21,15 @@ export type ResearchAutomationReaderReportApi =
 export type Platform = 'shopee' | 'tiktok';
 export type Sha256 = string;
 export type Timestamp = string;
+export type ResearchAutomationInsightReaderBuildRequest =
+  ResearchAutomationInsightReaderBuildRequestV1 | ResearchAutomationInsightReaderBuildRequestV2;
 export type ResearchAutomationReaderRevisionV2 =
   | ResearchAutomationMarketReaderRevisionV2
   | ResearchAutomationInsightReaderRevision
   | ResearchAutomationInsightReaderRevisionV2
-  | ResearchAutomationInsightReaderRevisionV3;
+  | ResearchAutomationInsightReaderRevisionV3
+  | ResearchAutomationInsightReaderRevisionV4
+  | ResearchAutomationInsightReaderRevisionV5;
 
 export interface ResearchAutomationReaderBuildRequest {
   contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1' | 'reader-report-build-v1.2';
@@ -332,12 +336,20 @@ export interface ResearchAutomationIntakeBoundReaderBuildRequest {
     [k: string]: unknown;
   };
 }
-export interface ResearchAutomationInsightReaderBuildRequest {
+export interface ResearchAutomationInsightReaderBuildRequestV1 {
   contractVersion: 'insight-reader-build-v1';
   reportKind: 'INSIGHT';
   requestKey: string;
   draftPairId: Sha256;
   semanticSha256: Sha256;
+}
+export interface ResearchAutomationInsightReaderBuildRequestV2 {
+  contractVersion: 'insight-reader-build-v2';
+  reportKind: 'INSIGHT';
+  requestKey: string;
+  draftPairId: Sha256;
+  semanticSha256: Sha256;
+  sourceKind: 'CROSSCHECK' | 'PRIVATE_DEFAULT';
 }
 export interface ResearchAutomationReaderBuildReceiptV2 {
   contractVersion: 'reader-report-build-receipt-v2';
@@ -421,6 +433,44 @@ export interface ResearchAutomationInsightReaderRevisionV3 {
   };
   reportKind: 'INSIGHT';
   builderVersion: 'reader-report-insight-v3';
+  semanticSha256: Sha256;
+  sourceReportSha256: Sha256;
+}
+export interface ResearchAutomationInsightReaderRevisionV4 {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v4';
+  semanticSha256: Sha256;
+  sourceReportSha256: Sha256;
+}
+export interface ResearchAutomationInsightReaderRevisionV5 {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v5';
   semanticSha256: Sha256;
   sourceReportSha256: Sha256;
 }

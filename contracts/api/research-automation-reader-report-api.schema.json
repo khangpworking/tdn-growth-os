@@ -583,32 +583,14 @@
     },
     "insightBuildRequest": {
       "title": "ResearchAutomationInsightReaderBuildRequest",
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "contractVersion",
-        "reportKind",
-        "requestKey",
-        "draftPairId",
-        "semanticSha256"
-      ],
-      "properties": {
-        "contractVersion": {
-          "const": "insight-reader-build-v1"
+      "oneOf": [
+        {
+          "$ref": "#/$defs/insightBuildRequestV1"
         },
-        "reportKind": {
-          "const": "INSIGHT"
-        },
-        "requestKey": {
-          "$ref": "research-automation-api.schema.json#/$defs/requestKey"
-        },
-        "draftPairId": {
-          "$ref": "#/$defs/sha256"
-        },
-        "semanticSha256": {
-          "$ref": "#/$defs/sha256"
+        {
+          "$ref": "#/$defs/insightBuildRequestV2"
         }
-      }
+      ]
     },
     "marketRevisionV2": {
       "title": "ResearchAutomationMarketReaderRevisionV2",
@@ -833,6 +815,12 @@
         },
         {
           "$ref": "#/$defs/insightRevisionV3"
+        },
+        {
+          "$ref": "#/$defs/insightRevisionV4"
+        },
+        {
+          "$ref": "#/$defs/insightRevisionV5"
         }
       ]
     },
@@ -1149,6 +1137,269 @@
         },
         "builderVersion": {
           "const": "reader-report-insight-v3"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceReportSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "insightBuildRequestV1": {
+      "title": "ResearchAutomationInsightReaderBuildRequestV1",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reportKind",
+        "requestKey",
+        "draftPairId",
+        "semanticSha256"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-reader-build-v1"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "requestKey": {
+          "$ref": "research-automation-api.schema.json#/$defs/requestKey"
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "insightBuildRequestV2": {
+      "title": "ResearchAutomationInsightReaderBuildRequestV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reportKind",
+        "requestKey",
+        "draftPairId",
+        "semanticSha256",
+        "sourceKind"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-reader-build-v2"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "requestKey": {
+          "$ref": "research-automation-api.schema.json#/$defs/requestKey"
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceKind": {
+          "enum": [
+            "CROSSCHECK",
+            "PRIVATE_DEFAULT"
+          ]
+        }
+      }
+    },
+    "insightRevisionV4": {
+      "title": "ResearchAutomationInsightReaderRevisionV4",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "revisionNumber",
+        "workspaceId",
+        "runId",
+        "state",
+        "draftPairId",
+        "htmlSha256",
+        "createdAt",
+        "decision",
+        "reportKind",
+        "builderVersion",
+        "semanticSha256",
+        "sourceReportSha256"
+      ],
+      "properties": {
+        "revisionId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "revisionNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "state": {
+          "enum": [
+            "PENDING_OWNER_REVIEW",
+            "APPROVED",
+            "REJECTED",
+            "SUPERSEDED"
+          ]
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "htmlSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "reason",
+                "decidedAt"
+              ],
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "APPROVED",
+                    "REJECTED"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "decidedAt": {
+                  "$ref": "#/$defs/timestamp"
+                }
+              }
+            }
+          ]
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-v4"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceReportSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "insightRevisionV5": {
+      "title": "ResearchAutomationInsightReaderRevisionV5",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "revisionNumber",
+        "workspaceId",
+        "runId",
+        "state",
+        "draftPairId",
+        "htmlSha256",
+        "createdAt",
+        "decision",
+        "reportKind",
+        "builderVersion",
+        "semanticSha256",
+        "sourceReportSha256"
+      ],
+      "properties": {
+        "revisionId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "revisionNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "state": {
+          "enum": [
+            "PENDING_OWNER_REVIEW",
+            "APPROVED",
+            "REJECTED",
+            "SUPERSEDED"
+          ]
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "htmlSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "reason",
+                "decidedAt"
+              ],
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "APPROVED",
+                    "REJECTED"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "decidedAt": {
+                  "$ref": "#/$defs/timestamp"
+                }
+              }
+            }
+          ]
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-v5"
         },
         "semanticSha256": {
           "$ref": "#/$defs/sha256"
