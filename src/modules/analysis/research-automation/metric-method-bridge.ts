@@ -25,6 +25,7 @@ import { MetricPreparationReadinessService } from '../metric-preparation-readine
 import { calculateMetricScopes } from '../metric-scope-calculator.js';
 import { MetricSourceRejection, normalizeMetricWorkbookInput } from '../metric-source-profile.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type ScopeSnapshot, type StartSnapshot } from './model.js';
+import { createRetainedSchemaCache } from './retained-schema-cache.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -35,6 +36,7 @@ currentAjv.addSchema(inputSchema);
 const validateCurrentDescriptor = currentAjv.compile<AutomationMetricSource>(descriptorSchema);
 const validateCurrentDescriptorV2 = currentAjv.compile<AutomationMetricSourceV2>(descriptorV2Schema);
 const validateCurrentManifest = currentAjv.compile<MetricSourceManifest>(manifestSchema);
+const retainedValidators = createRetainedSchemaCache({ formats: true });
 
 const SOURCE_DESCRIPTOR = 'normalized/automation-metric-source.json';
 const CONFIG = 'methods/metric-run.json';
@@ -461,16 +463,15 @@ function verifyFrozenPreparation(retained: VerifiedFinalizedSourcePackage, origi
 }
 
 function frozenValidators(retained: VerifiedFinalizedSourcePackage, input: MetricRunInput): Record<SchemaName, Validator> {
-  const ajv = new Ajv2020({ strict: true, allErrors: true });
-  addFormats(ajv);
   try {
-    for (const name of schemaNames(input)) {
+    const profiles = schemaNames(input).map(name => {
       const schema = parse(retained, profilePath(name));
       if (schema.$id !== schemaId(name)) throw new Error('schema identity');
-      ajv.addSchema(schema);
-    }
+      return { path: profilePath(name), id: schemaId(name), bytes: file(retained, profilePath(name)).bytes };
+    });
+    const validators = retainedValidators(profiles);
     return Object.fromEntries(schemaNames(input).map(name => {
-      const validate = ajv.getSchema(schemaId(name));
+      const validate = validators[schemaId(name)];
       if (!validate) throw new Error('schema missing');
       return [name, (value: unknown) => validate(value) === true];
     })) as Record<SchemaName, Validator>;
