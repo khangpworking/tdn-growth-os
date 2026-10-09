@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
 import type Database from 'better-sqlite3';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
@@ -16,9 +15,9 @@ import { readLiteralReviewRulesV1 } from './literal-review-coding.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError } from './model.js';
 import type { SourcePackageLiteralReviewDiagnostics } from './source-package-literal-review-adapter.js';
 import { buildSourcePackageLiteralReviewProjection } from './source-package-literal-review-projection.js';
+import { createRetainedSchemaCache } from './retained-schema-cache.js';
 
-const require = createRequire(import.meta.url);
-const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const retainedValidators = createRetainedSchemaCache({ formats: false });
 const DESCRIPTOR = 'methods/located-input.json';
 const ORIGINAL_OUTPUT = 'methods/located-output.json';
 const MAPPING = 'mapping/dami-production-mapping-v1.json';
@@ -446,7 +445,8 @@ function verifyFrozenProjection(retained: VerifiedFinalizedSourcePackage, origin
   const schema = object(parse(retained, SCHEMA));
   const output = parse(retained, PROJECTION_OUTPUT) as LocatedInsightMethods;
   if (schema.$id !== 'https://tdn.local/contracts/analysis/located-insight-methods.schema.json' ||
-      !new Ajv2020({ strict: true, allErrors: true }).compile(schema)(output)) fail('Native declaration output fails retained schema.');
+      !retainedValidators([{ path: SCHEMA, id: schema.$id, bytes: file(retained, SCHEMA).bytes }])[schema.$id]!(output))
+    fail('Native declaration output fails retained schema.');
   const { methodOutputId, ...body } = output;
   const { i02, i04, i05, i07, i08, adjudicationRule: _rule, ...base } = output.input;
   const { i02: _i02, i04: _i04, i05: _i05, i07: _i07, i08: _i08, adjudicationRule: _originalRule, ...originalBase } = originalOutput.input;

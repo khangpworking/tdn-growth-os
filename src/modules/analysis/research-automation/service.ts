@@ -2,6 +2,12 @@ import { registerPrivateReviewSchemas, privateShopeeMarker, privateReviewReportV
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from './private-review-corpus.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import { buildResearchAutomationReport } from './reports.js';
+import { prepareInsightReaderBuild } from '../reader-report/insight-build-v1.js';
+import { ReaderReportInputError } from '../reader-report/build.js';
+import readerInputSchema from '../../../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
+import defaultPeerSchema from '../../../../contracts/analysis/default-market-peers.schema.json' with { type: 'json' };
+import readerApiSchema from '../../../../contracts/api/research-automation-reader-report-api.schema.json' with { type: 'json' };
+import type { ResearchAutomationInsightReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import { readerRowsFromMetricWorkbook } from '../reader-report/metric-rows.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
 import { buildAutomationMarketPresentation, verifyAutomationMarketPresentation, type MarketPresentationBinding, type MarketPresentationInput } from './market-presentation-method.js';
@@ -31,7 +37,7 @@ import type { AutomationQuoteReportRevisionRequest } from '../../../../contracts
 import type { AutomationQuoteMethodSnapshot } from '../../../../contracts/analysis/automation-quote-method-snapshot.generated.js';
 import { buildAutomationQuoteMethods, verifyAutomationQuoteMethods } from './quote-methods.js';
 import type { AutomationDecisionPacket } from '../../../../contracts/analysis/automation-decision-packets.generated.js';
-import { buildAutomationDecisionPacket, verifyAutomationDecisionPacket, type AutomationDecisionPacketInput, type AutomationDecisionSectionId } from './decision-packets.js';
+import { MAX_DECISION_PACKET_BYTES, buildAutomationDecisionPacket, verifyAutomationDecisionPacket, type AutomationDecisionPacketInput, type AutomationDecisionSectionId } from './decision-packets.js';
 import { AutomationDecisionSynthesisExecutions, type AutomationDecisionExecutionRequest, type AutomationDecisionExecutionOutcome } from './decision-synthesis-execution.js';
 import type { AutomationInsightReportRevisionRequest } from '../../../../contracts/analysis/automation-insight-report-revision.generated.js';
 import type { AutomationInsightCodingSnapshot } from '../../../../contracts/analysis/automation-insight-coding-snapshot.generated.js';
@@ -331,6 +337,8 @@ sourceAjv.addSchema(marketPresentationRevisionSchema);
 const validateSourceConfirm = sourceAjv.compile<ResearchAutomationSourceConfirmRequest>(sourceConfirmSchema);
 const validateSourceSet = sourceAjv.compile<AutomationConfirmedSourceSet>(sourceSetSchema);
 sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchema); sourceAjv.addSchema(insightRevisionSchema); sourceAjv.addSchema(boundedRevisionSchema); sourceAjv.addSchema(quoteRevisionSchema);
+sourceAjv.addSchema(defaultPeerSchema); sourceAjv.addSchema(readerInputSchema); sourceAjv.addSchema(readerApiSchema);
+const validateInsightReaderBuild = sourceAjv.compile<ResearchAutomationInsightReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/insightBuildRequest` });
 const validateRevision = sourceAjv.compile<AutomationReportRevisionRequest>({ oneOf: [{ $ref: marketPresentationRevisionSchema.$id }, { $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
 const validateM01Reference = sourceAjv.compile<AutomationM01InventoryReference>(m01ReferenceSchema);
 const validateI14Reference = sourceAjv.compile<AutomationI14AdmissionReference>(i14ReferenceSchema);
@@ -872,6 +880,35 @@ export class ResearchAutomationService {
     if (typeof packageId !== 'string') throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc không hợp lệ.');
     return withDatabaseMutationMutex(this.#db, async () =>
       this.#readerReports.build(await this.#readerContext(workspaceId, runId, packageId), value, actor));
+  }
+  /** OWNER-only restatement of an explicitly selected, independently verified Insight pair. */
+  async buildInsightReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    assertUuid(workspaceId); assertUuid(runId);
+    if (actor.role !== 'OWNER' || !validateInsightReaderBuild(value))
+      throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc insight không hợp lệ.');
+    const request = value;
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const run = await this.getRun(workspaceId, runId);
+      if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+      const verified = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, request.draftPairId, false, true);
+      if (verified.report.versionId !== request.semanticSha256 || !verified.insightReader)
+        throw new ResearchAutomationValidationError('Phiên bản insight không khớp cặp bản nháp đã chọn.');
+      let context;
+      try { context = prepareInsightReaderBuild(verified.insightReader.identity, verified.insightReader.methods); }
+      catch (error) {
+        if (error instanceof ReaderReportInputError) throw new ResearchAutomationValidationError('Phiên bản nguồn chưa có phương pháp đọc insight được hỗ trợ.');
+        throw error;
+      }
+      return this.#readerReports.buildInsight({ workspaceId, runId, ...context }, request, actor);
+    });
+  }
+  async listReaderReportsV2(workspaceId: string, runId: string) {
+    await this.getRun(workspaceId, runId);
+    return this.#readerReports.listV2({ workspaceId, runId });
+  }
+  async decideReaderReportV2(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    await this.getRun(workspaceId, runId);
+    return withDatabaseMutationMutex(this.#db, async () => this.#readerReports.decideV2({ workspaceId, runId }, value, actor));
   }
   async prepareReaderUnitSpecs(workspaceId: string, runId: string, value: unknown,
     files: ReadonlyMap<string, Uint8Array>, actor: { actorId: string; role: 'OWNER' }) {
@@ -1474,7 +1511,8 @@ export class ResearchAutomationService {
     return this.#insightCoding.resolve(workspaceId, runId, proposalId, receiptIds);
   }
 
-  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false): Promise<{
+  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false, forInsightReader = false): Promise<{
+    insightReader?: { identity: Parameters<typeof prepareInsightReaderBuild>[0]; methods: ResearchAutomationReportInput };
     report: ResearchAutomationReadReport; scopeSha256: string | null;
     verifiedLocated: AutomationLocatedReviewSnapshot | undefined; verifiedNative: NativeSourceReviewSnapshot | undefined;
     verifiedPrivateSource: PrivateInsightSourceProjection | undefined;
@@ -1647,6 +1685,13 @@ export class ResearchAutomationService {
       throw new ResearchAutomationIntegrityError('Stored default peers lack a frozen Market rule.');
     }
     let verifiedLiteral: InsightLiteralEvidence | undefined;
+    let verifiedCoding: AutomationInsightCodingSnapshot | undefined;
+    let verifiedClaims: AutomationSourceClaims | undefined;
+    let verifiedAdmission: AutomationI14EvidenceAdmission | undefined;
+    let verifiedI14Synthesis: AutomationI14ExecutionOutcome | undefined;
+    let verifiedDecisionClaims: AutomationSourceClaims | undefined;
+    const verifiedDecisionPackets: AutomationDecisionPacket[] = [];
+    const verifiedDecisionSynthesis: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionOutcome>> = {};
     const literalRequest = attempt ? await this.#literalInsightRequest(frozenRun, attempt) : undefined;
     if (kind === 'INSIGHT' && literalRequest) {
       if (!frozenRun.scopeSha || !frozenRun.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Literal evidence lacks frozen scope.');
@@ -1679,6 +1724,7 @@ export class ResearchAutomationService {
       } else if (verifiedPrivateSource || !source || snapshot.binding.scopeSha256 !== frozenRun.scopeSha || snapshot.binding.inputSha256 !== digest(source.output.input) ||
           snapshot.binding.sourcePackageSha256 !== digest(source.sourcePackage))
         throw new ResearchAutomationIntegrityError('Insight coding snapshot differs from the retained source.');
+      verifiedCoding = snapshot;
     } else if (semantic.insightCoding !== undefined && semantic.insightCoding !== null) {
       throw new ResearchAutomationIntegrityError('Insight coding snapshot lacks an explicit revision request.');
     }
@@ -1729,6 +1775,7 @@ export class ResearchAutomationService {
       const savedClaims = await this.#readArtifact(reference.sha256, MAX_SOURCE_CLAIMS_BYTES, 'application/json');
       if (savedClaims.length !== reference.byteSize || !savedClaims.equals(expected.bytes))
         throw new ResearchAutomationIntegrityError('Stored source claims differ from the verified method snapshots.');
+      verifiedClaims = expected.artifact;
       if (semantic.m01InventoryArtifact !== undefined) {
         if (!validateM01Reference(semantic.m01InventoryArtifact))
           throw new ResearchAutomationIntegrityError('Stored M01 inventory reference is invalid.');
@@ -1757,10 +1804,12 @@ export class ResearchAutomationService {
         const expectedI14 = buildAutomationI14EvidenceAdmission(admissionInput);
         if (savedI14.length !== i14Reference.byteSize || !savedI14.equals(expectedI14.bytes))
           throw new ResearchAutomationIntegrityError('Stored I14 admission differs from its exact upstream claims and context.');
+        verifiedAdmission = expectedI14.artifact;
         if (semantic.i14ExecutionId !== undefined) {
           const retained = await this.#i14Executions.read(await this.#i14Parent(frozenRun, attempt), admissionInput);
-          if (!['VALID', 'INVALID', 'DISPATCH_UNKNOWN'].includes(retained.status) || !('executionId' in retained) || retained.executionId !== semantic.i14ExecutionId)
+          if ((retained.status !== 'VALID' && retained.status !== 'INVALID' && retained.status !== 'DISPATCH_UNKNOWN') || retained.executionId !== semantic.i14ExecutionId)
             throw new ResearchAutomationIntegrityError('Stored I14 execution is not the exact settled report dependency.');
+          verifiedI14Synthesis = retained;
         }
       }
     }
@@ -1794,6 +1843,7 @@ export class ResearchAutomationService {
         ...(kind === 'MARKET' && semantic.descriptiveMethods ? { descriptive: { output: semantic.descriptiveMethods as DescriptiveMarketMethods } } : {}),
         ...(decisionLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? { located: { snapshot: decisionLocated } } : {}),
         ...(decisionNative ? { native: { snapshot: decisionNative } } : {}) });
+      verifiedDecisionClaims = rebuilt.artifact;
       const executionIds = semantic.decisionExecutionIds;
       if (executionIds !== undefined && (!isRecord(executionIds) || Object.entries(executionIds).some(([id, value]) =>
           !sectionIds.some(sectionId => sectionId === id) || typeof value !== 'string')))
@@ -1804,19 +1854,20 @@ export class ResearchAutomationService {
           if (!isRecord(packet) || !isRecord(packet.useContextAdmission)) throw new Error('missing packet admission');
           const admissionVersion = packet.useContextAdmission.methodVersion;
           if (admissionVersion !== '1.0.0' && admissionVersion !== '1.1.0') throw new Error('unknown packet admission');
-          if (!['1.0.0', '1.1.0', '1.2.0'].includes(packet.methodVersion as string)) throw new Error('unknown decision packet version');
+          if (!['1.0.0', '1.1.0', '1.2.0', '1.3.0'].includes(packet.methodVersion as string)) throw new Error('unknown decision packet version');
           const source: AutomationDecisionPacketInput = { sectionId, packetVersion: packet.methodVersion, evidence: {
             run: { runId, workspaceId }, scope: decisionScope, admissionVersion,
             sourceClaims: rebuilt.artifact, claimsSha256: rebuilt.artifact.claimsSha256,
             literalSnapshot: decisionNative ?? (decisionLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? decisionLocated : null),
             locatedMethodOutput: decisionNative?.output ?? (decisionLocated?.contractVersion === 'automation-located-review-snapshot-v2' ? decisionLocated.output : null),
           } };
-          verifyAutomationDecisionPacket(packet, source);
+          verifiedDecisionPackets.push(verifyAutomationDecisionPacket(packet, source));
           if (isRecord(executionIds) && executionIds[sectionId] !== undefined) {
             const retained = await this.#decisionExecutions[sectionId].read(await this.#i14Parent(frozenRun, attempt), source);
-            if (!['VALID', 'INVALID', 'DISPATCH_UNKNOWN'].includes(retained.status) || !('executionId' in retained) ||
+            if ((retained.status !== 'VALID' && retained.status !== 'INVALID' && retained.status !== 'DISPATCH_UNKNOWN') ||
                 retained.executionId !== executionIds[sectionId])
               throw new ResearchAutomationIntegrityError('Stored decision execution is not the exact settled report dependency.');
+            verifiedDecisionSynthesis[sectionId] = retained;
           }
         }
       } catch { throw new ResearchAutomationIntegrityError('Stored decision packet failed exact source replay.'); }
@@ -1838,8 +1889,34 @@ export class ResearchAutomationService {
     const sha = pdf ? output.pdfSha! : output.htmlSha;
     const bytes = await this.#readArtifact(sha, pdf ? 64 * 1024 * 1024 : MAX_HTML_BYTES, pdf ? 'application/pdf' : 'text/html; charset=utf-8');
     if (pdf && !bytes.subarray(0, 5).equals(Buffer.from('%PDF-'))) throw new ResearchAutomationIntegrityError('Stored PDF has an invalid header.');
+    // Only the owning build asks for this trusted composition. Renderer sections
+    // and renderer scope are never inputs: scope comes from authenticated frozen state.
+    let insightReader: { identity: Parameters<typeof prepareInsightReaderBuild>[0]; methods: ResearchAutomationReportInput } | undefined;
+    if (forInsightReader) {
+      if (kind !== 'INSIGHT' || pdf || !pairId || !frozenRun.scopeSha)
+        throw new ResearchAutomationValidationError('Bản đọc insight cần đúng cặp và phạm vi đã chốt.');
+      const rendererVersion = semantic.rendererVersion;
+      if (rendererVersion !== 'automation-report-kit-v17' && rendererVersion !== 'automation-report-kit-v18' && rendererVersion !== 'automation-report-kit-v19' && rendererVersion !== 'automation-report-kit-v21' && rendererVersion !== 'automation-report-kit-v22')
+        throw new ResearchAutomationValidationError('Phiên bản nguồn chưa được hỗ trợ bởi bản đọc insight này.');
+      insightReader = { identity: { workspaceId, runId, draftPairId: pairId, semanticSha256: output.versionSha,
+        sourceReportSha256: output.htmlSha, frozenStartSha256: frozenRun.startSha, frozenScopeSha256: frozenRun.scopeSha,
+        sourceRendererVersion: rendererVersion }, methods: {
+        run, start: sourceStart, scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
+        collection: await this.#reportCollection(runId, sources, Boolean(attempt)), captures: await this.#captureRecords(runId),
+        ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
+        ...(verifiedNative ? { nativeReview: verifiedNative } : {}), ...(verifiedLocated ? { locatedReview: verifiedLocated } : {}),
+        ...(semantic.reviewCorpus ? { reviewCorpus: semantic.reviewCorpus as ResearchReviewCorpus } : {}),
+        ...(verifiedCoding ? { insightCoding: verifiedCoding } : {}), ...(verifiedLiteral ? { insightLiteral: verifiedLiteral } : {}),
+        ...(semantic.boundedMethods ? { boundedMethods: semantic.boundedMethods as AutomationBoundedMethodSnapshot } : {}),
+        ...(semantic.sourceEvidence ? { sourceEvidence: semantic.sourceEvidence as AutomationSourceEvidence } : {}),
+        ...(verifiedClaims ? { sourceClaims: verifiedClaims } : {}), ...(verifiedAdmission ? { i14Admission: verifiedAdmission } : {}),
+        ...(verifiedI14Synthesis ? { i14Synthesis: verifiedI14Synthesis } : {}),
+        ...(verifiedDecisionClaims ? { decisionSourceClaims: verifiedDecisionClaims, decisionPackets: verifiedDecisionPackets,
+          decisionSynthesis: verifiedDecisionSynthesis } : {}),
+      } };
+    }
     return { report: { kind, versionId: output.versionSha, bytes, mediaType: pdf ? 'application/pdf' : 'text/html; charset=utf-8' },
-      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative, verifiedPrivateSource };
+      scopeSha256: frozenRun.scopeSha, verifiedLocated, verifiedNative, verifiedPrivateSource, ...(insightReader ? { insightReader } : {}) };
   }
 
   /** Worker entry point: claims and settles at most one durable step. */
@@ -2280,9 +2357,9 @@ export class ResearchAutomationService {
         const decisionSynthesis: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionOutcome>> = {};
         const decisionExecutionIds: Partial<Record<AutomationDecisionSectionId, string>> = {};
         for (const sectionId of (kind === 'MARKET' ? ['M11', 'M12'] as const : ['I15'] as const)) {
-          const source: AutomationDecisionPacketInput = { sectionId, packetVersion: '1.2.0', evidence: { ...admissionInput,
+          const source: AutomationDecisionPacketInput = { sectionId, packetVersion: '1.3.0', evidence: { ...admissionInput,
             sourceClaims: decisionClaims.artifact, claimsSha256: decisionClaims.artifact.claimsSha256 } };
-          decisionPackets.push(buildAutomationDecisionPacket(source).artifact);
+          let displayPacket = buildAutomationDecisionPacket(source).artifact;
           const parent = await this.#i14Parent(fresh, attempt);
           let outcome: AutomationDecisionExecutionOutcome | undefined;
           if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
@@ -2294,6 +2371,29 @@ export class ResearchAutomationService {
           } else outcome = await this.#decisionExecutions[sectionId].execute({ parent, source,
             ai: this.#decisionAi[sectionId] ?? null, signal: controller.signal });
           if (outcome?.status === 'PREPARED') throw new ResearchAutomationIntegrityError('Prepared decision synthesis has not settled.');
+          if (outcome && 'executionId' in outcome) {
+            // A kept revision reuses the execution's exact packet, not the current guard version.
+            // The owning execution read has already verified the parent and all frozen dependencies.
+            const retained = this.#db.prepare(`SELECT admission_sha256 admissionSha256, run_id runId,
+              workspace_id workspaceId, section_id sectionId, scope_sha256 scopeSha256, attempt_id attemptId
+              FROM analysis_research_automation_ai_executions WHERE execution_id=?`).get(outcome.executionId) as
+              { admissionSha256: string; runId: string; workspaceId: string; sectionId: string; scopeSha256: string; attemptId: string | null } | undefined;
+            const retainedAttemptId = parent.kind === 'INITIAL_REPORTS' ? null
+              : parent.kind === 'SUPPLEMENTAL_ATTEMPT' ? parent.attemptId : undefined;
+            if (retainedAttemptId === undefined || !retained || retained.runId !== fresh.runId || retained.workspaceId !== fresh.workspaceId ||
+                retained.sectionId !== sectionId || retained.scopeSha256 !== fresh.scopeSha ||
+                retained.attemptId !== retainedAttemptId)
+              throw new ResearchAutomationIntegrityError('Decision packet execution identity differs.');
+            const packetBytes = await this.#readArtifact(retained.admissionSha256, MAX_DECISION_PACKET_BYTES, 'application/json');
+            // The synthesis owner retains canonical packet JSON with its historical trailing newline.
+            const packet = JSON.parse(packetBytes.toString('utf8')) as AutomationDecisionPacket;
+            const retainedSource = { ...source, packetVersion: packet.methodVersion,
+              evidence: { ...source.evidence, admissionVersion: packet.useContextAdmission.methodVersion } };
+            displayPacket = verifyAutomationDecisionPacket(packet, retainedSource);
+            if (!packetBytes.equals(buildAutomationDecisionPacket(retainedSource).bytes))
+              throw new ResearchAutomationIntegrityError('Decision packet retained bytes differ.');
+          }
+          decisionPackets.push(displayPacket);
           if (outcome) {
             decisionSynthesis[sectionId] = outcome;
             if ('executionId' in outcome) decisionExecutionIds[sectionId] = outcome.executionId;

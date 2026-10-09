@@ -235,6 +235,67 @@ test('historical verify replays only frozen bytes: no Python, live workspace, cl
   await assert.rejects(historical.verify(snapshot, input), { code: 'ENOENT' });
 });
 
+test('warm retained Metric compilation cannot bypass schema, source, output or manifest corruption', async t => {
+  const f = await fixture(t);
+  const input = runInput();
+  await f.attach(input);
+  const snapshot = await f.bridge.execute(input);
+  assert.ok(snapshot);
+  const packages = new SourcePackageService({ db: f.db, artifactStore: f.artifactStore });
+  const retained = await packages.readVerified(snapshot.sourcePackage.packageId);
+  let clockCalls = 0, workspaceCalls = 0, puts = 0;
+  const historical = new AutomationMetricMethodBridge({ db: f.db, artifactStore: f.artifactStore,
+    workspaces: { readVerifiedWorkspace: () => { workspaceCalls++; throw new Error('No live workspace'); } } as unknown as DiscoveryWorkspaceReader,
+    now: () => { clockCalls++; throw new Error('No live clock'); } });
+  f.artifactStore.put = async () => { puts++; throw new Error('No CAS writes'); };
+  const tables = () => JSON.stringify((f.db.prepare("SELECT name FROM sqlite_schema WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all() as { name: string }[])
+    .map(row => [row.name, f.db.prepare('SELECT * FROM ' + JSON.stringify(row.name)).all()]), (_, value: unknown) => typeof value === 'bigint' ? value.toString() : value);
+  const before = tables(), changes = f.changes();
+  const priorPath = process.env.PATH;
+  f.db.pragma('query_only=ON');
+  try {
+    process.env.PATH = '/no-python-for-warm-retained-verify';
+    assert.deepEqual(await historical.verify(snapshot, input), snapshot);
+    assert.deepEqual(await historical.verify(snapshot, input), snapshot);
+    for (const logicalPath of ['profiles/metric-scope-output.schema.json', 'metric/export.xlsx',
+      'methods/metric-normalized-input.json', 'methods/metric-scope-output.json']) {
+      const member = retained.files.find(value => value.path === logicalPath)!;
+      const physical = f.artifactStore.pathForDigest(member.sha256);
+      const exact = await fs.readFile(physical);
+      try {
+        await fs.writeFile(physical, Buffer.from('corrupt retained ' + logicalPath));
+        await assert.rejects(historical.verify(snapshot, input), ArtifactIntegrityError);
+        assert.equal(tables(), before);
+        assert.equal(f.changes(), changes);
+      } finally { await fs.writeFile(physical, exact); }
+      assert.deepEqual(await historical.verify(snapshot, input), snapshot);
+    }
+    const changed = structuredClone(snapshot);
+    changed.result.scopes[0]!.revenue.value = '151';
+    await assert.rejects(historical.verify(changed, input), /differs from its frozen retained bytes/);
+    await assert.rejects(historical.verify(snapshot, { ...input, runId: '33333333-3333-4333-8333-333333333333' }), /snapshot identity is invalid/);
+    assert.equal(tables(), before);
+    assert.equal(f.changes(), changes);
+  } finally { process.env.PATH = priorPath; f.db.pragma('query_only=OFF'); }
+  const profile = retained.files.find(value => value.path === 'profiles/metric-scope-output.schema.json')!;
+  const media = f.db.prepare('SELECT media_type value FROM artifact_manifests WHERE sha256=?').get(profile.sha256) as { value: string };
+  f.db.prepare("UPDATE artifact_manifests SET media_type='text/plain' WHERE sha256=?").run(profile.sha256);
+  const altered = tables(), afterHarnessWrite = f.changes();
+  f.db.pragma('query_only=ON');
+  try {
+    await assert.rejects(historical.verify(snapshot, input), /Artifact manifest mismatch/);
+    assert.equal(tables(), altered);
+    assert.equal(f.changes(), afterHarnessWrite);
+  } finally {
+    f.db.pragma('query_only=OFF');
+    f.db.prepare('UPDATE artifact_manifests SET media_type=? WHERE sha256=?').run(media.value, profile.sha256);
+  }
+  f.db.pragma('query_only=ON');
+  try { assert.deepEqual(await historical.verify(snapshot, input), snapshot); assert.equal(tables(), before); }
+  finally { f.db.pragma('query_only=OFF'); }
+  assert.deepEqual({ clockCalls, workspaceCalls, puts }, { clockCalls: 0, workspaceCalls: 0, puts: 0 });
+});
+
 test('explicit attachment only: absent is undefined without writes; a shorter declared period is kept, not expanded', async t => {
   const absent = await fixture(t);
   const before = absent.changes();
