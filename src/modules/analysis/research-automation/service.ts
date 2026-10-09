@@ -1798,6 +1798,8 @@ export class ResearchAutomationService {
       verifiedPrivateView = buildPrivateReviewReportView(corpus);
       if (canonicalJson(view) !== canonicalJson(verifiedPrivateView)) throw new ResearchAutomationIntegrityError('Private report view differs from retained corpus.');
       if (privateCodingSource || (isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5')) {
+        if (privateCodingSource && semantic.rendererVersion === 'automation-report-kit-v27')
+          throw new ResearchAutomationIntegrityError('U22 sample report is not an admitted private coding source.');
         try { verifiedPrivateSource = projectPrivateInsightSource(corpus, verifiedPrivateView).output; }
         catch { throw new ResearchAutomationIntegrityError('Private coding source projection differs from retained corpus.'); }
       }
