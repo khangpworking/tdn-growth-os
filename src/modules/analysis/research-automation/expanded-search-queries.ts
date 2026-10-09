@@ -123,11 +123,6 @@ export function expandedSearchRequestCacheKey(query: ExpandedSearchQuery, retrie
 
 export interface SearchCallLimits { readonly trends: number; readonly search: number }
 
-const DEFAULT_SEARCH_CALL_LIMITS: SearchCallLimits = Object.freeze({
-  trends: SEARCH_TRENDS_LIMITS.maxCallsPerRun,
-  search: EXPANDED_SEARCH_MAX_QUERIES,
-});
-
 /**
  * Per-run ceiling for paid provider calls. Once a kind is exhausted `take` returns false and the
  * caller skips the call: nothing is queued, deferred or retried.
@@ -135,7 +130,12 @@ const DEFAULT_SEARCH_CALL_LIMITS: SearchCallLimits = Object.freeze({
 export class SearchCallBudget {
   readonly #remaining: { trends: number; search: number };
 
-  constructor(limits: SearchCallLimits = DEFAULT_SEARCH_CALL_LIMITS) {
+  // Resolve the imported limit only when a budget is constructed, after ESM initialization.
+  // A search-trends entrypoint reaches this module through providers -> provider-serpapi.
+  constructor(limits: SearchCallLimits = Object.freeze({
+    trends: SEARCH_TRENDS_LIMITS.maxCallsPerRun,
+    search: EXPANDED_SEARCH_MAX_QUERIES,
+  })) {
     this.#remaining = { trends: limits.trends, search: limits.search };
   }
 

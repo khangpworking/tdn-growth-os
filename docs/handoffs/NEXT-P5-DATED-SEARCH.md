@@ -54,3 +54,25 @@ browser JS remains the original `734e6851` bytes and dependencies were reused un
 Evidence and final author report: `/tmp/ultimate-p5-dated-search-sol`.
 Independent reviewer2d, exact-candidate hosted full/readiness and normal matching-head
 merge remain required; publication is HOLD. No whole P5 or milestone closure is claimed.
+
+## Bounded paused-goal correction (task_6f44a5b56ea8 / ctx_c995de21b216)
+
+Exact8273 hosted full37913951025 failed: original source-status500/expected200 and
+the original Trends unit entrypoint hit an ESM temporal-dead-zone error before tests.
+The prior37-control pass used a different entry order and did not cover this failure.
+Original unchanged Trends file reproduced exit1/0PASS/1FAIL before any source edit.
+The import path is search-trends -> providers -> provider-serpapi -> expanded queries
+-> search-trends. Only eager module-level budget-default evaluation changed: the same
+frozen Trends4/search10 defaults resolve when a budget is constructed, after module
+initialization. Templates, wire/parser/cache/L9 behavior, limits and assertions remain.
+
+Normal automatic merge composed frozen C `82b362193c270f4d44960e82ca1c13711eb67e8e`
+without manual service edits; C's exact source-status correction remains author evidence
+pending combined distinct review. Fresh standalone original Trends12PASS, backend0,
+and one concurrency2 focused tree41PASS (original P5 controls30, outsideGit seven,
+original source-status four) give53 fresh passes/0FAIL/0SKIP. All original tests and
+fixtures remain byte-exact. Complete hosted and local genuine failures are retained
+under `/tmp/ultimate-p5-import-cycle-fix-sol`; ignored734e/dependencies are untouched.
+Heavy released after the last child. No push/PR/CI/ready/merge authorization is used:
+exact final C/F independent review and separate coordinator gates remain required.
+Automatic goal stays paused; this inherited CHAT closure starts no next capability.
