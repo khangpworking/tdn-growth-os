@@ -153,3 +153,101 @@ unchanged (G13). U11/U26/U32/U40 remain unresolved.
 Independent exact-head review and full hosted Check/readiness/normal merge are
 coordinator gates. No PR/PR192 update, push, CI run/retry, readiness action or merge
 is authorized by this handoff; no unfinished hosted PASS or Ultimate closure.
+
+## Further continuation — located proposal and projection compilers
+
+Task `task_9f3c51aeb68a`, dispatch `ctx_4173b6cbc713`, author terminal8ff.
+Normal new `khangpworking/ultimate-full-ci-further-sol` from exact reviewed
+`8b1032935b3a8936c1d6976956e1b88fd4cbc17e`; prior clean U22 correction b1c,
+4e/8b/compiler/P9/private/reader/Metric/U16 branches and evidence preserved.
+Placement and matching locked dependency-only reuse granted in `msg_3fc6ad7a38e9`;
+precise two-hook source/new-test/append lease granted by the current dispatch's
+coordinator reply. Central service/API/source-status, Foundation and GLOBAL are
+outside this lease.
+
+Latest full hosted 37863064533 is CANCELLED at the unchanged ten-minute limit:
+269 frontend tests passed, backend is unfinished and final generated verification
+was not reached. Old952 full success and its two readiness cancellations remain
+supporting evidence only. No blind retry or hosted PASS is claimed.
+
+Measured remaining work: the unchanged original Insight coding owning workload
+compiled the retained located schema 204 times in `#verifyProposal` and 204 times
+in `#verifyProjection`. Instrumented compile calls took 20.714s and 19.671s.
+CPU sampling corroborated these hooks; inclusive CPU samples are not summed as
+an additional wall-time saving. This identifies repeated compilation, not a
+uniform hosted slowdown, leak, hang or concurrency diagnosis.
+
+Only `located-review-bridge.ts` compiler setup and the two compile call sites
+changed. Each hook owns a separate one-entry successful compilation closure from
+the existing byte-unchanged `createRetainedSchemaCache`, with formats=false and
+fixed strict/allErrors policy. Exact authenticated profile path/$id/raw-byte
+hashes select validators; current output is validated on every read. Existing
+parse/$id, Foundation/member/source/corpus/config/coding/authority/output/hash/
+projection checks, ordering and integrity messages remain. No source bytes,
+result or approval is cached, and failed compilation still propagates.
+
+Uninstrumented before/after, same original assertions and concurrency2:
+`node --import tsx --test --test-concurrency=2 --test-name-pattern='Insight coding persists selected' tests/integration/research-automation-exact-reviews.test.ts`.
+Both arms pass4. Body63.700s to25.437s (60.07% reduction); runner70.874s to32.870s
+(53.62%). UserCPU73.91s to34.60s; peakRSS546172KB to576484KB, so no memory
+improvement is claimed. One serial local pair cannot guarantee hosted completion.
+The original three-industry OWNER baseline separately passed at99.424s body and
+106.571s runner; it is not an affected before/after pair.
+
+New `research-automation-located-schema-cache.test.ts` constructs a real settled
+exact collection, retained proposal and adopted projection. Warm query_only reads
+reject 25 same-size corruptions across 33 logical proposal/projection members
+and the original collection/request/page, then exact restoration reproduces the
+saved HTML. All tables, total_changes and CAS membership/hashes remain exact;
+clock/workspace/put/provider counters remain0 and the initial fake collection is
+not repeated. Separate outside-Git fresh-process readonly/configless first reads
+match exact HTML with all tables/CAS equal, total_changes0 and clock/workspace/
+CAS-put/provider/network/child-process/Python0. Synthetic setup writes are
+explicitly separate from immutable replay.
+
+The first affected runner had37 original checks pass and one NEW test matcher
+failure: CAS correctly threw its digest error rather than the expected domain
+error name. A second NEW anchored regex incorrectly matched Error.toString;
+both failing logs are preserved. The final NEW assertion checks the exact error
+message and digest. No existing assertion changed or failed run was called PASS.
+The initial negative name pattern also admitted the original nested child tests;
+that instrumented repeat is diagnostic only, not the timed after arm.
+
+Relevant final strict/focused/OWNER HTTP/historical/factory/failure exits and exact
+frozen hashes are in `/tmp/ultimate-full-ci-further-sol` and the final current-
+dispatch report. Instrumented original exact-suite telemetry compiled only once
+per owning closure. Original HTTP3 checks pass, original historical5 checks pass
+and13 events are byte-equal (SHA256
+`86293945c600b7707d4f0dd6535116ea4cd3ca9485b73d5e38f0bd92ceed8809`).
+All222 original backend files/assertions and34 frontend files remain exact;
+one additive integration file is included by the unchanged full enumeration.
+Compiler helper, callback artifact guard, schemas/generated/generators/package/
+lock/workflow/PDF verifier/old factories and other source remain unchanged.
+No generation, full local suite, live/paid call, deployment, cap/default/credential
+or global tool/model configuration change occurred. Pinned Node24.15.0/npm11.12.1,
+ABI137; one owned heavy tree at a time, concurrency2. Temporary dependency-only
+link is removed at the clean checkpoint.
+
+G01–G13: exact logs/grant/provenance (G01); bounded static/focused checks with
+hosted gates pending (G02); frontend/PDF gate bytes unchanged (G03); canonical/
+generated/old factories protected (G04); only leased hooks/new test/append (G05);
+synthetic owned fixtures (G06); no live application calls (G07); technical English
+and unchanged source quotes, no humanizer invocation claim (G08); no invented
+CI/authority/statistic (G09); real owning warm/cold/HTTP/history proof (G10);
+original assertions/isolation/enumeration and error propagation preserved with
+new matcher failures disclosed (G11); frozen release and distinct final review/
+exact hosted gates still required (G12); collection/admission/policy unchanged
+(G13). U11/U26/U32/U40 remain unresolved.
+
+Stable source lease RELEASE and final checkpoint SHA/direct hashes are supplied
+through the fresh dispatch after verification. Publication requires a named
+coordinator grant; independent distinct final-head review and fresh full hosted
+Check/readiness/normal matching-head merge remain coordinator gates. This is a
+bounded source optimization, not whole-plan completion or a hosted CI PASS.
+
+Final scoped gates: strict backend exit0; uninstrumented four-file focused runner
+38/38 PASS,0fail/skip/cancel (exit0); HTTP3/3 and historical5/5 PASS (exit0).
+All30 defined actual factory byte digests equal prior8b exactly. Deliberately
+uncaught invalid schema exits1 with the AJV strict unknown-keyword error; it is
+an expected failure-propagation control, not a test PASS. Earlier failing logs
+remain unchanged. No further source/test edits follow this verified checkpoint.
