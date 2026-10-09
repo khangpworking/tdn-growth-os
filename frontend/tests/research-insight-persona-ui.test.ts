@@ -66,6 +66,8 @@ async function mount(t: Parameters<typeof personaServiceFixture>[0], mode?: 'los
 test('actual parent StrictMode explicit stages/readback and selected pending report action; opening/history/confirm cancel never dispatch', { timeout: 90000 }, async t => {
   const dom = await mount(t);
   try {
+    assert.equal(dom.container.querySelector('section[aria-labelledby="persona-title"] > p')?.textContent,
+      'Chỉ dùng lời khách trên Shopee của nguồn đã lưu. Ngày từ nguồn chưa xác lập kỳ đo lường; chưa có thống kê độ tin cậy hoặc điều kiện đưa vào kết luận chính. Nội dung nguyên văn vẫn có thể chứa thông tin cá nhân.');
     assert.equal(dom.posts.length, 0); assert.equal(dom.calls(), 0);
     assert.equal(dom.container.querySelector<HTMLSelectElement>('[aria-label="Đề xuất chân dung đã lưu"]')!.value, '');
     await click(dom.container, START); assert.equal(dom.posts.length, 0);

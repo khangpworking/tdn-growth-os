@@ -100,7 +100,7 @@ export default function InsightPersonaPanel({ run, pairId, versionNumber, ownerT
     } finally { inFlight.current = false; active.current = null; if (mounted.current) setPending(false); }
   };
   return <section className="ra-block" aria-labelledby="persona-title"><h4 id="persona-title">Thẻ bằng chứng và chân dung đề xuất · phiên bản {versionNumber}</h4>
-    <p>Chỉ dùng lời khách S05 trên Shopee của nguồn đã lưu. Ngày từ nguồn chưa xác lập kỳ đo lường; chưa có thống kê độ tin cậy hoặc điều kiện đưa vào kết luận chính. Nội dung nguyên văn vẫn có thể chứa thông tin cá nhân.</p>
+    <p>Chỉ dùng lời khách trên Shopee của nguồn đã lưu. Ngày từ nguồn chưa xác lập kỳ đo lường; chưa có thống kê độ tin cậy hoặc điều kiện đưa vào kết luận chính. Nội dung nguyên văn vẫn có thể chứa thông tin cá nhân.</p>
     {loading && <p role="status">Đang đọc nguồn và đề xuất đã lưu…</p>}{failure && <p role="alert">{failure}</p>}
     <button type="button" className="button" disabled={pending} onClick={() => setTick(value => value + 1)}>Đọc lại lịch sử chân dung</button>
     {gate && <p>{gate}</p>}

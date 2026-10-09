@@ -199,7 +199,7 @@ test('authenticated OWNER stage API reaches only fake configured model; exact pa
           ...personaServiceRows().flatMap(row => [row.authorId, row.reviewId])]) assert.equal(JSON.stringify(history).includes(secret), false);
       } else {
         request = (stage === 'TAXONOMY' ? personaStageRequest(view.binding, body.proposal, 'CLASSIFY')
-          : personaStageRequest(view.binding, body.proposal, 'SYNTHESIZE')); 
+          : personaStageRequest(view.binding, body.proposal, 'SYNTHESIZE'));
         if (stage === 'TAXONOMY') request.recordIndexes = personaIndexes(view.source.eligibleRecordIndexes);
       }
     }
