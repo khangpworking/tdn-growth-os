@@ -187,12 +187,24 @@ export class AutomationInsightCoding {
     const contexts = new Map<string, Promise<PersonaSourceContext>>();
     const pending = this.personaContext(workspaceId, runId, pairId); contexts.set(pairId, pending);
     const context = await pending;
-    const rows = this.options.db.prepare(`SELECT evidence_id FROM analysis_insight_coding_evidence WHERE run_id=? AND pair_sha256=?
-      AND json_extract(artifact_json,'$.contractVersion') IN ('insight-persona-rule-evidence-v1','insight-persona-proposal-evidence-v1')
-      ORDER BY CASE kind WHEN 'ADOPTION' THEN 0 ELSE 1 END, parent_id, sequence, evidence_id LIMIT ?`).all(runId, pairId, MAX_VIEW_EVIDENCE + 1) as { evidence_id: string }[];
+    // Inspect the whole pair before namespace filtering. A tampered wrapper
+    // must not disappear from the authoritative persona history.
+    const rows = this.options.db.prepare(`SELECT * FROM analysis_insight_coding_evidence WHERE run_id=? AND pair_sha256=?
+      ORDER BY CASE kind WHEN 'ADOPTION' THEN 0 WHEN 'PROPOSAL' THEN 1 ELSE 2 END, parent_id, sequence, evidence_id LIMIT ?`).all(runId, pairId, MAX_VIEW_EVIDENCE + 1) as Row[];
     if (rows.length > MAX_VIEW_EVIDENCE) tooLarge();
     const evidence: ResearchPersonaEntry[] = [];
-    for (const row of rows) evidence.push(await this.readPersonaEvidence(row.evidence_id, workspaceId, runId, contexts));
+    for (const row of rows) {
+      let wrapper: unknown; try { wrapper = JSON.parse(row.artifact_json); } catch { return corrupt(); }
+      const version = wrapper && typeof wrapper === 'object' && 'contractVersion' in wrapper ? wrapper.contractVersion : undefined;
+      if (version === 'insight-persona-rule-evidence-v1' || version === 'insight-persona-proposal-evidence-v1')
+        evidence.push(await this.readPersonaEvidence(row.evidence_id, workspaceId, runId, contexts));
+      else if (version === 'insight-coding-evidence-v1' || version === 'insight-coding-default-evidence-v1') {
+        // Authenticate the legacy envelope/CAS without interpreting it as
+        // persona evidence. Its own reader retains its independent source replay.
+        const legacy = await this.load(row, false);
+        if (legacy.binding.workspaceId !== workspaceId) corrupt();
+      } else corrupt();
+    }
     const view: ResearchPersonaView = { contractVersion: 'insight-persona-view-v1', binding: context.binding,
       source: context.evidence.publicSource(), evidence, releaseEligibility: 'UNAVAILABLE' };
     if (Buffer.byteLength(json(view)) > MAX_VIEW_BYTES || !personaViewValid(view)) corrupt();
