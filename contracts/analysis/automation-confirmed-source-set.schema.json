@@ -20,6 +20,7 @@
       { "type": "object", "additionalProperties": false, "required": ["decision"], "properties": { "decision": { "enum": ["ABSENT", "SKIPPED"] } } }
     ] },
     "privateShopeeSource": { "$ref": "automation-private-shopee-source.schema.json" },
+    "reviewCollectionPolicy": { "$ref": "automation-review-collection-policy.schema.json" },
     "nativeReview": { "oneOf": [
       { "type": "object", "additionalProperties": false, "required": ["decision", "referenceSha256"], "properties": {
         "decision": { "const": "RESOLVED" }, "referenceSha256": { "$ref": "#/$defs/digest" } } },

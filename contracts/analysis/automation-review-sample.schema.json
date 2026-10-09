@@ -1,0 +1,190 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "contractVersion",
+    "sampleId",
+    "binding",
+    "policySha256",
+    "collection",
+    "products",
+    "receipt",
+    "coverageAvailable",
+    "shortage",
+    "saturation",
+    "unresolvedOrOtherListingRecords",
+    "limits"
+  ],
+  "properties": {
+    "contractVersion": {
+      "const": "automation-review-sample-v1"
+    },
+    "sampleId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "binding": {
+      "$ref": "research-private-review-corpus.schema.json#/properties/binding"
+    },
+    "policySha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "collection": {
+      "$ref": "automation-private-shopee-source.schema.json#/$defs/reference"
+    },
+    "products": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "listing",
+          "retainedReviews",
+          "textReviews",
+          "targetReviews",
+          "hardMaximum",
+          "meetsComparisonTextMinimum",
+          "stop"
+        ],
+        "properties": {
+          "listing": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "platform",
+              "shopId",
+              "itemId"
+            ],
+            "properties": {
+              "platform": {
+                "const": "shopee"
+              },
+              "shopId": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,19}$"
+              },
+              "itemId": {
+                "type": "string",
+                "pattern": "^[1-9][0-9]{0,19}$"
+              }
+            }
+          },
+          "retainedReviews": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "textReviews": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 500
+          },
+          "targetReviews": {
+            "const": 300
+          },
+          "hardMaximum": {
+            "const": 500
+          },
+          "meetsComparisonTextMinimum": {
+            "type": "boolean"
+          },
+          "stop": {
+            "enum": [
+              "A_FIXED_COUNT",
+              "PROVIDER_DATASET_EXHAUSTED",
+              "CAPTURE_STOPPED_BEFORE_TARGET"
+            ]
+          }
+        }
+      }
+    },
+    "receipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runKey",
+        "actorId",
+        "inputSha256",
+        "maxReviewsPerProduct",
+        "contentFilter",
+        "maxChargeUsd",
+        "usageTotalUsd",
+        "providerDatasetRows",
+        "stopReason"
+      ],
+      "properties": {
+        "runKey": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9-]{2,79}$"
+        },
+        "actorId": {
+          "const": "zen-studio/shopee-product-reviews-scraper"
+        },
+        "inputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "maxReviewsPerProduct": {
+          "const": 300
+        },
+        "contentFilter": {
+          "enum": [
+            "all",
+            "with comments"
+          ]
+        },
+        "maxChargeUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 10000
+        },
+        "usageTotalUsd": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "providerDatasetRows": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "stopReason": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        }
+      }
+    },
+    "coverageAvailable": {
+      "const": false
+    },
+    "shortage": {
+      "const": "AUTHENTIC_MEASUREMENT_PERIOD_UNAVAILABLE"
+    },
+    "saturation": {
+      "const": "SOURCE_BOUND_CODING_UNAVAILABLE"
+    },
+    "unresolvedOrOtherListingRecords": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "limits": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    }
+  },
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/automation-review-sample.schema.json",
+  "title": "AutomationReviewSample",
+  "description": "Author-free mechanical accounting of one exact private collection. Dataset exhaustion is not complete product/platform coverage; owner selection does not authenticate revenue periods."
+}

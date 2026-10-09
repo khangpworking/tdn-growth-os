@@ -73,6 +73,8 @@ import { ResearchAutomationConflictError, ResearchAutomationNotFoundError, Resea
 import { assertOwnerHttpConfiguration, EmptyBodyError, ownerAuthorized, PayloadTooLargeError, readOwnerBytes, sendApiJson, singleHeader, type OwnerHttpConfiguration } from './owner-http.js';
 
 export interface ResearchAutomationApiConfiguration {
+  /** Trusted injected optional capture policy; never accepted from an HTTP caller. */
+  readonly reviewCollection?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['reviewCollection'];
   /** Independently configured list drafting; other model flags grant no calls here. */
   readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
   readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
@@ -212,6 +214,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       throw new TypeError('Automation OWNER configuration must match its read application');
     }
   }
+  if (configuration.reviewCollection && !configuration.owner) throw new TypeError('Review collection policy requires the OWNER writer');
   if (configuration.i14Synthesis && !configuration.owner) throw new TypeError('Automation I14 synthesis requires the OWNER writer');
   if (configuration.keywordDrafting && !configuration.owner) throw new TypeError('Keyword drafting requires the OWNER writer');
   const keywordTransport = configuration.keywordDrafting ? createKeywordCliproxyTransport(configuration.keywordDrafting) : undefined;
@@ -259,6 +262,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       const webSource = configuration.providers?.serpApiKey ? bindResearchAutomationProvider(registry.get('SERPAPI')) : undefined;
       if (configuration.pdfExecutablePath) pdf = createChromiumPdfRenderer({ executablePath: configuration.pdfExecutablePath });
       writeService = create(writer, {
+        ...(configuration.reviewCollection ? { reviewCollection: configuration.reviewCollection } : {}),
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),
