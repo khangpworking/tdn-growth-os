@@ -5,6 +5,8 @@ import sourceSchema from '../../../../contracts/analysis/world-bank-intake-v1.sc
 import apiSchema from '../../../../contracts/api/research-automation-macro-intake-api.schema.json' with { type: 'json' };
 import type { Binding, Projection, Row, WorldBankIntakeV1 } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
 import type { PackageRef, PrepareRequest, PrepareReceipt, ConfirmRequest, Confirmed, View, History } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
+import type { SourcePackageIntakeRequest } from '../../../../contracts/foundation/source-package-intake-request.generated.js';
+import type { SourcePackageManifest } from '../../../../contracts/foundation/source-package-manifest.generated.js';
 import { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { SourcePackageService, type VerifiedFinalizedSourcePackage } from '../../foundation/source-package-service.js';
 import { FoundationSourcePackageReader, type FinalizedSourcePackageReader, type SourceAttachmentOriginReader, type AutomationSourcePackageLookup } from '../../foundation/source-package-reader.js';
@@ -50,7 +52,7 @@ export const worldBankPackageKey = (runId: string, requestKey: string): string =
 export class AutomationWorldBankSourceIntake {
   readonly #packages: SourcePackageService;
   readonly #reader: FoundationSourcePackageReader;
-  constructor(private readonly artifacts: RequestScopedArtifactStore, db: Database.Database, private readonly now: () => Date) {
+  constructor(private readonly artifacts: RequestScopedArtifactStore, private readonly db: Database.Database, private readonly now: () => Date) {
     this.#packages = new SourcePackageService({ db, artifactStore: artifacts, now });
     this.#reader = new FoundationSourcePackageReader(this.#packages);
   }
@@ -87,10 +89,14 @@ export class AutomationWorldBankSourceIntake {
       return { contractVersion: 'automation-world-bank-prepared-v1', requestKey: input.requestKey, source: ref,
         state: 'PREPARED_NOT_ADMITTED', exactRetry: true, recordCount: retained.descriptor.projection.rows.length };
     }
-    return this.artifacts.withOwnership(async () => {
-      const stored = await this.#packages.intakeAutomationAttachment({ contractVersion: '1.0.0',
+    const request: SourcePackageIntakeRequest = { contractVersion: '1.0.0',
         packageKey: worldBankPackageKey(binding.runId, input.requestKey), version: 1, sourceLabel: input.sourceLabel,
-        sourceAcquiredAt: input.acquiredAt, files }, members, worldBankBindingSha256(binding));
+        sourceAcquiredAt: input.acquiredAt, files: files as SourcePackageIntakeRequest['files'] };
+    const finalizedAt = this.now().toISOString();
+    assertAttachmentReadBudget(request, members, finalizedAt);
+    const writer = new SourcePackageService({ db: this.db, artifactStore: this.artifacts, now: () => new Date(finalizedAt) });
+    return this.artifacts.withOwnership(async () => {
+      const stored = await writer.intakeAutomationAttachment(request, members, worldBankBindingSha256(binding));
       const prepared = await verifyPreparedWorldBankSource(this.#reader, { packageId: stored.packageId,
         manifestArtifactSha256: stored.manifestArtifactSha256, packageContentSha256: stored.packageContentSha256 }, binding);
       for (const digest of new Set([stored.manifestArtifactSha256, ...files.map(file => file.sha256)])) await this.artifacts.publishOwned(digest);
@@ -118,16 +124,32 @@ export class AutomationWorldBankSourceIntake {
     const display = Buffer.from(renderWorldBankSourceDisplay(prepared.descriptor, input.source));
     const members = new Map<string, Buffer>([[WORLD_BANK_CONFIRMATION_PATH, json(confirmation)], [WORLD_BANK_DISPLAY_PATH, display]]);
     const files = confirmationMetadata(binding.runId, members);
-    return this.artifacts.withOwnership(async () => {
-      const stored = await this.#packages.intakeAutomationAttachment({ contractVersion: '1.0.0',
+    const request: SourcePackageIntakeRequest = { contractVersion: '1.0.0',
         packageKey: worldBankConfirmationKey(binding.runId, input.requestKey), version: 1, sourceLabel: prepared.descriptor.sourceLabel,
-        sourceAcquiredAt: prepared.descriptor.acquiredAt, files }, members, worldBankBindingSha256(binding));
+        sourceAcquiredAt: prepared.descriptor.acquiredAt, files: files as SourcePackageIntakeRequest['files'] };
+    assertAttachmentReadBudget(request, members, confirmation.confirmedAt);
+    const writer = new SourcePackageService({ db: this.db, artifactStore: this.artifacts, now: () => new Date(confirmation.confirmedAt) });
+    return this.artifacts.withOwnership(async () => {
+      const stored = await writer.intakeAutomationAttachment(request, members, worldBankBindingSha256(binding));
       const retained = await readConfirmedWorldBankSource(this.#reader, { packageId: stored.packageId,
         manifestArtifactSha256: stored.manifestArtifactSha256, packageContentSha256: stored.packageContentSha256 }, binding);
       for (const digest of new Set([stored.manifestArtifactSha256, ...files.map(file => file.sha256)])) await this.artifacts.publishOwned(digest);
       return retained.view;
     });
   }
+}
+
+/** Foundation's canonical manifest uses these exact input fields plus a UUID,
+ * a SHA256 and the frozen Date ISO string. UUID/digest contents vary, but their
+ * ASCII widths (36/64) cannot change serialized size. The actual writer uses
+ * this same timestamp and sorted files, so this is exact accounting, not a
+ * reserve or a second admission/schema authority. It runs before any staging. */
+function assertAttachmentReadBudget(input: SourcePackageIntakeRequest, members: ReadonlyMap<string, Uint8Array>, finalizedAt: string): void {
+  const envelope: SourcePackageManifest = { ...input, packageId: '00000000-0000-4000-8000-000000000000',
+    packageContentSha256: '0'.repeat(64), finalizedAt };
+  const sizes = [json(envelope).byteLength, ...[...members.values()].map(bytes => bytes.byteLength)];
+  if (sizes.some(size => size > WORLD_BANK_READ_BUDGET.maxFileBytes)) reject('OUTPUT_FILE_SIZE_LIMIT', 'attachment');
+  if (sizes.reduce((total, size) => total + size, 0) > WORLD_BANK_READ_BUDGET.maxTotalBytes) reject('OUTPUT_TOTAL_SIZE_LIMIT', 'attachment');
 }
 
 const worldBankConfirmationKey = (runId: string, requestKey: string): string => `automation-world-bank-confirm:${runId}-${requestKey}`;

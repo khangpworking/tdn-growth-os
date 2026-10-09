@@ -28,7 +28,11 @@ async function fixture(t: test.TestContext) {
   const db = openDatabase({ databasePath }).db, artifacts = new ContentAddressedArtifactStore(artifactRoot);
   for (const id of [workspaceId, otherWorkspace]) await new DiscoveryWorkspaceService({ db, artifactStore: artifacts, uuid: () => id })
     .createWorkspace({ contractVersion: '1.0.0', workspaceKey: `macro-${id}`, title: 'Synthetic macro workspace' });
-  let calls = 0, puts = 0;
+  let calls = 0, puts = 0, ownerships = 0;
+  const originalOwnership = RequestScopedArtifactStore.prototype.withOwnership;
+  t.mock.method(RequestScopedArtifactStore.prototype, 'withOwnership', async function (this: RequestScopedArtifactStore, operation: () => Promise<unknown>) {
+    ownerships++; return originalOwnership.call(this, operation);
+  });
   const originalBasePut = ContentAddressedArtifactStore.prototype.put;
   t.mock.method(ContentAddressedArtifactStore.prototype, 'put', async function (this: ContentAddressedArtifactStore, bytes: Uint8Array) {
     puts++; return originalBasePut.call(this, bytes);
@@ -87,7 +91,7 @@ async function fixture(t: test.TestContext) {
   const counts = () => ['foundation_source_packages', 'foundation_source_package_files', 'foundation_source_attachment_origins', 'artifact_manifests']
     .map(table => (db.prepare(`SELECT COUNT(*) n FROM ${table}`).get() as { n: bigint }).n);
   return { db, artifacts, artifactRoot, root, origin, ownerHeaders, readRoot, post, createRun, prepareInput, upload, selected, counts,
-    counters: () => ({ calls, puts }), reopen: async () => { await app.close(); app = openResearchAutomationApi({ databasePath, artifactRoot, origin,
+    counters: () => ({ calls, puts }), ownerships: () => ownerships, reopen: async () => { await app.close(); app = openResearchAutomationApi({ databasePath, artifactRoot, origin,
       providers: { kalodataSecretKey: 'changed-synthetic-setting', serpApiKey: 'changed-synthetic-setting', apifyTokenConfigured: true } }, transport); } };
 }
 
@@ -221,4 +225,65 @@ test('existing owning cancellation denies new macro preparation/confirmation wit
   await assert.rejects(service.confirmWorldBankSource(workspaceId, awaiting.runId, { contractVersion: 'automation-world-bank-confirm-v1', requestKey: 'cancelled',
     source: { packageId: randomUUID(), manifestArtifactSha256: '1'.repeat(64), packageContentSha256: '2'.repeat(64) } }), /original reports/);
   assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changes); assert.deepEqual(f.counts(), counts); assert.deepEqual(f.counters(), calls);
+});
+
+function budgetFixture(unitLength: number) {
+  const raw = worldBankFixture('SP.POP.TOTL', Array<string>(1000).fill('1'));
+  const observations = JSON.parse(raw.observations.toString()) as [unknown, { unit: string }[]];
+  const metadata = JSON.parse(raw.metadata.toString()) as [unknown, { unit: string }[]];
+  metadata[1][0]!.unit = '&'.repeat(unitLength);
+  for (const row of observations[1]) row.unit = metadata[1][0]!.unit;
+  return { ...raw, observations: Buffer.from(JSON.stringify(observations)), metadata: Buffer.from(JSON.stringify(metadata)) };
+}
+
+test('original oversized derived source and escaped display refuse before owning HTTP writes/staging and preserve healthy cold history', async t => {
+  const f = await fixture(t), runId = await f.createRun();
+  const effects = () => ({ ...f.counters(), ownerships: f.ownerships() });
+  const healthy = await (await f.upload(runId, f.prepareInput('healthy'))).json() as PrepareReceipt;
+  const view = await (await f.post(runId, 'sources/world-bank/confirm', {
+    contractVersion: 'automation-world-bank-confirm-v1', requestKey: 'healthy', source: healthy.source,
+  })).json() as View;
+  const historyUrl = `${f.readRoot(runId)}/sources/world-bank`;
+  const boardUrl = `${f.origin}/api/workspaces/${workspaceId}/research-automation/source-status`;
+  const history = await (await fetch(historyUrl)).json(), board = await (await fetch(boardUrl)).json() as { sources: unknown[] };
+  const allTables = () => (f.db.prepare("SELECT name FROM sqlite_master WHERE type='table' ORDER BY name").all() as { name: string }[])
+    .map(({ name }) => [name, f.db.prepare(`SELECT * FROM "${name.replaceAll('"', '""')}"`).all()]);
+  const large = budgetFixture(4000);
+  assert.equal(large.observations.length, 4203132); assert.equal(large.metadata.length, 4290);
+  const before = allTables(), counters = effects(), changes = f.db.prepare('SELECT total_changes() n').get();
+  for (let retry = 0; retry < 2; retry++) {
+    const rejected = await f.upload(runId, f.prepareInput('prepare-descriptor', large), large);
+    assert.equal(rejected.status, 400, await rejected.clone().text());
+    assert.equal((await rejected.json() as { error: { code: string } }).error.code, 'source_input_rejected');
+    assert.deepEqual(allTables(), before); assert.deepEqual(effects(), counters);
+    assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), changes);
+  }
+  const escaped = budgetFixture(2000);
+  assert.equal(escaped.observations.length, 2203132); assert.equal(escaped.metadata.length, 2290);
+  const preparedResponse = await f.upload(runId, f.prepareInput('confirm-display', escaped), escaped);
+  assert.equal(preparedResponse.status, 201, await preparedResponse.clone().text());
+  const prepared = await preparedResponse.json() as PrepareReceipt;
+  const afterPrepare = allTables(), afterEffects = effects(), afterChanges = f.db.prepare('SELECT total_changes() n').get();
+  for (let retry = 0; retry < 2; retry++) {
+    const rejected = await f.post(runId, 'sources/world-bank/confirm', {
+      contractVersion: 'automation-world-bank-confirm-v1', requestKey: 'confirm-display', source: prepared.source,
+    });
+    assert.equal(rejected.status, 400, await rejected.clone().text());
+    assert.equal((await rejected.json() as { error: { code: string } }).error.code, 'source_input_rejected');
+    assert.deepEqual(allTables(), afterPrepare); assert.deepEqual(effects(), afterEffects);
+    assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), afterChanges);
+    assert.deepEqual(await (await fetch(historyUrl)).json(), history);
+    assert.deepEqual((await (await fetch(boardUrl)).json() as { sources: unknown[] }).sources, board.sources);
+    assert.deepEqual(await (await fetch(f.selected(runId, view.confirmationSource))).json(), view);
+  }
+  await f.reopen();
+  assert.deepEqual(await (await fetch(historyUrl)).json(), history);
+  assert.deepEqual(await (await fetch(f.selected(runId, view.confirmationSource))).json(), view);
+  f.db.pragma('query_only=ON');
+  const cold = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts,
+    workspaceReader: { readVerifiedWorkspace: async () => { throw new Error('No current workspace'); } }, now: () => { throw new Error('No cold clock'); } });
+  assert.deepEqual(await cold.listWorldBankHistory(workspaceId, runId), history);
+  assert.deepEqual((await cold.readWorldBankSource(workspaceId, runId, view.confirmationSource)).view, view);
+  assert.deepEqual(allTables(), afterPrepare); assert.deepEqual(effects(), afterEffects);
+  assert.deepEqual(f.db.prepare('SELECT total_changes() n').get(), afterChanges);
 });
