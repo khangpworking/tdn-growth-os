@@ -1,11 +1,32 @@
 # Handoff — P9 current-chat integration (bounded OWNER source slice)
 
 Updated: 2026-10-09
-Worktree/branch: `ultimate-next-chat-pool-docs-claude` / `khangpworking/ultimate-next-chat-pool-docs-claude`. The clean worktree is placed at exact main `3d416d18decd31b903ba23454bec461ab20d0a37`.
+Worktree/branch: `ultimate-next-chat-pool-docs-claude` / `khangpworking/ultimate-next-chat-pool-docs-claude`.
+Base: main `3d416d18decd31b903ba23454bec461ab20d0a37`.
 Run/task: `run_adc3551f8ed8` generation4 / `task_e1104f5366ac`. Sole coordinator: `term_f78f7d8d-0a0e-4b5d-8a29-1f7a4912317d`.
 Source parent: `0130da49f7c67e3edf9c4b19cbacf0b0e09d9b0b` (inherited P9 PR191 source).
 
-Completed: this document only. It records the bounded OWNER outcome, the integration surfaces, the proof split, and the release gates. No product, test, or status file changed.
+Completed: this document only. It records the bounded OWNER outcome, the integration plan, the conflict list, the proof split, and the release gates. No product, test, or status file changed.
+
+## Source state
+
+P9 owning source is implemented on the inherited branch at `0130da49`. Main at `3d416d18` does not contain that source. The P9 owning files are absent on main.
+
+The plan is a faithful composition of the `0130da49` source into `3d416d18`. No merge and no release happened yet. OpenCode authors and integrates the composition. OpenCode publishes only after review.
+
+Independent `git merge-tree` and OpenCode's actual merge both report four content conflicts:
+
+1. `scripts/generate-foundation-contract.mjs`
+2. `src/api/research-automation-api.ts`
+3. `src/modules/analysis/research-automation/source-status.ts`
+4. `tests/integration/research-automation-source-status.test.ts`
+
+Two files auto-merge but need semantic inspection:
+
+- `src/modules/analysis/research-automation/service.ts`
+- `tests/unit/research-automation-source-board.test.ts`
+
+No declared API test or generated automation contract file conflicts.
 
 ## Bounded outcome
 
@@ -22,65 +43,61 @@ Requirement coverage: P9-01 to P9-05, P9-07 to P9-10, and the U19, U25, and B03 
 
 Preserved semantics: unknown sales period. Missing, null, and zero values stay explicit. Seller, creator, and reply exclusions stay in force. HMAC author key and privacy stripping stay in force. No cross-platform join, no population estimate, and no approval.
 
-## Source versions and file paths
+## Owned source paths (on `0130da49`)
 
-Main at `3d416d18` contains the P9 owning source from `0130da49`. The P9 owned paths are:
-
-- `src/modules/analysis/research-automation/p9-source-intake.ts` (owning service)
+- `src/modules/analysis/research-automation/p9-source-intake.ts`
 - `src/modules/analysis/research-automation/tiktok-video-selection.ts`
 - `src/modules/analysis/research-automation/tiktok-comment-intake.ts`
 - `src/modules/analysis/research-automation/video-reading-intake.ts`
 - `src/platform/collectors/apify-tiktok-comments.ts`
-- `src/api/research-automation-api.ts` (P9 routes, additive hunks)
-- `src/modules/analysis/research-automation/service.ts` (additive hunks)
+- `src/api/research-automation-api.ts` (P9 routes)
+- `src/modules/analysis/research-automation/service.ts` (P9 wiring hunk)
 - `src/modules/analysis/research-automation/source-status.ts` (S07 and S14 state)
 - `contracts/analysis/tiktok-comment-collection-v1.schema.json` and its generated pair
 - `contracts/analysis/video-reading-v1.schema.json` and its generated pair
 - `tests/integration/research-automation-p9-sources.test.ts`
 - `tests/fixtures/p9-cold-replay.ts`
-- `tests/unit/research-automation-source-board.test.ts` (S07 and S14 expectations only)
+- `tests/unit/research-automation-source-board.test.ts` (S07 and S14 additions)
 
-The inherited handoff lists canonical schema SHA256 values. The comment schema is `8722e384…cba3`. The video-reading schema is `a5c49feb…3a91`. The additive generator is `6e60f463…62ec`. Verify these against the main files before release. Do not trust this document for them.
+The inherited provenance receipt already exists. This document does not repeat canonical hash checks.
 
-## Integration dependencies (conflict risk)
+## Integration plan and conflict handling
 
-Main changed 178 files relative to `0130da49`. The P9 integration overlaps only where these shared surfaces changed on main.
+- Unchanged P9 schema and generated v1 files import byte-exact from `0130da49`.
+- `scripts/generate-foundation-contract.mjs`: the generator registry is unioned with main. The generator runs once after the actual input change. No generic generated contract is hand-merged. No all-contract change is invented.
+- `src/api/research-automation-api.ts`: P9 routes are added next to the Insight, Reader, Persona, Macro, and World Bank routes on main.
+- `src/modules/analysis/research-automation/source-status.ts` and `tests/integration/research-automation-source-status.test.ts`: S07 and S14 state is added to main's board. Assertions from both parents are preserved.
+- `service.ts` and `tests/unit/research-automation-source-board.test.ts`: auto-merged. Each hunk needs semantic inspection.
 
-1. `src/api/research-automation-api.ts`: main added Insight, Reader, Persona, Macro, and World Bank route hunks. P9 added its routes in the same file.
-2. `src/modules/analysis/research-automation/service.ts`: main changed this service for Metric, Insight, and Reader. P9 added a service-level wiring hunk.
-3. `src/modules/analysis/research-automation/source-status.ts` and `tests/integration/research-automation-source-status.test.ts`: S07 and S14 state and board expectations.
-4. `tests/unit/research-automation-source-board.test.ts` and `tests/integration/research-automation-api.test.ts`: shared assertions. Original assertions stay immutable. Only S07 and S14 state expectations may change.
-5. `contracts/analysis/automation-*.generated.ts` and `contracts/api/research-automation-*.generated.ts`: main regenerated these. Any additive P9 generated entry must come from regeneration after conflict resolution. Do not hand-merge it.
-6. `docs/handoffs/P9.md`: inherited handoff. This document does not rewrite it.
-
-The exact conflict hunks belong to OpenCode's integration. This list reflects the main diff. The integration owner confirms each hunk.
+Original tracked tests and assertions stay immutable. Assertions from both parents stay in force.
 
 ## Proof split
 
-Reused evidence (inherited, unaffected by the main change):
+Reused evidence (inherited, unaffected):
 
-- Distinct 0130 review `/tmp/ultimate-p9-currentmain-final-review-sol/report-0130da49f7c67e3edf9c4b19cbacf0b0e09d9b0b.md`: bounded43 PASS, independent review scope only.
-- Original budget correction, clean cold replay, and historical evidence for P9.
-- Original run `37882581793` cancellation, preserved at `/tmp/ultimate-next-chat-pool-2026-10-09/pr191-original-cancelled-full.log`. This run was cancelled. It is not a release pass.
-- Main private22, 23, and 25, Market, Reader23 and Reader25, and Persona26 unaffected evidence. This evidence carries until a changed dependency justifies a focused cross-boundary check.
+- Distinct 0130 review `/tmp/ultimate-p9-currentmain-final-review-sol/report-0130da49f7c67e3edf9c4b19cbacf0b0e09d9b0b.md`: bounded43 PASS, bounded review scope only.
+- Original budget correction, clean cold replay, and historical P9 evidence.
+- Original run `37882581793` cancellation, preserved at `/tmp/ultimate-next-chat-pool-2026-10-09/pr191-original-cancelled-full.log`. The run was cancelled. It is not a release pass.
+- Main private22, 23, and 25, Market, Reader23, Reader25, and Persona26 unaffected evidence. This evidence carries until a changed dependency justifies a focused cross-boundary check.
 
-New proof (pending, not run by this worker):
+New proof (candidate delta, pending):
 
-- Focused P9 integration checks on the integrated candidate: the owning source tests, API, source-status, and source-board tests.
+- Focused P9 checks on the integrated candidate: owning source tests, API, source-status, and source-board tests.
 - Strict repository typecheck on the integrated candidate.
-- Generated-contract drift check after conflict resolution.
-- `git diff --check` and docs scope check for this document.
+- Generated-contract drift check after conflict resolution, limited to the four conflict surfaces above.
+- Docs commit: `git diff --check` and docs scope check. These passed for this document.
 
 ## Release gates (pending)
 
 None of these gates is claimed as passed in this document.
 
-1. OpenCode integrates this docs commit into the exact candidate before final candidate checks.
-2. Focused owned and affected checks on the integrated candidate. Pending.
-3. Distinct final Codex `gpt-6.1-sol` high exact-head review. Pending.
-4. Fresh hosted full, generated, and readiness checks on the exact final head. Pending.
-5. Current-main check, normal matching-head merge, and postmerge check. Pending.
-6. The coordinator owns release.
+1. OpenCode integrates this docs commit into the exact candidate.
+2. OpenCode resolves the four content conflicts and reviews the two semantic-inspection hunks.
+3. Focused owned and affected checks on the integrated candidate.
+4. Distinct final Codex `gpt-6.1-sol` high exact-head review. The reviewer is distinct from the author.
+5. Fresh hosted full, generated, and readiness checks on the exact final head.
+6. Current-main check, normal matching-head merge, and postmerge check.
+7. The coordinator owns the normal merge after gates pass and owns the release.
 
 ## Limitations
 
@@ -94,16 +111,16 @@ None of these gates is claimed as passed in this document.
 
 | ID | State | Remaining gap |
 | --- | --- | --- |
-| P9-01 | PARTIAL | Frozen run and package selection persistence exists in inherited code. Full cold-replay acceptance on the candidate is pending. |
-| P9-02 | PARTIAL | Fake collector and cap are proven. Live provider and retained intent receipts are not released. |
-| P9-03 | PARTIAL | Dedupe and accounting are proven. Raw-page retention stays partial under the privacy policy. |
-| P9-04 | PARTIAL | HMAC and sanitation are proven. Persisted and API privacy scan on the candidate is pending. |
-| P9-05 | PARTIAL | Located records and exclusions are proven. Retained source interface checks on the candidate are pending. |
+| P9-01 | PARTIAL | Frozen run and package selection exists on `0130da49`. Candidate cold-replay acceptance is pending. |
+| P9-02 | PARTIAL | Fake collector and cap are proven on `0130da49`. Live provider and retained intent receipts are not released. |
+| P9-03 | PARTIAL | Dedupe and accounting are proven on `0130da49`. Raw-page retention stays partial under the privacy policy. |
+| P9-04 | PARTIAL | HMAC and sanitation are proven on `0130da49`. Candidate persisted and API privacy scan is pending. |
+| P9-05 | PARTIAL | Located records and exclusions are proven on `0130da49`. Candidate retained source interface checks are pending. |
 | P9-06 | ESCALATED | No additive coding version is granted. The source binding is Shopee-only. Coding, report, and persona stay NOT_BUILT. |
-| P9-07 | PARTIAL | S14 inert reading is proven. Authenticated S14 read and retry on the candidate are pending. |
+| P9-07 | PARTIAL | S14 inert reading is proven on `0130da49`. Candidate authenticated S14 read and retry are pending. |
 | P9-08 | DONE (independent scope) | No package model, watch, cloud, or transcription path. |
-| P9-09 | PARTIAL | CitationRegistry projections are proven. Owning report and read integration is pending. |
-| P9-10 | PARTIAL | Focused synthetic checks are proven. Candidate acceptance is pending. |
+| P9-09 | PARTIAL | CitationRegistry projections are proven on `0130da49`. Owning report and read integration is pending. |
+| P9-10 | PARTIAL | Focused synthetic checks are proven on `0130da49`. Candidate acceptance is pending. |
 | U11 | BLOCKED | Statistic and release decision waits for OWNER. |
 | U19 | PARTIAL | Source slice only. |
 | U25 | PARTIAL | Source slice only. |
@@ -114,13 +131,13 @@ None of these gates is claimed as passed in this document.
 
 ## Implemented, reviewed, merged, whole acceptance
 
-- Implemented: yes, in the inherited P9 source on main `3d416d18`.
+- Implemented: yes, on the inherited branch at `0130da49`. Not on main `3d416d18`.
 - Reviewed: the 0130 review passed for bounded scope only. Final exact-head review on the integrated candidate is pending.
-- Merged: no. This worker does not merge. The integration owner decides.
+- Merged: no. OpenCode publishes only after review. The coordinator owns the normal merge.
 - Whole acceptance: no. P9 stays active.
 
 ## Next action
 
-OpenCode integrates this docs commit, resolves the conflict hunks, and runs the pending gates above. The coordinator sends concrete receipts before final settlement when needed.
+OpenCode composes the `0130da49` source onto `3d416d18`, resolves the four conflicts, and runs the pending gates above. The coordinator sends concrete receipts before final settlement when needed.
 
 Business decisions pending: U11 statistic and release, U26 revision and recollection policy, U32 positive platform totals, U40 live and paid acceptance.
