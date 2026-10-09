@@ -56,6 +56,23 @@ record nothing; decisions stay in the existing decision table. Query-only GET ex
 - `npm run typecheck` PASS. `contracts:generate` byte-check clean at `8c36017`; this repair adds no
   canonical/schema/migration changes.
 
+## Mounted proof (integration-owned browser harness)
+
+`/tmp/ultimate-tiktok-report-reader-2026-10-10/mounted-harness/tiktok-mounted-attempt2.mts` (task-local,
+exit 0, MOUNTED-PASS): seeded keyword-v3/P9 database handed cleanly to the real operator app with a
+synthetic loopback CLIProxy as the only model transport; playwright-core + system Chrome drove select →
+propose (exactly 1 dispatch) → report open (retained span + expanded full context) → build (no second
+call) → same-button build retry (no rebuild) → cited Reader tab → APPROVE → coding retry (no redispatch)
+→ reload → same-revision reopen (no model); durable execution/consumption/revision counts 1/1/1 and
+unchanged source identities asserted from the database. Screenshots + result JSON in the packet.
+Attempt 1 (popup timing/visibility) preserved as failure evidence; fixed by waiting for content and
+expanding collapsed context, no assertion weakened.
+
+## Publication
+
+Branch pushed normally (no force): `khangpworking/ultimate-tiktok-report-reader-opencode`.
+Draft PR #202 to main with accurate body. No release implied; review/CI/merge coordinator-owned.
+
 ## Known limits / non-goals
 
 P9-06 personas/second classification excluded; S14 inert separately attributed; no cross-platform sums,
