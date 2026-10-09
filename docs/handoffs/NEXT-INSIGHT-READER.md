@@ -210,3 +210,41 @@ Evidence, pinned Node24.15.0/npm11.12.1, concurrency2, synthetic SQLite/CAS and 
 No Vietnamese interpretation or source wording was authored/replaced; existing limitations and quotations remain exact. No local full suite, hosted CI claim, deployment, runtime/private data copy, live or paid provider/model/collector, configuration/cap/model changes or extra version/approval/release semantics. U04 rates remain PARTIAL; U11/U26/U32/U40 remain unresolved.
 
 The corrected frozen SHA, source/test/handoff fingerprints and explicit lint RELEASE are reported through the current dispatch after clean commit and normal fast-forward push to PR186's existing branch, verified against remote a69. Different independent final-head review, full hosted exact-head/ready checks and eligible normal merge remain coordinator gates. No current rates worker_done follows this temporary correction; await precise placement guidance before returning to rates or other work.
+
+## Reviewed-main source composition (2026-10-09)
+
+Updated: 2026-10-09. Branch: `khangpworking/ultimate-insight-reader-currentmain-composition-sol`.
+
+Completed: ordinary source-preserving merge `4666a44fb06cafd244e15ace0ba1e25abec847e8`, with ordered parents independently reviewed reader `c0e9173665358f0db4111bfc3025b74b1a528760` and precisely granted reviewed main `c4f22331d7359289138fb7ef5fbc1c22842921ed`. The common ancestor is `5f38281680a51bae1c49539060d655e093789f2f`. Reader47 and main29 paths overlap only in the central service; the ordinary merge required no manual resolution. Reversing each complete parent patch restores the entire opposing parent's service bytes. All1925 tracked files were directly fingerprinted;1924 nonoverlap files match the owning parent exactly. Only this append follows the source merge; no implementation or assertion was changed during composition.
+
+Evidence: pinned Node24.15.0/npm11.12.1/ABI137, one sequential affected runner, test concurrency2, synthetic fixtures/fake transports/loopback only. Strict backend and direct frontend statics exited0. **106 tests PASS/0FAIL/0SKIP**: original publication13, original trust/binding15, affected reader/Market/API/private56, new FIRST-cold1, mounted16, historical-source5. Independent0050 populated rollback/FK/immutability/kind-isolation script separately PASS. Full raw commands/exits/counts and source proofs accompany the task report; no local full suite or hosted timing guarantee is claimed.
+
+The authentic collected19 OWNER path publishes201 once, with exact retry200/read/list/decision behavior. The original unrelated preceding-negation actual publisher reproduction rejects F5 before put0; source disclaimers/direct negations remain eligible and Market/default gates are unchanged. Independent scripts retain their original assertions with only implementation-root/evidence-directory retargeting. Original expected200/actual400 and publisherput1 failure logs remain preserved; the historical failing collected script is not misrepresented as a successful first-publication test. The boundary script proves47 rejected variants beforeput0 and7 safe gate-eligible variants; these7 are not claimed as actual publications.
+
+New native19 retained FIRST-cold coverage uses three fresh processes with readonly/fileMustExist/query_only: valid GET/list/exactretry, equal-length5651-byte frozen-input corruption refusal, and exact restoration. All98 tables and52 CAS members/digests remain exact within each process; total_changes0 and clock/current-workspace/provider/model/fetch/process/CASput counters0. Valid/restored results are equal. Existing actual API/service tests separately preserve saved-reader immutability while damaged current upstream evidence refuses a fresh build, and meaningful valid-CAS envelope/binding variants fail closed. Private22 remains source-only; report23 is still unsupported for new reader construction, while retained crosscheck replay works unchanged.
+
+Historical compatibility:13 owning readReport/readSourceKeywordDraft events remain exactly equal to reviewed-main evidence;30 actual factory byte hashes also remain exact. Current U16 new construction is attributed to1.3.0. Two NEW synthetic stores produced by an authenticated own source-only5f archive prove genuine old1.2 reports and KEEP revisions remain1.2.0. All14 process stages pass, including8 fresh strict readonly children and28 corrupted-retained-artifact refusals/restorations, no model/provider/clock/current-workspace/Python/CASputs or database/CAS mutation on retained reads. No private runtime store was copied.
+
+Browser provenance: original ignored Meta output was preserved. All31 schema roots/full ref closure, compiler, declaration and37 prior non-JS fingerprints match the reader. Named public review directories contained the compatible output's recorded hash but no immutable JS artifact. A separate sole GLOBAL grant authorized ONE validator generation at4666, exit0: exact reviewed output, unchanged declaration and all1925 tracked files. An immutable own output/input receipt is retained outsideGit; GLOBAL was explicitly released before mounted checks. Original ignored Meta output is restored under a separate grant before final freeze. No canonical generator/contract materialization beyond this precise browser-output recovery occurred.
+
+Changed paths: the exact union of reviewed parents, plus this append only. All439 historical contract paths equal their owning parent; six inherited U16 canonical differences and two reader API differences are explicitly attributed. Original prompts, original assertions, migrations0048/0050, source quotes, reader/source/auth/privacy policies and retained report versions are preserved. All task-created synthetic stores and dependency-resolution links were removed; installed dependencies and previous branches/artifacts remain intact.
+
+| Checklist | Evidence/status for this bounded composition |
+| --- | --- |
+| G-01 | DONE for the source-composition boundary; wholeU28/U27 and later dependencies explicitly remain open. |
+| G-02 | Strict backend PASS and106 focused tests PASS; full exact-head hosted suite remains coordinator gate. |
+| G-03 | Direct frontend static PASS and16 affected mounted tests PASS; full hosted checks remain pending. |
+| G-04 | Exact inherited canonical/generated parent bytes proved; no new canonical edits or ungranted generation. Full hosted contract check pending. |
+| G-05 | Owned parent union plus append-only handoff; whitespace/clean/frozen hash proof recorded after commit. |
+| G-06 | Synthetic/public evidence only; no credentials/private runtime data added. |
+| G-07 | Fake models/collectors and loopback transport only. |
+| G-08 | Existing report text/lint preserved; no new owner prose or Vietnamese interpretation. |
+| G-09 | Missing-data/unsupported-version gates and source-only private22 preserved. |
+| G-10 | History13/factory30 exact and genuine old1.2 retained replay controls pass. |
+| G-11 | No original tests/assertions removed, skipped, or weakened; root/evidence-only script provenance proved. |
+| G-12 | This append records completed work, paths, checks, limits and next step. |
+| G-13 | Existing authenticated keyword/L9 owning source evidence and collected19 reader behavior preserved; no collector/admission policy extension. |
+
+Unresolved: wholeU28/E6, later23/25 reader methods, dependent persona/statistics/U21 integration, and U11/U26/U32/U40 remain unresolved. Synthetic composition evidence is not live source acceptance or wholeUltimate closure. Prior canceled10-minute full-CI attempts are historical, not retried or waived here; this bounded check gives no hosted ten-minute guarantee.
+
+Next action: distinct independent frozen-final-head review, new exact-head full hosted CI/current readiness, then coordinator's eligible normal matching-head merge. Publication to the existing draftPR186 requires a separate exact grant and normal fast-forward only. No worker CI/ready/merge/deploy action is authorized by this handoff.
