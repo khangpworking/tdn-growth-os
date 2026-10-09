@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { createRequire } from 'node:module';
 import fs from 'node:fs/promises';
 import type Database from 'better-sqlite3';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
@@ -16,9 +15,10 @@ import { buildSourcePackageLiteralReviewProjection } from './source-package-lite
 import type { SourcePackageLiteralReviewDiagnostics } from './source-package-literal-review-adapter.js';
 import { buildResearchReviewCorpus } from './review-corpus.js';
 import { MAX_JSON_ARTIFACT_BYTES, ResearchAutomationIntegrityError, type StepResultDocument } from './model.js';
+import { createRetainedSchemaCache } from './retained-schema-cache.js';
 
-const require = createRequire(import.meta.url);
-const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
+const proposalValidators = createRetainedSchemaCache({ formats: false });
+const projectionValidators = createRetainedSchemaCache({ formats: false });
 const PROFILE = 'authority/qualitative-profile.md';
 const ADOPTION = 'authority/method-adoption.md';
 const RULES = 'rules/literal-review-rules.json';
@@ -262,8 +262,9 @@ export class AutomationLocatedReviewBridge {
     const schema = parse(retained, SCHEMA);
     if (!schema || typeof schema !== 'object' || Array.isArray(schema) ||
         (schema as Record<string, unknown>).$id !== 'https://tdn.local/contracts/analysis/located-insight-methods.schema.json') integrity('Located review retained schema identity differs.');
-    const ajv = new Ajv2020({ strict: true, allErrors: true });
-    if (!ajv.compile(schema)(output)) integrity('Located review output fails its retained schema.');
+    const validate = proposalValidators([{ path: SCHEMA, id: (schema as Record<string, unknown>).$id as string,
+      bytes: file(retained, SCHEMA).bytes }])['https://tdn.local/contracts/analysis/located-insight-methods.schema.json']!;
+    if (!validate(output)) integrity('Located review output fails its retained schema.');
     const { methodOutputId, ...body } = output;
     if (sha(json(body)) !== methodOutputId || canonicalJson(output.input) !== canonicalJson(parse(retained, DESCRIPTOR)) ||
         file(retained, PROFILE).sha256 !== output.input.profileSha256 || file(retained, ADOPTION).sha256 !== output.input.adoptionSha256 ||
@@ -335,8 +336,9 @@ export class AutomationLocatedReviewBridge {
     if (!schema || typeof schema !== 'object' || Array.isArray(schema) ||
         (schema as Record<string, unknown>).$id !== 'https://tdn.local/contracts/analysis/located-insight-methods.schema.json')
       integrity('Located projection retained schema identity differs.');
-    const ajv = new Ajv2020({ strict: true, allErrors: true });
-    if (!ajv.compile(schema)(output)) integrity('Located projection output fails its retained schema.');
+    const validate = projectionValidators([{ path: SCHEMA, id: (schema as Record<string, unknown>).$id as string,
+      bytes: file(retained, SCHEMA).bytes }])['https://tdn.local/contracts/analysis/located-insight-methods.schema.json']!;
+    if (!validate(output)) integrity('Located projection output fails its retained schema.');
     const { methodOutputId, ...body } = output;
     const { i02, i04, i05, i07, i08, adjudicationRule: _rule, ...base } = output.input;
     const { i02: _i02, i04: _i04, i05: _i05, i07: _i07, i08: _i08, adjudicationRule: _oldRule, ...proposalBase } = proposal.output.input;
