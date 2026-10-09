@@ -397,15 +397,16 @@ export class SourcePackageService {
     if (budget) assertReadBudget(budget);
     const row = this.#db.prepare(`SELECT package_key AS packageKey,version,source_acquired_at AS sourceAcquiredAt,source_label AS sourceLabel,request_sha256 AS requestSha256,package_content_sha256 AS packageContentSha256,manifest_artifact_sha256 AS manifestSha256,finalized_at AS finalizedAt FROM foundation_source_packages WHERE package_id=? AND finalized_at IS NOT NULL`).get(packageId) as any;
     if (!row) throw new FoundationValidationError('Finalized source package not found');
-    const manifestMetadata = this.#artifactMetadata(row.manifestSha256, 'application/json');
+    const artifactMetadataQuery = this.#db.prepare('SELECT byte_size AS byteSize,media_type AS mediaType,relative_path AS relativePath,contract_version AS contractVersion FROM artifact_manifests WHERE sha256=?');
+    const manifestMetadata = this.#artifactMetadata(row.manifestSha256, 'application/json', artifactMetadataQuery);
     const dbFiles = this.#db.prepare(`SELECT logical_path AS path,artifact_sha256 AS sha256,byte_size AS byteSize,media_type AS mediaType,evidence_family AS evidenceFamily,representation_role AS representationRole,independence,provider_provenance AS providerProvenance,provenance_basis AS provenanceBasis,period_start AS periodStart,period_end AS periodEnd FROM foundation_source_package_files WHERE package_id=? ORDER BY logical_path`).all(packageId) as any[];
-    const fileMetadata = dbFiles.map(file => ({ file, artifact: this.#artifactMetadata(file.sha256, file.mediaType) }));
+    const fileMetadata = dbFiles.map(file => ({ file, artifact: this.#artifactMetadata(file.sha256, file.mediaType, artifactMetadataQuery) }));
     if (budget) {
       const declaredSizes = [manifestMetadata.byteSize, ...fileMetadata.map(({ file }) => toBigInt(file.byteSize))];
       const actualSizes = [manifestMetadata.byteSize, ...fileMetadata.map(({ artifact }) => artifact.byteSize)];
       assertPackageReadBudget(budget, declaredSizes.map((declared, index) => declared > actualSizes[index]! ? declared : actualSizes[index]!));
     }
-    const manifestBytes = await this.#verifiedArtifact(row.manifestSha256, 'application/json', budget?.maxFileBytes);
+    const manifestBytes = await this.#verifiedArtifact(row.manifestSha256, 'application/json', artifactMetadataQuery, budget?.maxFileBytes);
     let parsed: unknown;
     try { parsed = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(manifestBytes)); }
     catch { throw new FoundationValidationError('Invalid source package manifest JSON'); }
@@ -414,7 +415,7 @@ export class SourcePackageService {
 
     const files: VerifiedSourcePackageFile[] = [];
     for (const { file } of fileMetadata) {
-      files.push({ path: file.path, sha256: file.sha256, byteSize: Number(file.byteSize), mediaType: file.mediaType, evidenceFamily: file.evidenceFamily, representationRole: file.representationRole, independence: file.independence, providerProvenance: file.providerProvenance, provenanceBasis: file.provenanceBasis, ...(file.periodStart === null ? {} : { period: { start: file.periodStart, end: file.periodEnd } }), bytes: await this.#verifiedArtifact(file.sha256, file.mediaType, budget?.maxFileBytes) });
+      files.push({ path: file.path, sha256: file.sha256, byteSize: Number(file.byteSize), mediaType: file.mediaType, evidenceFamily: file.evidenceFamily, representationRole: file.representationRole, independence: file.independence, providerProvenance: file.providerProvenance, provenanceBasis: file.provenanceBasis, ...(file.periodStart === null ? {} : { period: { start: file.periodStart, end: file.periodEnd } }), bytes: await this.#verifiedArtifact(file.sha256, file.mediaType, artifactMetadataQuery, budget?.maxFileBytes) });
     }
     const reconstructed = { contractVersion: '1.0.0', packageId, packageKey: row.packageKey, version: Number(row.version), sourceAcquiredAt: row.sourceAcquiredAt, sourceLabel: row.sourceLabel, finalizedAt: row.finalizedAt, packageContentSha256: row.packageContentSha256, files: files.map(({ bytes, ...file }) => file) } as SourcePackageManifest;
     if (canonicalJson(manifest) !== canonicalJson(reconstructed)) throw new FoundationIdentityConflictError('Source package manifest does not match immutable membership');
@@ -433,15 +434,15 @@ export class SourcePackageService {
     return Number(info.changes);
   }
 
-  async #verifiedArtifact(digest: string, mediaType: string, maxBytes?: number): Promise<Buffer> {
-    const meta = this.#artifactMetadata(digest, mediaType);
+  async #verifiedArtifact(digest: string, mediaType: string, artifactMetadataQuery: Database.Statement, maxBytes?: number): Promise<Buffer> {
+    const meta = this.#artifactMetadata(digest, mediaType, artifactMetadataQuery);
     const bytes = await this.#artifacts.read(digest, maxBytes === undefined ? undefined : { maxBytes });
     if (meta.byteSize !== BigInt(bytes.length)) throw new FoundationIdentityConflictError('Artifact size mismatch');
     return bytes;
   }
 
-  #artifactMetadata(digest: string, mediaType: string): { byteSize: bigint; mediaType: string; relativePath: string; contractVersion: string } {
-    const meta = this.#db.prepare('SELECT byte_size AS byteSize,media_type AS mediaType,relative_path AS relativePath,contract_version AS contractVersion FROM artifact_manifests WHERE sha256=?').get(digest) as { byteSize: bigint; mediaType: string; relativePath: string; contractVersion: string } | undefined;
+  #artifactMetadata(digest: string, mediaType: string, artifactMetadataQuery: Database.Statement): { byteSize: bigint; mediaType: string; relativePath: string; contractVersion: string } {
+    const meta = artifactMetadataQuery.get(digest) as { byteSize: bigint; mediaType: string; relativePath: string; contractVersion: string } | undefined;
     if (!meta || meta.byteSize < 0n || meta.mediaType !== mediaType || meta.relativePath !== `sha256/${digest.slice(0, 2)}/${digest}` || meta.contractVersion !== '1.0.0') throw new FoundationIdentityConflictError('Artifact manifest mismatch');
     return meta;
   }

@@ -1,0 +1,115 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+import { buildAutomationDecisionPacket, validateAutomationDecisionCandidateResponse, verifyAutomationDecisionCandidates } from '../../src/modules/analysis/research-automation/decision-packets.js';
+import { automationDecisionSynthesisPrompt, prepareAutomationDecisionSynthesis } from '../../src/modules/analysis/research-automation/decision-synthesis-input.js';
+import { decisionPacketSection } from '../../src/modules/analysis/research-automation/synthesis-evidence-report.js';
+import { syntheticI14Input, validI14Response } from '../helpers/i14-execution-fixture.js';
+import { sync2ReportFixture } from '../helpers/sync2-report-fixture.js';
+import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
+import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
+import { DEFAULT_MARKET_PEER_RULE } from '../../src/modules/analysis/default-market-peers.js';
+
+const evidence = { ...syntheticI14Input(), admissionVersion: '1.1.0' as const };
+const sections = ['M11', 'M12', 'I15'] as const;
+function candidate(sectionId: typeof sections[number]) {
+  return { ...validI14Response(evidence).aiCandidates[0],
+    candidateType: sectionId === 'M12' ? 'ACTION_OPTION' : sectionId === 'I15' ? 'STRATEGY_OPTION' : 'HYPOTHESIS',
+    counterevidenceRelations: [], immediateTask: 'Review public quality evidence',
+    proposedOwner: 'Owner to confirm', proposedDeadline: 'Within two weeks',
+    ...(sectionId === 'M12' ? { prerequisites: ['Only public reviews and owner-provided data'] } : {}),
+    ...(sectionId === 'I15' ? { conditions: ['Only after owner review'] } : {}),
+  };
+}
+
+test('packet/input 1.3 and prompt 1.4 enforce U16 without reinterpreting 1.2', () => {
+  for (const sectionId of sections) {
+    const source = { sectionId, packetVersion: '1.3.0' as const, evidence };
+    const prepared = prepareAutomationDecisionSynthesis(source);
+    assert.equal(prepared.status, 'READY');
+    if (prepared.status !== 'READY') throw new Error('Expected admitted synthetic evidence');
+    assert.equal(prepared.input.artifact.methodVersion, '1.3.0');
+    assert.equal(prepared.prompt.artifact.promptVersion, '1.4.0');
+    assert.equal(prepared.prompt.artifact.inputContract.methodVersion, '1.3.0');
+    assert.match(prepared.prompt.artifact.systemText, /General purchase-to-inspect/);
+    assert.equal(prepared.input.artifact.workingQuestion, null);
+    const good = validateAutomationDecisionCandidateResponse({ aiCandidates: [candidate(sectionId)] }, source);
+    assert.deepEqual(verifyAutomationDecisionCandidates(good.artifact, source), good.artifact);
+    const fields = ['text', 'conciseEvidenceLinkedRationale', 'immediateTask', 'proposedOwner', 'proposedDeadline',
+      'assumptions', 'unknowns', 'evidenceGaps', 'limitations', ...(sectionId === 'M12' ? ['prerequisites'] : sectionId === 'I15' ? ['conditions'] : [])];
+    for (const text of ['Mua sản phẩm đối thủ để kiểm tra chất lượng', 'Buy a competitor product to assess its quality',
+      'Order a competitor’s product to assess quality', "Order a competitor's product to assess quality",
+      'Order two units of the competitor product for quality assessment']) {
+      for (const field of fields) {
+        const bad = { ...candidate(sectionId), [field]: ['assumptions', 'unknowns', 'evidenceGaps', 'limitations', 'prerequisites', 'conditions'].includes(field)
+          ? [text] : text };
+        assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [bad] }, source), /PURCHASE_SUGGESTION_NOT_ALLOWED/, `${field}: ${text}`);
+      }
+    }
+    for (const text of ['No purchase is needed to assess quality; use public sources and owner data',
+      'No purchase required for quality assessment', 'No purchase is necessary; review public evidence',
+      'Order source records about the product for quality review', 'Review order history for the competitor product']) {
+      const safe = validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(sectionId), text }] }, source);
+      assert.deepEqual(verifyAutomationDecisionCandidates(safe.artifact, source), safe.artifact);
+    }
+    const historical = { ...source, packetVersion: '1.2.0' as const };
+    const formerlyAdmitted = validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(sectionId), text: 'Mua sản phẩm đối thủ để kiểm tra chất lượng' }] }, historical);
+    assert.deepEqual(verifyAutomationDecisionCandidates(formerlyAdmitted.artifact, source), formerlyAdmitted.artifact);
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(sectionId), text: 'Đặt hàng thử sản phẩm đối thủ' }] }, historical), /PURCHASE_SUGGESTION_NOT_ALLOWED/);
+    const { immediateTask: _omitted, ...incomplete } = candidate(sectionId);
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [incomplete] }, source), /CANDIDATE_PROPOSAL_FIELDS_REQUIRED/);
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: ['First', 'Second', 'Third', 'Fourth'].map(text => ({ ...candidate(sectionId), text })) }, source), /CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT/);
+    assert.throws(() => validateAutomationDecisionCandidateResponse({ aiCandidates: [{ ...candidate(sectionId), citedClaimRefs: ['f'.repeat(64)] }] }, source), /UNKNOWN_CLAIM_REFERENCE/);
+    const blocked = decisionPacketSection(prepared.packet.artifact, evidence.sourceClaims as Parameters<typeof decisionPacketSection>[1],
+      { status: 'INVALID', executionId: 'synthetic', dispatched: false, validationCode: 'INVALID_DECISION_CANDIDATES' });
+    assert.match(blocked, /Đề xuất AI bị chặn/);
+    assert.doesNotMatch(blocked, /Mua sản phẩm đối thủ để kiểm tra chất lượng/);
+  }
+});
+
+// Historical factory branches were inspected unchanged; pin the pre-follow-up 1.3 prompt bytes as well.
+test('historical prompt 1.3 stays byte-identical and 1.2 reports keep their historical rejection copy', () => {
+  const hashes = {
+    M11: '13fa94f7d0efff2ff4b01aae4816f5157d6b5006abcd13c0eed859228e6f3586',
+    M12: 'aa91c0693a76603f4a6f572cf96be4f126ed1a68c9c74284f30dfeefef9ca3bb',
+    I15: 'b90c5e310eba12566a7ed8401f659c97251809f6ce52c8996c4bff635070a8c1',
+  };
+  for (const sectionId of sections) {
+    assert.equal(automationDecisionSynthesisPrompt(sectionId, '1.3.0').sha256, hashes[sectionId]);
+    const packet = buildAutomationDecisionPacket({ sectionId, packetVersion: '1.2.0', evidence }).artifact;
+    const html = decisionPacketSection(packet, evidence.sourceClaims as Parameters<typeof decisionPacketSection>[1],
+      { status: 'INVALID', executionId: 'synthetic', dispatched: false, validationCode: 'INVALID_DECISION_CANDIDATES' });
+    assert.match(html, /Phản hồi AI cho mục này không đạt kiểm tra cấu trúc hoặc tham chiếu nguồn/);
+    assert.doesNotMatch(html, /Đề xuất AI bị chặn/);
+  }
+});
+
+test('new generic renderer gate preserves source and default-peer renderer precedence and old report bytes', () => {
+  const base = sync2ReportFixture();
+  const evidence = { ...syntheticI14Input(base.run.runId, base.run.workspaceId, base.scope), admissionVersion: '1.1.0' as const };
+  const packets = (packetVersion: '1.2.0' | '1.3.0') => (['M11', 'M12'] as const).map(sectionId =>
+    buildAutomationDecisionPacket({ sectionId, packetVersion, evidence }).artifact);
+  const old = { ...base, decisionPackets: packets('1.2.0'), decisionSourceClaims: evidence.sourceClaims as Parameters<typeof decisionPacketSection>[1] };
+  const historical = buildResearchAutomationReport(old, 'MARKET');
+  const generated = { ...old, decisionPackets: packets('1.3.0') };
+  const latest = { ...generated, decisionSynthesis: { M12: {
+    status: 'INVALID' as const, executionId: 'synthetic-executed-1.3', dispatched: false, validationCode: 'INVALID_DECISION_CANDIDATES' as const,
+  } } };
+  const current = buildResearchAutomationReport(latest, 'MARKET');
+  assert.equal((current.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v24');
+  assert.equal((historical.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
+  assert.deepEqual(buildResearchAutomationReport(old, 'MARKET'), historical);
+  assert.equal((buildResearchAutomationReport(generated, 'MARKET').semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
+  for (const outcome of [
+    { status: 'NOT_DISPATCHED' as const, reason: 'AI_NOT_CONFIGURED' as const },
+    { status: 'PREPARED' as const, executionId: 'synthetic-prepared' },
+  ]) {
+    assert.equal((buildResearchAutomationReport({ ...generated, decisionSynthesis: { M12: outcome } }, 'MARKET').semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
+  }
+  // An execution in another section does not prove execution of the new packet.
+  assert.equal((buildResearchAutomationReport({ ...generated, decisionPackets: [generated.decisionPackets[0]!] , decisionSynthesis: latest.decisionSynthesis }, 'MARKET').semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v13');
+  const sourceEvidence = buildSourceEvidence({ draft: null, draftDigest: null, unavailableReason: 'SALES_NAMES_UNAVAILABLE', webResults: [], captures: [] });
+  const source = buildResearchAutomationReport({ ...latest, sourceEvidence, start: { ...latest.start, sourceEvidenceVersion: 'automation-source-evidence-v1' } }, 'MARKET');
+  assert.equal((source.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v18');
+  const peers = buildResearchAutomationReport({ ...latest, start: { ...latest.start, defaultPeerRule: { ...DEFAULT_MARKET_PEER_RULE } } }, 'MARKET');
+  assert.equal((peers.semantic as { rendererVersion: string }).rendererVersion, 'automation-report-kit-v14');
+});
