@@ -10,7 +10,8 @@ export type TikTokCodingProposalV1 =
   | TikTokCodingHistory
   | TikTokCodedReport
   | TikTokCodingReadView
-  | TikTokCodingContextView;
+  | TikTokCodingContextView
+  | TikTokConsumptionView;
 export type Uuid = string;
 export type Digest = string;
 
@@ -437,4 +438,17 @@ export interface TikTokCodingContextCounts {
   eligible: number;
   excluded: number;
   unclear: number;
+}
+export interface TikTokConsumptionView {
+  contractVersion: 'tiktok-consumption-view-v1';
+  entries: TikTokConsumptionEntry[];
+}
+export interface TikTokConsumptionEntry {
+  revisionId: string;
+  reportIdentitySha256: string;
+  corpusPackageId: string;
+  corpusPackageContentSha256: string;
+  codingDraftSha256: string;
+  actorId: string;
+  consumedAt: string;
 }

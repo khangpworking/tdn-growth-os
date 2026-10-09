@@ -9,7 +9,7 @@ import type {
   ResearchAutomationReaderBuildRequest, ResearchAutomationReaderBuildReceipt, ResearchAutomationReaderDecisionRequest,
   ResearchAutomationReaderDecisionReceipt, ResearchAutomationReaderRevision, ResearchAutomationReaderRevisionList,
   ResearchAutomationIntakeBoundReaderBuildRequest,
-  ResearchAutomationInsightReaderBuildRequest, ResearchAutomationReaderBuildReceiptV2, ResearchAutomationReaderDecisionRequestV2,
+  ResearchAutomationInsightReaderBuildRequest, ResearchAutomationTikTokReaderBuildRequest, ResearchAutomationReaderBuildReceiptV2, ResearchAutomationReaderDecisionRequestV2,
   ResearchAutomationReaderDecisionReceiptV2, ResearchAutomationReaderRevisionV2, ResearchAutomationReaderRevisionListV2,
 } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { ReaderReportInput } from '../../../../contracts/analysis/reader-report-input.generated.js';
@@ -28,6 +28,7 @@ import { MetricSourceRejection } from '../metric-source-profile.js';
 import { MetricWebSnapshotError } from './metric-web-snapshot.js';
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from './model.js';
 import { verifyInsightReaderInput, type InsightReaderInput } from '../reader-report/insight-input-v1.js';
+import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
 import { buildInsightReaderTemplate, type InsightReaderPage } from '../reader-report/insight-template.js';
 import { INSIGHT_SECTION_IDS } from '../reader-report/insight-projection.js';
 
@@ -43,6 +44,7 @@ const validIntakeBuild = def<ResearchAutomationIntakeBoundReaderBuildRequest>('i
 const validDecision = def<ResearchAutomationReaderDecisionRequest>('decisionRequest');
 const validRevision = def<ResearchAutomationReaderRevision>('revision');
 const validInsightBuild = def<ResearchAutomationInsightReaderBuildRequest>('insightBuildRequest');
+const validTikTokBuild = def<ResearchAutomationTikTokReaderBuildRequest>('tiktokBuildRequest');
 const validDecisionV2 = def<ResearchAutomationReaderDecisionRequestV2>('decisionRequestV2');
 const validRevisionV2 = def<ResearchAutomationReaderRevisionV2>('revisionV2');
 
@@ -89,6 +91,20 @@ export interface InsightReaderDraftContext extends ReaderBinding {
   readonly input: InsightReaderInput;
   readonly page: InsightReaderPage;
 }
+/** Only the owning service constructs this after exact TikTok source/method replay. */
+export interface TikTokReaderDraftContext extends ReaderBinding {
+  readonly input: Extract<InsightReaderInput, { contractVersion: 'insight-reader-input-v7' }>;
+  readonly page: InsightReaderPage;
+  /** Retained identities recorded atomically with the revision insert; reads never write. */
+  readonly consumption: {
+    readonly corpusPackageId: string;
+    readonly corpusPackageContentSha256: string;
+    readonly codingDraftSha256: string;
+    readonly reportIdentitySha256: string;
+  };
+}
+/** Builder version marking TikTok S07 rows; existing MARKET/INSIGHT flows never carry it. */
+export const TIKTOK_READER_BUILDER_VERSION = 'reader-report-insight-tiktok-v1';
 export type ReaderRowsReader = (workbook: Buffer, platforms: readonly ReaderPlatform[]) => ReaderRow[];
 
 interface RevisionRow {
@@ -292,6 +308,9 @@ export class AutomationReaderReports {
     this.#owner(actor);
     if (!validInsightBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc insight không hợp lệ.');
     const request = JSON.parse(canonicalJson(value)) as ResearchAutomationInsightReaderBuildRequest;
+    if (request.contractVersion === 'insight-reader-build-tiktok-v1') {
+      throw new ResearchAutomationValidationError('Bản đọc TikTok chỉ được dựng tại reader-reports/tiktok, không phải tuyến insight cũ.');
+    }
     const input = verifyInsightReaderInput(context.input, context.input);
     const requestedBuilder = request.contractVersion === 'insight-reader-build-v3' ? 'reader-report-insight-v6'
       : request.contractVersion === 'insight-reader-build-v2'
@@ -347,6 +366,83 @@ export class AutomationReaderReports {
       throw error;
     }
     return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: await this.#projectWithPersona(this.#byId(context.runId, revisionId)!) };
+  }
+
+  /** TikTok S07 reader build from an exact replayed v7 input. Existing Insight builds are untouched. */
+  async buildTikTok(context: TikTokReaderDraftContext, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderBuildReceiptV2> {
+    this.#owner(actor);
+    if (!validTikTokBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc TikTok không hợp lệ.');
+    const request = JSON.parse(canonicalJson(value)) as ResearchAutomationTikTokReaderBuildRequest;
+    const input = verifyInsightReaderInput(context.input, context.input);
+    if (input.contractVersion !== 'insight-reader-input-v7' || input.builderVersion !== TIKTOK_READER_BUILDER_VERSION)
+      throw new ResearchAutomationValidationError('TikTok reader request and frozen builder versions differ.');
+    if (input.workspaceId !== context.workspaceId || input.runId !== context.runId || input.draftPairId !== request.draftPairId ||
+        input.semanticSha256 !== request.semanticSha256)
+      throw new ResearchAutomationIntegrityError('TikTok reader context differs from its exact frozen binding.');
+    const requestSha = sha(canonicalJson(request));
+    const retry = async (row: RevisionRow): Promise<ResearchAutomationReaderBuildReceiptV2> => {
+      if (row.report_kind !== 'INSIGHT' || row.workspace_id !== context.workspaceId || row.run_id !== context.runId || row.draft_pair_id !== input.draftPairId ||
+          row.semantic_sha256 !== input.semanticSha256 || row.source_report_sha256 !== input.sourceReportSha256 || row.actor_id !== actor.actorId || row.request_sha256 !== requestSha)
+        throw new ResearchAutomationConflictError('request_key_conflict', 'Mã yêu cầu đã dùng cho một lần dựng khác.');
+      await this.#verifiedInsightPage(row, input);
+      return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: true, revision: await this.#projectWithPersona(row) };
+    };
+    const prior = this.#byRequestKey(request.requestKey); if (prior) return retry(prior);
+    if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+    const built = buildInsightReaderTemplate(context.page);
+    if (Buffer.byteLength(built.html) > MAX_READER_HTML_BYTES) throw new ResearchAutomationValidationError('Bản đọc TikTok vượt giới hạn bản lưu; không cắt dữ liệu hoặc tự thu lại.');
+    let published;
+    try { published = await publishReaderReport(this.artifacts, { ...built, reportKind: 'INSIGHT', visibleTextRules: true, sectionIds: ['insight-findings', ...INSIGHT_SECTION_IDS] }); }
+    catch (error) {
+      if (error instanceof ReaderReportGateError) throw new ResearchAutomationValidationError('Bản đọc TikTok chưa đạt kiểm tra bằng chứng hoặc cách trình bày.');
+      throw error;
+    }
+    const createdAt = this.now().toISOString(), revisionId = randomUUID();
+    const record = await this.artifacts.put(json({ contractVersion: 'insight-reader-build-record-v1', input,
+      revisionId, requestSha256: requestSha, htmlSha256: published.html.sha256, citationTrace: built.citationTrace, actorId: actor.actorId, createdAt }));
+    this.db.exec('BEGIN IMMEDIATE');
+    try {
+      const raced = this.#byRequestKey(request.requestKey);
+      if (raced) { this.db.exec('ROLLBACK'); return retry(raced); }
+      if (this.#latest(context.runId, 'INSIGHT')?.decision === 'APPROVED') throw new ResearchAutomationConflictError('invalid_state', 'Bản đọc insight mới nhất đã được chủ duyệt.');
+      this.#manifest(published.html, 'text/html; charset=utf-8', createdAt);
+      for (const artifact of [published.metrics, published.claims, record]) this.#manifest(artifact, 'application/json', createdAt);
+      const next = Number((this.db.prepare("SELECT COALESCE(max(revision_number),0)+1 n FROM analysis_reader_report_revisions WHERE run_id=? AND report_kind='INSIGHT'").get(context.runId) as { n: number | bigint }).n);
+      this.db.prepare(`INSERT INTO analysis_reader_report_revisions(report_kind,semantic_sha256,source_report_sha256,
+        revision_id,workspace_id,run_id,revision_number,request_key,request_sha256,draft_pair_id,input_sha256,html_sha256,metrics_sha256,claims_sha256,builder_version,actor_id,created_at)
+        VALUES ('INSIGHT',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(input.semanticSha256, input.sourceReportSha256,
+        revisionId, context.workspaceId, context.runId, next, request.requestKey, requestSha, input.draftPairId, record.sha256,
+        published.html.sha256, published.metrics.sha256, published.claims.sha256, input.builderVersion, actor.actorId, createdAt);
+      this.#consumeTikTokBuild(context, revisionId, createdAt, actor.actorId);
+      this.db.exec('COMMIT');
+    } catch (error) {
+      if (this.db.inTransaction) this.db.exec('ROLLBACK');
+      if (error instanceof Error && /reader_report_requires_draft_ready_sequence/.test(error.message)) throw new ResearchAutomationConflictError('invalid_state', 'Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+      throw error;
+    }
+    return { contractVersion: 'reader-report-build-receipt-v2', exactRetry: false, revision: await this.#projectWithPersona(this.#byId(context.runId, revisionId)!) };
+  }
+
+  /** Actual retained report-consumption ledger for TikTok rows only, written atomically with the
+   * revision insert. Reads, reopens, and retries stay query-only and record nothing; decisions stay
+   * in the existing decision table. Acquisition timestamps stay data-only and never prove consumption. */
+  #consumeTikTokBuild(context: TikTokReaderDraftContext, revisionId: string, createdAt: string, actorId: string): void {
+    this.db.prepare(`INSERT INTO analysis_tiktok_report_consumption(revision_id,run_id,corpus_package_id,corpus_package_content_sha256,
+      coding_draft_sha256,report_identity_sha256,actor_id,consumed_at) VALUES (?,?,?,?,?,?,?,?)`).run(revisionId, context.runId,
+      context.consumption.corpusPackageId, context.consumption.corpusPackageContentSha256, context.consumption.codingDraftSha256,
+      context.consumption.reportIdentitySha256, actorId, createdAt);
+  }
+
+  /** Configless query-only consumption history for one run. No model, collector, or CAS mutation. */
+  async readTikTokConsumption(binding: ReaderBinding) {
+    const rows = this.db.prepare(`SELECT revision_id revisionId, report_identity_sha256 reportIdentitySha256,
+      corpus_package_id corpusPackageId, corpus_package_content_sha256 corpusPackageContentSha256,
+      coding_draft_sha256 codingDraftSha256, actor_id actorId, consumed_at consumedAt
+      FROM analysis_tiktok_report_consumption WHERE run_id=? ORDER BY consumed_at`).all(binding.runId) as
+      { revisionId: string; reportIdentitySha256: string; corpusPackageId: string; corpusPackageContentSha256: string;
+        codingDraftSha256: string; actorId: string; consumedAt: string }[];
+    const runRows = new Set((this.db.prepare(`SELECT revision_id revisionId FROM analysis_reader_report_revisions WHERE run_id=? AND workspace_id=?`).all(binding.runId, binding.workspaceId) as { revisionId: string }[]).map(row => row.revisionId));
+    return { contractVersion: 'tiktok-consumption-view-v1', entries: rows.filter(row => runRows.has(row.revisionId)) };
   }
 
   async decide(binding: ReaderBinding, value: unknown, actor: { actorId: string; role: 'OWNER' }): Promise<ResearchAutomationReaderDecisionReceipt> {
@@ -537,7 +633,7 @@ export class AutomationReaderReports {
     let revision: ResearchAutomationReaderRevisionV2;
     if (row.report_kind === 'MARKET') revision = { ...this.#project(row), reportKind: 'MARKET', builderVersion: row.builder_version };
     else {
-      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3' && row.builder_version !== 'reader-report-insight-v4' && row.builder_version !== 'reader-report-insight-v5' && row.builder_version !== 'reader-report-insight-v6'))
+      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3' && row.builder_version !== 'reader-report-insight-v4' && row.builder_version !== 'reader-report-insight-v5' && row.builder_version !== 'reader-report-insight-v6' && row.builder_version !== TIKTOK_READER_BUILDER_VERSION))
         throw new ResearchAutomationIntegrityError('Stored Insight reader revision is invalid.');
       const latest = this.#latest(row.run_id, 'INSIGHT');
       const base = { reportKind: 'INSIGHT' as const, builderVersion: row.builder_version, revisionId: row.revision_id,

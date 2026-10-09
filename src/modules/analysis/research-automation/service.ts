@@ -85,6 +85,11 @@ import { AutomationReaderReports, type ReaderDraftContext, type ReaderRowsReader
 import { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { SourcePackageService } from '../../foundation/source-package-service.js';
 import { AutomationP9SourceIntake, p9PackagePrefix, P9PublicationArtifactStore } from './p9-source-intake.js';
+import { AutomationTikTokCoding, tiktokCodingPackagePrefix, type TikTokCodingAI, type TikTokCodingRunBinding } from './tiktok-coding.js';
+import type { TikTokCodingProposeRequest } from '../../../../contracts/analysis/tiktok-coding-proposal-v1.generated.js';
+import tiktokCodingProposalSchema from '../../../../contracts/analysis/tiktok-coding-proposal-v1.schema.json' with { type: 'json' };
+import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
+import type { ResearchAutomationTikTokReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { TikTokSourcePackageIdentity, TikTokVideoSelectionRequest } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 import type { VideoReadingPrepareRequest } from '../../../../contracts/analysis/video-reading-v1.generated.js';
 import type { ApifyTikTokCommentsCollector } from '../../../platform/collectors/apify-tiktok-comments.js';
@@ -272,6 +277,8 @@ export type ResearchAutomationReportRenderer = (
 export interface ResearchAutomationServiceOptions {
   /** Explicit P9 collector injection. No automatic activation or model permission. */
   readonly tikTokCommentsCollector?: ApifyTikTokCommentsCollector;
+  /** Explicit TikTok draft-coding model transport. Absent refuses model dispatch; never a default model. */
+  readonly tiktokCodingAi?: TikTokCodingAI;
   /** Opt-in new source branch. Absent AI retains an explicit unavailable packet, never an unfiltered new report. */
   readonly sourceEvidence?: { readonly modelIdentity: string; readonly promptVersion: string; readonly transport?: KeywordListDraftTransport; readonly configuration?: import('../../../../contracts/analysis/keyword-list-draft-record.generated.js').KeywordDraftConfiguration };
   readonly db: Database.Database;
@@ -359,6 +366,9 @@ const validateSourceConfirm = sourceAjv.compile<ResearchAutomationSourceConfirmR
 const validateSourceSet = sourceAjv.compile<AutomationConfirmedSourceSet>(sourceSetSchema);
 sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchema); sourceAjv.addSchema(insightRevisionSchema); sourceAjv.addSchema(boundedRevisionSchema); sourceAjv.addSchema(quoteRevisionSchema);
 sourceAjv.addSchema(defaultPeerSchema); sourceAjv.addSchema(readerInputSchema); sourceAjv.addSchema(readerApiSchema);
+sourceAjv.addSchema(tiktokCodingProposalSchema);
+const validateTikTokCodingPropose = sourceAjv.compile<TikTokCodingProposeRequest>({ $ref: `${tiktokCodingProposalSchema.$id}#/$defs/proposeRequest` });
+const validateTikTokReaderBuild = sourceAjv.compile<ResearchAutomationTikTokReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/tiktokBuildRequest` });
 const validateInsightReaderBuild = sourceAjv.compile<ResearchAutomationInsightReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/insightBuildRequest` });
 const validateHistoricalRevision = sourceAjv.compile<HistoricalReportRevisionRequest>({ oneOf: [{ $ref: marketPresentationRevisionSchema.$id }, { $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
 const validateRevision = (value: unknown): value is AutomationReportRevisionRequest => personaReportRequestValid(value) || validateHistoricalRevision(value);
@@ -372,6 +382,7 @@ interface FrozenSources { sha256: string; value: AutomationConfirmedSourceSet; n
 
 export class ResearchAutomationService {
   readonly #tikTokCommentsCollector: ApifyTikTokCommentsCollector | undefined;
+  readonly #tiktokCodingAi: TikTokCodingAI | undefined;
   readonly #db: Database.Database;
   readonly #artifacts: ContentAddressedArtifactStore;
   readonly #workspaces: DiscoveryWorkspaceReader;
@@ -409,6 +420,7 @@ export class ResearchAutomationService {
 
   constructor(options: ResearchAutomationServiceOptions) {
     this.#tikTokCommentsCollector = options.tikTokCommentsCollector;
+    this.#tiktokCodingAi = options.tiktokCodingAi;
     this.#db = options.db;
     this.#artifacts = options.artifactStore;
     this.#workspaces = options.workspaceReader;
@@ -640,6 +652,105 @@ export class ResearchAutomationService {
   async readP9SourceHistory(workspaceId: string, runId: string) {
     const { row, binding } = await this.#p9Context(workspaceId, runId);
     return this.#p9Intake(row).history(binding);
+  }
+  #tiktokCodingIntake(row: RunRow, expectedRevision?: number, signal?: AbortSignal) {
+    const guard = () => {
+        signal?.throwIfAborted();
+        const current = this.#current(row.runId);
+        if (!current || current.workspaceId !== row.workspaceId || current.scopeSha !== row.scopeSha || current.sourceSetSha !== row.sourceSetSha ||
+          ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status))
+          throw new ResearchAutomationStateError('This run cannot publish a new TikTok coding proposal.');
+        if (expectedRevision !== undefined && toNumber(current.revision) !== expectedRevision)
+          throw new ResearchAutomationConflictError('revision_conflict', 'Reload the run before proposing a new TikTok coding.');
+    };
+    return new AutomationTikTokCoding({ db: this.#db, packages: new SourcePackageService({ db: this.#db,
+        artifactStore: new P9PublicationArtifactStore(this.#artifacts, guard), now: this.#now }),
+      artifacts: this.#artifacts, now: this.#now,
+      keywordDraft: digest => this.readSourceKeywordDraft(row.workspaceId, row.runId, digest),
+      replayComments: identity => this.#p9Intake(row).comments({ workspaceId: row.workspaceId, runId: row.runId,
+        scopeSha256: row.scopeSha!, sourceSetSha256: row.sourceSetSha!, requestedPeriod: { startDate: row.periodStart, endDate: row.periodEnd } }, identity),
+      publish: operation => withDatabaseMutationMutex(this.#db, async () => { guard(); return operation(); }),
+      mutex: operation => withDatabaseMutationMutex(this.#db, operation) });
+  }
+  /** Explicit OWNER draft-coding proposal over retained S07. One model dispatch per request key. */
+  async proposeTikTokCoding(workspaceId: string, runId: string, value: unknown, ai: TikTokCodingAI | undefined, signal?: AbortSignal) {
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    if (!validateTikTokCodingPropose(value)) throw new ResearchAutomationValidationError('TikTok coding request failed validation.');
+    if (this.#active.has(runId)) throw new ResearchAutomationStateError('This run already has active execution.');
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
+    this.#active.set(runId, controller);
+    try {
+      const codingBinding: TikTokCodingRunBinding = { ...binding };
+      return await this.#tiktokCodingIntake(row, (value as TikTokCodingProposeRequest | null)?.expectedRevision, controller.signal)
+        .propose(codingBinding, value, ai ?? this.#tiktokCodingAi ?? null, controller.signal);
+    } finally {
+      signal?.removeEventListener('abort', abort);
+      if (this.#active.get(runId) === controller) this.#active.delete(runId);
+    }
+  }
+  /** Configless query-only retained coding read. */
+  async readTikTokCoding(workspaceId: string, runId: string, packageId: string) {
+    assertUuid(packageId);
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    const retained = await this.#boundedSourceReader().readFinalizedSourcePackage(packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
+    return this.#tiktokCodingIntake(row).read({ ...binding }, packageId, retained.manifestArtifactSha256, retained.packageContentSha256);
+  }
+  /** Configless query-only retained coding history. */
+  async listTikTokCodingHistory(workspaceId: string, runId: string) {
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    return this.#tiktokCodingIntake(row).history({ ...binding });
+  }
+  /** Authenticated query-only propose-binding assembly for one explicitly selected retained S07 package. */
+  async readTikTokCodingContext(workspaceId: string, runId: string, packageId: string) {
+    assertUuid(packageId);
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    const packet = await this.readSourceEvidence(workspaceId, runId);
+    if (!packet?.draftDigest) throw new ResearchAutomationStateError('This run has no retained keyword draft for TikTok coding.');
+    return this.#tiktokCodingIntake(row).context({ ...binding }, packageId, packet.draftDigest);
+  }
+  /** Explicit OWNER TikTok reader build from replayed retained coding, report, corpus, and scope. */
+  async buildTikTokReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    if (!validateTikTokReaderBuild(value)) throw new ResearchAutomationValidationError('TikTok reader build request failed validation.');
+    const request = value;
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const run = await this.getRun(workspaceId, runId);
+      if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+      const row = this.#current(runId)!;
+      if (!row.scopeSha || !row.sourceSetSha) throw new ResearchAutomationStateError('TikTok reader build requires explicit frozen source confirmation.');
+      const intake = this.#tiktokCodingIntake(row);
+      const binding: TikTokCodingRunBinding = { workspaceId, runId, scopeSha256: row.scopeSha, sourceSetSha256: row.sourceSetSha,
+        requestedPeriod: { startDate: row.periodStart, endDate: row.periodEnd } };
+      const history = await intake.history(binding);
+      // Build and coding keys are independent operations: resolve the exact retained draft/report
+      // digest pair uniquely. The build requestKey stays the Reader build idempotency key only.
+      let read: Awaited<ReturnType<typeof intake.read>> | undefined;
+      for (const source of history.sources) {
+        const candidate = await intake.read(binding, source.packageId, source.manifestArtifactSha256, source.packageContentSha256);
+        if (digest(candidate.draft) === request.draftPairId && digest(candidate.report) === request.semanticSha256) {
+          if (read) throw new ResearchAutomationIntegrityError('Duplicate TikTok coding digest pair.');
+          read = candidate;
+        }
+      }
+      if (!read) throw new ResearchAutomationNotFoundError('tiktok_coding_not_found', 'TikTok coding draft and report digests match no retained proposal.');
+      const draftDigest = request.draftPairId, reportDigest = request.semanticSha256;
+      const { corpus, acquiredAt } = await intake.readCorpus(binding, read.draft.corpus.packageId,
+        read.draft.corpus.manifestArtifactSha256, read.draft.corpus.packageContentSha256);
+      const scope = await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+      const context = prepareTikTokReaderBuild({ workspaceId, runId, draftPairId: draftDigest, semanticSha256: reportDigest,
+        sourceReportSha256: reportDigest, frozenStartSha256: row.startSha, frozenScopeSha256: row.scopeSha,
+        sourceRendererVersion: 'tiktok-reader-kit-v1' }, read.draft, read.report, corpus, acquiredAt,
+        { keyword: row.keyword, definition: scope.definition, requestedPeriod: { startDate: row.periodStart, endDate: row.periodEnd } });
+      return this.#readerReports.buildTikTok({ workspaceId, runId, ...context, consumption: {
+        corpusPackageId: read.draft.corpus.packageId, corpusPackageContentSha256: read.draft.corpus.packageContentSha256,
+        codingDraftSha256: draftDigest, reportIdentitySha256: reportDigest } }, request, actor);
+    });
+  }
+  /** Configless query-only TikTok report-consumption ledger. */
+  async readTikTokReportConsumption(workspaceId: string, runId: string) {
+    await this.getRun(workspaceId, runId);
+    return this.#readerReports.readTikTokConsumption({ workspaceId, runId });
   }
 
   /** Explicit owner start. Workspace verification happens before any artifact or DB write. */
@@ -1081,6 +1192,9 @@ export class ResearchAutomationService {
     if (actor.role !== 'OWNER' || !validateInsightReaderBuild(value))
       throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc insight không hợp lệ.');
     const request = value;
+    if (request.contractVersion === 'insight-reader-build-tiktok-v1') {
+      throw new ResearchAutomationValidationError('Bản đọc TikTok chỉ được dựng tại reader-reports/tiktok, không phải tuyến insight cũ.');
+    }
     return withDatabaseMutationMutex(this.#db, async () => {
       const run = await this.getRun(workspaceId, runId);
       if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
