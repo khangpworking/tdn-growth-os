@@ -1,0 +1,206 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:ad84e0964bdde2f6c8d342b433eaf662df83721428f1799fc85d1e3139292abe",
+  "claims": [
+    {
+      "id": "claim_d6fdd2bd556444abafe5310572cc8f12",
+      "statement": "SourcePackageService admits a source package only after exact declared/supplied membership and each member's SHA-256 and byte size match; it persists a canonical manifest and content identity, and a retry for the same key/version is deduplicated only when request and content identities match.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/foundation/source-package-service.ts#L125-L214",
+          "version": "repo-lines-v1:sha256:79169dd0dfeb1882544526361f9517def072274995bd4b09f808b771fc14252e:eyJzZWxlY3RlZExpbmVDb3VudCI6OTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhMjgzODg0ZDlkYzJjZjM0OTgxMmVlMDM2Mjk5OTQyMTA1OWMzNzFiN2I1NmIxMmQyYWZmYTU3MjNhYTU0NDUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM0NjVhMjVmOWQwYzQ1MDE0N2Q4NGVmNTE1ZmNmMWI0ZTc1OTBmOGM2NTdhYWFmOGZjYzIyNjQxYTVmZmEwODkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzZjNmOWRlNTIxN2Q3NjM5ZmVhMjcyNzU5MmU2NGNlMWUwNWVjZjgzZWMzZmNhZDBiNDhiNWNiOWZiODBmMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhOTI5M2ZkODA1NGI2ZTQ3MjQ4MzczZjM5ZjRkZDc3ODAwMTA1ZWI3NTgzNDg2ODcyNTQyODVjZDEyODJiNzgifQ"
+        },
+        {
+          "resource": "repo://tests/integration/source-package-intake.test.ts#L16-L20",
+          "version": "repo-lines-v1:sha256:4cb7478abc51d967f6112d42a546b24796df21143b07b8b1ec1bc668ab44b5f8:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZmI1MTE0YzU3Y2EzODliNjE4NGRlNDQ1OTAwN2ZiNmJkMjczYTE0ODhiZDE2OGI2N2E1NjQ4MDc2MGVlZjgwMiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTBkM2YwMTI5YzgzODEzYTI1NTM4Mjk2OWI5YTZhZjIzZDM2MTYwZDc1ZTRjOTViM2U2MzlhMTVjZDVlMTM5MCIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNWJhMzhmYzk1ODRhM2M3ODhmMTE5MDRhYjJmYzM1OWYxNzBmNGFhMzYyMjQ1ZjgwZTQxNzZiY2U4ODRlOTM4MiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMzYxMTRkNTI2Yzg5M2Q1Yzc3NDFiZmI5Mjc4NTA4ZTM0ZjkwZmE3YjI3M2UyNThjMWZjZWFjOWMyNTg0NTNkMCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_93aece23e60042f48d87d20db43668d9",
+      "statement": "A verified source-package read reconstructs and validates the canonical manifest, artifact metadata, exact member bytes, package-content digest, and original request identity; configured per-file or total read budgets reject oversized packages.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/foundation/source-package-service.ts#L384-L414",
+          "version": "repo-lines-v1:sha256:52b7a736d9a8d7a1367ab73560032398d9b0a765407d1c5540e7fcf41074217a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjljNmQ5NjhjMGZkMjQxMmZiY2Q3NzFmZmQwMGNkMWQzMjIzNjJhYzFhODIwZjBmMjUxNGQwYjI4ZWRiMTBiMTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3MGRmY2I0ZWU1Zjg4NWRlY2U5YTU1NDk2MWU5M2VhZGIzYjFjYTdkOTViNGJkZjQ1ZWFhNTI5ZmY0MDQxMDgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijc1MDk4NmQzNzRiOWZmNDRlY2M1N2VkYWY3MjMxZTgyODc4MjRjMDE5MjAxZWRjYzM0OGE0ZGY2NjNhYzFlMmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQ0MjY4NjViYTdkMjRkODAzNzA3MzhkNzVlZDA0Mzg5MWYxYjAzMDU2NzVjMGQ0NTQ0MmNhMzhjY2EzMzY2MzMifQ"
+        },
+        {
+          "resource": "repo://src/modules/foundation/source-package-service.ts#L463-L480",
+          "version": "repo-lines-v1:sha256:55292e053af6e0e8e05174cc6fa14048e1b97b1145a74029c88fd1946fc48fab:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBiOTU1MWZlODVjODRmMjJmNDE2M2ZmNGY3MTUzZTJjZTdiNjc2MTIwMDlmNDhhZmRjNWY5Yjg2ZWJhZTQxNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEzZTM1ZTU0MzBhNjFjNDU5NmRkMzg1Mjc1OTc3NmU1NTVmYzEwNzdlMjkwZmU2MmE3ZjZlMmE4ZWI3MjdkM2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjBhMWRhMmMxMmZjNzE4MzU0ZjM1ZjE1Yzc0MGRlNWFhMWQxM2YzOWJjMDMwMjdlNjU5MmZjYjAwOWFmYTcyZTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_78c6050819834a33b97e19446b85beb6",
+      "statement": "MetricInputPreparationService freezes an active workspace snapshot and finalized package selection into canonical normalized input, normalization receipt, and result artifacts, materializes the normalized projection transactionally, and requires byte-identical deterministic replay of all three when read.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/metric-input-preparation-service.ts#L114-L175",
+          "version": "repo-lines-v1:sha256:ebe5144c234da403063cac4c35c29d91e53c8373b343bacdf2fbe7cf2b701826:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhZjhiZmE5NzhlOWFiMTZiMzg1M2FkNDkzNDU1ODEzZDk1MTMxZjFmZjNhYzFiNWU2MDRlYmNlOWIwNjNmMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzZjNmOWRlNTIxN2Q3NjM5ZmVhMjcyNzU5MmU2NGNlMWUwNWVjZjgzZWMzZmNhZDBiNDhiNWNiOWZiODBmMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE4ODdiYTFiNjFmMWUyMGJiMzU5MDY5YzhiYjBiMDY3YzVmYThmMmQxYTFkZTcxMjlkNzc5MmE5ZWU4ZGQ3YWMifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/metric-input-preparation-service.ts#L177-L249",
+          "version": "repo-lines-v1:sha256:16f72f696180b4f5dc0835d20d71d9b14fa26f99f0ce0152c5855dbae1eea5fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0N2UwMjEzZDI1MTM5NWZiZWE0ODdmMThmNWJjMTQxMzQ2OTU0ZmI1OWUzZDMyMmZmNzc5ZTA2ZWNkNjNiMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdiOGJhMmJkOWNhOTBiYTE3YzViMWMyN2ZmYThlODhjMWYyMjhkZmJiNDkxYzE5ZmEyOWZiMjc0NWRkMzM1N2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYzZWIwYmExMTA3ZWRjZDlhNGUzZTZhZWYwYjcwMDllMWZkMGUxYzNiZDZkOTllNGFhNjFkMWRiYTIyNzhhYmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVkNzQ0ODVlYWJhNjM0ZGM0ZTE5OTkwZGE3ODlhNmQ0OWFiMTVlYTdmMTA2M2VlZDUwNGYxZDdlN2U3ZWFjOGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_0adfc93d064546d2bcda12631de58532",
+      "statement": "ReportGenerationService verifies an active workspace and finalized package before source selection, prepares Metric input, rejects invalid label readiness, and chooses the prepared-report path only when M03 is ready; otherwise it creates a source-backed report with explicit limitations.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/report-generation-service.ts#L121-L143",
+          "version": "repo-lines-v1:sha256:6dd8f048bf03a9ee14e435b05d6d3038684ddf6eed03cb508668a1aa904270c5:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNjMTlkNDMxMTAwODM1OTUxNTJmY2VlMGMzZmFjMDg4ZmZkMTM2MTQ0ZDE5Njg4NTRlOGY4MjBlYjI4Zjg3NWIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlYmRiMzY1YmMwYjU3OWE3NzI2OGE2YTY3YjYwZTQwYzAwYWYxMDM3ODBlYzFlNzU2MjNhMTRlZGYzN2ZmYWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVlMTJiNjExODk0M2UzMGMwMDY4MzNlNzgxNjMwYTUzYjMyZjQxN2VmNWY5Nzk1YzNmMTJmMzMwODAyNGM1ZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNmNjZkZTM4MmNiZTAxZWM2MGNiMzk0NWQ1OGYzOGFmMzMzMGU2NGIzNmZhNzBkY2EzMjg2OGJmMjM3YjNiYmUifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/report-generation-service.ts#L227-L265",
+          "version": "repo-lines-v1:sha256:67fa7cd3f5dd80df5654afcc45d24db7893ad5ad54f2860c259310dfcfad05a9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ3MGM0MzgxNDIxMjIxYmVkMmMxZmZlYWE3NjZhZjczOWQ0MTgxMTlkNGYzMzBjOWI5ZmQ5ZThmMjI4MzAwNWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkyNTQxNjVlNGM0ODQ3NWE2NTdmYjI1OTE0MWEzNGMyNmJhZjczOTZlZmNmODEzYTI5YmNkMWE0NDg3MzlmYzEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmY2U1ZGU5YmY4MDhhYjU3NTg3YjBmMDQ5NjhkMDBjNTQyY2EwOGZjMjY3NDg0ZTQ0MTlkNDVkN2UyZDY2NDAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZmZjJmNGY4MDg4YTUzNzQzZmI3ZDAyNTVhNGU5Yzc1NmEzNTVmYTUzZmYxMWUzZWM5MWYzMDFlODIxNDNhMzUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_30717284e8824a3db003993990028f15",
+      "statement": "ReportVersionService creates immutable source-backed or prepared report versions by storing a request, evidence/semantic/review artifacts, rendered HTML, selected source membership, and version lineage; newly inserted rows have interpretation state NONE and review state UNREVIEWED.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/report-version-service.ts#L180-L305",
+          "version": "repo-lines-v1:sha256:c251d934592ebab487ffee40fb0a5a87d9afa42608be4fc0a1ac0ea81436c348:eyJzZWxlY3RlZExpbmVDb3VudCI6MTI2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiI3ODc1ODRiMmNmNTViMDI4OWZmOGQyZDc4Zjc1YTY0MjA1MTg5MDRjZTJmZTM1MjBjZWZmNTYwYTk3MzVmZTQzIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJkZWJkYjM2NWJjMGI1NzlhNzcyNjhhNmE2N2I2MGU0MGMwMGFmMTAzNzgwZWMxZTc1NjIzYTE0ZWRmMzdmZmFhIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3MTY3MDBlOGJkOWFjOTJkNzhkYmNjYmFjMjU2ZGVkYmJjNWJkODg1ZTNlMGEyMmE2Y2IxMzcyZjkyYmYyN2I1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlNjg3MDlkNTg0NjkxNGM3Zjk1NjlhZjc3YjM2OGZhMDZiOTlhOGU3Y2U4OWJlYTZjYjk4MDI1ZWVmZDNiYzMwIn0"
+        },
+        {
+          "resource": "repo://src/modules/analysis/report-version-service.ts#L718-L770",
+          "version": "repo-lines-v1:sha256:ec4c3239db4a2ab5babe43350ec8533d1ee2e7038c26ad93c03c9d8ea98046ad:eyJzZWxlY3RlZExpbmVDb3VudCI6NTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMmZkNzAyOGM4ZjlhNWY2OTM2NTBhMTdiNTExMzEyZjRiOWJhNzFmZjBhNzJmNzY1MGJlZTZjMGUyYWQ5NDQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczZjI3YWMyN2M1OGI5Mjc4OTM4YjY1ZTBmNjdhMmI4MTVlYjU2OWFjYzcyNzBlNWU3YWQ0NThiM2VlZDE2MjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4ZThjY2JmMTM0YzZkZTk5ZDk3NDUxN2UwMTY5M2UyOTBjNjhhMTA1ODFmNWMyY2U2YTY4MGUzMGRmMzNkNmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZmZmQ4MWE2ZmRjOTEwNTg3NWIzMWEzNmZhNDA2ZWE5Y2E3NGFmOWVlMWE3ZjdjNzM2MmQ5MjljNGI4MTUxM2YifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_451eb406a6a04dcdae26160999b3474e",
+      "statement": "Reading a report version is a full deterministic integrity replay that rebuilds the retained profile, checks every artifact and source binding, validates predecessor lineage, and rejects mismatches; exact retries are zero-mutation and may restore only absent exact bytes, never corrupt stored bytes.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/report-version-service.ts#L444-L553",
+          "version": "repo-lines-v1:sha256:a192acb3dd69322dab7e52345dd99b6ffc6ab756c7c0a5732f50bcc51942df73:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEwLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJlNTZkYzAwODhkNzlhNGQ5YTYxNjMyMmM2ZGJkOTc4MGMxN2MzYjg2NjhmYWNmZDgwZGFkNjFiNzlhZjlkMThiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxNzlkNGRmNmY0MWNlYWYxYjQ3ZWY1MDc0YmMwY2RiOWQ3NDcxMzRjOWY5YzZkMGU4YmMzZWJiZDE5Nzg3NWZhIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJhNzZiOWIxY2MyZTI1OGExZmNkOWU4NjUzZTQ4OTZjOGExMGRhMzk5ODY3ZDRiM2RmMDFiMmJlZDJiOTk0MmYxIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIyZGNhNGU4NjNiNDRhNzRlMmNkM2ZhZWU1YmUxZjMyYjViMGQyODRjYmFlYmE2ODRlZGU3YTYxMWJhYzU3NDc2In0"
+        },
+        {
+          "resource": "repo://src/modules/analysis/report-version-service.ts#L592-L654",
+          "version": "repo-lines-v1:sha256:7ffbfeba59391fcb41eef051f57242174c724d961236258e3bd1d0ff8692890c:eyJzZWxlY3RlZExpbmVDb3VudCI6NjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRlNzFlZTlhODcwNDYwMmU0ZmRlZjhiOTZlYjQwYjVkZjcwMzkzMDdmODM2MDBhMTY4YTU5MWI1MWZlNjQ1MjEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFkOWUxMjU0NjQyNTU3NmQzZGVhZThjOWI5ZGJmMTI4ZDVkNmRkYWY1ZDdmZTg1NzkzNDkyN2RlZmZhM2I5ZGQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNmMjA3YzliM2YwNjNlZjI2ZGM3YmQ3YjAzNjhiOGYyMjM0MTEwMWFhMDU1ZWYzOTRiZGM0NmUwNzhiODZhZTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgwOGQyNjliZjg3N2RjYjFjOTVhOGMzZTUyODhmMTVkODMwMWFjMDAyYjRkYzVjMzkzOGYwNDdmMjYxYTAwOTYifQ"
+        },
+        {
+          "resource": "repo://tests/integration/report-version-service.test.ts#L236-L255",
+          "version": "repo-lines-v1:sha256:0a6c6b2c67680a1d8c39ef0690344e6feb982a03cfdb294890e8826d3ce5e4a8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBhNjgwNzQwNTk3MDU4NzQ0OGY3OWYwOWY2MThjNWM2OTk4ODc2NjhjNTEwNmJiNmEyZWVmZmE0NWE0Y2MzNTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3MDgwZmMwOGJjMmE2MzdkODJjNDhiMTA5NjZhZWUwMDdlOTZjOWIzMjc1OTQ4YjQyMjMxZjBhYTNlNzIyM2EiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFkNGZjZTU3Y2QzOTViNDI1OGFkMDA2ODZhYTcyN2M2ZjcyYWExZDY4ODRlNjJkM2E4YzY3OTAyMGFkNzk0ODgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjE3NGNlMzhiNDI0Y2EwNmY1MGRlZWY0MGY5MjEyNWI5ZWJhZTNiYTNjNTVkMzYxNDIwYzhmODQzNDcwNDY5ZWQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_55f4b432421f4510ba2494e272216cc8",
+      "statement": "The interpretation ledger persists a canonical interpretation and prompt only after rebuilding the candidate against the exact report-version evidence, binds generation and source identities in its immutable record, and replays retained prompt/artifact bytes deterministically on read.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/report-interpretation-ledger.ts#L135-L245",
+          "version": "repo-lines-v1:sha256:096a7f334f0fb3b7df792bb36d6a97da3cf5a50218883e127a6044cadcd89fc5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTExLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkNmE4YjgwNDY1MzM2YmIxOTg4MDliNjUxODIxMTUyOTI4ODI3ZWMwNGNlMjdlZDFkYTQwZThiYzcxNDk3ZTI1IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIyN2U1Nzg4ZDVkOWQ3M2QyNGE4MWRiYzBhNWE3NGJmYTgyYzljM2IzYWY5OWU1MmFmNzk2ZTkwYjQ2OGE4YTNkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJiM2YzZjlkZTUyMTdkNzYzOWZlYTI3Mjc1OTJlNjRjZTFlMDVlY2Y4M2VjM2ZjYWQwYjQ4YjVjYjlmYjgwZjA0IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJkN2VmZmMyNTA5NTEyMzZmNDlmMzFhNzM3ZTkyOGJhMTc0ZmRhNzY3MDZkNjNiYTBmYjllYWY5YjQ1MWQ5ZWNiIn0"
+        },
+        {
+          "resource": "repo://src/modules/analysis/report-interpretation-ledger.ts#L378-L437",
+          "version": "repo-lines-v1:sha256:f879bb4acbd44af30ce5b5c0a3c105bb9ccd6887f1d6cd1b9690bf7ee6c9a22b:eyJzZWxlY3RlZExpbmVDb3VudCI6NjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImU2ZThlMzhmZjZmYTA4ZTEwMmQzMjJmYzRjMzUyOWZmMDc3NWQ4ODUzNDgyNWU0ZDk5ZTAyODFlMmY4NTI3MGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiNTgwZTk2NGY4M2E0NzNmNDNkNDQzODQ2Mjk0OWQ2OGI1NjAwZmRhNzg3ZjE2Mzc0NWQwMGRlODljYmYzNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImM4NjFkYWNlOTIzMmRjZTgyYjQ0YzljN2VjMWVmOGFhYzBlNjFjMGNjYzQ5MTJiMGY0YWIyNWVjODU1NjM0N2UifQ"
+        },
+        {
+          "resource": "repo://tests/unit/report-interpretation.test.ts#L140-L191",
+          "version": "repo-lines-v1:sha256:d22fc4d8f7ca4b52ca30b79bea2b55075aa24e1edc60d688ea208f5dc617e476:eyJzZWxlY3RlZExpbmVDb3VudCI6NTIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAwMTgwMjc0MzZmYmExYWNkNmI4M2ZjZTlmNzdlNTAyZjE0NmYyYTczNjMyMWQ3Y2I0NDM4NDkxODQ5MTY2NzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImViMTc5YmNkY2JlYjFmYTAzZmFkZDNlNzYyZjk1YjQ0Y2I2NGZlMWU0N2M5NDAxZGMyMjA4ZmI1ZDBlNTBjN2MiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjYxMzdiMzllMDYyNzc3YjczMDI2YjhlZjM3YjQwMTFlYzY2YmY1NWM2YjI2NGZkOThhZmJjOWI5NThiYzE0ZTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_60a0fbaf7cf44185bf1fa83cd33e7db6",
+      "statement": "A report review target deterministically binds one report version, its rendered report identity, one verified interpretation, intended use, claims, and selected sources; ledger reads rebuild and compare target bytes, while incompatible lineage or cited claim membership fails closed.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/report-review-target-ledger.ts#L288-L297",
+          "version": "repo-lines-v1:sha256:6d8624079971fbae545285842698785583830e975eeb87e44900fc26c6091ff5:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZmYzA2MTc0Y2UwZDA0MjUzNjRkZGVkMDVlZmI2YmQyZmYyMmUwYzY5MDcyZTJmOTYwZTcxNjI0OGYyY2EwZjciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ3ZjNjNzk5NjhmNjQ0YTE0MjM3NmUwNWFiMTcyY2MzZTZmNDE1MjBhMDkyMDMwMDZmYzlmZTk5NTMzMDViMGUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIyZDNlZWEyMTEzMTJlMDM4MDFmM2EzMzk4MDhiY2ExZDRmZWNkZjAyNjVlMmIxYjYwOWEzOTc2ZDRhODg3ZWYifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/report-review-target-ledger.ts#L91-L175",
+          "version": "repo-lines-v1:sha256:f859d8483ebd629198ede178b62a0cda863a3fcf56ca3b9d786c0ee796f35c40:eyJzZWxlY3RlZExpbmVDb3VudCI6ODUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ1NGYyNjVjOWI3MmIwYTc3OGQ4ZmFkOWY3OTUxY2VjMmYwYjI0MDgxMWJmZDFjOWMxZTQyZTMxODg0NjZkMGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMzMDI3YTcyMjNkMzc1NGFmMWE4M2E2Mjc4ODAxZmRjODJjYzg5NTYxN2QwOWFmZmVkZWIwMjZiODNhMzM5NmYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzZjNmOWRlNTIxN2Q3NjM5ZmVhMjcyNzU5MmU2NGNlMWUwNWVjZjgzZWMzZmNhZDBiNDhiNWNiOWZiODBmMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjNjN2VkMzA2ZGVjOTY1OWU4YjA4YzdiY2M3Njc1NzdmNjg3Y2FmYzQxMWY5YWZkYTY2NjNmOWE1MzkwODcxN2QifQ"
+        },
+        {
+          "resource": "repo://tests/unit/report-review-target.test.ts#L137-L159",
+          "version": "repo-lines-v1:sha256:e51fc6d0b02922f6d5b5b1960c3a1032a7f8b4d3adff67a985175648945d5111:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE4MTAwZGVlNjBlM2I0NTgzMzFhNDRkMTkyMjNiMWY0MGZjMDFmN2U3MDMyYTE1ZmZmYjYwNWQzNmMzNWMzN2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkMGYyZDNhM2FhZGEyNzU4NjQ1NzhkMGE0MzkxNTYzOGQ1NDNmZWNhMmM5NDg1OGRiOTQxMjExZTg2Y2VmMmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b491df46e9ef47df98ea2eb8629324a9",
+      "statement": "The report API is read-only and opens SQLite with query_only enabled, whereas the OWNER review-target endpoint is a POST protected by bearer-token authentication, configured-origin checks, JSON/body validation, and a verified-persistence read before its receipt is returned.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/owner-api.ts#L323-L337",
+          "version": "repo-lines-v1:sha256:989c23a938dc8f5020bf58f0de9c602f7aea9fbdec96c4baedb968d18f8af89d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjViNjIwNjM2YjI1NDE2OWI3Y2JkMGM3NTA5NjYzNjhiZTgxZTc3ZDYxYjRkNDE5NTQwYWMxODMxNGYwYTJjNWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwMjU3Yzc4M2RjNzc3MTUwZTFhY2IzZGU3NWNjYWQxMGZjZDc3NzYyNDNkYzM2YTI4ZThjMWViOGRkNzY2MzIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjczZDRkY2ZmZmI1MzZjZDA4YTU4MDUyZDg1ZGFlMDAyNWM0OGFmOTQzYzQ5MWU5NzI5YzdhM2ZiY2UyZmFiZTQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImRkMTAwMzA3YjgxNGUyYjhkZmM0Njc3NWM4MzgwY2QzM2Q0OWZiYmZjYzZmY2JmMDQ4MjllODJmZjFkYzNiZjAifQ"
+        },
+        {
+          "resource": "repo://src/api/owner-api.ts#L365-L391",
+          "version": "repo-lines-v1:sha256:123b4994dd2d1657b1472f5981af7ff5bd22d3a1c985467de3a12fc827cdf713:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijk1NGJiZDM2NjY0ZDA5YjIyZTg5ZDQ2ZDQzMzYzNWI2YmFmMDg5NTA2NWUzYjI2Njk4YzEwNWJmZTExZTg2Y2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ4OTNmNDBlMzc4MWViODk2YzgyZDA0NmEwODA2N2ExMWUzNWNkZjJmMWRmYWYyNmZlYTkwYjhkYjY2NzY0MTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjhlNGMxNjExMTZmOWRkYmJiYWE5YzFlNjliYjliYmRhOGZhNjBmZjBmZDFiZWJjNTc2YzQyOWNiOTgxYzMwMjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjA0NjlkMTUzZWUwNGQzMWVmNmMyNDYyZjkxMmY1YWRjYjM0YWYxZTIzNDQ3NDAxZjQ1OTU0ZTdjY2QwYjk4MzEifQ"
+        },
+        {
+          "resource": "repo://src/api/owner-api.ts#L635-L649",
+          "version": "repo-lines-v1:sha256:94de0e7b2fe0575a627b1fa93a12c5547e4cb8c4bb72ae20b916cc9945cc1b61:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdmNTkzMmIxMTViNWUxNjA0MmVlZjg3NjdiNjQ1YzVmOTA2YzBiY2I1Zjk2NjkyY2QwNjZiYWRkNWM3NzdiZDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllMWFhNjhiMmZkNjRiOGRhMTljZGY5M2MwMzgwNWY5MWRhNDVkNjE1ZjA5MTVlYzgwOGQ1MzYyMzE0ODU4MzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY0YzBjZmQyYzVhZjZlOTViMjgzNzVjODQwYTZmODkxODg3N2U3YzhkOTQ0YWY0YTAwNDU5ZGVhNzAyMTZhMTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhYzlhN2FmYzQ5MzE0NjUxMzAyZDJkODU1M2IwNTRlMjAyYTFmNTlmNjVhMjcxNGY3ZjZlMTMxMDUzZTIxNTYifQ"
+        },
+        {
+          "resource": "repo://src/api/report-api.ts#L258-L322",
+          "version": "repo-lines-v1:sha256:b10f0e4e9ad4b0e01a27a3c97265402f7042fb3c9131a00c1af9a381d04e7dfd:eyJzZWxlY3RlZExpbmVDb3VudCI6NjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM2MjgxODg3MGM3OWVjY2E2Y2U4MDliMGM2MTZjOGQwY2JlYmRhODAwMzBlMzFkYTc4YWMwZDFkYWFhMTc5MzUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImYzMTZhNWVmNmM1NWE2YjJjZjdmNWJjZjE0MjIyNGI1YTUzYTE2OWQwOTUwYWM5Yzk3NDM0Y2Y4Mjg0NzVjMGUifQ"
+        },
+        {
+          "resource": "repo://src/api/report-api.ts#L53-L83",
+          "version": "repo-lines-v1:sha256:7369c9f3400f7c328f8937bd71e45df58420be791c0671117c1bf78d431fd573:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyMzRjZmEyMTE2MTdmYjc4NjU3MDI5YWZjODUwZDNlYmI3ZmJjMzQ2Y2ExNjMyYTgyNDU1Yzg2MmMxNzk3Y2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZDExY2FmNDNlOTdlZjM2OWU2YmVlZDFhMjY4YmQwNTgzOGYyOWI5ZGQyNTRiZjY5YmE2NDg4NDE0NzIzNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlMzc4MGM3NzcxYzUwY2U1YTZhMTViNDNlMWNjZGU5Yzg4OTQwMGUzMGI1MWIwNDcwMjhiOWFhNzMwMmNiODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxZTNhZTYyMDU1ZWU5MjA0YzY4N2U5NjBkMDY0ZGEzZTVhNGQwMzFmMGU1NWU5NWJlMmY1N2IzMWVhZTA2YjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_fc0d4a2d089f4851a7835f7dcf0d7b1f",
+      "statement": "The STATUS record identifies PR #177 as merged at ad3d9e45bb28cbbea861550dac9e112e3616097c and explicitly leaves native extraction and automatic Market-report integration as follow-up work.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L93-L103",
+          "version": "repo-lines-v1:sha256:21f313f3ccaf86c2bab223b5cf5f74e588865639f9baa0245cbba3087aef0083:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzZmJiNmU5MjRmNDgxNzlmM2MxZWVkZWYxMTg2NjdjMjYwNjNiNDIxODcyNGY5YjU4MTQxNWVlNTQ1YzY3ZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1YmYxNzY0MTBlMWM2MjNmMTUwZjgwOThmMTlkYmU4N2VmOTEyZmYwNGQwNWQ1N2Q5MmNhYmJiM2FkODMxMDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlZTQ5YTBhZWYxNzc1NGViYWI5MGQwMGRhM2JmMWVhMDNhZWYxZTQxNThlNTVhNjk2YjJiNDI3M2NmMmI2ZTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1OWVkZGIzOWY4Njc1OWMxNmI0MGI3YjZkN2U4NmQwNTg5NTQwZDc1NWM2NWY1Zjg1MGYwYTNkY2NhOWMwNGQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b2ef2fffbb8948f8b4fc87bb79c8a192",
+      "statement": "Research automation's governed Market output is a run-bound draft pair, while an OWNER-facing reader report is a separate revision lane built from a DRAFT_READY run, the verified draft pair, and a run-bound prepared workbook; neither is a source-backed ReportVersionService report version.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-report-revisions.ts#L150-L156",
+          "version": "repo-lines-v1:sha256:553bebc37f05816e2dc7d011bb272929267c0defce66c51913e7ba4a08b1a691:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiNWRlNzIzN2YzMGY4MTJlOWU5NDkxOGYzOGY0OWM5ZTFmMDc3MDUzYjE3OWUyZjhlZjJhYjE3ZmVjZTBjYzljYyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYTNlMGZjNzdjNzJlMTFlYzhlMWIzMWQxYWQ5MjYzNjEwY2FmOWQ0OGEzZjcwMjFiNzRhOGYxMzk3OGI0ZTU1NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiY2EyMzIwZmVhZTA3ZTQ1Njk5YmE2MTQ0OTBlNmMwMTcwMzBjMjFkZDdjZmI5ZDBiNzU1YmU2ZDk3YmM4OGFkOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYjI5MjVhNjFiZTNmZTlhZGFhNjJhNTQxODQwYWQxYjAwZGRiNzM3ZDg3OTAyN2JjZWE3NzYwNTM5YzE5ZmE4OCJ9"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-report-revisions.ts#L94-L98",
+          "version": "repo-lines-v1:sha256:bf691fbc197015f7c2c9885ecc132f35b86adec4bde9cccbf126c19db8f00750:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZWFmMjJjZjA3MzI1OTJjMjQ3MTQxY2JlNjFlZmExMTAxMjYxMmY1YTMxMjJiOWFmOWJiYWY1MmY1NzI0ZDE5NCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOTcyYTQyOTM4MmIyZTE0NzE4ZTBlMzdiMDU3MGE4YTE3MDI5OTFmY2Q4NDk4Y2Q4NDA2MGE4YmY0ZjA1MDE3YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWMzZjVmMWQyZjA2NTQ2ODRiNTkxZmUwYThjMzMxODViYjFmYTU0ZDBlMDlkM2YyMDIxYzM1MmFlMWQwZTE0MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiNzcwMGZlMmE4M2I3ZWMwY2Q2MDcxNmNmNjVhZDk4MjU4NjRmNDQ0NTZmMTFmNjg5Njk0MWY1NWFhNGM0OWRjZiJ9"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/service.ts#L4-L8",
+          "version": "repo-lines-v1:sha256:86e723f2deb95072bf034a87e965d7c5eed33a708c034c9acf2167719ad62cb3:eyJzZWxlY3RlZExpbmVDb3VudCI6NSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMmViYmRmNDQzODMzYzFkMDMyZGY5MDRhY2VjYWIwNTMzYjU1YmU4NjFkMjRmMTA3NjU0NzlhMTUzMzFhZDg1NiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiY2UzMzE3NDUwZGViMjk2N2E0MWVlNDg0NDk2ZTdlMDEwNDIyNmYyY2U3ZjA1ZDM1YzNhN2UwNTlmYjMxZWZkYiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNGZkNTYzNzBmZjNiZDQ1MWUzZmQxNjYwZWNlNjllOWI0MTM1NjQ2NDJiZDc1OWUwMjkxOTdhODI1YmJlYzA2YSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZWI2Mzc1NDUzNjQxNzM1N2I5MDkwODZlNTQzMzk1NmNmYTM4MmM3MDg2YTllMDQyMGEwZjIwMjJmYzM3YmM3OSJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_d1a73ea1eef0452e9808fdc093857148",
+      "statement": "Automation reader revisions are sequential immutable records with their own projected pending, superseded, approved, or rejected state; only the newest revision may receive an append-only OWNER decision, and a further build is rejected after the newest revision is approved.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-report-revisions.ts#L249-L274",
+          "version": "repo-lines-v1:sha256:66c4924e847ac23a3bc016defcd94486a9fad5a65394da6a76ab2873d0ed62ac:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFiOTM0Y2ZiNTFjNDM2NWRlNTZmZWJiZjVlNmU1MTZiNTQxMmJmNjQzNGEyZDY4MTE2OTZlODgxYzhjMmY0Y2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVhOTVmMjQxNzAyOWRkNjZiNDFiN2EzZWY2ZWFhMWQzMGIzOWZjMDlmN2Y4MGM3NzEzOWJjZWE5Yjk5YTcyMmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVkZDE1MzMxYzJhNmVhMWM4ZjA2ZGI2ZWRhOGNiYWQwMTFjYmM5ZmE0OWQ2NTI5ZDE4ZjAzNzZjZDZjM2U3MGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQwY2IwYWZjZTE2ZjU4MjcxNzU0NzgyYTYwODc4NDRkNjJhMTZkYWU5M2U3MjM4NTdhZGExMWZmZjA2ZDlhNzQifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-report-revisions.ts#L277-L308",
+          "version": "repo-lines-v1:sha256:a49aa703c33d5443d8470af50f3a2b08842d1725d104274380794489ffdc871a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkNDFiNGQ2NDE3ODJkNmJlZDlkOGM2M2RjYzY0M2UyZTNhN2ViMmU2MmNlNzQ4NmM0ZDI1MTNmODllOWVlYTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjgzYWMyMjBhNTJlZmVlZDE1NzY4YzVkMDBmM2JiM2M4ZTY5OTAwNjU3N2YyOWQyMjljYzU0YWFjZDBmZGNhODQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjlmMzE2MGQxN2QyMWNkNDRhNzEyMzJhNzM2MjIxOGJjNGJlZTQyNjU2MTliMjFlMDY2NWNlZGQ0ZmM3ZTE0YTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjZjNDg5YWI4ZTczOTQ0ZGFjY2UxNTE4YWFiYWMzM2U0YjVhMTBlNzFjYTgwNTFmYTA5NmEwZGQ2OWQ1NTI0NTgifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-report-revisions.ts#L349-L359",
+          "version": "repo-lines-v1:sha256:80d70549d64521d1fbfb26f353c26df3221f0ec33239e9eb9e63d7fb05db01b9:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkzMmM0ODZjYTg5NmQyODEzYTk2OGJiMjBhOTJhNmZiZWE5N2I3ZTE3NjJkMzExMGU5NTNmOGQwY2E2Zjg4MmYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlmMTlmNzJmNGQwZDgzZTkzZTg3ZDFlZDAyZTU5MjE0NmRjYzU2OTc5N2JjODJkZDA1ZjE5ZTczNmUwMjg5OGMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY1YjNjZDhiOGE4ODFkY2I3Zjg5MDIwNTFkMzQxMzllODcxZjYyN2ViYjUxYTZkNWE4ODQ0YmIwY2U4ZDBlZDkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExNDA5YzA3ODg5OWIxM2MxZmIyYzM1ODgwZDc3YTYwYTVhNWM4ODczNmQ4MGU0YTMyN2U4NjNjODYwOTc5MDAifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T02:45:12.359Z"
+  }
+}

@@ -1,0 +1,89 @@
+{
+  "schemaVersion": 1,
+  "pages": {
+    "/openwiki/architecture/modular-monolith.md": {
+      "pageVersion": "sha256:715557fafe47e224f1d22f0ffe9189b834be23674176892a2981021600fec7bd",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "b289d68a-d5d8-4335-817e-39e993bdaa69",
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:38642a16839dd351a36884ae8f8ab2d4c4785f200c7f98e83fe357c1d8fe7a2f"
+    },
+    "/openwiki/concepts/market-report-lanes.md": {
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:ba297aa1829c20dd99e923c9a463691cdff0f046677fa76ac22fbe5bb2d9251f",
+      "pageVersion": "sha256:5c490a3f085edf639c78cbb78c99fc350ea00d39be2bcbdc37eaef10cca762e4",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "37e4e66d-eccc-4efd-b207-a8785c0724ef"
+    },
+    "/openwiki/concepts/thirty-report-sections.md": {
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:93bc48e3521c658d7e14c95a0c5c74d2eab51b1a3d3a8c36fd439ff98c9c4772",
+      "pageVersion": "sha256:d9cbd3161a4908ecebc9c2688a6b8f048dbb962de8fcd8855d7c645483211e9d",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "713e8f51-4eb6-46aa-b850-f608cd8e802d"
+    },
+    "/openwiki/concepts/vietnamese-business-glossary.md": {
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:93bc48e3521c658d7e14c95a0c5c74d2eab51b1a3d3a8c36fd439ff98c9c4772",
+      "pageVersion": "sha256:fe5f357fc0a1c7e83987a361b06a6191bb57a5c4a9111503910268d76de31f84",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "713e8f51-4eb6-46aa-b850-f608cd8e802d"
+    },
+    "/openwiki/integrations/data-source-registry.md": {
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:93bc48e3521c658d7e14c95a0c5c74d2eab51b1a3d3a8c36fd439ff98c9c4772",
+      "pageVersion": "sha256:1d658e1cdff14df03e61ef9143eabbac3f908471306ca65ce133b1ee3c8feb18",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "713e8f51-4eb6-46aa-b850-f608cd8e802d"
+    },
+    "/openwiki/operations/decisions-and-authority.md": {
+      "pageVersion": "sha256:18f9576b249100ae5b92db5f116844566b2fbd01ea5a636aa73f31107e83a74a",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "b289d68a-d5d8-4335-817e-39e993bdaa69",
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:38642a16839dd351a36884ae8f8ab2d4c4785f200c7f98e83fe357c1d8fe7a2f"
+    },
+    "/openwiki/operations/runtime-and-persistence.md": {
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:ba297aa1829c20dd99e923c9a463691cdff0f046677fa76ac22fbe5bb2d9251f",
+      "pageVersion": "sha256:cc6fdf7dee43a881374f46b78a7c398d66352e3949929bedc0882a479f58c477",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "37e4e66d-eccc-4efd-b207-a8785c0724ef"
+    },
+    "/openwiki/quickstart.md": {
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:93bc48e3521c658d7e14c95a0c5c74d2eab51b1a3d3a8c36fd439ff98c9c4772",
+      "pageVersion": "sha256:93facc12aacb8708e55b2d87eeef26682a575f77019d5d593ace90203813e791",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "713e8f51-4eb6-46aa-b850-f608cd8e802d"
+    },
+    "/openwiki/testing/verification-and-replay.md": {
+      "pageVersion": "sha256:c4b9e031f81e565a295535df2ea80da504243b64e4b50854a97bc8c1070b6a33",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "b289d68a-d5d8-4335-817e-39e993bdaa69",
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:38642a16839dd351a36884ae8f8ab2d4c4785f200c7f98e83fe357c1d8fe7a2f"
+    },
+    "/openwiki/workflows/operator-workspaces-and-approval.md": {
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:ba297aa1829c20dd99e923c9a463691cdff0f046677fa76ac22fbe5bb2d9251f",
+      "pageVersion": "sha256:356b17257c67c182d8abb18ae40666ee0c601ba9e304ad53c19f940df149e4c0",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "37e4e66d-eccc-4efd-b207-a8785c0724ef"
+    },
+    "/openwiki/workflows/research-report-lifecycle.md": {
+      "pageVersion": "sha256:ad84e0964bdde2f6c8d342b433eaf662df83721428f1799fc85d1e3139292abe",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "b289d68a-d5d8-4335-817e-39e993bdaa69",
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:38642a16839dd351a36884ae8f8ab2d4c4785f200c7f98e83fe357c1d8fe7a2f"
+    },
+    "/openwiki/workflows/ultimate-alignment-packages.md": {
+      "gitHead": "2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad",
+      "sourceFingerprint": "sha256:93bc48e3521c658d7e14c95a0c5c74d2eab51b1a3d3a8c36fd439ff98c9c4772",
+      "pageVersion": "sha256:4543f1b696bde182be084d60c123fa1ee821a9462f7300b555e4b7fc7386fe5f",
+      "completedBy": "openwiki/0.7.1",
+      "completedRunId": "713e8f51-4eb6-46aa-b850-f608cd8e802d"
+    }
+  }
+}

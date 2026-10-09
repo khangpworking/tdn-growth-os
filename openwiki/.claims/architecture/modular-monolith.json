@@ -1,0 +1,180 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:715557fafe47e224f1d22f0ffe9189b834be23674176892a2981021600fec7bd",
+  "claims": [
+    {
+      "id": "claim_99090f6629ca46248f00ed36bd40ed96",
+      "statement": "The system is a single TypeScript modular monolith with five business modules sharing one authoritative SQLite operational store; cross-Box mutations must use typed application services while cross-Box reads may use declared query interfaces.",
+      "evidence": [
+        {
+          "resource": "repo://AGENTS.md#L27-L35",
+          "version": "repo-lines-v1:sha256:93b88a0caab83c98bacdfc182f0eea5f179f14f1234524abaaa1153e12c339c3:eyJzZWxlY3RlZExpbmVDb3VudCI6OSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMTEwNTFiZGUyY2MyM2MwN2JkNDk1MWIwZmEzYjdjZTM4YTI5ZGExMjk0Mzc2MDZjMmQ1ZTA1NjM1NDYxNWY1MSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZThmNDY4YzkzMTY3ZjcwY2MwN2YxMDJkNDcxMmYyOTMzZDc1OWQyZTkwOWVkNGU3ZGNmM2EwMTRkYWE5ODNhMSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTE1MTdmZWYyYWEyOGIxZTVhYjFhNWRmMWUwZTExYjg0MTg3YzRlY2U1NjYwM2JlNDEyY2Y2YjRjNDdjNTIyNSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiOTVmODUwNzcyYzYwZmNmZjc5ZGVkMDE0MTVlMGY3ZTZlNGM4ODhlNTFlNjljZDA3NzRkZTQ4N2RiY2IzYzRjMSJ9"
+        },
+        {
+          "resource": "repo://ARCHITECTURE.md#L96-L123",
+          "version": "repo-lines-v1:sha256:68f187505f37eb72d4a138b21489ee823e5d5be43def5940aa12d05305363937:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjMxZmNmNjY5ZTIyZTdkMGE0YmE5YjZlYjcxNTA3NjAyZTFkNTMxNjAxYzUyZGUwOTVmOWE0ZTJjOTI5ZDJjN2QiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1Y2RhYTgzNDc1NThjMzFhMDIzYmVkYjI4OTVmNWEwNTBlOWZjNjkzOGIxYjg0N2Q5MWEzODc5YjFhNGNmNjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVlNDIwYzk5YzBmYjkyYjAzMTc0MWNjN2IzMjViZDk0ZGRmMGRlOTA4YTMyYWRjMTg4MDk0OWRjOTYyZmNlNTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3ZDM1NjBmNTAyZDgxZDdlYTQzNjBhMzU5YzNhM2YxMmMxNzFhNTU2MTAzMjJmZDljNWE3NDNhMWNiZmFhOGYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7bebeaf99bce44a5815db1681f89c2d1",
+      "statement": "Foundation owns source/evidence intake and finalized data/source-package material, and exports reader adapters as its cross-module consumption boundary.",
+      "evidence": [
+        {
+          "resource": "repo://migrations/0001_foundation.sql#L10-L110",
+          "version": "repo-lines-v1:sha256:4c8c8f184e56042db9e466127e0b54ae68fbbec737702bba775a5e7d9f97712e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJjMTM2YTUwNmYyOTZiMjY0MGNkZTcyYjgwNjYyMzFkZWY3ZDk4ZTJlMmFiM2IwMTEyMTk4MmY1YjAwMTgyYTQ4IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJiMzE2NzNlOGZkN2M3MGRhYmEzNWRhOWM1MzM1ZTc1MzcyZGI5NzMzMTYxMTFjMzk5MDE4MmRmMWQzNjRiYjM5IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiIxZWY4MWM3NDZhZmMwZGU2YTdiNDljODVlYjQxYjg2MWZiYzBjOWUwMTIxYTUyNGFkODA4ZGJkOGIzMDRiOTAzIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlOWM5OTQ2NzFjYTM0ZWUxNzI5MmRjNGFjZWFlZTg1MGY3MjdjODJiNTE2Njg2ZTZhNzFmYWE5Y2M1ZGZhMGY3In0"
+        },
+        {
+          "resource": "repo://src/modules/foundation/index.ts#L1-L50",
+          "version": "repo-lines-v1:sha256:edfa442d8489ee17ef6fe089c4e7832a37d1a455e2a2503ea17964629fc2e2fe:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0Nzc2OWE3OGEwMTM0ZjU1NTdiMWJkOGIzMjUxNzM5YzQ0YmJhMTI5N2IzOTc4MWNkYjkxOWU0NTRjZjVlNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxOTM1MmUwYzQ0OTM5NDlhNzE1MGIxM2I2ZjNkY2ZkYjRhZjMxOTYyMmZjODQ4NGQyMWRmMTRiOWRmNDkxYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9a494167c86a4f71bb8e7af339a8ec9e",
+      "statement": "The owner and read API composition demonstrates cross-module dependencies through reader adapters: Flow services receive Governance decision readers, while Analysis report services receive Foundation source-package and Flow workspace readers.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/owner-api.ts#L64-L101",
+          "version": "repo-lines-v1:sha256:4a3e4162bbbee45c185faa37960636d52b54726e0f277ebfef83525ce533d5fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyYzY3Zjg5NGM2ZDA4Y2MwZjVhZjgyNzJlYjZhNWIwYjVlY2JjOGNiYjI5MGQyODliN2YzNmRmYThkMjRhOWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllMjEyMjIwNjkzYmFiNzJkYTU1ZmUxOTBkYjMzMWE3M2EzM2FiMDM0ZDczYzQyZTA3N2YyNWI5NjkxZTMwZmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlMzc4MGM3NzcxYzUwY2U1YTZhMTViNDNlMWNjZGU5Yzg4OTQwMGUzMGI1MWIwNDcwMjhiOWFhNzMwMmNiODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1Yjc3OWFhNmFlNTQ3MWFjMGUzNWQ5NTJiYTI5Yjg5MjEwNjdmYjc5NzA1M2Q4NWFjODg0NDU0NGY5YjlhMjcifQ"
+        },
+        {
+          "resource": "repo://src/api/report-api.ts#L53-L83",
+          "version": "repo-lines-v1:sha256:7369c9f3400f7c328f8937bd71e45df58420be791c0671117c1bf78d431fd573:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyMzRjZmEyMTE2MTdmYjc4NjU3MDI5YWZjODUwZDNlYmI3ZmJjMzQ2Y2ExNjMyYTgyNDU1Yzg2MmMxNzk3Y2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZDExY2FmNDNlOTdlZjM2OWU2YmVlZDFhMjY4YmQwNTgzOGYyOWI5ZGQyNTRiZjY5YmE2NDg4NDE0NzIzNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlMzc4MGM3NzcxYzUwY2U1YTZhMTViNDNlMWNjZGU5Yzg4OTQwMGUzMGI1MWIwNDcwMjhiOWFhNzMwMmNiODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxZTNhZTYyMDU1ZWU5MjA0YzY4N2U5NjBkMDY0ZGEzZTVhNGQwMzFmMGU1NWU5NWJlMmY1N2IzMWVhZTA2YjQifQ"
+        },
+        {
+          "resource": "repo://src/api/workspace-api.ts#L70-L104",
+          "version": "repo-lines-v1:sha256:edc1ca109df8498f3641061a18c9e7198711d396adfb6eb803b10c57980bde85:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxYTYyMzA2MDQ4M2VkYzA3MzNlYjkxZGViYmUzMTI4MzdjMzEzZWJjZGIyOGM1ZTM5MjU5NzExZWNiYmNmOGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFjNDkzNTJjMmI1YzRkOGJlNDI3NDkxY2Y0MTRjMmUzYjZiNzc3MjNmZmQ3MTZjNDFkZWY0NWM1NGM3YmUxNzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmMWUxNjE1MmY3MjZlNDgzMzIzMTU3YjFkNDg2ZTUyZGIzN2JlN2E5ZjM2MDI5Mjc2NGEwOWNiMTVhZDgyN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1YmI2OTk1M2Q2NTEyNzY2YjE3NTMyNjQ4NzhkM2IzNzZkMzFhZGRlOTY1NGY3Njk3OWEyZmYxOWEzYjA5NDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9d64d5f70bac412e96fd64d4d2d7dd68",
+      "statement": "SQLite schema migration application verifies the ordered migration ledger and checksums, applies each pending migration in an immediate transaction, records it, and updates user_version atomically.",
+      "evidence": [
+        {
+          "resource": "repo://src/platform/db/migrations.ts#L24-L107",
+          "version": "repo-lines-v1:sha256:2bbcc37c3551be64c0ea04e076810cd7a0582ed9cf31cce4d6ab12504285f6ec:eyJzZWxlY3RlZExpbmVDb3VudCI6ODQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0ZjgzNmQzNzJjMDIwNTEwYjE2MmZhZDc4YmUzNDU2OTU3ZDA5NWY2Y2Y4OWViZDVkMjI5MGNmODIzZGE2NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkMmMxYTI5YzRmNjUzYjA5Y2FlNzVhNjk2ZGQ3N2ExYzhmNzE4MDNkZWE4YTRmY2ExZjJkZTNmZDI4ZWI1ZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljYmE2OTIzMzBkYTNmYTEzYWZiYThkNTZmODJhZTA1MmVhYTU1YzFhMTRiNDA5YzVmNjM3ODBmZjZhYmY1YzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_9baec7a0fab24bae958d682dc6660cee",
+      "statement": "Operator-app startup refuses a database whose user_version or schema_migrations ledger is not at the available migration head.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/operator-app.ts#L286-L313",
+          "version": "repo-lines-v1:sha256:3855a41687da6b7e5c357c11958e4b7f2d41b15d02f5d18a1cb58f21119e9c3f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljY2Y4ZDBmOWQ3ZjM5OWI0Mzc0NWE4MDI0M2I0OWMwNjhmMGQ0ZTUwYjRlMjI5MGY2MGUyYTZlMGNjODE0NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5NzkzZWUzNzI4ZTc4YTRhMDNhYmIyZTZjZGM1NWRmMDFiMDA4NzNhZTc3NmRkNjA0NTk5YWIzOGU0NGVjZmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a32b92d959d94926a923dfb304c74239",
+      "statement": "SQLite artifact manifests provide digest-addressed metadata, while domain rows reference artifact digests; the architecture assigns artifact bytes to a content-addressed store and SQLite to the manifest and business lineage.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L319-L336",
+          "version": "repo-lines-v1:sha256:198942571d59d08318f87084f2e1f88d32697e5e46bac872824bdbed6dd4146d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyMWM3YmQ2ZjhhNjU2ZTBmM2M3Mjk4MmU5NmQ4NWNmNjMyNTkzNGVlNTIxMjViNGZkOWU3YWEyMGY3ODk2ZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJjNTA1ODEwNzVmNTAwNjdjM2I5N2U3N2VjMTc5Yjc5ZjAyNjVkZDJhZWE4NWRiZDJhN2EzMzZlYjM2YjAwMzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3OWNlNjYyM2VkNDY1NDc4ODVhMzhiMWI2ZDE1YjRjYjY5ZWMyNDExYzVmYzJiOTlkNzZkNzdhMzI3ZDhmODQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNkN2I0MDI0NDY2NTExZThmZTEwOTc1NjdjZjlmZGRlOGU1NDBmNjNhMTE3M2E5YjI0YTRhOGU4MGJmMTZjZmUifQ"
+        },
+        {
+          "resource": "repo://migrations/0001_foundation.sql#L40-L65",
+          "version": "repo-lines-v1:sha256:98ccdfd65141c10ad3bfb8079840848aef5dd83314f4f09197b102a7a178be53:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3OWRjOTE2YzdhOWI0Nzg2ZTMwYjdmNTFjYzJiMzMwNTRlYTgwMmE1NTU0MjE0YmQ0ZmZjODkyN2I3NzUzNDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3MTU3ZTE3ZjNhZDAzZWM0YTAxNDFmZmRmOGZjNTI0MWNmODQ4ZTY3NTEyZjA1MmJmYjRhNGE5YTczODNmN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUxYjE4YjhlNjEyMDNmOTFhYzZhODM5MzA5YTE3ZTA2YWU2MTUzMDg2MWY4NTlkYjhhZjU3YTU4ZGM4NWIyOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExMjc5OWJmOWVkZWNiMDk5MjJkMGVmYjc5ZjkxMTY4YTU1M2NiYjE5YTQ5MzVkNjk1MGRhZTU4NGFiZTc5MjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_21ec684c4a6843e380dd0f2b5949d2a8",
+      "statement": "The operator app is the HTTP composition root: it routes read APIs under /api, conditionally enables owner-write APIs under /owner-api, and otherwise serves preloaded frontend assets.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/index.ts#L1-L19",
+          "version": "repo-lines-v1:sha256:87c46e536d8292438c0d4bd722ffa173a65997ca2d4545075b9e8d78488e408b:eyJzZWxlY3RlZExpbmVDb3VudCI6MTksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExNzQ0MjkwOTg3MDNlNjM0Y2M2NjRlNDk3NWQxNGFjNDkxMjc0OWU1MTYyNGFiMWEzNTNiZTI0NzNmOWMxMGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYwMmY3ZGY2MGQwYzU5NGYyZWZmZTJhYTMyMWJiMzY0MTZhYjc2ZjFkODIyMjdhNWRmNGM1ZjdhYzkxMWMyNzciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L147-L247",
+          "version": "repo-lines-v1:sha256:4cb728945d9f832b2c529f889d96ef14199bf724377d75b8c4ace8aa1f45bc6e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiMGE0MzMxNzUzNzI3MzlmNzAxNDM4NjAyNGY3NjZiNmMwNWRmODVhMGM2ZDIyMGVjZmRiYmQ1NzI3ZGFhMWM3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxM2FhN2ExMTUwMGRhNTkxYTFlMzVjY2NiYzE0OGEyNmYzYzkzZTU1N2ZhZDhmZjU3MzljMDliMmM1ZDkyZjIxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3ZGNmMTFhNDEyMmI1MDE5NmNhODkzOThmZGFhYjkyZjFiYzdmMzgxNjkwNWI3ZjkwYjRjYjdjMGFlNmRkODJkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJjMTI3ZWRkODZiN2RkZTMwZWYzYTE1OGFlZTU2MDg0MThiMmQzOTc5NDgzNjMyY2RhNmMxNTMwZDNiZTg3NGRlIn0"
+        }
+      ]
+    },
+    {
+      "id": "claim_79a386de391a417eb12d3a7ad6b0f15c",
+      "statement": "Workspace and report read APIs open SQLite read-only with query_only enabled, whereas owner API composes writable application services with a request-scoped artifact store.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/owner-api.ts#L64-L101",
+          "version": "repo-lines-v1:sha256:4a3e4162bbbee45c185faa37960636d52b54726e0f277ebfef83525ce533d5fa:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEyYzY3Zjg5NGM2ZDA4Y2MwZjVhZjgyNzJlYjZhNWIwYjVlY2JjOGNiYjI5MGQyODliN2YzNmRmYThkMjRhOWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjllMjEyMjIwNjkzYmFiNzJkYTU1ZmUxOTBkYjMzMWE3M2EzM2FiMDM0ZDczYzQyZTA3N2YyNWI5NjkxZTMwZmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlMzc4MGM3NzcxYzUwY2U1YTZhMTViNDNlMWNjZGU5Yzg4OTQwMGUzMGI1MWIwNDcwMjhiOWFhNzMwMmNiODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM1Yjc3OWFhNmFlNTQ3MWFjMGUzNWQ5NTJiYTI5Yjg5MjEwNjdmYjc5NzA1M2Q4NWFjODg0NDU0NGY5YjlhMjcifQ"
+        },
+        {
+          "resource": "repo://src/api/report-api.ts#L53-L83",
+          "version": "repo-lines-v1:sha256:7369c9f3400f7c328f8937bd71e45df58420be791c0671117c1bf78d431fd573:eyJzZWxlY3RlZExpbmVDb3VudCI6MzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYyMzRjZmEyMTE2MTdmYjc4NjU3MDI5YWZjODUwZDNlYmI3ZmJjMzQ2Y2ExNjMyYTgyNDU1Yzg2MmMxNzk3Y2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIyZDExY2FmNDNlOTdlZjM2OWU2YmVlZDFhMjY4YmQwNTgzOGYyOWI5ZGQyNTRiZjY5YmE2NDg4NDE0NzIzNGEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZlMzc4MGM3NzcxYzUwY2U1YTZhMTViNDNlMWNjZGU5Yzg4OTQwMGUzMGI1MWIwNDcwMjhiOWFhNzMwMmNiODUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImMxZTNhZTYyMDU1ZWU5MjA0YzY4N2U5NjBkMDY0ZGEzZTVhNGQwMzFmMGU1NWU5NWJlMmY1N2IzMWVhZTA2YjQifQ"
+        },
+        {
+          "resource": "repo://src/api/workspace-api.ts#L70-L104",
+          "version": "repo-lines-v1:sha256:edc1ca109df8498f3641061a18c9e7198711d396adfb6eb803b10c57980bde85:eyJzZWxlY3RlZExpbmVDb3VudCI6MzUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIxYTYyMzA2MDQ4M2VkYzA3MzNlYjkxZGViYmUzMTI4MzdjMzEzZWJjZGIyOGM1ZTM5MjU5NzExZWNiYmNmOGMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFjNDkzNTJjMmI1YzRkOGJlNDI3NDkxY2Y0MTRjMmUzYjZiNzc3MjNmZmQ3MTZjNDFkZWY0NWM1NGM3YmUxNzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFmMWUxNjE1MmY3MjZlNDgzMzIzMTU3YjFkNDg2ZTUyZGIzN2JlN2E5ZjM2MDI5Mjc2NGEwOWNiMTVhZDgyN2EiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1YmI2OTk1M2Q2NTEyNzY2YjE3NTMyNjQ4NzhkM2IzNzZkMzFhZGRlOTY1NGY3Njk3OWEyZmYxOWEzYjA5NDIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_60eb904bcab646d89d084c757aeb41e4",
+      "statement": "Only a write-enabled operator acquires the database-derived executor lock and can sweep interrupted content attempts; executor-lock acquisition is exclusive and any preexisting lock requires manual recovery.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/executor-lock.ts#L5-L89",
+          "version": "repo-lines-v1:sha256:15d07baeed531cf2754b91ca73bed275845aca505bd1862a1f1eb1794d803f43:eyJzZWxlY3RlZExpbmVDb3VudCI6ODUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5MjNlY2YxNGU1OWE3NTkwNTJhZmVjMDkwZWE3ZmQwZWZjODUzMzViYWNlNWJlYjgyYzI0MTFhNmQ5MjUwYWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIwMDMwMmZmZmViYzRkODEyMzM0NzhiMTJiZjU1NmRjOTc4NGJjNjhiYjY2MjI4Yzg4MGQ0OTY3MzY4NDNlZTEifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L147-L171",
+          "version": "repo-lines-v1:sha256:2685de42fe5a74990403e6de6b3fc9618a19ecc34a00c0c46d712fc3e8e79fac:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImIwYTQzMzE3NTM3MjczOWY3MDE0Mzg2MDI0Zjc2NmI2YzA1ZGY4NWEwYzZkMjIwZWNmZGJiZDU3MjdkYWExYzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNlYmFkMDU2NDEyMTE5MjQwMzI0ZDI4Y2M2ZWVlODhkM2QzMTJhNDhkNmFiNTgzODFmZGI2YTM1YjQwMGMzYzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdkY2YxMWE0MTIyYjUwMTk2Y2E4OTM5OGZkYWFiOTJmMWJjN2YzODE2OTA1YjdmOTBiNGNiN2MwYWU2ZGQ4MmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImZmNWZlOTE0ZmJkN2Y2OWI1ZWQ1YzI4OTMyNGE4OWRmNWI3ZTNkYmRlMjQxZGVkNWM1OThiYjg1NmM1YjYyMDAifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L286-L313",
+          "version": "repo-lines-v1:sha256:3855a41687da6b7e5c357c11958e4b7f2d41b15d02f5d18a1cb58f21119e9c3f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljY2Y4ZDBmOWQ3ZjM5OWI0Mzc0NWE4MDI0M2I0OWMwNjhmMGQ0ZTUwYjRlMjI5MGY2MGUyYTZlMGNjODE0NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5NzkzZWUzNzI4ZTc4YTRhMDNhYmIyZTZjZGM1NWRmMDFiMDA4NzNhZTc3NmRkNjA0NTk5YWIzOGU0NGVjZmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ee2ed691d53a4f6aaa9bdf5c8cc55435",
+      "statement": "The five current module entrypoints expose distinct service and declared-reader boundaries: Foundation for source material, Analysis for analysis/report records, Orchestrator for proposals, Flow for workspace and plan records, and Governance for decisions.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/index.ts#L1-L182",
+          "version": "repo-lines-v1:sha256:4eefed6b324debbf334a819c625fa35cafd2fac3555ff848dd18c34ab203834a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgyLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIxMTc0NDI5MDk4NzAzZTYzNGNjNjY0ZTQ5NzVkMTRhYzQ5MTI3NDllNTE2MjRhYjFhMzUzYmUyNDczZjljMTBiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiI0NTE1YjEyNzg3YjA1YTQ2OGJiMWE2YmQ3ZGVjMjM2NDBmNjhiZDY5ZDdjYTI3NTRiNjk2ZTYwN2NjNjRjMzE3IiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIxNGFjOGI5OGNlZmQ2ZjU1YjI5MTYwNzhiMTA3Mjc5NzQ1NGZjY2E1ZDgxNzJiZTA5MjIxMTNhZDk5ZTYxYjczIn0"
+        },
+        {
+          "resource": "repo://src/modules/flow/index.ts#L1-L157",
+          "version": "repo-lines-v1:sha256:34850a19954488c0a2275aabc03960bcf339fc1891ec528f481570021a5b4a0d:eyJzZWxlY3RlZExpbmVDb3VudCI6MTU3LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiIxMTc0NDI5MDk4NzAzZTYzNGNjNjY0ZTQ5NzVkMTRhYzQ5MTI3NDllNTE2MjRhYjFhMzUzYmUyNDczZjljMTBiIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJmMTA4YWQ2ODU5OGEwNGE5OGY1Yjg4MzhlOTI1MmUxN2YwODA2N2YzN2Q2YjczYzkwMjIyYzgxNTI5OGM1ZjZkIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MCwicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1IiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MCwiZm9sbG93aW5nQ29udGV4dEhhc2giOiJlM2IwYzQ0Mjk4ZmMxYzE0OWFmYmY0Yzg5OTZmYjkyNDI3YWU0MWU0NjQ5YjkzNGNhNDk1OTkxYjc4NTJiODU1In0"
+        },
+        {
+          "resource": "repo://src/modules/foundation/index.ts#L1-L50",
+          "version": "repo-lines-v1:sha256:edfa442d8489ee17ef6fe089c4e7832a37d1a455e2a2503ea17964629fc2e2fe:eyJzZWxlY3RlZExpbmVDb3VudCI6NTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA0Nzc2OWE3OGEwMTM0ZjU1NTdiMWJkOGIzMjUxNzM5YzQ0YmJhMTI5N2IzOTc4MWNkYjkxOWU0NTRjZjVlNTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImYxOTM1MmUwYzQ0OTM5NDlhNzE1MGIxM2I2ZjNkY2ZkYjRhZjMxOTYyMmZjODQ4NGQyMWRmMTRiOWRmNDkxYTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/modules/governance/index.ts#L1-L74",
+          "version": "repo-lines-v1:sha256:c379463499c1cd209a8f249882a2f355a7b70df5f31304ab6a7c679b3d576bbd:eyJzZWxlY3RlZExpbmVDb3VudCI6NzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExNzQ0MjkwOTg3MDNlNjM0Y2M2NjRlNDk3NWQxNGFjNDkxMjc0OWU1MTYyNGFiMWEzNTNiZTI0NzNmOWMxMGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2NzcxODlmODExNWQ4NTUyYmYwNGRhMjY4OWFhYTY0YWRiOGI5ZDhmZmYzMjI3ZjFhYzg2OGRhODMwZTg5ZWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/modules/orchestrator/index.ts#L1-L16",
+          "version": "repo-lines-v1:sha256:13e23a5631951e9605ddfd7629198b652db61b9c7c3f19b5e9f25edd138756ed:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjExNzQ0MjkwOTg3MDNlNjM0Y2M2NjRlNDk3NWQxNGFjNDkxMjc0OWU1MTYyNGFiMWEzNTNiZTI0NzNmOWMxMGIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwODU4YzIwODUyMzFmOGExMjlhY2I0YTY5M2I1NWE4ODYyZTIwMzIzMGY5MTY5NTZhZTdkMjU1MWIyNDAzZTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_8db171d16c254b4598b87cba93627192",
+      "statement": "Baseline capabilities remain planned rather than operationally accepted: the architecture requires a Phase 0 inventory gate before affected production capabilities are enabled and defines baseline completion as future end-to-end, deployment, and restore outcomes.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L640-L650",
+          "version": "repo-lines-v1:sha256:7c8643d492ccd1a7b133616aa418ed1d78262898c7139eecd4375c88bd07a975:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQ0ZTBjOTI2YzM1MGE0M2U5NmQ2Y2VlYmFjOWRhNDY5Y2Y3ZDkwNTI0ODIzMjA5MmNmZDRjNzcxN2U2MjYyNzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJmYTA4MDY5ZTRjMmY3MWRmMWE2NDEzNWY5MTlhY2MzNmMyM2QzYjY1NDgzNDljMDRjOGI2M2E5MDIwZWJiZTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjFjOGViZjUzNGE2MmJjNDE3MzY3M2U1MzM4YThjNjY4ZWM2NmNlYTExZjhkMmNmYmJiZmQ5ODIxY2YzOGUwZjMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjU4MDVjMjk4OTA4NGFmMDIxMGVjMTBlNDlmYTBiNWQxM2MwOTNhODA4MjQyODhhYTg5ZjI1OTM4YzgwZWYyYWEifQ"
+        },
+        {
+          "resource": "repo://ARCHITECTURE.md#L78-L94",
+          "version": "repo-lines-v1:sha256:07f0788d8d137bc2f34fc37065f5b080d4d91b4b78de5648ce5a0d78875c50f4:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjliNDkyODhmZTVlODU4YmRmNjJiMjNiNGNlNDQ3YmY4OTllNmQ2MWJjYTQyNTc2NzcyODdkMWFjYjhiOTBjNmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1NTNhYzAzYWJjNDY5YjE0YWMzZmM0MzZkYzZhZWQ2NjQxODUzOGY2MmQyZjIxMjNlNjliYjdhNWI5NzdmNTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwOWZiZWMwZDBiZDE2YmNjZDQzZDRlNTE2ZTdkYWY5MmZlYjlmMjQyMTUyZGRkMTM1NDVlNmJlZTQyZTVkZjAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdiNmM2NzJiNzQ3N2E4MzVlOGU4MWQ4OWVjMjQyMjVhMjFiYmJlODEwYzBlZDJmNDhlY2RiZWRiYmZlM2M4MDQifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T02:45:12.359Z"
+  }
+}
