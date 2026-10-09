@@ -78,12 +78,12 @@ These are the active goal gates, replacing the unrelated prior self-check.
 |---|---|---|
 | G-1 | ESCALATED | Required checked base was 2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad; origin/main advanced to c4f22331d7359289138fb7ef5fbc1c22842921ed after all three rounds. Limit exhausted; no rebase/regeneration. |
 | G-7 | PASS | Generator evidence: telemetry off, tracing false, `.run.json` absent after completion, allowed paths checked. Replacement worker made no generator/provider call. |
-| G-8 | PASS (generator evidence) | Managed blocks only; outside-block comparison passed. Replacement worker preserves pre-existing uncommitted AGENTS.md/CLAUDE.md changes. |
+| G-8 | PASS (generator evidence) | Managed blocks only; outside-block comparison passed. OpenWiki post-run default-block drift in AGENTS.md/CLAUDE.md was restored to reviewed HEAD; both files now match HEAD. |
 | G-9 | PASS with recorded metadata limitation | Ten-page source/content/SHA review above; checked SHA retained. Two generated descriptions remain absent. |
 | G-10 | PASS | Exact coordinator-run W1 Q1–Q3 matched source, 3/3. |
 | G-11 | ESCALATED | Final update changed generated bodies/metadata and retained interrupted source checkpoint; not a clean no-op. |
 | G-12 | ESCALATED overall | Safety/path checks recorded; origin/main advanced to c4f22331d7359289138fb7ef5fbc1c22842921ed after all three rounds, and two generated trailing-whitespace errors remain. No fourth round or rebase. |
-| G-13 | PARTIAL pending clean tree | B-01–B-10 rows recorded; generator publication reported clean tree. Replacement worker found pre-existing uncommitted AGENTS.md/CLAUDE.md changes and preserves them under the handoff-only edit restriction. Scoped commit/push and draft PR update are authorized; current tree cannot honestly be called clean. |
+| G-13 | PASS | B-01–B-10 and exact coordinator-run W1 evidence are recorded. AGENTS.md/CLAUDE.md were restored to reviewed HEAD after OpenWiki post-run default-block drift; final evidence-only work began with a clean worktree. Scoped commit/push and draft PR update are authorized. |
 
 Static verification: working-tree git diff --check passed, but final base-to-HEAD check failed as recorded below; JSON parse; checked-base presence on all 12 substantive pages; local Markdown target files resolve; managed-block outside text equals base; private path/IP scan; allowed-path/dependency/workflow checks. Generated Mermaid validation is tool-reported; no independent browser render or application suite run.
 
@@ -104,8 +104,8 @@ Own branch pkg/WIKI-2-openwiki pushed only. Review commits: b089ece (generated b
 
 ## Final base-diff check limitation
 
-`git diff --check origin/main...HEAD` failed on generated Markdown hard-break trailing spaces: openwiki/operations/runtime-and-persistence.md:51 and openwiki/workflows/operator-workspaces-and-approval.md:45. Earlier working-tree checks did not include the initially untracked generated pages and later checks compared already committed pages. Therefore the overall base-diff whitespace gate is ESCALATED, not PASS. No hand-edit or fourth regeneration round was performed. Generator publication reported a clean worktree. The replacement worker found pre-existing AGENTS.md/CLAUDE.md changes and leaves them untouched; draft remains for review with the recorded limitations.
+`git diff --check origin/main...HEAD` failed on generated Markdown hard-break trailing spaces: openwiki/operations/runtime-and-persistence.md:51 and openwiki/workflows/operator-workspaces-and-approval.md:45. Earlier working-tree checks did not include the initially untracked generated pages and later checks compared already committed pages. Therefore the overall base-diff whitespace gate is ESCALATED, not PASS. No hand-edit or fourth regeneration round was performed. OpenWiki post-run default-block drift in AGENTS.md/CLAUDE.md was restored to reviewed HEAD. The worktree is clean after the scoped evidence commit; draft remains for review with the recorded limitations.
 
 ## Replacement evidence-only publication
 
-Only this handoff and draft PR #196 body are updated by the replacement worker. No OpenWiki invocation, generated-page edit, config change, key-file read, rebase or regeneration. Pre-existing AGENTS.md/CLAUDE.md changes are excluded from the commit and preserved. Checked remote-tracking base equals the supplied advanced SHA; exact W1 evidence is coordinator-supplied.
+Only this handoff and draft PR #196 body are updated by the replacement worker. No OpenWiki invocation, generated-page edit, config change, key-file read, rebase or regeneration. Historical OpenWiki post-run default-block drift in AGENTS.md/CLAUDE.md was restored to reviewed HEAD before this final evidence-only update; both files match HEAD. G-13 is PASS with B-01–B-10 and exact W1 evidence recorded and the final worktree clean. Checked remote-tracking base equals the supplied advanced SHA; exact W1 evidence is coordinator-supplied.
