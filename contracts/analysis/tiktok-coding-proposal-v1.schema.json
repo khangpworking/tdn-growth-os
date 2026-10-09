@@ -24,6 +24,9 @@
     },
     {
       "$ref": "#/$defs/context"
+    },
+    {
+      "$ref": "#/$defs/consumptionView"
     }
   ],
   "$defs": {
@@ -151,6 +154,113 @@
         },
         "counts": {
           "$ref": "#/$defs/contextCounts"
+        }
+      }
+    },
+    "consumptionEntry": {
+      "title": "TikTokConsumptionEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "reportIdentitySha256",
+        "corpusPackageId",
+        "corpusPackageContentSha256",
+        "codingDraftSha256",
+        "actorId",
+        "consumedAt"
+      ],
+      "properties": {
+        "revisionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reportIdentitySha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "corpusPackageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "corpusPackageContentSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "codingDraftSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "consumedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "consumptionView": {
+      "title": "TikTokConsumptionView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "entries"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-consumption-view-v1"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "title": "TikTokConsumptionEntry",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "revisionId",
+              "reportIdentitySha256",
+              "corpusPackageId",
+              "corpusPackageContentSha256",
+              "codingDraftSha256",
+              "actorId",
+              "consumedAt"
+            ],
+            "properties": {
+              "revisionId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "reportIdentitySha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "corpusPackageId": {
+                "type": "string",
+                "format": "uuid"
+              },
+              "corpusPackageContentSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "codingDraftSha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "actorId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 120
+              },
+              "consumedAt": {
+                "type": "string",
+                "format": "date-time"
+              }
+            }
+          }
         }
       }
     },

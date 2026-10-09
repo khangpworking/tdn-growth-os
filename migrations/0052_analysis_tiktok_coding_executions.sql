@@ -7,6 +7,9 @@
 -- State moves forward only (PREPARED to DISPATCHING to COMPLETED or DISPATCH_UNKNOWN);
 -- identity columns never change after the claim.
 -- Never apply this migration to runtime data as part of implementation tests.
+-- Admission/input/prompt/configuration reference content-addressed bytes that are
+-- verified by re-read on replay; they carry no artifact-manifest rows of their own
+-- (only package members are manifested), so no manifest foreign keys are declared.
 CREATE TABLE analysis_tiktok_coding_executions (
   execution_id TEXT PRIMARY KEY NOT NULL
     CHECK(length(execution_id) = 36 AND lower(execution_id) = execution_id AND execution_id NOT GLOB '*[^0-9a-f-]*'),
@@ -15,10 +18,10 @@ CREATE TABLE analysis_tiktok_coding_executions (
   scope_sha256 TEXT NOT NULL CHECK(length(scope_sha256) = 64 AND scope_sha256 NOT GLOB '*[^0-9a-f]*'),
   request_key TEXT NOT NULL UNIQUE
     CHECK(length(request_key) = 36 AND lower(request_key) = request_key AND request_key NOT GLOB '*[^0-9a-f-]*'),
-  admission_sha256 TEXT NOT NULL REFERENCES artifact_manifests(sha256) ON DELETE RESTRICT,
-  input_sha256 TEXT NOT NULL REFERENCES artifact_manifests(sha256) ON DELETE RESTRICT,
-  prompt_sha256 TEXT NOT NULL REFERENCES artifact_manifests(sha256) ON DELETE RESTRICT,
-  configuration_sha256 TEXT NOT NULL REFERENCES artifact_manifests(sha256) ON DELETE RESTRICT,
+  admission_sha256 TEXT NOT NULL CHECK(length(admission_sha256) = 64 AND admission_sha256 NOT GLOB '*[^0-9a-f]*'),
+  input_sha256 TEXT NOT NULL CHECK(length(input_sha256) = 64 AND input_sha256 NOT GLOB '*[^0-9a-f]*'),
+  prompt_sha256 TEXT NOT NULL CHECK(length(prompt_sha256) = 64 AND prompt_sha256 NOT GLOB '*[^0-9a-f]*'),
+  configuration_sha256 TEXT NOT NULL CHECK(length(configuration_sha256) = 64 AND configuration_sha256 NOT GLOB '*[^0-9a-f]*'),
   state TEXT NOT NULL CHECK(state IN ('PREPARED', 'DISPATCHING', 'COMPLETED', 'DISPATCH_UNKNOWN')),
   validation_status TEXT CHECK(validation_status IS NULL OR validation_status IN ('VALID', 'INVALID')),
   validation_code TEXT CHECK(validation_code IS NULL OR validation_code IN ('TIKTOK_CODING_RESPONSE_INVALID')),
