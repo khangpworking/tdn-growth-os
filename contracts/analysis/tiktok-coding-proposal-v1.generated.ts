@@ -9,7 +9,8 @@ export type TikTokCodingProposalV1 =
   | TikTokCodingReceipt
   | TikTokCodingHistory
   | TikTokCodedReport
-  | TikTokCodingReadView;
+  | TikTokCodingReadView
+  | TikTokCodingContextView;
 export type Uuid = string;
 export type Digest = string;
 
@@ -424,4 +425,16 @@ export interface TikTokReadCitation {
   citationId: number;
   locator: string;
   url: string | null;
+}
+export interface TikTokCodingContextView {
+  contractVersion: 'tiktok-coding-context-v1';
+  binding: TikTokCodingBinding;
+  corpus: TikTokCodingCorpusIdentity;
+  keywordDigest: string;
+  counts: TikTokCodingContextCounts;
+}
+export interface TikTokCodingContextCounts {
+  eligible: number;
+  excluded: number;
+  unclear: number;
 }
