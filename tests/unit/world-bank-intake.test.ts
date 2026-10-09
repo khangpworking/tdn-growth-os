@@ -37,7 +37,7 @@ test('country/code/name/year/dataset/unit/header corruption and incomplete pages
   const f = worldBankFixture(); f.sourceUrl += '&redirect=elsewhere'; assert.throws(() => inspect(f), WorldBankSourceRejection);
 });
 test('E13 condition needs actual nonmissing multiple years, and ambiguous/quoted numeric evidence rejects', () => {
-  for (const values of [['1'], ['1', 'null'], ['"9007199254740993"', '1'], ['1e999', '1']]) {
+  for (const values of [['1'], ['1', 'null'], ['"9007199254740993"', '1'], ['{"numericLexeme":"9007199254740993"}', '1'], ['1e999', '1']]) {
     assert.throws(() => inspect(worldBankFixture('SP.POP.TOTL', values)), WorldBankSourceRejection);
   }
   const f = worldBankFixture(); f.observations = Buffer.from(f.observations.toString().replace('"date":"2025"', '"date":"2024","date":"2025"'));

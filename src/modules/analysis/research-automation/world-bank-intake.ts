@@ -21,6 +21,7 @@ export class WorldBankSourceRejection extends Error {
 }
 function reject(code: string, locator: string): never { throw new WorldBankSourceRejection(code, locator); }
 const hash = (bytes: Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
+const JSON_NUMBER_TOKEN = Symbol('original-json-number');
 const json = (value: unknown): Buffer => Buffer.from(canonicalJson(value));
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -226,7 +227,7 @@ function sourceJson(bytes: Uint8Array): unknown {
     const result = parse(original, (key, value, context) => {
       if (key === 'value' && typeof value === 'number') {
         if (!context.source) reject('LOSSLESS_JSON_UNAVAILABLE', 'value');
-        return { numericLexeme: context.source };
+        return { numericLexeme: context.source, [JSON_NUMBER_TOKEN]: true };
       }
       return value;
     });
@@ -319,6 +320,7 @@ export function inspectWorldBankSource(observationBytes: Uint8Array, metadataByt
     let value: string | null = null, valueLexeme: string | null = null;
     if (row.value !== null) {
       const token = object(row.value, `${locator}/value`);
+      if (Reflect.get(token, JSON_NUMBER_TOKEN) !== true) reject('SOURCE_NUMBER_REQUIRED', `${locator}/value`);
       valueLexeme = text(token.numericLexeme, `${locator}/value`);
       value = decimal(valueLexeme, `${locator}/value`);
     }
