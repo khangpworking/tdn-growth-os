@@ -251,3 +251,111 @@ All30 defined actual factory byte digests equal prior8b exactly. Deliberately
 uncaught invalid schema exits1 with the AJV strict unknown-keyword error; it is
 an expected failure-propagation control, not a test PASS. Earlier failing logs
 remain unchanged. No further source/test edits follow this verified checkpoint.
+
+
+## Remaining full-CI engineering — operation-local Foundation SQL preparation
+
+Task `task_f7a1c00e3a12`, dispatch `ctx_b4ec46ded15c`, author terminal087.
+Initial clean Macro checkpoint `f4b06a4b93f6167620de19deba30d107f766b68a`
+was preserved before tool-start ACK `msg_7503bb6088fa`. Placement/measurement
+`msg_d4327d30b765` and its durable ask reply granted a normal NEW branch
+`khangpworking/ultimate-full-ci-market-measurement-sol` at exact Persona
+`d47f903b868c7e8b00cd479f8271e66504929020`; placement ACK `msg_6e588a69c501`.
+The later current-dispatch durable ask reply granted only Foundation
+`readVerified`/`#verifiedArtifact`/`#artifactMetadata` operation-local Statement
+plumbing, one additive integration test and this append. This precise lease is
+separate from the unrelated Meta CENTRAL owner and grants no publication.
+
+Hosted full run37869906388/job113625346052 was CANCELLED at01:38:17Z under the
+unchanged ten-minute limit:275 frontend PASS, backend unfinished, final generated
+verification unrun. Its complete2141-line log SHA256 is
+`6f2f9808c4887f1e597771da1a7750ee41a67b0803f791fec4c1334dcf1cef6e`.
+Actual normal GH merge8169001 merged d47 into reviewed main2b44. Complete old
+PR192 logs and the bb reviews remain provenance, not a gate for this new change.
+No unchanged hosted retry or full local suite was run.
+
+The granted unchanged original OWNER three-industry case is
+`tests/integration/research-automation-api.test.ts`, name pattern
+`three industries classify a new report from complete selected acceptance without changing old reports`.
+File SHA256 `8701b3629a62de31a4b6880e653cefba79e147fb95d7cbb970fb6ed2beb9cd5b`.
+One uninstrumented before arm passed1/exit0: body131.827619639s,
+runner141.108672281s. One supporting CPU/compiler profile passed1/exit0:
+body180.540178541s/runner192.575133342s; its instrumentation adds overhead.
+Market `verifyFrozenMethod` reached ZERO compiler calls and ZERO CPU samples,
+so the Market hypothesis was rejected and Market/cache source remains unchanged.
+The actual profile recorded244151 artifact reads; SQLite.prepare self12.751232s,
+including7.423144s beneath Foundation `#artifactMetadata` (inclusive11.800018s).
+Inclusive samples and awaited durations overlap and are not added as savings.
+
+Only the unchanged artifact_manifests SELECT is prepared once per
+`readVerified` invocation and passed to its existing metadata lookups. Every
+`.get(digest)` still queries current metadata, including after awaited manifest
+reads; every original role/path/version/size/budget/CAS/hash/manifest/member/
+canonical check and error ordering remains. No query text, public interface,
+clock/UUID behavior, safe-integer policy, RequestScoped ownership, staging,
+recovery, publication or retained bytes changed. There is no shared/global/
+instance/across-operation Statement or result/data/schema/authentication cache.
+
+One uninstrumented after arm, identical original assertions/dependencies and
+concurrency2, passed1/exit0: body122.287337848s, runner131.464493266s.
+Local body reduction9.540281791s (7.236937%), runner6.834576%; userCPU120.20s
+to111.40s and peakRSS598244KB to523240KB are observations from this single pair.
+Uncontrolled host effects and one pair prohibit a hosted-time or memory guarantee.
+No second profile or timing repeat was performed.
+
+Original Foundation intake8, original Market methods13, additive query tests6
+and one original cold parent passed28/exit0 with no skips/cancellations. The new
+actual Foundation tests read two authentic current profile packages, corrupt and
+restore manifest/member CAS, and mutate media_type/relative_path/contract_version/
+byte_size from a second DB connection after the actual awaited manifest read.
+Current metadata must reject before success; restoration reproduces old bytes.
+All98 tables, total_changes and CAS membership/digests remain equal on immutable
+reads. Strict typecheck first exited2 for a nonempty-tuple typing error in the NEW
+fixture; only fixture construction was corrected. The failed log is preserved,
+final strict typecheck exits0 and only the corrected new6 cases were rerun/PASS.
+Those6 are repeated executions, not additional coverage or changed old assertions.
+
+Fresh separate-process readonly/fileMustExist/query_only/configless report replay
+matches HTML `e47c85cbd049cfff824bccf09f4f1646a80764bae5337b14e04f6a8caf33c940`:
+all original enumerated application tables/CAS equal,total_changes0; throwing
+clock/workspace/CASput/provider/network/process/Python counters all0. Synthetic
+setup uses the fake collector once; cold replay does not dispatch. The parent
+reports33 proposal/projection members and0 cold corruption probes; the new owning
+Foundation tests supply fresh corruption proof, so cold corruption is not claimed.
+Original history5/exit0 produces13 retained events byte-equal to immutable Persona
+baseline SHA256 `86293945c600b7707d4f0dd6535116ea4cd3ca9485b73d5e38f0bd92ceed8809`.
+All30 actual packet/input/prompt factory digests are byte-equal to bb baseline
+JSON SHA256 `4e9ff2b9ceebcfd077f8e2a0cd64d60f5b94033e55f1299d006a5c95f5cd58d2`.
+Copied observer/cold scripts change only evidence paths; original assertions and
+application imports remain identical. Reports/evidence live exclusively under
+`/tmp/ultimate-remaining-full-ci-measured-engineering-sol`.
+
+Pinned Node24.15.0/npm11.12.1/ABI137 with SQLite3.53.2 smoke; package/lock match
+exact d47 and own installed dependencies are reused without install/link. Existing
+ignored frontend JS is unchanged and unused by these checks. One behavior tree
+at a time, concurrency2; no generation/GLOBAL/browser/PDF/build/live paid call.
+All old tests, helper, Market/cache/API/service/canonical/generator/default/cap/
+workflow/package/lock bytes are protected; all439 originalmain5f contracts remain
+exact. Prior evidence is preserved; unrelated shared refs may advance under other
+owners and are separately accounted for in the final protection record.
+
+G01–G13: exact failed-job/profile/grant provenance (G01); bounded affected strict/
+owning checks with full hosted gates pending (G02); frontend/PDF bytes unchanged,
+no fresh frontend/PDF gate (G03); canonical/generated/factories protected (G04);
+only the three leased paths (G05); isolated synthetic data/cleanup (G06); no live
+application/provider calls (G07); English technical evidence, source quotes exact,
+no humanizer invocation claim (G08); no invented CI/approval/statistic (G09);
+actual owning current-metadata/byte/cold/history controls (G10); original assertions,
+enumeration/isolation/failure propagation preserved and fixture failure disclosed
+(G11); clean frozen source RELEASE/report supplied via current dispatch, independent
+review still pending (G12); no source/collection/admission activation (G13).
+U11/U26/U32/U40 remain unresolved; P7/U20/P9/reader/Macro/Ultimate remain bounded
+or PARTIAL as documented by their own reviews. This does not integrate S07 or
+close reliability/statistics/live staging or report-consumer work.
+
+The final exact three-path commit/direct hashes/report and Foundation source lease
+RELEASE are supplied through this fresh dispatch. Distinct independent final-head
+review, source-preserving current-main composition where needed, fresh exact full
+hosted Check/current readiness, separately granted publication and normal matching-
+head merge remain coordinator gates. No PR/push/CI/readiness/merge authorization
+or self-approval is inferred from the local measurement and tests.
