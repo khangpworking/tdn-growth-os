@@ -164,7 +164,12 @@ test('owning HTTP auth, endpoint/byte/size/binding/substitution corruption refus
     assert.equal((await f.upload(runId, f.prepareInput('bad', raw), raw)).status, 400);
   assert.equal((await f.upload(runId, input, { ...worldBankFixture(), observations: Buffer.alloc(8 * 1024 * 1024 + 1) })).status, 413);
   assert.equal((await f.upload(unbound, input)).status, 409, 'marker-free old run is not silently upgraded');
+  const labelRejected = await f.upload(runId, { ...input, sourceLabel: 'L'.repeat(201) });
+  assert.equal(labelRejected.status, 400, await labelRejected.clone().text());
+  assert.equal((await labelRejected.json() as { error: { code: string } }).error.code, 'source_input_rejected');
   assert.deepEqual(f.counts(), before); assert.deepEqual(f.counters(), effects);
+  assert.equal((await f.upload(runId, { ...input, requestKey: 'label-200-boundary', sourceLabel: 'L'.repeat(200) })).status, 201,
+    'the existing Foundation exact 200-character boundary remains accepted');
   const prepared = await (await f.upload(runId, input)).json() as PrepareReceipt;
   const confirm = { contractVersion: 'automation-world-bank-confirm-v1', requestKey: 'confirm-first', source: prepared.source };
   const counts = f.counts(), puts = f.counters();

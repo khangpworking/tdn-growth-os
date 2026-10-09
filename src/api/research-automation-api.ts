@@ -49,6 +49,7 @@ import { withDatabaseMutationMutex } from '../platform/db/database-mutation-mute
 import { MAX_UNIT_SPEC_FILE_BYTES, MAX_UNIT_SPEC_TOTAL_BYTES, MAX_UNIT_SPEC_FILES } from '../modules/analysis/research-automation/reader-unit-spec-intake.js';
 import { RequestScopedArtifactStore } from './request-scoped-artifact-store.js';
 import { SourcePackageRequestConflictError, SourcePackageService } from '../modules/foundation/source-package-service.js';
+import { FoundationValidationError } from '../modules/foundation/validation.js';
 import { ContentAddressedArtifactStore } from '../platform/artifacts/artifact-store.js';
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../modules/flow/index.js';
 import { ResearchAutomationService } from '../modules/analysis/research-automation/service.js';
@@ -767,6 +768,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         return fail(response, 409, 'request_key_conflict', 'This upload identity is already bound to different content');
       if (error instanceof WorldBankSourceRejection) return fail(response, error.code === 'REQUEST_KEY_CONFLICT' ? 409 : mutation ? 400 : 500,
         error.code === 'REQUEST_KEY_CONFLICT' ? 'request_key_conflict' : mutation ? 'source_input_rejected' : 'integrity_error', 'Nguồn đã chọn không vượt qua kiểm tra dữ liệu và liên kết đã lưu.');
+      if (mutation && action === 'sources/world-bank' && error instanceof FoundationValidationError)
+        return fail(response, 400, 'source_input_rejected', 'Thông tin nguồn không đáp ứng cấu trúc lưu giữ được hỗ trợ.');
       if (error instanceof KalodataVideoRejection) return fail(response, 400, 'source_input_rejected', 'Tệp video không đúng cấu trúc được hỗ trợ.');
       if (error instanceof SupplementalSourceRejection) return fail(response, 400, 'source_input_rejected', 'The source package does not match a supported method profile');
       if (error instanceof MetricSourceRejection && !['INVALID_XLSX', 'OFFLINE_READER_UNAVAILABLE_OR_LIMIT'].includes(error.code))
