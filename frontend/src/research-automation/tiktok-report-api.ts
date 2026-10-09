@@ -69,11 +69,19 @@ export async function loadTikTokCodingHistory(workspaceId: string, runId: string
   return value as TikTokCodingHistory;
 }
 
+export async function verifyTikTokCodingReadView(view: TikTokCodingReadView, workspaceId: string, runId: string, packageId: string): Promise<void> {
+  const { draft, report } = view;
+  if (draft.binding.workspaceId !== workspaceId || draft.binding.runId !== runId || draft.corpus.packageId !== packageId) throw fail();
+  if (report.proposalId !== draft.proposalId || report.draftSha256 !== await sha256Hex(draft)) throw fail();
+  if (draft.status !== 'PROPOSED_AWAITING_REVIEW' || report.status !== 'PROPOSED_AWAITING_REVIEW') throw fail();
+  if (!sameTikTokIdentity(report.corpus, draft.corpus) || report.keywordDigest !== draft.keywordDigest || !sameTikTokIdentity(report.counts, draft.counts)) throw fail();
+}
+
 export async function loadTikTokCodingView(workspaceId: string, runId: string, packageId: string, signal: AbortSignal): Promise<TikTokCodingReadView> {
   const { value } = await request(`/api${base(workspaceId, runId)}/sources/tiktok-coding/${encodeURIComponent(packageId)}`, { headers: { Accept: 'application/json' }, signal }, [200]);
   if (!tiktokCodingReadView(value)) throw fail();
   const view = value as TikTokCodingReadView;
-  if (view.draft.proposalId !== view.report.proposalId || view.draft.status !== 'PROPOSED_AWAITING_REVIEW') throw fail();
+  await verifyTikTokCodingReadView(view, workspaceId, runId, packageId);
   return view;
 }
 

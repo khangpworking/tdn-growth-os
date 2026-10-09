@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildTikTokReader } from '../src/research-automation/tiktok-report-api';
+import { buildTikTokReader, digestTikTokDraft, verifyTikTokCodingReadView, type TikTokCodingReadView } from '../src/research-automation/tiktok-report-api';
 import { ResearchAutomationError } from '../src/research-automation/api';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -44,6 +44,28 @@ test('TikTok Reader build rejects a receipt whose report digest differs from the
     await assert.rejects(buildTikTokReader(workspaceId, runId, body, token), (failure: unknown) =>
       failure instanceof ResearchAutomationError && failure.kind === 'integrity');
   } finally { globalThis.fetch = original; }
+});
+
+test('TikTok coding read view rejects a report whose draft digest or counts differ from the draft', async () => {
+  const binding = { workspaceId, runId, scopeSha256: 'c'.repeat(64), sourceSetSha256: 'c'.repeat(64), requestedPeriod: { startDate: '2026-01-01', endDate: '2026-01-31' } };
+  const corpus = { packageId: '66666666-6666-4666-8666-666666666666', manifestArtifactSha256: 'c'.repeat(64), packageContentSha256: 'c'.repeat(64) };
+  const counts = { recordsCoded: 1, codesProposed: 1, quotesCited: 1 };
+  const draft = {
+    contractVersion: 'tiktok-draft-coding-v1', proposalId: '77777777-7777-4777-8777-777777777777', requestKey, binding, corpus,
+    keywordDigest: 'c'.repeat(64), promptVersion: 'tiktok-coding-prompt-v1', codes: [], counts, status: 'PROPOSED_AWAITING_REVIEW', limitations: ['synthetic'],
+  };
+  const draftSha256 = await digestTikTokDraft(draft as never);
+  const report = {
+    contractVersion: 'tiktok-coded-report-v1', proposalId: draft.proposalId, draftSha256, corpus, keywordDigest: draft.keywordDigest,
+    findings: [], counts, status: 'PROPOSED_AWAITING_REVIEW', limitations: ['synthetic'],
+  };
+  await verifyTikTokCodingReadView({ draft, report } as unknown as TikTokCodingReadView, workspaceId, runId, corpus.packageId);
+  await assert.rejects(verifyTikTokCodingReadView({ draft, report: { ...report, draftSha256: 'e'.repeat(64) } } as unknown as TikTokCodingReadView, workspaceId, runId, corpus.packageId),
+    (failure: unknown) => failure instanceof ResearchAutomationError && failure.kind === 'integrity');
+  await assert.rejects(verifyTikTokCodingReadView({ draft, report: { ...report, counts: { ...counts, quotesCited: 2 } } } as unknown as TikTokCodingReadView, workspaceId, runId, corpus.packageId),
+    (failure: unknown) => failure instanceof ResearchAutomationError && failure.kind === 'integrity');
+  await assert.rejects(verifyTikTokCodingReadView({ draft, report } as unknown as TikTokCodingReadView, workspaceId, runId, '99999999-9999-4999-8999-999999999999'),
+    (failure: unknown) => failure instanceof ResearchAutomationError && failure.kind === 'integrity');
 });
 
 test('TikTok Reader build without owner token sends no request', async () => {
