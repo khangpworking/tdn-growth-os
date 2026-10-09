@@ -21,6 +21,9 @@
     },
     {
       "$ref": "#/$defs/readView"
+    },
+    {
+      "$ref": "#/$defs/context"
     }
   ],
   "$defs": {
@@ -94,6 +97,60 @@
         },
         "packageContentSha256": {
           "$ref": "#/$defs/digest"
+        }
+      }
+    },
+    "contextCounts": {
+      "title": "TikTokCodingContextCounts",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "excluded",
+        "unclear"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unclear": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "context": {
+      "title": "TikTokCodingContextView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "corpus",
+        "keywordDigest",
+        "counts"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-coding-context-v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "corpus": {
+          "$ref": "#/$defs/corpusIdentity"
+        },
+        "keywordDigest": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "counts": {
+          "$ref": "#/$defs/contextCounts"
         }
       }
     },
