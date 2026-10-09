@@ -3,6 +3,9 @@ type: testing guide
 title: Verification and Replay
 description: Boundary-focused validation guidance for canonical contracts, retained report artifacts, automation revisions, provider seams, APIs, and frontend history behavior.
 tags: [testing, verification, contracts, replay, artifacts, reports]
+verified:
+  - by: openwiki/0.7.1
+    at: 2026-10-09T02:51:03.342Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -40,21 +43,20 @@ sources:
     resource: repo://tests/integration/research-automation-metric-methods.test.ts
   - id: openwiki-source-59db53c3aaebd9073c0ed0d3
     resource: repo://tests/unit/research-automation-providers.test.ts
-generated: { by: "openwiki/0.7.1", at: "2026-10-09T02:45:12.359Z" }
-verified:
-  - by: openwiki/0.7.1
-    at: 2026-10-09T02:45:12.359Z
+generated: { by: "openwiki/0.7.1", at: "2026-10-09T02:51:03.342Z" }
 ---
 
 ## Scope and evidence status
 
 This page selects validation by the boundary a change crosses, rather than prescribing a full-suite run. The application is a TypeScript modular monolith: JSON Schema is canonical at trust boundaries and AJV validates those boundaries. Start with the project [working rules](../../AGENTS.md), then use the smallest meaningful check and expand when an interface, retained state, transport, or rendered output changes. For ownership context, see [Modular Monolith](../architecture/modular-monolith.md), [Market Report Lanes](../concepts/market-report-lanes.md), and the [research-report lifecycle](../workflows/research-report-lifecycle.md).
 
-| Status | Reference | Meaning |
+**Checked main SHA:** `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad`.
+
+| Standing or evidence state | Reference | Meaning |
 | --- | --- | --- |
-| **MERGED ON MAIN** | `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad` | The services, contracts, scripts, and test files described on this page are merged on `main` at the checked SHA. This is delivery standing, not evidence that a check passed or that a deployment or live integration ran. |
-| **INSPECTED** | main `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad` | This page was updated from source, contracts, and focused-test inspection at that SHA. |
-| **NOT EXECUTED** | documentation update | No repository checks were run for this update. In particular, the contract generator was inspected but executed no checks. This page does not claim test success, deployment, or live provider/model execution. |
+| **MERGED ON MAIN** | `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad` | **Delivery standing:** the services, contracts, scripts, and test files described on this page are merged on `main` at the checked SHA. This is not evidence that a check passed or that a deployment or live integration ran. |
+| **INSPECTED** | main `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad` | **Evidence state, not delivery status:** source, contracts, and focused tests were inspected at that SHA. |
+| **NOT EXECUTED** | documentation update | **Check state, not delivery status:** no repository checks were run for this update. In particular, the contract generator was inspected but did not execute checks. This page does not claim test success, deployment, or live provider/model execution. |
 | **FIXTURES** | focused tests | Test inputs described here are synthetic, including synthetic tokens and fake transports; they are not commercial data or evidence of a live integration. |
 
 `npm run check` chains contract generation, backend and frontend type checks, frontend build/tests, and backend unit/integration tests. Its component commands are defined in [`package.json`](../../package.json), but their presence is not evidence that they passed. For a release-level change, use the aggregate command; for ordinary work, choose the focused owner first.

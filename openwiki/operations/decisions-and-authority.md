@@ -5,7 +5,7 @@ description: Navigation for locating owner authority, Ultimate business-change h
 tags: [governance, decisions, adr, authority, operations]
 verified:
   - by: openwiki/0.7.1
-    at: 2026-10-09T02:45:12.359Z
+    at: 2026-10-09T02:51:03.342Z
 sources:
   - id: openwiki-source-362e06c30ccfdafd87339cb0
     resource: repo://ARCHITECTURE.md

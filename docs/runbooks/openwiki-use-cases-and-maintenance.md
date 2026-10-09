@@ -173,3 +173,22 @@ If it is not used, remove `openwiki/`, `.openwikiignore` and the OpenWiki block 
 2. Run the first `--init` (checklist W-01…W-10 in the setup runbook) and review it with section 3.4.
 3. Run the W1 check with three questions the owner knows the answer to.
 4. Use W2 and W4 for a month, then decide on W5 and on scheduled updates (3.6).
+
+
+### WIKI-2 observed unchanged-update behavior (0.7.1)
+
+After committing generated wiki, bare `--update` entered first-run setup in a TTY.
+Confirming the existing repository, skipping LangSmith and running proceeded to
+update mode. It replanned the four repairs retained in the brief despite those
+repairs already being present. The CLI reported two updated pages in 8m13s;
+page verification metadata, sidecars, manifest and managed instruction blocks
+also changed. Therefore an unchanged checkout does not guarantee a metadata-only
+update with this brief/version. Inspect the raw diff before restoring approved
+managed blocks; do not claim a no-op from an exit code.
+
+The WIKI-2 handoff was created during that run. The tool reported source changes,
+finalized pages, removed its checkpoint, and left `.last-update.json` with status
+`interrupted` without advancing the checked source SHA. This attempt does not
+prove stability with frozen inputs. Keep source files unchanged during future
+stability checks. No additional content correction round was authorized after
+the three-round limit. Cost was not visible.

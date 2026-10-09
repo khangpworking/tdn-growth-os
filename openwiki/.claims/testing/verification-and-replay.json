@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "pageVersion": "sha256:c4b9e031f81e565a295535df2ea80da504243b64e4b50854a97bc8c1070b6a33",
+  "pageVersion": "sha256:1756b2503cebb6149e4d61172a91cb68f03d1f28417593297fefd6f8cccd3764",
   "claims": [
     {
       "id": "claim_c39cfdda2d2f4ad0ab29fcd7a1387678",
@@ -413,10 +413,68 @@
           "version": "repo-lines-v1:sha256:9c273bc136e4cd57c00379c2b75835a95a0bec09300be96b391f89341de8016b:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ2YmYyNzNkYWYwM2MxZjk3YzRhNmM3ODQ2OTdmNmNkYmY0N2EzMzhmYzdmYjRjZjIzYWJhNjg2YTJjZGE1YzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmNDY1Zjc2NWY3OTQyN2EyYWM0NGE5OTIwNzhhNmUxMzVkYWQ1ZWYwYTBmNGRmNTM5NzIzYmQ0MDA3ZGNiYzQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjExOTE1ZDVkMTVlZGJiM2U3OWMyYzEyMjM2NGU3MmQ2OGFjNDU2NGQwMDBlMzBhMjM0ZmFjYjgyOTE4NGYwYjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijk4ODRkNmQzMGJiZTU3NTQyNDI4ZDQ3ZGQ4NGU1ZWJjMDNmNGZmYmFlNzg4Y2E1NjA5MmFmNWM1YWNmMTAyMzQifQ"
         }
       ]
+    },
+    {
+      "id": "claim_7701bfe4861d4882ab682be67f9ecb9f",
+      "statement": "At checked main SHA `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad`, the services, contracts, contract-generation script, and focused test files described by this page are merged on `main`; this delivery standing does not assert that validation checks passed.",
+      "evidence": [
+        {
+          "resource": "repo://contracts/analysis/automation-report-revision.schema.json",
+          "version": "repo-file-v1:sha256:ec52e33110e752e95093cd6630a56644d7883de42a85b2295cf6358e9a0d809a"
+        },
+        {
+          "resource": "repo://contracts/analysis/report-version-create-request.schema.json",
+          "version": "repo-file-v1:sha256:bf25d169ceea083efa14ea4908b8351814e3fc960e3977f62fe922869692c16a"
+        },
+        {
+          "resource": "repo://contracts/analysis/report-version-record.schema.json",
+          "version": "repo-file-v1:sha256:0fb09d2ebf486c7e4bac13c37b19268b153dbb772e2568717eb7a4471f2124ab"
+        },
+        {
+          "resource": "repo://contracts/api/research-automation-revision-api.schema.json",
+          "version": "repo-file-v1:sha256:1b12a9e47ee09c1846ee8cfa7d3d3bb59ff93380e20c5ef0a5baf59d1bd83996"
+        },
+        {
+          "resource": "repo://frontend/tests/research-automation.test.ts",
+          "version": "repo-file-v1:sha256:ec7954c51edfda02c9c5beff4cbab37eca74363fcdeb1e7da4379cd2a90bb463"
+        },
+        {
+          "resource": "repo://frontend/tests/research-report-versions.test.ts",
+          "version": "repo-file-v1:sha256:ba76c7fe00daea4ba321b67d1a1ee0fd07f5db4b37e668d4a56d42ea3430494c"
+        },
+        {
+          "resource": "repo://scripts/generate-foundation-contract.mjs",
+          "version": "repo-file-v1:sha256:7d52be5b64a341d6151804bdef25d66621118fd861212d7ffd79f0c40cd80963"
+        },
+        {
+          "resource": "repo://src/modules/analysis/report-version-service.ts",
+          "version": "repo-file-v1:sha256:744c160af5fa4ff54439bf2d8ae243134e8b03f05308df469450b68b404ddc91"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/service.ts",
+          "version": "repo-file-v1:sha256:1a2d902bd8b085bb93ea6f52435e9955d560a254e27e6a8b33e787a05c9da566"
+        },
+        {
+          "resource": "repo://tests/integration/report-version-service.test.ts",
+          "version": "repo-file-v1:sha256:c61cad04a089462cee4a16a667270362a0fb7f245ee7c603d250fc99b1a1ef1c"
+        },
+        {
+          "resource": "repo://tests/integration/research-automation-draft-revision.test.ts",
+          "version": "repo-file-v1:sha256:ec9196fc8d4fa542c82d9c2117352d01e77e444ee9a3bbe17616e3e570dc2cab"
+        },
+        {
+          "resource": "repo://tests/integration/research-automation-metric-methods.test.ts",
+          "version": "repo-file-v1:sha256:9b248f826f55e7da089fc0fdababb8735252ba2ce321c50f24257ce468e95261"
+        },
+        {
+          "resource": "repo://tests/unit/research-automation-providers.test.ts",
+          "version": "repo-file-v1:sha256:25b4e32e1015b95d85c75d89c34f362ce45d9c5b70cf299532e95c0a15d5305e"
+        }
+      ]
     }
   ],
   "verification": {
     "by": "openwiki/0.7.1",
-    "at": "2026-10-09T02:45:12.359Z"
+    "at": "2026-10-09T02:51:03.342Z"
   }
 }

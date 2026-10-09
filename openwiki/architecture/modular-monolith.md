@@ -3,6 +3,9 @@ type: architecture
 title: Five-Module Monolith and Write Boundaries
 description: Ownership and integration boundaries for the five in-process modules, their shared SQLite database and artifact store, and the API composition roots. Use this page to route changes through the owning service and declared readers.
 tags: [architecture, modular-monolith, sqlite, ownership, api, artifacts]
+verified:
+  - by: openwiki/0.7.1
+    at: 2026-10-09T02:51:03.342Z
 sources:
   - id: openwiki-source-8037e2358a2c4f9b2c722a11
     resource: repo://AGENTS.md
@@ -34,17 +37,13 @@ sources:
     resource: repo://src/modules/orchestrator/index.ts
   - id: openwiki-source-4cfcd3bed0faed29f10e5fb5
     resource: repo://src/platform/db/migrations.ts
-generated: { by: "openwiki/0.7.1", at: "2026-10-09T02:45:12.359Z" }
-verified:
-  - by: openwiki/0.7.1
-    at: 2026-10-09T02:45:12.359Z
+generated: { by: "openwiki/0.7.1", at: "2026-10-09T02:51:03.342Z" }
 ---
 
 # Five-Module Monolith and Write Boundaries
 
-**Checked main SHA:** `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad`
-
-The module, API, and persistence code described here is merged on `main` at that SHA. Baseline-only capabilities remain planned; this delivery standing establishes neither deployment nor operational acceptance.
+**Checked main SHA:** `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad`.
+The module, API, and persistence code described here is **merged on main** at that SHA. Baseline-only capabilities are **planned**; this delivery standing establishes neither deployment nor operational acceptance.
 
 This is one TypeScript modular monolith: Foundation, Analysis, Orchestrator, Flow, and Governance share one authoritative SQLite database. A module writes its own state through its application service. A different module may consume verified state through the owner's declared reader, but does not write the owner's tables directly ([`AGENTS.md`](../../AGENTS.md#L27-L35); [`ARCHITECTURE.md`](../../ARCHITECTURE.md#L96-L123)).
 
@@ -89,7 +88,7 @@ Some domain records deliberately preserve history with database constraints. For
 
 ### Schema changes
 
-Migrations are contiguous numbered SQL files. `applyMigrations` verifies the recorded version/name/checksum sequence and `PRAGMA user_version`, then applies each pending migration, ledger entry, and version update within `BEGIN IMMEDIATE`/`COMMIT` ([`src/platform/db/migrations.ts`](../../src/platform/db/migrations.ts#L24-L107)). Add a forward migration rather than editing an applied file. The operator app independently refuses to start when either the migration ledger or `user_version` is behind the available head ([`src/api/operator-app.ts`](../../src/api/operator-app.ts#L286-L313)).
+Migrations are contiguous numbered SQL files. `applyMigrations` verifies the recorded version/name/checksum sequence and `PRAGMA user_version`, then applies each pending migration, ledger entry, and version update within `BEGIN IMMEDIATE`/`COMMIT` ([`src/platform/db/migrations.ts`](../../src/platform/db/migrations.ts#L24-L107)). Add a forward migration rather than editing an applied file. The operator app independently refuses to start when either the migration ledger or `user_version` does not match the available head ([`src/api/operator-app.ts`](../../src/api/operator-app.ts#L286-L313)).
 
 ## Composition roots and API authority
 
