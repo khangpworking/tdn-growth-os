@@ -6,13 +6,16 @@ import type {
   InsightCodingProposeRequest,
   InsightSourceBinding,
 } from '../../../contracts/analysis/automation-insight-coding.generated';
-import type { ResearchInsightCodingMutation, ResearchInsightCodingView as LegacyInsightCodingView, ResearchInsightCodingDefaultView } from '../../../contracts/api/research-automation-insight-coding-api.generated';
-import type { InsightDefaultModelRequest, InsightModelRequest } from '../../../contracts/analysis/automation-insight-model.generated';
+import type { ResearchInsightCodingMutation, ResearchInsightCodingView as LegacyInsightCodingView, ResearchInsightCodingDefaultView, ResearchInsightCodingPrivateDefaultView } from '../../../contracts/api/research-automation-insight-coding-api.generated';
+import type { InsightDefaultModelRequest, InsightPrivateDefaultModelRequest, InsightModelRequest } from '../../../contracts/analysis/automation-insight-model.generated';
 import type { ResearchInsightModelResponse } from '../../../contracts/api/research-automation-insight-model-api.generated';
-import { insightCodingAccept, insightCodingAdopt, insightCodingMutation, insightCodingPropose, insightCodingDefaultRule, insightCodingDefaultPropose, insightCodingAnyView, insightDefaultModelRequest, insightModelRequest, insightModelResponse } from '../generated/report-validators.generated.js';
+import { insightCodingAccept, insightCodingAdopt, insightCodingMutation, insightCodingPropose, insightCodingDefaultRule, insightCodingDefaultPropose, insightCodingVersionedView, insightDefaultModelSubmission, insightPrivateCodingDefaultRule, insightPrivateCodingDefaultPropose, insightModelRequest, insightModelResponse } from '../generated/report-validators.generated.js';
+import { canonical } from './insight-coding-ui';
 import { ResearchAutomationError } from './api';
 
-export type ResearchInsightCodingView = LegacyInsightCodingView | ResearchInsightCodingDefaultView;
+export type ResearchInsightCodingView = LegacyInsightCodingView | ResearchInsightCodingDefaultView | ResearchInsightCodingPrivateDefaultView;
+export type AnyInsightDefaultModelRequest = InsightDefaultModelRequest | InsightPrivateDefaultModelRequest;
+type AnySourceBinding = ResearchInsightCodingView['context']['binding'];
 export type {
   InsightCodingAcceptRequest,
   InsightCodingAdoptRequest,
@@ -36,7 +39,7 @@ export async function loadInsightCoding(workspaceId: string, runId: string, pair
   assertUuid(runId, 'Run ID');
   assertDigest(pairId, 'Pair ID');
   const value = await request(`/api${base(workspaceId, runId)}/insight-coding/${encodeURIComponent(pairId)}`, { headers: { Accept: 'application/json' }, signal });
-  if (!insightCodingAnyView(value)) throw integrity('Xem xét gán mã Insight không vượt qua kiểm tra contract.');
+  if (!insightCodingVersionedView(value)) throw integrity('Xem xét gán mã Insight không vượt qua kiểm tra contract.');
   const view = value as ResearchInsightCodingView;
   if (!bindingMatches(view.context.binding, workspaceId, runId, pairId)) {
     throw integrity('Bối cảnh gán mã không thuộc đúng cặp báo cáo đang xem.');
@@ -47,7 +50,7 @@ export async function loadInsightCoding(workspaceId: string, runId: string, pair
     if (seen.has(item.evidenceId)) throw integrity('Lịch sử gán mã bị lặp định danh bằng chứng.');
     seen.add(item.evidenceId);
     if (!evidenceRequestValidator(item.kind, item.request.contractVersion)(item.request)) throw integrity('Yêu cầu trong bằng chứng gán mã không đúng contract.');
-    if ((item.request.contractVersion === 'insight-coding-adopt-v1' || item.request.contractVersion === 'insight-coding-default-rule-v1') && !sameBinding(item.request.binding, view.context.binding)) {
+    if ((item.request.contractVersion === 'insight-coding-adopt-v1' || item.request.contractVersion === 'insight-coding-default-rule-v1' || item.request.contractVersion === 'insight-coding-default-rule-v2') && !sameBinding(item.request.binding, view.context.binding)) {
       throw integrity('Yêu cầu công bố trong bằng chứng không khớp ràng buộc nguồn.');
     }
   }
@@ -108,9 +111,9 @@ export async function proposeInsightCodingModel(
 }
 
 /** One explicit default attempt, with the same owner and runtime model gates as the adopted path. */
-export async function proposeDefaultInsightCodingModel(workspaceId: string, runId: string, body: InsightDefaultModelRequest, token: string, signal: AbortSignal): Promise<ResearchInsightModelResponse> {
+export async function proposeDefaultInsightCodingModel(workspaceId: string, runId: string, body: AnyInsightDefaultModelRequest, token: string, signal: AbortSignal): Promise<ResearchInsightModelResponse> {
   assertUuid(workspaceId, 'Workspace ID'); assertUuid(runId, 'Run ID');
-  if (!insightDefaultModelRequest(body) || !bindingMatches(body.binding, workspaceId, runId, body.binding.pairId)) throw new ResearchAutomationError('rejected', 'Yêu cầu mã hóa mặc định không khớp nguồn đã chọn.');
+  if (!insightDefaultModelSubmission(body) || !bindingMatches(body.binding, workspaceId, runId, body.binding.pairId)) throw new ResearchAutomationError('rejected', 'Yêu cầu mã hóa mặc định không khớp nguồn đã chọn.');
   const result = await requestWithStatus(`/owner-api${base(workspaceId, runId)}/insight-coding-default-model-proposals`, { ...ownerPost(body, token), signal }, [200, 201]);
   if (!insightModelResponse(result.value)) throw integrity('Phản hồi đề xuất mặc định không đúng contract.');
   const response = result.value as ResearchInsightModelResponse;
@@ -120,7 +123,8 @@ export async function proposeDefaultInsightCodingModel(workspaceId: string, runI
 }
 
 function evidenceRequestValidator(kind: 'ADOPTION' | 'PROPOSAL' | 'RECEIPT' | 'DEFAULT_RULE', version: string): (data: unknown) => boolean {
-  if (kind === 'DEFAULT_RULE') return insightCodingDefaultRule;
+  if (kind === 'DEFAULT_RULE') return version === 'insight-coding-default-rule-v2' ? insightPrivateCodingDefaultRule : insightCodingDefaultRule;
+  if (kind === 'PROPOSAL' && version === 'insight-coding-default-propose-v2') return insightPrivateCodingDefaultPropose;
   if (kind === 'PROPOSAL' && version === 'insight-coding-default-propose-v1') return insightCodingDefaultPropose;
   return kind === 'ADOPTION' ? insightCodingAdopt : kind === 'PROPOSAL' ? insightCodingPropose : insightCodingAccept;
 }
@@ -134,11 +138,15 @@ function verifyMutation(value: unknown, kind: 'ADOPTION' | 'PROPOSAL' | 'RECEIPT
   return mutation;
 }
 
-function bindingMatches(binding: InsightSourceBinding, workspaceId: string, runId: string, pairId: string): boolean {
+function bindingMatches(binding: AnySourceBinding, workspaceId: string, runId: string, pairId: string): boolean {
   return binding.workspaceId === workspaceId && binding.runId === runId && binding.pairId === pairId;
 }
 
-function sameBinding(a: InsightSourceBinding, b: InsightSourceBinding): boolean {
+function sameBinding(a: AnySourceBinding, b: AnySourceBinding): boolean {
+  if (a.sourceKind === 'PRIVATE_SHOPEE' || b.sourceKind === 'PRIVATE_SHOPEE') {
+    if (a.sourceKind !== 'PRIVATE_SHOPEE' || b.sourceKind !== 'PRIVATE_SHOPEE') return false;
+    return canonical(a) === canonical(b);
+  }
   return bindingMatches(a, b.workspaceId, b.runId, b.pairId) &&
     a.scopeSha256 === b.scopeSha256 && a.reportSha256 === b.reportSha256 && a.sourceKind === b.sourceKind &&
     a.sourcePackageSha256 === b.sourcePackageSha256 && a.inputSha256 === b.inputSha256;

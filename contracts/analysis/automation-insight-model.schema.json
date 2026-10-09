@@ -29,6 +29,18 @@
     },
     {
       "$ref": "#/$defs/defaultPrompt"
+    },
+    {
+      "$ref": "#/$defs/privateDefaultRequest"
+    },
+    {
+      "$ref": "#/$defs/privateDefaultSource"
+    },
+    {
+      "$ref": "#/$defs/privateInput"
+    },
+    {
+      "$ref": "#/$defs/privateDefaultPrompt"
     }
   ],
   "$defs": {
@@ -528,6 +540,325 @@
       "properties": {
         "contractVersion": {
           "const": "insight-model-prompt-v5"
+        },
+        "systemText": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "privateDefaultRequest": {
+      "title": "InsightPrivateDefaultModelRequest",
+      "allOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "contractVersion",
+            "requestKey",
+            "binding",
+            "defaultRuleId",
+            "defaultRuleSha256",
+            "previousProposalId",
+            "previousProposalSha256",
+            "recordIndexes"
+          ],
+          "properties": {
+            "contractVersion": {
+              "const": "insight-default-model-request-v2"
+            },
+            "requestKey": {
+              "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+            },
+            "binding": {
+              "$ref": "private-insight-source-projection.schema.json#/$defs/binding"
+            },
+            "defaultRuleId": {
+              "anyOf": [
+                {
+                  "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "defaultRuleSha256": {
+              "anyOf": [
+                {
+                  "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "previousProposalId": {
+              "anyOf": [
+                {
+                  "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "previousProposalSha256": {
+              "anyOf": [
+                {
+                  "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "recordIndexes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 100,
+              "uniqueItems": true,
+              "items": {
+                "type": "integer",
+                "minimum": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "defaultRuleId": {
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "defaultRuleSha256": {
+                "type": "null"
+              },
+              "previousProposalId": {
+                "type": "null"
+              },
+              "previousProposalSha256": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "defaultRuleSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "previousProposalId": {
+                "type": "null"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "previousProposalSha256": {
+                "type": "null"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "previousProposalSha256": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              }
+            }
+          }
+        }
+      ],
+      "type": "object"
+    },
+    "privateDefaultSource": {
+      "title": "InsightPrivateDefaultModelSource",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "request",
+        "binding",
+        "defaultRuleId",
+        "defaultRuleSha256",
+        "codebookSha256",
+        "actorId",
+        "input",
+        "privateSource"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-default-model-source-v2"
+        },
+        "request": {
+          "$ref": "#/$defs/privateDefaultRequest"
+        },
+        "binding": {
+          "$ref": "private-insight-source-projection.schema.json#/$defs/binding"
+        },
+        "defaultRuleId": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/uuid"
+        },
+        "defaultRuleSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "codebookSha256": {
+          "$ref": "automation-insight-coding.schema.json#/$defs/digest"
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "input": {
+          "$ref": "located-insight-methods.schema.json#/$defs/input"
+        },
+        "privateSource": {
+          "$ref": "private-insight-source-projection.schema.json"
+        }
+      }
+    },
+    "privateInput": {
+      "title": "InsightPrivateModelInput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "question",
+        "inclusionRule",
+        "adjudicationRule",
+        "records",
+        "corpora",
+        "sourceMembership"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-model-input-v2"
+        },
+        "question": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "inclusionRule": {
+          "type": "string"
+        },
+        "adjudicationRule": {
+          "type": "string"
+        },
+        "records": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "recordIndex",
+              "record",
+              "sourceRecord"
+            ],
+            "properties": {
+              "recordIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "record": {
+                "$ref": "located-insight-methods.schema.json#/$defs/record"
+              },
+              "sourceRecord": {
+                "$ref": "private-insight-source-projection.schema.json#/$defs/record"
+              }
+            }
+          }
+        },
+        "corpora": {
+          "type": "array",
+          "maxItems": 100,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "corpusIndex",
+              "sectionId",
+              "recordIndexes",
+              "multiCode",
+              "codes"
+            ],
+            "properties": {
+              "corpusIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "sectionId": {
+                "enum": [
+                  "I10",
+                  "I13"
+                ]
+              },
+              "recordIndexes": {
+                "type": "array",
+                "items": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "multiCode": {
+                "type": "boolean"
+              },
+              "codes": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "code",
+                    "label",
+                    "phrase"
+                  ],
+                  "properties": {
+                    "code": {
+                      "type": "string"
+                    },
+                    "label": {
+                      "type": "string"
+                    },
+                    "phrase": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "sourceMembership": {
+          "$ref": "private-insight-source-projection.schema.json#/properties/records"
+        }
+      }
+    },
+    "privateDefaultPrompt": {
+      "title": "InsightPrivateDefaultModelPrompt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "systemText"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-model-prompt-v6"
         },
         "systemText": {
           "type": "string",

@@ -324,7 +324,7 @@ export function insightCodingView(coding: AutomationInsightCodingSnapshot, famil
   };
 }
 
-export function draftInsightGroupsView(coding: Extract<AutomationInsightCodingSnapshot, { contractVersion: 'automation-insight-coding-snapshot-v3' | 'automation-insight-coding-snapshot-v4' }>, citations: ReportCitations): string {
+export function draftInsightGroupsView(coding: Extract<AutomationInsightCodingSnapshot, { contractVersion: 'automation-insight-coding-snapshot-v3' | 'automation-insight-coding-snapshot-v4' | 'automation-insight-coding-snapshot-v5' }>, citations: ReportCitations): string {
   const result = coding.groupCounts;
   let html = '<p>Số đề xuất từ cùng hồ sơ mã hóa đã lưu; bản nháp này không dùng biên nhận chấp nhận. Mỗi tập giữ riêng bộ mã, kỳ, khung thu thập và thành viên; không cộng các tập hoặc các mã thành một tổng.</p><p>Chưa có bằng chứng phân biệt mua lẻ và mua sỉ; không tự đoán từ tên người viết hoặc câu chữ. Chưa công bố tỷ lệ hay chênh lệch từ mã hóa bản nháp; kiểm chéo và điều kiện so nhóm còn thiếu.</p>';
   if (!result.groups.length) return html + '<p>Chưa có nhóm với bằng chứng nền tảng và mã hóa tương thích; chưa có số đếm dùng được. Đây không phải kết quả bằng 0.</p>';
@@ -347,7 +347,7 @@ export function draftInsightGroupsView(coding: Extract<AutomationInsightCodingSn
 }
 
 export function insightCodingTrace(coding: AutomationInsightCodingSnapshot, sectionId: 'I03' | 'I17'): string {
-  if (coding.contractVersion === 'automation-insight-coding-snapshot-v4') {
+  if (coding.contractVersion === 'automation-insight-coding-snapshot-v4' || coding.contractVersion === 'automation-insight-coding-snapshot-v5') {
     const binding = coding.binding;
     return `<h3>${sectionId === 'I03' ? 'Phương pháp mã hóa mặc định' : 'Dấu vết mã hóa mặc định'} (đề xuất, chờ chủ duyệt)</h3><p>Quy tắc và bộ mã là đề xuất theo nguồn đã lưu; chưa có duyệt của chủ. Không dùng biên nhận chấp nhận. ${codingCaveat}</p><p>${escape(DEFAULT_INSIGHT_MULTICODE_LIMIT)}</p><details class="evidence-trace"><summary>Hồ sơ đối chiếu đề xuất mặc định</summary><dl><dt>Quy tắc đề xuất</dt><dd><code>${escape(coding.defaultRuleId)}</code> · <code>${escape(coding.defaultRuleSha256)}</code></dd><dt>Đề xuất</dt><dd><code>${escape(coding.selection.proposalId)}</code> · <code>${escape(coding.proposalSha256)}</code></dd><dt>Bộ mã SHA-256</dt><dd><code>${escape(coding.codebookSha256)}</code></dd><dt>Lần thực thi model</dt><dd><code>${escape(coding.executionId)}</code></dd><dt>Cặp nguồn</dt><dd><code>${escape(binding.pairId)}</code></dd><dt>Gói nguồn</dt><dd><code>${escape(binding.sourcePackageSha256)}</code></dd><dt>Đầu vào</dt><dd><code>${escape(binding.inputSha256)}</code></dd></dl></details>`;
   }
@@ -499,6 +499,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const privateView = kind === 'INSIGHT' && input.privateReviewCorpus ? privateReviewReportView(input.privateReviewCorpus) : undefined;
   if (privateView && (!input.start.privateShopeeSource || input.reviewCorpus || input.locatedReview || input.nativeReview || !input.collection?.privateShopee ||
     privateView.corpus.collectionSha256 !== input.collection.privateShopee.collectionSha256)) throw new Error('Private report source lineage mismatch');
+  if (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' &&
+      (kind !== 'INSIGHT' || !privateView || input.insightCoding.binding.sourceKind !== 'PRIVATE_SHOPEE' ||
+       canonicalJson(input.insightCoding.privateSource.corpus) !== canonicalJson(privateView.corpus)))
+    throw new Error('Private default report source lineage mismatch');
   const insightCoding = kind === 'INSIGHT' ? input.insightCoding : undefined;
   const insightCrosscheck = kind === 'INSIGHT' ? input.insightCrosscheck : undefined;
   if (insightCrosscheck && (!crosscheckSnapshotValid(insightCrosscheck) || insightCoding?.contractVersion !== 'automation-insight-coding-snapshot-v4' ||
@@ -599,7 +603,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
         method: `${methods.output.methodId}@${methods.output.methodVersion}`,
         explanation: 'Đã kiểm tra trường nguồn và tính riêng từng cơ sở giá có đủ dữ liệu. Kết quả giới hạn trong các chào bán được chọn; chưa phải phân tích kinh tế đơn vị hoàn chỉnh.' };
     }
-    if (kind === 'INSIGHT' && section.sectionId === 'I11' && (insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4')) {
+    if (kind === 'INSIGHT' && section.sectionId === 'I11' && (insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5')) {
       const groups = insightCoding.groupCounts;
       const usable = groups.groups.some(group => group.counts.some(count => count.recordCount !== null && count.recordCount > 0));
       locatedViews.set(section.sectionId, () => draftInsightGroupsView(insightCoding, citations));
@@ -724,7 +728,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = insightPersona ? 'automation-report-kit-v26' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? 'automation-report-kit-v22' : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? 'automation-report-kit-v22' : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -871,7 +875,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Source appendix v18 also serves existing Market and accepted Insight
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
-  if (insightPersona || marketPresentation || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))) {
+  if (insightPersona || marketPresentation || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
     const failed = lintVisibleReportText(html).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }

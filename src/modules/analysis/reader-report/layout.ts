@@ -66,7 +66,9 @@ export type PageInput = {
   title: string; coverHtml: string; intro: string; toc: readonly (readonly [string, string])[]; sections: readonly string[]; foot: string;
   /** Defaults to the bundled Be Vietnam Pro faces. */
   fontCss?: string;
+  /** Opt-in styles for retained Insight method bodies; historical pages add nothing. */
+  extraCss?: string;
 };
-export function page({ title, coverHtml, intro, toc, sections, foot, fontCss = readerReportFontCss() }: PageInput): string {
-  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n<title>${esc(title)}</title><style>${fontCss}${CSS}${CSS_COVER}${CSS_KIT}</style></head>\n<body class="mk">${coverHtml}\n<main>\n${intro}<nav class="toc">${toc.map(([id, t]) => `<a href="#${anc(id)}"><b>${lbl(id)}</b> ${esc(t)}</a>`).join('')}</nav>\n${sections.join('\n')}<footer>${foot}</footer></main></body></html>`;
+export function page({ title, coverHtml, intro, toc, sections, foot, fontCss = readerReportFontCss(), extraCss = '' }: PageInput): string {
+  return `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">\n<title>${esc(title)}</title><style>${fontCss}${CSS}${CSS_COVER}${CSS_KIT}${extraCss}</style></head>\n<body class="mk">${coverHtml}\n<main>\n${intro}<nav class="toc">${toc.map(([id, t]) => `<a href="#${anc(id)}"><b>${lbl(id)}</b> ${esc(t)}</a>`).join('')}</nav>\n${sections.join('\n')}<footer>${foot}</footer></main></body></html>`;
 }

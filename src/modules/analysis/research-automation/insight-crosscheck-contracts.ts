@@ -1,3 +1,5 @@
+import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { registerPrivateReviewSchemas } from './private-review-contracts.js';
 import { createRequire } from 'node:module';
 import located from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import selection from '../../../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
@@ -14,6 +16,7 @@ const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const ajv = new Ajv2020({ strict: true, allErrors: false });
 (require('ajv-formats') as typeof import('ajv-formats')).default(ajv);
+registerPrivateReviewSchemas(ajv); ajv.addSchema(privateSourceSchema);
 for (const contract of [located, selection, coding, model, classified, revision, schema, api]) ajv.addSchema(contract);
 const ref = (name: string) => ({ $ref: `${schema.$id}#/$defs/${name}` });
 export const crosscheckRequestValid = ajv.compile<InsightCrosscheckRequest>(ref('request'));

@@ -1,3 +1,5 @@
+import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { registerPrivateReviewSchemas } from './private-review-contracts.js';
 import { createRequire } from 'node:module';
 import configurationSchema from '../../../../contracts/analysis/automation-i14-synthesis-configuration.schema.json' with { type: 'json' };
 import decisionConfigurationSchema from '../../../../contracts/analysis/automation-decision-synthesis-configuration.schema.json' with { type: 'json' };
@@ -21,6 +23,7 @@ const validateDecisionConfiguration = ajv.compile<AutomationDecisionSynthesisCon
 // The Insight configuration is one definition of a schema whose other definitions reference sibling contracts and formats.
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const insightAjv = new Ajv2020({ strict: true, allErrors: true }); addFormats(insightAjv);
+registerPrivateReviewSchemas(insightAjv); insightAjv.addSchema(privateSourceSchema);
 for (const contract of [locatedInsightSchema, insightSelectionSchema, insightCodingSchema, insightModelSchema]) insightAjv.addSchema(contract);
 const validateInsightConfiguration = insightAjv.compile<InsightModelConfiguration>({ $ref: `${insightModelSchema.$id}#/$defs/configuration` });
 type SynthesisConfiguration = AutomationI14SynthesisConfiguration | AutomationDecisionSynthesisConfiguration | InsightModelConfiguration;
