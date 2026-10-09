@@ -109,7 +109,7 @@ test('board emits all eleven cards with registry metadata and truthful build sta
   const disabledStatus = buildResearchAutomationSourceStatus(input({ executorEnabled: false }));
   assert.ok(disabledStatus.sources.every(card => card.state === 'EXECUTOR_DISABLED'));
   const disabled = bySource(disabledStatus);
-  assert.equal(disabled('APIFY_TIKTOK_COMMENTS').pendingPackage, 'P9', 'Metadata survives the disabled override');
+  assert.equal(disabled('APIFY_TIKTOK_COMMENTS').pendingPackage, null, 'Metadata survives the disabled override');
 });
 
 test('TikTok cap is exposed exactly as configured and never defaulted', () => {
@@ -120,14 +120,14 @@ test('TikTok cap is exposed exactly as configured and never defaulted', () => {
     providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: false, apifyTikTokComments: { maxChargeUsd: 3 } },
   })));
   assert.equal(configured('APIFY_TIKTOK_COMMENTS').spendCapUsd, 3);
-  assert.equal(configured('APIFY_TIKTOK_COMMENTS').state, 'NOT_BUILT', 'A configured cap alone does not build the collector');
+  assert.equal(configured('APIFY_TIKTOK_COMMENTS').state, 'NOT_CONFIGURED', 'A configured cap alone does not configure the collector');
   // A present Apify token is honest credential evidence; the missing
-  // independent cap still blocks collection and the card stays NOT_BUILT.
+  // independent cap still blocks collection and the card stays NOT_CONFIGURED.
   const tokenPresent = bySource(buildResearchAutomationSourceStatus(input({
     providers: { kalodataSecretKey: null, serpApiKey: null, apifyTokenConfigured: true },
   })));
   assert.equal(tokenPresent('APIFY_TIKTOK_COMMENTS').credential, 'CONFIGURED');
-  assert.equal(tokenPresent('APIFY_TIKTOK_COMMENTS').state, 'NOT_BUILT');
+  assert.equal(tokenPresent('APIFY_TIKTOK_COMMENTS').state, 'NOT_CONFIGURED');
   assert.equal(tokenPresent('APIFY_TIKTOK_COMMENTS').spendCapUsd, null);
   // A token without a spending cap never starts a paid collection.
   const shopee = bySource(buildResearchAutomationSourceStatus(input({
