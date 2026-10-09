@@ -173,4 +173,41 @@ test('actual E11 classified source/search/L9 -> OWNER saved-page API -> inert pr
     assert.equal((await f.service.readSourceActivity(workspaceId))['meta-ad-library'].dataCount, 1, 'unconfirmed semantic variant does not invent admitted data');
     assert.deepEqual(f.calls(), baselineCalls);
   });
+  await t.test('OWNER HTTP rejects a lone surrogate with valid source hash/span before publication, while literal replacement and non-BMP text roundtrip unchanged', async () => {
+    const pair = (await f.service.listReportVersions(workspaceId, runId)).at(-1)!;
+    const revision = (await f.service.getRun(workspaceId, runId)).revision;
+    const literalRequest = (prefix: string, declarationPrefix = prefix) => {
+      const html = Buffer.from(f.raw.html), capture = structuredClone(f.raw.capture), span = capture.ads[0]!.text.span;
+      const sourceText = prefix + ' Synthetic nồi chiên';
+      const padding = ' '.repeat(span.byteLength - Buffer.byteLength(sourceText, 'utf8'));
+      html.fill(32, span.byteOffset, span.byteOffset + span.byteLength);
+      html.write(sourceText, span.byteOffset, 'utf8');
+      const declaredText = declarationPrefix + ' Synthetic nồi chiên' + padding;
+      for (const ad of capture.ads) if (ad.text.span.byteOffset === span.byteOffset) ad.text.value = declaredText;
+      capture.htmlSha256 = hash(html);
+      return { request: { ...f.request, requestKey: randomUUID(), expectedRevision: revision, selection: { ...f.request.selection, pairId: pair.pairId },
+        htmlBase64: html.toString('base64'), visibleFieldsBase64: Buffer.from(JSON.stringify(capture)).toString('base64') }, capture, declaredText };
+    };
+    const publications = async () => ({
+      packages: f.db.prepare('SELECT * FROM foundation_source_packages ORDER BY package_id').all(),
+      members: f.db.prepare('SELECT * FROM foundation_source_package_files ORDER BY package_id,logical_path').all(),
+      artifactFiles: await Promise.all((await fs.readdir(f.artifactRoot, { recursive: true })).sort().map(async name => {
+        const path = `${f.artifactRoot}/${name}`;
+        return [name, (await fs.stat(path)).isFile() ? hash(await fs.readFile(path)) : null];
+      })),
+    });
+    const malformed = literalRequest('\ufffd', '\ud800'), before = await publications(), beforeChanges = changes();
+    const refused = await post(malformed.request);
+    assert.equal(refused.status, 400, await refused.clone().text());
+    assert.deepEqual(await publications(), before); assert.deepEqual(changes(), beforeChanges);
+    for (const prefix of ['\ufffd', '\u{1f680}']) {
+      const valid = literalRequest(prefix), response = await post(valid.request);
+      assert.equal(response.status, 201, await response.clone().text());
+      const view = await response.json() as MetaPageSourceView;
+      assert.deepEqual(view.capture, valid.capture);
+      assert.equal(view.projection.observations[0]!.textFirst200, Array.from(valid.declaredText).slice(0, 200).join(''));
+      assert.deepEqual(await (await get(`/${view.prepared.packageId}`)).json(), view);
+    }
+    assert.deepEqual(f.calls(), baselineCalls);
+  });
 });

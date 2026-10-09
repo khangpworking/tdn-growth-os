@@ -85,7 +85,9 @@ export function validateMetaPageBinding(value: unknown): asserts value is MetaPa
 }
 function located(literal: MetaPageLocatedLiteral, html: Buffer): string {
   const { byteOffset, byteLength } = literal.span;
-  if (!Number.isSafeInteger(byteOffset + byteLength) || byteOffset + byteLength > html.length || !html.subarray(byteOffset, byteOffset + byteLength).equals(Buffer.from(literal.value)))
+  const bytes = Buffer.from(literal.value, 'utf8');
+  if (bytes.toString('utf8') !== literal.value) fail('META_LITERAL_UTF8_INVALID');
+  if (!Number.isSafeInteger(byteOffset + byteLength) || byteOffset + byteLength > html.length || !html.subarray(byteOffset, byteOffset + byteLength).equals(bytes))
     fail('META_LITERAL_LOCATOR_MISMATCH');
   return literal.value;
 }

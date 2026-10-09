@@ -41,6 +41,10 @@ Tested implementation checkpoint: `84c7543b6e4d7bc208b9202f33a14de38c5f229b`. Th
 
 Canonical phase checkpoint: `2bb73ef8b2ee0bcb03c737b2c282f7ffea6a5943`, explicitly RELEASED. Central/source phases require explicit stable release at the final tested checkpoint; no subsequent edits after release without renewed grant.
 
+The previous frozen publication head `eef7b8d58e3e5d53a24790ed3ab5833368c9c55e` was held after a proven literal-fidelity defect: Node's UTF-8 encoding could replace a lone surrogate with U+FFFD while the declaration/projection retained the surrogate. Under a narrow three-path regrant, located literals now must roundtrip through UTF-8 unchanged before span comparison; invalid strings are rejected without rewriting raw source bytes. The actual OWNER HTTP regression fails against the prior implementation (201 instead of 400), then passes with unchanged package/member records and staging/CAS files. Literal U+FFFD and valid non-BMP text remain byte-bound and readable unchanged. The original error probe and report are preserved outside Git.
+
+Corrected focused evidence: owning/cold/history 9/9, complete budget 1/1, capture/contracts/cards 15/15, both strict backend and direct frontend typechecks pass. The unchanged affected regressions remain 22/22, giving 47 applicable passing checks. All other 18 tracked delivery paths plus the standalone generated validator remain unchanged from the released head; 439 historical contracts and 1,891 historical paths are rechecked by direct hashes. The corrected full head, new raw logs, clean status and explicit narrow release are recorded in the appended outside-Git report; GLOBAL/CENTRAL remain released, and publication requires a renewed exact-head grant.
+
 ## Checklist evidence
 
 | ID | State | Evidence / remaining limit |
