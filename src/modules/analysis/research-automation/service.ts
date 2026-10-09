@@ -84,6 +84,10 @@ import { readPreparedMetricSources } from './metric-source-inventory.js';
 import { AutomationReaderReports, type ReaderDraftContext, type ReaderRowsReader } from './reader-report-revisions.js';
 import { FoundationSourcePackageReader } from '../../foundation/source-package-reader.js';
 import { SourcePackageService } from '../../foundation/source-package-service.js';
+import { AutomationP9SourceIntake, p9PackagePrefix, P9PublicationArtifactStore } from './p9-source-intake.js';
+import type { TikTokSourcePackageIdentity, TikTokVideoSelectionRequest } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
+import type { VideoReadingPrepareRequest } from '../../../../contracts/analysis/video-reading-v1.generated.js';
+import type { ApifyTikTokCommentsCollector } from '../../../platform/collectors/apify-tiktok-comments.js';
 import { videoPackageKeyPrefix } from './kalodata-video-intake.js';
 import { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import type { AutomationReportRevisionRequest as SourceReportRevisionRequest } from '../../../../contracts/analysis/automation-report-revision.generated.js';
@@ -266,6 +270,8 @@ export type ResearchAutomationReportRenderer = (
 ) => Promise<ResearchAutomationRenderedReport> | ResearchAutomationRenderedReport;
 
 export interface ResearchAutomationServiceOptions {
+  /** Explicit P9 collector injection. No automatic activation or model permission. */
+  readonly tikTokCommentsCollector?: ApifyTikTokCommentsCollector;
   /** Opt-in new source branch. Absent AI retains an explicit unavailable packet, never an unfiltered new report. */
   readonly sourceEvidence?: { readonly modelIdentity: string; readonly promptVersion: string; readonly transport?: KeywordListDraftTransport; readonly configuration?: import('../../../../contracts/analysis/keyword-list-draft-record.generated.js').KeywordDraftConfiguration };
   readonly db: Database.Database;
@@ -365,6 +371,7 @@ const validateSupplementalPrepare = sourceAjv.compile<ResearchAutomationSuppleme
 interface FrozenSources { sha256: string; value: AutomationConfirmedSourceSet; nativeReference?: NativeSourceReviewReference }
 
 export class ResearchAutomationService {
+  readonly #tikTokCommentsCollector: ApifyTikTokCommentsCollector | undefined;
   readonly #db: Database.Database;
   readonly #artifacts: ContentAddressedArtifactStore;
   readonly #workspaces: DiscoveryWorkspaceReader;
@@ -401,6 +408,7 @@ export class ResearchAutomationService {
   readonly #sourceEvidence: ResearchAutomationServiceOptions['sourceEvidence'];
 
   constructor(options: ResearchAutomationServiceOptions) {
+    this.#tikTokCommentsCollector = options.tikTokCommentsCollector;
     this.#db = options.db;
     this.#artifacts = options.artifactStore;
     this.#workspaces = options.workspaceReader;
@@ -566,6 +574,72 @@ export class ResearchAutomationService {
   async readSourceEvidence(workspaceId: string, runId: string): Promise<AutomationSourceEvidence | null> {
     await this.#requireRun(workspaceId, runId);
     return (await this.#stepDocument(runId, 'COLLECTION'))?.sourceEvidence ?? null;
+  }
+
+  async #p9Context(workspaceId: string, runId: string) {
+    assertUuid(workspaceId); assertUuid(runId);
+    await this.#requireRun(workspaceId, runId);
+    const row = this.#current(runId)!;
+    const sources = await this.#readFrozenSources(row);
+    if (!row.scopeSha || !sources) throw new ResearchAutomationStateError('P9 requires explicit frozen source confirmation.');
+    await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+    return { row, binding: { workspaceId, runId, scopeSha256: row.scopeSha, sourceSetSha256: sources.sha256,
+      requestedPeriod: { startDate: row.periodStart, endDate: row.periodEnd } } };
+  }
+  #p9Intake(row: RunRow, expectedRevision?: number, signal?: AbortSignal) {
+    const guard = () => {
+        signal?.throwIfAborted();
+        const current = this.#current(row.runId);
+        if (!current || current.workspaceId !== row.workspaceId || current.scopeSha !== row.scopeSha || current.sourceSetSha !== row.sourceSetSha ||
+          ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status))
+          throw new ResearchAutomationStateError('This run cannot publish a new P9 source.');
+        if (expectedRevision !== undefined && toNumber(current.revision) !== expectedRevision)
+          throw new ResearchAutomationConflictError('revision_conflict', 'Reload the run before selecting a new P9 source.');
+    };
+    return new AutomationP9SourceIntake({ packages: new SourcePackageService({ db: this.#db,
+        artifactStore: new P9PublicationArtifactStore(this.#artifacts, guard), now: this.#now }),
+      diagnostics: new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now }),
+      publishDiagnostic: operation => withDatabaseMutationMutex(this.#db, operation),
+      ...(this.#tikTokCommentsCollector ? { collector: this.#tikTokCommentsCollector } : {}),
+      keywordDraft: digest => this.readSourceKeywordDraft(row.workspaceId, row.runId, digest),
+      publish: operation => withDatabaseMutationMutex(this.#db, async () => { guard(); return operation(); }) });
+  }
+  /** Explicit OWNER selection is retained before any comment transport. */
+  async selectTikTokCommentVideos(workspaceId: string, runId: string, value: unknown) {
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    return this.#p9Intake(row, (value as TikTokVideoSelectionRequest | null)?.expectedRevision).select(binding, value);
+  }
+  /** Separate opt-in collection consumes only this run's retained L9 draft. */
+  async collectTikTokComments(workspaceId: string, runId: string, selection: TikTokSourcePackageIdentity, signal?: AbortSignal) {
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    if (this.#active.has(runId)) throw new ResearchAutomationStateError('This run already has active execution.');
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
+    this.#active.set(runId, controller);
+    try {
+      const packet = await this.readSourceEvidence(workspaceId, runId);
+      return await this.#p9Intake(row, undefined, controller.signal).collect(binding, selection, packet?.draftDigest ?? '', controller.signal);
+    } finally {
+      signal?.removeEventListener('abort', abort);
+      if (this.#active.get(runId) === controller) this.#active.delete(runId);
+    }
+  }
+  async prepareP9VideoReading(workspaceId: string, runId: string, value: unknown, frames: ReadonlyMap<string, Uint8Array>) {
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    return this.#p9Intake(row, (value as VideoReadingPrepareRequest | null)?.expectedRevision).prepareReading(binding, value, frames);
+  }
+  async readP9Source(workspaceId: string, runId: string, kind: 'comments' | 'reading', packageId: string) {
+    assertUuid(packageId);
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    const retained = await this.#boundedSourceReader().readFinalizedSourcePackage(packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
+    const identity = { packageId, manifestArtifactSha256: retained.manifestArtifactSha256, packageContentSha256: retained.packageContentSha256 };
+    const intake = this.#p9Intake(row);
+    return kind === 'comments' ? intake.comments(binding, identity) : intake.reading(binding, identity);
+  }
+  async readP9SourceHistory(workspaceId: string, runId: string) {
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    return this.#p9Intake(row).history(binding);
   }
 
   /** Explicit owner start. Workspace verification happens before any artifact or DB write. */
@@ -1335,6 +1409,18 @@ export class ResearchAutomationService {
         }
       }
       videoCount += (await videoReader.findAutomationAttachmentPackagesByKeyPrefix(videoPackageKeyPrefix(runId))).length;
+      const comments = await videoReader.findAutomationAttachmentPackagesByKeyPrefix(p9PackagePrefix(runId, 'comments'));
+      const readings = await videoReader.findAutomationAttachmentPackagesByKeyPrefix(p9PackagePrefix(runId, 'reading'));
+      if (comments.length || readings.length) {
+        const history = await this.readP9SourceHistory(workspaceId, runId);
+        for (const [key, sources, at] of [
+          ['apify-tiktok-comments', history.comments.sources, history.commentsAt],
+          ['video-reading', history.readings.sources, history.readingsAt],
+        ] as const) {
+          activity[key].dataCount += sources.length;
+          if (at !== null && (activity[key].lastDataAt === null || at > activity[key].lastDataAt!)) activity[key].lastDataAt = at;
+        }
+      }
     }
     activity['kalodata-video'].dataCount = videoCount;
     // S23 counts exact retained source rows, including missing observations, not economic values or people.
@@ -1376,9 +1462,8 @@ export class ResearchAutomationService {
       JOIN analysis_research_automation_runs r ON r.run_id=c.run_id WHERE r.workspace_id=? AND c.provider='serpapi' GROUP BY c.operation ORDER BY c.operation`).all(workspaceId) as Array<{ operation: string; lastAt: string; total: bigint | number }>;
     const serpapiOperations: ResearchAutomationSerpApiOperation[] = operations.map(row => ({
       operation: row.operation, count: toNumber(row.total), lastDataAt: row.lastAt, lastUsageAt: null }));
-    // No collectors exist yet for these sources; their readers and the
-    // NOT_BUILT flip belong to the owning packages (P9: TikTok comments and
-    // video reading; P10: official statistics and World Bank; U-23: Meta ads).
+    // Remaining source readers and NOT_BUILT flips belong to their owning
+    // packages (P10: official statistics and World Bank; U-23: Meta ads).
     // Until then the board shows honest zeros, never invented history.
     return { ...activity, serpapiOperations };
   }

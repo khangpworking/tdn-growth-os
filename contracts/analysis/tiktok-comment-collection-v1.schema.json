@@ -1,0 +1,1286 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/tiktok-comment-collection-v1.schema.json",
+  "title": "TikTokCommentCollectionV1",
+  "description": "Run/source-bound opt-in TikTok selection, before-call charge intent, sanitized allowlist audit, L9 corpus and author/key-free read. No raw author metadata, salt, automatic collection, person verification, native Shopee relabel or release approval. Source period remains unknown/unverified independently of requested run period.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/selectionRequest"
+    },
+    {
+      "$ref": "#/$defs/selection"
+    },
+    {
+      "$ref": "#/$defs/intent"
+    },
+    {
+      "$ref": "#/$defs/capture"
+    },
+    {
+      "$ref": "#/$defs/corpus"
+    },
+    {
+      "$ref": "#/$defs/readView"
+    },
+    {
+      "$ref": "#/$defs/receipt"
+    },
+    {
+      "$ref": "#/$defs/history"
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "videoUrl": {
+      "type": "string",
+      "pattern": "^https://www\\.tiktok\\.com/@[A-Za-z0-9._]{1,64}/video/[1-9][0-9]{0,19}$"
+    },
+    "sourcePackage": {
+      "title": "TikTokSourcePackageIdentity",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "manifestArtifactSha256",
+        "packageContentSha256"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manifestArtifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "packageContentSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "binding": {
+      "title": "TikTokRunBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId",
+        "scopeSha256",
+        "sourceSetSha256",
+        "requestedPeriod",
+        "sourcePeriod"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceSetSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestedPeriod": {
+          "title": "TikTokRequestedPeriod",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "sourcePeriod": {
+          "title": "TikTokUnknownSourcePeriod",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "state": {
+              "const": "UNKNOWN_UNVERIFIED"
+            },
+            "startDate": {
+              "const": null
+            },
+            "endDate": {
+              "const": null
+            }
+          }
+        }
+      }
+    },
+    "selectionRequest": {
+      "title": "TikTokVideoSelectionRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "expectedRevision",
+        "sourcePackage",
+        "option",
+        "reviewVideoUrls"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-video-selection-request-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "sourcePackage": {
+          "$ref": "#/$defs/sourcePackage"
+        },
+        "option": {
+          "enum": [
+            "A_TOP_20_PERCENT",
+            "C_CUMULATIVE_80_PERCENT"
+          ]
+        },
+        "reviewVideoUrls": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^https://www\\.tiktok\\.com/@[A-Za-z0-9._]{1,64}/video/[1-9][0-9]{0,19}$"
+          },
+          "maxItems": 30,
+          "minItems": 0
+        }
+      }
+    },
+    "selectedVideo": {
+      "title": "SelectedTikTokVideo",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "videoId",
+        "url",
+        "kind",
+        "sourceLine",
+        "revenue"
+      ],
+      "properties": {
+        "videoId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https://www\\.tiktok\\.com/@[A-Za-z0-9._]{1,64}/video/[1-9][0-9]{0,19}$"
+        },
+        "kind": {
+          "enum": [
+            "SELLER_VIDEO",
+            "REVIEW_VIDEO"
+          ]
+        },
+        "sourceLine": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 200
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "revenue": {
+          "anyOf": [
+            {
+              "type": "string",
+              "pattern": "^(0|[1-9][0-9]{0,39})(\\.[0-9]{1,10})?$"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "selection": {
+      "title": "TikTokVideoSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "workspaceId",
+        "runId",
+        "scopeSha256",
+        "sourceSetSha256",
+        "requestedPeriod",
+        "sourcePeriod",
+        "sourcePackage",
+        "tableSha256",
+        "option",
+        "tieRule",
+        "maximumVideos",
+        "sampleVideoCount",
+        "excluded",
+        "videos"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-video-selection-v1"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceSetSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "requestedPeriod": {
+          "title": "TikTokRequestedPeriod",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        },
+        "sourcePeriod": {
+          "title": "TikTokUnknownSourcePeriod",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "state": {
+              "const": "UNKNOWN_UNVERIFIED"
+            },
+            "startDate": {
+              "const": null
+            },
+            "endDate": {
+              "const": null
+            }
+          }
+        },
+        "sourcePackage": {
+          "$ref": "#/$defs/sourcePackage"
+        },
+        "tableSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "option": {
+          "enum": [
+            "A_TOP_20_PERCENT",
+            "C_CUMULATIVE_80_PERCENT"
+          ]
+        },
+        "tieRule": {
+          "const": "EXACT_SOURCE_ORDER"
+        },
+        "maximumVideos": {
+          "const": 30
+        },
+        "sampleVideoCount": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 5000
+        },
+        "excluded": {
+          "type": "array",
+          "items": {
+            "title": "TikTokVideoSelectionExclusion",
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "line",
+              "reason"
+            ],
+            "properties": {
+              "line": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200
+              },
+              "reason": {
+                "enum": [
+                  "MISSING_VIDEO",
+                  "INVALID_VIDEO_URL",
+                  "MISSING_REVENUE",
+                  "ZERO_REVENUE"
+                ]
+              }
+            }
+          },
+          "maxItems": 5000,
+          "minItems": 0
+        },
+        "videos": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/selectedVideo"
+          },
+          "maxItems": 30,
+          "minItems": 1
+        }
+      }
+    },
+    "privacy": {
+      "title": "TikTokCommentPrivacyProfile",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "profileVersion",
+        "platform",
+        "keyId",
+        "keyCommitment",
+        "voicePolicyCommitment",
+        "algorithm"
+      ],
+      "properties": {
+        "profileVersion": {
+          "const": "tiktok-comment-privacy-v1"
+        },
+        "platform": {
+          "const": "tiktok"
+        },
+        "keyId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "keyCommitment": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "voicePolicyCommitment": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "algorithm": {
+          "const": "HMAC-SHA256"
+        }
+      }
+    },
+    "authorIdentity": {
+      "title": "TikTokCommentAuthorIdentity",
+      "oneOf": [
+        {
+          "title": "TikTokHashedAuthorIdentity",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "hash"
+          ],
+          "properties": {
+            "state": {
+              "const": "HASHED"
+            },
+            "hash": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            }
+          }
+        },
+        {
+          "title": "TikTokMissingAuthorIdentity",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "hash"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "MISSING",
+                "INVALID"
+              ]
+            },
+            "hash": {
+              "const": null
+            }
+          }
+        }
+      ]
+    },
+    "providerReceipt": {
+      "title": "TikTokCommentRunReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "runId",
+        "datasetId",
+        "buildId",
+        "status",
+        "retrievedAt",
+        "providerTotalRows",
+        "usageTotalUsd"
+      ],
+      "properties": {
+        "runId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "datasetId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "buildId": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "enum": [
+            "SUCCEEDED",
+            "FAILED",
+            "CANCELLED",
+            "INCOMPLETE"
+          ]
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "providerTotalRows": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "usageTotalUsd": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "sanitizedRow": {
+      "title": "SanitizedTikTokComment",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "videoId",
+        "commentId",
+        "videoUrl",
+        "pageIndex",
+        "rowIndex",
+        "text",
+        "textForm",
+        "createdAt",
+        "likeCount",
+        "authorIdentity",
+        "voice",
+        "isReply",
+        "exclusionReason",
+        "evidenceCommitment"
+      ],
+      "properties": {
+        "videoId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "commentId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "videoUrl": {
+          "type": "string",
+          "pattern": "^https://www\\.tiktok\\.com/@[A-Za-z0-9._]{1,64}/video/[1-9][0-9]{0,19}$"
+        },
+        "pageIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rowIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 20000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "textForm": {
+          "const": "SANITIZED"
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "likeCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authorIdentity": {
+          "$ref": "#/$defs/authorIdentity"
+        },
+        "voice": {
+          "enum": [
+            "CUSTOMER",
+            "SELLER_OR_CREATOR"
+          ]
+        },
+        "isReply": {
+          "type": "boolean"
+        },
+        "exclusionReason": {
+          "anyOf": [
+            {
+              "enum": [
+                "REPLY",
+                "EMPTY",
+                "TAG_ONLY",
+                "EMOJI_ONLY"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "evidenceCommitment": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "auditPage": {
+      "title": "TikTokSanitizedAuditPage",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sha256",
+        "offset",
+        "rows"
+      ],
+      "properties": {
+        "sha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "offset": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sanitizedRow"
+          },
+          "maxItems": 1000,
+          "minItems": 1
+        }
+      }
+    },
+    "capture": {
+      "title": "TikTokCommentRetainedCapture",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "actor",
+        "inputSha256",
+        "privacy",
+        "receipt",
+        "auditForm",
+        "pages"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-comment-capture-v1"
+        },
+        "actor": {
+          "enum": [
+            "datadoping/tiktok-comment-reply-scraper",
+            "clockworks/tiktok-comments-scraper"
+          ]
+        },
+        "inputSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "privacy": {
+          "$ref": "#/$defs/privacy"
+        },
+        "receipt": {
+          "$ref": "#/$defs/providerReceipt"
+        },
+        "auditForm": {
+          "const": "SANITIZED_ALLOWLIST"
+        },
+        "pages": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/auditPage"
+          },
+          "maxItems": 24000,
+          "minItems": 0
+        }
+      }
+    },
+    "intent": {
+      "title": "TikTokCommentCollectionIntent",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "binding",
+        "selection",
+        "selectionSha256",
+        "keywordData",
+        "actor",
+        "privacy",
+        "approvedMaxTotalChargeUsd",
+        "maxCommentsPerVideo",
+        "replyPolicy",
+        "auditForm"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-comment-intent-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        },
+        "selectionSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "keywordData": {
+          "$ref": "keyword-meaning-filter.schema.json#/$defs/data"
+        },
+        "actor": {
+          "enum": [
+            "datadoping/tiktok-comment-reply-scraper",
+            "clockworks/tiktok-comments-scraper"
+          ]
+        },
+        "privacy": {
+          "$ref": "#/$defs/privacy"
+        },
+        "approvedMaxTotalChargeUsd": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "maxCommentsPerVideo": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 200
+        },
+        "replyPolicy": {
+          "const": "TOP_LEVEL_ONLY"
+        },
+        "auditForm": {
+          "const": "SANITIZED_ALLOWLIST"
+        }
+      }
+    },
+    "sourceRef": {
+      "title": "TikTokCommentSourceRef",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pageSha256",
+        "pageIndex",
+        "rowIndex",
+        "textPointer"
+      ],
+      "properties": {
+        "pageSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "pageIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "rowIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 999
+        },
+        "textPointer": {
+          "type": "string",
+          "pattern": "^/[0-9]+/text$"
+        }
+      }
+    },
+    "commentVersion": {
+      "title": "TikTokCommentVersion",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "row",
+        "sourceRefs"
+      ],
+      "properties": {
+        "row": {
+          "$ref": "#/$defs/sanitizedRow"
+        },
+        "sourceRefs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sourceRef"
+          },
+          "maxItems": 24000,
+          "minItems": 1
+        }
+      }
+    },
+    "record": {
+      "title": "TikTokCommentCorpusRecord",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordId",
+        "videoId",
+        "commentId",
+        "videoUrl",
+        "videoKind",
+        "sourceType",
+        "voice",
+        "text",
+        "createdAt",
+        "likeCount",
+        "authorIdentity",
+        "occurrenceCount",
+        "disposition",
+        "dispositionReason",
+        "l9",
+        "versions"
+      ],
+      "properties": {
+        "recordId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 41
+        },
+        "videoId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "commentId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,19}$"
+        },
+        "videoUrl": {
+          "type": "string",
+          "pattern": "^https://www\\.tiktok\\.com/@[A-Za-z0-9._]{1,64}/video/[1-9][0-9]{0,19}$"
+        },
+        "videoKind": {
+          "enum": [
+            "SELLER_VIDEO",
+            "REVIEW_VIDEO"
+          ]
+        },
+        "sourceType": {
+          "enum": [
+            "COMMENT_UNDER_REVIEW_VIDEO",
+            "COMMENT_UNDER_SELLER_VIDEO"
+          ]
+        },
+        "voice": {
+          "enum": [
+            "CUSTOMER",
+            "SELLER_OR_CREATOR"
+          ]
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 20000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "likeCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "authorIdentity": {
+          "$ref": "#/$defs/authorIdentity"
+        },
+        "occurrenceCount": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "disposition": {
+          "enum": [
+            "INCLUDED",
+            "EXCLUDED",
+            "UNCLEAR"
+          ]
+        },
+        "dispositionReason": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 500
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "l9": {
+          "$ref": "keyword-meaning-filter.schema.json#/$defs/recordResult"
+        },
+        "versions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/commentVersion"
+          },
+          "maxItems": 24000,
+          "minItems": 1
+        }
+      }
+    },
+    "accounting": {
+      "title": "TikTokCommentAccounting",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "returnedRows",
+        "uniqueComments",
+        "equalDuplicateRows",
+        "conflictingCommentGroups",
+        "included",
+        "excluded",
+        "unclear",
+        "byReason"
+      ],
+      "properties": {
+        "returnedRows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "uniqueComments": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "equalDuplicateRows": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "conflictingCommentGroups": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "included": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unclear": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "byReason": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "corpus": {
+      "title": "TikTokCommentCorpus",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "registryId",
+        "platform",
+        "selectionSha256",
+        "sourcePackage",
+        "privacy",
+        "auditForm",
+        "codingState",
+        "sampleLabel",
+        "keywordData",
+        "filterBatches",
+        "records",
+        "accounting",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-comment-corpus-v1"
+        },
+        "registryId": {
+          "const": "S07"
+        },
+        "platform": {
+          "const": "tiktok"
+        },
+        "selectionSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourcePackage": {
+          "$ref": "#/$defs/sourcePackage"
+        },
+        "privacy": {
+          "$ref": "#/$defs/privacy"
+        },
+        "auditForm": {
+          "const": "SANITIZED_ALLOWLIST"
+        },
+        "codingState": {
+          "const": "NOT_CODED"
+        },
+        "sampleLabel": {
+          "const": "bình luận thu được"
+        },
+        "keywordData": {
+          "$ref": "keyword-meaning-filter.schema.json#/$defs/data"
+        },
+        "filterBatches": {
+          "type": "array",
+          "items": {
+            "$ref": "keyword-meaning-filter.schema.json#/$defs/result"
+          },
+          "maxItems": 5,
+          "minItems": 1
+        },
+        "records": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/record"
+          },
+          "maxItems": 24000,
+          "minItems": 0
+        },
+        "accounting": {
+          "$ref": "#/$defs/accounting"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "maxItems": 20,
+          "minItems": 1
+        }
+      }
+    },
+    "readRow": {
+      "title": "TikTokCommentReadRow",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "sourceType",
+        "voice",
+        "createdAt",
+        "likeCount",
+        "citation"
+      ],
+      "properties": {
+        "text": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 0,
+              "maxLength": 20000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sourceType": {
+          "enum": [
+            "COMMENT_UNDER_REVIEW_VIDEO",
+            "COMMENT_UNDER_SELLER_VIDEO"
+          ]
+        },
+        "voice": {
+          "const": "CUSTOMER"
+        },
+        "createdAt": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date-time"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "likeCount": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "citation": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
+    "readView": {
+      "title": "TikTokCommentReadView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "registryId",
+        "sampleLabel",
+        "rows",
+        "accounting",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-comment-read-v1"
+        },
+        "registryId": {
+          "const": "S07"
+        },
+        "sampleLabel": {
+          "const": "bình luận thu được"
+        },
+        "rows": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/readRow"
+          },
+          "maxItems": 6000,
+          "minItems": 0
+        },
+        "accounting": {
+          "$ref": "#/$defs/accounting"
+        },
+        "limitations": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "maxItems": 20,
+          "minItems": 1
+        }
+      }
+    },
+    "receipt": {
+      "title": "TikTokCommentSourceReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "package",
+        "selectionSha256",
+        "corpusSha256",
+        "exactRetry",
+        "state"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-comment-source-receipt-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "package": {
+          "$ref": "#/$defs/sourcePackage"
+        },
+        "selectionSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "corpusSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "exactRetry": {
+          "type": "boolean"
+        },
+        "state": {
+          "const": "RETAINED_NOT_CODED"
+        }
+      }
+    },
+    "history": {
+      "title": "TikTokCommentSourceHistory",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "workspaceId",
+        "runId",
+        "sources"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "tiktok-comment-source-history-v1"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/receipt"
+          },
+          "maxItems": 1000,
+          "minItems": 0
+        }
+      }
+    }
+  }
+}
