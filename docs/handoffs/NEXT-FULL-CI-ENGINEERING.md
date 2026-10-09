@@ -359,3 +359,85 @@ review, source-preserving current-main composition where needed, fresh exact ful
 hosted Check/current readiness, separately granted publication and normal matching-
 head merge remain coordinator gates. No PR/push/CI/readiness/merge authorization
 or self-approval is inferred from the local measurement and tests.
+
+## Isolated Foundation integration on reviewed main (terminal759)
+
+Task `task_1249aaf4008e`, dispatch `ctx_e049a15434a8`, authorized run
+`run_adc3551f8ed8`, sole coordinatorf78 generation2. Exact grant
+`msg_6b13827d474c` accepted independent9fec review/report SHA
+`f60c35ff16f237c4ff8ce22322ea8050eba4045e7a4dfbb4c6328130c43464f8`.
+Clean Metric `82e20c132e676ccdde817ea20515e2107ba9a3d5`, prior branches,
+evidence and four ignored files were preserved. Normal NEW branch
+`khangpworking/ultimate-foundation-isolated-main-sol` starts at named reviewed
+main `9f999a3d352d4e8033f89f4d6988b647fd675799`. Ordinary cherry-pick of only
+approved9fec parent delta produced `66290fa098739aff8b8e3b954fb028cb6ca3d0eb`
+with no conflict; Persona inherited parent changes were not imported.
+
+Exactly three paths: Foundation source, new source-package-read-query test and
+this append-only handoff. Source SHA
+`a93e382424416450cb4c3c85b6950c09e602d61ea47eef7eff6ff88c73f61b75`
+and test SHA `ad282b78b62940faa4507f70eddb31391ebb8495b1aa954cfd010f24ffb65ef1`
+are exact9fec. Named-main old handoff prefix and entire approved author append
+are retained. Reverse normalization of only operation-local Statement plumbing
+reconstructs the complete original parent source. Same SQL/every get/await,
+metadata/CAS/hash/path/media/role/version/schema/membership/budget/identity
+checks remain; no persistent/result/data/schema/authentication cache exists.
+All1902 other named-main paths remain exact. All439 original contract paths
+match namedmain;433 match original5f, and six accepted U16 contract changes are
+explicitly inherited, not authored by this integration. Original assertions,
+API/report/optimizer/dependencies/migrations/workflows/defaults remain exact.
+
+Pinned Node24.15.0/npm11.12.1/ABI137, own matching dependencies and SQLite3.53.2
+smoke passed. Strict backend and direct frontend static pass without generation.
+Focused concurrency2 checks: Foundation8 + Market13 + newquery6 =27PASS;
+actual located owning cold1; independent read controls5; original history5.
+These are38 current named tests plus5 fresh namedmain baseline executions.
+Cold children, factories and legacy stages are separately accounted, not added
+to named-test counts. Every metadata-after-await/current-byte/canonical/schema/
+request/member corruption rejects and exact restoration succeeds. Seven authentic
+semantic cold FIRSTread controls restore exact synthetic trigger SQL before each
+child under the supplemental grant; no runtime/migration DDL changes.
+All98 Foundation tables/schema/CAS/total_changes and cold effect counters remain
+exact. Owning located cold HTML remains
+`e47c85cbd049cfff824bccf09f4f1646a80764bae5337b14e04f6a8caf33c940`,
+all application tables/CAS equal, six effects0; fake setup collects once.
+
+Fresh13 source-draft/report events equal namedmain, JSONL SHA
+`e53bfd7c2447832f4e552e2b00163e1e9ed38d22d37932801a8d616c9f171dfe`.
+Current construction has accepted U16 packet1.3; old stored1.2 is separate.
+All30 actual historical packet/input/prompt factory hashes equal fresh main
+and original baseline, JSON SHA
+`4e9ff2b9ceebcfd077f8e2a0cd64d60f5b94033e55f1299d006a5c95f5cd58d2`.
+Own immutable5f archive1894 direct source bytes was reverified. Two fresh legacy
+1.2 synthetic stores cover VALID and INVALID/DISPATCH_UNKNOWN; current replay/
+KEEP revision/exact retry preserve old execution/report bytes without dispatch.
+Fifteen sequential process stages pass, including28 retained corruption refusals,
+11 owning binding/metadata/source/report refusals and eight fresh readonly/
+fileMustExist/query_only FIRSTreads with no config/Python/clock/workspace/provider/
+CASput/fetch/process calls. No private/runtime data was copied.
+
+Initial legacy launch failed before fixture creation because immutable archive
+had no tsx dependency link; failed log retained, exactly matching authorized own
+link added for one justified rerun. Two lightweight proof-script assumptions
+(typed parameter reverse normalization and pre-U16 contract equality) were
+corrected with explicit version attribution, without source/assertion changes.
+Host-pressure FIFO allowed only already-running sequential driver49401 to finish;
+no further heavy runner was started. Cleanup removes only own two synthetic
+stores and two temporary dependency links; prior artifacts/ignoredJS are exact.
+No new timing/profile/full suite/build/browser/PDF/provider/live/paid call ran.
+Original measured7.236937% single-pair reduction is supporting only, not a hosted
+ten-minute guarantee. English technical handoff; source quotes untouched and no
+Vietnamese interpretation/humanizer invocation claimed.
+
+G01 provenance/grants/failures exact; G02 affected strict/focused pass with fresh
+full hosted/readiness pending; G03 frontend static only; G04 contracts/factories
+version attribution exact; G05 three paths; G06 own synthetic cleanup; G07 fake
+setup/zero-effects reads; G08 quoted-source preservation; G09 no invented gate/
+statistic; G10 actual owning warm/cold/history proof; G11 old assertions/checks
+preserved; G12 stable source RELEASE/report followed by separate publication
+ask; G13 no collection/admission/default/cap activation. Final fullSHA/direct
+hashes/commands/exits/counts/cleanup and release are in
+`/tmp/ultimate-foundation-isolated-main-sol/FINAL-REPORT.md` and fresh dispatch.
+Distinct finalhead review, complete exact hosted Check/current readiness and
+separately authorized normal merge remain coordinator gates. U11/U26/U32/U40
+remain unresolved; no whole feature/Ultimate closure or worker merge is claimed.
