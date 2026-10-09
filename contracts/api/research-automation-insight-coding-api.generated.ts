@@ -10,7 +10,8 @@ export type ResearchAutomationInsightCodingApi =
   | InsightCodingAcceptRequest
   | ResearchInsightCodingMutation
   | ResearchInsightCodingView
-  | ResearchInsightCodingDefaultView;
+  | ResearchInsightCodingDefaultView
+  | ResearchInsightCodingPrivateDefaultView;
 /**
  * @maxItems 10000
  */
@@ -82,6 +83,20 @@ export type ResearchInsightDefaultEvidenceView = {
   sequence: number;
   binding: InsightSourceBinding;
   request: InsightDefaultRuleRequest | InsightDefaultCodingProposeRequest;
+  createdAt: string;
+  sha256: string;
+} & {
+  [k: string]: unknown;
+};
+/**
+ * Verified immutable evidence without actor identity. sha256 is the digest of the full verified artifact and is the exact proposalSha256 an acceptance must name.
+ */
+export type ResearchInsightPrivateDefaultEvidenceView = {
+  evidenceId: string;
+  kind: 'DEFAULT_RULE' | 'PROPOSAL';
+  sequence: number;
+  binding: InsightPrivateSourceBinding;
+  request: InsightPrivateDefaultRuleRequest | InsightPrivateDefaultCodingProposeRequest;
   createdAt: string;
   sha256: string;
 } & {
@@ -498,6 +513,126 @@ export interface InsightDefaultRuleRequest {
 }
 export interface InsightDefaultCodingProposeRequest {
   contractVersion: 'insight-coding-default-propose-v1';
+  status: 'PROPOSED';
+  requestKey: string;
+  defaultRuleId: string;
+  defaultRuleSha256: string;
+  previousProposalId: string | null;
+  previousProposalSha256: string | null;
+  executionId: string;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: [number, ...number[]];
+  rules: InsightCodingRules;
+  codebookSha256: string;
+  annotations: InsightProposedAnnotations;
+}
+/**
+ * Exact source context and the full bounded coding history of one explicit report pair. An over-limit history is rejected, never truncated.
+ */
+export interface ResearchInsightCodingPrivateDefaultView {
+  contractVersion: 'insight-coding-view-v3';
+  context: ResearchInsightPrivateSourceContext;
+  /**
+   * @maxItems 1000
+   */
+  evidence: ResearchInsightPrivateDefaultEvidenceView[];
+}
+export interface ResearchInsightPrivateSourceContext {
+  binding: InsightPrivateSourceBinding;
+  input: Input;
+  privateSource: PrivateInsightSourceProjection;
+}
+export interface InsightPrivateSourceBinding {
+  contractVersion: 'insight-source-binding-v2';
+  sourceKind: 'PRIVATE_SHOPEE';
+  workspaceId: string;
+  runId: string;
+  pairId: string;
+  scopeSha256: string;
+  reportSha256: string;
+  sourcePackageSha256: string;
+  inputSha256: string;
+  projectionSha256: string;
+  corpus: Corpus1;
+}
+export interface Corpus1 {
+  artifactSha256: string;
+  corpusId: string;
+  collectionId: string;
+  collectionSha256: string;
+  requestSha256: string;
+}
+/**
+ * Versioned server-derived coding source evidence, not the private corpus. Retains verbatim source text, ratings, locators and all dispositions; no author/native reviewer metadata, keys or privacy profile. Exact repeated native records do not become additional counting units; conflicting versions fail closed. No free-text PII redaction or person join.
+ */
+export interface PrivateInsightSourceProjection {
+  contractVersion: 'private-insight-source-projection-v1';
+  corpus: Corpus1;
+  input: Input;
+  /**
+   * @maxItems 2500
+   */
+  records: PrivateInsightSourceRecord[];
+}
+export interface PrivateInsightSourceRecord {
+  recordId: string;
+  shopId: string | null;
+  itemId: string | null;
+  textState: 'READABLE' | 'EMPTY' | 'UNREADABLE';
+  /**
+   * Source rating presence/state; never manufacture an absent source field. Invalid finite safe numeric source values survive, arbitrary strings/nested values do not.
+   */
+  rating:
+    | {
+        fieldPresent: false;
+        state: 'ABSENT';
+        value: null;
+      }
+    | {
+        fieldPresent: true;
+        state: 'MISSING';
+        value: null;
+      }
+    | {
+        fieldPresent: true;
+        state: 'VALID';
+        value: number;
+      }
+    | {
+        fieldPresent: true;
+        state: 'INVALID';
+        value: null | number;
+      };
+  region: string | null;
+  admission: 'SELECTED_TEXT' | 'OTHER_LISTING' | 'UNRESOLVED_LISTING' | 'NO_READABLE_TEXT';
+  locator: Locator;
+  recordIndex: number;
+  duplicateOfRecordIndex: number | null;
+  disposition: 'INCLUDED' | 'EXCLUDED' | 'UNREADABLE';
+  dispositionReason: string | null;
+}
+export interface Locator {
+  collectionId: string;
+  pageSha256: string;
+  pageIndex: number;
+  rowIndex: number;
+  textPointer: string;
+}
+export interface InsightPrivateDefaultRuleRequest {
+  contractVersion: 'insight-coding-default-rule-v2';
+  kind: 'DEFAULT_RULE';
+  status: 'PROPOSED';
+  requestKey: string;
+  originatingRequestKey: string;
+  binding: InsightPrivateSourceBinding;
+  policyVersion: 'source-private-default-coding-v1';
+  rules: InsightCodingRules;
+}
+export interface InsightPrivateDefaultCodingProposeRequest {
+  contractVersion: 'insight-coding-default-propose-v2';
   status: 'PROPOSED';
   requestKey: string;
   defaultRuleId: string;

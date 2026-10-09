@@ -12,7 +12,9 @@ import frozenV2PromptSchemas from './insight-model-prompt-v2-schemas.json' with 
 import frozenV4PromptSchemas from './insight-model-prompt-v4-schemas.json' with { type: 'json' };
 import frozenV3PromptSchemas from './insight-model-prompt-v3-schemas.json' with { type: 'json' };
 import selectionSchema from '../../../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
-import type { InsightModelRequest, InsightModelSource, InsightModelInput, InsightModelPrompt, InsightModelConfiguration, InsightDefaultModelRequest, InsightDefaultModelSource, InsightDefaultModelCandidates, InsightDefaultModelPrompt } from '../../../../contracts/analysis/automation-insight-model.generated.js';
+import type { InsightModelRequest, InsightModelSource, InsightModelInput, InsightModelPrompt, InsightModelConfiguration, InsightDefaultModelRequest, InsightDefaultModelSource, InsightDefaultModelCandidates, InsightDefaultModelPrompt, InsightPrivateDefaultModelRequest, InsightPrivateDefaultModelSource, InsightPrivateModelInput, InsightPrivateDefaultModelPrompt } from '../../../../contracts/analysis/automation-insight-model.generated.js';
+import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
+import { registerPrivateReviewSchemas } from './private-review-contracts.js';
 import type { InsightProposedAnnotations } from '../../../../contracts/analysis/automation-insight-coding.generated.js';
 import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
@@ -25,16 +27,22 @@ import {
 } from './synthesis-execution.js';
 
 export type { InsightModelRequest, InsightModelConfiguration, InsightDefaultModelRequest, InsightDefaultModelSource, InsightDefaultModelCandidates, InsightDefaultModelPrompt };
+export type AnyInsightDefaultModelRequest = InsightDefaultModelRequest | InsightPrivateDefaultModelRequest;
+export type AnyInsightDefaultModelSource = InsightDefaultModelSource | InsightPrivateDefaultModelSource;
+type AnyDefaultInput = InsightModelInput | InsightPrivateModelInput;
+type AnyDefaultPrompt = InsightDefaultModelPrompt | InsightPrivateDefaultModelPrompt;
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
 const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).default;
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
+registerPrivateReviewSchemas(ajv); ajv.addSchema(privateSourceSchema);
 for (const contract of [locatedSchema, selectionSchema, codingSchema, schema]) ajv.addSchema(contract);
 export const validateInsightModelRequest = ajv.compile<InsightModelRequest>({ $ref: `${schema.$id}#/$defs/request` });
-export const validateInsightDefaultModelRequest = ajv.compile<InsightDefaultModelRequest>({ $ref: `${schema.$id}#/$defs/defaultRequest` });
-const validateDefaultSource = ajv.compile<InsightDefaultModelSource>({ $ref: `${schema.$id}#/$defs/defaultSource` });
+export const validateInsightDefaultModelRequest = ajv.compile<AnyInsightDefaultModelRequest>({ oneOf: [{ $ref: `${schema.$id}#/$defs/defaultRequest` }, { $ref: `${schema.$id}#/$defs/privateDefaultRequest` }] });
+const validateDefaultSource = ajv.compile<AnyInsightDefaultModelSource>({ oneOf: [{ $ref: `${schema.$id}#/$defs/defaultSource` }, { $ref: `${schema.$id}#/$defs/privateDefaultSource` }] });
 const validateDefaultResponse = ajv.compile<InsightDefaultModelCandidates>({ $ref: `${schema.$id}#/$defs/defaultResponse` });
-const validateDefaultPrompt = ajv.compile<InsightDefaultModelPrompt>({ $ref: `${schema.$id}#/$defs/defaultPrompt` });
+const validateDefaultPrompt = ajv.compile<AnyDefaultPrompt>({ oneOf: [{ $ref: `${schema.$id}#/$defs/defaultPrompt` }, { $ref: `${schema.$id}#/$defs/privateDefaultPrompt` }] });
+const validateDefaultInput = ajv.compile<AnyDefaultInput>({ oneOf: [{ $ref: `${schema.$id}#/$defs/input` }, { $ref: `${schema.$id}#/$defs/privateInput` }] });
 const validateSource = ajv.compile<InsightModelSource>({ $ref: `${schema.$id}#/$defs/source` });
 const validateInput = ajv.compile<InsightModelInput>({ $ref: `${schema.$id}#/$defs/input` });
 const validatePrompt = ajv.compile<InsightModelPrompt>({ $ref: `${schema.$id}#/$defs/prompt` });
@@ -178,16 +186,34 @@ const defaultPrompt: InsightDefaultModelPrompt = { contractVersion: 'insight-mod
     .replace('I10 codes must exist in the supplied codebook; respect multiCode.', 'I10 codes must exist in the supplied codebook or the explicit source-located additions in this response; respect multiCode. If multiCode is false, conflicting distinct codes make the entire response INVALID; never discard source clauses to force one code. This is a bounded draft constraint, not an approved multi-code or release policy.')
     + '\nThis is source-default-coding-v1, not an adopted or approved rule. Propose source-located I10 topic and I13 literal brand/product phrases as new codebook entries only when directly present in the supplied records. Do not invent a preset taxonomy, aliases, market entities or reviewed negatives. Each new code needs an exact phrase, firstRecordIndex and firstSpan within this batch. I13 label must equal its literal phrase. Keep every existing code and meaning unchanged; codebooks contains additions only, never replacements. Use distinct code identifiers within each corpus; empty additions are valid when evidence is absent. Preserve multiCode; this does not authorize release statistics. All annotations remain PENDING_AI.\nDefault response schema: ' + canonicalJson(schema.$defs.defaultResponse) };
 export function insightDefaultModelPrompt(): InsightDefaultModelPrompt { return structuredClone(defaultPrompt); }
-function defaultInput(source: InsightDefaultModelSource): InsightModelInput {
+// Private-only additive prompt. The historical v5 factory and bytes stay unchanged.
+const privateDefaultPrompt: InsightPrivateDefaultModelPrompt = { contractVersion: 'insight-model-prompt-v6',
+  systemText: defaultPrompt.systemText + '\nPrivate Shopee source projection-v1: sourceMembership is the server-verified disposition/locator/rating inventory, not people or author identity. Code only supplied eligible records; duplicate native records and excluded/unreadable/textless rows are not new counting units. Ratings preserve source field presence/state and exact safe numeric values, never replace textual evaluation or infer sentiment. Preserve source text verbatim; metadata privacy does not redact personal data in free text. Do not infer personas or join people. No native reviewer identifiers, private author hashes, key or privacy profile are supplied.\nPrivate model input schema: ' + canonicalJson(schema.$defs.privateInput) };
+export function insightPrivateDefaultModelPrompt(): InsightPrivateDefaultModelPrompt { return structuredClone(privateDefaultPrompt); }
+function defaultInput(source: AnyInsightDefaultModelSource): AnyDefaultInput {
   if (!validateDefaultSource(source) || json(source).length > MAX_BYTES ||
     canonicalJson(source.binding) !== canonicalJson(source.request.binding) ||
     insightCodingDigest(source.input.corpora.map(corpus => corpus.codebook)) !== source.codebookSha256)
     throw new TypeError('INVALID_INSIGHT_DEFAULT_SOURCE');
   if (source.request.defaultRuleId !== null && (source.request.defaultRuleId !== source.defaultRuleId || source.request.defaultRuleSha256 !== source.defaultRuleSha256))
     throw new TypeError('INVALID_INSIGHT_DEFAULT_SOURCE');
-  return buildCodingInput(source.input, source.request.recordIndexes);
+  const input = buildCodingInput(source.input, source.request.recordIndexes);
+  if (source.contractVersion === 'insight-default-model-source-v1') return input;
+  const projection = source.privateSource;
+  if (insightCodingDigest(projection) !== source.binding.projectionSha256 ||
+      canonicalJson(projection.corpus) !== canonicalJson(source.binding.corpus) ||
+      projection.corpus.artifactSha256 !== source.binding.sourcePackageSha256 ||
+      insightCodingDigest(projection.input) !== source.binding.inputSha256 ||
+      canonicalJson(projection.input.records) !== canonicalJson(source.input.records) ||
+      canonicalJson(projection.input.sources) !== canonicalJson(source.input.sources))
+    throw new TypeError('INVALID_INSIGHT_PRIVATE_DEFAULT_SOURCE');
+  const privateInput: InsightPrivateModelInput = { ...input, contractVersion: 'insight-model-input-v2',
+    sourceMembership: structuredClone(projection.records),
+    records: input.records.map(row => ({ ...row, sourceRecord: structuredClone(projection.records[row.recordIndex]!) })) };
+  if (!validateDefaultInput(privateInput) || json(privateInput).length > 1024 * 1024) throw new TypeError('INSIGHT_MODEL_INPUT_TOO_LARGE');
+  return privateInput;
 }
-function defaultCandidates(value: unknown, source: InsightDefaultModelSource): InsightDefaultModelCandidates {
+function defaultCandidates(value: unknown, source: AnyInsightDefaultModelSource): InsightDefaultModelCandidates {
   if (!validateDefaultResponse(value)) throw new TypeError('INVALID_INSIGHT_CODING_RESPONSE');
   const composed = appendDefaultCodebooks(source.input, value.codebooks, source.request.recordIndexes);
   const annotations = validateSemanticCodingResponse(value.annotations, composed, source.request.recordIndexes);
@@ -198,20 +224,22 @@ function defaultCandidates(value: unknown, source: InsightDefaultModelSource): I
   return { codebooks: structuredClone(value.codebooks), annotations };
 }
 interface DefaultTypes {
-  source: InsightDefaultModelSource; admission: InsightDefaultModelSource; input: InsightModelInput;
-  prompt: InsightDefaultModelPrompt; configuration: InsightModelConfiguration;
+  source: AnyInsightDefaultModelSource; admission: AnyInsightDefaultModelSource; input: AnyDefaultInput;
+  prompt: AnyDefaultPrompt; configuration: InsightModelConfiguration;
   candidates: InsightDefaultModelCandidates; validationCode: 'INVALID_INSIGHT_CODING_RESPONSE';
 }
 const defaultAdapter: AutomationSynthesisAdapter<DefaultTypes> = {
   sectionId: 'INSIGHT_CODING', admission: { maxBytes: MAX_BYTES, validate: validateDefaultSource },
-  input: { maxBytes: 1024 * 1024, validate: validateInput }, prompt: { maxBytes: 256 * 1024, validate: validateDefaultPrompt },
+  input: { maxBytes: 1024 * 1024, validate: validateDefaultInput }, prompt: { maxBytes: 256 * 1024, validate: validateDefaultPrompt },
   configuration: { maxBytes: 64 * 1024, validate: validateConfiguration }, candidatesMaxBytes: MAX_BYTES,
   validationCodes: new Set(['INVALID_INSIGHT_CODING_RESPONSE']), promptBytes: json(defaultPrompt),
   executionError: code => new AutomationSynthesisExecutionError(code), integrityError: () => new AutomationSynthesisExecutionIntegrityError(),
-  build(source) { return { admission: source, admissionBytes: json(source), inputBytes: json(defaultInput(source)) }; },
+  build(source) { return { admission: source, admissionBytes: json(source), inputBytes: json(defaultInput(source)),
+    ...(source.contractVersion === 'insight-default-model-source-v2' ? { promptBytes: json(privateDefaultPrompt) } : {}) }; },
   identity: source => ({ runId: source.binding.runId, workspaceId: source.binding.workspaceId, scopeSha256: source.binding.scopeSha256 }),
   atRetainedVersion: source => source,
-  bindsRetained: ({ admission, input }) => canonicalJson(defaultInput(admission)) === canonicalJson(input),
+  bindsRetained: ({ admission, input, prompt }) => canonicalJson(defaultInput(admission)) === canonicalJson(input) &&
+    (admission.contractVersion !== 'insight-default-model-source-v2' || canonicalJson(prompt) === canonicalJson(privateDefaultPrompt)),
   systemText: value => value.systemText,
   classifyResponse(value, source) {
     defaultInput(source);
@@ -225,11 +253,11 @@ export class AutomationInsightDefaultModelExecution {
   constructor(options: { db: Database.Database; artifactStore: ContentAddressedArtifactStore; now(): Date }) {
     this.#kernel = new AutomationSynthesisExecutionKernel({ ...options, adapter: defaultAdapter });
   }
-  read(source: InsightDefaultModelSource) {
+  read(source: AnyInsightDefaultModelSource) {
     return this.#kernel.read({ kind: 'INSIGHT_CODING', runId: source.binding.runId, adoptionId: source.defaultRuleId,
       requestKey: source.request.requestKey, previousProposalId: source.request.previousProposalId }, source);
   }
-  execute(source: InsightDefaultModelSource, ai: InsightModelAI, signal?: AbortSignal) {
+  execute(source: AnyInsightDefaultModelSource, ai: InsightModelAI, signal?: AbortSignal) {
     return this.#kernel.execute({ parent: { kind: 'INSIGHT_CODING', runId: source.binding.runId,
       adoptionId: source.defaultRuleId, requestKey: source.request.requestKey, previousProposalId: source.request.previousProposalId }, source, ai, signal });
   }
@@ -261,12 +289,12 @@ export async function readInsightDefaultExecutionArtifacts(options: {
       return { sha256: digest, value, bytes };
     } catch { return fail(); }
   }
-  const admission = await read<InsightDefaultModelSource>(row.admission_sha256, MAX_BYTES, validateDefaultSource);
+  const admission = await read<InsightDefaultModelSource>(row.admission_sha256, MAX_BYTES, (value): value is InsightDefaultModelSource => validateDefaultSource(value) && value.contractVersion === 'insight-default-model-source-v1');
   const outcome = await new AutomationInsightDefaultModelExecution(options).read(admission.value);
   if (outcome.status !== 'VALID' || outcome.executionId !== executionId || outcome.candidates.sha256 !== row.candidates_sha256) fail();
   // The existing kernel verifies all cross-artifact bindings and revalidates the retained merged default output.
   const input = await read<InsightModelInput>(row.input_sha256, 1024 * 1024, validateInput);
-  const prompt = await read<InsightDefaultModelPrompt>(row.prompt_sha256, 256 * 1024, validateDefaultPrompt);
+  const prompt = await read<InsightDefaultModelPrompt>(row.prompt_sha256, 256 * 1024, (value): value is InsightDefaultModelPrompt => validateDefaultPrompt(value) && value.contractVersion === 'insight-model-prompt-v5');
   const configuration = await read<InsightModelConfiguration>(row.configuration_sha256, 64 * 1024, validateConfiguration);
   return { executionId, admission, input, prompt, configuration, candidates: outcome.candidates };
 }

@@ -9,7 +9,11 @@ export type AutomationInsightModel =
   | InsightDefaultModelRequest
   | InsightDefaultModelSource
   | InsightDefaultModelCandidates
-  | InsightDefaultModelPrompt;
+  | InsightDefaultModelPrompt
+  | InsightPrivateDefaultModelRequest
+  | InsightPrivateDefaultModelSource
+  | InsightPrivateModelInput
+  | InsightPrivateDefaultModelPrompt;
 /**
  * @maxItems 10000
  */
@@ -93,6 +97,26 @@ export type InsightDefaultModelRequest = {
 } & {
   [k: string]: unknown;
 };
+export type InsightPrivateDefaultModelRequest = {
+  contractVersion: 'insight-default-model-request-v2';
+  requestKey: string;
+  binding: InsightPrivateSourceBinding;
+  defaultRuleId: string | null;
+  defaultRuleSha256: string | null;
+  previousProposalId: string | null;
+  previousProposalSha256: string | null;
+  /**
+   * @minItems 1
+   * @maxItems 100
+   */
+  recordIndexes: number[];
+} & {
+  [k: string]: unknown;
+};
+/**
+ * @maxItems 2500
+ */
+export type Records = PrivateInsightSourceRecord[];
 
 export interface InsightModelRequest {
   contractVersion: 'insight-model-request-v1';
@@ -445,5 +469,122 @@ export interface InsightProposedCorpusCoding {
 }
 export interface InsightDefaultModelPrompt {
   contractVersion: 'insight-model-prompt-v5';
+  systemText: string;
+}
+export interface InsightPrivateSourceBinding {
+  contractVersion: 'insight-source-binding-v2';
+  sourceKind: 'PRIVATE_SHOPEE';
+  workspaceId: string;
+  runId: string;
+  pairId: string;
+  scopeSha256: string;
+  reportSha256: string;
+  sourcePackageSha256: string;
+  inputSha256: string;
+  projectionSha256: string;
+  corpus: Corpus1;
+}
+export interface Corpus1 {
+  artifactSha256: string;
+  corpusId: string;
+  collectionId: string;
+  collectionSha256: string;
+  requestSha256: string;
+}
+export interface InsightPrivateDefaultModelSource {
+  contractVersion: 'insight-default-model-source-v2';
+  request: InsightPrivateDefaultModelRequest;
+  binding: InsightPrivateSourceBinding;
+  defaultRuleId: string;
+  defaultRuleSha256: string;
+  codebookSha256: string;
+  actorId: string;
+  input: Input;
+  privateSource: PrivateInsightSourceProjection;
+}
+/**
+ * Versioned server-derived coding source evidence, not the private corpus. Retains verbatim source text, ratings, locators and all dispositions; no author/native reviewer metadata, keys or privacy profile. Exact repeated native records do not become additional counting units; conflicting versions fail closed. No free-text PII redaction or person join.
+ */
+export interface PrivateInsightSourceProjection {
+  contractVersion: 'private-insight-source-projection-v1';
+  corpus: Corpus1;
+  input: Input;
+  records: Records;
+}
+export interface PrivateInsightSourceRecord {
+  recordId: string;
+  shopId: string | null;
+  itemId: string | null;
+  textState: 'READABLE' | 'EMPTY' | 'UNREADABLE';
+  /**
+   * Source rating presence/state; never manufacture an absent source field. Invalid finite safe numeric source values survive, arbitrary strings/nested values do not.
+   */
+  rating:
+    | {
+        fieldPresent: false;
+        state: 'ABSENT';
+        value: null;
+      }
+    | {
+        fieldPresent: true;
+        state: 'MISSING';
+        value: null;
+      }
+    | {
+        fieldPresent: true;
+        state: 'VALID';
+        value: number;
+      }
+    | {
+        fieldPresent: true;
+        state: 'INVALID';
+        value: null | number;
+      };
+  region: string | null;
+  admission: 'SELECTED_TEXT' | 'OTHER_LISTING' | 'UNRESOLVED_LISTING' | 'NO_READABLE_TEXT';
+  locator: Locator;
+  recordIndex: number;
+  duplicateOfRecordIndex: number | null;
+  disposition: 'INCLUDED' | 'EXCLUDED' | 'UNREADABLE';
+  dispositionReason: string | null;
+}
+export interface Locator {
+  collectionId: string;
+  pageSha256: string;
+  pageIndex: number;
+  rowIndex: number;
+  textPointer: string;
+}
+export interface InsightPrivateModelInput {
+  contractVersion: 'insight-model-input-v2';
+  question: string | null;
+  inclusionRule: string;
+  adjudicationRule: string;
+  /**
+   * @maxItems 100
+   */
+  records: {
+    recordIndex: number;
+    record: Record;
+    sourceRecord: PrivateInsightSourceRecord;
+  }[];
+  /**
+   * @maxItems 100
+   */
+  corpora: {
+    corpusIndex: number;
+    sectionId: 'I10' | 'I13';
+    recordIndexes: number[];
+    multiCode: boolean;
+    codes: {
+      code: string;
+      label: string;
+      phrase: string;
+    }[];
+  }[];
+  sourceMembership: Records;
+}
+export interface InsightPrivateDefaultModelPrompt {
+  contractVersion: 'insight-model-prompt-v6';
   systemText: string;
 }

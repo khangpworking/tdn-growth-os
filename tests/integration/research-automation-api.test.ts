@@ -22,6 +22,7 @@ import membershipApiSchema from '../../contracts/api/research-automation-metric-
 import locatedInsightSchema from '../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import insightSelectionSchema from '../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
 import insightCodingSchema from '../../contracts/analysis/automation-insight-coding.schema.json' with { type: 'json' };
+import privateInsightSourceProjectionSchema from '../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
 import insightCodingApiSchema from '../../contracts/api/research-automation-insight-coding-api.schema.json' with { type: 'json' };
 import insightModelSchema from '../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
 import insightModelApiSchema from '../../contracts/api/research-automation-insight-model-api.schema.json' with { type: 'json' };
@@ -34,6 +35,7 @@ import { reportMethodPacketsFixture } from '../helpers/report-method-packets-fix
 import { DiscoveryWorkspaceService } from '../../src/modules/flow/discovery-workspace-service.js';
 import { FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/discovery-workspace-reader.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
+import { registerPrivateReviewSchemas } from '../../src/modules/analysis/research-automation/private-review-contracts.js';
 import { ContentAddressedArtifactStore } from '../../src/platform/artifacts/artifact-store.js';
 import { openDatabase } from '../../src/platform/db/database.js';
 
@@ -75,6 +77,7 @@ const apiValidators = (() => {
   ajv.addSchema(metricIntakeSchema);
   ajv.addSchema(metricRuleSchema);
   ajv.addSchema(membershipSchema); ajv.addSchema(membershipApiSchema);
+  registerPrivateReviewSchemas(ajv); ajv.addSchema(privateInsightSourceProjectionSchema);
   ajv.addSchema(locatedInsightSchema); ajv.addSchema(insightSelectionSchema); ajv.addSchema(insightCodingSchema); ajv.addSchema(insightCodingApiSchema);
   ajv.addSchema(insightModelSchema); ajv.addSchema(insightModelApiSchema);
   return {
