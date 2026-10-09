@@ -33,6 +33,7 @@ export const MAX_PDF_BYTES = 64 * 1024 * 1024;
 
 /** Exact start snapshot persisted before the run exists; its digest is the request identity. */
 export interface StartSnapshot {
+  readonly reviewCollectionPolicy?: import('../../../../contracts/analysis/automation-review-collection-policy.generated.js').AutomationReviewCollectionPolicy;
   /** Explicit injected source configuration, frozen only for new private starts. No salt. */
   readonly privateShopeeSource?: import('../../../../contracts/analysis/automation-private-shopee-source.generated.js').AutomationPrivateShopeeSource;
   /** Explicit additive source policy; marker-free historical starts retain v1 behavior. */
@@ -99,6 +100,7 @@ export interface StepWebResult {
 
 /** Normalized step outcome retained as canonical JSON; raw bytes are separate capture artifacts. */
 export interface StepResultDocument {
+  readonly reviewSample?: import('../../../../contracts/analysis/automation-review-sample.generated.js').AutomationReviewSample;
   readonly sourceEvidence?: import('../../../../contracts/analysis/automation-source-evidence.generated.js').AutomationSourceEvidence;
   readonly contractVersion: 'research-automation-step-result-v1';
   readonly runId: string;
