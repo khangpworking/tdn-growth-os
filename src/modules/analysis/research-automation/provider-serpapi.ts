@@ -5,7 +5,7 @@
 // discovery and are never converted into market metrics or period-sales
 // figures.
 import {
-  CaptureLog, RateLimiter, boundedRequest, boundedText,
+  CaptureLog, ProviderInputError, RateLimiter, boundedRequest, boundedText,
   bytesContainSecret, emptyUsage, httpsUrl, isAmbiguous, isRecord, parseJson,
   safeProviderCode, validateCountry, validateKeyword, validatePeriod,
   type CaptureContext, type ProviderTransport,
@@ -14,9 +14,10 @@ import {
   RESEARCH_AUTOMATION_PROVIDER_CONTRACT,
   type CollectInput, type CollectResult, type DateWindow, type ProviderCallOptions,
   type ProviderCapabilityReport, type ProviderCoverage, type ProviderRawCapture,
-  type QuickSearchInput, type QuickSearchResult, type ResearchAutomationProvider,
+  type QuickSearchInput, type QuickSearchResult, type ExpandedSearchProvider,
   type WebDiscoveryResult,
 } from './providers.js';
+import { planExpandedSearch, type ExpandedSearchQuery, type SearchCallBudget } from './expanded-search-queries.js';
 
 export const SERPAPI_LIMITS = Object.freeze({
   origin: 'https://serpapi.com',
@@ -53,8 +54,9 @@ function searchCoverage(requestedPeriod: DateWindow, status: ProviderCoverage['s
   };
 }
 
-function parseResults(data: unknown, retrievedAt: string, captureId: string): SearchPayload | undefined {
+function parseResults(data: unknown, retrievedAt: string, captureId: string, expectedQuery?: string): SearchPayload | undefined {
   if (!isRecord(data) || !Array.isArray(data.organic_results)) return undefined;
+  if (expectedQuery !== undefined && (!isRecord(data.search_parameters) || data.search_parameters.q !== expectedQuery)) return undefined;
   const results: WebDiscoveryResult[] = [];
   let invalidRows = 0;
   const rows = data.organic_results;
@@ -77,8 +79,9 @@ function parseResults(data: unknown, retrievedAt: string, captureId: string): Se
   return { results, invalidRows, truncated };
 }
 
-export function createSerpApiProvider(apiKey: string | null, transport: ProviderTransport): ResearchAutomationProvider {
+export function createSerpApiProvider(apiKey: string | null, transport: ProviderTransport): ExpandedSearchProvider {
   const limiter = new RateLimiter(SERPAPI_LIMITS.requestsPerSecond, 1_000);
+  let expandedSequence = 0;
   const report: ProviderCapabilityReport = {
     provider: 'SERPAPI', displayName: 'SerpApi (Google organic search)', credentialEnv: 'TDN_SERPAPI_API_KEY',
     configured: apiKey !== null,
@@ -95,7 +98,8 @@ export function createSerpApiProvider(apiKey: string | null, transport: Provider
     limitations: [...LIMITATIONS],
   };
 
-  async function search(input: CollectInput, options: ProviderCallOptions): Promise<CollectResult> {
+  async function search(input: CollectInput, options: ProviderCallOptions,
+    expanded?: { query: ExpandedSearchQuery; budget: SearchCallBudget }): Promise<CollectResult> {
     const requestedPeriod = validatePeriod(input.requestedPeriod);
     const keyword = validateKeyword(input.keyword);
     validateCountry(input.country);
@@ -122,14 +126,27 @@ export function createSerpApiProvider(apiKey: string | null, transport: Provider
       return { ...base, status: 'CANCELLED', coverage: [coverage], usage: emptyUsage('SERPAPI'), captures: [] };
     }
 
-    const params = { engine: 'google', q: keyword, gl: 'vn', hl: 'vi', num: SERPAPI_LIMITS.maxResults } as const;
+    // The same per-run search ceiling includes dated/site calls. No key/abort uses no slot.
+    if (expanded) {
+      if (options.signal?.aborted) {
+        return { ...base, status: 'CANCELLED', coverage: [searchCoverage(requestedPeriod, 'CANCELLED', {
+          status: 'NOT_RUN_CANCELLED', captureIds: [], rows: null, truncated: false,
+        })], usage: emptyUsage('SERPAPI'), captures: [] };
+      }
+      if (!expanded.budget.take('search')) {
+        return { ...base, status: 'WAITING_FOR_INPUT', limitations: [...LIMITATIONS, 'SEARCH_CALL_BUDGET_EXHAUSTED'],
+          coverage: [{ ...unsupportedCoverage('WEB_DISCOVERY_CURRENT', requestedPeriod), status: 'WAITING_FOR_INPUT' }],
+          usage: emptyUsage('SERPAPI'), captures: [] };
+      }
+    }
+    const params = expanded?.query.parameters ?? { engine: 'google', q: keyword, gl: 'vn', hl: 'vi', num: SERPAPI_LIMITS.maxResults } as const;
     const url = new URL(SERPAPI_LIMITS.origin + SERPAPI_LIMITS.endpointPath);
     for (const [key, value] of Object.entries(params)) url.searchParams.set(key, String(value));
     url.searchParams.set('api_key', apiKey);
     const context: CaptureContext = {
       operation: 'serpapi.google.search', billing: 'PAID_SEARCH_UNLESS_CACHED', method: 'GET',
       endpoint: SERPAPI_LIMITS.origin + SERPAPI_LIMITS.endpointPath,
-      requestParameters: params, requestBodyBytes: null, queryWindow: null, pageNumber: null, productRef: null,
+      requestParameters: params, requestBodyBytes: null, queryWindow: expanded?.query.requestedWindow ?? null, pageNumber: null, productRef: null,
     };
     const requestedAt = log.timestamp();
     const response = await boundedRequest(transport, {
@@ -144,7 +161,7 @@ export function createSerpApiProvider(apiKey: string | null, transport: Provider
       } else {
         const value = parseJson(response.bytes);
         const parsed = response.status >= 200 && response.status <= 299
-          ? parseResults(value, log.timestamp(), 'pending') : undefined;
+          ? parseResults(value, log.timestamp(), 'pending', expanded?.query.parameters.q) : undefined;
         const providerCode = isRecord(value)
           ? safeProviderCode(value.error_code ?? (isRecord(value.search_metadata) ? value.search_metadata.id : undefined))
           : null;
@@ -155,7 +172,7 @@ export function createSerpApiProvider(apiKey: string | null, transport: Provider
           capture = log.record(context, requestedAt, 'INVALID_PAYLOAD', response.status, response.bytes, providerCode);
         } else {
           capture = log.record(context, requestedAt, 'OK', response.status, response.bytes, providerCode);
-          payload = parseResults(value, capture.completedAt, capture.captureId) ?? null;
+          payload = parseResults(value, capture.completedAt, capture.captureId, expanded?.query.parameters.q) ?? null;
         }
       }
     } else if (response.kind === 'OVERSIZE') {
@@ -196,6 +213,23 @@ export function createSerpApiProvider(apiKey: string | null, transport: Provider
     },
     async collect(input: CollectInput, options: ProviderCallOptions = {}): Promise<CollectResult> {
       return search(input, options);
+    },
+    async collectExpanded(input, request, queryIndex, budget, options = {}): Promise<CollectResult> {
+      const plan = planExpandedSearch(request);
+      const query = Number.isSafeInteger(queryIndex) && queryIndex >= 0 ? plan[queryIndex] : undefined;
+      if (!query) throw new ProviderInputError('Expanded query index is outside the confirmed plan');
+      const result = await search({ ...input, keyword: query.query }, options, { query, budget });
+      // CaptureLog sequences ordinary single calls from 0001; expanded calls need distinct IDs
+      // within this provider session so L9 cannot confuse results from separate queries.
+      const prefix = `serpapi-expanded-${++expandedSequence}-`;
+      const id = (value: string): string => prefix + value;
+      return { ...result,
+        captures: result.captures.map(capture => ({ ...capture, captureId: id(capture.captureId) })),
+        webResults: result.webResults.map(row => ({ ...row, captureId: id(row.captureId) })),
+        coverage: result.coverage.map(coverage => ({ ...coverage, queryWindows: coverage.queryWindows.map(window => ({
+          ...window, window: query.requestedWindow, captureIds: window.captureIds.map(id),
+        })) })),
+      };
     },
   };
 }
