@@ -42,7 +42,7 @@ const SOURCE_COPY: Record<BoardSource, { readonly name: string; readonly role: s
   APIFY_SHOPEE: { name: 'Apify review Shopee', role: 'Review Shopee theo link', unit: 'lần thu' },
   APIFY_TIKTOK_COMMENTS: { name: 'Apify bình luận TikTok', role: 'Bình luận dưới video TikTok', unit: 'lần thu' },
   VIDEO_READING: { name: 'Đọc nội dung video', role: 'Lời thoại và chữ trên video bán hàng', unit: 'file' },
-  META_AD_LIBRARY: { name: 'Thư viện quảng cáo Meta', role: 'Ngày bắt đầu và trạng thái quảng cáo', unit: 'lần đọc' },
+  META_AD_LIBRARY: { name: 'Thư viện quảng cáo Meta', role: 'Ngày bắt đầu và trạng thái quảng cáo', unit: 'quảng cáo đã xác nhận theo trang' },
   SERPAPI: { name: 'SerpApi', role: 'Tìm kiếm Google và Google Trends', unit: 'lần thu' },
   OFFICIAL_STATS: { name: 'Cục Thống kê', role: 'Số liệu vĩ mô từ nso.gov.vn', unit: 'file' },
   WORLD_BANK: { name: 'Ngân hàng Thế giới', role: 'Số liệu vĩ mô mở, không cần khóa', unit: 'lần lấy' },

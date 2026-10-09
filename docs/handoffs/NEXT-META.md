@@ -78,3 +78,65 @@ Focused evidence includes actual owning source/HTTP/read/history/activity, cold 
 Unresolved: complete authentic Fedora OpenCLI runtime contract and DOM/date profiles; automatic U23 collector, live-source acceptance, U21/G6 consuming report path; U11/U26/U32/U40 decisions/acceptance. No report/model/coding/private/P9/macro/reader/Frontend application edits, deployment, caps/default/model/global config change, migration, credential change, merge, or real data access occurred.
 Next action: independently review the frozen final head, run composed exact-head hosted full CI/readiness, and normal merge only through coordinator gates. Any runtime or consumer work needs fresh exact ownership and authentic prerequisites.
 Business decisions pending: no new methodology/release/recollection policy invented; existing blocked U11/U26/U32/U40 remain blocked.
+
+## Mounted Meta activity-unit correction (terminal759)
+
+Task `task_809f3bc7e19d`, dispatch `ctx_55c3c90fe017`, authorized run
+`run_adc3551f8ed8`, sole coordinatorf78 generation2. Independent frozen review
+`/tmp/ultimate-meta-page-final-review-sol/report-e2dcd4e5.md`, SHA
+`c238b6fdabe65ad28966c02ddf7921aa6809f425b4a51f3b0af2ae087158aee6`,
+identified a genuine P2: one confirmed capture containing two included ad IDs
+rendered `2 lần đọc`. The backend correctly counts distinct confirmed
+L9-INCLUDED `(page id, library id)` memberships; its policy remains unchanged.
+Original failed OWNER script/log/status/card text/HTML are preserved by hash.
+
+Fresh placement grant `msg_441fe990e2c8` and superseding exact test-path reply
+preserved clean Foundation `ce3fac8c6881724f247c1029b61b06bbd49676c5` and prior
+branches/artifacts. Normal NEW branch
+`khangpworking/ultimate-meta-activity-unit-correction-sol` starts at exact
+`e2dcd4e547b40e40c21313c5fa53e07cca45fa8c`. Owned source paths are only
+`frontend/src/research-automation/SourceStatusBoard.tsx`, NEW
+`frontend/tests/research-meta-source-activity.test.ts`, and this append.
+Only the Meta unit changes to `quảng cáo đã xác nhận theo trang`; one-line
+reverse proof restores the whole e2 card file. Other cards/fields/state/units,
+all old tests/assertions and backend/API/canonical/privacy/L9/report/model/cap/
+default/migration/dependency/generator bytes remain exact e2.
+
+The new narrow mounted regression uses the existing actual synthetic owning
+Metric upload/classification/E11/search/L9 fixture. Actual authenticated OWNER
+HTTP prepares and confirms saved captures; actual source-status HTTP responses
+feed the real mounted card. Separate one/two-included fixtures prove inert
+preparation, excluded/unclear accounting, intra-capture duplicate accounting,
+exact confirmation retry with no additional writes, repeated independently
+confirmed captures with unchanged distinct membership counts, unchanged other
+card HTML and retained report bytes, and no provider/model redispatch. These
+are confirmed saved memberships, not reads, capture counts, populations, paid
+continuity, or effectiveness. The original reviewer reproduction retains all
+assertions with root/evidence-path-only retargeting and now passes.
+
+Pinned Node24.15.0/npm11.12.1/ABI137 and own matching package/lock/SQLite3.53.2
+smoke verified. Existing ignored standalone validator `a735d64b45436e68012f152898ecc11215585b08d4afbdeccb339ed0b9cc5bee`
+is exact immutable Meta artifact; frozen contracts/compiler/declarations match.
+No GLOBAL copy/generation/install/default change occurred. Heavy runner remained
+held until explicit `msg_40e4e3bd32f9`; thereafter one sequential bounded tree,
+concurrency2, strict backend/direct frontend static and focused mounted/owning
+checks. Exact final commands/results/head/hashes and stable releases follow in
+outside-Git `/tmp/ultimate-meta-activity-unit-correction-sol/FINAL-REPORT.md`.
+The broader author/reviewer source-integrity/cold/history proofs remain
+supporting only while exact relevant code/inputs/environment remain unchanged;
+no redundant full-scope rerun or fresh blanket acceptance is claimed.
+
+G01 exact defect/grant/evidence provenance; G02 bounded strict/owning checks and
+full hosted pending; G03 actual mounted unit correction; G04 canonical/compiler/
+old contracts protected without generation; G05 only three leased paths; G06
+synthetic fixtures/fake transports and own cleanup; G07 no live/paid/browser/
+model calls; G08 technical accounting label only, no AI report interpretation
+or humanizer invocation; G09 truthful membership unit/no invented source
+semantics; G10 original retained-source/report bytes protected; G11 no original
+assertion edits; G12 exact freeze/release/report then separately authorized
+composition/publication; G13 existing versioned L9 inclusion/exclusion/reasons
+unchanged. All genuine runtime OpenCLI/DOM/U21/report/persona/statistic/fullU23/
+Ultimate gaps and U11/U26/U32/U40 remain unresolved. Named reviewed-main normal
+composition, original PR195 FF/publication, distinct exact final review, fresh
+composed hosted full CI/readiness and normal merge each require their own
+coordinator gates; none is implied by this source-only correction.
