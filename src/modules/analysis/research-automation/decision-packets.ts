@@ -1,3 +1,4 @@
+import { hasDecisionPurchaseProposal } from './decision-purchase-guard.js';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import schema from '../../../../contracts/analysis/automation-decision-packets.schema.json' with { type: 'json' };
@@ -37,7 +38,7 @@ const UNSET = { state: 'UNSET', text: null } as const;
  * U-07 (E2/E6): packet 1.2.0 carries an explicit AI-proposal slot instead of hard UNSET, capped at three candidates.
  * 1.0.0/1.1.0 keep their historical bytes; an omitted version retains 1.0.0.
  */
-export type DecisionPacketVersion = '1.0.0' | '1.1.0' | '1.2.0';
+export type DecisionPacketVersion = '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
 export const AI_PROPOSAL_LABEL = 'đề xuất, chờ chủ duyệt';
 const MAX_AI_CANDIDATES_V1 = 20;
 const MAX_AI_CANDIDATES_V2 = 3;
@@ -83,7 +84,7 @@ function assertNoPurchaseSuggestion(candidates: AutomationDecisionCandidates): v
 }
 
 function sectionFields(sectionId: AutomationDecisionSectionId, version: DecisionPacketVersion) {
-  const proposal = version === '1.2.0' ? { aiProposal: AI_PROPOSAL_SLOT } : {};
+  const proposal = (version === '1.2.0' || version === '1.3.0') ? { aiProposal: AI_PROPOSAL_SLOT } : {};
   if (sectionId === 'M11') return { opportunity: { ownerHypotheses: [], opportunityDefinition: UNSET, size: UNSET, weights: UNSET, risk: UNSET, expectedReturn: UNSET, priority: null, ...proposal } };
   if (sectionId === 'I15') return { strategy: { ownerOptions: [], objective: UNSET, horizon: UNSET, riskAppetite: UNSET, tradeOffWeights: UNSET,
     capability: UNSET, cost: UNSET, reviewTrigger: UNSET, preferredOption: null, ...proposal } };
@@ -138,7 +139,7 @@ export function buildAutomationDecisionPacket(input: AutomationDecisionPacketInp
   const insufficient = version === '1.0.0' ? 'NO_ADMISSIBLE_SOURCE_STATED_USE_CONTEXT' : 'NO_ADMISSIBLE_DECISION_SUPPORT';
   // U-02 (E7): packet 1.2.0 states the working-question state instead of the old hard "owner question unset" gap.
   const gaps: Gap[] = [
-    version === '1.2.0' ? 'WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER' : 'OWNER_QUESTION_UNSET',
+    (version === '1.2.0' || version === '1.3.0') ? 'WORKING_QUESTION_AI_PROPOSED_AWAITING_OWNER' : 'OWNER_QUESTION_UNSET',
     ...(items.length ? [] : ['NO_ELIGIBLE_UPSTREAM_CLAIMS'] as const),
     ...(items.some(({ sectionId }) => sectionId === 'M05') ? [] : ['NO_SOURCE_OBSERVATION_CLAIMS'] as const),
     ...(items.some(({ sectionId }) => sectionId !== 'M05') ? [] : ['NO_LOCATED_DECLARATION_CLAIMS'] as const),
@@ -181,7 +182,7 @@ export function buildAutomationDecisionPacket(input: AutomationDecisionPacketInp
         'I04_SUPPORT_REQUIRES_ITS_EXACT_I02_CONTEXT_REFS_QUALIFIERS_AND_COUNTEREVIDENCE',
       ]),
       'A_BARE_PURCHASE_OR_USE_ALONE_DOES_NOT_SUPPORT_UNMET_NEED_OR_MARKET_GAP',
-      ...(version === '1.2.0' ? [
+      ...((version === '1.2.0' || version === '1.3.0') ? [
         'OWNER_FIELDS_STAY_UNSET_AND_A_LABELLED_AI_PROPOSAL_AWAITING_OWNER_IS_A_SEPARATE_UNREVIEWED_DRAFT',
         'AT_MOST_THREE_AI_PROPOSALS_FOR_M12_AND_I15_ARE_NEVER_OWNER_OPTIONS_PREFERRED_OR_DECIDED',
       ] : []),
@@ -252,7 +253,7 @@ export function validateAutomationDecisionCandidateResponse(untrustedResponse: u
   };
   if (!validateCandidatesSchema(envelope)) fail(`INVALID_DECISION_CANDIDATES:${ajv.errorsText(validateCandidatesSchema.errors)}`);
   const artifact = JSON.parse(canonicalJson(envelope)) as AutomationDecisionCandidates;
-  if (packet.methodVersion === '1.2.0') {
+  if (packet.methodVersion === '1.2.0' || packet.methodVersion === '1.3.0') {
     // U-07 (E2/E6): every new-version section admits at most three labelled proposals — M11 opportunities included —
     // and U-16 rejects any authored purchase suggestion.
     if (artifact.aiCandidates.length > MAX_AI_CANDIDATES_V2) fail('CANDIDATE_COUNT_EXCEEDS_PROPOSAL_LIMIT');
@@ -263,7 +264,8 @@ export function validateAutomationDecisionCandidateResponse(untrustedResponse: u
       const fields = [candidate.immediateTask, candidate.proposedOwner, candidate.proposedDeadline];
       if (fields.some(value => typeof value !== 'string' || !value.trim())) fail('CANDIDATE_PROPOSAL_FIELDS_REQUIRED');
     }
-    assertNoPurchaseSuggestion(artifact);
+    if (packet.methodVersion === '1.2.0') assertNoPurchaseSuggestion(artifact);
+    else if (hasDecisionPurchaseProposal(artifact.aiCandidates)) fail('PURCHASE_SUGGESTION_NOT_ALLOWED');
   }
   if (artifact.aiCandidates.length && packet.candidateEligibility.status !== 'SUPPORT_ANCHORS_AVAILABLE') fail('CANDIDATES_WITHOUT_ADMITTED_USE_CONTEXT');
   const known = new Set(packet.items.map(({ claimId }) => claimId));
