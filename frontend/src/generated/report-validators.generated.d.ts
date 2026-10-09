@@ -63,3 +63,11 @@ export declare const ownerReviewTargetReceipt: PrecompiledValidator;
 export declare const researchGenerationInputs: PrecompiledValidator;
 export declare const researchGenerationReceipt: PrecompiledValidator;
 export declare const researchGenerationMethodInputError: PrecompiledValidator;
+
+export declare const worldBankPrepareRequest: PrecompiledValidator;
+export declare const worldBankPrepareReceipt: PrecompiledValidator;
+export declare const worldBankConfirmRequest: PrecompiledValidator;
+export declare const worldBankConfirmed: PrecompiledValidator;
+export declare const worldBankView: PrecompiledValidator;
+export declare const worldBankHistory: PrecompiledValidator;
+export declare const worldBankDescriptor: PrecompiledValidator;

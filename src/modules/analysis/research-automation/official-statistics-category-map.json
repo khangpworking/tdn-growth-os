@@ -1,0 +1,78 @@
+{
+  "contractVersion": "official-statistics-category-map-v1",
+  "basis": "Ultimate 6.4 literal labels; authentic source workbook labels not yet confirmed",
+  "groups": [
+    {
+      "categoryGroup": "Thực phẩm chế biến, đồ ngọt, ăn vặt",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "Thực phẩm",
+      "retailLabel": "Lương thực, thực phẩm",
+      "householdExpenditureLabel": "Đường, mật, sữa, bánh, mứt kẹo; Quả chín",
+      "productionTradeLabel": "Sản xuất, chế biến thực phẩm; xuất khẩu bánh kẹo và sản phẩm từ ngũ cốc"
+    },
+    {
+      "categoryGroup": "Sữa và sản phẩm sữa",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "Thực phẩm",
+      "retailLabel": "Lương thực, thực phẩm",
+      "householdExpenditureLabel": "Đường, mật, sữa, bánh, mứt kẹo",
+      "productionTradeLabel": "Sản lượng sữa tươi, sữa bột; nhập khẩu sữa và sản phẩm sữa"
+    },
+    {
+      "categoryGroup": "Đồ uống",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "Đồ uống và thuốc lá",
+      "retailLabel": "Lương thực, thực phẩm",
+      "householdExpenditureLabel": "Chè, cà phê; Đồ uống khác; Rượu, bia",
+      "productionTradeLabel": "Sản xuất đồ uống"
+    },
+    {
+      "categoryGroup": "Nguyên liệu cho quán ăn uống (khách mua sỉ)",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "Ăn uống ngoài gia đình",
+      "retailLabel": "Dịch vụ lưu trú, ăn uống (bảng tháng)",
+      "householdExpenditureLabel": "Ăn uống ngoài gia đình",
+      "productionTradeLabel": "—"
+    },
+    {
+      "categoryGroup": "Đồ gia dụng, đồ dùng nhà bếp, thiết bị nhỏ",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "Thiết bị và đồ dùng gia đình",
+      "retailLabel": "Đồ dùng, dụng cụ trang thiết bị gia đình",
+      "householdExpenditureLabel": "Thiết bị và đồ dùng gia đình",
+      "productionTradeLabel": "Chỉ số sản xuất ngành tương ứng, nếu có"
+    },
+    {
+      "categoryGroup": "Thời trang",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "May mặc, mũ nón và giày dép",
+      "retailLabel": "Hàng may mặc, giày dép",
+      "householdExpenditureLabel": "May mặc, mũ nón, giày dép",
+      "productionTradeLabel": "Xuất nhập khẩu dệt may, giày dép"
+    },
+    {
+      "categoryGroup": "Văn phòng phẩm, sách, đồ chơi",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "Giáo dục; Văn hoá, giải trí và du lịch",
+      "retailLabel": "Vật phẩm, văn hoá, giáo dục",
+      "householdExpenditureLabel": "Giáo dục; Văn hoá, thể thao, giải trí",
+      "productionTradeLabel": "—"
+    },
+    {
+      "categoryGroup": "Mỹ phẩm, chăm sóc cá nhân, đồ dùng khác",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "Hàng hoá và dịch vụ khác (nhóm rất rộng)",
+      "retailLabel": "Hàng hoá khác (nhóm rất rộng)",
+      "householdExpenditureLabel": "Chi phí về đồ dùng và dịch vụ khác",
+      "productionTradeLabel": "—"
+    },
+    {
+      "categoryGroup": "Mọi ngành hàng",
+      "sourceLabelsState": "UNCONFIRMED",
+      "cpiLabel": "CPI chung, theo vùng",
+      "retailLabel": "Bán lẻ theo tỉnh",
+      "householdExpenditureLabel": "Thu nhập; dùng internet, mạng xã hội theo tuổi, vùng",
+      "productionTradeLabel": "—"
+    }
+  ]
+}
