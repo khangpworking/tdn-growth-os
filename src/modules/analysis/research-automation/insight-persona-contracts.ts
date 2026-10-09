@@ -8,6 +8,7 @@ import type { AutomationInsightPersonaReportRevisionRequest, PersonaSelectedRepo
 import apiSchema from '../../../../contracts/api/research-automation-insight-persona-api.schema.json' with { type: 'json' };
 import locatedSchema from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import selectionSchema from '../../../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
+import privateSourceSchema from '../../../../contracts/analysis/private-insight-source-projection.schema.json' with { type: 'json' };
 import codingSchema from '../../../../contracts/analysis/automation-insight-coding.schema.json' with { type: 'json' };
 import modelSchema from '../../../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
 import type { PersonaSource, PersonaBinding, PersonaModelRequest, PersonaTaxonomy, PersonaClassificationResponse,
@@ -22,7 +23,7 @@ import { registerPrivateReviewSchemas } from './private-review-contracts.js';
  * authenticate Foundation/CAS and private author proof before passing a source. */
 export function registerPersonaSchemas(ajv: AjvType): void {
   registerPrivateReviewSchemas(ajv);
-  for (const item of [locatedSchema, selectionSchema, codingSchema, modelSchema, schema, reportSchema, apiSchema])
+  for (const item of [locatedSchema, selectionSchema, privateSourceSchema, codingSchema, modelSchema, schema, reportSchema, apiSchema])
     if (!ajv.getSchema(item.$id)) ajv.addSchema(item);
 }
 const require = createRequire(import.meta.url);
