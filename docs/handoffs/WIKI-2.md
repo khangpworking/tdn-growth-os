@@ -92,3 +92,9 @@ Invocation started 02:49:52 UTC. Bare --update entered first-run TTY setup; exis
 Raw diff against committed baseline: 12 tracked paths, 114 insertions / 53 deletions: AGENTS.md, CLAUDE.md, four page claim sidecars (architecture, authority, verification, lifecycle), .last-update.json, .page-manifest.json, and those four Markdown pages. CLI reported two changed page bodies (architecture and verification); authority/lifecycle changed verification timestamps only. Architecture clarified ledger/user_version must match rather than merely not lag the head, consistent with src/api/operator-app.ts. Verification retained NOT EXECUTED and separated delivery from check standing. No content correction run followed.
 
 The handoff was created during the update. OpenWiki detected source changes, exited 0 and finalized pages without advancing the source checkpoint: .last-update.json remains status interrupted at the checked base, and .run.json is absent. This is not a valid frozen-input no-op demonstration. Both instruction blocks were restored to the approved committed text afterward. No generated Markdown, sidecar, manifest or update metadata was hand-edited. Expected metadata-only acceptance is ESCALATED; stop at three content-fix rounds. Future clean-input reconciliation needs separate authorization/review.
+
+## Publication
+
+Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/196
+
+Own branch pkg/WIKI-2-openwiki pushed only. Review commits: b089ece (generated baseline), 8d1dc08 (update observation/handoff), followed by this publication-record commit. Final wiki-only agent recheck after B-09 confirmed supplemental 3/3 again with no meaning regressions; source comparison remains the parent inspection at checked main. No merge, deployment, scheduling or CI workflow created.
