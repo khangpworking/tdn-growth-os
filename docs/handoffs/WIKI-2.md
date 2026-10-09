@@ -82,7 +82,7 @@ Three evidenced correction rounds only: round 1 fixed stale SHA/status, rule par
 | G-12 | PASS: template fields and B checklist recorded here. |
 | G-13 | N/A: repository documentation indexing is not keyword business-record collection. |
 
-Static verification: git diff --check; JSON parse; checked-base presence on all 12 substantive pages; local Markdown target files resolve; managed-block outside text equals base; private path/IP scan; allowed-path/dependency/workflow checks. Generated Mermaid validation is tool-reported; no independent browser render or application suite run.
+Static verification: working-tree git diff --check passed, but final base-to-HEAD check failed as recorded below; JSON parse; checked-base presence on all 12 substantive pages; local Markdown target files resolve; managed-block outside text equals base; private path/IP scan; allowed-path/dependency/workflow checks. Generated Mermaid validation is tool-reported; no independent browser render or application suite run.
 
 
 ## B-09 actual update observation
@@ -98,3 +98,7 @@ The handoff was created during the update. OpenWiki detected source changes, exi
 Draft PR: https://github.com/khangpworking/tdn-growth-os/pull/196
 
 Own branch pkg/WIKI-2-openwiki pushed only. Review commits: b089ece (generated baseline), 8d1dc08 (update observation/handoff), followed by this publication-record commit. Final wiki-only agent recheck after B-09 confirmed supplemental 3/3 again with no meaning regressions; source comparison remains the parent inspection at checked main. No merge, deployment, scheduling or CI workflow created.
+
+## Final base-diff check limitation
+
+`git diff --check origin/main...HEAD` failed on generated Markdown hard-break trailing spaces: openwiki/operations/runtime-and-persistence.md:51 and openwiki/workflows/operator-workspaces-and-approval.md:45. Earlier working-tree checks did not include the initially untracked generated pages and later checks compared already committed pages. Therefore the overall base-diff whitespace gate is ESCALATED, not PASS. No hand-edit or fourth regeneration round was performed. Final worktree is clean and branch publication is complete; draft remains for review with this limitation.
