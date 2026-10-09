@@ -182,3 +182,30 @@ const header = [
 
 await fs.mkdir(path.dirname(outputPath), { recursive: true });
 await fs.writeFile(outputPath, `${header}\n${body.replace(/^"use strict";\s*/, '')}\n`, 'utf8');
+
+// U23 is compiled separately so historical standalone validator bytes/IDs do not change.
+const metaAjv = new Ajv2020({ allErrors: true, strict: true, code: { source: true, esm: true } });
+addFormats(metaAjv);
+for (const relative of ['contracts/analysis/default-market-peers.schema.json',
+  'contracts/analysis/keyword-meaning-filter.schema.json', 'contracts/analysis/meta-page-source-v1.schema.json',
+  'contracts/api/research-automation-meta-page-api.schema.json']) metaAjv.addSchema(await readSchema(relative));
+const metaBase = 'https://tdn.local/contracts/api/research-automation-meta-page-api.schema.json';
+const metaRefs = Object.fromEntries(['prepare', 'confirm', 'view', 'history'].map(name =>
+  [`metaPage${name[0].toUpperCase()}${name.slice(1)}`, `${metaBase}#/$defs/${name}`]));
+const metaImports = new Map();
+const metaBody = standaloneCode(metaAjv, metaRefs).replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+  const key = `${moduleId}#${member}`;
+  if (!metaImports.has(key)) metaImports.set(key, { moduleId, member, name: `metaAjvRuntime${metaImports.size}` });
+  return metaImports.get(key).name;
+});
+if (/\brequire\(|new Function|\beval\(/.test(metaBody)) throw new Error('Unsafe Meta standalone validator output');
+const metaNamespaces = [...new Set([...metaImports.values()].map(value => value.moduleId))]
+  .map((moduleId, index) => ({ moduleId, namespace: `metaAjvModule${index}` }));
+const metaNamespaceFor = new Map(metaNamespaces.map(value => [value.moduleId, value.namespace]));
+const metaHeader = ['// Isolated additive U23 validators.',
+  ...metaNamespaces.map(value => `import * as ${value.namespace} from ${JSON.stringify(`${value.moduleId}.js`)};`),
+  ...[...metaImports.values()].map(value => `const ${value.name} = ajvRuntime(${metaNamespaceFor.get(value.moduleId)}, ${JSON.stringify(value.member)});`)].join('\n');
+// Isolate Ajv's local function/constant names while retaining exported aliases.
+const metaExports = Object.keys(metaRefs);
+const wrappedBody = metaBody.replace(/export const (\w+) = (\w+);/g, 'const $1 = $2;');
+await fs.appendFile(outputPath, `${metaHeader}\nconst metaPageValidators = (() => {\n${wrappedBody}\nreturn { ${metaExports.join(', ')} };\n})();\n${metaExports.map(name => `export const ${name} = metaPageValidators.${name};`).join('\n')}\n`, 'utf8');
