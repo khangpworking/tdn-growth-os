@@ -264,3 +264,31 @@ const personaReportHeader = [
 ].join('\n');
 const personaReportExports = Object.keys(personaReportRefs);
 await fs.appendFile(outputPath, `${personaReportHeader}\nconst personaReportValidators = (() => {\n${personaReportBody}\nreturn { ${personaReportExports.join(', ')} };\n})();\n${personaReportExports.map(name => `export const ${name} = personaReportValidators.${name};`).join('\n')}\n`, 'utf8');
+// Macro validators use an isolated compiler and closure. The complete historical output above
+// remains a byte-identical prefix; adding this source cannot renumber old validators or schemas.
+const macroAjv = new Ajv2020({ allErrors: true, strict: true, code: { source: true, esm: true } });
+addFormats(macroAjv);
+const macroSource = await readSchema('contracts/analysis/world-bank-intake-v1.schema.json');
+const macroApi = await readSchema('contracts/api/research-automation-macro-intake-api.schema.json');
+macroAjv.addSchema(macroSource); macroAjv.addSchema(macroApi);
+const macroRefs = Object.fromEntries(['prepareRequest', 'prepareReceipt', 'confirmRequest', 'confirmed', 'view', 'history']
+  .map(name => [`worldBank${name[0].toUpperCase()}${name.slice(1)}`, `${macroApi.$id}#/$defs/${name}`]));
+macroRefs.worldBankDescriptor = macroSource.$id;
+const macroImports = new Map();
+const macroBody = standaloneCode(macroAjv, macroRefs).replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+  const key = `${moduleId}#${member}`;
+  if (!macroImports.has(key)) macroImports.set(key, { moduleId, member, name: `macroAjvRuntime${macroImports.size}` });
+  return macroImports.get(key).name;
+}).replace(/export const /g, 'const ');
+if (/\brequire\(|new Function|\beval\(/.test(macroBody)) throw new Error('Macro validators must be inert standalone code');
+const macroNamespaces = [...new Set([...macroImports.values()].map(entry => entry.moduleId))]
+  .map((moduleId, index) => ({ moduleId, name: `macroAjvModule${index}` }));
+const macroNamespaceFor = new Map(macroNamespaces.map(entry => [entry.moduleId, entry.name]));
+const macroHeader = [
+  '// Isolated additive macro source validators.',
+  ...macroNamespaces.map(entry => `import * as ${entry.name} from ${JSON.stringify(`${entry.moduleId}.js`)};`),
+  ...[...macroImports.values()].map(entry => `const ${entry.name} = ajvRuntime(${macroNamespaceFor.get(entry.moduleId)}, ${JSON.stringify(entry.member)});`),
+  'function createMacroValidators() {', macroBody, `return { ${Object.keys(macroRefs).join(', ')} };`, '}',
+  `export const { ${Object.keys(macroRefs).join(', ')} } = createMacroValidators();`, '',
+].join('\n');
+await fs.appendFile(outputPath, macroHeader, 'utf8');
