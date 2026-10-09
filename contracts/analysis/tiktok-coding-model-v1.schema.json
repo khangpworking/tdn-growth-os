@@ -1,0 +1,155 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/tiktok-coding-model-v1.schema.json",
+  "title": "TikTokCodingModelV1",
+  "description": "Bounded model exchange for retained S07 draft coding: versioned admission source, exact model-facing input, frozen prompt and validated candidates. Only eligible INCLUDED CUSTOMER records are admitted; quotes are exact retained substrings. Candidates are pending AI suggestions, never human review or approval.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/source"
+    },
+    {
+      "$ref": "#/$defs/input"
+    },
+    {
+      "$ref": "#/$defs/prompt"
+    },
+    {
+      "$ref": "#/$defs/candidates"
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "source": {
+      "title": "TikTokCodingModelSource",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "request", "binding", "corpus", "keywordDigest"],
+      "properties": {
+        "contractVersion": { "const": "tiktok-coding-source-v1" },
+        "request": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requestKey"],
+          "properties": {
+            "requestKey": { "$ref": "#/$defs/uuid" },
+            "recordIndexes": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 6000,
+              "items": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "binding": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["workspaceId", "runId", "scopeSha256", "sourceSetSha256", "requestedPeriod"],
+          "properties": {
+            "workspaceId": { "$ref": "#/$defs/uuid" },
+            "runId": { "$ref": "#/$defs/uuid" },
+            "scopeSha256": { "$ref": "#/$defs/digest" },
+            "sourceSetSha256": { "$ref": "#/$defs/digest" },
+            "requestedPeriod": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["startDate", "endDate"],
+              "properties": {
+                "startDate": { "type": "string", "format": "date" },
+                "endDate": { "type": "string", "format": "date" }
+              }
+            }
+          }
+        },
+        "corpus": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["packageId", "manifestArtifactSha256", "packageContentSha256", "corpusSha256"],
+          "properties": {
+            "packageId": { "$ref": "#/$defs/uuid" },
+            "manifestArtifactSha256": { "$ref": "#/$defs/digest" },
+            "packageContentSha256": { "$ref": "#/$defs/digest" },
+            "corpusSha256": { "$ref": "#/$defs/digest" }
+          }
+        },
+        "keywordDigest": { "$ref": "#/$defs/digest" }
+      }
+    },
+    "input": {
+      "title": "TikTokCodingModelInput",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "brief", "records"],
+      "properties": {
+        "contractVersion": { "const": "tiktok-coding-input-v1" },
+        "brief": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "records": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["recordIndex", "text", "videoKind", "sourceType"],
+            "properties": {
+              "recordIndex": { "type": "integer", "minimum": 0 },
+              "text": { "type": "string", "minLength": 1, "maxLength": 5000 },
+              "videoKind": { "enum": ["SELLER_VIDEO", "REVIEW_VIDEO"] },
+              "sourceType": { "enum": ["COMMENT_UNDER_REVIEW_VIDEO", "COMMENT_UNDER_SELLER_VIDEO"] }
+            }
+          }
+        }
+      }
+    },
+    "prompt": {
+      "title": "TikTokCodingModelPrompt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "systemText"],
+      "properties": {
+        "contractVersion": { "const": "tiktok-coding-prompt-v1" },
+        "systemText": { "type": "string", "minLength": 1, "maxLength": 131072 }
+      }
+    },
+    "candidates": {
+      "title": "TikTokCodingModelCandidates",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "codes"],
+      "properties": {
+        "contractVersion": { "const": "tiktok-coding-candidates-v1" },
+        "codes": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 6000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "label", "recordIndex", "quote"],
+            "properties": {
+              "code": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[A-Z0-9][A-Z0-9_]{0,79}$" },
+              "label": { "type": "string", "minLength": 1, "maxLength": 160 },
+              "recordIndex": { "type": "integer", "minimum": 0 },
+              "quote": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["text", "start", "end"],
+                "properties": {
+                  "text": { "type": "string", "minLength": 1, "maxLength": 2000 },
+                  "start": { "type": "integer", "minimum": 0 },
+                  "end": { "type": "integer", "minimum": 1 }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

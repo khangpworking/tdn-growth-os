@@ -592,6 +592,9 @@
         },
         {
           "$ref": "#/$defs/insightBuildRequestV3"
+        },
+        {
+          "$ref": "#/$defs/tiktokBuildRequest"
         }
       ]
     },
@@ -827,6 +830,9 @@
         },
         {
           "$ref": "#/$defs/insightRevisionV6"
+        },
+        {
+          "$ref": "#/$defs/insightRevisionTiktok"
         }
       ]
     },
@@ -1575,6 +1581,138 @@
           "$ref": "#/$defs/sha256"
         },
         "personaSourceSha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "tiktokBuildRequest": {
+      "title": "ResearchAutomationTikTokReaderBuildRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "reportKind",
+        "requestKey",
+        "draftPairId",
+        "semanticSha256",
+        "sourceKind"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "insight-reader-build-tiktok-v1"
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "requestKey": {
+          "$ref": "research-automation-api.schema.json#/$defs/requestKey"
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceKind": {
+          "const": "TIKTOK"
+        }
+      }
+    },
+    "insightRevisionTiktok": {
+      "title": "ResearchAutomationTikTokReaderRevision",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "revisionNumber",
+        "workspaceId",
+        "runId",
+        "state",
+        "draftPairId",
+        "htmlSha256",
+        "createdAt",
+        "decision",
+        "reportKind",
+        "builderVersion",
+        "semanticSha256",
+        "sourceReportSha256"
+      ],
+      "properties": {
+        "revisionId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "revisionNumber": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        },
+        "workspaceId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "runId": {
+          "$ref": "research-automation-api.schema.json#/$defs/uuid"
+        },
+        "state": {
+          "enum": [
+            "PENDING_OWNER_REVIEW",
+            "APPROVED",
+            "REJECTED",
+            "SUPERSEDED"
+          ]
+        },
+        "draftPairId": {
+          "$ref": "#/$defs/sha256"
+        },
+        "htmlSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "createdAt": {
+          "$ref": "#/$defs/timestamp"
+        },
+        "decision": {
+          "anyOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "decision",
+                "reason",
+                "decidedAt"
+              ],
+              "properties": {
+                "decision": {
+                  "enum": [
+                    "APPROVED",
+                    "REJECTED"
+                  ]
+                },
+                "reason": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "maxLength": 1000
+                },
+                "decidedAt": {
+                  "$ref": "#/$defs/timestamp"
+                }
+              }
+            }
+          ]
+        },
+        "reportKind": {
+          "const": "INSIGHT"
+        },
+        "builderVersion": {
+          "const": "reader-report-insight-tiktok-v1"
+        },
+        "semanticSha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "sourceReportSha256": {
           "$ref": "#/$defs/sha256"
         }
       }
