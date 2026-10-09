@@ -171,7 +171,7 @@ export function message(code: string): string {
 
 export class ResearchAutomationValidationError extends Error {}
 export class ResearchAutomationNotFoundError extends Error {
-  constructor(readonly code: 'workspace_not_found' | 'run_not_found' | 'report_not_available' | 'pdf_not_available' | 'rule_adoption_not_found' | 'membership_not_found' | 'insight_coding_not_found' | 'reader_report_not_found', text: string) { super(text); }
+  constructor(readonly code: 'workspace_not_found' | 'run_not_found' | 'report_not_available' | 'pdf_not_available' | 'rule_adoption_not_found' | 'membership_not_found' | 'insight_coding_not_found' | 'reader_report_not_found' | 'tiktok_coding_not_found', text: string) { super(text); }
 }
 export class ResearchAutomationConflictError extends Error {
   constructor(readonly code: 'request_key_conflict' | 'revision_conflict' | 'invalid_state', text: string) { super(text); }

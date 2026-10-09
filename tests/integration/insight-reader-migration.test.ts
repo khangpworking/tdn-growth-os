@@ -44,7 +44,7 @@ test('0050 preserves populated historical Market ledger and bytes, rolls back at
       profile_sha256: kind === 'MARKET' ? metadata.sha256 : null, cover_sha256: null, html_sha256: html.sha256,
       metrics_sha256: metadata.sha256, claims_sha256: metadata.sha256,
       builder_version: kind === 'MARKET' ? 'reader-report-market-v3' : 'reader-report-insight-v1', actor_id: 'owner:synthetic', created_at: at,
-      ...(db.pragma('user_version', { simple: true }) === 50n ? { report_kind: kind,
+      ...(db.pragma('user_version', { simple: true }) as number | bigint >= 50 ? { report_kind: kind,
         semantic_sha256: kind === 'INSIGHT' ? metadata.sha256 : null, source_report_sha256: kind === 'INSIGHT' ? html.sha256 : null } : {}),
       ...extra,
     };
@@ -81,14 +81,17 @@ test('0050 preserves populated historical Market ledger and bytes, rolls back at
   assert.deepEqual(rows(), oldRows); assert.deepEqual(decisions(), oldDecisions);
   assert.deepEqual(db.prepare('SELECT * FROM schema_migrations ORDER BY version').all(), oldMigrations);
   assert.deepEqual(db.pragma('foreign_key_check'), []);
-  assert.deepEqual(migrate(), { applied: [50], currentVersion: 50 });
+  assert.deepEqual(migrate(), { applied: [50, 51, 52], currentVersion: 52 });
   assert.deepEqual(rows().map(({ report_kind, semantic_sha256, source_report_sha256, ...old }) => {
     assert.equal(report_kind, 'MARKET'); assert.equal(semantic_sha256, null); assert.equal(source_report_sha256, null); return old;
   }), oldRows);
   assert.deepEqual(decisions(), oldDecisions);
   assert.deepEqual(db.prepare('SELECT * FROM artifact_manifests ORDER BY sha256').all(), oldManifests);
   assert.deepEqual(await artifacts.read(html.sha256), Buffer.from('<!doctype html><html lang="vi"><body>Market historical bytes 123</body></html>'));
-  assert.deepEqual(migrate(), { applied: [], currentVersion: 50 });
+  assert.deepEqual(migrate(), { applied: [], currentVersion: 52 });
+  // Additive TikTok ledgers arrive empty; their immutability is proven at the owning boundary.
+  assert.equal(Number((db.prepare('SELECT COUNT(*) n FROM analysis_tiktok_report_consumption').get() as { n: number | bigint }).n), 0);
+  assert.equal(Number((db.prepare('SELECT COUNT(*) n FROM analysis_tiktok_coding_executions').get() as { n: number | bigint }).n), 0);
   const insight1 = insert('INSIGHT', 1);
   assert.throws(() => insert('INSIGHT', 3), /reader_report_requires_draft_ready_sequence/);
   assert.throws(() => insert('MARKET', 3, { metric_package_id: null }), /CHECK constraint/);
