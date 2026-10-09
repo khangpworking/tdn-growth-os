@@ -171,7 +171,11 @@ test('no-key collectors map usable NOT_REQUIRED credentials once built', () => {
   assert.equal(status('META_AD_LIBRARY').credential, 'NOT_REQUIRED');
   assert.equal(status('META_AD_LIBRARY').state, 'NOT_BUILT');
   assert.equal(status('WORLD_BANK').credential, 'NOT_REQUIRED');
-  assert.equal(status('WORLD_BANK').state, 'NOT_BUILT');
+  assert.equal(status('WORLD_BANK').state, 'MANUAL_IMPORT');
+  assert.equal(status('WORLD_BANK').wiredIntoRuns, true);
+  assert.equal(status('WORLD_BANK').pendingPackage, null);
+  assert.equal(status('WORLD_BANK').paid, false);
+  assert.equal(status('WORLD_BANK').lastUsageAt, null);
   const disabled = bySource(buildResearchAutomationSourceStatus(input({ executorEnabled: false })));
   assert.equal(disabled('WORLD_BANK').state, 'EXECUTOR_DISABLED');
 });

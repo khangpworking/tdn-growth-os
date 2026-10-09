@@ -1,3 +1,6 @@
+import type { PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
+import { checkPersonaSelectedReport, personaDigest as personaViewDigest } from './insight-persona-contracts.js';
+import { insightPersonaSection } from './insight-persona-report.js';
 import { privateReviewReportView } from './private-review-contracts.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
@@ -86,6 +89,7 @@ export interface AutomationReportInput {
   readonly insightCoding?: AutomationInsightCodingSnapshot;
   readonly insightCrosscheck?: InsightCrosscheckSnapshot;
   readonly insightLiteral?: InsightLiteralEvidence;
+  readonly insightPersona?: PersonaSelectedReportSnapshot;
   readonly marketInventory?: AutomationMarketMethodSnapshot;
   readonly marketInventoryFailure?: 'MARKET_INVENTORY_FAILED';
   readonly marketPresentation?: AutomationMarketPresentationMethod;
@@ -511,6 +515,10 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const insightLiteral = kind === 'INSIGHT' && input.insightLiteral ? verifyInsightLiteralEvidence(input.insightLiteral) : undefined;
   if (insightLiteral && (insightLiteral.input.binding.runId !== input.run.runId || insightLiteral.input.binding.workspaceId !== input.run.workspaceId))
     throw new Error('Literal Insight run binding differs');
+  const insightPersona = kind === 'INSIGHT' && input.insightPersona ? checkPersonaSelectedReport(input.insightPersona) : undefined;
+  if (insightPersona && (!input.start.privateShopeeSource || insightPersona.source.binding.workspaceId !== input.run.workspaceId ||
+    insightPersona.source.binding.runId !== input.run.runId || !input.privateReviewCorpus || insightPersona.source.viewSha256 !== personaViewDigest(input.privateReviewCorpus)))
+    throw new Error('Persona report source/run binding differs');
   const captures = collectionCaptureMap(input);
   const evidence = peerEvidence(input, captures);
   const observations = observedRows(input, captures);
@@ -560,6 +568,11 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     return `Chưa có kết quả cho mục này trong lượt. Bản nháp không đủ thông tin để xác định riêng nguyên nhân là thiếu đầu vào, còn chờ duyệt hay phương pháp chưa chạy.${needs}${sourceObservationNote}`;
   };
   const sections: DraftSection[] = catalog.sections.filter(section => section.sectionId.startsWith(prefix)).map(section => {
+    if (insightPersona && section.sectionId === 'I02') {
+      locatedViews.set(section.sectionId, () => insightPersonaSection(insightPersona.snapshot, insightPersona.source, 'I02', citations));
+      return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [], method: 'insight-persona-report-snapshot-v1',
+        explanation: 'Chân dung và thẻ bằng chứng là đề xuất AI từ lời nguồn đã lưu, chờ chủ duyệt; chưa đủ điều kiện phát hành kết luận.' };
+    }
     if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
       locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
         ? renderAutomationMarketFindings(marketPresentation, citations) : renderAutomationMarketUnitPrices(marketPresentation, citations));
@@ -715,7 +728,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? 'automation-report-kit-v22' : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? 'automation-report-kit-v22' : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -740,6 +753,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     captures: input.captures, sections, ...(kind === 'INSIGHT' ? { reviewCorpus: input.reviewCorpus ?? null, locatedReview: input.locatedReview ?? null, nativeReview: input.nativeReview ?? null,
       ...(input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
       ...(input.insightCoding ? { insightCoding: input.insightCoding } : {}),
+      ...(insightPersona ? { insightPersona } : {}),
       ...(insightCrosscheck ? { insightCrosscheck } : {}),
       ...(privateView ? { privateReviewCorpus: privateView } : {}),
       ...(insightLiteral ? { insightLiteral } : {}),
@@ -814,6 +828,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     }
     if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion || marketPresentation));
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
+      if (insightPersona) return insightPersonaSection(insightPersona.snapshot, insightPersona.source, sectionId, citations);
       if (privateView) return privateReviewCorpusSection(privateView, sectionId, citations);
       const codingNotice = located
         ? `<p class="warning">Đã áp dụng quy tắc đã duyệt để đưa các khai báo rõ nghĩa vào phạm vi hẹp, có vị trí nguyên văn. ${located.projection.pending.length} mục còn chờ được giữ cùng bản đề xuất ban đầu; không tính thành mục phân tích hoàn chỉnh. Khi mở lại, hệ thống đọc kết quả đã lưu, không chạy lại parser hoặc gọi nguồn.</p>`
@@ -856,11 +871,11 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Narrow screens: tables keep their width and scroll; say so, show edge shadows and keep captions in view.
   + `@media screen and (max-width:800px){.table-wrap:not(:has(>.evidence-table)){container-type:inline-size;background:linear-gradient(90deg,#fff 30%,#fff0) left/24px 100% no-repeat local,linear-gradient(270deg,#fff 30%,#fff0) right/24px 100% no-repeat local,radial-gradient(farthest-side at 0 50%,#0f172a33,#0000) left/10px 100% no-repeat scroll,radial-gradient(farthest-side at 100% 50%,#0f172a33,#0000) right/10px 100% no-repeat scroll}.table-wrap:not(:has(>.evidence-table))::before{content:"Nếu bảng vượt chiều rộng màn hình, vuốt ngang để xem đủ cột. Bàn phím: Tab để chọn bảng, rồi dùng phím mũi tên.";display:block;position:sticky;left:0;padding:0 0 6px;color:var(--mut);font-size:12px}.table-wrap:not(:has(>.evidence-table)) caption{position:sticky;left:0;max-width:100cqi;box-sizing:border-box}.table-wrap:focus-visible{outline-offset:-3px}}`
   + `.reader-summary,.section-reading,.reader-guide{max-width:72ch}.reader-context{margin-bottom:24px}.method-reference{margin-top:24px;color:var(--mut)}.method-reference summary{cursor:pointer}.reader-summary{font-weight:500}td,dd{font-variant-numeric:tabular-nums}`
-  + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}.citation-register a::after{content:" (" attr(href) ")"}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div><p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div></div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${body}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng 0.</p></footer></main></body></html>`;
+  + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}.citation-register a::after{content:" (" attr(href) ")"}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div><p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div></div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${body}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${insightPersona ? 'Chân dung và thẻ bằng chứng do AI đề xuất, chờ chủ duyệt; không phải một khách hàng có thật, kết luận đã phát hành hoặc quyết định kinh doanh.' : decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng 0.</p></footer></main></body></html>`;
   // Source appendix v18 also serves existing Market and accepted Insight
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
-  if (marketPresentation || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
+  if (insightPersona || marketPresentation || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
     const failed = lintVisibleReportText(html).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }

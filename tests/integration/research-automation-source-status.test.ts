@@ -164,11 +164,17 @@ test('source status reports eleven cards with registry metadata, workspace histo
     assert.equal(sources.APIFY_SHOPEE.dataCount, 1);
     assert.equal(sources.APIFY_SHOPEE.spendCapUsd, null);
     // Unbuilt cards name their owning package and show honest zeros.
-    for (const id of ['APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'OFFICIAL_STATS', 'WORLD_BANK']) {
+    for (const id of ['APIFY_TIKTOK_COMMENTS', 'VIDEO_READING', 'META_AD_LIBRARY', 'OFFICIAL_STATS']) {
       assert.equal(sources[id].state, 'NOT_BUILT', `${id} must not pretend its collector exists`);
       assert.equal(sources[id].dataCount, 0);
       assert.ok(sources[id].pendingPackage, `${id} names its owning package`);
     }
+    assert.equal(sources.WORLD_BANK.state, 'MANUAL_IMPORT');
+    assert.equal(sources.WORLD_BANK.wiredIntoRuns, true);
+    assert.equal(sources.WORLD_BANK.pendingPackage, null);
+    assert.equal(sources.WORLD_BANK.dataCount, 0);
+    assert.equal(sources.WORLD_BANK.lastDataAt, null);
+    assert.equal(sources.WORLD_BANK.lastUsageAt, null);
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.pendingPackage, 'P9');
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.credential, 'CONFIGURED', 'Shared Apify token is honest credential evidence');
     assert.equal(sources.APIFY_TIKTOK_COMMENTS.spendCapUsd, null, 'An absent TikTok cap is never defaulted to $3');

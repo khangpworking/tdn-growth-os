@@ -1,4 +1,10 @@
+import type { AutomationInsightPersonaReportRevisionRequest, PersonaReportSelection, PersonaSelectedReportSnapshot } from '../../../../contracts/analysis/automation-insight-persona-report.generated.js';
+import type { InsightModelAI } from './insight-model-execution.js';
 import { registerPrivateReviewSchemas, privateShopeeMarker, privateReviewReportView } from './private-review-contracts.js';
+import { readPrivatePersonaEvidence } from './insight-persona-evidence.js';
+import { personaReportRequestValid, checkPersonaSelectedReport, personaDigest, checkPersonaBinding } from './insight-persona-contracts.js';
+import type { PersonaSourceContext } from './insight-persona-projection.js';
+import { ShopeeCollectionService } from '../../foundation/shopee-collection-service.js';
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from './private-review-corpus.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import { buildResearchAutomationReport } from './reports.js';
@@ -61,6 +67,9 @@ import { automationI14AdmissionVersion, buildAutomationI14EvidenceAdmission, MAX
 import { AutomationI14SynthesisExecutions, type AutomationI14ExecutionRequest, type AutomationI14ExecutionOutcome, type AutomationI14ExecutionParent } from './i14-synthesis-execution.js';
 import type { ResearchAutomationMetricPrepareRequest, ResearchAutomationMetricPrepareReceipt, ResearchAutomationPreparedMetricList } from '../../../../contracts/api/research-automation-metric-intake-api.generated.js';
 import { AutomationMetricSourceIntake, MAX_METRIC_UPLOAD_BYTES } from './metric-source-intake.js';
+import { AutomationWorldBankSourceIntake, readConfirmedWorldBankSource, readWorldBankHistory } from './world-bank-intake.js';
+import type { Binding as WorldBankBinding } from '../../../../contracts/analysis/world-bank-intake-v1.generated.js';
+import type { PackageRef as WorldBankPackageRef, PrepareReceipt as WorldBankPrepareReceipt, View as WorldBankView, History as WorldBankHistory } from '../../../../contracts/api/research-automation-macro-intake-api.generated.js';
 import { AutomationMetricRuleAdoptions, type MetricRuleBinding } from './metric-rule-adoption.js';
 import { AutomationMetricMembership, type MetricMembershipContext } from './metric-membership.js';
 import { AutomationInsightCrosscheck } from './insight-crosscheck.js';
@@ -76,7 +85,8 @@ import { SourcePackageService } from '../../foundation/source-package-service.js
 import { videoPackageKeyPrefix } from './kalodata-video-intake.js';
 import { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import type { AutomationReportRevisionRequest as SourceReportRevisionRequest } from '../../../../contracts/analysis/automation-report-revision.generated.js';
-type AutomationReportRevisionRequest = AutomationMarketPresentationRevisionRequest | SourceReportRevisionRequest | AutomationClassifiedReportRevisionRequest | AutomationInsightReportRevisionRequest | AutomationBoundedReportRevisionRequest | AutomationQuoteReportRevisionRequest;
+type HistoricalReportRevisionRequest = AutomationMarketPresentationRevisionRequest | SourceReportRevisionRequest | AutomationClassifiedReportRevisionRequest | AutomationInsightReportRevisionRequest | AutomationBoundedReportRevisionRequest | AutomationQuoteReportRevisionRequest;
+type AutomationReportRevisionRequest = HistoricalReportRevisionRequest | AutomationInsightPersonaReportRevisionRequest;
 import type { ResearchAutomationReportPair, ResearchAutomationRevisionReceipt } from '../../../../contracts/api/research-automation-revision-api.generated.js';
 export type { ResearchAutomationReportPair, ResearchAutomationRevisionReceipt } from '../../../../contracts/api/research-automation-revision-api.generated.js';
 import type { AutomationConfirmedSourceSet } from '../../../../contracts/analysis/automation-confirmed-source-set.generated.js';
@@ -104,7 +114,7 @@ import { AutomationLocatedReviewBridge, type AutomationLocatedReviewSnapshot } f
 import { AutomationNativeSourceReviewBridge, type NativeSourceReviewSnapshot, type NativeSourceReviewReference } from './native-source-review-bridge.js';
 import { buildAutomationSourceClaims, validateAutomationSourceClaimsReference, MAX_SOURCE_CLAIMS_BYTES } from './source-claims.js';
 import type { AutomationSourceClaims } from '../../../../contracts/analysis/automation-source-claims.generated.js';
-import { AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory, type PrivateShopeeConfiguration } from './exact-shopee-bridge.js';
+import { exactShopeeRequest, AutomationExactShopeeBridge, type ExactShopeeAttempt, type ShopeeCollectorFactory, type PrivateShopeeConfiguration } from './exact-shopee-bridge.js';
 import { EXACT_SHOPEE_OUTCOMES, MAX_PROVIDER_MESSAGE_LENGTH, type ExactShopeeOutcome } from './exact-shopee-outcome.js';
 import { selectExactShopeeListings } from '../../foundation/shopee-exact-selection.js';
 import type { ResearchReviewCorpus } from '../../../../contracts/analysis/research-review-corpus.generated.js';
@@ -193,6 +203,7 @@ export interface ResearchAutomationReportInput {
   readonly insightCoding?: AutomationInsightCodingSnapshot;
   readonly insightCrosscheck?: InsightCrosscheckSnapshot;
   readonly insightLiteral?: InsightLiteralEvidence;
+  readonly insightPersona?: PersonaSelectedReportSnapshot;
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
@@ -339,7 +350,8 @@ const validateSourceSet = sourceAjv.compile<AutomationConfirmedSourceSet>(source
 sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchema); sourceAjv.addSchema(insightRevisionSchema); sourceAjv.addSchema(boundedRevisionSchema); sourceAjv.addSchema(quoteRevisionSchema);
 sourceAjv.addSchema(defaultPeerSchema); sourceAjv.addSchema(readerInputSchema); sourceAjv.addSchema(readerApiSchema);
 const validateInsightReaderBuild = sourceAjv.compile<ResearchAutomationInsightReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/insightBuildRequest` });
-const validateRevision = sourceAjv.compile<AutomationReportRevisionRequest>({ oneOf: [{ $ref: marketPresentationRevisionSchema.$id }, { $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
+const validateHistoricalRevision = sourceAjv.compile<HistoricalReportRevisionRequest>({ oneOf: [{ $ref: marketPresentationRevisionSchema.$id }, { $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
+const validateRevision = (value: unknown): value is AutomationReportRevisionRequest => personaReportRequestValid(value) || validateHistoricalRevision(value);
 const validateM01Reference = sourceAjv.compile<AutomationM01InventoryReference>(m01ReferenceSchema);
 const validateI14Reference = sourceAjv.compile<AutomationI14AdmissionReference>(i14ReferenceSchema);
 sourceAjv.addSchema(metricIntakeSchema);
@@ -366,6 +378,7 @@ export class ResearchAutomationService {
   readonly #marketInventory: AutomationMarketMethodBridge;
   readonly #metricMethods: AutomationMetricMethodBridge;
   readonly #metricIntake: AutomationMetricSourceIntake | undefined;
+  readonly #worldBankIntake: AutomationWorldBankSourceIntake | undefined;
   readonly #supplementalIntake: AutomationSupplementalSourceIntake | undefined;
   readonly #metricRules: AutomationMetricRuleAdoptions;
   readonly #readerReports: AutomationReaderReports;
@@ -411,6 +424,7 @@ export class ResearchAutomationService {
     this.#marketInventory = new AutomationMarketMethodBridge({ db: this.#db, artifactStore: this.#artifacts, now: this.#now });
     this.#metricMethods = new AutomationMetricMethodBridge({ db: this.#db, artifactStore: this.#artifacts, workspaces: this.#workspaces, now: this.#now });
     if (options.metricAttachmentStore) this.#metricIntake = new AutomationMetricSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
+    if (options.metricAttachmentStore) this.#worldBankIntake = new AutomationWorldBankSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     if (options.metricAttachmentStore) this.#supplementalIntake = new AutomationSupplementalSourceIntake(options.metricAttachmentStore, this.#db, this.#now);
     this.#metricRules = new AutomationMetricRuleAdoptions(this.#db, this.#artifacts, options.metricAttachmentStore, this.#now);
     this.#readerReports = new AutomationReaderReports(this.#db, this.#artifacts, this.#now, {
@@ -433,6 +447,12 @@ export class ResearchAutomationService {
     this.#insightCoding = new AutomationInsightCoding({ db: this.#db, artifacts: this.#artifacts, now: this.#now,
       ...(options.metricAttachmentStore ? { staging: options.metricAttachmentStore } : {}),
       context: (workspaceId, runId, pairId) => this.readInsightSourceContextV2(workspaceId, runId, pairId),
+      personaSource: (workspaceId, runId, pairId) => this.#personaSourceContext(workspaceId, runId, pairId),
+      assertPersonaCurrent: async binding => {
+        const run = await this.getRun(binding.workspaceId, binding.runId);
+        if (run.status !== 'DRAFT_READY' || (await this.listReportVersions(binding.workspaceId, binding.runId)).at(-1)?.pairId !== binding.pairId)
+          throw new ResearchAutomationConflictError('revision_conflict', 'The source report changed before persona proposal publication.');
+      },
       assertCurrent: async binding => {
         if ((await this.listReportVersions(binding.workspaceId, binding.runId)).at(-1)?.pairId !== binding.pairId)
           throw new ResearchAutomationConflictError('revision_conflict', 'The Insight report changed before coding confirmation.');
@@ -572,6 +592,58 @@ export class ResearchAutomationService {
       }
       return this.#metricIntake!.prepare(input, workbook, { runId, start, scope });
     });
+  }
+
+  /** Explicit source intake; no collection, run transition, report rewrite or implicit admission. */
+  async prepareWorldBankSource(workspaceId: string, runId: string, value: unknown,
+    observations: Uint8Array, metadata: Uint8Array): Promise<WorldBankPrepareReceipt> {
+    if (!isRecord(value)) throw new ResearchAutomationValidationError('Invalid source preparation request.');
+    const input = JSON.parse(canonicalJson(value)) as { requestKey?: unknown };
+    const retainedObservations = Buffer.from(observations), retainedMetadata = Buffer.from(metadata);
+    if (!this.#worldBankIntake) throw new ResearchAutomationStateError('Source upload is unavailable on this handle.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const binding = await this.#worldBankBinding(workspaceId, runId);
+      const prior = typeof input.requestKey === 'string' && this.#worldBankIntake!.hasRequest(runId, input.requestKey);
+      if (!prior && this.#current(runId)!.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Prepare supplemental sources after the original reports are available.');
+      return this.#worldBankIntake!.prepare(input, retainedObservations, retainedMetadata, binding);
+    });
+  }
+
+  async confirmWorldBankSource(workspaceId: string, runId: string, value: unknown): Promise<WorldBankView> {
+    if (!isRecord(value)) throw new ResearchAutomationValidationError('Invalid source confirmation request.');
+    const input = JSON.parse(canonicalJson(value)) as { requestKey?: unknown };
+    if (!this.#worldBankIntake) throw new ResearchAutomationStateError('Source confirmation is unavailable on this handle.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const binding = await this.#worldBankBinding(workspaceId, runId);
+      const prior = typeof input.requestKey === 'string' && this.#worldBankIntake!.hasConfirmation(runId, input.requestKey);
+      if (!prior && this.#current(runId)!.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Confirm supplemental sources after the original reports are available.');
+      return this.#worldBankIntake!.confirm(input, binding, this.#actorId);
+    });
+  }
+
+  async readWorldBankSource(workspaceId: string, runId: string, source: WorldBankPackageRef): Promise<{ view: WorldBankView; display: Buffer }> {
+    const retainedReference = JSON.parse(canonicalJson(source)) as WorldBankPackageRef;
+    const binding = await this.#worldBankBinding(workspaceId, runId);
+    const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    return readConfirmedWorldBankSource(reader, retainedReference, binding);
+  }
+
+  async listWorldBankHistory(workspaceId: string, runId: string): Promise<WorldBankHistory> {
+    const binding = await this.#worldBankBinding(workspaceId, runId);
+    const reader = new FoundationSourcePackageReader(new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts }));
+    return readWorldBankHistory(reader, binding);
+  }
+
+  async #worldBankBinding(workspaceId: string, runId: string): Promise<WorldBankBinding> {
+    assertUuid(workspaceId); assertUuid(runId);
+    const row = this.#current(runId);
+    if (!row || row.workspaceId !== workspaceId) throw new ResearchAutomationNotFoundError('run_not_found', 'Research run not found.');
+    if (!row.scopeSha || !row.sourceSetSha) throw new ResearchAutomationStateError('An existing versioned confirmed scope and source set are required.');
+    await this.#readStartSnapshot(row.startSha, workspaceId);
+    await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+    const sources = await this.#readFrozenSources(row);
+    if (!sources || sources.sha256 !== row.sourceSetSha) throw new ResearchAutomationIntegrityError('Confirmed source binding is invalid.');
+    return { workspaceId, runId, startSha256: row.startSha, scopeSha256: row.scopeSha, sourceSetSha256: row.sourceSetSha };
   }
 
   /** Supplemental uploads bind to the immutable confirmed scope, never to a client-authored run identity. */
@@ -1190,6 +1262,25 @@ export class ResearchAutomationService {
       videoCount += (await videoReader.findAutomationAttachmentPackagesByKeyPrefix(videoPackageKeyPrefix(runId))).length;
     }
     activity['kalodata-video'].dataCount = videoCount;
+    // S23 counts exact retained source rows, including missing observations, not economic values or people.
+    // Re-confirming one original package never counts it twice; different source revisions stay separate.
+    const macroRecords = new Set<string>();
+    for (const { runId } of runIds) {
+      const run = this.#current(runId)!;
+      if (!run.scopeSha || !run.sourceSetSha) {
+        // Marker-free historical runs cannot be silently upgraded to a new source-set binding.
+        if ((await videoReader.findAutomationAttachmentPackagesByKeyPrefix(`automation-world-bank-confirm:${runId}-`)).length)
+          throw new ResearchAutomationIntegrityError('Macro confirmation lacks its original source-set binding.');
+        continue;
+      }
+      const history = await this.listWorldBankHistory(workspaceId, runId);
+      for (const source of history.sources) {
+        const lastAt = source.confirmation.confirmedAt;
+        if (!activity['world-bank'].lastDataAt || activity['world-bank'].lastDataAt! < lastAt) activity['world-bank'].lastDataAt = lastAt;
+        for (const row of source.descriptor.projection.rows) macroRecords.add(`${source.confirmation.source.packageId}:${source.descriptor.projection.sourceSha256}:${row.locator}`);
+      }
+    }
+    activity['world-bank'].dataCount = macroRecords.size;
     // PageIndex workspace history only: PDFs attached to this workspace's runs
     // and this workspace's recorded question attempts. Account-wide ledger
     // numbers (balance, active pages, documents sent) are deliberately excluded
@@ -1301,6 +1392,7 @@ export class ResearchAutomationService {
           if (priorSources.value.privateShopeeSource && pair.outputs.some(output => output.kind === 'INSIGHT'))
             await this.readReport(workspaceId, runId, 'INSIGHT', false, pair.pairId);
         }
+        if ('personaInsight' in input) await this.#personaReportSnapshot(workspaceId, runId, input.personaInsight);
         if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, input.previousPairId, input.acceptedInsight);
         if ('defaultInsight' in input) await this.#insightCoding.reportDefaultDraftSnapshot(workspaceId, runId, input.previousPairId, input.defaultInsight);
         if ('crosscheckInsight' in input) await this.#crosscheckSnapshot(workspaceId, runId, input.previousPairId, input.crosscheckInsight);
@@ -1323,6 +1415,13 @@ export class ResearchAutomationService {
       if (this.#db.prepare(`SELECT 1 FROM analysis_research_automation_attempts WHERE run_id=? AND state IN ('QUEUED','RUNNING')`).get(runId))
         throw new ResearchAutomationConflictError('invalid_state', 'Another report revision is pending.');
       for (const output of previous.outputs) await this.readReport(workspaceId, runId, output.kind, false, previous.pairId);
+      if ('personaInsight' in input) {
+        const selected = await this.#personaReportSnapshot(workspaceId, runId, input.personaInsight);
+        const prior = await this.readReport(workspaceId, runId, 'INSIGHT', false, previous.pairId);
+        const semantic = await this.#readJson<Record<string, unknown>>(prior.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+        if (!semantic.privateReviewCorpus || digest(semantic.privateReviewCorpus) !== selected.source.viewSha256)
+          throw new ResearchAutomationConflictError('revision_conflict', 'Persona selection differs from the current retained source.');
+      }
       if ('acceptedMetric' in input) await this.#classifiedMetric.project(workspaceId, runId, previous.pairId, input.acceptedMetric, true);
       if ('acceptedInsight' in input) await this.#insightCoding.reportSnapshot(workspaceId, runId, previous.pairId, input.acceptedInsight, true);
       if ('defaultInsight' in input) await this.#insightCoding.reportDefaultDraftSnapshot(workspaceId, runId, previous.pairId, input.defaultInsight, true);
@@ -1463,6 +1562,61 @@ export class ResearchAutomationService {
       input: privateSource.input, privateSource, verifiedPlatform: 'SHOPEE' };
   }
 
+  /** Exact safe source selection; internal author proof never leaves the owning closure. */
+  async #personaSourceContext(workspaceId: string, runId: string, pairId: string): Promise<PersonaSourceContext> {
+    if (!/^[0-9a-f]{64}$/.test(pairId)) throw new ResearchAutomationValidationError('Invalid exact persona pair.');
+    await this.getRun(workspaceId, runId);
+    const pair = (await this.listReportVersions(workspaceId, runId)).find(item => item.pairId === pairId);
+    if (!pair) throw new ResearchAutomationNotFoundError('report_not_available', 'Persona source report was not found.');
+    const output = pair.attemptId ? this.#attemptOutputs(pair.attemptId).find(item => item.reportKind === 'INSIGHT') : this.#output(runId, 'INSIGHT');
+    const raw = output ? await this.#readJson<Record<string, unknown>>(output.versionSha, MAX_JSON_ARTIFACT_BYTES, 'application/json') : undefined;
+    // Stop source26 recursion before following any semantic/proposal lineage.
+    if (!raw || raw.rendererVersion !== 'automation-report-kit-v22' || raw.insightPersona !== undefined)
+      throw new ResearchAutomationIntegrityError('Persona source must be an original source-only renderer22 report.');
+    const { report } = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, pairId);
+    const run = this.#current(runId)!;
+    const start = await this.#readStartSnapshot(run.startSha, workspaceId);
+    if (!start.privateShopeeSource || !run.scopeSha || !run.scopeConfirmedAt) throw new ResearchAutomationConflictError('invalid_state', 'This exact report has no supported private persona source.');
+    const semantic = await this.#readJson<Record<string, unknown>>(report.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const view = privateReviewReportView(semantic.privateReviewCorpus);
+    const scope = await this.#readScopeSnapshot(run.scopeSha, workspaceId, runId);
+    const corpus = await this.#readJson<unknown>(view.corpus.artifactSha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const evidence = await readPrivatePersonaEvidence({ reader: new ShopeeCollectionService(this.#db, this.#artifacts), retainedCorpus: corpus,
+      retainedView: view, corpusSha256: view.corpus.artifactSha256, binding: await this.#privateCorpusBinding(run),
+      request: exactShopeeRequest({ runId, start, scope, scopeConfirmedAt: run.scopeConfirmedAt }), marker: start.privateShopeeSource });
+    const safe = evidence.publicSource();
+    const binding = { ...safe.binding, pairId, semanticSha256: report.versionId, corpusSha256: safe.corpus.artifactSha256,
+      collectionId: safe.corpus.collectionId, collectionSha256: safe.corpus.collectionSha256, sourceRequestSha256: safe.corpus.requestSha256,
+      viewSha256: safe.viewSha256, sourceSha256: personaDigest(safe) };
+    checkPersonaBinding(binding, safe);
+    return { binding, evidence };
+  }
+  async #personaReportSnapshot(workspaceId: string, runId: string, selection: PersonaReportSelection): Promise<PersonaSelectedReportSnapshot> {
+    const context = await this.#personaSourceContext(workspaceId, runId, selection.binding.pairId);
+    if (canonicalJson(selection.binding) !== canonicalJson(context.binding))
+      throw new ResearchAutomationIntegrityError('Selected persona source binding differs.');
+    const entry = await this.#insightCoding.readPersonaEvidence(selection.proposalId, workspaceId, runId);
+    const proposal = entry.evidence;
+    if (entry.sha256 !== selection.proposalSha256 || proposal.contractVersion !== 'insight-persona-proposal-evidence-v1' ||
+      proposal.request.stage !== 'SYNTHESIZE' || canonicalJson(proposal.binding) !== canonicalJson(selection.binding))
+      throw new ResearchAutomationIntegrityError('Selected persona proposal differs from the exact retained final synthesis.');
+    return checkPersonaSelectedReport({ contractVersion: 'automation-insight-persona-report-snapshot-v1', selection,
+      executionId: proposal.executionId, source: context.evidence.publicSource(), snapshot: proposal.snapshot });
+  }
+  async readPersonaSourceContext(workspaceId: string, runId: string, pairId: string) {
+    const context = await this.#personaSourceContext(workspaceId, runId, pairId);
+    return { binding: context.binding, source: context.evidence.publicSource() };
+  }
+  proposePersonaModel(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }, ai: InsightModelAI, signal?: AbortSignal) {
+    return this.#insightCoding.proposePersonaModel(workspaceId, runId, value, owner, ai, signal);
+  }
+  readPersonaEvidence(workspaceId: string, runId: string, evidenceId: string) {
+    return this.#insightCoding.readPersonaEvidence(evidenceId, workspaceId, runId);
+  }
+  listPersonaEvidence(workspaceId: string, runId: string, pairId: string) {
+    return this.#insightCoding.personaView(workspaceId, runId, pairId);
+  }
+
   adoptInsightCodingRules(workspaceId: string, runId: string, value: unknown, owner: { actorId: string; role: 'OWNER' }) {
     return this.#insightCoding.adopt(workspaceId, runId, value, owner);
   }
@@ -1561,7 +1715,8 @@ export class ResearchAutomationService {
         captures: await this.#captureRecords(runId),
       });
     }
-    if (kind === 'INSIGHT' && sourceStart.privateShopeeSource && semantic.rendererVersion !== (isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : 'automation-report-kit-v22')) throw new ResearchAutomationIntegrityError('Private report renderer identity differs.');
+    const personaRequest = kind === 'INSIGHT' && attempt ? await this.#personaReportRequest(frozenRun, attempt) : undefined;
+    if (kind === 'INSIGHT' && sourceStart.privateShopeeSource && semantic.rendererVersion !== (personaRequest ? 'automation-report-kit-v26' : isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : 'automation-report-kit-v22')) throw new ResearchAutomationIntegrityError('Private report renderer identity differs.');
     let verifiedPrivateView: PrivateReviewReportView | undefined;
     let verifiedPrivateSource: PrivateInsightSourceProjection | undefined;
     if (semantic.privateReviewCorpus !== undefined) {
@@ -1579,6 +1734,13 @@ export class ResearchAutomationService {
         catch { throw new ResearchAutomationIntegrityError('Private coding source projection differs from retained corpus.'); }
       }
     } else if (kind === 'INSIGHT' && (await this.#reportCollection(runId, sources, Boolean(attempt)))?.privateShopee) throw new ResearchAutomationIntegrityError('Private report lacks retained corpus.');
+    if (personaRequest) {
+      const expected = await this.#personaReportSnapshot(workspaceId, runId, personaRequest.personaInsight);
+      if (!verifiedPrivateView || expected.source.viewSha256 !== digest(verifiedPrivateView) ||
+        canonicalJson(semantic.insightPersona) !== canonicalJson(expected))
+        throw new ResearchAutomationIntegrityError('Selected persona report differs from its verified source and final proposal.');
+    } else if (semantic.insightPersona !== undefined || semantic.rendererVersion === 'automation-report-kit-v26')
+      throw new ResearchAutomationIntegrityError('Persona report lacks an exact retained selection.');
     if (semantic.reviewCorpus !== undefined && semantic.reviewCorpus !== null) {
       const frozen = this.#current(runId);
       const collection = await this.#reportCollection(runId, sources, Boolean(attempt));
@@ -1701,7 +1863,7 @@ export class ResearchAutomationService {
         previousPairId: literalRequest.previousPairId, collection: await this.#reportCollection(runId, sources, Boolean(attempt)),
         captures: await this.#captureRecords(runId) });
       const literalRendererValid = sourceStart.privateShopeeSource
-        ? semantic.rendererVersion === 'automation-report-kit-v22' || (semantic.rendererVersion === 'automation-report-kit-v25' && isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5')
+        ? semantic.rendererVersion === (personaRequest ? 'automation-report-kit-v26' : 'automation-report-kit-v22') || (semantic.rendererVersion === 'automation-report-kit-v25' && isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5')
         : semantic.rendererVersion === 'automation-report-kit-v19' || ((semantic.rendererVersion === 'automation-report-kit-v21' || semantic.rendererVersion === 'automation-report-kit-v23') && semantic.insightCoding && typeof semantic.insightCoding === 'object' && 'contractVersion' in semantic.insightCoding && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v4');
       if (!literalRendererValid) throw new ResearchAutomationIntegrityError('Literal evidence renderer identity differs.');
     } else if (semantic.insightLiteral !== undefined) {
@@ -2179,6 +2341,7 @@ export class ResearchAutomationService {
       let insightCoding: AutomationInsightCodingSnapshot | undefined;
       let insightCrosscheck: InsightCrosscheckSnapshot | undefined;
       let insightLiteral: InsightLiteralEvidence | undefined;
+      let insightPersona: PersonaSelectedReportSnapshot | undefined;
       let metricProof: StoredArtifact | null = null;
       let metricMethodsFailure: MetricMethodFailureCode | undefined;
       let privateReviewCorpus: PrivateReviewReportView | undefined;
@@ -2191,6 +2354,7 @@ export class ResearchAutomationService {
       let nativeReviewFailure: 'NATIVE_REVIEW_METHOD_FAILED' | undefined;
       let locatedReviewFailure: 'LOCATED_REVIEW_METHOD_FAILED' | undefined;
       if (priorInsight && revisionRequest?.sources.nativeReview.decision === 'KEEP') {
+        insightPersona = priorInsight.insightPersona as PersonaSelectedReportSnapshot | undefined;
         insightCoding = priorInsight.insightCoding as AutomationInsightCodingSnapshot | undefined;
         insightCrosscheck = priorInsight.insightCrosscheck as InsightCrosscheckSnapshot | undefined;
         insightLiteral = priorInsight.insightLiteral as InsightLiteralEvidence | undefined;
@@ -2231,20 +2395,30 @@ export class ResearchAutomationService {
         privateReviewCorpus = buildPrivateReviewReportView(corpus);
       }
       if (revisionRequest && 'acceptedInsight' in revisionRequest) {
+        insightPersona = undefined;
         insightCrosscheck = undefined;
         insightCoding = await this.#insightCoding.reportSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.acceptedInsight);
       }
       if (revisionRequest && 'defaultInsight' in revisionRequest) {
+        insightPersona = undefined;
         insightCrosscheck = undefined;
         insightCoding = await this.#insightCoding.reportDefaultDraftSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.defaultInsight);
       }
       if (revisionRequest && 'draftInsight' in revisionRequest) {
+        insightPersona = undefined;
         insightCrosscheck = undefined;
         insightCoding = await this.#insightCoding.reportDraftSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.draftInsight);
       }
       if (revisionRequest && 'crosscheckInsight' in revisionRequest) {
         insightCrosscheck = await this.#crosscheckSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.previousPairId, revisionRequest.crosscheckInsight);
       }
+      if (revisionRequest && 'literalInsight' in revisionRequest) insightPersona = undefined;
+      if (revisionRequest && 'personaInsight' in revisionRequest) {
+        insightPersona = await this.#personaReportSnapshot(fresh.workspaceId, fresh.runId, revisionRequest.personaInsight);
+        insightCoding = undefined; insightCrosscheck = undefined;
+      }
+      if (insightPersona && (!privateReviewCorpus || digest(privateReviewCorpus) !== insightPersona.source.viewSha256))
+        throw new ResearchAutomationIntegrityError('Persona KEEP source differs from the retained selection.');
       if (start.reports.includes('MARKET')) {
         if (priorMarket && revisionRequest?.sources.metric.decision === 'KEEP') {
           metricMethods = priorMarket.metricMethods as AutomationMetricMethodSnapshot | undefined;
@@ -2309,6 +2483,7 @@ export class ResearchAutomationService {
           ...(kind === 'INSIGHT' && insightCoding ? { insightCoding } : {}),
           ...(kind === 'INSIGHT' && insightCrosscheck ? { insightCrosscheck } : {}),
           ...(kind === 'INSIGHT' && insightLiteral ? { insightLiteral } : {}),
+          ...(kind === 'INSIGHT' && insightPersona ? { insightPersona } : {}),
           ...(kind === 'INSIGHT' && nativeReviewFailure ? { nativeReviewFailure } : {}),
           ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
           ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
@@ -2339,7 +2514,7 @@ export class ResearchAutomationService {
         let i14Synthesis: AutomationI14ExecutionOutcome | undefined;
         if (builtI14) {
           const parent = await this.#i14Parent(fresh, attempt);
-          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
+          if (revisionRequest && ('personaInsight' in revisionRequest || 'acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
             // Selected coding changes deterministic methods, not the frozen AI evidence package.
             const retained = await this.#i14Executions.read(parent, admissionInput);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -2362,7 +2537,7 @@ export class ResearchAutomationService {
           let displayPacket = buildAutomationDecisionPacket(source).artifact;
           const parent = await this.#i14Parent(fresh, attempt);
           let outcome: AutomationDecisionExecutionOutcome | undefined;
-          if (revisionRequest && ('acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
+          if (revisionRequest && ('personaInsight' in revisionRequest || 'acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
             // Deterministic revisions preserve the source-bound draft, without authorizing new AI calls.
             const retained = await this.#decisionExecutions[sectionId].read(parent, source);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -2408,18 +2583,18 @@ export class ResearchAutomationService {
           ? classifiedMetricDefaultPeers(metricClassified?.result.input, start.defaultPeerRule, [...scope.peerProductIds]) : undefined;
         const render = async () => {
           const privateDefault = kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5';
-          const authoritative = input.marketPresentation || privateDefault ? buildResearchAutomationReport(input, kind) : undefined;
-          const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(input.marketPresentation || privateDefault ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
+          const authoritative = input.marketPresentation || input.insightPersona || privateDefault ? buildResearchAutomationReport(input, kind) : undefined;
+          const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
           if (typeof rendered.semantic !== 'object' || rendered.semantic === null || Array.isArray(rendered.semantic)) throw new ResearchAutomationIntegrityError('Research report semantic output is not an object.');
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            insightPersona: _untrustedPersona, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
-          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: privateDefault ? 'automation-report-kit-v25' : 'automation-report-kit-v22' } : {}),
+          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : 'automation-report-kit-v22' } : {}),
             ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentation, marketPresentationArtifact: { sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
             ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
             ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
@@ -2442,6 +2617,7 @@ export class ResearchAutomationService {
             ...(kind === 'INSIGHT' && insightCoding ? { insightCoding } : {}),
           ...(kind === 'INSIGHT' && insightCrosscheck ? { insightCrosscheck } : {}),
           ...(kind === 'INSIGHT' && insightLiteral ? { insightLiteral } : {}),
+          ...(kind === 'INSIGHT' && insightPersona ? { insightPersona } : {}),
             ...(kind === 'INSIGHT' && input.nativeReviewFallback ? { nativeReviewFallback: input.nativeReviewFallback } : {}),
             ...(kind === 'INSIGHT' && input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
             ...(kind === 'INSIGHT' && input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}),
@@ -2453,8 +2629,8 @@ export class ResearchAutomationService {
           const semanticBytes = Buffer.from(canonicalJson(reportSemantic), 'utf8');
           const html = Buffer.from(rendered.html);
           if (authoritative) {
-            if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError(privateDefault ? 'Private default HTML differs from authoritative method rendering.' : 'Market presentation HTML differs from authoritative method rendering.');
-            if (presentation.rendererVersion !== (privateDefault ? 'automation-report-kit-v25' : 'automation-report-kit-v20')) throw new ResearchAutomationIntegrityError(privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
+            if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError(input.insightPersona ? 'Persona HTML differs from authoritative retained rendering.' : privateDefault ? 'Private default HTML differs from authoritative method rendering.' : 'Market presentation HTML differs from authoritative method rendering.');
+            if (presentation.rendererVersion !== (input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : 'automation-report-kit-v20')) throw new ResearchAutomationIntegrityError(input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
           }
           return { rendered, semanticBytes, html };
         };
@@ -2920,12 +3096,22 @@ export class ResearchAutomationService {
     if (!attempt) return { kind: 'INITIAL_REPORTS', runId: run.runId };
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight execution revision request failed verification.');
-    return 'acceptedMetric' in request || 'acceptedInsight' in request || 'defaultInsight' in request || 'draftInsight' in request || 'literalInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request || request.contractVersion === 'automation-market-presentation-revision-v1' ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
+    return 'personaInsight' in request || 'acceptedMetric' in request || 'acceptedInsight' in request || 'defaultInsight' in request || 'draftInsight' in request || 'literalInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request || request.contractVersion === 'automation-market-presentation-revision-v1' ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
       : { kind: 'SUPPLEMENTAL_ATTEMPT', runId: run.runId, attemptId: attempt.attemptId };
+  }
+  async #personaReportRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationInsightPersonaReportRevisionRequest | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Persona report request failed verification.');
+    if ('personaInsight' in request) return request;
+    if (request.sources.nativeReview.decision !== 'KEEP' || 'acceptedInsight' in request || 'defaultInsight' in request ||
+      'draftInsight' in request || 'literalInsight' in request) return undefined;
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#personaReportRequest(run, previous) : undefined;
   }
   async #crosscheckRequest(run: RunRow, attempt: AttemptRow): Promise<Extract<AutomationInsightReportRevisionRequest, { crosscheckInsight: unknown }> | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Crosscheck revision request failed verification.');
+    if ('personaInsight' in request) return undefined;
     if ('crosscheckInsight' in request) return request;
     if ('defaultInsight' in request || 'draftInsight' in request || 'acceptedInsight' in request || request.sources.nativeReview.decision !== 'KEEP') return undefined;
     const previous = this.#previousAttempt(run, attempt);
@@ -2942,6 +3128,7 @@ export class ResearchAutomationService {
   async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<Exclude<AutomationInsightReportRevisionRequest, { literalInsight: unknown }> | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight coding revision request failed verification.');
+    if ('personaInsight' in request) return undefined;
     if ('acceptedInsight' in request) return request;
     if ('defaultInsight' in request) return request;
     if ('draftInsight' in request) return request;

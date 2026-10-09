@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn-growth-os.local/contracts/api/research-automation-macro-intake-api.schema.json",
+  "title": "ResearchAutomationMacroIntakeApi",
+  "$defs": {
+    "prepareRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "sourceLabel",
+        "acquiredAt",
+        "sourceUrl",
+        "metadataUrl"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-world-bank-prepare-v1",
+          "type": "string"
+        },
+        "requestKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "sourceLabel": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "acquiredAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "sourceUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "metadataUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        }
+      }
+    },
+    "prepareReceipt": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "source",
+        "state",
+        "exactRetry",
+        "recordCount"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-world-bank-prepared-v1",
+          "type": "string"
+        },
+        "requestKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "source": {
+          "$ref": "../analysis/world-bank-intake-v1.schema.json#/$defs/packageRef"
+        },
+        "state": {
+          "const": "PREPARED_NOT_ADMITTED",
+          "type": "string"
+        },
+        "exactRetry": {
+          "type": "boolean"
+        },
+        "recordCount": {
+          "type": "integer",
+          "minimum": 2,
+          "maximum": 1000
+        }
+      }
+    },
+    "confirmRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "source"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-world-bank-confirm-v1",
+          "type": "string"
+        },
+        "requestKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "source": {
+          "$ref": "../analysis/world-bank-intake-v1.schema.json#/$defs/packageRef"
+        }
+      }
+    },
+    "confirmed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "binding",
+        "source",
+        "descriptorSha256",
+        "confirmedBy",
+        "confirmedAt"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-world-bank-confirmed-v1",
+          "type": "string"
+        },
+        "requestKey": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]{1,100}$"
+        },
+        "binding": {
+          "$ref": "../analysis/world-bank-intake-v1.schema.json#/$defs/binding"
+        },
+        "source": {
+          "$ref": "../analysis/world-bank-intake-v1.schema.json#/$defs/packageRef"
+        },
+        "descriptorSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "confirmedBy": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "confirmedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "view": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "confirmation",
+        "confirmationSource",
+        "descriptor"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-world-bank-view-v1",
+          "type": "string"
+        },
+        "confirmation": {
+          "$ref": "#/$defs/confirmed"
+        },
+        "confirmationSource": {
+          "$ref": "../analysis/world-bank-intake-v1.schema.json#/$defs/packageRef"
+        },
+        "descriptor": {
+          "$ref": "../analysis/world-bank-intake-v1.schema.json"
+        }
+      }
+    },
+    "history": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "sources"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-world-bank-history-v1",
+          "type": "string"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/view"
+          }
+        }
+      }
+    }
+  },
+  "oneOf": [
+    {
+      "$ref": "#/$defs/prepareRequest"
+    },
+    {
+      "$ref": "#/$defs/prepareReceipt"
+    },
+    {
+      "$ref": "#/$defs/confirmRequest"
+    },
+    {
+      "$ref": "#/$defs/confirmed"
+    },
+    {
+      "$ref": "#/$defs/view"
+    },
+    {
+      "$ref": "#/$defs/history"
+    }
+  ]
+}
