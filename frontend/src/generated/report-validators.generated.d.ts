@@ -63,3 +63,8 @@ export declare const ownerReviewTargetReceipt: PrecompiledValidator;
 export declare const researchGenerationInputs: PrecompiledValidator;
 export declare const researchGenerationReceipt: PrecompiledValidator;
 export declare const researchGenerationMethodInputError: PrecompiledValidator;
+
+export const metaPagePrepare: PrecompiledValidator;
+export const metaPageConfirm: PrecompiledValidator;
+export const metaPageView: PrecompiledValidator;
+export const metaPageHistory: PrecompiledValidator;

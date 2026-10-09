@@ -94,7 +94,7 @@ export const SOURCE_REGISTRY: Record<SourceBoardId, SourceRegistryCard> = {
   VIDEO_READING: { registryIds: ['S14'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
     reportName: 'nội dung video của người bán', paid: false, pendingPackage: 'P9', built: false, arrival: 'MANUAL_UPLOAD' },
   META_AD_LIBRARY: { registryIds: ['S15'], tier: 'B', tierDetail: null, group: 'SELLER_VOICE',
-    reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: 'U-23', built: false, arrival: 'FREE_COLLECT' },
+    reportName: 'thư viện quảng cáo công khai của Meta', paid: false, pendingPackage: null, built: true, arrival: 'MANUAL_UPLOAD' },
   SERPAPI: { registryIds: ['S19', 'S13', 'S26', 'S20'], tier: null, tierDetail: 'S19: theo trang gốc; S13: C; S26: C; S20: B',
     group: 'SALES_MARKET', reportName: 'kết quả tìm kiếm Google; mức quan tâm tìm kiếm trên Google',
     paid: true, pendingPackage: null, built: true, arrival: 'PAID_API' },

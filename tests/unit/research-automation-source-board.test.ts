@@ -169,7 +169,9 @@ test('no-key collectors map usable NOT_REQUIRED credentials once built', () => {
   // Actual cards keep disabled/not-built precedence with their declared credentials.
   const status = bySource(buildResearchAutomationSourceStatus(input()));
   assert.equal(status('META_AD_LIBRARY').credential, 'NOT_REQUIRED');
-  assert.equal(status('META_AD_LIBRARY').state, 'NOT_BUILT');
+  assert.equal(status('META_AD_LIBRARY').state, 'MANUAL_IMPORT');
+  assert.equal(status('META_AD_LIBRARY').wiredIntoRuns, false);
+  assert.equal(status('META_AD_LIBRARY').pendingPackage ?? null, null);
   assert.equal(status('WORLD_BANK').credential, 'NOT_REQUIRED');
   assert.equal(status('WORLD_BANK').state, 'NOT_BUILT');
   const disabled = bySource(buildResearchAutomationSourceStatus(input({ executorEnabled: false })));
