@@ -80,6 +80,8 @@ const contracts = [
   ['analysis', 'tiktok-comment-collection-v1'],
   ['analysis', 'video-reading-v1'],
   ['analysis', 'tiktok-coding-proposal-v1'],
+  ['analysis', 'tiktok-coding-model-v1'],
+  ['analysis', 'tiktok-coding-configuration-v1'],
   ['analysis', 'research-chart-spec'],
   ['analysis', 'source-backed-report-request'],
   ['analysis', 'report-semantic-content'],

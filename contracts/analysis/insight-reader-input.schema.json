@@ -1020,7 +1020,7 @@
         },
         "draftPairId": {
           "type": "string",
-          "format": "uuid"
+          "pattern": "^[a-f0-9]{64}$"
         },
         "semanticSha256": {
           "type": "string",

@@ -33,7 +33,8 @@ export type ResearchAutomationReaderRevisionV2 =
   | ResearchAutomationInsightReaderRevisionV3
   | ResearchAutomationInsightReaderRevisionV4
   | ResearchAutomationInsightReaderRevisionV5
-  | ResearchAutomationInsightReaderRevisionV6;
+  | ResearchAutomationInsightReaderRevisionV6
+  | ResearchAutomationTikTokReaderRevision;
 
 export interface ResearchAutomationReaderBuildRequest {
   contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1' | 'reader-report-build-v1.2';
@@ -371,7 +372,7 @@ export interface ResearchAutomationTikTokReaderBuildRequest {
   contractVersion: 'insight-reader-build-tiktok-v1';
   reportKind: 'INSIGHT';
   requestKey: string;
-  draftPairId: string;
+  draftPairId: Sha256;
   semanticSha256: Sha256;
   sourceKind: 'TIKTOK';
 }
@@ -520,6 +521,25 @@ export interface ResearchAutomationInsightReaderRevisionV6 {
   personaProposalSha256: Sha256;
   personaSourcePairId: Sha256;
   personaSourceSha256: Sha256;
+}
+export interface ResearchAutomationTikTokReaderRevision {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-tiktok-v1';
+  semanticSha256: Sha256;
+  sourceReportSha256: Sha256;
 }
 export interface ResearchAutomationReaderDecisionRequestV2 {
   contractVersion: 'reader-report-decision-v2';
