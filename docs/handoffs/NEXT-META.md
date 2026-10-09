@@ -37,6 +37,8 @@ The internal Meta card changes to MANUAL_IMPORT only after actual owning HTTP/hi
 - New capture/contract/owning/budget tests, synthetic fixture and cold-process helper; this handoff.
 - Exactly granted existing expectation corrections: source-board unit Meta state becomes MANUAL_IMPORT, strengthening unwired/pending assertions; source-status integration removes only Meta from the unbuilt loop and independently pins manual state/zero observations/no pending package/unwired/no credential requirement. All other assertions/bytes reverse exactly to the reviewed base.
 
+Tested implementation checkpoint: `84c7543b6e4d7bc208b9202f33a14de38c5f229b`. The final publication head and clean status are recorded in the outside-Git report and dispatch release. Focused checks: owning 8/8, complete budget 1/1, cards/contracts/capture 15/15, affected frontend/source/report regressions 22/22 (46 passing checks); strict backend and direct frontend typechecks pass.
+
 Canonical phase checkpoint: `2bb73ef8b2ee0bcb03c737b2c282f7ffea6a5943`, explicitly RELEASED. Central/source phases require explicit stable release at the final tested checkpoint; no subsequent edits after release without renewed grant.
 
 ## Checklist evidence
