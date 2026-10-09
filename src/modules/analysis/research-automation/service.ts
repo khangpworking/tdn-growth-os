@@ -1310,11 +1310,12 @@ export class ResearchAutomationService {
     let videoCount = 0;
     const privateCollectionIds = new Set<string>();
     for (const { runId } of runIds) {
-      const run = this.#current(runId)!;
-      const start = await this.#readStartSnapshot(run.startSha, workspaceId);
-      if (start.reviewCollectionPolicy) {
-        const collection = await this.#stepDocument(runId, 'COLLECTION');
-        if (collection?.privateShopee && collection.reviewSample) {
+      // Metadata-only historical runs need no lineage replay; retained private samples still authenticate fully.
+      const collection = await this.#stepDocument(runId, 'COLLECTION');
+      if (collection?.privateShopee && collection.reviewSample) {
+        const run = this.#current(runId)!;
+        const start = await this.#readStartSnapshot(run.startSha, workspaceId);
+        if (start.reviewCollectionPolicy) {
           if (!run.scopeSha || !run.scopeConfirmedAt) throw new ResearchAutomationIntegrityError('Private activity lacks frozen scope');
           const corpus = await this.#shopee.privateCorpus(collection.privateShopee, { runId, start,
             scope: await this.#readScopeSnapshot(run.scopeSha, workspaceId, runId), scopeConfirmedAt: run.scopeConfirmedAt },
