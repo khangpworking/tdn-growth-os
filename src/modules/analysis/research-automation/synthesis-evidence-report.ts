@@ -90,6 +90,7 @@ function decisionSynthesisBlock(outcome: AutomationDecisionExecutionOutcome, pac
     : '<p>Chưa gửi bước đề xuất AI cho mục này vì chưa có bối cảnh sử dụng theo lời nguồn đủ điều kiện.</p>';
   if (outcome.status === 'PREPARED') return '<p class="warning">Đầu vào đã lưu nhưng chưa gửi xử lý. Chưa có đề xuất AI cho mục này.</p>';
   if (outcome.status === 'DISPATCH_UNKNOWN') return '<p class="warning">Lần xử lý AI cho mục này bị gián đoạn hoặc chưa xác định được kết quả. Hệ thống không tự gọi lại và không dùng một đề xuất chưa được lưu.</p>';
+  if (outcome.status === 'INVALID' && packet.methodVersion === '1.3.0') return '<p class="warning">Đề xuất AI bị chặn vì không đạt kiểm tra cấu trúc, nguồn hoặc quy tắc đề xuất. Báo cáo không hiển thị nội dung bị chặn và không cho phép mua hay đặt hàng để đánh giá chất lượng; chỉ dùng nguồn công khai và dữ liệu chủ cung cấp. Bằng chứng gốc vẫn được giữ lại.</p>';
   if (outcome.status === 'INVALID') return '<p class="warning">Phản hồi AI cho mục này không đạt kiểm tra cấu trúc hoặc tham chiếu nguồn, nên không được đưa vào báo cáo. Bằng chứng gốc vẫn được giữ lại.</p>';
   const artifact = outcome.candidates.artifact;
   if (artifact.sectionId !== packet.sectionId || artifact.runId !== packet.runId || artifact.workspaceId !== packet.workspaceId || artifact.scopeSha256 !== packet.scopeSha256)

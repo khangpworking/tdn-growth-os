@@ -9,7 +9,7 @@ export type AutomationDecisionSynthesisPrompt = {
   contractVersion: '1.0.0';
   methodId: 'automation-decision-synthesis-prompt';
   promptId: 'automation-decision-synthesis';
-  promptVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
+  promptVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0' | '1.4.0';
   sectionId: 'M11' | 'I15' | 'M12';
   /**
    * Adopted D12 type/section binding. A response candidate of another type is rejected by the candidate validator, never re-labelled.
@@ -23,7 +23,7 @@ export type AutomationDecisionSynthesisPrompt = {
    */
   inputContract: {
     methodId: 'automation-decision-synthesis-input';
-    methodVersion: '1.0.0' | '1.1.0' | '1.2.0';
+    methodVersion: '1.0.0' | '1.1.0' | '1.2.0' | '1.3.0';
   };
   /**
    * The existing closed decision candidate response, validated by the decision-packets candidate validator.
