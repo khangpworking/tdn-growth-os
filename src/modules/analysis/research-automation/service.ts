@@ -1,3 +1,7 @@
+import { AutomationMetaPageIntake, metaPagePackagePrefix, validateMetaPageBinding, type MetaPageBinding, type MetaPageSelection, type MetaPageSourceView } from './meta-page-intake.js';
+import type { DefaultMarketPeers } from '../../../../contracts/analysis/default-market-peers.generated.js';
+import { filterSerpApiResults } from './serpapi-l9-filter.js';
+import { boundedText, httpsUrl } from './provider-common.js';
 import { registerPrivateReviewSchemas, privateShopeeMarker, privateReviewReportView } from './private-review-contracts.js';
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from './private-review-corpus.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
@@ -355,6 +359,7 @@ export class ResearchAutomationService {
   readonly #privateShopeeSource: StartSnapshot['privateShopeeSource'];
   readonly #marketInventory: AutomationMarketMethodBridge;
   readonly #metricMethods: AutomationMetricMethodBridge;
+  readonly #metaPageArtifacts: ContentAddressedArtifactStore;
   readonly #metricIntake: AutomationMetricSourceIntake | undefined;
   readonly #supplementalIntake: AutomationSupplementalSourceIntake | undefined;
   readonly #metricRules: AutomationMetricRuleAdoptions;
@@ -375,6 +380,7 @@ export class ResearchAutomationService {
   constructor(options: ResearchAutomationServiceOptions) {
     this.#db = options.db;
     this.#artifacts = options.artifactStore;
+    this.#metaPageArtifacts = options.metricAttachmentStore ?? options.artifactStore;
     this.#workspaces = options.workspaceReader;
     this.#source = options.source;
     this.#webSource = options.webSource;
@@ -489,6 +495,75 @@ export class ResearchAutomationService {
   async readSourceEvidence(workspaceId: string, runId: string): Promise<AutomationSourceEvidence | null> {
     await this.#requireRun(workspaceId, runId);
     return (await this.#stepDocument(runId, 'COLLECTION'))?.sourceEvidence ?? null;
+  }
+
+  /** Explicit OWNER saved-page intake. No browser/runtime collector is configured by this path. */
+  async prepareMetaPageSource(workspaceId: string, runId: string, value: unknown, actor: { role: string }, signal?: AbortSignal): Promise<MetaPageSourceView> {
+    if (actor.role !== 'OWNER') throw new ResearchAutomationValidationError('OWNER role required.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const run = await this.getRun(workspaceId, runId);
+      if (!isRecord(value) || typeof value.requestKey !== 'string' || (!this.#metaPageIntake(workspaceId, runId).hasRequest(runId, value.requestKey, 'prepare') && value.expectedRevision !== run.revision)) throw new ResearchAutomationConflictError('revision_conflict', 'Run revision changed.');
+      return this.#metaPageIntake(workspaceId, runId).prepare(value, actor, signal);
+    });
+  }
+  async confirmMetaPageSource(workspaceId: string, runId: string, value: unknown, actor: { role: string }, signal?: AbortSignal): Promise<MetaPageSourceView> {
+    if (actor.role !== 'OWNER') throw new ResearchAutomationValidationError('OWNER role required.');
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const run = await this.getRun(workspaceId, runId);
+      if (!isRecord(value) || typeof value.requestKey !== 'string' || (!this.#metaPageIntake(workspaceId, runId).hasRequest(runId, value.requestKey, 'confirm') && value.expectedRevision !== run.revision)) throw new ResearchAutomationConflictError('revision_conflict', 'Run revision changed.');
+      return this.#metaPageIntake(workspaceId, runId).confirm(value, actor, signal);
+    });
+  }
+  async readMetaPageSource(workspaceId: string, runId: string, packageId: string): Promise<MetaPageSourceView> {
+    assertUuid(packageId); await this.getRun(workspaceId, runId);
+    return this.#metaPageIntake(workspaceId, runId).read(packageId);
+  }
+  async listMetaPageSources(workspaceId: string, runId: string): Promise<MetaPageSourceView[]> {
+    await this.getRun(workspaceId, runId); return this.#metaPageIntake(workspaceId, runId).history(runId);
+  }
+  #metaPageIntake(workspaceId: string, runId: string): AutomationMetaPageIntake {
+    return new AutomationMetaPageIntake(this.#metaPageArtifacts, this.#db, this.#now,
+      (selection, forWrite) => this.#metaPageBinding(workspaceId, runId, selection, forWrite));
+  }
+  async #metaPageBinding(workspaceId: string, runId: string, selection: MetaPageSelection, forWrite: boolean): Promise<MetaPageBinding> {
+    await this.getRun(workspaceId, runId); const row = this.#current(runId)!;
+    if (!row.scopeSha) throw new ResearchAutomationStateError('Meta requires a frozen confirmed scope.');
+    const versions = await this.listReportVersions(workspaceId, runId), selected = versions.find(v => v.pairId === selection.pairId);
+    if (!selected) throw new ResearchAutomationNotFoundError('report_not_available', 'Exact parent pair unavailable.');
+    if (forWrite && (row.status !== 'DRAFT_READY' || versions.at(-1)?.pairId !== selection.pairId))
+      throw new ResearchAutomationConflictError('revision_conflict', 'Meta parent pair is no longer current.');
+    const report = await this.readReport(workspaceId, runId, 'MARKET', false, selection.pairId);
+    const semantic = await this.#readJson<Record<string, unknown>>(report.versionId, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    const peers = semantic.defaultMarketPeers as DefaultMarketPeers | undefined;
+    const frame = peers?.frames[selection.peerFrameIndex];
+    const member = frame?.selected.find(m => m.identity.key === selection.peerIdentityKey);
+    if (!frame || frame.state !== 'SELECTED' || !member) throw new ResearchAutomationStateError('No authentic selected E11 peer for this source.');
+    const draft = await this.readSourceKeywordDraft(workspaceId, runId, selection.keywordDraftSha256);
+    const collection = await this.#stepDocument(runId, 'COLLECTION'), captures = await this.#captureRecords(runId);
+    if (collection?.sourceEvidence?.draftDigest !== selection.keywordDraftSha256) throw new ResearchAutomationIntegrityError('Meta keyword draft is not the original retained search admission.');
+    const capture = captures.find(c => c.stepId === 'COLLECTION' && c.artifactSha256 === selection.searchCaptureId && c.provider === 'serpapi' && c.operation === 'serpapi.google.search');
+    const result = collection.webResults?.find(w => w.position === selection.searchPosition && w.captureIndex === capture?.ordinal);
+    if (!capture || !result) throw new ResearchAutomationIntegrityError('Meta search does not belong to this run.');
+    // Existing provider projection is the authority. Reauthenticate selected title/link/snippet against exact raw source fields using its established bounded helpers.
+    const envelope = await this.#readJson<Record<string, unknown>>(capture.artifactSha256, MAX_CAPTURE_ENVELOPE_BYTES, capture.mediaType);
+    if (envelope.outcome !== 'OK' || typeof envelope.responseBytesBase64 !== 'string') throw new ResearchAutomationIntegrityError('Meta search source unavailable.');
+    const rawBytes = Buffer.from(envelope.responseBytesBase64, 'base64');
+    if (rawBytes.toString('base64') !== envelope.responseBytesBase64 || createHash('sha256').update(rawBytes).digest('hex') !== envelope.responseSha256 || rawBytes.length !== envelope.responseByteLength)
+      throw new ResearchAutomationIntegrityError('Meta search source bytes differ.');
+    const payload: unknown = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(rawBytes));
+    const organic = isRecord(payload) && Array.isArray(payload.organic_results) ? payload.organic_results : [];
+    const matching = organic.slice(0, MAX_WEB_RESULTS).filter((candidate: unknown, index: number) => isRecord(candidate) &&
+      (typeof candidate.position === 'number' && Number.isSafeInteger(candidate.position) && candidate.position > 0 ? candidate.position : index + 1) === selection.searchPosition);
+    if (matching.length !== 1 || !isRecord(matching[0]) || boundedText(matching[0].title, 500) !== result.title || httpsUrl(matching[0].link, 2048) !== result.url ||
+      boundedText(matching[0].snippet, 2000) !== result.snippet || result.retrievedAt !== capture.retrievedAt) throw new ResearchAutomationIntegrityError('Meta retained search fields differ from source.');
+    const search = { captureId: capture.artifactSha256, captureArtifactSha256: capture.artifactSha256, position: result.position,
+      title: result.title, snippet: result.snippet, url: result.url, retrievedAt: result.retrievedAt };
+    const sources = selected.attemptId ? await this.#readAttemptSources(row, this.#attempt(selected.attemptId)!) : await this.#readFrozenSources(row);
+    if (!sources) throw new ResearchAutomationStateError('Meta requires authentic frozen source membership.');
+    const binding: MetaPageBinding = { contractVersion: 'meta-page-binding-v1', workspaceId, runId, startSha256: row.startSha, scopeSha256: row.scopeSha,
+      sourceSetSha256: sources.sha256, marketReportSha256: report.versionId, selection, peerFrame: frame.frame, peerMember: member, search,
+      keywordData: draft.output, searchDecision: filterSerpApiResults({ results: [search], filter: draft.output }).result };
+    validateMetaPageBinding(binding); return binding;
   }
 
   /** Explicit owner start. Workspace verification happens before any artifact or DB write. */
@@ -1151,6 +1226,19 @@ export class ResearchAutomationService {
       videoCount += (await videoReader.findAutomationAttachmentPackagesByKeyPrefix(videoPackageKeyPrefix(runId))).length;
     }
     activity['kalodata-video'].dataCount = videoCount;
+    // Count unique confirmed page/ad memberships only; retries/capture revisions never imply population or paid usage.
+    const metaMemberships = new Set<string>();
+    for (const { runId } of runIds) {
+      if (!(await videoReader.findAutomationAttachmentPackagesByKeyPrefix(metaPagePackagePrefix(runId))).length) continue;
+      for (const view of await this.listMetaPageSources(workspaceId, runId)) {
+        if (view.state !== 'CONFIRMED') continue;
+        for (const libraryId of view.projection.includedLibraryIds) metaMemberships.add(`${view.projection.pageId}#${libraryId}`);
+        const at = view.projection.capturedAt;
+        if (activity['meta-ad-library'].lastDataAt === null || Date.parse(at) > Date.parse(activity['meta-ad-library'].lastDataAt!)) activity['meta-ad-library'].lastDataAt = at;
+      }
+    }
+    activity['meta-ad-library'].dataCount = metaMemberships.size;
+
     // PageIndex workspace history only: PDFs attached to this workspace's runs
     // and this workspace's recorded question attempts. Account-wide ledger
     // numbers (balance, active pages, documents sent) are deliberately excluded
