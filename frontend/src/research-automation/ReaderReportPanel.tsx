@@ -12,6 +12,7 @@ interface Props {
   readonly run: ResearchAutomationRun;
   readonly ownerToken: string | null;
   readonly writesAvailable: boolean;
+  readonly refreshToken?: number;
 }
 type Decision = 'APPROVED' | 'REJECTED';
 
@@ -21,12 +22,12 @@ const STATE_LABEL: Record<ResearchAutomationReaderRevisionV2['state'], string> =
 const PLATFORM_LABEL = { shopee: 'Shopee', tiktok: 'TikTok Shop' } as const;
 
 /** The only report surface the OWNER sees: the reader page and its Duyệt/Từ chối decision. The automated draft stays server-side. */
-export default function ReaderReportPanel({ run, ownerToken, writesAvailable }: Props) {
+export default function ReaderReportPanel({ run, ownerToken, writesAvailable, refreshToken }: Props) {
   // An in-flight write belongs to its original run, including its retry key and dialog.
-  return <ReaderReportPanelForRun key={`${run.workspaceId}:${run.runId}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} />;
+  return <ReaderReportPanelForRun key={`${run.workspaceId}:${run.runId}`} run={run} ownerToken={ownerToken} writesAvailable={writesAvailable} refreshToken={refreshToken} />;
 }
 
-function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
+function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToken }: Props) {
   const [revisions, setRevisions] = useState<readonly ResearchAutomationReaderRevisionV2[] | null>(null);
   const [kind, setKind] = useState<'MARKET' | 'INSIGHT'>(run.reports.includes('MARKET') ? 'MARKET' : 'INSIGHT');
   const [sourceVersions, setSourceVersions] = useState<ResearchAutomationReportVersionList | null>(null);
@@ -58,7 +59,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable }: Props) {
       .then(list => { if (!controller.signal.aborted) { setRevisions(list.revisions); setError(''); } })
       .catch((failure: unknown) => { if (!controller.signal.aborted) setError(failure instanceof ResearchAutomationError ? failure.message : 'Chưa tải được bản đọc.'); });
     return () => controller.abort();
-  }, [run.workspaceId, run.runId, tick]);
+  }, [run.workspaceId, run.runId, tick, refreshToken]);
 
   useEffect(() => {
     if (kind !== 'INSIGHT' || run.status !== 'DRAFT_READY') return;

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import {
   buildTikTokReader, digestTikTokDraft, digestTikTokReport, loadTikTokCodingContext, loadTikTokCodingHistory, loadTikTokCodingView,
@@ -11,12 +11,13 @@ interface Props {
   readonly run: ResearchAutomationRun;
   readonly ownerToken: string | null;
   readonly writesAvailable: boolean;
+  readonly onBuilt?: () => void;
 }
 
 const message = (failure: unknown, fallback: string) => failure instanceof ResearchAutomationError ? failure.message : fallback;
 
 /** OWNER TikTok flow: explicit retained S07 selection, proposed draft coding, cited report, saved Reader. */
-export default function TikTokReportPanel({ run, ownerToken, writesAvailable }: Props) {
+export default function TikTokReportPanel({ run, ownerToken, writesAvailable, onBuilt }: Props) {
   const [sources, setSources] = useState<TikTokCommentSourceHistory | null>(null);
   const [selected, setSelected] = useState('');
   const [sourceView, setSourceView] = useState<TikTokCommentReadView | null>(null);
@@ -30,6 +31,9 @@ export default function TikTokReportPanel({ run, ownerToken, writesAvailable }: 
   const [pending, setPending] = useState(false);
   const [tick, setTick] = useState(0);
   const requestKeys = useRef(new Map<string, string>());
+  const mounted = useRef(true);
+  const openController = useRef<AbortController | null>(null);
+  const selectedRef = useRef('');
   const canWrite = writesAvailable && ownerToken !== null;
 
   useEffect(() => {
@@ -44,16 +48,24 @@ export default function TikTokReportPanel({ run, ownerToken, writesAvailable }: 
   }, [run.workspaceId, run.runId, tick]);
 
   useEffect(() => {
-    if (!selected) { setSourceView(null); setContext(null); return; }
+    selectedRef.current = selected;
+    openController.current?.abort();
+    setSourceView(null); setContext(null); setCodingView(null); setDraftSha(''); setReportSha('');
+    if (!selected) return;
     const controller = new AbortController();
     Promise.all([
       loadTikTokCommentSource(run.workspaceId, run.runId, selected, controller.signal),
       loadTikTokCodingContext(run.workspaceId, run.runId, selected, controller.signal),
     ])
       .then(([source, value]) => { if (!controller.signal.aborted) { setSourceView(source); setContext(value); setError(''); } })
-      .catch((failure: unknown) => { if (!controller.signal.aborted) setError(message(failure, 'Chưa tải được bối cảnh nguồn đã chọn.')); });
+      .catch((failure: unknown) => { if (!controller.signal.aborted) { setContext(null); setSourceView(null); setError(message(failure, 'Chưa tải được bối cảnh nguồn đã chọn.')); } });
     return () => controller.abort();
   }, [run.workspaceId, run.runId, selected]);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   const generate = async () => {
     if (!context || !canWrite) return;
@@ -63,24 +75,30 @@ export default function TikTokReportPanel({ run, ownerToken, writesAvailable }: 
     const body: TikTokCodingProposeRequest = {
       contractVersion: 'tiktok-coding-propose-v1', requestKey, binding: context.binding, corpus: context.corpus, keywordDigest: context.keywordDigest,
     };
+    const scope = selected;
     setPending(true);
     try {
       const receipt = await proposeTikTokCoding(run.workspaceId, run.runId, body, ownerToken!);
+      if (!mounted.current || scope !== selectedRef.current) return;
       setNotice(receipt.exactRetry ? 'Đề xuất mã đã có. Không gọi lại mô hình.' : 'Đã tạo đề xuất mã. Kết quả đang chờ bạn duyệt.');
       setTick(value => value + 1);
     } catch (failure: unknown) {
-      setError(message(failure, 'Chưa tạo được đề xuất mã TikTok.'));
-    } finally { setPending(false); }
+      if (mounted.current) setError(message(failure, 'Chưa tạo được đề xuất mã TikTok.'));
+    } finally { if (mounted.current) setPending(false); }
   };
 
   const openCoding = async (packageId: string) => {
+    const controller = new AbortController();
+    openController.current?.abort();
+    openController.current = controller;
     try {
-      const view = await loadTikTokCodingView(run.workspaceId, run.runId, packageId, new AbortController().signal);
-      setCodingView(view);
-      setDraftSha(await digestTikTokDraft(view.draft));
-      setReportSha(await digestTikTokReport(view.report));
-      setError('');
-    } catch (failure: unknown) { setError(message(failure, 'Chưa mở được báo cáo mã TikTok.')); }
+      const view = await loadTikTokCodingView(run.workspaceId, run.runId, packageId, controller.signal);
+      const [draft, report] = await Promise.all([digestTikTokDraft(view.draft), digestTikTokReport(view.report)]);
+      if (!mounted.current || controller.signal.aborted) return;
+      setCodingView(view); setDraftSha(draft); setReportSha(report); setError('');
+    } catch (failure: unknown) {
+      if (mounted.current && !controller.signal.aborted) setError(message(failure, 'Chưa mở được báo cáo mã TikTok.'));
+    }
   };
 
   const build = async () => {
@@ -93,10 +111,12 @@ export default function TikTokReportPanel({ run, ownerToken, writesAvailable }: 
       const receipt = await buildTikTokReader(run.workspaceId, run.runId, {
         contractVersion: 'insight-reader-build-tiktok-v1', reportKind: 'INSIGHT', requestKey, draftPairId: draftSha, semanticSha256: reportSha, sourceKind: 'TIKTOK',
       }, ownerToken!);
+      if (!mounted.current) return;
       setNotice(receipt.exactRetry ? 'Bản đọc đã có. Không dựng lại.' : 'Đã dựng bản đọc TikTok. Trạng thái: chờ bạn duyệt.');
+      onBuilt?.();
     } catch (failure: unknown) {
-      setError(message(failure, 'Chưa dựng được bản đọc TikTok.'));
-    } finally { setPending(false); }
+      if (mounted.current) setError(message(failure, 'Chưa dựng được bản đọc TikTok.'));
+    } finally { if (mounted.current) setPending(false); }
   };
 
   return <section className="ra-tiktok" aria-labelledby="ra-tiktok-title">
