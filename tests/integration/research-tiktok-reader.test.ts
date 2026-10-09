@@ -66,6 +66,17 @@ test('build retained TikTok reader -> consumption ledger -> open/reopen/decide j
     'approved reader blocks a second build');
 });
 
+test('TikTok build request is explicitly refused on the old Insight route', async t => {
+  const { f, draftDigest, reportDigest } = await proposed(t);
+  const owner = { actorId: 'synthetic-owner', role: 'OWNER' as const };
+  await assert.rejects(f.service.buildInsightReaderReport(workspaceId, runId, {
+    contractVersion: 'insight-reader-build-tiktok-v1', reportKind: 'INSIGHT', requestKey: randomUUID(),
+    draftPairId: draftDigest, semanticSha256: reportDigest, sourceKind: 'TIKTOK' }, owner),
+    /reader-reports\/tiktok/);
+  assert.equal((await f.service.listReaderReportsV2(workspaceId, runId)).revisions.length, 0);
+  assert.equal((await f.service.readTikTokReportConsumption(workspaceId, runId)).entries.length, 0);
+});
+
 test('mismatched build identity refuses before any retained write', async t => {
   const { f, draftDigest, reportDigest } = await proposed(t);
   const owner = { actorId: 'synthetic-owner', role: 'OWNER' as const };

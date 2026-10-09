@@ -308,6 +308,9 @@ export class AutomationReaderReports {
     this.#owner(actor);
     if (!validInsightBuild(value)) throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc insight không hợp lệ.');
     const request = JSON.parse(canonicalJson(value)) as ResearchAutomationInsightReaderBuildRequest;
+    if (request.contractVersion === 'insight-reader-build-tiktok-v1') {
+      throw new ResearchAutomationValidationError('Bản đọc TikTok chỉ được dựng tại reader-reports/tiktok, không phải tuyến insight cũ.');
+    }
     const input = verifyInsightReaderInput(context.input, context.input);
     const requestedBuilder = request.contractVersion === 'insight-reader-build-v3' ? 'reader-report-insight-v6'
       : request.contractVersion === 'insight-reader-build-v2'

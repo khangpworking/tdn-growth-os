@@ -1192,6 +1192,9 @@ export class ResearchAutomationService {
     if (actor.role !== 'OWNER' || !validateInsightReaderBuild(value))
       throw new ResearchAutomationValidationError('Yêu cầu dựng bản đọc insight không hợp lệ.');
     const request = value;
+    if (request.contractVersion === 'insight-reader-build-tiktok-v1') {
+      throw new ResearchAutomationValidationError('Bản đọc TikTok chỉ được dựng tại reader-reports/tiktok, không phải tuyến insight cũ.');
+    }
     return withDatabaseMutationMutex(this.#db, async () => {
       const run = await this.getRun(workspaceId, runId);
       if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');

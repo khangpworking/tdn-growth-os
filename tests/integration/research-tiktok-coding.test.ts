@@ -14,6 +14,7 @@ import { TikTokCodingContextError } from '../../src/modules/analysis/research-au
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import type { TikTokCodingAI } from '../../src/modules/analysis/research-automation/tiktok-coding.js';
 import { tiktokFixture, workspaceId, runId, fakeCodingPort, fakeCodingAi } from '../fixtures/tiktok-coding-fixture.js';
+import { tiktokCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport.js';
 
 type Fixture = Awaited<ReturnType<typeof tiktokFixture>>;
 
@@ -56,7 +57,7 @@ test('retained keyword-v3 -> S07 corpus -> draft coding proposal -> retained rea
   assert.doesNotMatch(publicBytes, /authorIdentity|keyId|PRIVATE|998877|776655|665544/);
 });
 
-test('invalid source/quote/voice/config/trust refuses before any model dispatch', async t => {
+test('invalid source/voice/config/trust refuses before any model dispatch', async t => {
   const f = await tiktokFixture(t);
   const port = fakeCodingPort();
   const ai = fakeCodingAi(port);
@@ -73,6 +74,8 @@ test('invalid source/quote/voice/config/trust refuses before any model dispatch'
     await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, input, ai), expected, name);
   }
   await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, good, null), TikTokCodingTransportError, 'unconfigured model refuses');
+  const misconfigured = fakeCodingAi(port, { ...tiktokCodingCliproxyConfiguration('synthetic-tiktok-coding-model'), modelId: '' });
+  await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, good, misconfigured), TikTokCodingTransportError, 'misconfigured model refuses pre-write');
   await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, { ...good, expectedRevision: 9999 }, ai), ResearchAutomationConflictError, 'stale revision refuses');
   assert.equal(port.dispatches(), 0);
 });
@@ -122,17 +125,45 @@ test('two real instances racing one key dispatch exactly once; loser observes th
 
 test('invalid response settles terminally: same key never redispatches, new key recovers', async t => {
   const f = await tiktokFixture(t);
-  let calls = 0;
-  const badPort: NonNullable<TikTokCodingAI>['port'] = { generateText: async () => { calls++; return { text: '{"codes":[{"code":"nope"}]}' }; } };
-  const key = randomUUID();
-  await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, key), fakeCodingAi(badPort)),
-    TikTokCodingTransportError, 'invalid candidates refuse');
-  assert.equal(calls, 1);
-  await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, key), fakeCodingAi(badPort)),
-    TikTokCodingError, 'same key after INVALID never dispatches again');
-  assert.equal(calls, 1);
+  // Delivered-but-unusable model output is known INVALID (not ambiguous transport): malformed JSON,
+  // schema-invalid codes, and valid-schema wrong exact quotes each dispatch once and settle terminally.
+  const variants: [string, (text: string) => string][] = [
+    ['malformed json', () => '{not json'],
+    ['schema-invalid codes', () => '{"codes":[{"code":"nope"}]}'],
+    ['wrong exact quote', text => JSON.stringify({ codes: [{ code: 'Q_0', label: 'sai trích dẫn', recordIndex: 0,
+      quote: { text: 'không có trong bản ghi', start: 0, end: 19 } }] })],
+  ];
+  for (const [name, shape] of variants) {
+    let calls = 0;
+    const badPort: NonNullable<TikTokCodingAI>['port'] = { generateText: async request => {
+      calls++;
+      return { text: shape((request as { userText: string }).userText) };
+    } };
+    const key = randomUUID();
+    await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, key), fakeCodingAi(badPort)),
+      TikTokCodingTransportError, `${name} refuses`);
+    assert.equal(calls, 1, `${name} dispatched exactly once`);
+    const settled = f.db.prepare('SELECT state,validation_status,validation_code FROM analysis_tiktok_coding_executions WHERE request_key=?').get(key) as { state: string; validation_status: string; validation_code: string };
+    assert.equal(settled.state, 'COMPLETED', `${name} settled`);
+    assert.equal(settled.validation_status, 'INVALID', `${name} classified`);
+    assert.equal(settled.validation_code, 'TIKTOK_CODING_RESPONSE_INVALID', `${name} coded`);
+    assert.equal((await f.service.listTikTokCodingHistory(workspaceId, runId)).sources.length, 0, `${name} published no package`);
+    await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, key), fakeCodingAi(badPort)),
+      TikTokCodingError, `${name}: same key never dispatches again`);
+    assert.equal(calls, 1, `${name}: no redispatch`);
+  }
   // Terminal same-key retry performs no CAS writes, clock reads, publication, or database mutation.
-  const claimBefore = f.db.prepare('SELECT * FROM analysis_tiktok_coding_executions WHERE request_key=?').get(key);
+  // A dedicated malformed response settles the claim row the control below observes.
+  let controlCalls = 0;
+  const controlPort: NonNullable<TikTokCodingAI>['port'] = { generateText: async () => {
+    controlCalls++;
+    return { text: '{not json' };
+  } };
+  const controlKey = randomUUID();
+  await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, controlKey), fakeCodingAi(controlPort)),
+    TikTokCodingTransportError, 'control case settles INVALID');
+  assert.equal(controlCalls, 1);
+  const claimBefore = f.db.prepare('SELECT * FROM analysis_tiktok_coding_executions WHERE request_key=?').get(controlKey);
   const filesBefore = (await fs.readdir(f.artifactRoot, { recursive: true })).sort();
   const binding = { workspaceId, runId, scopeSha256: f.keyword.scopeDigest, sourceSetSha256: f.keyword.sourceSetDigest!,
     requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' } };
@@ -143,10 +174,10 @@ test('invalid response settles terminally: same key never redispatches, new key 
     mutex: async (): Promise<never> => { throw new Error('terminal retry took the mutex'); },
     keywordDraft: digest => f.service.readSourceKeywordDraft(workspaceId, runId, digest),
     replayComments: async (): Promise<never> => { throw new Error('terminal retry replayed comments'); } });
-  await assert.rejects(strict.propose(binding, proposeInput(f, key), fakeCodingAi(badPort)), TikTokCodingError,
+  await assert.rejects(strict.propose(binding, proposeInput(f, controlKey), fakeCodingAi(controlPort)), TikTokCodingError,
     'terminal retry refuses before CAS/clock/publication');
-  assert.equal(calls, 1);
-  assert.deepEqual(f.db.prepare('SELECT * FROM analysis_tiktok_coding_executions WHERE request_key=?').get(key), claimBefore);
+  assert.equal(controlCalls, 1);
+  assert.deepEqual(f.db.prepare('SELECT * FROM analysis_tiktok_coding_executions WHERE request_key=?').get(controlKey), claimBefore);
   assert.deepEqual((await fs.readdir(f.artifactRoot, { recursive: true })).sort(), filesBefore);
   const port = fakeCodingPort();
   const receipt = await f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, randomUUID()), fakeCodingAi(port));

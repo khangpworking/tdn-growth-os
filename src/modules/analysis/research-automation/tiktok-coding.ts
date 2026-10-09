@@ -204,8 +204,13 @@ export class AutomationTikTokCoding {
     try {
       candidates = await this.#dispatch(ai, { admission: source, input, prompt }, signal);
     } catch (error) {
-      await this.options.mutex(async () => { this.#settle(executionId,
-        'DISPATCH_UNKNOWN', null, signal?.aborted === true ? 'INTERRUPTED_AFTER_CLAIM' : 'TRANSPORT_OUTCOME_AMBIGUOUS'); });
+      // A delivered but malformed/invalid response is known INVALID, never ambiguous transport.
+      if (error instanceof TikTokCodingTransportError && error.code === 'MODEL_RESPONSE_INVALID') {
+        await this.options.mutex(async () => { this.#settle(executionId, 'COMPLETED', 'INVALID', null); });
+      } else {
+        await this.options.mutex(async () => { this.#settle(executionId,
+          'DISPATCH_UNKNOWN', null, signal?.aborted === true ? 'INTERRUPTED_AFTER_CLAIM' : 'TRANSPORT_OUTCOME_AMBIGUOUS'); });
+      }
       throw error;
     }
     let draftCoding: TikTokDraftCoding, report: TikTokCodedReport;
