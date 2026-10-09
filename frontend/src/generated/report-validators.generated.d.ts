@@ -64,6 +64,12 @@ export declare const researchGenerationInputs: PrecompiledValidator;
 export declare const researchGenerationReceipt: PrecompiledValidator;
 export declare const researchGenerationMethodInputError: PrecompiledValidator;
 
+export declare const insightPersonaRequest: PrecompiledValidator;
+export declare const insightPersonaResponse: PrecompiledValidator;
+export declare const insightPersonaView: PrecompiledValidator;
+export declare const insightPersonaEntry: PrecompiledValidator;
+export declare const insightPersonaReportRevision: PrecompiledValidator;
+export declare const insightPersonaSelectedReport: PrecompiledValidator;
 export declare const worldBankPrepareRequest: PrecompiledValidator;
 export declare const worldBankPrepareReceipt: PrecompiledValidator;
 export declare const worldBankConfirmRequest: PrecompiledValidator;

@@ -183,6 +183,87 @@ const header = [
 await fs.mkdir(path.dirname(outputPath), { recursive: true });
 await fs.writeFile(outputPath, `${header}\n${body.replace(/^"use strict";\s*/, '')}\n`, 'utf8');
 
+// Persona is a new namespace. Compile it after the historical body and isolate
+// its generated names so every existing validator byte remains unchanged.
+for (const [relative, uri] of [
+  ['contracts/foundation/shopee-collection.schema.json', 'foundation/shopee-collection'],
+  ['contracts/foundation/shopee-private-collection.schema.json', 'foundation/shopee-private-collection'],
+  ['contracts/foundation/shopee-private-rows.schema.json', 'foundation/shopee-private-rows'],
+  ['contracts/foundation/shopee-private-projection.schema.json', 'foundation/shopee-private-projection'],
+]) ajv.addSchema(await readSchema(relative), `https://tdn.local/contracts/${uri}.schema.json`);
+const personaSchema = await readSchema('contracts/analysis/automation-insight-persona.schema.json');
+const personaApiSchema = await readSchema('contracts/api/research-automation-insight-persona-api.schema.json');
+ajv.addSchema(personaSchema);
+// Compile only the original four aliases here. New report aliases have their
+// own canonical compilation below; old persona validator bytes stay frozen.
+const personaReportAliases = new Set(['personaReportRequest', 'personaSelectedReport']);
+ajv.addSchema({ ...personaApiSchema,
+  $defs: Object.fromEntries(Object.entries(personaApiSchema.$defs).filter(([key]) => !personaReportAliases.has(key))),
+  oneOf: personaApiSchema.oneOf.filter(item => !personaReportAliases.has(item.$ref.split('/').at(-1))),
+});
+const personaRefs = {
+  insightPersonaRequest: `${personaApiSchema.$id}#/$defs/request`,
+  insightPersonaResponse: `${personaApiSchema.$id}#/$defs/response`,
+  insightPersonaView: `${personaApiSchema.$id}#/$defs/view`,
+  insightPersonaEntry: `${personaApiSchema.$id}#/$defs/entry`,
+};
+for (const ref of Object.values(personaRefs)) {
+  const validator = ajv.getSchema(ref);
+  if (!validator || '$async' in validator) throw new Error(`Persona validator unavailable: ${ref}`);
+}
+const personaRuntimeImports = new Map();
+const personaBody = standaloneCode(ajv, personaRefs)
+  .replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+    const key = `${moduleId}#${member}`;
+    if (!personaRuntimeImports.has(key)) personaRuntimeImports.set(key, {
+      moduleId, member, name: `personaRuntime${personaRuntimeImports.size}`,
+    });
+    return personaRuntimeImports.get(key).name;
+  }).replace(/export const /g, 'const ').replace(/^"use strict";\s*/, '');
+if (/\brequire\(|new Function|\beval\(/.test(personaBody)) throw new Error('Persona validators must be CSP-safe');
+const personaModules = [...new Set([...personaRuntimeImports.values()].map(item => item.moduleId))]
+  .map((moduleId, index) => ({ moduleId, namespace: `personaModule${index}` }));
+const personaModuleFor = new Map(personaModules.map(item => [item.moduleId, item.namespace]));
+const personaHeader = [
+  ...personaModules.map(item => `import * as ${item.namespace} from ${JSON.stringify(`${item.moduleId}.js`)};`),
+  ...[...personaRuntimeImports.values()].map(item =>
+    `const ${item.name} = ajvRuntime(${personaModuleFor.get(item.moduleId)}, ${JSON.stringify(item.member)});`),
+].join('\n');
+const personaExports = Object.keys(personaRefs);
+await fs.appendFile(outputPath, `${personaHeader}\nconst personaValidators = (() => {\n${personaBody}\nreturn { ${personaExports.join(', ')} };\n})();\n${personaExports.map(name => `export const ${name} = personaValidators.${name};`).join('\n')}\n`, 'utf8');
+
+// Selected persona reports are additive after the frozen four persona guards.
+// Their isolated scope also preserves all historical validator output bytes.
+const personaReportSchema = await readSchema('contracts/analysis/automation-insight-persona-report.schema.json');
+ajv.addSchema(personaReportSchema);
+const personaReportRefs = {
+  insightPersonaReportRevision: `${personaReportSchema.$id}#/$defs/request`,
+  insightPersonaSelectedReport: `${personaReportSchema.$id}#/$defs/selectedSnapshot`,
+};
+for (const ref of Object.values(personaReportRefs)) {
+  const validator = ajv.getSchema(ref);
+  if (!validator || '$async' in validator) throw new Error(`Persona report validator unavailable: ${ref}`);
+}
+const personaReportRuntimeImports = new Map();
+const personaReportBody = standaloneCode(ajv, personaReportRefs)
+  .replace(/require\("([^"]+)"\)\.(\w+)/g, (_match, moduleId, member) => {
+    const key = `${moduleId}#${member}`;
+    if (!personaReportRuntimeImports.has(key)) personaReportRuntimeImports.set(key, {
+      moduleId, member, name: `personaReportRuntime${personaReportRuntimeImports.size}`,
+    });
+    return personaReportRuntimeImports.get(key).name;
+  }).replace(/export const /g, 'const ').replace(/^"use strict";\s*/, '');
+if (/\brequire\(|new Function|\beval\(/.test(personaReportBody)) throw new Error('Persona report validators must be CSP-safe');
+const personaReportModules = [...new Set([...personaReportRuntimeImports.values()].map(item => item.moduleId))]
+  .map((moduleId, index) => ({ moduleId, namespace: `personaReportModule${index}` }));
+const personaReportModuleFor = new Map(personaReportModules.map(item => [item.moduleId, item.namespace]));
+const personaReportHeader = [
+  ...personaReportModules.map(item => `import * as ${item.namespace} from ${JSON.stringify(`${item.moduleId}.js`)};`),
+  ...[...personaReportRuntimeImports.values()].map(item =>
+    `const ${item.name} = ajvRuntime(${personaReportModuleFor.get(item.moduleId)}, ${JSON.stringify(item.member)});`),
+].join('\n');
+const personaReportExports = Object.keys(personaReportRefs);
+await fs.appendFile(outputPath, `${personaReportHeader}\nconst personaReportValidators = (() => {\n${personaReportBody}\nreturn { ${personaReportExports.join(', ')} };\n})();\n${personaReportExports.map(name => `export const ${name} = personaReportValidators.${name};`).join('\n')}\n`, 'utf8');
 // Macro validators use an isolated compiler and closure. The complete historical output above
 // remains a byte-identical prefix; adding this source cannot renumber old validators or schemas.
 const macroAjv = new Ajv2020({ allErrors: true, strict: true, code: { source: true, esm: true } });
