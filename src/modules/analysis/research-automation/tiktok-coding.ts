@@ -22,7 +22,7 @@ import type { RetainedKeywordListDraftRecord } from '../keyword-list-draft-recor
 import type { AutomationSynthesisTextPort } from './synthesis-execution.js';
 import { buildTikTokCodingContext, type TikTokCodingContext } from './tiktok-coding-context.js';
 import { tiktokCodingPrompt } from './tiktok-coding-prompt.js';
-import { p9PackagePrefix } from './p9-source-intake.js';
+import { p9PackagePrefix, P9SourceError } from './p9-source-intake.js';
 import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 
 const require = createRequire(import.meta.url);
@@ -471,6 +471,25 @@ export class AutomationTikTokCoding {
     return view;
   }
 
+  /** Settled-execution gate: a retained package is consumable only with a matching COMPLETED/VALID
+   * claim for its exact requestKey/workspace/run/scope, and ledger admission/input/prompt/configuration
+   * SHAs bound to the verified package member bytes. Missing/mismatched integrity fails closed;
+   * nothing here writes, dispatches, or promotes status. */
+  #requireSettledExecution(binding: TikTokCodingRunBinding, draft: TikTokDraftCoding, retained: VerifiedFinalizedSourcePackage): void {
+    const row = this.#db.prepare(`SELECT workspace_id,run_id,scope_sha256,state,validation_status,
+      admission_sha256,input_sha256,prompt_sha256,configuration_sha256 FROM analysis_tiktok_coding_executions WHERE request_key=?`)
+      .get(draft.requestKey) as { workspace_id: string; run_id: string; scope_sha256: string; state: string;
+        validation_status: string | null; admission_sha256: string; input_sha256: string;
+        prompt_sha256: string; configuration_sha256: string } | undefined;
+    if (!row || row.state !== 'COMPLETED' || row.validation_status !== 'VALID') fail();
+    if (row.workspace_id !== binding.workspaceId || row.run_id !== binding.runId || row.scope_sha256 !== binding.scopeSha256) fail();
+    const memberBytes = (path: string) => member(retained, path).bytes;
+    if (sha(memberBytes('coding-source.json')) !== row.admission_sha256 ||
+      sha(memberBytes('coding-input.json')) !== row.input_sha256 ||
+      sha(memberBytes('coding-prompt.json')) !== row.prompt_sha256 ||
+      sha(memberBytes('coding-configuration.json')) !== row.configuration_sha256) fail();
+  }
+
   /** Configless query-only retained read. No model, collector, clock, or CAS mutation. */
   async read(binding: TikTokCodingRunBinding, packageId: string, manifestArtifactSha256: string, packageContentSha256: string) {
     const retained = await this.#reader.readFinalizedSourcePackage(packageId, BUDGET);
@@ -500,6 +519,7 @@ export class AutomationTikTokCoding {
         if (!memberIds.has(`${finding.code}:${citation.citationId}`)) fail();
       }
     }
+    this.#requireSettledExecution(binding, draft, retained);
     const { corpus, acquiredAt } = await this.#corpus(binding, draft.corpus.packageId, draft.corpus.manifestArtifactSha256, draft.corpus.packageContentSha256);
     const keyword = await this.options.keywordDraft(draft.keywordDigest);
     if (!equal(keyword.output, corpus.keywordData)) fail();
@@ -520,7 +540,9 @@ export class AutomationTikTokCoding {
     return { draft, report, citations, finalizedAt: retained.manifest.finalizedAt };
   }
 
-  /** Configless query-only retained history. Each member is re-read, never trusted from the index. */
+  /** Configless query-only retained history: exposes only settled valid proposals. Entries that
+   * fail owning validation (unsettled terminal/inflight output) are skipped within existing statuses;
+   * infrastructure failures still propagate. Each member is re-read, never trusted from the index. */
   async history(binding: TikTokCodingRunBinding) {
     const entries = await this.#reader.findAutomationAttachmentPackagesByKeyPrefix(tiktokCodingPackagePrefix(binding.runId));
     if (entries.length >= 101) fail();
@@ -529,7 +551,16 @@ export class AutomationTikTokCoding {
     for (const entry of entries) {
       const retained = await this.#reader.readFinalizedSourcePackage(entry.packageId, BUDGET);
       if (entry.version !== 1) fail();
-      const read = await this.read(binding, entry.packageId, entry.manifestArtifactSha256, retained.packageContentSha256);
+      let read: Awaited<ReturnType<typeof this.read>>;
+      try {
+        read = await this.read(binding, entry.packageId, entry.manifestArtifactSha256, retained.packageContentSha256);
+      } catch (error) {
+        // Product-validation refusals (unsettled claims, failed replay, corrupt members) skip the
+        // entry so one bad package cannot poison discovery; direct read/build still refuse strictly.
+        // Infrastructure failures propagate.
+        if (!(error instanceof TikTokCodingError) && !(error instanceof P9SourceError)) throw error;
+        continue;
+      }
       sources.push({ proposalId: read.draft.proposalId, requestKey: read.draft.requestKey, packageId: entry.packageId,
         manifestArtifactSha256: entry.manifestArtifactSha256, packageContentSha256: retained.packageContentSha256,
         createdAt: read.finalizedAt, status: 'PROPOSED_AWAITING_REVIEW' });

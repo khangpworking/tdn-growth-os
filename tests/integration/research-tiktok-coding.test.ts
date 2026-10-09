@@ -303,3 +303,88 @@ test('fabricated same-prefix coding package without server origin is refused on 
     TikTokCodingError, 'foreign scope binding refuses retained read');
   assert.equal(port.dispatches(), 1);
 });
+
+test('settlement clock failure after genuine publication leaves unknown output unconsumed; new key recovers', async t => {
+  const f = await tiktokFixture(t);
+  const port = fakeCodingPort();
+  // Injected existing clock seam, conditioned on real durable state (not call counts): once a
+  // DISPATCHING claim exists AND its coding package is physically finalized, the next clock read
+  // (the COMPLETED settlement timestamp) throws once, then heals. Survives harmless clock refactors.
+  let failedOnce = false;
+  const flakyNow = () => {
+    const claimed = f.db.prepare(`SELECT request_key FROM analysis_tiktok_coding_executions
+      WHERE state='DISPATCHING' ORDER BY created_at LIMIT 1`).get() as { request_key: string } | undefined;
+    const stored = claimed && f.db.prepare(`SELECT package_id FROM foundation_source_packages
+      WHERE package_key=?`).get(`automation-tiktok-coding:${runId}-${claimed.request_key}`);
+    if (claimed && stored && !failedOnce) { failedOnce = true; throw new Error('synthetic clock failure at settlement'); }
+    return new Date('2026-10-09T00:00:00.000Z');
+  };
+  const flaky = new ResearchAutomationService({ db: f.db, artifactStore: f.artifacts, now: flakyNow,
+    workspaceReader: new FlowDiscoveryWorkspaceReader(new DiscoveryWorkspaceService({ db: f.db, artifactStore: f.artifacts })) });
+  const key = randomUUID();
+  await assert.rejects(flaky.proposeTikTokCoding(workspaceId, runId, proposeInput(f, key), fakeCodingAi(port)),
+    TikTokCodingTransportError, 'settlement failure surfaces as dispatch failure');
+  assert.equal(port.dispatches(), 1);
+  assert.ok(failedOnce);
+  const claim = f.db.prepare('SELECT state,unknown_code,validation_status FROM analysis_tiktok_coding_executions WHERE request_key=?').get(key) as { state: string; unknown_code: string; validation_status: null };
+  assert.equal(claim.state, 'DISPATCH_UNKNOWN');
+  assert.equal(claim.unknown_code, 'TRANSPORT_OUTCOME_AMBIGUOUS');
+  assert.equal(claim.validation_status, null);
+  // The package is physically retained, yet direct read refuses: no COMPLETED/VALID execution.
+  const retained = await f.service.listTikTokCodingHistory(workspaceId, runId);
+  assert.equal(retained.sources.length, 0, 'unknown output is filtered from history, not poisoned');
+  const pkg = f.db.prepare(`SELECT package_id packageId,manifest_artifact_sha256 manifest,package_content_sha256 content
+    FROM foundation_source_packages WHERE package_key=?`).get(`automation-tiktok-coding:${runId}-${key}`) as { packageId: string; manifest: string; content: string };
+  await assert.rejects(f.service.readTikTokCoding(workspaceId, runId, pkg.packageId),
+    TikTokCodingError, 'direct read of unknown output refuses');
+  // Same-key retry refuses with no redispatch; owner recovery uses an explicitly new key.
+  await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, key), fakeCodingAi(port)),
+    TikTokCodingError, 'unknown key never redispatches');
+  assert.equal(port.dispatches(), 1);
+  // Configless unknown same-key retry: throwing clock/publication/mutex prove zero side effects.
+  const strictFilesBefore = (await fs.readdir(f.artifactRoot, { recursive: true })).sort();
+  const strictBinding = { workspaceId, runId, scopeSha256: f.keyword.scopeDigest, sourceSetSha256: f.keyword.sourceSetDigest!,
+    requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' } };
+  const strict = new AutomationTikTokCoding({ db: f.db,
+    packages: new SourcePackageService({ db: f.db, artifactStore: f.artifacts }), artifacts: f.artifacts,
+    now: () => { throw new Error('terminal retry used the clock'); },
+    publish: async (): Promise<never> => { throw new Error('terminal retry published'); },
+    mutex: async (): Promise<never> => { throw new Error('terminal retry took the mutex'); },
+    keywordDraft: digest => f.service.readSourceKeywordDraft(workspaceId, runId, digest),
+    replayComments: async (): Promise<never> => { throw new Error('terminal retry replayed comments'); } });
+  await assert.rejects(strict.propose(strictBinding, proposeInput(f, key), null),
+    TikTokCodingError, 'configless unknown retry refuses with zero side effects');
+  assert.equal(port.dispatches(), 1);
+  assert.deepEqual((await fs.readdir(f.artifactRoot, { recursive: true })).sort(), strictFilesBefore);
+  assert.deepEqual(f.db.prepare('SELECT state FROM analysis_tiktok_coding_executions WHERE request_key=?').get(key),
+    { state: 'DISPATCH_UNKNOWN' });
+  // Unknown-output Reader build refuses from the genuine retained digest pair (not a fabricated
+  // ledger): digests derive from the physically retained unknown bytes, yet no consumption is written.
+  const retainedUnknown = await codingReader(f).readFinalizedSourcePackage(pkg.packageId, CODING_BUDGET);
+  const memberText = (name: string) => retainedUnknown.files.find(file => file.path === name)!.bytes.toString('utf8');
+  const unknownDraftDigest = createHash('sha256').update(canonicalJson(JSON.parse(memberText('draft-coding.json')))).digest('hex');
+  const unknownReportDigest = createHash('sha256').update(canonicalJson(JSON.parse(memberText('coded-report.json')))).digest('hex');
+  const buildOwner = { actorId: 'synthetic-owner', role: 'OWNER' as const };
+  await assert.rejects(f.service.buildTikTokReaderReport(workspaceId, runId, { contractVersion: 'insight-reader-build-tiktok-v1',
+    reportKind: 'INSIGHT', requestKey: randomUUID(), draftPairId: unknownDraftDigest, semanticSha256: unknownReportDigest, sourceKind: 'TIKTOK' }, buildOwner),
+    'unknown-output build refuses with zero consumption');
+  assert.equal((await f.service.readTikTokReportConsumption(workspaceId, runId)).entries.length, 0);
+  assert.deepEqual(f.db.prepare('SELECT state FROM analysis_tiktok_coding_executions WHERE request_key=?').get(key),
+    { state: 'DISPATCH_UNKNOWN' });
+  const fresh = randomUUID();
+  const receipt = await f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, fresh), fakeCodingAi(port));
+  assert.equal(receipt.exactRetry, false);
+  assert.equal(port.dispatches(), 2);
+  const read = await f.service.readTikTokCoding(workspaceId, runId,
+    (await f.service.listTikTokCodingHistory(workspaceId, runId)).sources[0]!.packageId);
+  assert.equal(read.draft.proposalId, receipt.proposalId);
+  const listed = await f.service.listTikTokCodingHistory(workspaceId, runId);
+  assert.equal(listed.sources.length, 1);
+  assert.equal(listed.sources[0]!.proposalId, receipt.proposalId);
+  const owner = { actorId: 'synthetic-owner', role: 'OWNER' as const };
+  const built = await f.service.buildTikTokReaderReport(workspaceId, runId, { contractVersion: 'insight-reader-build-tiktok-v1',
+    reportKind: 'INSIGHT', requestKey: randomUUID(), draftPairId: createHash('sha256').update(canonicalJson(read.draft)).digest('hex'),
+    semanticSha256: createHash('sha256').update(canonicalJson(read.report)).digest('hex'), sourceKind: 'TIKTOK' }, owner);
+  assert.equal(built.exactRetry, false);
+  assert.equal((await f.service.readTikTokReportConsumption(workspaceId, runId)).entries.length, 1);
+});

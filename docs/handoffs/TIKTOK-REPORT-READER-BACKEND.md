@@ -42,13 +42,20 @@ record nothing; decisions stay in the existing decision table. Query-only GET ex
 
 ## Proof (full logs outside Git, true exits)
 
-- `tests/integration/research-tiktok-coding.test.ts` 6/6: v3 journey, refusal battery (0 dispatches;
+- `tests/integration/research-tiktok-coding.test.ts` 7/7: v3 journey, refusal battery (0 dispatches;
   wrong quotes settle INVALID after exactly one response), two real instances one-key one-dispatch,
   INVALID/unknown terminality incl. no-CAS/clock/mutation control, mid-dispatch abort →
   INTERRUPTED_AFTER_CLAIM, fabricated origin-less package refused on retry and direct read,
-  configless cold reopen (throwing clock, serialize-equal).
+  settlement clock failure after genuine publication (state-conditioned seam, COMPLETED/INVALID vs
+  DISPATCH_UNKNOWN distinguished, unknown-output build refusal with zero consumption, configless
+  terminal retry with zero side effects, new-key recovery with build + consumption), configless cold
+  reopen (throwing clock, serialize-equal).
 - `tests/integration/research-tiktok-reader.test.ts` 4/4: build→ledger→open/reopen/decide, old-route
   refusal, identity mismatch refusals, ledger immutability + illegal-transition refusals.
+- Settled-execution guard: retained reads/retry/build require a matching COMPLETED/VALID
+  claim (exact requestKey/workspace/run/scope) with ledger admission/input/prompt/configuration SHAs
+  bound to verified package members; history exposes only settled-valid proposals (validation refusals
+  filtered, infra failures propagate).
 - `tests/unit/tiktok-coding-context.test.ts` 3/3, `tiktok-coding-operator-config.test.ts` 1/1
   (fail-closed env opt-in).
 - Affected replay green: insight-reader suites, i14 transport, operator-app, source-status/board, P9,
@@ -56,7 +63,7 @@ record nothing; decisions stay in the existing decision table. Query-only GET ex
 - `npm run typecheck` PASS. `contracts:generate` byte-check clean at `8c36017`; this repair adds no
   canonical/schema/migration changes.
 
-## Mounted proof (integration-owned browser harness)
+## Mounted proof (integration-owned browser harness, repaired candidate attempt3 PASS exit 0)
 
 `/tmp/ultimate-tiktok-report-reader-2026-10-10/mounted-harness/tiktok-mounted-attempt2.mts` (task-local,
 exit 0, MOUNTED-PASS): seeded keyword-v3/P9 database handed cleanly to the real operator app with a
