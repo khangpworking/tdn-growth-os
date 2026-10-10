@@ -55,15 +55,15 @@ renderer27 refusals and old versions untouched.
 - Attempt 2 (`lanea-tiktok-mounted2.log`): FAIL — exact panel link missing after reload:
   transient React state cannot survive reload by design. Transient links removed; the single
   export surface is now ReaderReportPanel latest/history (+ Shopee panel saved list).
-- Attempt 3 (`lanea-tiktok-mounted3.log`): FAIL — same reload timeout before the generic-link
-  fix; first capture of the 409 URLs as evidence.
+- Attempt 3 (`lanea-tiktok-mounted3.log`): FAIL — the journey reopened successfully. The unchanged global console-error assertion failed on four Shopee-admission409 responses. Their URLs were retained.
 - Attempt 4 (`lanea-tiktok-mounted4.log`): PASS with scoped TikTok/Reader endpoint assertions.
 - 409 cause: Shopee panel admission reads (`samples`, `context`) against a TikTok-only run
   with no Shopee scope confirmation authentically refuse with `invalid_state` (409) —
   pre-existing service semantics predating Lane A (TikTok missing-admission conversely returns
   quiet 200-empty histories). Expected cross-family absence signals, not product regressions;
-  never filtered into green — the console record is retained and the final harness asserts
-  them as declared expected-negative controls (409 + `invalid_state` code).
+  the fourth run replaced the global console assertion with scoped owning endpoint checks.
+  Console errors remain retained; that pass does not establish all-app error absence.
+  Explicit409/invalid_state negative controls are prepared for fresh validation, not yet proven.
 - Recommendation: keep 409 semantics unchanged in this lane; prove each family on its own
   admitted fixture; any 409→404 admission-semantics redesign is an owner decision for a later
   package. No third same-blocker cycle without new evidence.
