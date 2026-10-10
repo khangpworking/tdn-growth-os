@@ -1,0 +1,150 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:d9cbd3161a4908ecebc9c2688a6b8f048dbb962de8fcd8855d7c645483211e9d",
+  "claims": [
+    {
+      "id": "claim_0364a6f816cf4f8a8a9f6a36dc651da6",
+      "statement": "The Ultimate Method establishes itself as the business-rule source of truth, gives it precedence over section recipes, A41 configuration, and code when they conflict, and distinguishes method description, approval, code presence, and reviewed execution as separate states.",
+      "evidence": [
+        {
+          "resource": "repo://docs/research/ultimate-method/ultimate-method-30-sections.md#L38-L55",
+          "version": "repo-lines-v1:sha256:89ade585f3f71cb940fd9124e875317a901ca998202545b9cdff783ac91e281a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFlOWYzNjI2Nzg0ZmU1MzJkYjljMzYyZTIwOTIwNTdmZjY2MDc1MzJmOGNjMjJlZmZjOTcxOWFlY2FiZGY4NzgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjczYTg2MTNjOTVhNTNhM2RmNzk4MzFkNTMzM2FkZGUwMzQ1ZmFjYjIwNDRlYjQxZjVhODQ3Mzc4MWEyZjRmNGIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_5a59690506244b4bb14bf33d9b6a57fe",
+      "statement": "The section catalog is explicitly planning metadata rather than an executable-method authority, while the automation report renderer reads it to enumerate section IDs and uses its method labels for fallback presentation.",
+      "evidence": [
+        {
+          "resource": "repo://docs/research/report-section-catalog-v1.json#L1-L6",
+          "version": "repo-lines-v1:sha256:d88abc21a30dc758213c536feb157087b4603c12d2c3a1edb14943b44e56afab:eyJzZWxlY3RlZExpbmVDb3VudCI6NiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiYTZmYjA4ZmRhMWFjYjk1N2I2MTE2YmQzNzgxMWExZmU0MWEwMTYxMWMwNjMxZWRiZjc4NmQ2ODg5YTI3YTU1YyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjljODRkMTgzYzQ1MDA0MmE5OTA0ZWMwYTdlZjg0NGNmMmFmYzgyM2QwZjlhODFlYWZiODRjNDhiNGZiMzkxZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjAsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiZTNiMGM0NDI5OGZjMWMxNDlhZmJmNGM4OTk2ZmI5MjQyN2FlNDFlNDY0OWI5MzRjYTQ5NTk5MWI3ODUyYjg1NSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiODU2NTg1Y2IyMDYzY2U5MTU4YWZmOTkyNjhhZjAwYjY4MjEyNmRlYTg1MDAyMjA3NzI2YTY3MGFjNTQ4Y2NiNSJ9"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reports.ts#L131-L138",
+          "version": "repo-lines-v1:sha256:79a5a6127e14e3e2fd52cd1359380f99bb2c3835c39a61e190dc048f20b881a7:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMzA1YjliODQzNDQyMzQ2ZDRiNTRiOTYxZThjMTVhMTYzNDlhZGY5ODg4ZDQ4NmE3OWNiNDQxMmM3NzIzZjBjMCIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiOWNmNzlmY2RhNTNiOGQ0ZTVjNTdhZTg3NzJhMTgxYWUzMWNiNGQ4OTY4OGYxZDQ5MDkwYWY1MzQwY2UyOTEyYSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzRiY2JhYjdkZDFjZjk3MTg2MzExYjc5ZjFhNDM5ZDE1YzFmOGI0YWY5NWI4OGE3ZTM2Mzc5ZmE2MGU1YjcwZSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZmViMTUyMjAyZWU1OWZmMDhiYzc0ZDkxMjk2N2ViOWI5ZjQwYWRiNDU3ZTIzNjdhMGM0ZjFkYjQ0NjFhNzMzMyJ9"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reports.ts#L558-L579",
+          "version": "repo-lines-v1:sha256:96800981ae8bc097f0882cb37dc70851cd8d4b183859eb104ccde62e500c86f2:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmZDhlMzJhZDMxYzdlYWRjZmQ2Y2FjNmI0MmQ1NWVjNmQ5NmNmZmMwN2VjZWZlZDU2NGU3ZDI5ODAwYzEwYTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5MmI2N2ExNjFmOTc4MmRiMGE3ZDY2M2ViMTUxM2VjMjEzMTUzNDk5OGE0OGY3M2E0Mzc5M2IzN2ZmMTRhNTIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImMzMTBhZDExZWVmMmY0ZjAxZDA2NGQ0ZWYyZmMzNjcwZjk5NjBmNTIzMzNiMmQ3NTg4YjhhOTAwOWVlOWIxNzUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjUwZjMwZDI3NWZmYjU4ZGUwMTkxNWFkMzc4YmY5MzIxOWQ5YTFhZWU5ZGZlYmJiNTJhMjIxMTc1ZmZhNWI5NTUifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reports.ts#L696-L705",
+          "version": "repo-lines-v1:sha256:5fb2273bea6f2954bec2b115439335659e043eb8a27f4843e371150387eb1f39:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkMDVkZWRjOTk0ZWU5Yzc5ODM0MzQ2OTE2NGU1NTI2MmM2ZTU3MWY4MTM3ZjA3OWU4Y2U5ZWUxOTQzMTA4YWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwNjA5YjEwMjZjZDI0ZDRmYmNiZTg2ODg3NzZhMDk5ZTc5NTJiYjBiNTJkMTFiY2M4OTk2YTY4NDllOGM4NWYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3OGZhODY0ZjEwYTk2OWE4ZmRhNGYxMWI3M2FmYTBlNDIzMTcwY2NkMTI1ZDNkNjYyZDk1MjExMDgwNThkZGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjBkNmY0M2MyM2M2NWMzYjI4N2QxYzJkNjRhMDk1MWJhMTE1MDkyOTAxZTMzNTc5M2QzNTg3YWVhNzM3NzE5YTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cfa341d7f22d4fdb8dd50e5bc2717660",
+      "statement": "`buildResearchAutomationReport` validates source and report lineage, chooses section presentation from retained method snapshots, emits bounded section states, and records `completedAnalyticalSections` as zero rather than promoting rendered output to full analysis.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reports.ts#L480-L509",
+          "version": "repo-lines-v1:sha256:8bcd54be8105fd651be1e0be4f05a36516d9d875c28dc80d7aec7011aed3149a:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3NGEzMGRlM2IxYjgzODk4YzgzN2Y2OWM2MzZhYjllYzU3YTg0ZTY1NTgyNjQ5ZDRjY2ZkODZhM2YxODhiY2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5YTEwOTZhYThjNTIyYmY1YmZkMGZkOTRhMmI3NDEyYmRkOWY0ZTIxODk4M2M2NTZjOGUyOGFmMWQxYzA0YjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJhYTljZWI0MDgyOTE0Njk3NGZmNGIxNGM3MDdmN2I4OGRkNWRmOWI5M2E1YTQyOWY2MDM0MGNmYzMyMDQyMmQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImQzODk2MmIyMDE5MGJiMTUzZmNmNjJlYjcyNmZlZjJkYzIxMTM4M2Y1ZTc2YmE3MjJmYzZkYzMzMzJkMmYyOGIifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reports.ts#L600-L705",
+          "version": "repo-lines-v1:sha256:84c61095a0fd1c1e6673a793b85bedc0e5ac8f8ece83ce91fd59bb6057d97eeb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTA2LCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJkY2VmYTIwZDk1OWY2NjEzNGVkZTg0OTM0MDc4NmRlYTU0NGJjMTk4NTU0MzE2ZjlhZjk4NmY5MjM3Y2Q0ODYyIiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiJhMDYwOWIxMDI2Y2QyNGQ0ZmJjYmU4Njg4Nzc2YTA5OWU3OTUyYmIwYjUyZDExYmNjODk5NmE2ODQ5ZThjODVmIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiJlNWY4MTlmZTQ4NDczMTIzY2YxYWQ0MWIyNTgyYWE3N2Q1OTdmYzAyNTFmNzUwOTE2M2EyMTljYzg0NThmZmEzIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiIwZDZmNDNjMjNjNjVjM2IyODdkMWMyZDY0YTA5NTFiYTExNTA5MjkwMWUzMzU3OTNkMzU4N2FlYTczNzcxOWE3In0"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reports.ts#L727-L742",
+          "version": "repo-lines-v1:sha256:12342b3cfe7dc7f15910769871224a4a201e592e49e3b09924609080ea60fc0a:eyJzZWxlY3RlZExpbmVDb3VudCI6MTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFhOTIyZjg2Yjc4NmI1ZDBlMzM0NTI2Yzg0MWEzMzdhZjFlY2FhMjEyNTUxZjAyZTNmMjU4ZGUyZWMwZjI5OWUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyYTJjYjI1YTEyMmI0NDIyMWE2MjM0ZWM2NjBhN2I1ZmI3ZjliZGU3YjNiOWUyYjNjNTU5YTBkOTZmYWM3MzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM2NzhmMzVlYmU0MDEzOWRlZWY5MjcyZDljYTY2YTAzMjNlNjQyNmNjYWQ1ZjI2ZDA3Y2U4N2Y1NGFjZDQwMmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFkYzA0ZjFhNDMxZGJkMmQ2NzZmODEzYmZlYjYzOWRkMjI2MjYyNzMwMmIyNzg1MDhiMTNmM2I1NDk1NjQ5ZjgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b953b268f9994582aaff6cd3d1be050b",
+      "statement": "The bounded gate builder produces M10, I11, I12, and I16 gate/inventory outputs while deliberately retaining disabled forecast, inference/linkage, estimator, and execution paths; its verifier rebuilds output and rejects replay mismatches.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/bounded-analysis-gates.ts#L108-L145",
+          "version": "repo-lines-v1:sha256:bb17c9a9b2c5269851c6bb4ade3d78f294ab5389154a8ec524a79c2bc4bb3718:eyJzZWxlY3RlZExpbmVDb3VudCI6MzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3ODYxNWY1MWIxYjMwYTVkMjJkMTUzMDZkZDgyYTYyZGZlMDM5YjlkN2ZlNWI3Nzk5ODkzMjNhYTlhZTMxZWYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQyYTJjYjI1YTEyMmI0NDIyMWE2MjM0ZWM2NjBhN2I1ZmI3ZjliZGU3YjNiOWUyYjNjNTU5YTBkOTZmYWM3MzkiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImU1YTFjM2JiYjVjZDc3ODU0NzI5YzBhY2JkMWJhYzNkZjc0MmY0MjkxMGQ4MjU3MDI4MTljZmI1ZWI2YmNkMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImVhZmVjYjViZGEwOWI5N2U0Zjc3YzU4NDdjZWI4YWViYTAyMTdiN2M0NDJlNzFhYWVkMzY4NjQxZGM1ZWVjZWMifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/bounded-analysis-gates.ts#L305-L370",
+          "version": "repo-lines-v1:sha256:3b247cd2826bd91d4c963603b8136e7068aacaf7462424d2a70b8d90e96af1e5:eyJzZWxlY3RlZExpbmVDb3VudCI6NjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE2NzU5YjY2MzFhOTQ4M2YxMGNiZTdkYWYxYzQ4OTMwZDUzODIxOTRiNmI3ODU5NGFhZGU3YzRmNTk2ODQ5MmEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjBmZjcyNjE0ZDYyMmU0MGJhZTM2YWE5NjkzZjY2ZTJhZmU2YmU2YTk5YzhmNGJmODE1YTZjOWE0MDIzYzI3ZWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/bounded-analysis-gates.ts#L374-L405",
+          "version": "repo-lines-v1:sha256:0e814ca95fdb88f594548a80f53f74517cb9285aa4331dc7b013de058f02c130:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJlOTk3NmQwNTgyMGNkZWM0MDM0M2U2MjhjYmUxZjdlYjA5YTNhN2QyZDY3NjZiODdkYmJkMWVkNjlkYzRkNTIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhNmExMDdkODg0NGY4OGE2N2Q4YzU4ZmM2YTIwNzRhYzA5YjRlYjkzYTFiZjMyNzVlOGMyZDY1ZGQ1MzFiNzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7e76c6f0ad6642508ab9ae71b318488e",
+      "statement": "Located Insight methods validate source-record identity and exact spans, keep pending AI or disagreement coding out of accepted results, derive I10/I13 corpus outputs through `buildInsightCorpusCounts`, and reject replay mismatches.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/insight-corpus-counts.ts#L105-L128",
+          "version": "repo-lines-v1:sha256:b8e1777aaaee7166fe26f2f50592e0f4daa69420d29b35967b15b8691db6f8ae:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVjNTYxMTI2MWE3MWMwNDRhZDY2Y2Q1N2IwMzA0NzdlMmE1MTgwMThmYTBmMzYxYjVlZjAxMzc2Nzg5NjczM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY1ODE4YzRiOTk4OTQwZDY3ODFjNGVmM2NiNDk2Y2MwY2YxOTVmM2Y1ZTgxN2U0YzFiZjVjMWM1Njk5MmYxNTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNkYjNjMDE4ODcxMTM1MTM1ODlkZTJhNTQ1YzdlZTliODFlMmFmYjdlOWZmZGZhMTk1MGZlNzFmNWQwYjgxMjUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxOTlmOWNhOGEyNWUwYTE0ZjdiN2M0OTIzMmEzNjVmYWYzMjRhODMyMjMxNGFhOTdiZDNmNzRhOWQ2ZTBmZmUifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/insight-corpus-counts.ts#L43-L74",
+          "version": "repo-lines-v1:sha256:6cb5e7d3c4d63b233743e0693f45ca054d8323cfbc1e5badb49cb0edc63e39f9:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjE4NjJhMjFiZTdiYzVlYmVhZDFhOTk3ZTJjNTI3ZWNiNzMxY2Q3YWMxYTIzZmMyYmU1MWRhNmJlM2VjOTdkZGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjY4YjZlYzk5YmJhNTRmODYxMDNlYjM4ZGI5MmIzODdhMTYyZTg1NmUyNzgyMTU1YWY3YWE0NDY2MGY4ZDdhZTkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM0OGVkNTUxODhmNTQ1ZGUyMTlmZDg2OTZhNDIzOGQzNGU2OGUwMzI2ZjEwMzNiNjI0MTg4Y2U1NWI5NDA1OTYifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/located-insight-methods.ts#L234-L329",
+          "version": "repo-lines-v1:sha256:ad07bc65a845cb7567a8055aa8461c5909ff6325798b54cdb956dee71e3a8299:eyJzZWxlY3RlZExpbmVDb3VudCI6OTYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI0N2MwNjU5NTY4MTkzMWRkNjM5NzY0Nzk2ZjhjMDBiZWQyOWNkNTg0M2Q5YmMyMTc0ODc0ZThhOWQ5NDE1MDIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE5MWJjMGEwODIzNjQ3YmRjNTY1NTdiNWIzNTc3ZTU1OWZhZDUzYmU1YjYyNDYyYjFkOGU2YTRhZGYxZmRlYmEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/located-insight-methods.ts#L58-L135",
+          "version": "repo-lines-v1:sha256:6f4f9af0713af5c298b803ee5d51ca5e6b0b04784a3b6dce4ef57933bd793b76:eyJzZWxlY3RlZExpbmVDb3VudCI6NzgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjVlYTczZTk1NzRhY2NhOGVmMzEzZDQ1NjU4NzQ2YWM3MjNjYjYxN2NlZTZkYTFjYzRiNTc1ODFiNjFjNDc0M2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZiNTgwZTk2NGY4M2E0NzNmNDNkNDQzODQ2Mjk0OWQ2OGI1NjAwZmRhNzg3ZjE2Mzc0NWQwMGRlODljYmYzNmEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4OGVmNTc3YTAzYjBkZjMwNmNiMTIwNWJlZGViNDcxYTNjYmE0M2I5ZjQ5ZDVmNjVlOTQyMTg4YzVhOTVjYWEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_cac8213aa21b4d74b3eb290f220a808f",
+      "statement": "At the checked main SHA `2b44e4bcf75ac3bfd2a5d3a0de679a0fcb1a48ad`, the status record and sync-plan opening update supersede the former PR #110 baseline: bounded packages including PRs #172, #174, #175, and #177 are merged, while the records explicitly retain full Ultimate alignment, U-11, U-26, and U-32 as unresolved.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L68-L124",
+          "version": "repo-lines-v1:sha256:d14e40cce5edc1a0263ea63de0e3eb5ac9991cf6cf8d141ef13aac64d1a2bb90:eyJzZWxlY3RlZExpbmVDb3VudCI6NTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc1NmQ0NDgxYzVkNzhmYzE4YzVkNjk1YTdjYzgwZWU5ZjY0MjIzMThhYmFjNTM5ZWRhMTRkYTA1NzkwYjFiYjIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU0ZGZkMjE1YmJiYjE0ZTFhNzM0OWQ0YTM3ZmM2MDNiNGI0MmYxODFlMzFhZDdjMGQyYmViZmFhOTQyMjBlYmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjA3NzMyNWViODg5NmE3ZmM5Yzc0NjY0ZjY4NzI2NGJkOGJjYzhlMTg5MmU2NjcwOWZlNjk3NjkwYmYzOGFjYmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjljOTQ2OTk5NGZmMjY5NWEwNzc3ZmNhYWM1OWFjNWJiNzU5MjEyNzM3MmJmNmY4YmM3ZGY2NWI2N2VmYjMwMGEifQ"
+        },
+        {
+          "resource": "repo://docs/tasks/ultimate-v1.11-tdn-sync-plan.md#L1-L33",
+          "version": "repo-lines-v1:sha256:976bec2b4290c7d2e9fa2629669310027ae2ae76540797cdcd0993df923810cd:eyJzZWxlY3RlZExpbmVDb3VudCI6MzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjAyNGViNWM0MGU1MmE2N2RlNmMyM2Y2ZGIxNDU3NWZmYjQ4MDMyYTA1NGRkNTIyODkzOGRjZDE1OTkwOGVmYTUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZiMTk4ODQwNWZkOTFiOWM5Y2VhYjhjODNiOTRjNDljZTRlMjMyOWE1YWQ2MGEyMmRhNmFmNWZiZjNjODg2YTgiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJiYTEyNTYwYzNkOTE1NTA4YjMzMTkzYThmZmE2MmI3OWUyMDczYmFiNDEwMTUxZmI1ZjlmZDJhNWQ4MzYyNzIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2ccd5a4e474c4217a8fc595a865f63b6",
+      "statement": "`MetricInputPreparationService` builds Metric input only after verified workspace and finalized-package checks, content-addresses the normalized input, receipt, and result, and on read rebuilds the exact selection and rejects artifact or projection mismatches.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/metric-input-preparation-service.ts#L114-L175",
+          "version": "repo-lines-v1:sha256:ebe5144c234da403063cac4c35c29d91e53c8373b343bacdf2fbe7cf2b701826:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhZjhiZmE5NzhlOWFiMTZiMzg1M2FkNDkzNDU1ODEzZDk1MTMxZjFmZjNhYzFiNWU2MDRlYmNlOWIwNjNmMTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImIzZjNmOWRlNTIxN2Q3NjM5ZmVhMjcyNzU5MmU2NGNlMWUwNWVjZjgzZWMzZmNhZDBiNDhiNWNiOWZiODBmMDQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE4ODdiYTFiNjFmMWUyMGJiMzU5MDY5YzhiYjBiMDY3YzVmYThmMmQxYTFkZTcxMjlkNzc5MmE5ZWU4ZGQ3YWMifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/metric-input-preparation-service.ts#L177-L249",
+          "version": "repo-lines-v1:sha256:16f72f696180b4f5dc0835d20d71d9b14fa26f99f0ce0152c5855dbae1eea5fb:eyJzZWxlY3RlZExpbmVDb3VudCI6NzMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0N2UwMjEzZDI1MTM5NWZiZWE0ODdmMThmNWJjMTQxMzQ2OTU0ZmI1OWUzZDMyMmZmNzc5ZTA2ZWNkNjNiMTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdiOGJhMmJkOWNhOTBiYTE3YzViMWMyN2ZmYThlODhjMWYyMjhkZmJiNDkxYzE5ZmEyOWZiMjc0NWRkMzM1N2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImYzZWIwYmExMTA3ZWRjZDlhNGUzZTZhZWYwYjcwMDllMWZkMGUxYzNiZDZkOTllNGFhNjFkMWRiYTIyNzhhYmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVkNzQ0ODVlYWJhNjM0ZGM0ZTE5OTkwZGE3ODlhNmQ0OWFiMTVlYTdmMTA2M2VlZDUwNGYxZDdlN2U3ZWFjOGMifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_969ddb85d32146b38e78395874714175",
+      "statement": "For M08, `AutomationReaderReports` in `reader-report-revisions.ts` owns authenticated reader-only spec intake and receipt-bound reader builds through `ReaderUnitSpecIntakes`; the service delegates the reader intake and intake-bound build to that owner, while native extraction and auto-report integration remain planned.",
+      "evidence": [
+        {
+          "resource": "repo://docs/STATUS.md#L93-L103",
+          "version": "repo-lines-v1:sha256:21f313f3ccaf86c2bab223b5cf5f74e588865639f9baa0245cbba3087aef0083:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzZmJiNmU5MjRmNDgxNzlmM2MxZWVkZWYxMTg2NjdjMjYwNjNiNDIxODcyNGY5YjU4MTQxNWVlNTQ1YzY3ZTkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijg1YmYxNzY0MTBlMWM2MjNmMTUwZjgwOThmMTlkYmU4N2VmOTEyZmYwNGQwNWQ1N2Q5MmNhYmJiM2FkODMxMDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImNlZTQ5YTBhZWYxNzc1NGViYWI5MGQwMGRhM2JmMWVhMDNhZWYxZTQxNThlNTVhNjk2YjJiNDI3M2NmMmI2ZTYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU1OWVkZGIzOWY4Njc1OWMxNmI0MGI3YjZkN2U4NmQwNTg5NTQwZDc1NWM2NWY1Zjg1MGYwYTNkY2NhOWMwNGQifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-report-revisions.ts#L99-L123",
+          "version": "repo-lines-v1:sha256:b8f2bc8a74a4fa0b71ca99d9c51514ecb0b0b5b765a97dc335811526f54722f1:eyJzZWxlY3RlZExpbmVDb3VudCI6MjUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjYxZGRlZWVhN2RlMDViZTA4OWViODAzNTJmODdlNzI2NDljNjY2MGMwNWVjZGI2ZTE5OGNkYzIxYTBiYWZhY2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwMWEzNjYxOGM1Y2U2OTRhMjZjOWRlYTExZjkxZjg4YjA2NWIyZWFiYzIzNGZhMDljNjgxZTM0OTFiMjQ4ZTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjEwYTIyN2M2NGMxMGYyMzBjN2RiMWQzYTY0YmQ1YjNmY2JiMWNiZmYwNjI2YzAyOGM0Njc2MjNlZTdiZjViZDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNmZjMzM2Y5MGQ2OWUxZjIzN2RkZmIyYjIwZDdlZGJhMDJkNTFlYThkNDMzZjA0NjA4NTYxOWMyYzU0NmQ3ZDAifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-unit-spec-intake.ts#L36-L104",
+          "version": "repo-lines-v1:sha256:9915fd0c138fcdd77755b763c3297fe671032b8bb414218d86467fbe09fb1e43:eyJzZWxlY3RlZExpbmVDb3VudCI6NjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY2MWUxYWU5OWNiMTA2N2E4OGE4NGZhOTczODJjZjJjYWNhNmU5NmIwYmUyMDdlMDAwNDdlOTU3ZDliMTU3YWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3MmRmZjA5NmNmMGQ3MTNkMTBkOTU4NTRjZjNiM2I3NmUxMTQwZTE1NWI4NWM1NjNjMmQyNGUwNzdkOTIyNWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImZlMDEwZTBkNWZkMmNkNjlmMWQxZDJiMmI2MTkyZTlmOGIzZmZjZmU5ZGU1NDM5MWUyMTQ2NGFiYjZmM2Q3YWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjgzMDM3NzNiNWFkMzlhNjQzODIxNzgzMGQ1NGRjOWEwNWMyYjA1ZDI1YjI2ZjY2OTQ0M2JhY2Y1ZGY0ZWUwNGMifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/service.ts#L866-L887",
+          "version": "repo-lines-v1:sha256:0e826e12f8f34288a5c314cd85595a5762b3332927825cc4aaea0ec394e19984:eyJzZWxlY3RlZExpbmVDb3VudCI6MjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFhZDgxNmEzMjQ0Njk5ZGQ0ZWVjOTdlODlkMWVlNjZjNjk3ZjdjODBkYThiNWQyZmM0YTQyYzU0YjkxZmE2NDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjkwNWE2ZjI5MTBlYzAxMmJmNDhmMTdlMjg3OWZmM2YzMWFmMWVlMzUzOWExZTgzYmIwYTcxN2Q4ZTI5YWI4MDUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjVkMmU5MmUxZWIzMzVmZGU5ODZkNmJlMGFmNzVkNWZhMDliYjUyMzBkYzhlMTJkNTAwNTgzYzAwMjI2NmUyY2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNiNzY3NWEzMjkyNmVlNGU3YWFmOGUzY2E4M2I2MDFmZGExNzI0YjcxYzA2NzVlNmQwYzEyZjBjZjAzMjE1OTkifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T02:26:52.838Z"
+  }
+}

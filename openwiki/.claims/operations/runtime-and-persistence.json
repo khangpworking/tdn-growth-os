@@ -1,0 +1,262 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:cc6fdf7dee43a881374f46b78a7c398d66352e3949929bedc0882a479f58c477",
+  "claims": [
+    {
+      "id": "claim_cbde0bb343d24373824bdb50fbbc155a",
+      "statement": "The repository provides three distinct TypeScript launch scripts: an integrated operator app, a loopback workspace read API, and an opt-in loopback owner API; each consumes configured database and artifact locations.",
+      "evidence": [
+        {
+          "resource": "repo://package.json#L35-L49",
+          "version": "repo-lines-v1:sha256:cb4b3977ef89b082749105e2ae404ccd034283a55d8de82aa94fb441825c4b17:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRiMmVhMzdmZGZjMzA4NzY0ZTFiZDVmMGFmMjA3MzdmNDg5ZTYzZWQ2N2FlMzVhYTFhZDcyODAzYjNiODg2ODAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNlZTc2N2Q1MDc1MGFhZjJkYWFjM2M3NGNhNTZiZDRlN2ZlOGU2Mzg2ZDQ3MTVkNTM4YjgwY2VhNjYwMmQ5YzUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0NWRjMTQ1ODY3ZjUzMTk3NTE4ZGNiODE0NGZlOTU5YWZmYzM0YjZjZWQxNTZhMTMyYmNlNDdkOWZhZTUwNWUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg4YmNiZDE3ZjgwZjViYzU2ZGY1MzIyMWFmYWZiOTVkYTUyMWY2MTUxOTE4NGRlZTkwZjM1ZDA4NWMyNjEwOWIifQ"
+        },
+        {
+          "resource": "repo://scripts/serve-operator-app.ts#L7-L20",
+          "version": "repo-lines-v1:sha256:9a6c964f5867f88a8ef978a5888f5a4ebda57df8a5f53cbf3a8fbad4f6c96af0:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImNhNDVmNDM3NDUyM2I5ZmNkODc0YjY5MTNiOGE5MmIwYWMxZDc2MjQyYWQwZmUwMjMwNTAzNzVlNDdjNGE0M2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUyMzE2MDEzZmUyYWQ4MzRkZTc5MmY3NTc0ZDliZTI0MzA5NzhkODE4YjlmMDk4NDJlNzRkZjJlZDhkNjFlNjAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ4NjA4YWFlOTU2NTdhODlkMzhjMGQ5NDU3ZWIzNjE1YjRmOWRhZTFjMzcyMjA4ODA1ODQwNjY5MzI4MGVkMzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVmNWE0OWJjZjQ1Yjk3ZjU2NGMzZDUwZWRhY2IyMTMxNGU5Y2Q0ZWE3Y2E1ODRjY2E4ODliMmU2MmY2OTJiM2YifQ"
+        },
+        {
+          "resource": "repo://scripts/serve-owner-api.ts#L3-L16",
+          "version": "repo-lines-v1:sha256:ca29d72b3240350038e629c72dd0d68599cae8f65cd38a0accdc851c4e16c5b6:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRmYzljYjE0NzdiNTExNmU2NTgwZmVjMGMzODMzMWVjMDU1MGQyZTAzMWU0ZGQ2ZWI0MzM2N2I0MTBjMmE2MWQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZhYjY2ZDI4ZDk0NDNlYjI2YzM2Y2M5NGJiM2E4NGYxYTVhYzhkZWQ0YTIzZTkxNjIyNGRkZTcxNTcyYjU0OTQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjoyLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImE2OGQ1NTJjMTUyMWE1NzYyMWZlZjU4NmJhZjFiOGVjZmNlMjBmZWZiNjI0NjFhYzJlZTM2N2I2ZGM5OTVjOTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNlM2ZiYzA5MzAwNGU5NjFiMjc0MDMzYTIzOGU0M2ZlMmJhNzcyNzczNDIwODlhZDdkNGUxN2JjZGM3MzU3YmMifQ"
+        },
+        {
+          "resource": "repo://scripts/serve-workspace-api.ts#L3-L13",
+          "version": "repo-lines-v1:sha256:20419571cc9f6dea6e863327c4b223d7d114533387dd9a9bd1a577879c6acec2:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjUxYjM2ZTU1NmZhYTk4NjBkYWY2MmEwMjllODAxZGVjZGEyN2FhOGQ2M2NkNmI2Nzc0OGU5NjdhYmM5NThkNzIiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImE2NmU4ZDQyNDk0MDkyNWU5ZjJlNmNiZDk2OGY2NThhNzIxNGQ5YmJkMGY4Y2M1ZGZmZmQxNWE3MmQzMjY5MTAiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjoyLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgzNzZjYzMzZGM4YTEyZGU1Zjg3ZTIyYTNiNTI4Nzg5NWFjMjYwNTVhOTdiN2ZmOTY0ODgzZWIyMWNlNjc3MjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjRmNDg5Y2FlZjMwMzAwZWIxYWYzMDE5ZmM4MWRjOThmYmVhNGEzM2VjNWMzOWFiYTRmYTIzMjhlMDkzMzBhYTIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_afb587da7b1a4f46809a695c11419a77",
+      "statement": "The integrated operator app validates configuration and frontend assets, preflights database state, composes read APIs unconditionally and owner APIs only when owner writes are enabled, and routes read and owner paths separately.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/operator-app.ts#L147-L247",
+          "version": "repo-lines-v1:sha256:4cb728945d9f832b2c529f889d96ef14199bf724377d75b8c4ace8aa1f45bc6e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAxLCJmaXJzdFNlbGVjdGVkTGluZUhhc2giOiJiMGE0MzMxNzUzNzI3MzlmNzAxNDM4NjAyNGY3NjZiNmMwNWRmODVhMGM2ZDIyMGVjZmRiYmQ1NzI3ZGFhMWM3IiwibGFzdFNlbGVjdGVkTGluZUhhc2giOiIxM2FhN2ExMTUwMGRhNTkxYTFlMzVjY2NiYzE0OGEyNmYzYzkzZTU1N2ZhZDhmZjU3MzljMDliMmM1ZDkyZjIxIiwicHJlY2VkaW5nQ29udGV4dExpbmVDb3VudCI6MywicHJlY2VkaW5nQ29udGV4dEhhc2giOiI3ZGNmMTFhNDEyMmI1MDE5NmNhODkzOThmZGFhYjkyZjFiYzdmMzgxNjkwNWI3ZjkwYjRjYjdjMGFlNmRkODJkIiwiZm9sbG93aW5nQ29udGV4dExpbmVDb3VudCI6MywiZm9sbG93aW5nQ29udGV4dEhhc2giOiJjMTI3ZWRkODZiN2RkZTMwZWYzYTE1OGFlZTU2MDg0MThiMmQzOTc5NDgzNjMyY2RhNmMxNTMwZDNiZTg3NGRlIn0"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L322-L390",
+          "version": "repo-lines-v1:sha256:43285e68652ad7fb162273817cdcc4fbed52c56d2eefa4de88d8bfcad235aa07:eyJzZWxlY3RlZExpbmVDb3VudCI6NjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3NDNhZTVhNzhiMTkyZGQyZmU3MWI4ZjhlNjFiMGM1ZTcyODRmNjBiYmRhNzhkMjZjNWJkZGNmYjc0YjRlNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkMGYyZDNhM2FhZGEyNzU4NjQ1NzhkMGE0MzkxNTYzOGQ1NDNmZWNhMmM5NDg1OGRiOTQxMjExZTg2Y2VmMmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjdmODMzM2JkNjFiMjg4YTliMGYyMDViMDYwNGY5ZmExMjg1Y2QwZDdhN2M5MTljOTUxNWMxZjNlNWNmMjFlYTcifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ab04f39ae0f5472eae023c075ccd269a",
+      "statement": "Operator configuration is loopback-only, requires database and artifact-root configuration, and makes owner writes an explicit opt-in protected by actor and token validation except for a restricted local-test mode.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/serve-operator-app.ts#L16-L17",
+          "version": "repo-lines-v1:sha256:543d1cf896a8d7b6c589c22e621f2f7ee4d4b16c99b622ecb69130747450a985:eyJzZWxlY3RlZExpbmVDb3VudCI6MiwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZTEwZDM0YzcyM2RkYzA3MDMzZTJiM2RlMTRjNjQ0NWU0MjA5NzAzN2UzNWU3ZjZhNThmMzZhMGNmYTFmN2VmNSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZmM2NmYyZGFhY2UyZTMxOGQ5YjQ3YTg5YmNiNTBjYTU5ZTAzNjU4MDY5MzA3N2I5MWFkOWM1MTZkMTQ0MGYxZiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzVlNDdmYTBlYTk5NTRlNDM5MWQ0MWNlZDA3NmE3NGM0Y2U3NWRjMDUxM2YxZWI0NDY3YTkyMWVkMjcxOGUzOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMTk1MDYyZjg4NjA4NjM3NjUxZGY2YmEyY2M2YjRhNTJmZGU1ODEzN2MzMmNiOTVlNGRhY2I1MDk5YjZkNzFhMyJ9"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L322-L335",
+          "version": "repo-lines-v1:sha256:f79ef5248b00c30d570fad4852d1abf38b2ba413e132f3b08f0c494e4866d702:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3NDNhZTVhNzhiMTkyZGQyZmU3MWI4ZjhlNjFiMGM1ZTcyODRmNjBiYmRhNzhkMjZjNWJkZGNmYjc0YjRlNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0ZDdiMDU0YjhhMTFhYTgzNjllMzI3OWI3ZTc0NjAxN2M0OTNiMTUzNjMyMzk2NGNkNWMwNTFhOTQwNjM0MTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkMGYyZDNhM2FhZGEyNzU4NjQ1NzhkMGE0MzkxNTYzOGQ1NDNmZWNhMmM5NDg1OGRiOTQxMjExZTg2Y2VmMmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjMDIzZmE4MDk3YjFlNWQyNjVmZGMxMWI5OWE3NDYwN2I2MzFlODRmOGE5MDMwZjhlMTQ5YzViZTlkMzdhOWUifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L79-L145",
+          "version": "repo-lines-v1:sha256:c6ad2bd8dc82aea5cea545f53e90176ef583978c213fd423165a3083babbea6a:eyJzZWxlY3RlZExpbmVDb3VudCI6NjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZhYzM3MjA3ZTc0MjNjMzBiNjEwYjczMmM0M2VhYmJiNTRkYzA2MTNkYTdiMzJlNjJmN2NkYTlmMGM3MThhMzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImExNDFlNzZkNzExOGYzNjNkYmUzZWVjYTNjNWEyZmFhMzZiZDI0MGY0MDAzODlkMzM1YTlmZWU1ZThkYTg5ZmUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjVhYzk3ZGYxZDU5ODRlMGIxOGRjNWYwNGZhMzIwM2MwZTRjMDQ3NWNlOTAwYjQ5ZjdhMzA3MDMwYjIyZTNmOTAifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_aff4660445714ad2a25cad690a451bcd",
+      "statement": "Opening a writable database configures SQLite WAL, foreign-key enforcement, a busy timeout, FULL synchronous mode, migrations, and safe integers; setup failures close the database connection.",
+      "evidence": [
+        {
+          "resource": "repo://src/platform/db/database.ts#L18-L40",
+          "version": "repo-lines-v1:sha256:66e34cb05e7b6fd80c67d96ffe60d9f30c48abab98a80bf8c08acd23922855c0:eyJzZWxlY3RlZExpbmVDb3VudCI6MjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImM5NDM4NGY2YjlkMDgyZGFhN2FhOThlNjU5MjBjYTAzZjYyZjQwMTgyYmM3YWUyZWUzMzc1OTMwZGMwMTg5MDgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjRmZGQ2MjY0ZDczNWM0NWJhYmRmNDc1MWQwM2MyODQ3NjYxNjJjN2U4ZDE0MWUzOTE4OTZjMjUzOGIyZGFmODIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        },
+        {
+          "resource": "repo://tests/integration/sqlite-foundation.test.ts#L56-L124",
+          "version": "repo-lines-v1:sha256:15ad60fb4263e33891986187b1f9d344848326bb077eed78891fa28823c657a4:eyJzZWxlY3RlZExpbmVDb3VudCI6NjksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4OTgwOWNlMzhhNzRiMmQ0YTE4YWI4ZWEzZDhmYzY2MmU5NzA3NmNkZTIxMTNjZWZiMDlhMzU0ZTYzMTEzZGUiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjkyMDQwZTA5NWE5NGUyYWRhNzRlNDIxZjM3MTg3NTFhOTFhODEwYmZkNjZmNDhmNGU5MzljN2I3NDgwZWI2NzAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQwNDQyZjZlNjcwNzI3OWI4MjJhYjY0YzU3YWE5NzQ0MTNjYTk5MDY0MjU4NmQ1MjI2NGY4NzEyYWRhYzA2MjQifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_34316ac0934841439a92d1981b1cfe40",
+      "statement": "Migrations are contiguous, checksummed SQL files whose applied ledger and user_version must agree; every pending migration, ledger insert, and version update is committed in one BEGIN IMMEDIATE transaction or rolled back.",
+      "evidence": [
+        {
+          "resource": "repo://migrations/0001_foundation.sql#L119-L129",
+          "version": "repo-lines-v1:sha256:981b88c25e22db92f370d74e60b07350f00889848b02c27fc162edbe607eb503:eyJzZWxlY3RlZExpbmVDb3VudCI6MTEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjIzOWFiNzdhZTk4NTFjNThhNTFlZjUzMWMwNDQ3YWQ5NTYyMGRjNjE1M2JlMDM2N2Y3NDFkMGQ1ZjNkZWI2ZTEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZjNzgyZTQ4MGQ0NDNlMzM5ODk3NzljNjJjOTQ4Njg0OTliYTU2MmRhYTI5NzdiNWQ4ZWJkMmE0N2JmOGM0MDMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImVhNzEzNTgyOWJlY2FmMjMyOTE4MDA3MGFjZDhjZGEyZWYxNTIxMWMxNmY0M2JmYTA3ZDEzMDE0ZmRjNTRiNTMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://migrations/0001_foundation.sql#L2-L8",
+          "version": "repo-lines-v1:sha256:ec32df92206e312e848b000b24b7a0560be0536623bbec302a9af9edd9fce67f:eyJzZWxlY3RlZExpbmVDb3VudCI6NywiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiN2ExZjIwZTU2MWQ5YzU4MDQ0YTk5NmIyYTc0MGEzOTE4YjBmN2UzYTM1NGZiNWQ3MzczZGViNmI2NmFlYzc1YiIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiYjcxNTdlMTdmM2FkMDNlYzRhMDE0MWZmZGY4ZmM1MjQxY2Y4NDhlNjc1MTJmMDUyYmZiNGE0YTlhNzM4M2Y3YiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjEsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDkzOTVhMTQyOGUwODllYjkxMGIwNDIzODdhOTA0ZGViNTBlODAzMTYwYTVkZTcyNzgzNDdmNTA5NTZkMzA3MyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiY2IzOTgwNTZlZjJhYmRiMDMzMWVmZjMzOGFiMjIxZDk5YmQ0MzA1NjdjNTE1NmMzYTFjNWFjNzQwMTA5MDY5MyJ9"
+        },
+        {
+          "resource": "repo://src/platform/db/migrations.ts#L24-L107",
+          "version": "repo-lines-v1:sha256:2bbcc37c3551be64c0ea04e076810cd7a0582ed9cf31cce4d6ab12504285f6ec:eyJzZWxlY3RlZExpbmVDb3VudCI6ODQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM0ZjgzNmQzNzJjMDIwNTEwYjE2MmZhZDc4YmUzNDU2OTU3ZDA5NWY2Y2Y4OWViZDVkMjI5MGNmODIzZGE2NzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdkMmMxYTI5YzRmNjUzYjA5Y2FlNzVhNjk2ZGQ3N2ExYzhmNzE4MDNkZWE4YTRmY2ExZjJkZTNmZDI4ZWI1ZjQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljYmE2OTIzMzBkYTNmYTEzYWZiYThkNTZmODJhZTA1MmVhYTU1YzFhMTRiNDA5YzVmNjM3ODBmZjZhYmY1YzkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c134908575d44facaed35343d0ca05e4",
+      "statement": "The operator app refuses to serve a database that is not at the available migration head, rather than applying migrations during app startup.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/operator-app.ts#L286-L313",
+          "version": "repo-lines-v1:sha256:3855a41687da6b7e5c357c11958e4b7f2d41b15d02f5d18a1cb58f21119e9c3f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljY2Y4ZDBmOWQ3ZjM5OWI0Mzc0NWE4MDI0M2I0OWMwNjhmMGQ0ZTUwYjRlMjI5MGY2MGUyYTZlMGNjODE0NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5NzkzZWUzNzI4ZTc4YTRhMDNhYmIyZTZjZGM1NWRmMDFiMDA4NzNhZTc3NmRkNjA0NTk5YWIzOGU0NGVjZmIifQ"
+        },
+        {
+          "resource": "repo://tests/integration/content-ai-operator.test.ts#L64-L76",
+          "version": "repo-lines-v1:sha256:a83ae60f6caaa66c962296bfa17d0318e0c8c1628a7c4b16523643caa340be07:eyJzZWxlY3RlZExpbmVDb3VudCI6MTMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRjOTE0YTBmMzYzNmU0NGU4YzY3OTliMDUzYTQwMDk4YzU4NDczZWU0MDdkOTdlZDhjNTllNjIwZDI3MmIwMWMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI3NzlkMTE4ZDZlM2NiZjQ1MDUzOTc0OGRlZTdhNDMwN2FjYmU2NDQ2Y2JhMjk3ZjI3NjBmYTVkMGJiYTFiYzIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE4ODg2MzcxZmQ2YzdmNzFhODBmNzdkNDdmNDAwN2JjN2U4MWI0MjExM2QzZWU5NjBlZjE4MTY2NWNhMjUxNjkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_1209a3555d3b471daf0c69577789f83b",
+      "statement": "Application-owned asynchronous mutation workflows can be serialized per SQLite database by withDatabaseMutationMutex, which releases queued work even when an operation fails.",
+      "evidence": [
+        {
+          "resource": "repo://src/platform/db/database-mutation-mutex.ts#L4-L20",
+          "version": "repo-lines-v1:sha256:962b4e042f43b641300ddecbbe90d4c416292bae65ac838dc51e07b956b21025:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2MDcyNTA1ODhhYjIxYzdiNjBkYTg5ZTAyZGE1YTEwMGQ5MjMwNmUyZWI1MWY4YzVmNjgxYmY5MDQ0YWFkMzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIxZDM3MTc5ZjgzNWU5N2U4MGIwY2Q2ODdhZGEyMWEwZjE5NDU4YzZkNmI1MzdlNDcwOGY4NGEyMzk2MjA0MGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_a3a56f6738194bac8886636694323392",
+      "statement": "A write-enabled operator has exclusive executor authority through a database-adjacent lock that fails closed on every pre-existing lock and is released only after clean shutdown; startup can sweep running content-AI attempts while viewer mode does not.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/executor-lock.ts#L5-L89",
+          "version": "repo-lines-v1:sha256:15d07baeed531cf2754b91ca73bed275845aca505bd1862a1f1eb1794d803f43:eyJzZWxlY3RlZExpbmVDb3VudCI6ODUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjI5MjNlY2YxNGU1OWE3NTkwNTJhZmVjMDkwZWE3ZmQwZWZjODUzMzViYWNlNWJlYjgyYzI0MTFhNmQ5MjUwYWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIwMDMwMmZmZmViYzRkODEyMzM0NzhiMTJiZjU1NmRjOTc4NGJjNjhiYjY2MjI4Yzg4MGQ0OTY3MzY4NDNlZTEifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L249-L275",
+          "version": "repo-lines-v1:sha256:11e8c0beede13315efe172363f0b8b023f6b094715d3e64907e4ff646ccb97f6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMGIyMTM1NDA4N2Q4NTk0OWYwM2MzOGVkNjE2MTBiODYwODlhOTkyNjU1YTYwNzc2N2QxZGZkOWUwMGRkY2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhMWYwMjI1OGI2MTYyNjQ2YjM0ZDBmOWQ2YjJhOTQyNzcyYmI5NGVhNWUyNTRjNTBlZTlmZTVhZmYxMWEzOTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5ZmI4M2ZiNDdhN2RhZGY0OTJhMWQ4N2NmNjM0MDQ1OTE4MWI0NzI5YzhhYTY2MDNmOTAwYWY1YjUwYjE1YTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmMDFhMWFlODc1ZjNjM2I5ZjI5ODNlOGYxM2Y0MTBiMjg4MWIzMGEyN2NjNTE4MDUzMjRlMzMzOTZlMmNmN2MifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L286-L319",
+          "version": "repo-lines-v1:sha256:21441d414f5e1112efbbc935d21e3db1a9331b185680fe517162b7fa78194432:eyJzZWxlY3RlZExpbmVDb3VudCI6MzQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNhM2U0NmY5NDI3NmI2ZjZmNGVkMWYwMmFmNzhiZWY2YTJlZTFjNDM5ZGQ1NTg0Yjk3Mzk0ODMxMzIxNGQyYjciLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljY2Y4ZDBmOWQ3ZjM5OWI0Mzc0NWE4MDI0M2I0OWMwNjhmMGQ0ZTUwYjRlMjI5MGY2MGUyYTZlMGNjODE0NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcwZDY1NGZmZjdhYjA2OWIyOGEzNzIyNzgzNGMyZWQwMzZjNjQxNWFkYmNhYjZiYzgyOTdlMzc0NzExZTk5OGEifQ"
+        },
+        {
+          "resource": "repo://tests/integration/content-ai-operator.test.ts#L78-L156",
+          "version": "repo-lines-v1:sha256:a12a801d571a1c73e34111d88a3315438a70919fdfbd4f68375ad6086ff8d4f3:eyJzZWxlY3RlZExpbmVDb3VudCI6NzksImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjFkZGNkNGRlODk5NDYzYzFiMWRhMjhhZWIzMTc0ODlhNTU2OWFlMWVmNzk3MjVhNjM1Y2EzM2IzM2QwYzBjMzQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjgxZmMxZGFiOWFiYWZjYzNjMmI3MzFjMmE0MTVlNTAyNWRiMTRhNWI1MTJhZTI3MDJjMTA0NjI2ZDkwY2NkNjEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijc2N2MzNzk2MmQzY2M5MmNiZDUwOGY5NDVkYWVhZmNiMTllMmExMTM3YzU0MjY3MDc3ZGZhY2E0MDQ2NWFlZTYifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2439e2e7a3fc4b4c8a8051b3eea52a16",
+      "statement": "SQLite manifests persist artifact digest, size, media type, safe relative path, acquisition/contract metadata, and retention state, while artifact bytes are content-addressed and referenced by digest from evidence records.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L319-L338",
+          "version": "repo-lines-v1:sha256:464fc11479ffcc9e040785c8686d73dca1c0eff3211c7413bea9e61d2c00042f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQyMWM3YmQ2ZjhhNjU2ZTBmM2M3Mjk4MmU5NmQ4NWNmNjMyNTkzNGVlNTIxMjViNGZkOWU3YWEyMGY3ODk2ZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjY3YmIxMTI3ZmI4NDBmYmJmMTVkYTlhMmE3YTA3NjE2ODlhYjQxNDkwNTE1ZTA1ZmUyNDQwNGNhMzMwNzkzNjMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImQ3OWNlNjYyM2VkNDY1NDc4ODVhMzhiMWI2ZDE1YjRjYjY5ZWMyNDExYzVmYzJiOTlkNzZkNzdhMzI3ZDhmODQiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjM0OTc2ODJmYjU5ZjUyNGVmOTJhYmYxMjFjMmFhYzE2NzI1NTg4Yjc4Y2NhNDQwMWZkZTk1MGVlZjA0MDU1MjcifQ"
+        },
+        {
+          "resource": "repo://migrations/0001_foundation.sql#L40-L65",
+          "version": "repo-lines-v1:sha256:98ccdfd65141c10ad3bfb8079840848aef5dd83314f4f09197b102a7a178be53:eyJzZWxlY3RlZExpbmVDb3VudCI6MjYsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3OWRjOTE2YzdhOWI0Nzg2ZTMwYjdmNTFjYzJiMzMwNTRlYTgwMmE1NTU0MjE0YmQ0ZmZjODkyN2I3NzUzNDciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI3MTU3ZTE3ZjNhZDAzZWM0YTAxNDFmZmRmOGZjNTI0MWNmODQ4ZTY3NTEyZjA1MmJmYjRhNGE5YTczODNmN2IiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjUxYjE4YjhlNjEyMDNmOTFhYzZhODM5MzA5YTE3ZTA2YWU2MTUzMDg2MWY4NTlkYjhhZjU3YTU4ZGM4NWIyOTgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImExMjc5OWJmOWVkZWNiMDk5MjJkMGVmYjc5ZjkxMTY4YTU1M2NiYjE5YTQ5MzVkNjk1MGRhZTU4NGFiZTc5MjUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_98519c12b0cc4c61b5d5038fb177ed47",
+      "statement": "Artifact reads enforce caller size bounds and verify file regularity and digest integrity, detecting corruption and file changes during reads; focused tests cover bounded asynchronous descriptor I/O and cleanup.",
+      "evidence": [
+        {
+          "resource": "repo://tests/unit/artifact-store-bounded.test.ts#L119-L189",
+          "version": "repo-lines-v1:sha256:b63d878a8d0b3496294e110f02a38a0d2b9179b6af9a3fe456484b2af9bdaeb3:eyJzZWxlY3RlZExpbmVDb3VudCI6NzEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdhMDZiMTc0ZTRkM2FjYjQyOWU2YjUzMDg2Njc5MThkN2ZiZjk5ZDZjNGEzOWFmOGM2MzRkNmExNjExZjFiN2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA4MWI0NzljZTQ2MDg1ZTJlOTk0YzM4Yjk1MmYwNGY3MWE1YmM0ZDM1M2UzYmRmYjJjNDJkODcwZmRjN2Q1YWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImI1YjhmNjliM2ZjYzZmYTQ1OWU4NzYwOWRjZDA5NWYxMWZkZTBmMTdmNTdkODg3YzQwMzQ3Mzk2Y2FjYzE2NDIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIifQ"
+        },
+        {
+          "resource": "repo://tests/unit/artifact-store-bounded.test.ts#L38-L100",
+          "version": "repo-lines-v1:sha256:56bc25623b4e550bcc8b1c25cb3f8ed38ff0c7e5ed989a7a6702ff60e1095de5:eyJzZWxlY3RlZExpbmVDb3VudCI6NjMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRlNjZhZjA5NTk1ZDZiMTU2ZmY3MmQwNTIyNjA1YTYyYTVkNzdkOWJlMWIyNTJiMTFkMjM2NDc3NzNjMjVhOTMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImY2ZjViNDBiMTU4NDU3ZDE3ODY0ZjIxNzkwNzg2ZGQ1YTJlY2RiNjRiNjZhNjUxZjc4OGQ0ZTI1Y2QzMzAzZDIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjJkNDEzYjQxMWExYzZhNTY2MjBlZjk4NmY3ZWI1MDNjYTlmZWRlODNiMjNmYTUyZGJiOTI5NzdlODE3ZmVjMjkiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImNkMTYxMGY2Y2IxNTJmOGNiMWVhNGMwNzI3NWYxOGZjMGZiOWRiZTI0OGUyYzQxNzVmODEwZWZjMDE5MmY3ZGUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_b5bf614a91e744b49b38e5c68fe1b3ec",
+      "statement": "The research automation worker allows one in-process owner per database, recovers before nonblocking draining, coalesces wake-ups, records drain errors, and waits for interruption and drain completion during close.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/research-automation-api.ts#L214-L285",
+          "version": "repo-lines-v1:sha256:60909e801eef88bcd3b47a6dc984586ce9a79075a7e397bb51f3d0454391052c:eyJzZWxlY3RlZExpbmVDb3VudCI6NzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA1NzAwMDE5MWVjNGExODc3MmQ2MmRmMjhiOGI5NWI5MmZjMGQ3MDQ1MWQzNTUyNDYyZmNkOTljNGFkMzhlMDYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhMWYwMjI1OGI2MTYyNjQ2YjM0ZDBmOWQ2YjJhOTQyNzcyYmI5NGVhNWUyNTRjNTBlZTlmZTVhZmYxMWEzOTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImM0MDRmZTEyZDdiYTFmZjgyYmI5ZmNiMTY0ZWFjNjdiNjVmOTBmMmIzNThlNTczNTIzNTQwNmNkNzJmZTZkYWYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ4Mjg3OGY1NjcwNGE5MGNhY2I2MzViZDMxNjk4ZDUyMzA0MzExZmEzNTQyYzQ5NzMwZTA2NmE0OWQ4ODdlNTIifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/worker.ts#L4-L65",
+          "version": "repo-lines-v1:sha256:83d99a7415a8afe18b8cec35f163992458991c570cfe835be8bf9f31d3ecd3bb:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3MGZmZDZmZWI0OWIzZWMxYzA5ODI5Njk1ZjIzOTQ0OGM3MzJhZDk0N2IwYWY0MDgwMDBkMGJmNDkzNTA3MzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_ed249769a9b0444c93ec0fb770c94863",
+      "statement": "The operator launcher treats SIGINT and SIGTERM as a single shared asynchronous close operation; application shutdown stops the server, closes components in order, and retains executor authority when any close step fails.",
+      "evidence": [
+        {
+          "resource": "repo://scripts/serve-operator-app.ts#L23-L37",
+          "version": "repo-lines-v1:sha256:63eca5aa6514a631f2703dee10ab1bd47794d5ae0238e62ba80ffa8d69182ceb:eyJzZWxlY3RlZExpbmVDb3VudCI6MTUsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0ZjhlZjYzNDBhOTk2NzM4MGY0NDgwMzE3NTIzNDU2ZmFmMTk5YTkyYzhjODFkYjVhNDg4YjRjMzMxMmU4OGEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImEwZTQ1ZDE2ODhmZWRjM2EzZWE0OTgyM2Q5NzZkZDM2MDJiNjY1MWNjMTk0OGRjNjViNGI5MDE4MGUxYThlN2UiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImY1OGQzYTY1NDgzYzFjN2U2YTNkYmY0ZTZkNjNmODVmMWNlMjJkMmVlMTcwNzE0MTc3ZjBlY2ViNDllMWE3ODAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L249-L275",
+          "version": "repo-lines-v1:sha256:11e8c0beede13315efe172363f0b8b023f6b094715d3e64907e4ff646ccb97f6:eyJzZWxlY3RlZExpbmVDb3VudCI6MjcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjcyMGIyMTM1NDA4N2Q4NTk0OWYwM2MzOGVkNjE2MTBiODYwODlhOTkyNjU1YTYwNzc2N2QxZGZkOWUwMGRkY2EiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjJhMWYwMjI1OGI2MTYyNjQ2YjM0ZDBmOWQ2YjJhOTQyNzcyYmI5NGVhNWUyNTRjNTBlZTlmZTVhZmYxMWEzOTUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjU5ZmI4M2ZiNDdhN2RhZGY0OTJhMWQ4N2NmNjM0MDQ1OTE4MWI0NzI5YzhhYTY2MDNmOTAwYWY1YjUwYjE1YTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImFmMDFhMWFlODc1ZjNjM2I5ZjI5ODNlOGYxM2Y0MTBiMjg4MWIzMGEyN2NjNTE4MDUzMjRlMzMzOTZlMmNmN2MifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_2f798baa60c14807bd0d5efe43933e75",
+      "statement": "The architecture baseline requires SQLite-consistent backups and restoration of database, artifacts, and non-secret configuration together, but concrete backup automation, recovery objectives, and restore rehearsal remain planned rather than implemented by the inspected runtime entrypoints.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L515-L535",
+          "version": "repo-lines-v1:sha256:11cbbdb5af2f0eec3e020ec84aa516dbb341f738dd86d53a90fe68a407167434:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc3NDEyZmQ3N2ZiZjVmZTljNGM5ZjRhZjVjODZiNmFiYmMwNDU2MzVjNjBkN2JkNjNmOWFiNzFjMTQ1MjkzMmMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjlhOGFmNjhmZGFjMGJiMzlkYjI1NDIzOGVmNTZlMDI4NTEzNGUzYzUwNDQwYWY0YzBjZWVhZmUwZTg3MDM4YjUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImFlYWEwOGM1YTEzY2M1OTk3YjVjOTAxYTRhNWMyMDc4MWUyNGU3ZWM2OGYwOTNmODM4NzE4MGI0NmExNTNkMjIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQ5OTQyNTBjY2QwM2ZkNTE5YTIxZmI4MTdhMzY4MWIzNWQ3Y2M4MzZkZGYzMTQ5NTIyZTE0Y2JjMTE5MjE3NmYifQ"
+        },
+        {
+          "resource": "repo://scripts/migrate.ts#L1-L20",
+          "version": "repo-lines-v1:sha256:ce874bbfdbf2a60c2b20987070425c33c7d30f031e996aa61ca095105d0eabf8:eyJzZWxlY3RlZExpbmVDb3VudCI6MjAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImZkMGNiYzM0OTk3ODNmMjJiM2Q5YmI5YTBkZDljNjAzZTczY2Y4MDkxZmRiNzVhMjgzZDllZWY4YzAxNzkyMGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjowLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjowLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUzYjBjNDQyOThmYzFjMTQ5YWZiZjRjODk5NmZiOTI0MjdhZTQxZTQ2NDliOTM0Y2E0OTU5OTFiNzg1MmI4NTUifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L286-L313",
+          "version": "repo-lines-v1:sha256:3855a41687da6b7e5c357c11958e4b7f2d41b15d02f5d18a1cb58f21119e9c3f:eyJzZWxlY3RlZExpbmVDb3VudCI6MjgsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjljY2Y4ZDBmOWQ3ZjM5OWI0Mzc0NWE4MDI0M2I0OWMwNjhmMGQ0ZTUwYjRlMjI5MGY2MGUyYTZlMGNjODE0NWMiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6Ijg5NzkzZWUzNzI4ZTc4YTRhMDNhYmIyZTZjZGM1NWRmMDFiMDA4NzNhZTc3NmRkNjA0NTk5YWIzOGU0NGVjZmIifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_7ed0cd0ac4fb417e9adaf1778d024f1a",
+      "statement": "Research automation re-authenticates a retained keyword draft against its workspace, run, frozen scope, source set, and admitted capture digests before returning it; its retained manifest registration is serialized through the database mutation mutex.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/service.ts#L444-L485",
+          "version": "repo-lines-v1:sha256:dffe28da86ef1e3d3d217e181becb5d2036b5133c52eed43ab6582bf42101dc7:eyJzZWxlY3RlZExpbmVDb3VudCI6NDIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImQwODM2OThiNmNjNjg2ZjRhODM2ZjQ0OTM0MjY3MDg2YWU3MDcwZTMyZGQ1OTFhODMzMGQxOGExMGZiNGI0MDMiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM3MmRmZjA5NmNmMGQ3MTNkMTBkOTU4NTRjZjNiM2I3NmUxMTQwZTE1NWI4NWM1NjNjMmQyNGUwNzdkOTIyNWEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjYwNjc4NTM1Nzk0YTc1M2E3ODEyNGNjNzc3ZDRhYzNhNGM2ZmFjMmFmMTE5Njc5YjgyMjJkMjY2ZTc3YTM1N2UiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjIyMDZiYzk0MjE2YTYzN2RlNzFmY2RjMmMwMGNhOWM4MWZmMDBkYzg1YWUwNDU4NDg4ODk0YjFlMTIyY2E3OTUifQ"
+        },
+        {
+          "resource": "repo://src/platform/db/database-mutation-mutex.ts#L4-L20",
+          "version": "repo-lines-v1:sha256:962b4e042f43b641300ddecbbe90d4c416292bae65ac838dc51e07b956b21025:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI2MDcyNTA1ODhhYjIxYzdiNjBkYTg5ZTAyZGE1YTEwMGQ5MjMwNmUyZWI1MWY4YzVmNjgxYmY5MDQ0YWFkMzkiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjIxZDM3MTc5ZjgzNWU5N2U4MGIwY2Q2ODdhZGEyMWEwZjE5NDU4YzZkNmI1MzdlNDcwOGY4NGEyMzk2MjA0MGIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_99b511a29b51437d9fb3515eb94d4ee5",
+      "statement": "The implemented research worker is an in-process owner guarded per database; architecture text describes separate worker processes and generalized lease, retry, backoff, and dead-letter mechanics as planned rather than established by this worker.",
+      "evidence": [
+        {
+          "resource": "repo://ARCHITECTURE.md#L100-L123",
+          "version": "repo-lines-v1:sha256:20e24738963f846af738cc64ad799ad97268dd00d8e750936ceb550e63d6e9fb:eyJzZWxlY3RlZExpbmVDb3VudCI6MjQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjZkNmVlOGVkZjU0N2RhYzBkMDkzNGZhYmMyZjRmNDMzNDliMThkY2ZiODQ2YjZkZGYyYWIyY2FhNGFkYjJjZDEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjU1Y2RhYTgzNDc1NThjMzFhMDIzYmVkYjI4OTVmNWEwNTBlOWZjNjkzOGIxYjg0N2Q5MWEzODc5YjFhNGNmNjIiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdkZDQ2ODk5MGY1YWY4NWU3YmNlYTBlZTllNDY1ZTk1Y2M1YmNiODJhYjA1ODVmMDMxZTQyNGIxN2ZlYTM5MmYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImI3ZDM1NjBmNTAyZDgxZDdlYTQzNjBhMzU5YzNhM2YxMmMxNzFhNTU2MTAzMjJmZDljNWE3NDNhMWNiZmFhOGYifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/worker.ts#L4-L65",
+          "version": "repo-lines-v1:sha256:83d99a7415a8afe18b8cec35f163992458991c570cfe835be8bf9f31d3ecd3bb:eyJzZWxlY3RlZExpbmVDb3VudCI6NjIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImVhZjIyY2YwNzMyNTkyYzI0NzE0MWNiZTYxZWZhMTEwMTI2MTJmNWEzMTIyYjlhZjliYmFmNTJmNTcyNGQxOTQiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjI3ZTU3ODhkNWQ5ZDczZDI0YTgxZGJjMGE1YTc0YmZhODJjOWMzYjNhZjk5ZTUyYWY3OTZlOTBiNDY4YThhM2QiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjM3MGZmZDZmZWI0OWIzZWMxYzA5ODI5Njk1ZjIzOTQ0OGM3MzJhZDk0N2IwYWY0MDgwMDBkMGJmNDkzNTA3MzYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjoxLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_af03a619cf37446fb7456c95b526a751",
+      "statement": "Optional R2 mirroring is accepted only for an owner-write-enabled operator, while the health response exposes mode/status fields rather than configuration credentials.",
+      "evidence": [
+        {
+          "resource": "repo://src/api/operator-app.ts#L137-L144",
+          "version": "repo-lines-v1:sha256:880ecb66e2280ec4cd07e53c23a5020260111292e9fa0548aae5dc0db0ef0098:eyJzZWxlY3RlZExpbmVDb3VudCI6OCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDUyMGUyMTg3ZmNlZjJjYjQ3YWI1ZDE1NTU5ZjUwOGViMTUyODRhZmQ5OTI4MjNlMTNkYzI3YTJhZjExMjdlMyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDAyNmJiZjAyZTM4NTI4YzI4OGViNzk4OTZkN2RjYmJkNzBjZjMxOGIxOTJjOGVlYzlhYTE3MzRkOTgwZWMwMiIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiNjk0ZDZhZjYxYjI3NjRmYjRmZDkxY2Q5ZTNkZWY0NzA5ZTdiNGFlNGMxYmY4NGFkMThiZDIzMGQ2ZDMwZTZlMyIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiYThkZmVhOGY1MzE3YjBmY2MwYjljMjcwZTkwNzUyYmMwNzJkOTBlY2UzOGIxMWE3YjQwNTgxMGVlNmRjMTg4NSJ9"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L322-L335",
+          "version": "repo-lines-v1:sha256:f79ef5248b00c30d570fad4852d1abf38b2ba413e132f3b08f0c494e4866d702:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjA3NDNhZTVhNzhiMTkyZGQyZmU3MWI4ZjhlNjFiMGM1ZTcyODRmNjBiYmRhNzhkMjZjNWJkZGNmYjc0YjRlNGYiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQ0ZDdiMDU0YjhhMTFhYTgzNjllMzI3OWI3ZTc0NjAxN2M0OTNiMTUzNjMyMzk2NGNkNWMwNTFhOTQwNjM0MTYiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6ImJkMGYyZDNhM2FhZGEyNzU4NjQ1NzhkMGE0MzkxNTYzOGQ1NDNmZWNhMmM5NDg1OGRiOTQxMjExZTg2Y2VmMmIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImJjMDIzZmE4MDk3YjFlNWQyNjVmZGMxMWI5OWE3NDYwN2I2MzFlODRmOGE5MDMwZjhlMTQ5YzViZTlkMzdhOWUifQ"
+        },
+        {
+          "resource": "repo://src/api/operator-app.ts#L407-L410",
+          "version": "repo-lines-v1:sha256:66e57978a7b9767faeb9da34b6a7576000572bb9cf9afdd7edb8fc22c84a1766:eyJzZWxlY3RlZExpbmVDb3VudCI6NCwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZDU3YWViZjg1MjJjNzExOWY1YzAxMzllNjcwYmJhZWE2ZmU2OTA5ZTU1MTdjODdhOGM5NmJmNmEzZTI2ZmYxNyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiNDEyY2EzNDVjY2Y3NWJmOWMwODA2YmNlNjk1YmU4ZGU4MDhiNzk5ODQyNTFhN2E1NGQyMDJjZjYxMDFkZDQ1MSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiMDhiNWVlYjVlZGYxNDEzZTcyZWUzYWFhZDJjMTliZGZjYTUwYzE0NmY5NDQ4N2RmNTJhZjQzOTRiYWIzZjRkNiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZTRiZDkzZjM5NzIyYTg5ZTY1N2I4ODQ2OGM4OTUxMmIyNTk1YTgzZWU2N2IyMDgyZTkwNWM1YjZiNmZmN2U3NSJ9"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T01:54:59.029Z"
+  }
+}

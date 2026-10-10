@@ -1,0 +1,82 @@
+{
+  "schemaVersion": 1,
+  "pageVersion": "sha256:fe5f357fc0a1c7e83987a361b06a6191bb57a5c4a9111503910268d76de31f84",
+  "claims": [
+    {
+      "id": "claim_4abacaeef12a465eabafa94646705f6c",
+      "statement": "Research automation treats DRAFT_READY, FAILED, CANCELLED, and INTERRUPTED as terminal run statuses; a normalized StepResultDocument retains a source outcome separately from raw CaptureRecord artifacts.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/model.ts#L100-L142",
+          "version": "repo-lines-v1:sha256:58a6f57dcb165af34a5603e8d22e1192d1487e1f6e63b954f59b6cffef195a32:eyJzZWxlY3RlZExpbmVDb3VudCI6NDMsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImRhMjQ2YWUwZjlhMGI2YmRlZjUxOTRhOWQzOGVkMDZlODIzZjIwMzY3ZWRlODVmYzI2YzAwODQ2NmRmZmIyM2UiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjQzMzIyOWFjMTAxY2Y1YmZjNDdhZTQwNjQxYzBiOGFlMDc3MDI2YjRiNzEwNTMzYjBiZTkyMTkxNWNmODQxODYiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImUwNzU3ZTUxYmJmNTBlOWY2MjAxZmU2ZDdjNTViMDdhODgyOGI3NDFjYWJkNTVhNGE0MDJiMzk4ZmU5ZDBjNGYifQ"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/model.ts#L15-L31",
+          "version": "repo-lines-v1:sha256:b5b76f9d830c8a73c29ae2b3cab42bb20331e698fd5bc3ee562e35af77280010:eyJzZWxlY3RlZExpbmVDb3VudCI6MTcsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjdlYTJiZDMwMDQwNjlkMzY3MDBhZGY1N2Q3Nzc4Y2QxZjlmNzIxMTYyZDJmZDM4ZmJjMjUyZmU3YmI1MTc5NjgiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMxMDNlN2I3ODhlMWNkNmU1ZWJlNTkyMWU5YmIzYjRmZDFjZjJjYTM0YjVjNzFhNjgyNTIxM2JlY2RiNGEwMDQiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6Ijk2ODU4NDc2YTQ3NWRkODZhYmY4M2VjMTAwNzNiYjZmZGQ1MTc2ODRmYTExZWQ1Y2NhZDNkMDM3NGEzOWQ1MDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImU5Zjc5OGQ3ZDBkYTk1ZGU1ZjMyYTBmZThlNmUwYzlkMTZlN2E5NTg2ZmM2MmE5NzVmYjM5OWRhMjhiN2U2YTUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c776fef057314557bab1fc90f6d0defe",
+      "statement": "A reader-report revision is projected as PENDING_OWNER_REVIEW when newest and undecided, SUPERSEDED when an older undecided revision exists, or its stored decision otherwise; governed automation reports use semantic state PARTIAL_UNREVIEWED_DRAFT.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reader-report-revisions.ts#L353-L353",
+          "version": "repo-lines-v1:sha256:f4d9f4be12fa86729fc52159078f0d337129d834df6f341da2781d752afeef67:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRkOWY0YmUxMmZhODY3MjlmYzUyMTU5MDc4ZjBkMzM3MTI5ZDgzNGRmNmYzNDFkYTI3ODFkNzUyYWZlZWY2NyIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiZjRkOWY0YmUxMmZhODY3MjlmYzUyMTU5MDc4ZjBkMzM3MTI5ZDgzNGRmNmYzNDFkYTI3ODFkNzUyYWZlZWY2NyIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYWEyYTJiNjM2MDFjMWRiZTZkODAxMjMzZjdjMWQxOWRhNDI0MDgwZTEzNzhiMzM0N2IwZTJlZDU5ZDZhNTBhOSIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiMWVhNjY1NjFhNjMxOTBkNzAwN2RhZmYxNjE3MTMxY2I4Nzg1ZWVhNTBhMjIxMjU1Njg3ZTM5ODg0NzczNTk4NyJ9"
+        },
+        {
+          "resource": "repo://src/modules/analysis/research-automation/reports.ts#L727-L727",
+          "version": "repo-lines-v1:sha256:1a922f86b786b5d0e334526c841a337af1ecaa212551f02e3f258de2ec0f299e:eyJzZWxlY3RlZExpbmVDb3VudCI6MSwiZmlyc3RTZWxlY3RlZExpbmVIYXNoIjoiMWE5MjJmODZiNzg2YjVkMGUzMzQ1MjZjODQxYTMzN2FmMWVjYWEyMTI1NTFmMDJlM2YyNThkZTJlYzBmMjk5ZSIsImxhc3RTZWxlY3RlZExpbmVIYXNoIjoiMWE5MjJmODZiNzg2YjVkMGUzMzQ1MjZjODQxYTMzN2FmMWVjYWEyMTI1NTFmMDJlM2YyNThkZTJlYzBmMjk5ZSIsInByZWNlZGluZ0NvbnRleHRMaW5lQ291bnQiOjMsInByZWNlZGluZ0NvbnRleHRIYXNoIjoiYzY3OGYzNWViZTQwMTM5ZGVlZjkyNzJkOWNhNjZhMDMyM2U2NDI2Y2NhZDVmMjZkMDdjZTg3ZjU0YWNkNDAyYiIsImZvbGxvd2luZ0NvbnRleHRMaW5lQ291bnQiOjMsImZvbGxvd2luZ0NvbnRleHRIYXNoIjoiZGY0MjIzMWI2NmQ1NjU2OWY3MjA5MDBkNzc2ODBiZDU4NzQyNTk5Y2JjMGE3NTY1OTczZTA4N2ZhMGM4N2U0MCJ9"
+        }
+      ]
+    },
+    {
+      "id": "claim_7987f7cfe4194a92b597f1939ce758be",
+      "statement": "The Market reader template masks prohibited provider names and filters citation candidates to safe HTTPS URLs that are not provider-hosted, preserving a boundary between internal provenance and reader-facing citations.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/reader-report/market-template.ts#L55-L75",
+          "version": "repo-lines-v1:sha256:e6b5e4d2157410fca4ef9abb3bb5c3a22d9015d01080b480331c6942d24efb89:eyJzZWxlY3RlZExpbmVDb3VudCI6MjEsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjNiNDlmM2I1ZGNhZTExYTBjMjliNjZhM2FmZjk5MzY2M2IwNDc5YTNiMzU3OTgzMTIyMmQxZWRmZWJkNTJlYzAiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImFmNjU3ZGVmZDgwODY1M2YwYjI0ZDVhODc1MjJjMzg4YjAyMDZjMjFhMjY4Mzk0MDhhZTg0NmI1NTM4NjQyOWMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjdlZDUyZjI3OGE5YjNjZmU2Y2U4NzlhZjg1Yzc1YmMwZWNmZTBkYjVlZDgzMzJjMWFhNGIzNGM4YTM4MGU5MTAiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjY4NmMxNmY5OGM2NjI2NzBiMGJmZGM3YzYyMmU1YTJiODM5MGJjNjBmZWM0YzRkZTYwNDU1NzdiNWU2M2E0YTkifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_c7dc3b1fa104465f9fc947d5dcaf59e7",
+      "statement": "The Ultimate source registry separates reliability tier from representativeness and defines operational source statuses as in use, tested, awaiting test, proposed, and not used.",
+      "evidence": [
+        {
+          "resource": "repo://docs/research/ultimate-method/input-data-sources-30-sections.md#L16-L45",
+          "version": "repo-lines-v1:sha256:311114a02577212d234c599c1eec6fe2be14015a0088b85f2e2cd3e9876beec4:eyJzZWxlY3RlZExpbmVDb3VudCI6MzAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM5NDg5YTE0YzRkYmZmZWVmODU3MWQ4NTc5NWI2MzliNTcyMzU1MmE1NTZjMmViMzAxNDhiOTg1YzY1Yzc3MzciLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6ImJlYjA5MDVhMzRlNTAyZjY4MGMxZDFjNzRiZjMxZGQ5YTU2MDQ2OTk3ZTk1ZWZhZTRkMjdmMGFkMmViNDA3MzMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEifQ"
+        },
+        {
+          "resource": "repo://docs/research/ultimate-method/input-data-sources-30-sections.md#L49-L58",
+          "version": "repo-lines-v1:sha256:e357e9b9b23a06c3a7cf4b8952b6cb5846ecbf5a1f26c5888c5a07595405a3c1:eyJzZWxlY3RlZExpbmVDb3VudCI6MTAsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6IjRhMzY4OTI4MjQzNzVkZWYwZGNhZDg0NGE1ODdkYjMzMTE4MmM2Y2U4MWM0NjliODgwZDgxODU0YTkzMWZjM2MiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjM2OGU1NGY5YjBjN2RhZWU5YjlkYzAyMzgyZmEwZDEyMDUxY2ZhYmQ4NTQ5M2ZhNjIwZmQ5ZGJhNzAxZWUyZTMiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwMWYyZWMxNzU5M2MxMDU0ZWI0NjM2N2Q4NDUzZWYyNGExNzNjZTk2YjcxMTdkOTFmOWE2OGQ0NGZlZjhiMDEiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjcwOWUyMGRkM2RlZjE3ZTFlZWZhNTkwOGRhMzJjYTNkYjgyYzMyOThjMWEzMTU1ODIxOGRmOTUxMWE2ZGUyOTgifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_92f6a42a2707422b957dcba8f3b6f9bf",
+      "statement": "The Ultimate/TDN alignment documentation lists E14 automated-collection work among items still needing synchronization, rather than treating the Ultimate rule itself as proof of implemented collector behavior.",
+      "evidence": [
+        {
+          "resource": "repo://docs/research/ultimate-method/README.md#L114-L127",
+          "version": "repo-lines-v1:sha256:7df5cd681956dcc594c849de3ae34f23c82947c7b143f736326c615664ebbf8e:eyJzZWxlY3RlZExpbmVDb3VudCI6MTQsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImMzMTMxOWZmN2Q5YjJkNDMwYzRlNDUxYzU3ZDM3Y2IzMTY2ZTc3MzU4YWExZmYwMzgzNzI2ZDYzMzdhMzJmYzEiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6Ijc2Mjk5MjFmODAyOWM3YTE5YzE0OWU2NzY2ZDJlNmIyNTZmZWMwMDA5MjRlNDM2MThmODEzOTQ1NjVjNDQ0YmUiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjAwYmZlMDM2YmI4MzFlNTU0OGFlMTNjYjBlNTU0YWMwYzRiY2YwYjc2MzI5YTJkNmRkOWI2MTMwZTQ5Y2Q1ZTIiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6IjJmZjhjMjhmNTlkNDVjYjg5ZjY5OTlkMGZlNjJkOTQ5MDM5MDVjOGZmOTUxODFlOWU4ZjliN2MzZjRhNWQ1YWUifQ"
+        }
+      ]
+    },
+    {
+      "id": "claim_63366e1444f04a059248c06ab5d0291f",
+      "statement": "Research automation defines a StartSnapshot as the frozen request identity before a run exists and a ScopeSnapshot as the persisted exact scope, with selected products and peer products represented separately.",
+      "evidence": [
+        {
+          "resource": "repo://src/modules/analysis/research-automation/model.ts#L34-L65",
+          "version": "repo-lines-v1:sha256:9a63451f180bacf15abcccefa0c5f2676f7df5a1ebf773c599bf9459d1ff8b2c:eyJzZWxlY3RlZExpbmVDb3VudCI6MzIsImZpcnN0U2VsZWN0ZWRMaW5lSGFzaCI6ImI4M2VmY2FjYzA1M2QzOWM4ZDU1MDI2NDQ5MjFlMGUyZTgyN2M2M2JmMzhkOWUzMmU4NjExYzI2NTljODMxM2YiLCJsYXN0U2VsZWN0ZWRMaW5lSGFzaCI6IjQxMmNhMzQ1Y2NmNzViZjljMDgwNmJjZTY5NWJlOGRlODA4Yjc5OTg0MjUxYTdhNTRkMjAyY2Y2MTAxZGQ0NTEiLCJwcmVjZWRpbmdDb250ZXh0TGluZUNvdW50IjozLCJwcmVjZWRpbmdDb250ZXh0SGFzaCI6IjZkOGQzZmUyNWE0M2QwZmZlMDI5NWRkYTc2NDJkMGQ3NjY3OTk5ZGQ2ZmFhNjAwYTlkNTZkOGQ4YTk2N2YxNDgiLCJmb2xsb3dpbmdDb250ZXh0TGluZUNvdW50IjozLCJmb2xsb3dpbmdDb250ZXh0SGFzaCI6ImE1MmUwNTdmNWI2MGJhZjcyNTY1NzU5MjkxOWFmYjFhMDg4ZTYwZmYyMjdhZWU1YTg1YTM3Yzg0NjIyY2Y0ZDcifQ"
+        }
+      ]
+    }
+  ],
+  "verification": {
+    "by": "openwiki/0.7.1",
+    "at": "2026-10-09T02:26:52.838Z"
+  }
+}
