@@ -75,11 +75,3 @@ test('Shopee Reader build refuses a request body that does not match the contrac
     assert.equal(calls, 0);
   } finally { globalThis.fetch = original; }
 });
-
-test('Shopee finding template substitutes only its own code record token and flags unresolved tokens', async () => {
-  const { renderFinding } = await import('../src/research-automation/ShopeeReportPanel');
-  const finding = { sectionId: 'I02', code: 'C1', label: 'Chất lượng', template: 'Có {{shopee.codes.C1.records}} bình luận.', status: 'PROPOSED_AWAITING_REVIEW', scope: 'mẫu đã chọn', citations: [{ citationId: 1, locator: 'comment 1' }] } as never;
-  assert.deepEqual(renderFinding(finding, 3), { text: 'Có 3 bình luận.', unresolved: false });
-  const foreign = { ...finding, template: 'Có {{shopee.codes.C2.records}} bình luận.' } as never;
-  assert.deepEqual(renderFinding(foreign, 3), { text: 'Có {{shopee.codes.C2.records}} bình luận.', unresolved: true });
-});

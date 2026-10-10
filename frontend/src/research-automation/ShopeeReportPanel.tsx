@@ -25,7 +25,7 @@ const keyed = (entry: Keyed | null, identity: string): Keyed => entry?.identity 
 const UNRESOLVED_TOKEN = /\{\{[^}]*\}\}/;
 
 /** Substitutes only the finding's own code-record token with the application distinct record count. */
-export function renderFinding(finding: ShopeeCitedFinding, records: number): { text: string; unresolved: boolean } {
+function renderFinding(finding: ShopeeCitedFinding, records: number): { text: string; unresolved: boolean } {
   const text = finding.template.split(`{{shopee.codes.${finding.code}.records}}`).join(String(records));
   return { text, unresolved: UNRESOLVED_TOKEN.test(text) };
 }
@@ -141,7 +141,7 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
     {notice && <p className="ra-banner" role="status">{notice}</p>}
     {!canWrite && <p className="ra-muted">Mở khóa OWNER để tạo đề xuất.</p>}
     {selection && context && <div>
-      <p>Mẫu Shopee đã chọn: {selection.sample.sampleId} · Đánh giá đủ điều kiện: {selection.counts.eligible} · Loại trừ: {selection.counts.excluded} · Không đọc được: {selection.counts.unreadable}</p>
+      <p>Mẫu Shopee đã chọn · Đánh giá đủ điều kiện: {selection.counts.eligible} · Loại trừ: {selection.counts.excluded} · Không đọc được: {selection.counts.unreadable}</p>
       <details><summary>Chi tiết kỹ thuật</summary><p>Mã mẫu: {selection.sample.sampleId} · Mã corpus: {selection.sample.corpusArtifactSha256}</p></details>
       {!selectionMatches && <p className="ra-message error" role="alert">Mẫu đã chọn không khớp ngữ cảnh đề xuất. Tải lại trước khi tiếp tục.</p>}
       <button type="button" className="button" disabled={!selectionMatches || sampleConfirmed} onClick={() => setConfirmed(canonical(context.sample))}>{sampleConfirmed ? 'Đã chọn mẫu này' : 'Chọn mẫu này'}</button>
