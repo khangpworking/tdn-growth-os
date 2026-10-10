@@ -51,6 +51,12 @@ insert. Latest-migration expectations updated to 54 across 10 suites; historical
 - Backend typecheck exit 0 (`/tmp/opencode/shopee-tc3-typecheck-20261010.log`); contracts + validator
   generation exit 0; frontend typecheck/build exit 0; frontend client 5/5 exit 0.
 - Migration suites 46/46 + 34/34 exit 0 (`shopee-t10`, `shopee-t11` logs).
+- Compatibility correction 2026-10-10: hosted full `38034657602` failed on two hardcoded
+  latest-schema expectations now covered by additive 0053/0054 (one table each, verified in SQL):
+  `source-package-intake` user_version 52n→54n, `source-package-read-query` tableCount 100→102;
+  historical migration-byte hashes and all other assertions retained. Owning 14/14 exit 0
+  (`shopee-v1-compat2-20261011.log`, same filename-typo note as above). Narrow search confirms no
+  remaining `currentVersion 52` / `user_version 52n` / `tableCount 100` expectations in tests.
 - Mounted native journey PASS (`/tmp/ultimate-shopee-synthesis-2026-10-10/mounted-harness/attempt2/`):
   confirm → propose (exactly 1 dispatch) → open/evidence (real textPointer locator, no reconstructed
   string) → build → exact retry → reader tab (quote + record context + proposed marking) → decide →
@@ -75,7 +81,11 @@ technical details); `renderFinding` module-local, isolated helper test removed. 
 No live/paid calls; synthetic fixtures + fake transports only. Full suite, broader historical replay,
 final independent review and PR/merge/release gates remain coordinator-owned.
 
-## Correction cycle 2026-10-11 (two diagnosed blockers, same branch)
+## Correction cycle 2026-10-10 (two diagnosed blockers, same branch)
+
+(Log filename suffix note: `shopee-u1..u9-*-20261011.log` and `shopee-v1-*-20261011.log`
+carry a `-20261011` naming typo; observed mtimes are 2026-10-10 14:26–14:29 +0700
+(= 07:26–07:29 UTC 2026-10-10). Raw filenames preserved as written.)
 
 1. I02 count-scope (reviewer P2): saved I02 labeled the coded count as collected records (3 coded of
    89 eligible). `prepareShopeeReaderBuild` now counts the authenticated eligible total from the same
