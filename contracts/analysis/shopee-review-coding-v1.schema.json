@@ -27,6 +27,9 @@
     },
     {
       "$ref": "#/$defs/consumptionView"
+    },
+    {
+      "$ref": "#/$defs/sampleSelection"
     }
   ],
   "$defs": {
@@ -63,8 +66,11 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "sourceSetSha256": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
         },
         "requestedPeriod": {
           "title": "ShopeeRequestedPeriod",
@@ -103,6 +109,55 @@
         "corpusArtifactSha256": {
           "type": "string",
           "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "sampleSelectionCounts": {
+      "title": "ShopeeSampleSelectionCounts",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "excluded",
+        "unreadable"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unreadable": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sampleSelection": {
+      "title": "ShopeeSampleSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "sample",
+        "counts"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-sample-selection-v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "sample": {
+          "$ref": "#/$defs/sampleIdentity"
+        },
+        "counts": {
+          "$ref": "#/$defs/sampleSelectionCounts"
         }
       }
     },
@@ -221,8 +276,11 @@
           "$ref": "#/$defs/sampleIdentity"
         },
         "keywordDigest": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
         },
         "recordIndexes": {
           "type": "array",
@@ -271,8 +329,11 @@
           "$ref": "#/$defs/sampleIdentity"
         },
         "keywordDigest": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
         },
         "promptVersion": {
           "const": "shopee-review-coding-prompt-v1"
@@ -416,8 +477,11 @@
           "$ref": "#/$defs/sampleIdentity"
         },
         "keywordDigest": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
         },
         "findings": {
           "type": "array",
@@ -542,7 +606,9 @@
       "required": [
         "citationId",
         "locator",
-        "url"
+        "url",
+        "context",
+        "recordIndex"
       ],
       "properties": {
         "citationId": {
@@ -553,6 +619,15 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 300
+        },
+        "context": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "recordIndex": {
+          "type": "integer",
+          "minimum": 0
         },
         "url": {
           "type": [
@@ -642,8 +717,11 @@
           "$ref": "#/$defs/sampleIdentity"
         },
         "keywordDigest": {
-          "type": "string",
-          "pattern": "^[a-f0-9]{64}$"
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
         },
         "counts": {
           "$ref": "#/$defs/contextCounts"
