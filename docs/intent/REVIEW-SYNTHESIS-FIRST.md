@@ -47,7 +47,7 @@ An owner can select an already-retained Shopee sample. The owner can then get a 
 
 Wrong source, membership, workspace, run, manifest, digest, configuration or quotation must be refused before model execution or publication. Saved reads and retries must enforce authenticated execution status and immutable lineage. Historical supported readers and reports must remain compatible.
 
-Independent exact-candidate review, full or generated CI, readiness, current-main compatibility, normal authorized matching-head merge and post-merge verification remain release gates. Intent approval is not implementation completion or whole-plan acceptance.
+Independent exact-candidate review, full and generated CI, readiness, current-main compatibility, normal authorized matching-head merge and post-merge verification remain release gates. Intent approval is not implementation completion or whole-plan acceptance.
 
 ## Explicit non-goals
 
