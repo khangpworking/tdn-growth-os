@@ -10,7 +10,8 @@ export type InsightReaderInput =
   | InsightReaderInputV4
   | InsightReaderInputV5
   | InsightReaderInputV6
-  | InsightReaderInputV7;
+  | InsightReaderInputV7
+  | InsightReaderInputV8;
 
 export interface InsightReaderInputV1 {
   contractVersion: 'insight-reader-input-v1';
@@ -253,5 +254,33 @@ export interface InsightReaderRequestedPeriod6 {
 }
 export interface InsightReaderMethodReference6 {
   kind: 'TIKTOK_CODING';
+  sha256: string;
+}
+export interface InsightReaderInputV8 {
+  contractVersion: 'insight-reader-input-v8';
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-shopee-v1';
+  workspaceId: string;
+  runId: string;
+  draftPairId: string;
+  semanticSha256: string;
+  sourceReportSha256: string;
+  frozenStartSha256: string;
+  frozenScopeSha256: string;
+  sourceRendererVersion: 'shopee-reader-kit-v1';
+  scope: InsightReaderFrozenScope7;
+  retainedMethods: InsightReaderMethodReference7[];
+}
+export interface InsightReaderFrozenScope7 {
+  keyword: string;
+  definition: string;
+  requestedPeriod: InsightReaderRequestedPeriod7;
+}
+export interface InsightReaderRequestedPeriod7 {
+  startDate: string;
+  endDate: string;
+}
+export interface InsightReaderMethodReference7 {
+  kind: 'SHOPEE_CODING';
   sha256: string;
 }

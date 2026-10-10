@@ -25,7 +25,8 @@ export type ResearchAutomationInsightReaderBuildRequest =
   | ResearchAutomationInsightReaderBuildRequestV1
   | ResearchAutomationInsightReaderBuildRequestV2
   | ResearchAutomationInsightReaderBuildRequestV3
-  | ResearchAutomationTikTokReaderBuildRequest;
+  | ResearchAutomationTikTokReaderBuildRequest
+  | ResearchAutomationShopeeReaderBuildRequest;
 export type ResearchAutomationReaderRevisionV2 =
   | ResearchAutomationMarketReaderRevisionV2
   | ResearchAutomationInsightReaderRevision
@@ -34,7 +35,8 @@ export type ResearchAutomationReaderRevisionV2 =
   | ResearchAutomationInsightReaderRevisionV4
   | ResearchAutomationInsightReaderRevisionV5
   | ResearchAutomationInsightReaderRevisionV6
-  | ResearchAutomationTikTokReaderRevision;
+  | ResearchAutomationTikTokReaderRevision
+  | ResearchAutomationShopeeReaderRevision;
 
 export interface ResearchAutomationReaderBuildRequest {
   contractVersion: 'reader-report-build-v1' | 'reader-report-build-v1.1' | 'reader-report-build-v1.2';
@@ -376,6 +378,14 @@ export interface ResearchAutomationTikTokReaderBuildRequest {
   semanticSha256: Sha256;
   sourceKind: 'TIKTOK';
 }
+export interface ResearchAutomationShopeeReaderBuildRequest {
+  contractVersion: 'insight-reader-build-shopee-v1';
+  reportKind: 'INSIGHT';
+  requestKey: string;
+  draftPairId: Sha256;
+  semanticSha256: Sha256;
+  sourceKind: 'SHOPEE';
+}
 export interface ResearchAutomationReaderBuildReceiptV2 {
   contractVersion: 'reader-report-build-receipt-v2';
   exactRetry: boolean;
@@ -538,6 +548,25 @@ export interface ResearchAutomationTikTokReaderRevision {
   };
   reportKind: 'INSIGHT';
   builderVersion: 'reader-report-insight-tiktok-v1';
+  semanticSha256: Sha256;
+  sourceReportSha256: Sha256;
+}
+export interface ResearchAutomationShopeeReaderRevision {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-shopee-v1';
   semanticSha256: Sha256;
   sourceReportSha256: Sha256;
 }
