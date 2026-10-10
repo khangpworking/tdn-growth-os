@@ -60,22 +60,22 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable, sa
   };
 
   return <section className="ra-shopee" aria-labelledby="ra-shopee-title">
-    <h2 id="ra-shopee-title">Mã đánh giá Shopee (mẫu U22)</h2>
+    <h2 id="ra-shopee-title">Tổng hợp đánh giá Shopee</h2>
     {error && <p className="ra-message error" role="alert">{error}</p>}
     {notice && <p className="ra-banner" role="status">{notice}</p>}
     {!canWrite && <p className="ra-muted">Mở khóa OWNER để tạo đề xuất.</p>}
     {context && <div>
       <p>Đánh giá đủ điều kiện: {context.counts.eligible} · Loại trừ: {context.counts.excluded} · Không đọc được: {context.counts.unreadable}</p>
-      <button type="button" className="button" disabled={!canWrite || pending} onClick={() => void propose()}>Tạo đề xuất mã</button>
+      <button type="button" className="button" disabled={!canWrite || pending} onClick={() => void propose()}>Tạo bản tổng hợp</button>
     </div>}
     <h3>Lịch sử đề xuất</h3>
     {history && history.sources.length === 0 && <p className="ra-muted">Chưa có đề xuất nào cho mẫu này.</p>}
-    <ul>{history?.sources.map(item => <li key={item.proposalId}><span>{item.packageId}</span> · <span>Đề xuất, chờ bạn duyệt</span> <button type="button" className="button" onClick={() => void open(item.packageId)}>Mở</button></li>)}</ul>
+    <ul>{history?.sources.map((item, index) => <li key={item.proposalId}><span>Bản tổng hợp {index + 1}</span> · <span>Đề xuất, chờ bạn duyệt</span> <button type="button" className="button" onClick={() => void open(item.packageId)}>Mở</button></li>)}</ul>
     {view && <article className="ra-shopee-report">
       <p>Đề xuất, chờ bạn duyệt. Số lượng là đề xuất của mô hình, chưa được chủ sở hữu phê duyệt.</p>
       <p>Đã mã hóa: {view.draft.counts.recordsCoded} · Mã đề xuất: {view.draft.counts.codesProposed} · Trích dẫn: {view.draft.counts.quotesCited}</p>
       <ul>{view.report.findings.map(finding => <li key={`${finding.sectionId}:${finding.code}`}>
-        <b>{finding.label}</b> (đề xuất, chờ bạn duyệt) · {finding.citations.length} trích dẫn{' '}
+        <b>{finding.label}</b> · {finding.scope} · {finding.citations.length} trích dẫn (đề xuất, chờ bạn duyệt){' '}
         <button type="button" className="button" aria-expanded={expanded === finding.code} onClick={() => setExpanded(expanded === finding.code ? null : finding.code)}>Xem bằng chứng</button>
         {expanded === finding.code && <ul>{view.draft.codes.filter(code => code.code === finding.code).map((code, index) => <li key={`${code.citationId}:${index}`}>
           bình luận {code.recordIndex}: <q>{code.quote.text}</q> · trích dẫn [{code.citationId}]
