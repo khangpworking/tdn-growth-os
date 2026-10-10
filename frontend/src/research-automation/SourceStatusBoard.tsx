@@ -80,7 +80,9 @@ export function sourceStateView(entry: ResearchAutomationSourceStatusEntry): { r
     case 'NOT_CONFIGURED':
     default:
       return { tone: 'missing', label: 'Chưa kết nối', detail: entry.credential === 'CONFIGURED'
-        ? 'Đã có token nhưng thiếu hạn mức chi tối đa, nên không tự thu.'
+        ? ((entry.spendCapUsd ?? 0) > 0
+          ? 'Đã có token và hạn mức chi, nhưng bộ thu chưa sẵn sàng nên không tự thu.'
+          : 'Đã có token nhưng thiếu hạn mức chi tối đa, nên không tự thu.')
         : noKey ? 'Nguồn này chưa được cấu hình cho phiên nghiên cứu.' : 'Chưa cài khóa trên máy chủ.' };
   }
 }
