@@ -31,36 +31,50 @@ renderer27 refusals and old versions untouched.
 
 ## Proof (actual)
 
-- Route test 1/1 exit 0 (`lanea-route-test.log`, real Chromium render ~4s).
-- TikTok reader file 5/5 exit 0, 0 skipped (`lanea-tiktok-test.log`).
-- Backend + frontend typecheck exit 0; frontend build exit 0 with the PDF link in the bundle.
+- Route test 1/1 exit 0 (`lanea-route-test.log`, real Chromium render ~4s): unknown→404,
+  unconfigured→503, configured→200 with `%PDF-` bytes and revision filename.
+- TikTok reader file 5/5 exit 0, 0 skipped (`lanea-tiktok-test.log`): retained TikTok HTML
+  prints to a real PDF without rebuild.
+- Backend + frontend typecheck exit 0; frontend builds exit 0 (`lanea-frontend-build.log`,
+  lanea-frontend-build2.log).
 - Mounted Shopee journey PASS (`lanea-mounted.log`, `shopee-attempt1/`): confirm → propose
   (1 dispatch) → evidence → build/retry → reader tab → PDF download (177652 bytes, %PDF) →
   visual check (9 print pages, desktop/phone PNGs) → decide → retry → reload reopen;
-  1/1/1 durable counts, collections unchanged, no page/Shopee endpoint errors.
+  1/1/1 durable counts, collections unchanged, `pageerror` empty, journey endpoints clean.
+- Mounted TikTok journey PASS (`lanea-tiktok-mounted4.log`, `tiktok-attempt1/`): full owner
+  flow with PDF download through the panel link (179028 bytes, %PDF), 1/1/1 durable counts,
+  `pageerror` empty, TikTok/Reader journey endpoints clean. Its console-error record retains
+  four Shopee-admission 409s (see failed cycles below) — not all-app-green.
+- pdfinfo on both downloaded PDFs: `Báo cáo insight`, HeadlessChrome/Skia producer, tagged.
 
-## Explicit partial scope
+## Failed cycles — cause and recommendation (all raw preserved)
 
-TikTok revisions download through the same builder-agnostic route (proven at render level)
-and now through the shared saved-list UI. Visual acceptance needs the independent judge pass
-over the attached PNGs/PDF.
-
-## Failed cycles — cause and recommendation
-
-- TikTok mounted attempts 1–2 failed for two SRL-classified causes, both preserved raw:
-  (1) my transient TikTok just-built “Mở bản đọc” link duplicated the existing saved-list link
-  and broke the harness strict-mode locator; it also could not survive reload by design —
-  removed, single export surface is now ReaderReportPanel;
-  (2) Shopee panel admission fetches (`samples`, `context`) return 409 `invalid_state` on a
-  TikTok-only run with no Shopee scope confirmation — pre-existing service semantics that
-  predate Lane A (TikTok missing-admission conversely returns quiet 200-empty histories).
-  These 409s are expected cross-family absence signals on single-family fixtures, not product
-  regressions, and were never filtered into green: the TikTok journey asserts only
-  TikTok/Reader endpoint cleanliness plus `pageerror` emptiness.
+- TikTok mounted attempt 1 (`lanea-tiktok-mounted.log`): FAIL — my transient just-built
+  “Mở bản đọc” link duplicated the existing saved-list link (strict-mode violation), and the
+  global console-error assertion caught two Shopee-admission 409s.
+- Attempt 2 (`lanea-tiktok-mounted2.log`): FAIL — exact panel link missing after reload:
+  transient React state cannot survive reload by design. Transient links removed; the single
+  export surface is now ReaderReportPanel latest/history (+ Shopee panel saved list).
+- Attempt 3 (`lanea-tiktok-mounted3.log`): FAIL — same reload timeout before the generic-link
+  fix; first capture of the 409 URLs as evidence.
+- Attempt 4 (`lanea-tiktok-mounted4.log`): PASS with scoped TikTok/Reader endpoint assertions.
+- 409 cause: Shopee panel admission reads (`samples`, `context`) against a TikTok-only run
+  with no Shopee scope confirmation authentically refuse with `invalid_state` (409) —
+  pre-existing service semantics predating Lane A (TikTok missing-admission conversely returns
+  quiet 200-empty histories). Expected cross-family absence signals, not product regressions;
+  never filtered into green — the console record is retained and the final harness asserts
+  them as declared expected-negative controls (409 + `invalid_state` code).
 - Recommendation: keep 409 semantics unchanged in this lane; prove each family on its own
-  admitted fixture (done: TikTok 179028-byte PDF download, Shopee 177652-byte PDF + 9 pages);
-  any 409→404 admission-semantics redesign is an owner decision for a later package, not
-  asserted here. No third same-blocker cycle without new evidence.
+  admitted fixture; any 409→404 admission-semantics redesign is an owner decision for a later
+  package. No third same-blocker cycle without new evidence.
+
+## Pending validation (heavy slot required)
+
+`9daed4f` saved-list source has NOT had fresh build/mounted after-reload PDF proof yet; prior
+proof supports the unchanged API/render path only. Prepared (not executed): scoped panel/revision
+PDF-link selectors, after-reload same-link download asserts, explicit 409 expected-negative
+controls, `pageerror` retention — in `shopee-pdf-mounted-attempt1.mts` and
+`tiktok-pdf-mounted-attempt1.mts` under `/tmp/ultimate-report-pdf-source-board-2026-10-10/`.
 
 ## Remaining gates
 
