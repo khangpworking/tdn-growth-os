@@ -81,14 +81,14 @@ test('0050 preserves populated historical Market ledger and bytes, rolls back at
   assert.deepEqual(rows(), oldRows); assert.deepEqual(decisions(), oldDecisions);
   assert.deepEqual(db.prepare('SELECT * FROM schema_migrations ORDER BY version').all(), oldMigrations);
   assert.deepEqual(db.pragma('foreign_key_check'), []);
-  assert.deepEqual(migrate(), { applied: [50, 51, 52], currentVersion: 52 });
+  assert.deepEqual(migrate(), { applied: [50, 51, 52, 53, 54], currentVersion: 54 });
   assert.deepEqual(rows().map(({ report_kind, semantic_sha256, source_report_sha256, ...old }) => {
     assert.equal(report_kind, 'MARKET'); assert.equal(semantic_sha256, null); assert.equal(source_report_sha256, null); return old;
   }), oldRows);
   assert.deepEqual(decisions(), oldDecisions);
   assert.deepEqual(db.prepare('SELECT * FROM artifact_manifests ORDER BY sha256').all(), oldManifests);
   assert.deepEqual(await artifacts.read(html.sha256), Buffer.from('<!doctype html><html lang="vi"><body>Market historical bytes 123</body></html>'));
-  assert.deepEqual(migrate(), { applied: [], currentVersion: 52 });
+  assert.deepEqual(migrate(), { applied: [], currentVersion: 54 });
   // Additive TikTok ledgers arrive empty; their immutability is proven at the owning boundary.
   assert.equal(Number((db.prepare('SELECT COUNT(*) n FROM analysis_tiktok_report_consumption').get() as { n: number | bigint }).n), 0);
   assert.equal(Number((db.prepare('SELECT COUNT(*) n FROM analysis_tiktok_coding_executions').get() as { n: number | bigint }).n), 0);
