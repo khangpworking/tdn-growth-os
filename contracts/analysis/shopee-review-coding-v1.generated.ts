@@ -11,7 +11,8 @@ export type ShopeeReviewCodingV1 =
   | ShopeeCodingHistory
   | ShopeeCodingReadView
   | ShopeeCodingContextView
-  | ShopeeConsumptionView;
+  | ShopeeConsumptionView
+  | ShopeeSampleSelection;
 
 export interface ShopeeCodingProposeRequest {
   contractVersion: 'shopee-coding-propose-v1';
@@ -19,7 +20,7 @@ export interface ShopeeCodingProposeRequest {
   expectedRevision?: number;
   binding: ShopeeCodingBinding;
   sample: ShopeeCodingSampleIdentity;
-  keywordDigest: string;
+  keywordDigest: string | null;
   /**
    * @minItems 1
    * @maxItems 6000
@@ -30,7 +31,7 @@ export interface ShopeeCodingBinding {
   workspaceId: string;
   runId: string;
   scopeSha256: string;
-  sourceSetSha256: string;
+  sourceSetSha256: string | null;
   requestedPeriod: ShopeeRequestedPeriod;
 }
 export interface ShopeeRequestedPeriod {
@@ -47,7 +48,7 @@ export interface ShopeeDraftCoding {
   requestKey: string;
   binding: ShopeeCodingBinding;
   sample: ShopeeCodingSampleIdentity;
-  keywordDigest: string;
+  keywordDigest: string | null;
   promptVersion: 'shopee-review-coding-prompt-v1';
   /**
    * @minItems 0
@@ -215,7 +216,7 @@ export interface ShopeeCitedSynthesis {
   proposalId: string;
   draftSha256: string;
   sample: ShopeeCodingSampleIdentity;
-  keywordDigest: string;
+  keywordDigest: string | null;
   /**
    * @minItems 0
    * @maxItems 6
@@ -421,13 +422,15 @@ export interface ShopeeCodingReadView {
 export interface ShopeeReadCitation {
   citationId: number;
   locator: string;
+  context: string;
+  recordIndex: number;
   url: string | null;
 }
 export interface ShopeeCodingContextView {
   contractVersion: 'shopee-coding-context-v1';
   binding: ShopeeCodingBinding;
   sample: ShopeeCodingSampleIdentity;
-  keywordDigest: string;
+  keywordDigest: string | null;
   counts: ShopeeCodingContextCounts;
 }
 export interface ShopeeCodingContextCounts {
@@ -446,4 +449,15 @@ export interface ShopeeConsumptionEntry {
   codingDraftSha256: string;
   actorId: string;
   consumedAt: string;
+}
+export interface ShopeeSampleSelection {
+  contractVersion: 'shopee-sample-selection-v1';
+  binding: ShopeeCodingBinding;
+  sample: ShopeeCodingSampleIdentity;
+  counts: ShopeeSampleSelectionCounts;
+}
+export interface ShopeeSampleSelectionCounts {
+  eligible: number;
+  excluded: number;
+  unreadable: number;
 }

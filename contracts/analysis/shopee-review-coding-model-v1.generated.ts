@@ -22,7 +22,7 @@ export interface ShopeeCodingModelSource {
     workspaceId: Uuid;
     runId: Uuid;
     scopeSha256: Digest;
-    sourceSetSha256: Digest;
+    sourceSetSha256: string | null;
     requestedPeriod: {
       startDate: string;
       endDate: string;
@@ -33,7 +33,7 @@ export interface ShopeeCodingModelSource {
     corpusArtifactSha256: Digest;
     corpusSha256: Digest;
   };
-  keywordDigest: Digest;
+  keywordDigest: string | null;
 }
 export interface ShopeeCodingModelInput {
   contractVersion: 'shopee-coding-input-v1';
@@ -46,14 +46,14 @@ export interface ShopeeCodingModelInput {
     {
       recordIndex: number;
       text: string;
-      shopId: string;
-      itemId: string;
+      shopId: string | null;
+      itemId: string | null;
     },
     ...{
       recordIndex: number;
       text: string;
-      shopId: string;
-      itemId: string;
+      shopId: string | null;
+      itemId: string | null;
     }[],
   ];
 }

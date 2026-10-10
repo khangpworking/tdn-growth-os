@@ -5,6 +5,7 @@ import configurationSchema from '../../../../contracts/analysis/automation-i14-s
 import decisionConfigurationSchema from '../../../../contracts/analysis/automation-decision-synthesis-configuration.schema.json' with { type: 'json' };
 import insightModelSchema from '../../../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
 import tiktokCodingConfigurationSchema from '../../../../contracts/analysis/tiktok-coding-configuration-v1.schema.json' with { type: 'json' };
+import shopeeCodingConfigurationSchema from '../../../../contracts/analysis/shopee-review-coding-configuration-v1.schema.json' with { type: 'json' };
 import insightCodingSchema from '../../../../contracts/analysis/automation-insight-coding.schema.json' with { type: 'json' };
 import locatedInsightSchema from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import insightSelectionSchema from '../../../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
@@ -15,7 +16,9 @@ import type { AutomationDecisionExecutionRequest, AutomationDecisionSynthesisCon
 import type { AutomationDecisionSectionId } from './decision-packets.js';
 import type { InsightModelAI, InsightModelConfiguration } from './insight-model-execution.js';
 import type { TikTokCodingConfiguration } from '../../../../contracts/analysis/tiktok-coding-configuration-v1.generated.js';
+import type { ShopeeReviewCodingConfiguration } from '../../../../contracts/analysis/shopee-review-coding-configuration-v1.generated.js';
 import type { TikTokCodingAI } from './tiktok-coding.js';
+import type { ShopeeCodingAI } from './shopee-coding.js';
 import type { AutomationSynthesisTextPort } from './synthesis-execution.js';
 
 const require = createRequire(import.meta.url);
@@ -30,7 +33,8 @@ registerPrivateReviewSchemas(insightAjv); insightAjv.addSchema(privateSourceSche
 for (const contract of [locatedInsightSchema, insightSelectionSchema, insightCodingSchema, insightModelSchema]) insightAjv.addSchema(contract);
 const validateInsightConfiguration = insightAjv.compile<InsightModelConfiguration>({ $ref: `${insightModelSchema.$id}#/$defs/configuration` });
 const validateTikTokCodingConfiguration = ajv.compile<TikTokCodingConfiguration>(tiktokCodingConfigurationSchema);
-type SynthesisConfiguration = AutomationI14SynthesisConfiguration | AutomationDecisionSynthesisConfiguration | InsightModelConfiguration | TikTokCodingConfiguration;
+const validateShopeeReviewCodingConfiguration = ajv.compile<ShopeeReviewCodingConfiguration>(shopeeCodingConfigurationSchema);
+type SynthesisConfiguration = AutomationI14SynthesisConfiguration | AutomationDecisionSynthesisConfiguration | InsightModelConfiguration | TikTokCodingConfiguration | ShopeeReviewCodingConfiguration;
 
 /** Recorded provider id for every I14 dispatch through the loopback CLIProxy. */
 export const I14_CLIPROXY_PROVIDER_ID = 'cliproxy';
@@ -124,6 +128,26 @@ export function createTikTokCodingCliproxyAi(options: {
 }): NonNullable<TikTokCodingAI> {
   if (!validateTikTokCodingConfiguration(options.configuration) || options.configuration.providerId !== I14_CLIPROXY_PROVIDER_ID)
     throw new TypeError('TikTok coding CLIProxy transport requires a valid cliproxy configuration');
+  return createBoundSynthesisAi(options);
+}
+
+/** Shopee draft coding has its own explicit model; enabling any other section never enables it. */
+export function shopeeCodingCliproxyConfiguration(modelId: string): ShopeeReviewCodingConfiguration {
+  const configuration: ShopeeReviewCodingConfiguration = Object.freeze({
+    contractVersion: 'shopee-review-coding-configuration-v1', providerId: I14_CLIPROXY_PROVIDER_ID, modelId, temperature: null,
+    maxOutputTokens: 16384, timeoutMs: 300_000, maxResponseBytes: 256 * 1024,
+  });
+  if (!validateShopeeReviewCodingConfiguration(configuration)) throw new TypeError('Shopee coding requires an explicit provider model id');
+  return configuration;
+}
+
+/** Proposal transport only: the Shopee coding owner validates output, and only an explicit human receipt accepts it. */
+export function createShopeeCodingCliproxyAi(options: {
+  readonly cliproxy: CliproxyConfiguration;
+  readonly configuration: ShopeeReviewCodingConfiguration;
+}): NonNullable<ShopeeCodingAI> {
+  if (!validateShopeeReviewCodingConfiguration(options.configuration) || options.configuration.providerId !== I14_CLIPROXY_PROVIDER_ID)
+    throw new TypeError('Shopee coding CLIProxy transport requires a valid cliproxy configuration');
   return createBoundSynthesisAi(options);
 }
 
