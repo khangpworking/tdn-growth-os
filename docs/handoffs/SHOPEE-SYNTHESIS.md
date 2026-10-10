@@ -74,3 +74,21 @@ technical details); `renderFinding` module-local, isolated helper test removed. 
 
 No live/paid calls; synthetic fixtures + fake transports only. Full suite, broader historical replay,
 final independent review and PR/merge/release gates remain coordinator-owned.
+
+## Correction cycle 2026-10-11 (two diagnosed blockers, same branch)
+
+1. I02 count-scope (reviewer P2): saved I02 labeled the coded count as collected records (3 coded of
+   89 eligible). `prepareShopeeReaderBuild` now counts the authenticated eligible total from the same
+   retained view and I02 reads “đã thu thập: 89 … trong đó 3 bản ghi có mã đề xuất … Đơn vị là bản ghi”,
+   with I17 clarified to “bản ghi có mã”. Humanizer SKILL + preservation rules read before the edit;
+   numbers/terms/modals preserved, no historical builder/contract/policy touched. Owning proof: the
+   existing settlement scenario extended (test-audit gate answered; no new file/seam) — RED pre-fix
+   (`shopee-u2-scopered-20261011.log`, 89 vs 3 for the intended reason), GREEN post-fix (`shopee-u3`).
+2. Hosted full `38033574659` FRONTEND failure (`research-automation.test.ts:103`, readerReads 2≠1):
+   the panel eagerly loaded the saved Reader list alongside admission loads. The panel now loads the
+   saved list only after sample/context/history succeed — same success behavior, no request without
+   admission; no shared-list refactor, test expectation unchanged. Unchanged test reproduced the
+   failure pre-fix (`shopee-u1-frontfail-prefix-20261011.log`) and passes 13/13 post-fix (`shopee-u4`).
+Fresh set: owning 8/8 (`shopee-u6`), backend typecheck (`shopee-u5`), frontend typecheck/build
+(`shopee-u7`, `shopee-u8`), mounted attempt3 PASS with 1 dispatch and 1/1/1 durable counts
+(`shopee-u9-mounted3-20261011.log` + `mounted-harness/attempt3/`; attempts 1–2 preserved).

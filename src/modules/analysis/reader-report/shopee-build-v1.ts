@@ -94,8 +94,14 @@ export function prepareShopeeReaderBuild(identity: ShopeeReaderSourceIdentity, d
   }
   exclusions.push(`EXCLUDED ${view.accounting.retainedRecords - view.accounting.selectedTextRecords}`);
   exclusions.push(`UNREADABLE ${unreadable}`);
+  // Authenticated eligible total from the same retained view the coding context replays: partial
+  // coding must never shrink the collected-source scope to the coded count.
+  let eligibleTotal = 0;
+  for (const record of view.records) {
+    if (record.admission === 'SELECTED_TEXT' && record.textState === 'READABLE' && record.text !== null) eligibleTotal++;
+  }
   const sections: InsightReaderSection[] = [
-    { id: 'I02', body: `<p>Khách hàng đánh giá trên Shopee đã thu thập: ${recordsCoded} bản ghi SELECTED_TEXT có chữ đọc được trong tập S05 đã lưu (số lượng do ứng dụng đếm từ bản ghi đã lưu; mã là đề xuất, chờ chủ duyệt), giai đoạn nguồn không xác minh. Đơn vị là bản ghi thu được, không phải số người.</p>`,
+    { id: 'I02', body: `<p>Khách hàng đánh giá trên Shopee đã thu thập: ${eligibleTotal} bản ghi SELECTED_TEXT có chữ đọc được trong tập S05 đã lưu, trong đó ${recordsCoded} bản ghi có mã đề xuất (số lượng do ứng dụng đếm; mã là đề xuất, chờ chủ duyệt), giai đoạn nguồn không xác minh. Đơn vị là bản ghi, không phải số người.</p>`,
       explanation: 'Bối cảnh khách hàng từ tập S05 đã lưu; chưa xác thực độc lập.' },
     { id: 'I10', body: report.findings.map(finding => {
       const renditions = draftByCode.get(finding.code);
@@ -105,7 +111,7 @@ export function prepareShopeeReaderBuild(identity: ShopeeReaderSourceIdentity, d
         occurrences.map(occurrence => quoteBlock(occurrence)).join('');
     }).join('') || `<p>Không có mã đề xuất nào trong bản nháp này.</p>`,
     explanation: 'Chủ đề và cảm nhận do mô hình đề xuất từ lời nguồn đã lưu, chờ chủ duyệt; chưa phải kết luận.' },
-    { id: 'I17', body: `<p>Phụ lục: ${codesProposed} mã đề xuất trên ${recordsCoded} bản ghi (số lượng do ứng dụng đếm từ bản ghi đã lưu; mã là đề xuất, chờ chủ duyệt). ` +
+    { id: 'I17', body: `<p>Phụ lục: ${codesProposed} mã đề xuất trên ${recordsCoded} bản ghi có mã (số lượng do ứng dụng đếm từ bản ghi đã lưu; mã là đề xuất, chờ chủ duyệt). ` +
       `Bản ghi ngoài số lượng chính: ${exclusions.join('; ')}. ${report.limitations.map(line => esc(line)).join(' ')}</p>`,
     explanation: 'Phạm vi, giới hạn và số lượng đã đếm; chưa đủ điều kiện phát hành.' },
   ];

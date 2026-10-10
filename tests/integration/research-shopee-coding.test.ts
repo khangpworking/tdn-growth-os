@@ -224,6 +224,15 @@ test('settlement clock failure after genuine publication leaves unknown output u
     semanticSha256: readDigest(read.report), sourceKind: 'SHOPEE' }, owner);
   assert.equal(built.exactRetry, false);
   assert.equal((await f.service.readShopeeReportConsumption(workspaceId, runId)).entries.length, 1);
+  // Saved I02 states the coded-record scope truthfully: distinct coded records out of the
+  // authenticated eligible total, never the coded count as collected records. This build codes
+  // only a few of the eligible rows, so the old wording fails here for the intended reason.
+  const eligibleTotal = (await f.service.readShopeeSamples(workspaceId, runId)).counts.eligible;
+  const codedTotal = read.draft.counts.recordsCoded;
+  assert.ok(codedTotal < eligibleTotal, 'partial coding exercises the scope distinction');
+  const savedHtml = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
+  assert.match(savedHtml, new RegExp(`đã thu thập: ${eligibleTotal} bản ghi SELECTED_TEXT có chữ đọc được trong tập S05 đã lưu, trong đó ${codedTotal} bản ghi có mã đề xuất`));
+  assert.doesNotMatch(savedHtml, new RegExp(`đã thu thập: ${codedTotal} bản ghi SELECTED_TEXT`));
   function readDigest(value: unknown): string {
     return createHash('sha256').update(canonicalJson(value)).digest('hex');
   }

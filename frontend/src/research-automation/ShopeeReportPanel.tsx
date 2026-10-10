@@ -54,15 +54,21 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
   useEffect(() => {
     const controller = new AbortController();
     setView(null); setExpanded(null); setError(''); setSaved([]); setConfirmed(null);
+    // Admission first: the saved Shopee list loads only after the retained sample, context and
+    // history all succeed, so a run without Shopee admission issues no saved-list request.
     Promise.all([
       loadShopeeSampleSelection(run.workspaceId, run.runId, controller.signal),
       loadShopeeCodingContext(run.workspaceId, run.runId, controller.signal),
       loadShopeeCodingHistory(run.workspaceId, run.runId, controller.signal),
-      loadReaderReportsV2(run.workspaceId, run.runId, controller.signal),
     ])
-      .then(([selected, value, list, readers]) => {
-        if (controller.signal.aborted) return;
-        setSelection(selected); setContext(value); setHistory(list); setSaved(readers.revisions.filter(isShopeeRevision));
+      .then(([selected, value, list]) => {
+        if (controller.signal.aborted) return undefined;
+        setSelection(selected); setContext(value); setHistory(list);
+        return loadReaderReportsV2(run.workspaceId, run.runId, controller.signal);
+      })
+      .then(readers => {
+        if (controller.signal.aborted || !readers) return;
+        setSaved(readers.revisions.filter(isShopeeRevision));
       })
       .catch((failure: unknown) => { if (!controller.signal.aborted) { setContext(null); setSelection(null); setError(message(failure, 'Chưa tải được mẫu Shopee.')); } });
     return () => controller.abort();
