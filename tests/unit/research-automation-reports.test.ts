@@ -632,4 +632,3 @@ test('family-draft renderer enforces applicable lint with and without source v18
       'the actual renderer rejects generated unqualified priority prose under both identities');
   }
 });
-

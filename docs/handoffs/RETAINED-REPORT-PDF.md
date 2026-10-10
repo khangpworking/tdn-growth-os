@@ -26,17 +26,23 @@ renderer27 refusals and old versions untouched.
 - `tests/integration/research-automation-api.test.ts`: unknown→404, unconfigured→503,
   configured→200 PDF assertions in the existing reader journey (helper gains optional
   `pdfExecutablePath` only).
-- `tests/integration/research-tiktok-reader.test.ts`: retained TikTok HTML prints to a real
-  PDF without rebuild (skips without Chromium, repo precedent).
+- `tests/unit/research-automation-reports.test.ts`: printed-PDF text shows retained
+  citation-register URLs (pdftotext; skips without Chromium/pdftotext, repo precedent).
+  No test-only exports or jsdom mirrors: print preparation is one scoped inline CDP step.
 
 ## Proof (actual)
 
-- Route test 1/1 exit 0 (`lanea-route-test.log`, real Chromium render ~4s): unknown→404,
-  unconfigured→503, configured→200 with `%PDF-` bytes and revision filename.
-- TikTok reader file 5/5 exit 0, 0 skipped (`lanea-tiktok-test.log`): retained TikTok HTML
-  prints to a real PDF without rebuild.
-- Backend + frontend typecheck exit 0; frontend builds exit 0 (`lanea-frontend-build.log`,
-  lanea-frontend-build2.log).
+- Route tests 2/2 exit 0 (`laneb-routefinal.log`, `laneb-route5.log`): unknown→404,
+  unconfigured→503, configured→200 with `%PDF-` bytes and revision filename, plus a genuinely
+  configured-but-failing executable asserting truthful render-failed 503 apart from the above.
+- TikTok reader file 5/5 exit 0, 0 skipped (`laneb-tiktokfinal.log`).
+- Unit file 20/20 exit 0, 0 skipped (`laneb-unitfinal.log`), including the URL-text regression:
+  genuine RED on bare “Mở nguồn” without the CDP step (`laneb-e2e-red2.log`; an earlier
+  syntax-invalid RED attempt is preserved but not claimed), GREEN after (`laneb-e2e-green.log`).
+- Backend + frontend typecheck exit 0 on final source (`laneb-tc3.log`, `laneb-ftc-merge.log`
+  after the 2f6b352 integration merge); frontend builds exit 0.
+- Merged `origin/main` 2f6b352 (Lane B source-board feedback, 3 disjoint paths) via normal
+  `--no-ff` merge; dependency set unchanged.
 - Mounted Shopee journey PASS (`lanea-mounted.log`, `shopee-attempt1/`): confirm → propose
   (1 dispatch) → evidence → build/retry → reader tab → PDF download (177652 bytes, %PDF) →
   visual check (9 print pages, desktop/phone PNGs) → decide → retry → reload reopen;
