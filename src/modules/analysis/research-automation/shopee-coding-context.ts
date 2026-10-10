@@ -3,9 +3,10 @@ import type { PrivateReviewReportView } from '../../../../contracts/analysis/pri
 /**
  * Eligible-only replay of a retained U22 private-review view for draft coding. Only SELECTED_TEXT
  * rows with readable non-null text reach the model; other-listing, unresolved, and unreadable rows
- * stay out with their reasons preserved in the view. Author identities never appear in the closed
- * projection, so nothing author-identifying can cross into the coding context: only the sanitized
- * locator, page identity, listing refs, and text travel.
+ * stay out with their reasons preserved in the view. The closed projection carries no author
+ * identifier fields (no author IDs/hashes/keys/profiles or native reviewer metadata), so only the
+ * sanitized locator, page identity, listing refs, and text travel. This strips identifier fields;
+ * it does not guarantee the retained free text itself contains no personal information.
  */
 export interface ShopeeCodingEligibleRow {
   readonly recordIndex: number;

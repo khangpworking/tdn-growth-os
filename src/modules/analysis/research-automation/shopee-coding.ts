@@ -48,7 +48,7 @@ const BRIEF = 'Propose draft topic and stated-sentiment codes for retained Shope
 const LIMITATIONS = [
   'Nguồn là đánh giá công khai đã thu thập; giai đoạn đo lường và giai đoạn bán hàng không được xác minh.',
   'Chỉ bản ghi SELECTED_TEXT có chữ đọc được mới được mã hoá; các bản ghi khác nằm ngoài số lượng chính cùng lý do.',
-  'Số lượng là đề xuất, chờ chủ duyệt; không phải phê duyệt của chủ hay phương pháp thống kê.',
+  'Số lượng do ứng dụng đếm từ bản ghi đã lưu; mã chủ đề là đề xuất, chờ chủ duyệt, không phải phê duyệt hay phương pháp thống kê.',
 ];
 
 /** Run/source-authenticated refusal. Never carries secrets, prompts, or provider output. */
@@ -347,7 +347,7 @@ export class AutomationShopeeCoding {
       group.citations.push({ citationId: entry.citationId, locator: row.locator, url: null });
       byCode.set(entry.code, group);
     }
-    const scope = 'Trong tập đánh giá đã lưu (S05); đơn vị đếm là bản ghi, không phải số người. Số lượng là đề xuất, chờ chủ duyệt.';
+    const scope = 'Trong tập đánh giá đã lưu (S05); đơn vị đếm là bản ghi, không phải số người. Số lượng do ứng dụng đếm từ bản ghi đã lưu; mã chủ đề là đề xuất, chờ chủ duyệt.';
     const findings = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).slice(0, 6).map(([code, group]) => {
       if (group.citations.length === 0) fail();
       return { sectionId: 'I10' as const, code, label: group.label,
@@ -473,11 +473,12 @@ export class AutomationShopeeCoding {
       const record = byIndex.get(entry.recordIndex);
       if (!record || record.text.slice(entry.quote.start, entry.quote.end) !== entry.quote.text) fail();
       // retrievedAt is actual capture acquisition time or unknown; source-createdAt never proves retrieval.
-      const citationId = registry.cite({ sourceKind: 'REVIEW', identity: record.pageSha256, locator: `đánh giá ${record.shopId ?? 'unknown'}:${record.itemId ?? 'unknown'}#${entry.recordIndex}`,
+      // Locator is the actual retained textPointer replayed at assembly, never a reconstructed string.
+      const citationId = registry.cite({ sourceKind: 'REVIEW', identity: record.pageSha256, locator: record.locator,
         label: 'Đánh giá khách hàng trên Shopee', retrievedAt: source.acquiredAt, url: null,
         quote: null, quoteVerification: 'NOT_APPLICABLE' });
       if (citationId === null || citationId !== entry.citationId) fail();
-      return { citationId, locator: `đánh giá ${record.shopId ?? 'unknown'}:${record.itemId ?? 'unknown'}#${entry.recordIndex}`, url: null as string | null,
+      return { citationId, locator: record.locator, url: null as string | null,
         context: record.text, recordIndex: entry.recordIndex };
     });
     return { draft, report, citations, finalizedAt: retained.manifest.finalizedAt };
