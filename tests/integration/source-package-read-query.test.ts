@@ -60,7 +60,7 @@ test('current source/profile bytes and every manifest/member reauthenticate on w
   t.mock.method(f.artifacts, 'put', forbidden);
   const reader = new SourcePackageService({ db: f.db, artifactStore: f.artifacts, now: forbidden });
   f.db.pragma('query_only=ON'); const before = await f.snapshot();
-  assert.equal(before.tableCount, 100);
+  assert.equal(before.tableCount, 102);
   for (const expected of [a, b, a]) assert.deepEqual(await reader.readVerified(expected.packageId), expected);
   for (const digest of new Set([first.manifestArtifactSha256, ...a.files.map(file => file.sha256)])) {
     const filename = f.artifacts.pathForDigest(digest), bytes = await fs.readFile(filename);

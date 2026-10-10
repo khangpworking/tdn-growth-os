@@ -40,6 +40,9 @@ import type { TikTokSourcePackageIdentity } from '../../contracts/analysis/tikto
 import { P9SourceError } from '../modules/analysis/research-automation/p9-source-intake.js';
 import tiktokCodingSchema from '../../contracts/analysis/tiktok-coding-proposal-v1.schema.json' with { type: 'json' };
 import { TikTokCodingError, TikTokCodingTransportError } from '../modules/analysis/research-automation/tiktok-coding.js';
+import shopeeCodingSchema from '../../contracts/analysis/shopee-review-coding-v1.schema.json' with { type: 'json' };
+import { ShopeeCodingError, ShopeeCodingTransportError } from '../modules/analysis/research-automation/shopee-coding.js';
+import type { ShopeeReviewCodingConfiguration } from '../../contracts/analysis/shopee-review-coding-configuration-v1.generated.js';
 import type { TikTokCodingConfiguration } from '../../contracts/analysis/tiktok-coding-configuration-v1.generated.js';
 import { buildResearchAutomationSourceStatus } from '../modules/analysis/research-automation/source-status.js';
 import type { ResearchInsightModelResponse } from '../../contracts/api/research-automation-insight-model-api.generated.js';
@@ -71,7 +74,7 @@ import { buildResearchAutomationReport } from '../modules/analysis/research-auto
 import { createChromiumPdfRenderer } from '../modules/analysis/research-automation/pdf.js';
 import { crosscheckRequestValid, crosscheckResponseValid } from '../modules/analysis/research-automation/insight-crosscheck-contracts.js';
 import { insightCodingDigest } from '../modules/analysis/research-automation/insight-default-coding.js';
-import { createI14CliproxySynthesisAi, createDecisionCliproxySynthesisAi, createInsightCodingCliproxyAi, createTikTokCodingCliproxyAi } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
+import { createI14CliproxySynthesisAi, createDecisionCliproxySynthesisAi, createInsightCodingCliproxyAi, createTikTokCodingCliproxyAi, createShopeeCodingCliproxyAi } from '../modules/analysis/research-automation/i14-cliproxy-transport.js';
 import type { AutomationI14SynthesisConfiguration } from '../modules/analysis/research-automation/i14-synthesis-execution.js';
 import type { AutomationDecisionSynthesisConfiguration, AutomationDecisionExecutionRequest } from '../modules/analysis/research-automation/decision-synthesis-execution.js';
 import type { AutomationDecisionSectionId } from '../modules/analysis/research-automation/decision-packets.js';
@@ -87,6 +90,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly tikTokCommentsCollector?: import('../platform/collectors/apify-tiktok-comments.js').ApifyTikTokCommentsCollector;
   /** Explicit TikTok draft-coding model; absent refuses model dispatch, never a default model. */
   readonly tiktokCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: TikTokCodingConfiguration };
+  /** Explicit Shopee draft-coding model; absent refuses model dispatch, never a default model. */
+  readonly shopeeCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: ShopeeReviewCodingConfiguration };
   /** Independently configured list drafting; other model flags grant no calls here. */
   readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
   readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
@@ -137,6 +142,7 @@ ajv.addSchema(readerInputSchema); ajv.addSchema(readerApiSchema);
 ajv.addSchema(sourceStatusSchema);
 ajv.addSchema([p9KeywordSchema, p9CommentsSchema, p9ReadingSchema]);
 ajv.addSchema(tiktokCodingSchema);
+ajv.addSchema(shopeeCodingSchema);
 const historicalRevisionValid = ajv.compile({ oneOf: [{ $ref: revisionRequestSchema.$id }, { $ref: classifiedRevisionRequestSchema.$id }, { $ref: insightRevisionRequestSchema.$id }, { $ref: boundedRevisionRequestSchema.$id }, { $ref: quoteRevisionRequestSchema.$id }, { $ref: marketPresentationRevisionSchema.$id }] });
 const validates = {
   tiktokPropose: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/proposeRequest` }),
@@ -147,6 +153,15 @@ const validates = {
   tiktokContext: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/context` }),
   tiktokConsumption: ajv.compile({ $ref: `${tiktokCodingSchema.$id}#/$defs/consumptionView` }),
   tiktokReaderBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/tiktokBuildRequest` }),
+  shopeePropose: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/proposeRequest` }),
+  shopeeReceipt: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/receipt` }),
+  shopeeHistory: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/history` }),
+  shopeeReadView: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/readView` }),
+  shopeeReport: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/report` }),
+  shopeeContext: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/context` }),
+  shopeeSamples: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/sampleSelection` }),
+  shopeeConsumption: ajv.compile({ $ref: `${shopeeCodingSchema.$id}#/$defs/consumptionView` }),
+  shopeeReaderBuild: ajv.compile({ $ref: `${readerApiSchema.$id}#/$defs/shopeeBuildRequest` }),
   p9Selection: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/selectionRequest` }),
   p9Package: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/sourcePackage` }),
   p9Receipt: ajv.compile({ $ref: `${p9CommentsSchema.$id}#/$defs/receipt` }),
@@ -259,6 +274,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   const insightCodingAi = configuration.insightCoding ? createInsightCodingCliproxyAi(configuration.insightCoding) : null;
   if (configuration.tiktokCoding && !configuration.owner) throw new TypeError('TikTok coding model requires the OWNER writer');
   const tiktokCodingAi = configuration.tiktokCoding ? createTikTokCodingCliproxyAi(configuration.tiktokCoding) : null;
+  if (configuration.shopeeCoding && !configuration.owner) throw new TypeError('Shopee coding model requires the OWNER writer');
+  const shopeeCodingAi = configuration.shopeeCoding ? createShopeeCodingCliproxyAi(configuration.shopeeCoding) : null;
   if (configuration.decisionSynthesis && !configuration.owner) throw new TypeError('Automation decision synthesis requires the OWNER writer');
   const decisionSynthesisAi: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionRequest['ai']>> = {};
   if (configuration.decisionSynthesis) {
@@ -391,7 +408,14 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const tiktokConsumptionRead = action === 'sources/tiktok-coding/consumption';
     const tiktokPropose = action === 'sources/tiktok-coding/proposals';
     const tiktokReaderBuild = action === 'reader-reports/tiktok';
-    const readerAction = insightReaderBuild || readerDecisionV2 || readerListV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml) || tiktokReaderBuild || tiktokPropose;
+    const shopeeSamples = action === 'sources/shopee-coding/samples';
+    const shopeeContextRead = action === 'sources/shopee-coding/context';
+    const shopeeRead = /^sources\/shopee-coding\/([0-9a-f-]{36})$/.exec(action ?? '');
+    const shopeeHistory = action === 'sources/shopee-coding';
+    const shopeeConsumptionRead = action === 'sources/shopee-coding/consumption';
+    const shopeePropose = action === 'sources/shopee-coding/proposals';
+    const shopeeReaderBuild = action === 'reader-reports/shopee';
+    const readerAction = insightReaderBuild || readerDecisionV2 || readerListV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml) || tiktokReaderBuild || tiktokPropose || shopeeReaderBuild || shopeePropose;
     const report = originalReport?.[1] ?? versionReport?.[2];
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
@@ -399,8 +423,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const p9History = action === 'sources/tiktok-comments' || action === 'sources/video-reading';
     const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild
-      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead;
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
+      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
     if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -465,6 +489,33 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (tiktokConsumptionRead) {
           const consumption = await readService.readTikTokReportConsumption(workspaceId!, runId);
           if (!validates.tiktokConsumption(consumption)) throw new Error('TikTok consumption ledger failed validation');
+          return sendApiJson(response, 200, consumption);
+        }
+        if (shopeeSamples) {
+          const selection = await readService.readShopeeSamples(workspaceId!, runId);
+          if (!validates.shopeeSamples(selection)) throw new Error('Shopee sample selection failed validation');
+          return sendApiJson(response, 200, selection);
+        }
+        if (shopeeContextRead) {
+          const context = await readService.readShopeeCodingContext(workspaceId!, runId);
+          if (!validates.shopeeContext(context)) throw new Error('Shopee coding context failed validation');
+          return sendApiJson(response, 200, context);
+        }
+        if (shopeeRead) {
+          const read = await readService.readShopeeCoding(workspaceId!, runId, shopeeRead[1]!);
+          const view = { contractVersion: 'shopee-coding-read-v1', draft: read.draft, report: read.report,
+            citations: read.citations, finalizedAt: read.finalizedAt };
+          if (!validates.shopeeReadView(view)) throw new Error('Shopee coding read failed validation');
+          return sendApiJson(response, 200, view);
+        }
+        if (shopeeHistory) {
+          const history = await readService.listShopeeCodingHistory(workspaceId!, runId);
+          if (!validates.shopeeHistory(history)) throw new Error('Shopee coding history failed validation');
+          return sendApiJson(response, 200, history);
+        }
+        if (shopeeConsumptionRead) {
+          const consumption = await readService.readShopeeReportConsumption(workspaceId!, runId);
+          if (!validates.shopeeConsumption(consumption)) throw new Error('Shopee consumption ledger failed validation');
           return sendApiJson(response, 200, consumption);
         }
         if (action === 'pageindex') {
@@ -621,6 +672,23 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         try {
           const result = await pending;
           if (!validates.tiktokReceipt(result)) throw new Error('TikTok coding receipt failed validation');
+          return sendApiJson(response, result.exactRetry ? 200 : 201, result);
+        } finally { modelRequests.delete(controller); response.removeListener('close', disconnected); }
+      }
+      if (shopeePropose) {
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 64 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError || error instanceof EmptyBodyError) throw error; return fail(response, 400, 'bad_request', 'Malformed Shopee coding request'); }
+        if (!validates.shopeePropose(input)) return fail(response, 400, 'bad_request', 'Shopee coding request failed validation');
+        if (closing) return fail(response, 503, 'service_unavailable', 'Research executor is stopping');
+        const controller = new AbortController();
+        const disconnected = () => { if (!response.writableEnded) controller.abort(); };
+        response.once('close', disconnected); if (response.destroyed) controller.abort();
+        const pending = writeService!.proposeShopeeCoding(workspaceId!, runId!, input, shopeeCodingAi, controller.signal);
+        modelRequests.set(controller, pending);
+        try {
+          const result = await pending;
+          if (!validates.shopeeReceipt(result)) throw new Error('Shopee coding receipt failed validation');
           return sendApiJson(response, result.exactRetry ? 200 : 201, result);
         } finally { modelRequests.delete(controller); response.removeListener('close', disconnected); }
       }
@@ -808,6 +876,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         : action === 'metric-rule-adoptions' ? validates.metricRuleAdopt
         : insightReaderBuild ? validates.insightReaderBuild : readerDecisionV2 ? validates.readerDecisionV2
         : tiktokReaderBuild ? validates.tiktokReaderBuild
+        : shopeeReaderBuild ? validates.shopeeReaderBuild
         : action === 'reader-reports' ? validates.readerBuild : action === 'reader-reports/decisions' ? validates.readerDecision
         : action === 'report-revisions' ? validates.revision : revisionCancel ? validates.revisionCancel : validates.cancel;
       if (!validate(body)) return fail(response, 400, 'bad_request', 'Research request failed validation');
@@ -913,6 +982,12 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (!validates.readerBuildReceiptV2(receipt)) throw new Error('TikTok reader receipt failed validation');
         return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
       }
+      if (shopeeReaderBuild) {
+        const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
+        const receipt = await writeService!.buildShopeeReaderReport(workspaceId!, runId!, body, owner);
+        if (!validates.readerBuildReceiptV2(receipt)) throw new Error('Shopee reader receipt failed validation');
+        return sendApiJson(response, receipt.exactRetry ? 200 : 201, receipt);
+      }
       if (action === 'reader-reports' || action === 'reader-reports/decisions') {
         const owner = { actorId: configuration.owner!.actorId, role: 'OWNER' as const };
         if (action === 'reader-reports') {
@@ -950,6 +1025,11 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       if (error instanceof TikTokCodingTransportError) {
         if (error.code === 'MODEL_NOT_CONFIGURED') return fail(response, 400, 'bad_request', 'TikTok coding model is not configured.');
         return fail(response, 409, 'source_evidence_rejected', 'TikTok coding dispatch outcome is unknown or invalid; retry with a new request key.');
+      }
+      if (error instanceof ShopeeCodingError) return fail(response, 409, 'source_evidence_rejected', 'Shopee coding identity, retained evidence or request state differs.');
+      if (error instanceof ShopeeCodingTransportError) {
+        if (error.code === 'MODEL_NOT_CONFIGURED') return fail(response, 400, 'bad_request', 'Shopee coding model is not configured.');
+        return fail(response, 409, 'source_evidence_rejected', 'Shopee coding dispatch outcome is unknown or invalid; retry with a new request key.');
       }
       if (action === 'source-pdfs' && error instanceof ResearchAutomationValidationError)
         return fail(response, 400, 'bad_request', 'Tài liệu PDF không hợp lệ hoặc vượt giới hạn dung lượng.');

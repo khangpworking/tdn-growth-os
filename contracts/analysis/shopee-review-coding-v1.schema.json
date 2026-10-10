@@ -1,0 +1,792 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/shopee-review-coding-v1.schema.json",
+  "title": "ShopeeReviewCodingV1",
+  "description": "Run/source-bound draft coding of a retained Shopee U22 review sample. Only eligible SELECTED_TEXT reviews with readable text are coded, with exact retained quotes; excluded/unreadable rows stay reasoned evidence outside primary counts. Counts are proposed and await owner review, never human approval. No author identities, cross-platform joins, population estimates, personas, or second classification. Source period remains unknown/unverified.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/proposeRequest"
+    },
+    {
+      "$ref": "#/$defs/draftCoding"
+    },
+    {
+      "$ref": "#/$defs/report"
+    },
+    {
+      "$ref": "#/$defs/receipt"
+    },
+    {
+      "$ref": "#/$defs/history"
+    },
+    {
+      "$ref": "#/$defs/readView"
+    },
+    {
+      "$ref": "#/$defs/context"
+    },
+    {
+      "$ref": "#/$defs/consumptionView"
+    },
+    {
+      "$ref": "#/$defs/sampleSelection"
+    }
+  ],
+  "$defs": {
+    "digest": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "uuid": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "binding": {
+      "title": "ShopeeCodingBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workspaceId",
+        "runId",
+        "scopeSha256",
+        "sourceSetSha256",
+        "requestedPeriod"
+      ],
+      "properties": {
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sourceSetSha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
+        },
+        "requestedPeriod": {
+          "title": "ShopeeRequestedPeriod",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "startDate",
+            "endDate"
+          ],
+          "properties": {
+            "startDate": {
+              "type": "string",
+              "format": "date"
+            },
+            "endDate": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        }
+      }
+    },
+    "sampleIdentity": {
+      "title": "ShopeeCodingSampleIdentity",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sampleId",
+        "corpusArtifactSha256"
+      ],
+      "properties": {
+        "sampleId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "corpusArtifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        }
+      }
+    },
+    "sampleSelectionCounts": {
+      "title": "ShopeeSampleSelectionCounts",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "excluded",
+        "unreadable"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unreadable": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "sampleSelection": {
+      "title": "ShopeeSampleSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "sample",
+        "counts"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-sample-selection-v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "sample": {
+          "$ref": "#/$defs/sampleIdentity"
+        },
+        "counts": {
+          "$ref": "#/$defs/sampleSelectionCounts"
+        }
+      }
+    },
+    "quote": {
+      "title": "ShopeeCodingQuote",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "text",
+        "start",
+        "end"
+      ],
+      "properties": {
+        "text": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "start": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "end": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "code": {
+      "title": "ShopeeDraftCode",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "label",
+        "recordIndex",
+        "quote",
+        "citationId"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Z0-9][A-Z0-9_]{0,79}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "recordIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quote": {
+          "$ref": "#/$defs/quote"
+        },
+        "citationId": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "counts": {
+      "title": "ShopeeCodingCounts",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "recordsCoded",
+        "codesProposed",
+        "quotesCited"
+      ],
+      "properties": {
+        "recordsCoded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "codesProposed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quotesCited": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "proposeRequest": {
+      "title": "ShopeeCodingProposeRequest",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "binding",
+        "sample",
+        "keywordDigest"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-coding-propose-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "expectedRevision": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "sample": {
+          "$ref": "#/$defs/sampleIdentity"
+        },
+        "keywordDigest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
+        },
+        "recordIndexes": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6000,
+          "items": {
+            "type": "integer",
+            "minimum": 0
+          }
+        }
+      }
+    },
+    "draftCoding": {
+      "title": "ShopeeDraftCoding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "proposalId",
+        "requestKey",
+        "binding",
+        "sample",
+        "keywordDigest",
+        "promptVersion",
+        "codes",
+        "counts",
+        "status",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-draft-coding-v1"
+        },
+        "proposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "sample": {
+          "$ref": "#/$defs/sampleIdentity"
+        },
+        "keywordDigest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
+        },
+        "promptVersion": {
+          "const": "shopee-review-coding-prompt-v1"
+        },
+        "codes": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 6000,
+          "items": {
+            "$ref": "#/$defs/code"
+          }
+        },
+        "counts": {
+          "$ref": "#/$defs/counts"
+        },
+        "status": {
+          "const": "PROPOSED_AWAITING_REVIEW"
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "findingCitation": {
+      "title": "ShopeeFindingCitation",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "citationId",
+        "locator"
+      ],
+      "properties": {
+        "citationId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        }
+      }
+    },
+    "finding": {
+      "title": "ShopeeCitedFinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "sectionId",
+        "code",
+        "label",
+        "template",
+        "status",
+        "scope",
+        "citations"
+      ],
+      "properties": {
+        "sectionId": {
+          "enum": [
+            "I02",
+            "I10",
+            "I17"
+          ]
+        },
+        "code": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "pattern": "^[A-Z0-9][A-Z0-9_]{0,79}$"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "template": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "status": {
+          "const": "PROPOSED_AWAITING_REVIEW"
+        },
+        "scope": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 500
+        },
+        "citations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 6000,
+          "items": {
+            "$ref": "#/$defs/findingCitation"
+          }
+        }
+      }
+    },
+    "report": {
+      "title": "ShopeeCitedSynthesis",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "proposalId",
+        "draftSha256",
+        "sample",
+        "keywordDigest",
+        "findings",
+        "counts",
+        "status",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-cited-synthesis-v1"
+        },
+        "proposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "draftSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sample": {
+          "$ref": "#/$defs/sampleIdentity"
+        },
+        "keywordDigest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
+        },
+        "findings": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 6,
+          "items": {
+            "$ref": "#/$defs/finding"
+          }
+        },
+        "counts": {
+          "$ref": "#/$defs/counts"
+        },
+        "status": {
+          "const": "PROPOSED_AWAITING_REVIEW"
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          }
+        }
+      }
+    },
+    "receipt": {
+      "title": "ShopeeCodingReceipt",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "proposalId",
+        "requestKey",
+        "exactRetry"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-coding-receipt-v1"
+        },
+        "proposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "exactRetry": {
+          "type": "boolean"
+        }
+      }
+    },
+    "historySource": {
+      "title": "ShopeeHistorySource",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposalId",
+        "requestKey",
+        "packageId",
+        "manifestArtifactSha256",
+        "packageContentSha256",
+        "createdAt",
+        "status"
+      ],
+      "properties": {
+        "proposalId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "packageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manifestArtifactSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "packageContentSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "const": "PROPOSED_AWAITING_REVIEW"
+        }
+      }
+    },
+    "history": {
+      "title": "ShopeeCodingHistory",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "sources"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-coding-history-v1"
+        },
+        "sources": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/historySource"
+          }
+        }
+      }
+    },
+    "readCitation": {
+      "title": "ShopeeReadCitation",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "citationId",
+        "locator",
+        "url",
+        "context",
+        "recordIndex"
+      ],
+      "properties": {
+        "citationId": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "locator": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "context": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 5000
+        },
+        "recordIndex": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "url": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 2000
+        }
+      }
+    },
+    "readView": {
+      "title": "ShopeeCodingReadView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "draft",
+        "report",
+        "citations",
+        "finalizedAt"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-coding-read-v1"
+        },
+        "draft": {
+          "$ref": "#/$defs/draftCoding"
+        },
+        "report": {
+          "$ref": "#/$defs/report"
+        },
+        "citations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/readCitation"
+          }
+        },
+        "finalizedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "contextCounts": {
+      "title": "ShopeeCodingContextCounts",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "eligible",
+        "excluded",
+        "unreadable"
+      ],
+      "properties": {
+        "eligible": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "excluded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "unreadable": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "context": {
+      "title": "ShopeeCodingContextView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "binding",
+        "sample",
+        "keywordDigest",
+        "counts"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-coding-context-v1"
+        },
+        "binding": {
+          "$ref": "#/$defs/binding"
+        },
+        "sample": {
+          "$ref": "#/$defs/sampleIdentity"
+        },
+        "keywordDigest": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^([a-f0-9]{64})?$"
+        },
+        "counts": {
+          "$ref": "#/$defs/contextCounts"
+        }
+      }
+    },
+    "consumptionEntry": {
+      "title": "ShopeeConsumptionEntry",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revisionId",
+        "reportIdentitySha256",
+        "sampleId",
+        "codingDraftSha256",
+        "actorId",
+        "consumedAt"
+      ],
+      "properties": {
+        "revisionId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "reportIdentitySha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "sampleId": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "codingDraftSha256": {
+          "type": "string",
+          "pattern": "^[a-f0-9]{64}$"
+        },
+        "actorId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 120
+        },
+        "consumedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "consumptionView": {
+      "title": "ShopeeConsumptionView",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "entries"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-consumption-view-v1"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/consumptionEntry"
+          }
+        }
+      }
+    }
+  }
+}

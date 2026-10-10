@@ -86,6 +86,11 @@ import { FoundationSourcePackageReader } from '../../foundation/source-package-r
 import { SourcePackageService } from '../../foundation/source-package-service.js';
 import { AutomationP9SourceIntake, p9PackagePrefix, P9PublicationArtifactStore } from './p9-source-intake.js';
 import { AutomationTikTokCoding, tiktokCodingPackagePrefix, type TikTokCodingAI, type TikTokCodingRunBinding } from './tiktok-coding.js';
+import { AutomationShopeeCoding, shopeeCodingPackagePrefix, type ShopeeCodingAI, type ShopeeCodingRunBinding, type ShopeeCodingSource } from './shopee-coding.js';
+import type { ShopeeCodingProposeRequest } from '../../../../contracts/analysis/shopee-review-coding-v1.generated.js';
+import shopeeCodingProposalSchema from '../../../../contracts/analysis/shopee-review-coding-v1.schema.json' with { type: 'json' };
+import { prepareShopeeReaderBuild } from '../reader-report/shopee-build-v1.js';
+import type { ResearchAutomationShopeeReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { TikTokCodingProposeRequest } from '../../../../contracts/analysis/tiktok-coding-proposal-v1.generated.js';
 import tiktokCodingProposalSchema from '../../../../contracts/analysis/tiktok-coding-proposal-v1.schema.json' with { type: 'json' };
 import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
@@ -279,6 +284,8 @@ export interface ResearchAutomationServiceOptions {
   readonly tikTokCommentsCollector?: ApifyTikTokCommentsCollector;
   /** Explicit TikTok draft-coding model transport. Absent refuses model dispatch; never a default model. */
   readonly tiktokCodingAi?: TikTokCodingAI;
+  /** Explicit Shopee draft-coding model transport. Absent refuses model dispatch; never a default model. */
+  readonly shopeeCodingAi?: ShopeeCodingAI;
   /** Opt-in new source branch. Absent AI retains an explicit unavailable packet, never an unfiltered new report. */
   readonly sourceEvidence?: { readonly modelIdentity: string; readonly promptVersion: string; readonly transport?: KeywordListDraftTransport; readonly configuration?: import('../../../../contracts/analysis/keyword-list-draft-record.generated.js').KeywordDraftConfiguration };
   readonly db: Database.Database;
@@ -369,6 +376,9 @@ sourceAjv.addSchema(defaultPeerSchema); sourceAjv.addSchema(readerInputSchema); 
 sourceAjv.addSchema(tiktokCodingProposalSchema);
 const validateTikTokCodingPropose = sourceAjv.compile<TikTokCodingProposeRequest>({ $ref: `${tiktokCodingProposalSchema.$id}#/$defs/proposeRequest` });
 const validateTikTokReaderBuild = sourceAjv.compile<ResearchAutomationTikTokReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/tiktokBuildRequest` });
+sourceAjv.addSchema(shopeeCodingProposalSchema);
+const validateShopeeCodingPropose = sourceAjv.compile<ShopeeCodingProposeRequest>({ $ref: `${shopeeCodingProposalSchema.$id}#/$defs/proposeRequest` });
+const validateShopeeReaderBuild = sourceAjv.compile<ResearchAutomationShopeeReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/shopeeBuildRequest` });
 const validateInsightReaderBuild = sourceAjv.compile<ResearchAutomationInsightReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/insightBuildRequest` });
 const validateHistoricalRevision = sourceAjv.compile<HistoricalReportRevisionRequest>({ oneOf: [{ $ref: marketPresentationRevisionSchema.$id }, { $ref: revisionSchema.$id }, { $ref: classifiedRevisionSchema.$id }, { $ref: insightRevisionSchema.$id }, { $ref: boundedRevisionSchema.$id }, { $ref: quoteRevisionSchema.$id }] });
 const validateRevision = (value: unknown): value is AutomationReportRevisionRequest => personaReportRequestValid(value) || validateHistoricalRevision(value);
@@ -383,6 +393,7 @@ interface FrozenSources { sha256: string; value: AutomationConfirmedSourceSet; n
 export class ResearchAutomationService {
   readonly #tikTokCommentsCollector: ApifyTikTokCommentsCollector | undefined;
   readonly #tiktokCodingAi: TikTokCodingAI | undefined;
+  readonly #shopeeCodingAi: ShopeeCodingAI | undefined;
   readonly #db: Database.Database;
   readonly #artifacts: ContentAddressedArtifactStore;
   readonly #workspaces: DiscoveryWorkspaceReader;
@@ -421,6 +432,7 @@ export class ResearchAutomationService {
   constructor(options: ResearchAutomationServiceOptions) {
     this.#tikTokCommentsCollector = options.tikTokCommentsCollector;
     this.#tiktokCodingAi = options.tiktokCodingAi;
+    this.#shopeeCodingAi = options.shopeeCodingAi;
     this.#db = options.db;
     this.#artifacts = options.artifactStore;
     this.#workspaces = options.workspaceReader;
@@ -751,6 +763,138 @@ export class ResearchAutomationService {
   async readTikTokReportConsumption(workspaceId: string, runId: string) {
     await this.getRun(workspaceId, runId);
     return this.#readerReports.readTikTokConsumption({ workspaceId, runId });
+  }
+  /** Replayed retained U22 sample + private-review corpus view for one coding proposal. */
+  async #shopeeCodingSource(workspaceId: string, runId: string): Promise<ShopeeCodingSource> {
+    assertUuid(workspaceId); assertUuid(runId);
+    await this.#requireRun(workspaceId, runId);
+    const row = this.#current(runId)!;
+    // U22 sample runs authentically carry no confirmed source set; the frozen identity is
+    // start/scope/confirmation plus the retained collection, never a fabricated set.
+    if (!row.scopeSha || !row.scopeConfirmedAt) throw new ResearchAutomationStateError('Shopee coding requires explicit frozen source confirmation.');
+    const start = await this.#readStartSnapshot(row.startSha, workspaceId);
+    const scope = await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+    const step = await this.#stepDocument(runId, 'COLLECTION');
+    if (!step?.privateShopee || !step.reviewSample) throw new ResearchAutomationStateError('This run has no retained U22 review sample for coding.');
+    const input = { runId, start, scope, scopeConfirmedAt: row.scopeConfirmedAt };
+    const binding = await this.#privateCorpusBinding(row);
+    const sample = await this.#shopee.verifySample(step.reviewSample, step.privateShopee, input, binding);
+    const corpus = await this.#shopee.privateCorpus(step.privateShopee, input, binding);
+    const view = buildPrivateReviewReportView(corpus);
+    // Authentic retained corpus identity from the owning view, never a recomputed semantic digest
+    // under an artifact name: the request/sample/Reader binding all compare this exact value.
+    return { sample, view, corpusSha256: view.corpus.artifactSha256, acquiredAt: view.capture.retrievedAt };
+  }
+  #shopeeCodingIntake(row: RunRow, expectedRevision?: number, signal?: AbortSignal) {
+    const guard = () => {
+        signal?.throwIfAborted();
+        const current = this.#current(row.runId);
+        if (!current || current.workspaceId !== row.workspaceId || current.scopeSha !== row.scopeSha || current.sourceSetSha !== row.sourceSetSha ||
+          ['FAILED', 'CANCELLING', 'CANCELLED', 'INTERRUPTED'].includes(current.status))
+          throw new ResearchAutomationStateError('This run cannot publish a new Shopee coding proposal.');
+        if (expectedRevision !== undefined && toNumber(current.revision) !== expectedRevision)
+          throw new ResearchAutomationConflictError('revision_conflict', 'Reload the run before proposing a new Shopee coding.');
+    };
+    return new AutomationShopeeCoding({ db: this.#db, packages: new SourcePackageService({ db: this.#db,
+        artifactStore: new P9PublicationArtifactStore(this.#artifacts, guard), now: this.#now }),
+      artifacts: this.#artifacts, now: this.#now,
+      keywordDraft: digest => this.readSourceKeywordDraft(row.workspaceId, row.runId, digest),
+      sampleSource: () => this.#shopeeCodingSource(row.workspaceId, row.runId),
+      publish: operation => withDatabaseMutationMutex(this.#db, async () => { guard(); return operation(); }),
+      mutex: operation => withDatabaseMutationMutex(this.#db, operation) });
+  }
+  #shopeeCodingBinding(workspaceId: string, runId: string, row: RunRow): ShopeeCodingRunBinding {
+    if (!row.scopeSha) throw new ResearchAutomationStateError('Shopee coding requires explicit frozen source confirmation.');
+    return { workspaceId, runId, scopeSha256: row.scopeSha, sourceSetSha256: row.sourceSetSha,
+      requestedPeriod: { startDate: row.periodStart, endDate: row.periodEnd } };
+  }
+  /** Explicit OWNER draft-coding proposal over the retained U22 sample. One model dispatch per request key. */
+  async proposeShopeeCoding(workspaceId: string, runId: string, value: unknown, ai: ShopeeCodingAI | undefined, signal?: AbortSignal) {
+    const { row } = await this.#shopeeCodingContext(workspaceId, runId);
+    if (!validateShopeeCodingPropose(value)) throw new ResearchAutomationValidationError('Shopee coding request failed validation.');
+    if (this.#active.has(runId)) throw new ResearchAutomationStateError('This run already has active execution.');
+    const controller = new AbortController();
+    const abort = () => controller.abort();
+    signal?.addEventListener('abort', abort, { once: true }); if (signal?.aborted) abort();
+    this.#active.set(runId, controller);
+    try {
+      return await this.#shopeeCodingIntake(row, (value as ShopeeCodingProposeRequest | null)?.expectedRevision, controller.signal)
+        .propose(this.#shopeeCodingBinding(workspaceId, runId, row), value, ai ?? this.#shopeeCodingAi ?? null, controller.signal);
+    } finally {
+      signal?.removeEventListener('abort', abort);
+      if (this.#active.get(runId) === controller) this.#active.delete(runId);
+    }
+  }
+  async #shopeeCodingContext(workspaceId: string, runId: string) {
+    assertUuid(workspaceId); assertUuid(runId);
+    await this.#requireRun(workspaceId, runId);
+    const row = this.#current(runId)!;
+    if (!row.scopeSha) throw new ResearchAutomationStateError('Shopee coding requires explicit frozen source confirmation.');
+    await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+    return { row };
+  }
+  /** Configless query-only retained coding read. */
+  async readShopeeCoding(workspaceId: string, runId: string, packageId: string) {
+    assertUuid(packageId);
+    const { row } = await this.#shopeeCodingContext(workspaceId, runId);
+    const retained = await this.#boundedSourceReader().readFinalizedSourcePackage(packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
+    return this.#shopeeCodingIntake(row).read(this.#shopeeCodingBinding(workspaceId, runId, row), packageId, retained.manifestArtifactSha256, retained.packageContentSha256);
+  }
+  /** Configless query-only retained coding history. */
+  async listShopeeCodingHistory(workspaceId: string, runId: string) {
+    const { row } = await this.#shopeeCodingContext(workspaceId, runId);
+    return this.#shopeeCodingIntake(row).history(this.#shopeeCodingBinding(workspaceId, runId, row));
+  }
+  /** Authenticated retained-sample selection for one run: exact U22 identity plus eligibility counts. */
+  async readShopeeSamples(workspaceId: string, runId: string) {
+    const { row } = await this.#shopeeCodingContext(workspaceId, runId);
+    return this.#shopeeCodingIntake(row).samples(this.#shopeeCodingBinding(workspaceId, runId, row));
+  }
+  /** Authenticated query-only propose-binding assembly for the retained U22 sample. */
+  async readShopeeCodingContext(workspaceId: string, runId: string) {
+    const { row } = await this.#shopeeCodingContext(workspaceId, runId);
+    const packet = await this.readSourceEvidence(workspaceId, runId);
+    return this.#shopeeCodingIntake(row).context(this.#shopeeCodingBinding(workspaceId, runId, row), packet?.draftDigest ?? null);
+  }
+  /** Explicit OWNER Shopee reader build from replayed retained coding, synthesis, sample, and scope. */
+  async buildShopeeReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
+    if (!validateShopeeReaderBuild(value)) throw new ResearchAutomationValidationError('Shopee reader build request failed validation.');
+    const request = value;
+    return withDatabaseMutationMutex(this.#db, async () => {
+      const run = await this.getRun(workspaceId, runId);
+      if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
+      const row = this.#current(runId)!;
+      if (!row.scopeSha) throw new ResearchAutomationStateError('Shopee reader build requires explicit frozen source confirmation.');
+      const intake = this.#shopeeCodingIntake(row);
+      const binding = this.#shopeeCodingBinding(workspaceId, runId, row);
+      const history = await intake.history(binding);
+      let read: Awaited<ReturnType<typeof intake.read>> | undefined;
+      for (const source of history.sources) {
+        const candidate = await intake.read(binding, source.packageId, source.manifestArtifactSha256, source.packageContentSha256);
+        if (digest(candidate.draft) === request.draftPairId && digest(candidate.report) === request.semanticSha256) {
+          if (read) throw new ResearchAutomationIntegrityError('Duplicate Shopee coding digest pair.');
+          read = candidate;
+        }
+      }
+      if (!read) throw new ResearchAutomationNotFoundError('shopee_coding_not_found', 'Shopee coding draft and synthesis digests match no retained proposal.');
+      const draftDigest = request.draftPairId, reportDigest = request.semanticSha256;
+      const { sample, view, acquiredAt } = await intake.readSample();
+      if (sample.sampleId !== read.draft.sample.sampleId || view.corpus.artifactSha256 !== read.draft.sample.corpusArtifactSha256) {
+        throw new ResearchAutomationIntegrityError('Shopee reader source differs from retained coding evidence.');
+      }
+      const scope = await this.#readScopeSnapshot(row.scopeSha, workspaceId, runId);
+      const context = prepareShopeeReaderBuild({ workspaceId, runId, draftPairId: draftDigest, semanticSha256: reportDigest,
+        sourceReportSha256: reportDigest, frozenStartSha256: row.startSha, frozenScopeSha256: row.scopeSha,
+        sourceRendererVersion: 'shopee-reader-kit-v1' }, read.draft, read.report, view, acquiredAt,
+        { keyword: row.keyword, definition: scope.definition, requestedPeriod: { startDate: row.periodStart, endDate: row.periodEnd } });
+      return this.#readerReports.buildShopee({ workspaceId, runId, ...context, consumption: {
+        sampleId: sample.sampleId, codingDraftSha256: draftDigest, reportIdentitySha256: reportDigest } }, request, actor);
+    });
+  }
+  /** Configless query-only Shopee report-consumption ledger. */
+  async readShopeeReportConsumption(workspaceId: string, runId: string) {
+    await this.getRun(workspaceId, runId);
+    return this.#readerReports.readShopeeConsumption({ workspaceId, runId });
   }
 
   /** Explicit owner start. Workspace verification happens before any artifact or DB write. */
@@ -1194,6 +1338,9 @@ export class ResearchAutomationService {
     const request = value;
     if (request.contractVersion === 'insight-reader-build-tiktok-v1') {
       throw new ResearchAutomationValidationError('Bản đọc TikTok chỉ được dựng tại reader-reports/tiktok, không phải tuyến insight cũ.');
+    }
+    if (request.contractVersion === 'insight-reader-build-shopee-v1') {
+      throw new ResearchAutomationValidationError('Bản đọc Shopee chỉ được dựng tại reader-reports/shopee, không phải tuyến insight cũ.');
     }
     return withDatabaseMutationMutex(this.#db, async () => {
       const run = await this.getRun(workspaceId, runId);
