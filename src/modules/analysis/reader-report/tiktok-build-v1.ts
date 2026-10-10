@@ -10,6 +10,7 @@ import { Bundle } from './bundle.js';
 import { esc } from './format.js';
 import type { TikTokDraftCoding, TikTokCodedReport } from '../../../../contracts/analysis/tiktok-coding-proposal-v1.generated.js';
 import type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
+import { SOURCE_REGISTRY } from '../research-automation/source-status.js';
 
 const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
@@ -97,6 +98,7 @@ export function prepareTikTokReaderBuild(identity: TikTokReaderSourceIdentity, d
     }).join('') || `<p>Không có mã đề xuất nào trong bản nháp này.</p>`,
     explanation: 'Chủ đề do mô hình đề xuất từ lời nguồn đã lưu, chờ chủ duyệt; chưa phải kết luận.' },
     { id: 'I17', body: `<p>Phụ lục: ${codesProposed} mã đề xuất trên ${recordsCoded} bản ghi (số lượng đề xuất, chờ chủ duyệt). ` +
+      `${sourceAppendixRow(corpus)} ` +
       `Bản ghi ngoài số lượng chính: ${reasonedExclusions(corpus)} ${report.limitations.map(line => esc(line)).join(' ')}</p>`,
     explanation: 'Phạm vi, giới hạn và số lượng đề xuất; chưa đủ điều kiện phát hành.' },
   ];
@@ -111,4 +113,25 @@ function reasonedExclusions(corpus: TikTokCommentCorpus): string {
   const parts = [`EXCLUDED ${corpus.accounting.excluded}`, `UNCLEAR ${corpus.accounting.unclear}`];
   if (reasons) parts.push(reasons);
   return parts.join('; ') + '.';
+}
+
+/** U-27 source appendix row: registry identity (S-ID, tier, report name) plus the L10
+ * source-type split counted from retained records. Kinds absent from the retained corpus
+ * stay absent (missing is never written as zero). Registry values come from the board's
+ * SOURCE_REGISTRY read-only; this file never changes board behavior. */
+function sourceAppendixRow(corpus: TikTokCommentCorpus): string {
+  const card = SOURCE_REGISTRY.APIFY_TIKTOK_COMMENTS;
+  const kinds: { readonly sourceType: 'COMMENT_UNDER_REVIEW_VIDEO' | 'COMMENT_UNDER_SELLER_VIDEO'; readonly label: string }[] = [
+    { sourceType: 'COMMENT_UNDER_REVIEW_VIDEO', label: 'bình luận dưới video review' },
+    { sourceType: 'COMMENT_UNDER_SELLER_VIDEO', label: 'bình luận dưới video bán hàng' },
+  ];
+  const present = kinds.map(kind => ({ ...kind,
+    count: corpus.records.filter(record => record.sourceType === kind.sourceType).length,
+  })).filter(kind => kind.count > 0);
+  const split = present.map(kind => `${kind.label}: ${kind.count} bản ghi`).join('; ');
+  const keywordVersion = corpus.keywordData.dataVersion;
+  const l9 = keywordVersion !== ''
+    ? ` Lọc nghĩa L9 theo bộ từ khóa đã lưu ${keywordVersion}.` : '';
+  return `Nguồn ${card.registryIds.join(', ')} · hạng ${card.tier} · ${card.reportName}.` +
+    (split === '' ? '' : ` Loại nguồn: ${split}.`) + l9;
 }

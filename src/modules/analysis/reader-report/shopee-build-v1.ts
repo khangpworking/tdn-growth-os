@@ -10,6 +10,7 @@ import { Bundle } from './bundle.js';
 import { esc } from './format.js';
 import type { ShopeeDraftCoding, ShopeeCitedSynthesis } from '../../../../contracts/analysis/shopee-review-coding-v1.generated.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
+import { SOURCE_REGISTRY } from '../research-automation/source-status.js';
 
 const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
@@ -112,9 +113,20 @@ export function prepareShopeeReaderBuild(identity: ShopeeReaderSourceIdentity, d
     }).join('') || `<p>Không có mã đề xuất nào trong bản nháp này.</p>`,
     explanation: 'Chủ đề và cảm nhận do mô hình đề xuất từ lời nguồn đã lưu, chờ chủ duyệt; chưa phải kết luận.' },
     { id: 'I17', body: `<p>Phụ lục: ${codesProposed} mã đề xuất trên ${recordsCoded} bản ghi có mã (số lượng do ứng dụng đếm từ bản ghi đã lưu; mã là đề xuất, chờ chủ duyệt). ` +
+      `${sourceAppendixRow()} ` +
       `Bản ghi ngoài số lượng chính: ${exclusions.join('; ')}. ${report.limitations.map(line => esc(line)).join(' ')}</p>`,
     explanation: 'Phạm vi, giới hạn và số lượng đã đếm; chưa đủ điều kiện phát hành.' },
   ];
   return { input, page: { keyword: scope.keyword, period: { ...scope.requestedPeriod }, definition: scope.definition,
     sections, findings: { bundle, findings }, registry } };
+}
+
+/** U-27 source appendix row: registry identity (S-ID, tier, report name). L9 has no Shopee
+ * application: Shopee coding never depends on L9 terms, so no L9 count is shown here
+ * (missing is never written as zero). Registry values come from the board's
+ * SOURCE_REGISTRY read-only; this file never changes board behavior. */
+function sourceAppendixRow(): string {
+  const card = SOURCE_REGISTRY.APIFY_SHOPEE;
+  return `Nguồn ${card.registryIds.join(', ')} · hạng ${card.tier} · ${card.reportName}. ` +
+    `Lọc nghĩa L9 không áp dụng cho bằng chứng Shopee.`;
 }

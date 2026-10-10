@@ -52,6 +52,13 @@ test('build retained TikTok reader -> consumption ledger -> open/reopen/decide j
   assert.ok(html.includes(read.draft.codes[0]!.quote.text));
   assert.ok(html.includes('S07'));
   assert.ok(html.includes('EXCLUDED'));
+  // U-27 Reader appendix: the saved I17 carries the S07 registry identity (ID, tier, report
+  // name), the L10 source-type split counted from retained records, and the retained L9
+  // keyword-data version behind the exclusion tallies.
+  assert.ok(html.includes('Nguồn S07 · hạng B · bình luận công khai dưới video'));
+  assert.ok(html.includes('Loại nguồn:'));
+  assert.ok(html.includes('video bán hàng') || html.includes('video review'));
+  assert.ok(html.includes('Lọc nghĩa L9 theo bộ từ khóa đã lưu'));
   const second = await f.service.readReaderReport(workspaceId, runId, receipt.revision.revisionId);
   assert.ok(second.bytes.equals(first.bytes));
   assert.equal((await f.service.readTikTokReportConsumption(workspaceId, runId)).entries.length, 1,
