@@ -1,0 +1,2 @@
+@prefix o: <urn:onto:> .
+o:f a o:E12Figure; o:attribution "Cục Thống kê"; o:valueStatus "sơ bộ"; o:file "du-lieu-gia-lap.xlsx"; o:sheet "BangMau"; o:row "7" .

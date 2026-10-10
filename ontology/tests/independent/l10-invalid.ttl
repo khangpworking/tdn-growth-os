@@ -1,0 +1,3 @@
+@prefix o: <urn:onto:> .
+o:ordinary a o:Comment; o:sourceType "bình luận dưới video review"; o:creator false; o:brand false; o:tagOnly false; o:emojiOnly false; o:customerVoice true; o:counted true .
+o:excluded a o:Comment; o:sourceType "bình luận dưới video bán hàng"; o:creator true; o:brand false; o:tagOnly false; o:emojiOnly false; o:customerVoice false; o:counted true .
