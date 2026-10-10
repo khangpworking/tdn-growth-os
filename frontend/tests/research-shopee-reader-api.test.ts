@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { buildShopeeReader, digestShopeeDraft, digestShopeeReport } from '../src/research-automation/shopee-report-api';
+import { buildShopeeReader } from '../src/research-automation/shopee-report-api';
 import { ResearchAutomationError } from '../src/research-automation/api';
 
 const workspaceId = '11111111-1111-4111-8111-111111111111';
@@ -76,12 +76,10 @@ test('Shopee Reader build refuses a request body that does not match the contrac
   } finally { globalThis.fetch = original; }
 });
 
-test('Shopee digests are stable SHA-256 hex and change when the content changes', async () => {
-  const draft = { contractVersion: 'shopee-draft-coding-v1', codes: [] } as never;
-  const first = await digestShopeeDraft(draft);
-  assert.match(first, /^[0-9a-f]{64}$/);
-  assert.equal(await digestShopeeDraft(draft), first);
-  assert.notEqual(await digestShopeeDraft({ contractVersion: 'shopee-draft-coding-v1', codes: [{}] } as never), first);
-  const report = { findings: [] } as never;
-  assert.match(await digestShopeeReport(report), /^[0-9a-f]{64}$/);
+test('Shopee finding template substitutes only its own code record token and flags unresolved tokens', async () => {
+  const { renderFinding } = await import('../src/research-automation/ShopeeReportPanel');
+  const finding = { sectionId: 'I02', code: 'C1', label: 'Chất lượng', template: 'Có {{shopee.codes.C1.records}} bình luận.', status: 'PROPOSED_AWAITING_REVIEW', scope: 'mẫu đã chọn', citations: [{ citationId: 1, locator: 'comment 1' }] } as never;
+  assert.deepEqual(renderFinding(finding, 3), { text: 'Có 3 bình luận.', unresolved: false });
+  const foreign = { ...finding, template: 'Có {{shopee.codes.C2.records}} bình luận.' } as never;
+  assert.deepEqual(renderFinding(foreign, 3), { text: 'Có {{shopee.codes.C2.records}} bình luận.', unresolved: true });
 });

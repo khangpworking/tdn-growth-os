@@ -1,5 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ResearchAutomationReaderRevisionV2, ResearchAutomationShopeeReaderRevision } from '../../../contracts/api/research-automation-reader-report-api.generated';
+import type { ShopeeCitedFinding } from '../../../contracts/analysis/shopee-review-coding-v1.generated';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import { canonical } from './insight-coding-ui';
 import { decideReaderReportV2, loadReaderReportsV2, readerReportUrl } from './reader-report-api';
@@ -21,11 +22,19 @@ const message = (failure: unknown, fallback: string) => failure instanceof Resea
 const isShopeeRevision = (revision: ResearchAutomationReaderRevisionV2): revision is ResearchAutomationShopeeReaderRevision =>
   revision.reportKind === 'INSIGHT' && 'builderVersion' in revision && revision.builderVersion === SHOPEE_BUILDER;
 const keyed = (entry: Keyed | null, identity: string): Keyed => entry?.identity === identity ? entry : { identity, key: crypto.randomUUID() };
+const UNRESOLVED_TOKEN = /\{\{[^}]*\}\}/;
 
-/** OWNER Shopee U22 flow: proposed draft coding, compact cited findings, expandable exact evidence, then a saved Reader revision. */
+/** Substitutes only the finding's own code-record token with the application distinct record count. */
+export function renderFinding(finding: ShopeeCitedFinding, records: number): { text: string; unresolved: boolean } {
+  const text = finding.template.split(`{{shopee.codes.${finding.code}.records}}`).join(String(records));
+  return { text, unresolved: UNRESOLVED_TOKEN.test(text) };
+}
+
+/** OWNER Shopee U22 flow: confirm one retained sample, propose cited findings, then save and decide a Reader revision. */
 export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: Props) {
   const [selection, setSelection] = useState<ShopeeSampleSelection | null>(null);
   const [context, setContext] = useState<ShopeeCodingContextView | null>(null);
+  const [confirmed, setConfirmed] = useState<string | null>(null);
   const [history, setHistory] = useState<ShopeeCodingHistory | null>(null);
   const [view, setView] = useState<ShopeeCodingReadView | null>(null);
   const [saved, setSaved] = useState<ResearchAutomationShopeeReaderRevision[]>([]);
@@ -34,14 +43,17 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
   const [notice, setNotice] = useState('');
   const [pending, setPending] = useState(false);
   const [tick, setTick] = useState(0);
-  const requestKey = useRef<string | null>(null);
-  const readerKey = useRef<Keyed | null>(null);
-  const decisionKey = useRef<Keyed | null>(null);
+  const [requestKey, setRequestKey] = useState<Keyed | null>(null);
+  const [readerKey, setReaderKey] = useState<Keyed | null>(null);
+  const [decisionKey, setDecisionKey] = useState<Keyed | null>(null);
   const canWrite = writesAvailable && ownerToken !== null;
+  const selectionMatches = selection !== null && context !== null &&
+    canonical(selection.binding) === canonical(context.binding) && canonical(selection.sample) === canonical(context.sample);
+  const sampleConfirmed = selectionMatches && confirmed === canonical(context!.sample);
 
   useEffect(() => {
     const controller = new AbortController();
-    setView(null); setExpanded(null); setError(''); setSaved([]);
+    setView(null); setExpanded(null); setError(''); setSaved([]); setConfirmed(null);
     Promise.all([
       loadShopeeSampleSelection(run.workspaceId, run.runId, controller.signal),
       loadShopeeCodingContext(run.workspaceId, run.runId, controller.signal),
@@ -52,7 +64,7 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
         if (controller.signal.aborted) return;
         setSelection(selected); setContext(value); setHistory(list); setSaved(readers.revisions.filter(isShopeeRevision));
       })
-      .catch((failure: unknown) => { if (!controller.signal.aborted) { setContext(null); setError(message(failure, 'Chưa tải được mẫu Shopee.')); } });
+      .catch((failure: unknown) => { if (!controller.signal.aborted) { setContext(null); setSelection(null); setError(message(failure, 'Chưa tải được mẫu Shopee.')); } });
     return () => controller.abort();
   }, [run.workspaceId, run.runId, tick]);
 
@@ -64,12 +76,13 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
   };
 
   const propose = async () => {
-    if (!context || !canWrite) return;
-    requestKey.current ??= crypto.randomUUID();
+    if (!context || !sampleConfirmed || !canWrite) return;
+    const entry = keyed(requestKey, canonical({ workspaceId: run.workspaceId, runId: run.runId, binding: context.binding, sample: context.sample, keywordDigest: context.keywordDigest }));
+    setRequestKey(entry);
     setPending(true);
     try {
       const receipt = await proposeShopeeCoding(run.workspaceId, run.runId, {
-        contractVersion: 'shopee-coding-propose-v1', requestKey: requestKey.current, binding: context.binding, sample: context.sample, keywordDigest: context.keywordDigest,
+        contractVersion: 'shopee-coding-propose-v1', requestKey: entry.key, binding: context.binding, sample: context.sample, keywordDigest: context.keywordDigest,
       }, ownerToken!);
       setNotice(receipt.exactRetry ? 'Đề xuất đã có. Không gọi lại mô hình.' : 'Đã tạo đề xuất. Kết quả đang chờ bạn duyệt.');
       setTick(value => value + 1);
@@ -89,8 +102,8 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
     try {
       const draftPairId = await digestShopeeDraft(view.draft);
       const semanticSha256 = await digestShopeeReport(view.report);
-      const entry = keyed(readerKey.current, canonical({ draftPairId, semanticSha256 }));
-      readerKey.current = entry;
+      const entry = keyed(readerKey, canonical({ workspaceId: run.workspaceId, runId: run.runId, draftPairId, semanticSha256 }));
+      setReaderKey(entry);
       const receipt = await buildShopeeReader(run.workspaceId, run.runId, {
         contractVersion: 'insight-reader-build-shopee-v1', reportKind: 'INSIGHT', requestKey: entry.key, draftPairId, semanticSha256, sourceKind: 'SHOPEE',
       }, ownerToken!);
@@ -108,8 +121,8 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
     if (!canWrite) return;
     setPending(true); setError(''); setNotice('');
     try {
-      const entry = keyed(decisionKey.current, canonical({ revisionId: revision.revisionId, decision }));
-      decisionKey.current = entry;
+      const entry = keyed(decisionKey, canonical({ workspaceId: run.workspaceId, runId: run.runId, revisionId: revision.revisionId, decision }));
+      setDecisionKey(entry);
       const receipt = await decideReaderReportV2(run.workspaceId, run.runId, {
         contractVersion: 'reader-report-decision-v2', requestKey: entry.key, revisionId: revision.revisionId, decision, reason: null, reportKind: 'INSIGHT', htmlSha256: revision.htmlSha256,
       }, ownerToken!);
@@ -127,9 +140,12 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
     {error && <p className="ra-message error" role="alert">{error}</p>}
     {notice && <p className="ra-banner" role="status">{notice}</p>}
     {!canWrite && <p className="ra-muted">Mở khóa OWNER để tạo đề xuất.</p>}
-    {context && <div>
-      <p>Mẫu đã chọn: {selection?.sample.sampleId ?? 'chưa rõ'} · Đánh giá đủ điều kiện: {selection?.counts.eligible ?? context.counts.eligible} · Loại trừ: {selection?.counts.excluded ?? context.counts.excluded} · Không đọc được: {selection?.counts.unreadable ?? context.counts.unreadable}</p>
-      <button type="button" className="button" disabled={!canWrite || pending} onClick={() => void propose()}>Tạo bản tổng hợp</button>
+    {selection && context && <div>
+      <p>Mẫu Shopee đã chọn: {selection.sample.sampleId} · Đánh giá đủ điều kiện: {selection.counts.eligible} · Loại trừ: {selection.counts.excluded} · Không đọc được: {selection.counts.unreadable}</p>
+      <details><summary>Chi tiết kỹ thuật</summary><p>Mã mẫu: {selection.sample.sampleId} · Mã corpus: {selection.sample.corpusArtifactSha256}</p></details>
+      {!selectionMatches && <p className="ra-message error" role="alert">Mẫu đã chọn không khớp ngữ cảnh đề xuất. Tải lại trước khi tiếp tục.</p>}
+      <button type="button" className="button" disabled={!selectionMatches || sampleConfirmed} onClick={() => setConfirmed(canonical(context.sample))}>{sampleConfirmed ? 'Đã chọn mẫu này' : 'Chọn mẫu này'}</button>
+      {' '}<button type="button" className="button" disabled={!canWrite || !sampleConfirmed || pending} onClick={() => void propose()}>Tạo bản tổng hợp</button>
     </div>}
     <h3>Lịch sử đề xuất</h3>
     {history && history.sources.length === 0 && <p className="ra-muted">Chưa có đề xuất nào cho mẫu này.</p>}
@@ -140,8 +156,9 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
       <ul>{view.report.findings.map(finding => {
         const codes = view.draft.codes.filter(code => code.code === finding.code);
         const records = new Set(codes.map(code => code.recordIndex)).size;
+        const rendered = renderFinding(finding, records);
         return <li key={`${finding.sectionId}:${finding.code}`}>
-          <b>{finding.label}</b> · {finding.template} · {records} bình luận khác nhau (đề xuất, chờ bạn duyệt){' '}
+          <b>{finding.label}</b> · {rendered.unresolved ? <span role="alert">Mẫu câu chưa đầy đủ, cần kiểm tra</span> : rendered.text} · Phạm vi: {finding.scope}{' '}
           <button type="button" className="button" aria-expanded={expanded === finding.code} onClick={() => setExpanded(expanded === finding.code ? null : finding.code)}>Xem bằng chứng</button>
           {expanded === finding.code && <ul>{codes.map((code, index) => {
             const citation = view.citations.find(item => item.citationId === code.citationId);
