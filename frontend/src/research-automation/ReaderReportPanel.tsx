@@ -3,7 +3,7 @@ import { loadPersonas, type ResearchPersonaView } from './persona-api';
 import ConfirmDialog from '../ConfirmDialog';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import { formatTime } from './run-status';
-import { buildReaderWithUnitSpecs, buildInsightReader, MAX_READER_REQUEST_BYTES, decideReaderReportV2, loadReaderReportsV2, readerReportUrl } from './reader-report-api';
+import { buildReaderWithUnitSpecs, buildInsightReader, MAX_READER_REQUEST_BYTES, decideReaderReportV2, loadReaderReportsV2, readerReportPdfUrl, readerReportUrl } from './reader-report-api';
 import { loadReportVersions } from './report-revisions-api';
 import type { ResearchAutomationReportVersionList } from '../../../contracts/api/research-automation-revision-api.generated';
 import type { ResearchAutomationReaderBuildRequest, ResearchAutomationReaderRevisionV2 } from './reader-report-api';
@@ -167,6 +167,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToke
           {latest.reportKind === 'MARKET' && <p className="ra-muted">Sàn: {latest.platforms.map(p => PLATFORM_LABEL[p]).join(' + ')}{latest.profileStatus === 'proposed' ? ' · Phân loại sản phẩm do AI đề xuất, chưa được chủ duyệt.' : ''}</p>}
           <div className="ra-actions">
             <a className="button primary" href={readerReportUrl(run.workspaceId, run.runId, latest.revisionId)} target="_blank" rel="noopener noreferrer">Mở bản đọc<span className="ra-sr"> lần {latest.revisionNumber} (mở tab mới)</span></a>
+            <a className="button" href={readerReportPdfUrl(run.workspaceId, run.runId, latest.revisionId)} rel="noopener noreferrer">Tải PDF<span className="ra-sr"> lần {latest.revisionNumber}</span></a>
             {latest.state === 'PENDING_OWNER_REVIEW' && <>
               <button type="button" className="button primary" disabled={!canWrite || pending} onClick={() => setDialog({ decision: 'APPROVED', revision: latest })}>Duyệt</button>
               <button type="button" className="button" disabled={!canWrite || pending} onClick={() => setDialog({ decision: 'REJECTED', revision: latest })}>Từ chối</button>
@@ -178,6 +179,7 @@ function ReaderReportPanelForRun({ run, ownerToken, writesAvailable, refreshToke
         {history && history.length > 1 && <details className="ra-reader-history"><summary>Các lần dựng trước ({history.length - 1})</summary><ul>
           {history.slice(0, -1).reverse().map(revision => <li key={revision.revisionId}>
             <a href={readerReportUrl(run.workspaceId, run.runId, revision.revisionId)} target="_blank" rel="noopener noreferrer">Bản đọc lần {revision.revisionNumber}</a>
+            {' '}<a href={readerReportPdfUrl(run.workspaceId, run.runId, revision.revisionId)} rel="noopener noreferrer">Tải PDF</a>
             {' · '}{STATE_LABEL[revision.state]}{revision.decision?.reason ? ` · Lý do: ${revision.decision.reason}` : ''}</li>)}
         </ul></details>}
       </>}

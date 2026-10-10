@@ -3,7 +3,7 @@ import type { ResearchAutomationReaderRevisionV2, ResearchAutomationShopeeReader
 import type { ShopeeCitedFinding } from '../../../contracts/analysis/shopee-review-coding-v1.generated';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import { canonical } from './insight-coding-ui';
-import { decideReaderReportV2, loadReaderReportsV2, readerReportUrl } from './reader-report-api';
+import { decideReaderReportV2, loadReaderReportsV2, readerReportPdfUrl, readerReportUrl } from './reader-report-api';
 import {
   buildShopeeReader, digestShopeeDraft, digestShopeeReport, loadShopeeCodingContext, loadShopeeCodingHistory, loadShopeeCodingView, loadShopeeSampleSelection, proposeShopeeCoding,
   type ShopeeCodingContextView, type ShopeeCodingHistory, type ShopeeCodingReadView, type ShopeeSampleSelection,
@@ -182,7 +182,8 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: 
     {saved.length === 0 && <p className="ra-muted">Chưa có bản đọc Shopee nào.</p>}
     <ul>{saved.map((revision, index) => <li key={revision.revisionId}>
       <span>Bản đọc {index + 1}</span> · <span>{revision.decision ? (revision.decision.decision === 'APPROVED' ? 'Đã duyệt' : 'Đã từ chối') : 'Chờ bạn duyệt'}</span>{' '}
-      <a href={readerReportUrl(run.workspaceId, run.runId, revision.revisionId)} target="_blank" rel="noopener noreferrer">Mở bản đọc</a>
+      <a href={readerReportUrl(run.workspaceId, run.runId, revision.revisionId)} target="_blank" rel="noopener noreferrer">Mở bản đọc</a>{' '}
+      <a href={readerReportPdfUrl(run.workspaceId, run.runId, revision.revisionId)} rel="noopener noreferrer">Tải PDF</a>
       {!revision.decision && <>
         {' '}<button type="button" className="button" disabled={!canWrite || pending} onClick={() => void decide(revision, 'APPROVED')}>Duyệt</button>
         {' '}<button type="button" className="button" disabled={!canWrite || pending} onClick={() => void decide(revision, 'REJECTED')}>Từ chối</button>

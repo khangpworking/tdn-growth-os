@@ -1,7 +1,11 @@
 import assert from 'node:assert/strict';
-import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
+import { spawnSync } from 'node:child_process';
+import fs from 'node:fs/promises';
 import test from 'node:test';
+import os from 'node:os';
+import path from 'node:path';
 import { JSDOM } from 'jsdom';
+import { buildSourceEvidence } from '../../src/modules/analysis/research-automation/source-evidence.js';
 import type { DescriptiveMarketMethods } from '../../contracts/analysis/descriptive-market-methods.generated.js';
 import type { ResearchAutomationRun } from '../../contracts/api/research-automation-api.generated.js';
 import { buildDescriptiveMarketMethods } from '../../src/modules/analysis/descriptive-market-methods.js';
@@ -121,6 +125,32 @@ test('actual local Chromium prints two independent PDFs without model calls', { 
     }
   } finally { await renderer.close(); }
   await assert.rejects(renderer.render(Buffer.from('<html></html>')));
+});
+
+const pdftotextAvailable = (() => {
+  try { return spawnSync('pdftotext', ['-v'], { stdio: 'ignore' }).error === undefined; } catch { return false; }
+})();
+test('printed PDF text shows retained citation-register URLs instead of bare open-links', {
+  skip: !process.env.TDN_RESEARCH_PDF_CHROMIUM || !pdftotextAvailable,
+}, async () => {
+  const renderer = createChromiumPdfRenderer({ executablePath: process.env.TDN_RESEARCH_PDF_CHROMIUM! });
+  try {
+    const html = Buffer.from(`<html><head><meta charset="utf-8"></head><body><main>
+      <p>Nhận định <sup class="cite">[1]</sup>.</p>
+      <section class="citation-register"><h2>Nguồn tham khảo</h2><ol>
+      <li id="cite-1"><span class="cite-number">[1]</span> · <span class="cite-label">Đánh giá khách hàng</span> · <a href="https://shopee.vn/product/10/101" rel="noopener noreferrer">Mở nguồn</a></li>
+      </ol></section></main></body></html>`, 'utf8');
+    const pdf = await renderer.render(html);
+    assert.equal(pdf.subarray(0, 5).toString(), '%PDF-');
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'tdn-pdf-text-'));
+    try {
+      await fs.writeFile(path.join(root, 'printed.pdf'), pdf);
+      const converted = spawnSync('pdftotext', [path.join(root, 'printed.pdf'), path.join(root, 'printed.txt')]);
+      assert.equal(converted.status, 0, String(converted.stderr));
+      const text = await fs.readFile(path.join(root, 'printed.txt'), 'utf8');
+      assert.match(text, /shopee\.vn\/product\/10\/101/);
+    } finally { await fs.rm(root, { recursive: true, force: true }); }
+  } finally { await renderer.close(); }
 });
 
 test('peer report keeps every comparable window and metric instead of silently choosing the first', () => {
