@@ -1,6 +1,6 @@
 # Handoff — retained Reader → PDF export (Lane A)
 
-Base: `origin/main` `dabb73d`. Branch: `khangpworking/ultimate-retained-report-pdf`.
+Original base: `dabb73d`; normally integrated main `2f6b352`. Branch: `khangpworking/ultimate-retained-report-pdf`.
 Lane A only; Lane B (SourceStatusBoard) untouched. No migration, manifest, model or helper changes.
 
 ## Delivered flow
@@ -74,15 +74,15 @@ renderer27 refusals and old versions untouched.
   admitted fixture; any 409→404 admission-semantics redesign is an owner decision for a later
   package. No third same-blocker cycle without new evidence.
 
-## Pending validation (heavy slot required)
+## Independent acceptance and remaining print proof
 
-`9daed4f` saved-list source has NOT had fresh build/mounted after-reload PDF proof yet; prior
-proof supports the unchanged API/render path only. Prepared (not executed): scoped panel/revision
-PDF-link selectors, after-reload same-link download asserts, explicit 409 expected-negative
-controls, `pageerror` retention — in `shopee-pdf-mounted-attempt1.mts` and
-`tiktok-pdf-mounted-attempt1.mts` under `/tmp/ultimate-report-pdf-source-board-2026-10-10/`.
+The distinct Sol6.1/high review on919dc1e proved fresh saved-list exports and reload for both families. It used real mounted UI/API/Foundation/SQLite fixtures. Unknown and cross-workspace revisions returned404; mutated retained HTML returned500. Collection, execution, consumption and revision identities stayed unchanged. All18 actual downloaded PDF pages were viewed.
+
+That review blocked release because the TikTok citation register hid its retained URL in print. Shopee source URLs were null in the owning projection; no URL was invented. The print-only repair now passes20 renderer tests, two API checks and five TikTok Reader tests. These focused checks do not establish new final-source exported-PDF visual acceptance. The final reviewer must verify repaired corresponding PDFs and their actual pages. Prior unchanged UI and trust proof may be adopted explicitly.
+
+The first RED preparation had invalid syntax and is excluded from regression evidence. Genuine RED2 printed bare open-link text without the retained URL. The configured-failure API setup initially omitted required profile.short and returned400. The exact existing fixture fixed that setup; final render-failed503 passed. Raw failures remain retained.
 
 ## Remaining gates
 
-Fresh Sol6.1/high final-head review; hosted full/generated/web/readiness; current-main merge
+Fresh Sol6.1/high final-head review; hosted full/generated/readiness and applicable web gates; current-main merge
 compatibility; matching-head merge + postmerge. No merge by author.
