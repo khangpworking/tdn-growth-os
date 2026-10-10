@@ -3,6 +3,8 @@ import test, { type TestContext } from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { tiktokFixture, workspaceId, runId, fakeCodingPort, fakeCodingAi } from '../fixtures/tiktok-coding-fixture.js';
+import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
+import { readerBrowserPath } from '../helpers/reader-render-check.js';
 
 const sha = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
@@ -98,4 +100,18 @@ test('owned ledger rows are immutable; illegal execution transitions refuse', as
   assert.throws(() => f.db.prepare(`UPDATE analysis_tiktok_coding_executions SET state='DISPATCHING' WHERE state='COMPLETED'`).run(),
     /invalid_tiktok_coding_execution_transition/);
   assert.throws(() => f.db.prepare('DELETE FROM analysis_tiktok_coding_executions').run(), /immutable_tiktok_coding_execution/);
+});
+
+const pdfExecutable = readerBrowserPath() ?? process.env.TDN_RESEARCH_PDF_CHROMIUM ?? undefined;
+test('retained TikTok revision HTML prints to a real PDF without rebuild', { skip: !pdfExecutable }, async t => {
+  const { f, draftDigest, reportDigest } = await proposed(t);
+  const owner = { actorId: 'synthetic-owner', role: 'OWNER' as const };
+  const receipt = await f.service.buildTikTokReaderReport(workspaceId, runId, buildRequest(draftDigest, reportDigest), owner);
+  const saved = await f.service.readReaderReport(workspaceId, runId, receipt.revision.revisionId);
+  assert.equal(createHash('sha256').update(saved.bytes).digest('hex'), receipt.revision.htmlSha256);
+  const renderer = createChromiumPdfRenderer({ executablePath: pdfExecutable! });
+  try {
+    const printed = await renderer.render(saved.bytes);
+    assert.ok(printed.length > 0 && printed.subarray(0, 5).toString('latin1') === '%PDF-');
+  } finally { await renderer.close(); }
 });

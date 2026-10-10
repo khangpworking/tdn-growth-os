@@ -94,6 +94,11 @@ export function readerReportUrl(workspaceId: string, runId: string, revisionId: 
   return `/api${base(workspaceId, runId)}/reader-reports/${encodeURIComponent(revisionId)}/html`;
 }
 
+/** Same saved revision printed to PDF from verified retained HTML bytes; truthful 503 when unconfigured. */
+export function readerReportPdfUrl(workspaceId: string, runId: string, revisionId: string): string {
+  return `/api${base(workspaceId, runId)}/reader-reports/${encodeURIComponent(revisionId)}/pdf`;
+}
+
 /** Retry with the same request key returns the stored decision (200) instead of a second one. */
 export async function decideReaderReport(workspaceId: string, runId: string, body: ResearchAutomationReaderDecisionRequest, token: string): Promise<ResearchAutomationReaderDecisionReceipt> {
   assertUuid(workspaceId); assertUuid(runId);

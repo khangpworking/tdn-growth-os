@@ -28,6 +28,7 @@ import insightModelSchema from '../../contracts/analysis/automation-insight-mode
 import insightModelApiSchema from '../../contracts/api/research-automation-insight-model-api.schema.json' with { type: 'json' };
 import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
 import { openResearchAutomationApi } from '../../src/api/research-automation-api.js';
+import { readerBrowserPath } from '../helpers/reader-render-check.js';
 import { i14CliproxySynthesisConfiguration, decisionCliproxySynthesisConfiguration, insightCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport.js';
 import { seedNativeDamiPackage } from '../helpers/native-dami-package-fixture.js';
 import { locatedSpan } from '../helpers/located-insight-fixture.js';
@@ -143,6 +144,7 @@ async function withApi<T>(
   i14Synthesis?: Parameters<typeof openResearchAutomationApi>[0]['i14Synthesis'],
   decisionSynthesis?: Parameters<typeof openResearchAutomationApi>[0]['decisionSynthesis'],
   insightCoding?: Parameters<typeof openResearchAutomationApi>[0]['insightCoding'],
+  pdfExecutablePath?: string,
 ): Promise<T> {
   const probe = http.createServer();
   probe.listen(0, '127.0.0.1');
@@ -159,6 +161,7 @@ async function withApi<T>(
     ...(i14Synthesis ? { i14Synthesis } : {}),
     ...(decisionSynthesis ? { decisionSynthesis } : {}),
     ...(insightCoding ? { insightCoding } : {}),
+    ...(pdfExecutablePath ? { pdfExecutablePath } : {}),
     ...(ownerEnabled
       ? {
           owner: {
@@ -1592,6 +1595,7 @@ test('reader report routes build, serve and decide one OWNER reader page without
   const fixture = await createFixture();
   const generated = spawnSync('python3', ['-I', 'tests/fixtures/metric-workbook.py'], { input: JSON.stringify({ profile: 'v2' }), maxBuffer: 4 * 1024 * 1024 });
   assert.equal(generated.status, 0, generated.stderr.toString());
+  const chromiumPath = readerBrowserPath() ?? process.env.TDN_RESEARCH_PDF_CHROMIUM;
   await withApi(fixture, true, async base => {
     const awaiting = await startAndWaitForScope(base, '91919191-9191-4191-8191-919191919191');
     const runRoot = (api: 'api' | 'owner-api') => `${base}/${api}/workspaces/${workspaceId}/research-automation/runs/${awaiting.runId}`;
@@ -1667,5 +1671,20 @@ test('reader report routes build, serve and decide one OWNER reader page without
     assert.deepEqual(await getRun(base, awaiting.runId), ready, 'reader pages never change the run');
     assert.equal(await (await fetch(`${runRoot('api')}/reports/market`)).text(), draftHtml, 'the automated draft is unchanged');
     assert.equal(captureCount(fixture.databasePath), 0, 'no provider capture');
-  });
+
+    // Exact saved revision PDF export: unknown revisions fail closed before any renderer check.
+    assert.equal((await fetch(`${runRoot('api')}/reader-reports/99999999-9999-4999-8999-999999999999/pdf`)).status, 404);
+    const printed = await fetch(`${runRoot('api')}/reader-reports/${receipt.revision.revisionId}/pdf`);
+    if (chromiumPath === null || chromiumPath === undefined) {
+      assert.equal(printed.status, 503);
+      assert.match((await readJson(printed)).error.message, /PDF renderer is not configured/);
+    } else {
+      assert.equal(printed.status, 200);
+      assert.equal(printed.headers.get('content-type'), 'application/pdf');
+      assert.match(printed.headers.get('content-disposition')!, new RegExp(`reader-report-${receipt.revision.revisionId}\\.pdf`));
+      const pdf = Buffer.from(await printed.arrayBuffer());
+      assert.ok(pdf.length > 0 && pdf.subarray(0, 5).toString('latin1') === '%PDF-');
+      assert.equal((await fetch(`${runRoot('api')}/reader-reports/${receipt.revision.revisionId}/html`)).status, 200, 'pdf export never disturbs the html read');
+    }
+  }, undefined, undefined, undefined, chromiumPath ?? undefined);
 });

@@ -398,6 +398,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const insightDefaultModelWrite = action === 'insight-coding-default-model-proposals';
     const insightModelWrite = action === 'insight-coding-model-proposals' || insightDefaultModelWrite;
     const readerHtml = /^reader-reports\/([0-9a-f-]{36})\/html$/.exec(action ?? '');
+    const readerPdf = /^reader-reports\/([0-9a-f-]{36})\/pdf$/.exec(action ?? '');
     const readerUnitSpecIntake = action === 'reader-reports/unit-spec-intakes';
     const insightReaderBuild = action === 'reader-reports/insight';
     const readerDecisionV2 = action === 'reader-reports/decisions/v2';
@@ -415,7 +416,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const shopeeConsumptionRead = action === 'sources/shopee-coding/consumption';
     const shopeePropose = action === 'sources/shopee-coding/proposals';
     const shopeeReaderBuild = action === 'reader-reports/shopee';
-    const readerAction = insightReaderBuild || readerDecisionV2 || readerListV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml) || tiktokReaderBuild || tiktokPropose || shopeeReaderBuild || shopeePropose;
+    const readerAction = insightReaderBuild || readerDecisionV2 || readerListV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || Boolean(readerHtml) || Boolean(readerPdf) || tiktokReaderBuild || tiktokPropose || shopeeReaderBuild || shopeePropose;
     const report = originalReport?.[1] ?? versionReport?.[2];
     const pdfSuffix = originalReport?.[2] ?? versionReport?.[3];
     const mutation = prefix === 'owner-api';
@@ -424,7 +425,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
       ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
-      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
+      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || Boolean(readerPdf) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
     if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -570,6 +571,18 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           response.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Content-Length': page.bytes.length, 'Cache-Control': 'no-store',
             'X-Content-Type-Options': 'nosniff', 'Content-Security-Policy': readerCsp(page.bytes) });
           response.end(page.bytes); return;
+        }
+        if (readerPdf) {
+          // Exact saved revision printed to PDF: verified retained HTML bytes only, never a rebuild.
+          // Unknown/invalid/cross-workspace/mutated revisions fail closed in the read above.
+          const page = await readService.readReaderReport(workspaceId!, runId, readerPdf[1]!);
+          if (!pdf) return fail(response, 503, 'service_unavailable', 'PDF renderer is not configured.');
+          let printed: Buffer;
+          try { printed = await pdf.render(page.bytes); }
+          catch { return fail(response, 503, 'service_unavailable', 'PDF render failed.'); }
+          response.writeHead(200, { 'Content-Type': 'application/pdf', 'Content-Length': printed.length, 'Cache-Control': 'no-store',
+            'X-Content-Type-Options': 'nosniff', 'Content-Disposition': `attachment; filename="reader-report-${readerPdf[1]}.pdf"` });
+          response.end(printed); return;
         }
         if (action === 'metric-rule-adoptions' || metricRuleRead) {
           const result = metricRuleRead ? await readService.getMetricRuleAdoption(workspaceId!, runId, metricRuleRead[1]!)
