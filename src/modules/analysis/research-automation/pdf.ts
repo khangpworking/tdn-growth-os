@@ -129,6 +129,19 @@ async function print(html: Buffer, executable: string, signal: AbortSignal): Pro
     await call('Runtime.evaluate', { expression: 'document.fonts.ready.then(() => true)', awaitPromise: true, returnByValue: true });
     // Paper has no disclosure control; print the retained context and pending evidence too.
     await call('Runtime.evaluate', { expression: 'document.querySelectorAll("details").forEach(item => { item.open = true; })' });
+    // Paper has no clickable links: expose retained citation-register URLs as visible text (P1-09).
+    // Print-only DOM preparation scoped to register anchors: empty, internal (#) and already-visible
+    // URLs are skipped so pdf-format registers never double-print; quotes and body links untouched.
+    await call('Runtime.evaluate', { expression: `(() => {
+      for (const anchor of document.querySelectorAll('.citation-register a[href]')) {
+        const href = anchor.getAttribute('href') ?? '';
+        if (!href || href.startsWith('#') || (anchor.textContent ?? '').includes(href)) continue;
+        anchor.append(' (' + href + ')');
+      }
+      const style = document.createElement('style');
+      style.textContent = '.citation-register a{overflow-wrap:anywhere;word-break:break-all}';
+      document.head.appendChild(style);
+    })()` });
     const result = await call('Page.printToPDF', { printBackground: true, preferCSSPageSize: true, transferMode: 'ReturnAsStream' });
     if (!result.stream) throw new Error('PDF stream unavailable');
     const chunks: Buffer[] = [];
