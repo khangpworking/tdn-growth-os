@@ -19,6 +19,10 @@ renderer27 refusals and old versions untouched.
   (allowlist + handler only).
 - `frontend/src/research-automation/reader-report-api.ts`: `readerReportPdfUrl()` helper.
 - `frontend/src/research-automation/ShopeeReportPanel.tsx`: “Tải PDF” link beside “Mở bản đọc”.
+- `frontend/src/research-automation/ReaderReportPanel.tsx`: “Tải PDF” links beside the latest
+  and history “Mở bản đọc” anchors — the single saved-list export surface for TikTok/Shopee
+  revisions, surviving reload. TikTokReportPanel transient just-built links reverted (they
+  duplicated this surface and vanished on reload).
 - `tests/integration/research-automation-api.test.ts`: unknown→404, unconfigured→503,
   configured→200 PDF assertions in the existing reader journey (helper gains optional
   `pdfExecutablePath` only).
@@ -37,9 +41,26 @@ renderer27 refusals and old versions untouched.
 
 ## Explicit partial scope
 
-TikTok revisions download through the same builder-agnostic route (proven at render level),
-but the TikTok panel has no saved-list UI to host an export link — TikTok UI link pending,
-not claimed. Visual acceptance needs the independent judge pass over the attached PNGs/PDF.
+TikTok revisions download through the same builder-agnostic route (proven at render level)
+and now through the shared saved-list UI. Visual acceptance needs the independent judge pass
+over the attached PNGs/PDF.
+
+## Failed cycles — cause and recommendation
+
+- TikTok mounted attempts 1–2 failed for two SRL-classified causes, both preserved raw:
+  (1) my transient TikTok just-built “Mở bản đọc” link duplicated the existing saved-list link
+  and broke the harness strict-mode locator; it also could not survive reload by design —
+  removed, single export surface is now ReaderReportPanel;
+  (2) Shopee panel admission fetches (`samples`, `context`) return 409 `invalid_state` on a
+  TikTok-only run with no Shopee scope confirmation — pre-existing service semantics that
+  predate Lane A (TikTok missing-admission conversely returns quiet 200-empty histories).
+  These 409s are expected cross-family absence signals on single-family fixtures, not product
+  regressions, and were never filtered into green: the TikTok journey asserts only
+  TikTok/Reader endpoint cleanliness plus `pageerror` emptiness.
+- Recommendation: keep 409 semantics unchanged in this lane; prove each family on its own
+  admitted fixture (done: TikTok 179028-byte PDF download, Shopee 177652-byte PDF + 9 pages);
+  any 409→404 admission-semantics redesign is an owner decision for a later package, not
+  asserted here. No third same-blocker cycle without new evidence.
 
 ## Remaining gates
 
