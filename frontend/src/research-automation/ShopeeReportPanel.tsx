@@ -1,21 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { ResearchAutomationError, type ResearchAutomationRun } from './api';
 import {
-  loadShopeeCodingContext, loadShopeeCodingHistory, loadShopeeCodingView, proposeShopeeCoding,
-  type ShopeeCodingContextView, type ShopeeCodingHistory, type ShopeeCodingReadView,
+  loadShopeeCodingContext, loadShopeeCodingHistory, loadShopeeCodingView, loadShopeeSampleSelection, proposeShopeeCoding,
+  type ShopeeCodingContextView, type ShopeeCodingHistory, type ShopeeCodingReadView, type ShopeeSampleSelection,
 } from './shopee-report-api';
 
 interface Props {
   readonly run: ResearchAutomationRun;
   readonly ownerToken: string | null;
   readonly writesAvailable: boolean;
-  readonly sampleId: string;
 }
 
 const message = (failure: unknown, fallback: string) => failure instanceof ResearchAutomationError ? failure.message : fallback;
 
 /** OWNER Shopee U22 flow: proposed draft coding, compact cited findings, expandable exact evidence. */
-export default function ShopeeReportPanel({ run, ownerToken, writesAvailable, sampleId }: Props) {
+export default function ShopeeReportPanel({ run, ownerToken, writesAvailable }: Props) {
+  const [selection, setSelection] = useState<ShopeeSampleSelection | null>(null);
   const [context, setContext] = useState<ShopeeCodingContextView | null>(null);
   const [history, setHistory] = useState<ShopeeCodingHistory | null>(null);
   const [view, setView] = useState<ShopeeCodingReadView | null>(null);
@@ -31,13 +31,14 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable, sa
     const controller = new AbortController();
     setView(null); setExpanded(null); setError('');
     Promise.all([
-      loadShopeeCodingContext(run.workspaceId, run.runId, sampleId, controller.signal),
+      loadShopeeSampleSelection(run.workspaceId, run.runId, controller.signal),
+      loadShopeeCodingContext(run.workspaceId, run.runId, controller.signal),
       loadShopeeCodingHistory(run.workspaceId, run.runId, controller.signal),
     ])
-      .then(([value, list]) => { if (!controller.signal.aborted) { setContext(value); setHistory(list); } })
+      .then(([selected, value, list]) => { if (!controller.signal.aborted) { setSelection(selected); setContext(value); setHistory(list); } })
       .catch((failure: unknown) => { if (!controller.signal.aborted) { setContext(null); setError(message(failure, 'Chưa tải được mẫu Shopee.')); } });
     return () => controller.abort();
-  }, [run.workspaceId, run.runId, sampleId, tick]);
+  }, [run.workspaceId, run.runId, tick]);
 
   const propose = async () => {
     if (!context || !canWrite) return;
@@ -65,23 +66,30 @@ export default function ShopeeReportPanel({ run, ownerToken, writesAvailable, sa
     {notice && <p className="ra-banner" role="status">{notice}</p>}
     {!canWrite && <p className="ra-muted">Mở khóa OWNER để tạo đề xuất.</p>}
     {context && <div>
-      <p>Đánh giá đủ điều kiện: {context.counts.eligible} · Loại trừ: {context.counts.excluded} · Không đọc được: {context.counts.unreadable}</p>
+      <p>Mẫu đã chọn: {selection?.sample.sampleId ?? 'chưa rõ'} · Đánh giá đủ điều kiện: {selection?.counts.eligible ?? context.counts.eligible} · Loại trừ: {selection?.counts.excluded ?? context.counts.excluded} · Không đọc được: {selection?.counts.unreadable ?? context.counts.unreadable}</p>
       <button type="button" className="button" disabled={!canWrite || pending} onClick={() => void propose()}>Tạo bản tổng hợp</button>
     </div>}
     <h3>Lịch sử đề xuất</h3>
     {history && history.sources.length === 0 && <p className="ra-muted">Chưa có đề xuất nào cho mẫu này.</p>}
     <ul>{history?.sources.map((item, index) => <li key={item.proposalId}><span>Bản tổng hợp {index + 1}</span> · <span>Đề xuất, chờ bạn duyệt</span> <button type="button" className="button" onClick={() => void open(item.packageId)}>Mở</button></li>)}</ul>
     {view && <article className="ra-shopee-report">
-      <p>Đề xuất, chờ bạn duyệt. Số lượng là đề xuất của mô hình, chưa được chủ sở hữu phê duyệt.</p>
+      <p>Đề xuất, chờ bạn duyệt. Số liệu do ứng dụng tính trên mã đề xuất, chưa được chủ sở hữu phê duyệt.</p>
       <p>Đã mã hóa: {view.draft.counts.recordsCoded} · Mã đề xuất: {view.draft.counts.codesProposed} · Trích dẫn: {view.draft.counts.quotesCited}</p>
-      <ul>{view.report.findings.map(finding => <li key={`${finding.sectionId}:${finding.code}`}>
-        <b>{finding.label}</b> · {finding.scope} · {finding.citations.length} trích dẫn (đề xuất, chờ bạn duyệt){' '}
-        <button type="button" className="button" aria-expanded={expanded === finding.code} onClick={() => setExpanded(expanded === finding.code ? null : finding.code)}>Xem bằng chứng</button>
-        {expanded === finding.code && <ul>{view.draft.codes.filter(code => code.code === finding.code).map((code, index) => <li key={`${code.citationId}:${index}`}>
-          bình luận {code.recordIndex}: <q>{code.quote.text}</q> · trích dẫn [{code.citationId}]
-        </li>)}</ul>}
-      </li>)}</ul>
-      <ul>{view.citations.map(citation => <li key={citation.citationId}>[{citation.citationId}] {citation.locator}{citation.url ? <> · <a href={citation.url} rel="noreferrer">nguồn</a></> : null}</li>)}</ul>
+      <ul>{view.report.findings.map(finding => {
+        const codes = view.draft.codes.filter(code => code.code === finding.code);
+        const records = new Set(codes.map(code => code.recordIndex)).size;
+        return <li key={`${finding.sectionId}:${finding.code}`}>
+          <b>{finding.label}</b> · {finding.template} · {records} bình luận khác nhau (đề xuất, chờ bạn duyệt){' '}
+          <button type="button" className="button" aria-expanded={expanded === finding.code} onClick={() => setExpanded(expanded === finding.code ? null : finding.code)}>Xem bằng chứng</button>
+          {expanded === finding.code && <ul>{codes.map((code, index) => {
+            const citation = view.citations.find(item => item.citationId === code.citationId);
+            return <li key={`${code.citationId}:${index}`}>
+              bình luận {code.recordIndex}: <q>{code.quote.text}</q>
+              {citation ? <> · {citation.locator} · ngữ cảnh: <q>{citation.context}</q></> : <span> · Thiếu vị trí nguồn</span>}
+            </li>;
+          })}</ul>}
+        </li>;
+      })}</ul>
       <ul>{view.draft.limitations.map(item => <li key={item}>{item}</li>)}</ul>
     </article>}
   </section>;
