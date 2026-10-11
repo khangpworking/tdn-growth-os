@@ -25,3 +25,9 @@ const promptV1: ShopeeCodingModelPrompt = { contractVersion: 'shopee-review-codi
 export function shopeeCodingPrompt(): ShopeeCodingModelPrompt {
   return { ...promptV1 };
 }
+
+const systemTextV2 =
+  systemText.replace('Each code needs:', 'Each code needs: topic (a short label), polarity, where polarity is exactly KHEN (praise), CHE (complaint), or KHONG_RO (topic mentioned without praise or complaint).') +
+  ' It is fine to leave a comment unassigned when no topic is directly supported. Do not invent topics, polarities, or evidence to fill a quota.';
+const promptV2 = { contractVersion: 'shopee-review-coding-prompt-v2' as const, systemText: systemTextV2 };
+export function shopeeCodingPromptV2(): typeof promptV2 { return { ...promptV2 }; }

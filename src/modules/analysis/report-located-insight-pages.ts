@@ -263,7 +263,10 @@ function pendingDetails(ctx: RenderContext, sectionId: LocatedId, section: { rea
 
 function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
   const section = ctx.output.sections[sectionId];
-  let body = `<p class="sec-note">${sectionId === 'I10' ? 'Số bản ghi mang từng mã trong phạm vi khai báo.' : 'Danh mục tên hoặc cụm nhắc nguyên văn, giữ thứ tự nguồn và vị trí, không xếp hạng thương hiệu.'} Chỉ hiện n/N khi việc mã hóa và mẫu số đã đầy đủ.</p>`;
+  const ratioNote = ctx.output.input.draftCountsVersion === 'draft-counts-v2'
+    ? 'Bản nháp chưa công bố n/N; số theo mã vẫn mang nhãn đề xuất, chờ chủ duyệt.'
+    : 'Chỉ hiện n/N khi việc mã hóa và mẫu số đã đầy đủ.';
+  let body = `<p class="sec-note">${sectionId === 'I10' ? 'Số bản ghi mang từng mã trong phạm vi khai báo.' : 'Danh mục tên hoặc cụm nhắc nguyên văn, giữ thứ tự nguồn và vị trí, không xếp hạng thương hiệu.'} ${ratioNote}</p>`;
   if (sectionId === 'I13') {
     const mentions = (pointers: readonly string[], pending: boolean): string => {
       if (!pointers.length) return '';
@@ -285,16 +288,15 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
     if (!corpus) throw new TypeError('located insight HTML: UNKNOWN_CORPUS');
     const complete = result.codingComplete && result.ratioStatus === 'COMPLETE';
     const state = result.draftCounts !== undefined
-      ? 'Bản nháp chưa đối chiếu xong; chưa công bố n/N.'
+        ? 'Bản nháp chưa đối chiếu xong; chưa công bố n/N.'
       : result.ratioStatus === 'ZERO_DENOMINATOR' ? 'Mẫu số bằng 0; không có tỷ lệ.'
       : complete ? 'Đã hoàn tất mẫu số và mã hóa theo khai báo của hồ sơ.' : 'Mã hóa hoặc thành viên chưa đầy đủ; chưa công bố n/N.';
     body += `<h4>${textOrUnset(corpus.question)}</h4><p><b>${state}</b></p>`;
     if (result.draftCounts === undefined) {
       body += `<p>${result.includedRecordCount} bản ghi thuộc diện đưa vào; ${result.pendingCount} bản ghi đang chờ mã hóa hoặc phân xử; ${result.unreadableCount} bản ghi không đọc được.</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
     } else {
-      // Draft mode withholds accepted-state tallies instead of showing bare
-      // classified numbers; the draft per-code table below carries the labels.
-      body += `<p class="sec-note">Số tổng hợp chi tiết của tập này không hiển thị ở bản nháp; số đề xuất theo mã ở bảng dưới (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}).</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
+      const draftExplanation = `Số tổng hợp chi tiết của tập này không hiển thị ở bản nháp; số đề xuất theo mã ở bảng dưới (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}).`;
+      body += `<p class="sec-note">${draftExplanation}</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
     }
     const coverage = [
       ['Thành viên duy nhất', result.membershipCount], ['Đưa vào', result.includedRecordCount],
@@ -321,9 +323,9 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
       body += table(complete ? 'Số bản ghi theo mã trong tập đã chốt' : 'Số bản ghi đã mã hóa, còn một phần', ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], rows) + sliceNote(ctx, result.counts.length, 'mã');
     } else {
       // Draft mode: the displayed per-code totals ARE the mixed eligible draft
-      // counts with the same-sentence label, including zero. Ratios are never
-      // published from a draft view. Accepted-only numbers are not shown as
-      // competing totals; disagreements stay in the pending list.
+      // counts with the same-sentence label, including zero. Accepted-only
+      // numbers are not shown as competing totals;
+      // disagreements stay in the pending list.
       const draftRows = result.draftCounts.slice(0, PAGE_LIMIT).map(count => {
         const code = corpus.codebook.codes.find(item => item.code === count.code);
         if (!code) throw new TypeError('located insight HTML: UNKNOWN_CODE');
@@ -332,7 +334,8 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
           return `<li>${quote(assignment.span)}${source(ctx, assignment.recordIndex)}${provenance(assignment.provenance)}</li>`;
         }).join('');
         const evidence = refs ? `<details><summary>Đoạn nguồn cho mã này</summary><ul class="limits">${refs}</ul>${sliceNote(ctx, count.annotationPointers.length, 'chú giải nguồn')}</details>` : '';
-        return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${textOrUnset(code.phrase)}</small>` : ''}</th><td>${ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? `<span data-classified="pending">${count.recordCount} (${count.label})</span>` : `${count.recordCount} (${count.label})`}${evidence}</td><td>Chưa công bố</td></tr>`;
+        const draftRatio = 'Chưa công bố';
+        return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${textOrUnset(code.phrase)}</small>` : ''}</th><td>${ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? `<span data-classified="pending">${count.recordCount} (${count.label})</span>` : `${count.recordCount} (${count.label})`}${evidence}</td><td>${draftRatio}</td></tr>`;
       });
       body += table(`Số bản ghi theo mã (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'})`, ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], draftRows) + sliceNote(ctx, result.draftCounts.length, 'mã đề xuất');
     }
