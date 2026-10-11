@@ -5,6 +5,10 @@ import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { tiktokFixture, workspaceId, runId, fakeCodingPort, fakeCodingAi } from '../fixtures/tiktok-coding-fixture.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
 import { readerBrowserPath } from '../helpers/reader-render-check.js';
+import { prepareTikTokReaderBuild } from '../../src/modules/analysis/reader-report/tiktok-build-v1.js';
+import { SourcePackageService } from '../../src/modules/foundation/source-package-service.js';
+import { FoundationSourcePackageReader } from '../../src/modules/foundation/source-package-reader.js';
+import type { TikTokCommentCorpus } from '../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 
 const sha = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
 
@@ -52,6 +56,19 @@ test('build retained TikTok reader -> consumption ledger -> open/reopen/decide j
   assert.ok(html.includes(read.draft.codes[0]!.quote.text));
   assert.ok(html.includes('S07'));
   assert.ok(html.includes('EXCLUDED'));
+  const retained = await new FoundationSourcePackageReader(new SourcePackageService({ db: f.db, artifactStore: f.artifacts }))
+    .readFinalizedSourcePackage(f.corpusPackage.packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
+  const corpusBytes = retained.files.find(file => file.path === 'corpus.json')!.bytes;
+  const corpus = JSON.parse(corpusBytes.toString('utf8')) as TikTokCommentCorpus;
+  const firstRecordIndex = read.draft.codes[0]!.recordIndex;
+  const firstRecord = corpus.records[firstRecordIndex]!;
+  const sourceView = await f.service.readP9Source(workspaceId, runId, 'comments', read.draft.corpus.packageId);
+  assert.equal(sourceView.view.contractVersion, 'tiktok-comment-read-v1');
+  assert.equal(sourceView.view.rows.find(row => row.createdAt !== null)!.createdAt, firstRecord.createdAt);
+  assert.ok(html.includes('<span class="cite-date">ngày 03/09/2026</span>'));
+  assert.ok(!html.includes('<span class="cite-date">ngày 09/10/2026</span>'));
+  assert.ok(html.includes(firstRecord.videoUrl));
+  assert.ok(html.includes(`bình luận ${firstRecord.commentId}`));
   // U-27 Reader appendix: the saved I17 carries the S07 registry identity (ID, tier, report
   // name), the L10 source-type split counted from retained records, and the retained L9
   // keyword-data version behind the exclusion tallies.
@@ -67,6 +84,15 @@ test('build retained TikTok reader -> consumption ledger -> open/reopen/decide j
   assert.equal(rebuilt.exactRetry, true);
   assert.equal((await f.service.readTikTokReportConsumption(workspaceId, runId)).entries.length, 1,
     'exact retry writes no ledger rows');
+  const missingDateCorpus = { ...corpus, records: corpus.records.map((record, recordIndex) =>
+    recordIndex === firstRecordIndex ? { ...record, createdAt: null } : record) };
+  const missingDatePage = prepareTikTokReaderBuild({ workspaceId, runId, draftPairId: draftDigest,
+    semanticSha256: reportDigest, sourceReportSha256: reportDigest, frozenStartSha256: '0'.repeat(64),
+    frozenScopeSha256: '1'.repeat(64), sourceRendererVersion: 'tiktok-reader-kit-v1' }, read.draft, read.report,
+    missingDateCorpus, '2026-10-09T00:00:00.000Z', { keyword: 'thạch dừa', definition: 'Synthetic TikTok coding scope',
+      requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' } });
+  assert.equal(missingDatePage.page.registry.entries()[0]!.retrievedAt, null,
+    'missing retained comment dates stay undated rather than using capture time');
   const decided = await f.service.decideReaderReportV2(workspaceId, runId, { contractVersion: 'reader-report-decision-v2',
     requestKey: randomUUID(), revisionId: receipt.revision.revisionId, decision: 'APPROVED', reason: null,
     reportKind: 'INSIGHT', htmlSha256: receipt.revision.htmlSha256 }, owner);
