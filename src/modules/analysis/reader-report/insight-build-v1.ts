@@ -33,10 +33,15 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       digest(methods.start) !== identity.frozenStartSha256 || digest(methods.scope) !== identity.frozenScopeSha256)
     throw new ReaderReportInputError('Insight reader methods differ from authenticated frozen scope.');
   const qualitativeDraft: AutomationQualitativeDraft | undefined = methods.qualitativeDraft;
+  const qualitative28 = identity.sourceRendererVersion === 'automation-report-kit-v28';
+  if (qualitative28 !== Boolean(qualitativeDraft))
+    throw new ReaderReportInputError('Qualitative Insight reader requires its verified source-bound draft and renderer version.');
   if (qualitativeDraft && (qualitativeDraft.binding.workspaceId !== identity.workspaceId || qualitativeDraft.binding.runId !== identity.runId ||
       qualitativeDraft.binding.requestedPeriod.startDate !== methods.start.requestedPeriod.startDate ||
       qualitativeDraft.binding.requestedPeriod.endDate !== methods.start.requestedPeriod.endDate))
     throw new ReaderReportInputError('Qualitative draft differs from authenticated frozen scope.');
+  if (qualitative28) methods = { run: methods.run, start: methods.start, scope: methods.scope, collection: methods.collection,
+    captures: methods.captures, qualitativeDraft: qualitativeDraft!, ...(methods.sourceEvidence ? { sourceEvidence: methods.sourceEvidence } : {}) };
   if (methods.nativeReview && (methods.locatedReview || methods.reviewCorpus)) throw new ReaderReportInputError('Insight reader cannot substitute native and collected sources.');
   const persona26 = identity.sourceRendererVersion === 'automation-report-kit-v26';
   if (persona26 !== Boolean(methods.insightPersona) || (persona26 && (!methods.privateReviewCorpus ||
@@ -79,6 +84,7 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   };
   if (private25 && methods.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5') ref('PRIVATE_PROJECTION', methods.insightCoding.privateSource);
   if (methods.insightPersona) { ref('PERSONA', methods.insightPersona); ref('PERSONA_SOURCE', methods.insightPersona.source); }
+  ref('QUALITATIVE_DRAFT', qualitativeDraft);
   ref('CROSSCHECK', methods.insightCrosscheck);
   ref('PRIVATE_CORPUS', methods.privateReviewCorpus);
   ref('NATIVE', methods.nativeReview); ref('LOCATED', methods.locatedReview); ref('CORPUS', methods.reviewCorpus);
@@ -87,8 +93,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   ref('I14_ADMISSION', methods.i14Admission); ref('I14_SYNTHESIS', methods.i14Synthesis);
   for (const packet of methods.decisionPackets ?? []) ref('DECISION_PACKET', packet);
   for (const outcome of Object.values(methods.decisionSynthesis ?? {})) ref('DECISION_SYNTHESIS', outcome);
-  const input = { ...identity, contractVersion: persona26 ? 'insight-reader-input-v6' : private25 ? 'insight-reader-input-v5' : crosscheck23 ? 'insight-reader-input-v4' : private22 ? 'insight-reader-input-v3' : default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
-    builderVersion: persona26 ? 'reader-report-insight-v6' : private25 ? 'reader-report-insight-v5' : crosscheck23 ? 'reader-report-insight-v4' : private22 ? 'reader-report-insight-v3' : default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references, ...(methods.insightPersona ? {
+  const input = { ...identity, contractVersion: qualitative28 ? 'insight-reader-input-v9' : persona26 ? 'insight-reader-input-v6' : private25 ? 'insight-reader-input-v5' : crosscheck23 ? 'insight-reader-input-v4' : private22 ? 'insight-reader-input-v3' : default21 ? 'insight-reader-input-v2' : 'insight-reader-input-v1', reportKind: 'INSIGHT',
+    builderVersion: qualitative28 ? 'reader-report-insight-v9' : persona26 ? 'reader-report-insight-v6' : private25 ? 'reader-report-insight-v5' : crosscheck23 ? 'reader-report-insight-v4' : private22 ? 'reader-report-insight-v3' : default21 ? 'reader-report-insight-v2' : 'reader-report-insight-v1', scope, retainedMethods: references, ...(methods.insightPersona ? {
       personaProposalId: methods.insightPersona.selection.proposalId, personaProposalSha256: methods.insightPersona.selection.proposalSha256,
       personaSourcePairId: methods.insightPersona.selection.binding.pairId, personaSourceSha256: digest(methods.insightPersona.source),
     } : {}) } as InsightReaderInput;

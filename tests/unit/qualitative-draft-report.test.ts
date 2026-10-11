@@ -40,8 +40,11 @@ test('qualitative report projection preserves source quote, locator, policy and 
   assert.match(html, /UTF-16 0–19/);
   assert.match(html, /\/records\/0\/text/);
   assert.match(html, /U11_STATISTIC_UNAVAILABLE/);
+  assert.match(html, /không có tỷ lệ, kappa hoặc số liệu suy rộng/);
   assert.match(html, /Thấy gì/);
+  assert.match(html, /Dùng để/);
   assert.match(html, /Đừng hiểu là/);
+  assert.match(html, /Không dùng để suy ra người dùng, quan hệ nhân quả, độ tin cậy/);
   assert.doesNotMatch(html, /số người, tỷ lệ thị trường/);
   assert.equal(c.registry.entries().length, 1, 'same retained record has one stable citation');
 });
