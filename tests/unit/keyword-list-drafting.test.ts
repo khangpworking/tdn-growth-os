@@ -28,14 +28,17 @@ test('drafting freezes validated MODEL_DRAFTED lists with exact term bytes', asy
   const recording: KeywordListDraftTransport = {
     draftLists: async input => {
       seen.push(input);
-      return { keywords: ['thạch dừa', 'Thạch Dừa An Nhiên'], exclusions: [{ term: 'thạch dứa', reason: 'khác sản phẩm' }] };
+      return { keywords: ['Thạch Dừa An Nhiên'], exclusions: [{ term: 'khác sản phẩm', reason: 'Synthetic model exclusion' }] };
     },
   };
   const data = await draftKeywordLists(recording, request());
   assert.equal(data.contractVersion, 'l9-keyword-data-v1');
   assert.equal(data.provenance, 'MODEL_DRAFTED');
   assert.deepEqual(data.keywords, ['thạch dừa', 'Thạch Dừa An Nhiên']);
-  assert.deepEqual(data.exclusions, [{ term: 'thạch dứa', reason: 'khác sản phẩm' }]);
+  assert.deepEqual(data.exclusions, [
+    { term: 'khác sản phẩm', reason: 'Synthetic model exclusion' },
+    { term: 'thạch dứa', reason: 'SCOPE_EXCLUDE_TERM' },
+  ]);
   assert.equal(validatesKeywordMeaningFilterData(data), true);
   assert.deepEqual(seen, [{ productNames: ['Thạch dừa An Nhiên 350g'], includeTerms: ['thạch dừa'], excludeTerms: ['thạch dứa'] }]);
 });
@@ -48,10 +51,13 @@ test('drafting fails closed on malformed, empty or duplicate transport output', 
     { keywords: ['thạch dừa'], exclusions: [{ term: '', reason: 'empty' }] },
   ];
   for (const lists of cases) {
-    await assert.rejects(draftKeywordLists(transport(lists), request()), KeywordListDraftError);
+    await assert.rejects(draftKeywordLists(transport(lists), request({ seeds: { productNames: ['Synthetic product'], includeTerms: [], excludeTerms: [] } })), KeywordListDraftError);
   }
   await assert.rejects(
     draftKeywordLists({ draftLists: async () => { throw new Error('synthetic transport boom'); } }, request()),
+    KeywordListDraftError);
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => null as never }, request()),
     KeywordListDraftError);
 });
 
