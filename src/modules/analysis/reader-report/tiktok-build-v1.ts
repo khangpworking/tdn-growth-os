@@ -9,6 +9,7 @@ import type { InsightReaderPage, InsightReaderSection } from './insight-template
 import { Bundle } from './bundle.js';
 import { esc } from './format.js';
 import type { TikTokDraftCoding, TikTokCodedReport } from '../../../../contracts/analysis/tiktok-coding-proposal-v1.generated.js';
+import { rankReviewTopicMentions, type ReviewTopicRanking } from '../research-automation/review-topic-ranking.js';
 import type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 import { SOURCE_REGISTRY } from '../research-automation/source-status.js';
 
@@ -86,16 +87,25 @@ export function prepareTikTokReaderBuild(identity: TikTokReaderSourceIdentity, d
   const mark = (recordIndex: number) => renderCitationMarkOrMissing(registry.cite(citeRow(recordIndex)));
   const quoteBlock = (occurrence: { recordIndex: number; quote: string; context: string }) =>
     `<blockquote>${esc(occurrence.quote)}</blockquote><details><summary>Ngữ cảnh bản ghi</summary><p>${esc(occurrence.context)}</p></details>`;
+  const rankingQuoteBlock = (occurrence: { recordIndex: number; quote: string; context: string | null }) =>
+    `<blockquote>${esc(occurrence.quote)}</blockquote>` +
+    (occurrence.context === null ? '' : `<details><summary>Ngữ cảnh bản ghi</summary><p>${esc(occurrence.context)}</p></details>`);
+  const topicRanking: ReviewTopicRanking | null = draft.promptVersion.endsWith('-v2')
+    ? rankReviewTopicMentions(draft.codes.map(entry => ({ platform: 'TIKTOK' as const, recordIndex: entry.recordIndex,
+        topic: ('topic' in entry ? entry.topic : entry.label), polarity: entry.polarity ?? 'KHONG_RO', quote: entry.quote.text,
+        context: byIndex.get(entry.recordIndex)?.text ?? null })), { platform: 'TIKTOK' })
+    : null;
+  const rankingHtml = topicRanking === null ? null : renderTopicRanking(topicRanking, mark, rankingQuoteBlock);
   const sections: InsightReaderSection[] = [
     { id: 'I02', body: `<p>Khách hàng bình luận dưới video TikTok đã thu thập: ${recordsCoded} bản ghi INCLUDED CUSTOMER trong tập S07 đã lưu (số lượng đề xuất, chờ chủ duyệt), giai đoạn nguồn không xác minh. Đơn vị là bản ghi thu được, không phải số người.</p>`,
       explanation: 'Bối cảnh khách hàng từ tập S07 đã lưu; chưa xác thực độc lập.' },
-    { id: 'I10', body: report.findings.map(finding => {
+    { id: 'I10', body: rankingHtml ?? (report.findings.map(finding => {
       const renditions = draftByCode.get(finding.code);
       const occurrences = (renditions?.occurrences ?? []).slice(0, 6);
       return `<p><b>${esc(finding.code)}</b> (${esc(finding.label)}): ` +
         `${occurrences.map(occurrence => `${mark(occurrence.recordIndex)}`).join(' ')}</p>` +
         occurrences.map(occurrence => quoteBlock(occurrence)).join('');
-    }).join('') || `<p>Không có mã đề xuất nào trong bản nháp này.</p>`,
+    }).join('') || `<p>Không có mã đề xuất nào trong bản nháp này.</p>`),
     explanation: 'Chủ đề do mô hình đề xuất từ lời nguồn đã lưu, chờ chủ duyệt; chưa phải kết luận.' },
     { id: 'I17', body: `<p>Phụ lục: ${codesProposed} mã đề xuất trên ${recordsCoded} bản ghi (số lượng đề xuất, chờ chủ duyệt). ` +
       `${sourceAppendixRow(corpus)} ` +
@@ -113,6 +123,15 @@ function reasonedExclusions(corpus: TikTokCommentCorpus): string {
   const parts = [`EXCLUDED ${corpus.accounting.excluded}`, `UNCLEAR ${corpus.accounting.unclear}`];
   if (reasons) parts.push(reasons);
   return parts.join('; ') + '.';
+}
+
+function renderTopicRanking(ranking: ReviewTopicRanking, mark: (recordIndex: number) => string,
+  quoteBlock: (occurrence: { recordIndex: number; quote: string; context: string | null }) => string): string {
+  const quoteCells = (quotes: ReviewTopicRanking['khac']['quotes']) => quotes.map(q => `${mark(q.recordIndex)}${quoteBlock(q)}`).join('');
+  const rows = ranking.rows.map(row => `<tr><td>${row.rank}</td><td>${esc(row.topic)}</td><td>${row.polarity}</td><td>${row.mentionCount}</td><td><details><summary>Xem ${row.quotes.length} trích dẫn</summary>${quoteCells(row.quotes)}</details></td></tr>`).join('');
+  const khac = `<tr><td></td><td>Khác</td><td></td><td>${ranking.khac.mentionCount}</td><td><details><summary>Xem ${ranking.khac.quotes.length} trích dẫn</summary>${quoteCells(ranking.khac.quotes)}</details></td></tr>`;
+  return `<table><thead><tr><th>Hạng</th><th>Chủ đề</th><th>Khen/chê</th><th>Số lượt nhắc</th><th>Trích dẫn</th></tr></thead><tbody>${rows}${khac}</tbody></table>` +
+    `<p>Không khen không chê: ${ranking.khongRoCount} lượt nhắc.</p>`;
 }
 
 /** U-27 source appendix row: registry identity (S-ID, tier, report name) plus the L10

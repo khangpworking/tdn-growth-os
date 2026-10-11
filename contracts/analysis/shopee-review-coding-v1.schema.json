@@ -219,6 +219,20 @@
         "citationId": {
           "type": "integer",
           "minimum": 1
+        },
+        "polarity": {
+          "enum": [
+            "KHEN",
+            "CHE",
+            "KHONG_RO"
+          ]
+        },
+        "topic": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 160
         }
       }
     },
@@ -336,7 +350,10 @@
           "pattern": "^([a-f0-9]{64})?$"
         },
         "promptVersion": {
-          "const": "shopee-review-coding-prompt-v1"
+          "enum": [
+            "shopee-review-coding-prompt-v1",
+            "shopee-review-coding-prompt-v2"
+          ]
         },
         "codes": {
           "type": "array",
@@ -486,7 +503,6 @@
         "findings": {
           "type": "array",
           "minItems": 0,
-          "maxItems": 6,
           "items": {
             "$ref": "#/$defs/finding"
           }
@@ -505,6 +521,141 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 500
+          }
+        },
+        "topicRanking": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "platform",
+            "rows",
+            "khac",
+            "khongRoCount",
+            "khacShare",
+            "needsTopUp"
+          ],
+          "properties": {
+            "platform": {
+              "enum": [
+                "SHOPEE",
+                "TIKTOK"
+              ]
+            },
+            "rows": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "rank",
+                  "topic",
+                  "polarity",
+                  "mentionCount",
+                  "quotes"
+                ],
+                "properties": {
+                  "rank": {
+                    "type": "integer",
+                    "minimum": 1
+                  },
+                  "topic": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "polarity": {
+                    "enum": [
+                      "KHEN",
+                      "CHE"
+                    ]
+                  },
+                  "mentionCount": {
+                    "type": "integer",
+                    "minimum": 3
+                  },
+                  "quotes": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "recordIndex",
+                        "quote",
+                        "context"
+                      ],
+                      "properties": {
+                        "recordIndex": {
+                          "type": "integer",
+                          "minimum": 0
+                        },
+                        "quote": {
+                          "type": "string"
+                        },
+                        "context": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "khac": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "mentionCount",
+                "quotes"
+              ],
+              "properties": {
+                "mentionCount": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "quotes": {
+                  "type": "array",
+                  "maxItems": 3,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "recordIndex",
+                      "quote",
+                      "context"
+                    ],
+                    "properties": {
+                      "recordIndex": {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      "quote": {
+                        "type": "string"
+                      },
+                      "context": {
+                        "type": [
+                          "string",
+                          "null"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "khongRoCount": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "khacShare": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1
+            },
+            "needsTopUp": {
+              "type": "boolean"
+            }
           }
         }
       }

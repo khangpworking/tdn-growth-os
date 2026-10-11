@@ -49,7 +49,7 @@ export interface ShopeeDraftCoding {
   binding: ShopeeCodingBinding;
   sample: ShopeeCodingSampleIdentity;
   keywordDigest: string | null;
-  promptVersion: 'shopee-review-coding-prompt-v1';
+  promptVersion: 'shopee-review-coding-prompt-v1' | 'shopee-review-coding-prompt-v2';
   /**
    * @minItems 0
    * @maxItems 6000
@@ -200,6 +200,8 @@ export interface ShopeeDraftCode {
   recordIndex: number;
   quote: ShopeeCodingQuote;
   citationId: number;
+  polarity?: 'KHEN' | 'CHE' | 'KHONG_RO';
+  topic?: string | null;
 }
 export interface ShopeeCodingQuote {
   text: string;
@@ -219,23 +221,8 @@ export interface ShopeeCitedSynthesis {
   keywordDigest: string | null;
   /**
    * @minItems 0
-   * @maxItems 6
    */
-  findings:
-    | []
-    | [ShopeeCitedFinding]
-    | [ShopeeCitedFinding, ShopeeCitedFinding]
-    | [ShopeeCitedFinding, ShopeeCitedFinding, ShopeeCitedFinding]
-    | [ShopeeCitedFinding, ShopeeCitedFinding, ShopeeCitedFinding, ShopeeCitedFinding]
-    | [ShopeeCitedFinding, ShopeeCitedFinding, ShopeeCitedFinding, ShopeeCitedFinding, ShopeeCitedFinding]
-    | [
-        ShopeeCitedFinding,
-        ShopeeCitedFinding,
-        ShopeeCitedFinding,
-        ShopeeCitedFinding,
-        ShopeeCitedFinding,
-        ShopeeCitedFinding,
-      ];
+  findings: ShopeeCitedFinding[];
   counts: ShopeeCodingCounts;
   status: 'PROPOSED_AWAITING_REVIEW';
   /**
@@ -374,6 +361,67 @@ export interface ShopeeCitedSynthesis {
         string,
         string,
       ];
+  topicRanking?: {
+    platform: 'SHOPEE' | 'TIKTOK';
+    rows: {
+      rank: number;
+      topic: string;
+      polarity: 'KHEN' | 'CHE';
+      mentionCount: number;
+      quotes: {
+        recordIndex: number;
+        quote: string;
+        context: string | null;
+      }[];
+    }[];
+    khac: {
+      mentionCount: number;
+      /**
+       * @maxItems 3
+       */
+      quotes:
+        | []
+        | [
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+          ]
+        | [
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+          ]
+        | [
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+          ];
+    };
+    khongRoCount: number;
+    khacShare: number;
+    needsTopUp: boolean;
+  };
 }
 export interface ShopeeCitedFinding {
   sectionId: 'I02' | 'I10' | 'I17';

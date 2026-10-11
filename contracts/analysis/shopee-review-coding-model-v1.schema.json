@@ -208,7 +208,10 @@
       ],
       "properties": {
         "contractVersion": {
-          "const": "shopee-review-coding-prompt-v1"
+          "enum": [
+            "shopee-review-coding-prompt-v1",
+            "shopee-review-coding-prompt-v2"
+          ]
         },
         "systemText": {
           "type": "string",
@@ -219,6 +222,17 @@
     },
     "candidates": {
       "title": "ShopeeCodingModelCandidates",
+      "oneOf": [
+        {
+          "$ref": "#/$defs/candidatesV1"
+        },
+        {
+          "$ref": "#/$defs/candidatesV2"
+        }
+      ]
+    },
+    "candidatesV1": {
+      "title": "ShopeeCodingModelCandidatesV1",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -281,6 +295,106 @@
                     "minimum": 1
                   }
                 }
+              },
+              "polarity": {
+                "enum": [
+                  "KHEN",
+                  "CHE",
+                  "KHONG_RO"
+                ]
+              },
+              "topic": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 160
+              }
+            }
+          }
+        }
+      }
+    },
+    "candidatesV2": {
+      "title": "ShopeeCodingModelCandidatesV2",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "codes"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "shopee-coding-candidates-v2"
+        },
+        "codes": {
+          "type": "array",
+          "minItems": 0,
+          "maxItems": 6000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "code",
+              "label",
+              "recordIndex",
+              "quote",
+              "polarity",
+              "topic"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80,
+                "pattern": "^[A-Z0-9][A-Z0-9_]{0,79}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 160
+              },
+              "recordIndex": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "quote": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "text",
+                  "start",
+                  "end"
+                ],
+                "properties": {
+                  "text": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 2000
+                  },
+                  "start": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "end": {
+                    "type": "integer",
+                    "minimum": 1
+                  }
+                }
+              },
+              "polarity": {
+                "enum": [
+                  "KHEN",
+                  "CHE",
+                  "KHONG_RO"
+                ]
+              },
+              "topic": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 160
               }
             }
           }

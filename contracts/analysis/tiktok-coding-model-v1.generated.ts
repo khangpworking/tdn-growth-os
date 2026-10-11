@@ -7,6 +7,7 @@ export type TikTokCodingModelV1 =
   TikTokCodingModelSource | TikTokCodingModelInput | TikTokCodingModelPrompt | TikTokCodingModelCandidates;
 export type Uuid = string;
 export type Digest = string;
+export type TikTokCodingModelCandidates = TikTokCodingModelCandidatesV1 | TikTokCodingModelCandidatesV2;
 
 export interface TikTokCodingModelSource {
   contractVersion: 'tiktok-coding-source-v1';
@@ -59,10 +60,10 @@ export interface TikTokCodingModelInput {
   ];
 }
 export interface TikTokCodingModelPrompt {
-  contractVersion: 'tiktok-coding-prompt-v1';
+  contractVersion: 'tiktok-coding-prompt-v1' | 'tiktok-coding-prompt-v2';
   systemText: string;
 }
-export interface TikTokCodingModelCandidates {
+export interface TikTokCodingModelCandidatesV1 {
   contractVersion: 'tiktok-coding-candidates-v1';
   /**
    * @minItems 0
@@ -77,5 +78,26 @@ export interface TikTokCodingModelCandidates {
       start: number;
       end: number;
     };
+    polarity?: 'KHEN' | 'CHE' | 'KHONG_RO';
+    topic?: string | null;
+  }[];
+}
+export interface TikTokCodingModelCandidatesV2 {
+  contractVersion: 'tiktok-coding-candidates-v2';
+  /**
+   * @minItems 0
+   * @maxItems 6000
+   */
+  codes: {
+    code: string;
+    label: string;
+    recordIndex: number;
+    quote: {
+      text: string;
+      start: number;
+      end: number;
+    };
+    polarity: 'KHEN' | 'CHE' | 'KHONG_RO';
+    topic: string | null;
   }[];
 }

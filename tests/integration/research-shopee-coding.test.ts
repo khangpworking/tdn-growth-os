@@ -15,7 +15,10 @@ import { ShopeeCodingContextError } from '../../src/modules/analysis/research-au
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import type { ShopeeCodingAI } from '../../src/modules/analysis/research-automation/shopee-coding.js';
 import { shopeeFixture, workspaceId, runId, fakeShopeeCodingPort, fakeShopeeCodingAi } from '../fixtures/shopee-coding-fixture.js';
+import { OVER_SIX_CODES, overSixReaderInput } from '../fixtures/shopee-tiktok-v1-over-six-reader.js';
 import { shopeeCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport.js';
+import { prepareShopeeReaderBuild } from '../../src/modules/analysis/reader-report/shopee-build-v1.js';
+import { buildInsightReaderTemplate } from '../../src/modules/analysis/reader-report/insight-template.js';
 
 type Fixture = Awaited<ReturnType<typeof shopeeFixture>>;
 const CODING_BUDGET = { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 };
@@ -54,6 +57,101 @@ test('retained U22 sample -> draft coding proposal -> retained read/history/samp
   const publicBytes = canonicalJson({ draft: read.draft, report: read.report, citations: read.citations });
   assert.doesNotMatch(publicBytes, /authorIdentity|keyId|keyCommitment|SYNTHETIC_AUTHOR|SYNTHETIC_PROFILE/);
 });
+
+test('v2 response missing polarity is rejected instead of falling back to v1', async t => {
+  const f = await shopeeFixture(t);
+  const base = fakeShopeeCodingPort();
+  const malformed: NonNullable<ShopeeCodingAI>['port'] = { generateText: async request => {
+    const response = JSON.parse((await base.generateText(request)).text) as { contractVersion: string; codes: Record<string, unknown>[] };
+    delete response.codes[0]!.polarity;
+    return { text: JSON.stringify(response) };
+  } };
+  await assert.rejects(f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(malformed)), ShopeeCodingTransportError);
+});
+
+test('v2 response missing topic is rejected instead of falling back to v1', async t => {
+  const f = await shopeeFixture(t);
+  const base = fakeShopeeCodingPort();
+  const malformed: NonNullable<ShopeeCodingAI>['port'] = { generateText: async request => {
+    const response = JSON.parse((await base.generateText(request)).text) as { contractVersion: string; codes: Record<string, unknown>[] };
+    delete response.codes[0]!.topic;
+    return { text: JSON.stringify(response) };
+  } };
+  await assert.rejects(f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(malformed)), ShopeeCodingTransportError);
+});
+
+test('retained v1 coding read and reader revision replay the origin HTML golden', async t => {
+  const f = await shopeeFixture(t);
+  const port = fakeShopeeCodingPort(undefined, 'v1');
+  await f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(port));
+  const source = (await f.service.listShopeeCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readShopeeCoding(workspaceId, runId, source.packageId);
+  assert.equal(read.draft.promptVersion, 'shopee-review-coding-prompt-v1');
+  const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
+  const built = await f.service.buildShopeeReaderReport(workspaceId, runId, { contractVersion: 'insight-reader-build-shopee-v1', reportKind: 'INSIGHT', requestKey: randomUUID(), draftPairId: digest(read.draft), semanticSha256: digest(read.report), sourceKind: 'SHOPEE' }, { actorId: 'synthetic-owner', role: 'OWNER' });
+  const saved = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId);
+  const i10 = saved.bytes.toString('utf8').match(/<section id="I10">.*?<\/section>/s)?.[0];
+  assert.equal(i10, await fs.readFile('tests/fixtures/shopee-v1-reader-i10-golden.html', 'utf8'));
+});
+
+test('retained v1 coding replay keeps the first six findings in code-point order and renders origin bytes', async t => {
+  const f = await shopeeFixture(t);
+  const manyCodes = [...OVER_SIX_CODES];
+  const port: NonNullable<ShopeeCodingAI>['port'] = { generateText: async request => {
+    const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
+    return { text: JSON.stringify({ contractVersion: 'shopee-coding-candidates-v1', codes: manyCodes.map((code, i) => {
+      const record = input.records[i % input.records.length]!;
+      const text = record.text.slice(0, 10);
+      return { code, label: code, recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
+    }) }) };
+  } };
+  await f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(port));
+  const source = (await f.service.listShopeeCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readShopeeCoding(workspaceId, runId, source.packageId);
+  assert.deepEqual(read.report.findings.map(finding => finding.code), ['ALPHA', 'A_FIRST', 'BETA', 'DELTA', 'GAMMA', 'MIDDLE']);
+  const frozen = overSixReaderInput('shopee');
+  const context = prepareShopeeReaderBuild(
+    frozen.identity as Parameters<typeof prepareShopeeReaderBuild>[0],
+    frozen.draft as Parameters<typeof prepareShopeeReaderBuild>[1],
+    frozen.report as Parameters<typeof prepareShopeeReaderBuild>[2],
+    frozen.source as Parameters<typeof prepareShopeeReaderBuild>[3], frozen.acquiredAt,
+    frozen.scope as unknown as Parameters<typeof prepareShopeeReaderBuild>[5]);
+  const rendered = Buffer.from(buildInsightReaderTemplate(context.page).html);
+  assert.deepEqual(rendered, await fs.readFile('tests/golden/shopee-v1-over-six-reader.html'));
+});
+
+test('v2 reader ranking renders tied ranks, labels, counts, KHONG_RO, and capped Khác quotes', async t => {
+  const f = await shopeeFixture(t);
+  const port: NonNullable<ShopeeCodingAI>['port'] = { generateText: async request => {
+    const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
+    const specs = [
+      ...input.records.slice(0, 4).flatMap((record, i) => [
+        { code: `A${i}`, topic: 'Bao bì', polarity: 'KHEN' },
+        { code: `B${i}`, topic: 'Hương vị', polarity: 'CHE' },
+        { code: `X${i}`, topic: null, polarity: 'KHEN' },
+      ]),
+      ...input.records.slice(0, 3).map((record, i) => ({ code: `C${i}`, topic: 'Giá', polarity: 'CHE' })),
+      { code: 'R0', topic: 'Bỏ qua', polarity: 'KHONG_RO' },
+    ];
+    return { text: JSON.stringify({ contractVersion: 'shopee-coding-candidates-v2', codes: specs.map((spec, i) => {
+      const record = input.records[i % input.records.length]!;
+      const text = record.text.slice(0, 10);
+      return { ...spec, label: spec.topic ?? 'Khác', recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
+    }) }) };
+  } };
+  await f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(port));
+  const source = (await f.service.listShopeeCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readShopeeCoding(workspaceId, runId, source.packageId);
+  const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
+  const built = await f.service.buildShopeeReaderReport(workspaceId, runId, { contractVersion: 'insight-reader-build-shopee-v1', reportKind: 'INSIGHT', requestKey: randomUUID(), draftPairId: digest(read.draft), semanticSha256: digest(read.report), sourceKind: 'SHOPEE' }, { actorId: 'synthetic-owner', role: 'OWNER' });
+  const html = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
+  assert.ok(html.includes('<tr><td>1</td><td>Bao bì</td><td>KHEN</td><td>4</td>'));
+  assert.ok(html.includes('<tr><td>1</td><td>Hương vị</td><td>CHE</td><td>4</td>'));
+  assert.ok(html.includes('<tr><td>3</td><td>Giá</td><td>CHE</td><td>3</td>'));
+  assert.ok(html.includes('<tr><td></td><td>Khác</td><td></td><td>4</td><td><details><summary>Xem 3 trích dẫn</summary>'));
+  assert.ok(html.includes('Không khen không chê: 1 lượt nhắc.'));
+});
+
 
 test('invalid source/sample/config/trust refuses before any model dispatch', async t => {
   const f = await shopeeFixture(t);
@@ -99,9 +197,9 @@ test('two real instances racing one key dispatch exactly once; loser observes th
     dispatches++;
     await gate;
     const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
-    return { text: JSON.stringify({ codes: input.records.slice(0, 1).map(record => {
+    return { text: JSON.stringify({ contractVersion: 'shopee-coding-candidates-v2', codes: input.records.slice(0, 1).map(record => {
       const text = record.text.slice(0, 10);
-      return { code: 'RACE_0', label: 'đua', recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
+      return { code: 'RACE_0', label: 'đua', topic: 'đua', polarity: 'KHEN', recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
     }) }) };
   } };
   const ai = fakeShopeeCodingAi(blockingPort);
@@ -238,6 +336,12 @@ test('settlement clock failure after genuine publication leaves unknown output u
   // instead of a zero count.
   assert.ok(savedHtml.includes('Nguồn S05 · hạng B · review công khai trên Shopee'));
   assert.ok(savedHtml.includes('Lọc nghĩa L9 không áp dụng cho bằng chứng Shopee'));
+  assert.ok(savedHtml.includes('<th>Hạng</th>'));
+  assert.ok(savedHtml.includes('Khen/chê'));
+  assert.ok(savedHtml.includes('Khác'));
+  assert.ok(savedHtml.includes('Không khen không chê: 0 lượt nhắc.'));
+  assert.ok(savedHtml.includes('Ngữ cảnh bản ghi'));
+  assert.doesNotMatch(savedHtml, /nhắc nhiều|frequent.*important/i);
   function readDigest(value: unknown): string {
     return createHash('sha256').update(canonicalJson(value)).digest('hex');
   }

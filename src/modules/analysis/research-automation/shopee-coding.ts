@@ -21,7 +21,8 @@ import { CitationRegistry } from '../citation-registry.js';
 import type { RetainedKeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import type { AutomationSynthesisTextPort } from './synthesis-execution.js';
 import { buildShopeeCodingContext, type ShopeeCodingContext } from './shopee-coding-context.js';
-import { shopeeCodingPrompt } from './shopee-coding-prompt.js';
+import { shopeeCodingPromptV2 } from './shopee-coding-prompt.js';
+import { rankReviewTopicMentions } from './review-topic-ranking.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -191,7 +192,7 @@ export class AutomationShopeeCoding {
     if (!validateInput(input) || bytes(input).byteLength > BUDGET.maxFileBytes) fail();
     if (!ai) throw new ShopeeCodingTransportError('MODEL_NOT_CONFIGURED');
     if (!validateConfiguration(ai.configuration)) throw new ShopeeCodingTransportError('MODEL_MISCONFIGURED');
-    const prompt: ShopeeCodingModelPrompt = { ...shopeeCodingPrompt() };
+    const prompt: ShopeeCodingModelPrompt = { ...shopeeCodingPromptV2() };
     // The mutation mutex is never held across the model call: it guards only the atomic claim
     // insert/transition and the guarded publication below. Dispatch runs lock-free between them.
     // A failed/unknown same-key retry was already observed above; this insert only wins fresh keys.
@@ -316,14 +317,14 @@ export class AutomationShopeeCoding {
         label: 'Đánh giá khách hàng trên Shopee', retrievedAt: acquiredAt, url: null,
         quote: null, quoteVerification: 'NOT_APPLICABLE' });
       if (citationId === null) fail();
-      return { code: entry.code, label: entry.label, recordIndex: entry.recordIndex,
-        quote: { ...entry.quote }, citationId };
+      return { code: entry.code, label: entry.label, ...('topic' in entry ? { topic: entry.topic } : {}), recordIndex: entry.recordIndex,
+        quote: { ...entry.quote }, ...(entry.polarity ? { polarity: entry.polarity } : {}), citationId };
     });
     const proposalId = randomUUID();
     const codedIndexes = new Set(codes.map(entry => entry.recordIndex));
     const draftCoding: ShopeeDraftCoding = { contractVersion: 'shopee-draft-coding-v1', proposalId,
       requestKey: request.requestKey, binding: { ...request.binding }, sample: { ...request.sample },
-      keywordDigest: request.keywordDigest, promptVersion: 'shopee-review-coding-prompt-v1', codes,
+      keywordDigest: request.keywordDigest, promptVersion: candidates.contractVersion === 'shopee-coding-candidates-v2' ? 'shopee-review-coding-prompt-v2' : 'shopee-review-coding-prompt-v1', codes,
       counts: { recordsCoded: codedIndexes.size, codesProposed: codes.length, quotesCited: codes.length },
       status: 'PROPOSED_AWAITING_REVIEW', limitations: [...LIMITATIONS] as ShopeeDraftCoding['limitations'] };
     if (!validateDraftCoding(draftCoding)) fail();
@@ -333,8 +334,9 @@ export class AutomationShopeeCoding {
 
   /**
    * Deterministic cited assembly of the retained draft: findings grouped per code, ordered by code,
-   * capped at six, each with per-occurrence citation locators. The Reader replays these exact retained
-   * bytes; semantic identity is their digest.
+   * v1 findings are capped at six for legacy replay compatibility; v2 keeps all ranked input codes.
+   * Each finding has per-occurrence citation locators. The Reader replays these exact retained bytes;
+   * semantic identity is their digest.
    */
   #citedSynthesis(draft: ShopeeDraftCoding, context: ShopeeCodingContext): import('../../../../contracts/analysis/shopee-review-coding-v1.generated.js').ShopeeCitedSynthesis {
     const byCode = new Map<string, { label: string; citations: { citationId: number; locator: string; url: string | null }[] }>();
@@ -348,7 +350,8 @@ export class AutomationShopeeCoding {
       byCode.set(entry.code, group);
     }
     const scope = 'Trong tập đánh giá đã lưu (S05); đơn vị đếm là bản ghi, không phải số người. Số lượng do ứng dụng đếm từ bản ghi đã lưu; mã chủ đề là đề xuất, chờ chủ duyệt.';
-    const findings = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).slice(0, 6).map(([code, group]) => {
+    const sorted = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const findings = (draft.promptVersion === 'shopee-review-coding-prompt-v1' ? sorted.slice(0, 6) : sorted).map(([code, group]) => {
       if (group.citations.length === 0) fail();
       return { sectionId: 'I10' as const, code, label: group.label,
         template: `Mã chủ đề trong mẫu lời nguồn: {{shopee.codes.${code}.records}} bản ghi có trích dẫn trực tiếp (đề xuất, chờ chủ duyệt).`,
@@ -358,6 +361,7 @@ export class AutomationShopeeCoding {
     const report = { contractVersion: 'shopee-cited-synthesis-v1', proposalId: draft.proposalId,
       draftSha256: sha(bytes(draft)), sample: { ...draft.sample }, keywordDigest: draft.keywordDigest,
       findings: findings as import('../../../../contracts/analysis/shopee-review-coding-v1.generated.js').ShopeeCitedSynthesis['findings'],
+      ...(draft.promptVersion === 'shopee-review-coding-prompt-v2' ? { topicRanking: rankReviewTopicMentions(draft.codes.map(entry => ({ platform: 'SHOPEE' as const, recordIndex: entry.recordIndex, topic: ('topic' in entry ? entry.topic : entry.label), polarity: entry.polarity!, quote: entry.quote.text, context: context.rows.find(row => row.recordIndex === entry.recordIndex)?.text ?? null })), { platform: 'SHOPEE' }) as unknown as ShopeeCitedSynthesis['topicRanking'] } : {}),
       counts: { ...draft.counts }, status: 'PROPOSED_AWAITING_REVIEW', limitations: [...LIMITATIONS] as import('../../../../contracts/analysis/shopee-review-coding-v1.generated.js').ShopeeCitedSynthesis['limitations'] };
     if (!validateReport(report)) fail();
     return report;
@@ -388,7 +392,15 @@ export class AutomationShopeeCoding {
     } catch {
       throw new ShopeeCodingTransportError('MODEL_RESPONSE_INVALID');
     }
-    const shaped = { contractVersion: 'shopee-coding-candidates-v1', ...(parsed as Record<string, unknown>) };
+    const expectedContractVersion = artifacts.prompt.contractVersion === 'shopee-review-coding-prompt-v2'
+      ? 'shopee-coding-candidates-v2' : 'shopee-coding-candidates-v1';
+    const parsedRecord = parsed !== null && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    const selectedContractVersion = parsedRecord.contractVersion === 'shopee-coding-candidates-v1' || parsedRecord.contractVersion === 'shopee-coding-candidates-v2'
+      ? parsedRecord.contractVersion : expectedContractVersion;
+    if (parsedRecord.contractVersion !== undefined && parsedRecord.contractVersion !== 'shopee-coding-candidates-v1' && parsedRecord.contractVersion !== 'shopee-coding-candidates-v2') {
+      throw new ShopeeCodingTransportError('MODEL_RESPONSE_INVALID');
+    }
+    const shaped = { ...parsedRecord, contractVersion: selectedContractVersion };
     if (!validateCandidates(shaped)) throw new ShopeeCodingTransportError('MODEL_RESPONSE_INVALID');
     for (const entry of shaped.codes) {
       if (entry.label.includes('{{') || entry.label.includes('}}')) throw new ShopeeCodingTransportError('MODEL_RESPONSE_INVALID');
