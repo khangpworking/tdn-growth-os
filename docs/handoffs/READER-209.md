@@ -61,3 +61,110 @@ Changed existing expectations:
 - `tests/unit/research-automation-reports.test.ts:312`: raw `UNKNOWN` now expects `Chưa rõ`.
 
 Next action: coordinator reviews the owned diff and commits it with the READER-209 lane prefix. No commit was created in this lane.
+
+## Round 2
+
+Status: blocking review findings fixed; coordinator commit required.
+
+Changed paths:
+- `src/modules/analysis/research-automation/reader-plain-text.ts`: exact exponent normalization, half-up carry rounding, quote helpers, and neutral product/shop labels.
+- `src/modules/analysis/research-automation/quote-method-report.ts`: quote amounts, ranges, exact fractions, labels, and states now use the reader helpers.
+- `src/modules/analysis/research-automation/metric-method-report.ts`: visible unknown wording is `chưa rõ`, and listing/shop IDs use neutral labels.
+- `src/modules/analysis/research-automation/market-presentation-report.ts`: listing titles are preferred; untitled listings use stable neutral labels.
+- `src/modules/analysis/research-automation/reports.ts`: selected review listing/shop IDs use neutral labels in the visible body.
+- `tests/unit/reader-209-plain-text.test.ts`: named rounding cases and quote/metric visible-body regressions.
+- `tests/unit/research-automation-reports.test.ts`: updated the changed neutral observation label.
+- `tests/integration/market-presentation-report.test.ts`: visible M03 assertions now require `chưa rõ`, preserve distinction from zero, and exclude IDs.
+- `docs/handoffs/READER-209.md`: this Round 2 evidence.
+
+Plan lines applied:
+- “Raw numeric product/listing/shop IDs must never appear in the main body.”
+- “quote-method-report.ts:42,46,51 ... use the helper for amounts, ranges, exact numbers, quote labels and states.”
+- “metric-method-report.ts:68,84: no `UNKNOWN` or raw listing/shop IDs in visible prose.”
+
+Owner decisions applied:
+- “R1: an unknown value is never written as 0.” Unknown and missing text remain distinct from zero; the metric reader explicitly says `chưa rõ, không phải 0`.
+- “L4: no superlatives as findings ...” No ranking or superlative wording was introduced; neutral labels use source order only.
+- “L5/R3: never add Shopee and TikTok Shop together; show each platform separately.” Platform rows remain separate.
+- “No progress percentages in any UI text.” No progress percentage text was added.
+
+Evidence:
+- `node ../tools/typecheck-win.mjs`: exit 0; `files 924 status 0`.
+- `node --import tsx --test tests/unit/reader-209-plain-text.test.ts`: 4 passed, 0 failed.
+- `node --import tsx --test tests/unit/research-automation-reports.test.ts`: 18 passed, 2 skipped PDF tests, 0 failed.
+- `node --import tsx --test tests/unit/generic-quote-unit.test.ts`: 10 passed, 0 failed.
+- `node --import tsx --test tests/unit/leak-209-metric-trace.test.ts`: 5 passed, 0 failed.
+- `node --import tsx --test tests/unit/market-presentation-method.test.ts`: 4 passed, 0 failed.
+- `node --import tsx --test tests/integration/rev-209-market-presentation.test.ts`: 2 passed, 0 failed.
+- `node --import tsx --test tests/unit/market-presentation-contract.test.ts`: 1 passed, 1 failed on the pre-existing test `Market presentation revision cannot change source membership or require reader approval`, which asserts the pinned `automation-report-revision.schema.json` SHA; schema unchanged in this lane. Actual `53b00ad85f04d4fc8a6bd4cda1c6edd732c8f24256efcc64d973ee1748a00b92`, expected `ec52e33110e752e95093cd6630a56644d7883de42a85b2295cf6358e9a0d809a`.
+- `node --import tsx --test tests/integration/market-presentation-report.test.ts`: these 3 tests failed before assertions on Windows at `fixture` line 82 with `TypeError: Cannot read properties of undefined (reading 'toString')`: `actual auto service builds source-bound findings/unit tables and immutable reports while stripping adapter injection`; `auto presentation without a receipt preserves zero/missing, keeps references unavailable and rejects unrelated digests before queuing`; `actual auto revision composes retained literal19/Source18 with Market20 and never discovers an unselected prepared package`. No renderer assertion ran.
+- `node --import tsx --test tests/integration/research-automation-metric-report.test.ts`: these 5 tests failed before assertions on Windows at `fixture` line 60 with `TypeError: Cannot read properties of undefined (reading 'toString')`: `REPORTS retains a provider-bearing declared period basis without disclosing it in HTML`; `accepted classified group labels remain exact in the calculation while the complete report uses neutral reader text`; `REPORTS computes attached raw Metric rows, retains the full method independently of the renderer and serves frozen reports without Python`; `a wrong Metric run binding keeps its closed reason, never the exception text, stays blocked beside Insight and is served frozen`; `each closed Metric failure renders its own fixed explanation and next step, never totals, and the generic fallback keeps its copy`.
+- `node --import tsx --test tests/integration/research-automation-quote-methods.test.ts`: test `M08 exact structured source produces traceable arithmetic in Market only, with frozen revision lifecycle` failed on Windows because the fixture stopped at `TypeError: QUOTE_METHOD_PARSER_PROFILE_NOT_PINNED` while the test expected `QUOTE_METHOD_BINDING_VALUE_MISMATCH`.
+- `git diff --check`: exit 0; only Git LF-to-CRLF working-copy warnings were emitted.
+
+Stored-version check:
+- Rechecked the research-automation read/verify flow and the API references with `rg`; no read path re-renders a stored version and compares HTML bytes. No service, API, contract, migration, generated file, or stored producer was changed.
+
+Blocked / needs other lane:
+- No owned-path blocker. The Windows integration failures and the unrelated pinned schema SHA mismatch remain reported and were not altered.
+
+## Round 2 checklist evidence
+
+| U-item | Status | Evidence |
+|---|---|---|
+| 1 Numbers | DONE | `reader-plain-text.ts:42-76` now normalizes exponents and rounds half-up with fractional carry; tests cover `1.235`, `9.999`, `0.995`, `-0.004`, exponent inputs, and whole-unit money/count carry. |
+| 2 Product/listing/shop IDs | DONE | `readerProductLabel`/`readerShopLabel` at `reader-plain-text.ts:185-199`, title lookup in `market-presentation-report.ts:96-120`, metric trace masking at `metric-method-report.ts:84-89`, and other owned review renderers in `reports.ts:258,942`. |
+| 3 Quote method | DONE | `quote-method-report.ts:42-63` routes amounts, ranges, exact numbers, labels and states through the helper; visible-body regression is in `reader-209-plain-text.test.ts`. |
+| 4 Metric method | DONE | `metric-method-report.ts:68-89` removes `UNKNOWN` and raw IDs from reader prose; integration expectations require `chưa rõ`, `không phải 0`, and no visible synthetic IDs. |
+
+What remains and why:
+- No code remains for the four blocking findings. Coordinator should review and commit the working tree; this lane did not commit as instructed.
+
+## Round 2b
+
+Status: the opt-in legacy gate and case-contract expectation are implemented; two frozen-hash checks remain blocked by pre-existing baseline/environment evidence. No commit was created.
+
+Changed paths:
+- `src/modules/analysis/research-automation/reports.ts`
+- `src/modules/analysis/research-automation/descriptive-report.ts`
+- `src/modules/analysis/research-automation/market-inventory-report.ts`
+- `src/modules/analysis/research-automation/synthesis-evidence-report.ts`
+- `tests/integration/research-automation-case-contract.test.ts`
+- `tests/unit/reader-209-plain-text.test.ts`
+- `docs/handoffs/READER-209.md`
+
+Owner decisions applied:
+- “Make the whole plain-Vietnamese rendering opt-in, gated on ... `Boolean(input.start.sourceEvidenceVersion || marketPresentation)`.” `reports.ts:583-584` computes one explicit `readerPlainText` flag and passes it through the changed renderers.
+- “Product labels must never show a provider-prefixed ref ... or a bare numeric ID in the main body when the flag is on.” The flag-on paths use neutral reader labels; flag-off paths retain the old stored strings.
+- “R1: an unknown value is never written as 0.” The legacy branch preserves raw legacy values and the reader branch keeps missing/unknown distinct from zero.
+
+Implementation:
+- `descriptive-report.ts:283-289` gates descriptive body helpers and `:294-309` gates the retained appendix; false paths preserve the old table spacing, values, locators and wording.
+- `market-inventory-report.ts:5-27` and `synthesis-evidence-report.ts:118-198` select the old byte path when `readerPlainText` is false.
+- `reports.ts:583-584,723,872-919` threads the flag through product labels, observations, default peers, descriptive appendix and review context.
+- `tests/integration/research-automation-case-contract.test.ts:240` formats the M01 revenue expectation with the same reader formatter.
+- The existing `tests/unit/reader-209-plain-text.test.ts:29-113` covers flag-on visible output and neutral `kalodata:`-style IDs; frozen-hash tests are the flag-off byte-identity evidence.
+
+Evidence:
+- `node ../tools/typecheck-win.mjs`: exit 0; `files 924 status 0`.
+- `node --import tsx --test tests/unit/reader-209-plain-text.test.ts`: 4 passed, 0 failed.
+- `node --import tsx --test tests/integration/research-automation-case-contract.test.ts`: blocked on Windows before case subtests; `TypeError: INVALID_LOCATED_INSIGHT_INPUT:data/profileSha256 must be equal to constant, data/adoptionSha256 must be equal to constant` at `tests/helpers/native-dami-package-fixture.ts:56`, called from test line 50.
+- `node --import tsx --test tests/unit/default-peer-reports.test.ts`: 2 passed, 1 failed. The marker-free frozen Market HTML hash is `716425c52f6940d0b86a5f51f30cb2fcdb2ee6fb81cfe6ddfeaa0f2a3975ccb9`, expected `ad13eeefb55c6a7b74666f9a905cb8c4976a62ffc49574b13fb7c5a4fb6aeb5b`; the same failure reproduces in an isolated archive of `HEAD~1`, before this round’s changes.
+- `node --import tsx --test tests/unit/sync1-market-corrections.test.ts`: direct legacy HTML replay passes; the frozen method bytes remain `f86f23abab377fdb496aa1e52b2c1965bc4ae0e9c9ecd757bf1bcb11676b167` versus expected `f9a69c9ea4260c9f62bf951b6940f9f555755a2d84f575412a9508372dc89eed`, and the workbook test fails because Windows has no `python3` and then reads undefined stderr.
+- The requested combined renderer tests were run. The reader test passed. Existing unowned report tests fail where marker-free fixtures still expect the opt-in plain text, and the market-presentation fixtures stop at Windows `TypeError: Cannot read properties of undefined (reading 'toString')` at fixture line 82; those paths were not edited in this round.
+- `git diff --check`: exit 0.
+
+Blocked / needs other lane:
+- The marker-free default-peer hash already fails in the isolated pre-round baseline, so correcting it requires the owner of the frozen fixture/renderer baseline; this lane did not alter `rendererVersion`, producers, stored contracts, or frozen tests.
+- The sync1 producer-byte hash is outside the owned renderer paths and its producer is protected by the lane rules; it needs the producer/fixture owner.
+- The Windows case-contract and market-presentation setup failures are environment/fixture failures before the relevant assertions.
+
+## Round 2b checklist evidence
+
+| U-item | Status | Evidence |
+|---|---|---|
+| Legacy bytes | BLOCKED | Flag-off paths are explicit; direct legacy M05 HTML replay passes. Full frozen hashes still fail on the pre-existing baseline hash and protected producer bytes described above. |
+| Reader opt-in | DONE | `reports.ts:583-584` uses the required condition and changed renderers receive the flag. |
+| Neutral product labels | DONE | Flag-on report paths use `readerProductLabel`/`readerShopLabel`; the reader unit test checks that `kalodata:` does not reach visible text. |
+| M01 revenue expectation | DONE | `tests/integration/research-automation-case-contract.test.ts:240` uses `formatReaderValue(... revenue, VND)`. |
+| Verification | PARTIAL | Typecheck, reader unit tests and diff check pass; Windows integration setup and frozen baseline failures remain recorded above. |

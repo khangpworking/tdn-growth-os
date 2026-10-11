@@ -23,7 +23,15 @@ const PRICE_STATES: Readonly<Record<string, string>> = {
   EXACT: 'gi\u00e1 ch\u00ednh x\u00e1c',
 };
 
-const DECIMAL = /^([+-]?)(\d+)(?:\.(\d+))?$/;
+const QUOTE_PRICE_STATES: Readonly<Record<string, string>> = {
+  LISTED: 'gi\u00e1 ni\u00eam y\u1ebft', STRUCK_THROUGH: 'gi\u00e1 g\u1ea1ch ngang', PROMO_CONDITIONAL: 'gi\u00e1 c\u00f3 \u0111i\u1ec1u ki\u1ec7n',
+  OBSERVED_CHECKOUT: 'gi\u00e1 t\u1ea1i b\u01b0\u1edbc thanh to\u00e1n', UNKNOWN: 'ch\u01b0a r\u00f5 lo\u1ea1i gi\u00e1',
+};
+const QUOTE_VALUE_STATES: Readonly<Record<string, string>> = {
+  INCLUDED: '\u0111\u00e3 g\u1ed3m', EXCLUDED: 'ch\u01b0a g\u1ed3m', UNKNOWN: 'ch\u01b0a r\u00f5',
+};
+
+const DECIMAL = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
 
 function increment(integer: string): string {
   const digits = integer.split('');
@@ -42,12 +50,32 @@ function grouped(integer: string): string {
 function roundedDecimal(value: string, decimals: number): { sign: string; integer: string; fraction: string } | null {
   const match = DECIMAL.exec(value.trim());
   if (!match) return null;
-  let integer = match[2]!.replace(/^0+(?=\d)/, '') || '0';
-  const source = match[3] ?? '';
+  const exponent = match[4] ? Number(match[4]) : 0;
+  if (!Number.isSafeInteger(exponent) || Math.abs(exponent) > 10000) return null;
+  const digits = `${match[2]}${match[3] ?? ''}`;
+  const decimalIndex = match[2]!.length + exponent;
+  let integer: string;
+  let source: string;
+  if (decimalIndex <= 0) {
+    integer = '0';
+    source = `${'0'.repeat(-decimalIndex)}${digits}`;
+  } else if (decimalIndex >= digits.length) {
+    integer = `${digits}${'0'.repeat(decimalIndex - digits.length)}`;
+    source = '';
+  } else {
+    integer = digits.slice(0, decimalIndex);
+    source = digits.slice(decimalIndex);
+  }
+  if (integer.length + source.length > 10000) return null;
+  integer = integer.replace(/^0+(?=\d)/, '') || '0';
   const kept = source.slice(0, decimals).padEnd(decimals, '0');
-  if (source.length > decimals && source[decimals]! >= '5') integer = increment(integer);
-  const sign = match[1] === '-' && (integer !== '0' || /[1-9]/.test(source)) ? '-' : '';
-  return { sign, integer, fraction: kept.replace(/0+$/, '') };
+  let scaled = `${integer}${kept}`;
+  if (source.length > decimals && source[decimals]! >= '5') scaled = increment(scaled);
+  const split = Math.max(0, scaled.length - decimals);
+  integer = decimals === 0 ? scaled : scaled.slice(0, split) || '0';
+  const fraction = decimals === 0 ? '' : scaled.slice(split).padStart(decimals, '0');
+  const nonZero = /[1-9]/.test(`${integer}${fraction}`);
+  return { sign: match[1] === '-' && nonZero ? '-' : '', integer, fraction: fraction.replace(/0+$/, '') };
 }
 
 /** Formats exact decimal text without converting it through a JavaScript number. */
@@ -99,6 +127,32 @@ export function readerPriceState(state: string): string {
   return PRICE_STATES[state] ?? 'tr\u1ea1ng th\u00e1i gi\u00e1 ch\u01b0a r\u00f5';
 }
 
+export function readerQuotePriceState(state: string): string {
+  return QUOTE_PRICE_STATES[state] ?? 'ch\u01b0a r\u00f5 lo\u1ea1i gi\u00e1';
+}
+
+export function readerQuoteValueState(state: string): string {
+  return QUOTE_VALUE_STATES[state] ?? 'ch\u01b0a r\u00f5';
+}
+
+export function readerQuoteResultNumber(value: string | null | undefined): string {
+  return formatReaderNumber(value, 'decimal') ?? 'ch\u01b0a r\u00f5';
+}
+
+export function readerQuoteAmount(value: string | null | undefined, currency: string | null | undefined): string | null {
+  return formatReaderValue(value, { currency });
+}
+
+export function readerQuoteRange(minimum: string, maximum: string, currency: string | null | undefined): string | null {
+  const lower = readerQuoteAmount(minimum, currency);
+  const upper = readerQuoteAmount(maximum, currency);
+  return lower === null || upper === null ? null : `${lower} \u0111\u1ebfn ${upper}`;
+}
+
+export function readerExactNumber(value: string | null | undefined): string {
+  return formatReaderNumber(value, 'count') ?? 'ch\u01b0a r\u00f5';
+}
+
 export function readerQuoteLabel(quoteId: string, fallbackOrdinal: number): string {
   const match = /^capture-(\d+)-(.+)$/.exec(quoteId);
   const ordinal = match ? Number(match[1]) : fallbackOrdinal;
@@ -131,7 +185,15 @@ export function readerDateBasis(value: string): string {
   return value.replace(/\s*t\u1ea1i launch_date,?/i, ' (ng\u00e0y ra m\u1eaft theo ngu\u1ed3n),').replace(/launch_date/gi, 'ng\u00e0y ra m\u1eaft do ngu\u1ed3n khai b\u00e1o');
 }
 
-export function readerProductLabel(id: string, title: string | null | undefined): string {
+function readerEntityLabel(id: string, title: string | null | undefined, ordinal: number, noun: string): string {
   const clean = title?.trim();
-  return clean ? clean : id.includes('_') ? '\u0110\u1ed1i t\u01b0\u1ee3ng ngu\u1ed3n' : id;
+  return clean ? clean : `${noun} #${ordinal}`;
+}
+
+export function readerProductLabel(id: string, title: string | null | undefined, ordinal = 1): string {
+  return readerEntityLabel(id, title, ordinal, 'S\u1ea3n ph\u1ea9m');
+}
+
+export function readerShopLabel(id: string, title: string | null | undefined = undefined, ordinal = 1): string {
+  return readerEntityLabel(id, title, ordinal, 'Gian h\u00e0ng');
 }

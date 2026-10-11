@@ -1,6 +1,7 @@
 import type { Scope, Total, MetricScopeOutput, EvidenceRef } from '../../../../contracts/analysis/metric-scope-output.generated.js';
 import type { AutomationMetricMethodSnapshot } from './metric-method-bridge.js';
 import type { AutomationClassifiedMetricSnapshot } from '../../../../contracts/analysis/automation-classified-metric.generated.js';
+import { readerProductLabel, readerShopLabel } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
 // Presentation only: every amount, membership, ratio and sensitivity below is
@@ -10,8 +11,8 @@ const total = (value: Total, unit: string): string => `${integer(value.value)}${
 const table = (caption: string, headers: readonly string[], rows: readonly string[]): string =>
   `<div class="table-wrap" role="region" aria-label="${escape(caption)}" tabindex="0"><table><caption>${escape(caption)}</caption><thead><tr>${headers.map(header => `<th scope="col">${escape(header)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>`;
 const shopLabel = (key: string): string => {
-  try { const value: unknown = JSON.parse(key); if (Array.isArray(value) && value.length === 2 && typeof value[1] === 'string') return `gian hàng ${value[1]}`; } catch { /* Keep the exact identity if it is not a tuple. */ }
-  return key;
+  try { const value: unknown = JSON.parse(key); if (Array.isArray(value) && value.length === 2 && typeof value[1] === 'string') return readerShopLabel(value[1]); } catch { /* Technical shop keys remain neutral labels. */ }
+  return readerShopLabel(key);
 };
 
 const LIMITATION_COPY: Readonly<Record<string, string>> = {
@@ -65,8 +66,8 @@ export function metricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
   const source = result.input.scope;
   const readiness = snapshot.readiness.sections.find(section => section.sectionId === sectionId);
   const limits = classified
-    ? `<p class="warning">Đã phân loại đủ ${result.input.records.length} dòng trong mẫu xuất bằng các nhãn được chủ dự án chấp nhận. Toàn bộ mẫu (ALL) giữ mọi dòng; phạm vi rộng (WIDE) loại hàng ngoài phạm vi (OUTSIDE) và chưa rõ (UNKNOWN); phạm vi cốt lõi (CORE) chỉ giữ hàng thuộc nhóm cốt lõi. Đây vẫn là mẫu quan sát, không phải quy mô toàn ngành. Không cộng ba phạm vi lồng nhau hoặc cộng với nguồn sàn khác.</p>`
-    : `<p class="warning">Đây là mẫu sản phẩm xuất theo từ khóa, chưa phải thị trường đã phân loại. Toàn bộ mẫu (ALL) gồm cả hàng ngoài phạm vi và hàng chưa rõ. Không dùng tổng mẫu làm quy mô toàn ngành, không cộng với nguồn sàn khác hoặc các phạm vi WIDE/CORE. ${result.labelIssues.length ? `Có ${result.labelIssues.length} dòng chưa có nhãn hợp lệ; WIDE và CORE chưa được tính, không phải bằng 0.` : 'Các phạm vi lồng nhau không được cộng thành tổng.'}</p>`;
+    ? `<p class="warning">Đã phân loại đủ ${result.input.records.length} dòng trong mẫu xuất bằng các nhãn được chủ dự án chấp nhận. Toàn bộ mẫu (ALL) giữ mọi dòng; phạm vi rộng (WIDE) loại hàng ngoài phạm vi (OUTSIDE) và chưa rõ; phạm vi cốt lõi (CORE) chỉ giữ hàng thuộc nhóm cốt lõi. Đây vẫn là mẫu quan sát, không phải quy mô toàn ngành. Không cộng ba phạm vi lồng nhau hoặc cộng với nguồn sàn khác.</p>`
+    : `<p class="warning">Đây là mẫu sản phẩm xuất theo từ khóa, chưa phải thị trường đã phân loại. Toàn bộ mẫu (ALL) gồm cả hàng ngoài phạm vi và hàng chưa rõ, không phải 0. Không dùng tổng mẫu làm quy mô toàn ngành, không cộng với nguồn sàn khác hoặc các phạm vi WIDE/CORE. ${result.labelIssues.length ? `Có ${result.labelIssues.length} dòng chưa có nhãn hợp lệ; WIDE và CORE chưa được tính, không phải bằng 0.` : 'Các phạm vi lồng nhau không được cộng thành tổng.'}</p>`;
   const context = `<dl class="reader-context"><dt>Nguồn / nền tảng</dt><dd>Nền tảng ${escape(source.platform)}. Bản xuất do người vận hành cung cấp; chưa xác minh độc lập nguồn gốc thu thập của nhà cung cấp.</dd><dt>Kỳ số liệu thực tế</dt><dd>${escape(source.start)} đến ${escape(source.end)}</dd><dt>Căn cứ sử dụng kỳ đo</dt><dd>Theo kỳ khai báo của tệp nguồn, không tự kéo dài hoặc chia tỷ lệ để khớp kỳ yêu cầu. Nội dung khai báo nguyên văn nằm trong hồ sơ đối chiếu bên dưới.</dd><dt>Thời điểm thu nguồn</dt><dd>${escape(source.acquiredAt ?? 'Chưa xác nhận; không suy từ ngày sửa tệp')}</dd></dl>`;
   const readinessText = classified
     ? `<p><strong>Kết quả ${sectionId} có giới hạn:</strong> Đã tính từ nguồn và phân loại đã chốt; chưa xác minh độ phủ toàn thị trường hoặc đủ chuỗi để kết luận tăng trưởng. Giá trị thiếu vẫn là thiếu, không đổi thành 0.</p>`
@@ -81,7 +82,12 @@ export function metricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
       ...result.scopes.filter(scope => scope.key !== 'all').map(scope => `<tr><th scope="row">${scope.key === 'wide' ? 'Phạm vi rộng (WIDE)' : 'Phạm vi cốt lõi (CORE)'}</th>${scope.status === 'BLOCKED_LABELS' ? '<td colspan="5">Chưa tính: cần nhãn phân loại đã chốt, khớp nội dung nguồn.</td>' : `<td>${scope.listingCount}</td><td>${scope.shopCount}</td><td>${total(scope.revenue, 'VND')}</td><td>${total(scope.units, 'đơn vị nguồn')}</td><td>${calculation}</td>`}</tr>`),
     ]);
     const records = result.input.records.slice(0, 10);
-    const trace = table('Tối đa 10 dòng đầu theo thứ tự nguồn, không phải bảng xếp hạng', ['Mã sản phẩm / gian hàng', 'Tên theo nguồn', 'Doanh thu kỳ (VND)', 'Sản lượng kỳ (đơn vị nguồn)', 'Nguồn'], records.map(row => `<tr><td>${storedLiteral(row.listingId, 'Mã sản phẩm được giữ trong bản lưu nguồn')}<br>Gian hàng ${storedLiteral(row.shopId, 'Mã gian hàng được giữ trong bản lưu nguồn')}</td><td>${storedLiteral(row.title, 'Tên sản phẩm được giữ trong bản lưu nguồn')}</td><td>${integer(row.revenue.value)}</td><td>${integer(row.units.value)}</td><td>${rowMark(row.revenue.source, citations)}<br>${rowMark(row.units.source, citations)}</td></tr>`));
+    const shopOrdinals = new Map<string, number>();
+    const trace = table('Tối đa 10 dòng đầu theo thứ tự nguồn, không phải bảng xếp hạng', ['Mã sản phẩm / gian hàng', 'Tên theo nguồn', 'Doanh thu kỳ (VND)', 'Sản lượng kỳ (đơn vị nguồn)', 'Nguồn'], records.map((row, index) => {
+      const shopOrdinal = shopOrdinals.get(row.shopId) ?? shopOrdinals.size + 1;
+      shopOrdinals.set(row.shopId, shopOrdinal);
+      return `<tr><td>${escape(readerProductLabel(row.listingId, row.title, index + 1))}<br>${escape(readerShopLabel(row.shopId, undefined, shopOrdinal))}</td><td>${storedLiteral(row.title, 'Tên sản phẩm được giữ trong bản lưu nguồn')}</td><td>${integer(row.revenue.value)}</td><td>${integer(row.units.value)}</td><td>${rowMark(row.revenue.source, citations)}<br>${rowMark(row.units.source, citations)}</td></tr>`;
+    }));
     return context + reading + limits + readinessText + summary + `<p>Không quy đổi sản lượng nguồn thành kg, số gói, số người mua hoặc doanh số từng biến thể.</p>` + `<details class="evidence-trace"><summary>Đối chiếu các dòng sản phẩm gốc</summary>${trace}<p>Hiển thị ${records.length}/${result.input.records.length} dòng; toàn bộ dòng, giá trị thiếu, độ chính xác và vị trí nguồn được giữ trong hồ sơ tính đã lưu.</p></details>` + details;
   }
   if (classified) {

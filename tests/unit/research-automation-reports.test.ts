@@ -174,7 +174,7 @@ test('selected listing observations remain inspectable without silently approvin
   const document = new JSDOM(report.html.toString()).window.document;
   const rows = document.querySelectorAll('#M13 table.observations tbody tr');
   assert.equal(rows.length, 1);
-  assert.equal(rows[0]!.querySelectorAll('td')[0]!.textContent, '1');
+  assert.equal(rows[0]!.querySelectorAll('td')[0]!.textContent, 'Sản phẩm #1');
   assert.match(rows[0]!.textContent!, /Sản lượng bán/);
   assert.equal(rows[0]!.querySelectorAll('td')[2]!.textContent, '0');
   assert.equal(rows[0]!.querySelector('.cite')!.textContent, '[1]');

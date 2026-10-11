@@ -1,4 +1,5 @@
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
+import { readerProductLabel } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
 type Method = AutomationMarketPresentationMethod;
@@ -92,11 +93,18 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
     if (row.value === null) missing.push(row);
     else groups.set(row.comparisonKey, [...(groups.get(row.comparisonKey) ?? []), row]);
   }
+  const titleByListing = new Map(method.input.rows.flatMap(row => row.title.trim() ? [[row.listing, row.title.trim()] as const] : []));
+  const listingOrdinals = new Map<string, number>();
+  const productLabel = (listing: string): string => {
+    const ordinal = listingOrdinals.get(listing) ?? listingOrdinals.size + 1;
+    listingOrdinals.set(listing, ordinal);
+    return escape(readerProductLabel(listing, titleByListing.get(listing), ordinal));
+  };
   const prices = { LISTED: 'Giá niêm yết', PAYMENT: 'Giá thanh toán', CONDITIONAL_PROMO: 'Giá khuyến mãi có điều kiện' };
   const headings = ['Sàn', 'Listing', 'Biến thể', 'Ngành hàng', 'Giá (VND)', 'Số lượng', 'Đơn vị nguồn', 'Giá theo đơn vị chuẩn (VND)', 'Đơn vị chuẩn / cơ sở', 'Loại giá', 'Kỳ giá', 'Trạng thái', 'Nguồn', 'Điều kiện giá'];
   const cells = (row: Method['unitPrices'][number]): string[] => {
     const o = row.observation;
-    return [o.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', literal(o.listing), literal(o.variant), literal(o.category.label),
+    return [o.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', productLabel(o.listing), literal(o.variant), literal(o.category.label),
       number(o.price.value), number(o.quantity.value), escape(o.quantity.unit), number(row.value), literal(row.standard), prices[o.price.kind],
       `${escape(o.period.start)} đến ${escape(o.period.end)}`, escape(row.missing ?? 'Khai báo đã đối chiếu bản lưu; chưa xác thực người bán'),
       (row.ownerDeclared ? 'Số lượng do chủ khai báo' : 'Quy cách trong bản lưu trang bán do người vận hành cung cấp') + row.sources.map(ref => mark(ref, citations)).join(''),
@@ -109,7 +117,7 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   const observed = new Set(method.unitPrices.map(row => row.rowI));
   const absent = method.input.rows.filter(row => !observed.has(row.i));
   if (absent.length) html += table('Listing chưa có quy cách hoặc giá đã xác minh — không đưa vào sắp xếp', ['Sàn', 'Listing', 'Tiêu đề nguồn', 'Trạng thái'],
-    absent.map(row => [row.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', literal(row.listing), literal(row.title), 'Chưa rõ số lượng và giá niêm yết' +
+    absent.map(row => [row.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', productLabel(row.listing), literal(row.title), 'Chưa rõ số lượng và giá niêm yết' +
       (method.binding.metric ? mark({ sourceSha256: method.binding.metric.workbookSha256, locator: `Sheet1!A${row.i + 2}:T${row.i + 2}`, label: 'Dòng sản phẩm trong tệp đã lưu' }, citations) : '')]));
   const period = method.input.metric?.input.scope ?? null;
   return html + '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +

@@ -58,7 +58,7 @@ import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, S
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
-import { formatReaderValue, readerProductLabel } from './reader-plain-text.js';
+import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader-plain-text.js';
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 
@@ -251,11 +251,11 @@ export function literalPendingSection(snapshot: DeclarationSnapshot, family: Lit
   return { notice, details: `<details><summary>Xem phần còn chờ xử lý (${pending.length})</summary><p>Phần này chưa được đưa vào kết quả mã hóa. ${blocked.length} khai báo ứng viên bị giữ lại theo quy tắc đọc; con số này không cộng với số mục chờ thành số review.</p>${rows ? `<div class="table-wrap" role="region" aria-label="Các đoạn nguồn còn chờ xử lý" tabindex="0"><table><caption>Đoạn nguồn chưa đủ điều kiện mã hóa</caption><thead><tr><th scope="col">Đoạn đọc</th><th scope="col">Vị trí nguồn</th><th scope="col">Lý do chờ (mã đối chiếu)</th></tr></thead><tbody>${rows}</tbody></table></div>` : ''}${pending.length > 20 ? `<p>Trang này hiển thị 20 trong ${pending.length} mục chờ theo thứ tự nguồn. Toàn bộ được giữ trong hồ sơ phương pháp đã lưu.</p>` : ''}</details>` };
 }
 
-function nativeReviewContext(snapshot: NativeSourceReviewSnapshot): string {
+function nativeReviewContext(snapshot: NativeSourceReviewSnapshot, readerPlainText = true): string {
   const records = snapshot.output.input.records;
   const counts = (disposition: string): number => records.filter(record => record.disposition === disposition).length;
   const selected = snapshot.nativeSource.selected;
-  const summary = `<h3>Tập phản hồi nguồn đã lưu</h3><dl><dt>Nguồn</dt><dd>Tập con phản hồi của một mục sản phẩm Shopee, đã được lưu cùng lượt này</dd><dt>Sản phẩm đã chọn</dt><dd>Gian hàng ${escape(selected.shopId)} · Sản phẩm ${escape(selected.itemId)}</dd><dt>Thời điểm thu nguồn</dt><dd>${escape(snapshot.nativeSource.sourcePackage.manifest.sourceAcquiredAt ?? 'Chưa khai báo')}</dd><dt>Độ phủ bản ghi</dt><dd>${records.length} dòng nguồn: ${counts('INCLUDED')} đưa vào đọc, ${counts('EXCLUDED')} loại khỏi đọc, ${counts('UNREADABLE')} không đọc được.</dd></dl><p class="warning">Đây là bản thu có sẵn, không phải lượt gọi nhà cung cấp mới. Mã sản phẩm khớp cấu trúc; chưa xác thực tác giả, biến thể hay toàn bộ lịch sử phản hồi. Ngày nguồn không tự xác lập độ phủ kỳ báo cáo. Số dòng không phải số người. Nguồn này được giữ riêng, không gộp hoặc đổi tên thành tập thu của nhà cung cấp khác.</p>`;
+  const summary = `<h3>Tập phản hồi nguồn đã lưu</h3><dl><dt>Nguồn</dt><dd>Tập con phản hồi của một mục sản phẩm Shopee, đã được lưu cùng lượt này</dd><dt>Sản phẩm đã chọn</dt><dd>${readerPlainText ? `${escape(readerShopLabel(selected.shopId))} · ${escape(readerProductLabel(selected.itemId, undefined))}` : `Gian hàng ${escape(selected.shopId)} · Sản phẩm ${escape(selected.itemId)}`}</dd><dt>Thời điểm thu nguồn</dt><dd>${escape(snapshot.nativeSource.sourcePackage.manifest.sourceAcquiredAt ?? 'Chưa khai báo')}</dd><dt>Độ phủ bản ghi</dt><dd>${records.length} dòng nguồn: ${counts('INCLUDED')} đưa vào đọc, ${counts('EXCLUDED')} loại khỏi đọc, ${counts('UNREADABLE')} không đọc được.</dd></dl><p class="warning">Đây là bản thu có sẵn, không phải lượt gọi nhà cung cấp mới. Mã sản phẩm khớp cấu trúc; chưa xác thực tác giả, biến thể hay toàn bộ lịch sử phản hồi. Ngày nguồn không tự xác lập độ phủ kỳ báo cáo. Số dòng không phải số người. Nguồn này được giữ riêng, không gộp hoặc đổi tên thành tập thu của nhà cung cấp khác.</p>`;
   return summary;
 }
 
@@ -450,8 +450,9 @@ function productLabels(input: AutomationReportInput): ReadonlyMap<string, string
   return new Map((input.collection?.productCards ?? []).flatMap(card => card.title?.trim() ? [[card.productId, card.title.trim()] as const] : []));
 }
 
-function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>): string {
+function observationTable(rows: readonly TypedComparable[], captures: ReadonlyMap<number, CaptureRecord>, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = citations.readerPlainText !== false): string {
   if (!rows.length) return '';
+  if (!readerPlainText) return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => `<tr><td>${escape(sourceMemberLabel(row.productId, false))}</td><td>${escape(row.metric === 'GMV_VND' ? 'Doanh thu (VND)' : 'Lượt bán')}</td><td>${escape(row.value)}</td><td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td><td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`).join('')}</tbody></table></div>`;
   return `<div class="table-wrap" role="region" aria-label="Giá trị nguồn theo từng sản phẩm và kỳ truy vấn" tabindex="0"><table class="observations"><caption>Giá trị nguồn theo từng sản phẩm và kỳ truy vấn. Không phải tổng thị trường.</caption><thead><tr><th scope="col">Sản phẩm nguồn</th><th scope="col">Phép đo / đơn vị</th><th scope="col">Giá trị nguồn</th><th scope="col">Kỳ đo</th><th scope="col">Nguồn</th></tr></thead><tbody>${rows.map(row => { const measure = row.metric === 'GMV_VND' ? 'revenue' : 'sales_volumn'; return `<tr><td>${escape(readerProductLabel(sourceMemberLabel(row.productId), labels.get(row.productId)))}</td> <td>${escape(measureLabel[row.metric])}</td> <td>${escape(formatReaderValue(row.value, { measure, unit: row.metric === 'GMV_VND' ? 'VND' : 'đơn vị' }) ?? 'Giá trị được giữ trong bản lưu nguồn')}</td> <td>${escape(row.window.startDate)} đến ${escape(row.window.endDate)}</td> <td>${captureMark(captures.get(row.captureIndex)!, citations)}</td></tr>`; }).join('')}</tbody></table></div>`;
 }
 
@@ -477,10 +478,10 @@ function peerEvidence(input: AutomationReportInput, captures: ReadonlyMap<number
   });
 }
 
-function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitations, labels: ReadonlyMap<string, string>): string {
+function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitations, labels: ReadonlyMap<string, string>, readerPlainText = citations.readerPlainText !== false): string {
   const mark = (ref: DefaultMarketPeers['input']['records'][number]['source']): string => {
     if (ref === null) return 'Chưa có nguồn';
-    const pointer = readerPointer(ref.locator);
+    const pointer = readerPointer(ref.locator, readerPlainText);
     return citations.mark({ sourceKind: 'CAPTURE', identity: ref.sourceSha256, locator: pointer.locator,
       label: 'Doanh thu trong tệp nguồn đã lưu', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE',
       technical: { sourceSha256: ref.sourceSha256, ...(pointer.technical === null ? {} : { locator: pointer.technical }) } });
@@ -494,14 +495,15 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
   const frames = snapshot.frames.map(result => {
     const frame = result.frame;
     const platform = frame.platform === 'shopee' ? 'Shopee' : frame.platform === 'tiktok' ? 'TikTok Shop' : storedLiteral(frame.platform, 'Sàn được giữ trong bản lưu');
-    const rows = result.selected.map(member => `<tr><td>${escape(readerProductLabel(member.identity.label, labels.get(member.identity.label)))} </td><td>${member.identity.kind === 'TITLE_LABEL' ? 'Nhãn thương hiệu theo tiêu đề người bán' : 'Gian hàng nguồn; chưa rõ thương hiệu'}</td><td>${escape(formatReaderValue(member.revenue, { currency: 'VND' }) ?? 'Doanh thu được giữ trong bản lưu')} VND ${member.sources.map(mark).join('')}</td></tr>`).join('');
-    const total = result.totalRevenue === null ? 'Chưa đủ dữ liệu' : `${formatReaderValue(result.totalRevenue, { currency: 'VND' })} VND`;
-    const selected = result.selectedRevenue === null ? 'Chưa đủ dữ liệu' : `${formatReaderValue(result.selectedRevenue, { currency: 'VND' })} VND`;
+    const revenue = (value: string): string => readerPlainText ? formatReaderValue(value, { currency: 'VND' }) ?? 'Doanh thu được giữ trong bản lưu' : value;
+    const rows = result.selected.map(member => `<tr><td>${readerPlainText ? `${escape(readerProductLabel(member.identity.label, labels.get(member.identity.label)))} ` : ''}${readerPlainText ? '' : escape(storedLiteral(member.identity.label, 'Danh tính nguồn được giữ trong bản lưu'))}</td><td>${member.identity.kind === 'TITLE_LABEL' ? 'Nhãn thương hiệu theo tiêu đề người bán' : 'Gian hàng nguồn; chưa rõ thương hiệu'}</td><td>${escape(revenue(member.revenue))} VND ${member.sources.map(mark).join('')}</td></tr>`).join('');
+    const total = result.totalRevenue === null ? 'Chưa đủ dữ liệu' : `${revenue(result.totalRevenue)} VND`;
+    const selected = result.selectedRevenue === null ? 'Chưa đủ dữ liệu' : `${revenue(result.selectedRevenue)} VND`;
     return `<h3>${platform} · ${storedLiteral(frame.group, 'Nhóm được giữ trong bản lưu')}</h3><p>${states[result.state]} Kỳ ${escape(frame.period.start)} đến ${escape(frame.period.end)}.</p><p>Doanh thu nhóm trong mẫu: ${escape(total)}; doanh thu tập đã chọn: ${escape(selected)}. ${result.eligible.map(mark).join('')}</p>${rows ? `<table><caption>Đối thủ mặc định trong nhóm, đặt cạnh nhau</caption><thead><tr><th>Nhãn nguồn</th><th>Căn cứ danh tính</th><th>Doanh thu ước tính</th></tr></thead><tbody>${rows}</tbody></table>` : ''}`;
   }).join('');
   const exclusions = snapshot.frames.flatMap(frame => frame.excluded);
   const additions = snapshot.input.ownerAdditions.length
-    ? `<ul>${snapshot.input.ownerAdditions.map(id => `<li>Đối tượng nguồn: ${escape(sourceMemberLabel(id))}</li>`).join('')}</ul>`
+    ? `<ul>${snapshot.input.ownerAdditions.map(id => `<li>Đối tượng nguồn: ${escape(sourceMemberLabel(id, readerPlainText))}</li>`).join('')}</ul>`
     : '<p>Chưa có bổ sung của chủ.</p>';
   return `<p>Quy tắc đã chốt trước khi đọc doanh số: chọn theo doanh thu giảm dần tới khi đạt ít nhất ${escape(snapshot.input.rule.thresholdPercent)}% doanh thu cùng nhóm trong mẫu; khi bằng nhau dùng mã danh tính ổn định. Bảng hiển thị theo danh tính, không xếp ưu tiên.</p>${frames || '<p>Chưa có nhóm doanh số đã phân loại tương thích. Quan sát sản phẩm và thẻ tìm kiếm không cung cấp thành viên doanh số; phần thiếu không phải 0.</p>'}<p>Số bán hàng ước tính chưa đối chiếu với người bán, chỉ dùng tham khảo. Không cộng doanh thu giữa các sàn hoặc suy cùng thương hiệu từ tên giống nhau.</p><h3>Bổ sung của chủ, giữ riêng</h3>${additions}<p>Bổ sung không thay đổi mẫu số hoặc quy tắc mặc định.</p><details><summary>Hồ sơ đối chiếu tập đối thủ</summary><p>Phiên bản quy tắc: <code>${escape(snapshot.input.rule.version)}</code>. Đầu vào, thành viên, lý do loại và kết quả chính xác được giữ trong bản lưu bất biến. Số lần loại dòng ở các nhóm và sàn: ${escape(exclusions.length)}.</p><ul>${exclusions.map(row => `<li><code>${escape(row.reason)}</code> ${mark(row.source)}</li>`).join('')}</ul></details>`;
 }
@@ -578,7 +580,8 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Views are composed on first render so that [n] numbers follow the page, not the section-array build order.
   const locatedViews = new Map<string, () => string>();
   const registry = new CitationRegistry();
-  const citations: ReportCitations = { ...((input.start.sourceEvidenceVersion || marketPresentation) ? { distinctEntityWording: true } : {}), mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
+  const readerPlainText = Boolean(input.start.sourceEvidenceVersion || marketPresentation);
+  const citations: ReportCitations = { distinctEntityWording: readerPlainText, readerPlainText, mark: (input: CitationInput): string => renderCitationMarkOrMissing(registry.cite(input)) };
   // Sections whose retained decision synthesis is VALID; candidate prose never makes a section analytically complete.
   const decisionGeneratedIds: string[] = [];
   const decisionProposedIds: string[] = [];
@@ -717,7 +720,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       explanation: section.sectionId === 'I01' ? 'Yêu cầu nghiên cứu ghi lại từ phạm vi đã xác nhận; không phải nhận định AI hay insight đã duyệt.' : 'Phạm vi yêu cầu, độ phủ thực tế và dấu vết nguồn của lượt này. Không thay thế phương pháp tính chuyên biệt của từng mục.',
     };
     if (section.sectionId === 'M07' && defaultMarketPeers) {
-      locatedViews.set(section.sectionId, () => defaultPeerSection(defaultMarketPeers, citations, productLabels(input)));
+      locatedViews.set(section.sectionId, () => defaultPeerSection(defaultMarketPeers, citations, productLabels(input), readerPlainText));
       const usable = defaultMarketPeers.frames.some(frame => frame.state === 'SELECTED' || frame.state === 'ZERO_REVENUE');
       return { sectionId: section.sectionId, title: section.title, state: usable ? 'METHOD_OUTPUT' : 'METHOD_NO_USABLE_RECORDS',
         method: defaultMarketPeers.input.rule.version, rows: [],
@@ -866,17 +869,17 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && sectionId === 'M01' && input.m01Inventory && input.sourceClaims) return m01InventorySection(input.m01Inventory, input.sourceClaims, citations);
     if (kind === 'INSIGHT' && sectionId === 'I14' && input.i14Admission && input.sourceClaims) return i14SynthesisSection(input.i14Synthesis, citations) + i14AdmissionSection(input.i14Admission, input.sourceClaims, citations);
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M04')) {
-      if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, Boolean(marketPresentation)) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations, labels) : '');
+       if (input.metricMethods) return metricMethodSection(input.metricMethods, sectionId, input.metricClassified, citations, readerPlainText) + (sectionId === 'M03' && input.marketInventory ? '<h3>Bằng chứng riêng của nguồn sàn: không cộng vào số liệu nguồn</h3>' + marketInventorySection(input.marketInventory, sectionId, citations, labels) : '');
       if (input.metricMethodsFailure) return `<p class="warning">${escape(metricFailureCopy[input.metricMethodsFailure].next)}</p>` + codeNote(input.metricMethodsFailure);
     }
     if (kind === 'MARKET' && (sectionId === 'M03' || sectionId === 'M08')) {
       if (input.marketInventory) return marketInventorySection(input.marketInventory, sectionId, citations, labels);
       if (input.marketInventoryFailure) return '<p class="warning">Đã thử xử lý inventory nhưng nguồn hoặc phương pháp không vượt qua kiểm tra; không tự gọi lại nguồn.</p>' + codeNote('MARKET_INVENTORY_FAILED');
     }
-    if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, Boolean(input.start.sourceEvidenceVersion || marketPresentation));
+     if (sourceScope && sectionId === 'M13') return marketSourceScopeSection(sourceScope, 'M13', citations) + descriptiveAppendix(descriptive, input.descriptiveMethodFailure, readerPlainText, readerPlainText);
     if (kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17')) {
       if (insightPersona) return insightPersonaSection(insightPersona.snapshot, insightPersona.source, sectionId, citations);
-      if (privateView) return (sample && sectionId === 'I03' ? reviewSampleSection(sample, privateView, citations) : '') + privateReviewCorpusSection(privateView, sectionId, citations);
+      if (privateView) return (sample && sectionId === 'I03' ? reviewSampleSection(sample, privateView, citations, readerPlainText) : '') + privateReviewCorpusSection(privateView, sectionId, citations);
       const codingNotice = located
         ? `<p class="warning">Đã áp dụng quy tắc đã duyệt để đưa các khai báo rõ nghĩa vào phạm vi hẹp, có vị trí nguyên văn. ${located.projection.pending.length} mục còn chờ được giữ cùng bản đề xuất ban đầu; không tính thành mục phân tích hoàn chỉnh. Khi mở lại, hệ thống đọc kết quả đã lưu, không chạy lại parser hoặc gọi nguồn.</p>`
         : input.locatedReview
@@ -884,7 +887,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
         : input.locatedReviewFailure
           ? '<p class="warning">Dữ liệu review gốc vẫn được giữ, nhưng bước lưu đề xuất coding chưa vượt qua kiểm tra; không dùng đề xuất chưa xác minh hoặc tự thu lại nguồn.</p>' + codeNote('LOCATED_REVIEW_METHOD_FAILED') : '';
       const trace = corpusTrace ? corpusTraceSection(corpusTrace, sectionId, citations) : '';
-      if (input.nativeReview) return codingNotice + nativeReviewContext(input.nativeReview) + trace;
+      if (input.nativeReview) return codingNotice + nativeReviewContext(input.nativeReview, readerPlainText) + trace;
       if (input.collection?.nativeReview) {
         const oversized = input.nativeReviewFailure === 'NATIVE_REVIEW_REPORT_TOO_LARGE';
         return `<p class="warning">Nguồn review native của đúng listing đã được gắn và giữ nguyên. ${oversized
@@ -913,7 +916,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return qualitative;
     return (locatedView ? locatedView() : views.get(section.sectionId)!.html) + literal + qualitative;
   };
-  const body = orderReportCitations(`<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels)}${appendix(section.sectionId)}<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details></section>`).join(''), registry);
+  const body = orderReportCitations(`<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details></section>`).join(''), registry);
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${escape(title)} · ${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`
   // Desktop cover: keep text off the diagonal (yellow stripe spans 61.5%→39.6% of the cover width, top→bottom).
   + `@media screen and (min-width:901px){.cover{container-type:inline-size}.cv-left>div:nth-child(2){max-width:calc(46cqi - 40px)}.cv-meta{max-width:calc(38cqi - 40px)}.cv-right{padding-left:11cqi}}`
@@ -932,14 +935,14 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
 }
 
 /** Counts describe the retained capture, never a product/platform population or people. */
-function reviewSampleSection(sample: AutomationReviewSample, view: PrivateReviewReportView, citations: ReportCitations): string {
+function reviewSampleSection(sample: AutomationReviewSample, view: PrivateReviewReportView, citations: ReportCitations, readerPlainText = citations.readerPlainText !== false): string {
   const rows = sample.products.map((product, index) => {
     const stop = product.stop === 'A_FIXED_COUNT' ? 'Đã thu được 300 bản ghi' : product.stop === 'PROVIDER_DATASET_EXHAUSTED'
       ? 'Đã đọc hết tập dữ liệu trả về của lượt thu; chưa biết tổng review của sản phẩm' : 'Lượt thu dừng trước mốc 300';
     const mark = citations.mark({ sourceKind: 'CAPTURE', identity: sample.collection.collectionSha256,
       locator: `/selected/${index}`, label: 'Tập đánh giá của các mục sản phẩm đã chọn trên Shopee',
       retrievedAt: view.capture.retrievedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
-    return `<tr><td>${storedLiteral(`shopee:${product.listing.shopId}:${product.listing.itemId}`, 'Mục sản phẩm từ nguồn')}</td><td>${product.retainedReviews}</td><td>${product.textReviews}</td><td>${product.meetsComparisonTextMinimum ? 'Đạt mốc 30 bản ghi có chữ; chưa cho phép suy rộng' : 'Chưa đủ 30 bản ghi có chữ để so sánh sản phẩm'}</td><td>${escape(stop)} ${mark}</td></tr>`;
+    return `<tr><td>${readerPlainText ? `${escape(readerShopLabel(product.listing.shopId, undefined, index + 1))} · ${escape(readerProductLabel(product.listing.itemId, undefined, index + 1))}` : escape(`shopee:${product.listing.shopId}:${product.listing.itemId}`)}</td><td>${product.retainedReviews}</td><td>${product.textReviews}</td><td>${product.meetsComparisonTextMinimum ? 'Đạt mốc 30 bản ghi có chữ; chưa cho phép suy rộng' : 'Chưa đủ 30 bản ghi có chữ để so sánh sản phẩm'}</td><td>${escape(stop)} ${mark}</td></tr>`;
   }).join('');
   return '<h3>Mẫu đánh giá đã thu</h3><p>Các mục sản phẩm do chủ sở hữu chọn, chưa phải mẫu theo độ phủ doanh thu 50% hoặc 80%. Kỳ doanh thu chưa được xác thực; chưa chứng minh đủ năm thương hiệu hoặc các nhóm cốt lõi. Mốc thu là 300 bản ghi mỗi mục sản phẩm, giới hạn cứng vẫn là 500. Chưa áp dụng dừng theo bão hòa mã nội dung.</p>'
     + `<div class="table-wrap"><table><caption>Số review trong tập thu đã giữ</caption><thead><tr><th>Mục sản phẩm</th><th>Review thu được</th><th>Có chữ đọc được</th><th>Mốc tối thiểu cho so sánh</th><th>Bằng chứng dừng</th></tr></thead><tbody>${rows}</tbody></table></div>`
