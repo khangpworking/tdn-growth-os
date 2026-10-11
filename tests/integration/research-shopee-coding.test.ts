@@ -233,6 +233,11 @@ test('settlement clock failure after genuine publication leaves unknown output u
   const savedHtml = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
   assert.match(savedHtml, new RegExp(`đã thu thập: ${eligibleTotal} bản ghi SELECTED_TEXT có chữ đọc được trong tập S05 đã lưu, trong đó ${codedTotal} bản ghi có mã đề xuất`));
   assert.doesNotMatch(savedHtml, new RegExp(`đã thu thập: ${codedTotal} bản ghi SELECTED_TEXT`));
+  // U-27 Reader appendix: the saved I17 carries the S05 registry identity (ID, tier, report
+  // name) from the board registry; L9 stays explicitly non-applicable for Shopee evidence
+  // instead of a zero count.
+  assert.ok(savedHtml.includes('Nguồn S05 · hạng B · review công khai trên Shopee'));
+  assert.ok(savedHtml.includes('Lọc nghĩa L9 không áp dụng cho bằng chứng Shopee'));
   function readDigest(value: unknown): string {
     return createHash('sha256').update(canonicalJson(value)).digest('hex');
   }
