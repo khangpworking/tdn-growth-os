@@ -594,6 +594,9 @@
           "$ref": "#/$defs/insightBuildRequestV3"
         },
         {
+          "$ref": "#/$defs/insightBuildRequestV4"
+        },
+        {
           "$ref": "#/$defs/tiktokBuildRequest"
         },
         {
@@ -1474,6 +1477,20 @@
         "personaSourceSha256": {
           "$ref": "#/$defs/sha256"
         }
+      }
+    },
+    "insightBuildRequestV4": {
+      "title": "ResearchAutomationInsightReaderBuildRequestV4",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contractVersion", "reportKind", "requestKey", "draftPairId", "semanticSha256", "sourceKind"],
+      "properties": {
+        "contractVersion": { "const": "insight-reader-build-v4" },
+        "reportKind": { "const": "INSIGHT" },
+        "requestKey": { "$ref": "research-automation-api.schema.json#/$defs/requestKey" },
+        "draftPairId": { "$ref": "#/$defs/sha256" },
+        "semanticSha256": { "$ref": "#/$defs/sha256" },
+        "sourceKind": { "const": "QUALITATIVE" }
       }
     },
     "insightRevisionV6": {

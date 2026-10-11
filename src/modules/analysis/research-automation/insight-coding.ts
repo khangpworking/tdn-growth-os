@@ -10,6 +10,7 @@ import schema from '../../../../contracts/analysis/automation-insight-coding.sch
 import locatedSchema from '../../../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
 import selectionSchema from '../../../../contracts/analysis/automation-insight-selection.schema.json' with { type: 'json' };
 import reportRevisionSchema from '../../../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+import qualitativeDraftSchema from '../../../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
 import classifiedRevisionSchema from '../../../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import snapshotSchema from '../../../../contracts/analysis/automation-insight-coding-snapshot.schema.json' with { type: 'json' };
 import type {
@@ -43,7 +44,7 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ strict: true, allErrors: false }); addFormats(ajv);
 registerPrivateReviewSchemas(ajv); ajv.addSchema(privateSourceSchema);
 ajv.addSchema(locatedSchema); ajv.addSchema(selectionSchema); ajv.addSchema(schema);
-ajv.addSchema(classifiedRevisionSchema); ajv.addSchema(reportRevisionSchema);
+ajv.addSchema(classifiedRevisionSchema); ajv.addSchema(qualitativeDraftSchema); ajv.addSchema(reportRevisionSchema);
 const snapshotValid = ajv.compile<AutomationInsightCodingSnapshot>(snapshotSchema);
 const defaultSelectionValid = ajv.compile<InsightDefaultDraftSelection>({ $ref: `${reportRevisionSchema.$id}#/$defs/defaultSelection` });
 const adoptValid = ajv.compile<InsightCodingAdoptRequest>({ $ref: `${schema.$id}#/$defs/adopt` });

@@ -40,3 +40,51 @@ Unresolved:
 Next action: coordinator integrates `db2686b` (and this handoff document) on the matching backend head, then the report author consumes the two service entry points and canonical contract without changing source identity or policy semantics.
 
 Business decisions pending: owner review is still required before any qualitative draft can enter a released or main conclusion; U11 reliability remains unavailable.
+
+## Service-owned integration correction (2026-10-11)
+
+This follow-up adds the missing admission and replay path without changing the
+historical report, renderer, UI or PDF source files. The authoritative backend
+correction commit is `486f869` (the handoff-only receipt update is committed
+separately after this exact code commit). The authoritative backend
+paths are `src/modules/analysis/research-automation/service.ts`, its three
+AJV consumer registrations (`src/api/research-automation-api.ts`,
+`src/modules/analysis/research-automation/insight-coding.ts`, and
+`src/modules/analysis/research-automation/insight-crosscheck-contracts.ts`),
+`contracts/analysis/automation-insight-report-revision.schema.json` plus its
+generated file, `contracts/analysis/insight-reader-input.schema.json` plus its
+generated file, and `contracts/api/research-automation-reader-report-api.schema.json`
+plus its generated file.
+
+The closed request identifier is
+`automation-insight-qualitative-report-revision-v1`; it carries one explicit
+`qualitativeDraft` and no historical Metric/native source-selection object.
+Admission authenticates workspace/run/scope/source-set/requested-period lineage,
+requires the draft's source identity to select either S05 Shopee or S07 TikTok,
+replays the retained source, and calls `checkQualitativeDraft`; no latest
+proposal, collector, provider, or coding-pair conversion is used. A qualitative
+revision reuses the exact predecessor source membership, is deterministic for
+retry/reload/history, and is excluded from Market output.
+
+`#executeReports` carries only the replay-verified draft into
+`ResearchAutomationReportInput`; the service explicitly persists that canonical
+draft in Insight semantic output and supplies it to the report renderer input for
+HTML/PDF generation. `#readVerifiedReport` replays the source and compares the
+stored draft byte-for-byte, requiring `automation-report-kit-v28`. The additive
+reader request is `insight-reader-build-v4` with `sourceKind: QUALITATIVE`; the
+reader input contract is `insight-reader-input-v9` with a `QUALITATIVE_DRAFT`
+retained-method identity and renderer `automation-report-kit-v28`.
+
+Focused evidence from this correction: pinned Node 24.15.0 service import,
+`scripts/typecheck.mjs`, and contract generation passed; the focused synthetic
+contract/revision checks passed (`qualitative-draft-contracts`,
+`insight-crosscheck-contracts`, `insight-literal-evidence`, and
+`research-automation-draft-revision`: 4 files, 4 tests); JSON contract parse and
+`git diff --check` passed.
+The report checkout has the separate renderer projection commit `33b3814`, but
+that commit predates these closed v9/v4 contracts: its `prepareInsightReaderBuild`
+path still emits the historical `insight-reader-input-v1` and does not retain a
+`QUALITATIVE_DRAFT` method reference. The report author must rebase/amend that
+consumer to select `insight-reader-input-v9` for renderer `v28` while retaining
+the source-bound projection; this backend handoff does not modify report/UI/PDF
+source. TikTok hang artifacts remain unchanged and no new TikTok test was started.

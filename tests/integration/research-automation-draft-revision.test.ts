@@ -14,6 +14,7 @@ import { buildResearchAutomationReport } from '../../src/modules/analysis/resear
 import { FixtureShopeeCollector } from '../../src/platform/collectors/apify-shopee.js';
 import { RequestScopedArtifactStore } from '../../src/platform/artifacts/request-scoped-artifact-store.js';
 import revisionSchema from '../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+import qualitativeDraftSchema from '../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
 import classifiedRevisionSchema from '../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import { nextInsightFixture } from '../helpers/next-insight-fixture.js';
 import { AutomationInsightCoding } from '../../src/modules/analysis/research-automation/insight-coding.js';
@@ -38,6 +39,7 @@ const addFormats = (require('ajv-formats') as typeof import('ajv-formats')).defa
 const ajv = new Ajv2020({ strict: true, allErrors: false });
 addFormats(ajv);
 ajv.addSchema(classifiedRevisionSchema);
+ajv.addSchema(qualitativeDraftSchema);
 ajv.addSchema(revisionSchema);
   return ajv.compile({ $ref: `${(revisionSchema as { $id: string }).$id}` });
 })();
