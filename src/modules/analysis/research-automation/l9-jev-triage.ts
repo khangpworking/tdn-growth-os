@@ -142,6 +142,20 @@ export function applyL9JevTriage(result: KeywordMeaningFilterResult, triage: L9J
   });
 }
 
+/** Whether a retained sidecar can be applied to this exact deterministic result. */
+export function l9JevTriageMatches(result: KeywordMeaningFilterResult, triage: L9JevTriageSidecar | null): boolean {
+  if (triage === null) return false;
+  return sidecarMatchesRows(result.results, triage, {
+    contractVersion: 'l9-keyword-data-v1', dataVersion: result.dataVersion, category: result.category,
+    provenance: result.provenance, keywords: result.keywords, exclusions: result.exclusions,
+  });
+}
+
+/** Preserve the deterministic result while making rejection observable to the run. */
+export function unavailableL9JevTriage(data: KeywordMeaningFilterData, result: KeywordMeaningFilterResult): L9JevTriageSidecar {
+  return baseSidecar(data, 'unavailable', 'UNAVAILABLE', l9JevFingerprint(data, result.results), [], ['L9_JEV_UNAVAILABLE']);
+}
+
 function sidecarMatchesRows(rows: readonly KeywordMeaningRecordResult[], triage: L9JevTriageSidecar, data: KeywordMeaningFilterData): boolean {
   if (!validatesL9JevTriageSidecar(triage) || triage.dataVersion !== data.dataVersion || triage.category !== data.category ||
     canonicalJson(triage.keywords) !== canonicalJson(data.keywords) || canonicalJson(triage.exclusions) !== canonicalJson(data.exclusions) ||

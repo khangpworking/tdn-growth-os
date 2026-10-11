@@ -24,7 +24,10 @@ import type { AutomationMarketPresentationRevisionRequest } from '../../../../co
 import { draftKeywordLists, type KeywordListDraftTransport } from '../keyword-list-drafting.js';
 import { retainSourceKeywordListDraft, replaySourceKeywordListDraft, type KeywordListDraftRecord, type KeywordListDraftRecordV3, type RetainedKeywordListDraftRecord, type MetricKeywordDraftEvidenceContext, type MetricWorkbookTitleCellRef } from '../keyword-list-draft-record.js';
 import { readSalesNameEvidence, readMetricSalesNameEvidence } from './sales-name-evidence.js';
-import { buildSourceEvidence, sourceEvidenceForReport, verifySourceEvidence, admitWebResults, checkSourceEvidence, type AutomationSourceEvidence } from './source-evidence.js';
+import { buildSourceEvidence, sourceEvidenceForReport, verifySourceEvidence, admitWebResults, checkSourceEvidence, triageSourceEvidenceL9, type AutomationSourceEvidence } from './source-evidence.js';
+import { triageL9WithJev } from './l9-jev-triage.js';
+import { TypesafeJevClient } from '../../../platform/ai/typesafe-jev-client.js';
+import type { KeywordMeaningFilterResult } from '../keyword-meaning-filter.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { AutomationInsightLiteralEvidence } from './insight-literal-bridge.js';
 import type { InsightLiteralEvidence } from '../../../../contracts/analysis/insight-literal-evidence.generated.js';
@@ -291,6 +294,8 @@ export interface ResearchAutomationServiceOptions {
   readonly tiktokCodingAi?: TikTokCodingAI;
   /** Explicit Shopee draft-coding model transport. Absent refuses model dispatch; never a default model. */
   readonly shopeeCodingAi?: ShopeeCodingAI;
+  /** Optional second-pass L9 classifier. Absent keeps the deterministic projection and bytes. */
+  readonly l9Jev?: TypesafeJevClient;
   /** Opt-in new source branch. Absent AI retains an explicit unavailable packet, never an unfiltered new report. */
   readonly sourceEvidence?: { readonly modelIdentity: string; readonly promptVersion: string; readonly transport?: KeywordListDraftTransport; readonly configuration?: import('../../../../contracts/analysis/keyword-list-draft-record.generated.js').KeywordDraftConfiguration };
   readonly db: Database.Database;
@@ -401,6 +406,7 @@ export class ResearchAutomationService {
   readonly #tikTokCommentsCollector: ApifyTikTokCommentsCollector | undefined;
   readonly #tiktokCodingAi: TikTokCodingAI | undefined;
   readonly #shopeeCodingAi: ShopeeCodingAI | undefined;
+  readonly #l9Jev: TypesafeJevClient | undefined;
   readonly #db: Database.Database;
   readonly #artifacts: ContentAddressedArtifactStore;
   readonly #workspaces: DiscoveryWorkspaceReader;
@@ -440,6 +446,7 @@ export class ResearchAutomationService {
     this.#tikTokCommentsCollector = options.tikTokCommentsCollector;
     this.#tiktokCodingAi = options.tiktokCodingAi;
     this.#shopeeCodingAi = options.shopeeCodingAi;
+    this.#l9Jev = options.l9Jev;
     this.#db = options.db;
     this.#artifacts = options.artifactStore;
     this.#workspaces = options.workspaceReader;
@@ -627,11 +634,22 @@ export class ResearchAutomationService {
         if (expectedRevision !== undefined && toNumber(current.revision) !== expectedRevision)
           throw new ResearchAutomationConflictError('revision_conflict', 'Reload the run before selecting a new P9 source.');
     };
+    const triageL9 = this.#l9Jev ? async ({ data, corpus }: Parameters<NonNullable<ConstructorParameters<typeof AutomationP9SourceIntake>[0]['triageL9']>>[0]) => {
+      const results = corpus.filterBatches.flatMap(batch => batch.results);
+      const result: KeywordMeaningFilterResult = { contractVersion: 'keyword-meaning-filter-v1', dataVersion: data.dataVersion,
+        category: data.category, provenance: data.provenance, keywords: data.keywords, exclusions: data.exclusions, results,
+        accounting: { included: results.filter(value => value.decision === 'INCLUDED').length,
+          excluded: results.filter(value => value.decision === 'EXCLUDED').length,
+          unclear: results.filter(value => value.decision === 'UNCLEAR').length,
+          byReason: results.reduce<Record<string, number>>((counts, value) => { counts[value.reason] = (counts[value.reason] ?? 0) + 1; return counts; }, {}) } };
+      return triageL9WithJev({ data, result, client: this.#l9Jev! });
+    } : undefined;
     return new AutomationP9SourceIntake({ packages: new SourcePackageService({ db: this.#db,
         artifactStore: new P9PublicationArtifactStore(this.#artifacts, guard), now: this.#now }),
       diagnostics: new SourcePackageService({ db: this.#db, artifactStore: this.#artifacts, now: this.#now }),
       publishDiagnostic: operation => withDatabaseMutationMutex(this.#db, operation),
       ...(this.#tikTokCommentsCollector ? { collector: this.#tikTokCommentsCollector } : {}),
+      ...(triageL9 ? { triageL9 } : {}),
       keywordDraft: digest => this.readSourceKeywordDraft(row.workspaceId, row.runId, digest),
       publish: operation => withDatabaseMutationMutex(this.#db, async () => { guard(); return operation(); }) });
   }
@@ -1488,7 +1506,7 @@ export class ResearchAutomationService {
     if (!workbook) throw new ResearchAutomationIntegrityError('Prepared product-list workbook is missing.');
     const collection = this.#db.prepare(`SELECT result_sha256 resultSha FROM analysis_research_automation_steps WHERE run_id=? AND step_id='COLLECTION'`).get(runId) as { resultSha: string | null } | undefined;
     const webCollection = collection?.resultSha ? await this.#readStepDocument(collection.resultSha, runId, 'COLLECTION') : null;
-    const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId)) : webCollection?.webResults ?? [];
+    const webResults = webCollection?.sourceEvidence ? admitWebResults(webCollection.sourceEvidence, webCollection.webResults ?? [], await this.#captureRecords(runId), webCollection.sourceEvidence.jevTriage ?? null) : webCollection?.webResults ?? [];
     return { workspaceId, runId, draftPairId: latest.pairId, marketSemantic,
       webResults: webResults.map(({ position, title, url, snippet, retrievedAt, site, published }) =>
         ({ position, title, url, snippet, retrievedAt, site: site ?? null, published: published ?? null })),
@@ -3048,7 +3066,7 @@ export class ResearchAutomationService {
           ...(kind === 'MARKET' && metricMethodsFailure ? { metricMethodsFailure } : {}),
         };
         if (input.sourceEvidence) input = { ...input, sourceEvidence: sourceEvidenceForReport(input.sourceEvidence, input, kind) };
-        if (input.sourceEvidence && input.collection) input = { ...input, collection: { ...input.collection, webResults: admitWebResults(input.sourceEvidence, input.collection.webResults ?? [], captures) } };
+        if (input.sourceEvidence && input.collection) input = { ...input, collection: { ...input.collection, webResults: admitWebResults(input.sourceEvidence, input.collection.webResults ?? [], captures, input.sourceEvidence.jevTriage ?? null) } };
         const builtClaims = buildAutomationSourceClaims({ run, scope,
             ...(input.descriptiveMethods ? { descriptive: { output: input.descriptiveMethods } } : {}),
             ...(kind === 'INSIGHT' && locatedReview?.contractVersion === 'automation-located-review-snapshot-v2' ? { located: { snapshot: locatedReview } } : {}),
@@ -3392,7 +3410,9 @@ export class ResearchAutomationService {
       const evidenceInputs = { webResults: step.webResults ?? [], captures: allCaptures,
         usedCaptureDigests: step.comparables.map(row => captures[row.captureIndex]?.row.artifactSha256).filter((sha): sha is string => Boolean(sha)) };
       cancelledSourceEvidence = () => buildSourceEvidence({ ...evidenceInputs, draft: null, draftDigest: null, unavailableReason: 'DRAFT_FAILED' });
-      const sourceEvidence = buildSourceEvidence({ ...evidenceInputs, draft, draftDigest: drafted.digest, unavailableReason: drafted.unavailableReason });
+      const jevTriage = this.#l9Jev ? await triageSourceEvidenceL9({ draft, webResults: evidenceInputs.webResults, captures: allCaptures, client: this.#l9Jev }) : null;
+      const sourceEvidence = buildSourceEvidence({ ...evidenceInputs, draft, draftDigest: drafted.digest, unavailableReason: drafted.unavailableReason,
+        ...(jevTriage ? { jevTriage } : {}) });
       step = { ...step, sourceEvidence };
     }
     const webResult = web && 'bound' in web ? web.bound.result : null;
@@ -3992,7 +4012,8 @@ export class ResearchAutomationService {
         const packet = value.sourceEvidence;
         const draft = packet.draftDigest ? await this.#verifySourceKeywordDraft(row, packet.draftDigest, captures) : null;
         verifySourceEvidence(packet, { draft, draftDigest: packet.draftDigest, unavailableReason: packet.unavailableReason,
-          webResults: value.webResults ?? [], captures, usedCaptureDigests: value.comparables.map(row => captures.find(c => c.stepId === 'COLLECTION' && c.ordinal === row.captureIndex)?.artifactSha256).filter((sha): sha is string => Boolean(sha)) });
+          webResults: value.webResults ?? [], captures, usedCaptureDigests: value.comparables.map(row => captures.find(c => c.stepId === 'COLLECTION' && c.ordinal === row.captureIndex)?.artifactSha256).filter((sha): sha is string => Boolean(sha)),
+          ...(packet.jevTriage ? { jevTriage: packet.jevTriage } : {}) });
       } else if (value.sourceEvidence !== undefined) throw new ResearchAutomationIntegrityError('Historical collection cannot acquire a new source policy.');
     }
     return value;

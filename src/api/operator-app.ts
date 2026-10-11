@@ -230,6 +230,7 @@ export function openOperatorApp(configuration: OperatorAppConfiguration, depende
       ...(configuration.researchInsightCodingAi ? { insightCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchInsightCodingAi } } : {}),
       ...(configuration.researchTikTokCodingAi ? { tiktokCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchTikTokCodingAi } } : {}),
       ...(configuration.researchShopeeCodingAi ? { shopeeCoding: { cliproxy: configuration.cliproxy!, configuration: configuration.researchShopeeCodingAi } } : {}),
+      ...(configuration.researchJev ? { researchJev: configuration.researchJev } : {}),
       ...(configuration.ownerWritesEnabled ? { owner: {
         databasePath, artifactRoot: configuration.artifactRoot, writeEnabled: true,
         token: ownerToken, actorId: configuration.ownerActorId!, allowedOrigin: origin,

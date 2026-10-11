@@ -1,5 +1,6 @@
 import { personaReportRequestValid, personaRequestValid, personaResponseValid, personaViewValid, personaEvidenceValid } from '../modules/analysis/research-automation/insight-persona-contracts.js';
 import { createKeywordCliproxyTransport, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
+import { TypesafeJevClient, type TypesafeJevConfiguration } from '../platform/ai/typesafe-jev-client.js';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
@@ -95,6 +96,8 @@ export interface ResearchAutomationApiConfiguration {
   readonly shopeeCoding?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: ShopeeReviewCodingConfiguration };
   /** Independently configured list drafting; other model flags grant no calls here. */
   readonly keywordDrafting?: { readonly cliproxy: CliproxyConfiguration; readonly configuration: KeywordDraftConfiguration };
+  /** Opt-in L9 second pass for the OWNER writer only; absent keeps the deterministic gate unchanged. */
+  readonly researchJev?: TypesafeJevConfiguration;
   readonly pageIndex?: import('../modules/analysis/research-automation/service.js').ResearchAutomationServiceOptions['pageIndex'];
   readonly databasePath: string;
   readonly artifactRoot: string;
@@ -277,6 +280,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
   const tiktokCodingAi = configuration.tiktokCoding ? createTikTokCodingCliproxyAi(configuration.tiktokCoding) : null;
   if (configuration.shopeeCoding && !configuration.owner) throw new TypeError('Shopee coding model requires the OWNER writer');
   const shopeeCodingAi = configuration.shopeeCoding ? createShopeeCodingCliproxyAi(configuration.shopeeCoding) : null;
+  if (configuration.researchJev?.enabled && !configuration.owner) throw new TypeError('L9 second pass requires the OWNER writer');
+  const l9Jev = configuration.researchJev?.enabled ? new TypesafeJevClient(configuration.researchJev) : undefined;
   if (configuration.decisionSynthesis && !configuration.owner) throw new TypeError('Automation decision synthesis requires the OWNER writer');
   const decisionSynthesisAi: Partial<Record<AutomationDecisionSectionId, AutomationDecisionExecutionRequest['ai']>> = {};
   if (configuration.decisionSynthesis) {
@@ -316,6 +321,7 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       writeService = create(writer, {
         ...(configuration.reviewCollection ? { reviewCollection: configuration.reviewCollection } : {}),
         ...(configuration.tikTokCommentsCollector ? { tikTokCommentsCollector: configuration.tikTokCommentsCollector } : {}),
+        ...(l9Jev ? { l9Jev } : {}),
         sourceEvidence: { ...sourceEvidence, ...(keywordTransport ? { transport: keywordTransport } : {}) },
         metricAttachmentStore: new RequestScopedArtifactStore(path.resolve(configuration.artifactRoot)),
         actorId: configuration.owner.actorId, source: bindResearchAutomationProvider(selected), ...(webSource ? { webSource } : {}),

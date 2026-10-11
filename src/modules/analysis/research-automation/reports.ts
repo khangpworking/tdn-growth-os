@@ -511,7 +511,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   if (input.start.sourceEvidenceVersion) {
     if (!input.sourceEvidence) throw new Error('New report requires retained source admission');
     checkSourceEvidence(input.sourceEvidence);
-    if (input.collection) input = { ...input, collection: { ...input.collection, webResults: admitWebResults(input.sourceEvidence, input.collection.webResults ?? [], input.captures) } };
+    if (input.collection) input = { ...input, collection: { ...input.collection, webResults: admitWebResults(input.sourceEvidence, input.collection.webResults ?? [], input.captures, input.sourceEvidence.jevTriage ?? null) } };
   } else if (input.sourceEvidence) throw new Error('Historical report cannot acquire source policy');
   if (input.run.runId !== input.scope.runId || input.run.workspaceId !== input.start.workspaceId || input.run.workspaceId !== input.scope.workspaceId) throw new Error('Report lineage mismatch');
   if (input.collection && (input.collection.runId !== input.run.runId || input.collection.stepId !== 'COLLECTION')) throw new Error('Report collection lineage mismatch');
@@ -764,7 +764,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : kind === 'MARKET' && input.sourceEvidence?.jevTriage ? 'automation-report-kit-v29' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -844,7 +844,9 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   const appendix = (sectionId: string): string =>
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
-    (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) : '') +
+    (input.sourceEvidence && (sectionId === 'M13' || sectionId === 'I17') ? sourceEvidenceHtml(input.sourceEvidence) +
+      (input.sourceEvidence.jevTriage?.auditRows.some(row => row.gateOutcome === 'INCLUDED' || row.gateOutcome === 'EXCLUDED')
+        ? `<p>Phân loại bổ sung cho các bản ghi chưa rõ: ${[...new Set(input.sourceEvidence.jevTriage.auditRows.filter(row => row.gateOutcome === 'INCLUDED' || row.gateOutcome === 'EXCLUDED').map(row => row.reason!))].map(escape).join('; ')}.</p>` : '') : '') +
     (kind === 'MARKET' && sectionId === 'M13' && input.quoteMethods
       ? `<details open id="quote-method-evidence"><summary>Hồ sơ giá M08: nguồn, điều kiện và phép tính</summary><p>Xuất xứ trong manifest là khai báo đã lưu, không phải chứng nhận độc lập. Dữ liệu tổng hợp thủ công hoặc giả lập không trở thành dữ liệu nhà cung cấp đã xác minh.</p>${retainedEvidenceHtml(input.quoteMethods)}</details>` : '') +
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
