@@ -2347,6 +2347,10 @@ export class ResearchAutomationService {
       const ref = semantic.marketPresentationArtifact;
       if (typeof ref.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(ref.sha256) || !Number.isSafeInteger(ref.byteSize) || ref.byteSize < 0)
         throw new ResearchAutomationIntegrityError('Market presentation artifact reference is invalid.');
+      const hasInlineMarketPresentation = semantic.marketPresentation !== undefined;
+      if ((!hasInlineMarketPresentation && ref.contractVersion !== 'automation-market-presentation-reference-v1') ||
+          (hasInlineMarketPresentation && ref.contractVersion !== undefined))
+        throw new ResearchAutomationIntegrityError('Market presentation artifact form is inconsistent.');
       const bytes = await this.#readArtifact(ref.sha256, MAX_JSON_ARTIFACT_BYTES, 'application/json');
       if (bytes.byteLength !== ref.byteSize)
         throw new ResearchAutomationIntegrityError('Market presentation artifact reference size differs from its retained artifact.');

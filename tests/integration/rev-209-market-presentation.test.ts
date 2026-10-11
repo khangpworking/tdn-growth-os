@@ -95,7 +95,8 @@ test('REV-209 reference-only Market presentation semantic verifies and legacy in
   const boundedSemantic = { ...semantic, syntheticBoundPadding: 'x'.repeat(1_500_000) };
   assert.ok(Buffer.byteLength(canonicalJson(boundedSemantic)) < MAX_JSON_ARTIFACT_BYTES);
   assert.ok(Buffer.byteLength(canonicalJson({ ...boundedSemantic, marketPresentation: largeMethod })) > MAX_JSON_ARTIFACT_BYTES);
-  const legacy = { ...semantic, marketPresentation: method };
+  const { contractVersion: _contractVersion, ...legacyReference } = semantic.marketPresentationArtifact;
+  const legacy = { ...semantic, marketPresentationArtifact: legacyReference, marketPresentation: method };
   await withSemanticOverride(f, report.versionId, legacy, async () => {
     assert.deepEqual((await f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!)).bytes, savedBytes);
   });
@@ -108,7 +109,7 @@ test('REV-209 rejects tampered, mismatched, non-canonical, input-different and m
   const committed = await f.service.getReportRevision(workspaceId, runId, receipt.attemptId);
   assert.equal(committed.state, 'COMMITTED');
   const { report, semantic } = await readSemantic(f, committed.pairId!);
-  const ref = semantic.marketPresentationArtifact as { sha256: string; byteSize: number };
+  const ref = semantic.marketPresentationArtifact as { sha256: string; byteSize: number; contractVersion?: string };
   const method = JSON.parse((await f.artifacts.read(ref.sha256)).toString()) as AutomationMarketPresentationMethod;
   const read = () => f.service.readReport(workspaceId, runId, 'MARKET', false, committed.pairId!);
 
@@ -150,6 +151,17 @@ test('REV-209 rejects tampered, mismatched, non-canonical, input-different and m
     await assert.rejects(read());
   });
   await withSemanticOverride(f, report.versionId, { ...missingReference, marketPresentation: method }, async () => {
+    await assert.rejects(read());
+  });
+
+  const { contractVersion: _referenceMarker, ...referenceWithoutMarker } = ref;
+  await withSemanticOverride(f, report.versionId, { ...semantic, marketPresentationArtifact: referenceWithoutMarker }, async () => {
+    await assert.rejects(read());
+  });
+  await withSemanticOverride(f, report.versionId, { ...semantic, marketPresentationArtifact: { ...ref, contractVersion: 'wrong-reference-v1' } }, async () => {
+    await assert.rejects(read());
+  });
+  await withSemanticOverride(f, report.versionId, { ...semantic, marketPresentation: method }, async () => {
     await assert.rejects(read());
   });
 });
