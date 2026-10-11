@@ -15,6 +15,8 @@ import { verifyInsightReaderInput, type InsightReaderInput } from './insight-inp
 import { insightCrosscheckAppendix } from '../research-automation/insight-crosscheck-report.js';
 import { projectRetainedInsightFindings, projectInsightFindings, type InsightSectionId } from './insight-projection.js';
 import type { InsightReaderPage, InsightReaderSection } from './insight-template.js';
+import { qualitativeDraftSection, type QualitativeDraftReportSection } from './qualitative-draft-report.js';
+import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 
 export type InsightReaderSourceIdentity = Pick<InsightReaderInput, 'workspaceId' | 'runId' | 'draftPairId' | 'semanticSha256' |
   'sourceReportSha256' | 'frozenStartSha256' | 'frozenScopeSha256' | 'sourceRendererVersion'>;
@@ -30,6 +32,11 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       methods.scope.workspaceId !== identity.workspaceId || methods.scope.runId !== identity.runId || !methods.start.reports.includes('INSIGHT') ||
       digest(methods.start) !== identity.frozenStartSha256 || digest(methods.scope) !== identity.frozenScopeSha256)
     throw new ReaderReportInputError('Insight reader methods differ from authenticated frozen scope.');
+  const qualitativeDraft: AutomationQualitativeDraft | undefined = methods.qualitativeDraft;
+  if (qualitativeDraft && (qualitativeDraft.binding.workspaceId !== identity.workspaceId || qualitativeDraft.binding.runId !== identity.runId ||
+      qualitativeDraft.binding.requestedPeriod.startDate !== methods.start.requestedPeriod.startDate ||
+      qualitativeDraft.binding.requestedPeriod.endDate !== methods.start.requestedPeriod.endDate))
+    throw new ReaderReportInputError('Qualitative draft differs from authenticated frozen scope.');
   if (methods.nativeReview && (methods.locatedReview || methods.reviewCorpus)) throw new ReaderReportInputError('Insight reader cannot substitute native and collected sources.');
   const persona26 = identity.sourceRendererVersion === 'automation-report-kit-v26';
   if (persona26 !== Boolean(methods.insightPersona) || (persona26 && (!methods.privateReviewCorpus ||
@@ -37,7 +44,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
       methods.insightPersona!.selection.binding.workspaceId !== identity.workspaceId || methods.insightPersona!.selection.binding.runId !== identity.runId)))
     throw new ReaderReportInputError('Persona Insight reader requires its verified final proposal and exact public source.');
   if (persona26) methods = { run: methods.run, start: methods.start, scope: methods.scope, collection: methods.collection, captures: methods.captures,
-    insightPersona: methods.insightPersona!, ...(methods.sourceEvidence ? { sourceEvidence: methods.sourceEvidence } : {}) };
+    insightPersona: methods.insightPersona!, ...(methods.sourceEvidence ? { sourceEvidence: methods.sourceEvidence } : {}),
+    ...(methods.qualitativeDraft ? { qualitativeDraft: methods.qualitativeDraft } : {}) };
   const private22 = identity.sourceRendererVersion === 'automation-report-kit-v22';
   const private25 = identity.sourceRendererVersion === 'automation-report-kit-v25';
   const crosscheck23 = identity.sourceRendererVersion === 'automation-report-kit-v23';
@@ -55,7 +63,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
     ...(methods.privateReviewCorpus ? { privateReviewCorpus: methods.privateReviewCorpus } : {}),
     ...(private25 && methods.insightCoding ? { insightCoding: methods.insightCoding } : {}),
     ...(methods.insightLiteral ? { insightLiteral: methods.insightLiteral } : {}),
-    ...(methods.sourceEvidence ? { sourceEvidence: methods.sourceEvidence } : {}) };
+    ...(methods.sourceEvidence ? { sourceEvidence: methods.sourceEvidence } : {}),
+    ...(methods.qualitativeDraft ? { qualitativeDraft: methods.qualitativeDraft } : {}) };
   const default21 = identity.sourceRendererVersion === 'automation-report-kit-v21';
   if ((default21 || crosscheck23) !== (methods.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'))
     throw new ReaderReportInputError('Insight source renderer and coding snapshot versions differ.');
@@ -163,6 +172,8 @@ export function prepareInsightReaderBuild(identity: InsightReaderSourceIdentity,
   if (methods.sourceEvidence) append('I17', sourceEvidenceHtml(methods.sourceEvidence), 'Nguồn, hạng và kết quả lọc nghĩa được giữ riêng theo từng nguồn.');
   else append('I17', '<p>Phiên bản nguồn này chưa có bản kê nguồn với mã đăng ký, hạng và kết quả lọc nghĩa đã xác minh. Các vị trí nguồn đã có vẫn được giữ; không tự điền hạng hoặc kết quả lọc còn thiếu.</p>',
     'Phần còn thiếu của bản kê nguồn được giữ rõ, không thay bằng giá trị mặc định.');
+  if (qualitativeDraft) for (const id of ['I02', 'I05', 'I06', 'I10', 'I17'] as QualitativeDraftReportSection[])
+    append(id, qualitativeDraftSection(qualitativeDraft, id, citations), 'Đề xuất qualitative bám bản ghi nguồn đã lưu; chờ chủ duyệt, U11_STATISTIC_UNAVAILABLE và không dùng trong kết luận chính.');
   return { input, page: { keyword: scope.keyword, definition: scope.definition, period: scope.requestedPeriod,
     registry, sections: [...sections.values()], findings: persona26 ? projectRetainedInsightFindings(undefined, true) : private25 || crosscheck23 ? projectRetainedInsightFindings(methods.insightCoding?.output, true) : projectInsightFindings(methods) } };
 }
