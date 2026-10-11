@@ -30,6 +30,10 @@ What remains and why:
 - The integration test contains no assertion of the old raw limitation/id text, so no expectation update was needed.
 - No other renderer leak was identified in the owned file. A full rendered-output sweep of the existing integration fixture remains for the Linux/CI environment that provides `python3`; no other lane-owned file was edited.
 
+## Round 2
+
+Changed `metric-method-report.ts` to accept only own keys in the limitation and method display maps, so prototype names use the Vietnamese generic fallbacks. Added regression coverage for `toString`, `__proto__` and `constructor` in both paths, including guards against JavaScript text; classified M03/M04 tests now also assert both mapped classification sentences are absent. Evidence: focused LEAK-209 test, Windows typecheck, and `git diff --check` all pass.
+
 Blocked / needs other lane:
 - No code change is requested from another lane. Linux CI or a Windows environment with the repository’s expected `python3` command should rerun the Market integration test and confirm the complete rendered-output sweep.
 

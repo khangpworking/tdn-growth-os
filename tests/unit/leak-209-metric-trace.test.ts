@@ -19,8 +19,11 @@ const LIMITATIONS = [
   ['SOURCE_PERIOD_SHORTER_THAN_REQUESTED_NOT_EXPANDED_OR_PRORATED', 'Kỳ đo của bản xuất ngắn hơn kỳ yêu cầu; không kéo dài hoặc chia tỷ lệ để bù.'],
 ] as const;
 const CLASSIFICATION_CODES = ['CLASSIFICATION_LABELS_NOT_BOUND_WIDE_CORE_BLOCKED', 'CLASSIFIED_M03_M04_READINESS_REMAINS_BLOCKED'] as const;
+const CLASSIFICATION_COPIES = [LIMITATIONS[3][1], LIMITATIONS[4][1]] as const;
 const METHOD_IDS = ['metric-scope-v1', 'percent-half-even-2-v1'] as const;
 const GENERIC_LIMITATION = 'Một giới hạn kỹ thuật khác được giữ trong bản lưu';
+const GENERIC_METHOD = 'Phiên bản được giữ trong bản lưu';
+const PROTOTYPE_KEYS = ['toString', '__proto__', 'constructor'] as const;
 const citations = { mark: () => '[1]' };
 
 function snapshot(limitations: readonly string[] = LIMITATIONS.map(([code]) => code)): AutomationMetricMethodSnapshot {
@@ -77,9 +80,12 @@ test('every known limitation code has plain Vietnamese copy and unknown codes us
   assert.equal(html.includes(unknown), false);
 });
 
-test('classified traces still omit the two classification limitation codes', () => {
-  const html = render('M04', true, [...LIMITATIONS.map(([code]) => code), ...CLASSIFICATION_CODES]);
-  for (const code of CLASSIFICATION_CODES) assert.equal(html.includes(code), false, code);
+test('classified M03 and M04 traces omit classification codes and their mapped copies', () => {
+  for (const sectionId of ['M03', 'M04'] as const) {
+    const html = render(sectionId, true, [...LIMITATIONS.map(([code]) => code), ...CLASSIFICATION_CODES]);
+    for (const code of CLASSIFICATION_CODES) assert.equal(html.includes(code), false, `${sectionId}: ${code}`);
+    for (const copy of CLASSIFICATION_COPIES) assert.equal(html.includes(copy), false, `${sectionId}: ${copy}`);
+  }
 });
 
 test('known method and rounding ids have plain Vietnamese copy and unknown ids use the generic version line', () => {
@@ -92,7 +98,23 @@ test('known method and rounding ids have plain Vietnamese copy and unknown ids u
 
   const unknownResult = { ...known.result, methodVersion: 'synthetic-method-v9', rounding: 'synthetic-rounding-v9' };
   const unknownHtml = metricMethodSection({ ...known, result: unknownResult } as AutomationMetricMethodSnapshot, 'M03', undefined, citations);
-  assert.equal((unknownHtml.match(/Phiên bản được giữ trong bản lưu/g) ?? []).length, 2);
+  assert.equal((unknownHtml.match(new RegExp(GENERIC_METHOD, 'g')) ?? []).length, 2);
   assert.equal(unknownHtml.includes('synthetic-method-v9'), false);
   assert.equal(unknownHtml.includes('synthetic-rounding-v9'), false);
+});
+
+test('prototype keys use generic limitation and method copies without JavaScript text', () => {
+  for (const key of PROTOTYPE_KEYS) {
+    const limitationHtml = render('M03', false, [key]);
+    assert.ok(limitationHtml.includes(GENERIC_LIMITATION), `limitation ${key}`);
+    const known = snapshot([]);
+    const methodResult = { ...known.result, methodVersion: key, rounding: key };
+    const methodHtml = metricMethodSection({ ...known, result: methodResult } as unknown as AutomationMetricMethodSnapshot, 'M03', undefined, citations);
+    assert.equal(methodHtml.includes(GENERIC_METHOD), true, `method ${key}`);
+    for (const html of [limitationHtml, methodHtml]) {
+      assert.equal(html.includes('function'), false, key);
+      assert.equal(html.includes('[object'), false, key);
+      assert.equal(html.includes('native code'), false, key);
+    }
+  }
 });

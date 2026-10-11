@@ -30,8 +30,8 @@ const METHOD_COPY: Readonly<Record<string, string>> = {
   'metric-scope-v1': 'Phép tính trên mẫu số liệu đã lưu, phiên bản 1',
   'percent-half-even-2-v1': 'Làm tròn tỷ lệ phần trăm tới 2 chữ số thập phân (nửa về số chẵn)',
 };
-const limitationCopy = (code: string): string => LIMITATION_COPY[code] ?? GENERIC_LIMITATION_COPY;
-const methodCopy = (id: string): string => METHOD_COPY[id] ?? 'Phiên bản được giữ trong bản lưu';
+const limitationCopy = (code: string): string => Object.hasOwn(LIMITATION_COPY, code) ? LIMITATION_COPY[code]! : GENERIC_LIMITATION_COPY;
+const methodCopy = (id: string): string => Object.hasOwn(METHOD_COPY, id) ? METHOD_COPY[id]! : 'Phiên bản được giữ trong bản lưu';
 
 /** One number per raw Metric row: the exact cell when it is known, otherwise "Chưa có nguồn". */
 const rowMark = (ref: EvidenceRef, citations: ReportCitations): string => {
