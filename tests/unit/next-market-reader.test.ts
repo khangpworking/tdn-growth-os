@@ -24,6 +24,17 @@ test('Market1.4 has six unordered scoped findings, strict unit tables and same-s
     assert.match(finding.textContent!, /2026|01\/01/);
     assert.match(finding.textContent!, /Bình nhỏ; Bình lớn/);
   }
+  const renderedFindings = [...doc.querySelectorAll('.market-findings > li')];
+  const findings = marketFindings(computed);
+  assert.equal(renderedFindings.length, findings.length);
+  findings.forEach((finding, index) => {
+    const rendered = renderedFindings[index]!;
+    const exhibit = rendered.textContent!.match(/Bảng \d+\.\d+/)?.[0];
+    assert.ok(exhibit, `missing exhibit pointer for ${finding.id}`);
+    const exhibitNode = [...doc.querySelectorAll('.ex')].find(node => node.querySelector('.exn')?.textContent?.trim() === exhibit);
+    assert.ok(exhibitNode, `missing exhibit ${exhibit} for ${finding.id}`);
+    for (const metricId of finding.metricIds) assert.ok(exhibitNode!.textContent!.includes(computed.bundle.f(metricId)), `${finding.id} metric ${metricId} missing from ${exhibit}`);
+  });
   assert.deepEqual(computed.unitPrices.map(item => item.value), [5000, 10000, 15000, 200, 50000, 60000]);
   const m08 = doc.querySelector('#phan-8')!.textContent!;
   assert.match(m08, /100g \(khối lượng tịnh\)/); assert.match(m08, /100g \(khối lượng cái\)/);
