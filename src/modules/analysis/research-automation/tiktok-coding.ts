@@ -311,7 +311,7 @@ export class AutomationTikTokCoding {
     const codedIndexes = new Set(codes.map(entry => entry.recordIndex));
     const draftCoding: TikTokDraftCoding = { contractVersion: 'tiktok-draft-coding-v1', proposalId,
       requestKey: request.requestKey, binding: { ...request.binding }, corpus: { ...request.corpus },
-      keywordDigest: request.keywordDigest, promptVersion: codes.length > 0 && codes.every(entry => entry.polarity !== undefined) ? 'tiktok-coding-prompt-v2' : 'tiktok-coding-prompt-v1', codes,
+      keywordDigest: request.keywordDigest, promptVersion: candidates.contractVersion === 'tiktok-coding-candidates-v2' ? 'tiktok-coding-prompt-v2' : 'tiktok-coding-prompt-v1', codes,
       counts: { recordsCoded: codedIndexes.size, codesProposed: codes.length, quotesCited: codes.length },
       status: 'PROPOSED_AWAITING_REVIEW', limitations: [...LIMITATIONS] as TikTokDraftCoding['limitations'] };
     if (!validateDraftCoding(draftCoding)) fail();
@@ -417,7 +417,15 @@ export class AutomationTikTokCoding {
     } catch {
       throw new TikTokCodingTransportError('MODEL_RESPONSE_INVALID');
     }
-    const shaped = { contractVersion: 'tiktok-coding-candidates-v1', ...(parsed as Record<string, unknown>) };
+    const expectedContractVersion = artifacts.prompt.contractVersion === 'tiktok-coding-prompt-v2'
+      ? 'tiktok-coding-candidates-v2' : 'tiktok-coding-candidates-v1';
+    const parsedRecord = parsed !== null && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    const selectedContractVersion = parsedRecord.contractVersion === 'tiktok-coding-candidates-v1' || parsedRecord.contractVersion === 'tiktok-coding-candidates-v2'
+      ? parsedRecord.contractVersion : expectedContractVersion;
+    if (parsedRecord.contractVersion !== undefined && parsedRecord.contractVersion !== 'tiktok-coding-candidates-v1' && parsedRecord.contractVersion !== 'tiktok-coding-candidates-v2') {
+      throw new TikTokCodingTransportError('MODEL_RESPONSE_INVALID');
+    }
+    const shaped = { ...parsedRecord, contractVersion: selectedContractVersion };
     if (!validateCandidates(shaped)) throw new TikTokCodingTransportError('MODEL_RESPONSE_INVALID');
     for (const entry of shaped.codes) {
       if (entry.label.includes('{{') || entry.label.includes('}}')) throw new TikTokCodingTransportError('MODEL_RESPONSE_INVALID');

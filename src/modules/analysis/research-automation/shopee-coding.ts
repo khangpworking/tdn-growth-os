@@ -324,7 +324,7 @@ export class AutomationShopeeCoding {
     const codedIndexes = new Set(codes.map(entry => entry.recordIndex));
     const draftCoding: ShopeeDraftCoding = { contractVersion: 'shopee-draft-coding-v1', proposalId,
       requestKey: request.requestKey, binding: { ...request.binding }, sample: { ...request.sample },
-      keywordDigest: request.keywordDigest, promptVersion: codes.length > 0 && codes.every(entry => entry.polarity !== undefined) ? 'shopee-review-coding-prompt-v2' : 'shopee-review-coding-prompt-v1', codes,
+      keywordDigest: request.keywordDigest, promptVersion: candidates.contractVersion === 'shopee-coding-candidates-v2' ? 'shopee-review-coding-prompt-v2' : 'shopee-review-coding-prompt-v1', codes,
       counts: { recordsCoded: codedIndexes.size, codesProposed: codes.length, quotesCited: codes.length },
       status: 'PROPOSED_AWAITING_REVIEW', limitations: [...LIMITATIONS] as ShopeeDraftCoding['limitations'] };
     if (!validateDraftCoding(draftCoding)) fail();
@@ -390,7 +390,15 @@ export class AutomationShopeeCoding {
     } catch {
       throw new ShopeeCodingTransportError('MODEL_RESPONSE_INVALID');
     }
-    const shaped = { contractVersion: 'shopee-coding-candidates-v1', ...(parsed as Record<string, unknown>) };
+    const expectedContractVersion = artifacts.prompt.contractVersion === 'shopee-review-coding-prompt-v2'
+      ? 'shopee-coding-candidates-v2' : 'shopee-coding-candidates-v1';
+    const parsedRecord = parsed !== null && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+    const selectedContractVersion = parsedRecord.contractVersion === 'shopee-coding-candidates-v1' || parsedRecord.contractVersion === 'shopee-coding-candidates-v2'
+      ? parsedRecord.contractVersion : expectedContractVersion;
+    if (parsedRecord.contractVersion !== undefined && parsedRecord.contractVersion !== 'shopee-coding-candidates-v1' && parsedRecord.contractVersion !== 'shopee-coding-candidates-v2') {
+      throw new ShopeeCodingTransportError('MODEL_RESPONSE_INVALID');
+    }
+    const shaped = { ...parsedRecord, contractVersion: selectedContractVersion };
     if (!validateCandidates(shaped)) throw new ShopeeCodingTransportError('MODEL_RESPONSE_INVALID');
     for (const entry of shaped.codes) {
       if (entry.label.includes('{{') || entry.label.includes('}}')) throw new ShopeeCodingTransportError('MODEL_RESPONSE_INVALID');

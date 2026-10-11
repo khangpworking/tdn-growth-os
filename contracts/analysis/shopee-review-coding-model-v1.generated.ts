@@ -7,6 +7,7 @@ export type ShopeeReviewCodingModelV1 =
   ShopeeCodingModelSource | ShopeeCodingModelInput | ShopeeCodingModelPrompt | ShopeeCodingModelCandidates;
 export type Uuid = string;
 export type Digest = string;
+export type ShopeeCodingModelCandidates = ShopeeCodingModelCandidatesV1 | ShopeeCodingModelCandidatesV2;
 
 export interface ShopeeCodingModelSource {
   contractVersion: 'shopee-coding-source-v1';
@@ -61,7 +62,7 @@ export interface ShopeeCodingModelPrompt {
   contractVersion: 'shopee-review-coding-prompt-v1' | 'shopee-review-coding-prompt-v2';
   systemText: string;
 }
-export interface ShopeeCodingModelCandidates {
+export interface ShopeeCodingModelCandidatesV1 {
   contractVersion: 'shopee-coding-candidates-v1';
   /**
    * @minItems 0
@@ -78,5 +79,24 @@ export interface ShopeeCodingModelCandidates {
     };
     polarity?: 'KHEN' | 'CHE' | 'KHONG_RO';
     topic?: string | null;
+  }[];
+}
+export interface ShopeeCodingModelCandidatesV2 {
+  contractVersion: 'shopee-coding-candidates-v2';
+  /**
+   * @minItems 0
+   * @maxItems 6000
+   */
+  codes: {
+    code: string;
+    label: string;
+    recordIndex: number;
+    quote: {
+      text: string;
+      start: number;
+      end: number;
+    };
+    polarity: 'KHEN' | 'CHE' | 'KHONG_RO';
+    topic: string | null;
   }[];
 }

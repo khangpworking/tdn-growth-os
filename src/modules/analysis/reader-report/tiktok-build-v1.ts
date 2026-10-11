@@ -85,7 +85,9 @@ export function prepareTikTokReaderBuild(identity: TikTokReaderSourceIdentity, d
   bundle.set('tiktok.codes.proposed', report.counts.codesProposed, 'int', 'tiktok-coded-report-v1/counts/codesProposed');
   const recordsCoded = String(report.counts.recordsCoded), codesProposed = String(report.counts.codesProposed);
   const mark = (recordIndex: number) => renderCitationMarkOrMissing(registry.cite(citeRow(recordIndex)));
-  const quoteBlock = (occurrence: { recordIndex: number; quote: string; context: string | null }) =>
+  const quoteBlock = (occurrence: { recordIndex: number; quote: string; context: string }) =>
+    `<blockquote>${esc(occurrence.quote)}</blockquote><details><summary>Ngữ cảnh bản ghi</summary><p>${esc(occurrence.context)}</p></details>`;
+  const rankingQuoteBlock = (occurrence: { recordIndex: number; quote: string; context: string | null }) =>
     `<blockquote>${esc(occurrence.quote)}</blockquote>` +
     (occurrence.context === null ? '' : `<details><summary>Ngữ cảnh bản ghi</summary><p>${esc(occurrence.context)}</p></details>`);
   const topicRanking: ReviewTopicRanking | null = draft.promptVersion.endsWith('-v2')
@@ -93,7 +95,7 @@ export function prepareTikTokReaderBuild(identity: TikTokReaderSourceIdentity, d
         topic: ('topic' in entry ? entry.topic : entry.label), polarity: entry.polarity ?? 'KHONG_RO', quote: entry.quote.text,
         context: byIndex.get(entry.recordIndex)?.text ?? null })), { platform: 'TIKTOK' })
     : null;
-  const rankingHtml = topicRanking === null ? null : renderTopicRanking(topicRanking, mark, quoteBlock);
+  const rankingHtml = topicRanking === null ? null : renderTopicRanking(topicRanking, mark, rankingQuoteBlock);
   const sections: InsightReaderSection[] = [
     { id: 'I02', body: `<p>Khách hàng bình luận dưới video TikTok đã thu thập: ${recordsCoded} bản ghi INCLUDED CUSTOMER trong tập S07 đã lưu (số lượng đề xuất, chờ chủ duyệt), giai đoạn nguồn không xác minh. Đơn vị là bản ghi thu được, không phải số người.</p>`,
       explanation: 'Bối cảnh khách hàng từ tập S07 đã lưu; chưa xác thực độc lập.' },

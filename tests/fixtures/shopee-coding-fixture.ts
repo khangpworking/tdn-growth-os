@@ -20,7 +20,7 @@ export const workspaceId = '33333333-3333-4333-8333-333333333333', runId = '2222
 /** Fake cliproxy text port: returns structurally valid candidates derived from the actual input
  * records (exact substrings only). It never decides retention, idempotency, or acceptance.
  * Honors abort like a real transport: an aborted call throws before producing anything. */
-export function fakeShopeeCodingPort(onDispatch?: () => void): NonNullable<ShopeeCodingAI>['port'] & { dispatches(): number } {
+export function fakeShopeeCodingPort(onDispatch?: () => void, responseVersion: 'v1' | 'v2' = 'v2'): NonNullable<ShopeeCodingAI>['port'] & { dispatches(): number } {
   let dispatches = 0;
   const port = {
     dispatches: () => dispatches,
@@ -29,9 +29,9 @@ export function fakeShopeeCodingPort(onDispatch?: () => void): NonNullable<Shope
       dispatches++;
       onDispatch?.();
       const input = JSON.parse(request.userText) as ShopeeCodingModelInput;
-      return { text: JSON.stringify({ codes: input.records.slice(0, 3).map((record, i) => {
+      return { text: JSON.stringify({ contractVersion: `shopee-coding-candidates-${responseVersion}`, codes: input.records.slice(0, 3).map((record, i) => {
         const text = record.text.slice(0, 10);
-        return { code: `TOPIC_${i}`, label: `chủ đề ${i}`, topic: `chủ đề ${i}`, polarity: i % 2 === 0 ? 'KHEN' : 'CHE', recordIndex: record.recordIndex,
+        return { code: `TOPIC_${i}`, label: `chủ đề ${i}`, ...(responseVersion === 'v2' ? { topic: `chủ đề ${i}`, polarity: i % 2 === 0 ? 'KHEN' : 'CHE' } : {}), recordIndex: record.recordIndex,
           quote: { text, start: 0, end: text.length } };
       }) }) };
     },

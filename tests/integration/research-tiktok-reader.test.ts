@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test, { type TestContext } from 'node:test';
 import { createHash, randomUUID } from 'node:crypto';
+import fs from 'node:fs';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { tiktokFixture, workspaceId, runId, fakeCodingPort, fakeCodingAi } from '../fixtures/tiktok-coding-fixture.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
@@ -56,6 +57,12 @@ test('build retained TikTok reader -> consumption ledger -> open/reopen/decide j
   assert.ok(html.includes(read.draft.codes[0]!.quote.text));
   assert.ok(html.includes('S07'));
   assert.ok(html.includes('EXCLUDED'));
+  assert.ok(html.includes('<th>Hạng</th>'));
+  assert.ok(html.includes('Khen/chê'));
+  assert.ok(html.includes('Khác'));
+  assert.ok(html.includes('Không khen không chê: 0 lượt nhắc.'));
+  assert.ok(html.includes('Ngữ cảnh bản ghi'));
+  assert.doesNotMatch(html, /nhắc nhiều|frequent.*important/i);
   const retained = await new FoundationSourcePackageReader(new SourcePackageService({ db: f.db, artifactStore: f.artifacts }))
     .readFinalizedSourcePackage(f.corpusPackage.packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
   const corpusBytes = retained.files.find(file => file.path === 'corpus.json')!.bytes;
@@ -99,6 +106,21 @@ test('build retained TikTok reader -> consumption ledger -> open/reopen/decide j
   assert.equal(decided.exactRetry, false);
   await assert.rejects(f.service.buildTikTokReaderReport(workspaceId, runId, buildRequest(draftDigest, reportDigest), owner),
     'approved reader blocks a second build');
+});
+
+test('retained v1 coding read and reader revision replay the origin HTML golden', async t => {
+  const f = await tiktokFixture(t);
+  const port = fakeCodingPort(undefined, 'v1');
+  const request = { contractVersion: 'tiktok-coding-propose-v1', requestKey: randomUUID(), binding: { workspaceId, runId, scopeSha256: f.keyword.scopeDigest, sourceSetSha256: f.keyword.sourceSetDigest!, requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' } }, corpus: { ...f.corpusPackage }, keywordDigest: f.keywordDigest };
+  await f.service.proposeTikTokCoding(workspaceId, runId, request, fakeCodingAi(port));
+  const source = (await f.service.listTikTokCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readTikTokCoding(workspaceId, runId, source.packageId);
+  assert.equal(read.draft.promptVersion, 'tiktok-coding-prompt-v1');
+  const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
+  const built = await f.service.buildTikTokReaderReport(workspaceId, runId, { contractVersion: 'insight-reader-build-tiktok-v1', reportKind: 'INSIGHT', requestKey: randomUUID(), draftPairId: digest(read.draft), semanticSha256: digest(read.report), sourceKind: 'TIKTOK' }, { actorId: 'synthetic-owner', role: 'OWNER' });
+  const saved = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId);
+  const i10 = saved.bytes.toString('utf8').match(/<section id="I10">.*?<\/section>/s)?.[0];
+  assert.equal(i10, fs.readFileSync('tests/fixtures/tiktok-v1-reader-i10-golden.html', 'utf8'));
 });
 
 test('TikTok build request is explicitly refused on the old Insight route', async t => {

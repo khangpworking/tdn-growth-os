@@ -35,3 +35,21 @@ test('kit reproduces every approved thạch dừa number', { skip: dir ? false :
   assert.deepEqual(S.brands, gold.brands, 'brands');
   assert.deepEqual(S.one.map(r => [r.i, r.seg]), gold.one.map((r: any) => [r.i, r.seg]), '1 kg benchmark');
 });
+
+// Synthetic, frozen inputs and complete HTML bytes generated once from origin/main
+// a5b9344061ff71c20ea017c203a15a813ec92930, before U-11a. No normalization.
+import { prepareShopeeReaderBuild } from '../../src/modules/analysis/reader-report/shopee-build-v1.js';
+import { prepareTikTokReaderBuild } from '../../src/modules/analysis/reader-report/tiktok-build-v1.js';
+import { buildInsightReaderTemplate } from '../../src/modules/analysis/reader-report/insight-template.js';
+
+for (const platform of ['shopee', 'tiktok'] as const) {
+  test(`legacy ${platform} v1 draft renders the complete origin/main HTML bytes`, () => {
+    const frozen = JSON.parse(fs.readFileSync(`tests/fixtures/${platform}-v1-reader-origin-input.json`, 'utf8'));
+    const context = platform === 'shopee'
+      ? prepareShopeeReaderBuild(frozen.identity, frozen.draft, frozen.report, frozen.source, frozen.acquiredAt, frozen.scope)
+      : prepareTikTokReaderBuild(frozen.identity, frozen.draft, frozen.report, frozen.source, frozen.acquiredAt, frozen.scope);
+    const actual = Buffer.from(buildInsightReaderTemplate(context.page).html);
+    const golden = fs.readFileSync(`tests/fixtures/${platform}-v1-reader-origin-golden.html`);
+    assert.deepEqual(actual, golden);
+  });
+}

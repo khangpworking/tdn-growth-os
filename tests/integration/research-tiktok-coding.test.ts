@@ -63,6 +63,27 @@ test('retained keyword-v3 -> S07 corpus -> draft coding proposal -> retained rea
   assert.doesNotMatch(publicBytes, /authorIdentity|keyId|PRIVATE|998877|776655|665544/);
 });
 
+test('v2 response missing polarity is rejected instead of falling back to v1', async t => {
+  const f = await tiktokFixture(t);
+  const base = fakeCodingPort();
+  const malformed: NonNullable<TikTokCodingAI>['port'] = { generateText: async request => {
+    const response = JSON.parse((await base.generateText(request)).text) as { contractVersion: string; codes: Record<string, unknown>[] };
+    delete response.codes[0]!.polarity;
+    return { text: JSON.stringify(response) };
+  } };
+  await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, randomUUID()), fakeCodingAi(malformed)), TikTokCodingTransportError);
+});
+
+test('explicit v1 response still validates and keeps the legacy prompt version', async t => {
+  const f = await tiktokFixture(t);
+  const receipt = await f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, randomUUID()), fakeCodingAi(fakeCodingPort(undefined, 'v1')));
+  const source = (await f.service.listTikTokCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readTikTokCoding(workspaceId, runId, source.packageId);
+  assert.equal(receipt.exactRetry, false);
+  assert.equal(read.draft.promptVersion, 'tiktok-coding-prompt-v1');
+});
+
+
 test('invalid source/voice/config/trust refuses before any model dispatch', async t => {
   const f = await tiktokFixture(t);
   const port = fakeCodingPort();
@@ -95,9 +116,9 @@ test('two real instances racing one key dispatch exactly once; loser observes th
     dispatches++;
     await gate;
     const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
-    return { text: JSON.stringify({ codes: input.records.slice(0, 1).map(record => {
+    return { text: JSON.stringify({ contractVersion: 'tiktok-coding-candidates-v2', codes: input.records.slice(0, 1).map(record => {
       const text = record.text.slice(0, 10);
-      return { code: 'RACE_0', label: 'đua', recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
+      return { code: 'RACE_0', label: 'đua', topic: 'đua', polarity: 'KHEN', recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
     }) }) };
   } };
   const ai = fakeCodingAi(blockingPort);

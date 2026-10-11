@@ -3,7 +3,7 @@ export type ReviewPlatform = 'SHOPEE' | 'TIKTOK';
 export type ReviewPolarity = 'KHEN' | 'CHE' | 'KHONG_RO';
 
 export interface ReviewTopicMention {
-  readonly platform?: ReviewPlatform;
+  readonly platform: ReviewPlatform;
   readonly recordIndex: number;
   readonly topic: string | null;
   readonly polarity: ReviewPolarity;
@@ -39,13 +39,15 @@ export interface ReviewTopicRankingOptions { readonly platform?: ReviewPlatform;
 /** Count each record once per topic × polarity, fold small/unassigned topics into Khác, and rank strictly. */
 export function rankReviewTopicMentions(mentions: readonly ReviewTopicMention[], options: ReviewTopicRankingOptions = {}): ReviewTopicRanking {
   const platform = options.platform ?? mentions.find(m => m.platform)?.platform ?? 'SHOPEE';
-  const scoped = mentions.filter(m => m.platform === undefined || m.platform === platform);
+  const scoped = mentions.filter(m => m.platform === platform);
   const unique = new Map<string, ReviewTopicMention>();
   for (const mention of scoped) {
     if (!Number.isInteger(mention.recordIndex) || (mention.polarity !== 'KHEN' && mention.polarity !== 'CHE' && mention.polarity !== 'KHONG_RO')) continue;
     const topic = mention.topic?.trim() || null;
     const key = `${mention.recordIndex}\u0000${mention.polarity}\u0000${topic ?? ''}`;
-    if (!unique.has(key)) unique.set(key, { ...mention, topic });
+    const normalized = { ...mention, topic };
+    const existing = unique.get(key);
+    if (!existing || mentionOrder(normalized, existing) < 0) unique.set(key, normalized);
   }
   const khongRoCount = [...unique.values()].filter(m => m.polarity === 'KHONG_RO').length;
   const counts = new Map<string, { topic: string; polarity: 'KHEN' | 'CHE'; mentions: ReviewTopicMention[] }>();
@@ -61,28 +63,34 @@ export function rankReviewTopicMentions(mentions: readonly ReviewTopicMention[],
     if (group.mentions.length < 3) { khacMentions.push(...group.mentions); counts.delete(key); }
   }
   const quote = (m: ReviewTopicMention): ReviewTopicQuote => ({ recordIndex: m.recordIndex, quote: typeof m.quote === 'string' ? m.quote : (m.quote?.text ?? ''), context: typeof m.quote === 'object' ? (m.quote.context ?? m.context ?? null) : (m.context ?? null) });
-  const groups = [...counts.values()].sort((a, b) => b.mentions.length - a.mentions.length || a.topic.localeCompare(b.topic) || a.polarity.localeCompare(b.polarity));
+  const orderedQuotes = (values: readonly ReviewTopicMention[]) => [...values].sort(mentionOrder).map(quote);
+  const codePointCompare = (a: string, b: string) => a < b ? -1 : a > b ? 1 : 0;
+  const polarityOrder = (polarity: 'KHEN' | 'CHE') => polarity === 'KHEN' ? 0 : 1;
+  const groups = [...counts.values()].sort((a, b) => b.mentions.length - a.mentions.length ||
+    codePointCompare(a.topic, b.topic) || polarityOrder(a.polarity) - polarityOrder(b.polarity) ||
+    codePointCompare(`${a.topic}\u0000${a.polarity}`, `${b.topic}\u0000${b.polarity}`));
   let previous = -1, rank = 0;
   const rows = groups.map((group, index) => {
     if (group.mentions.length !== previous) { rank = index + 1; previous = group.mentions.length; }
-    return { rank, topic: group.topic, polarity: group.polarity, mentionCount: group.mentions.length, quotes: group.mentions.map(quote) };
+    return { rank, topic: group.topic, polarity: group.polarity, mentionCount: group.mentions.length, quotes: orderedQuotes(group.mentions) };
   });
   const denominator = rows.reduce((sum, row) => sum + row.mentionCount, 0) + khacMentions.length;
   const khacShare = denominator === 0 ? 0 : khacMentions.length / denominator;
-  return { platform, rows, khac: { mentionCount: khacMentions.length, quotes: khacMentions.slice(0, 3).map(quote) }, khongRoCount,
+  return { platform, rows, khac: { mentionCount: khacMentions.length, quotes: orderedQuotes(khacMentions).slice(0, 3) }, khongRoCount,
     khacShare, needsTopUp: khacShare > 0.20 && (options.topUpRoundsDone ?? 0) < 1 };
+}
+
+function mentionOrder(a: ReviewTopicMention, b: ReviewTopicMention): number {
+  const text = (mention: ReviewTopicMention) => typeof mention.quote === 'string' ? mention.quote : (mention.quote?.text ?? '');
+  const context = (mention: ReviewTopicMention) => typeof mention.quote === 'object' ? (mention.quote.context ?? mention.context ?? '') : (mention.context ?? '');
+  return a.recordIndex - b.recordIndex || (text(a) < text(b) ? -1 : text(a) > text(b) ? 1 : 0) ||
+    (context(a) < context(b) ? -1 : context(a) > context(b) ? 1 : 0);
 }
 
 /** Group a mixed corpus without pooling platform counts. */
 export function rankReviewTopicsByPlatform(mentions: readonly ReviewTopicMention[], topUpRoundsDone = 0): Record<ReviewPlatform, ReviewTopicRanking> {
+  if (mentions.some(mention => mention.platform !== 'SHOPEE' && mention.platform !== 'TIKTOK')) {
+    throw new TypeError('rankReviewTopicsByPlatform requires platform on every mention');
+  }
   return { SHOPEE: rankReviewTopicMentions(mentions, { platform: 'SHOPEE', topUpRoundsDone }), TIKTOK: rankReviewTopicMentions(mentions, { platform: 'TIKTOK', topUpRoundsDone }) };
 }
-
-export function rankReviewTopics(input: readonly ReviewTopicMention[] | { readonly platform: ReviewPlatform; readonly mentions: readonly ReviewTopicMention[]; readonly topUpRoundsDone?: number }, options: ReviewTopicRankingOptions = {}): ReviewTopicRanking {
-  if (Array.isArray(input)) return rankReviewTopicMentions(input, options);
-  const grouped = input as { readonly platform: ReviewPlatform; readonly mentions: readonly ReviewTopicMention[]; readonly topUpRoundsDone?: number };
-  const rounds = grouped.topUpRoundsDone ?? options.topUpRoundsDone;
-  return rankReviewTopicMentions(grouped.mentions, rounds === undefined ? { platform: grouped.platform } : { platform: grouped.platform, topUpRoundsDone: rounds });
-}
-
-export const buildReviewTopicRanking = rankReviewTopicMentions;
