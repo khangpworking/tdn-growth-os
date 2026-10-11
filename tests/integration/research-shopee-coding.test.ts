@@ -15,7 +15,10 @@ import { ShopeeCodingContextError } from '../../src/modules/analysis/research-au
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationNotFoundError, ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import type { ShopeeCodingAI } from '../../src/modules/analysis/research-automation/shopee-coding.js';
 import { shopeeFixture, workspaceId, runId, fakeShopeeCodingPort, fakeShopeeCodingAi } from '../fixtures/shopee-coding-fixture.js';
+import { OVER_SIX_CODES, overSixReaderInput } from '../fixtures/shopee-tiktok-v1-over-six-reader.js';
 import { shopeeCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport.js';
+import { prepareShopeeReaderBuild } from '../../src/modules/analysis/reader-report/shopee-build-v1.js';
+import { buildInsightReaderTemplate } from '../../src/modules/analysis/reader-report/insight-template.js';
 
 type Fixture = Awaited<ReturnType<typeof shopeeFixture>>;
 const CODING_BUDGET = { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 };
@@ -91,9 +94,9 @@ test('retained v1 coding read and reader revision replay the origin HTML golden'
   assert.equal(i10, await fs.readFile('tests/fixtures/shopee-v1-reader-i10-golden.html', 'utf8'));
 });
 
-test('retained v1 coding replay keeps the first six findings in code-point order', async t => {
+test('retained v1 coding replay keeps the first six findings in code-point order and renders origin bytes', async t => {
   const f = await shopeeFixture(t);
-  const manyCodes = ['Z_LAST', 'A_FIRST', 'MIDDLE', 'BETA', 'OMEGA', 'ALPHA', 'DELTA', 'GAMMA'];
+  const manyCodes = [...OVER_SIX_CODES];
   const port: NonNullable<ShopeeCodingAI>['port'] = { generateText: async request => {
     const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
     return { text: JSON.stringify({ contractVersion: 'shopee-coding-candidates-v1', codes: manyCodes.map((code, i) => {
@@ -106,6 +109,15 @@ test('retained v1 coding replay keeps the first six findings in code-point order
   const source = (await f.service.listShopeeCodingHistory(workspaceId, runId)).sources[0]!;
   const read = await f.service.readShopeeCoding(workspaceId, runId, source.packageId);
   assert.deepEqual(read.report.findings.map(finding => finding.code), ['ALPHA', 'A_FIRST', 'BETA', 'DELTA', 'GAMMA', 'MIDDLE']);
+  const frozen = overSixReaderInput('shopee');
+  const context = prepareShopeeReaderBuild(
+    frozen.identity as Parameters<typeof prepareShopeeReaderBuild>[0],
+    frozen.draft as Parameters<typeof prepareShopeeReaderBuild>[1],
+    frozen.report as Parameters<typeof prepareShopeeReaderBuild>[2],
+    frozen.source as Parameters<typeof prepareShopeeReaderBuild>[3], frozen.acquiredAt,
+    frozen.scope as unknown as Parameters<typeof prepareShopeeReaderBuild>[5]);
+  const rendered = Buffer.from(buildInsightReaderTemplate(context.page).html);
+  assert.deepEqual(rendered, await fs.readFile('tests/golden/shopee-v1-over-six-reader.html'));
 });
 
 test('v2 reader ranking renders tied ranks, labels, counts, KHONG_RO, and capped Khác quotes', async t => {

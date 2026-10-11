@@ -15,7 +15,10 @@ import { TikTokCodingContextError } from '../../src/modules/analysis/research-au
 import { ResearchAutomationConflictError, ResearchAutomationIntegrityError, ResearchAutomationValidationError } from '../../src/modules/analysis/research-automation/model.js';
 import type { TikTokCodingAI } from '../../src/modules/analysis/research-automation/tiktok-coding.js';
 import { tiktokFixture, workspaceId, runId, fakeCodingPort, fakeCodingAi } from '../fixtures/tiktok-coding-fixture.js';
+import { OVER_SIX_CODES, overSixReaderInput } from '../fixtures/shopee-tiktok-v1-over-six-reader.js';
 import { tiktokCodingCliproxyConfiguration } from '../../src/modules/analysis/research-automation/i14-cliproxy-transport.js';
+import { prepareTikTokReaderBuild } from '../../src/modules/analysis/reader-report/tiktok-build-v1.js';
+import { buildInsightReaderTemplate } from '../../src/modules/analysis/reader-report/insight-template.js';
 
 const CODING_BUDGET = { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 };
 function codingReader(f: Fixture) {
@@ -94,9 +97,9 @@ test('explicit v1 response still validates and keeps the legacy prompt version',
   assert.equal(read.draft.promptVersion, 'tiktok-coding-prompt-v1');
 });
 
-test('retained v1 coding replay keeps the first six findings in code-point order', async t => {
+test('retained v1 coding replay keeps the first six findings in code-point order and renders origin bytes', async t => {
   const f = await tiktokFixture(t);
-  const manyCodes = ['Z_LAST', 'A_FIRST', 'MIDDLE', 'BETA', 'OMEGA', 'ALPHA', 'DELTA', 'GAMMA'];
+  const manyCodes = [...OVER_SIX_CODES];
   const port: NonNullable<TikTokCodingAI>['port'] = { generateText: async request => {
     const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
     return { text: JSON.stringify({ contractVersion: 'tiktok-coding-candidates-v1', codes: manyCodes.map((code, i) => {
@@ -109,6 +112,15 @@ test('retained v1 coding replay keeps the first six findings in code-point order
   const source = (await f.service.listTikTokCodingHistory(workspaceId, runId)).sources[0]!;
   const read = await f.service.readTikTokCoding(workspaceId, runId, source.packageId);
   assert.deepEqual(read.report.findings.map(finding => finding.code), ['ALPHA', 'A_FIRST', 'BETA', 'DELTA', 'GAMMA', 'MIDDLE']);
+  const frozen = overSixReaderInput('tiktok');
+  const context = prepareTikTokReaderBuild(
+    frozen.identity as Parameters<typeof prepareTikTokReaderBuild>[0],
+    frozen.draft as Parameters<typeof prepareTikTokReaderBuild>[1],
+    frozen.report as Parameters<typeof prepareTikTokReaderBuild>[2],
+    frozen.source as Parameters<typeof prepareTikTokReaderBuild>[3], frozen.acquiredAt,
+    frozen.scope as unknown as Parameters<typeof prepareTikTokReaderBuild>[5]);
+  const rendered = Buffer.from(buildInsightReaderTemplate(context.page).html);
+  assert.deepEqual(rendered, await fs.readFile('tests/golden/tiktok-v1-over-six-reader.html'));
 });
 
 
