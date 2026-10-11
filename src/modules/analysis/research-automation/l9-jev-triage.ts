@@ -14,7 +14,7 @@ const validateSidecar = ajv.compile<L9JevTriageSidecar>(triageSchema);
 export type { L9JevTriageSidecar } from '../../../../contracts/analysis/l9-jev-triage.generated.js';
 
 export function validatesL9JevTriageSidecar(value: unknown): value is L9JevTriageSidecar {
-  return validateSidecar(value);
+  return validateSidecar(value) && value.auditRows.every(validAuditVariant);
 }
 
 const ABOUT_PRODUCT = 'ABOUT_PRODUCT' as const;
@@ -31,6 +31,26 @@ type AuditRow = L9JevTriageSidecar['auditRows'][number];
 
 function fail(): never { throw new TypeError('L9 Jev triage sidecar failed canonical schema validation'); }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function validAuditVariant(value: unknown): boolean {
+  if (!isRecord(value) || typeof value.gateOutcome !== 'string') return false;
+  if (value.gateOutcome === 'INCLUDED') return value.choice === ABOUT_PRODUCT && typeof value.confidence === 'number' &&
+    Number.isFinite(value.confidence) && value.confidence >= 0.9 && value.confidence <= 1 && value.reason === ABOUT_REASON;
+  if (value.gateOutcome === 'EXCLUDED') return value.choice === NOT_ABOUT_PRODUCT && typeof value.confidence === 'number' &&
+    Number.isFinite(value.confidence) && value.confidence >= 0.9 && value.confidence <= 1 && value.reason === NOT_ABOUT_REASON;
+  if (value.gateOutcome === 'NO_DECISION') return value.choice === null && value.confidence === null && value.reason === null;
+  if (value.gateOutcome === 'UNCHANGED' && value.reason === null) {
+    if (value.choice === UNRESOLVED) return typeof value.confidence === 'number' && Number.isFinite(value.confidence) &&
+      value.confidence >= 0 && value.confidence <= 1;
+    return (value.choice === ABOUT_PRODUCT || value.choice === NOT_ABOUT_PRODUCT) && typeof value.confidence === 'number' &&
+      Number.isFinite(value.confidence) && value.confidence >= 0 && value.confidence < 0.9;
+  }
+  return false;
+}
+
 function sidecar(input: Omit<L9JevTriageSidecar, 'contractVersion'>): L9JevTriageSidecar {
   const value: L9JevTriageSidecar = { contractVersion: 'l9-jev-triage-v1', ...input };
   if (!validateSidecar(value)) fail();
@@ -42,8 +62,8 @@ function baseSidecar(data: KeywordMeaningFilterData, model: string, status: L9Je
     exclusions: data.exclusions, model, status, l9Fingerprint, auditRows: [...auditRows], runNotes: [...runNotes] as L9JevTriageSidecar['runNotes'] });
 }
 
-export function l9JevFingerprint(result: { readonly results: readonly KeywordMeaningRecordResult[] }): string {
-  return createHash('sha256').update(canonicalJson(result.results.map(row => ({ recordId: row.recordId, decision: row.decision, reason: row.reason })))).digest('hex');
+export function l9JevFingerprint(data: KeywordMeaningFilterData, rows: readonly KeywordMeaningRecordResult[]): string {
+  return createHash('sha256').update(canonicalJson({ frozenInput: data, orderedDeterministicResult: rows })).digest('hex');
 }
 
 function questionFor(data: KeywordMeaningFilterData, row: KeywordMeaningRecordResult, questionId: string): TypesafeJevQuestion {
@@ -55,9 +75,10 @@ function questionFor(data: KeywordMeaningFilterData, row: KeywordMeaningRecordRe
 
 function audit(recordId: string, model: string, answer: TypesafeJevAnswer | null): AuditRow {
   const choice = answer?.choice === ABOUT_PRODUCT || answer?.choice === NOT_ABOUT_PRODUCT || answer?.choice === UNRESOLVED ? answer.choice : null;
-  if (answer === null || choice === UNRESOLVED || answer.confidence < 0.9) {
-    return { recordId, model, choice, confidence: answer?.confidence ?? null, gateOutcome: answer === null ? 'NO_DECISION' : 'UNCHANGED', reason: null };
-  }
+  if (answer === null) return { recordId, model, choice: null, confidence: null, gateOutcome: 'NO_DECISION', reason: null };
+  if (choice === UNRESOLVED) return { recordId, model, choice: UNRESOLVED, confidence: answer.confidence, gateOutcome: 'UNCHANGED', reason: null };
+  if (answer.confidence < 0.9 && choice === ABOUT_PRODUCT) return { recordId, model, choice: ABOUT_PRODUCT, confidence: answer.confidence, gateOutcome: 'UNCHANGED', reason: null };
+  if (answer.confidence < 0.9 && choice === NOT_ABOUT_PRODUCT) return { recordId, model, choice: NOT_ABOUT_PRODUCT, confidence: answer.confidence, gateOutcome: 'UNCHANGED', reason: null };
   if (choice === ABOUT_PRODUCT) return { recordId, model, choice, confidence: answer.confidence, gateOutcome: 'INCLUDED', reason: ABOUT_REASON };
   if (choice === NOT_ABOUT_PRODUCT) return { recordId, model, choice, confidence: answer.confidence, gateOutcome: 'EXCLUDED', reason: NOT_ABOUT_REASON };
   return { recordId, model, choice: null, confidence: null, gateOutcome: 'NO_DECISION', reason: null };
@@ -79,7 +100,7 @@ export async function triageL9WithJev(input: {
   readonly client?: TypesafeJevClient;
 }): Promise<L9JevTriageSidecar> {
   const model = input.client?.model ?? 'disabled';
-  const fingerprint = l9JevFingerprint(input.result);
+  const fingerprint = l9JevFingerprint(input.data, input.result.results);
   const candidates = l9JevTriageCandidates(input.result);
   if (!input.client) return baseSidecar(input.data, model, 'DISABLED', fingerprint, [], []);
   if (candidates.length === 0) return baseSidecar(input.data, input.client.model, 'COMPLETED', fingerprint, [], []);
@@ -115,11 +136,16 @@ export interface AppliedL9JevDecision {
 }
 
 export function applyL9JevTriage(result: KeywordMeaningFilterResult, triage: L9JevTriageSidecar | null): ReadonlyMap<string, AppliedL9JevDecision> {
-  return applyL9JevDecisions(result.results, triage);
+  return applyL9JevDecisions(result.results, triage, {
+    contractVersion: 'l9-keyword-data-v1', dataVersion: result.dataVersion, category: result.category,
+    provenance: result.provenance, keywords: result.keywords, exclusions: result.exclusions,
+  });
 }
 
-function sidecarMatchesRows(rows: readonly KeywordMeaningRecordResult[], triage: L9JevTriageSidecar): boolean {
-  if (!validatesL9JevTriageSidecar(triage) || triage.l9Fingerprint !== l9JevFingerprint({ results: rows })) return false;
+function sidecarMatchesRows(rows: readonly KeywordMeaningRecordResult[], triage: L9JevTriageSidecar, data: KeywordMeaningFilterData): boolean {
+  if (!validatesL9JevTriageSidecar(triage) || triage.dataVersion !== data.dataVersion || triage.category !== data.category ||
+    canonicalJson(triage.keywords) !== canonicalJson(data.keywords) || canonicalJson(triage.exclusions) !== canonicalJson(data.exclusions) ||
+    triage.l9Fingerprint !== l9JevFingerprint(data, rows)) return false;
   const known = new Set(rows.map(row => row.recordId));
   const seen = new Set<string>();
   for (const auditRow of triage.auditRows) {
@@ -129,9 +155,10 @@ function sidecarMatchesRows(rows: readonly KeywordMeaningRecordResult[], triage:
   return true;
 }
 
-export function applyL9JevDecisions(rows: readonly KeywordMeaningRecordResult[], triage: L9JevTriageSidecar | null): ReadonlyMap<string, AppliedL9JevDecision> {
+export function applyL9JevDecisions(rows: readonly KeywordMeaningRecordResult[], triage: L9JevTriageSidecar | null,
+  data?: KeywordMeaningFilterData): ReadonlyMap<string, AppliedL9JevDecision> {
   const output = new Map<string, AppliedL9JevDecision>();
-  const usable = triage !== null && sidecarMatchesRows(rows, triage);
+  const usable = triage !== null && data !== undefined && sidecarMatchesRows(rows, triage, data);
   for (const row of rows) output.set(row.recordId, applyL9JevDecision(row, usable ? triage : null));
   return output;
 }

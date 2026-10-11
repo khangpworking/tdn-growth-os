@@ -14,12 +14,24 @@ export type ExcludedAudit = AuditBase & {
   reason?: 'không nói về sản phẩm (máy phân loại)';
   [k: string]: unknown;
 };
-export type UnchangedAudit = AuditBase & {
-  gateOutcome?: 'UNCHANGED';
-  reason?: null;
-  [k: string]: unknown;
-};
+export type UnchangedAudit =
+  | (AuditBase & {
+      choice?: 'ABOUT_PRODUCT' | 'NOT_ABOUT_PRODUCT';
+      confidence?: number;
+      gateOutcome?: 'UNCHANGED';
+      reason?: null;
+      [k: string]: unknown;
+    })
+  | (AuditBase & {
+      choice?: 'UNRESOLVED';
+      confidence?: number;
+      gateOutcome?: 'UNCHANGED';
+      reason?: null;
+      [k: string]: unknown;
+    });
 export type NoDecisionAudit = AuditBase & {
+  choice?: null;
+  confidence?: null;
   gateOutcome?: 'NO_DECISION';
   reason?: null;
   [k: string]: unknown;

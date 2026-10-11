@@ -101,6 +101,28 @@ test('sidecar application is bound to eligible deterministic rows and exact orde
   assert.equal(applyL9JevTriage(result, unknown).get('unclear')?.decision, 'UNCLEAR');
   const mismatched = { ...triage, l9Fingerprint: '0'.repeat(64) };
   assert.equal(applyL9JevTriage(result, mismatched).get('unclear')?.decision, 'UNCLEAR');
+
+  const changedText = { ...result, results: result.results.map(row => row.recordId === 'unclear' ? { ...row, text: 'changed' } : row) };
+  const changedKeywords = { ...result, keywords: ['changed keyword'] as [string] };
+  const changedDataVersion = { ...result, dataVersion: 'changed-version' };
+  assert.equal(applyL9JevTriage(changedText, triage).get('unclear')?.decision, 'UNCLEAR');
+  assert.equal(applyL9JevTriage(changedKeywords, triage).get('unclear')?.decision, 'UNCLEAR');
+  assert.equal(applyL9JevTriage(changedDataVersion, triage).get('unclear')?.decision, 'UNCLEAR');
+
+  const validUnchanged = { ...triage.auditRows[0]!, choice: 'ABOUT_PRODUCT' as const, confidence: 0.89,
+    gateOutcome: 'UNCHANGED' as const, reason: null };
+  const validUnresolved = { ...validUnchanged, choice: 'UNRESOLVED' as const, confidence: 1 };
+  const validNoDecision = { ...validUnchanged, choice: null, confidence: null, gateOutcome: 'NO_DECISION' as const };
+  for (const auditRow of [triage.auditRows[0]!, forged.auditRows[1]!, validUnchanged, validUnresolved, validNoDecision])
+    assert.equal(validatesL9JevTriageSidecar({ ...triage, auditRows: [auditRow] }), true);
+  for (const auditRow of [
+    { ...validUnchanged, confidence: 0.9 },
+    { ...validUnchanged, choice: 'NOT_ABOUT_PRODUCT' as const, confidence: 0.95 },
+    { ...validUnchanged, choice: 'UNRESOLVED' as const, confidence: null },
+    { ...validNoDecision, choice: 'ABOUT_PRODUCT' as const, confidence: 0.95 },
+    { ...validNoDecision, choice: null, confidence: 0.1 },
+    { ...validNoDecision, choice: 'UNRESOLVED' as const, confidence: 0.1 },
+  ]) assert.equal(validatesL9JevTriageSidecar({ ...triage, auditRows: [auditRow] }), false);
 });
 
 test('corpora beyond the former 5000-row bound continue with deterministic fallback', async () => {

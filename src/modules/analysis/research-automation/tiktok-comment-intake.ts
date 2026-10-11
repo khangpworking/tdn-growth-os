@@ -64,7 +64,7 @@ export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture
   for (let offset = 0; offset < candidates.length || offset === 0; offset += batchLimit)
     filterBatches.push(filterKeywordMeanings(keywords, candidates.slice(offset, offset + batchLimit)));
   const decisions = new Map(filterBatches.flatMap(batch => batch.results).map(row => [row.recordId, row]));
-  const appliedDecisions = applyL9JevDecisions([...decisions.values()], jevTriage);
+  const appliedDecisions = applyL9JevDecisions([...decisions.values()], jevTriage, keywords);
   const records = frozenGroups.map(([recordId, group]) => {
     const video = videos.get(group.row.videoId)!;
     const l9 = decisions.get(recordId)!;
