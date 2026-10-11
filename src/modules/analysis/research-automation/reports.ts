@@ -58,6 +58,8 @@ import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, S
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
+import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
+import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 
 const reportRequire = createRequire(import.meta.url);
 const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -110,6 +112,8 @@ export interface AutomationReportInput {
   readonly metricMethods?: AutomationMetricMethodSnapshot;
   readonly metricClassified?: AutomationClassifiedMetricSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
+  /** Canonical source-bound qualitative draft; injected only after backend verification. */
+  readonly qualitativeDraft?: AutomationQualitativeDraft;
 }
 /** Fixed copy per closed code; the generic entry keeps the original wording so existing output is unchanged. */
 const metricFailureCopy: Readonly<Record<MetricMethodFailureCode, { explanation: string; next: string }>> = {
@@ -496,6 +500,14 @@ function defaultPeerSection(snapshot: DefaultMarketPeers, citations: ReportCitat
 }
 
 export function buildResearchAutomationReport(input: AutomationReportInput, kind: 'MARKET' | 'INSIGHT'): { semantic: object; html: Buffer } {
+  if (input.qualitativeDraft && kind !== 'INSIGHT') throw new Error('Qualitative draft is an Insight-only report dependency');
+  if (input.qualitativeDraft) {
+    const draft = input.qualitativeDraft;
+    if (draft.binding.workspaceId !== input.run.workspaceId || draft.binding.runId !== input.run.runId ||
+      draft.binding.requestedPeriod.startDate !== input.start.requestedPeriod.startDate ||
+      draft.binding.requestedPeriod.endDate !== input.start.requestedPeriod.endDate)
+      throw new Error('Qualitative draft lineage differs from the authenticated report run');
+  }
   if (input.start.sourceEvidenceVersion) {
     if (!input.sourceEvidence) throw new Error('New report requires retained source admission');
     checkSourceEvidence(input.sourceEvidence);
@@ -752,7 +764,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // snapshot-v2 draft marker; marker-free output keeps byte-identical dispatch.
   const descriptiveVersion = kind === 'MARKET' ? input.descriptiveMethods?.methodVersion : undefined;
   const draftInsight = kind === 'INSIGHT' && input.insightCoding !== undefined && 'draftSelection' in input.insightCoding;
-  const rendererVersion = insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
+  const rendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : insightPersona ? 'automation-report-kit-v26' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25' : marketPresentation ? 'automation-report-kit-v20' : kind === 'INSIGHT' && input.start.privateShopeeSource ? (sample ? 'automation-report-kit-v27' : 'automation-report-kit-v22') : insightCrosscheck ? 'automation-report-kit-v23' : kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' ? 'automation-report-kit-v21' : insightLiteral ? 'automation-report-kit-v19' : input.sourceEvidence ? 'automation-report-kit-v18'
     : draftInsight && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' ? 'automation-report-kit-v17'
     : draftInsight ? 'automation-report-kit-v15'
     : defaultMarketPeers ? 'automation-report-kit-v14'
@@ -783,7 +795,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       ...(sample ? { reviewSample: sample } : {}),
       ...(insightLiteral ? { insightLiteral } : {}),
       ...(input.nativeReviewFailure ? { nativeReviewFailure: input.nativeReviewFailure } : {}),
-      ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
+      ...(input.locatedReviewFailure ? { locatedReviewFailure: input.locatedReviewFailure } : {}), ...(input.reviewCorpusFailure ? { reviewCorpusFailure: input.reviewCorpusFailure } : {}), ...(input.qualitativeDraft ? { qualitativeDraft: input.qualitativeDraft } : {}) } : {}), ...(kind === 'MARKET' ? { marketInventory: input.marketInventory ?? null, ...(input.marketInventoryFailure ? { marketInventoryFailure: input.marketInventoryFailure } : {}), descriptiveMethods: input.descriptiveMethods ?? null,
       ...(input.descriptiveMethodFailure ? { descriptiveMethodFailure: input.descriptiveMethodFailure } : {}),
       metricMethods: input.metricMethods ?? null, ...(input.metricClassified ? { metricClassified: input.metricClassified } : {}), ...(input.metricMethodsFailure ? { metricMethodsFailure: input.metricMethodsFailure } : {}) } : {}), completion,
   };
@@ -880,16 +892,18 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     return '';
   };
   const methodBody = (section: DraftSection): string => {
+    const qualitative = input.qualitativeDraft && ['I02', 'I05', 'I06', 'I10', 'I17'].includes(section.sectionId)
+      ? qualitativeDraftSection(input.qualitativeDraft, section.sectionId as 'I02' | 'I05' | 'I06' | 'I10' | 'I17', citations) : '';
     const literal = insightLiteral && ['I05', 'I07', 'I08', 'I13', 'I17'].includes(section.sectionId)
       ? insightLiteralSection(insightLiteral, section.sectionId as 'I05' | 'I07' | 'I08' | 'I13' | 'I17', citations) : '';
     const locatedView = locatedViews.get(section.sectionId);
-    if (section.state === 'EVIDENCE_INVENTORY') return (locatedView ? locatedView() : '') + literal;
-    if (section.state !== 'METHOD_OUTPUT' && section.state !== 'METHOD_NO_USABLE_RECORDS') return literal;
+    if (section.state === 'EVIDENCE_INVENTORY') return (locatedView ? locatedView() : '') + literal + qualitative;
+    if (section.state !== 'METHOD_OUTPUT' && section.state !== 'METHOD_NO_USABLE_RECORDS') return literal + qualitative;
     // Metric has its own scoped tables and source trace in appendix(), not a descriptive-method view.
-    if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return '';
-    return (locatedView ? locatedView() : views.get(section.sectionId)!.html) + literal;
+    if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return qualitative;
+    return (locatedView ? locatedView() : views.get(section.sectionId)!.html) + literal + qualitative;
   };
-  const body = orderReportCitations(`<p class="warning">${escape(headline)}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations)}${appendix(section.sectionId)}<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details></section>`).join(''), registry);
+  const body = orderReportCitations(`<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations)}${appendix(section.sectionId)}<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details></section>`).join(''), registry);
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${escape(title)} · ${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`
   // Desktop cover: keep text off the diagonal (yellow stripe spans 61.5%→39.6% of the cover width, top→bottom).
   + `@media screen and (min-width:901px){.cover{container-type:inline-size}.cv-left>div:nth-child(2){max-width:calc(46cqi - 40px)}.cv-meta{max-width:calc(38cqi - 40px)}.cv-right{padding-left:11cqi}}`

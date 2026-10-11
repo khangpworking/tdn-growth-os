@@ -19,6 +19,7 @@ import metricRuleSchema from '../../contracts/analysis/automation-metric-rule-ad
 import membershipSchema from '../../contracts/analysis/automation-metric-membership.schema.json' with { type: 'json' };
 import membershipApiSchema from '../../contracts/api/research-automation-metric-membership-api.schema.json' with { type: 'json' };
 import insightRevisionRequestSchema from '../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+import qualitativeDraftSchema from '../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
 import boundedRevisionRequestSchema from '../../contracts/analysis/automation-bounded-report-revision.schema.json' with { type: 'json' };
 import quoteRevisionRequestSchema from '../../contracts/analysis/automation-quote-report-revision.schema.json' with { type: 'json' };
 import locatedInsightSchema from '../../contracts/analysis/located-insight-methods.schema.json' with { type: 'json' };
@@ -132,7 +133,7 @@ ajv.addSchema([foundationIntakeSchema, supplementalIntakeSchema]);
 ajv.addSchema(kalodataVideoIntakeSchema);
 ajv.addSchema(metricRuleSchema);
 ajv.addSchema(membershipSchema); ajv.addSchema(membershipApiSchema);
-ajv.addSchema(insightRevisionRequestSchema);
+ajv.addSchema(qualitativeDraftSchema); ajv.addSchema(insightRevisionRequestSchema);
 ajv.addSchema(boundedRevisionRequestSchema);
 ajv.addSchema(quoteRevisionRequestSchema);
 registerPrivateReviewSchemas(ajv); ajv.addSchema(privateInsightSourceSchema);

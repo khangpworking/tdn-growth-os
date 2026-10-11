@@ -93,6 +93,9 @@ import { prepareShopeeReaderBuild } from '../reader-report/shopee-build-v1.js';
 import type { ResearchAutomationShopeeReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { TikTokCodingProposeRequest } from '../../../../contracts/analysis/tiktok-coding-proposal-v1.generated.js';
 import tiktokCodingProposalSchema from '../../../../contracts/analysis/tiktok-coding-proposal-v1.schema.json' with { type: 'json' };
+import qualitativeDraftSchema from '../../../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
+import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
+import { checkQualitativeDraft, qualitativeShopeeSource, qualitativeTikTokSource } from './qualitative-draft-contracts.js';
 import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
 import type { ResearchAutomationTikTokReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { TikTokSourcePackageIdentity, TikTokVideoSelectionRequest } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
@@ -221,6 +224,8 @@ export interface ResearchAutomationReportInput {
   readonly insightCrosscheck?: InsightCrosscheckSnapshot;
   readonly insightLiteral?: InsightLiteralEvidence;
   readonly insightPersona?: PersonaSelectedReportSnapshot;
+  /** Source-bound qualitative draft accepted only after exact retained S05/S07 replay. */
+  readonly qualitativeDraft?: AutomationQualitativeDraft;
   readonly boundedMethods?: AutomationBoundedMethodSnapshot;
   readonly quoteMethods?: AutomationQuoteMethodSnapshot;
   readonly metricMethodsFailure?: MetricMethodFailureCode;
@@ -371,10 +376,12 @@ registerPrivateReviewSchemas(sourceAjv);
 sourceAjv.addSchema(marketPresentationRevisionSchema);
 const validateSourceConfirm = sourceAjv.compile<ResearchAutomationSourceConfirmRequest>(sourceConfirmSchema);
 const validateSourceSet = sourceAjv.compile<AutomationConfirmedSourceSet>(sourceSetSchema);
+sourceAjv.addSchema(qualitativeDraftSchema);
 sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchema); sourceAjv.addSchema(insightRevisionSchema); sourceAjv.addSchema(boundedRevisionSchema); sourceAjv.addSchema(quoteRevisionSchema);
 sourceAjv.addSchema(defaultPeerSchema); sourceAjv.addSchema(readerInputSchema); sourceAjv.addSchema(readerApiSchema);
 sourceAjv.addSchema(tiktokCodingProposalSchema);
 const validateTikTokCodingPropose = sourceAjv.compile<TikTokCodingProposeRequest>({ $ref: `${tiktokCodingProposalSchema.$id}#/$defs/proposeRequest` });
+const validateQualitativeDraft = sourceAjv.compile<AutomationQualitativeDraft>({ $ref: `${qualitativeDraftSchema.$id}#/$defs/draft` });
 const validateTikTokReaderBuild = sourceAjv.compile<ResearchAutomationTikTokReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/tiktokBuildRequest` });
 sourceAjv.addSchema(shopeeCodingProposalSchema);
 const validateShopeeCodingPropose = sourceAjv.compile<ShopeeCodingProposeRequest>({ $ref: `${shopeeCodingProposalSchema.$id}#/$defs/proposeRequest` });
@@ -722,6 +729,25 @@ export class ResearchAutomationService {
     if (!packet?.draftDigest) throw new ResearchAutomationStateError('This run has no retained keyword draft for TikTok coding.');
     return this.#tiktokCodingIntake(row).context({ ...binding }, packageId, packet.draftDigest);
   }
+  /** Query-only S07 qualitative draft admission. Historical TikTok coding bytes remain untouched. */
+  async validateTikTokQualitativeDraft(workspaceId: string, runId: string, packageId: string, value: unknown) {
+    if (!validateQualitativeDraft(value)) throw new ResearchAutomationValidationError('TikTok qualitative draft failed schema validation.');
+    assertUuid(packageId);
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    const retained = await this.#boundedSourceReader().readFinalizedSourcePackage(packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
+    const replayed = await this.#tiktokCodingIntake(row).readCorpus({ ...binding }, packageId,
+      retained.manifestArtifactSha256, retained.packageContentSha256);
+    const corpusMember = retained.files.find(file => file.path === 'corpus.json');
+    if (!corpusMember) throw new ResearchAutomationValidationError('TikTok qualitative source has no retained corpus member.');
+    try {
+      return checkQualitativeDraft(value, qualitativeTikTokSource(replayed.corpus, corpusMember.sha256, { ...binding }, {
+        packageId, manifestArtifactSha256: retained.manifestArtifactSha256, packageContentSha256: retained.packageContentSha256,
+      }));
+    } catch (error) {
+      if (error instanceof TypeError) throw new ResearchAutomationValidationError(error.message);
+      throw error;
+    }
+  }
   /** Explicit OWNER TikTok reader build from replayed retained coding, report, corpus, and scope. */
   async buildTikTokReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
     if (!validateTikTokReaderBuild(value)) throw new ResearchAutomationValidationError('TikTok reader build request failed validation.');
@@ -855,6 +881,50 @@ export class ResearchAutomationService {
     const { row } = await this.#shopeeCodingContext(workspaceId, runId);
     const packet = await this.readSourceEvidence(workspaceId, runId);
     return this.#shopeeCodingIntake(row).context(this.#shopeeCodingBinding(workspaceId, runId, row), packet?.draftDigest ?? null);
+  }
+  /** Query-only S05 qualitative draft admission. Historical Shopee coding bytes remain untouched. */
+  async validateShopeeQualitativeDraft(workspaceId: string, runId: string, value: unknown) {
+    if (!validateQualitativeDraft(value)) throw new ResearchAutomationValidationError('Shopee qualitative draft failed schema validation.');
+    const { row } = await this.#shopeeCodingContext(workspaceId, runId);
+    const source = await this.#shopeeCodingSource(workspaceId, runId);
+    try {
+      return checkQualitativeDraft(value, qualitativeShopeeSource(source.view, this.#shopeeCodingBinding(workspaceId, runId, row)));
+    } catch (error) {
+      if (error instanceof TypeError) throw new ResearchAutomationValidationError(error.message);
+      throw error;
+    }
+  }
+  /**
+   * Revision-owned qualitative admission. The caller may supply exactly one
+   * source-bound draft, but never chooses a latest proposal or source bytes:
+   * the platform/source identity selects the existing S05 or S07 replay path.
+   */
+  async #validateQualitativeDraftForRun(workspaceId: string, runId: string, value: unknown): Promise<AutomationQualitativeDraft> {
+    if (!validateQualitativeDraft(value)) throw new ResearchAutomationValidationError('Qualitative draft failed schema validation.');
+    const draft = value;
+    await this.getRun(workspaceId, runId);
+    const row = this.#current(runId)!;
+    if (!row.scopeSha || draft.binding.workspaceId !== workspaceId || draft.binding.runId !== runId ||
+        draft.binding.scopeSha256 !== row.scopeSha || draft.binding.sourceSetSha256 !== row.sourceSetSha ||
+        draft.binding.requestedPeriod.startDate !== row.periodStart || draft.binding.requestedPeriod.endDate !== row.periodEnd)
+      throw new ResearchAutomationValidationError('Qualitative draft differs from the authenticated run, scope, source set or requested period.');
+    try {
+      if (draft.source.platform === 'SHOPEE' && draft.source.sourceType === 'S05_LOCATED_REVIEW') {
+        if (draft.source.sourcePackageId !== null || draft.source.sourceManifestSha256 !== null || draft.source.sourceContentSha256 !== null)
+          throw new ResearchAutomationValidationError('S05 qualitative draft cannot carry an S07 package identity.');
+        return await this.validateShopeeQualitativeDraft(workspaceId, runId, draft);
+      }
+      if (draft.source.platform === 'TIKTOK' && draft.source.sourceType === 'S07_TIKTOK_COMMENT' && draft.source.sourcePackageId) {
+        if (!draft.source.sourceManifestSha256 || !draft.source.sourceContentSha256)
+          throw new ResearchAutomationValidationError('S07 qualitative draft requires its retained package identity.');
+        return await this.validateTikTokQualitativeDraft(workspaceId, runId, draft.source.sourcePackageId, draft);
+      }
+    } catch (error) {
+      if (error instanceof ResearchAutomationValidationError) throw error;
+      if (error instanceof TypeError) throw new ResearchAutomationValidationError(error.message);
+      throw error;
+    }
+    throw new ResearchAutomationValidationError('Qualitative draft source identity is not an owned S05/S07 path.');
   }
   /** Explicit OWNER Shopee reader build from replayed retained coding, synthesis, sample, and scope. */
   async buildShopeeReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
@@ -1346,7 +1416,7 @@ export class ResearchAutomationService {
       const run = await this.getRun(workspaceId, runId);
       if (run.status !== 'DRAFT_READY') throw new ResearchAutomationStateError('Chỉ dựng bản đọc khi bản nháp đã sẵn sàng.');
       const verified = await this.#readVerifiedReport(workspaceId, runId, 'INSIGHT', false, request.draftPairId, request.contractVersion === 'insight-reader-build-v2' && request.sourceKind === 'PRIVATE_DEFAULT', true,
-        request.contractVersion === 'insight-reader-build-v2' || request.contractVersion === 'insight-reader-build-v3' ? request.sourceKind : undefined);
+        request.contractVersion === 'insight-reader-build-v2' || request.contractVersion === 'insight-reader-build-v3' || request.contractVersion === 'insight-reader-build-v4' ? request.sourceKind : undefined);
       if (verified.report.versionId !== request.semanticSha256 || !verified.insightReader)
         throw new ResearchAutomationValidationError('Phiên bản insight không khớp cặp bản nháp đã chọn.');
       if (request.contractVersion === 'insight-reader-build-v3') {
@@ -1796,6 +1866,11 @@ export class ResearchAutomationService {
     if ('acceptedMetric' in input) input.acceptedMetric.receiptIds.sort();
     if ('acceptedInsight' in input) input.acceptedInsight.receiptIds.sort();
     const requestSha = digest(input);
+    if ('qualitativeDraft' in input) {
+      const run = await this.getRun(workspaceId, runId);
+      if (!run.reports.includes('INSIGHT')) throw new ResearchAutomationValidationError('Qualitative draft requires an Insight report in this run.');
+      await this.#validateQualitativeDraftForRun(workspaceId, runId, input.qualitativeDraft);
+    }
     return withDatabaseMutationMutex(this.#db, async () => {
       await this.getRun(workspaceId, runId);
       if ('literalInsight' in input && !this.#current(runId)!.reports.split(',').includes('INSIGHT'))
@@ -1858,13 +1933,16 @@ export class ResearchAutomationService {
       const start = await this.#readStartSnapshot(run.startSha, workspaceId);
       const scope = await this.#readScopeSnapshot(run.scopeSha, workspaceId, runId);
       const bound = { runId, start, scope, scopeConfirmedAt: run.scopeConfirmedAt };
-      if (start.privateShopeeSource && input.sources.nativeReview.decision === 'USE_PACKAGE') throw new ResearchAutomationValidationError('Private/native review substitution is forbidden.');
+      if ('sources' in input && start.privateShopeeSource && input.sources.nativeReview.decision === 'USE_PACKAGE') throw new ResearchAutomationValidationError('Private/native review substitution is forbidden.');
       const priorAttempt = previous.attemptId ? this.#attempt(previous.attemptId)! : undefined;
       const priorSources = priorAttempt ? await this.#readAttemptSources(run, priorAttempt) : await this.#readFrozenSources(run);
       if ('literalInsight' in input) await this.#insightLiteral.build({ ...bound, previousPairId: input.previousPairId,
         collection: await this.#reportCollection(runId, priorSources, Boolean(priorAttempt)), captures: await this.#captureRecords(runId) });
       let metric: AutomationConfirmedSourceSet['metric'];
-      if (input.sources.metric.decision === 'USE_PREPARED')
+      if ('qualitativeDraft' in input) {
+        const retained = priorSources ?? await this.#readFrozenSources(run);
+        metric = retained?.value.metric ?? { decision: 'ABSENT' };
+      } else if (input.sources.metric.decision === 'USE_PREPARED')
         metric = { decision: 'ADMITTED', sourcePackage: await this.#metricMethods.inspectPrepared(bound, input.sources.metric.packageId) };
       else if (input.sources.metric.decision === 'SKIP') metric = { decision: 'SKIPPED' };
       else if (priorSources) metric = priorSources.value.metric;
@@ -1875,7 +1953,11 @@ export class ResearchAutomationService {
       }
       let nativeReference: NativeSourceReviewReference | undefined;
       let nativeReview: AutomationConfirmedSourceSet['nativeReview'];
-      if (input.sources.nativeReview.decision === 'SKIP') nativeReview = { decision: 'SKIPPED' };
+      if ('qualitativeDraft' in input) {
+        const retained = priorSources ?? await this.#readFrozenSources(run);
+        nativeReference = retained?.nativeReference;
+        nativeReview = retained?.value.nativeReview ?? { decision: 'NONE' };
+      } else if (input.sources.nativeReview.decision === 'SKIP') nativeReview = { decision: 'SKIPPED' };
       else {
         nativeReference = input.sources.nativeReview.decision === 'USE_PACKAGE'
           ? await this.#nativeReviews.resolvePackage(bound, input.sources.nativeReview.packageId)
@@ -2087,7 +2169,7 @@ export class ResearchAutomationService {
     return this.#insightCoding.resolve(workspaceId, runId, proposalId, receiptIds);
   }
 
-  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false, forInsightReader = false, readerSourceKind?: 'CROSSCHECK' | 'PRIVATE_DEFAULT' | 'PERSONA'): Promise<{
+  async #readVerifiedReport(workspaceId: string, runId: string, kind: 'MARKET' | 'INSIGHT', pdf: boolean, pairId: string | undefined, privateCodingSource = false, forInsightReader = false, readerSourceKind?: 'CROSSCHECK' | 'PRIVATE_DEFAULT' | 'PERSONA' | 'QUALITATIVE'): Promise<{
     insightReader?: { identity: Parameters<typeof prepareInsightReaderBuild>[0]; methods: ResearchAutomationReportInput };
     report: ResearchAutomationReadReport; scopeSha256: string | null;
     verifiedLocated: AutomationLocatedReviewSnapshot | undefined; verifiedNative: NativeSourceReviewSnapshot | undefined;
@@ -2173,7 +2255,7 @@ export class ResearchAutomationService {
       verifiedReviewSample = await this.#shopee.verifySample(semantic.reviewSample, collection.privateShopee, { runId, start: sourceStart,
         scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId), scopeConfirmedAt: frozenRun.scopeConfirmedAt }, await this.#privateCorpusBinding(frozenRun));
     } else if (kind === 'INSIGHT' && sourceStart.reviewCollectionPolicy && verifiedPrivateView) throw new ResearchAutomationIntegrityError('Policy report lacks retained sample.');
-    const expectedPrivateRendererVersion = personaRequest ? 'automation-report-kit-v26'
+    const expectedPrivateRendererVersion = semantic.qualitativeDraft !== undefined ? 'automation-report-kit-v28' : personaRequest ? 'automation-report-kit-v26'
       : isRecord(semantic.insightCoding) && semantic.insightCoding.contractVersion === 'automation-insight-coding-snapshot-v5' ? 'automation-report-kit-v25'
       : verifiedReviewSample ? 'automation-report-kit-v27' : 'automation-report-kit-v22';
     if ((semantic.rendererVersion === 'automation-report-kit-v27' && !verifiedReviewSample) ||
@@ -2285,6 +2367,7 @@ export class ResearchAutomationService {
       throw new ResearchAutomationIntegrityError('Stored default peers lack a frozen Market rule.');
     }
     let verifiedLiteral: InsightLiteralEvidence | undefined;
+    let verifiedQualitativeDraft: AutomationQualitativeDraft | undefined;
     let verifiedCoding: AutomationInsightCodingSnapshot | undefined;
     let verifiedClaims: AutomationSourceClaims | undefined;
     let verifiedAdmission: AutomationI14EvidenceAdmission | undefined;
@@ -2327,6 +2410,14 @@ export class ResearchAutomationService {
       verifiedCoding = snapshot;
     } else if (semantic.insightCoding !== undefined && semantic.insightCoding !== null) {
       throw new ResearchAutomationIntegrityError('Insight coding snapshot lacks an explicit revision request.');
+    }
+    const qualitativeRequest = kind === 'INSIGHT' && attempt ? await this.#qualitativeDraftRequest(frozenRun, attempt) : undefined;
+    if (kind === 'INSIGHT' && qualitativeRequest) {
+      verifiedQualitativeDraft = await this.#validateQualitativeDraftForRun(workspaceId, runId, qualitativeRequest.qualitativeDraft);
+      if (!semantic.qualitativeDraft || canonicalJson(semantic.qualitativeDraft) !== canonicalJson(verifiedQualitativeDraft) || semantic.rendererVersion !== 'automation-report-kit-v28')
+        throw new ResearchAutomationIntegrityError('Stored qualitative draft differs from the exact admitted source-bound draft.');
+    } else if (semantic.qualitativeDraft !== undefined) {
+      throw new ResearchAutomationIntegrityError('Stored qualitative draft lacks an explicit source-bound revision request.');
     }
     let verifiedCrosscheck: InsightCrosscheckSnapshot | undefined;
     const crosscheckRequest = attempt ? await this.#crosscheckRequest(frozenRun, attempt) : undefined;
@@ -2507,6 +2598,8 @@ export class ResearchAutomationService {
         ? rendererVersion === 'automation-report-kit-v23' && verifiedCrosscheck !== undefined && verifiedCoding?.contractVersion === 'automation-insight-coding-snapshot-v4'
         : readerSourceKind === 'PRIVATE_DEFAULT'
         ? rendererVersion === 'automation-report-kit-v25' && verifiedPrivateSource !== undefined && verifiedPrivateView !== undefined && verifiedCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'
+        : readerSourceKind === 'QUALITATIVE'
+        ? rendererVersion === 'automation-report-kit-v28' && verifiedQualitativeDraft !== undefined
         : rendererVersion === 'automation-report-kit-v17' || rendererVersion === 'automation-report-kit-v18' || rendererVersion === 'automation-report-kit-v19' || rendererVersion === 'automation-report-kit-v21' || rendererVersion === 'automation-report-kit-v22';
       if (!supported) throw new ResearchAutomationValidationError('Phiên bản nguồn chưa được hỗ trợ bởi bản đọc insight này.');
       insightReader = { identity: { workspaceId, runId, draftPairId: pairId, semanticSha256: output.versionSha,
@@ -2515,6 +2608,7 @@ export class ResearchAutomationService {
         run, start: sourceStart, scope: await this.#readScopeSnapshot(frozenRun.scopeSha, workspaceId, runId),
         collection: await this.#reportCollection(runId, sources, Boolean(attempt)), captures: await this.#captureRecords(runId),
         ...(verifiedPersona ? { insightPersona: verifiedPersona } : {}),
+        ...(verifiedQualitativeDraft ? { qualitativeDraft: verifiedQualitativeDraft } : {}),
         ...(verifiedPrivateView ? { privateReviewCorpus: verifiedPrivateView } : {}),
         ...(verifiedNative ? { nativeReview: verifiedNative } : {}), ...(verifiedLocated ? { locatedReview: verifiedLocated } : {}),
         ...(semantic.reviewCorpus ? { reviewCorpus: semantic.reviewCorpus as ResearchReviewCorpus } : {}),
@@ -2757,7 +2851,7 @@ export class ResearchAutomationService {
     // The REPORTS step waits a bounded moment for automatic PDF indexing to
     // settle. Best effort only: indexing never fails the run. Skipped entirely
     // while the kill switch is off, so existing runs are untouched.
-    if (this.#pageIndexEnabled() && !controller.signal.aborted) {
+    if (this.#pageIndexEnabled() && !attempt && !controller.signal.aborted) {
       try { await this.#processRunPdfs(fresh.runId, start.reports); } catch { /* indexing never breaks reporting */ }
     }
     const run = await this.getRun(fresh.workspaceId, fresh.runId);
@@ -2793,6 +2887,7 @@ export class ResearchAutomationService {
       let insightCrosscheck: InsightCrosscheckSnapshot | undefined;
       let insightLiteral: InsightLiteralEvidence | undefined;
       let insightPersona: PersonaSelectedReportSnapshot | undefined;
+      let qualitativeDraft: AutomationQualitativeDraft | undefined;
       let metricProof: StoredArtifact | null = null;
       let metricMethodsFailure: MetricMethodFailureCode | undefined;
       let privateReviewCorpus: PrivateReviewReportView | undefined;
@@ -2804,11 +2899,13 @@ export class ResearchAutomationService {
       let nativeReview: NativeSourceReviewSnapshot | undefined;
       let nativeReviewFailure: 'NATIVE_REVIEW_METHOD_FAILED' | undefined;
       let locatedReviewFailure: 'LOCATED_REVIEW_METHOD_FAILED' | undefined;
-      if (priorInsight && revisionRequest?.sources.nativeReview.decision === 'KEEP') {
-        insightPersona = priorInsight.insightPersona as PersonaSelectedReportSnapshot | undefined;
+      const qualitativeRevision = revisionRequest && 'qualitativeDraft' in revisionRequest;
+      if (priorInsight && (qualitativeRevision || ('sources' in (revisionRequest ?? {}) && revisionRequest?.sources.nativeReview.decision === 'KEEP'))) {
+        if (!qualitativeRevision) insightPersona = priorInsight.insightPersona as PersonaSelectedReportSnapshot | undefined;
         insightCoding = priorInsight.insightCoding as AutomationInsightCodingSnapshot | undefined;
         insightCrosscheck = priorInsight.insightCrosscheck as InsightCrosscheckSnapshot | undefined;
         insightLiteral = priorInsight.insightLiteral as InsightLiteralEvidence | undefined;
+        qualitativeDraft = priorInsight.qualitativeDraft as AutomationQualitativeDraft | undefined;
         reviewCorpus = priorInsight.reviewCorpus as ResearchReviewCorpus | undefined;
         reviewCorpusFailure = priorInsight.reviewCorpusFailure as typeof reviewCorpusFailure;
         locatedReview = priorInsight.locatedReview as AutomationLocatedReviewSnapshot | undefined;
@@ -2830,7 +2927,11 @@ export class ResearchAutomationService {
           scopeConfirmedAt: fresh.scopeConfirmedAt!, ...(attempt ? { executionId: attempt.attemptId } : {}) }, controller.signal); }
         catch { controller.signal.throwIfAborted(); nativeReviewFailure = 'NATIVE_REVIEW_METHOD_FAILED'; }
       }
-      if (revisionRequest?.sources.nativeReview.decision !== 'KEEP' && start.reports.includes('INSIGHT') && reviewCollection?.exactShopee) {
+      if (qualitativeRevision) {
+        qualitativeDraft = await this.#validateQualitativeDraftForRun(fresh.workspaceId, fresh.runId, revisionRequest.qualitativeDraft);
+        insightPersona = undefined;
+      }
+      if (!qualitativeRevision && (!revisionRequest || !('sources' in revisionRequest) || revisionRequest.sources.nativeReview.decision !== 'KEEP') && start.reports.includes('INSIGHT') && reviewCollection?.exactShopee) {
         try { reviewCorpus = await this.#shopee.corpus(reviewCollection.exactShopee, { runId: fresh.runId, start, scope, scopeConfirmedAt: fresh.scopeConfirmedAt! }); }
         catch { controller.signal.throwIfAborted(); reviewCorpusFailure = 'REVIEW_CORPUS_FAILED'; }
         if (reviewCorpus) {
@@ -2871,7 +2972,7 @@ export class ResearchAutomationService {
       if (insightPersona && (!privateReviewCorpus || digest(privateReviewCorpus) !== insightPersona.source.viewSha256))
         throw new ResearchAutomationIntegrityError('Persona KEEP source differs from the retained selection.');
       if (start.reports.includes('MARKET')) {
-        if (priorMarket && revisionRequest?.sources.metric.decision === 'KEEP') {
+        if (priorMarket && (qualitativeRevision || (revisionRequest && 'sources' in revisionRequest && revisionRequest.sources.metric.decision === 'KEEP'))) {
           metricMethods = priorMarket.metricMethods as AutomationMetricMethodSnapshot | undefined;
           metricClassified = priorMarket.metricClassified as AutomationClassifiedMetricSnapshot | undefined;
           metricMethodsFailure = priorMarket.metricMethodsFailure as MetricMethodFailureCode | undefined;
@@ -2936,6 +3037,7 @@ export class ResearchAutomationService {
           ...(kind === 'INSIGHT' && insightCrosscheck ? { insightCrosscheck } : {}),
           ...(kind === 'INSIGHT' && insightLiteral ? { insightLiteral } : {}),
           ...(kind === 'INSIGHT' && insightPersona ? { insightPersona } : {}),
+          ...(kind === 'INSIGHT' && qualitativeDraft ? { qualitativeDraft } : {}),
           ...(kind === 'INSIGHT' && nativeReviewFailure ? { nativeReviewFailure } : {}),
           ...(kind === 'INSIGHT' && locatedReviewFailure ? { locatedReviewFailure } : {}),
           ...(kind === 'MARKET' && marketInventory ? { marketInventory } : {}),
@@ -2966,7 +3068,7 @@ export class ResearchAutomationService {
         let i14Synthesis: AutomationI14ExecutionOutcome | undefined;
         if (builtI14) {
           const parent = await this.#i14Parent(fresh, attempt);
-          if (revisionRequest && ('personaInsight' in revisionRequest || 'acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
+          if (revisionRequest && ('personaInsight' in revisionRequest || 'qualitativeDraft' in revisionRequest || 'acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
             // Selected coding changes deterministic methods, not the frozen AI evidence package.
             const retained = await this.#i14Executions.read(parent, admissionInput);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -2989,7 +3091,7 @@ export class ResearchAutomationService {
           let displayPacket = buildAutomationDecisionPacket(source).artifact;
           const parent = await this.#i14Parent(fresh, attempt);
           let outcome: AutomationDecisionExecutionOutcome | undefined;
-          if (revisionRequest && ('personaInsight' in revisionRequest || 'acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
+          if (revisionRequest && ('personaInsight' in revisionRequest || 'qualitativeDraft' in revisionRequest || 'acceptedMetric' in revisionRequest || 'acceptedInsight' in revisionRequest || 'defaultInsight' in revisionRequest || 'draftInsight' in revisionRequest || 'literalInsight' in revisionRequest || 'boundedMethods' in revisionRequest || 'quoteMethods' in revisionRequest || revisionRequest.contractVersion === 'automation-market-presentation-revision-v1')) {
             // Deterministic revisions preserve the source-bound draft, without authorizing new AI calls.
             const retained = await this.#decisionExecutions[sectionId].read(parent, source);
             if (retained.status === 'PREPARED' || retained.status === 'DISPATCHING')
@@ -3035,21 +3137,21 @@ export class ResearchAutomationService {
           ? classifiedMetricDefaultPeers(metricClassified?.result.input, start.defaultPeerRule, [...scope.peerProductIds]) : undefined;
         const render = async () => {
           const privateDefault = kind === 'INSIGHT' && input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5';
-          const privateRendererVersion = input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25'
+          const privateRendererVersion = input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25'
             : start.reviewCollectionPolicy && input.reviewSample && input.privateReviewCorpus && input.collection?.privateShopee
               ? 'automation-report-kit-v27' : 'automation-report-kit-v22';
-          const authoritative = input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
+          const authoritative = input.qualitativeDraft || input.marketPresentation || input.insightPersona || privateDefault || (kind === 'INSIGHT' && start.reviewCollectionPolicy) ? buildResearchAutomationReport(input, kind) : undefined;
           const rendered: ResearchAutomationRenderedReport = this.#renderer ? await this.#renderer(authoritative ? structuredClone(input) : input, kind, controller.signal) : authoritative ?? defaultRenderedReport(input, kind);
           controller.signal.throwIfAborted();
           if (typeof rendered.semantic !== 'object' || rendered.semantic === null || Array.isArray(rendered.semantic)) throw new ResearchAutomationIntegrityError('Research report semantic output is not an object.');
           // Method persistence is owned here, not delegated to an optional presentation adapter.
           const { decisionPackets: _untrustedPackets, decisionSourceClaims: _untrustedDecisionClaims, decisionPairedInsightVersionId: _untrustedPair,
             decisionSynthesis: _untrustedDecisionSynthesis, decisionExecutionIds: _untrustedDecisionExecutions,
-            insightPersona: _untrustedPersona, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
+            insightPersona: _untrustedPersona, qualitativeDraft: _untrustedQualitativeDraft, reviewSample: _untrustedSample, privateReviewCorpus: _untrustedPrivateCorpus, marketPresentation: _untrustedMarketPresentation, marketPresentationArtifact: _untrustedMarketReference, sourceEvidence: _untrustedSourceEvidence, defaultMarketPeers: _untrustedPeers, quoteMethods: _untrustedQuote, boundedMethods: _untrustedBounded, metricClassified: _untrustedClassified, insightCoding: _untrustedCoding, insightCrosscheck: _untrustedCrosscheck, insightLiteral: _untrustedLiteral, sourceClaims: _untrustedClaims, sourceClaimsArtifact: _untrustedReference,
             m01Inventory: _untrustedM01, m01InventoryArtifact: _untrustedM01Reference,
             i14Admission: _untrustedI14, i14AdmissionArtifact: _untrustedI14Reference,
             i14Synthesis: _untrustedSynthesis, i14ExecutionId: _untrustedExecution, ...presentation } = (authoritative?.semantic ?? rendered.semantic) as Record<string, unknown>;
-          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && start.privateShopeeSource ? { rendererVersion: privateRendererVersion } : {}),
+          const reportSemantic = { ...presentation, ...(kind === 'INSIGHT' && (start.privateShopeeSource || input.qualitativeDraft) ? { rendererVersion: privateRendererVersion } : {}),
             ...(kind === 'MARKET' && marketPresentation && marketPresentationArtifact ? { marketPresentation, marketPresentationArtifact: { sha256: marketPresentationArtifact.sha256, byteSize: marketPresentationArtifact.byteSize } } : {}), ...(input.sourceEvidence ? { sourceEvidence: input.sourceEvidence } : {}), decisionPackets, decisionPairedInsightVersionId,
             ...(defaultMarketPeers ? { defaultMarketPeers } : {}),
             ...(Object.keys(decisionExecutionIds).length ? { decisionExecutionIds } : {}),
@@ -3059,6 +3161,7 @@ export class ResearchAutomationService {
             ...(builtM01 && m01Artifact ? { m01InventoryArtifact: { contractVersion: 'automation-m01-inventory-reference-v1', sha256: m01Artifact.sha256, byteSize: builtM01.bytes.length } } : {}),
             ...(builtI14 && i14Artifact ? { i14AdmissionArtifact: { contractVersion: 'automation-i14-admission-reference-v1', sha256: i14Artifact.sha256, byteSize: builtI14.bytes.length } } : {}),
             ...(i14Synthesis && 'executionId' in i14Synthesis ? { i14ExecutionId: i14Synthesis.executionId } : {}),
+            ...(kind === 'INSIGHT' && qualitativeDraft ? { qualitativeDraft } : {}),
             ...(kind === 'MARKET' && descriptiveMethods ? { descriptiveMethods } : {}),
             ...(sources ? { confirmedSourceSetSha256: sources.sha256 } : {}),
             ...(attempt ? { reportAttemptId: attempt.attemptId, previousPairId: attempt.previousPairId } : {}),
@@ -3086,7 +3189,7 @@ export class ResearchAutomationService {
           const html = Buffer.from(rendered.html);
           if (authoritative) {
             if (!html.equals(authoritative.html)) throw new ResearchAutomationIntegrityError(input.insightPersona ? 'Persona HTML differs from authoritative retained rendering.' : privateDefault ? 'Private default HTML differs from authoritative method rendering.' : 'Market presentation HTML differs from authoritative method rendering.');
-            if (presentation.rendererVersion !== (input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
+            if (presentation.rendererVersion !== (input.qualitativeDraft ? 'automation-report-kit-v28' : input.insightPersona ? 'automation-report-kit-v26' : privateDefault ? 'automation-report-kit-v25' : input.marketPresentation ? 'automation-report-kit-v20' : privateRendererVersion)) throw new ResearchAutomationIntegrityError(input.qualitativeDraft ? 'Qualitative renderer identity differs.' : input.insightPersona ? 'Persona renderer identity differs.' : privateDefault ? 'Private default renderer identity differs.' : 'Market presentation renderer identity differs.');
           }
           return { rendered, semanticBytes, html };
         };
@@ -3499,6 +3602,14 @@ export class ResearchAutomationService {
     const value = await this.#readJson<AutomationConfirmedSourceSet>(attempt.sourceSetSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateSourceSet(value) || value.executionId !== attempt.attemptId || value.requestSha256 !== attempt.requestSha)
       throw new ResearchAutomationIntegrityError('Revision source set identity is inconsistent.');
+    if ('qualitativeDraft' in request) {
+      const previous = this.#previousAttempt(run, attempt);
+      const prior = previous ? await this.#readAttemptSources(run, previous) : await this.#readFrozenSources(run);
+      if (prior && (canonicalJson(value.metric) !== canonicalJson(prior.value.metric) || canonicalJson(value.nativeReview) !== canonicalJson(prior.value.nativeReview)))
+        throw new ResearchAutomationIntegrityError('Qualitative revision source membership drifted from its predecessor.');
+      const nativeReference = await this.#verifySourceDocument(run, value);
+      return { sha256: attempt.sourceSetSha, value, ...(nativeReference ? { nativeReference } : {}) };
+    }
     if ((request.sources.metric.decision === 'USE_PREPARED' && (value.metric.decision !== 'ADMITTED' || value.metric.sourcePackage.packageId !== request.sources.metric.packageId)) ||
         (request.sources.metric.decision === 'SKIP' && value.metric.decision !== 'SKIPPED') ||
         (request.sources.nativeReview.decision === 'SKIP' && value.nativeReview.decision !== 'SKIPPED'))
@@ -3558,6 +3669,7 @@ export class ResearchAutomationService {
   async #methodSources(run: RunRow, attempt: AttemptRow, family: 'metric' | 'nativeReview'): Promise<FrozenSources | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Revision request fails its closed contract.');
+    if ('qualitativeDraft' in request) return this.#readAttemptSources(run, attempt);
     if (request.sources[family].decision !== 'KEEP') return this.#readAttemptSources(run, attempt);
     const previous = this.#previousAttempt(run, attempt);
     return previous ? this.#methodSources(run, previous, family) : family === 'metric' ? this.#readFrozenSources(run) : undefined;
@@ -3565,6 +3677,7 @@ export class ResearchAutomationService {
   async #classifiedRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationClassifiedReportRevisionRequest | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Classified revision request failed verification.');
+    if ('qualitativeDraft' in request) return undefined;
     if ('acceptedMetric' in request) return request;
     if (request.sources.metric.decision !== 'KEEP') return undefined;
     const previous = this.#previousAttempt(run, attempt);
@@ -3574,12 +3687,13 @@ export class ResearchAutomationService {
     if (!attempt) return { kind: 'INITIAL_REPORTS', runId: run.runId };
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight execution revision request failed verification.');
-    return 'personaInsight' in request || 'acceptedMetric' in request || 'acceptedInsight' in request || 'defaultInsight' in request || 'draftInsight' in request || 'literalInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request || request.contractVersion === 'automation-market-presentation-revision-v1' ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
+    return 'personaInsight' in request || 'qualitativeDraft' in request || 'acceptedMetric' in request || 'acceptedInsight' in request || 'defaultInsight' in request || 'draftInsight' in request || 'literalInsight' in request || 'boundedMethods' in request || 'quoteMethods' in request || request.contractVersion === 'automation-market-presentation-revision-v1' ? this.#i14Parent(run, this.#previousAttempt(run, attempt))
       : { kind: 'SUPPLEMENTAL_ATTEMPT', runId: run.runId, attemptId: attempt.attemptId };
   }
   async #personaReportRequest(run: RunRow, attempt: AttemptRow): Promise<AutomationInsightPersonaReportRevisionRequest | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Persona report request failed verification.');
+    if ('qualitativeDraft' in request) return undefined;
     if ('personaInsight' in request) return request;
     if (request.sources.nativeReview.decision !== 'KEEP' || 'acceptedInsight' in request || 'defaultInsight' in request ||
       'draftInsight' in request || 'literalInsight' in request) return undefined;
@@ -3589,6 +3703,7 @@ export class ResearchAutomationService {
   async #crosscheckRequest(run: RunRow, attempt: AttemptRow): Promise<Extract<AutomationInsightReportRevisionRequest, { crosscheckInsight: unknown }> | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Crosscheck revision request failed verification.');
+    if ('qualitativeDraft' in request) return undefined;
     if ('personaInsight' in request) return undefined;
     if ('crosscheckInsight' in request) return request;
     if ('defaultInsight' in request || 'draftInsight' in request || 'acceptedInsight' in request || request.sources.nativeReview.decision !== 'KEEP') return undefined;
@@ -3598,14 +3713,16 @@ export class ResearchAutomationService {
   async #literalInsightRequest(run: RunRow, attempt: AttemptRow): Promise<Extract<AutomationInsightReportRevisionRequest, { literalInsight: unknown }> | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Literal revision request failed verification.');
+    if ('qualitativeDraft' in request) return undefined;
     if ('literalInsight' in request) return request;
     if (request.sources.nativeReview.decision !== 'KEEP') return undefined;
     const previous = this.#previousAttempt(run, attempt);
     return previous ? this.#literalInsightRequest(run, previous) : undefined;
   }
-  async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<Exclude<AutomationInsightReportRevisionRequest, { literalInsight: unknown }> | undefined> {
+  async #insightCodingRequest(run: RunRow, attempt: AttemptRow): Promise<Exclude<AutomationInsightReportRevisionRequest, { literalInsight: unknown } | { qualitativeDraft: unknown }> | undefined> {
     const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
     if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Insight coding revision request failed verification.');
+    if ('qualitativeDraft' in request) return undefined;
     if ('personaInsight' in request) return undefined;
     if ('acceptedInsight' in request) return request;
     if ('defaultInsight' in request) return request;
@@ -3613,6 +3730,14 @@ export class ResearchAutomationService {
     if (request.sources.nativeReview.decision !== 'KEEP') return undefined;
     const previous = this.#previousAttempt(run, attempt);
     return previous ? this.#insightCodingRequest(run, previous) : undefined;
+  }
+  async #qualitativeDraftRequest(run: RunRow, attempt: AttemptRow): Promise<Extract<AutomationInsightReportRevisionRequest, { qualitativeDraft: unknown }> | undefined> {
+    const request = await this.#readJson<AutomationReportRevisionRequest>(attempt.requestSha, MAX_JSON_ARTIFACT_BYTES, 'application/json');
+    if (!validateRevision(request)) throw new ResearchAutomationIntegrityError('Qualitative revision request failed verification.');
+    if ('qualitativeDraft' in request) return request;
+    if (!('sources' in request) || request.sources.nativeReview.decision !== 'KEEP') return undefined;
+    const previous = this.#previousAttempt(run, attempt);
+    return previous ? this.#qualitativeDraftRequest(run, previous) : undefined;
   }
   async #marketPresentationInputs(run: RunRow, request: AutomationMarketPresentationRevisionRequest,
     parseRows: boolean, frozen?: AutomationMarketPresentationMethod) {

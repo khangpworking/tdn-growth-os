@@ -7,6 +7,7 @@ import coding from '../../../../contracts/analysis/automation-insight-coding.sch
 import model from '../../../../contracts/analysis/automation-insight-model.schema.json' with { type: 'json' };
 import classified from '../../../../contracts/analysis/automation-classified-report-revision.schema.json' with { type: 'json' };
 import revision from '../../../../contracts/analysis/automation-insight-report-revision.schema.json' with { type: 'json' };
+import qualitativeDraft from '../../../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
 import schema from '../../../../contracts/analysis/automation-insight-crosscheck.schema.json' with { type: 'json' };
 import api from '../../../../contracts/api/research-automation-insight-crosscheck-api.schema.json' with { type: 'json' };
 import type { InsightCrosscheckRequest, InsightCrosscheckSource, InsightCrosscheckBlindedInput, InsightCrosscheckPrompt, InsightCrosscheckCandidates, InsightCrosscheckSnapshot } from '../../../../contracts/analysis/automation-insight-crosscheck.generated.js';
@@ -17,7 +18,7 @@ const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.
 const ajv = new Ajv2020({ strict: true, allErrors: false });
 (require('ajv-formats') as typeof import('ajv-formats')).default(ajv);
 registerPrivateReviewSchemas(ajv); ajv.addSchema(privateSourceSchema);
-for (const contract of [located, selection, coding, model, classified, revision, schema, api]) ajv.addSchema(contract);
+for (const contract of [located, selection, coding, model, classified, qualitativeDraft, revision, schema, api]) ajv.addSchema(contract);
 const ref = (name: string) => ({ $ref: `${schema.$id}#/$defs/${name}` });
 export const crosscheckRequestValid = ajv.compile<InsightCrosscheckRequest>(ref('request'));
 export const crosscheckSourceValid = ajv.compile<InsightCrosscheckSource>(ref('source'));

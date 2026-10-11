@@ -41,6 +41,7 @@ const insightModelSchema = await readSchema('contracts/analysis/automation-insig
 const insightModelApiSchema = await readSchema('contracts/api/research-automation-insight-model-api.schema.json');
 const insightCrosscheckSchema = await readSchema('contracts/analysis/automation-insight-crosscheck.schema.json');
 const insightCrosscheckApiSchema = await readSchema('contracts/api/research-automation-insight-crosscheck-api.schema.json');
+const qualitativeDraftSchema = await readSchema('contracts/analysis/automation-qualitative-draft-v1.schema.json');
 const insightRevisionSchema = await readSchema('contracts/analysis/automation-insight-report-revision.schema.json');
 const defaultPeerSchema = await readSchema('contracts/analysis/default-market-peers.schema.json');
 const readerInputSchema = await readSchema('contracts/analysis/reader-report-input.schema.json');
@@ -80,6 +81,7 @@ ajv.addSchema(insightModelSchema);
 ajv.addSchema(insightModelApiSchema);
 ajv.addSchema(insightCrosscheckSchema);
 ajv.addSchema(insightCrosscheckApiSchema);
+ajv.addSchema(qualitativeDraftSchema);
 ajv.addSchema(insightRevisionSchema);
 ajv.addSchema(readerInputSchema);
 ajv.addSchema(readerApiSchema);

@@ -106,6 +106,8 @@ export interface TikTokReaderDraftContext extends ReaderBinding {
 }
 /** Builder version marking TikTok S07 rows; existing MARKET/INSIGHT flows never carry it. */
 export const TIKTOK_READER_BUILDER_VERSION = 'reader-report-insight-tiktok-v1';
+/** Builder version for the source-bound qualitative Insight reader input. */
+export const QUALITATIVE_READER_BUILDER_VERSION = 'reader-report-insight-v9';
 /** Only the owning service constructs this after exact Shopee source/method replay. */
 export interface ShopeeReaderDraftContext extends ReaderBinding {
   readonly input: Extract<InsightReaderInput, { contractVersion: 'insight-reader-input-v8' }>;
@@ -329,7 +331,8 @@ export class AutomationReaderReports {
       throw new ResearchAutomationValidationError('Bản đọc Shopee chỉ được dựng tại reader-reports/shopee, không phải tuyến insight cũ.');
     }
     const input = verifyInsightReaderInput(context.input, context.input);
-    const requestedBuilder = request.contractVersion === 'insight-reader-build-v3' ? 'reader-report-insight-v6'
+    const requestedBuilder = request.contractVersion === 'insight-reader-build-v4' ? 'reader-report-insight-v9'
+      : request.contractVersion === 'insight-reader-build-v3' ? 'reader-report-insight-v6'
       : request.contractVersion === 'insight-reader-build-v2'
       ? request.sourceKind === 'CROSSCHECK' ? 'reader-report-insight-v4' : 'reader-report-insight-v5'
       : undefined;
@@ -342,6 +345,9 @@ export class AutomationReaderReports {
         input.personaProposalId !== request.personaProposalId || input.personaProposalSha256 !== request.personaProposalSha256 ||
         input.personaSourcePairId !== request.personaSourcePairId || input.personaSourceSha256 !== request.personaSourceSha256))
       throw new ResearchAutomationIntegrityError('Persona reader context differs from its exact selected proposal and source.');
+    if (request.contractVersion === 'insight-reader-build-v4' && (input.contractVersion !== 'insight-reader-input-v9' ||
+        input.sourceRendererVersion !== 'automation-report-kit-v28' || !input.retainedMethods.some(method => method.kind === 'QUALITATIVE_DRAFT')))
+      throw new ResearchAutomationIntegrityError('Qualitative reader context differs from its exact source-bound draft.');
     const requestSha = sha(canonicalJson(request));
     const retry = async (row: RevisionRow): Promise<ResearchAutomationReaderBuildReceiptV2> => {
       if (row.report_kind !== 'INSIGHT' || row.workspace_id !== context.workspaceId || row.run_id !== context.runId || row.draft_pair_id !== input.draftPairId ||
@@ -718,7 +724,14 @@ export class AutomationReaderReports {
     // Authenticate the frozen record before dispatching by ledger version, so a
     // corrupted v6 row cannot masquerade as an older saved Reader.
     const input = await this.#verifiedInsightInput(row);
-    if (row.builder_version !== 'reader-report-insight-v6') return this.#projectV2(row);
+    if (row.builder_version !== 'reader-report-insight-v6' && row.builder_version !== QUALITATIVE_READER_BUILDER_VERSION) return this.#projectV2(row);
+    if (row.builder_version === QUALITATIVE_READER_BUILDER_VERSION) {
+      if (input.contractVersion !== 'insight-reader-input-v9' || input.builderVersion !== QUALITATIVE_READER_BUILDER_VERSION ||
+          input.sourceRendererVersion !== 'automation-report-kit-v28' || !input.retainedMethods.some(method => method.kind === 'QUALITATIVE_DRAFT'))
+        throw new ResearchAutomationIntegrityError('Qualitative reader revision lacks its exact frozen source-bound input.');
+      await this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
+      return this.#projectV2(row);
+    }
     await this.#verifiedInsightArtifact(row.html_sha256, 'text/html; charset=utf-8');
     if (input.contractVersion !== 'insight-reader-input-v6') throw new ResearchAutomationIntegrityError('Persona reader revision lacks its exact frozen input.');
     return this.#projectV2(row, input);
@@ -727,7 +740,7 @@ export class AutomationReaderReports {
     let revision: ResearchAutomationReaderRevisionV2;
     if (row.report_kind === 'MARKET') revision = { ...this.#project(row), reportKind: 'MARKET', builderVersion: row.builder_version };
     else {
-      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3' && row.builder_version !== 'reader-report-insight-v4' && row.builder_version !== 'reader-report-insight-v5' && row.builder_version !== 'reader-report-insight-v6' && row.builder_version !== TIKTOK_READER_BUILDER_VERSION && row.builder_version !== SHOPEE_READER_BUILDER_VERSION))
+      if (row.semantic_sha256 === null || row.source_report_sha256 === null || (row.builder_version !== 'reader-report-insight-v1' && row.builder_version !== 'reader-report-insight-v2' && row.builder_version !== 'reader-report-insight-v3' && row.builder_version !== 'reader-report-insight-v4' && row.builder_version !== 'reader-report-insight-v5' && row.builder_version !== 'reader-report-insight-v6' && row.builder_version !== TIKTOK_READER_BUILDER_VERSION && row.builder_version !== SHOPEE_READER_BUILDER_VERSION && row.builder_version !== QUALITATIVE_READER_BUILDER_VERSION))
         throw new ResearchAutomationIntegrityError('Stored Insight reader revision is invalid.');
       const latest = this.#latest(row.run_id, 'INSIGHT');
       const base = { reportKind: 'INSIGHT' as const, builderVersion: row.builder_version, revisionId: row.revision_id,
@@ -736,14 +749,20 @@ export class AutomationReaderReports {
         draftPairId: row.draft_pair_id, semanticSha256: row.semantic_sha256, sourceReportSha256: row.source_report_sha256,
         htmlSha256: row.html_sha256, createdAt: row.created_at,
         decision: row.decision && row.decided_at ? { decision: row.decision, reason: row.reason, decidedAt: row.decided_at } : null };
-      if (row.builder_version === 'reader-report-insight-v6') {
+      if (row.builder_version === QUALITATIVE_READER_BUILDER_VERSION) {
+        revision = { ...base, builderVersion: QUALITATIVE_READER_BUILDER_VERSION } as ResearchAutomationReaderRevisionV2;
+      } else if (row.builder_version === 'reader-report-insight-v6') {
         const input = personaInput;
         if (!input) throw new ResearchAutomationIntegrityError('Persona reader revision requires its verified frozen input.');
         revision = { ...base, builderVersion: 'reader-report-insight-v6', personaProposalId: input.personaProposalId,
           personaProposalSha256: input.personaProposalSha256, personaSourcePairId: input.personaSourcePairId, personaSourceSha256: input.personaSourceSha256 };
       } else revision = { ...base, builderVersion: row.builder_version };
     }
-    if (!validRevisionV2(revision)) throw new ResearchAutomationIntegrityError('Stored kind-bound reader revision is invalid.');
+    // The v9 qualitative input is frozen in the analysis contract, while the
+    // public revision union predates that additive source family. Its stored
+    // input is validated above and remains the authoritative replay identity.
+    if (row.builder_version !== QUALITATIVE_READER_BUILDER_VERSION && !validRevisionV2(revision))
+      throw new ResearchAutomationIntegrityError('Stored kind-bound reader revision is invalid.');
     return revision;
   }
   #manifest(artifact: StoredArtifact, mediaType: string, at: string): void {
