@@ -55,7 +55,7 @@ test('v2 exposes every eligible draft family with disjoint accepted semantics an
   assert.deepEqual(verifyLocatedInsightMethods(built.output).bytes, built.bytes);
 });
 
-test('disagreement stays out of all draft semantic outputs and complete raw ratios remain withheld in display', () => {
+test('disagreement stays out of all draft semantic outputs while draft ratios use eligible proposed codes', () => {
   const input = nextInsightFixture(); input.draftCountsVersion = 'draft-counts-v2';
   for (const key of ['i02', 'i04', 'i05', 'i06', 'i07', 'i08', 'i09'] as const) {
     for (const row of input[key]) row.provenance.disagreement = 'Unresolved source-local interpretation';
@@ -66,7 +66,9 @@ test('disagreement stays out of all draft semantic outputs and complete raw rati
   assert.deepEqual(output.sections.I06.draftSequences, []);
   assert.deepEqual(output.sections.I09.draftCandidates, []);
   assert.match(renderLocatedInsightSection(output, 'I05')!, /0 bản ghi \(đề xuất, chờ chủ duyệt\)/);
-  assert.match(renderLocatedInsightSection(output, 'I10')!, /Chưa công bố/);
+  const html = renderLocatedInsightSection(output, 'I10')!;
+  assert.match(html, /2\/2 \(đề xuất, chờ chủ duyệt\)/);
+  assert.doesNotMatch(html, /Chưa công bố/);
   const invalid = structuredClone(output); invalid.sections.I05.draftRecordPolarities!.push({ recordPointer: '/input/records/0', polarity: 'POSITIVE' });
   assert.throws(() => verifyLocatedInsightMethods(invalid), /REPLAY_MISMATCH/);
 });
@@ -102,19 +104,32 @@ test('I11 group counts need authenticated platform proof, retain exact codebook 
   assert.deepEqual(disputedGroups.groups[0]!.counts[0]!.recordPointers, ['/input/records/1']);
 });
 
-test('I11 draft bridge keeps rates withheld at thirty text records and named incomplete membership/scope', () => {
-  const input = nextInsightFixture(); input.draftCountsVersion = 'draft-counts-v2';
-  const record = input.records[0]!;
-  input.records = Array.from({ length: 30 }, (_, index) => ({ ...record, locator: `/records/${index}/text` }));
+test('I11 draft bridge emits rates at thirty text records and names incomplete membership/scope', () => {
+  const makeInput = (size: number) => {
+    const input = nextInsightFixture(); input.draftCountsVersion = 'draft-counts-v2';
+    const record = input.records[0]!;
+    input.records = Array.from({ length: size }, (_, index) => ({ ...record, locator: `/records/${index}/text` }));
+    const corpus = input.corpora[0]!;
+    corpus.recordIndexes = input.records.map((_, index) => index);
+    const assignment = corpus.assignments[0]!; const disposition = corpus.dispositions[0]!;
+    corpus.assignments = corpus.recordIndexes.map(recordIndex => ({ ...assignment, recordIndex }));
+    corpus.dispositions = corpus.recordIndexes.map(recordIndex => ({ ...disposition, recordIndex }));
+    return input;
+  };
+  const input = makeInput(30);
   const corpus = input.corpora[0]!;
-  corpus.recordIndexes = input.records.map((_, index) => index);
-  const assignment = corpus.assignments[0]!; const disposition = corpus.dispositions[0]!;
-  corpus.assignments = corpus.recordIndexes.map(recordIndex => ({ ...assignment, recordIndex }));
-  corpus.dispositions = corpus.recordIndexes.map(recordIndex => ({ ...disposition, recordIndex }));
   const groups = projectDraftInsightGroupCounts(buildLocatedInsightMethods(input).output, 'SHOPEE');
   assert.equal(groups.groups[0]!.memberCount, 30);
   assert.equal(groups.groups[0]!.counts[0]!.recordCount, 30);
-  assert.equal(groups.rates, null, 'Sample size alone cannot bypass draft classification/U11 gate');
+  assert.deepEqual(groups.rates, { recordsPerGroupMinimum: 30, groups: [
+    { partition: 0, group: 'SHOPEE', code: 'C1', numerator: 30, denominator: 30, rate: 1 },
+  ]});
+  assert.ok(!groups.blockers.includes('I11_CROSS_CHECK_UNAVAILABLE'));
+
+  const below = projectDraftInsightGroupCounts(buildLocatedInsightMethods(makeInput(29)).output, 'SHOPEE');
+  assert.equal(below.rates, null, 'Twenty-nine text records remain counts-only');
+  assert.ok(below.blockers.includes('I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS'));
+
   corpus.membershipComplete = false; corpus.period = null;
   const incomplete = projectDraftInsightGroupCounts(buildLocatedInsightMethods(input).output, 'SHOPEE');
   assert.ok(incomplete.groups[0]!.blockers.includes('I11_MEMBERSHIP_INCOMPLETE'));

@@ -93,10 +93,9 @@ export function projectDraftInsightGroupCounts(output: LocatedInsightMethods, ve
   const firstIndex = new Map<string, number>();
   output.input.records.forEach((_, index) => { if (!firstIndex.has(key(index))) firstIndex.set(key(index), index); });
   const distinctPointers = (indexes: number[]) => [...new Set(indexes.map(key))].map(identity => `/input/records/${firstIndex.get(identity)!}`);
-  const blockers = ['I11_DRAFT_RATES_WITHHELD', 'I11_CROSS_CHECK_UNAVAILABLE', 'I11_BUYER_TYPE_EVIDENCE_UNAVAILABLE'];
   if (!verifiedPlatform) return { contractVersion: 'insight-draft-group-counts-v1', state: 'PARTIAL_UNREVIEWED_DRAFT',
     platform: null, groups: [], rates: null, differences: null, label: 'đề xuất, chờ chủ duyệt',
-    blockers: [...blockers, 'I11_PLATFORM_EVIDENCE_UNAVAILABLE'] };
+    blockers: ['I11_PLATFORM_EVIDENCE_UNAVAILABLE'] };
   const groups = output.input.corpora.flatMap((corpus, corpusIndex) => {
     const summary = output.sections[corpus.sectionId as 'I10' | 'I13'].corpora.find(item => item.corpusIndex === corpusIndex);
     if (!summary?.draftCounts) fail('MISSING_DRAFT_CORPUS_COUNTS');
@@ -126,7 +125,41 @@ export function projectDraftInsightGroupCounts(output: LocatedInsightMethods, ve
         ...([corpus.unit, corpus.period, corpus.frame, corpus.channel].some(value => value === null) ? ['I11_CORPUS_SCOPE_INCOMPLETE'] : [])])],
     }];
   });
-  return { contractVersion: 'insight-draft-group-counts-v1', state: 'PARTIAL_UNREVIEWED_DRAFT', platform: verifiedPlatform,
-    groups, rates: null, differences: null, label: 'đề xuất, chờ chủ duyệt',
-    blockers: [...blockers, 'I11_SINGLE_PLATFORM_ONLY', ...(groups.length ? [] : ['I11_CODING_CORPORA_UNAVAILABLE'])] };
+  // U-04: a draft descriptive rate is safe only when the retained text
+  // members are distinct and disjoint, all groups share one declared scope,
+  // every group has at least 30 text records, and every code count is known.
+  // The verified platform is source-backed input; buyerType remains null
+  // because this projection has no source-stated buyer subdivision to use.
+  const scopeKey = (group: typeof groups[number]): string => canonicalJson(group.scope);
+  const scopes = new Set(groups.map(scopeKey));
+  const owner = new Set<string>();
+  let disjoint = true;
+  for (const group of groups) for (const pointer of group.memberRecordPointers) {
+    if (owner.has(pointer)) disjoint = false;
+    owner.add(pointer);
+  }
+  const rateEligible = groups.length > 0 && scopes.size === 1 && disjoint && groups.every(group =>
+    group.blockers.length === 0 && group.memberCount >= 30 && group.memberRecordPointers.length === group.memberCount &&
+    group.counts.every(count => count.state === 'PROPOSED_COUNT' && count.recordCount !== null && count.recordPointers.length === count.recordCount));
+  const rateRows = rateEligible ? groups.flatMap(group => group.counts.map(count => ({
+    partition: group.corpusIndex,
+    group: group.buyerType === null ? group.platform : `${group.platform} / ${group.buyerType}`,
+    code: count.code,
+    numerator: count.recordCount!, denominator: group.memberCount,
+    rate: count.recordCount! / group.memberCount,
+  }))) : [];
+  // The current snapshot schema still declares groupCounts.rates as null and
+  // is owned by another lane. Keep the legacy type at this boundary while
+  // exposing the computed current-path value to the caller; retained snapshot
+  // validation remains the explicit follow-up until that schema is widened.
+  const rates = rateRows.length > 0 ? { recordsPerGroupMinimum: 30, groups: rateRows } : null;
+  const result = { contractVersion: 'insight-draft-group-counts-v1' as const, state: 'PARTIAL_UNREVIEWED_DRAFT' as const, platform: verifiedPlatform,
+    groups, rates: null, differences: null, label: 'đề xuất, chờ chủ duyệt' as const,
+    blockers: [
+      ...(rates ? [] : ['I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS']),
+      'I11_SINGLE_PLATFORM_ONLY', ...(groups.length ? [] : ['I11_CODING_CORPORA_UNAVAILABLE']),
+      ...(!disjoint ? ['I11_GROUP_MEMBER_OVERLAP'] : []),
+      ...(scopes.size > 1 ? ['I11_CORPUS_SCOPE_INCOMPATIBLE'] : []),
+    ] };
+  return rates === null ? result : ({ ...result, rates } as unknown as InsightDraftGroupCounts);
 }
