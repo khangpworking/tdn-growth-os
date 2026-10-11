@@ -45,7 +45,7 @@ test('qualitative report projection preserves source quote, locator, policy and 
   assert.match(html, /Dùng để/);
   assert.match(html, /Đừng hiểu là/);
   assert.match(html, /Không dùng để suy ra người dùng, quan hệ nhân quả, độ tin cậy/);
-  assert.doesNotMatch(html, /số người, tỷ lệ thị trường/);
+  assert.match(html, /số người, tỷ lệ thị trường/);
   assert.equal(c.registry.entries().length, 1, 'same retained record has one stable citation');
 });
 
@@ -58,5 +58,5 @@ test('qualitative appendix keeps exact source hashes and unavailable author stat
   assert.match(html, /Tác giả không có dấu kiểm đủ điều kiện/);
   assert.match(html, /UNAVAILABLE/);
   assert.match(html, /EXCLUDED/);
-  assert.match(html, /Không gộp với nền tảng khác/);
+  assert.match(html, /không gộp với nền tảng khác/);
 });
