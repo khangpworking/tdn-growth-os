@@ -65,7 +65,7 @@ This file is a plan with checklists. It does not assign work to agents; the owne
   - **A2:** các bộ kiểm tra dùng chung (nhãn bản nháp, xếp hạng chủ đề E15, lọc từ khoá, cấm so sánh bậc nhất; kiểm chéo κ đã hoãn);
   - **A3:** phương pháp mới (bảng giá theo đơn vị chuẩn, Kết luận chính dạng Nhận định / Bằng chứng / Trạng thái, bản đọc Insight, chân dung);
   - **A4:** các phần chờ nguồn dữ liệu mới. Phần này phần lớn đã có trong gói P5, P7, P9, P10, plan chỉ bổ sung chỗ còn thiếu.
-- **Nghiệm thu (U-40):** chỉ chạy thử 1 ca bình giữ nhiệt, sau khi chủ đặt trần chi. Thạch dừa và quạt cầm tay cần chủ quyết riêng sau ca thử.
+- **Nghiệm thu (U-40):** chạy thử 1 ca bình giữ nhiệt trước; đạt rồi mới chạy thạch dừa và quạt cầm tay (#209). Không chạy khi chủ chưa đặt trần chi.
 
 **Phần B: thêm nguồn đã duyệt lên màn hình "Nguồn dữ liệu".**
 
@@ -164,7 +164,7 @@ Where things live:
   - The working question never filters or selects evidence; add a test that evidence sets are identical with and without it.
 - [ ] U-03 **L3 + E11: counts no longer wait for an owner receipt.**
   - Draft counts are computed from AI-proposed codes and rendered with "đề xuất, chờ chủ duyệt" **in the same sentence as the number**, including Kết luận chính and top tiles.
-  - Release counts need the U-11 cross-check, with the codebook version stated, not an owner receipt.
+  - Release counts state the codebook version, not an owner receipt. The U-11 second-model cross-check they used to need is **deferred** (#209); until the owner picks a release label for phase-1 counts (E15), counts stay labelled "đề xuất".
   - The owner adopt/accept flow stays available as an optional override and is recorded, but nothing waits on it.
   - Files: `insight-corpus-counts.ts:63-65,111`, `selected-insight-projection.ts`, `located-insight-methods.ts:176`, `report-located-insight-pages.ts:77,196`.
 - [ ] U-04 **E11 default I11 groups.**
@@ -290,9 +290,9 @@ Where things live:
 
 ### A5. Acceptance and records
 
-- [ ] U-40 Run one acceptance pilot on a staging copy (paid calls within the configured caps, logged per E14). Owner agreed on 2026-10-11 (#209) with these conditions:
+- [ ] U-40 Run acceptance on a staging copy, pilot first (paid calls within the configured caps, logged per E14). Owner agreed on 2026-10-11 (#209) with these conditions:
   - It runs last, after U-26 and U-11 phase 1 (U-11a, U-11b) are merged.
-  - Only the bình giữ nhiệt pilot is authorised. Running thạch dừa or quạt cầm tay needs a separate owner decision after the pilot.
+  - Pilot one case first: bình giữ nhiệt (owner's choice in #209). Only after the pilot passes, run thạch dừa and quạt cầm tay.
   - The owner gives a total budget cap later; nothing runs without it.
   - Check prerequisites first (for example, OpenCLI installed on the runner).
   - For each section, record pass/fail against its Ultimate rules in a new `docs/research/ultimate-method/tdn-acceptance-<date>.md`.

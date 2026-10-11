@@ -323,7 +323,7 @@ Nguồn dữ liệu của từng section: [Input data sources for 30 sections, m
 | 20 | I07 | Lý do lựa chọn | Additional | Lý do nêu trực tiếp trong bản ghi; không suy từ hành vi | PROPOSED + BUSINESS_REVIEWED |
 | 21 | I08 | Rào cản | Additional | Rào cản task–trở ngại trong cùng locator | PROPOSED + BUSINESS_REVIEWED |
 | 22 | I09 | Nhu cầu chưa được đáp ứng | Additional | Cặp mong muốn–thiếu hụt trong cùng bản ghi | PROPOSED + BUSINESS_REVIEWED |
-| 23 | I10 | Chủ đề và mối quan tâm | Additional | Coding corpus đóng băng; n/N trong corpus; bản phát hành cần bộ mã đã kiểm chéo (E11) | PROPOSED + BUSINESS_REVIEWED + E11 |
+| 23 | I10 | Chủ đề và mối quan tâm | Additional | Coding corpus đóng băng; n/N trong corpus; bản phát hành cần bộ mã đã kiểm chéo (E11; kiểm chéo bằng model thứ hai **hoãn** theo #209, giai đoạn 1 xếp hạng theo E15) | PROPOSED + BUSINESS_REVIEWED + E11 (hoãn) |
 | 24 | I11 | Khác biệt giữa các nhóm | Advanced | Nhóm mặc định theo sàn và mua lẻ/mua sỉ (E11); rate mô tả khi mẫu số tương thích; suy luận chặn | PROPOSED + BUSINESS_REVIEWED + E11 |
 | 25 | I12 | Điểm tiếp xúc | Advanced | PRESENCE/EXPOSURE/OUTCOME tách rời; ratio theo unit đã link | PROPOSED + BUSINESS_REVIEWED |
 | 26 | I13 | Thương hiệu và đối thủ | Additional | Inventory nhắc thương hiệu/nội dung trong corpus đóng băng; lời người bán theo L7 | PROPOSED + BUSINESS_REVIEWED + E5 |
