@@ -21,6 +21,7 @@ import {
   ReaderSourceError, storeCoverImage, storeReaderProfile, type CoverImage, type ReaderPlatform, type ReaderWebResult, type StoredCoverImage,
 } from '../reader-report/index.js';
 import { ReaderUnitSpecIntakes } from './reader-unit-spec-intake.js';
+import { assertMarketBusinessGate } from './market-business-gate.js';
 import type { RequestScopedArtifactStore } from '../../../platform/artifacts/request-scoped-artifact-store.js';
 import { MarketUnitPriceError, type RetainedUnitPriceSource } from '../reader-report/market-unit-prices.js';
 import { ReaderMetricRowsError, readerRowsFromMetricWorkbook, type ReaderRow } from '../reader-report/metric-rows.js';
@@ -273,6 +274,13 @@ export class AutomationReaderReports {
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
     const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults });
+    // Same business rules as every other Market publisher, checked before anything is stored.
+    try { assertMarketBusinessGate(built.html, { presentation: false }); }
+    catch (error) {
+      if (error instanceof TypeError && error.message.startsWith('MARKET_BUSINESS_GATE_FAILED:')) throw new ResearchAutomationValidationError(
+        `Bản đọc chưa đạt kiểm tra bằng chứng hoặc cách trình bày (quy tắc: ${error.message.slice('MARKET_BUSINESS_GATE_FAILED:'.length)}). Hãy sửa cách trình bày trước khi tạo phiên bản mới.`);
+      throw error;
+    }
     let published;
     try { published = await publishReaderReport(this.artifacts, { html: built.html, narrator: built.narrator, extraOk: built.extraOk, visibleTextRules: next }); }
     catch (error) {

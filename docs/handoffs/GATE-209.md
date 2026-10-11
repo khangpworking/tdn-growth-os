@@ -74,6 +74,17 @@ Round 2 evidence:
 - The eight Windows-only failures were `three industries classify a new report from complete selected acceptance without changing old reports` (`INVALID_LOCATED_INSIGHT_INPUT:data/profileSha256 must be equal to constant, data/adoptionSha256 must be equal to constant`), `OWNER Metric rule adoption is immutable, scope-bound, inert and replayable after reopening` (`438 !== 384` at the existing assertion), `bounded raw Metric upload prepares original bytes without admission, preserves exact retries and late-source isolation` (`Cannot read properties of undefined (reading 'toString')`), `supplemental HTTP intake authenticates before storage and prepares an exact package without report admission` (`400 !== 201`), `OWNER model coding uses its own opt-in, safe receipt, retained retry and shutdown settlement` (`INVALID_LOCATED_INSIGHT_INPUT:data/profileSha256 must be equal to constant, data/adoptionSha256 must be equal to constant`), `OWNER Insight coding round-trips over HTTP with exact source context, retries and a report revision` (same `INVALID_LOCATED_INSIGHT_INPUT`), `reader report routes build, serve and decide one OWNER reader page without touching the draft` (`Cannot read properties of undefined (reading 'toString')`), and `saved revision PDF export reports a genuine render failure distinctly from a missing renderer` (`Cannot read properties of undefined (reading 'toString')`). No assertion was weakened.
 - `node ../tools/typecheck-win.mjs` — exit 0 (`files 913 status 0`). `git diff --check` — exit 0.
 
+## Round 3 (coordinator)
+
+Fixes for the round-2 review and for false positives found by the Linux suite:
+
+- Reader revisions: the Market build in `src/modules/analysis/research-automation/reader-report-revisions.ts` now runs `assertMarketBusinessGate` before `publishReaderReport`, so no revision row or artifact is stored when the gate fails. The message keeps the existing "chưa đạt kiểm tra bằng chứng hoặc cách trình bày" wording and names the failing rules. The Insight reader builds are not Market reports and are not gated.
+- E2: a negation only covers its own clause. A contrast word (`nhưng`, `tuy nhiên`, `vẫn`, …) or sentence punctuation ends it. A comma list stays covered only when it closes with `hay`/`hoặc`, so "Không có dữ liệu đối chiếu, xếp hạng theo doanh thu được trình bày." fails.
+- Inline-tag normalisation tracks open tags per name, so a closed `data-quote` span no longer hides the authored text after it.
+- G08: "Metric" also means a common word, so it matches only as `Metric` or `METRIC`. The method identifier `metric-scope-v1` no longer fails; other provider names stay case-insensitive.
+- U13 (`report-visible-text-lint.ts`): `nhất thiết`, `đối tượng duy nhất` and the counted sample description "N sản phẩm doanh thu cao nhất" are not superlatives. "Sản phẩm A có doanh thu cao nhất." still fails.
+- Tests: `tests/unit/gate-209-market-business.test.ts` has round-3 cases for each point above. `tests/integration/gate-209-reader-revision.test.ts` builds a passing reader page, then proves a provider-bearing build is rejected with no new revision row.
+
 ## Checklist evidence
 
 | ID | Status | Evidence |

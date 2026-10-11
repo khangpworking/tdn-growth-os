@@ -131,6 +131,31 @@ test('the gate includes failing U13 results from visible-text lint', () => {
   assert.equal(check(reportHtml('<p data-classified="pending">Có 2 bản ghi.</p>'), 'U13_PENDING_NUMBER').ok, false);
 });
 
+test('round 3: E2 negation stops at a contrast or a bare comma list', () => {
+  assert.equal(check(reportHtml('<p>Không có dữ liệu đối chiếu, nhưng xếp hạng theo doanh thu vẫn được trình bày.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p>Không có dữ liệu đối chiếu, xếp hạng theo doanh thu được trình bày.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p>Không so sánh, xếp hạng hay tính thị phần.</p>'), 'E2_NO_REVENUE_ORDER').ok, true);
+});
+
+test('round 3: a closed quote span does not hide the claim that follows it', () => {
+  assert.equal(check(reportHtml('<p><span data-quote>trích</span> Sản phẩm tốt nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
+  assert.equal(check(reportHtml('<span data-quote>source</span><p>Sản phẩm tốt nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
+  assert.equal(check(reportHtml('<p><span data-quote>Sản phẩm tốt nhất</span></p>'), 'U13_SUPERLATIVE').ok, true);
+});
+
+test('round 3: the common-word brand matches only as written, not inside method identifiers', () => {
+  assert.equal(check(reportHtml('<p>Phương pháp metric-scope-v1 · percent-half-even-2-v1.</p>'), 'G08_PROVIDER_NAME').ok, true);
+  assert.equal(check(reportHtml('<p>Nguồn Metric.</p>'), 'G08_PROVIDER_NAME').ok, false);
+  assert.equal(check(reportHtml('<p>Nguồn METRIC.</p>'), 'G08_PROVIDER_NAME').ok, false);
+});
+
+test('round 3: method wording about records is not a superlative', () => {
+  assert.equal(check(reportHtml('<p>Số bản ghi không nhất thiết là số sản phẩm hoặc biến thể riêng biệt.</p>'), 'U13_SUPERLATIVE').ok, true);
+  assert.equal(check(reportHtml('<p>Số đối tượng duy nhất: chưa xác định.</p>'), 'U13_SUPERLATIVE').ok, true);
+  assert.equal(check(reportHtml('<p>Tệp chỉ gồm 3<sup>[1]</sup> sản phẩm doanh thu cao nhất (giới hạn 5.000 dòng).</p>'), 'U13_SUPERLATIVE').ok, true);
+  assert.equal(check(reportHtml('<p>Sản phẩm A có doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
+});
+
 test('provider names in a Market build fail inside buildResearchAutomationReport', () => {
   const metric = calculateMetricScopes(metricFixture());
   const rows = sync1ReaderFixture('1.4.0').rows;

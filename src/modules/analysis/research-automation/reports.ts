@@ -917,12 +917,12 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // Source appendix v18 also serves existing Market and accepted Insight
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
-  if (marketPresentation) {
-    assertMarketBusinessGate(html, { presentation: true });
-  } else if (insightPersona || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
+  if (insightPersona || marketPresentation || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
     const failed = lintVisibleReportText(html).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
+  // The visible-text lint keeps its own error; the business gate adds the remaining Market rules.
+  if (marketPresentation) assertMarketBusinessGate(html, { presentation: true });
   return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(html, 'utf8') };
 }
 

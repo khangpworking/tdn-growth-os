@@ -26,7 +26,8 @@ const CROSS_PLATFORM_TOTAL_PHRASES: readonly string[] = [
 const PROPOSAL_TERMS = /(?:phương án|lựa chọn|\boption\b|\bproposal\b|\baction_option\b)/iu;
 const E2_ALWAYS_TERMS = /(?:Thứ tự theo doanh thu|\btop\s*3\b)/giu;
 const E2_NEGATABLE_TERMS = /(?:xếp hạng|thị phần)/giu;
-const MODEL_ID = /\b(?:gpt|claude)-[A-Za-z0-9][A-Za-z0-9._-]*\b/giu;
+const COMMON_WORD_PROVIDERS = new Set(['Metric']);
+const MODEL_ID =/\b(?:gpt|claude)-[A-Za-z0-9][A-Za-z0-9._-]*\b/giu;
 const TAG_NAME = /^<\/?([\w:-]+)/u;
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
 const BLOCK_TAGS = new Set(['address', 'article', 'aside', 'blockquote', 'caption', 'div', 'dl', 'dt', 'dd', 'figcaption', 'figure', 'footer', 'form', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'header', 'hr', 'li', 'main', 'nav', 'ol', 'p', 'pre', 'section', 'table', 'tbody', 'td', 'tfoot', 'th', 'thead', 'tr', 'ul']);
@@ -144,23 +145,53 @@ function matches(text: string, pattern: RegExp): string[] {
   return [...text.matchAll(pattern)].map(match => match[0] ?? '');
 }
 
+// A contrast word starts a new clause: a negation before it never governs a term after it.
+const CLAUSE_BREAK = /[.;:!?…\n]|(?<![\p{L}\p{N}_])(?:nhưng|tuy nhiên|tuy vậy|song|mặc dù|vẫn|but|however)(?![\p{L}\p{N}_])/giu;
+const NEGATION = /(?<![\p{L}\p{N}_])(?:không|chưa|chẳng)(?![\p{L}\p{N}_])/giu;
+const LIST_CLOSER = /(?<![\p{L}\p{N}_])(?:hay|hoặc)(?![\p{L}\p{N}_])/iu;
+
+function clauseAround(text: string, start: number, end: number): { before: string; after: string } {
+  let from = 0;
+  CLAUSE_BREAK.lastIndex = 0;
+  for (const match of text.slice(0, start).matchAll(CLAUSE_BREAK)) from = (match.index ?? 0) + match[0].length;
+  CLAUSE_BREAK.lastIndex = 0;
+  const rest = text.slice(end);
+  const next = CLAUSE_BREAK.exec(rest);
+  CLAUSE_BREAK.lastIndex = 0;
+  return { before: text.slice(from, start), after: rest.slice(0, next ? next.index : undefined) };
+}
+
+/** The term is negated only when a negation in its own clause governs it directly
+ * ("không phải xếp hạng") or through a closed list ("không so sánh, xếp hạng hay …"). */
+function e2Negated(text: string, start: number, end: number): boolean {
+  const { before, after } = clauseAround(text, start, end);
+  const negations = [...before.matchAll(NEGATION)];
+  const last = negations.at(-1);
+  if (!last) return false;
+  const span = before.slice((last.index ?? 0) + last[0].length);
+  if (span.length > 60) return false;
+  if (!span.includes(',')) return true;
+  return LIST_CLOSER.test(span.slice(span.lastIndexOf(',') + 1)) || LIST_CLOSER.test(after);
+}
+
 function e2Matches(text: string): string[] {
   const hits = matches(text, E2_ALWAYS_TERMS);
   for (const match of text.matchAll(E2_NEGATABLE_TERMS)) {
     const index = match.index ?? 0;
-    const windowStart = Math.max(0, index - 40);
-    const preceding = text.slice(windowStart, index);
-    const boundary = Math.max(preceding.lastIndexOf('.'), preceding.lastIndexOf(';'), preceding.lastIndexOf(':'), preceding.lastIndexOf('\n'));
-    const clause = preceding.slice(boundary + 1);
-    const negated = /(?:^|[^\p{L}\p{N}_])(?:không(?:\s+phải)?|chưa|chẳng)(?=[^\p{L}\p{N}_]|$)/iu.test(clause);
-    if (!negated) hits.push(match[0] ?? '');
+    if (!e2Negated(text, index, index + match[0].length)) hits.push(match[0] ?? '');
   }
   return hits;
 }
 
 function providerMatches(text: string): string[] {
   const names = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM'])];
-  const found = names.flatMap(name => matches(text, new RegExp(`(?<![\\p{L}\\p{N}_])${name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?![\\p{L}\\p{N}_])`, 'giu')));
+  const found = names.flatMap(name => {
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    // A brand that is also a common lowercase word matches only as written or in capitals,
+    // so a method identifier such as "metric-scope-v1" is not a provider name.
+    const pattern = COMMON_WORD_PROVIDERS.has(name) ? `(?:${escaped}|${escaped.toUpperCase()})` : escaped;
+    return matches(text, new RegExp(`(?<![\\p{L}\\p{N}_])${pattern}(?![\\p{L}\\p{N}_])`, COMMON_WORD_PROVIDERS.has(name) ? 'gu' : 'giu'));
+  });
   return [...found, ...matches(text, MODEL_ID)];
 }
 
@@ -184,10 +215,19 @@ function noLeakMatches(html: string, scan: Scan): string[] {
   ]);
 }
 
+/** Drops plain inline tags so split words join, but keeps a data-quote/data-classified
+ * element together with its own closing tag, so the quoted span ends where it ends. */
 function normalizeInlineTagsForLint(html: string): string {
+  const open = new Map<string, boolean[]>();
   return html.replace(/<!--[\s\S]*?-->|<[^>]*>/gu, token => {
     const name = TAG_NAME.exec(token)?.[1]?.toLowerCase();
-    return name && INLINE_TAGS.has(name) && !/\bdata-(?:classified|quote)\b/iu.test(token) ? '' : token;
+    if (!name || !INLINE_TAGS.has(name)) return token;
+    const stack = open.get(name) ?? [];
+    open.set(name, stack);
+    if (/^<\//u.test(token)) return stack.pop() ? token : '';
+    const keep = /\bdata-(?:classified|quote)\b/iu.test(token);
+    if (!/\/\s*>$/u.test(token)) stack.push(keep);
+    return keep ? token : '';
   });
 }
 

@@ -54,7 +54,7 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       const index = match.index ?? 0;
       const before = text.slice(0, index).match(/([\p{L}\p{M}]+)\s*$/u)?.[1]?.toLowerCase();
       const after = text.slice(index + match[0].length).match(/^\s*([\p{L}\p{M}]+)/u)?.[1]?.toLowerCase();
-      if (!['thống', 'đồng', 'hợp'].includes(before ?? '') && !['định', 'quán', 'trí'].includes(after ?? '')) return true;
+      if (!['thống', 'đồng', 'hợp'].includes(before ?? '') && !['định', 'quán', 'trí', 'thiết'].includes(after ?? '')) return true;
     }
     return false;
   };
@@ -62,8 +62,11 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
+    // "N sản phẩm doanh thu cao nhất" describes how the export sample was drawn
+    // (a counted top-N file), not a claim about one product.
     const findings = own.replace(/ít nhất(?=\s+\d)/giu, 'tối thiểu')
-      .replace(/bản ghi duy nhất/giu, 'bản ghi phân biệt')
+      .replace(/(\d[\d.,]*(?:\[\d+\])*\s+sản phẩm\s+)doanh thu cao nhất/giu, '$1theo ngưỡng doanh thu')
+      .replace(/(bản ghi|đối tượng) duy nhất/giu, '$1 phân biệt')
       .replace(/dòng trùng đồng nhất/giu, 'dòng trùng hệt');
     if (isSuperlative(findings)) superlatives.push(own);
     regionText.set(region, [...(regionText.get(region) ?? []), own]);
