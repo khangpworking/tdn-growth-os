@@ -43,4 +43,3 @@ Blocked / needs other lane:
 | G-10 | PARTIAL | `metric-method-bridge.ts` and stored limitation data were untouched; hash fields remain rendered as before. Full integration replay could not run on Windows because of the `python3` fixture failure above. |
 | G-11 | DONE | No existing assertion was deleted, skipped or weakened. No integration expectation required updating. |
 | G-12 | DONE | This handoff records changed paths, decisions, evidence, blocker and remaining verification. |
-
