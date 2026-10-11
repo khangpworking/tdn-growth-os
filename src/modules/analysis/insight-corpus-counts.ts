@@ -132,8 +132,7 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
   // all disagreement-free assignments (eligible accepted rows plus eligible
   // retained AI proposals) on INCLUDED records with a matching eligible CODED
   // disposition. PENDING, UNCLEAR, UNCODED or missing dispositions never enter
-  // draft code counts. Drafts never unlock ratios, rewrite provenance, or
-  // clear the pending tallies above.
+  // draft code counts.
   if (input.draftCountsVersion === undefined) return countsBase;
   if (input.semanticsVersion !== '1.1.0') fail('DRAFT_REQUIRES_CURRENT_SEMANTICS');
   const eligibleDisposition = new Set<string>();
@@ -159,7 +158,7 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
     pointers.push(`/input/corpora/${corpusIndex}/assignments/${assignmentIndex}`);
     perCode.set(key, pointers);
   }
-  return { ...countsBase,
+  const draftResult = { ...countsBase,
     draftCounts: corpus.codebook.codes.map(code => {
       const records = draftRecords.get(code.code)!;
       return { code: code.code, recordCount: records.size,
@@ -167,6 +166,10 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
         label: 'đề xuất, chờ chủ duyệt' as const };
     }),
     draftLabel: 'đề xuất, chờ chủ duyệt' as const, draftCountsVersion: input.draftCountsVersion };
+  // Draft counts stay separate from accepted counts. In particular, a retained
+  // AI proposal must not change accepted record counts, completion, ratios or
+  // blockers; those fields continue to describe only accepted coding.
+  return draftResult;
 }
 
 /** Called by the located-method boundary after schema and exact-span validation. */

@@ -277,7 +277,7 @@ test('v2 fake-model proposal flows through service revision to all draft familie
   }
   assert.equal(snapshot.groupCounts.rates, null);
   assert.equal(snapshot.groupCounts.differences, null);
-  assert.ok(snapshot.groupCounts.blockers.includes('I11_CROSS_CHECK_UNAVAILABLE'));
+  assert.ok(snapshot.groupCounts.blockers.includes('I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS'));
   const rendered = report.bytes.toString('utf8');
   assert.ok(lintVisibleReportText(rendered).every(check => check.ok), 'v17 invokes the same shared visible-text lint');
   const document = new JSDOM(rendered).window.document;
