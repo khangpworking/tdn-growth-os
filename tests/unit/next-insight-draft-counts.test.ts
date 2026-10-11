@@ -104,7 +104,7 @@ test('I11 group counts need authenticated platform proof, retain exact codebook 
   assert.deepEqual(disputedGroups.groups[0]!.counts[0]!.recordPointers, ['/input/records/1']);
 });
 
-test('I11 draft bridge emits rates at thirty text records and names incomplete membership/scope', () => {
+test('I11 draft bridge marks thirty text records eligible while withholding contract rates', () => {
   const makeInput = (size: number) => {
     const input = nextInsightFixture(); input.draftCountsVersion = 'draft-counts-v2';
     const record = input.records[0]!;
@@ -121,9 +121,8 @@ test('I11 draft bridge emits rates at thirty text records and names incomplete m
   const groups = projectDraftInsightGroupCounts(buildLocatedInsightMethods(input).output, 'SHOPEE');
   assert.equal(groups.groups[0]!.memberCount, 30);
   assert.equal(groups.groups[0]!.counts[0]!.recordCount, 30);
-  assert.deepEqual(groups.rates, { recordsPerGroupMinimum: 30, groups: [
-    { partition: 0, group: 'SHOPEE', code: 'C1', numerator: 30, denominator: 30, rate: 1 },
-  ]});
+  assert.equal(groups.rates, null);
+  assert.ok(!groups.blockers.includes('I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS'));
   assert.ok(!groups.blockers.includes('I11_CROSS_CHECK_UNAVAILABLE'));
 
   const below = projectDraftInsightGroupCounts(buildLocatedInsightMethods(makeInput(29)).output, 'SHOPEE');

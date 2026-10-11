@@ -141,25 +141,16 @@ export function projectDraftInsightGroupCounts(output: LocatedInsightMethods, ve
   const rateEligible = groups.length > 0 && scopes.size === 1 && disjoint && groups.every(group =>
     group.blockers.length === 0 && group.memberCount >= 30 && group.memberRecordPointers.length === group.memberCount &&
     group.counts.every(count => count.state === 'PROPOSED_COUNT' && count.recordCount !== null && count.recordPointers.length === count.recordCount));
-  const rateRows = rateEligible ? groups.flatMap(group => group.counts.map(count => ({
-    partition: group.corpusIndex,
-    group: group.buyerType === null ? group.platform : `${group.platform} / ${group.buyerType}`,
-    code: count.code,
-    numerator: count.recordCount!, denominator: group.memberCount,
-    rate: count.recordCount! / group.memberCount,
-  }))) : [];
   // The current snapshot schema still declares groupCounts.rates as null and
-  // is owned by another lane. Keep the legacy type at this boundary while
-  // exposing the computed current-path value to the caller; retained snapshot
-  // validation remains the explicit follow-up until that schema is widened.
-  const rates = rateRows.length > 0 ? { recordsPerGroupMinimum: 30, groups: rateRows } : null;
-  const result = { contractVersion: 'insight-draft-group-counts-v1' as const, state: 'PARTIAL_UNREVIEWED_DRAFT' as const, platform: verifiedPlatform,
-    groups, rates: null, differences: null, label: 'đề xuất, chờ chủ duyệt' as const,
+  // is owned by another lane. Retain the eligibility result in blockers, but
+  // do not materialize a rate object until that contract and its renderers move.
+  const result: InsightDraftGroupCounts = { contractVersion: 'insight-draft-group-counts-v1', state: 'PARTIAL_UNREVIEWED_DRAFT', platform: verifiedPlatform,
+    groups, rates: null, differences: null, label: 'đề xuất, chờ chủ duyệt',
     blockers: [
-      ...(rates ? [] : ['I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS']),
+      ...(rateEligible ? [] : ['I11_RATE_REQUIRES_COMPATIBLE_DENOMINATORS_AND_30_RECORDS']),
       'I11_SINGLE_PLATFORM_ONLY', ...(groups.length ? [] : ['I11_CODING_CORPORA_UNAVAILABLE']),
       ...(!disjoint ? ['I11_GROUP_MEMBER_OVERLAP'] : []),
       ...(scopes.size > 1 ? ['I11_CORPUS_SCOPE_INCOMPATIBLE'] : []),
     ] };
-  return rates === null ? result : ({ ...result, rates } as unknown as InsightDraftGroupCounts);
+  return result;
 }
