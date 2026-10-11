@@ -3,6 +3,8 @@ import type { L9JevTriageSidecar } from '../../../../contracts/analysis/l9-jev-t
 import type { KeywordMeaningFilterData, KeywordMeaningFilterResult, KeywordMeaningRecordResult } from '../keyword-meaning-filter.js';
 import { TypesafeJevClient, type TypesafeJevAnswer, type TypesafeJevQuestion } from '../../../platform/ai/typesafe-jev-client.js';
 import { createRequire } from 'node:module';
+import { createHash } from 'node:crypto';
+import { canonicalJson } from '../../foundation/canonical-json.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -21,6 +23,7 @@ const UNRESOLVED = 'UNRESOLVED' as const;
 const SENT_REASONS = new Set<KeywordMeaningFilterResult['results'][number]['reason']>(['NO_KEYWORD_MATCH', 'UNRESOLVED_UNDIACRITICIZED']);
 const MAX_QUESTIONS_PER_CALL = 20;
 const MAX_IN_FLIGHT = 4;
+const MAX_AUDIT_ROWS = 24000;
 const ABOUT_REASON = 'đúng sản phẩm (máy phân loại)' as const;
 const NOT_ABOUT_REASON = 'không nói về sản phẩm (máy phân loại)' as const;
 
@@ -34,9 +37,13 @@ function sidecar(input: Omit<L9JevTriageSidecar, 'contractVersion'>): L9JevTriag
   return value;
 }
 
-function baseSidecar(data: KeywordMeaningFilterData, model: string, status: L9JevTriageSidecar['status'], auditRows: readonly AuditRow[], runNotes: L9JevTriageSidecar['runNotes']): L9JevTriageSidecar {
+function baseSidecar(data: KeywordMeaningFilterData, model: string, status: L9JevTriageSidecar['status'], l9Fingerprint: string, auditRows: readonly AuditRow[], runNotes: L9JevTriageSidecar['runNotes']): L9JevTriageSidecar {
   return sidecar({ dataVersion: data.dataVersion, category: data.category, keywords: data.keywords,
-    exclusions: data.exclusions, model, status, auditRows: [...auditRows], runNotes: [...runNotes] as L9JevTriageSidecar['runNotes'] });
+    exclusions: data.exclusions, model, status, l9Fingerprint, auditRows: [...auditRows], runNotes: [...runNotes] as L9JevTriageSidecar['runNotes'] });
+}
+
+export function l9JevFingerprint(result: { readonly results: readonly KeywordMeaningRecordResult[] }): string {
+  return createHash('sha256').update(canonicalJson(result.results.map(row => ({ recordId: row.recordId, decision: row.decision, reason: row.reason })))).digest('hex');
 }
 
 function questionFor(data: KeywordMeaningFilterData, row: KeywordMeaningRecordResult, questionId: string): TypesafeJevQuestion {
@@ -72,9 +79,11 @@ export async function triageL9WithJev(input: {
   readonly client?: TypesafeJevClient;
 }): Promise<L9JevTriageSidecar> {
   const model = input.client?.model ?? 'disabled';
+  const fingerprint = l9JevFingerprint(input.result);
   const candidates = l9JevTriageCandidates(input.result);
-  if (!input.client) return baseSidecar(input.data, model, 'DISABLED', [], []);
-  if (candidates.length === 0) return baseSidecar(input.data, input.client.model, 'COMPLETED', [], []);
+  if (!input.client) return baseSidecar(input.data, model, 'DISABLED', fingerprint, [], []);
+  if (candidates.length === 0) return baseSidecar(input.data, input.client.model, 'COMPLETED', fingerprint, [], []);
+  if (candidates.length > MAX_AUDIT_ROWS) return baseSidecar(input.data, input.client.model, 'UNAVAILABLE', fingerprint, [], ['L9_JEV_UNAVAILABLE']);
   const questionBatches = batches(candidates).map((batch, batchIndex) => batch.map((row, index) => questionFor(input.data, row, `record_${batchIndex}_${index}`)));
   type BatchResponse = Awaited<ReturnType<TypesafeJevClient['answer']>>;
   const responses: BatchResponse[] = new Array(questionBatches.length);
@@ -96,7 +105,7 @@ export async function triageL9WithJev(input: {
     for (const [index, question] of batch.entries()) auditRows.push(audit(candidates[batchIndex * MAX_QUESTIONS_PER_CALL + index]!.recordId,
       response.model, response.answers.get(question.id) ?? null));
   }
-  return baseSidecar(input.data, input.client.model, unavailable ? 'UNAVAILABLE' : 'COMPLETED', auditRows,
+  return baseSidecar(input.data, input.client.model, unavailable ? 'UNAVAILABLE' : 'COMPLETED', fingerprint, auditRows,
     unavailable ? ['L9_JEV_UNAVAILABLE'] : []);
 }
 
@@ -106,14 +115,31 @@ export interface AppliedL9JevDecision {
 }
 
 export function applyL9JevTriage(result: KeywordMeaningFilterResult, triage: L9JevTriageSidecar | null): ReadonlyMap<string, AppliedL9JevDecision> {
+  return applyL9JevDecisions(result.results, triage);
+}
+
+function sidecarMatchesRows(rows: readonly KeywordMeaningRecordResult[], triage: L9JevTriageSidecar): boolean {
+  if (!validatesL9JevTriageSidecar(triage) || triage.l9Fingerprint !== l9JevFingerprint({ results: rows })) return false;
+  const known = new Set(rows.map(row => row.recordId));
+  const seen = new Set<string>();
+  for (const auditRow of triage.auditRows) {
+    if (!known.has(auditRow.recordId) || seen.has(auditRow.recordId)) return false;
+    seen.add(auditRow.recordId);
+  }
+  return true;
+}
+
+export function applyL9JevDecisions(rows: readonly KeywordMeaningRecordResult[], triage: L9JevTriageSidecar | null): ReadonlyMap<string, AppliedL9JevDecision> {
   const output = new Map<string, AppliedL9JevDecision>();
-  for (const row of result.results) output.set(row.recordId, applyL9JevDecision(row, triage));
+  const usable = triage !== null && sidecarMatchesRows(rows, triage);
+  for (const row of rows) output.set(row.recordId, applyL9JevDecision(row, usable ? triage : null));
   return output;
 }
 
 export function applyL9JevDecision(row: KeywordMeaningRecordResult, triage: L9JevTriageSidecar | null): AppliedL9JevDecision {
   const original = { decision: row.decision, reason: row.reason } as AppliedL9JevDecision;
   if (!triage) return original;
+  if (row.decision !== 'UNCLEAR' || !SENT_REASONS.has(row.reason)) return original;
   for (const auditRow of triage.auditRows) {
     if (auditRow.recordId !== row.recordId) continue;
     if (auditRow.gateOutcome === 'INCLUDED') return { decision: 'INCLUDED', reason: auditRow.reason ?? ABOUT_REASON };

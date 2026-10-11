@@ -4,7 +4,7 @@
   "title": "L9JevTriageSidecar",
   "type": "object",
   "additionalProperties": false,
-  "required": ["contractVersion", "dataVersion", "category", "keywords", "exclusions", "model", "status", "auditRows", "runNotes"],
+  "required": ["contractVersion", "dataVersion", "category", "keywords", "exclusions", "model", "status", "l9Fingerprint", "auditRows", "runNotes"],
   "properties": {
     "contractVersion": { "const": "l9-jev-triage-v1" },
     "dataVersion": { "type": "string", "minLength": 1, "maxLength": 80, "pattern": "\\S" },
@@ -16,14 +16,39 @@
     } }, "maxItems": 500 },
     "model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "\\S" },
     "status": { "enum": ["DISABLED", "COMPLETED", "UNAVAILABLE"] },
-    "auditRows": { "type": "array", "items": { "type": "object", "additionalProperties": false, "required": ["recordId", "model", "choice", "confidence", "gateOutcome", "reason"], "properties": {
+    "l9Fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "auditRows": { "type": "array", "items": { "oneOf": [
+      { "$ref": "#/$defs/includedAudit" },
+      { "$ref": "#/$defs/excludedAudit" },
+      { "$ref": "#/$defs/unchangedAudit" },
+      { "$ref": "#/$defs/noDecisionAudit" }
+    ] }, "maxItems": 24000 },
+    "runNotes": { "type": "array", "items": { "enum": ["L9_JEV_UNAVAILABLE"] }, "maxItems": 1 }
+  },
+  "$defs": {
+    "auditBase": { "type": "object", "additionalProperties": false, "required": ["recordId", "model", "choice", "confidence", "gateOutcome", "reason"], "properties": {
       "recordId": { "type": "string", "minLength": 1, "maxLength": 300, "pattern": "\\S" },
       "model": { "type": "string", "minLength": 1, "maxLength": 120, "pattern": "\\S" },
       "choice": { "anyOf": [{ "enum": ["ABOUT_PRODUCT", "NOT_ABOUT_PRODUCT", "UNRESOLVED"] }, { "type": "null" }] },
       "confidence": { "anyOf": [{ "type": "number", "minimum": 0, "maximum": 1 }, { "type": "null" }] },
       "gateOutcome": { "enum": ["INCLUDED", "EXCLUDED", "UNCHANGED", "NO_DECISION"] },
       "reason": { "anyOf": [{ "enum": ["đúng sản phẩm (máy phân loại)", "không nói về sản phẩm (máy phân loại)" ] }, { "type": "null" }] }
-    } }, "maxItems": 5000 },
-    "runNotes": { "type": "array", "items": { "enum": ["L9_JEV_UNAVAILABLE"] }, "maxItems": 1 }
+    } },
+    "includedAudit": { "allOf": [
+      { "$ref": "#/$defs/auditBase" },
+      { "type": "object", "properties": { "choice": { "const": "ABOUT_PRODUCT" }, "confidence": { "type": "number", "minimum": 0.9, "maximum": 1 }, "gateOutcome": { "const": "INCLUDED" }, "reason": { "const": "đúng sản phẩm (máy phân loại)" } } }
+    ] },
+    "excludedAudit": { "allOf": [
+      { "$ref": "#/$defs/auditBase" },
+      { "type": "object", "properties": { "choice": { "const": "NOT_ABOUT_PRODUCT" }, "confidence": { "type": "number", "minimum": 0.9, "maximum": 1 }, "gateOutcome": { "const": "EXCLUDED" }, "reason": { "const": "không nói về sản phẩm (máy phân loại)" } } }
+    ] },
+    "unchangedAudit": { "allOf": [
+      { "$ref": "#/$defs/auditBase" },
+      { "type": "object", "properties": { "gateOutcome": { "const": "UNCHANGED" }, "reason": { "type": "null" } } }
+    ] },
+    "noDecisionAudit": { "allOf": [
+      { "$ref": "#/$defs/auditBase" },
+      { "type": "object", "properties": { "gateOutcome": { "const": "NO_DECISION" }, "reason": { "type": "null" } } }
+    ] }
   }
 }

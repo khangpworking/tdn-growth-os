@@ -7,7 +7,7 @@ export type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-
 import { retainedTikTokCapture } from '../../../platform/collectors/apify-tiktok-comments.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
-import { applyL9JevDecision, type L9JevTriageSidecar } from './l9-jev-triage.js';
+import { applyL9JevDecisions, type L9JevTriageSidecar } from './l9-jev-triage.js';
 import { CitationRegistry } from '../citation-registry.js';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import type { TikTokCommentCapture, SanitizedTikTokComment } from '../../../platform/collectors/apify-tiktok-comments.js';
@@ -64,10 +64,11 @@ export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture
   for (let offset = 0; offset < candidates.length || offset === 0; offset += batchLimit)
     filterBatches.push(filterKeywordMeanings(keywords, candidates.slice(offset, offset + batchLimit)));
   const decisions = new Map(filterBatches.flatMap(batch => batch.results).map(row => [row.recordId, row]));
+  const appliedDecisions = applyL9JevDecisions([...decisions.values()], jevTriage);
   const records = frozenGroups.map(([recordId, group]) => {
     const video = videos.get(group.row.videoId)!;
     const l9 = decisions.get(recordId)!;
-    const applied = applyL9JevDecision(l9, jevTriage);
+    const applied = appliedDecisions.get(recordId)!;
     const reason = group.versions.length > 1 ? 'UNRESOLVED_CONFLICT' : group.row.exclusionReason ??
       (group.row.voice === 'SELLER_OR_CREATOR' ? 'SELLER_OR_CREATOR' : applied.decision === 'INCLUDED' ? null : applied.reason);
     const disposition = reason === null ? 'INCLUDED' as const : applied.decision === 'UNCLEAR' && !group.row.exclusionReason && group.row.voice === 'CUSTOMER' && group.versions.length === 1
