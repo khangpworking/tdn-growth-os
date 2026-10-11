@@ -58,14 +58,14 @@ This file is a plan with checklists. It does not assign work to agents; the owne
   - lọc nghĩa từ khoá (L9) và bình luận video là lời khách (L10);
   - chân dung người bán nhắm tới (E5);
   - số tham khảo ROAS/CPA kèm câu miễn trừ (E1);
-  - kiểm chéo bộ mã bằng model thứ hai (κ);
+  - kiểm chéo bộ mã bằng model thứ hai (κ) — **hoãn** theo quyết định ngày 11/10 (#209), chưa được lên lịch;
   - số liệu Cục Thống kê và World Bank (E12, E13).
 - **Thứ tự làm:** P1 (#143) và P2 (#140) đã merge ngày 08/10, nên các đợt sau bắt đầu từ main mới. Làm theo 4 đợt:
   - **A1:** gỡ 9 chỗ đang ngược quy tắc;
-  - **A2:** các bộ kiểm tra dùng chung (nhãn bản nháp, kiểm chéo κ, lọc từ khoá, cấm so sánh bậc nhất);
+  - **A2:** các bộ kiểm tra dùng chung (nhãn bản nháp, xếp hạng chủ đề E15, lọc từ khoá, cấm so sánh bậc nhất; kiểm chéo κ đã hoãn);
   - **A3:** phương pháp mới (bảng giá theo đơn vị chuẩn, Kết luận chính dạng Nhận định / Bằng chứng / Trạng thái, bản đọc Insight, chân dung);
   - **A4:** các phần chờ nguồn dữ liệu mới. Phần này phần lớn đã có trong gói P5, P7, P9, P10, plan chỉ bổ sung chỗ còn thiếu.
-- **Nghiệm thu:** chạy lại ba case (thạch dừa, bình giữ nhiệt, quạt cầm tay) rồi đối chiếu từng quy tắc.
+- **Nghiệm thu (U-40):** chỉ chạy thử 1 ca bình giữ nhiệt, sau khi chủ đặt trần chi. Thạch dừa và quạt cầm tay cần chủ quyết riêng sau ca thử.
 
 **Phần B: thêm nguồn đã duyệt lên màn hình "Nguồn dữ liệu".**
 
