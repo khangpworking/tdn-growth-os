@@ -11,7 +11,8 @@ export type InsightReaderInput =
   | InsightReaderInputV5
   | InsightReaderInputV6
   | InsightReaderInputV7
-  | InsightReaderInputV8;
+  | InsightReaderInputV8
+  | InsightReaderInputV9;
 
 export interface InsightReaderInputV1 {
   contractVersion: 'insight-reader-input-v1';
@@ -282,5 +283,52 @@ export interface InsightReaderRequestedPeriod7 {
 }
 export interface InsightReaderMethodReference7 {
   kind: 'SHOPEE_CODING';
+  sha256: string;
+}
+/**
+ * Source-bound qualitative draft reader input. The draft is replay-verified by the owning service and remains a proposed, U11-unavailable layer.
+ */
+export interface InsightReaderInputV9 {
+  contractVersion: 'insight-reader-input-v9';
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v9';
+  workspaceId: string;
+  runId: string;
+  draftPairId: string;
+  semanticSha256: string;
+  sourceReportSha256: string;
+  frozenStartSha256: string;
+  frozenScopeSha256: string;
+  sourceRendererVersion: 'automation-report-kit-v28';
+  scope: InsightReaderFrozenScope8;
+  retainedMethods: InsightReaderMethodReference8[];
+}
+export interface InsightReaderFrozenScope8 {
+  keyword: string;
+  definition: string;
+  requestedPeriod: InsightReaderRequestedPeriod8;
+}
+export interface InsightReaderRequestedPeriod8 {
+  startDate: string;
+  endDate: string;
+}
+export interface InsightReaderMethodReference8 {
+  kind:
+    | 'QUALITATIVE_DRAFT'
+    | 'CODING'
+    | 'LITERAL'
+    | 'LOCATED'
+    | 'NATIVE'
+    | 'CORPUS'
+    | 'BOUNDED'
+    | 'SOURCE_EVIDENCE'
+    | 'SOURCE_CLAIMS'
+    | 'DECISION_PACKET'
+    | 'DECISION_SYNTHESIS'
+    | 'I14_ADMISSION'
+    | 'I14_SYNTHESIS'
+    | 'CROSSCHECK'
+    | 'PRIVATE_CORPUS'
+    | 'PRIVATE_PROJECTION';
   sha256: string;
 }

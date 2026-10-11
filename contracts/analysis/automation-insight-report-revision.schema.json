@@ -18,6 +18,9 @@
     },
     {
       "$ref": "#/$defs/crosscheckRequest"
+    },
+    {
+      "$ref": "#/$defs/qualitativeRequest"
     }
   ],
   "$defs": {
@@ -305,6 +308,34 @@
         },
         "crosscheckInsight": {
           "$ref": "#/$defs/crosscheckSelection"
+        }
+      }
+    },
+    "qualitativeRequest": {
+      "title": "AutomationInsightQualitativeReportRevisionRequest",
+      "description": "Explicit source-bound qualitative draft admission. The owning service replays the exact retained S05/S07 source before this request can create an Insight revision.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "requestKey",
+        "previousPairId",
+        "qualitativeDraft"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "automation-insight-qualitative-report-revision-v1"
+        },
+        "requestKey": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "previousPairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "qualitativeDraft": {
+          "$ref": "automation-qualitative-draft-v1.schema.json#/$defs/draft"
         }
       }
     },

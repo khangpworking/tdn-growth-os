@@ -25,6 +25,7 @@ export type ResearchAutomationInsightReaderBuildRequest =
   | ResearchAutomationInsightReaderBuildRequestV1
   | ResearchAutomationInsightReaderBuildRequestV2
   | ResearchAutomationInsightReaderBuildRequestV3
+  | ResearchAutomationInsightReaderBuildRequestV4
   | ResearchAutomationTikTokReaderBuildRequest
   | ResearchAutomationShopeeReaderBuildRequest;
 export type ResearchAutomationReaderRevisionV2 =
@@ -369,6 +370,14 @@ export interface ResearchAutomationInsightReaderBuildRequestV3 {
   personaProposalSha256: Sha256;
   personaSourcePairId: Sha256;
   personaSourceSha256: Sha256;
+}
+export interface ResearchAutomationInsightReaderBuildRequestV4 {
+  contractVersion: 'insight-reader-build-v4';
+  reportKind: 'INSIGHT';
+  requestKey: string;
+  draftPairId: Sha256;
+  semanticSha256: Sha256;
+  sourceKind: 'QUALITATIVE';
 }
 export interface ResearchAutomationTikTokReaderBuildRequest {
   contractVersion: 'insight-reader-build-tiktok-v1';
