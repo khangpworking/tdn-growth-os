@@ -16,7 +16,7 @@ Completed:
   - U-32 checked (closed by owner, PR #162);
   - U-26 rewritten as decided, implementation pending;
   - U-11 split into U-11a (coding, ranking, "Khác", `needsTopUp` signal) and U-11b (top-up wiring after U-26 merges), with the κ cross-check kept as a deferred block;
-  - U-40 runs last, pilot first, needs a batch budget cap;
+  - U-40 runs last, as one bình giữ nhiệt pilot only, and needs the owner's budget cap;
   - #209 order and open owner items added.
 - No unmerged code item is checked.
 
@@ -47,7 +47,7 @@ Next action:
 2. Code PR for U-26.
 3. Code PR for U-11a, then U-11b after U-26 merges.
 4. Decide the U-32 legacy replay follow-up.
-5. U-40 only after the owner sets the batch budget cap.
+5. U-40 (bình giữ nhiệt pilot only) after the owner sets the budget cap; further cases need a new owner decision.
 
 Business decisions pending:
 - Release label for phase-1 topic counts. Without the second-model check, the label "phân loại do AI, đã kiểm chéo" cannot be used. Recorded in E15 as "còn chờ chủ".

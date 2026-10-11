@@ -1,4 +1,4 @@
-# Plan: bring TDN in line with Ultimate v1.12, and show the approved data sources on the source board
+# Plan: bring TDN in line with Ultimate v1.13, and show the approved data sources on the source board
 
 Implementation evidence update (2026-10-08): PR #172, PR #174, PR #175 and PR #177 are merged after
 independent review and exact-head full hosted checks. Their bounded U-03/U-04/U-13
@@ -6,19 +6,19 @@ and reader U-29/U-34 changes, authenticated spec intake, bounded keyword/source
 integration and remaining dependencies are recorded in
 [STATUS](../STATUS.md#ultimate-alignment--implementation-run-08102026). Existing
 unchecked requirements below remain operative; these merges do not establish
-full Ultimate completion, U-11 release, U-26 policy or U-32 aggregate eligibility.
+full Ultimate completion, U-11 release or U-26 implementation. U-32 is closed with no two-platform aggregate (2026-10-11, #209).
 
 
 > **Implementation coordination update (2026-10-08):** Operative sources are Ultimate v1.12 and registry v1.9; the filename and original audit references below are retained for traceability. Shared schemas/generated outputs have one explicitly leased writer. SYNC-1 owns reader/M05 methods; SYNC-3 owns draft/Insight defaults and `reports.ts`; SYNC-6 owns source-board/history integration. Shared service/config and later Insight work are serialized. SYNC-7 depends on SYNC-1, SYNC-3 and SYNC-4 label contracts. Package handoffs and exact-head review/CI evidence determine completion, not these assignments.
 >
-> **Owner decisions (2026-10-11, [#209](https://github.com/khangpworking/tdn-growth-os/issues/209)):** order is U-32 → U-26 → U-11 phase 1 → U-40. U-32 is **CLOSED**: Shopee and TikTok Shop are never added together, even when both come from the same export, period and unit; the per-platform correction in PR #162 is sufficient and the two-platform-total exception is dropped. U-26 run-flow policy and U-11 phase 1 are **decided, implementation pending** (separate code PRs). The U-11 second-model check (κ) is **deferred**, so U-11 stays open for that part. U-40 is agreed but runs last, as a pilot first, and nothing runs until the owner gives the batch budget cap. Existing PageIndex owner POST remains unchanged: only GET is configuration/history-only, and account/global totals must be labelled separately from workspace activity. B1 contains **11 cards**; Trends is an operation in the SerpApi card.
+> **Owner decisions (2026-10-11, [#209](https://github.com/khangpworking/tdn-growth-os/issues/209)):** Operative source is now Ultimate v1.13. Order is U-32 → U-26 → U-11 phase 1 → U-40. U-32 is **CLOSED**: Shopee and TikTok Shop are never added together, even when both come from the same export, period and unit; the per-platform correction in PR #162 is sufficient and the two-platform-total exception is dropped. U-26 run-flow policy and U-11 phase 1 are **decided, implementation pending** (separate code PRs). The U-11 second-model check (κ) is **deferred**, so U-11 stays open for that part. U-40 is agreed but runs last, as a pilot first, and nothing runs until the owner gives the batch budget cap. Existing PageIndex owner POST remains unchanged: only GET is configuration/history-only, and account/global totals must be labelled separately from workspace activity. B1 contains **11 cards**; Trends is an operation in the SerpApi card.
 >
 > Task-specific authority permits the coordinator to merge only these implementation PRs after independent review and passing exact-head CI, using the normal repository method and `--match-head-commit`. Deployment, cap changes, bypass and unrelated PRs remain outside this authority. Historical baseline test failures do not waive the CI gate.
 
 ### Verified merged implementation (08/10/2026)
 
 - [PR #161](https://github.com/khangpworking/tdn-growth-os/pull/161): B-01/B-02/B-04/B-05/B-06/B-07 complete; B-03 partial (P4 retained uploads, SerpApi operation history and PageIndex workspace/account distinction complete; future collectors/readers remain with their packages). Reviewed head `5ff13b5a88508400d006c7a3afbeb77da29419f0`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37758072524) passed, merge `e306c1b757d6823c654970b738afc1f9349312e8`.
-- [PR #162](https://github.com/khangpworking/tdn-growth-os/pull/162): U-06/U-08/U-30/U-31 and Market-only U-07 complete; U-32 safe per-platform correction complete, positive-total exception still escalated (exception dropped and U-32 closed on 2026-10-11, #209). Reviewed head `116b371c1c6153b3e91c9a62400eb223d9c5848e`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37759463000) passed, merge `a2250b76ad89120d26bad0e8f288fdd8a73bb12f`.
+- [PR #162](https://github.com/khangpworking/tdn-growth-os/pull/162): U-06/U-08/U-30/U-31 and Market-only U-07 complete; U-32 safe per-platform correction complete; the positive-total exception was dropped and U-32 closed on 2026-10-11 (#209). Remaining follow-up: legacy reader contract 1.0.0/1.1.0 replay still sums platforms (see [DOCS-209](../handoffs/DOCS-209.md)). Reviewed head `116b371c1c6153b3e91c9a62400eb223d9c5848e`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37759463000) passed, merge `a2250b76ad89120d26bad0e8f288fdd8a73bb12f`.
 
 - [PR #163](https://github.com/khangpworking/tdn-growth-os/pull/163): U-12 bounded L9 core complete; AI list drafting, P5/P9/U-23 callers and M13/I17 disclosure remain pending, so U-12 and G-13 remain partial. Reviewed head `3e71c25c98d44fa0eb02c7fdf6e41876d4fae48a`, full [Check](https://github.com/khangpworking/tdn-growth-os/actions/runs/37762429133) passed, merge `abaaf6749c4ae1ccd3af46246279d8e9f342581b`. See [SYNC-5](../handoffs/SYNC-5.md).
 
@@ -290,10 +290,10 @@ Where things live:
 
 ### A5. Acceptance and records
 
-- [ ] U-40 Re-run the three acceptance cases on a staging copy (paid calls within the configured caps, logged per E14). Owner agreed on 2026-10-11 (#209) with these conditions:
+- [ ] U-40 Run one acceptance pilot on a staging copy (paid calls within the configured caps, logged per E14). Owner agreed on 2026-10-11 (#209) with these conditions:
   - It runs last, after U-26 and U-11 phase 1 (U-11a, U-11b) are merged.
-  - Pilot bình giữ nhiệt first; thạch dừa and quạt cầm tay run only after the pilot passes.
-  - The owner gives a total budget cap for the whole batch later; nothing runs without it.
+  - Only the bình giữ nhiệt pilot is authorised. Running thạch dừa or quạt cầm tay needs a separate owner decision after the pilot.
+  - The owner gives a total budget cap later; nothing runs without it.
   - Check prerequisites first (for example, OpenCLI installed on the runner).
   - For each section, record pass/fail against its Ultimate rules in a new `docs/research/ultimate-method/tdn-acceptance-<date>.md`.
 - [ ] U-41 Update the TDN column in README §4 and in every CHANGELOG row that this work closes (`Đã đồng bộ (PR …)`).
