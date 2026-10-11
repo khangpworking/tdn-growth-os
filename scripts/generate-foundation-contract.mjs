@@ -14,6 +14,7 @@ const contracts = [
   ['analysis', 'keyword-list-draft-record-v3'],
   ['analysis', 'source-appendix-projection'],
   ['analysis', 'automation-source-evidence'],
+  ['analysis', 'l9-jev-triage'],
   ['analysis', 'pageindex-cloud-query'],
   ['analysis', 'automation-decision-packets'],
   ['analysis', 'automation-decision-synthesis-input'],

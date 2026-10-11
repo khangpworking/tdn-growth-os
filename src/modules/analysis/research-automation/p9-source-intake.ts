@@ -18,6 +18,9 @@ import { CitationRegistry } from '../citation-registry.js';
 import { ApifyTikTokCommentsCollector, retainedTikTokCapture, tikTokCommentActorInput } from '../../../platform/collectors/apify-tiktok-comments.js';
 import { selectTikTokVideos, type TikTokVideoSelectionBinding } from './tiktok-video-selection.js';
 import { buildTikTokCommentCorpus, citeTikTokCommentCorpus } from './tiktok-comment-intake.js';
+import { l9JevTriageMatches, unavailableL9JevTriage, validatesL9JevTriageSidecar, type L9JevTriageSidecar } from './l9-jev-triage.js';
+import type { KeywordMeaningFilterData, KeywordMeaningFilterResult } from '../keyword-meaning-filter.js';
+import type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
 import { prepareVideoReading, citeVideoReading } from './video-reading-intake.js';
 
 const require = createRequire(import.meta.url);
@@ -30,6 +33,20 @@ const validateIntent = ajv.compile<TikTokCommentCollectionIntent>({ $ref: `${com
 const validateCapture = ajv.compile<TikTokCommentRetainedCapture>({ $ref: `${commentsSchema.$id}#/$defs/capture` });
 const validateReadingRequest = ajv.compile<VideoReadingPrepareRequest>({ $ref: `${readingSchema.$id}#/$defs/request` });
 const validateCommentView = ajv.compile<TikTokCommentReadView>({ $ref: `${commentsSchema.$id}#/$defs/readView` });
+
+function filterResult(corpus: TikTokCommentCorpus): KeywordMeaningFilterResult {
+  const results = corpus.filterBatches.flatMap(batch => batch.results);
+  const byReason: Record<string, number> = {};
+  let included = 0; let excluded = 0; let unclear = 0;
+  for (const row of results) {
+    if (row.decision === 'INCLUDED') included++;
+    else if (row.decision === 'EXCLUDED') excluded++;
+    else { unclear++; byReason[row.reason] = (byReason[row.reason] ?? 0) + 1; }
+  }
+  return { contractVersion: 'keyword-meaning-filter-v1', dataVersion: corpus.keywordData.dataVersion, category: corpus.keywordData.category,
+    provenance: corpus.keywordData.provenance, keywords: corpus.keywordData.keywords as [string, ...string[]], exclusions: corpus.keywordData.exclusions,
+    results, accounting: { included, excluded, unclear, byReason } };
+}
 const validateReadingView = ajv.compile<VideoReadingReadView>({ $ref: `${readingSchema.$id}#/$defs/readView` });
 const sha = (value: Uint8Array | string) => createHash('sha256').update(value).digest('hex');
 const bytes = (value: unknown) => Buffer.from(canonicalJson(value));
@@ -75,6 +92,7 @@ export class AutomationP9SourceIntake {
     diagnostics: SourcePackageService;
     publishDiagnostic: <T>(operation: () => Promise<T>) => Promise<T>;
     keywordDraft: (digest: string) => Promise<RetainedKeywordListDraftRecord>;
+    triageL9?: (input: { readonly data: KeywordMeaningFilterData; readonly corpus: TikTokCommentCorpus }) => Promise<L9JevTriageSidecar>;
     publish: <T>(operation: () => Promise<T>) => Promise<T> }) {
     this.#packages = options.packages; this.#reader = new FoundationSourcePackageReader(options.packages);
   }
@@ -170,9 +188,16 @@ export class AutomationP9SourceIntake {
         new Map([['intent.json', bytes(intent)], ['provider-receipt.json', bytes(receipt)]]), receipt.retrievedAt); });
     signal?.throwIfAborted();
     if (!equal(capture.privacy, intent.privacy) || capture.actor !== intent.actor) fail();
-    const corpus = buildTikTokCommentCorpus(selected, capture, draft.output);
+    const deterministicCorpus = buildTikTokCommentCorpus(selected, capture, draft.output);
+    const proposedJevTriage = this.options.triageL9 ? await this.options.triageL9({ data: draft.output, corpus: deterministicCorpus }) : null;
+    const jevTriage = proposedJevTriage && (!validatesL9JevTriageSidecar(proposedJevTriage) ||
+      !l9JevTriageMatches(filterResult(deterministicCorpus), proposedJevTriage))
+      ? unavailableL9JevTriage(draft.output, filterResult(deterministicCorpus)) : proposedJevTriage;
+    signal?.throwIfAborted();
+    const corpus = buildTikTokCommentCorpus(selected, capture, draft.output, jevTriage);
     const files = new Map<string, Uint8Array>([['selection-package.json', bytes(selectedIdentity)], ['intent.json', bytes(intent)],
-      ['keyword-draft.json', bytes(draft)], ['capture.json', bytes(retainedTikTokCapture(capture))], ['corpus.json', bytes(corpus)]]);
+      ['keyword-draft.json', bytes(draft)], ['capture.json', bytes(retainedTikTokCapture(capture))], ['corpus.json', bytes(corpus)],
+      ...(jevTriage ? [['l9-jev-triage.json', bytes(jevTriage)] as [string, Uint8Array]] : [])]);
     for (const [index, page] of capture.pages.entries()) files.set(`pages/${index}.json`, page.bytes);
     signal?.throwIfAborted();
     const retained = await this.#store(binding, 'comments', requestKey, files, capture.receipt.retrievedAt);
@@ -184,7 +209,10 @@ export class AutomationP9SourceIntake {
     const intent = json<TikTokCommentCollectionIntent>(p, 'intent.json');
     const capture = json<TikTokCommentRetainedCapture>(p, 'capture.json');
     if (!validateIntent(intent) || !validateCapture(capture)) fail();
-    await this.#verify(p, binding, 'comments', intent.requestKey, ['selection-package.json', 'intent.json', 'keyword-draft.json', 'capture.json', 'corpus.json', ...capture.pages.map((_, i) => `pages/${i}.json`)]);
+    const jevFile = p.files.find(file => file.path === 'l9-jev-triage.json');
+    const parsedJevTriage = jevFile ? json<L9JevTriageSidecar>(p, 'l9-jev-triage.json') : null;
+    const retainedJevTriage = parsedJevTriage && validatesL9JevTriageSidecar(parsedJevTriage) ? parsedJevTriage : null;
+    await this.#verify(p, binding, 'comments', intent.requestKey, ['selection-package.json', 'intent.json', 'keyword-draft.json', 'capture.json', 'corpus.json', ...(jevFile ? ['l9-jev-triage.json'] : []), ...capture.pages.map((_, i) => `pages/${i}.json`)]);
     const selected = await this.selection(binding, json<TikTokSourcePackageIdentity>(p, 'selection-package.json'));
     if (selected.request.requestKey !== intent.requestKey || !equal(intent.binding, { ...binding, sourcePeriod: selected.selection.sourcePeriod }) ||
       !equal(intent.selection, selected.selection) || intent.selectionSha256 !== selected.selectionSha256 || !equal(intent.privacy, capture.privacy) ||
@@ -209,7 +237,10 @@ export class AutomationP9SourceIntake {
     const returnedRows = capture.pages.reduce((count, page) => count + page.rows.length, 0);
     if (returnedRows > intent.selection.videos.length * intent.maxCommentsPerVideo * 4 ||
       (capture.receipt.providerTotalRows !== null && capture.receipt.providerTotalRows !== returnedRows)) fail();
-    const corpus = buildTikTokCommentCorpus(selected, transient, draft.output);
+    const deterministicCorpus = buildTikTokCommentCorpus(selected, transient, draft.output);
+    const jevTriage = retainedJevTriage && l9JevTriageMatches(filterResult(deterministicCorpus), retainedJevTriage)
+      ? retainedJevTriage : jevFile ? unavailableL9JevTriage(draft.output, filterResult(deterministicCorpus)) : null;
+    const corpus = buildTikTokCommentCorpus(selected, transient, draft.output, jevTriage);
     if (!member(p, 'corpus.json').bytes.equals(bytes(corpus))) fail();
     const registry = new CitationRegistry();
     const view: TikTokCommentReadView = { contractVersion: 'tiktok-comment-read-v1', registryId: 'S07', sampleLabel: corpus.sampleLabel,

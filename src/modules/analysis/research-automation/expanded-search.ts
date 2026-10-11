@@ -8,6 +8,7 @@ import {
   type ExpandedSearchRequest, type SearchCallBudget,
 } from './expanded-search-queries.js';
 import { filterSerpApiResults, serpApiResultRecordId, type SerpApiL9FilterOutput } from './serpapi-l9-filter.js';
+import { applyL9JevTriage, type L9JevTriageSidecar } from './l9-jev-triage.js';
 import type { CollectInput, CollectResult, DateWindow, ProviderCallOptions, ProviderUsage, WebDiscoveryResult } from './providers.js';
 
 export interface ExpandedSearchEvidence {
@@ -28,6 +29,7 @@ export interface ExpandedSearchEvidence {
     readonly siteDomain: string | null;
   }[];
   readonly admission: SerpApiL9FilterOutput;
+  readonly jevTriage?: L9JevTriageSidecar;
   /** Count of INCLUDED result records, not a unique-entity count or a market statistic. */
   readonly mainCount: number;
 }
@@ -49,6 +51,7 @@ export function createExpandedSearchRunner(input: {
   readonly apiKey: string | null;
   readonly transport: ProviderTransport;
   readonly budget: SearchCallBudget;
+  readonly triageL9?: (admission: SerpApiL9FilterOutput) => Promise<L9JevTriageSidecar>;
 }): { execute(request: ExpandedSearchRequest, filter: KeywordMeaningFilterData,
   options?: ProviderCallOptions): Promise<readonly ExpandedSearchEvidence[]> } {
   const run = structuredClone(input.run);
@@ -82,13 +85,17 @@ export function createExpandedSearchRunner(input: {
             cache.set(cacheKey, copyAttempt(attempt));
           }
           const admission = filterSerpApiResults({ results: attempt.webResults, filter: frozenFilter });
+          const jevTriage = input.triageL9 ? await input.triageL9(admission) : null;
+          const applied = applyL9JevTriage(admission.result, jevTriage);
+          const includedRecordIds = new Set([...applied].filter(([, row]) => row.decision === 'INCLUDED').map(([recordId]) => recordId));
           evidence.push({
             runId: run.runId, query: query.query, cacheKey, cacheHit: saved !== undefined,
             requestedWindow: query.requestedWindow, siteDomain: query.siteDomain, attempt,
             invocationUsage: saved ? emptyUsage('SERPAPI') : attempt.usage,
             rows: attempt.webResults.map(result => ({ recordId: serpApiResultRecordId(result), result,
               requestedWindow: query.requestedWindow, siteDomain: query.siteDomain })),
-            admission, mainCount: admission.includedRecordIds.length,
+            admission, mainCount: attempt.webResults.filter(result => includedRecordIds.has(serpApiResultRecordId(result))).length,
+            ...(jevTriage ? { jevTriage } : {}),
           });
           if (attempt.status === 'NOT_CONFIGURED' || attempt.status === 'CANCELLED'
             || attempt.status === 'WAITING_FOR_INPUT') break;
