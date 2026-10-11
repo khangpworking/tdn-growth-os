@@ -60,7 +60,8 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       B.set(`rule.${i}.n`, d.ruleHits[i] ?? 0, 'num'); return [label(segName(rule.seg)), label(rule.why ?? 'Luật khớp đầu tiên của hồ sơ đã lưu'), n(bf(`rule.${i}.n`))];
     })) + options.limitations.map(limit => `<p>${esc(limit)}</p>`).join('') + reconciliationState + reconciliation,
     'Chưa đủ căn cứ về kỳ, múi giờ, khung mẫu và tính rời nhau để cộng chéo sàn. Tổng và tỷ lệ cần đủ dữ liệu của đúng phạm vi.'));
-  const salesTable = (no: string) => tbl(no, 'Doanh số trong mẫu, từng sàn', '', ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình'],
+  const salesTable = (no: string) => tbl(no, next ? 'Doanh số trong mẫu và giá trung bình từ dữ liệu bán hàng, từng sàn' : 'Doanh số trong mẫu, từng sàn', '',
+    next ? ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình từ doanh thu ÷ đơn vị bán'] : ['Sàn', 'Doanh thu ước tính', 'Đơn vị bán ước tính', 'Giá trung bình'],
     PLATS.map(P => [plat(P), n(bf(`${P}.core.rev`)), n(bf(`${P}.core.units`)), n(bf(`${P}.core.asp`))]));
   let monthly = '';
   if (d.webFacts !== null && !('absent' in d.webFacts.monthly)) {
@@ -130,7 +131,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
         observation.price.conditions.length ? `<span data-quote>${observation.price.conditions.map(esc).join('; ')}</span>` : 'Không ghi điều kiện khuyến mãi'];
     };
     const headings = ['Sàn', 'Sản phẩm / mã nguồn', 'Biến thể', 'Ngành hàng', 'Giá (đồng)', 'Số lượng', 'Giá theo đơn vị chuẩn', 'Đơn vị chuẩn / cơ sở', 'Loại giá', 'Kỳ quan sát', 'Trạng thái', 'Nguồn số lượng', 'Điều kiện giá'];
-    let no = 2;
+    let no = next ? 1 : 2;
     unitPriceTables = [...groups.values()].map(group => tbl(`8.${no++}`, 'Giá theo đơn vị chuẩn — sắp xếp tăng dần trong phạm vi tương thích', '', headings,
       [...group].sort((a, b) => a.value! - b.value! || a.rowI - b.rowI).map(cells),
       { src: 'Quy cách trang bán và khai báo số lượng được giữ nguyên trong bản lưu.', note: 'Giá hiển thị làm tròn đến đồng; sắp xếp theo giá trị chưa làm tròn. Số lượng hiển thị tối đa ba chữ số thập phân. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị/cơ sở, loại giá, điều kiện giá và kỳ. Hàng dùng lâu cùng nhóm quy cách; combo không tách thành món.' })).join('');
@@ -141,7 +142,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     if (absent.length && d.unitPrices.length) unitPriceTables += tbl(`8.${no}`, 'Listing chưa có quy cách/giá đã xác minh — không đưa vào sắp xếp', '', ['Sàn', 'Tiêu đề nguồn', 'Trạng thái'], absent.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, 'Chưa rõ số lượng và giá niêm yết' + cite(row.i)]));
     unitPriceTables += '<p>Kỳ quan sát giá ghi ở từng dòng và giữ riêng với kỳ doanh số. Khối lượng tịnh và khối lượng cái giữ riêng; thể tích tính theo đơn vị chuẩn, hàng đếm giữ cùng loại đơn vị. Quy đổi chỉ từ quy cách có vị trí nguồn hoặc khai báo của chủ. Đây là đối chiếu khai báo với bản lưu nguồn, không xác thực người bán. Không suy chất lượng, biên lợi nhuận hay mức giá nên bán.</p><p>Chưa có trường ROAS hoặc CPA với nguồn đã xác nhận trong đầu vào đã lưu; chưa có số liệu quảng cáo (ước tính) để tham khảo. Không suy từ doanh thu hoặc chi tiêu quảng cáo.</p><p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
   }
-  sections.push(section('M08', 'Giá và kinh tế đơn vị', 'Giá trung bình chỉ có khi doanh thu và đơn vị bán cùng dòng đều có số, mẫu số khác không.', salesTable('8.1') + unitPriceTables, next ? 'Giá bán trung bình = doanh thu ÷ đơn vị bán trong mẫu; giữ riêng với giá niêm yết, thanh toán và khuyến mãi có điều kiện. Chưa tính lãi vì không có giá vốn.' : 'Không có giá vốn hoặc phép quy đổi đã xác minh; chưa tính lãi hay giá theo đơn vị chuẩn.'));
+  sections.push(section('M08', 'Giá và kinh tế đơn vị', next ? 'Giá niêm yết, thanh toán, khuyến mãi có điều kiện và giá theo đơn vị chuẩn chỉ lấy từ quy cách đã lưu.' : 'Giá trung bình chỉ có khi doanh thu và đơn vị bán cùng dòng đều có số, mẫu số khác không.', next ? unitPriceTables : salesTable('8.1') + unitPriceTables, next ? 'Giữ riêng các giá từ quy cách với doanh thu trong mẫu. Chưa tính lãi vì không có giá vốn.' : 'Không có giá vốn hoặc phép quy đổi đã xác minh; chưa tính lãi hay giá theo đơn vị chuẩn.'));
   sections.push(section('M09', 'Động lực và rủi ro', 'Chưa đủ bằng chứng để kết luận nguyên nhân.', tbl('9.1', 'Ngày mở bán do nguồn ghi, giữ riêng từng dòng', '', ['Sàn', 'Tiêu đề nguồn', 'Ngày mở bán'], rows.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, row.start === null || row.start === undefined ? 'Chưa rõ ngày' : label(row.start)]))));
   sections.push(section('M10', 'Dự báo và kịch bản', 'Chưa dự báo.', '<p>Cần chuỗi phù hợp và giả định đã kiểm chứng trước khi lập kịch bản.</p>'));
   sections.push(...currentProposals({ PLATS, coreSegs: profile.core, segName, bf, tbl, SRC: sourceText }));

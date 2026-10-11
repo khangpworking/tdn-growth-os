@@ -16,10 +16,9 @@ const table = (caption: string, headings: readonly string[], rows: readonly stri
 export type AdvertisingReferenceInput = {
   period: { start: string; end: string } | null;
   object: { kind: 'product' | 'shop' | 'video'; label: string };
-  revenue: string | number | null;
-  adCost: string | number | null;
-  orders: string | number | null;
-  sourceConfirmed: boolean;
+  revenue: { value: string | number | null; source: { identity: string } | null };
+  adCost: { value: string | number | null; source: { identity: string } | null };
+  orders: { value: string | number | null; source: { identity: string } | null };
   unavailableReason?: string;
 };
 
@@ -50,17 +49,25 @@ const advertisingObject = (object: AdvertisingReferenceInput['object']): string 
  * needed by that metric are present. The output never exposes source field
  * names or the derived share metric.
  */
+const completePeriod = (period: AdvertisingReferenceInput['period']): boolean => period !== null &&
+  period.start.trim() !== '' && period.end.trim() !== '';
+
 export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInput): string {
-  const period = advertisingPeriod(input.period), object = advertisingObject(input.object);
-  const revenue = decimal(input.revenue), adCost = decimal(input.adCost), orders = decimal(input.orders);
+  const period = completePeriod(input.period) ? advertisingPeriod(input.period) : 'chưa xác định trong bản lưu';
+  const object = advertisingObject(input.object);
+  const sources = [input.revenue.source, input.adCost.source, input.orders.source];
+  const sourceIdentities = sources.map(source => source?.identity.trim() ?? '');
+  const sameConfirmedSource = sourceIdentities.every(identity => identity !== '') && new Set(sourceIdentities).size === 1;
+  const confirmed = sameConfirmedSource && completePeriod(input.period) && input.object.label.trim() !== '';
+  const revenue = decimal(input.revenue.value), adCost = decimal(input.adCost.value), orders = decimal(input.orders.value);
   const unavailable = input.unavailableReason ?? 'thiếu trường nguồn đã xác nhận với ngữ nghĩa quảng cáo';
-  const roas = input.sourceConfirmed && revenue !== null && adCost !== null && adCost > 0 ? revenue / adCost : null;
-  const cpa = input.sourceConfirmed && adCost !== null && orders !== null && orders > 0 ? adCost / orders : null;
+  const roas = confirmed && revenue !== null && adCost !== null && adCost > 0 ? revenue / adCost : null;
+  const cpa = confirmed && adCost !== null && orders !== null && orders > 0 ? adCost / orders : null;
   const roasReason = roas === null
-    ? input.sourceConfirmed && adCost === 0 ? 'chi phí quảng cáo bằng không nên không thể chia' : unavailable
+    ? confirmed && adCost === 0 ? 'chi phí quảng cáo bằng không nên không thể chia' : unavailable
     : '';
   const cpaReason = cpa === null
-    ? input.sourceConfirmed && orders === 0 ? 'số đơn bằng không nên không thể chia' : unavailable
+    ? confirmed && orders === 0 ? 'số đơn bằng không nên không thể chia' : unavailable
     : '';
   const disclaimer = 'Đây là số ước tính tham khảo theo cùng một nguồn và kỳ; không suy ra lợi nhuận hoặc “có lãi”, không so sánh kênh và không trộn với số liệu bán hàng từ nguồn khác.';
   return `<div class="market-advertising-reference"><h4>Chỉ số quảng cáo tham khảo</h4>` +
@@ -107,7 +114,8 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   const period = method.input.metric?.input.scope ?? null;
   return html + '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +
     renderAutomationMarketAdvertising({ period: period ? { start: period.start, end: period.end } : null,
-      object: { kind: 'video', label: 'chưa xác định trong đầu vào Market' }, revenue: null, adCost: null, orders: null,
-      sourceConfirmed: false, unavailableReason: 'Chưa có trường ROAS hoặc CPA với nguồn và ngữ nghĩa đã xác nhận; đầu vào Market chưa có trường chi phí quảng cáo và số đơn đã xác nhận' }) +
+      object: { kind: 'video', label: 'chưa xác định trong đầu vào Market' },
+      revenue: { value: null, source: null }, adCost: { value: null, source: null }, orders: { value: null, source: null },
+      unavailableReason: 'Chưa có trường ROAS hoặc CPA với nguồn và ngữ nghĩa đã xác nhận; đầu vào Market chưa có trường chi phí quảng cáo và số đơn đã xác nhận' }) +
     '<p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
 }

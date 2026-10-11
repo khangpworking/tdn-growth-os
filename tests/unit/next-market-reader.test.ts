@@ -28,7 +28,7 @@ test('Market1.4 has six unordered scoped findings, strict unit tables and same-s
   const m08 = doc.querySelector('#phan-8')!.textContent!;
   assert.match(m08, /100g \(khối lượng tịnh\)/); assert.match(m08, /100g \(khối lượng cái\)/);
   assert.match(m08, /100ml/); assert.match(m08, /đồng\/viên/); assert.match(m08, /đồng\/cái/); assert.match(m08, /đồng\/combo/);
-  assert.match(m08, /giá bán trung bình|Giá bán trung bình/);
+  assert.doesNotMatch(m08, /giá bán trung bình|Giá bán trung bình|giá trung bình từ dữ liệu bán hàng/);
   assert.match(m08, /Chưa có trường ROAS hoặc CPA/);
   assert.doesNotMatch(m08, /adSpend|adShare/);
   assert.ok(lint(built.html, { visibleTextRules: true }).every(item => item.ok), JSON.stringify(lint(built.html, { visibleTextRules: true }).filter(item => !item.ok)));
