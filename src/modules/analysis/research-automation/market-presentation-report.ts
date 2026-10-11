@@ -13,6 +13,63 @@ const mark = (ref: { sourceSha256: string; locator: string; label?: string }, ci
 const table = (caption: string, headings: readonly string[], rows: readonly string[][]): string =>
   `<div class="table-wrap" role="region" aria-label="${escape(caption)}" tabindex="0"><table><caption>${escape(caption)}</caption><thead><tr>${headings.map(h => `<th scope="col">${escape(h)}</th>`).join('')}</tr></thead><tbody>${rows.map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`;
 
+export type AdvertisingReferenceInput = {
+  period: { start: string; end: string } | null;
+  object: { kind: 'product' | 'shop' | 'video'; label: string };
+  revenue: string | number | null;
+  adCost: string | number | null;
+  orders: string | number | null;
+  sourceConfirmed: boolean;
+  unavailableReason?: string;
+};
+
+const decimal = (value: string | number | null): number | null => {
+  if (value === null || (typeof value === 'number' && (!Number.isFinite(value) || value < 0))) return null;
+  if (typeof value === 'string' && !/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(value)) return null;
+  const parsed = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
+};
+
+const advertisingNumber = (value: number | null, suffix = ''): string => value === null
+  ? 'chưa khả dụng'
+  : `${value.toLocaleString('vi-VN', { maximumFractionDigits: 3 })}${suffix}`;
+
+const advertisingPeriod = (period: AdvertisingReferenceInput['period']): string => period === null
+  ? 'chưa xác định trong bản lưu'
+  : `${period.start} đến ${period.end}`;
+
+const advertisingObject = (object: AdvertisingReferenceInput['object']): string => {
+  const labels = { product: 'sản phẩm', shop: 'gian hàng', video: 'video' };
+  return `${labels[object.kind]}: ${object.label}`;
+};
+
+/**
+ * Renders advertising references without treating a retained export column as
+ * authenticated advertising evidence. A number is calculated only when the
+ * caller explicitly confirms the source semantics and all same-source inputs
+ * needed by that metric are present. The output never exposes source field
+ * names or the derived share metric.
+ */
+export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInput): string {
+  const period = advertisingPeriod(input.period), object = advertisingObject(input.object);
+  const revenue = decimal(input.revenue), adCost = decimal(input.adCost), orders = decimal(input.orders);
+  const unavailable = input.unavailableReason ?? 'thiếu trường nguồn đã xác nhận với ngữ nghĩa quảng cáo';
+  const roas = input.sourceConfirmed && revenue !== null && adCost !== null && adCost > 0 ? revenue / adCost : null;
+  const cpa = input.sourceConfirmed && adCost !== null && orders !== null && orders > 0 ? adCost / orders : null;
+  const roasReason = roas === null
+    ? input.sourceConfirmed && adCost === 0 ? 'chi phí quảng cáo bằng không nên không thể chia' : unavailable
+    : '';
+  const cpaReason = cpa === null
+    ? input.sourceConfirmed && orders === 0 ? 'số đơn bằng không nên không thể chia' : unavailable
+    : '';
+  const disclaimer = 'Đây là số ước tính tham khảo theo cùng một nguồn và kỳ; không suy ra lợi nhuận hoặc “có lãi”, không so sánh kênh và không trộn với số liệu bán hàng từ nguồn khác.';
+  return `<div class="market-advertising-reference"><h4>Chỉ số quảng cáo tham khảo</h4>` +
+    `<p>Kỳ: ${escape(period)} · Đối tượng: ${escape(object)}.</p>` +
+    `<ul><li>ROAS: ${advertisingNumber(roas, 'x')}${roas === null ? ` · Lý do: ${escape(roasReason)}` : ' · ước tính tham khảo'}</li>` +
+    `<li>CPA: ${advertisingNumber(cpa, ' VND/đơn')}${cpa === null ? ` · Lý do: ${escape(cpaReason)}` : ' · ước tính tham khảo'}</li></ul>` +
+    `<p class="warning">${escape(disclaimer)}</p></div>`;
+}
+
 /** Every statement is frozen by the owning method; rendering introduces no
  * calculation, interpretation, ordering by importance or provider execution. */
 export function renderAutomationMarketFindings(method: Method, citations: ReportCitations): string {
@@ -47,5 +104,10 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   if (absent.length) html += table('Listing chưa có quy cách hoặc giá đã xác minh — không đưa vào sắp xếp', ['Sàn', 'Listing', 'Tiêu đề nguồn', 'Trạng thái'],
     absent.map(row => [row.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', literal(row.listing), literal(row.title), 'Chưa rõ số lượng và giá niêm yết' +
       (method.binding.metric ? mark({ sourceSha256: method.binding.metric.workbookSha256, locator: `Sheet1!A${row.i + 2}:T${row.i + 2}`, label: 'Dòng sản phẩm trong tệp đã lưu' }, citations) : '')]));
-  return html + '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p><p>Chưa có trường ROAS hoặc CPA với nguồn và ngữ nghĩa đã xác nhận trong đầu vào đã lưu; chưa có số liệu quảng cáo (ước tính) để tham khảo. Không suy từ doanh thu hoặc chi tiêu quảng cáo.</p><p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
+  const period = method.input.metric?.input.scope ?? null;
+  return html + '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +
+    renderAutomationMarketAdvertising({ period: period ? { start: period.start, end: period.end } : null,
+      object: { kind: 'video', label: 'chưa xác định trong đầu vào Market' }, revenue: null, adCost: null, orders: null,
+      sourceConfirmed: false, unavailableReason: 'Chưa có trường ROAS hoặc CPA với nguồn và ngữ nghĩa đã xác nhận; đầu vào Market chưa có trường chi phí quảng cáo và số đơn đã xác nhận' }) +
+    '<p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
 }
