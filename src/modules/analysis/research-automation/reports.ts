@@ -58,7 +58,7 @@ import type { CaptureRecord, ScopeSnapshot, StartSnapshot, StepResultDocument, S
 import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
-import { auditMarketReportHtml } from './market-business-gate.js';
+import { assertMarketBusinessGate } from './market-business-gate.js';
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
 
@@ -916,8 +916,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
   if (marketPresentation) {
-    const failed = auditMarketReportHtml(html).filter(check => !check.ok);
-    if (failed.length) throw new TypeError(`MARKET_BUSINESS_GATE_FAILED:${failed.map(check => check.rule).join(',')}`);
+    assertMarketBusinessGate(html, { presentation: true });
   } else if (insightPersona || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
     const failed = lintVisibleReportText(html).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);

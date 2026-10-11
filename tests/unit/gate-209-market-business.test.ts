@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { calculateMetricScopes } from '../../src/modules/analysis/metric-scope-calculator.js';
-import { auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
+import { assertMarketBusinessGate, auditMarketReportHtml } from '../../src/modules/analysis/research-automation/market-business-gate.js';
 import { buildAutomationMarketPresentation, marketPresentationDigest, type MarketPresentationBinding } from '../../src/modules/analysis/research-automation/market-presentation-method.js';
 import { buildResearchAutomationReport, type AutomationReportInput } from '../../src/modules/analysis/research-automation/reports.js';
 import { metricFixture } from '../fixtures/metric-scope-synthetic.js';
@@ -62,6 +62,32 @@ test('quoted ranking text does not trigger E2', () => {
 
 test('Shopee and TikTok names alone pass the cross-platform total rule', () => {
   assert.equal(check(reportHtml('<p>Shopee và TikTok Shop được hiển thị riêng.</p>'), 'U32_NO_CROSS_PLATFORM_TOTAL').ok, true);
+});
+
+test('inline tags are concatenated for every lexical gate', () => {
+  assert.equal(check(reportHtml('<p>Ope<span>nAI</span></p>'), 'G08_PROVIDER_NAME').ok, false);
+  assert.equal(check(reportHtml('<p>tổ<span>ng hai sàn</span></p>'), 'U32_NO_CROSS_PLATFORM_TOTAL').ok, false);
+  assert.equal(check(reportHtml('<p>to<span>p 3</span></p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  const proposal = reportHtml().replace('Chưa có kết quả cho mục này.', 'phương <span>án</span> A');
+  assert.equal(check(proposal, 'M12_PROPOSAL_LABEL').ok, false);
+});
+
+test('NO_LEAK decodes entities and catches bare path prefixes at end of text', () => {
+  for (const value of ['owner&#64;example.com', 'owner&#x40;example.com', 'C:\\', 'D:\\']) {
+    assert.equal(check(reportHtml(`<p>${value}</p>`), 'NO_LEAK').ok, false, value);
+  }
+});
+
+test('SECTIONS_PRESENT counts parsed sections, not script or comment strings', () => {
+  const ids = Array.from({ length: 13 }, (_, index) => `M${String(index + 1).padStart(2, '0')}`).join('');
+  const html = '<script>' + ids.replace(/M\d\d/gu, id => `<section id="${id}"></section>`) + '</script><!-- ' +
+    ids.replace(/M\d\d/gu, id => `<section id="${id}"></section>`) + ' -->';
+  assert.equal(check(html, 'SECTIONS_PRESENT').ok, false);
+});
+
+test('assertion helper applies only content rules to non-presentation Market HTML', () => {
+  const html = '<p>Market content Shopee và TikTok Shop.</p>';
+  assert.doesNotThrow(() => assertMarketBusinessGate(html, { presentation: false }));
 });
 
 test('the gate includes failing U13 results from visible-text lint', () => {
