@@ -34,7 +34,7 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       if (tag === 'section') region++;
       stack.push({ tag,
         quote: /\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote',
-        title: /^h[1-6]$/.test(tag) || tag === 'title',
+        title: /^h[1-6]$/.test(tag),
         hidden: ['script', 'style'].includes(tag) || /\shidden(?:\s|=|>)/i.test(value) || /aria-hidden\s*=\s*["']true["']/i.test(value)
           || /style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(value),
         pending: /data-classified\s*=\s*(?:"pending"|'pending'|pending(?=\s|>))/i.test(value),
@@ -70,9 +70,27 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     check();
   }
   for (const parts of regionText.values()) {
-    const text = parts.join(' ');
-    if (/làm ngay[\s\S]*tiếp theo|ưu tiên\s*(?:số\s*)?\d|ưu tiên hàng đầu/iu.test(text)
-      && !/phụ thuộc|điều kiện tiên quyết|chỉ[^.!?]*sau khi/iu.test(text)) priorities.push(text);
+    for (let i = 0; i < parts.length; i++) {
+      const start = /làm ngay/iu.exec(parts[i] ?? '');
+      if (!start) continue;
+      let endBlock = i;
+      let end = -1;
+      for (; endBlock < parts.length; endBlock++) {
+        const match = /tiếp theo/iu.exec(parts[endBlock] ?? '');
+        if (match) { end = match.index + match[0].length; break; }
+      }
+      if (end < 0) continue;
+      const first = parts[i]!.slice(start.index);
+      const last = parts[endBlock]!.slice(0, end);
+      const tail = parts[endBlock]!.slice(end);
+      const candidate = [first, ...parts.slice(i + 1, endBlock), last, tail].join(' ').replace(/\s+/g, ' ').trim();
+      if (!/phụ thuộc|điều kiện tiên quyết/iu.test(candidate) && !/chỉ[^.!?]*sau khi/iu.test(tail)) priorities.push(candidate);
+      i = endBlock;
+    }
+    for (const text of parts) {
+      if (/ưu tiên\s*(?:số\s*)?\d|ưu tiên hàng đầu/iu.test(text)
+        && !/phụ thuộc|điều kiện tiên quyết|chỉ[^.!?]*sau khi/iu.test(text)) priorities.push(text);
+    }
   }
   return [
     { rule: 'U13_SUPERLATIVE', ok: superlatives.length === 0, detail: superlatives.slice(0, 3).join(' | ') || 'Không có so sánh nhất trong nhận định.' },
