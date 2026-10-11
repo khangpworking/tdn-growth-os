@@ -166,29 +166,10 @@ function summarize(input: Input, corpus: Corpus, corpusIndex: number): Summary {
         label: 'đề xuất, chờ chủ duyệt' as const };
     }),
     draftLabel: 'đề xuất, chờ chủ duyệt' as const, draftCountsVersion: input.draftCountsVersion };
-  // draft-counts-v1 is a retained draft representation. Keep its bytes and
-  // withheld-ratio semantics; v2 is the current path that computes completion
-  // from the proposed codes instead of waiting for an accepted coding receipt.
-  if (input.draftCountsVersion === 'draft-counts-v1') return draftResult;
-
-  const eligibleRecordKeys = new Set(eligibleDisposition);
-  const proposedRecordKeys = new Set<string>();
-  for (const records of draftRecords.values()) for (const key of records.keys()) proposedRecordKeys.add(key);
-  const draftCodingComplete = eligibleRecordKeys.size > 0 && [...eligibleRecordKeys].every(key => proposedRecordKeys.has(key));
-  const draftRatioStatus = eligibleRecordKeys.size === 0 ? 'ZERO_DENOMINATOR' as const
-    : draftCodingComplete ? 'COMPLETE' as const : 'PARTIAL' as const;
-  const draftCountsWithRatios = corpus.codebook.codes.map(code => {
-    const records = draftRecords.get(code.code)!;
-    return { code: code.code, recordCount: records.size,
-      ratio: eligibleRecordKeys.size > 0 ? { numerator: records.size, denominator: eligibleRecordKeys.size } : null,
-      annotationPointers: [...records.values()].flat() };
-  });
-  return { ...draftResult,
-    counts: draftCountsWithRatios,
-    codingComplete: draftCodingComplete,
-    ratioStatus: draftRatioStatus,
-    blockers: draftResult.blockers.filter(code => code !== 'CORPUS_CODING_PENDING'),
-  };
+  // Draft counts stay separate from accepted counts. In particular, a retained
+  // AI proposal must not change accepted record counts, completion, ratios or
+  // blockers; those fields continue to describe only accepted coding.
+  return draftResult;
 }
 
 /** Called by the located-method boundary after schema and exact-span validation. */

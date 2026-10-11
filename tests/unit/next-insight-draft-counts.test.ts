@@ -55,7 +55,7 @@ test('v2 exposes every eligible draft family with disjoint accepted semantics an
   assert.deepEqual(verifyLocatedInsightMethods(built.output).bytes, built.bytes);
 });
 
-test('disagreement stays out of all draft semantic outputs while draft ratios use eligible proposed codes', () => {
+test('disagreement stays out of all draft semantic outputs while draft ratios remain withheld', () => {
   const input = nextInsightFixture(); input.draftCountsVersion = 'draft-counts-v2';
   for (const key of ['i02', 'i04', 'i05', 'i06', 'i07', 'i08', 'i09'] as const) {
     for (const row of input[key]) row.provenance.disagreement = 'Unresolved source-local interpretation';
@@ -67,8 +67,9 @@ test('disagreement stays out of all draft semantic outputs while draft ratios us
   assert.deepEqual(output.sections.I09.draftCandidates, []);
   assert.match(renderLocatedInsightSection(output, 'I05')!, /0 bản ghi \(đề xuất, chờ chủ duyệt\)/);
   const html = renderLocatedInsightSection(output, 'I10')!;
-  assert.match(html, /2\/2 \(đề xuất, chờ chủ duyệt\)/);
-  assert.doesNotMatch(html, /Chưa công bố/);
+  assert.match(html, /2 \(đề xuất, chờ chủ duyệt\)/);
+  assert.match(html, /Chưa công bố/);
+  assert.doesNotMatch(html, /2\/2 \(đề xuất, chờ chủ duyệt\)/);
   const invalid = structuredClone(output); invalid.sections.I05.draftRecordPolarities!.push({ recordPointer: '/input/records/0', polarity: 'POSITIVE' });
   assert.throws(() => verifyLocatedInsightMethods(invalid), /REPLAY_MISMATCH/);
 });

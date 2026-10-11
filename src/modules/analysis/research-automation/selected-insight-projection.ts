@@ -139,8 +139,10 @@ export function projectDraftInsightGroupCounts(output: LocatedInsightMethods, ve
     owner.add(pointer);
   }
   const rateEligible = groups.length > 0 && scopes.size === 1 && disjoint && groups.every(group =>
-    group.blockers.length === 0 && group.memberCount >= 30 && group.memberRecordPointers.length === group.memberCount &&
-    group.counts.every(count => count.state === 'PROPOSED_COUNT' && count.recordCount !== null && count.recordPointers.length === count.recordCount));
+    group.blockers.filter(code => code !== 'CORPUS_CODING_PENDING').length === 0 &&
+    group.memberCount >= 30 && group.memberRecordPointers.length === group.memberCount &&
+    group.counts.every(count => count.state === 'PROPOSED_COUNT' && count.recordCount !== null && count.recordPointers.length === count.recordCount) &&
+    new Set(group.counts.flatMap(count => count.recordPointers)).size === group.memberCount);
   // The current snapshot schema still declares groupCounts.rates as null and
   // is owned by another lane. Retain the eligibility result in blockers, but
   // do not materialize a rate object until that contract and its renderers move.

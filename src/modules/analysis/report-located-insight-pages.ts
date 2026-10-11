@@ -261,41 +261,10 @@ function pendingDetails(ctx: RenderContext, sectionId: LocatedId, section: { rea
     ? copy.replace(`<summary>Bất đồng chưa phân xử (${remaining.length})`, `<summary data-classified="pending">Bất đồng chưa phân xử (${remaining.length}; đề xuất, chờ chủ duyệt)`) : copy;
 }
 
-function draftCorpusMetrics(output: LocatedInsightMethods, result: LocatedInsightMethods['sections']['I10']['corpora'][number], corpus: LocatedInsightMethods['input']['corpora'][number]): { proposed: number; denominator: number; complete: boolean } {
-  const key = (recordIndex: number): string => {
-    const record = output.input.records[recordIndex];
-    if (!record) throw new TypeError('located insight HTML: UNKNOWN_RECORD');
-    return `${record.sourceSha256}\u0000${record.locator}`;
-  };
-  const dispositions = new Map<string, LocatedInsightMethods['input']['corpora'][number]['dispositions'][number]>();
-  for (const disposition of corpus.dispositions) {
-    const identity = key(disposition.recordIndex);
-    if (!dispositions.has(identity)) dispositions.set(identity, disposition);
-  }
-  const eligible = new Set<string>();
-  for (const [identity, disposition] of dispositions) {
-    const recordIndex = corpus.recordIndexes.find(index => key(index) === identity);
-    const record = recordIndex === undefined ? undefined : output.input.records[recordIndex];
-    if (disposition.state === 'CODED' && disposition.provenance.disagreement === null && record?.disposition === 'INCLUDED' && record.text !== null && record.text.trim().length > 0) {
-      eligible.add(identity);
-    }
-  }
-  const proposed = new Set<string>();
-  for (const count of result.draftCounts ?? []) for (const pointer of count.annotationPointers) {
-    const prefix = `/input/corpora/${result.corpusIndex}/assignments/`;
-    const suffix = pointer.startsWith(prefix) ? pointer.slice(prefix.length) : '';
-    if (/^(0|[1-9]\d*)$/.test(suffix)) {
-      const assignment = corpus.assignments[Number(suffix)];
-      if (assignment) proposed.add(key(assignment.recordIndex));
-    }
-  }
-  return { proposed: proposed.size, denominator: eligible.size, complete: eligible.size > 0 && [...eligible].every(identity => proposed.has(identity)) };
-}
-
 function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
   const section = ctx.output.sections[sectionId];
   const ratioNote = ctx.output.input.draftCountsVersion === 'draft-counts-v2'
-    ? 'Bản nháp hiện n/N đề xuất khi có mẫu số, kèm nhãn đề xuất, chờ chủ duyệt.'
+    ? 'Bản nháp chưa công bố n/N; số theo mã vẫn mang nhãn đề xuất, chờ chủ duyệt.'
     : 'Chỉ hiện n/N khi việc mã hóa và mẫu số đã đầy đủ.';
   let body = `<p class="sec-note">${sectionId === 'I10' ? 'Số bản ghi mang từng mã trong phạm vi khai báo.' : 'Danh mục tên hoặc cụm nhắc nguyên văn, giữ thứ tự nguồn và vị trí, không xếp hạng thương hiệu.'} ${ratioNote}</p>`;
   if (sectionId === 'I13') {
@@ -317,14 +286,8 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
   for (const result of section.corpora.slice(0, PAGE_LIMIT)) {
     const corpus = ctx.output.input.corpora[result.corpusIndex];
     if (!corpus) throw new TypeError('located insight HTML: UNKNOWN_CORPUS');
-    const draftV2Metrics = ctx.output.input.draftCountsVersion === 'draft-counts-v2' && result.draftCounts !== undefined
-      ? draftCorpusMetrics(ctx.output, result, corpus) : undefined;
     const complete = result.codingComplete && result.ratioStatus === 'COMPLETE';
-    const state = draftV2Metrics
-      ? draftV2Metrics.denominator > 0
-        ? `${draftV2Metrics.proposed}/${draftV2Metrics.denominator} bản ghi (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}); độ hoàn tất mã hóa đề xuất được tính từ các mã AI đã có.`
-        : `Chưa biết độ hoàn tất mã hóa đề xuất (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}); chưa có mẫu số eligible.`
-      : result.draftCounts !== undefined
+    const state = result.draftCounts !== undefined
         ? 'Bản nháp chưa đối chiếu xong; chưa công bố n/N.'
       : result.ratioStatus === 'ZERO_DENOMINATOR' ? 'Mẫu số bằng 0; không có tỷ lệ.'
       : complete ? 'Đã hoàn tất mẫu số và mã hóa theo khai báo của hồ sơ.' : 'Mã hóa hoặc thành viên chưa đầy đủ; chưa công bố n/N.';
@@ -332,11 +295,7 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
     if (result.draftCounts === undefined) {
       body += `<p>${result.includedRecordCount} bản ghi thuộc diện đưa vào; ${result.pendingCount} bản ghi đang chờ mã hóa hoặc phân xử; ${result.unreadableCount} bản ghi không đọc được.</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
     } else {
-      // Draft v2 uses proposed codes for completion and shows a proposed n/N
-      // when a denominator exists; v1 keeps its retained withheld-copy bytes.
-      const draftExplanation = draftV2Metrics
-        ? `Số tổng hợp chi tiết của tập này được tính từ mã AI đã có (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}).`
-        : `Số tổng hợp chi tiết của tập này không hiển thị ở bản nháp; số đề xuất theo mã ở bảng dưới (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}).`;
+      const draftExplanation = `Số tổng hợp chi tiết của tập này không hiển thị ở bản nháp; số đề xuất theo mã ở bảng dưới (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'}).`;
       body += `<p class="sec-note">${draftExplanation}</p><dl>${definition('Đơn vị khai báo', textOrUnset(corpus.unit))}${definition('Kỳ', textOrUnset(corpus.period))}${definition('Khung thu thập', textOrUnset(corpus.frame))}${definition('Kênh', textOrUnset(corpus.channel))}${definition('Quy tắc đưa vào', textOrUnset(corpus.inclusionRule))}${definition('Chọn mẫu bên ngoài', textOrUnset(corpus.externalSampling))}${definition('Phiên bản bộ mã', textOrUnset(corpus.codebook.revision))}</dl>`;
     }
     const coverage = [
@@ -357,18 +316,15 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
         return `<li>${quote(assignment.span)}${source(ctx, assignment.recordIndex)}${provenance(assignment.provenance)}</li>`;
       }).join('');
       const evidence = refs ? `<details><summary>Đoạn nguồn cho mã này</summary><ul class="limits">${refs}</ul>${sliceNote(ctx, count.annotationPointers.length, 'chú giải nguồn')}</details>` : '';
-      const ratio = draftV2Metrics
-        ? draftV2Metrics.denominator > 0 ? `${count.recordCount}/${draftV2Metrics.denominator} (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'})` : `Chưa biết (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'})`
-        : complete && count.ratio !== null ? `${count.ratio.numerator}/${count.ratio.denominator}` : 'Chưa công bố';
+      const ratio = complete && count.ratio !== null ? `${count.ratio.numerator}/${count.ratio.denominator}` : 'Chưa công bố';
       return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${textOrUnset(code.phrase)}</small>` : ''}</th><td>${count.recordCount}${evidence}</td><td>${ratio}</td></tr>`;
     });
     if (result.draftCounts === undefined) {
       body += table(complete ? 'Số bản ghi theo mã trong tập đã chốt' : 'Số bản ghi đã mã hóa, còn một phần', ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], rows) + sliceNote(ctx, result.counts.length, 'mã');
     } else {
       // Draft mode: the displayed per-code totals ARE the mixed eligible draft
-      // counts with the same-sentence label, including zero. Draft v2 may show
-      // a proposed ratio when a denominator exists; v1 retains its withheld
-      // copy. Accepted-only numbers are not shown as competing totals;
+      // counts with the same-sentence label, including zero. Accepted-only
+      // numbers are not shown as competing totals;
       // disagreements stay in the pending list.
       const draftRows = result.draftCounts.slice(0, PAGE_LIMIT).map(count => {
         const code = corpus.codebook.codes.find(item => item.code === count.code);
@@ -378,9 +334,7 @@ function corpusBody(ctx: RenderContext, sectionId: 'I10' | 'I13'): string {
           return `<li>${quote(assignment.span)}${source(ctx, assignment.recordIndex)}${provenance(assignment.provenance)}</li>`;
         }).join('');
         const evidence = refs ? `<details><summary>Đoạn nguồn cho mã này</summary><ul class="limits">${refs}</ul>${sliceNote(ctx, count.annotationPointers.length, 'chú giải nguồn')}</details>` : '';
-        const draftRatio = draftV2Metrics
-          ? draftV2Metrics.denominator > 0 ? `${count.recordCount}/${draftV2Metrics.denominator} (${count.label})` : `Chưa biết (${count.label})`
-          : 'Chưa công bố';
+        const draftRatio = 'Chưa công bố';
         return `<tr><th scope="row">${textOrUnset(code.label)}<small>Mã: ${textOrUnset(code.code)}</small>${sectionId === 'I10' ? `<small>Cụm mô tả trong bộ mã: ${textOrUnset(code.phrase)}</small>` : ''}</th><td>${ctx.output.input.draftCountsVersion === 'draft-counts-v2' ? `<span data-classified="pending">${count.recordCount} (${count.label})</span>` : `${count.recordCount} (${count.label})`}${evidence}</td><td>${draftRatio}</td></tr>`;
       });
       body += table(`Số bản ghi theo mã (${result.draftLabel ?? 'đề xuất, chờ chủ duyệt'})`, ['Mã hoặc cụm nguyên văn', 'Số bản ghi (n)', 'n/N trong tập này'], draftRows) + sliceNote(ctx, result.draftCounts.length, 'mã đề xuất');

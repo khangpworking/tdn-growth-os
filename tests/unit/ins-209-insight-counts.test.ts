@@ -63,19 +63,22 @@ test('U-04 current groups derive from source-stated platform and stay counts-onl
   assert.ok(!result.blockers.includes('I11_PUBLICATION_NOT_AUTHORIZED'));
 });
 
-test('U-03 v2 draft corpus renders completion and ratios from proposed codes with same-sentence labels', () => {
+test('U-03 v2 draft corpus keeps accepted completion and ratios withheld while labelling proposed counts', () => {
   const input = nextInsightFixture(); input.draftCountsVersion = 'draft-counts-v2';
   const output = buildLocatedInsightMethods(input).output;
   const corpus = output.sections.I10.corpora[0]!;
-  assert.equal(corpus.codingComplete, true);
-  assert.equal(corpus.ratioStatus, 'COMPLETE');
-  assert.deepEqual(corpus.counts[0]!.ratio, { numerator: 2, denominator: 2 });
-  assert.ok(!corpus.blockers.includes('CORPUS_CODING_PENDING'));
+  assert.equal(corpus.codingComplete, false, 'Draft proposals do not complete accepted coding');
+  assert.equal(corpus.ratioStatus, 'PARTIAL');
+  assert.equal(corpus.counts[0]!.recordCount, 0, 'Unapproved rows stay out of accepted counts');
+  assert.equal(corpus.counts[0]!.ratio, null);
+  assert.ok(corpus.blockers.includes('CORPUS_CODING_PENDING'));
+  assert.equal(corpus.draftCounts![0]!.recordCount, 2);
   const html = renderLocatedInsightSection(output, 'I10', { bundleDownload: false })!;
-  assert.match(html, /Bản nháp hiện n\/N đề xuất khi có mẫu số, kèm nhãn đề xuất, chờ chủ duyệt\./);
-  assert.match(html, /2\/2 bản ghi \(đề xuất, chờ chủ duyệt\); độ hoàn tất mã hóa đề xuất/);
-  assert.match(html, /2\/2 \(đề xuất, chờ chủ duyệt\)/);
-  assert.doesNotMatch(html, /Chưa công bố/);
+  assert.match(html, /Bản nháp chưa công bố n\/N; số theo mã vẫn mang nhãn đề xuất, chờ chủ duyệt\./);
+  assert.match(html, /Bản nháp chưa đối chiếu xong; chưa công bố n\/N\./);
+  assert.match(html, /2 \(đề xuất, chờ chủ duyệt\)/);
+  assert.match(html, /Chưa công bố/);
+  assert.doesNotMatch(html, /2\/2 \(đề xuất, chờ chủ duyệt\)/);
 });
 
 test('U-04 draft rate eligibility keeps a 29-record group counts-only', () => {
