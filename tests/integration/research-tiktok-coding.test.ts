@@ -74,6 +74,17 @@ test('v2 response missing polarity is rejected instead of falling back to v1', a
   await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, randomUUID()), fakeCodingAi(malformed)), TikTokCodingTransportError);
 });
 
+test('v2 response missing topic is rejected instead of falling back to v1', async t => {
+  const f = await tiktokFixture(t);
+  const base = fakeCodingPort();
+  const malformed: NonNullable<TikTokCodingAI>['port'] = { generateText: async request => {
+    const response = JSON.parse((await base.generateText(request)).text) as { contractVersion: string; codes: Record<string, unknown>[] };
+    delete response.codes[0]!.topic;
+    return { text: JSON.stringify(response) };
+  } };
+  await assert.rejects(f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, randomUUID()), fakeCodingAi(malformed)), TikTokCodingTransportError);
+});
+
 test('explicit v1 response still validates and keeps the legacy prompt version', async t => {
   const f = await tiktokFixture(t);
   const receipt = await f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, randomUUID()), fakeCodingAi(fakeCodingPort(undefined, 'v1')));
@@ -81,6 +92,23 @@ test('explicit v1 response still validates and keeps the legacy prompt version',
   const read = await f.service.readTikTokCoding(workspaceId, runId, source.packageId);
   assert.equal(receipt.exactRetry, false);
   assert.equal(read.draft.promptVersion, 'tiktok-coding-prompt-v1');
+});
+
+test('retained v1 coding replay keeps the first six findings in code-point order', async t => {
+  const f = await tiktokFixture(t);
+  const manyCodes = ['Z_LAST', 'A_FIRST', 'MIDDLE', 'BETA', 'OMEGA', 'ALPHA', 'DELTA', 'GAMMA'];
+  const port: NonNullable<TikTokCodingAI>['port'] = { generateText: async request => {
+    const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
+    return { text: JSON.stringify({ contractVersion: 'tiktok-coding-candidates-v1', codes: manyCodes.map((code, i) => {
+      const record = input.records[i % input.records.length]!;
+      const text = record.text.slice(0, 10);
+      return { code, label: code, recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
+    }) }) };
+  } };
+  await f.service.proposeTikTokCoding(workspaceId, runId, proposeInput(f, randomUUID()), fakeCodingAi(port));
+  const source = (await f.service.listTikTokCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readTikTokCoding(workspaceId, runId, source.packageId);
+  assert.deepEqual(read.report.findings.map(finding => finding.code), ['ALPHA', 'A_FIRST', 'BETA', 'DELTA', 'GAMMA', 'MIDDLE']);
 });
 
 

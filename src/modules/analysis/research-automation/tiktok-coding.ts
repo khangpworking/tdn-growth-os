@@ -358,9 +358,10 @@ export class AutomationTikTokCoding {
 
   /**
    * Deterministic cited assembly of the retained draft: findings grouped per code, ordered by code,
-   * capped at six, each with per-occurrence citation locators. Distinct-record membership is counted
-   * by the Reader from retained codes; the report carries occurrence citations. The Reader replays
-   * these exact retained bytes; semantic identity is their digest.
+   * v1 findings are capped at six for legacy replay compatibility; v2 keeps all ranked input codes.
+   * Each finding has per-occurrence citation locators. Distinct-record membership is counted by the
+   * Reader from retained codes; the report carries occurrence citations. The Reader replays these
+   * exact retained bytes; semantic identity is their digest.
    */
   #codedReport(draft: TikTokDraftCoding, context: TikTokCodingContext): TikTokCodedReport {
     const byCode = new Map<string, { label: string; citations: { citationId: number; locator: string; url: string | null }[] }>();
@@ -374,7 +375,8 @@ export class AutomationTikTokCoding {
       byCode.set(entry.code, group);
     }
     const scope = 'Trong tập bình luận thu được đã lưu (S07); đơn vị đếm là bản ghi, không phải số người. Số lượng là đề xuất, chờ chủ duyệt.';
-    const findings = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([code, group]) => {
+    const sorted = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const findings = (draft.promptVersion === 'tiktok-coding-prompt-v1' ? sorted.slice(0, 6) : sorted).map(([code, group]) => {
       if (group.citations.length === 0) fail();
       // The finding template carries no literal digits outside {{}}: the code identifier travels
       // via the bundle key and the retained label stays in the draft and section bodies.

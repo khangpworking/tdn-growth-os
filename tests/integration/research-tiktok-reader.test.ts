@@ -4,6 +4,7 @@ import { createHash, randomUUID } from 'node:crypto';
 import fs from 'node:fs';
 import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 import { tiktokFixture, workspaceId, runId, fakeCodingPort, fakeCodingAi } from '../fixtures/tiktok-coding-fixture.js';
+import type { TikTokCodingAI } from '../../src/modules/analysis/research-automation/tiktok-coding.js';
 import { createChromiumPdfRenderer } from '../../src/modules/analysis/research-automation/pdf.js';
 import { readerBrowserPath } from '../helpers/reader-render-check.js';
 import { prepareTikTokReaderBuild } from '../../src/modules/analysis/reader-report/tiktok-build-v1.js';
@@ -106,6 +107,42 @@ test('build retained TikTok reader -> consumption ledger -> open/reopen/decide j
   assert.equal(decided.exactRetry, false);
   await assert.rejects(f.service.buildTikTokReaderReport(workspaceId, runId, buildRequest(draftDigest, reportDigest), owner),
     'approved reader blocks a second build');
+});
+
+test('v2 reader ranking renders tied ranks, labels, counts, KHONG_RO, and capped Khác quotes', async t => {
+  const f = await tiktokFixture(t);
+  const port: NonNullable<TikTokCodingAI>['port'] = { generateText: async request => {
+    const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
+    const specs = [
+      ...input.records.slice(0, 4).flatMap((record, i) => [
+        { code: `A${i}`, topic: 'Bao bì', polarity: 'KHEN' },
+        { code: `B${i}`, topic: 'Hương vị', polarity: 'CHE' },
+        { code: `X${i}`, topic: null, polarity: 'KHEN' },
+      ]),
+      ...input.records.slice(0, 3).map((record, i) => ({ code: `C${i}`, topic: 'Giá', polarity: 'CHE' })),
+      { code: 'R0', topic: 'Bỏ qua', polarity: 'KHONG_RO' },
+    ];
+    return { text: JSON.stringify({ contractVersion: 'tiktok-coding-candidates-v2', codes: specs.map((spec, i) => {
+      const record = input.records[i % input.records.length]!;
+      const text = record.text.slice(0, 10);
+      return { ...spec, label: spec.topic ?? 'Khác', recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
+    }) }) };
+  } };
+  const codingRequest = { contractVersion: 'tiktok-coding-propose-v1', requestKey: randomUUID(),
+    binding: { workspaceId, runId, scopeSha256: f.keyword.scopeDigest, sourceSetSha256: f.keyword.sourceSetDigest!, requestedPeriod: { startDate: '2026-09-01', endDate: '2026-09-30' } },
+    corpus: { ...f.corpusPackage }, keywordDigest: f.keywordDigest };
+  const receipt = await f.service.proposeTikTokCoding(workspaceId, runId, codingRequest, fakeCodingAi(port));
+  const source = (await f.service.listTikTokCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readTikTokCoding(workspaceId, runId, source.packageId);
+  const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
+  const built = await f.service.buildTikTokReaderReport(workspaceId, runId, buildRequest(digest(read.draft), digest(read.report)), { actorId: 'synthetic-owner', role: 'OWNER' });
+  assert.equal(receipt.exactRetry, false);
+  const html = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
+  assert.ok(html.includes('<tr><td>1</td><td>Bao bì</td><td>KHEN</td><td>4</td>'));
+  assert.ok(html.includes('<tr><td>1</td><td>Hương vị</td><td>CHE</td><td>4</td>'));
+  assert.ok(html.includes('<tr><td>3</td><td>Giá</td><td>CHE</td><td>3</td>'));
+  assert.ok(html.includes('<tr><td></td><td>Khác</td><td></td><td>4</td><td><details><summary>Xem 3 trích dẫn</summary>'));
+  assert.ok(html.includes('Không khen không chê: 1 lượt nhắc.'));
 });
 
 test('retained v1 coding read and reader revision replay the origin HTML golden', async t => {

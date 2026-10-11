@@ -66,6 +66,17 @@ test('v2 response missing polarity is rejected instead of falling back to v1', a
   await assert.rejects(f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(malformed)), ShopeeCodingTransportError);
 });
 
+test('v2 response missing topic is rejected instead of falling back to v1', async t => {
+  const f = await shopeeFixture(t);
+  const base = fakeShopeeCodingPort();
+  const malformed: NonNullable<ShopeeCodingAI>['port'] = { generateText: async request => {
+    const response = JSON.parse((await base.generateText(request)).text) as { contractVersion: string; codes: Record<string, unknown>[] };
+    delete response.codes[0]!.topic;
+    return { text: JSON.stringify(response) };
+  } };
+  await assert.rejects(f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(malformed)), ShopeeCodingTransportError);
+});
+
 test('retained v1 coding read and reader revision replay the origin HTML golden', async t => {
   const f = await shopeeFixture(t);
   const port = fakeShopeeCodingPort(undefined, 'v1');
@@ -78,6 +89,55 @@ test('retained v1 coding read and reader revision replay the origin HTML golden'
   const saved = await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId);
   const i10 = saved.bytes.toString('utf8').match(/<section id="I10">.*?<\/section>/s)?.[0];
   assert.equal(i10, await fs.readFile('tests/fixtures/shopee-v1-reader-i10-golden.html', 'utf8'));
+});
+
+test('retained v1 coding replay keeps the first six findings in code-point order', async t => {
+  const f = await shopeeFixture(t);
+  const manyCodes = ['Z_LAST', 'A_FIRST', 'MIDDLE', 'BETA', 'OMEGA', 'ALPHA', 'DELTA', 'GAMMA'];
+  const port: NonNullable<ShopeeCodingAI>['port'] = { generateText: async request => {
+    const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
+    return { text: JSON.stringify({ contractVersion: 'shopee-coding-candidates-v1', codes: manyCodes.map((code, i) => {
+      const record = input.records[i % input.records.length]!;
+      const text = record.text.slice(0, 10);
+      return { code, label: code, recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
+    }) }) };
+  } };
+  await f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(port));
+  const source = (await f.service.listShopeeCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readShopeeCoding(workspaceId, runId, source.packageId);
+  assert.deepEqual(read.report.findings.map(finding => finding.code), ['ALPHA', 'A_FIRST', 'BETA', 'DELTA', 'GAMMA', 'MIDDLE']);
+});
+
+test('v2 reader ranking renders tied ranks, labels, counts, KHONG_RO, and capped Khác quotes', async t => {
+  const f = await shopeeFixture(t);
+  const port: NonNullable<ShopeeCodingAI>['port'] = { generateText: async request => {
+    const input = JSON.parse((request as { userText: string }).userText) as { records: { recordIndex: number; text: string }[] };
+    const specs = [
+      ...input.records.slice(0, 4).flatMap((record, i) => [
+        { code: `A${i}`, topic: 'Bao bì', polarity: 'KHEN' },
+        { code: `B${i}`, topic: 'Hương vị', polarity: 'CHE' },
+        { code: `X${i}`, topic: null, polarity: 'KHEN' },
+      ]),
+      ...input.records.slice(0, 3).map((record, i) => ({ code: `C${i}`, topic: 'Giá', polarity: 'CHE' })),
+      { code: 'R0', topic: 'Bỏ qua', polarity: 'KHONG_RO' },
+    ];
+    return { text: JSON.stringify({ contractVersion: 'shopee-coding-candidates-v2', codes: specs.map((spec, i) => {
+      const record = input.records[i % input.records.length]!;
+      const text = record.text.slice(0, 10);
+      return { ...spec, label: spec.topic ?? 'Khác', recordIndex: record.recordIndex, quote: { text, start: 0, end: text.length } };
+    }) }) };
+  } };
+  await f.service.proposeShopeeCoding(workspaceId, runId, await proposeInput(f, randomUUID()), fakeShopeeCodingAi(port));
+  const source = (await f.service.listShopeeCodingHistory(workspaceId, runId)).sources[0]!;
+  const read = await f.service.readShopeeCoding(workspaceId, runId, source.packageId);
+  const digest = (value: unknown) => createHash('sha256').update(canonicalJson(value)).digest('hex');
+  const built = await f.service.buildShopeeReaderReport(workspaceId, runId, { contractVersion: 'insight-reader-build-shopee-v1', reportKind: 'INSIGHT', requestKey: randomUUID(), draftPairId: digest(read.draft), semanticSha256: digest(read.report), sourceKind: 'SHOPEE' }, { actorId: 'synthetic-owner', role: 'OWNER' });
+  const html = (await f.service.readReaderReport(workspaceId, runId, built.revision.revisionId)).bytes.toString('utf8');
+  assert.ok(html.includes('<tr><td>1</td><td>Bao bì</td><td>KHEN</td><td>4</td>'));
+  assert.ok(html.includes('<tr><td>1</td><td>Hương vị</td><td>CHE</td><td>4</td>'));
+  assert.ok(html.includes('<tr><td>3</td><td>Giá</td><td>CHE</td><td>3</td>'));
+  assert.ok(html.includes('<tr><td></td><td>Khác</td><td></td><td>4</td><td><details><summary>Xem 3 trích dẫn</summary>'));
+  assert.ok(html.includes('Không khen không chê: 1 lượt nhắc.'));
 });
 
 

@@ -334,8 +334,9 @@ export class AutomationShopeeCoding {
 
   /**
    * Deterministic cited assembly of the retained draft: findings grouped per code, ordered by code,
-   * capped at six, each with per-occurrence citation locators. The Reader replays these exact retained
-   * bytes; semantic identity is their digest.
+   * v1 findings are capped at six for legacy replay compatibility; v2 keeps all ranked input codes.
+   * Each finding has per-occurrence citation locators. The Reader replays these exact retained bytes;
+   * semantic identity is their digest.
    */
   #citedSynthesis(draft: ShopeeDraftCoding, context: ShopeeCodingContext): import('../../../../contracts/analysis/shopee-review-coding-v1.generated.js').ShopeeCitedSynthesis {
     const byCode = new Map<string, { label: string; citations: { citationId: number; locator: string; url: string | null }[] }>();
@@ -349,7 +350,8 @@ export class AutomationShopeeCoding {
       byCode.set(entry.code, group);
     }
     const scope = 'Trong tập đánh giá đã lưu (S05); đơn vị đếm là bản ghi, không phải số người. Số lượng do ứng dụng đếm từ bản ghi đã lưu; mã chủ đề là đề xuất, chờ chủ duyệt.';
-    const findings = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([code, group]) => {
+    const sorted = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+    const findings = (draft.promptVersion === 'shopee-review-coding-prompt-v1' ? sorted.slice(0, 6) : sorted).map(([code, group]) => {
       if (group.citations.length === 0) fail();
       return { sectionId: 'I10' as const, code, label: group.label,
         template: `Mã chủ đề trong mẫu lời nguồn: {{shopee.codes.${code}.records}} bản ghi có trích dẫn trực tiếp (đề xuất, chờ chủ duyệt).`,
