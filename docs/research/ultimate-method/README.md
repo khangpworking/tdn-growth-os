@@ -1,6 +1,6 @@
 # Phương pháp 30 section: nghiệp vụ Ultimate và phần TDN đang áp dụng
 
-Cập nhật: 08/10/2026
+Cập nhật: 11/10/2026
 
 ## Tóm tắt (cho chủ dự án)
 
@@ -58,7 +58,7 @@ Mỗi bước là một tầng riêng. Xong bước 2 chưa có nghĩa là xong 
 ## 4. Đối chiếu 30 section
 
 - Cột **TDN code** cập nhật các gói đã merge ngày 08/10; bằng chứng review/CI và phần còn thiếu ở [kế hoạch đồng bộ](../../tasks/ultimate-v1.11-tdn-sync-plan.md). Đây chưa phải nghiệm thu dữ liệu thật trên ba case.
-- Các cột Ultimate/recipe giữ bản tóm tắt lịch sử; nguồn nghiệp vụ hiện hành là Ultimate v1.12 và registry v1.9. Thông báo supersession trong recipe dẫn về nguồn hiện hành, không phải bằng chứng đã triển khai.
+- Các cột Ultimate/recipe giữ bản tóm tắt lịch sử; nguồn nghiệp vụ hiện hành là Ultimate v1.13 và registry v1.9. Thông báo supersession trong recipe dẫn về nguồn hiện hành, không phải bằng chứng đã triển khai.
 - Các dòng chưa có cập nhật PR giữ mốc của bảng điều hành ngày 04/10/2026 (`research-30-section-progress.md`). "Nối" nghĩa là luồng chạy có gọi phương pháp, **chưa** có nghĩa là đúng hay đã nghiệm thu. Tới 04/10 chưa section nào nghiệm thu đủ trên ba case (thạch dừa, bình giữ nhiệt, quạt cầm tay).
 - Các PR sau 04/10 (#118–#137) thêm nguồn và trích dẫn (tìm kiếm web, trạng thái review Shopee, sổ trích dẫn, lưu trữ, Trends) nhưng không đổi phương pháp section.
 
@@ -111,8 +111,9 @@ Plan đồng bộ có checklist, dựa trên lần rà code ngày 08/10/2026: [u
 - M11: định nghĩa giao 3 tín hiệu.
 - E2, E3 cho luồng tự động; điều chỉnh mục "Cấm" của M01, M12.
 
-### Từ Ultimate v1.1 đến v1.12 (07–08/10)
+### Từ Ultimate v1.1 đến v1.13 (07–11/10)
 
+- v1.13: quyết định của chủ ở issue #209. Không bao giờ cộng Shopee với TikTok Shop (plan mục U-32, đã đóng; sửa theo từng sàn ở PR #162); E14 thêm luật hủy và bản sửa đổi (plan mục U-26); E15 xếp chủ đề bình luận theo số lần nhắc, kiểm chéo bằng model thứ hai hoãn (plan mục U-11a, U-11b); nghiệm thu chạy sau cùng, thử bình giữ nhiệt trước (plan mục U-40).
 - v1.12: E14 thu dữ liệu tự động không chờ chủ (plan mục U-26; gói P6, P9); thẻ Metric hiện số lượt còn lại (P6-09); thư viện quảng cáo Meta đọc theo trang qua OpenCLI (plan mục U-23).
 - v1.11: L10 mở rộng cho bình luận dưới video bán hàng (gói P9, mục P9-05).
 - v1.10: L10 bình luận dưới video review là lời khách (gói P9, mục P9-05).

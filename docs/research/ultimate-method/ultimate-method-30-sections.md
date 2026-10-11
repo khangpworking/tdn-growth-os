@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.12 · ngày 08/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.13 · ngày 11/10/2026 · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -22,6 +22,7 @@ File hợp nhất:
 14. **v1.10 (08/10/2026):** L10 bình luận dưới video review là lời khách; bảng tổng quan 30 section cập nhật theo v1.5–v1.10.
 15. **v1.11 (08/10/2026):** L10 mở rộng: bình luận dưới video bán hàng cũng là lời khách.
 16. **v1.12 (08/10/2026):** E14 thu dữ liệu tự động, không chờ chủ duyệt, cho mọi nguồn; E8 và E11 sửa theo.
+17. **v1.13 (11/10/2026):** quyết định của chủ ở issue #209: không bao giờ cộng Shopee với TikTok Shop (quy tắc 3, L5); E14 thêm luật hủy và bản sửa đổi; E15 xếp chủ đề bình luận theo số lần nhắc, chưa dùng kiểm chéo bằng model thứ hai (E11, G2, G7 hoãn).
 
 Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [Input data sources for 30 sections](input-data-sources-30-sections.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn). Mọi ngưỡng số có lý do chọn ở Phụ lục G8.
 
@@ -60,7 +61,7 @@ Phân biệt bắt buộc, không được trộn:
 
 1. **Thiếu ≠ 0; UNKNOWN luôn hiển thị.** Giá trị thiếu, quan sát bằng 0 và không rõ trạng thái là ba trạng thái khác nhau; không tự điền, không suy ra.
 2. **Danh tính bản ghi.** Chỉ collapse bản ghi trùng khi trùng đúng `EvidenceRecordRef` (digest + locator) hoặc có key nguồn ổn định. Văn bản giống nhau ở hai locator khác nhau vẫn là hai bản ghi. Không có ID người/sản phẩm/cửa hàng ổn định thì không được đếm người, không được join chéo nguồn, không được suy prevalence.
-3. **Tổng hợp.** Chỉ cộng khi: cùng đơn vị, cùng kỳ/timezone khai báo, cùng universe/frame, và có bằng chứng các thành phần rời nhau (disjoint). Thiếu bằng chứng rời nhau → chặn phép cộng, giữ nguyên inventory. Tổng + thành phần, hay hai cách biểu diễn cùng một đại lượng, không bao giờ cộng chung.
+3. **Tổng hợp.** Chỉ cộng khi: cùng đơn vị, cùng kỳ/timezone khai báo, cùng universe/frame, và có bằng chứng các thành phần rời nhau (disjoint). Thiếu bằng chứng rời nhau → chặn phép cộng, giữ nguyên inventory. Tổng + thành phần, hay hai cách biểu diễn cùng một đại lượng, không bao giờ cộng chung. **Không bao giờ cộng Shopee với TikTok Shop**, kể cả khi cùng một file xuất, cùng kỳ và cùng đơn vị; chỉ trình bày theo từng sàn (chủ quyết 11/10/2026, #209).
 4. **Tỷ số.** Chỉ tính khi có mẫu số tương thích do chủ dự án khai báo (cùng phạm vi, kỳ, đơn vị, khung chọn mẫu). Không có mẫu số → không có rate/share.
 5. **Cấm claim mặc định.** Population/prevalence, nhân quả, dự báo, hiệu quả kênh, conversion, xếp hạng, quy mô thị trường, khuyến nghị hành động — tất cả bị chặn trừ khi một phương pháp đã review và thẩm quyền tương ứng cho phép đúng claim đó.
 6. **Không thu thập nghiên cứu khách mới.** Không phỏng vấn, khảo sát, tuyển người tham gia hay respondent giả lập. Chỉ dùng nguồn đã có/công bố.
@@ -75,8 +76,8 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 - **L1 · Trùng nguyên văn (quy tắc 2).** Hai review trùng chữ ở hai vị trí khác nhau vẫn là 2 bản ghi. Được ghi chú "trùng nguyên văn, có thể cùng một người", nhưng không được gộp khi đếm. Không được coi "mỗi nội dung khác nhau là một người viết" khi nguồn không có mã người viết.
 - **L2 · Đếm người (quy tắc 2).** Khi nguồn có mã người viết (đã ẩn danh bằng hash) thì được đếm số người viết **trong cùng một nền tảng**. Không ghép người giữa các nền tảng.
 - **L3 · Bản nháp và bản phát hành (quy tắc 8).** Bản nháp nội bộ được hiện số đếm theo cách xếp nhóm do AI đề xuất, kèm nhãn "đề xuất, chờ chủ duyệt" ngay tại câu có số, kể cả trong Kết luận chính và các ô số đầu báo cáo. **Bản phát hành** chỉ dùng số đếm theo codebook đã duyệt và ghi phiên bản codebook.
-- **L4 · Không xếp hạng ngầm (quy tắc 5, 9).** Không dùng so sánh bậc nhất làm nhận định ("lời chê nặng nhất", "được nhắc nhiều nhất", "làm ngay… tiếp theo…"). Trình bày số đếm cạnh nhau. Thứ tự việc làm chỉ được nêu khi ghi rõ là **thứ tự theo phụ thuộc**, không phải ưu tiên.
-- **L5 · Nhiều nền tảng (quy tắc 2, 3).** Mỗi nền tảng một cột, đặt cạnh nhau. Không cộng số giữa các nền tảng, không ghép người. Chỉ so ở mức **nhóm hoàn cảnh**.
+- **L4 · Không xếp hạng ngầm (quy tắc 5, 9).** Không dùng so sánh bậc nhất làm nhận định ("lời chê nặng nhất", "được nhắc nhiều nhất", "làm ngay… tiếp theo…"). Trình bày số đếm cạnh nhau. Thứ tự việc làm chỉ được nêu khi ghi rõ là **thứ tự theo phụ thuộc**, không phải ưu tiên. Ngoại lệ: bảng chủ đề bình luận xếp theo số lần nhắc theo E15.
+- **L5 · Nhiều nền tảng (quy tắc 2, 3).** Mỗi nền tảng một cột, đặt cạnh nhau. Không cộng số giữa các nền tảng, không ghép người. Chỉ so ở mức **nhóm hoàn cảnh**. Áp cho cả Market: không có ngoại lệ "tổng hai sàn" (11/10/2026, #209).
 - **L6 · Số sao (quy tắc 1; I05).** Số sao là một phân bố riêng, không tự chuyển thành khen/chê. Review không có chữ thì cảm nhận là "chưa biết". Nguồn không có trường số sao thì ghi "nguồn không có số sao", không ghi 0.
 - **L7 · Lời người bán.** Mọi suy luận từ tiêu đề, mô tả, video, quảng cáo của người bán được viết là "người bán nhắm tới…" hoặc "người bán định vị…", không viết thành sự thật về khách.
 - **L8 · Không mua hàng (mới ở v1.4).** Báo cáo không đề xuất đặt hàng thử hay mua hàng dưới bất kỳ hình thức nào. Chất lượng sản phẩm chỉ được đánh giá qua nguồn công khai (review, ảnh khách đính kèm, tin an toàn thực phẩm) và dữ liệu chủ cung cấp. Căn cứ: chủ "không bao giờ có khả năng chi tiền thật" (07/10/2026).
@@ -217,7 +218,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     | Thước đo nhu cầu (M05) | Doanh số, theo E10 |
     | Nhóm để so (I11) | Theo sàn; theo khách mua lẻ và khách mua sỉ, khi nguồn cho phân biệt được (chủ chọn 07/10/2026) |
     | Ưu tiên giữa các hướng, phương án (M11, I14, I15) | Không xếp ưu tiên, chỉ liệt kê (chủ chọn 07/10/2026) |
-    | Duyệt cách xếp nhóm (quy tắc 8, L3) | AI lập bộ mã và gắn mã. Một model khác, độc lập, gắn mã lại toàn bộ khi tập có ≤200 bản ghi, hoặc một mẫu ngẫu nhiên 200 bản ghi khi lớn hơn. Độ đồng thuận κ ≥ 0,6: số đếm được dùng ở bản phát hành, nhãn "phân loại do AI, đã kiểm chéo". κ < 0,6: nhãn "độ tin cậy thấp", không đưa số đếm vào Kết luận chính. Bản ghi hai model gắn khác nhau liệt kê ở phụ lục. **Ghi chú:** chủ chưa có chuyên môn để duyệt mốc κ (07/10/2026); mốc 0,6 giữ theo chuẩn thường dùng, xem lại khi có người có chuyên môn. Giải thích: Phụ lục G2, G7 |
+    | Duyệt cách xếp nhóm (quy tắc 8, L3) | **Từ v1.13 (11/10/2026, #209), giai đoạn 1:** một AI lập bộ mã và gắn mã, đếm và xếp theo E15. Chưa dùng model thứ hai và κ; nhãn "phân loại do AI, đã kiểm chéo" vì vậy chưa dùng được. **Phần dưới đây hoãn, giữ lại để tra lịch sử:** AI lập bộ mã và gắn mã. Một model khác, độc lập, gắn mã lại toàn bộ khi tập có ≤200 bản ghi, hoặc một mẫu ngẫu nhiên 200 bản ghi khi lớn hơn. Độ đồng thuận κ ≥ 0,6: số đếm được dùng ở bản phát hành, nhãn "phân loại do AI, đã kiểm chéo". κ < 0,6: nhãn "độ tin cậy thấp", không đưa số đếm vào Kết luận chính. Bản ghi hai model gắn khác nhau liệt kê ở phụ lục. **Ghi chú:** chủ chưa có chuyên môn để duyệt mốc κ (07/10/2026); mốc 0,6 giữ theo chuẩn thường dùng, xem lại khi có người có chuyên môn. Giải thích: Phụ lục G2, G7 |
     | Đơn vị chuẩn khi tính giá (M08) | Theo bảng đơn vị chuẩn ở M08. Hàng bán theo khối lượng dùng khối lượng tịnh; ghi thêm khối lượng cái khi trang bán có |
 
 **Ngoại lệ ngày 08/10/2026 (mới ở v1.5)**
@@ -265,6 +266,31 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
     3. Mỗi lần gọi được ghi vào nhật ký chi phí của lần chạy (nguồn, số lượt, chi phí, thời điểm) và hiện trên màn hình nguồn.
     4. Lỗi, bị chặn, bắt đăng nhập hoặc captcha: dừng nguồn đó, ghi lý do, báo cáo chạy tiếp với phần còn lại và ghi rõ nguồn thiếu. Không vượt captcha, không đổi tài khoản.
   - **Vẫn cần chủ:** merge và deploy; đổi trần chi; thêm nguồn mới vào danh mục; mọi hành động ra bên ngoài (đăng bài, nhắn tin). Không mua hàng (L8).
+  - **Phạm vi và hủy (mới ở v1.13, chủ quyết 11/10/2026, #209):**
+    1. AI đề xuất phạm vi và bắt đầu thu ngay, không chờ chủ duyệt.
+    2. Trong lúc đang thu, chủ chỉ có một thao tác là **Hủy**. Không sửa phạm vi giữa chừng.
+    3. Hủy thì xóa phần dữ liệu đã thu dở, nhưng giữ đúng **một dòng** trong nhật ký chi phí: lần chạy nào, đã tốn bao nhiêu, hủy lúc nào. Nhờ vậy tổng trên thẻ nguồn vẫn khớp với hóa đơn.
+    4. Đổi phạm vi là tạo **bản sửa đổi mới**, thu lại từ đầu.
+    5. Báo cáo của lần chạy đã xong không bao giờ bị ghi đè (quy tắc 7).
+    6. Lượt thu thêm theo E15 dùng đúng phạm vi cũ nên không phải là sửa phạm vi.
+
+**Ngoại lệ ngày 11/10/2026 (mới ở v1.13)**
+
+- **E15 · Xếp chủ đề bình luận theo số lần nhắc (giai đoạn 1).**
+  - **Căn cứ:** chủ quyết ngày 11/10/2026 ở issue #209 (mục U-11 giai đoạn 1).
+  - **Được phép:**
+    - một AI gắn cho mỗi bình luận chủ đề × khen/chê;
+    - xếp chủ đề theo số lần nhắc, mỗi sàn một bảng riêng. Đây là ngoại lệ của quy tắc 5 và L4, chỉ cho bảng này.
+  - **Bắt buộc:**
+    1. **Đếm.** Một bình luận được nằm ở nhiều chủ đề, nhưng mỗi chủ đề chỉ tính bình luận đó một lần.
+    2. **Mỗi sàn một bảng.** Không cộng số giữa các sàn (quy tắc 3, L5).
+    3. **Xếp hạng chặt.** Chỉ những chủ đề có số lần nhắc bằng nhau đúng tuyệt đối mới chung hạng. Không coi là bằng nhau khi chỉ chênh vài phần trăm.
+    4. **Nhóm "Khác".** Chủ đề có dưới 3 lần nhắc trên một sàn được gộp vào "Khác".
+    5. **Thu thêm khi "Khác" lớn.** Nếu "Khác" chiếm trên 20% số bình luận đã gắn mã của sàn đó, hệ thống tự thu thêm tối đa 1 lượt, cùng phạm vi, trong trần chi (E14). Sau lượt đó mà "Khác" vẫn cao thì trình bày đúng như vậy, kèm số lần nhắc và vài trích dẫn. Không ép AI đặt thêm chủ đề cho đủ.
+    6. **Loại trừ theo L10:** bình luận của người làm video hoặc thương hiệu/cửa hàng; bình luận chỉ gắn thẻ người khác hoặc chỉ có biểu tượng cảm xúc.
+    7. **Không thêm câu chú thích về độ quan trọng dưới bảng** (chủ quyết 11/10/2026). Người review không được thêm lại.
+  - **Hoãn:** kiểm chéo bằng model thứ hai và hệ số κ (E11 dòng "Duyệt cách xếp nhóm", G2, G7) chưa dùng ở giai đoạn 1; chờ chủ quyết sau.
+  - **Còn chờ chủ:** nhãn đặt cạnh số đếm này ở bản phát hành (quy tắc 8, L3), vì giai đoạn 1 chưa có kiểm chéo. Bản nháp vẫn dùng nhãn của L3.
 
 ---
 
@@ -297,7 +323,7 @@ Nguồn dữ liệu của từng section: [Input data sources for 30 sections, m
 | 20 | I07 | Lý do lựa chọn | Additional | Lý do nêu trực tiếp trong bản ghi; không suy từ hành vi | PROPOSED + BUSINESS_REVIEWED |
 | 21 | I08 | Rào cản | Additional | Rào cản task–trở ngại trong cùng locator | PROPOSED + BUSINESS_REVIEWED |
 | 22 | I09 | Nhu cầu chưa được đáp ứng | Additional | Cặp mong muốn–thiếu hụt trong cùng bản ghi | PROPOSED + BUSINESS_REVIEWED |
-| 23 | I10 | Chủ đề và mối quan tâm | Additional | Coding corpus đóng băng; n/N trong corpus; bản phát hành cần bộ mã đã kiểm chéo (E11) | PROPOSED + BUSINESS_REVIEWED + E11 |
+| 23 | I10 | Chủ đề và mối quan tâm | Additional | Coding corpus đóng băng; n/N trong corpus; bản phát hành cần bộ mã đã kiểm chéo (E11; kiểm chéo bằng model thứ hai **hoãn** theo #209, giai đoạn 1 xếp hạng theo E15) | PROPOSED + BUSINESS_REVIEWED + E11 (hoãn) |
 | 24 | I11 | Khác biệt giữa các nhóm | Advanced | Nhóm mặc định theo sàn và mua lẻ/mua sỉ (E11); rate mô tả khi mẫu số tương thích; suy luận chặn | PROPOSED + BUSINESS_REVIEWED + E11 |
 | 25 | I12 | Điểm tiếp xúc | Advanced | PRESENCE/EXPOSURE/OUTCOME tách rời; ratio theo unit đã link | PROPOSED + BUSINESS_REVIEWED |
 | 26 | I13 | Thương hiệu và đối thủ | Additional | Inventory nhắc thương hiệu/nội dung trong corpus đóng băng; lời người bán theo L7 | PROPOSED + BUSINESS_REVIEWED + E5 |
@@ -480,6 +506,7 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 - Corpus đóng băng + codebook phiên bản + frame/đơn vị mã hóa; output là tần suất theo bản ghi/coding unit trong corpus; n/N hiển thị khi denominator đầy đủ. Không đọc thành % khách hàng/dân số; co-occurrence không thành nhân quả.
 - **Cập nhật 07/10:** áp L3 (nháp và phát hành) và L4 (không xếp hạng ngầm). Nhãn ô có sẵn trong mẫu đánh giá của sàn ("Hương vị:", "Đường:") không quyết định chủ đề.
 - **Cập nhật 07/10 (E11):** "bộ mã đã duyệt" nghĩa là đã qua kiểm chéo bằng model thứ hai theo E11.
+- **Cập nhật 11/10 (E15):** giai đoạn 1 chưa kiểm chéo bằng model thứ hai; chủ đề bình luận được đếm và xếp theo E15.
 
 ### I11 · Khác biệt giữa các nhóm — PROPOSED + BUSINESS_REVIEWED
 
@@ -675,6 +702,7 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.10 — 08/10/2026:** L10 bình luận công khai dưới video review là lời khách (trừ bình luận của người làm video và tài khoản người bán); mục 1 ghi thêm vào ba loại tiếng nói; bảng tổng quan 30 section cập nhật dòng M01, M09, I02 và thêm ghi chú các quy tắc áp cho nhiều section.
 - **v1.11 — 08/10/2026:** L10 mở rộng: bình luận công khai dưới video bán hàng cũng là lời khách, cùng điều kiện loại trừ; ghi loại nguồn "bình luận dưới video bán hàng" cạnh câu trích và số đếm.
 - **v1.12 — 08/10/2026:** E14 thu dữ liệu tự động từ mọi nguồn đã duyệt, không chờ chủ duyệt, kể cả lần thu đầu tiên; nguồn trả tiền chạy trong trần chi đã cấu hình; Metric chưa đặt trần, thẻ Metric hiện số lượt còn lại; E8, E11 và mục 6.3 sửa theo.
+- **v1.13 — 11/10/2026:** ghi quyết định của chủ ở issue #209. Quy tắc 3 và L5: không bao giờ cộng Shopee với TikTok Shop, kể cả khi cùng file xuất, cùng kỳ, cùng đơn vị; bỏ ngoại lệ "tổng hai sàn". E14 thêm phần phạm vi và hủy: đang thu chỉ được Hủy; Hủy xóa dữ liệu thu dở nhưng giữ một dòng chi phí; đổi phạm vi là bản sửa đổi mới; báo cáo đã xong không bị ghi đè. Thêm E15 xếp chủ đề bình luận theo số lần nhắc (giai đoạn 1), nhóm "Khác" và lượt thu thêm. Kiểm chéo bằng model thứ hai và κ (E11, G2, G7) hoãn, không xóa. L4, I10 và G8 sửa theo.
 
 ---
 
@@ -698,6 +726,7 @@ Mỗi mục có: nghĩa là gì, ví dụ, dùng ở đâu trong file này, ngu�
 - **Ví dụ:** hai model xếp 100 review vào "khen/chê/trung tính" và giống nhau ở 85 review. Nếu đoán bừa cũng đã trùng khoảng 40 review, κ ≈ (85 − 40) / (100 − 40) = 0,75.
 - **Thang đọc thường dùng (Landis và Koch, 1977):** dưới 0 là không đồng thuận; 0–0,20 rất ít; 0,21–0,40 ít; 0,41–0,60 vừa phải; 0,61–0,80 đáng kể; 0,81–1 gần như hoàn toàn. Mốc 0,6 trong file này nằm ở ranh giới giữa "vừa phải" và "đáng kể".
 - **Dùng ở:** E11 (kiểm chéo bộ mã); gói P7 trong kế hoạch #124 cũng dùng mốc 0,6.
+- **Trạng thái (v1.13):** chưa dùng ở giai đoạn 1 của việc xếp chủ đề bình luận (E15); hoãn theo quyết định của chủ ngày 11/10/2026 (#209).
 - **Nguồn:** [Landis và Koch (1977), Biometrics (PubMed)](https://pubmed.ncbi.nlm.nih.gov/843571/); [giải thích κ (Wikipedia)](https://en.wikipedia.org/wiki/Cohen%27s_kappa).
 - **Mức chắc chắn:** trung bình. Thang Landis và Koch được dùng rất rộng nhưng chính tác giả không đưa bằng chứng cho các mốc; đây là quy ước. Chủ chưa có chuyên môn để duyệt mốc này (07/10/2026).
 
@@ -749,6 +778,7 @@ Mỗi mục có: nghĩa là gì, ví dụ, dùng ở đâu trong file này, ngu�
 - **Nghĩa:** trong nghiên cứu định tính, cách làm chuẩn là để hai người xếp nhóm độc lập rồi đo mức giống nhau (κ, xem G2). Ở đây chủ không duyệt từng bản ghi (E11), nên thay người thứ hai bằng một model AI khác, chạy độc lập, không thấy kết quả của model đầu.
 - **Giới hạn:** hai model có thể cùng sai theo một kiểu, nên κ cao chưa chắc là đúng. Bản ghi hai model xếp khác nhau luôn được liệt kê để người đọc tự kiểm.
 - **Dùng ở:** E11, dòng "Duyệt cách xếp nhóm".
+- **Trạng thái (v1.13):** chưa dùng ở giai đoạn 1 (E15); hoãn theo quyết định của chủ ngày 11/10/2026 (#209).
 - **Mức chắc chắn:** trung bình. Đây là cách thay thế cho người duyệt, chưa được kiểm chứng trên dữ liệu của dự án.
 
 ### G8. Ngưỡng số: vì sao chọn con số này (mới ở v1.9)
@@ -800,10 +830,13 @@ Nhiều ngưỡng được đặt trước ngày 08/10/2026 mà không ghi lý d
 | ≥5 thương hiệu | Mục 6.3 | 24 sản phẩm đạt 50% doanh thu thạch dừa có 7 nhóm thương hiệu; 5 là phần lớn số đó | Chủ đồng ý (07/10) | Quy ước, có số liệu mẫu |
 | 300 review mỗi sản phẩm, tối đa 500 | Mục 6.3 | 300 do chủ đặt cho lần chạy thử 06/10; 500 là giới hạn của hệ thống | Chủ | Quyết định của chủ |
 | ≥30 review có chữ | Mục 6.3 | Với 30 bản ghi, sai số của một tỷ lệ quanh 50% là khoảng ±18 điểm (G4) | Claude đề xuất (07/10) | Cao về phép tính; mốc 30 là quy ước |
-| 200 bản ghi để kiểm chéo | E11 | Với 200 bản ghi, κ đo được lệch khoảng ±0,09 (khoảng tin cậy 95%, khi hai model giống nhau ở 80% bản ghi và phần trùng do may rủi là 40%). Đủ để phân biệt κ = 0,5 với κ = 0,7. Tập nhỏ hơn thì gắn lại toàn bộ | Claude đề xuất (07/10); sai số tính theo công thức sai số chuẩn của κ | Trung bình |
-| κ ≥ 0,6 | E11 | Ranh giới giữa "vừa phải" và "đáng kể" theo thang Landis và Koch (G2) | Claude đề xuất (07/10); chủ chưa duyệt chuyên môn | Trung bình |
+| 200 bản ghi để kiểm chéo | E11 (hoãn từ v1.13, chưa dùng ở giai đoạn 1) | Với 200 bản ghi, κ đo được lệch khoảng ±0,09 (khoảng tin cậy 95%, khi hai model giống nhau ở 80% bản ghi và phần trùng do may rủi là 40%). Đủ để phân biệt κ = 0,5 với κ = 0,7. Tập nhỏ hơn thì gắn lại toàn bộ | Claude đề xuất (07/10); sai số tính theo công thức sai số chuẩn của κ | Trung bình |
+| κ ≥ 0,6 | E11 (hoãn từ v1.13, chưa dùng ở giai đoạn 1) | Ranh giới giữa "vừa phải" và "đáng kể" theo thang Landis và Koch (G2) | Claude đề xuất (07/10); chủ chưa duyệt chuyên môn | Trung bình |
 | ≤5% ý mới mỗi lô | Mục 6.3 cách B | Theo Guest, Namey và Chen 2020 (G1) | Claude đề xuất (07/10) | Trung bình |
 | Lô 25 review, 2 lô đầu làm nền | Mục 6.3 cách B | Review sàn ngắn, nên lô 25 đủ nhỏ để dừng sớm và đủ lớn để mỗi lô có vài ý. Chưa kiểm trên review sàn | Claude đề xuất (07/10) | Quy ước |
+| Dưới 3 lần nhắc trên một sàn thì vào "Khác" | E15 | Chủ đề chỉ được nhắc 1–2 lần dễ là chuyện riêng của một hai người; gộp lại để bảng không dài mà vẫn giữ được số đếm | Chủ quyết (11/10, #209); lý do ghi bổ sung | Quyết định của chủ, quy ước |
+| "Khác" trên 20% số bình luận đã gắn mã của sàn | E15 | Khi phần không xếp được quá lớn, bảng chủ đề chưa nói được nhiều; thu thêm để có thêm bình luận trước khi trình bày | Chủ quyết (11/10, #209); lý do ghi bổ sung | Quyết định của chủ, quy ước |
+| Tối đa 1 lượt thu thêm | E15; E14 | Giữ chi phí trong trần chi và không kéo dài lần chạy. Sau 1 lượt vẫn cao thì trình bày đúng như vậy | Chủ quyết (11/10, #209); lý do ghi bổ sung | Quyết định của chủ, quy ước |
 
 **Dự báo**
 
