@@ -45,6 +45,8 @@ Business decisions pending: owner review is still required before any qualitativ
 
 This follow-up adds the missing admission and replay path without changing the
 historical report, renderer, UI or PDF source files. The authoritative backend
+correction commit is `486f869` (the handoff-only receipt update is committed
+separately after this exact code commit). The authoritative backend
 paths are `src/modules/analysis/research-automation/service.ts`, its three
 AJV consumer registrations (`src/api/research-automation-api.ts`,
 `src/modules/analysis/research-automation/insight-coding.ts`, and
