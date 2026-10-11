@@ -179,7 +179,8 @@ export function applyL9JevDecisions(rows: readonly KeywordMeaningRecordResult[],
 
 export function applyL9JevDecision(row: KeywordMeaningRecordResult, triage: L9JevTriageSidecar | null): AppliedL9JevDecision {
   const original = { decision: row.decision, reason: row.reason } as AppliedL9JevDecision;
-  if (!triage) return original;
+  // Any failed batch makes the whole pass unavailable: partial answers never change the deterministic result.
+  if (!triage || triage.status !== 'COMPLETED') return original;
   if (row.decision !== 'UNCLEAR' || !SENT_REASONS.has(row.reason)) return original;
   for (const auditRow of triage.auditRows) {
     if (auditRow.recordId !== row.recordId) continue;

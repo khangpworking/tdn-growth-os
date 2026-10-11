@@ -65,3 +65,7 @@ Blocked / needs other lane:
 ## Coordinator note (round 1)
 
 The writer flagged that the automation API builds the service and was outside the brief. The coordinator added the API boundary in the same lane: ResearchAutomationApiConfiguration.researchJev, a TypesafeJevClient built only when the configuration is enabled, refused without the OWNER writer (checked before any database opens), and passed as the l9Jev option to the OWNER writer service only. The read-only service never gets the client. Test: 	ests/unit/jev-209b-operator.test.ts (second test).
+
+## Round 2 (coordinator fix)
+
+Astra round 1 found that a sidecar marked UNAVAILABLE could still apply valid answers from a mixed batch. `applyL9JevDecision` now applies decisions only from a `COMPLETED` sidecar; any failed batch keeps the whole deterministic result and the `L9_JEV_UNAVAILABLE` note. Test: `tests/unit/jev-209-triage.test.ts` "a mixed valid and invalid answer batch…" (fails on the previous code, passes now). The non-blocking explicit-false caller-test note is left as is.

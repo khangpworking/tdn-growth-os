@@ -145,3 +145,16 @@ test('corpora beyond the former 5000-row bound continue with deterministic fallb
   assert.equal(fallback.auditRows.length, 0);
   assert.equal(applyL9JevTriage(overBound, fallback).get('over-18999')?.decision, 'UNCLEAR');
 });
+
+test('a mixed valid and invalid answer batch records the note and applies no decision at all', async () => {
+  const result = filterKeywordMeanings(data, [
+    { recordId: 'about', text: 'unrelated about' },
+    { recordId: 'broken', text: 'unrelated broken' },
+  ]);
+  const triage = await triageL9WithJev({ data, result, client: jev(async (_url: Parameters<typeof fetch>[0], init?: Parameters<typeof fetch>[1]) =>
+    responseForQuestions(init as RequestInit, text => text.includes('broken') ? 'NOT_A_CHOICE' : 'ABOUT_PRODUCT')) });
+  assert.equal(triage.status, 'UNAVAILABLE');
+  assert.deepEqual(triage.runNotes, ['L9_JEV_UNAVAILABLE']);
+  const applied = applyL9JevTriage(result, triage);
+  for (const row of result.results) assert.deepEqual(applied.get(row.recordId), { decision: row.decision, reason: row.reason });
+});
