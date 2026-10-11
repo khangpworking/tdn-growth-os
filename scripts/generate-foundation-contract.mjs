@@ -85,6 +85,7 @@ const contracts = [
   ['analysis', 'shopee-review-coding-v1'],
   ['analysis', 'shopee-review-coding-model-v1'],
   ['analysis', 'shopee-review-coding-configuration-v1'],
+  ['analysis', 'automation-qualitative-draft-v1'],
   ['analysis', 'research-chart-spec'],
   ['analysis', 'source-backed-report-request'],
   ['analysis', 'report-semantic-content'],

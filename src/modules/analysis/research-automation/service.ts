@@ -93,6 +93,9 @@ import { prepareShopeeReaderBuild } from '../reader-report/shopee-build-v1.js';
 import type { ResearchAutomationShopeeReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { TikTokCodingProposeRequest } from '../../../../contracts/analysis/tiktok-coding-proposal-v1.generated.js';
 import tiktokCodingProposalSchema from '../../../../contracts/analysis/tiktok-coding-proposal-v1.schema.json' with { type: 'json' };
+import qualitativeDraftSchema from '../../../../contracts/analysis/automation-qualitative-draft-v1.schema.json' with { type: 'json' };
+import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
+import { checkQualitativeDraft, qualitativeShopeeSource, qualitativeTikTokSource } from './qualitative-draft-contracts.js';
 import { prepareTikTokReaderBuild } from '../reader-report/tiktok-build-v1.js';
 import type { ResearchAutomationTikTokReaderBuildRequest } from '../../../../contracts/api/research-automation-reader-report-api.generated.js';
 import type { TikTokSourcePackageIdentity, TikTokVideoSelectionRequest } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
@@ -375,6 +378,8 @@ sourceAjv.addSchema(revisionSchema); sourceAjv.addSchema(classifiedRevisionSchem
 sourceAjv.addSchema(defaultPeerSchema); sourceAjv.addSchema(readerInputSchema); sourceAjv.addSchema(readerApiSchema);
 sourceAjv.addSchema(tiktokCodingProposalSchema);
 const validateTikTokCodingPropose = sourceAjv.compile<TikTokCodingProposeRequest>({ $ref: `${tiktokCodingProposalSchema.$id}#/$defs/proposeRequest` });
+sourceAjv.addSchema(qualitativeDraftSchema);
+const validateQualitativeDraft = sourceAjv.compile<AutomationQualitativeDraft>({ $ref: `${qualitativeDraftSchema.$id}#/$defs/draft` });
 const validateTikTokReaderBuild = sourceAjv.compile<ResearchAutomationTikTokReaderBuildRequest>({ $ref: `${readerApiSchema.$id}#/$defs/tiktokBuildRequest` });
 sourceAjv.addSchema(shopeeCodingProposalSchema);
 const validateShopeeCodingPropose = sourceAjv.compile<ShopeeCodingProposeRequest>({ $ref: `${shopeeCodingProposalSchema.$id}#/$defs/proposeRequest` });
@@ -722,6 +727,25 @@ export class ResearchAutomationService {
     if (!packet?.draftDigest) throw new ResearchAutomationStateError('This run has no retained keyword draft for TikTok coding.');
     return this.#tiktokCodingIntake(row).context({ ...binding }, packageId, packet.draftDigest);
   }
+  /** Query-only S07 qualitative draft admission. Historical TikTok coding bytes remain untouched. */
+  async validateTikTokQualitativeDraft(workspaceId: string, runId: string, packageId: string, value: unknown) {
+    if (!validateQualitativeDraft(value)) throw new ResearchAutomationValidationError('TikTok qualitative draft failed schema validation.');
+    assertUuid(packageId);
+    const { row, binding } = await this.#p9Context(workspaceId, runId);
+    const retained = await this.#boundedSourceReader().readFinalizedSourcePackage(packageId, { maxFileBytes: 32 * 1024 * 1024, maxTotalBytes: 128 * 1024 * 1024 });
+    const replayed = await this.#tiktokCodingIntake(row).readCorpus({ ...binding }, packageId,
+      retained.manifestArtifactSha256, retained.packageContentSha256);
+    const corpusMember = retained.files.find(file => file.path === 'corpus.json');
+    if (!corpusMember) throw new ResearchAutomationValidationError('TikTok qualitative source has no retained corpus member.');
+    try {
+      return checkQualitativeDraft(value, qualitativeTikTokSource(replayed.corpus, corpusMember.sha256, { ...binding }, {
+        packageId, manifestArtifactSha256: retained.manifestArtifactSha256, packageContentSha256: retained.packageContentSha256,
+      }));
+    } catch (error) {
+      if (error instanceof TypeError) throw new ResearchAutomationValidationError(error.message);
+      throw error;
+    }
+  }
   /** Explicit OWNER TikTok reader build from replayed retained coding, report, corpus, and scope. */
   async buildTikTokReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
     if (!validateTikTokReaderBuild(value)) throw new ResearchAutomationValidationError('TikTok reader build request failed validation.');
@@ -855,6 +879,18 @@ export class ResearchAutomationService {
     const { row } = await this.#shopeeCodingContext(workspaceId, runId);
     const packet = await this.readSourceEvidence(workspaceId, runId);
     return this.#shopeeCodingIntake(row).context(this.#shopeeCodingBinding(workspaceId, runId, row), packet?.draftDigest ?? null);
+  }
+  /** Query-only S05 qualitative draft admission. Historical Shopee coding bytes remain untouched. */
+  async validateShopeeQualitativeDraft(workspaceId: string, runId: string, value: unknown) {
+    if (!validateQualitativeDraft(value)) throw new ResearchAutomationValidationError('Shopee qualitative draft failed schema validation.');
+    const { row } = await this.#shopeeCodingContext(workspaceId, runId);
+    const source = await this.#shopeeCodingSource(workspaceId, runId);
+    try {
+      return checkQualitativeDraft(value, qualitativeShopeeSource(source.view, this.#shopeeCodingBinding(workspaceId, runId, row)));
+    } catch (error) {
+      if (error instanceof TypeError) throw new ResearchAutomationValidationError(error.message);
+      throw error;
+    }
   }
   /** Explicit OWNER Shopee reader build from replayed retained coding, synthesis, sample, and scope. */
   async buildShopeeReaderReport(workspaceId: string, runId: string, value: unknown, actor: { actorId: string; role: 'OWNER' }) {
