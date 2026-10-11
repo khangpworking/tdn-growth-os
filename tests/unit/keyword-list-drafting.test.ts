@@ -28,19 +28,28 @@ test('drafting freezes validated MODEL_DRAFTED lists with exact term bytes', asy
   const recording: KeywordListDraftTransport = {
     draftLists: async input => {
       seen.push(input);
-      return { keywords: ['Thạch Dừa An Nhiên'], exclusions: [{ term: 'khác sản phẩm', reason: 'Synthetic model exclusion' }] };
+      return { keywords: ['thạch dừa', 'Thạch Dừa An Nhiên'], exclusions: [{ term: 'thạch dứa', reason: 'khác sản phẩm' }] };
     },
   };
   const data = await draftKeywordLists(recording, request());
   assert.equal(data.contractVersion, 'l9-keyword-data-v1');
   assert.equal(data.provenance, 'MODEL_DRAFTED');
   assert.deepEqual(data.keywords, ['thạch dừa', 'Thạch Dừa An Nhiên']);
+  assert.deepEqual(data.exclusions, [{ term: 'thạch dứa', reason: 'khác sản phẩm' }]);
+  assert.equal(validatesKeywordMeaningFilterData(data), true);
+  assert.deepEqual(seen, [{ productNames: ['Thạch dừa An Nhiên 350g'], includeTerms: ['thạch dừa'], excludeTerms: ['thạch dứa'] }]);
+});
+
+test('drafting appends omitted scope seeds without replacing model bytes', async () => {
+  const data = await draftKeywordLists(transport({
+    keywords: ['Thạch Dừa An Nhiên'],
+    exclusions: [{ term: 'khác sản phẩm', reason: 'Synthetic model exclusion' }],
+  }), request());
+  assert.deepEqual(data.keywords, ['thạch dừa', 'Thạch Dừa An Nhiên']);
   assert.deepEqual(data.exclusions, [
     { term: 'khác sản phẩm', reason: 'Synthetic model exclusion' },
     { term: 'thạch dứa', reason: 'SCOPE_EXCLUDE_TERM' },
   ]);
-  assert.equal(validatesKeywordMeaningFilterData(data), true);
-  assert.deepEqual(seen, [{ productNames: ['Thạch dừa An Nhiên 350g'], includeTerms: ['thạch dừa'], excludeTerms: ['thạch dứa'] }]);
 });
 
 test('drafting fails closed on malformed, empty or duplicate transport output', async () => {
@@ -58,6 +67,21 @@ test('drafting fails closed on malformed, empty or duplicate transport output', 
     KeywordListDraftError);
   await assert.rejects(
     draftKeywordLists({ draftLists: async () => null as never }, request()),
+    KeywordListDraftError);
+});
+
+test('drafting rejects missing or null keyword and exclusion arrays as domain errors', async () => {
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => ({ exclusions: [] } as never) }, request()),
+    KeywordListDraftError);
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => ({ keywords: null, exclusions: [] } as never) }, request()),
+    KeywordListDraftError);
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => ({ keywords: [] } as never) }, request()),
+    KeywordListDraftError);
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => ({ keywords: [], exclusions: null } as never) }, request()),
     KeywordListDraftError);
 });
 

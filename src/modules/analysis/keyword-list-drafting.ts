@@ -52,7 +52,9 @@ export async function draftKeywordLists(transport: KeywordListDraftTransport, re
   let drafted: Awaited<ReturnType<KeywordListDraftTransport['draftLists']>>;
   try { drafted = await transport.draftLists({ ...structuredClone(request.seeds), ...(generation ?? {}), ...(signal ? { signal } : {}) }); }
   catch { throw new KeywordListDraftError('draft transport failed without retaining a list'); }
-  if (!drafted || typeof drafted !== 'object' || Array.isArray(drafted))
+  if (!drafted || typeof drafted !== 'object' || Array.isArray(drafted)
+    || !Array.isArray((drafted as { keywords?: unknown }).keywords)
+    || !Array.isArray((drafted as { exclusions?: unknown }).exclusions))
     throw new KeywordListDraftError('draft transport returned a malformed list object');
   const seeded = retainScopeSeeds(request.seeds, drafted);
   const output = { contractVersion: 'l9-keyword-data-v1', dataVersion: request.dataVersion, category: request.category,
