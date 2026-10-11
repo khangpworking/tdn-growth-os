@@ -81,6 +81,9 @@
         }
       ]
     },
+    "jevTriage": {
+      "$ref": "l9-jev-triage.schema.json"
+    },
     "sourceAppendix": {
       "$ref": "source-appendix-projection.schema.json#/$defs/projection"
     }

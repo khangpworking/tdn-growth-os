@@ -2,16 +2,20 @@ import { createRequire } from 'node:module';
 import schema from '../../../../contracts/analysis/automation-source-evidence.schema.json' with { type: 'json' };
 import filterSchema from '../../../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
 import appendixSchema from '../../../../contracts/analysis/source-appendix-projection.schema.json' with { type: 'json' };
+import jevTriageSchema from '../../../../contracts/analysis/l9-jev-triage.schema.json' with { type: 'json' };
 import type { AutomationSourceEvidence } from '../../../../contracts/analysis/automation-source-evidence.generated.js';
 import type { RetainedKeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import { buildSourceAppendixProjection, type SourceAppendixUsage } from '../source-appendix-projection.js';
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
+import { applyL9JevTriage, l9JevTriageMatches, triageL9WithJev, unavailableL9JevTriage, type L9JevTriageSidecar } from './l9-jev-triage.js';
+import { TypesafeJevClient } from '../../../platform/ai/typesafe-jev-client.js';
+import type { SerpApiL9FilterOutput } from './serpapi-l9-filter.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { ResearchAutomationIntegrityError, type CaptureRecord, type StepWebResult } from './model.js';
 export type { AutomationSourceEvidence } from '../../../../contracts/analysis/automation-source-evidence.generated.js';
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
-const ajv = new Ajv2020({ strict: true }); ajv.addSchema([filterSchema, appendixSchema]);
+const ajv = new Ajv2020({ strict: true }); ajv.addSchema([filterSchema, appendixSchema, jevTriageSchema]);
 const validate = ajv.compile<AutomationSourceEvidence>(schema);
 export function checkSourceEvidence(value: unknown): asserts value is AutomationSourceEvidence {
   if (!validate(value)) throw new ResearchAutomationIntegrityError('Source evidence packet failed canonical schema validation');
@@ -24,6 +28,7 @@ export function buildSourceEvidence(input: {
   webResults: readonly StepWebResult[]; captures: readonly CaptureRecord[];
   additionalUsages?: readonly SourceAppendixUsage[];
   usedCaptureDigests?: readonly string[];
+  jevTriage?: L9JevTriageSidecar;
 }): AutomationSourceEvidence {
   const webCaptures = input.captures.filter(c => c.stepId === 'COLLECTION');
   const located = input.webResults.map(row => {
@@ -32,6 +37,9 @@ export function buildSourceEvidence(input: {
     return { captureId: capture.artifactSha256, position: row.position, title: row.title, snippet: row.snippet };
   });
   const admission = input.draft ? filterSerpApiResults({ results: located, filter: input.draft.output }) : null;
+  const retainedJevTriage = admission && input.jevTriage && !l9JevTriageMatches(admission.result, input.jevTriage)
+    ? unavailableL9JevTriage(input.draft!.output, admission.result) : input.jevTriage;
+  const applied = admission ? applyL9JevTriage(admission.result, retainedJevTriage ?? null) : new Map();
   const usages: SourceAppendixUsage[] = [...(input.additionalUsages ?? [])];
   // The owning service replayed each cell against its original confirmed
   // package before calling this method. A card or an unconsumed upload adds no use.
@@ -48,14 +56,16 @@ export function buildSourceEvidence(input: {
       : registryId === 'S19' ? admission && located.some(row => row.captureId === capture.artifactSha256) : false;
     if (!used || !registryId || usages.some(u => u.registryId === registryId && u.binding.ref === capture.artifactSha256)) continue;
     const rows = admission?.result.results.filter(row => row.recordId.startsWith(`${capture.artifactSha256}#`)) ?? [];
+    const appliedRows = rows.map(row => ({ row, decision: applied.get(row.recordId)! }));
     const byReason: Record<string, number> = {};
-    for (const row of rows) if (row.decision !== 'INCLUDED') byReason[row.reason] = (byReason[row.reason] ?? 0) + 1;
+    for (const { row, decision } of appliedRows) if (decision.decision !== 'INCLUDED') byReason[decision.reason] = (byReason[decision.reason] ?? 0) + 1;
     usages.push({ registryId, binding: { kind: 'capture', ref: capture.artifactSha256 }, l10SourceType: null,
-      l9: registryId === 'S19' && admission ? { excluded: rows.filter(r => r.decision === 'EXCLUDED').length,
-        unclear: rows.filter(r => r.decision === 'UNCLEAR').length, byReason } : null });
+      l9: registryId === 'S19' && admission ? { excluded: appliedRows.filter(({ decision }) => decision.decision === 'EXCLUDED').length,
+        unclear: appliedRows.filter(({ decision }) => decision.decision === 'UNCLEAR').length, byReason } : null });
   }
   const packet: AutomationSourceEvidence = { contractVersion: 'automation-source-evidence-v1', draftDigest: input.draftDigest,
-    admission, unavailableReason: input.unavailableReason, sourceAppendix: buildSourceAppendixProjection({ usages }) };
+    admission, unavailableReason: input.unavailableReason, sourceAppendix: buildSourceAppendixProjection({ usages }),
+    ...(retainedJevTriage ? { jevTriage: retainedJevTriage } : {}) };
   checkSourceEvidence(packet); return packet;
 }
 /** Recompute decisions from retained inputs, then compare the complete packet, not merely its version. */
@@ -63,14 +73,38 @@ export function verifySourceEvidence(packet: AutomationSourceEvidence, input: Pa
   checkSourceEvidence(packet);
   if (canonicalJson(packet) !== canonicalJson(buildSourceEvidence(input))) throw new ResearchAutomationIntegrityError('Retained source evidence differs from exact replay');
 }
-export function admitWebResults(packet: AutomationSourceEvidence, results: readonly StepWebResult[], captures: readonly CaptureRecord[]): StepWebResult[] {
+export function admitWebResults(packet: AutomationSourceEvidence, results: readonly StepWebResult[], captures: readonly CaptureRecord[], jevTriage: L9JevTriageSidecar | null = null): StepWebResult[] {
   checkSourceEvidence(packet);
-  const included = new Set(packet.admission?.includedRecordIds ?? []);
+  const applied = packet.admission ? applyL9JevTriage(packet.admission.result, jevTriage) : new Map();
+  const included = new Set([...applied].filter(([, row]) => row.decision === 'INCLUDED').map(([recordId]) => recordId));
   const collection = captures.filter(c => c.stepId === 'COLLECTION');
   return results.filter(row => {
     const capture = collection.find(c => c.ordinal === row.captureIndex);
     return capture !== undefined && included.has(`${capture.artifactSha256}#${row.position}`);
   });
+}
+
+function sourceEvidenceAdmission(input: Parameters<typeof buildSourceEvidence>[0]): SerpApiL9FilterOutput | null {
+  if (!input.draft) return null;
+  const webCaptures = input.captures.filter(c => c.stepId === 'COLLECTION');
+  const located = input.webResults.map(row => {
+    const capture = webCaptures.find(c => c.ordinal === row.captureIndex);
+    if (!capture || capture.provider !== 'serpapi') throw new ResearchAutomationIntegrityError('Web result capture lineage is unavailable');
+    return { captureId: capture.artifactSha256, position: row.position, title: row.title, snippet: row.snippet };
+  });
+  return filterSerpApiResults({ results: located, filter: input.draft.output });
+}
+
+/** Build the same frozen web L9 result that is retained in source evidence. */
+export async function triageSourceEvidenceL9(input: {
+  readonly draft: RetainedKeywordListDraftRecord | null;
+  readonly webResults: readonly StepWebResult[];
+  readonly captures: readonly CaptureRecord[];
+  readonly client: TypesafeJevClient;
+}): Promise<L9JevTriageSidecar | null> {
+  const admission = sourceEvidenceAdmission({ draft: input.draft, draftDigest: null, unavailableReason: null,
+    webResults: input.webResults, captures: input.captures });
+  return admission ? triageL9WithJev({ data: input.draft!.output, result: admission.result, client: input.client }) : null;
 }
 
 /** Registry membership follows verified owning-method identity, never filenames or URL guesses. Unknown future source families remain outside this mapping. */
