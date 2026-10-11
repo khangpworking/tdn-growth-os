@@ -10,7 +10,7 @@ Changed paths:
 - `src/modules/analysis/research-automation/reports.ts:61,917-923` — Market-only gate import and failure throw; Insight path unchanged.
 - `src/modules/analysis/reader-report/lint.ts:18` — exported the existing captured provider-name list; lint behavior unchanged.
 - `scripts/audit-market-report.ts` — offline one-file CLI with `PASS|FAIL rule detail` output and nonzero failure exit.
-- `tests/unit/gate-209-market-business.test.ts` — 13 synthetic tests covering the gate and the real Market builder boundary.
+- `tests/unit/gate-209-market-business.test.ts` — 20 synthetic tests covering the gate and the real Market builder boundary.
 
 Round 2:
 
@@ -50,7 +50,7 @@ Blocked / needs other lane:
 
 Evidence:
 
-- `node --import tsx --test tests/unit/gate-209-market-business.test.ts` — 13 passed, 0 failed.
+- `node --import tsx --test tests/unit/gate-209-market-business.test.ts` — 20 passed, 0 failed.
 - `node --import tsx --test tests/unit/research-automation-reports.test.ts tests/unit/market-presentation-method.test.ts tests/unit/market-advertising.test.ts` — 25 passed, 0 failed, 2 Chromium-dependent skips.
 - `node --import tsx --test tests/unit/research-automation-reports.test.ts tests/unit/market-presentation-method.test.ts tests/unit/market-advertising.test.ts tests/integration/market-presentation-report.test.ts` — 25 passed, 3 Windows-only fixture failures, 2 skips; failures are listed above.
 - `node ../tools/typecheck-win.mjs` — exit 0 (`files 912 status 0`).
@@ -59,11 +59,20 @@ Evidence:
 
 Round 2 evidence:
 
-- `node --import tsx --test tests/unit/gate-209-market-business.test.ts tests/integration/gate-209-market-business.test.ts` — 18 passed, 0 failed.
+- `node --import tsx --test tests/unit/gate-209-market-business.test.ts tests/integration/gate-209-market-business.test.ts` — 20 passed, 0 failed.
 - `node ../tools/typecheck-win.mjs` — exit 0 (`files 913 status 0`).
 - `node --import tsx --test tests/unit/research-automation-reports.test.ts tests/unit/market-presentation-method.test.ts tests/unit/market-advertising.test.ts tests/integration/market-presentation-report.test.ts` — 25 passed, 3 Windows-only setup failures, 2 Chromium-dependent skips.
 - The three Windows-only failures are `actual auto service builds source-bound findings/unit tables and immutable reports while stripping adapter injection`, `auto presentation without a receipt preserves zero/missing, keeps references unavailable and rejects unrelated digests before queuing`, and `actual auto revision composes retained literal19/Source18 with Market20 and never discovers an unselected prepared package`; each stops at `tests/integration/market-presentation-report.test.ts:75` with `TypeError: Cannot read properties of undefined (reading 'toString')` before assertions. No test was weakened.
 - `git diff --check` — exit 0.
+
+## Round 2 follow-up
+
+- `src/modules/analysis/research-automation/market-business-gate.ts:27,147-159,201` now separates the always-failing E2 phrases (`Thứ tự theo doanh thu`, `top 3`) from `xếp hạng`/`thị phần`. The latter are exempt only when a negation (`không`, `không phải`, `chưa`, `chẳng`) appears in the preceding 40-character clause after the nearest `.`, `;`, `:`, newline or block boundary. Affirmative uses remain failures.
+- `tests/unit/gate-209-market-business.test.ts:63-96` covers the renderer disclaimers quoted in the regression, each affirmative example, and a prior-sentence negation that must not exempt a later affirmative use.
+- `node --import tsx --test tests/unit/gate-209-market-business.test.ts` — 20 passed, 0 failed.
+- `node --import tsx --test tests/integration/research-automation-api.test.ts` — 7 passed, 8 failed. The four named regression tests all passed: `confirm freezes two web reports and reports PDF as unavailable without a renderer`; `bounded revision HTTP contract reaches the existing worker and rejects changing unrelated sources`; `quote revision HTTP contract reaches the existing worker and rejects changing unrelated sources`; `source-bound HTTP confirmation and supplemental versions preserve old report URLs and expose exact attempt cancellation`.
+- The eight Windows-only failures were `three industries classify a new report from complete selected acceptance without changing old reports` (`INVALID_LOCATED_INSIGHT_INPUT:data/profileSha256 must be equal to constant, data/adoptionSha256 must be equal to constant`), `OWNER Metric rule adoption is immutable, scope-bound, inert and replayable after reopening` (`438 !== 384` at the existing assertion), `bounded raw Metric upload prepares original bytes without admission, preserves exact retries and late-source isolation` (`Cannot read properties of undefined (reading 'toString')`), `supplemental HTTP intake authenticates before storage and prepares an exact package without report admission` (`400 !== 201`), `OWNER model coding uses its own opt-in, safe receipt, retained retry and shutdown settlement` (`INVALID_LOCATED_INSIGHT_INPUT:data/profileSha256 must be equal to constant, data/adoptionSha256 must be equal to constant`), `OWNER Insight coding round-trips over HTTP with exact source context, retries and a report revision` (same `INVALID_LOCATED_INSIGHT_INPUT`), `reader report routes build, serve and decide one OWNER reader page without touching the draft` (`Cannot read properties of undefined (reading 'toString')`), and `saved revision PDF export reports a genuine render failure distinctly from a missing renderer` (`Cannot read properties of undefined (reading 'toString')`). No assertion was weakened.
+- `node ../tools/typecheck-win.mjs` — exit 0 (`files 913 status 0`). `git diff --check` — exit 0.
 
 ## Checklist evidence
 

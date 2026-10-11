@@ -24,7 +24,8 @@ const CROSS_PLATFORM_TOTAL_PHRASES: readonly string[] = [
 ];
 
 const PROPOSAL_TERMS = /(?:phương án|lựa chọn|\boption\b|\bproposal\b|\baction_option\b)/iu;
-const E2_TERMS = /(?:Thứ tự theo doanh thu|\btop\s*3\b|xếp hạng|thị phần)/giu;
+const E2_ALWAYS_TERMS = /(?:Thứ tự theo doanh thu|\btop\s*3\b)/giu;
+const E2_NEGATABLE_TERMS = /(?:xếp hạng|thị phần)/giu;
 const MODEL_ID = /\b(?:gpt|claude)-[A-Za-z0-9][A-Za-z0-9._-]*\b/giu;
 const TAG_NAME = /^<\/?([\w:-]+)/u;
 const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
@@ -143,6 +144,20 @@ function matches(text: string, pattern: RegExp): string[] {
   return [...text.matchAll(pattern)].map(match => match[0] ?? '');
 }
 
+function e2Matches(text: string): string[] {
+  const hits = matches(text, E2_ALWAYS_TERMS);
+  for (const match of text.matchAll(E2_NEGATABLE_TERMS)) {
+    const index = match.index ?? 0;
+    const windowStart = Math.max(0, index - 40);
+    const preceding = text.slice(windowStart, index);
+    const boundary = Math.max(preceding.lastIndexOf('.'), preceding.lastIndexOf(';'), preceding.lastIndexOf(':'), preceding.lastIndexOf('\n'));
+    const clause = preceding.slice(boundary + 1);
+    const negated = /(?:^|[^\p{L}\p{N}_])(?:không(?:\s+phải)?|chưa|chẳng)(?=[^\p{L}\p{N}_]|$)/iu.test(clause);
+    if (!negated) hits.push(match[0] ?? '');
+  }
+  return hits;
+}
+
 function providerMatches(text: string): string[] {
   const names = [...new Set([...FORBIDDEN_PROVIDER_NAMES, ...CAPTURED_PROVIDER_NAMES, 'Jev', 'TypeSafe', 'CLIProxy', 'OpenAI', 'Anthropic', 'GLM'])];
   const found = names.flatMap(name => matches(text, new RegExp(`(?<![\\p{L}\\p{N}_])${name.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&')}(?![\\p{L}\\p{N}_])`, 'giu')));
@@ -183,7 +198,7 @@ export function auditMarketReportHtml(html: string, options: { presentation?: bo
   const scan = scanHtml(html);
   const provider = providerMatches(scan.visible);
   const crossPlatform = CROSS_PLATFORM_TOTAL_PHRASES.flatMap(phrase => matches(scan.visible, new RegExp(phrase.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&'), 'giu')));
-  const e2 = matches(scan.authored, E2_TERMS);
+  const e2 = e2Matches(scan.authored);
   const missingOrDuplicate = MARKET_SECTION_IDS.filter(id => scan.sectionCounts.get(id) !== 1).map(id => `${id}=${scan.sectionCounts.get(id)}`);
   const m12 = scan.sections.get('M12') ?? '';
   const m12Proposal = PROPOSAL_TERMS.test(m12);

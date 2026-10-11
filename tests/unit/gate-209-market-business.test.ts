@@ -60,6 +60,41 @@ test('quoted ranking text does not trigger E2', () => {
   assert.equal(result.ok, true);
 });
 
+test('renderer ranking disclaimers do not trigger E2', () => {
+  const phrases = [
+    'Danh mục chưa xếp hạng',
+    'không so sánh, xếp hạng hay tính thị phần',
+    'thứ tự không phải xếp hạng',
+    'không phải xếp hạng năng lực',
+    'không xếp hạng, chấm điểm, tính chênh lệch hay tỷ lệ',
+    'Chỉ có một quote; không so sánh, xếp hạng hoặc khuyến nghị.',
+    'không cộng hoặc xếp hạng',
+    'không phải bảng xếp hạng',
+    'không phải thị phần toàn thị trường',
+  ];
+  for (const phrase of phrases) {
+    assert.equal(check(reportHtml(`<p>${phrase}</p>`), 'E2_NO_REVENUE_ORDER').ok, true, phrase);
+  }
+});
+
+test('affirmative ranking and market-share language still fails E2', () => {
+  const phrases = [
+    'xếp hạng theo doanh thu',
+    'Bảng xếp hạng',
+    'thị phần của X là 30%',
+    'Thứ tự theo doanh thu',
+    'top 3',
+  ];
+  for (const phrase of phrases) {
+    assert.equal(check(reportHtml(`<p>${phrase}</p>`), 'E2_NO_REVENUE_ORDER').ok, false, phrase);
+  }
+});
+
+test('a negation in a previous sentence does not exempt later affirmative E2 text', () => {
+  const result = check(reportHtml('<p>Không xếp hạng. Xếp hạng theo doanh thu.</p>'), 'E2_NO_REVENUE_ORDER');
+  assert.equal(result.ok, false);
+});
+
 test('Shopee and TikTok names alone pass the cross-platform total rule', () => {
   assert.equal(check(reportHtml('<p>Shopee và TikTok Shop được hiển thị riêng.</p>'), 'U32_NO_CROSS_PLATFORM_TOTAL').ok, true);
 });
