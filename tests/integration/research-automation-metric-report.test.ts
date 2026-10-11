@@ -163,7 +163,11 @@ test('REPORTS computes attached raw Metric rows, retains the full method indepen
   assert.doesNotMatch(context, /Synthetic export measurement period/);
   const evidence = [...doc.querySelectorAll('#M03 details.evidence-trace')].at(-1)!.textContent!;
   assert.ok(evidence.includes(snapshot.result.input.scope.periodBasis), 'original period basis remains in evidence');
-  assert.ok(evidence.includes(snapshot.result.methodVersion) && evidence.includes(snapshot.result.rounding));
+  // Stored method identity is unchanged; the reader sees it as plain Vietnamese, never as a raw code.
+  assert.equal(snapshot.result.methodVersion, 'metric-scope-v1');
+  assert.equal(snapshot.result.rounding, 'percent-half-even-2-v1');
+  assert.ok(evidence.includes('Phép tính trên mẫu số liệu đã lưu, phiên bản 1') && evidence.includes('Làm tròn tỷ lệ phần trăm tới 2 chữ số thập phân (nửa về số chẵn)'));
+  assert.ok(!evidence.includes(snapshot.result.methodVersion) && !evidence.includes(snapshot.result.rounding));
   assert.match(doc.querySelector('#M04 .reader-summary')!.textContent!, /66\.67%/);
   const scopeText = doc.getElementById('M02')!.textContent!;
   assert.match(scopeText, /2026-08-17 đến 2026-09-16/); // Requested period is longer.
