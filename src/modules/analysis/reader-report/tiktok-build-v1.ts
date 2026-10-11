@@ -53,7 +53,7 @@ export function prepareTikTokReaderBuild(identity: TikTokReaderSourceIdentity, d
     const ref = record?.versions[0]?.sourceRefs[0];
     if (!record || !ref) throw new ReaderReportInputError('TikTok finding cites a record without retained identity.');
     return { sourceKind: 'REVIEW', identity: ref.pageSha256, locator: `bình luận ${record.commentId}`,
-      label: 'bình luận công khai dưới video TikTok', retrievedAt: acquiredAt, url: record.videoUrl,
+      label: 'bình luận công khai dưới video TikTok', retrievedAt: record.createdAt, url: record.videoUrl,
       quote: null, quoteVerification: 'NOT_APPLICABLE' };
   };
   const draftByCode = new Map<string, { label: string; occurrences: { recordIndex: number; quote: string; context: string }[] }>();
