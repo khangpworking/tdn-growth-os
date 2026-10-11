@@ -50,7 +50,7 @@ export interface TikTokDraftCoding {
   binding: TikTokCodingBinding;
   corpus: TikTokCodingCorpusIdentity;
   keywordDigest: Digest;
-  promptVersion: 'tiktok-coding-prompt-v1';
+  promptVersion: 'tiktok-coding-prompt-v1' | 'tiktok-coding-prompt-v2';
   /**
    * @minItems 0
    * @maxItems 6000
@@ -205,6 +205,8 @@ export interface TikTokDraftCode {
   recordIndex: number;
   quote: TikTokCodingQuote;
   citationId: number;
+  polarity?: 'KHEN' | 'CHE' | 'KHONG_RO';
+  topic?: string | null;
 }
 export interface TikTokCodingQuote {
   text: string;
@@ -237,23 +239,8 @@ export interface TikTokCodedReport {
   keywordDigest: string;
   /**
    * @minItems 0
-   * @maxItems 6
    */
-  findings:
-    | []
-    | [TikTokCodedFinding]
-    | [TikTokCodedFinding, TikTokCodedFinding]
-    | [TikTokCodedFinding, TikTokCodedFinding, TikTokCodedFinding]
-    | [TikTokCodedFinding, TikTokCodedFinding, TikTokCodedFinding, TikTokCodedFinding]
-    | [TikTokCodedFinding, TikTokCodedFinding, TikTokCodedFinding, TikTokCodedFinding, TikTokCodedFinding]
-    | [
-        TikTokCodedFinding,
-        TikTokCodedFinding,
-        TikTokCodedFinding,
-        TikTokCodedFinding,
-        TikTokCodedFinding,
-        TikTokCodedFinding,
-      ];
+  findings: TikTokCodedFinding[];
   counts: {
     recordsCoded: number;
     codesProposed: number;
@@ -396,6 +383,67 @@ export interface TikTokCodedReport {
         string,
         string,
       ];
+  topicRanking?: {
+    platform: 'SHOPEE' | 'TIKTOK';
+    rows: {
+      rank: number;
+      topic: string;
+      polarity: 'KHEN' | 'CHE';
+      mentionCount: number;
+      quotes: {
+        recordIndex: number;
+        quote: string;
+        context: string | null;
+      }[];
+    }[];
+    khac: {
+      mentionCount: number;
+      /**
+       * @maxItems 3
+       */
+      quotes:
+        | []
+        | [
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+          ]
+        | [
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+          ]
+        | [
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+            {
+              recordIndex: number;
+              quote: string;
+              context: string | null;
+            },
+          ];
+    };
+    khongRoCount: number;
+    khacShare: number;
+    needsTopUp: boolean;
+  };
 }
 export interface TikTokCodedFinding {
   sectionId: 'I02' | 'I10' | 'I17';

@@ -21,7 +21,8 @@ import { CitationRegistry } from '../citation-registry.js';
 import type { RetainedKeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import type { AutomationSynthesisTextPort } from './synthesis-execution.js';
 import { buildTikTokCodingContext, type TikTokCodingContext } from './tiktok-coding-context.js';
-import { tiktokCodingPrompt } from './tiktok-coding-prompt.js';
+import { tiktokCodingPromptV2 } from './tiktok-coding-prompt.js';
+import { rankReviewTopicMentions } from './review-topic-ranking.js';
 import { p9PackagePrefix, P9SourceError } from './p9-source-intake.js';
 import type { ContentAddressedArtifactStore } from '../../../platform/artifacts/artifact-store.js';
 
@@ -203,7 +204,7 @@ export class AutomationTikTokCoding {
     if (!validateInput(input) || bytes(input).byteLength > BUDGET.maxFileBytes) fail();
     if (!ai) throw new TikTokCodingTransportError('MODEL_NOT_CONFIGURED');
     if (!validateConfiguration(ai.configuration)) throw new TikTokCodingTransportError('MODEL_MISCONFIGURED');
-    const prompt: TikTokCodingModelPrompt = { ...tiktokCodingPrompt() };
+    const prompt: TikTokCodingModelPrompt = { ...tiktokCodingPromptV2() };
     // The mutation mutex is never held across the model call: it guards only the atomic claim
     // insert/transition and the guarded publication below. Dispatch runs lock-free between them.
     // A failed/unknown same-key retry was already observed above; this insert only wins fresh keys.
@@ -303,14 +304,14 @@ export class AutomationTikTokCoding {
         label: 'bình luận công khai dưới video TikTok', retrievedAt: acquiredAt, url: row.videoUrl,
         quote: null, quoteVerification: 'NOT_APPLICABLE' });
       if (citationId === null) fail();
-      return { code: entry.code, label: entry.label, recordIndex: entry.recordIndex,
-        quote: { ...entry.quote }, citationId };
+      return { code: entry.code, label: entry.label, ...('topic' in entry ? { topic: entry.topic } : {}), recordIndex: entry.recordIndex,
+        quote: { ...entry.quote }, ...(entry.polarity ? { polarity: entry.polarity } : {}), citationId };
     });
     const proposalId = randomUUID();
     const codedIndexes = new Set(codes.map(entry => entry.recordIndex));
     const draftCoding: TikTokDraftCoding = { contractVersion: 'tiktok-draft-coding-v1', proposalId,
       requestKey: request.requestKey, binding: { ...request.binding }, corpus: { ...request.corpus },
-      keywordDigest: request.keywordDigest, promptVersion: 'tiktok-coding-prompt-v1', codes,
+      keywordDigest: request.keywordDigest, promptVersion: codes.length > 0 && codes.every(entry => entry.polarity !== undefined) ? 'tiktok-coding-prompt-v2' : 'tiktok-coding-prompt-v1', codes,
       counts: { recordsCoded: codedIndexes.size, codesProposed: codes.length, quotesCited: codes.length },
       status: 'PROPOSED_AWAITING_REVIEW', limitations: [...LIMITATIONS] as TikTokDraftCoding['limitations'] };
     if (!validateDraftCoding(draftCoding)) fail();
@@ -373,7 +374,7 @@ export class AutomationTikTokCoding {
       byCode.set(entry.code, group);
     }
     const scope = 'Trong tập bình luận thu được đã lưu (S07); đơn vị đếm là bản ghi, không phải số người. Số lượng là đề xuất, chờ chủ duyệt.';
-    const findings = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).slice(0, 6).map(([code, group]) => {
+    const findings = [...byCode].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([code, group]) => {
       if (group.citations.length === 0) fail();
       // The finding template carries no literal digits outside {{}}: the code identifier travels
       // via the bundle key and the retained label stays in the draft and section bodies.
@@ -382,10 +383,11 @@ export class AutomationTikTokCoding {
         status: 'PROPOSED_AWAITING_REVIEW' as const, scope,
         citations: group.citations as TikTokCodedReport['findings'][number]['citations'] };
     });
-    const report: TikTokCodedReport = { contractVersion: 'tiktok-coded-report-v1', proposalId: draft.proposalId,
+    const report: TikTokCodedReport = ({ contractVersion: 'tiktok-coded-report-v1', proposalId: draft.proposalId,
       draftSha256: sha(bytes(draft)), corpus: { ...draft.corpus }, keywordDigest: draft.keywordDigest,
       findings: findings as TikTokCodedReport['findings'],
-      counts: { ...draft.counts }, status: 'PROPOSED_AWAITING_REVIEW', limitations: [...LIMITATIONS] as TikTokCodedReport['limitations'] };
+      ...(draft.promptVersion === 'tiktok-coding-prompt-v2' ? { topicRanking: rankReviewTopicMentions(draft.codes.map(entry => ({ platform: 'TIKTOK' as const, recordIndex: entry.recordIndex, topic: ('topic' in entry ? entry.topic : entry.label), polarity: entry.polarity!, quote: entry.quote.text, context: context.rows.find(row => row.recordIndex === entry.recordIndex)?.text ?? null })), { platform: 'TIKTOK' }) as unknown as TikTokCodedReport['topicRanking'] } : {}),
+      counts: { ...draft.counts }, status: 'PROPOSED_AWAITING_REVIEW', limitations: [...LIMITATIONS] as TikTokCodedReport['limitations'] } as unknown as TikTokCodedReport);
     if (!validateReport(report)) fail();
     return report;
   }

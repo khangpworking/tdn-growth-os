@@ -59,7 +59,7 @@ export interface TikTokCodingModelInput {
   ];
 }
 export interface TikTokCodingModelPrompt {
-  contractVersion: 'tiktok-coding-prompt-v1';
+  contractVersion: 'tiktok-coding-prompt-v1' | 'tiktok-coding-prompt-v2';
   systemText: string;
 }
 export interface TikTokCodingModelCandidates {
@@ -77,5 +77,7 @@ export interface TikTokCodingModelCandidates {
       start: number;
       end: number;
     };
+    polarity?: 'KHEN' | 'CHE' | 'KHONG_RO';
+    topic?: string | null;
   }[];
 }

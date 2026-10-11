@@ -58,7 +58,7 @@ export interface ShopeeCodingModelInput {
   ];
 }
 export interface ShopeeCodingModelPrompt {
-  contractVersion: 'shopee-review-coding-prompt-v1';
+  contractVersion: 'shopee-review-coding-prompt-v1' | 'shopee-review-coding-prompt-v2';
   systemText: string;
 }
 export interface ShopeeCodingModelCandidates {
@@ -76,5 +76,7 @@ export interface ShopeeCodingModelCandidates {
       start: number;
       end: number;
     };
+    polarity?: 'KHEN' | 'CHE' | 'KHONG_RO';
+    topic?: string | null;
   }[];
 }

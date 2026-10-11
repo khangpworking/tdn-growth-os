@@ -58,7 +58,7 @@ export function fakeCodingPort(onDispatch?: () => void): NonNullable<TikTokCodin
       const input = JSON.parse(request.userText) as TikTokCodingModelInput;
       return { text: JSON.stringify({ codes: input.records.slice(0, 3).map((record, i) => {
         const text = record.text.slice(0, 10);
-        return { code: `TOPIC_${i}`, label: `chủ đề ${i}`, recordIndex: record.recordIndex,
+        return { code: `TOPIC_${i}`, label: `chủ đề ${i}`, topic: `chủ đề ${i}`, polarity: i % 2 === 0 ? 'KHEN' : 'CHE', recordIndex: record.recordIndex,
           quote: { text, start: 0, end: text.length } };
       }) }) };
     },

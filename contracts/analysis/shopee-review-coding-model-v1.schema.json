@@ -208,7 +208,10 @@
       ],
       "properties": {
         "contractVersion": {
-          "const": "shopee-review-coding-prompt-v1"
+          "enum": [
+            "shopee-review-coding-prompt-v1",
+            "shopee-review-coding-prompt-v2"
+          ]
         },
         "systemText": {
           "type": "string",
@@ -281,6 +284,20 @@
                     "minimum": 1
                   }
                 }
+              },
+              "polarity": {
+                "enum": [
+                  "KHEN",
+                  "CHE",
+                  "KHONG_RO"
+                ]
+              },
+              "topic": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "maxLength": 160
               }
             }
           }
