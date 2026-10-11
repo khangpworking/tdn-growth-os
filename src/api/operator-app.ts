@@ -5,6 +5,7 @@ import path from 'node:path';
 import { randomBytes } from 'node:crypto';
 import BetterSqlite3 from 'better-sqlite3';
 import { cliproxyConfigurationFromEnvironment, assertCliproxyConfiguration, type CliproxyConfiguration } from '../platform/ai/cliproxy-configuration.js';
+import { typesafeJevConfigurationFromEnvironment, type TypesafeJevConfiguration } from '../platform/ai/typesafe-jev-client.js';
 import { createCliproxyCreativeGateway } from '../platform/ai/cliproxy-creative-gateway.js';
 import { disabledCreativeGateway } from '../platform/ai/fake-creative-gateway.js';
 import { readMigrations } from '../platform/db/migrations.js';
@@ -71,6 +72,8 @@ export interface OperatorAppConfiguration {
   readonly researchTikTokCodingAi?: TikTokCodingConfiguration;
   /** Opt-in Shopee draft-coding proposals through `cliproxy`; never inherited from another model flag. */
   readonly researchShopeeCodingAi?: ShopeeReviewCodingConfiguration;
+  /** Optional Jev L9 triage; the API key is retained only in process configuration. */
+  readonly researchJev?: TypesafeJevConfiguration;
 }
 export interface OperatorAppDependencies {
   readonly creativeAiTransport?: typeof fetch;
@@ -93,6 +96,7 @@ export function operatorAppConfigurationFromEnvironment(
   const rawPort = environment.TDN_OPERATOR_APP_PORT ?? '8787';
   if (!/^[1-9]\d{0,4}$/.test(rawPort)) throw new TypeError('TDN_OPERATOR_APP_PORT must be an integer from 1 to 65535');
   const cliproxy = cliproxyConfigurationFromEnvironment(environment);
+  const researchJev = typesafeJevConfigurationFromEnvironment(environment);
   if (environment.TDN_R2_ENABLED !== undefined && !['true', 'false'].includes(environment.TDN_R2_ENABLED)) throw new TypeError('TDN_R2_ENABLED must be exactly true or false');
   const i14Enabled = environment.TDN_RESEARCH_I14_AI_ENABLED;
   if (i14Enabled !== undefined && i14Enabled !== 'true' && i14Enabled !== 'false') throw new TypeError('TDN_RESEARCH_I14_AI_ENABLED must be exactly true or false');
@@ -156,6 +160,7 @@ export function operatorAppConfigurationFromEnvironment(
     ...(researchInsightCodingAi === undefined ? {} : { researchInsightCodingAi }),
     ...(researchTikTokCodingAi === undefined ? {} : { researchTikTokCodingAi }),
     ...(researchShopeeCodingAi === undefined ? {} : { researchShopeeCodingAi }),
+    ...(researchJev.enabled ? { researchJev } : {}),
     ...(environment.TDN_R2_ENABLED !== 'true' ? {} : { r2: {
       TDN_R2_ENABLED: 'true', TDN_R2_ACCOUNT_ID: environment.TDN_R2_ACCOUNT_ID,
       TDN_R2_ACCESS_KEY_ID: environment.TDN_R2_ACCESS_KEY_ID,

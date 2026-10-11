@@ -6,6 +6,7 @@ import type { AutomationSourceEvidence } from '../../../../contracts/analysis/au
 import type { RetainedKeywordListDraftRecord } from '../keyword-list-draft-record.js';
 import { buildSourceAppendixProjection, type SourceAppendixUsage } from '../source-appendix-projection.js';
 import { filterSerpApiResults } from './serpapi-l9-filter.js';
+import { applyL9JevTriage, type L9JevTriageSidecar } from './l9-jev-triage.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { ResearchAutomationIntegrityError, type CaptureRecord, type StepWebResult } from './model.js';
 export type { AutomationSourceEvidence } from '../../../../contracts/analysis/automation-source-evidence.generated.js';
@@ -63,9 +64,10 @@ export function verifySourceEvidence(packet: AutomationSourceEvidence, input: Pa
   checkSourceEvidence(packet);
   if (canonicalJson(packet) !== canonicalJson(buildSourceEvidence(input))) throw new ResearchAutomationIntegrityError('Retained source evidence differs from exact replay');
 }
-export function admitWebResults(packet: AutomationSourceEvidence, results: readonly StepWebResult[], captures: readonly CaptureRecord[]): StepWebResult[] {
+export function admitWebResults(packet: AutomationSourceEvidence, results: readonly StepWebResult[], captures: readonly CaptureRecord[], jevTriage: L9JevTriageSidecar | null = null): StepWebResult[] {
   checkSourceEvidence(packet);
-  const included = new Set(packet.admission?.includedRecordIds ?? []);
+  const applied = packet.admission ? applyL9JevTriage(packet.admission.result, jevTriage) : new Map();
+  const included = new Set([...applied].filter(([, row]) => row.decision === 'INCLUDED').map(([recordId]) => recordId));
   const collection = captures.filter(c => c.stepId === 'COLLECTION');
   return results.filter(row => {
     const capture = collection.find(c => c.ordinal === row.captureIndex);

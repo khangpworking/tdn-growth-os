@@ -7,6 +7,7 @@ export type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-
 import { retainedTikTokCapture } from '../../../platform/collectors/apify-tiktok-comments.js';
 import { canonicalJson } from '../../foundation/canonical-json.js';
 import { filterKeywordMeanings, type KeywordMeaningFilterData } from '../keyword-meaning-filter.js';
+import { applyL9JevDecision, type L9JevTriageSidecar } from './l9-jev-triage.js';
 import { CitationRegistry } from '../citation-registry.js';
 import type { LocatedInsightMethods } from '../../../../contracts/analysis/located-insight-methods.generated.js';
 import type { TikTokCommentCapture, SanitizedTikTokComment } from '../../../platform/collectors/apify-tiktok-comments.js';
@@ -28,7 +29,7 @@ export type SelectedTikTokVideos = Awaited<ReturnType<typeof selectTikTokVideos>
 /** Deterministic canonical projection for the owning source intake.
  * Caller is the owning intake, not an operator-supplied string/name source.
  * No persistence or coding/model invocation occurs at this boundary. */
-export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture: TikTokCommentCapture, keywords: KeywordMeaningFilterData) {
+export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture: TikTokCommentCapture, keywords: KeywordMeaningFilterData, jevTriage: L9JevTriageSidecar | null = null) {
   if (!validateSelection(selected.selection) || !validateCapture(retainedTikTokCapture(capture)) || sha(canonicalJson(selected.selection)) !== selected.selectionSha256 || capture.receipt.status !== 'SUCCEEDED' || capture.auditForm !== 'SANITIZED_ALLOWLIST') fail();
   const videos = new Map(selected.selection.videos.map(row => [row.videoId, row]));
   const groups = new Map<string, { row: SanitizedTikTokComment; versions: { row: SanitizedTikTokComment; sourceRefs: { pageSha256: string; pageIndex: number; rowIndex: number; textPointer: string }[] }[]; occurrenceCount: number }>();
@@ -66,9 +67,10 @@ export function buildTikTokCommentCorpus(selected: SelectedTikTokVideos, capture
   const records = frozenGroups.map(([recordId, group]) => {
     const video = videos.get(group.row.videoId)!;
     const l9 = decisions.get(recordId)!;
+    const applied = applyL9JevDecision(l9, jevTriage);
     const reason = group.versions.length > 1 ? 'UNRESOLVED_CONFLICT' : group.row.exclusionReason ??
-      (group.row.voice === 'SELLER_OR_CREATOR' ? 'SELLER_OR_CREATOR' : l9.decision === 'INCLUDED' ? null : l9.reason);
-    const disposition = reason === null ? 'INCLUDED' as const : l9.decision === 'UNCLEAR' && !group.row.exclusionReason && group.row.voice === 'CUSTOMER' && group.versions.length === 1
+      (group.row.voice === 'SELLER_OR_CREATOR' ? 'SELLER_OR_CREATOR' : applied.decision === 'INCLUDED' ? null : applied.reason);
+    const disposition = reason === null ? 'INCLUDED' as const : applied.decision === 'UNCLEAR' && !group.row.exclusionReason && group.row.voice === 'CUSTOMER' && group.versions.length === 1
       ? 'UNCLEAR' as const : 'EXCLUDED' as const;
     return { recordId, videoId: group.row.videoId, commentId: group.row.commentId, videoUrl: video.url, videoKind: video.kind,
       sourceType: video.kind === 'REVIEW_VIDEO' ? 'COMMENT_UNDER_REVIEW_VIDEO' as const : 'COMMENT_UNDER_SELLER_VIDEO' as const,
