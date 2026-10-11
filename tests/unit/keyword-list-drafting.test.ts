@@ -40,6 +40,18 @@ test('drafting freezes validated MODEL_DRAFTED lists with exact term bytes', asy
   assert.deepEqual(seen, [{ productNames: ['Thạch dừa An Nhiên 350g'], includeTerms: ['thạch dừa'], excludeTerms: ['thạch dứa'] }]);
 });
 
+test('drafting appends omitted scope seeds without replacing model bytes', async () => {
+  const data = await draftKeywordLists(transport({
+    keywords: ['Thạch Dừa An Nhiên'],
+    exclusions: [{ term: 'khác sản phẩm', reason: 'Synthetic model exclusion' }],
+  }), request());
+  assert.deepEqual(data.keywords, ['thạch dừa', 'Thạch Dừa An Nhiên']);
+  assert.deepEqual(data.exclusions, [
+    { term: 'khác sản phẩm', reason: 'Synthetic model exclusion' },
+    { term: 'thạch dứa', reason: 'SCOPE_EXCLUDE_TERM' },
+  ]);
+});
+
 test('drafting fails closed on malformed, empty or duplicate transport output', async () => {
   const cases: { keywords: unknown[]; exclusions: unknown[] }[] = [
     { keywords: [], exclusions: [] },
@@ -48,10 +60,28 @@ test('drafting fails closed on malformed, empty or duplicate transport output', 
     { keywords: ['thạch dừa'], exclusions: [{ term: '', reason: 'empty' }] },
   ];
   for (const lists of cases) {
-    await assert.rejects(draftKeywordLists(transport(lists), request()), KeywordListDraftError);
+    await assert.rejects(draftKeywordLists(transport(lists), request({ seeds: { productNames: ['Synthetic product'], includeTerms: [], excludeTerms: [] } })), KeywordListDraftError);
   }
   await assert.rejects(
     draftKeywordLists({ draftLists: async () => { throw new Error('synthetic transport boom'); } }, request()),
+    KeywordListDraftError);
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => null as never }, request()),
+    KeywordListDraftError);
+});
+
+test('drafting rejects missing or null keyword and exclusion arrays as domain errors', async () => {
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => ({ exclusions: [] } as never) }, request()),
+    KeywordListDraftError);
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => ({ keywords: null, exclusions: [] } as never) }, request()),
+    KeywordListDraftError);
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => ({ keywords: [] } as never) }, request()),
+    KeywordListDraftError);
+  await assert.rejects(
+    draftKeywordLists({ draftLists: async () => ({ keywords: [], exclusions: null } as never) }, request()),
     KeywordListDraftError);
 });
 

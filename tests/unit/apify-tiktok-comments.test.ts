@@ -63,6 +63,9 @@ test('fake collection -> dedupe/privacy/L9 located and cited projection preserve
   assert.equal(corpus.accounting.included, 2); assert.equal(corpus.accounting.equalDuplicateRows, 1); assert.equal(corpus.accounting.conflictingCommentGroups, 1);
   assert.equal(corpus.accounting.unclear, 1); assert.deepEqual(corpus.accounting.byReason,
     { EXCLUDED_TERM: 1, UNRESOLVED_UNDIACRITICIZED: 1, EMPTY: 1, TAG_ONLY: 1, EMOJI_ONLY: 1, SELLER_OR_CREATOR: 2, REPLY: 1, UNRESOLVED_CONFLICT: 1 });
+  assert.equal(corpus.filterBatches[0]!.accounting.excluded, 1);
+  assert.equal(corpus.filterBatches[0]!.accounting.byReason.EXCLUDED_TERM, 1);
+  assert.equal(corpus.records.find(row => row.commentId === '3')!.l9.exclusionReason, 'Synthetic other product');
   assert.equal(tikTokLocatedRecords(corpus).filter(v => v.disposition === 'INCLUDED').length, 2);
   const registry = new CitationRegistry(); assert.equal(citeTikTokCommentCorpus(corpus, registry).length, 2);
   assert.equal(registry.entries().length, 2); assert.ok(registry.entries().every(c => c.url === url && c.label === 'bình luận công khai dưới video TikTok'));
