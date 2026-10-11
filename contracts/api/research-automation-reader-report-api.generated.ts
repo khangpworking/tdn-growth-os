@@ -36,6 +36,7 @@ export type ResearchAutomationReaderRevisionV2 =
   | ResearchAutomationInsightReaderRevisionV4
   | ResearchAutomationInsightReaderRevisionV5
   | ResearchAutomationInsightReaderRevisionV6
+  | ResearchAutomationInsightReaderRevisionV9
   | ResearchAutomationTikTokReaderRevision
   | ResearchAutomationShopeeReaderRevision;
 
@@ -540,6 +541,28 @@ export interface ResearchAutomationInsightReaderRevisionV6 {
   personaProposalSha256: Sha256;
   personaSourcePairId: Sha256;
   personaSourceSha256: Sha256;
+}
+/**
+ * Source-bound qualitative Insight reader revision. It remains proposed, excludes main conclusions, and reports U11 statistics as unavailable.
+ */
+export interface ResearchAutomationInsightReaderRevisionV9 {
+  revisionId: string;
+  revisionNumber: number;
+  workspaceId: string;
+  runId: string;
+  state: 'PENDING_OWNER_REVIEW' | 'APPROVED' | 'REJECTED' | 'SUPERSEDED';
+  draftPairId: Sha256;
+  htmlSha256: Sha256;
+  createdAt: Timestamp;
+  decision: null | {
+    decision: 'APPROVED' | 'REJECTED';
+    reason: string | null;
+    decidedAt: Timestamp;
+  };
+  reportKind: 'INSIGHT';
+  builderVersion: 'reader-report-insight-v9';
+  semanticSha256: Sha256;
+  sourceReportSha256: Sha256;
 }
 export interface ResearchAutomationTikTokReaderRevision {
   revisionId: string;

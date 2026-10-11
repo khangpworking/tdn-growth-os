@@ -41,6 +41,37 @@ Next action: coordinator integrates `db2686b` (and this handoff document) on the
 
 Business decisions pending: owner review is still required before any qualitative draft can enter a released or main conclusion; U11 reliability remains unavailable.
 
+## Reader API qualitative receipt correction (2026-10-11)
+
+The exact-head review found that `readerBuildReceiptV2.revisionV2` stopped at
+Insight v6 plus the TikTok/Shopee variants, while the existing report consumer
+emits `reader-report-insight-v9` for the source-bound qualitative input
+`insight-reader-input-v9`. Commit `6b43893` adds the canonical
+`insightRevisionV9` output variant to the `revisionV2` union and regenerates its
+closed TypeScript derivative; the variant retains the existing revision identity,
+semantic/source-report hashes and owner-review state, has no persona/statistical
+fields, and relies on the retained v9 input for source-bound/U11-unavailable
+semantics.
+
+Changed paths:
+
+- `contracts/api/research-automation-reader-report-api.schema.json`
+- `contracts/api/research-automation-reader-report-api.generated.ts`
+- `tests/unit/reader-unit-spec-intake-contract.test.ts`
+
+Focused evidence: pinned Node 24.15.0 canonical contract generation passed;
+pinned `scripts/typecheck.mjs` exited 0; the focused Reader contract test passed
+1/1; direct pinned JSON membership assertion and `git diff --check` passed. The
+test proves a qualitative v9 `reader-report-build-receipt-v2` validates and the
+same output with a persona field fails. No service, renderer, report/UI/PDF,
+collector, provider, TikTok, schema-policy or deployment path was changed; the
+report consumer dependency remains report commit `90419ea`.
+
+The exact `/home/pkhang/.local/bin/orca-ide orchestration check` was attempted
+once for lifecycle evidence and failed before dispatch inspection with exit 127
+from the known DRM/sandbox-host runtime error (`drmGetDevices2` / `shutdown:
+Operation not permitted`); no restart/open/retry was performed.
+
 ## Service-owned integration correction (2026-10-11)
 
 This follow-up adds the missing admission and replay path without changing the
