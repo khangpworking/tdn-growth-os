@@ -1,0 +1,15 @@
+{
+  "url": "https://metric.vn/analytics",
+  "metricRootVisible": true,
+  "loginVisible": false,
+  "captchaVisible": false,
+  "bodyText": "Platform Time period Product category Keywords Smart query AI chuẩn hoá dữ liệu Useful",
+  "controls": [
+    { "name": "platform", "label": "Platform", "selector": "[role=combobox]", "options": ["Shopee", "TikTok Shop"] },
+    { "name": "period", "label": "Time period", "selector": "#period", "options": ["30 days", "Custom"] },
+    { "name": "category", "label": "Product category", "selector": "#category", "options": ["All"] },
+    { "name": "keywords", "label": "Keywords", "selector": "input[type=search]", "options": [] },
+    { "name": "smartQuery", "label": "Smart query", "selector": "#smart-query", "options": ["on", "off"] },
+    { "name": "usefulFilters", "label": "Useful", "selector": "#useful", "options": ["fake", "gifts", "deleted"] }
+  ]
+}

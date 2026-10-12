@@ -1,0 +1,10 @@
+{
+  "url": "https://metric.vn/analytics",
+  "metricRootVisible": true,
+  "loginVisible": false,
+  "captchaVisible": false,
+  "bodyText": "Analytics",
+  "accountState": "logged_in",
+  "plan": "synthetic",
+  "quota": { "analysisLookupsRemaining": 456, "downloadRowsRemaining": 5000 }
+}
