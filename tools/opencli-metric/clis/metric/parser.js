@@ -110,7 +110,8 @@ function isIconOrBadgeMatch(match) {
 function warningMatchCausesFailure(match, title) {
   if (!match || typeof match !== 'object') return false;
   const reason = String(match.reason ?? '');
-  if (reason === 'title-announcer' || reason === 'info-alert' || reason === 'success-alert' || reason === 'icon-or-badge') return false;
+  if (reason === 'icon-or-badge') return !isIconOrBadgeMatch(match) || hasMetricRestrictionText(match.text);
+  if (reason === 'title-announcer' || reason === 'info-alert' || reason === 'success-alert') return false;
   if (/^(?:warning|error)-class$/.test(reason) || /^(?:restriction-text|bare-warning-text|alert-role)$/.test(reason)) return true;
   if (/warning|error/i.test(String(match.classSample ?? ''))) return !isIconOrBadgeMatch(match) || hasMetricRestrictionText(match.text);
   if (String(match.role ?? '').toLowerCase() === 'alert') {

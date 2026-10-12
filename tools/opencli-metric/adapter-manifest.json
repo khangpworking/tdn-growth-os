@@ -7,7 +7,7 @@
     },
     {
       "path": "clis/metric/parser.js",
-      "sha256": "7abb759724de846fd8eea9a24a9062c76709aefcd496be4387b32a65125be9ca"
+      "sha256": "9301f0d012b64c3ff06e70913dc7630cae1eb42a22057dde6d10b9529052f758"
     },
     {
       "path": "clis/metric/capture.js",

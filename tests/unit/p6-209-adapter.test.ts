@@ -270,6 +270,10 @@ test('warning gate treats warning/error icons and badges as benign but keeps ale
     { via: 'selector', tag: 'span', role: 'alert', classSample: 'warning-icon', text: null },
     { via: 'selector', tag: 'div', role: null, classSample: 'warning-box', text: null },
     { via: 'selector', tag: 'span', role: null, classSample: 'error-badge', text: 'Hết lượt phân tích' },
+    { via: 'selector', tag: 'span', role: null, classSample: 'error-badge', text: 'Hết lượt phân tích', reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'div', role: null, classSample: 'ant-alert-warning icon', text: null, reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'div', role: 'alert', classSample: 'warning-icon', text: null, reason: 'icon-or-badge' },
+    { via: 'selector', tag: 'div', role: null, classSample: 'warning-box', text: null, reason: 'icon-or-badge' },
   ]) {
     assert.throws(() => gateMetricPage({ ...base, warningMatches: [match] }), /METRIC_UI_CHANGED/, JSON.stringify(match));
   }
