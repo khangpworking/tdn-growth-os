@@ -32,6 +32,9 @@ const WITHHELD = {
 let activeReaderPlainText = true;
 const readerMeasureName = (field: string | null | undefined): string => activeReaderPlainText ? readerPlainMeasureName(field) : storedLiteral(field ?? '', WITHHELD.measure);
 const readerStoredOrJson = (value: string | null | undefined, withheld: string): string => activeReaderPlainText ? readerPlainStoredOrJson(value, withheld) : value === null || value === undefined ? withheld : storedLiteral(value, withheld);
+const readerStoredOrJsonHtml = (value: string | null | undefined, withheld: string): string => activeReaderPlainText
+  ? escape(readerPlainStoredOrJson(value, withheld))
+  : readerStoredOrJson(value, withheld);
 const readerDateBasis = (value: string): string => activeReaderPlainText ? readerPlainDateBasis(value) : value;
 const readerScopeText = (value: string | null | undefined, fallback: string): string => activeReaderPlainText ? readerPlainScopeText(value, fallback) : value !== null && value !== undefined && readerSafe(value) ? value : fallback;
 const formatReaderValue = (value: string | null | undefined, options: { readonly measure?: string | undefined; readonly unit?: string | null | undefined; readonly currency?: string | null | undefined } = {}): string | null => formatReaderPlainValue(value, options);
@@ -209,7 +212,7 @@ function m05(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
       const row = recordAt(methods.input.m05, pointer, 'm05');
       if (!row) { unresolved.push(pointer); return unresolvedRow(pointer, 4); }
       usable ||= hasSourceValue(row);
-      return `<tr><td>${entityCell(row)}</td><td>${escape(readerStoredOrJson(row.sourceWording, WITHHELD.wording))}</td><td>${valueCell(row)}</td><td>${sourceCell(methods.input, row.source, citations)}</td></tr>`;
+      return `<tr><td>${entityCell(row)}</td><td>${readerStoredOrJsonHtml(row.sourceWording, WITHHELD.wording)}</td><td>${valueCell(row)}</td><td>${sourceCell(methods.input, row.source, citations)}</td></tr>`;
     }).join('');
     const c = partition.coverage;
     return `<h3>${escape(`${index + 1}. `)}${escape(readerMeasureName(partition.measureLiteral))}</h3><dl><dt>Đơn vị</dt><dd>${partition.unit === null ? tag('Thiếu đơn vị', 'warn') : storedLiteral(partition.unit, 'Đơn vị được giữ trong bản lưu nguồn')}</dd><dt>Kỳ quan sát</dt><dd>${periodCell(partition.period)}</dd><dt>Phạm vi nguồn</dt><dd>${scopeText(partition.scope)}</dd><dt>Độ phủ dòng</dt><dd>Có số ${escape(c.observedCount)} · Bằng 0 ${escape(c.zeroCount)} · Thiếu ${escape(c.missingCount)} · ${activeReaderPlainText ? 'Chưa rõ' : 'UNKNOWN'} ${escape(c.unknownCount)} · Không chính xác ${escape(c.nonExactCount)}</dd></dl>${subtotalText(partition, current)}${blockerList(partition.blockers)}${table(current ? 'Thước đo nguồn theo từng dòng; doanh số đo nhu cầu trong mẫu, mức quan tâm tìm kiếm giữ riêng.' : 'Thước đo nguyên văn của nguồn theo từng dòng. Không phải nhu cầu hay quy mô thị trường.', ['Đối tượng / thước đo', 'Lời trong nguồn', 'Giá trị nguồn', 'Vị trí nguồn'], rows)}`;
@@ -229,7 +232,7 @@ function m06(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
     if (!record) { unresolved.push(pointer); return unresolvedRow(pointer, 5); }
     const row = record.observation;
     usable ||= hasSourceValue(row);
-    return `<tr><td>${entityCell(row)}<br><small>${escape(readerStoredOrJson(record.objectLiteral, WITHHELD.entity))} · ${escape(readerStoredOrJson(row.sourceWording, WITHHELD.wording))}</small></td><td>${record.statusLiteral === null ? tag('Nguồn không nêu', 'warn') : storedLiteral(record.statusLiteral, WITHHELD.status)}</td><td>${escape(readerMeasureName(row.measureLiteral))}<br>${valueCell(row)}</td><td>${periodCell(row.period)}<br><small>Ý nghĩa ngày: ${escape(readerDateBasis(storedLiteral(record.dateMeaning, WITHHELD.basis)))}</small></td><td>${sourceCell(methods.input, row.source, citations)}</td></tr>`;
+    return `<tr><td>${entityCell(row)}<br><small>${readerStoredOrJsonHtml(record.objectLiteral, WITHHELD.entity)} · ${readerStoredOrJsonHtml(row.sourceWording, WITHHELD.wording)}</small></td><td>${record.statusLiteral === null ? tag('Nguồn không nêu', 'warn') : storedLiteral(record.statusLiteral, WITHHELD.status)}</td><td>${escape(readerMeasureName(row.measureLiteral))}<br>${valueCell(row)}</td><td>${periodCell(row.period)}<br><small>Ý nghĩa ngày: ${escape(readerDateBasis(storedLiteral(record.dateMeaning, WITHHELD.basis)))}</small></td><td>${sourceCell(methods.input, row.source, citations)}</td></tr>`;
   }).join('');
   const lead = `<p>${escape(section.locatedRecordCount)} bản ghi cung do nguồn nêu. Số đối tượng ${citations.distinctEntityWording ? 'phân biệt' : 'duy nhất'}: chưa xác định. Bản ghi listing không phải sản phẩm độc lập, tồn kho, năng lực hay toàn bộ nguồn cung.</p>`;
   const body = `${lead}${rows ? table('Bản ghi nguồn cung theo trạng thái nguồn nêu.', ['Đối tượng nguồn nêu', 'Trạng thái theo nguồn', 'Thước đo / giá trị nguồn', 'Kỳ', 'Vị trí nguồn'], rows) : ''}${blockerList(section.blockers)}`;
@@ -272,7 +275,7 @@ function m09(methods: DescriptiveMarketMethods, citations: ReportCitations): Omi
     const dates = `Ngày đăng: ${row.publicationDate === null ? 'chưa rõ' : escape(row.publicationDate)}<br>Ngày sự kiện: ${row.eventDate === null ? 'chưa rõ' : escape(row.eventDate)}<br><small>${escape(readerDateBasis(row.dateBasis))}</small>${activeReaderPlainText ? `<details><summary>Hồ sơ kỹ thuật ngày nguồn</summary><code>${escape(row.dateBasis)}</code></details>` : ''}`;
     const target = `${storedLiteral(row.namedScope, WITHHELD.entity)}<br><small>Chỉ số nêu: ${row.affectedMetricLiteral === null ? 'không nêu' : escape(readerMeasureName(row.affectedMetricLiteral))} · ${row.targetLink === null ? 'chưa liên kết đối tượng' : 'đã liên kết đối tượng'}</small>`;
     const conflicts = row.conflictRefs.length ? `<br><small>${escape(row.conflictRefs.length)} bằng chứng mâu thuẫn được nguồn ghi nhận</small>` : '';
-    return `<tr><td>${escape(EVENT_TYPE[row.statementType])}<br><small>Người nêu: ${storedLiteral(row.attribution, WITHHELD.person)}</small></td><td>${escape(readerStoredOrJson(row.sourceWording, WITHHELD.wording))}</td><td>${dates}</td><td>${target}</td><td>${sourceCell(methods.input, row.source, citations)}${conflicts}${blockerList(event.blockers)}</td></tr>`;
+    return `<tr><td>${escape(EVENT_TYPE[row.statementType])}<br><small>Người nêu: ${storedLiteral(row.attribution, WITHHELD.person)}</small></td><td>${readerStoredOrJsonHtml(row.sourceWording, WITHHELD.wording)}</td><td>${dates}</td><td>${target}</td><td>${sourceCell(methods.input, row.source, citations)}${conflicts}${blockerList(event.blockers)}</td></tr>`;
   }).join('');
   const lead = `<p>${escape(section.locatedRecordCount)} phát biểu hoặc sự kiện có nguồn, ngày và người nêu. Đây là lời được quy cho nguồn; không phải nguyên nhân, xác suất hay mức tác động.</p>`;
   const body = `${lead}${rows ? table('Sự kiện và phát biểu có nguồn.', ['Loại / người nêu', 'Lời trong nguồn', 'Ngày', 'Phạm vi nêu tên', 'Vị trí nguồn'], rows) : ''}${blockerList(section.blockers)}`;

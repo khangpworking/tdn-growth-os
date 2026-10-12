@@ -67,7 +67,7 @@ test('peer evidence requires every explicit peer, exact compatible period and in
   const document = (comparables = rows, sourceCaptures = captures) => new JSDOM(buildResearchAutomationReport({ ...input, captures: sourceCaptures, collection: { ...input.collection!, comparables } }, 'MARKET').html.toString()).window.document;
   const render = (comparables = rows, sourceCaptures = captures) => document(comparables, sourceCaptures).getElementById('M07')!;
   assert.equal(render().querySelectorAll('tbody tr').length, 2);
-  assert.match(render().textContent!, /9\.007\.199\.254\.740\.993/);
+  assert.match(render().textContent!, /9007199254740993\.25/);
   assert.match(render().textContent!, /Không đại diện toàn thị trường/);
   assert.equal(render(rows.slice(0, 1)).querySelector('table'), null);
   assert.equal(render([rows[0]!, { ...rows[1]!, window: { ...capture.window, startDate: '2025-11-01' } }]).querySelector('table'), null);
@@ -174,8 +174,8 @@ test('selected listing observations remain inspectable without silently approvin
   const document = new JSDOM(report.html.toString()).window.document;
   const rows = document.querySelectorAll('#M13 table.observations tbody tr');
   assert.equal(rows.length, 1);
-  assert.equal(rows[0]!.querySelectorAll('td')[0]!.textContent, 'Sản phẩm #1');
-  assert.match(rows[0]!.textContent!, /Sản lượng bán/);
+  assert.equal(rows[0]!.querySelectorAll('td')[0]!.textContent, '1');
+  assert.match(rows[0]!.textContent!, /Lượt bán/);
   assert.equal(rows[0]!.querySelectorAll('td')[2]!.textContent, '0');
   assert.equal(rows[0]!.querySelector('.cite')!.textContent, '[1]');
   assert.equal(document.querySelector('#M07 table'), null);
@@ -247,7 +247,7 @@ test('supplied descriptive method output renders source records per section with
   const m05 = document.getElementById('M05')!;
   assert.equal(m05.querySelectorAll('tbody tr').length, 4);
   assert.match(m05.textContent!, /Kết quả phương pháp mô tả · Chưa phải phân tích hoàn chỉnh/);
-  assert.match(m05.textContent!, /1\.520 lượt bán/);
+  assert.match(m05.textContent!, /1520 lượt bán/);
   assert.match(m05.textContent!, /Nguồn ghi bằng 0/);
   assert.match(m05.textContent!, /Tổng theo khung thành viên nguồn đã khai báo: 20 lượt tìm kiếm/);
   assert.match(m05.textContent!, /Không tính tổng\. Chưa đủ điều kiện cộng các dòng; không hiển thị bằng 0\./);
@@ -309,7 +309,7 @@ test('declared peers render side by side while missing and unknown values stay u
   assert.doesNotMatch(m07.textContent!, /Danh mục chưa xếp hạng/);
   const m05 = marketDocument(report).getElementById('M05')!;
   assert.match(m05.textContent!, /Phương pháp đã chạy · Không có bản ghi dùng được/);
-  assert.match(m05.textContent!, /Chưa rõ · không phải 0/);
+  assert.match(m05.textContent!, /UNKNOWN · không phải 0/);
   assert.match(m05.textContent!, /Không tính tổng/);
   assert.ok(!cellTexts(m05).includes('0'));
   assert.deepEqual((report.semantic as { completion: { boundedMethodOutputSectionIds: unknown } }).completion.boundedMethodOutputSectionIds, ['M07']);

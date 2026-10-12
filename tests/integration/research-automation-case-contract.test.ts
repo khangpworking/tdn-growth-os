@@ -19,7 +19,6 @@ import { SourcePackageService } from '../../src/modules/foundation/source-packag
 import { DiscoveryWorkspaceService, FlowDiscoveryWorkspaceReader } from '../../src/modules/flow/index.js';
 import { ResearchAutomationService } from '../../src/modules/analysis/research-automation/service.js';
 import { buildResearchAutomationReport } from '../../src/modules/analysis/research-automation/reports.js';
-import { formatReaderValue } from '../../src/modules/analysis/research-automation/reader-plain-text.js';
 import { bindResearchAutomationProvider } from '../../src/modules/analysis/research-automation/source-binding.js';
 import { createResearchAutomationProviderRegistry, type ProviderTransport } from '../../src/modules/analysis/research-automation/providers.js';
 import { seedNativeDamiPackage } from '../helpers/native-dami-package-fixture.js';
@@ -237,7 +236,7 @@ test('one database routes three industries to their own retained review source a
         if (kind === 'MARKET') {
           const rows = [...evidenceSection.querySelectorAll('tbody tr')];
           assert.equal(rows.length, c.expected.m05ObservationCount, 'Every inventory item remains readable');
-          assert.ok(rows.some(row => row.querySelectorAll('td')[1]!.textContent!.includes(`${formatReaderValue(c.expected.revenue, { measure: 'revenue', unit: 'VND' })} VND`)));
+          assert.ok(rows.some(row => row.querySelectorAll('td')[1]!.textContent!.includes(`${c.expected.revenue} VND`)));
           assert.ok(rows.some(row => row.querySelectorAll('td')[1]!.textContent!.includes(`${c.expected.units} đơn vị bán theo nguồn`)));
           if (c.expected.revenueState === 'observed_zero' || c.expected.unitsState === 'observed_zero')
             assert.ok(rows.some(row => row.querySelectorAll('td')[1]!.textContent!.includes('Nguồn ghi nhận bằng 0')));

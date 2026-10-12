@@ -621,7 +621,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     }
     if (marketPresentation && (section.sectionId === 'M01' || section.sectionId === 'M08')) {
       locatedViews.set(section.sectionId, () => section.sectionId === 'M01'
-        ? renderAutomationMarketFindings(marketPresentation, citations) : renderAutomationMarketUnitPrices(marketPresentation, citations));
+        ? renderAutomationMarketFindings(marketPresentation, citations, readerPlainText) : renderAutomationMarketUnitPrices(marketPresentation, citations, readerPlainText));
       return { sectionId: section.sectionId, title: section.title, state: 'EVIDENCE_INVENTORY', rows: [],
         method: marketPresentation.methodVersion,
         explanation: section.sectionId === 'M01' ? 'Nhận định chỉ mô tả bằng chứng đã lưu trong phạm vi khai báo; chưa được chủ duyệt.'
@@ -644,7 +644,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && section.sectionId === 'M08' && input.quoteMethods) {
       const methods = input.quoteMethods;
       const usable = quoteMethodUsable(methods);
-      locatedViews.set(section.sectionId, () => quoteMethodSection(methods, citations));
+      locatedViews.set(section.sectionId, () => quoteMethodSection(methods, citations, readerPlainText));
       return { sectionId: section.sectionId, title: section.title, state: usable ? 'METHOD_OUTPUT' : 'METHOD_NO_USABLE_RECORDS', rows: [],
         method: `${methods.output.methodId}@${methods.output.methodVersion}`,
         explanation: 'Đã kiểm tra trường nguồn và tính riêng từng cơ sở giá có đủ dữ liệu. Kết quả giới hạn trong các chào bán được chọn; chưa phải phân tích kinh tế đơn vị hoàn chỉnh.' };

@@ -32,6 +32,7 @@ const QUOTE_VALUE_STATES: Readonly<Record<string, string>> = {
 };
 
 const DECIMAL = /^([+-]?)(\d+)(?:\.(\d+))?(?:[eE]([+-]?\d+))?$/;
+const hasUnsafeReaderToken = (value: string): boolean => /\b[a-z][a-z0-9-]*_[a-z0-9_-]*\b|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b|\bUNKNOWN\b|\b[a-z][a-z0-9-]*:\d+\b|\bcapture-\d+\b|\/data\//.test(value);
 
 function increment(integer: string): string {
   const digits = integer.split('');
@@ -101,6 +102,10 @@ export function formatReaderValue(value: string | null | undefined, options: { r
   return formatReaderNumber(value, kind);
 }
 
+export function formatReaderCount(value: string | number | null | undefined): string | null {
+  return formatReaderNumber(value === null || value === undefined ? null : String(value), 'count');
+}
+
 export function readerMeasureName(field: string | null | undefined): string {
   return field !== null && field !== undefined && MEASURE_NAMES[field] ? MEASURE_NAMES[field]! : '\u0063h\u1ec9 s\u1ed1 ngu\u1ed3n';
 }
@@ -120,7 +125,8 @@ export function readerJsonLiteral(value: string | null | undefined, withheld = '
 
 export function readerStoredOrJson(value: string | null | undefined, withheld: string): string {
   if (value === null || value === undefined) return withheld;
-  return value.trimStart().startsWith('{') ? readerJsonLiteral(value, withheld) : value;
+  if (value.trimStart().startsWith('{')) return readerJsonLiteral(value, withheld);
+  return hasUnsafeReaderToken(value) ? withheld : value;
 }
 
 export function readerPriceState(state: string): string {
@@ -155,7 +161,7 @@ export function readerExactNumber(value: string | null | undefined): string {
 
 export function readerQuoteLabel(quoteId: string, fallbackOrdinal: number): string {
   const match = /^capture-(\d+)-(.+)$/.exec(quoteId);
-  const ordinal = match ? Number(match[1]) : fallbackOrdinal;
+  const ordinal = formatReaderCount(match?.[1] ?? fallbackOrdinal) ?? 'ch\u01b0a r\u00f5';
   const kind = match?.[2]?.includes('range') ? 'kho\u1ea3ng gi\u00e1' : 'gi\u00e1 \u0111\u01a1n v\u1ecb';
   return `B\u1ea3n ghi gi\u00e1 #${ordinal} \u00b7 ${kind}`;
 }
@@ -187,7 +193,7 @@ export function readerDateBasis(value: string): string {
 
 function readerEntityLabel(id: string, title: string | null | undefined, ordinal: number, noun: string): string {
   const clean = title?.trim();
-  return clean ? clean : `${noun} #${ordinal}`;
+  return clean && !hasUnsafeReaderToken(clean) ? clean : `${noun} #${formatReaderCount(ordinal) ?? 'ch\u01b0a r\u00f5'}`;
 }
 
 export function readerProductLabel(id: string, title: string | null | undefined, ordinal = 1): string {
