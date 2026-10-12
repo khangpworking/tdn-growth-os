@@ -138,4 +138,3 @@ export const captureCommand = cli({
 
 // Keep the parser import live for OpenCLI's adapter discovery and convention audit.
 export { assertMetricUrl, parseMetricForm };
-

@@ -29,4 +29,3 @@ The adapter opens an ephemeral tab on the Metric domain and closes that tab in
 all success and failure paths. It does not inspect cookies, passwords, history,
 or tabs it did not create. Search and capture are disabled by the executor
 unless `TDN_METRIC_OPENCLI_ENABLED` is exactly `1`.
-

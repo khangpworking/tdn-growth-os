@@ -147,4 +147,3 @@ export function parseSearchObservation(observation, spec, maxRows = 5000) {
     snapshot: observation.snapshot,
   };
 }
-
