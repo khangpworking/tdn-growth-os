@@ -59,9 +59,11 @@ import { CitationRegistry, type CitationInput } from '../citation-registry.js';
 import { orderReportCitations, renderCitationMarkOrMissing, renderCitationRegister } from '../citation-register-html.js';
 import { lintVisibleReportText } from '../report-visible-text-lint.js';
 import { assertMarketBusinessGate } from './market-business-gate.js';
+import { assertMarket14MachineRules } from './market-14-rules.js';
 import { formatReaderValue, readerProductLabel, readerShopLabel } from './reader-plain-text.js';
 import type { AutomationQualitativeDraft } from '../../../../contracts/analysis/automation-qualitative-draft-v1.generated.js';
 import { qualitativeDraftSection, qualitativeDraftSummary } from '../reader-report/qualitative-draft-report.js';
+import { platIcons } from '../reader-report/layout.js';
 
 const reportRequire = createRequire(import.meta.url);
 const { Ajv2020 } = reportRequire('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -860,6 +862,32 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     'Ngữ cảnh, bảng nguồn, kết quả phương pháp từng phần và tệp PDF không đồng nghĩa với phân tích hoàn chỉnh.',
   ].filter(Boolean).join(' ');
   const reviewOutcome = missingReviewOutcome(input);
+  const marketSectionLabel = (sectionId: string): string => {
+    const match = /^M(0[1-9]|1[0-3])$/u.exec(sectionId);
+    if (!match) return sectionId;
+    const number = Number(match[1]);
+    return number === 13 ? 'Phụ lục' : `Phần ${number}`;
+  };
+  const marketReaderLabels = (source: string): string => source.split(/(<[^>]+>)/gu).map((part, index) => index % 2 === 0
+    ? part.replace(/(?<![\p{L}\p{N}_-])M(0[1-9]|1[0-3])(?![\p{L}\p{N}_-])/gu, (_match, digits: string) => marketSectionLabel(`M${digits}`))
+    : part).join('');
+  const market14Proposals = marketPresentation ? '<p>Ba phương án là đề xuất, chờ chủ duyệt; chưa có hành động nào được phê duyệt.</p>' +
+    '<div class="table-wrap market14-proposals"><table><caption>Phương án đề xuất, chờ chủ duyệt</caption><thead><tr><th>Việc làm ngay</th><th>Người phụ trách</th><th>Hạn</th><th>Đầu ra</th></tr></thead><tbody>' +
+    [
+      ['Việc làm nhanh: rà phạm vi dữ liệu', 'Chủ dự án (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Danh sách phần còn thiếu'],
+      ['Kiểm tra phân loại trên dòng nguồn', 'Chủ dự án; TDN hỗ trợ (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Nhãn phân loại đã xem'],
+      ['Đối chiếu lời khách từ nguồn đã lưu', 'Chủ dự án (đề xuất, chờ chủ duyệt)', 'Hạn: chủ chọn', 'Bảng phản hồi được duyệt'],
+    ].map(row => `<tr>${row.map(cell => `<td>${cell}</td>`).join('')}</tr>`).join('') + '</tbody></table></div>' : '';
+  const market14Appendix = `<div class="table-wrap market14-sources"><div class="exh"><span class="exn">Bảng PL.1</span><span class="ext">Nguồn dữ liệu của báo cáo</span></div><table><caption>Nguồn dữ liệu của báo cáo</caption><thead><tr><th>Hạng mục</th><th>Trạng thái</th></tr></thead><tbody>` +
+    '<tr><td>Dữ liệu bán hàng</td><td>Đã dùng số liệu của lượt này.</td></tr>' +
+    '<tr><td>Dữ liệu đánh giá sản phẩm trên nền tảng</td><td>Chưa có trong lượt này.</td></tr>' +
+    '<tr><td>Kết quả tìm kiếm</td><td>Được giữ riêng khi có đầu vào.</td></tr>' +
+    '<tr><td>Bình luận đã thu thập</td><td>Chưa có trong lượt này.</td></tr>' +
+    '</tbody></table></div>' +
+    '<div class="table-wrap market14-glossary"><div class="exh"><span class="exn">Bảng PL.2</span><span class="ext">Thuật ngữ</span></div><table data-glossary="true"><caption>Thuật ngữ</caption><thead><tr><th>Thuật ngữ</th><th>Nghĩa tiếng Việt</th></tr></thead><tbody>' +
+    [['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'], ['Giá TB', 'giá trung bình'], ['P25 / P75', 'mốc 25% / mốc 75%'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'], ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo']]
+      .map(([term, meaning]) => `<tr><td>${term}</td><td>${meaning}</td></tr>`).join('') +
+    '</tbody></table></div>';
   const appendix = (sectionId: string): string =>
     (reviewOutcome && kind === 'INSIGHT' && (sectionId === 'I03' || sectionId === 'I17') ? `<p class="warning">${escape(reviewOutcomeLead(reviewOutcome))}</p>` : '') +
     baseAppendix(sectionId) +
@@ -870,6 +898,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
       ? `<details open id="quote-method-evidence"><summary>Hồ sơ giá M08: nguồn, điều kiện và phép tính</summary><p>Xuất xứ trong manifest là khai báo đã lưu, không phải chứng nhận độc lập. Dữ liệu tổng hợp thủ công hoặc giả lập không trở thành dữ liệu nhà cung cấp đã xác minh.</p>${retainedEvidenceHtml(input.quoteMethods)}</details>` : '') +
     (insightCoding && (sectionId === 'I03' || sectionId === 'I17') ? insightCodingTrace(insightCoding, sectionId) : '') +
     (insightCrosscheck && sectionId === 'I17' ? insightCrosscheckAppendix(insightCrosscheck) : '') +
+    (marketPresentation && sectionId === 'M13' ? market14Appendix : '') +
     (input.boundedMethods && (sectionId === 'M13' || sectionId === 'I17')
       ? `<details open id="bounded-method-evidence"><summary>Hồ sơ phương pháp M10/I11/I12/I16 và vị trí nguồn</summary><p>Nguồn bổ sung do người dùng chọn, không phải dữ liệu tự thu hoặc xác nhận độ phủ. Hồ sơ giữ riêng kỳ, phạm vi và điều kiện còn thiếu; không cộng gộp với số liệu thị trường hoặc review.</p>${retainedEvidenceHtml(input.boundedMethods)}</details>` : '');
   const baseAppendix = (sectionId: string): string => {
@@ -924,7 +953,7 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
     if (kind === 'MARKET' && input.metricMethods && (section.sectionId === 'M03' || section.sectionId === 'M04')) return qualitative;
     return (locatedView ? locatedView() : views.get(section.sectionId)!.html) + literal + qualitative;
   };
-  const body = orderReportCitations(`<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details></section>`).join(''), registry);
+  const body = orderReportCitations(`<p class="warning">${escape(headline)}${input.qualitativeDraft ? ` ${escape(qualitativeDraftSummary(input.qualitativeDraft))}` : ''}</p>${reviewOutcome ? reviewOutcomeNotice(reviewOutcome, kind) : ''}<p class="reader-guide">Đọc trạng thái và phần diễn giải trước khi sử dụng số liệu. Bảng trình bày những gì nguồn hoặc phép tính đã ghi nhận; phần “Hồ sơ đối chiếu” giữ nguyên nội dung nguồn và thông tin kỹ thuật. Mục còn thiếu điều kiện chưa có kết luận, không phải kết quả bằng 0.</p>` + sections.map(section => `<section class="sheet" id="${section.sectionId}"><header class="sh-head"><div><span class="sh-id">${readerPlainText && kind === 'MARKET' ? marketSectionLabel(section.sectionId) : section.sectionId}</span><h2>${escape(section.title)}</h2></div><span class="state">${escape(stateLabel[section.state])}</span></header><p class="section-reading">${escape(section.explanation)}</p>${methodBody(section)}${section.state === 'SOURCE_CONTEXT' ? scope : ''}${section.sectionId === 'M13' || section.sectionId === 'I17' ? sourceTable + webResultsTable : ''}${observationTable(section.rows, captures, citations, labels, readerPlainText)}${appendix(section.sectionId)}${section.sectionId === 'M12' ? market14Proposals : ''}${readerPlainText && kind === 'MARKET' ? '' : `<details class="method-reference"><summary>Hồ sơ đối chiếu phương pháp</summary><p><small>${fallbackIds.has(section.sectionId) ? 'Phương pháp ghi trong danh mục, chưa chạy trong lượt này' : 'Phương pháp'}: ${methodReference(section.method)}</small></p></details>`}</section>`).join(''), registry);
   const html = `<!doctype html><html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; font-src data:; img-src data:; base-uri 'none'; form-action 'none'"><title>${escape(title)} · ${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</title><style>${reportKitFontCss()}\n${REPORT_KIT_CSS}\n.sheet{break-before:page}.sheet h2{font-size:26px}.state{font-size:12px;color:var(--warn-ink)}.warning{padding:12px;background:var(--warn-bg);color:var(--warn-ink)}dl{display:grid;grid-template-columns:180px minmax(0,1fr);gap:8px}dt{font-weight:700}dd{margin:0}.table-wrap{overflow-x:auto}.table-wrap table{min-width:720px}table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:10px;text-align:left;border:1px solid var(--bd);vertical-align:top}code{word-break:break-all}code.loc{word-break:normal;overflow-wrap:break-word}`
   // Desktop cover: keep text off the diagonal (yellow stripe spans 61.5%→39.6% of the cover width, top→bottom).
   + `@media screen and (min-width:901px){.cover{container-type:inline-size}.cv-left>div:nth-child(2){max-width:calc(46cqi - 40px)}.cv-meta{max-width:calc(38cqi - 40px)}.cv-right{padding-left:11cqi}}`
@@ -932,16 +961,31 @@ export function buildResearchAutomationReport(input: AutomationReportInput, kind
   + `@media screen and (max-width:800px){.table-wrap:not(:has(>.evidence-table)){container-type:inline-size;background:linear-gradient(90deg,#fff 30%,#fff0) left/24px 100% no-repeat local,linear-gradient(270deg,#fff 30%,#fff0) right/24px 100% no-repeat local,radial-gradient(farthest-side at 0 50%,#0f172a33,#0000) left/10px 100% no-repeat scroll,radial-gradient(farthest-side at 100% 50%,#0f172a33,#0000) right/10px 100% no-repeat scroll}.table-wrap:not(:has(>.evidence-table))::before{content:"Nếu bảng vượt chiều rộng màn hình, vuốt ngang để xem đủ cột. Bàn phím: Tab để chọn bảng, rồi dùng phím mũi tên.";display:block;position:sticky;left:0;padding:0 0 6px;color:var(--mut);font-size:12px}.table-wrap:not(:has(>.evidence-table)) caption{position:sticky;left:0;max-width:100cqi;box-sizing:border-box}.table-wrap:focus-visible{outline-offset:-3px}}`
   + `.reader-summary,.section-reading,.reader-guide{max-width:72ch}.reader-context{margin-bottom:24px}.method-reference{margin-top:24px;color:var(--mut)}.method-reference summary{cursor:pointer}.reader-summary{font-weight:500}td,dd{font-variant-numeric:tabular-nums}`
   + `@media(max-width:600px){dl{grid-template-columns:1fr}.sheet{padding:20px}.cover{display:block}.cv-right{background:var(--blue);padding:24px}.cv-left{padding:24px}}@media print{@page{size:A4;margin:14mm}body{background:white}main{padding:0}.cover{min-height:240mm}.toc{gap:4px}.toc a{min-height:0}#sections>.reader-guide+.sheet{break-before:auto}.sh-head{break-after:avoid}.sheet{padding:16px 0;border:0;break-inside:auto}.sheet:after{display:none}.table-wrap{overflow:visible}.table-wrap table{min-width:0}tr{break-inside:avoid}thead{display:table-header-group}.jump{display:none}.sheet h3,.sheet h4,caption,summary{break-after:avoid}thead{break-after:avoid}tbody>tr:first-child{break-before:avoid}details{break-inside:auto}summary+p{break-before:avoid}.limits li{break-inside:avoid}.citation-register a::after{content:" (" attr(href) ")"}.citation-register ol{padding-left:20px}.citation-register li{break-inside:avoid}}</style></head><body><a class="skip" href="#sections">Đến nội dung báo cáo</a><main><section class="cover"><div class="cv-left"><div class="brand"><i></i><b>TDN GROWTH OS</b></div><div><p class="cv-eyebrow">Bản nháp từ nguồn · Chưa được duyệt</p><h1>${escape(title)}</h1><h2>${storedLiteral(input.start.keyword, 'Từ khóa được giữ trong bản lưu')}</h2><p class="cv-lede">Hai lớp tách biệt: dữ liệu đã thu và những điều chưa đủ bằng chứng.</p></div><div class="cv-meta"><b>Việt Nam</b><span>${escape(period)}</span><span>${escape(coverSummary)}</span></div></div><nav class="cv-right" aria-label="Mục lục"><h2>Nội dung</h2><ul class="toc">${sections.map(section => `<li><a href="#${section.sectionId}"><em>${section.sectionId}</em>${escape(section.title)}</a></li>`).join('')}</ul></nav></section><div id="sections">${body}</div>${renderCitationRegister(registry.entries(), { format: 'web' })}<footer><p>${insightPersona ? 'Chân dung và thẻ bằng chứng do AI đề xuất, chờ chủ duyệt; không phải một khách hàng có thật, kết luận đã phát hành hoặc quyết định kinh doanh.' : decisionGeneratedIds.length ? 'Kết quả xử lý AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh, phương án đã chọn hoặc quyết định kinh doanh.' : input.i14Synthesis?.status === 'VALID' ? 'Nhận định AI được lưu riêng, chưa được người dùng duyệt; không phải sự thật đã xác minh hoặc quyết định kinh doanh.' : 'Không có nhận định AI hoặc quyết định kinh doanh tự động trong bản nháp này.'} Không có dữ liệu không đồng nghĩa với giá trị bằng 0.</p></footer></main></body></html>`;
+  const labelledHtml = readerPlainText && kind === 'MARKET' ? marketReaderLabels(html) : html;
+  const marketPlatforms = marketPresentation
+    ? [...new Set(marketPresentation.input.rows.map(row => row.platform))]
+    : [];
+  const scopedHtml = marketPresentation ? labelledHtml.replace('<body', `<body data-market-platforms="${marketPlatforms.join(',')}"`) : labelledHtml;
+  const renderedHtml = marketPresentation ? platIcons(scopedHtml, { shopee: '#c2410c', tiktok: '#1d2327' }, undefined, { compoundPlatformLabels: true }).html : scopedHtml;
+  const readerRenderedHtml = marketPresentation
+    ? renderedHtml.replace(/<span class="cite-locator">[^<]*\bSheet1\b[^<]*<\/span>/giu, '').split(/(<[^>]+>)/gu).map((part, index) => index % 2 ? part : part
+      .replace(/\b[0-9a-f]{64}\b/giu, '[mã nguồn được giữ trong hồ sơ]')
+      .replace(/\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/gu, 'chi tiết nguồn được giữ trong hồ sơ')
+      .replace(/\bCORE\b/gu, 'phạm vi cốt lõi')
+      .replace(/\bWIDE\b/gu, 'phạm vi rộng')
+      .replace(/\bALL\b/gu, 'toàn bộ mẫu')
+      .replace(/\bUNKNOWN\b/gu, 'chưa rõ')).join('')
+    : renderedHtml;
   // Source appendix v18 also serves existing Market and accepted Insight
   // methods. Preserve the family-draft lint boundary independently of the
   // renderer identity, so its source marker cannot bypass the applicable gate.
   if (insightPersona || marketPresentation || (draftInsight && (input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v3' || input.insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v4' || insightCoding?.contractVersion === 'automation-insight-coding-snapshot-v5'))) {
-    const failed = lintVisibleReportText(html).filter(check => !check.ok);
+    const failed = lintVisibleReportText(readerRenderedHtml).filter(check => !check.ok);
     if (failed.length) throw new TypeError(`${marketPresentation ? 'MARKET' : 'INSIGHT'}_VISIBLE_TEXT_LINT_FAILED:${failed.map(check => check.rule).join(',')}`);
   }
   // The visible-text lint keeps its own error; the business gate adds the remaining Market rules.
-  if (marketPresentation) assertMarketBusinessGate(html, { presentation: true });
-  return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(html, 'utf8') };
+  if (marketPresentation) { assertMarketBusinessGate(readerRenderedHtml, { presentation: true }); assertMarket14MachineRules(readerRenderedHtml); }
+  return { semantic: { ...semanticBase, citations: registry.technicalTrace(), citationEntries: registry.entries() }, html: Buffer.from(readerRenderedHtml, 'utf8') };
 }
 
 /** Counts describe the retained capture, never a product/platform population or people. */

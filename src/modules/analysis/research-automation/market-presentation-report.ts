@@ -7,7 +7,7 @@ const number = (value: number | null): string => value === null ? 'Chưa rõ' : 
 const literal = (value: string, readerPlainText = false): string => `<span data-quote>${escape(readerPlainText ? readerStoredOrJson(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn') : storedLiteral(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn'))}</span>`;
 const mark = (ref: { sourceSha256: string; locator: string; label?: string }, citations: ReportCitations, readerPlainText = false): string => {
   const pointer = readerPointer(ref.locator, readerPlainText);
-  return citations.mark({ sourceKind: 'CAPTURE', identity: ref.sourceSha256, locator: pointer.locator,
+  return citations.mark({ sourceKind: 'CAPTURE', identity: ref.sourceSha256, locator: readerPlainText ? null : pointer.locator,
     label: ref.label ?? 'Quy cách và giá do người vận hành lưu', retrievedAt: null, url: null, quote: null,
     quoteVerification: 'NOT_APPLICABLE', technical: { locator: ref.locator } });
 };
@@ -21,6 +21,7 @@ export type AdvertisingReferenceInput = {
   adCost: { value: string | number | null; source: { identity: string } | null };
   orders: { value: string | number | null; source: { identity: string } | null };
   unavailableReason?: string;
+  readerPlainText?: boolean;
 };
 
 const decimal = (value: string | number | null): number | null => {
@@ -71,9 +72,12 @@ export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInp
     ? confirmed && orders === 0 ? 'số đơn bằng không nên không thể chia' : unavailable
     : '';
   const disclaimer = 'Đây là số ước tính tham khảo theo cùng một nguồn và kỳ; không suy ra lợi nhuận hoặc “có lãi”, không so sánh kênh và không trộn với số liệu bán hàng từ nguồn khác.';
+  const firstUse = input.readerPlainText
+    ? '<p>ROAS (tỷ lệ doanh thu trên chi phí quảng cáo) và CPA (chi phí trên đơn) là các chỉ số tham khảo.</p>'
+    : '';
   return `<div class="market-advertising-reference"><h4>Chỉ số quảng cáo tham khảo</h4>` +
     `<p>Kỳ: ${escape(period)} · Đối tượng: ${escape(object)}.</p>` +
-    `<ul><li>ROAS: ${advertisingNumber(roas, 'x')}${roas === null ? ` · Lý do: ${escape(roasReason)}` : ' · ước tính tham khảo'}</li>` +
+    firstUse + `<ul><li>ROAS: ${advertisingNumber(roas, 'x')}${roas === null ? ` · Lý do: ${escape(roasReason)}` : ' · ước tính tham khảo'}</li>` +
     `<li>CPA: ${advertisingNumber(cpa, ' VND/đơn')}${cpa === null ? ` · Lý do: ${escape(cpaReason)}` : ' · ước tính tham khảo'}</li></ul>` +
     `<p class="warning">${escape(disclaimer)}</p></div>`;
 }
@@ -81,8 +85,11 @@ export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInp
 /** Every statement is frozen by the owning method; rendering introduces no
  * calculation, interpretation, ordering by importance or provider execution. */
 export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false): string {
+  const withSample = (text: string): string => readerPlainText
+    ? text.replace(/\btrong mẫu(?=\s*[:;,.!?]|\s*$)/iu, `trong mẫu (n = ${method.input.rows.length})`)
+    : text;
   return '<p>Các phát hiện mô tả mẫu đã lưu, không sắp theo mức quan trọng.</p><ul class="market-findings">' + method.findings.map(finding =>
-    `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, ''))} (đề xuất, chờ chủ duyệt).</span>` : escape(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement)}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`).join('') + '</ul>' +
+    `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, '')))} (đề xuất, chờ chủ duyệt).</span>` : escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement))}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`).join('') + '</ul>' +
     (method.findings.length < 4 ? '<p>Chưa đủ bằng chứng để có bốn nhận định; phần kết luận còn thiếu, không bổ sung nhận định không có nguồn.</p>' : '') +
     '<p>Số bán hàng là ước tính trong mẫu. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>';
 }
@@ -101,7 +108,9 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
     return readerPlainText ? escape(readerProductLabel(listing, titleByListing.get(listing), ordinal)) : literal(listing, false);
   };
   const prices = { LISTED: 'Giá niêm yết', PAYMENT: 'Giá thanh toán', CONDITIONAL_PROMO: 'Giá khuyến mãi có điều kiện' };
-  const headings = ['Sàn', 'Listing', 'Biến thể', 'Ngành hàng', 'Giá (VND)', 'Số lượng', 'Đơn vị nguồn', 'Giá theo đơn vị chuẩn (VND)', 'Đơn vị chuẩn / cơ sở', 'Loại giá', 'Kỳ giá', 'Trạng thái', 'Nguồn', 'Điều kiện giá'];
+  const headings = readerPlainText
+    ? ['Sàn', 'Sản phẩm', 'Biến thể', 'Ngành hàng', 'Giá (VND)', 'Số lượng', 'Đơn vị nguồn', 'Giá theo đơn vị chuẩn (VND)', 'Đơn vị chuẩn / cơ sở', 'Loại giá', 'Kỳ giá', 'Trạng thái', 'Nguồn', 'Điều kiện giá']
+    : ['Sàn', 'Listing', 'Biến thể', 'Ngành hàng', 'Giá (VND)', 'Số lượng', 'Đơn vị nguồn', 'Giá theo đơn vị chuẩn (VND)', 'Đơn vị chuẩn / cơ sở', 'Loại giá', 'Kỳ giá', 'Trạng thái', 'Nguồn', 'Điều kiện giá'];
   const cells = (row: Method['unitPrices'][number]): string[] => {
     const o = row.observation;
     return [o.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', productLabel(o.listing), literal(o.variant, readerPlainText), literal(o.category.label, readerPlainText),
@@ -116,7 +125,7 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   if (!method.unitPrices.length) html += '<p>Chưa có biên nhận quy cách và giá tương thích đã xác minh cho bản nháp này. Chưa tính giá theo đơn vị chuẩn; không đoán số lượng từ tiêu đề.</p>';
   const observed = new Set(method.unitPrices.map(row => row.rowI));
   const absent = method.input.rows.filter(row => !observed.has(row.i));
-  if (absent.length) html += table('Listing chưa có quy cách hoặc giá đã xác minh — không đưa vào sắp xếp', ['Sàn', 'Listing', 'Tiêu đề nguồn', 'Trạng thái'],
+  if (absent.length) html += table(readerPlainText ? 'Sản phẩm chưa có quy cách hoặc giá đã xác minh — không đưa vào sắp xếp' : 'Listing chưa có quy cách hoặc giá đã xác minh — không đưa vào sắp xếp', ['Sàn', readerPlainText ? 'Sản phẩm' : 'Listing', 'Tiêu đề nguồn', 'Trạng thái'],
     absent.map(row => [row.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', productLabel(row.listing), literal(row.title, readerPlainText), 'Chưa rõ số lượng và giá niêm yết' +
       (method.binding.metric ? mark({ sourceSha256: method.binding.metric.workbookSha256, locator: `Sheet1!A${row.i + 2}:T${row.i + 2}`, label: 'Dòng sản phẩm trong tệp đã lưu' }, citations, readerPlainText) : '')]));
   const period = method.input.metric?.input.scope ?? null;
@@ -124,6 +133,6 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
     renderAutomationMarketAdvertising({ period: period ? { start: period.start, end: period.end } : null,
       object: { kind: 'video', label: 'chưa xác định trong đầu vào Market' },
       revenue: { value: null, source: null }, adCost: { value: null, source: null }, orders: { value: null, source: null },
-      unavailableReason: 'Chưa có trường ROAS hoặc CPA với nguồn và ngữ nghĩa đã xác nhận; đầu vào Market chưa có trường chi phí quảng cáo và số đơn đã xác nhận' }) +
+      unavailableReason: 'Chưa có trường ROAS hoặc CPA với nguồn và ngữ nghĩa đã xác nhận; đầu vào Market chưa có trường chi phí quảng cáo và số đơn đã xác nhận', readerPlainText }) +
     '<p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
 }

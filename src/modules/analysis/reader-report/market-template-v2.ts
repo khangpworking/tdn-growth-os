@@ -4,13 +4,15 @@ import { readerPeerExhibit } from './default-peers.js';
 import { lineChart } from './svg-charts.js';
 import { Narrator } from './bundle.js';
 import { esc } from './format.js';
-import { cover, makeExhibits, n, page, plat, PLATFORM_LABEL, section } from './layout.js';
+import { cover, makeExhibits, n, page, plat, platIcons, PLATFORM_LABEL, section as legacySection } from './layout.js';
 import { currentProposals } from './market-proposals.js';
 import { MARKET_TOC, readerWebResults, type BuiltMarketReport, type MarketReportOptions } from './market-template.js';
 import { CitationRegistry } from '../citation-registry.js';
 import { renderCitationMark, renderCitationRegister } from '../citation-register-html.js';
 import type { MetricWebCellFact, MetricWebTableFact } from '../research-automation/metric-web-facts.js';
 import { MARKET_SALES_AVERAGE_EXHIBIT, marketFindings } from './market-findings.js';
+
+const PLATFORM_COLORS = { shopee: '#c2410c', tiktok: '#1d2327' } as const;
 
 /** Missing-input projection. No chart fabricates a zero bar for an unobserved value. */
 export async function buildMarketReportV2(d: ReaderReportData, options: MarketReportOptions): Promise<BuiltMarketReport> {
@@ -20,12 +22,17 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   const label = (s: string): string => { if (/\d/.test(s)) extraOk.add(s); return esc(s); };
   const source = input.source!;
   const period = `${source.measurementPeriod.start.split('-').reverse().join('/')} – ${source.measurementPeriod.end.split('-').reverse().join('/')}`;
-  const sourceText = `Dữ liệu bán hàng ước tính trên từng sàn, ${period}; trong mẫu sản phẩm đã lưu.`;
-  const { tbl, fig } = makeExhibits(sourceText);
+  const sourceText = next
+    ? `Dữ liệu bán hàng ước tính trên từng sàn, ${period}; trong mẫu gồm n = ${rows.length} sản phẩm đã lưu.`
+    : `Dữ liệu bán hàng ước tính trên từng sàn, ${period}; trong mẫu sản phẩm đã lưu.`;
+  const { tbl, fig } = makeExhibits(sourceText, next ? { defaultEngine: 'svg-fallback' } : {});
+  const section = (id: string, title: string, headline: string, body: string, limits?: string): string =>
+    next ? legacySection(id, title, headline, body, limits, { noteLabel: 'Chú thích' }) : legacySection(id, title, headline, body, limits);
   const cite = (i?: number): string => {
     if (input.rowLineage === undefined) return '<span class="no-source">Chưa có nguồn</span>';
     const no = registry.cite({ sourceKind: 'METRIC_ROW', identity: input.rowLineage.sha256,
-      locator: i === undefined ? null : { kind: 'xlsx', sheet: 'Sheet1', cell: `A${i + 2}:T${i + 2}` },
+      locator: i === undefined ? null : next ? { kind: 'source-locator', value: `dòng sản phẩm ${i + 1}` } : { kind: 'xlsx', sheet: 'Sheet1', cell: `A${i + 2}:T${i + 2}` },
+      ...(next && i !== undefined ? { technical: { locator: `Sheet1!A${i + 2}:T${i + 2}` } } : {}),
       label: i === undefined ? 'Số liệu đã tính từ nguồn đã lưu' : 'Dòng số liệu nguồn', retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
   };
@@ -95,7 +102,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   }));
   const peers = readerPeerExhibit(d.defaultMarketPeers, B, { text: label, metric: bf, sourceMark: ref => {
     const no = registry.cite({ sourceKind: 'METRIC_ROW', identity: ref.sourceSha256,
-      locator: { kind: 'source-locator', value: ref.locator }, label: 'Dòng doanh số nguồn đã lưu',
+      locator: next ? null : { kind: 'source-locator', value: ref.locator }, ...(next ? { technical: { locator: ref.locator } } : {}), label: 'Dòng doanh số nguồn đã lưu',
       retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     return no === null ? '<span class="no-source">Chưa có nguồn</span>' : renderCitationMark(no);
   } });
@@ -104,7 +111,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
   if (next) {
     const mark = (ref: { sourceSha256: string; locator: string }): string => {
       const no = registry.cite({ sourceKind: 'CAPTURE', identity: ref.sourceSha256,
-        locator: { kind: 'source-locator', value: ref.locator }, label: 'Quy cách và giá trong bản lưu nguồn',
+        locator: null, technical: { locator: ref.locator }, label: 'Quy cách và giá trong bản lưu nguồn',
         retrievedAt: null, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
       return no === null ? 'Chưa có nguồn' : renderCitationMark(no);
     };
@@ -139,13 +146,17 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     if (!d.unitPrices.length) unitPriceTables = '<p>Chưa có bản lưu quy cách và giá tương thích đã xác minh. Chưa tính giá theo đơn vị chuẩn; không đoán số lượng từ tiêu đề.</p>';
     const observed = new Set(d.unitPrices.map(item => item.rowI));
     const absent = rows.filter(row => !observed.has(row.i));
-    if (absent.length && d.unitPrices.length) unitPriceTables += tbl(`8.${no}`, 'Listing chưa có quy cách/giá đã xác minh — không đưa vào sắp xếp', '', ['Sàn', 'Tiêu đề nguồn', 'Trạng thái'], absent.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, 'Chưa rõ số lượng và giá niêm yết' + cite(row.i)]));
+    if (absent.length && d.unitPrices.length) unitPriceTables += tbl(`8.${no}`, 'Sản phẩm chưa có quy cách/giá đã xác minh — không đưa vào sắp xếp', '', ['Sàn', 'Tiêu đề nguồn', 'Trạng thái'], absent.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, 'Chưa rõ số lượng và giá niêm yết' + cite(row.i)]));
     unitPriceTables += '<p>Kỳ quan sát giá ghi ở từng dòng và giữ riêng với kỳ doanh số. Khối lượng tịnh và khối lượng cái giữ riêng; thể tích tính theo đơn vị chuẩn, hàng đếm giữ cùng loại đơn vị. Quy đổi chỉ từ quy cách có vị trí nguồn hoặc khai báo của chủ. Đây là đối chiếu khai báo với bản lưu nguồn, không xác thực người bán. Không suy chất lượng, biên lợi nhuận hay mức giá nên bán.</p><p>Chưa có trường ROAS hoặc CPA với nguồn đã xác nhận trong đầu vào đã lưu; chưa có số liệu quảng cáo (ước tính) để tham khảo. Không suy từ doanh thu hoặc chi tiêu quảng cáo.</p><p>Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế.</p>';
   }
   sections.push(section('M08', 'Giá và kinh tế đơn vị', next ? 'Giá niêm yết, thanh toán, khuyến mãi có điều kiện và giá theo đơn vị chuẩn chỉ lấy từ quy cách đã lưu.' : 'Giá trung bình chỉ có khi doanh thu và đơn vị bán cùng dòng đều có số, mẫu số khác không.', next ? unitPriceTables : salesTable('8.1') + unitPriceTables, next ? 'Giữ riêng các giá từ quy cách với doanh thu trong mẫu. Chưa tính lãi vì không có giá vốn.' : 'Không có giá vốn hoặc phép quy đổi đã xác minh; chưa tính lãi hay giá theo đơn vị chuẩn.'));
   sections.push(section('M09', 'Động lực và rủi ro', 'Chưa đủ bằng chứng để kết luận nguyên nhân.', tbl('9.1', 'Ngày mở bán do nguồn ghi, giữ riêng từng dòng', '', ['Sàn', 'Tiêu đề nguồn', 'Ngày mở bán'], rows.map(row => [plat(row.platform), `<span data-quote>${esc(row.title)}</span>`, row.start === null || row.start === undefined ? 'Chưa rõ ngày' : label(row.start)]))));
   sections.push(section('M10', 'Dự báo và kịch bản', 'Chưa dự báo.', '<p>Cần chuỗi phù hợp và giả định đã kiểm chứng trước khi lập kịch bản.</p>'));
-  sections.push(...currentProposals({ PLATS, coreSegs: profile.core, segName, bf, tbl, SRC: sourceText }));
+  const proposals = currentProposals({ PLATS, coreSegs: profile.core, segName, bf, tbl, SRC: sourceText });
+  sections.push(...(next ? proposals.map((html, index) => index === 1
+    ? html.replace(/Rà phạm vi dữ liệu đã lưu/iu, 'Việc làm nhanh: rà phạm vi dữ liệu đã lưu')
+      .replace(/(?:Trước khi dùng báo cáo cho quyết định|Sau khi rà phạm vi, trước kết luận|Sau khi xác định đúng nhóm sản phẩm)/giu, 'Hạn: chủ chọn')
+    : html) : proposals));
   const appendix = rows.map(row => {
     const value = (field: 'rev' | 'units' | 'asp'): string => {
       const id = `row.${row.i}.${field}`;
@@ -155,7 +166,10 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     return [plat(row.platform), label(row.shopName || row.shop), label(row.brand) + ' (theo tiêu đề người bán)', value('rev'), value('units'), value('asp'), `<span data-quote>${esc(row.title)}</span>`];
   });
   const web = readerWebResults(options.webResults ?? [], true);
-  const sourceRows = [['Nguồn', sourceText], ['Kỳ', period]];
+  const sourceRows = next ? [['Nguồn', sourceText], ['Kỳ', period],
+    ['Dữ liệu đánh giá sản phẩm trên nền tảng', 'Chưa có trong lượt này'],
+    ['Kết quả tìm kiếm', d.webFacts === null && web.length === 0 ? 'Chưa có trong lượt này' : 'Đã lưu trong lượt này'],
+    ['Bình luận đã thu thập', 'Chưa có trong lượt này']] : [['Nguồn', sourceText], ['Kỳ', period]];
   if (d.webFacts !== null) {
     const facts = d.webFacts;
     const no = registry.cite({ sourceKind: 'CAPTURE', identity: input.webSnapshotSha256!, locator: { kind: 'source-locator', value: 'số liệu tổng quan' }, label: 'Trang kết quả tìm kiếm: số liệu tổng quan', retrievedAt: facts.capturedAt, url: null, quote: null, quoteVerification: 'NOT_APPLICABLE' });
@@ -191,7 +205,7 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
       ['Khu vực', facts.location], ['Sản phẩm trên trang', facts.topProducts], ['Gian hàng trên trang', facts.topShops],
       ['Nhãn thương hiệu trên trang', facts.topBrands], ['Lịch sử chi tiết', facts.detailHistory],
     ];
-    let sourceTableNumber = web.length === 0 ? 3 : 4;
+    let sourceTableNumber = next ? (web.length === 0 ? 4 : 5) : (web.length === 0 ? 3 : 4);
     retainedSourceTables = groups.map(([title, group]) => {
       if ('absent' in group || group.length === 0) return '';
       const columns = [...new Set(group.flatMap(row => Object.keys(row)))];
@@ -201,14 +215,22 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
         { src: 'Trang nguồn đã lưu; lời và thứ tự nguồn được giữ nguyên.', note: 'Phạm vi trên trang khác mẫu sản phẩm. Hạng do nguồn ghi không phải kết luận hay ưu tiên của báo cáo; tên không chứng minh danh tính chéo sàn.' });
     }).join('');
   }
-  const webTable = web.length === 0 ? '' : tbl('PL.3', 'Kết quả tìm kiếm trên web', '', ['Trang tìm thấy', 'Đoạn mô tả Google hiển thị'], web.map(w => {
+  const glossaryTable = next ? tbl('PL.3', 'Thuật ngữ', '', ['Thuật ngữ', 'Nghĩa tiếng Việt'], [
+    ['listing', 'sản phẩm'], ['review', 'đánh giá'], ['export', 'tệp dữ liệu'], ['peer set', 'nhóm đối thủ'],
+    ['Giá TB', 'giá trung bình'], ['P25 / P75', 'mốc 25% / mốc 75%'], ['NSX', 'nhà sản xuất'], ['H1', 'giả thuyết 1'],
+    ['ROAS', 'tỷ lệ doanh thu trên chi phí quảng cáo'], ['CPA', 'chi phí trên đơn'], ['AI', 'trí tuệ nhân tạo'],
+  ], { cls: 'pl-terms-table' }) : '';
+  const webTable = web.length === 0 ? '' : tbl(next ? 'PL.4' : 'PL.3', 'Kết quả tìm kiếm trên web', '', ['Trang tìm thấy', next ? 'Đoạn mô tả hiển thị' : 'Đoạn mô tả Google hiển thị'], web.map(w => {
     const no = registry.cite({ sourceKind: 'WEB_RESULT', identity: w.url, locator: null, label: w.site || 'Kết quả tìm kiếm trên web', retrievedAt: w.retrievedAt, url: w.url, quote: null, quoteVerification: 'NOT_APPLICABLE' });
     const mark = no === null ? '' : renderCitationMark(no), meta = [w.site, w.published ? `đăng ${w.published}` : null].filter(Boolean).join(' · ');
     return [`<span data-quote><a href="${esc(w.url)}" target="_blank" rel="noopener noreferrer">${esc(w.title)}</a>${mark}${meta ? `<span class="pl-meta">${esc(meta)}</span>` : ''}</span>`, `<span data-quote>${esc(w.snippet ?? '')}</span>`];
-  }), { src: 'Google; kết quả tìm kiếm đã lưu.', note: 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm Google, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' });
+  }), { src: next ? 'Kết quả tìm kiếm đã lưu.' : 'Google; kết quả tìm kiếm đã lưu.', note: next ? 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' : 'Tiêu đề và đoạn mô tả chép theo kết quả tìm kiếm Google, chưa mở trang gốc để đối chiếu; không phải nhận định của báo cáo.' });
   sections.push(section('M13', 'Nguồn, thuật ngữ và danh sách sản phẩm', nar('Giữ đủ {{src.rows}} dòng nguồn để tra lại.', 'M13'),
-    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
+    tbl('PL.1', 'Dòng dữ liệu đã lưu, theo từng sàn', '', ['Sàn', 'Gian hàng', 'Nhãn thương hiệu', 'Doanh thu', 'Đơn vị bán', 'Giá trung bình', 'Tiêu đề nguồn'], appendix) + tbl('PL.2', 'Nguồn số liệu đã lưu', '', ['Hạng mục', 'Nguồn / giá trị'], sourceRows) + (next ? glossaryTable : '') + webTable + retainedSourceTables + renderCitationRegister(registry.entries(), { format: 'web' })));
   const html = page({ title: `Báo cáo thị trường – ${profile.product}`, coverHtml: cover(options.cover ?? null, `Dữ liệu ${period}`, ['Báo cáo thị trường', profile.product, 'Bản đọc cho chủ dự án']),
     intro: `<div class="box"><p>Số ước tính trong mẫu. Mỗi sàn tính riêng. Phân loại ${status}.</p></div>`, toc: MARKET_TOC, sections, foot: `TDN · ${esc(options.builtOn)}` });
-  return { html: next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
+  const renderedHtml = next ? html.replace('<body', '<body data-report-rules="market-visible-v1"') : html;
+  const finalHtml = next ? renderedHtml.replace(/Ghi chú:/gu, 'Chú thích:') : html;
+  const scopedHtml = finalHtml.replace('<body', `<body data-market-platforms="${PLATS.join(',')}"`);
+  return { html: next ? platIcons(scopedHtml, PLATFORM_COLORS, undefined, { compoundPlatformLabels: true }).html : html, narrator, extraOk: [...extraOk], charts, webResults: web, ...(next ? { visibleTextRules: true } : {}) };
 }
