@@ -297,10 +297,11 @@ test('S14 owning inert reading rejects wrong scope/video/frames and reloads exac
   const receipt = await f.service.prepareP9VideoReading(workspaceId, runId, readingRequest, frames);
   assert.equal(receipt.exactRetry, false); assert.equal(receipt.state, 'PREPARED_NOT_ADMITTED');
   const read = await f.service.readP9Source(workspaceId, runId, 'reading', receipt.package.packageId);
-  assert.equal(read.view.rows[0]!.voice, 'SELLER'); assert.match(read.citations[0]!.locatorText!, /1.*3/);
+  assert.equal(read.view.rows[0]!.voice, 'SELLER'); assert.equal(read.view.rows[0]!.voiceLabel, 'lời người bán'); assert.match(read.citations[0]!.locatorText!, /1.*3/);
   const creatorRequest = { ...readingRequest, requestKey: randomUUID(), input: { ...readingRequest.input, videoUrl: url(1090), videoKind: 'REVIEW_VIDEO' } };
   const creator = await f.service.prepareP9VideoReading(workspaceId, runId, creatorRequest, frames);
-  assert.equal((await f.service.readP9Source(workspaceId, runId, 'reading', creator.package.packageId)).view.rows[0]!.voice, 'CREATOR');
+  const creatorRow = (await f.service.readP9Source(workspaceId, runId, 'reading', creator.package.packageId)).view.rows[0]!;
+  assert.equal(creatorRow.voice, 'SELLER'); assert.equal(creatorRow.voiceLabel, 'lời người làm video review');
   const before = Buffer.from(f.db.serialize()), files = (await fs.readdir(f.artifactRoot, { recursive: true })).sort();
   f.db.pragma('query_only = ON');
   assert.equal((await f.make(false).prepareP9VideoReading(workspaceId, runId, readingRequest, frames)).exactRetry, true);

@@ -1,7 +1,7 @@
 /* Generated from video-reading-v1.schema.json. Do not edit by hand. */
 
 /**
- * Exact operator-supplied local segment/on-screen/frame evidence bound to the owning frozen run and video selection. Inert preparation, distinct seller/creator voice; no watch, cloud, transcription, model/coding call or source admission.
+ * Exact operator-supplied local segment/on-screen/frame evidence bound to the owning frozen run and video selection. Inert preparation; all speech is seller voice, with review-video creator speech labelled 'lời người làm video review'; no watch, cloud, transcription, model/coding call or source admission.
  */
 export type VideoReadingV1 =
   | VideoReadingPrepareRequest
@@ -68,7 +68,7 @@ export interface PreparedVideoReading {
   selectionSha256: string;
   provenance: 'OPERATOR_SUPPLIED_UNVERIFIED';
   state: 'PREPARED_NOT_ADMITTED';
-  voice: 'SELLER' | 'CREATOR';
+  voice: 'SELLER';
   input: OperatorVideoReading;
   /**
    * @minItems 1
@@ -92,7 +92,8 @@ export interface VideoReadingReadView {
 }
 export interface VideoReadingReadRow {
   text: string;
-  voice: 'SELLER' | 'CREATOR';
+  voice: 'SELLER';
+  voiceLabel: 'lời người bán' | 'lời người làm video review';
   captionSource: 'NATIVE' | 'SPEECH_TO_TEXT';
   startSeconds: number;
   endSeconds: number;

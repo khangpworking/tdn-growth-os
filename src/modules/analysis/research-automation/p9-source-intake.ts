@@ -21,7 +21,7 @@ import { buildTikTokCommentCorpus, citeTikTokCommentCorpus } from './tiktok-comm
 import { l9JevTriageMatches, unavailableL9JevTriage, validatesL9JevTriageSidecar, type L9JevTriageSidecar } from './l9-jev-triage.js';
 import type { KeywordMeaningFilterData, KeywordMeaningFilterResult } from '../keyword-meaning-filter.js';
 import type { TikTokCommentCorpus } from '../../../../contracts/analysis/tiktok-comment-collection-v1.generated.js';
-import { prepareVideoReading, citeVideoReading } from './video-reading-intake.js';
+import { prepareVideoReading, citeVideoReading, upgradeLegacyReadingBytes } from './video-reading-intake.js';
 
 const require = createRequire(import.meta.url);
 const { Ajv2020 } = require('ajv/dist/2020.js') as typeof import('ajv/dist/2020.js');
@@ -260,7 +260,7 @@ export class AutomationP9SourceIntake {
     const existing = await this.#lookup(p9PackagePrefix(binding.runId, 'reading') + request.requestKey);
     if (existing) {
       const read = await this.reading(binding, identity(existing));
-      if (!member(existing, 'request.json').bytes.equals(bytes(request)) || !member(existing, 'reading.json').bytes.equals(prepared.bytes)) fail();
+      if (!member(existing, 'request.json').bytes.equals(bytes(request)) || !Buffer.from(upgradeLegacyReadingBytes(member(existing, 'reading.json').bytes)).equals(prepared.bytes)) fail();
       return read.receipt;
     }
     const retained = await this.#store(binding, 'reading', request.requestKey,
@@ -276,7 +276,7 @@ export class AutomationP9SourceIntake {
     if (!selected.selection.videos.some(v => v.url === request.input.videoUrl && v.kind === request.input.videoKind)) fail();
     const prepared = prepareVideoReading(request.input, new Map(request.input.frames.map(f => [f.logicalPath, member(p, f.logicalPath).bytes])),
       readingBinding(binding, selected.selectionSha256));
-    if (!member(p, 'reading.json').bytes.equals(prepared.bytes)) fail();
+    if (!Buffer.from(upgradeLegacyReadingBytes(member(p, 'reading.json').bytes)).equals(prepared.bytes)) fail();
     const registry = new CitationRegistry();
     const view: VideoReadingReadView = { contractVersion: 'video-reading-read-v1', registryId: 'S14',
       rows: citeVideoReading(prepared.reading, prepared.sha256, registry), limitations: prepared.reading.limitations };

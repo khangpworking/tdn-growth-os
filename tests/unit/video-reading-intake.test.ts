@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createHash } from 'node:crypto';
-import { prepareVideoReading, citeVideoReading, type OperatorVideoReading } from '../../src/modules/analysis/research-automation/video-reading-intake.js';
+import { prepareVideoReading, citeVideoReading, upgradeLegacyReadingBytes, type OperatorVideoReading } from '../../src/modules/analysis/research-automation/video-reading-intake.js';
 import { CitationRegistry } from '../../src/modules/analysis/citation-registry.js';
+import { canonicalJson } from '../../src/modules/foundation/canonical-json.js';
 
 const frame = Buffer.from('synthetic frame bytes, not real media');
 const digest = createHash('sha256').update(frame).digest('hex');
@@ -14,14 +15,35 @@ const input = (): OperatorVideoReading => ({ videoUrl: 'https://www.tiktok.com/@
   onScreenText: [{ startSeconds: 0, endSeconds: 5, text: '350g' }], frames: [{ atSeconds: 2, logicalPath: 'frames/synthetic.png', sha256: digest }] });
 const frames = new Map([['frames/synthetic.png', frame]]);
 
-test('inert exact segment/frame preparation keeps seller and creator voice separate, reproducible cited read', () => {
+test('inert exact segment/frame preparation is seller voice, reproducible cited read', () => {
   const prepared = prepareVideoReading(input(), frames, binding);
   assert.equal(prepared.reading.state, 'PREPARED_NOT_ADMITTED'); assert.equal(prepared.reading.voice, 'SELLER');
   assert.deepEqual(prepared, prepareVideoReading(input(), frames, binding));
   const registry = new CitationRegistry(), rows = citeVideoReading(prepared.reading, prepared.sha256, registry);
   assert.deepEqual(rows.map(r => [r.startSeconds, r.endSeconds, r.text]), [[0, 4.5, input().segments[0]!.text], [5, 8, input().segments[1]!.text]]);
   assert.equal(registry.entries().length, 2); assert.equal(registry.entries()[0]!.locatorText, 'giây 0–4.5');
-  assert.equal(prepareVideoReading({ ...input(), videoKind: 'REVIEW_VIDEO' }, frames, binding).reading.voice, 'CREATOR');
+});
+
+test('SELLER_VIDEO reading stays seller voice labelled as seller speech', () => {
+  const prepared = prepareVideoReading(input(), frames, binding);
+  assert.equal(prepared.reading.input.videoKind, 'SELLER_VIDEO');
+  assert.deepEqual(citeVideoReading(prepared.reading, prepared.sha256, new CitationRegistry()).map(r => [r.voice, r.voiceLabel]),
+    [['SELLER', 'lời người bán'], ['SELLER', 'lời người bán']]);
+});
+
+test('REVIEW_VIDEO creator speech is seller voice carrying the review-video label', () => {
+  const prepared = prepareVideoReading({ ...input(), videoKind: 'REVIEW_VIDEO' }, frames, binding);
+  assert.equal(prepared.reading.voice, 'SELLER'); assert.equal(prepared.reading.input.videoKind, 'REVIEW_VIDEO');
+  assert.deepEqual(citeVideoReading(prepared.reading, prepared.sha256, new CitationRegistry()).map(r => [r.voice, r.voiceLabel]),
+    [['SELLER', 'lời người làm video review'], ['SELLER', 'lời người làm video review']]);
+});
+
+test('stored readings written with voice CREATOR upgrade to the current seller reading bytes', () => {
+  const prepared = prepareVideoReading({ ...input(), videoKind: 'REVIEW_VIDEO' }, frames, binding);
+  const legacy = Buffer.from(canonicalJson({ ...JSON.parse(prepared.bytes.toString('utf8')), voice: 'CREATOR' }));
+  assert.equal(Buffer.from(upgradeLegacyReadingBytes(legacy)).equals(prepared.bytes), true);
+  assert.equal(Buffer.from(upgradeLegacyReadingBytes(prepared.bytes)).equals(prepared.bytes), true);
+  assert.equal(upgradeLegacyReadingBytes(Buffer.from('not json')).toString(), 'not json');
 });
 
 test('missing segment, invalid timestamps, frame digest/membership and altered cited bytes reject', () => {

@@ -45,16 +45,26 @@ export function prepareVideoReading(input: OperatorVideoReading, frames: Readonl
   }
   const reading: PreparedVideoReading = { contractVersion: 'video-reading-v1' as const, registryId: 'S14' as const, ...binding,
     provenance: 'OPERATOR_SUPPLIED_UNVERIFIED' as const, state: 'PREPARED_NOT_ADMITTED' as const,
-    voice: input.videoKind === 'SELLER_VIDEO' ? 'SELLER' as const : 'CREATOR' as const,
+    voice: 'SELLER' as const,
     input: structuredClone(input), limitations: ['Operator-produced local video reading; caption source is declared, not provider authenticated.',
       'No watch, cloud upload, transcription, coding, model execution or approval occurs in this package.'] };
   if (!validateReading(reading)) fail();
   return { reading, bytes: Buffer.from(canonicalJson(reading)), sha256: sha(canonicalJson(reading)) };
 }
+// Review-video creator speech is seller voice, labelled so readers can tell it from a shop's own sales video.
+export const voiceLabelFor = (videoKind: 'SELLER_VIDEO' | 'REVIEW_VIDEO') =>
+  videoKind === 'REVIEW_VIDEO' ? 'lời người làm video review' as const : 'lời người bán' as const;
+// Stored readings written before VOICE-209 say voice CREATOR for REVIEW_VIDEO; map them to the current seller voice before comparing.
+export function upgradeLegacyReadingBytes(stored: Uint8Array): Uint8Array {
+  let value: { voice?: unknown };
+  try { value = JSON.parse(Buffer.from(stored).toString('utf8')); } catch { return stored; }
+  if (value === null || typeof value !== 'object' || value.voice !== 'CREATOR') return stored;
+  return Buffer.from(canonicalJson({ ...value, voice: 'SELLER' }));
+}
 export function citeVideoReading(reading: PreparedVideoReading, readingSha256: string, registry: CitationRegistry) {
   if (!validateReading(reading) || sha(canonicalJson(reading)) !== readingSha256) fail();
   return reading.input.segments.map(segment => ({ text: segment.text, voice: reading.voice,
-    captionSource: segment.captionSource, startSeconds: segment.startSeconds, endSeconds: segment.endSeconds,
+    voiceLabel: voiceLabelFor(reading.input.videoKind), captionSource: segment.captionSource, startSeconds: segment.startSeconds, endSeconds: segment.endSeconds,
     citation: registry.cite({ sourceKind: 'CAPTURE', identity: readingSha256,
       locator: `giây ${segment.startSeconds}–${segment.endSeconds}`, label: 'nội dung video', retrievedAt: null,
       url: reading.input.videoUrl, quote: null, quoteVerification: 'NOT_APPLICABLE', technical: { registryId: 'S14' } }) }));
