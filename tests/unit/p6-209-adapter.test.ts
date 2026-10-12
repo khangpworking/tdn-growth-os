@@ -124,7 +124,7 @@ test('live capture view metadata never labels an otherwise unlabelled response',
   await rm(directory, { recursive: true, force: true });
 });
 
-test('collectResults re-reads the selected tab before each platform screenshot', async () => {
+test('collectResults keeps the overview combined and does not switch result tabs', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
   const directory = await mkdtemp(join(tmpdir(), 'p6-209-combined-view-'));
@@ -132,19 +132,14 @@ test('collectResults re-reads the selected tab before each platform screenshot',
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
   const fixture = await load('metric-results-response'); const baseDom = await load('metric-results-dom');
-  const platformViews = (active: string) => ['shopee', 'all', 'tiktok'].map((platform, index) => ({
-    label: platform === 'all' ? 'All platforms' : platform === 'tiktok' ? 'TikTok Shop' : 'Shopee',
-    selected: active === platform, selector: 'platform-view', index,
-  }));
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] }, quota: {} }, result, baseDom, fixture.responses, {
-    active: 'shopee',
-    resultDom: (state: any, original: any) => ({ ...original, screenshotRegions: { overview: '#synthetic-overview' }, platformViews: platformViews(state.active || 'shopee') }),
-    onClick: (_selector: string, state: any) => { state.active = ['all', 'shopee', 'tiktok'][state.platformSwitches - 1] || state.active; },
+    resultDom: (_state: any, original: any) => ({ ...original, screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Synthetic history', selected: true, selector: '[role="tab"]', index: 0 }] }),
   });
   await adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 });
   const screenshotNames = page.screenshotCalls.map((options: any) => String(options.path));
-  assert.ok(screenshotNames.some((name: string) => name.includes('platform-shopee-region-overview')));
-  assert.ok(screenshotNames.some((name: string) => name.includes('platform-tiktok-region-overview')));
+  assert.ok(screenshotNames.some((name: string) => name.includes('platform-all-region-overview')));
+  assert.equal(page.platformSwitches, undefined);
+  assert.equal(page.calls.some((call: string) => call.includes('platform-view') || call.includes('role="tab"')), false);
   assert.ok(screenshotNames.every((_name: string, index: number) => page.screenshotCalls[index].clip));
   await rm(directory, { recursive: true, force: true });
 });
@@ -665,7 +660,7 @@ test('capture archive contains no fixture identity or token in any archived file
   await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
   const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
   const base = await load('metric-results-response'); const sensitive = await load('metric-sensitive-archive');
-  const dom = { ...(await load('metric-results-dom')), html: '<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main><div data-metric-region="overview">Revenue 8</div></main></body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Shopee', selected: true, selector: 'platform-view', index: 0 }, { label: 'TikTok Shop', selected: false, selector: 'platform-view', index: 1 }] };
+  const dom = { ...(await load('metric-results-dom')), html: '<html><head><meta name="identity" content="synthetic-owner@example.test"><script>Bearer synthetic-secret-token</script></head><body><header class="account-area">Synthetic logged-in account</header><main><div data-metric-region="overview">Revenue 8</div></main></body></html>', screenshotRegions: { overview: '#synthetic-overview' }, platformViews: [{ label: 'Synthetic history', selected: true, selector: '[role="tab"]', index: 0 }] };
   const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, dom, [...base.responses, ...sensitive.responses], {
     resultDom: (state: any, original: any) => ({ ...original, platformViews: original.platformViews.map((view: any) => ({ ...view, selected: view.label === (state.platformSwitches ? 'TikTok Shop' : 'Shopee') })) }),
   });
@@ -678,8 +673,7 @@ test('capture archive contains no fixture identity or token in any archived file
     const text = (await readFile(join(captureDir, name))).toString('utf8');
     for (const marker of markers) assert.doesNotMatch(text, marker, `${name} retained sanitized fixture data`);
   }
-  assert.ok(await readFile(join(captureDir, 'platform-shopee-region-overview.png')));
-  assert.ok(await readFile(join(captureDir, 'platform-tiktok-region-overview.png')));
+  assert.ok(await readFile(join(captureDir, 'platform-all-region-overview.png')));
   assert.match(await readFile(join(captureDir, 'snapshot.json'), 'utf8'), /Synthetic item A/);
   await rm(directory, { recursive: true, force: true });
 });
@@ -708,23 +702,6 @@ test('capture gates a redirect before reading the next pagination page and leave
     gateObservation: (state: any, observation: any) => state.paginationClicks ? { ...observation, url: 'https://redirect.example.test/results', metricRootVisible: true } : observation,
   });
   await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_UI_CHANGED/);
-  await assert.rejects(() => access(captureDir), /ENOENT/);
-  assert.ok(page.calls.includes('close:synthetic-tab'));
-  await rm(directory, { recursive: true, force: true });
-});
-
-test('capture gates a captcha immediately after switching platform views and leaves no archive', async () => {
-  await installOpenCliTestStub();
-  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
-  const directory = await mkdtemp(join(tmpdir(), 'p6-209-gate-captcha-'));
-  const specPath = join(directory, 'spec.json'); const captureDir = join(directory, 'capture');
-  await writeFile(specPath, `${JSON.stringify(commandSpec)}\n`);
-  const form = await load('metric-form'); const result = { ...(await load('metric-search')), appliedFilters: commandSpec };
-  const views = [{ label: 'Shopee', selected: true, selector: 'platform-view', index: 0 }, { label: 'TikTok Shop', selected: false, selector: 'platform-view', index: 1 }];
-  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [] } }, result, resultDomForGateTest(views), [], {
-    gateObservation: (state: any, observation: any) => state.platformSwitches ? { ...observation, captchaVisible: true } : observation,
-  });
-  await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: captureDir, 'product-cap': 200 }), /METRIC_CAPTCHA/);
   await assert.rejects(() => access(captureDir), /ENOENT/);
   assert.ok(page.calls.includes('close:synthetic-tab'));
   await rm(directory, { recursive: true, force: true });
@@ -942,4 +919,170 @@ test('platform mismatch after the keyword commit blocks the search before any lo
   assert.ok(page.calls.includes('click:[role="option"],.ant-select-item-option'));
   assert.ok(!page.calls.some((call: string) => call.startsWith('fill:#platform-input:')));
   assert.ok(!page.calls.includes('key:Enter'));
+});
+
+const round6SyntheticResultsMarkup = `
+  <section class="market-overview-section">
+    <div class="statistic-item"><div class="statistic-item__title">Revenue</div><div class="statistic-card__value">4,0 billion</div></div>
+    <div class="statistic-item"><div class="statistic-item__title">Units sold</div><div class="statistic-card__value">109,8 thousand</div></div>
+    <div class="statistic-item"><div class="statistic-item__title">Products</div><div class="statistic-card__value">1,1 thousand</div></div>
+    <div class="statistic-item"><div class="statistic-item__title">Shops</div><div class="statistic-card__value">519</div></div>
+  </section>
+  <div class="platforms-chart"><svg><path d="synthetic" /></svg></div>
+  <section class="platforms-table"><div class="platform-table"><table><thead><tr><th>Platform</th><th>Revenue</th></tr></thead><tbody>
+    <tr><td>Synthetic Shopee</td><td>1,8 billion</td></tr><tr><td>Synthetic Tiktok</td><td>2,2 billion</td></tr>
+  </tbody></table></div></section>
+  <div id="growth-detail-chart" class="statistic-item"><div class="statistic-item__title">Growth over time</div><svg><path d="chart" /></svg></div>
+  <div class="main-statistic"><button class="ant-btn-primary">Revenue</button><button>Sold products</button></div>
+  <div class="statistic-item"><div class="statistic-item__title">Category</div></div>
+  <div class="statistic-item"><div class="statistic-item__title">Price range</div></div>
+  <div class="statistic-item"><div class="statistic-item__title">Top 10 Brands</div></div>
+  <div class="statistic-item"><div class="statistic-item__title">Top 10 Shops</div></div>
+  <div class="statistic-item"><div class="statistic-item__title">Top 10 brand by shop type</div></div>
+  <div class="statistic-item"><div class="statistic-item__title">Shop type</div></div>
+  <div class="statistic-item"><div class="statistic-item__title">Top Products</div>
+    <div class="ant-table-header"><table><thead><tr><th>Product</th><th>Price</th><th>Revenue in time period</th><th>Sold products in time period</th></tr></thead></table></div>
+    <div class="ant-table-body"><table><tbody>
+      <tr class="ant-table-row"><td>Synthetic product one <img class="img-platform" src="/icons/tiktok.svg"></td><td>31.461₫</td><td>317,5 million</td><td>13,5 thousand</td></tr>
+      <tr class="ant-table-row"><td>Synthetic product two</td><td>1.234₫</td><td>80,9 million</td><td>4,0 thousand</td></tr>
+    </tbody></table></div>
+    <div class="ant-pagination"><span>20 products / page</span><ul><li class="ant-pagination-item-active">1</li><li class="ant-pagination-next"><button class="ant-pagination-item-link"></button></li></ul></div>
+  </div>
+  <div class="statistic-item"><div class="statistic-item__title">Top Shops</div>
+    <div class="ant-table-header"><table><thead><tr><th>Hạng</th><th>Shop name</th><th>Platform</th><th>Revenue in time period</th><th>Sold products in time period</th><th>Avg Price</th></tr></thead></table></div>
+    <div class="ant-table-body"><table><tbody><tr class="ant-table-row"><td>1</td><td>Synthetic shop one</td><td><span class="shop-platform-icon"><img alt="Shopee" src="/icons/shopee.svg"></span></td><td>103,7 million</td><td>527</td><td>196.747₫</td></tr></tbody></table></div>
+  </div>
+  <div class="statistic-item"><div class="statistic-item__title">Top Brands</div><div class="ant-table-header"><table><thead><tr><th>Brand name</th></tr></thead></table></div><div class="ant-table-body"><table><tbody><tr><td>Synthetic brand one</td></tr></tbody></table></div></div>
+  <div role="tab" aria-selected="true">Synthetic history tab</div>
+`;
+
+test('Round 6 labels support direct text and nested label forms, including prefixed controls', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const html = `<div id="QuerySearchBuilder">
+    <div class="ant-space-item"><div class="filter-label">Time period</div><div class="ant-select"><input id="period-direct"><span class="ant-select-selection-item">30 days</span></div></div>
+    <div class="ant-space-item"><div class="filter-label"><span class="label">Product category</span></div><div class="ant-select"><input id="category-nested"><span class="ant-select-selection-item">All</span></div></div>
+    <label><input type="checkbox" checked>Exclude gifts ( Detail )</label>
+    <div role="switch" aria-checked="true">AI chuẩn hoá dữ liệu NEW</div>
+  </div>`;
+  const observation = withMetricDom(html, () => adapter.__test__.observeMetricPage(false));
+  assert.equal(observation.controls.find((control: any) => control.name === 'period').selector, '#period-direct');
+  assert.equal(observation.controls.find((control: any) => control.name === 'category').selector, '#category-nested');
+  assert.equal(observation.appliedFilters.usefulFilters.gifts, true);
+  assert.equal(observation.appliedFilters.aiNormalisation, true);
+});
+
+function dateApplyPage(options: { acceptDates?: boolean } = {}) {
+  const state = { start: '01-01-2026', end: '02-01-2026', opened: 0, calls: [] as string[] };
+  const html = () => `<div id="QuerySearchBuilder">
+    <div class="ant-space-item"><div class="filter-label">Platform</div><div class="ant-select"><input id="platform-date-test"></div></div>
+    <div class="ant-space-item"><div class="filter-label"><span class="label">Keywords</span></div><div class="ant-select ant-select-multiple"><div class="ant-select-selector"><input id="keyword-date-test"></div></div></div>
+    <div class="ant-space-item"><div class="filter-label">Time period</div><div class="ant-select"><input id="period-date-test"></div><div class="ant-picker"><input value="${state.start}"></div><div class="ant-picker"><input value="${state.end}"></div></div>
+    <div class="ant-space-item"><div class="filter-label">Product category</div><div class="ant-select"><input id="category-date-test"><span class="ant-select-selection-item">All</span></div></div>
+    <div class="ant-picker-dropdown"><button class="ant-picker-header-prev-btn"></button><button class="ant-picker-header-next-btn"></button>
+      <div class="ant-picker-cell" title="2026-01-01"></div><div class="ant-picker-cell" title="2026-01-02"></div><div class="ant-picker-cell" title="2026-02-01"></div><div class="ant-picker-cell" title="2026-02-02"></div>
+    </div></div>`;
+  const page: any = {
+    calls: state.calls,
+    evaluate: async (fn: Function, argument?: unknown) => withMetricDom(html(), () => fn(argument)),
+    click: async (selector: string, clickOptions?: any) => {
+      state.calls.push(`click:${selector}`);
+      if (selector === '#platform-date-test') return;
+      if (selector === '#QuerySearchBuilder .ant-picker input') { state.opened = clickOptions?.nth ?? 0; return; }
+      const target = /title="([^"]+)"/.exec(selector)?.[1];
+      if (target && options.acceptDates !== false) {
+        if (state.opened === 0) state.start = target.split('-').reverse().join('-');
+        else state.end = target.split('-').reverse().join('-');
+      }
+    },
+    pressKey: async (key: string) => state.calls.push(`key:${key}`),
+    fillText: async () => {},
+  };
+  return page;
+}
+
+test('custom date range uses native picker clicks and fails closed on displayed mismatch', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null };
+  const initial = { appliedFilters: { ...spec, period: { startDate: '2026-01-01', endDate: '2026-01-02' } } };
+  const page = dateApplyPage();
+  await adapter.__test__.applyMetricSpec(page, spec, initial);
+  assert.ok(page.calls.some((call: string) => call.includes('.ant-picker-cell[title="2026-01-01"]')));
+  assert.ok(page.calls.some((call: string) => call.includes('.ant-picker-cell[title="2026-02-02"]')));
+  await assert.rejects(() => adapter.__test__.applyMetricSpec(dateApplyPage({ acceptDates: false }), spec, initial), (error: any) => error.code === 'METRIC_FILTER_MISMATCH');
+});
+
+test('live result markup exposes title KPIs, split tables, icon platforms, pagination and unavailable Highcharts', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const dom = withMetricDom(round6SyntheticResultsMarkup, () => adapter.__test__.observeResultPage());
+  assert.deepEqual(dom.regions.overview.kpi, {
+    revenue: { displayed: '4,0 billion', label: 'Revenue' },
+    units: { displayed: '109,8 thousand', label: 'Units' },
+    soldListings: { displayed: '1,1 thousand', label: 'Sold listings' },
+    shops: { displayed: '519', label: 'Shops' },
+  });
+  assert.deepEqual(dom.regions['platform-split'].rows.map((row: any) => row.platform), ['Synthetic Shopee', 'Synthetic Tiktok']);
+  assert.equal(dom.regions['platform-split'].rows[0].revenue, '1,8 billion');
+  assert.equal(dom.regions['top-products'].rows[0].platform, 'tiktok');
+  assert.equal(dom.regions['top-products'].rows[1].platform, 'unknown');
+  assert.equal(dom.regions['top-shops'].rows[0].platform, 'shopee');
+  assert.deepEqual(dom.regions['top-products'].pagination, { page: 1, total: null, pageSize: 20, nextAvailable: true, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' });
+  for (const name of ['overview', 'platform-split', 'monthly', 'category', 'price', 'top10-brand', 'top10-shop', 'brand-shop-type', 'shop-type', 'top-products', 'top-shops', 'top-brands']) assert.ok(dom.regions[name], name);
+  assert.equal(dom.regions.monthly.reason, 'DOM_CHART_DATA_UNAVAILABLE');
+  assert.ok(dom.regions['platform-chart']);
+  assert.deepEqual(dom.platformViews, []);
+  const unavailablePager = withMetricDom(round6SyntheticResultsMarkup.replace('ant-pagination-next"><button', 'ant-pagination-next ant-pagination-disabled"><button'), () => adapter.__test__.observeResultPage());
+  assert.equal(unavailablePager.pagination.nextAvailable, false);
+});
+
+test('fixed-header rows without a platform icon stay unknown even when a platform column exists', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const dom = withMetricDom(round6SyntheticResultsMarkup.replace(
+    '<span class="shop-platform-icon"><img alt="Shopee" src="/icons/shopee.svg"></span>',
+    'Synthetic platform text',
+  ), () => adapter.__test__.observeResultPage());
+  assert.equal(dom.regions['top-shops'].rows[0].platform, 'unknown');
+});
+
+test('capture groups parse live displayed units and platform rows without summing platforms', async () => {
+  const { extractResultsPage, parseMetricDisplay } = await import(captureUrl.href);
+  assert.deepEqual([
+    ['4,0 billion', 4_000_000_000], ['109,8 thousand', 109_800], ['317,5 million', 317_500_000],
+    ['1,1 thousand', 1_100], ['31.461₫', 31_461], ['12 tỷ', 12_000_000_000], ['3 tr', 3_000_000], ['7k', 7_000], ['8 nghìn', 8_000], ['9đ', 9],
+  ].map(([display]) => parseMetricDisplay(display as string)), [4_000_000_000, 109_800, 317_500_000, 1_100, 31_461, 12_000_000_000, 3_000_000, 7_000, 8_000, 9]);
+  const result = extractResultsPage({
+    responses: [],
+    dom: { regions: {
+      overview: { selector: '.market-overview-section', kpi: { revenue: { displayed: '4,0 billion' }, units: { displayed: '109,8 thousand' }, soldListings: { displayed: '1,1 thousand' }, shops: { displayed: '519' } } },
+      'platform-split': { selector: '.platforms-table', rows: [
+        { platform: 'shopee', revenue: '1,8 billion', units: '36,0 thousand' },
+        { platform: 'tiktok', revenue: '2,2 billion', units: '73,8 thousand' },
+      ] },
+      monthly: { selector: '#growth-detail-chart', unavailable: true, reason: 'DOM_CHART_DATA_UNAVAILABLE' },
+      'top-products': { selector: '.statistic-item', rows: [{ name: 'Synthetic product', platform: 'unknown', revenue: '317,5 million', units: '13,5 thousand' }] },
+    } },
+    scope: { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-02-02' }, category: null },
+    captureId: 'synthetic-capture', specDigest: 'a'.repeat(64), capturedAt: '2026-10-13T00:00:00.000Z', pageCap: 10,
+  });
+  assert.deepEqual(result.snapshot.groups.W3_platformSplit.map((row: any) => [row.platform, row.revenue.value, row.units.value]), [['shopee', 1_800_000_000, 36_000], ['tiktok', 2_200_000_000, 73_800]]);
+  assert.equal(result.snapshot.groups.W12_topProducts.rows[0].cells.platform.text, 'unknown');
+  assert.equal(result.snapshot.groups.W4_monthly.reason, 'DOM_CHART_DATA_UNAVAILABLE');
+  assert.equal(result.snapshot.groups.W2_kpi.revenue.current.value, 4_000_000_000);
+});
+
+test('collectResultPages reads two real pages, stops on disabled next, and deduplicates rows', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const base = await load('metric-search');
+  const pageOne = { pagination: { page: 1, pageSize: 20, nextAvailable: true, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' }, regions: { 'top-products': { rows: [{ name: 'Synthetic page one', platform: 'unknown' }] } } };
+  const pageTwo = { pagination: { page: 2, pageSize: 20, nextAvailable: false, nextSelector: 'li.ant-pagination-next .ant-pagination-item-link' }, regions: { 'top-products': { rows: [{ name: 'Synthetic page one', platform: 'unknown' }, { name: 'Synthetic page two', platform: 'tiktok' }] } } };
+  const page = fakePage(base, {}, null, [], { resultDom: (state: any) => state.paginationClicks ? pageTwo : pageOne });
+  const collected = await adapter.__test__.collectResultPages(page, 10);
+  assert.equal(collected.pagesRead, 2);
+  assert.deepEqual(collected.domSnapshots.flatMap((snapshot: any) => snapshot.regions['top-products'].rows).map((row: any) => row.name), ['Synthetic page one', 'Synthetic page two']);
+  assert.equal(page.calls.filter((call: string) => call.includes('ant-pagination-next')).length, 1);
+  assert.equal(page.calls.some((call: string) => call.includes('role="tab"')), false);
 });

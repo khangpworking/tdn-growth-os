@@ -152,7 +152,11 @@ export function normaliseSpec(spec) {
     ...spec,
     keywords,
     platforms,
-    period: { startDate: clean(period.startDate), endDate: clean(period.endDate) },
+    period: {
+      startDate: clean(period.startDate),
+      endDate: clean(period.endDate),
+      ...(clean(period.preset) ? { preset: clean(period.preset) } : {}),
+    },
     // Keep an omitted category distinct from an explicit `null` (All). The
     // page observation is authoritative; an omitted request field must never
     // silently widen the search scope.

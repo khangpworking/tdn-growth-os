@@ -101,7 +101,7 @@
       "required": ["absent", "reason"],
       "properties": {
         "absent": { "const": true },
-        "reason": { "enum": ["NOT_ON_PAGE", "NOT_CAPTURED", "RECON_PENDING"] }
+        "reason": { "enum": ["NOT_ON_PAGE", "NOT_CAPTURED", "RECON_PENDING", "DOM_CHART_DATA_UNAVAILABLE"] }
       }
     },
     "kpiMetric": {
@@ -131,7 +131,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["platform", "revenue", "share"],
-        "properties": { "platform": { "$ref": "#/$defs/platform" }, "revenue": { "$ref": "#/$defs/value" }, "share": { "$ref": "#/$defs/value" } }
+        "properties": { "platform": { "$ref": "#/$defs/platform" }, "revenue": { "$ref": "#/$defs/value" }, "units": { "$ref": "#/$defs/nullableValue" }, "share": { "$ref": "#/$defs/value" } }
       }
     },
     "monthly": {

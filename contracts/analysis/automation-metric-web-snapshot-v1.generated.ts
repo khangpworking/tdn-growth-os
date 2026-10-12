@@ -15,6 +15,7 @@ export type PlatformSplit =
       {
         platform: Platform;
         revenue: Value;
+        units?: NullableValue;
         share: Value;
       },
     ]
@@ -22,11 +23,13 @@ export type PlatformSplit =
       {
         platform: Platform;
         revenue: Value;
+        units?: NullableValue;
         share: Value;
       },
       {
         platform: Platform;
         revenue: Value;
+        units?: NullableValue;
         share: Value;
       },
     ];
@@ -348,7 +351,7 @@ export interface Value {
 }
 export interface Absent {
   absent: true;
-  reason: 'NOT_ON_PAGE' | 'NOT_CAPTURED' | 'RECON_PENDING';
+  reason: 'NOT_ON_PAGE' | 'NOT_CAPTURED' | 'RECON_PENDING' | 'DOM_CHART_DATA_UNAVAILABLE';
 }
 /**
  * Generic page table. Allowed column keys per group are enforced by the runtime validator.
