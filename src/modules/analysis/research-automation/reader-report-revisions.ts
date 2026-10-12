@@ -274,7 +274,7 @@ export class AutomationReaderReports {
     const at = this.now(), createdAt = at.toISOString(), revisionId = randomUUID();
     const webResults = context.webResults ?? [];
     const built = await buildMarketReport(data, { limitations, builtOn: builtOn(at), cover, flint: this.options.flint ?? true, webResults });
-    // Same business rules as every other Market publisher, checked before anything is stored.
+    // The gate blocks report publication and revision insertion; cover/sidecar artifacts may already be written.
     try { assertMarketBusinessGate(built.html, { presentation: false }); }
     catch (error) {
       if (error instanceof TypeError && error.message.startsWith('MARKET_BUSINESS_GATE_FAILED:')) throw new ResearchAutomationValidationError(

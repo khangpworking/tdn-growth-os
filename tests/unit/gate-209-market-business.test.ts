@@ -60,6 +60,12 @@ test('quoted ranking text does not trigger E2', () => {
   assert.equal(result.ok, true);
 });
 
+test('plain balanced q text does not trigger U13, but a stray q cannot hide a claim', () => {
+  assert.equal(check(reportHtml('<p><q>Sản phẩm tốt nhất.</q></p>'), 'U13_SUPERLATIVE').ok, true);
+  assert.equal(check(reportHtml('<p>Sản phẩm tốt nhất.<q>x</q></p>'), 'U13_SUPERLATIVE').ok, false);
+  assert.equal(check(reportHtml('<p><q>Sản phẩm tốt nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
+});
+
 test('renderer ranking disclaimers do not trigger E2', () => {
   const phrases = [
     'Danh mục chưa xếp hạng',
@@ -93,6 +99,11 @@ test('affirmative ranking and market-share language still fails E2', () => {
 test('a negation in a previous sentence does not exempt later affirmative E2 text', () => {
   const result = check(reportHtml('<p>Không xếp hạng. Xếp hạng theo doanh thu.</p>'), 'E2_NO_REVENUE_ORDER');
   assert.equal(result.ok, false);
+});
+
+test('an unrelated negation does not exempt a later E2 ranking claim', () => {
+  assert.equal(check(reportHtml('<p>Không có dữ liệu đối chiếu nên xếp hạng theo doanh thu được trình bày.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p>Không có dữ liệu đối chiếu, xếp hạng theo doanh thu hay thị phần được trình bày dưới đây.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
 });
 
 test('Shopee and TikTok names alone pass the cross-platform total rule', () => {
@@ -153,6 +164,8 @@ test('round 3: method wording about records is not a superlative', () => {
   assert.equal(check(reportHtml('<p>Số bản ghi không nhất thiết là số sản phẩm hoặc biến thể riêng biệt.</p>'), 'U13_SUPERLATIVE').ok, true);
   assert.equal(check(reportHtml('<p>Số đối tượng duy nhất: chưa xác định.</p>'), 'U13_SUPERLATIVE').ok, true);
   assert.equal(check(reportHtml('<p>Tệp chỉ gồm 3<sup>[1]</sup> sản phẩm doanh thu cao nhất (giới hạn 5.000 dòng).</p>'), 'U13_SUPERLATIVE').ok, true);
+  assert.equal(check(reportHtml('<p>Đề xuất chọn 3 sản phẩm doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
+  assert.equal(check(reportHtml('<p>Sản phẩm A là đối tượng duy nhất đáp ứng yêu cầu.</p>'), 'U13_SUPERLATIVE').ok, false);
   assert.equal(check(reportHtml('<p>Sản phẩm A có doanh thu cao nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
 });
 

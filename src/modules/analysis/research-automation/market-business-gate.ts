@@ -148,7 +148,8 @@ function matches(text: string, pattern: RegExp): string[] {
 // A contrast word starts a new clause: a negation before it never governs a term after it.
 const CLAUSE_BREAK = /[.;:!?…\n]|(?<![\p{L}\p{N}_])(?:nhưng|tuy nhiên|tuy vậy|song|mặc dù|vẫn|but|however)(?![\p{L}\p{N}_])/giu;
 const NEGATION = /(?<![\p{L}\p{N}_])(?:không|chưa|chẳng)(?![\p{L}\p{N}_])/giu;
-const LIST_CLOSER = /(?<![\p{L}\p{N}_])(?:hay|hoặc)(?![\p{L}\p{N}_])/iu;
+const DIRECT_NEGATED_RANKING = /^(?:phải\s*)?(?:bảng\s*)?$/iu;
+const NEGATED_LIST_VERB = /(?:^|,|\b(?:hay|hoặc)\b)\s*(?:so sánh|cộng|tính|chấm điểm)\s*(?:,|\b(?:hay|hoặc)\b)?$/iu;
 
 function clauseAround(text: string, start: number, end: number): { before: string; after: string } {
   let from = 0;
@@ -164,14 +165,13 @@ function clauseAround(text: string, start: number, end: number): { before: strin
 /** The term is negated only when a negation in its own clause governs it directly
  * ("không phải xếp hạng") or through a closed list ("không so sánh, xếp hạng hay …"). */
 function e2Negated(text: string, start: number, end: number): boolean {
-  const { before, after } = clauseAround(text, start, end);
+  const { before } = clauseAround(text, start, end);
   const negations = [...before.matchAll(NEGATION)];
   const last = negations.at(-1);
   if (!last) return false;
-  const span = before.slice((last.index ?? 0) + last[0].length);
+  const span = before.slice((last.index ?? 0) + last[0].length).trim().replace(/\s+/gu, ' ');
   if (span.length > 60) return false;
-  if (!span.includes(',')) return true;
-  return LIST_CLOSER.test(span.slice(span.lastIndexOf(',') + 1)) || LIST_CLOSER.test(after);
+  return DIRECT_NEGATED_RANKING.test(span) || NEGATED_LIST_VERB.test(span);
 }
 
 function e2Matches(text: string): string[] {
@@ -215,17 +215,35 @@ function noLeakMatches(html: string, scan: Scan): string[] {
   ]);
 }
 
-/** Drops plain inline tags so split words join, but keeps a data-quote/data-classified
- * element together with its own closing tag, so the quoted span ends where it ends. */
+function balancedQTagOffsets(html: string): Set<number> {
+  const openings: number[] = [];
+  const balanced = new Set<number>();
+  let valid = true;
+  for (const match of html.matchAll(/<q\b[^>]*>|<\/q\s*>/giu)) {
+    const token = match[0] ?? '';
+    const offset = match.index ?? -1;
+    if (/^<\//u.test(token)) {
+      const opening = openings.pop();
+      if (opening === undefined) valid = false;
+      else { balanced.add(opening); balanced.add(offset); }
+    } else if (!/\/\s*>$/u.test(token)) openings.push(offset);
+  }
+  if (openings.length) valid = false;
+  return valid ? balanced : new Set<number>();
+}
+
+/** Drops plain inline tags so split words join, but keeps balanced plain q and
+ * data-quote/data-classified elements with their own closing tags. */
 function normalizeInlineTagsForLint(html: string): string {
+  const balancedQ = balancedQTagOffsets(html);
   const open = new Map<string, boolean[]>();
-  return html.replace(/<!--[\s\S]*?-->|<[^>]*>/gu, token => {
+  return html.replace(/<!--[\s\S]*?-->|<[^>]*>/gu, (token, offset: number) => {
     const name = TAG_NAME.exec(token)?.[1]?.toLowerCase();
     if (!name || !INLINE_TAGS.has(name)) return token;
     const stack = open.get(name) ?? [];
     open.set(name, stack);
     if (/^<\//u.test(token)) return stack.pop() ? token : '';
-    const keep = /\bdata-(?:classified|quote)\b/iu.test(token);
+    const keep = name === 'q' ? balancedQ.has(offset) : /\bdata-(?:classified|quote)\b/iu.test(token);
     if (!/\/\s*>$/u.test(token)) stack.push(keep);
     return keep ? token : '';
   });

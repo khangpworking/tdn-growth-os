@@ -62,11 +62,16 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
-    // "N sản phẩm doanh thu cao nhất" describes how the export sample was drawn
-    // (a counted top-N file), not a claim about one product.
+    // A counted product phrase is exempt only when the same sentence names a
+    // sampling/counting context; a recommendation to choose top products is not.
+    const countedSample = /\b(?:tệp|mẫu|danh sách|kết quả tìm kiếm|gồm|lấy|xem đủ|thu thập)\b[\s\S]{0,160}\b\d[\d.,]*(?:\s*\[\d+\])*\s+sản phẩm\s+doanh thu cao nhất\b/iu.test(own);
     const findings = own.replace(/ít nhất(?=\s+\d)/giu, 'tối thiểu')
-      .replace(/(\d[\d.,]*(?:\[\d+\])*\s+sản phẩm\s+)doanh thu cao nhất/giu, '$1theo ngưỡng doanh thu')
-      .replace(/(bản ghi|đối tượng) duy nhất/giu, '$1 phân biệt')
+      .replace(/(\d[\d.,]*(?:\s*\[\d+\])*\s+sản phẩm\s+)doanh thu cao nhất/giu, (match, prefix: string) => countedSample ? `${prefix}theo ngưỡng doanh thu` : match)
+      .replace(/(bản ghi|đối tượng)\s+duy nhất/giu, (match, kind: string, offset: number, input: string) => {
+        const before = input.slice(0, offset).trimEnd();
+        const countContext = kind.toLowerCase() === 'bản ghi' ? /(?:^|\bsố)\s*$/iu.test(before) : /\bsố\s*$/iu.test(before);
+        return countContext ? match.replace(/duy nhất$/iu, 'phân biệt') : match;
+      })
       .replace(/dòng trùng đồng nhất/giu, 'dòng trùng hệt');
     if (isSuperlative(findings)) superlatives.push(own);
     regionText.set(region, [...(regionText.get(region) ?? []), own]);

@@ -38,13 +38,13 @@ Owner decisions applied:
 Flow audit (read-only):
 
 - `src/modules/analysis/research-automation/service.ts:3143` calls `buildResearchAutomationReport` for an authoritative Market presentation.
-- A gate throw is caught at `service.ts:3224-3229` before artifact persistence at `service.ts:3214-3222`; no failing HTML/semantic/PDF output is inserted or published.
+- A gate throw is caught at `service.ts:3224-3229` before failing report HTML/semantic/PDF output is inserted or published; cover/sidecar artifacts may already be written.
 - The non-revision path settles the REPORTS step as `FAILED` with `REPORT_RENDER_FAILED` and transitions the run to `FAILED` through `service.ts:3468-3490`. A revision attempt is settled as `FAILED` at `service.ts:3225` and leaves the prior committed version unchanged.
 - The owner can read the failed run and REPORTS step through the projection at `service.ts:3521-3545`; `service.ts:4202-4227` exposes the safe generic message from `model.ts:159`: “Draft rendering failed; collected data and raw captures are preserved.” The specific `MARKET_BUSINESS_GATE_FAILED:<rules>` text is not retained by this lane because the service catch is owned elsewhere.
 
 Blocked / needs other lane:
 
-- None for the requested publication-blocking behavior: a failing Market report cannot be stored or published.
+- None for the requested publication-blocking behavior: a failing Market report cannot be published or inserted as a revision; cover/sidecar artifacts may remain.
 - If the owner later requires the exact failed gate rule to be visible in the run UI, that needs a separate change in `service.ts`/API, which is outside this lane’s owned paths.
 - Existing integration fixtures could not complete on Windows because they invoke `python3`: all three failures occurred before assertions at `tests/integration/market-presentation-report.test.ts:75` with `TypeError: Cannot read properties of undefined (reading 'toString')`. No assertion was weakened.
 
@@ -78,7 +78,7 @@ Round 2 evidence:
 
 Fixes for the round-2 review and for false positives found by the Linux suite:
 
-- Reader revisions: the Market build in `src/modules/analysis/research-automation/reader-report-revisions.ts` now runs `assertMarketBusinessGate` before `publishReaderReport`, so no revision row or artifact is stored when the gate fails. The message keeps the existing "chưa đạt kiểm tra bằng chứng hoặc cách trình bày" wording and names the failing rules. The Insight reader builds are not Market reports and are not gated.
+- Reader revisions: the Market build in `src/modules/analysis/research-automation/reader-report-revisions.ts` now runs `assertMarketBusinessGate` before `publishReaderReport`, so report publication and revision insertion are blocked when the gate fails; cover/sidecar artifacts may already be written. The message keeps the existing "chưa đạt kiểm tra bằng chứng hoặc cách trình bày" wording and names the failing rules. The Insight reader builds are not Market reports and are not gated.
 - E2: a negation only covers its own clause. A contrast word (`nhưng`, `tuy nhiên`, `vẫn`, …) or sentence punctuation ends it. A comma list stays covered only when it closes with `hay`/`hoặc`, so "Không có dữ liệu đối chiếu, xếp hạng theo doanh thu được trình bày." fails.
 - Inline-tag normalisation tracks open tags per name, so a closed `data-quote` span no longer hides the authored text after it.
 - G08: "Metric" also means a common word, so it matches only as `Metric` or `METRIC`. The method identifier `metric-scope-v1` no longer fails; other provider names stay case-insensitive.
@@ -97,3 +97,37 @@ Fixes for the round-2 review and for false positives found by the Linux suite:
 | Round 2 lifecycle gate | DONE | All final Market HTML paths are checked immediately before persistence; the new integration test proves a provider-bearing custom renderer leaves REPORTS failed and stores no Market output/version. |
 
 Remaining: coordinator review/commit and integration in the shared plan. No generated contracts, migrations, provider calls, network calls, or live data were used.
+
+## Round 4 (owner-approved extra round; last one)
+
+Changed paths:
+
+- `src/modules/analysis/research-automation/market-business-gate.ts` — E2 now accepts only direct ranking negations or recognized negated verb-list contexts; plain balanced `<q>` boundaries survive lint normalization, while unbalanced/stray quotes do not hide authored text.
+- `src/modules/analysis/report-visible-text-lint.ts` — U13 sampling/counting exemptions now require their documented context; recommendation and affirmative-single-object controls remain superlatives.
+- `src/modules/analysis/research-automation/reader-report-revisions.ts` — comment now states that the gate blocks publication and revision insertion while cover/sidecar artifacts may already be written.
+- `tests/unit/gate-209-market-business.test.ts` — added both unrelated-negation E2 controls, both over-broad U13 controls, balanced/unbalanced plain-quote coverage, and the required stray-quote regression.
+
+Owner decisions applied:
+
+- “E2 / U-07: no priority order or revenue ranking in M11/M12 (plan line 118 and line 177).”
+- “L3 / U-13: classified numbers carry ‘đề xuất, chờ chủ duyệt’ in the same sentence.”
+- “L4: no superlatives as findings (‘nhất’, ‘hàng đầu’, ‘tốt nhất’, ‘rẻ nhất’).”
+
+Round-4 evidence:
+
+- `node --import tsx --test tests/unit/gate-209-market-business.test.ts tests/unit/report-visible-text-lint.test.ts tests/unit/u13-209-report-lint.test.ts` — 32 passed, 0 failed.
+- `node --import tsx --test tests/unit/research-automation-reports.test.ts tests/unit/market-presentation-method.test.ts tests/unit/market-advertising.test.ts` — 25 passed, 0 failed, 2 Chromium-dependent skips.
+- `node --import tsx --test tests/integration/gate-209-reader-revision.test.ts` — 0 passed, 1 Windows-only setup failure before assertions: `the Market reader revision path runs the business gate before storing a revision`; `Error: workbook: OFFLINE_READER_UNAVAILABLE_OR_LIMIT` at `src/modules/analysis/metric-source-profile.ts:78`, reached through `inspectMetricWorkbookProfile` and `AutomationMetricSourceIntake.prepare`. No assertion was weakened.
+- `node ../tools/typecheck-win.mjs` — exit 0 (`files 927 status 0`).
+- `git diff --check` — clean.
+
+### Round-4 checklist evidence
+
+| U-item | Status | Evidence |
+|---|---|---|
+| U-07 / E2 | DONE | Both unrelated-negation controls fail; all nine existing renderer disclaimers still pass in `tests/unit/gate-209-market-business.test.ts`. |
+| U-13 | DONE | Sampling/counting sentences still pass; “Đề xuất chọn 3 sản phẩm doanh thu cao nhất.” and “Sản phẩm A là đối tượng duy nhất đáp ứng yêu cầu.” fail; balanced plain `<q>` quotation passes and stray/unbalanced quote cases fail. |
+| U-32 | DONE | Existing Shopee/TikTok separation regression remains in the 32-test focused pass. |
+| GATE-209 lifecycle | DONE | The reader comment and handoff now state the publication/revision block without claiming zero artifact persistence; typecheck and diff checks pass. |
+
+What remains: coordinator review and commit. The reader-revision integration test needs the Linux/CI environment or a working local offline workbook reader; on Windows it stops before its assertion at the exact setup error recorded above. No generated contracts, migrations, provider calls, network calls, or live data were used.
