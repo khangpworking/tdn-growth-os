@@ -70,7 +70,7 @@ This file is a plan with checklists. It does not assign work to agents; the owne
 **Phần B: thêm nguồn đã duyệt lên màn hình "Nguồn dữ liệu".**
 
 - **Hiện có 5 thẻ:** Kalodata, SerpApi, Apify review Shopee, Metric, PageIndex.
-- **Thêm 7 thẻ:**
+- **Thêm 6 thẻ và 1 dòng Trends trong thẻ SerpApi** (tổng 11 thẻ, khớp mục B1):
   - file video Kalodata;
   - bình luận TikTok;
   - đọc nội dung video;

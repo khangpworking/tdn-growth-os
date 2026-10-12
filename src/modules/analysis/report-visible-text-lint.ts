@@ -10,6 +10,49 @@ const decode = (text: string): string => text.replace(/&#x([\da-f]+);|&#(\d+);|&
     return ({ amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' } as Record<string, string>)[name!.toLowerCase()]!;
   });
 
+const VOID_TAGS = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'param', 'source', 'track', 'wbr']);
+const RAW_TEXT_TAGS = new Set(['script', 'style']);
+
+function tagAttributes(value: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const match of value.matchAll(/\s([:\w-]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'`=<>]+)))?/gu)) {
+    out.set((match[1] ?? '').toLowerCase(), decode(match[2] ?? match[3] ?? match[4] ?? ''));
+  }
+  return out;
+}
+
+function isHiddenOpening(value: string): boolean {
+  const attrs = tagAttributes(value);
+  return attrs.has('hidden') || /^(?:true|1)$/iu.test(attrs.get('aria-hidden') ?? '') ||
+    /(?:^|[;\s])(?:display\s*:\s*none|visibility\s*:\s*hidden)(?:\s*!important)?(?:[;\s]|$)/iu.test(attrs.get('style') ?? '');
+}
+
+// A quote exempts text only when its own closing tag appears before an
+// enclosing element closes it implicitly; an unmatched quote quotes nothing.
+export function balancedOpenings(tokens: readonly string[]): Set<number> {
+  const open: { tag: string; index: number; hidden: boolean; raw: boolean }[] = [];
+  const balanced = new Set<number>();
+  tokens.forEach((value, index) => {
+    if (!value.startsWith('<') || value.startsWith('<!--')) return;
+    const rawFrame = open.at(-1)?.raw ? open.at(-1) : undefined;
+    const tag = /^<\/?([\w:-]+)/.exec(value)?.[1]?.toLowerCase();
+    if (!tag) return;
+    if (value.startsWith('</')) {
+      if (rawFrame) {
+        if (tag === rawFrame.tag) open.pop();
+        return;
+      }
+      const top = open.at(-1);
+      if (!top || top.tag !== tag) return;
+      open.pop();
+      if (!top.hidden) balanced.add(top.index);
+    } else if (!rawFrame && !/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
+      open.push({ tag, index, hidden: open.some(item => item.hidden) || isHiddenOpening(value), raw: RAW_TEXT_TAGS.has(tag) });
+    }
+  });
+  return balanced;
+}
+
 export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
   const blocks: { chunks: Chunk[]; region: number }[] = [], stack: { tag: string; quote: boolean; title: boolean; hidden: boolean; pending: boolean; cell?: number }[] = [];
   let region = 0;
@@ -17,8 +60,9 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
   let block: Chunk[] = [];
   const flush = (): void => { if (block.length) blocks.push({ chunks: block, region }); block = []; };
   const activeCell = (): number | null => [...stack].reverse().find(frame => frame.cell !== undefined)?.cell ?? null;
-  for (const token of html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/g)) {
-    const value = token[0];
+  const tokens = [...html.matchAll(/<!--[\s\S]*?-->|<[^>]*>|[^<]+/g)].map(token => token[0]);
+  const balanced = balancedOpenings(tokens);
+  for (const [tokenIndex, value] of tokens.entries()) {
     if (value.startsWith('<!--')) continue;
     if (!value.startsWith('<')) {
       if (!stack.some(f => f.hidden)) block.push({ text: decode(value), pending: stack.some(f => f.pending), own: !stack.some(f => f.quote || f.title), cell: activeCell() });
@@ -32,10 +76,10 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       const index = stack.map(f => f.tag).lastIndexOf(tag);
       if (index >= 0) stack.splice(index);
       block.push({ text: ' ', pending: false, own: true, cell: activeCell() });
-    } else if (!/\/$/.test(value.slice(0, -1)) && !['br', 'img', 'meta', 'link', 'input', 'hr'].includes(tag)) {
+    } else if (!/\/$/.test(value.slice(0, -1)) && !VOID_TAGS.has(tag)) {
       if (tag === 'section') region++;
       stack.push({ tag,
-        quote: /\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote',
+        quote: balanced.has(tokenIndex) && (/\bdata-quote(?:\s|=|>)/i.test(value) || tag === 'q' || tag === 'blockquote'),
         title: /^h[1-6]$/.test(tag),
         hidden: ['script', 'style'].includes(tag) || /\shidden(?:\s|=|>)/i.test(value) || /aria-hidden\s*=\s*["']true["']/i.test(value)
           || /style\s*=\s*["'][^"']*(?:display\s*:\s*none|visibility\s*:\s*hidden)/i.test(value),
@@ -54,7 +98,7 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
       const index = match.index ?? 0;
       const before = text.slice(0, index).match(/([\p{L}\p{M}]+)\s*$/u)?.[1]?.toLowerCase();
       const after = text.slice(index + match[0].length).match(/^\s*([\p{L}\p{M}]+)/u)?.[1]?.toLowerCase();
-      if (!['thống', 'đồng', 'hợp'].includes(before ?? '') && !['định', 'quán', 'trí'].includes(after ?? '')) return true;
+      if (!['thống', 'đồng', 'hợp'].includes(before ?? '') && !['định', 'quán', 'trí', 'thiết'].includes(after ?? '')) return true;
     }
     return false;
   };
@@ -62,8 +106,22 @@ export function lintVisibleReportText(html: string): VisibleTextLintResult[] {
     const own = chunks.map(c => c.own ? c.text : ' ').join('').replace(/\s+/g, ' ').trim();
     // Numeric lower bounds are measurement/method conditions, not a claim
     // that a product is superior (for example the frozen E11 threshold).
+    // A counted product phrase is exempt only when its own sentence names a
+    // sampling/counting context before it; a recommendation to choose top
+    // products is not, even next to a sampling sentence.
+    const countedSample = (input: string, offset: number): boolean => {
+      let start = 0;
+      for (const stop of input.slice(0, offset).matchAll(/[!?…]|\.(?!\d)/gu)) start = (stop.index ?? 0) + 1;
+      return /(?<![\p{L}\p{M}])(?:tệp|mẫu|danh sách|kết quả tìm kiếm|gồm|lấy|xem đủ|thu thập)(?![\p{L}\p{M}])[\s\S]{0,160}$/iu.test(input.slice(start, offset));
+    };
     const findings = own.replace(/ít nhất(?=\s+\d)/giu, 'tối thiểu')
-      .replace(/bản ghi duy nhất/giu, 'bản ghi phân biệt')
+      .replace(/(\d[\d.,]*(?:\s*\[\d+\])*\s+sản phẩm\s+)doanh thu cao nhất/giu, (match, prefix: string, offset: number, input: string) =>
+        countedSample(input, offset) ? `${prefix}theo ngưỡng doanh thu` : match)
+      .replace(/(bản ghi|đối tượng)\s+duy nhất/giu, (match, kind: string, offset: number, input: string) => {
+        const before = input.slice(0, offset).trimEnd();
+        const countContext = kind.toLowerCase() === 'bản ghi' || /\bsố\s*$/iu.test(before) || /\bkhông\s+phải\s*$/iu.test(before);
+        return countContext ? match.replace(/duy nhất$/iu, 'phân biệt') : match;
+      })
       .replace(/dòng trùng đồng nhất/giu, 'dòng trùng hệt');
     if (isSuperlative(findings)) superlatives.push(own);
     regionText.set(region, [...(regionText.get(region) ?? []), own]);

@@ -10,6 +10,7 @@ import { ShopeeCollectionService } from '../../foundation/shopee-collection-serv
 import { buildPrivateReviewReportView, type PrivateReviewBinding } from './private-review-corpus.js';
 import type { PrivateReviewReportView } from '../../../../contracts/analysis/private-review-report-view.generated.js';
 import { buildResearchAutomationReport } from './reports.js';
+import { assertMarketBusinessGate } from './market-business-gate.js';
 import { prepareInsightReaderBuild } from '../reader-report/insight-build-v1.js';
 import { ReaderReportInputError } from '../reader-report/build.js';
 import readerInputSchema from '../../../../contracts/analysis/reader-report-input.schema.json' with { type: 'json' };
@@ -3251,6 +3252,7 @@ export class ResearchAutomationService {
         }
         const { rendered, semanticBytes, html } = prepared;
         if (semanticBytes.byteLength > MAX_JSON_ARTIFACT_BYTES || html.byteLength > MAX_HTML_BYTES) throw new ResearchAutomationIntegrityError('Research report output exceeds its bound.');
+        if (kind === 'MARKET') assertMarketBusinessGate(html.toString('utf8'), { presentation: Boolean(input.marketPresentation) });
         const semantic = await this.#artifacts.put(semanticBytes);
         const htmlArtifact = await this.#artifacts.put(html);
         let pdf: StoredArtifact | null = null;
