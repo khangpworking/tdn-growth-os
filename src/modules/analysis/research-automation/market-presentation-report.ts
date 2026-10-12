@@ -1,11 +1,12 @@
 import type { AutomationMarketPresentationMethod } from '../../../../contracts/analysis/automation-market-presentation-method.generated.js';
+import { readerPriceState, readerProductLabel, readerStoredOrJson } from './reader-plain-text.js';
 import { escapeHtml as escape, readerPointer, storedLiteral, type ReportCitations } from './descriptive-report.js';
 
 type Method = AutomationMarketPresentationMethod;
 const number = (value: number | null): string => value === null ? 'Chưa rõ' : value.toLocaleString('vi-VN', { maximumFractionDigits: 3 });
-const literal = (value: string): string => `<span data-quote>${storedLiteral(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn')}</span>`;
-const mark = (ref: { sourceSha256: string; locator: string; label?: string }, citations: ReportCitations): string => {
-  const pointer = readerPointer(ref.locator);
+const literal = (value: string, readerPlainText = false): string => `<span data-quote>${escape(readerPlainText ? readerStoredOrJson(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn') : storedLiteral(value, 'Nội dung nguyên văn được giữ trong hồ sơ nguồn'))}</span>`;
+const mark = (ref: { sourceSha256: string; locator: string; label?: string }, citations: ReportCitations, readerPlainText = false): string => {
+  const pointer = readerPointer(ref.locator, readerPlainText);
   return citations.mark({ sourceKind: 'CAPTURE', identity: ref.sourceSha256, locator: pointer.locator,
     label: ref.label ?? 'Quy cách và giá do người vận hành lưu', retrievedAt: null, url: null, quote: null,
     quoteVerification: 'NOT_APPLICABLE', technical: { locator: ref.locator } });
@@ -79,28 +80,35 @@ export function renderAutomationMarketAdvertising(input: AdvertisingReferenceInp
 
 /** Every statement is frozen by the owning method; rendering introduces no
  * calculation, interpretation, ordering by importance or provider execution. */
-export function renderAutomationMarketFindings(method: Method, citations: ReportCitations): string {
+export function renderAutomationMarketFindings(method: Method, citations: ReportCitations, readerPlainText = false): string {
   return '<p>Các phát hiện mô tả mẫu đã lưu, không sắp theo mức quan trọng.</p><ul class="market-findings">' + method.findings.map(finding =>
-    `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(finding.statement.replace(/[.]$/, ''))} (đề xuất, chờ chủ duyệt).</span>` : escape(finding.statement)}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(finding.scope)}</p></li>`).join('') + '</ul>' +
+    `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, ''))} (đề xuất, chờ chủ duyệt).</span>` : escape(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement)}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`).join('') + '</ul>' +
     (method.findings.length < 4 ? '<p>Chưa đủ bằng chứng để có bốn nhận định; phần kết luận còn thiếu, không bổ sung nhận định không có nguồn.</p>' : '') +
     '<p>Số bán hàng là ước tính trong mẫu. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>';
 }
 
-export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations): string {
+export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false): string {
   const groups = new Map<string, Method['unitPrices']>(), missing: Method['unitPrices'] = [];
   for (const row of method.unitPrices) {
     if (row.value === null) missing.push(row);
     else groups.set(row.comparisonKey, [...(groups.get(row.comparisonKey) ?? []), row]);
   }
+  const titleByListing = new Map(method.input.rows.flatMap(row => row.title.trim() ? [[row.listing, row.title.trim()] as const] : []));
+  const listingOrdinals = new Map<string, number>();
+  const productLabel = (listing: string): string => {
+    const ordinal = listingOrdinals.get(listing) ?? listingOrdinals.size + 1;
+    listingOrdinals.set(listing, ordinal);
+    return readerPlainText ? escape(readerProductLabel(listing, titleByListing.get(listing), ordinal)) : literal(listing, false);
+  };
   const prices = { LISTED: 'Giá niêm yết', PAYMENT: 'Giá thanh toán', CONDITIONAL_PROMO: 'Giá khuyến mãi có điều kiện' };
   const headings = ['Sàn', 'Listing', 'Biến thể', 'Ngành hàng', 'Giá (VND)', 'Số lượng', 'Đơn vị nguồn', 'Giá theo đơn vị chuẩn (VND)', 'Đơn vị chuẩn / cơ sở', 'Loại giá', 'Kỳ giá', 'Trạng thái', 'Nguồn', 'Điều kiện giá'];
   const cells = (row: Method['unitPrices'][number]): string[] => {
     const o = row.observation;
-    return [o.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', literal(o.listing), literal(o.variant), literal(o.category.label),
-      number(o.price.value), number(o.quantity.value), escape(o.quantity.unit), number(row.value), literal(row.standard), prices[o.price.kind],
-      `${escape(o.period.start)} đến ${escape(o.period.end)}`, escape(row.missing ?? 'Khai báo đã đối chiếu bản lưu; chưa xác thực người bán'),
-      (row.ownerDeclared ? 'Số lượng do chủ khai báo' : 'Quy cách trong bản lưu trang bán do người vận hành cung cấp') + row.sources.map(ref => mark(ref, citations)).join(''),
-      o.price.conditions.length ? o.price.conditions.map(literal).join('; ') : 'Không ghi điều kiện khuyến mãi'];
+    return [o.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', productLabel(o.listing), literal(o.variant, readerPlainText), literal(o.category.label, readerPlainText),
+      number(o.price.value), number(o.quantity.value), escape(readerPlainText ? readerStoredOrJson(o.quantity.unit, 'Đơn vị được giữ trong hồ sơ đối chiếu') : o.quantity.unit), number(row.value), literal(row.standard, readerPlainText), prices[o.price.kind] ?? 'Loại giá được giữ trong hồ sơ đối chiếu',
+      `${escape(readerPlainText ? readerStoredOrJson(o.period.start, 'Kỳ giá được giữ trong hồ sơ đối chiếu') : o.period.start)} đến ${escape(readerPlainText ? readerStoredOrJson(o.period.end, 'Kỳ giá được giữ trong hồ sơ đối chiếu') : o.period.end)}`, escape(row.missing === undefined || row.missing === null ? 'Khai báo đã đối chiếu bản lưu; chưa xác thực người bán' : readerPlainText ? readerPriceState(row.missing) : row.missing),
+      (row.ownerDeclared ? 'Số lượng do chủ khai báo' : 'Quy cách trong bản lưu trang bán do người vận hành cung cấp') + row.sources.map(ref => mark(ref, citations, readerPlainText)).join(''),
+      o.price.conditions.length ? o.price.conditions.map(value => literal(value, readerPlainText)).join('; ') : 'Không ghi điều kiện khuyến mãi'];
   };
   let html = [...groups.values()].map(group => table('Giá theo đơn vị chuẩn — sắp xếp tăng dần trong phạm vi tương thích', headings,
     [...group].sort((a, b) => a.value! - b.value! || a.rowI - b.rowI).map(cells))).join('');
@@ -109,8 +117,8 @@ export function renderAutomationMarketUnitPrices(method: Method, citations: Repo
   const observed = new Set(method.unitPrices.map(row => row.rowI));
   const absent = method.input.rows.filter(row => !observed.has(row.i));
   if (absent.length) html += table('Listing chưa có quy cách hoặc giá đã xác minh — không đưa vào sắp xếp', ['Sàn', 'Listing', 'Tiêu đề nguồn', 'Trạng thái'],
-    absent.map(row => [row.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', literal(row.listing), literal(row.title), 'Chưa rõ số lượng và giá niêm yết' +
-      (method.binding.metric ? mark({ sourceSha256: method.binding.metric.workbookSha256, locator: `Sheet1!A${row.i + 2}:T${row.i + 2}`, label: 'Dòng sản phẩm trong tệp đã lưu' }, citations) : '')]));
+    absent.map(row => [row.platform === 'shopee' ? 'Shopee' : 'TikTok Shop', productLabel(row.listing), literal(row.title, readerPlainText), 'Chưa rõ số lượng và giá niêm yết' +
+      (method.binding.metric ? mark({ sourceSha256: method.binding.metric.workbookSha256, locator: `Sheet1!A${row.i + 2}:T${row.i + 2}`, label: 'Dòng sản phẩm trong tệp đã lưu' }, citations, readerPlainText) : '')]));
   const period = method.input.metric?.input.scope ?? null;
   return html + '<p>Giá hiển thị tối đa ba chữ số thập phân; sắp xếp theo giá trị chưa làm tròn. Chỉ sắp xếp cùng sàn, ngành hàng, đơn vị hoặc cơ sở, nhóm quy cách, loại giá, điều kiện và kỳ. Khối lượng tịnh và khối lượng cái giữ riêng; hàng dùng lâu và combo không chia nhỏ. Kỳ quan sát giá giữ riêng với kỳ doanh số.</p><p>Giá niêm yết, thanh toán và khuyến mãi có điều kiện giữ riêng; không thay bằng giá bán trung bình từ doanh thu và đơn vị bán. Đối chiếu khai báo với bản lưu không xác thực người bán; không suy chất lượng, giá vốn hoặc lợi nhuận.</p>' +
     renderAutomationMarketAdvertising({ period: period ? { start: period.start, end: period.end } : null,
