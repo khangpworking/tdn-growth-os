@@ -245,9 +245,12 @@ test('provider names in a Market build fail inside buildResearchAutomationReport
     scope: { contractVersion: 'research-automation-scope-snapshot-v1', workspaceId, runId, definition: 'Synthetic scope', includeTerms: [], excludeTerms: [], selectedProductIds: [], peerProductIds: [] },
     collection: null, captures: [], marketPresentation } as unknown as AutomationReportInput;
   assert.doesNotThrow(() => buildResearchAutomationReport(input, 'MARKET'));
-  const bad = structuredClone(input);
-  (bad.marketPresentation as NonNullable<AutomationReportInput['marketPresentation']>).findings[0]!.statement = 'Metric';
-  assert.throws(() => buildResearchAutomationReport(bad, 'MARKET'), /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/);
+  const readerSanitized = structuredClone(input);
+  (readerSanitized.marketPresentation as NonNullable<AutomationReportInput['marketPresentation']>).findings[0]!.statement = 'Metric';
+  assert.doesNotThrow(() => buildResearchAutomationReport(readerSanitized, 'MARKET'));
+  const leaking = structuredClone(input);
+  (leaking.start.requestedPeriod as { startDate: string }).startDate = 'Metric';
+  assert.throws(() => buildResearchAutomationReport(leaking, 'MARKET'), /MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME/);
 });
 
 test('round 5: an unmatched or nested unbalanced quote cannot hide an E2 claim', () => {

@@ -197,3 +197,31 @@ Closed-list negation support was added for quote-method wording such as “khôn
 ## Round 12
 
 Replaced the negated market-share affirmative-tail word list with a structural noun-continuation check. Exemptions now allow only clause-ending text or explicitly closed noun/list continuations; predicate tails such as “là cao”, “cao hơn B”, “dẫn đầu B”, “vượt B” and “đứng đầu” fail E2, including after round-10 verb lists. Vietnamese word matching in this gate uses Unicode-aware boundaries, and focused tests cover all reported probes plus accepted absence statements.
+
+## Round 13 (merge main, conflict resolution, final self-review)
+
+- Merged `origin/main` at `1636646` with a normal merge. The only conflict was the import block in `src/modules/analysis/research-automation/reports.ts`; the resolution retains both READER plain-text helpers (`formatReaderValue`, `readerProductLabel`, `readerShopLabel`) and GATE's `assertMarketBusinessGate` wiring/call.
+- The GATE build-boundary test now records both behaviors: a provider-bearing finding is neutralized by the READER projection, while a provider that reaches final HTML still fails `MARKET_BUSINESS_GATE_FAILED:G08_PROVIDER_NAME`. This is test-fixture clarification, not a gate relaxation.
+
+Checks after merge/fix:
+
+- `npm run typecheck` — PASS.
+- Focused GATE + READER run (`tests/unit/gate-209-market-business.test.ts`, both gate integration tests, `tests/unit/reader-209-plain-text.test.ts`, `tests/unit/research-automation-reports.test.ts`, `tests/unit/research-automation-report-citations.test.ts`) — 72 passed, 0 failed, 2 Chromium skips.
+- `git diff --check` — PASS.
+- `npm run check` — frontend validators/typecheck/build/frontend tests PASS (294 passed). Backend aggregate: 1,746 tests, 1,736 passed, 3 failed, 2 cancelled, 5 skipped. The five failure reports are below.
+
+Full-suite baseline proof on clean detached `origin/main` (`b05f36c`, `/tmp/gate-main-check`, dependencies installed with `npm ci`):
+
+1. `tests/integration/pageindex-cloud-cli.test.ts` — reproduces `PAGEINDEX_LOCAL_PDF_INVALID` at line 60 (exit 1).
+2. `tests/integration/pageindex-upload.test.ts` — reproduces `FAILED` instead of expected `READY` at line 85 (exit 1).
+3. `tests/integration/operator-app-journey.test.ts` — full file under `npm test` reproduces the Task045 launcher timeout at 30,245 ms; the same file passes when isolated, confirming the known load-sensitive timeout.
+4. `tests/integration/research-automation-api.test.ts` — reproduces the 300,000 ms timeout for “three industries classify a new report from complete selected acceptance without changing old reports”.
+5. `tests/integration/research-automation-case-contract.test.ts` — reproduces the 30,000 ms timeout for “one database routes three industries to their own retained review source and 365-day query inventory”.
+
+Adversarial self-review of `git diff origin/main...HEAD`:
+
+- E2 blocks affirmative revenue ordering and market-share predicates, while accepted negated/limitation clauses and quoted/heading text remain covered by focused tests; no ranking/superiority false pass was found.
+- U32 uses explicit cross-platform-total phrases only; Shopee and TikTok Shop are rendered separately and no sum across them is introduced.
+- G08 checks final reader-visible text/attributes; provider-bearing reader fields are neutralized and any provider that reaches final HTML is blocked. No provider name, machine path, IP, key or credential was added to report text.
+
+No provider, paid network, Metric call, migration, generated contract or runtime data was used. No push performed.
