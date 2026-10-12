@@ -420,7 +420,7 @@ test('actual authenticated OWNER P4 upload/selection/comment and S14 routes expo
   assert.equal(commentsCard.state, 'READY'); assert.equal(commentsCard.pendingPackage, null);
   assert.equal(commentsCard.dataCount, 1); assert.equal(commentsCard.spendCapUsd, 0.1);
   assert.equal(readingCard.state, 'MANUAL_IMPORT'); assert.equal(readingCard.dataCount, 1);
-  assert.equal(board.sources.find(card => card.source === 'META_AD_LIBRARY')!.state, 'NOT_BUILT');
+  assert.equal(board.sources.find(card => card.source === 'META_AD_LIBRARY')!.state, 'MANUAL_IMPORT');
   assert.deepEqual(f.calls(), calls); assert.deepEqual(f.db.serialize(), before);
 });
 

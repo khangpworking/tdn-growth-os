@@ -1,0 +1,651 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tdn.local/contracts/analysis/meta-page-source-v1.schema.json",
+  "title": "MetaPageSourceV1",
+  "description": "Closed saved-capture application profile. Exact operator declarations with byte locators; not an authentic Meta DOM/OpenCLI runtime contract or evidence of paid continuity/effectiveness.",
+  "oneOf": [
+    {
+      "$ref": "#/$defs/binding"
+    },
+    {
+      "$ref": "#/$defs/capture"
+    },
+    {
+      "$ref": "#/$defs/projection"
+    },
+    {
+      "$ref": "#/$defs/confirmation"
+    }
+  ],
+  "$defs": {
+    "selection": {
+      "title": "MetaPageSelection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pairId",
+        "peerFrameIndex",
+        "peerIdentityKey",
+        "keywordDraftSha256",
+        "searchCaptureId",
+        "searchPosition",
+        "pageId"
+      ],
+      "properties": {
+        "pairId": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "peerFrameIndex": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "peerIdentityKey": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "keywordDraftSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "searchCaptureId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "searchPosition": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "pageId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,29}$"
+        }
+      }
+    },
+    "search": {
+      "title": "MetaPageRetainedSearch",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "captureId",
+        "captureArtifactSha256",
+        "position",
+        "title",
+        "snippet",
+        "url",
+        "retrievedAt"
+      ],
+      "properties": {
+        "captureId": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 300
+        },
+        "captureArtifactSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "position": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "title": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "snippet": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 10000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "retrievedAt": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "binding": {
+      "title": "MetaPageBinding",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "workspaceId",
+        "runId",
+        "startSha256",
+        "scopeSha256",
+        "sourceSetSha256",
+        "marketReportSha256",
+        "selection",
+        "peerFrame",
+        "peerMember",
+        "search",
+        "keywordData",
+        "searchDecision"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "meta-page-binding-v1"
+        },
+        "workspaceId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "runId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "startSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "scopeSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "sourceSetSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "marketReportSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "selection": {
+          "$ref": "#/$defs/selection"
+        },
+        "peerFrame": {
+          "$ref": "default-market-peers.schema.json#/$defs/frame"
+        },
+        "peerMember": {
+          "$ref": "default-market-peers.schema.json#/$defs/member"
+        },
+        "search": {
+          "$ref": "#/$defs/search"
+        },
+        "keywordData": {
+          "$ref": "keyword-meaning-filter.schema.json#/$defs/data"
+        },
+        "searchDecision": {
+          "$ref": "keyword-meaning-filter.schema.json#/$defs/result"
+        }
+      }
+    },
+    "span": {
+      "title": "MetaPageByteSpan",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "byteOffset",
+        "byteLength"
+      ],
+      "properties": {
+        "byteOffset": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "byteLength": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "located": {
+      "title": "MetaPageLocatedLiteral",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "value",
+        "span"
+      ],
+      "properties": {
+        "value": {
+          "type": "string",
+          "maxLength": 10000
+        },
+        "span": {
+          "$ref": "#/$defs/span"
+        }
+      }
+    },
+    "ad": {
+      "title": "MetaPageVisibleAd",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "libraryId",
+        "libraryLink",
+        "pageId",
+        "pageName",
+        "startDate",
+        "stopDate",
+        "status",
+        "platforms",
+        "versionCount",
+        "spendRange",
+        "impressionRange",
+        "text"
+      ],
+      "properties": {
+        "libraryId": {
+          "$ref": "#/$defs/located"
+        },
+        "libraryLink": {
+          "$ref": "#/$defs/located"
+        },
+        "pageId": {
+          "$ref": "#/$defs/located"
+        },
+        "pageName": {
+          "$ref": "#/$defs/located"
+        },
+        "startDate": {
+          "$ref": "#/$defs/located"
+        },
+        "stopDate": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/located"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/located"
+        },
+        "platforms": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/located"
+              },
+              "maxItems": 20
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "versionCount": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/located"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "spendRange": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/located"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "impressionRange": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/located"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "$ref": "#/$defs/located"
+        }
+      }
+    },
+    "capture": {
+      "title": "MetaPageSavedCapture",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "profile",
+        "provenance",
+        "controlState",
+        "pageId",
+        "libraryUrl",
+        "capturedAt",
+        "htmlSha256",
+        "ads"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "meta-page-saved-capture-v1"
+        },
+        "profile": {
+          "const": "operator-located-visible-declarations-v1"
+        },
+        "provenance": {
+          "enum": [
+            "OPERATOR_SUPPLIED_UNVERIFIED",
+            "SYNTHETIC"
+          ]
+        },
+        "controlState": {
+          "const": "READY"
+        },
+        "pageId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,29}$"
+        },
+        "libraryUrl": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "htmlSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ads": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ad"
+          },
+          "maxItems": 5000
+        }
+      }
+    },
+    "observation": {
+      "title": "MetaPageAdObservation",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "libraryId",
+        "libraryLink",
+        "pageId",
+        "pageName",
+        "startDateLiteral",
+        "startDate",
+        "stopDateLiteral",
+        "stopDate",
+        "statusLiteral",
+        "status",
+        "platforms",
+        "versionCountLiteral",
+        "spendRangeLiteral",
+        "impressionRangeLiteral",
+        "textFirst200",
+        "ageDaysToCapture"
+      ],
+      "properties": {
+        "libraryId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,29}$"
+        },
+        "libraryLink": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 4000
+        },
+        "pageId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,29}$"
+        },
+        "pageName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 10000
+        },
+        "startDateLiteral": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "startDate": {
+          "type": "string",
+          "format": "date"
+        },
+        "stopDateLiteral": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "stopDate": {
+          "anyOf": [
+            {
+              "type": "string",
+              "format": "date"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "statusLiteral": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "status": {
+          "enum": [
+            "ACTIVE",
+            "INACTIVE",
+            "UNKNOWN"
+          ]
+        },
+        "platforms": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "maxItems": 20
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "versionCountLiteral": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 10000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "spendRangeLiteral": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 10000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "impressionRangeLiteral": {
+          "anyOf": [
+            {
+              "type": "string",
+              "maxLength": 10000
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "textFirst200": {
+          "type": "string",
+          "maxLength": 400
+        },
+        "ageDaysToCapture": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "projection": {
+      "title": "MetaPageProjection",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "bindingSha256",
+        "captureSha256",
+        "htmlSha256",
+        "capturedAt",
+        "pageId",
+        "observations",
+        "adFilter",
+        "includedLibraryIds",
+        "duplicateObservations",
+        "limitations"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "meta-page-projection-v1"
+        },
+        "bindingSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "captureSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "htmlSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "capturedAt": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "pageId": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,29}$"
+        },
+        "observations": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/observation"
+          },
+          "maxItems": 5000
+        },
+        "adFilter": {
+          "$ref": "keyword-meaning-filter.schema.json#/$defs/result"
+        },
+        "includedLibraryIds": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[1-9][0-9]{0,29}$"
+          },
+          "maxItems": 5000
+        },
+        "duplicateObservations": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 9007199254740991
+        },
+        "limitations": {
+          "const": "OPERATOR_DECLARATIONS_NOT_AUTHENTIC_DOM_OR_EFFECTIVENESS_EVIDENCE"
+        }
+      }
+    },
+    "package": {
+      "title": "MetaPagePackageIdentity",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "packageId",
+        "manifestSha256",
+        "contentSha256"
+      ],
+      "properties": {
+        "packageId": {
+          "type": "string",
+          "format": "uuid"
+        },
+        "manifestSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "contentSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        }
+      }
+    },
+    "confirmation": {
+      "title": "MetaPageConfirmation",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "contractVersion",
+        "bindingSha256",
+        "prepared",
+        "projectionSha256",
+        "ownerRole"
+      ],
+      "properties": {
+        "contractVersion": {
+          "const": "meta-page-confirmation-v1"
+        },
+        "bindingSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "prepared": {
+          "$ref": "#/$defs/package"
+        },
+        "projectionSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "ownerRole": {
+          "const": "OWNER"
+        }
+      }
+    }
+  }
+}

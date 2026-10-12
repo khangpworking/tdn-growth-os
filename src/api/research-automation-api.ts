@@ -1,3 +1,7 @@
+import metaPageApiSchema from '../../contracts/api/research-automation-meta-page-api.schema.json' with { type: 'json' };
+import metaPageSourceSchema from '../../contracts/analysis/meta-page-source-v1.schema.json' with { type: 'json' };
+import metaL9Schema from '../../contracts/analysis/keyword-meaning-filter.schema.json' with { type: 'json' };
+import { MetaPageSourceRejection } from '../modules/analysis/research-automation/meta-page-intake.js';
 import { personaReportRequestValid, personaRequestValid, personaResponseValid, personaViewValid, personaEvidenceValid } from '../modules/analysis/research-automation/insight-persona-contracts.js';
 import { createKeywordCliproxyTransport, type KeywordDraftConfiguration } from '../modules/analysis/research-automation/keyword-cliproxy-transport.js';
 import { TypesafeJevClient, type TypesafeJevConfiguration } from '../platform/ai/typesafe-jev-client.js';
@@ -123,6 +127,11 @@ export interface ResearchAutomationApiApplication {
 }
 const Ajv = AjvModule.default;
 const addFormats = addFormatsModule.default;
+// Isolated additive compiler; historical API compiler registration/order stays unchanged.
+const metaAjv = new Ajv({ allErrors: true, strict: true }); addFormats(metaAjv);
+for (const value of [defaultPeerSchema, metaL9Schema, metaPageSourceSchema, metaPageApiSchema]) metaAjv.addSchema(value);
+const metaValidates = Object.fromEntries(['prepare', 'confirm', 'view', 'history'].map(name =>
+  [name, metaAjv.getSchema(`${metaPageApiSchema.$id}#/$defs/${name}`)!]));
 const ajv = new Ajv({ allErrors: false, strict: true });
 addFormats(ajv);
 ajv.addSchema(defaultPeerSchema);
@@ -406,6 +415,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const insightDefaultModelWrite = action === 'insight-coding-default-model-proposals';
     const insightModelWrite = action === 'insight-coding-model-proposals' || insightDefaultModelWrite;
     const readerHtml = /^reader-reports\/([0-9a-f-]{36})\/html$/.exec(action ?? '');
+    const metaRead = /^sources\/meta-page\/([0-9a-f-]{36})$/.exec(action ?? '');
+    const metaWrite = action === 'sources/meta-page' || action === 'sources/meta-page/confirm';
     const readerPdf = /^reader-reports\/([0-9a-f-]{36})\/pdf$/.exec(action ?? '');
     const readerUnitSpecIntake = action === 'reader-reports/unit-spec-intakes';
     const insightReaderBuild = action === 'reader-reports/insight';
@@ -432,8 +443,8 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
     const p9History = action === 'sources/tiktok-comments' || action === 'sources/video-reading';
     const p9Write = action === 'sources/tiktok-comments/selections' || action === 'sources/tiktok-comments/collect' || action === 'sources/video-reading';
     const allowed = mutation
-      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
-      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || Boolean(readerPdf) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
+      ? !runId || action === 'source-pdfs' || action === 'confirm-scope' || action === 'cancel' || action === 'report-revisions' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || metaWrite || worldBankWrite || action === 'metric-rule-adoptions' || membershipWrite || Boolean(insightWrite) || insightModelWrite || insightDefaultModelWrite || crosscheckWrite || personaWrite || Boolean(revisionCancel) || insightReaderBuild || readerDecisionV2 || readerUnitSpecIntake || action === 'reader-reports' || action === 'reader-reports/decisions' || tiktokPropose || tiktokReaderBuild || shopeePropose || shopeeReaderBuild
+      : readerListV2 || !action || action === 'pageindex' || action === 'reader-reports' || Boolean(readerHtml) || Boolean(readerPdf) || action === 'report-versions' || action === 'report-attempts' || action === 'sources/metric' || action === 'sources/supplemental' || action === 'sources/kalodata-video' || action === 'sources/meta-page' || Boolean(metaRead) || action === 'sources/world-bank' || Boolean(worldBankRead) || action === 'metric-rule-adoptions' || Boolean(metricRuleRead) || Boolean(membershipReview) || Boolean(membershipRead) || Boolean(insightRead) || Boolean(personaList) || Boolean(personaRead) || Boolean(crosscheckRead) || Boolean(crosscheckAvailability) || Boolean(report) || Boolean(revisionRead) || Boolean(tiktokContextRead) || Boolean(tiktokRead) || tiktokHistory || tiktokConsumptionRead || shopeeSamples || shopeeContextRead || Boolean(shopeeRead) || shopeeHistory || shopeeConsumptionRead;
     if (!allowed && !(runId && (mutation ? p9Write : p9History || p9Read))) return fail(response, 404, 'not_found', 'Route not found');
     const method = mutation ? 'POST' : 'GET';
     response.setHeader('Allow', mutation ? 'POST, OPTIONS' : 'GET');
@@ -448,6 +459,11 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         response.writeHead(204, { 'Content-Length': '0', 'Cache-Control': 'no-store' }); response.end(); return;
       }
       if (!ownerAuthorized(request, configuration.owner.token)) { response.setHeader('WWW-Authenticate', 'Bearer'); return fail(response, 401, 'unauthorized', 'Authentication required'); }
+    }
+    // Saved ad declarations/peer provenance are OWNER-authenticated reads, using the existing local token/origin boundary.
+    if (!mutation && (action === 'sources/meta-page' || metaRead)) {
+      if (!configuration.owner || suppliedOrigin !== origin.origin) return fail(response, 403, 'forbidden', 'OWNER source reads require the configured exact origin');
+      if (!ownerAuthorized(request, configuration.owner.token)) return fail(response, 401, 'unauthorized', 'Authentication required');
     }
     if (request.method !== method) return fail(response, 405, 'method_not_allowed', 'Method is not supported');
     try {
@@ -596,6 +612,12 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
           const result = metricRuleRead ? await readService.getMetricRuleAdoption(workspaceId!, runId, metricRuleRead[1]!)
             : await readService.listMetricRuleAdoptions(workspaceId!, runId);
           if (!(metricRuleRead ? validates.metricRuleReceipt : validates.metricRuleList)(result)) throw new Error('Rule adoption projection failed validation');
+          return sendApiJson(response, 200, result);
+        }
+        if (action === 'sources/meta-page' || metaRead) {
+          const result = metaRead ? await readService.readMetaPageSource(workspaceId!, runId, metaRead[1]!)
+            : await readService.listMetaPageSources(workspaceId!, runId);
+          if (!(metaRead ? metaValidates.view! : metaValidates.history!)(result)) throw new Error('Meta source read failed validation');
           return sendApiJson(response, 200, result);
         }
         if (action === 'sources/metric') {
@@ -777,6 +799,20 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
         if (!validates.runPdfs(result)) throw new Error('PDF state projection failed validation');
         return sendApiJson(response, 200, result);
       }
+      if (metaWrite) {
+        if (singleHeader(request.headers['content-type']) !== 'application/json') return fail(response, 400, 'bad_request', 'Saved Meta capture requires application/json');
+        let input: unknown;
+        try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 8 * 1024 * 1024))); }
+        catch (error) { if (error instanceof PayloadTooLargeError) throw error; return fail(response, 400, 'bad_request', 'Invalid saved Meta capture JSON'); }
+        const confirming = action === 'sources/meta-page/confirm';
+        if (!(confirming ? metaValidates.confirm! : metaValidates.prepare!)(input)) return fail(response, 400, 'bad_request', 'Saved Meta capture failed validation');
+        const actor = { role: 'OWNER' as const };
+        const result = confirming ? await writeService!.confirmMetaPageSource(workspaceId!, runId!, input, actor)
+          : await writeService!.prepareMetaPageSource(workspaceId!, runId!, input, actor);
+        if (!metaValidates.view!(result)) throw new Error('Meta source projection failed validation');
+        return sendApiJson(response, 201, result);
+      }
+
       if (action === 'sources/world-bank/confirm') {
         let input: unknown;
         try { input = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(await readOwnerBytes(request, 32 * 1024))); }
@@ -1066,6 +1102,11 @@ export function openResearchAutomationApi(configuration: ResearchAutomationApiCo
       // Reader messages are fixed plain-Vietnamese text written by the service, never source content.
       if (error instanceof ResearchAutomationConflictError) return fail(response, 409, error.code, readerAction ? error.message : 'Research state changed; refresh before submitting');
       if (readerAction && error instanceof ResearchAutomationValidationError) return fail(response, 400, 'bad_request', error.message);
+      if (error instanceof MetaPageSourceRejection) {
+        if (!mutation) return fail(response, 500, 'integrity_error', 'Stored Meta evidence failed verification');
+        if (error.code === 'META_REQUEST_CONFLICT') return fail(response, 409, 'request_key_conflict', 'Saved capture request identity changed');
+        return fail(response, 400, 'source_input_rejected', 'Saved capture does not match the closed page source profile');
+      }
       if (error instanceof SourcePackageRequestConflictError)
         return fail(response, 409, 'request_key_conflict', 'This upload identity is already bound to different content');
       if (error instanceof WorldBankSourceRejection) return fail(response, error.code === 'REQUEST_KEY_CONFLICT' ? 409 : mutation ? 400 : 500,
