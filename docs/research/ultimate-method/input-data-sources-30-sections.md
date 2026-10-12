@@ -126,7 +126,7 @@ Cột "Nguồn chính" là nguồn cho phép tính hoặc bằng chứng chính 
 
 Mã nguồn có chữ "(đề xuất)" là nguồn **chưa có bộ thu** theo trạng thái ở mục 2, tính tới 12/10/2026. Section không được coi các nguồn này là đã có.
 
-Nguồn **không dùng được** (test không đạt, tạm ngừng thu, chưa có phiên truy cập hợp lệ) không đứng ở cột "Nguồn chính" hay "Nguồn phụ". Tính tới 12/10/2026 đó là S03, S08 và S16. Nếu cần nhắc, chúng chỉ nằm ở cột "Ghi chú", kèm lý do và điều kiện dùng lại. Khi trạng thái ở mục 2 đổi, sửa bảng này.
+Nguồn **không dùng được** (test không đạt, tạm ngừng thu, chưa có phiên truy cập hợp lệ, chưa có dữ liệu) không đứng ở cột "Nguồn chính" hay "Nguồn phụ". Tính tới 12/10/2026 đó là S03, S08, S12 và S16. Nếu cần nhắc, chúng chỉ nằm ở cột "Ghi chú", kèm lý do và điều kiện dùng lại. Khi trạng thái ở mục 2 đổi, sửa bảng này.
 
 | Section | Nguồn chính | Nguồn phụ | Ghi chú |
 |---|---|---|---|
@@ -145,13 +145,13 @@ Nguồn **không dùng được** (test không đạt, tạm ngừng thu, chưa 
 | M13 Phụ lục và truy nguồn | Mọi nguồn đã dùng | — | Liệt kê kèm hạng |
 | Kết luận Insight | Tổng hợp | — | E6 |
 | I01 Câu hỏi kinh doanh | — | — | E7 |
-| I02 Khách hàng và hoàn cảnh | S05, S06 (đề xuất), S07, S11 (đề xuất), S12 | S13 (đề xuất), S21 | E4 từ lời khách; E5 dùng S02, S14, S15, S17 (chưa dùng cho phép kiểm 3) cho lớp người bán nhắm tới. Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại), S16 (test không đạt; chỉ dùng lại khi có cách thu đạt) |
+| I02 Khách hàng và hoàn cảnh | S05, S06 (đề xuất), S07, S11 (đề xuất) | S13 (đề xuất), S21 | E4 từ lời khách; E5 dùng S02, S14, S15, S17 (chưa dùng cho phép kiểm 3) cho lớp người bán nhắm tới. Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại), S16 (test không đạt; chỉ dùng lại khi có cách thu đạt), S12 (chưa có; dùng khi chủ có dữ liệu shop) |
 | I03 Phương pháp nghiên cứu | Mọi nguồn đã dùng | — | Ghi riêng từng nguồn |
-| I04 Hành vi | S05, S06 (đề xuất), S07 | S12 | Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại) |
+| I04 Hành vi | S05, S06 (đề xuất), S07 | — | Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại), S12 (chưa có; dùng khi chủ có dữ liệu shop) |
 | I05 Cảm nhận và thái độ | S05, S06 (đề xuất), S07 | S10, S11 (đề xuất), S19 | L6 (số sao); S19 là nguồn phụ: kết quả tìm kiếm chỉ dẫn tới trang gốc, trang gốc mới là bằng chứng (chủ quyết 12/10/2026). Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại) |
-| I06 Hành trình | S05 | S12 | Chỉ ghép trong cùng một bản ghi. Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại) |
+| I06 Hành trình | S05 | — | Chỉ ghép trong cùng một bản ghi. Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại), S12 (chưa có; dùng khi chủ có dữ liệu shop) |
 | I07 Lý do lựa chọn | S05, S06 (đề xuất), S07 | S04, S19 | Lời người bán (S04) đặt cạnh, theo L7. Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại) |
-| I08 Rào cản | S05, S06 (đề xuất), S07 | S12, S19 | S19 là nguồn phụ: kết quả tìm kiếm chỉ dẫn tới trang gốc, trang gốc mới là bằng chứng (chủ quyết 12/10/2026). Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại) |
+| I08 Rào cản | S05, S06 (đề xuất), S07 | S19 | S19 là nguồn phụ: kết quả tìm kiếm chỉ dẫn tới trang gốc, trang gốc mới là bằng chứng (chủ quyết 12/10/2026). Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại), S12 (chưa có; dùng khi chủ có dữ liệu shop) |
 | I09 Nhu cầu chưa được đáp ứng | S05, S06 (đề xuất), S07 | — | Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại) |
 | I10 Chủ đề và mối quan tâm | S05, S06 (đề xuất), S07 | S10, S11 (đề xuất), S20 | L3. Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại) |
 | I11 Khác biệt giữa các nhóm | S05 và S06 (đề xuất), theo sàn; S05, S07 cho mua lẻ và mua sỉ khi chính bản ghi nói rõ (ví dụ "mua về bán", "mở quán") | — | Nhóm mặc định theo E11; L5. I11 chưa có trong danh sách section được dùng số Cục Thống kê (E12), nên chưa dùng S21; thêm vào danh sách cần chủ quyết |
@@ -159,7 +159,7 @@ Nguồn **không dùng được** (test không đạt, tạm ngừng thu, chưa 
 | I13 Thương hiệu và đối thủ | S05, S06 (đề xuất), S07, S14, S15, S18 (đề xuất) | S04, S19, S26 (đề xuất) | L7; E5; S19 là nguồn phụ: kết quả tìm kiếm chỉ dẫn tới trang gốc, trang gốc mới là bằng chứng (chủ quyết 12/10/2026). Chưa dùng được: S08 (tạm ngừng thu; chỉ dùng lại khi chủ cho thu lại), S16 (test không đạt; chỉ dùng lại khi có cách thu đạt) |
 | I14 Hướng cơ hội | Tổng hợp | — | — |
 | I15 Định hướng chiến lược | Tổng hợp | — | E6 |
-| I16 Thử nghiệm và đo lường | S12 (kết quả có sẵn của shop) | — | Không có kết quả có sẵn thì chỉ là thiết kế |
+| I16 Thử nghiệm và đo lường | Chưa có nguồn chính dùng được | — | Không có kết quả có sẵn thì chỉ là thiết kế. Chưa dùng được: S12 (chưa có; dùng khi chủ có dữ liệu shop); khi có, dùng kết quả có sẵn của shop |
 | I17 Phụ lục và bằng chứng | Mọi nguồn đã dùng | — | Liệt kê kèm hạng |
 
 ---
