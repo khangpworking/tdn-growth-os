@@ -5,6 +5,7 @@ export const METRIC_ALLOWED_HOSTS = new Set(['metric.vn', 'www.metric.vn']);
 export const METRIC_FAIL_CODES = Object.freeze([
   'METRIC_LOGIN_REQUIRED',
   'METRIC_CAPTCHA',
+  'METRIC_PERIOD_UNSUPPORTED',
   'METRIC_UI_CHANGED',
   'METRIC_FILTER_MISMATCH',
   'METRIC_ROW_CAP',

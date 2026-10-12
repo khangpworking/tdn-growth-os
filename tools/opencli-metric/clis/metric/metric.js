@@ -150,10 +150,11 @@ function observeMetricPage(includeResults = true) {
   };
   const inputValue = element => element?.querySelector('input[id]')?.value?.trim() || '';
   const platformName = value => {
-    const normalized = value.normalize('NFC').trim().toLowerCase();
+    const raw = String(value ?? '').normalize('NFC').trim();
+    const normalized = raw.toLowerCase();
     if (normalized === 'shopee') return 'shopee';
     if (normalized === 'tiktok' || normalized === 'tiktok shop') return 'tiktok';
-    return null;
+    return raw;
   };
   const platformSelect = labelledSelect('Platform');
   const periodSelect = labelledSelect('Time period');
@@ -301,7 +302,9 @@ function observeMetricPage(includeResults = true) {
     return Boolean(element?.closest?.('header,#header,[class*="header" i],[class*="account" i],[class*="profile" i],[class*="avatar" i],[class*="user" i]'))
       || /header|account|profile|avatar|nickname|shop[-_ ]?owner|user[-_ ]?(?:info|widget|menu)?/i.test(marker);
   };
-  const inWarningScope = element => warningScopeRoots.some(root => root === element || root.contains(element)) && !isHeaderOrAccount(element);
+  const semanticWarningRoot = element => element?.matches?.('[role="alert"],[role="dialog"],[aria-live="assertive"],[aria-live="polite"],.ant-alert,.ant-message,.ant-message-notice,.ant-notification,.ant-notification-notice,.ant-modal,.ant-modal-root,[class*="toast" i],[class*="banner" i]');
+  const inWarningScope = element => warningScopeRoots.some(root => (root === element || root.contains(element))
+    && (semanticWarningRoot(root) || !isHeaderOrAccount(element)));
   const scopedElements = [...document.querySelectorAll('body *')].filter(element => visible(element) && inWarningScope(element));
   const classOf = element => String(element?.getAttribute?.('class') ?? (typeof element?.className === 'string' ? element.className : ''));
   const isAlertContainer = element => element?.getAttribute?.('role') === 'alert'
@@ -319,10 +322,13 @@ function observeMetricPage(includeResults = true) {
     const text = normaliseMetricTextInPage(textOf(element)); const title = normaliseMetricTextInPage(document.title);
     return !text || Boolean(title && title.startsWith(text));
   };
-  const redactDiagnosticTextInPage = value => String(value ?? '').normalize('NFC')
+  const redactDiagnosticTextInPage = (value, element) => {
+    if (isHeaderOrAccount(element)) return '[redacted-header-alert]';
+    return String(value ?? '').normalize('NFC')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)/g, '[redacted-phone]')
     .replace(/\d/g, '#').slice(0, 80);
+  };
   const sample = (value, max = 80) => String(value ?? '').replace(/\d/g, '#').slice(0, max);
   const describeWarning = (element, via, reason, causesFailure) => {
     const text = textOf(element);
@@ -333,7 +339,7 @@ function observeMetricPage(includeResults = true) {
     return causesFailure ? {
       ...base,
       phrase: restrictionPhraseInPage(text) || (isBareWarningInPage(text) ? stripMetricDiacriticsInPage(text) : null),
-      text: redactDiagnosticTextInPage(text),
+      text: redactDiagnosticTextInPage(text, element),
     } : { ...base, phrase: null, text: null };
   };
   const warningMatchesByElement = new Map();
@@ -612,8 +618,9 @@ function preSubmitMismatches(spec, appliedFilters) {
   const mismatches = [];
   const expectedPlatforms = canonicalValues(spec.platforms);
   const actualPlatforms = canonicalValues(actual.platforms);
+  const unexpectedPlatforms = actualPlatforms.filter(platform => !expectedPlatforms.includes(platform));
   if (JSON.stringify(actualPlatforms) !== JSON.stringify(expectedPlatforms)) {
-    mismatches.push({ field: 'platforms', expected: spec.platforms, actual: actual.platforms ?? [] });
+    mismatches.push({ field: 'platforms', expected: spec.platforms, actual: actual.platforms ?? [], ...(unexpectedPlatforms.length ? { unexpected: unexpectedPlatforms } : {}) });
   }
   const expectedKeywords = canonicalValues(spec.keywords);
   const actualKeywords = canonicalValues(actual.keywords);
@@ -652,11 +659,25 @@ function assertPreSubmitReadBack(spec, ready) {
   throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric form read-back does not match the query spec', { mismatches });
 }
 
+function assertSupportedMetricPeriod(spec, startState) {
+  const requestedPeriod = { startDate: spec.period.startDate, endDate: spec.period.endDate };
+  const observedPeriod = startState?.period && typeof startState.period === 'object'
+    ? { startDate: startState.period.startDate ?? null, endDate: startState.period.endDate ?? null }
+    : null;
+  if (JSON.stringify(observedPeriod) !== JSON.stringify(requestedPeriod)) {
+    throw new MetricAdapterError('METRIC_PERIOD_UNSUPPORTED', 'Metric lookups currently support only the page default period', {
+      observedPeriod,
+      requestedPeriod,
+    });
+  }
+}
+
 async function prepareMetricForm(page, spec, onStartState = null) {
   const before = await readObservation(page, { includeResults: false });
   onStartState?.(before);
   assertMetricCategoryObservation(before);
   parseMetricForm(before);
+  assertSupportedMetricPeriod(spec, before.appliedFilters);
   await applyMetricSpec(page, spec, before);
   await waitForKeywordCommit(page, spec.keywords);
   // This is the last gate before the real submit action. Dry-run uses this
@@ -841,11 +862,15 @@ function platformRemoveIndex({ inputSelector, wanted }) {
   const select = input?.closest('.ant-select');
   if (!select) return null;
   const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-  const wantedText = { shopee: 'Shopee', tiktok: 'Tiktok', lazada: 'Lazada', tiki: 'Tiki' }[wanted];
-  if (!wantedText) return null;
+  const platformKey = value => {
+    const normalized = clean(value);
+    return normalized === 'tiktok shop' ? 'tiktok' : normalized;
+  };
+  const wantedKey = platformKey(wanted);
+  if (!wantedKey) return null;
   const item = [...select.querySelectorAll('.ant-select-selection-item')].find(element => {
     const content = element.querySelector('.ant-select-selection-item-content');
-    return clean(content?.getAttribute('title') || content?.textContent || element.textContent) === clean(wantedText);
+    return platformKey(content?.getAttribute('title') || content?.textContent || element.textContent) === wantedKey;
   });
   const remove = item?.querySelector('.ant-select-selection-item-remove');
   if (!remove) return null;
@@ -1040,7 +1065,7 @@ async function applyCustomPeriod(page, period) {
 
 async function applyMetricSpec(page, spec, initialObservation) {
   const current = initialObservation.appliedFilters || {};
-  const currentPlatforms = new Set(current.platforms || []); const wantedPlatforms = new Set(spec.platforms);
+  const currentPlatforms = new Set(canonicalValues(current.platforms)); const wantedPlatforms = new Set(canonicalValues(spec.platforms));
   if (typeof page.click !== 'function' || typeof page.fillText !== 'function' || typeof page.pressKey !== 'function') {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric form actions are unavailable');
   }
@@ -1063,10 +1088,11 @@ async function applyMetricSpec(page, spec, initialObservation) {
   if (wantedPlatforms.size > 1 && platformSelector.isMultiple !== true) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform control did not switch to multiple mode');
   }
-  if (wantedPlatforms.size > 1) {
+  const platformOptionLabel = platform => platform === 'tiktok' ? 'Tiktok' : platform === 'shopee' ? 'Shopee' : platform;
+  if (platformSelector.isMultiple === true) {
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) {
       await page.click(platformSelector.selectSelector);
-      await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee', { skipSelected: true });
+      await clickVisibleOption(page, platformOptionLabel(platform), { skipSelected: true });
     }
     for (const platform of [...currentPlatforms].filter(value => !wantedPlatforms.has(value))) {
       const removeIndex = await page.evaluate(platformRemoveIndex, { inputSelector: platformSelector.inputSelector, wanted: platform });
@@ -1077,8 +1103,7 @@ async function applyMetricSpec(page, spec, initialObservation) {
     }
   } else {
     await page.click(platformSelector.inputSelector);
-    for (const platform of [...currentPlatforms].filter(value => !wantedPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
-    for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
+    for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) await clickVisibleOption(page, platformOptionLabel(platform));
   }
   // Close either platform dropdown, including the re-rendered multi-platform
   // control, before the keyword input is focused.
@@ -1171,7 +1196,7 @@ async function runDryRun(page, spec) {
   } catch (error) {
     const details = error?.details && typeof error.details === 'object' ? error.details : {};
     const safeDetails = Object.fromEntries(Object.entries(details).filter(([key]) => [
-      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected', 'warningMatches',
+      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected', 'warningMatches', 'observedPeriod', 'requestedPeriod',
     ].includes(key)));
     return {
       outcome: typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED',
@@ -1382,7 +1407,9 @@ function observeResultPage() {
     return Boolean(element?.closest?.('header,#header,[class*="header" i],[class*="account" i],[class*="profile" i],[class*="avatar" i],[class*="user" i]'))
       || /header|account|profile|avatar|nickname|shop[-_ ]?owner|user[-_ ]?(?:info|widget|menu)?/i.test(marker);
   };
-  const inWarningScope = element => warningScopeRoots.some(root => root === element || root.contains(element)) && !isHeaderOrAccount(element);
+  const semanticWarningRoot = element => element?.matches?.('[role="alert"],[role="dialog"],[aria-live="assertive"],[aria-live="polite"],.ant-alert,.ant-message,.ant-message-notice,.ant-notification,.ant-notification-notice,.ant-modal,.ant-modal-root,[class*="toast" i],[class*="banner" i]');
+  const inWarningScope = element => warningScopeRoots.some(root => (root === element || root.contains(element))
+    && (semanticWarningRoot(root) || !isHeaderOrAccount(element)));
   const scopedElements = [...document.querySelectorAll('body *')].filter(element => visible(element) && inWarningScope(element));
   const classOf = element => String(element?.getAttribute?.('class') ?? (typeof element?.className === 'string' ? element.className : ''));
   const isAlertContainer = element => element?.getAttribute?.('role') === 'alert'
@@ -1400,10 +1427,13 @@ function observeResultPage() {
     const text = normaliseMetricTextInPage(textOf(element)); const title = normaliseMetricTextInPage(document.title);
     return !text || Boolean(title && title.startsWith(text));
   };
-  const redactDiagnosticTextInPage = value => String(value ?? '').normalize('NFC')
+  const redactDiagnosticTextInPage = (value, element) => {
+    if (isHeaderOrAccount(element)) return '[redacted-header-alert]';
+    return String(value ?? '').normalize('NFC')
     .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[redacted-email]')
     .replace(/(?<!\w)\+?\d[\d\s().-]{5,}\d(?!\w)/g, '[redacted-phone]')
     .replace(/\d/g, '#').slice(0, 80);
+  };
   const sample = (value, max = 80) => String(value ?? '').replace(/\d/g, '#').slice(0, max);
   const describeWarning = (element, via, reason, causesFailure) => {
     const text = textOf(element);
@@ -1414,7 +1444,7 @@ function observeResultPage() {
     return causesFailure ? {
       ...base,
       phrase: restrictionPhraseInPage(text) || (isBareWarningInPage(text) ? stripMetricDiacriticsInPage(text) : null),
-      text: redactDiagnosticTextInPage(text),
+      text: redactDiagnosticTextInPage(text, element),
     } : { ...base, phrase: null, text: null };
   };
   const warningMatchesByElement = new Map();

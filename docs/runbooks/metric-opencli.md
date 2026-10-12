@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`b571b1f2ac0432bbb4634a6f3728d84197cdd1aa57318ee0383c79f39b01e02c`.
+`387f6a9e5166c243979ab3b192f61824d1e8a74b857f35bb48c9bec506d4884b`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -58,19 +58,24 @@ period and category before any change. A successful result is
 returns before the submit/Search-click function and does not start network
 capture or require an output directory.
 
-The r2 live form loop is capped at 15 dry-runs. Record each result outside Git,
+The r3 live form loop is capped at 8 dry-runs. Record each result outside Git,
 including its start state and mismatches. Stop immediately if `whoami` is not
 `READY`, or if a captcha, warning or access restriction appears. A dry-run
 never spends a lookup.
 
-The r2 restriction diagnostic records a matched phrase, element kind and role
+The r3 restriction diagnostic records a matched phrase, element kind and role
 in the gate details, with the phrase limited to 80 characters and identity
 values removed. Restriction text is scanned only inside semantic alert,
-dialog, live-message, toast or banner roots; ordinary menus, feature copy,
-footers and tooltips do not trip the gate. Custom ranges use one live range
-picker, reopen its end input only when the popup closed after the start, and
-read back both committed dates. Multiple-platform mode is verified after the
-re-render with one bounded retry.
+dialog, live-message, toast or banner roots; those roots still count inside
+header/account areas, while non-semantic class-only matches do not. Ordinary
+menus, feature copy, footers and tooltips do not trip the gate.
+
+Lookups currently support only the page's default period. Before any form
+change, the requested period is compared with the observed start-state period.
+A difference returns the typed `METRIC_PERIOD_UNSUPPORTED` result with both
+periods in `details`, in both dry-run and capture; the date-picker code remains
+in the adapter but is unreachable for non-default periods. Multiple-platform
+mode is verified after the re-render with one bounded retry.
 
 The command accepts an absolute output directory outside the repository:
 

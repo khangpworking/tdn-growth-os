@@ -352,7 +352,8 @@ test('page warning observation is scoped, classified and identity-safe', async (
     for (const match of observation.warningMatches) {
       assert.ok(match.text === null || match.text.length <= 80);
     }
-    assert.equal(observation.warningMatches.filter((match: any) => match.classSample.includes('header-alert')).length, 0);
+    assert.equal(observation.warningMatches.filter((match: any) => match.classSample.includes('header-alert')).length, 1);
+    assert.equal(observation.warningMatches.find((match: any) => match.classSample.includes('header-alert'))?.reason, 'alert-role');
   } finally {
     if (previous.document === undefined) delete (globalThis as any).document; else (globalThis as any).document = previous.document;
     if (previous.location === undefined) delete (globalThis as any).location; else (globalThis as any).location = previous.location;
@@ -360,6 +361,19 @@ test('page warning observation is scoped, classified and identity-safe', async (
     if (previous.getComputedStyle === undefined) delete (globalThis as any).getComputedStyle; else (globalThis as any).getComputedStyle = previous.getComputedStyle;
     dom.window.close();
   }
+});
+
+test('semantic header restrictions trip the gate while non-semantic warning classes do not', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const { gateMetricPage } = await import(parserUrl.href);
+  const classOnly = withMetricDom('<header class="account-area"><div class="ks-warning-panel">Account panel</div></header>', () => adapter.__test__.observeMetricPage(false));
+  assert.equal(classOnly.warningVisible, false);
+  assert.doesNotThrow(() => gateMetricPage(classOnly));
+  const headerAlert = withMetricDom('<header class="account-area"><div role="alert">Access denied</div></header>', () => adapter.__test__.observeMetricPage(false));
+  assert.equal(headerAlert.warningVisible, true);
+  assert.ok(headerAlert.warningMatches.some((match: any) => match.role === 'alert'));
+  assert.throws(() => gateMetricPage(headerAlert), /METRIC_UI_CHANGED/);
 });
 
 test('whoami maps only displayed synthetic quota fields', async () => {
@@ -742,6 +756,45 @@ test('capture dry-run returns a matching read-back without reaching submit or se
   await rm(directory, { recursive: true, force: true });
 });
 
+test('non-default periods fail closed in dry-run before any form action and retain both periods', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-period-unsupported-dry-run-'));
+  const spec = { ...commandSpec, period: { startDate: '2026-08-01', endDate: '2026-08-31' } };
+  const specPath = join(directory, 'spec.json');
+  await writeFile(specPath, `${JSON.stringify(spec)}\n`);
+  const observedPeriod = commandSpec.period;
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], period: observedPeriod } }, {});
+  const result = await adapter.captureCommand.func(page, { spec: specPath, 'dry-run': true });
+  assert.equal(result[0].outcome, 'METRIC_PERIOD_UNSUPPORTED');
+  assert.deepEqual(result[0].mismatches[0].details, { observedPeriod, requestedPeriod: spec.period });
+  assert.equal(page.searched, false);
+  assert.equal(page.calls.some((call: string) => call.includes('#platform-input') || call.includes('.ant-picker')), false);
+  assert.equal(page.calls.includes('network:start'), false);
+  await rm(directory, { recursive: true, force: true });
+});
+
+test('non-default periods fail closed in capture before form actions or submit', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const directory = await mkdtemp(join(tmpdir(), 'p6-209-period-unsupported-capture-'));
+  const spec = { ...commandSpec, period: { startDate: '2026-08-01', endDate: '2026-08-31' } };
+  const specPath = join(directory, 'spec.json'); const outputDir = join(directory, 'capture');
+  await writeFile(specPath, `${JSON.stringify(spec)}\n`);
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { ...commandSpec, keywords: [], period: commandSpec.period } }, {});
+  await assert.rejects(() => adapter.captureCommand.func(page, { spec: specPath, out: outputDir }), (error: any) => {
+    assert.equal(error.code, 'METRIC_PERIOD_UNSUPPORTED');
+    assert.deepEqual(error.details, { observedPeriod: commandSpec.period, requestedPeriod: spec.period });
+    return true;
+  });
+  assert.equal(page.searched, false);
+  assert.equal(page.calls.some((call: string) => call.includes('#platform-input') || call.includes('.ant-picker')), false);
+  assert.ok(page.calls.includes('close:synthetic-tab'));
+  await rm(directory, { recursive: true, force: true });
+});
+
 test('capture archive contains no fixture identity or token in any archived file', async () => {
   await installOpenCliTestStub();
   const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
@@ -928,6 +981,25 @@ test('platform removal uses the scoped selected-item remove control', async () =
   assert.equal(remove.selector, '#QuerySearchBuilder .ant-select:has(#platform-input) .ant-select-selection-item-remove');
   assert.equal(remove.options.nth, 1);
   assert.ok(!remove.selector.includes(' ~ '));
+});
+
+test('unknown selected platforms remain observable, are removed before apply, and cannot pass the scope gate', async () => {
+  await installOpenCliTestStub();
+  const adapter: any = await import(new URL('../../tools/opencli-metric/clis/metric/metric.js', import.meta.url).href);
+  const parser = await import(parserUrl.href);
+  const fixture = await load('metric-platform-control');
+  const observation = withMetricDom(fixture.multiShopeeLazada, () => adapter.__test__.observeMetricPage(false));
+  assert.deepEqual(observation.appliedFilters.platforms, ['shopee', 'Lazada']);
+  const spec = { keywords: ['synthetic-term'], platforms: ['shopee', 'tiktok'], period: { startDate: '2026-01-01', endDate: '2026-01-30' }, category: null };
+  const search = { ...(await load('metric-search')), appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'] } };
+  assert.throws(() => parser.parseSearchObservation(search, spec), /METRIC_FILTER_MISMATCH/);
+  const form = await load('metric-form');
+  const page = fakePage({ ...form, appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'], keywords: [] } }, {}, null, [], { platformRemoveIndex: 1 });
+  await adapter.__test__.applyMetricSpec(page, spec, { appliedFilters: { ...spec, platforms: ['shopee', 'Lazada'], keywords: [] } });
+  const remove = page.clickRecords.find((record: any) => record.selector.endsWith('.ant-select-selection-item-remove'));
+  assert.ok(remove);
+  assert.equal(remove.options.nth, 1);
+  assert.ok(page.calls.includes('click:[role="option"],.ant-select-item-option'));
 });
 
 test('multi-platform read-back uses the selected item content from the Round 5 fixture', async () => {
