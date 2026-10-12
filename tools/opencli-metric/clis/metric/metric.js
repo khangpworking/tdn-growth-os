@@ -123,7 +123,7 @@ function observeMetricPage(includeResults = true) {
     const input = element?.querySelector('input[id]');
     return input?.id ? `#${CSS.escape(input.id)}` : '.ant-select';
   };
-  const labels = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')];
+  const labels = [...document.querySelectorAll('#QuerySearchBuilder .filter-label, #QuerySearchBuilder .filter-label .label')];
   const tagText = element => {
     const clone = element?.cloneNode?.(true);
     if (clone) clone.querySelectorAll('.ant-tag-close-icon').forEach(icon => icon.remove());
@@ -161,7 +161,7 @@ function observeMetricPage(includeResults = true) {
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
-    const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
       .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
     const labelledContainer = keywordLabel?.closest('.ant-space-item');
     const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
@@ -173,7 +173,7 @@ function observeMetricPage(includeResults = true) {
     ));
     if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const labelledControl = pattern => {
-      const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+      const label = [...root.querySelectorAll('.filter-label, .filter-label .label')].find(element => pattern.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
     };
@@ -194,10 +194,15 @@ function observeMetricPage(includeResults = true) {
   const typedKeyword = inputValue(keywordSelect);
   if (typedKeyword && !keywordValues.includes(typedKeyword)) keywordValues.push(typedKeyword);
   const selectedCategory = selectionTexts(categorySelect)[0] || '';
-  const category = /^all$/i.test(selectedCategory) ? null : selectedCategory || null;
+  // An explicit All is the only UI state represented by null. A missing,
+  // invisible, or blank control remains unobservable and is rejected by the
+  // node-side form gate before a lookup can be spent.
+  const category = selectedCategory ? (/^all$/i.test(selectedCategory) ? null : selectedCategory) : undefined;
   const checkedLabel = label => {
+    const normalise = value => String(value ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+    const wanted = normalise(label);
     const element = [...document.querySelectorAll('#QuerySearchBuilder label,[role="checkbox"],[role="switch"]')]
-      .find(candidate => textOf(candidate).toLowerCase() === label.toLowerCase());
+      .find(candidate => normalise(textOf(candidate) || candidate.getAttribute('aria-label')).startsWith(wanted));
     return Boolean(element?.matches(':checked,[aria-checked="true"]') || element?.querySelector(':checked,[aria-checked="true"]'));
   };
   const dateValues = [...document.querySelectorAll('#QuerySearchBuilder input')]
@@ -366,6 +371,24 @@ async function readObservation(page, { includeResults = true, diagnose = false }
   }
 }
 
+function assertMetricCategoryObservation(observation) {
+  const control = Array.isArray(observation?.controls)
+    ? observation.controls.find(candidate => candidate?.name === 'category')
+    : null;
+  if (!control || control.visible !== true) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric Product category control is not visible');
+  }
+  const selected = Array.isArray(control.selected)
+    ? control.selected.map(value => String(value ?? '').normalize('NFC').trim()).filter(Boolean)
+    : [];
+  if (selected.length !== 1) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric Product category selection is blank or unavailable');
+  }
+  if (!observation.appliedFilters || !Object.hasOwn(observation.appliedFilters, 'category') || observation.appliedFilters.category === undefined) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric Product category is not observable');
+  }
+}
+
 function readCommittedKeywords() {
   const visible = element => {
     if (!element) return false;
@@ -379,7 +402,7 @@ function readCommittedKeywords() {
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
-    const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
       .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
     const labelledContainer = keywordLabel?.closest('.ant-space-item');
     const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
@@ -391,7 +414,7 @@ function readCommittedKeywords() {
     ));
     if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const labelledControl = pattern => {
-      const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+      const label = [...root.querySelectorAll('.filter-label, .filter-label .label')].find(element => pattern.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
     };
@@ -442,7 +465,7 @@ function readKeywordCommitDiagnostics(expectedKeywords = []) {
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
-    const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
       .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
     const labelledContainer = keywordLabel?.closest('.ant-space-item');
     const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
@@ -454,7 +477,7 @@ function readKeywordCommitDiagnostics(expectedKeywords = []) {
     ));
     if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const labelledControl = pattern => {
-      const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+      const label = [...root.querySelectorAll('.filter-label, .filter-label .label')].find(element => pattern.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
     };
@@ -529,22 +552,30 @@ async function readSpec(path) {
 
 function writeJson(path, value) { return writeFile(path, `${JSON.stringify(value, null, 2)}\n`, 'utf8'); }
 
-async function visibleOptionIndex(page, wanted) {
-  const index = await page.evaluate(label => {
+async function visibleOptionIndex(page, wanted, { skipSelected = false } = {}) {
+  const index = await page.evaluate(({ label, skipSelected: shouldSkipSelected }) => {
     const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
     const target = clean(label);
-    return [...document.querySelectorAll('[role="option"],.ant-select-item-option')].findIndex(element => {
+    const options = [...document.querySelectorAll('[role="option"],.ant-select-item-option')];
+    const optionIndex = options.findIndex(element => {
       const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
       return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0
         && clean(element.innerText || element.textContent) === target;
     });
-  }, wanted);
-  if (!Number.isInteger(index) || index < 0) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric option is missing: ${wanted}`);
+    if (optionIndex < 0) return null;
+    const element = options[optionIndex];
+    return shouldSkipSelected && (element.classList.contains('ant-select-item-option-selected') || element.getAttribute('aria-selected') === 'true')
+      ? -1
+      : optionIndex;
+  }, { label: wanted, skipSelected });
+  if (!Number.isInteger(index) || index < -1) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric option is missing: ${wanted}`);
   return index;
 }
 
-async function clickVisibleOption(page, wanted) {
-  await page.click('[role="option"],.ant-select-item-option', { nth: await visibleOptionIndex(page, wanted) });
+async function clickVisibleOption(page, wanted, { skipSelected = false } = {}) {
+  const index = await visibleOptionIndex(page, wanted, { skipSelected });
+  if (index === -1) return;
+  await page.click('[role="option"],.ant-select-item-option', { nth: index });
 }
 
 async function clickVisibleText(page, labels) {
@@ -563,16 +594,26 @@ async function clickVisibleText(page, labels) {
 }
 
 async function setCheckbox(page, label, checked) {
-  if (typeof page.setChecked !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric checkbox action is unavailable');
   const target = await page.evaluate(wanted => {
-    const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+    const clean = value => String(value ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
     const targetText = clean(wanted);
     const labels = [...document.querySelectorAll('#QuerySearchBuilder label,[role="checkbox"],[role="switch"]')];
-    const index = labels.findIndex(element => clean(element.innerText || element.textContent || element.getAttribute('aria-label')) === targetText);
-    return index < 0 ? null : { selector: '#QuerySearchBuilder label,[role="checkbox"],[role="switch"]', index };
+    const index = labels.findIndex(element => clean(element.innerText || element.textContent || element.getAttribute('aria-label')).startsWith(targetText));
+    if (index < 0) return null;
+    const element = labels[index];
+    const current = Boolean(element.matches(':checked,[aria-checked="true"]') || element.querySelector(':checked,[aria-checked="true"]'));
+    return { selector: '#QuerySearchBuilder label,[role="checkbox"],[role="switch"]', index, current };
   }, label);
   if (!target) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric checkbox is missing: ${label}`);
-  await page.setChecked(target.selector, checked, { nth: target.index });
+  if (target.current !== checked) await page.click(target.selector, { nth: target.index });
+  const verified = await page.evaluate(({ wanted, expected }) => {
+    const clean = value => String(value ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+    const targetText = clean(wanted);
+    const element = [...document.querySelectorAll('#QuerySearchBuilder label,[role="checkbox"],[role="switch"]')]
+      .find(candidate => clean(candidate.innerText || candidate.textContent || candidate.getAttribute('aria-label')).startsWith(targetText));
+    return element ? Boolean(element.matches(':checked,[aria-checked="true"]') || element.querySelector(':checked,[aria-checked="true"]')) === expected : null;
+  }, { wanted: label, expected: checked });
+  if (verified !== true) throw new MetricAdapterError('METRIC_FILTER_MISMATCH', `Metric checkbox state does not match the request: ${label}`);
 }
 
 // Serialized by OpenCLI: keep this keyword locator self-contained. Its copy
@@ -588,7 +629,7 @@ function resolveKeywordSelector() {
   const locateKeywordSelect = () => {
     const root = document.querySelector('#QuerySearchBuilder');
     if (!root) return { select: null, locatedBy: 'none' };
-    const keywordLabel = [...root.querySelectorAll('.filter-label .label')]
+    const keywordLabel = [...root.querySelectorAll('.filter-label, .filter-label .label')]
       .find(element => /^(?:keywords|từ kh(?:óa|oá))/i.test(textOf(element)));
     const labelledContainer = keywordLabel?.closest('.ant-space-item');
     const labelledSelect = [...(labelledContainer?.querySelectorAll('.ant-select') || [])].find(visible);
@@ -600,7 +641,7 @@ function resolveKeywordSelector() {
     ));
     if (placeholderSelect) return { select: placeholderSelect, locatedBy: 'placeholder' };
     const labelledControl = pattern => {
-      const label = [...root.querySelectorAll('.filter-label .label')].find(element => pattern.test(textOf(element)));
+      const label = [...root.querySelectorAll('.filter-label, .filter-label .label')].find(element => pattern.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       return [...(container?.querySelectorAll('.ant-select') || [])].find(visible) || null;
     };
@@ -625,28 +666,45 @@ function resolveKeywordSelector() {
   };
 }
 
-// Serialized by OpenCLI for the platform multi-select only. The keyword select
-// is a Vue control and is committed through the trusted comma path below.
-function dispatchSelectKey({ selector, key }) {
-  const codes = { Enter: 13 };
-  const input = document.querySelector(selector);
-  if (!input || !Object.prototype.hasOwnProperty.call(codes, key)) return false;
-  const KeyboardEventType = input.ownerDocument?.defaultView?.KeyboardEvent;
-  if (typeof KeyboardEventType !== 'function') return false;
-  input.focus();
-  for (const type of ['keydown', 'keyup']) {
-    const event = new KeyboardEventType(type, { key, code: key, keyCode: codes[key], which: codes[key], bubbles: true, cancelable: true });
-    Object.defineProperty(event, 'keyCode', { get: () => codes[key] });
-    Object.defineProperty(event, 'which', { get: () => codes[key] });
-    input.dispatchEvent(event);
-  }
-  return true;
+function resolvePlatformSelector() {
+  const visible = element => {
+    if (!element) return false;
+    const style = getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label, #QuerySearchBuilder .filter-label .label')]
+    .find(element => (element.innerText || element.textContent || '').replace(/\s+/g, ' ').trim() === 'Platform');
+  const container = label?.closest('.ant-space-item');
+  const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
+  const input = select?.querySelector('input[id]');
+  if (!input?.id || !select) return null;
+  const inputSelector = `#${CSS.escape(input.id)}`;
+  const rootSelector = `#QuerySearchBuilder .ant-select:has(${inputSelector})`;
+  return {
+    inputSelector,
+    rootSelector,
+    selectSelector: `${rootSelector} > .ant-select-selector`,
+    isMultiple: select.classList.contains('ant-select-multiple') && !select.classList.contains('ant-select-single'),
+  };
 }
 
-async function pressSelectKey(page, selector, key) {
-  if (await page.evaluate(dispatchSelectKey, { selector, key }) !== true) {
-    throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric select input is not available for ${key}`);
-  }
+function platformRemoveIndex({ inputSelector, wanted }) {
+  const input = document.querySelector(inputSelector);
+  const select = input?.closest('.ant-select');
+  if (!select) return null;
+  const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const wantedText = { shopee: 'Shopee', tiktok: 'Tiktok', lazada: 'Lazada', tiki: 'Tiki' }[wanted];
+  if (!wantedText) return null;
+  const item = [...select.querySelectorAll('.ant-select-selection-item')].find(element => {
+    const content = element.querySelector('.ant-select-selection-item-content');
+    return clean(content?.getAttribute('title') || content?.textContent || element.textContent) === clean(wantedText);
+  });
+  const remove = item?.querySelector('.ant-select-selection-item-remove');
+  if (!remove) return null;
+  const removes = [...select.querySelectorAll('.ant-select-selection-item-remove')];
+  const index = removes.indexOf(remove);
+  return index >= 0 ? index : null;
 }
 
 async function pressTrustedComma(page, selector) {
@@ -700,6 +758,60 @@ async function fillVerified(page, selector, text) {
   }
 }
 
+function readDisplayedPeriod() {
+  const toIso = value => {
+    const text = String(value ?? '').trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+    const match = /^(\d{2})-(\d{2})-(\d{4})$/.exec(text);
+    return match ? `${match[3]}-${match[2]}-${match[1]}` : null;
+  };
+  const inputs = [...document.querySelectorAll('#QuerySearchBuilder .ant-picker input')]
+    .map(input => toIso(input.value || input.getAttribute('value'))).filter(Boolean);
+  return inputs.length >= 2 ? { startDate: inputs[0], endDate: inputs[inputs.length - 1] } : null;
+}
+
+function dateCellState(target) {
+  const visible = element => {
+    if (!element) return false;
+    const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  const cells = [...document.querySelectorAll('.ant-picker-dropdown .ant-picker-cell[title]')].filter(visible);
+  const wanted = cells.findIndex(cell => cell.getAttribute('title') === target);
+  if (wanted >= 0) return { index: wanted, direction: null };
+  const dates = cells.map(cell => cell.getAttribute('title')).filter(Boolean).sort();
+  if (!dates.length) return { index: null, direction: null };
+  return { index: null, direction: target < dates[0] ? 'previous' : target > dates.at(-1) ? 'next' : null };
+}
+
+async function chooseDateCell(page, target) {
+  for (let attempt = 0; attempt < 24; attempt += 1) {
+    const state = await page.evaluate(dateCellState, target);
+    if (Number.isInteger(state?.index)) {
+      await page.click(`.ant-picker-dropdown .ant-picker-cell[title="${target}"]`);
+      return;
+    }
+    if (state?.direction === 'previous') {
+      await page.click('.ant-picker-dropdown .ant-picker-header-prev-btn');
+    } else if (state?.direction === 'next') {
+      await page.click('.ant-picker-dropdown .ant-picker-header-next-btn');
+    } else {
+      throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric date cell is unavailable: ${target}`);
+    }
+  }
+  throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric date navigation exceeded its safe limit: ${target}`);
+}
+
+async function applyCustomPeriod(page, period) {
+  const pickerSelector = '#QuerySearchBuilder .ant-picker input';
+  const pickerCount = await page.evaluate(() => document.querySelectorAll('#QuerySearchBuilder .ant-picker input').length);
+  if (!Number.isInteger(pickerCount) || pickerCount < 2) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric custom date controls are not visible');
+  await page.click(pickerSelector, { nth: 0 });
+  await chooseDateCell(page, period.startDate);
+  await page.click(pickerSelector, { nth: 1 });
+  await chooseDateCell(page, period.endDate);
+}
+
 async function applyMetricSpec(page, spec, initialObservation) {
   const current = initialObservation.appliedFilters || {};
   const currentPlatforms = new Set(current.platforms || []); const wantedPlatforms = new Set(spec.platforms);
@@ -711,6 +823,7 @@ async function applyMetricSpec(page, spec, initialObservation) {
   if (needsKeywordCommit && typeof page.cdp !== 'function') {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric trusted comma input path is unavailable');
   }
+  let platformSelector = null;
   if (wantedPlatforms.size > 1) {
     const platformMode = await page.evaluate(() => {
       const button = [...document.querySelectorAll('#QuerySearchBuilder button.switch-button')]
@@ -718,8 +831,13 @@ async function applyMetricSpec(page, spec, initialObservation) {
       return button ? (button.innerText || button.textContent || '').replace(/\s+/g, ' ').trim() : null;
     });
     if (platformMode && /multiple platforms/i.test(platformMode)) {
-      await page.click('button.switch-button');
+      await page.click('#QuerySearchBuilder button.switch-button');
       await gateCurrentMetricPage(page);
+    }
+    platformSelector = await page.evaluate(resolvePlatformSelector);
+    if (platformSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform search input is not visible');
+    if (platformSelector.isMultiple !== true) {
+      throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform control did not switch to multiple mode');
     }
   }
   // Fail closed before any platform typing or option click when the keyword
@@ -727,48 +845,25 @@ async function applyMetricSpec(page, spec, initialObservation) {
   if (await page.evaluate(resolveKeywordSelector) == null) {
     throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric keyword search input is not visible');
   }
-  const platformSelector = await page.evaluate(() => {
-    const visible = element => {
-      if (!element) return false;
-      const style = getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-    };
-    const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')]
-      .find(element => (element.innerText || element.textContent || '').trim() === 'Platform');
-    const container = label?.closest('.ant-space-item');
-    const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
-    const input = select?.querySelector('input[id]');
-    return input?.id ? `#${CSS.escape(input.id)}` : null;
-  });
+  platformSelector ||= await page.evaluate(resolvePlatformSelector);
   if (platformSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform search input is not visible');
+  if (wantedPlatforms.size > 1 && platformSelector.isMultiple !== true) {
+    throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform control did not switch to multiple mode');
+  }
   if (wantedPlatforms.size > 1) {
-    // In multi-platform mode the page uses a new, visible search input (for
-    // example of a new generated id). The old single-platform input is hidden, and
-    // clicking it makes the live form reject the option lookup. Selecting by
-    // text and Enter also works with the virtualised option list.
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) {
-      await fillVerified(page, platformSelector, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
-      await pressSelectKey(page, platformSelector, 'Enter');
+      await page.click(platformSelector.selectSelector);
+      await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee', { skipSelected: true });
     }
-    // Remove an accidentally retained platform only when the form exposes a
-    // removable tag for that platform. The approved capture starts with
-    // Shopee selected and adds Tiktok, so this path is not needed there.
     for (const platform of [...currentPlatforms].filter(value => !wantedPlatforms.has(value))) {
-      const tagIndex = await page.evaluate(({ selector, wanted }) => {
-        const input = document.querySelector(selector);
-        const select = input?.closest('.ant-select');
-        if (!select) return -1;
-        const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
-        return [...select.querySelectorAll('.ant-select-selection-item')]
-          .findIndex(element => clean(element.innerText || element.textContent) === clean(wanted === 'tiktok' ? 'Tiktok' : 'Shopee'));
-      }, { selector: platformSelector, wanted: platform });
-      if (Number.isInteger(tagIndex) && tagIndex >= 0) {
-        await page.click(`${platformSelector} ~ .ant-select-selection-item-remove`, { nth: tagIndex });
+      const removeIndex = await page.evaluate(platformRemoveIndex, { inputSelector: platformSelector.inputSelector, wanted: platform });
+      if (!Number.isInteger(removeIndex) || removeIndex < 0) {
+        throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform remove control is unavailable for ${platform}`);
       }
+      await page.click(`${platformSelector.rootSelector} .ant-select-selection-item-remove`, { nth: removeIndex });
     }
   } else {
-    await page.click(platformSelector);
+    await page.click(platformSelector.inputSelector);
     for (const platform of [...currentPlatforms].filter(value => !wantedPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
     for (const platform of [...wantedPlatforms].filter(value => !currentPlatforms.has(value))) await clickVisibleOption(page, platform === 'tiktok' ? 'Tiktok' : 'Shopee');
   }
@@ -795,7 +890,7 @@ async function applyMetricSpec(page, spec, initialObservation) {
         return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
       };
       const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
-      const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')]
+      const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label, #QuerySearchBuilder .filter-label .label')]
         .find(element => /^(?:product category|danh mục)/i.test(textOf(element)));
       const container = label?.closest('.ant-space-item');
       const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
@@ -806,23 +901,36 @@ async function applyMetricSpec(page, spec, initialObservation) {
     await page.click(categorySelector); await clickVisibleOption(page, spec.category === null ? 'All' : spec.category);
   }
   const periodAlreadyApplied = current.period?.startDate === spec.period.startDate && current.period?.endDate === spec.period.endDate;
-  if (spec.period.preset && !periodAlreadyApplied) {
-    const periodSelector = await page.evaluate(() => {
-      const visible = element => {
-        if (!element) return false;
-        const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
-        return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
-      };
-      const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
-      const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label .label')]
-        .find(element => /^(?:time period|thời gian)/i.test(textOf(element)));
-      const container = label?.closest('.ant-space-item');
-      const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
-      const input = select?.querySelector('input[id]');
-      return input?.id ? `#${CSS.escape(input.id)}` : null;
-    });
-    if (periodSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric period select is not visible');
-    await page.click(periodSelector); await clickVisibleOption(page, spec.period.preset);
+  if (!periodAlreadyApplied) {
+    let presetMatched = false;
+    if (spec.period.preset) {
+      const periodSelector = await page.evaluate(() => {
+        const visible = element => {
+          if (!element) return false;
+          const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
+          return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+        };
+        const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
+        const label = [...document.querySelectorAll('#QuerySearchBuilder .filter-label, #QuerySearchBuilder .filter-label .label')]
+          .find(element => /^(?:time period|thời gian)/i.test(textOf(element)));
+        const container = label?.closest('.ant-space-item');
+        const select = [...(container?.querySelectorAll('.ant-select') || [])].find(visible);
+        const input = select?.querySelector('input[id]');
+        return input?.id ? `#${CSS.escape(input.id)}` : null;
+      });
+      if (periodSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric period select is not visible');
+      await page.click(periodSelector); await clickVisibleOption(page, spec.period.preset);
+      const displayed = await page.evaluate(readDisplayedPeriod);
+      presetMatched = displayed?.startDate === spec.period.startDate && displayed?.endDate === spec.period.endDate;
+    }
+    if (!presetMatched) await applyCustomPeriod(page, spec.period);
+    const displayed = await page.evaluate(readDisplayedPeriod);
+    if (!displayed || displayed.startDate !== spec.period.startDate || displayed.endDate !== spec.period.endDate) {
+      throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric displayed date range does not match the query spec', {
+        expected: { startDate: spec.period.startDate, endDate: spec.period.endDate },
+        displayed,
+      });
+    }
   }
   if (spec.smartQuery !== undefined) await setCheckbox(page, 'Smart query', Boolean(spec.smartQuery));
   if (spec.aiNormalisation !== undefined) await setCheckbox(page, 'AI chuẩn hoá dữ liệu', Boolean(spec.aiNormalisation));
@@ -834,16 +942,29 @@ async function applyMetricSpec(page, spec, initialObservation) {
 
 async function performSearch(page, spec) {
   const before = await readObservation(page, { includeResults: false });
+  assertMetricCategoryObservation(before);
   parseMetricForm(before); await applyMetricSpec(page, spec, before);
   await waitForKeywordCommit(page, spec.keywords);
   // Re-read the form before submit: a lookup is spent only when the visible
   // platform selection matches the request.
   const ready = await readObservation(page, { includeResults: false });
+  assertMetricCategoryObservation(ready);
   const appliedPlatforms = new Set(ready?.appliedFilters?.platforms || []);
   const wantedPlatforms = [...new Set(spec.platforms)];
   if (appliedPlatforms.size !== wantedPlatforms.length || !wantedPlatforms.every(platform => appliedPlatforms.has(platform))) {
     throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric platform selection does not match the request', {
       platformsMatchExpected: false, platformCount: appliedPlatforms.size,
+    });
+  }
+  if (ready?.appliedFilters?.period?.startDate !== spec.period.startDate || ready?.appliedFilters?.period?.endDate !== spec.period.endDate) {
+    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric displayed date range does not match the query spec', {
+      expected: { startDate: spec.period.startDate, endDate: spec.period.endDate },
+      displayed: ready?.appliedFilters?.period || null,
+    });
+  }
+  if (ready.appliedFilters.category !== spec.category) {
+    throw new MetricAdapterError('METRIC_FILTER_MISMATCH', 'Metric product category selection does not match the request', {
+      categoryMatchExpected: false, expected: spec.category, displayed: ready.appliedFilters.category,
     });
   }
   await clickVisibleText(page, ['Phân tích', 'Analyze', 'Analytics']); await page.wait({ time: DEFAULT_WAIT_SECONDS }).catch(() => {});
@@ -869,10 +990,15 @@ function observeResultPage() {
   };
   const textOf = element => (element?.innerText || element?.textContent || '').replace(/\s+/g, ' ').trim();
   const parseJson = value => { try { return value ? JSON.parse(value) : null; } catch { return null; } };
+  const normalise = value => String(value ?? '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+  const findTitleRegion = title => [...document.querySelectorAll('.statistic-item')].find(element => {
+    const heading = element.querySelector('.statistic-item__title');
+    return visible(element) && normalise(heading?.innerText || heading?.textContent) === normalise(title);
+  });
   const selectors = {
-    overview: '[data-metric-region="overview"], [data-region="overview"], [data-testid="market-overview"], .market-overview',
-    'platform-split': '[data-metric-region="platform-split"], [data-region="platform-split"], [data-testid="platform-split"]',
-    monthly: '[data-metric-region="monthly"], [data-region="monthly"], [data-testid="monthly-trend"]',
+    overview: '[data-metric-region="overview"], [data-region="overview"], [data-testid="market-overview"], .market-overview-section, .market-overview',
+    'platform-split': '[data-metric-region="platform-split"], [data-region="platform-split"], [data-testid="platform-split"], .platforms-table',
+    monthly: '[data-metric-region="monthly"], [data-region="monthly"], [data-testid="monthly-trend"], #growth-detail-chart',
     category: '[data-metric-region="category"], [data-region="category"], [data-testid="category-chart"]',
     price: '[data-metric-region="price"], [data-region="price"], [data-testid="price-chart"]',
     'top10-brand': '[data-metric-region="top10-brand"], [data-region="top10-brand"], [data-testid="top10-brand"]',
@@ -885,38 +1011,120 @@ function observeResultPage() {
     'top-brands': '[data-metric-region="top-brands"], [data-region="top-brands"], [data-testid="top-brands"]',
     'detail-history': '[data-metric-region="detail-history"], [data-region="detail-history"], [data-testid="detail-history"]',
   };
-  const tableData = element => {
-    const table = element?.querySelector('table');
-    if (!table) return null;
-    const headers = [...table.querySelectorAll('thead th')].map(textOf).filter(Boolean);
-    const rows = [...table.querySelectorAll('tbody tr')].map(row => {
+  const titleNames = {
+    category: 'Category', price: 'Price range', 'top10-brand': 'Top 10 Brands', 'top10-shop': 'Top 10 Shops',
+    'brand-shop-type': 'Top 10 brand by shop type', 'shop-type': 'Shop type',
+    'top-products': 'Top Products', 'top-shops': 'Top Shops', 'top-brands': 'Top Brands',
+  };
+  const platformFromIcon = row => {
+    const knownPlatform = icon => {
+      const marker = normalise(`${icon.getAttribute('alt') || ''} ${icon.getAttribute('src') || ''}`);
+      if (marker.includes('shopee')) return 'shopee';
+      if (marker.includes('tiktok')) return 'tiktok';
+      return null;
+    };
+    // Platform-specific selectors have precedence over every generic image.
+    const preferred = [...(row?.querySelectorAll('img.img-platform, .shop-platform-icon img') || [])]
+      .map(knownPlatform).find(Boolean);
+    if (preferred) return preferred;
+    // A generic image is usable only when its own alt/src identifies a known
+    // platform; unrelated images must never win by document order.
+    return [...(row?.querySelectorAll('img[alt]') || [])].map(knownPlatform).find(Boolean) || null;
+  };
+  const canonicalHeader = (value, index) => {
+    const header = normalise(value);
+    if (/^platform$/.test(header)) return 'platform';
+    if (/^product$/.test(header)) return 'name';
+    if (/^shop(?: name)?$/.test(header)) return 'shop';
+    if (/^brand name$/.test(header)) return 'brand';
+    if (/^brand$/.test(header)) return 'brand';
+    if (/^category$/.test(header)) return 'category';
+    if (/^price$|^avg price$/.test(header)) return 'price';
+    if (/^revenue$/.test(header)) return 'revenue';
+    if (/^sold products$|^units$/.test(header)) return 'units';
+    if (/price in product variant/.test(header)) return 'minPrice';
+    if (/revenue in time period/.test(header)) return 'revenue';
+    if (/sold products in time period|units sold/.test(header)) return 'units';
+    if (/^total revenue$/.test(header)) return 'lifetimeRevenue';
+    if (/^total sales$/.test(header)) return 'lifetimeUnits';
+    if (/number of products with sales/.test(header)) return 'listings';
+    if (/^hạng$|^rank/.test(header)) return 'rankNew';
+    if (/top brands/.test(header)) return 'brand';
+    if (/created date/.test(header)) return 'createdDate';
+    return `column${index + 1}`;
+  };
+  const tableData = (element, regionName = '') => {
+    const headerTable = element?.querySelector('.ant-table-header table') || element?.querySelector('table');
+    const bodyTable = element?.querySelector('.ant-table-body table') || headerTable;
+    if (!headerTable || !bodyTable) return null;
+    const rawHeaders = [...headerTable.querySelectorAll('thead th')].map(textOf);
+    const headers = rawHeaders.map(canonicalHeader);
+    const rows = [...bodyTable.querySelectorAll('tbody tr')].map(row => {
       const cells = [...row.querySelectorAll('td')].map(textOf);
-      return Object.fromEntries(cells.map((value, index) => [headers[index] || `column${index + 1}`, value]));
+      const values = Object.fromEntries(cells.map((value, index) => [headers[index] || `column${index + 1}`, value]));
+      const iconPlatform = platformFromIcon(row);
+      if (iconPlatform) values.platform = iconPlatform;
+      else if (regionName === 'top-products' || regionName === 'top-shops') values.platform = 'unknown';
+      return values;
     });
     return { columns: headers, rows };
+  };
+  const kpiData = element => {
+    const kpi = {};
+    for (const card of [...element.querySelectorAll('.statistic-item')]) {
+      const title = normalise(card.querySelector('.statistic-item__title')?.textContent || card.getAttribute('title'));
+      const value = textOf(card.querySelector('.statistic-card__value'));
+      if (!title) continue;
+      if (/revenue/.test(title)) kpi.revenue = { displayed: value, label: 'Revenue' };
+      else if (/units sold|sold products/.test(title)) kpi.units = { displayed: value, label: 'Units' };
+      else if (/^products?$/.test(title)) kpi.soldListings = { displayed: value, label: 'Sold listings' };
+      else if (/^shops?$/.test(title)) kpi.shops = { displayed: value, label: 'Shops' };
+    }
+    return kpi;
   };
   const regions = {};
   const screenshotRegions = {};
   const regionsHtml = {};
   for (const [name, selector] of Object.entries(selectors)) {
-    const element = [...document.querySelectorAll(selector)].find(visible);
+    const titleElement = titleNames[name] ? findTitleRegion(titleNames[name]) : null;
+    const element = titleElement || [...document.querySelectorAll(selector)].find(visible);
     if (!element) continue;
     const json = parseJson(element.getAttribute('data-metric-json'));
-    const table = tableData(element);
-    regions[name] = { ...(json && typeof json === 'object' ? json : table || { text: textOf(element) }), selector };
+    const table = tableData(element, name);
+    let payload = json && typeof json === 'object' ? json : table || { text: textOf(element) };
+    if (name === 'overview' && !json) payload = { kpi: kpiData(element), text: textOf(element) };
+    if (name === 'monthly' && !json && !table) payload = { unavailable: true, reason: 'DOM_CHART_DATA_UNAVAILABLE', text: textOf(element) };
+    regions[name] = { ...payload, selector };
     screenshotRegions[name] = selector;
     regionsHtml[name] = element.outerHTML;
   }
-  const paginationElement = [...document.querySelectorAll('.ant-pagination,[data-metric-pagination]')].find(visible);
+  const platformChart = document.querySelector('.platforms-chart');
+  if (platformChart && visible(platformChart)) {
+    regions['platform-chart'] = { text: textOf(platformChart), selector: '.platforms-chart' };
+    screenshotRegions['platform-chart'] = '.platforms-chart';
+    regionsHtml['platform-chart'] = platformChart.outerHTML;
+  }
+  const topProductsElement = findTitleRegion('Top Products') || [...document.querySelectorAll(selectors['top-products'])].find(visible);
+  const paginationElement = topProductsElement?.querySelector('.ant-pagination,[data-metric-pagination]') || [...document.querySelectorAll('[data-metric-pagination]')].find(visible);
   const totalText = paginationElement ? textOf(paginationElement) : '';
   const totalMatch = totalText.match(/(?:of|trên|total)\s+(\d[\d.,\s]*)/i);
   const current = Number(paginationElement?.querySelector('.ant-pagination-item-active')?.textContent || 1);
-  const next = paginationElement?.querySelector('button.ant-pagination-next,[aria-label="Next Page"]');
+  const pageSizeMatch = totalText.match(/(\d+)\s+(?:products?|sản phẩm)\s*\/\s*page/i);
+  const next = paginationElement?.querySelector('li.ant-pagination-next .ant-pagination-item-link, li.ant-pagination-next button, [aria-label="Next Page"]');
+  const nextItem = paginationElement?.querySelector('li.ant-pagination-next');
   if (paginationElement) regions['top-products'] = {
-    ...(regions['top-products'] || {}), pagination: { page: current, total: totalMatch ? Number(totalMatch[1].replace(/[.,\s]/g, '')) : null, pageSize: regions['top-products']?.items?.length || regions['top-products']?.rows?.length || null, nextAvailable: Boolean(next && !next.disabled), nextSelector: 'button.ant-pagination-next,[aria-label="Next Page"]' },
+    ...(regions['top-products'] || {}), pagination: {
+      page: current, total: totalMatch ? Number(totalMatch[1].replace(/[.,\s]/g, '')) : null,
+      pageSize: pageSizeMatch ? Number(pageSizeMatch[1]) : regions['top-products']?.items?.length || regions['top-products']?.rows?.length || null,
+      nextAvailable: Boolean(next && !next.disabled && next.getAttribute('aria-disabled') !== 'true' && !nextItem?.classList.contains('ant-pagination-disabled') && nextItem?.getAttribute('aria-disabled') !== 'true'),
+      nextSelector: 'li.ant-pagination-next .ant-pagination-item-link',
+    },
   };
-  const platformViews = [...document.querySelectorAll('[data-metric-platform-view],[data-platform-view],[role="tab"]')]
-    .filter(visible).map((element, index) => ({ label: textOf(element), selected: element.getAttribute('aria-selected') === 'true' || element.classList.contains('active'), selector: '[data-metric-platform-view],[data-platform-view],[role="tab"]', index }));
+  const mainStatisticButtons = [...document.querySelectorAll('.main-statistic button')].filter(visible);
+  const resultToggles = mainStatisticButtons.map(button => textOf(button)).filter(Boolean);
+  const currentToggle = mainStatisticButtons.find(button => button.getAttribute('aria-pressed') === 'true' || button.classList.contains('ant-btn-primary') || button.classList.contains('active'));
+  const platformViews = [...document.querySelectorAll('[data-metric-platform-view],[data-platform-view]')]
+    .filter(visible).map((element, index) => ({ label: textOf(element), selected: element.getAttribute('aria-selected') === 'true' || element.classList.contains('active'), selector: '[data-metric-platform-view],[data-platform-view]', index }));
   const normaliseMetricTextInPage = value => String(value ?? '').normalize('NFC').toLowerCase().replace(/\s+/g, ' ').trim();
   const stripMetricDiacriticsInPage = value => normaliseMetricTextInPage(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/g, 'd');
   const metricWordsInPage = value => new Set(value.split(/[^\p{L}\p{N}]+/u).filter(Boolean));
@@ -1002,6 +1210,7 @@ function observeResultPage() {
     logoutVisible: /(?:logged\s*out|signed\s*out|session\s+expired|đã\s+đăng\s+xuất|phiên.*hết\s+hạn)/i.test(textOf(document.body)),
     warningMatches, warningVisible: [...warningMatchesByElement.entries()].some(([, match]) => ['warning-class', 'error-class', 'alert-role', 'restriction-text', 'bare-warning-text'].includes(match.reason)), warningText: scopedWarningText,
     regions, regionsHtml, screenshotRegions, pagination: regions['top-products']?.pagination || null, platformViews,
+    resultToggles, currentToggle: textOf(currentToggle),
     snapshot: window.__metricWebSnapshot || window.__METRIC_WEB_SNAPSHOT__ || null,
   };
 }
@@ -1013,7 +1222,8 @@ async function waitForResultsSettle(page) {
 
 async function gateCurrentMetricPage(page) {
   const observation = await page.evaluate(observeMetricPage, false);
-  return gateMetricPage(observation);
+  gateMetricPage(observation);
+  return observation;
 }
 
 // These functions run in the page. A screenshot is publishable only when a
@@ -1072,15 +1282,6 @@ async function readResultPage(page) {
   return { dom, responses: Array.isArray(responses) ? responses : [] };
 }
 
-function platformLabel(value) {
-  const normalized = String(value ?? '').normalize('NFC').trim().toLowerCase();
-  return normalized === 'tiktok' || normalized === 'tiktok shop' ? 'tiktok' : normalized === 'shopee' ? 'shopee' : null;
-}
-
-function isCombinedPlatformLabel(value) {
-  return /^(?:all|all platforms|total|tất cả|tất cả nền tảng)$/i.test(String(value ?? '').normalize('NFC').trim());
-}
-
 async function saveViewRegionScreenshots(page, dom, screenshotDir, viewPlatform, seenScreenshots, screenshots, screenshotSkips) {
   if (!dom?.screenshotRegions || typeof page.screenshot !== 'function') return;
   for (const [region, selector] of Object.entries(dom.screenshotRegions)) {
@@ -1111,21 +1312,70 @@ async function saveViewRegionScreenshots(page, dom, screenshotDir, viewPlatform,
   }
 }
 
+function resultToggleIndex(wanted) {
+  const clean = value => String(value ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  const target = clean(wanted);
+  const visible = element => {
+    if (!element) return false;
+    const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
+    return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+  };
+  return [...document.querySelectorAll('.main-statistic button')].filter(visible)
+    .findIndex(button => clean(button.innerText || button.textContent) === target);
+}
+
+async function clickResultToggle(page, wanted) {
+  const index = await page.evaluate(resultToggleIndex, wanted);
+  if (!Number.isInteger(index) || index < 0) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric result toggle is missing: ${wanted}`);
+  await page.click('#main-content #analytic-tab .main-statistic button', { nth: index });
+  await gateCurrentMetricPage(page);
+  await waitForResultsSettle(page);
+  await gateCurrentMetricPage(page);
+}
+
+function mergePlatformUnits(revenueDom, soldDom) {
+  const revenue = revenueDom?.regions?.['platform-split'];
+  const sold = soldDom?.regions?.['platform-split'];
+  if (!revenue || !sold || !Array.isArray(revenue.rows) || !Array.isArray(sold.rows)) return revenueDom;
+  const key = row => String(row?.platform ?? '').normalize('NFC').trim().toLowerCase();
+  const units = new Map(sold.rows.map(row => [key(row), row.units]).filter(([platform, value]) => platform && value != null));
+  if (!units.size) return revenueDom;
+  return {
+    ...revenueDom,
+    regions: {
+      ...revenueDom.regions,
+      'platform-split': { ...revenue, rows: revenue.rows.map(row => units.has(key(row)) ? { ...row, units: units.get(key(row)) } : row) },
+    },
+  };
+}
+
 async function collectResultPages(page, productCap, initial = null, viewPlatform = 'all', screenshotDir = null, seenScreenshots = new Set(), screenshots = [], screenshotSkips = []) {
-  const responses = []; const domSnapshots = []; const seenPages = new Set();
+  const responses = []; const domSnapshots = []; const seenPages = new Set(); const seenRows = new Set();
   let lastDom = null; let pagesRead = 0;
   for (let iteration = 0; iteration < PAGE_CAP; iteration += 1) {
-    const current = initial || await readResultPage(page); initial = null; current.dom.observedInView = viewPlatform; lastDom = current.dom; pagesRead += 1;
-    responses.push(...current.responses.map(response => ({ ...response, viewPlatform })));
-    domSnapshots.push(current.dom);
-    if (screenshotDir) await saveViewRegionScreenshots(page, current.dom, screenshotDir, viewPlatform, seenScreenshots, screenshots, screenshotSkips);
-    const pagination = current.dom.pagination;
+    const current = initial || await readResultPage(page); initial = null;
     const productRegion = current.dom.regions?.['top-products'] || {};
-    const items = productRegion.items || productRegion.rows;
-    const pageNumber = pagination?.page ?? iteration + 1;
-    const itemKey = `${pageNumber}:${JSON.stringify(items?.[0] ?? null)}`;
+    const items = productRegion.items || productRegion.rows || [];
+    const pageNumber = current.dom.pagination?.page ?? iteration + 1;
+    const itemKey = `${pageNumber}:${JSON.stringify(items[0] ?? null)}`;
     if (seenPages.has(itemKey)) break;
     seenPages.add(itemKey);
+    const uniqueItems = items.filter(item => {
+      const key = JSON.stringify(item);
+      if (seenRows.has(key)) return false;
+      seenRows.add(key);
+      return true;
+    });
+    const dom = { ...current.dom, observedInView: viewPlatform, regions: { ...current.dom.regions } };
+    if (current.dom.regions?.['top-products']) {
+      const region = current.dom.regions['top-products'];
+      dom.regions['top-products'] = { ...region, ...(Array.isArray(region.items) ? { items: uniqueItems } : { rows: uniqueItems }) };
+    }
+    lastDom = dom; pagesRead += 1;
+    responses.push(...current.responses.map(response => ({ ...response, viewPlatform })));
+    domSnapshots.push(dom);
+    if (screenshotDir) await saveViewRegionScreenshots(page, dom, screenshotDir, viewPlatform, seenScreenshots, screenshots, screenshotSkips);
+    const pagination = dom.pagination;
     const observedRows = domSnapshots.reduce((sum, snapshot) => {
       const region = snapshot.regions?.['top-products'] || {};
       return sum + (region.items?.length || region.rows?.length || 0);
@@ -1143,56 +1393,29 @@ async function collectResultPages(page, productCap, initial = null, viewPlatform
 async function collectResults(page, spec, productCap, screenshotDir) {
   await waitForResultsSettle(page);
   await gateCurrentMetricPage(page);
-  const first = await readResultPage(page);
-  const platformViews = Array.isArray(first.dom.platformViews) ? first.dom.platformViews : [];
-  const requested = [...new Set(spec.platforms)];
-  const recognizedViews = platformViews.filter(view => platformLabel(view.label) || isCombinedPlatformLabel(view.label));
-  const combined = recognizedViews.find(view => isCombinedPlatformLabel(view.label));
-  const batches = [];
+  let first = await readResultPage(page);
+  const resultToggles = Array.isArray(first.dom.resultToggles) ? first.dom.resultToggles : [];
+  const hasRevenueToggle = resultToggles.some(label => /^revenue$/i.test(String(label).trim()));
+  const hasSoldToggle = resultToggles.some(label => /sold products/i.test(label));
+  if (hasRevenueToggle && !/^revenue$/i.test(String(first.dom.currentToggle || '').trim())) {
+    await clickResultToggle(page, 'Revenue');
+    first = await readResultPage(page);
+  }
+  const platformRegion = first.dom.regions?.['platform-split'];
+  const platformRows = platformRegion?.rows || platformRegion?.items || [];
+  if (hasRevenueToggle && hasSoldToggle && platformRows.length && !platformRows.some(row => row.units != null)) {
+    let sold;
+    try {
+      await clickResultToggle(page, 'Sold products');
+      sold = await readResultPage(page);
+    } finally {
+      await clickResultToggle(page, 'Revenue');
+    }
+    const restored = await readResultPage(page);
+    first = { ...restored, dom: mergePlatformUnits(restored.dom, sold?.dom) };
+  }
   const screenshots = []; const screenshotSkips = []; const seenScreenshots = new Set();
-  const selectedView = (dom, wanted) => (Array.isArray(dom?.platformViews) ? dom.platformViews : [])
-    .find(view => view.selected && (wanted === 'all' ? isCombinedPlatformLabel(view.label) : platformLabel(view.label) === wanted));
-  const requireSelectedView = (dom, wanted) => {
-    if (!selectedView(dom, wanted)) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric result view is not selected: ${wanted}`);
-    return dom;
-  };
-  const switchAndRead = async (target, wanted) => {
-    if (typeof page.click !== 'function') throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is unavailable: ${wanted}`);
-    await page.click(target.selector, { nth: target.index });
-    await gateCurrentMetricPage(page);
-    await waitForResultsSettle(page);
-    await gateCurrentMetricPage(page);
-    const switched = await readResultPage(page);
-    requireSelectedView(switched.dom, wanted);
-    return switched;
-  };
-  if (recognizedViews.length === 0 || combined) {
-    let combinedPage = first;
-    if (combined) {
-      combinedPage = combined.selected ? first : await switchAndRead(combined, 'all');
-      requireSelectedView(combinedPage.dom, 'all');
-    }
-    batches.push({ platform: 'all', ...(await collectResultPages(page, productCap, combinedPage, 'all', screenshotDir, seenScreenshots, screenshots, screenshotSkips)) });
-  }
-  if (recognizedViews.length >= 2) {
-    for (const wanted of requested) {
-      const target = recognizedViews.find(view => platformLabel(view.label) === wanted);
-      if (!target) throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric platform result view is missing: ${wanted}`);
-      // Re-read after the previous batch (and after every switch); the
-      // initial target.selected value is stale once another tab is active.
-      let current = await readResultPage(page);
-      if (!selectedView(current.dom, wanted)) current = await switchAndRead(target, wanted);
-      requireSelectedView(current.dom, wanted);
-      batches.push({ platform: wanted, ...(await collectResultPages(page, productCap, current, wanted, screenshotDir, seenScreenshots, screenshots, screenshotSkips)) });
-    }
-  } else if (recognizedViews.length === 1 && !combined) {
-    const solePlatform = platformLabel(recognizedViews[0].label);
-    if (!solePlatform || requested.some(platform => platform !== solePlatform)) {
-      throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric result page does not expose every requested platform view');
-    }
-    requireSelectedView(first.dom, solePlatform);
-    batches.push({ platform: solePlatform, ...(await collectResultPages(page, productCap, first, solePlatform, screenshotDir, seenScreenshots, screenshots, screenshotSkips)) });
-  }
+  const batches = [{ platform: 'all', ...(await collectResultPages(page, productCap, first, 'all', screenshotDir, seenScreenshots, screenshots, screenshotSkips)) }];
   const allResponses = batches.flatMap(batch => batch.responses);
   const responses = [...new Map(allResponses.map(response => [JSON.stringify([response.viewPlatform, response.url, response.urlPath, response.responsePreview, response.body, response.status]), response])).values()];
   return {
@@ -1280,5 +1503,5 @@ export const captureCommand = cli({
   }),
 });
 
-export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, waitForKeywordCommit, dispatchSelectKey, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
+export const __test__ = { asCliError, withMetricTab, readObservation, applyMetricSpec, performSearch, waitForKeywordCommit, observeMetricPage, observeResultPage, collectResultPages, archiveResultsPage, readCommittedKeywords };
 export { assertMetricUrl, parseMetricForm };

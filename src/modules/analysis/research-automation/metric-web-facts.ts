@@ -131,6 +131,9 @@ function monthlyFact(snapshot: AutomationMetricWebSnapshotV1): MetricWebFacts['m
   if (isAbsent(group)) return absentFact(group);
   const byPlatform: Partial<Record<Platform, [string, MetricWebMonthFact][]>> = {};
   for (const point of group) {
+    // Unknown attribution remains valid evidence, but it is not a platform
+    // series and must not enter platform-specific reader arithmetic.
+    if (point.platform === 'unknown') continue;
     (byPlatform[point.platform] ??= []).push([point.month, {
       revenue: valueFact(point.revenue),
       units: nullableValueFact(point.units),

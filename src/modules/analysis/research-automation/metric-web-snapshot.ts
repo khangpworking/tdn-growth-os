@@ -17,7 +17,7 @@ export const METRIC_WEB_TABLE_COLUMNS = {
   W6_priceLevel: ['priceLevel', 'platform', 'revenue'],
   W9_brandByShopType: ['brand', 'revenueNormal', 'revenueMall'],
   W11_location: ['location', 'share'],
-  W12_topProducts: ['name', 'shop', 'price', 'createdDate', 'minPrice', 'maxPrice', 'revenue', 'revenueChg', 'units', 'unitsChg',
+  W12_topProducts: ['name', 'shop', 'platform', 'price', 'createdDate', 'minPrice', 'maxPrice', 'revenue', 'revenueChg', 'units', 'unitsChg',
     'lifetimeRevenue', 'lifetimeUnits', 'category'],
   W13_topShops: ['rankNew', 'rankOld', 'shop', 'platform', 'listings', 'revenue', 'revenueChg', 'units', 'unitsChg', 'lifetimeRevenue',
     'lifetimeUnits'],

@@ -23,7 +23,7 @@ adapter installed from the same repository bytes. The executor verifies
 `tools/opencli-metric/adapter-manifest.json` before each run. `whoami` reads
 only login, captcha, page-state and any displayed analysis lookup balance.
 The current manifest SHA-256 is
-`3e1c0166b4a1247833179efc97ccb3db2cd9bbf37075367e1d544ebd587237b3`.
+`6f0e0888b74e9f1bcdb9c1bc6c9ef5dc57581f9ae13689abaf87c0c7b61d7e08`.
 
 Install or reinstall the adapter from the checked-out repository bytes with:
 
@@ -49,13 +49,15 @@ opencli metric capture \
   --product-cap 200
 ```
 
-After the successful read-back it collects the combined result view and any
-Shopee/TikTok Shop views the page exposes. Product tables are paged until all
-shown rows are read or 200 rows per view / 10 page turns is reached. The archive
-manifest records the cap, total shown, pages read, rows read and truncation.
-The page gate is rerun before each DOM/network read and after every platform
-switch and pagination click. A redirect, login/logout screen, captcha or warning
-stops capture immediately; the tab is closed and no archive is published.
+After the successful read-back it collects the combined result view. It never
+opens search-history tabs or treats them as platform views; per-platform values
+come from the platform split table and the platform icons on product/shop rows.
+Product tables are paged until all shown rows are read or 200 rows / 10 page
+turns is reached. The archive manifest records the cap, total shown, pages read,
+rows read and truncation. The page gate is rerun before each DOM/network read,
+after the Revenue/Sold-products toggle is restored to Revenue, and after every
+pagination click. A redirect, login/logout screen, captcha or warning stops
+capture immediately; the tab is closed and no archive is published.
 
 The archive is written immediately outside Git and contains:
 
@@ -68,20 +70,19 @@ The archive is written immediately outside Git and contains:
 - `results.html`: sanitized result-region HTML with scripts, inline state, meta
   tags and account/header content removed;
 - `platform-*-region-*.png`: one clipped screenshot for every result region in
-  each verified platform view; the account/header/avatar and overlapping
+  the combined result view; the account/header/avatar and overlapping
   sticky/fixed elements are hidden before capture. Unlocatable or unbounded
   regions are skipped with a reason in `manifest.json` (and never fall back to
   a viewport screenshot);
 - `manifest.json`: applied scope, view list, W1–W16 source map, pagination and
   exact file digests.
 
-Network JSON already received by the page is the preferred source for each
-platform when the response body or its request parameters explicitly names
-that platform. The selected tab is retained only as `observedInView` metadata;
-it never attributes an otherwise unlabelled response. DOM extraction remains
-the fallback for a platform not covered by a response. An unlabelled row
-remains `all`, never Shopee. No history page is opened by the adapter, and no
-account, settings or authentication action is performed.
+Network JSON already received by the page is the preferred source when the
+response body or its request parameters explicitly names a platform. DOM
+extraction remains the fallback for the visible platform table and row icons.
+An otherwise unlabelled response remains `all`; a visible row without a
+platform icon is retained as `unknown`. No history page is opened by the
+adapter, and no account, settings or authentication action is performed.
 
 ## Safety and failure rules
 

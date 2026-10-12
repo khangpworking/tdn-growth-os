@@ -7,7 +7,7 @@
   "controls": [
     { "name": "platform", "label": "Platform", "selector": "#rc_select_1", "options": ["Shopee", "Lazada", "Tiki", "Tiktok"] },
     { "name": "period", "label": "Time period", "selector": "#rc_select_2", "options": ["7 days", "30 days", "90 days", "180 days", "365 days"] },
-    { "name": "category", "label": "Product category", "selector": "#rc_select_3", "options": ["All", "Cameras & Drones", "Pets", "Travel & Luggage", "Gaming & Consoles", "Men Shoes", "Women Shoes", "Computers & Laptops", "Motorcycles & Bikes", "Mom & Baby"] },
+    { "name": "category", "label": "Product category", "selector": "#rc_select_3", "options": ["All", "Cameras & Drones", "Pets", "Travel & Luggage", "Gaming & Consoles", "Men Shoes", "Women Shoes", "Computers & Laptops", "Motorcycles & Bikes", "Mom & Baby"], "visible": true, "selected": ["All"] },
     { "name": "keywords", "label": "Keywords (keywords or shop link/product link)", "selector": "#rc_select_4", "options": [] },
     { "name": "smartQuery", "label": "Smart query", "selector": "#smart-query", "options": ["on", "off"] },
     { "name": "usefulFilters", "label": "Useful", "selector": "#useful", "options": ["fake", "gifts", "deleted"] }

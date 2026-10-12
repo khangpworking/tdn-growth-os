@@ -36,7 +36,8 @@
     }
   },
   "$defs": {
-    "platform": { "enum": ["shopee", "tiktok"] },
+    "platform": { "enum": ["shopee", "tiktok", "unknown"] },
+    "scopePlatform": { "enum": ["shopee", "tiktok"] },
     "date": { "type": "string", "format": "date" },
     "period": {
       "type": "object",
@@ -52,7 +53,7 @@
       "required": ["keywords", "platforms", "period", "category", "ticks", "advancedFilters", "exclusions"],
       "properties": {
         "keywords": { "type": "array", "minItems": 1, "maxItems": 10, "items": { "type": "string", "minLength": 1, "maxLength": 120 } },
-        "platforms": { "type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/platform" } },
+        "platforms": { "type": "array", "minItems": 1, "maxItems": 2, "uniqueItems": true, "items": { "$ref": "#/$defs/scopePlatform" } },
         "period": { "$ref": "#/$defs/period" },
         "category": { "oneOf": [{ "$ref": "#/$defs/shortText" }, { "type": "null" }] },
         "ticks": { "type": "array", "maxItems": 20, "items": { "$ref": "#/$defs/shortText" } },
@@ -79,7 +80,7 @@
         "value": { "type": ["number", "null"] },
         "unit": { "enum": ["VND", "COUNT", "PERCENT", "RANK"] },
         "precision": { "enum": ["exact", "display_rounded"] },
-        "platform": { "enum": ["shopee", "tiktok", "all"] },
+        "platform": { "enum": ["shopee", "tiktok", "all", "unknown"] },
         "period": { "$ref": "#/$defs/period" },
         "sourcePointer": { "$ref": "#/$defs/shortText" }
       }
@@ -101,7 +102,7 @@
       "required": ["absent", "reason"],
       "properties": {
         "absent": { "const": true },
-        "reason": { "enum": ["NOT_ON_PAGE", "NOT_CAPTURED", "RECON_PENDING"] }
+        "reason": { "enum": ["NOT_ON_PAGE", "NOT_CAPTURED", "RECON_PENDING", "DOM_CHART_DATA_UNAVAILABLE"] }
       }
     },
     "kpiMetric": {
@@ -131,7 +132,7 @@
         "type": "object",
         "additionalProperties": false,
         "required": ["platform", "revenue", "share"],
-        "properties": { "platform": { "$ref": "#/$defs/platform" }, "revenue": { "$ref": "#/$defs/value" }, "share": { "$ref": "#/$defs/value" } }
+        "properties": { "platform": { "$ref": "#/$defs/platform" }, "revenue": { "$ref": "#/$defs/value" }, "units": { "$ref": "#/$defs/nullableValue" }, "share": { "$ref": "#/$defs/value" } }
       }
     },
     "monthly": {

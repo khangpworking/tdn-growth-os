@@ -106,6 +106,7 @@ export function deriveReaderSource(facts: MetricWebFacts, rowCap: number, option
   };
   const platformBreakdown: EffectiveSource['platformBreakdown'] = {};
   for (const entry of facts.platformSplit) {
+    if (entry.platform === 'unknown') continue;
     const revenue = number(entry.revenue.value, `platformBreakdown.${entry.platform}.displayedRevenueVnd`);
     platformBreakdown[entry.platform] = { displayedRevenueVnd: revenue };
   }
@@ -208,11 +209,13 @@ export function setWebBundleKeys(B: Bundle, facts: MetricWebFacts): string[] {
   setIfFinite(B, 'web.kpi.listings.chg', facts.kpi.soldListings.changePct?.value ?? null, 'pct', keys);
   setIfFinite(B, 'web.kpi.shops.chg', facts.kpi.shops.changePct?.value ?? null, 'pct', keys);
   for (const entry of [...facts.platformSplit].sort((left, right) => (left.platform < right.platform ? -1 : 1))) {
+    if (entry.platform === 'unknown') continue;
     setIfFinite(B, `web.${entry.platform}.rev`, entry.revenue.value, 'ty1', keys);
     setIfFinite(B, `web.${entry.platform}.share`, entry.share.value, 'pct', keys);
   }
   if (!('absent' in facts.monthly)) {
     for (const platform of Object.keys(facts.monthly).sort()) {
+      if (platform === 'unknown') continue;
       const months = facts.monthly[platform as keyof typeof facts.monthly];
       if (months === undefined) continue;
       for (const month of Object.keys(months).sort()) {
@@ -390,6 +393,7 @@ export function reconcileWebWithRows(
   }
   const breached: Record<string, number> = {};
   for (const entry of facts.platformSplit) {
+    if (entry.platform === 'unknown') continue;
     const webPlatformRev = entry.revenue.value;
     if (webPlatformRev === null || !Number.isFinite(webPlatformRev)) continue;
     const platformRows = rows.filter(row => row.platform === entry.platform);
@@ -400,6 +404,7 @@ export function reconcileWebWithRows(
   if (Object.keys(breached).length > 0) {
     const numbers: Record<string, number> = { ...breached };
     for (const entry of facts.platformSplit) {
+      if (entry.platform === 'unknown') continue;
       const value = entry.revenue.value;
       if (value !== null && Number.isFinite(value)) numbers[`web.${entry.platform}`] = value;
     }

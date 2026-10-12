@@ -12,7 +12,7 @@ const TABLE_COLUMNS = Object.freeze({
   W6_priceLevel: ['priceLevel', 'platform', 'revenue'],
   W9_brandByShopType: ['brand', 'revenueNormal', 'revenueMall'],
   W11_location: ['location', 'share'],
-  W12_topProducts: ['name', 'shop', 'price', 'createdDate', 'minPrice', 'maxPrice', 'revenue', 'revenueChg', 'units', 'unitsChg', 'lifetimeRevenue', 'lifetimeUnits', 'category'],
+  W12_topProducts: ['name', 'shop', 'platform', 'price', 'createdDate', 'minPrice', 'maxPrice', 'revenue', 'revenueChg', 'units', 'unitsChg', 'lifetimeRevenue', 'lifetimeUnits', 'category'],
   W13_topShops: ['rankNew', 'rankOld', 'shop', 'platform', 'listings', 'revenue', 'revenueChg', 'units', 'unitsChg', 'lifetimeRevenue', 'lifetimeUnits'],
   W14_topBrands: ['rankNew', 'rankOld', 'brand', 'listings', 'revenue', 'revenueChg', 'units', 'unitsChg', 'lifetimeRevenue', 'lifetimeUnits'],
   W16_detailHistory: ['entityKind', 'entity', 'month', 'revenue', 'units'],
@@ -29,15 +29,42 @@ const normaliseRegion = value => String(value ?? '').replaceAll('_', '-').replac
 const clean = value => String(value ?? '').normalize('NFC').trim();
 
 function numberFromDisplay(displayed) {
-  const text = clean(displayed).toLowerCase().replaceAll(' ', '');
-  const match = /^(-?)(\d{1,3}(?:\.\d{3})+|\d+)(?:,(\d+))?(tỷ|triệu|nghìn|%)?$/.exec(text);
-  if (!match) return null;
-  const fraction = match[3] || '';
-  const base = Number(`${match[2].replaceAll('.', '')}${fraction}`) / (10 ** fraction.length);
-  const multiplier = match[4] === 'tỷ' ? 1_000_000_000 : match[4] === 'triệu' ? 1_000_000 : match[4] === 'nghìn' ? 1_000 : 1;
-  const value = (match[1] === '-' ? -1 : 1) * base * multiplier;
+  let text = clean(displayed).toLowerCase().replace(/\s+/g, '');
+  text = text.replace(/[₫đ]/g, '').replace(/vnd$/i, '');
+  const suffixMatch = /(billion|million|thousand|tỷ|ty|tr|triệu|trieu|k|nghìn|nghin|%)$/iu.exec(text);
+  const suffix = suffixMatch?.[1]?.normalize('NFC').toLowerCase() || '';
+  const numberText = suffix ? text.slice(0, -suffix.length) : text;
+  const numberMatch = /^(-?)(\d[\d.,]*)$/.exec(numberText);
+  if (!numberMatch) return null;
+
+  const sign = numberMatch[1] === '-' ? -1 : 1;
+  let numeric = numberMatch[2];
+  const commaParts = numeric.split(',');
+  const dotParts = numeric.split('.');
+  let base;
+  // A comma followed by one or two digits and a unit word is Metric's
+  // displayed decimal form: 4,0 billion, 109,8 thousand, and so on.
+  const unitWord = Boolean(suffix && suffix !== '%');
+  if (commaParts.length === 2 && commaParts[1].length <= 2 && (unitWord || commaParts[0].length <= 3)) {
+    const integerPart = commaParts[0].replaceAll('.', '');
+    base = Number(`${integerPart}.${commaParts[1]}`);
+  } else {
+    // Dotted/comma-separated groups of three are thousands separators. Keep
+    // decimal-dot input working when the dot is not a three-digit group.
+    if (commaParts.length > 1) numeric = commaParts.every((part, index) => index === 0 || part.length === 3) ? numeric.replaceAll(',', '') : numeric.replace(',', '.');
+    if (numeric.includes('.') && numeric.split('.').slice(1).some(part => part.length !== 3)) base = Number(numeric);
+    else base = Number(numeric.replaceAll('.', ''));
+  }
+  if (!Number.isFinite(base)) return null;
+  const multiplier = /^(?:billion|tỷ|ty)$/iu.test(suffix) ? 1_000_000_000
+    : /^(?:million|tr|triệu|trieu)$/iu.test(suffix) ? 1_000_000
+      : /^(?:thousand|k|nghìn|nghin)$/iu.test(suffix) ? 1_000
+        : 1;
+  const value = sign * base * multiplier;
   return Number.isFinite(value) ? value : null;
 }
+
+export const parseMetricDisplay = numberFromDisplay;
 
 function pathFor(value, fallback) {
   const path = clean(value);
@@ -313,15 +340,21 @@ function entriesFor(entries, names) {
   const wanted = new Set(names.map(normaliseRegion));
   const matching = entries.filter(entry => wanted.has(entry.region));
   const responsePlatforms = new Map();
+  const domIconRegions = new Set();
   for (const entry of matching.filter(entry => entry.sourcePointer.startsWith('response:'))) {
     if (!responsePlatforms.has(entry.region)) responsePlatforms.set(entry.region, new Set());
     responsePlatforms.get(entry.region).add(entry.platform);
   }
+  for (const entry of matching.filter(entry => entry.sourcePointer.startsWith('dom:') && ['top-products', 'top-shops'].includes(entry.region))) {
+    const rows = Array.isArray(entry.payload.rows) ? entry.payload.rows : Array.isArray(entry.payload.items) ? entry.payload.items : [];
+    if (rows.some(row => ['shopee', 'tiktok'].includes(clean(row?.platform).toLowerCase()))) domIconRegions.add(entry.region);
+  }
   return matching.filter(entry => {
     if (entry.sourcePointer.startsWith('response:')) return true;
     const coveredPlatforms = responsePlatforms.get(entry.region);
+    if (domIconRegions.has(entry.region) && entry.sourcePointer.startsWith('dom:')) return true;
     return !coveredPlatforms?.has(entry.platform) && !(entry.platform === 'all' && coveredPlatforms?.has('all'));
-  });
+  }).filter(entry => !(domIconRegions.has(entry.region) && entry.sourcePointer.startsWith('response:') && entry.platform === 'all'));
 }
 
 function preferredEntry(entries, names, platform = null) {
@@ -344,16 +377,44 @@ function rowsFrom(entry) {
   return rows.map((row, index) => ({ row, index }));
 }
 
+function rowPlatform(row, fallback) {
+  if (row && Object.hasOwn(row, 'platform')) {
+    const raw = clean(row.platform).toLowerCase();
+    return platformOf(raw, raw || 'unknown');
+  }
+  return fallback;
+}
+
+function rowIdentity(group, row) {
+  const fields = group === 'W12_topProducts' ? ['name', 'shop', 'platform']
+    : group === 'W13_topShops' ? ['shop', 'platform']
+      : group === 'W14_topBrands' ? ['brand', 'platform'] : null;
+  if (fields) {
+    const identity = fields.map(field => clean(row?.[field])).join('\u0000');
+    if (identity.replaceAll('\u0000', '')) return `${group}:${identity}`;
+  }
+  return `${group}:${JSON.stringify(row)}`;
+}
+
 function tableGroup(entries, group, scope) {
   const columns = TABLE_COLUMNS[group];
   const selected = entriesFor(entries, entriesForRegionNames(group));
-  const rows = selected.flatMap(entry => rowsFrom(entry).map(({ row, index }) => ({ row, entry, index })));
+  const seen = new Set();
+  const rows = selected.flatMap(entry => rowsFrom(entry).map(({ row, index }) => ({ row, entry, index })))
+    .filter(({ row }) => {
+      const key = rowIdentity(group, row);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+  });
   if (!selected.length || !rows.length) return { absent: true, reason: 'NOT_ON_PAGE' };
+  const declaredColumns = new Set(selected.flatMap(entry => Array.isArray(entry.payload.columns) ? entry.payload.columns : columns).filter(column => columns.includes(column)));
+  if (['W12_topProducts', 'W13_topShops'].includes(group) && rows.some(({ row }) => Object.hasOwn(row || {}, 'platform'))) declaredColumns.add('platform');
   return {
-    columns: [...new Set(selected.flatMap(entry => Array.isArray(entry.payload.columns) ? entry.payload.columns : columns))].filter(column => columns.includes(column)),
+    columns: [...declaredColumns],
     rows: rows.map(({ row, entry, index }) => {
       const source = `${entry.sourcePointer}/${Array.isArray(entry.payload.rows) ? 'rows' : 'items'}/${index}`;
-      const platform = platformOf(row?.platform, entry.platform);
+      const platform = rowPlatform(row, entry.platform);
       const cells = {};
       for (const column of columns) {
         if (!Object.hasOwn(row || {}, column)) continue;
@@ -382,11 +443,17 @@ function kpiGroup(entries, scope) {
   const kpi = entry?.payload.kpi;
   if (!entry || !kpi || typeof kpi !== 'object') return { absent: true, reason: 'NOT_ON_PAGE' };
   const metric = (field, label, unit) => {
+    // Every emitted KPI card must have been observed. In particular, do not
+    // turn a missing overview/card into a synthetic null metric.
+    if (!Object.hasOwn(kpi, field)) {
+      const error = new Error(`METRIC_UI_CHANGED: Metric KPI card is missing: ${field}`); error.code = 'METRIC_UI_CHANGED'; throw error;
+    }
     const raw = kpi[field];
-    if (!raw || typeof raw !== 'object') return { current: metricValue(null, { label, unit, platform: 'all', period: scope.period, sourcePointer: `${entry.sourcePointer}/kpi/${field}` }), changePct: null };
+    if (raw == null) return { current: metricValue(null, { label, unit, platform: 'all', period: scope.period, sourcePointer: `${entry.sourcePointer}/kpi/${field}` }), changePct: null };
+    const current = raw && typeof raw === 'object' && Object.hasOwn(raw, 'current') ? raw.current : raw;
     return {
-      current: metricValue(raw.current ?? raw, { label, unit, platform: 'all', period: scope.period, sourcePointer: `${entry.sourcePointer}/kpi/${field}` }),
-      changePct: raw.changePct == null ? null : metricValue(raw.changePct, { label: `${label} change`, unit: 'PERCENT', platform: 'all', period: scope.period, sourcePointer: `${entry.sourcePointer}/kpi/${field}/changePct` }),
+      current: metricValue(current, { label, unit, platform: 'all', period: scope.period, sourcePointer: `${entry.sourcePointer}/kpi/${field}` }),
+      changePct: raw && typeof raw === 'object' && raw.changePct != null ? metricValue(raw.changePct, { label: `${label} change`, unit: 'PERCENT', platform: 'all', period: scope.period, sourcePointer: `${entry.sourcePointer}/kpi/${field}/changePct` }) : null,
     };
   };
   return {
@@ -397,15 +464,22 @@ function kpiGroup(entries, scope) {
 
 function platformSplitGroup(entries, scope) {
   const selected = entriesFor(entries, ['platform-split']);
+  const seen = new Set();
   const points = selected.flatMap(entry => {
     const rows = Array.isArray(entry.payload.items) ? entry.payload.items : Array.isArray(entry.payload.rows) ? entry.payload.rows : Array.isArray(entry.payload.platformSplit) ? entry.payload.platformSplit : [];
     return rows.map((row, index) => ({ row, entry, index }));
+  }).filter(({ row }) => {
+    const key = clean(row?.platform).toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
   });
   if (!points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
   return points.map(({ row, entry, index }) => ({
-    platform: platformOf(row.platform, entry.platform),
-    revenue: metricValue(row.revenue, { label: 'Revenue', unit: 'VND', platform: platformOf(row.platform, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/revenue` }),
-    share: metricValue(row.share, { label: 'Share', unit: 'PERCENT', platform: platformOf(row.platform, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
+    platform: rowPlatform(row, entry.platform),
+    revenue: metricValue(row.revenue, { label: 'Revenue', unit: 'VND', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/revenue` }),
+    units: row.units == null ? null : metricValue(row.units, { label: 'Units', unit: 'COUNT', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/units` }),
+    share: metricValue(row.share, { label: 'Share', unit: 'PERCENT', platform: rowPlatform(row, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/share` }),
   }));
 }
 
@@ -415,7 +489,10 @@ function monthlyGroup(entries, scope) {
     const rows = Array.isArray(entry.payload.items) ? entry.payload.items : Array.isArray(entry.payload.points) ? entry.payload.points : [];
     return rows.map((row, index) => ({ row, entry, index }));
   });
-  if (!points.length) return { absent: true, reason: 'NOT_ON_PAGE' };
+  if (!points.length) {
+    const unavailable = selected.find(entry => entry.payload.unavailable === true || entry.payload.reason)?.payload.reason;
+    return { absent: true, reason: clean(unavailable) || 'DOM_CHART_DATA_UNAVAILABLE' };
+  }
   return points.map(({ row, entry, index }) => ({
     platform: platformOf(row.platform, entry.platform), month: clean(row.month),
     revenue: metricValue(row.revenue, { label: 'Revenue', unit: 'VND', platform: platformOf(row.platform, entry.platform), period: scope.period, sourcePointer: `${entry.sourcePointer}/items/${index}/revenue` }),
@@ -449,12 +526,23 @@ function shopTypeGroup(entries, scope) {
 function paginationFor(entries, cap) {
   const selected = entriesFor(entries, ['top-products']);
   const details = group => {
-    const totals = group.map(entry => Number(entry.payload.pagination?.total ?? entry.payload.total ?? 0)).filter(Number.isSafeInteger);
+    const totals = group.map(entry => {
+      const raw = entry.payload.pagination?.total ?? entry.payload.total;
+      if (raw === null || raw === undefined || clean(raw) === '') return null;
+      const value = Number(raw);
+      return Number.isSafeInteger(value) ? value : null;
+    }).filter(value => value !== null);
     const pages = group.map(entry => Number(entry.payload.pagination?.page ?? entry.payload.page ?? 1)).filter(Number.isSafeInteger);
     const pageSize = group.map(entry => Number(entry.payload.pagination?.pageSize ?? entry.payload.pageSize ?? 0)).find(value => value > 0) || null;
     const totalShown = totals.length ? Math.max(...totals) : null;
     const pagesRead = pages.length ? new Set(pages).size : 0;
-    const rowsRead = group.reduce((sum, entry) => sum + (Array.isArray(entry.payload.items) ? entry.payload.items.length : Array.isArray(entry.payload.rows) ? entry.payload.rows.length : 0), 0);
+    const seenRows = new Set();
+    const rowsRead = group.reduce((sum, entry) => sum + rowsFrom(entry).filter(({ row }) => {
+      const key = rowIdentity('W12_topProducts', row);
+      if (seenRows.has(key)) return false;
+      seenRows.add(key);
+      return true;
+    }).length, 0);
     return { cap, totalShown, pageSize, pagesRead, rowsRead, truncated: totalShown !== null && rowsRead < Math.min(totalShown, cap) };
   };
   const byPlatform = Object.fromEntries([...new Set(selected.map(entry => entry.platform))].map(platform => [platform, details(selected.filter(entry => entry.platform === platform))]));
@@ -463,7 +551,7 @@ function paginationFor(entries, cap) {
 
 function scopeFor(scope) {
   return {
-    keywords: [...scope.keywords], platforms: [...scope.platforms], period: { ...scope.period }, category: scope.category ?? null,
+    keywords: [...scope.keywords], platforms: [...scope.platforms], period: { startDate: scope.period.startDate, endDate: scope.period.endDate }, category: scope.category ?? null,
     ticks: Array.isArray(scope.ticks) ? [...scope.ticks] : [], advancedFilters: Array.isArray(scope.advancedFilters) ? [...scope.advancedFilters] : [],
     exclusions: Array.isArray(scope.exclusions) ? [...scope.exclusions] : [],
   };
@@ -478,7 +566,7 @@ function captureSourceMap(entries, scope) {
     W9: { names: ['brand-shop-type'], region: 'Brand by shop type' }, W10: { names: ['shop-type'], region: 'Shop type' },
     W11: { names: ['warehouse', 'location'], region: 'Warehouse' }, W12: { names: ['top-products'], region: 'Top products' },
     W13: { names: ['top-shops'], region: 'Top shops' }, W14: { names: ['top-brands'], region: 'Top brands' },
-    W15: { source: 'dom', region: 'Platform views' }, W16: { names: ['detail-history'], region: 'Detail history' },
+    W15: { source: 'dom', region: 'Combined result view' }, W16: { names: ['detail-history'], region: 'Detail history' },
   };
   return Object.fromEntries(Object.entries(names).map(([item, descriptor]) => {
     if (descriptor.source) return [item, { source: descriptor.source, region: descriptor.region }];
@@ -510,7 +598,7 @@ export function extractResultsPage({ responses = [], dom = null, scope, captureI
     W14_topBrands: tableGroup(entries, 'W14_topBrands', normalizedScope), W16_detailHistory: tableGroup(entries, 'W16_detailHistory', normalizedScope),
   };
   if (groups.W2_kpi.absent || groups.W3_platformSplit.absent) {
-    const error = new Error('Metric required results regions are missing'); error.code = 'METRIC_UI_CHANGED'; throw error;
+    const error = new Error('METRIC_UI_CHANGED: Metric required results regions are missing'); error.code = 'METRIC_UI_CHANGED'; throw error;
   }
   return {
     snapshot: {

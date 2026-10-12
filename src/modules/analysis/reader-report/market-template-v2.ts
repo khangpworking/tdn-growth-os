@@ -178,7 +178,10 @@ export async function buildMarketReportV2(d: ReaderReportData, options: MarketRe
     for (const [name, fact] of [['Doanh thu', facts.kpi.revenue], ['Đơn vị bán', facts.kpi.units], ['Sản phẩm có lượt bán', facts.kpi.soldListings], ['Gian hàng có lượt bán', facts.kpi.shops]] as const) {
       sourceRows.push([name + ' trên trang (toàn kết quả tìm kiếm)', fact.current.value === null ? 'Chưa có dữ liệu' : label(fact.current.value.toLocaleString('vi-VN')) + mark]);
     }
-    for (const item of facts.platformSplit) sourceRows.push([`Doanh thu ${PLATFORM_LABEL[item.platform]} trên trang (toàn kết quả tìm kiếm)`, item.revenue.value === null ? 'Chưa có dữ liệu' : label(item.revenue.value.toLocaleString('vi-VN')) + mark]);
+    for (const item of facts.platformSplit) {
+      if (item.platform === 'unknown') continue;
+      sourceRows.push([`Doanh thu ${PLATFORM_LABEL[item.platform]} trên trang (toàn kết quả tìm kiếm)`, item.revenue.value === null ? 'Chưa có dữ liệu' : label(item.revenue.value.toLocaleString('vi-VN')) + mark]);
+    }
   }
   let retainedSourceTables = '';
   if (d.webFacts !== null) {
