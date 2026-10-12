@@ -9,7 +9,7 @@ File hợp nhất:
 1. Đặc tả phương pháp gốc 30 section (A40, spec v1.0.0, 30/09/2026), trong repo tại `docs/research/section-methods-v1/`.
 2. Gói cấu hình A41 đã review kinh doanh (30/09–01/10/2026), tại `docs/research/method-configurations-v1/`.
 3. Điều chỉnh đã chốt ngày 02/10/2026 (research-method contracts: temporal, quote, synthesis, corpus review).
-4. Cập nhật thảo luận ngày 05/10/2026 cho M06, M08, M09, M10, M11 và ngoại lệ E1–E3 (bản v1.0).
+4. Cập nhật thảo luận ngày 05/10/2026 cho M06, M07, M08, M09, M10, M11 và ngoại lệ E1–E3 (bản v1.0).
 5. **v1.1 (07/10/2026):** quyết định của chủ dự án cho phần Insight: ngoại lệ E4–E8, làm rõ cách áp quy tắc chung cho Insight, và danh mục nguồn dữ liệu cho Insight (mục 6).
 6. **v1.2 (07/10/2026):** M08 tính giá theo đơn vị chuẩn của từng ngành hàng, và ngoại lệ E9 cho phép so cạnh nhau có điều kiện.
 7. **v1.3 (07/10/2026):** E10 doanh số là thước đo nhu cầu; E11 báo cáo chạy theo quy tắc mặc định, không chờ chủ nhập liệu; ngưỡng thu review mở rộng (mục 6.3).
@@ -62,16 +62,16 @@ Phân biệt bắt buộc, không được trộn:
 1. **Thiếu ≠ 0; UNKNOWN luôn hiển thị.** Giá trị thiếu, quan sát bằng 0 và không rõ trạng thái là ba trạng thái khác nhau; không tự điền, không suy ra.
 2. **Danh tính bản ghi.** Chỉ collapse bản ghi trùng khi trùng đúng `EvidenceRecordRef` (digest + locator) hoặc có key nguồn ổn định. Văn bản giống nhau ở hai locator khác nhau vẫn là hai bản ghi. Không có ID người/sản phẩm/cửa hàng ổn định thì không được đếm người, không được join chéo nguồn, không được suy prevalence.
 3. **Tổng hợp.** Chỉ cộng khi: cùng đơn vị, cùng kỳ/timezone khai báo, cùng universe/frame, và có bằng chứng các thành phần rời nhau (disjoint). Thiếu bằng chứng rời nhau → chặn phép cộng, giữ nguyên inventory. Tổng + thành phần, hay hai cách biểu diễn cùng một đại lượng, không bao giờ cộng chung. **Không bao giờ cộng Shopee với TikTok Shop**, kể cả khi cùng một file xuất, cùng kỳ và cùng đơn vị; chỉ trình bày theo từng sàn (chủ quyết 11/10/2026, #209).
-4. **Tỷ số.** Chỉ tính khi có mẫu số tương thích do chủ dự án khai báo (cùng phạm vi, kỳ, đơn vị, khung chọn mẫu). Không có mẫu số → không có rate/share.
-5. **Cấm claim mặc định.** Population/prevalence, nhân quả, dự báo, hiệu quả kênh, conversion, xếp hạng, quy mô thị trường, khuyến nghị hành động — tất cả bị chặn trừ khi một phương pháp đã review và thẩm quyền tương ứng cho phép đúng claim đó.
+4. **Tỷ số.** Chỉ tính khi có mẫu số tương thích do chủ dự án khai báo (cùng phạm vi, kỳ, đơn vị, khung chọn mẫu). Không có mẫu số → không có rate/share. Khi chủ chưa khai báo, dùng mẫu số mặc định theo E11.
+5. **Cấm claim mặc định.** Population/prevalence, nhân quả, dự báo, hiệu quả kênh, conversion, xếp hạng, quy mô thị trường, khuyến nghị hành động — tất cả bị chặn trừ khi một phương pháp đã review và thẩm quyền tương ứng cho phép đúng claim đó. Ngoại lệ: bảng chủ đề bình luận xếp theo số lần nhắc, theo E15.
 6. **Không thu thập nghiên cứu khách mới.** Không phỏng vấn, khảo sát, tuyển người tham gia hay respondent giả lập. Chỉ dùng nguồn đã có/công bố.
 7. **Tái lập.** Ghi exact source digest + locator cho mọi con số và trích dẫn. Source thay đổi → các output phụ thuộc mất hiệu lực, chỉ mở lại đúng phép bị ảnh hưởng. Không ghi đè bản report cũ.
-8. **Codebook/taxonomy.** Mọi phân loại (barrier, reason, theme, brand, event class) chỉ áp mã khi codebook phiên bản đã duyệt; mã AI đề xuất chưa người duyệt thì không được vào count/n-N.
+8. **Codebook/taxonomy.** Mọi phân loại (barrier, reason, theme, brand, event class) chỉ áp mã khi codebook phiên bản đã duyệt; mã AI đề xuất chưa người duyệt thì không được vào count/n-N. Ngoại lệ: bản nháp nội bộ theo L3; bảng chủ đề bình luận giai đoạn 1 theo E11 (dòng "Duyệt cách xếp nhóm") và E15.
 9. **AI đề xuất, người quyết.** AI chỉ được giữ ở lớp candidate riêng (có trích dẫn claim, giả định, phản chứng, giới hạn); không tự thành option của chủ, không score/rank, không tự chọn.
 
 ### 2.1 Làm rõ khi áp cho Insight (mới ở v1.1)
 
-Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cách áp cho những trường hợp đã gặp khi dựng báo cáo insight thạch dừa (05–07/10/2026).
+Các điểm dưới đây **không nới** quy tắc 1–9, trừ chỗ đã ghi ngay ở quy tắc đó (L3 cho bản nháp ở quy tắc 8; ngoại lệ E15 ở L4); chúng nói rõ cách áp cho những trường hợp đã gặp khi dựng báo cáo insight thạch dừa (05–07/10/2026).
 
 - **L1 · Trùng nguyên văn (quy tắc 2).** Hai review trùng chữ ở hai vị trí khác nhau vẫn là 2 bản ghi. Được ghi chú "trùng nguyên văn, có thể cùng một người", nhưng không được gộp khi đếm. Không được coi "mỗi nội dung khác nhau là một người viết" khi nguồn không có mã người viết.
 - **L2 · Đếm người (quy tắc 2).** Khi nguồn có mã người viết (đã ẩn danh bằng hash) thì được đếm số người viết **trong cùng một nền tảng**. Không ghép người giữa các nền tảng.
@@ -176,7 +176,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9; chúng nói rõ cá
 - **E7 · I01 – câu hỏi làm việc.**
   - **Được phép:** khi chủ chưa viết câu hỏi kinh doanh, báo cáo dùng một "câu hỏi làm việc do AI đề xuất, chờ chủ duyệt", và liệt kê các trường chủ cần bổ sung (`decisionToInform`, `audience`, `scope`, `knownConstraints`).
   - **Vẫn cấm:** coi câu hỏi làm việc là câu hỏi của chủ; dùng nó để chọn hay lọc bằng chứng theo hướng có lợi cho một kết luận.
-- **E8 · Thu review mở rộng không đặt trần chi phí.**
+- **E8 · Thu review mở rộng, dừng khi đạt ngưỡng chất lượng, trong trần chi đã cấu hình (E14).**
   - **Căn cứ:** chủ quyết "không có giới hạn trần, miễn là chất lượng báo cáo đạt" (07/10/2026).
   - **Được phép:** đề xuất thu review mở rộng với điều kiện dừng là đạt ngưỡng chất lượng, không phải hết ngân sách.
   - **Vẫn bắt buộc (sửa ở v1.12):** mỗi lần gọi nhà cung cấp dữ liệu có tính phí được ghi lại (danh sách, chi phí) và hiện trên màn hình nguồn, trong trần chi đã cấu hình. Không chờ chủ duyệt từng lần (E14). Không mua hàng (L8).
@@ -341,15 +341,15 @@ Quy tắc áp cho nhiều section, không lặp lại ở từng dòng:
 
 ## 4. Chi tiết Market Report
 
-Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
+Nội dung gốc từ v1.0, đã bỏ đường dẫn máy cá nhân. Các phần cập nhật sau đó ghi rõ ngày hoặc phiên bản ngay trong section.
 
-### M01 · Kết luận chính — PROPOSED + BUSINESS_REVIEWED
+### M01 · Kết luận chính — PROPOSED + BUSINESS_REVIEWED + E3
 
 - **Câu hỏi:** những claim đã review nào liên quan đúng câu hỏi kinh doanh; xung đột/giới hạn còn lại là gì.
 - **Phương pháp:** replay từng claim ref (artifact/digest/pointer); giữ xung đột song song, không vote đa số, không pick mới nhất; inventory theo catalog order khi chưa có bộ lọc liên quan; chỉ người có thẩm quyền mới viết kết luận (ghi thành quyết định riêng, tham chiếu inventory).
 - **Cấm:** kết luận ưu tiên, ranking, khuyến nghị từ AI; hợp nhất claim ALL/WIDE/CORE khác scope.
 - **Ngoại lệ E3 (05/10/2026):** AI được tóm tắt 4–6 phát hiện mô tả trong mẫu, mỗi phát hiện có bằng chứng; được nhắc lại khuyến nghị Phần 12 với nhãn "đề xuất, chờ chủ duyệt"; chủ duyệt trước khi phát hành. Khi chưa có câu hỏi kinh doanh của chủ, Phần 1 vẫn hiện tóm tắt mô tả, không chặn.
-- **Chặn khi:** thiếu câu hỏi chủ (`M01_OWNER_QUESTION_MISSING`), replay fail, chưa có synthesis policy.
+- **Chặn khi:** replay fail, chưa có synthesis policy. Thiếu câu hỏi chủ không chặn (E3, E7, E11).
 
 ### M02 · Phạm vi và phương pháp — EXISTING_BOUNDED
 
@@ -363,7 +363,7 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 
 - Dùng group/concentration arrays đầy đủ của MetricScope và view A27. Share chỉ vẽ khi denominator/completeness đầy đủ; thiếu thì hiển thị phân bố số lượng, không vẽ phần trăm. Không tạo segmentation mới.
 
-### M05 · Nhu cầu — PROPOSED + BUSINESS_REVIEWED
+### M05 · Nhu cầu — PROPOSED + BUSINESS_REVIEWED + E10
 
 - **Phương pháp:** phân vùng thước đo nghĩa đen theo nguồn (đơn vị, kỳ, timezone, universe, frame); cộng chính xác khi khai báo additive và chứng minh được rời nhau; rate chỉ với mẫu số chủ khai báo. Mapping "thước đo → proxy nhu cầu" (ví dụ bán hàng = nhu cầu) phải có phê duyệt người, phiên bản hóa.
 - **Cập nhật 05/10:** khối lượng comment/review lớn hơn không tự nâng giá trị claim — số bản ghi vẫn là bản ghi, không phải người; chỉ tăng độ phủ chủ đề khi có codebook + corpus đóng băng (đi qua I10), không mua thêm nguồn chỉ vì "thêm sample".
@@ -380,7 +380,7 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 - **Cách bổ sung trong phạm vi online:** mở rộng dùng chính inventory có locator (Metric export, TradeInt khi có phiên hợp lệ, trang nhà sản xuất/nhà phân phối) theo đúng ràng buộc trên; mỗi lần mở rộng phải chạy lại phép kiểm, không kế thừa "đã kiểm" từ mẫu hẹp.
 - **Cấm:** N unique sản phẩm/nhà cung cấp khi thiếu ID; available market supply; xếp hạng nhà cung cấp; thị phần.
 
-### M07 · Đối thủ — PROPOSED + BUSINESS_REVIEWED (cập nhật 05/10)
+### M07 · Đối thủ — PROPOSED + BUSINESS_REVIEWED + E11 (cập nhật 05/10, 07/10)
 
 - **Phương pháp:** chủ khai báo peer-set (anchor + peers, căn cứ quan hệ, scope, phiên bản tiêu chí) **trước khi** đọc giá trị; so sánh cạnh nhau chỉ trong phân vùng cùng thước đo/đơn vị/kỳ/timezone; delta `peer − anchor` chỉ khi được bật riêng; thiếu peer set → inventory không rank.
 - **Nguồn dữ liệu hợp lệ cho bảng so sánh:** Kalodata và Metric (như đã chốt 05/10). Không dùng AI/search để "phát hiện" đối thủ; cùng sản phẩm phải có căn cứ danh tính từ nguồn.
@@ -388,7 +388,7 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 - **Liên quan v1.1:** nội dung video và quảng cáo của đối thủ (mục 6) được dùng ở đây như lời người bán (L7).
 - **Cập nhật 07/10 (E11):** tập đối thủ lấy tự động từ dữ liệu bán hàng theo quy tắc mặc định ở E11, thay cho danh sách chủ khai báo.
 
-### M08 · Giá và kinh tế đơn vị — BOUNDED + BENCHMARK_ADDED + E9 (cập nhật 05/10, 07/10)
+### M08 · Giá và kinh tế đơn vị — BOUNDED + BENCHMARK_ADDED + E1 + E9 (cập nhật 05/10, 07/10)
 
 - **Phần chuẩn hóa giá (A24/P4, duy nhất đã có code):** số học chính xác cho **một** quote (giá/kháp, giá/viên theo packCount do chủ khai báo), giữ rational + hiển thị 2 chữ số half-even; không so sánh quote, không giá thị trường, không biên lợi nhuận.
 - **Giá theo đơn vị chuẩn của từng ngành hàng (mới ở v1.2):** chủ chọn đơn vị chuẩn cho ngành hàng **trước khi** tính.
@@ -404,6 +404,7 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
   - Số gram, số ml, số đơn vị lấy từ trang bán (có locator) hoặc do chủ khai báo. Thiếu thì "chưa rõ"; không đoán từ tiêu đề.
   - Giá niêm yết, giá thanh toán, giá khuyến mãi có điều kiện là ba loại giá khác nhau, không thay nhau.
   - So giữa nhiều sản phẩm chỉ theo **E9**.
+  - **Cập nhật 07/10 (E11, ghi bổ sung 12/10/2026):** đơn vị chuẩn lấy theo bảng trên, không chờ chủ chọn. Hàng bán theo khối lượng dùng khối lượng tịnh; ghi thêm khối lượng cái khi trang bán có.
 - **Phần benchmark quảng cáo (05/10):** với các trường ROAS/CPA, dùng dữ liệu Kalodata cho thị trường quảng cáo Việt Nam sau khi xác nhận API hỗ trợ; kèm disclaimer bắt buộc: *"Dữ liệu được thu từ kênh công khai và xử lý bằng mô hình; doanh thu và chi tiêu quảng cáo có thể khác số thực tế."*
 - **Trạng thái xác nhận:** API đã xác nhận trả được **ROAS và CPA**; **chưa xác nhận trường Ad Spend trực tiếp** — không đặt số Ad Spend vào báo cáo cho đến khi xác nhận.
 - **Chặn:** Kalodata không chứng minh giá vốn, chi phí thực, lợi nhuận thực; các trường này giữ `UNKNOWN` hoặc loại khỏi report, không nội suy từ ROAS/CPA.
@@ -431,7 +432,7 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 - **Định nghĩa cơ hội (đã thống nhất 05/10):** cơ hội = **giao điểm** của (1) nhu cầu có dấu hiệu thật trong dữ liệu, (2) đối thủ phục vụ chưa tốt, (3) khả năng đáp ứng. Ba tín hiệu phải tồn tại thành claim riêng, có locator; thiếu một cạnh → ghi thiếu bằng chứng, không kết luận cơ hội.
 - **Ví dụ mẫu:** review phàn nàn gói lớn khó bảo quản → *giả thuyết* gói nhỏ → phải kiểm thêm nhu cầu và chi phí trước khi thành claim. AI không tự bịa ngân sách, lợi nhuận hay mức tăng doanh số.
 
-### M12 · Hành động — PROPOSED + BUSINESS_REVIEWED
+### M12 · Hành động — PROPOSED + BUSINESS_REVIEWED + E2
 
 - **Phương pháp:** packet quyết định từ M09–M11 với cấu trúc: hành động → bằng chứng → đối tượng/kênh → cách thử → KPI → điều kiện dừng/mở rộng. Chỉ người có thẩm quyền chọn hành động; AI chỉ tổng hợp cấu trúc từ claim hợp lệ.
 - **Cấm:** AI gán ngân sách, lợi nhuận hay mức tăng doanh số.
@@ -445,7 +446,7 @@ Không đổi so với v1.0, trừ việc bỏ đường dẫn máy cá nhân.
 
 ## 5. Chi tiết Insight Report
 
-Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là mới ở v1.1.
+Mỗi section giữ nội dung v1.0; phần **Cập nhật 07/10** là mới ở v1.1. Các cập nhật sau đó ghi rõ ngày và quy tắc đi kèm ngay trong section.
 
 ### Kết luận chính của Insight — E6 (mới 07/10)
 
@@ -501,14 +502,14 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 - Chỉ khi **cùng một bản ghi** có mong muốn + trạng thái hiện tại/thất bại + quan hệ thiếu hụt tường minh. Vắng mặt trong sample, search không kết quả, bán thấp, than phiền đơn lẻ đều không thành unmet demand.
 - **Cập nhật 07/10:** bản ghi có nghĩa chưa chắc thì đánh dấu chưa đủ bằng chứng, nêu các cách hiểu có thể.
 
-### I10 · Chủ đề và mối quan tâm — PROPOSED + BUSINESS_REVIEWED
+### I10 · Chủ đề và mối quan tâm — PROPOSED + BUSINESS_REVIEWED + E11 (hoãn)
 
 - Corpus đóng băng + codebook phiên bản + frame/đơn vị mã hóa; output là tần suất theo bản ghi/coding unit trong corpus; n/N hiển thị khi denominator đầy đủ. Không đọc thành % khách hàng/dân số; co-occurrence không thành nhân quả.
 - **Cập nhật 07/10:** áp L3 (nháp và phát hành) và L4 (không xếp hạng ngầm). Nhãn ô có sẵn trong mẫu đánh giá của sàn ("Hương vị:", "Đường:") không quyết định chủ đề.
 - **Cập nhật 07/10 (E11):** "bộ mã đã duyệt" nghĩa là đã qua kiểm chéo bằng model thứ hai theo E11.
 - **Cập nhật 11/10 (E15):** giai đoạn 1 chưa kiểm chéo bằng model thứ hai; chủ đề bình luận được đếm và xếp theo E15.
 
-### I11 · Khác biệt giữa các nhóm — PROPOSED + BUSINESS_REVIEWED
+### I11 · Khác biệt giữa các nhóm — PROPOSED + BUSINESS_REVIEWED + E11
 
 - Nhóm do chủ định nghĩa trước khi xem số; cùng outcome/đơn vị/kỳ/frame mới so; rate + chênh lệch giữ phân số chính xác; sparse-cell rule và phương pháp uncertainty phải khai báo trước; suy luận thống kê chặn khi thiếu.
 - **Cập nhật 07/10:** so giữa nền tảng (Shopee, TikTok Shop, Facebook, Instagram) chỉ là so cạnh nhau theo L5; mẫu số mỗi nền tảng ghi riêng.
@@ -525,7 +526,8 @@ Mỗi section giữ nguyên nội dung v1.0; phần **Cập nhật 07/10** là m
 - **Cập nhật 07/10:**
   - Thương hiệu lấy từ tiêu đề sản phẩm ghi là "theo tiêu đề người bán" cho tới khi có alias đã duyệt.
   - Suy luận về rủi ro (ví dụ "rủi ro thương hiệu hay rủi ro hàng bán lại") gắn nhãn giả thuyết.
-  - Thông điệp cốt lõi, định vị, thông điệp riêng của từng thương hiệu lấy từ nội dung người bán (mục 6.2), theo L7 và peer-set của chủ.
+  - Thông điệp cốt lõi, định vị, thông điệp riêng của từng thương hiệu lấy từ nội dung người bán (mục 6.2), theo L7 và tập đối thủ mặc định của E11.
+- **Cập nhật 07/10 (E11, ghi bổ sung 12/10/2026):** tập đối thủ lấy tự động từ dữ liệu bán hàng theo quy tắc mặc định ở E11, thay cho peer-set chủ khai báo.
 
 ### I14 · Hướng cơ hội — PROPOSED + BUSINESS_REVIEWED
 
@@ -579,7 +581,7 @@ Mười câu hỏi dưới đây áp cho từng video. Cột "Nghĩa đúng" là
 | Thông điệp cốt lõi, định vị | "Người bán định vị là…" | I13 | L7 |
 | Định dạng (nói thẳng vào máy, kể chuyện, hướng dẫn, khách chia sẻ, theo trend) | Xếp nhóm | I12 | Danh sách định dạng do chủ duyệt |
 | Lời kêu gọi (bình luận, nhắn tin, gọi, website, tư vấn miễn phí) | Điểm tiếp xúc có xuất hiện | I12 | PRESENCE; không suy hiệu quả |
-| Thông điệp riêng của từng thương hiệu | So giữa thương hiệu | I13, M07 | Peer-set do chủ khai báo |
+| Thông điệp riêng của từng thương hiệu | So giữa thương hiệu | I13, M07 | Tập đối thủ mặc định theo E11 |
 | Định dạng hiệu quả lặp lại | Nội dung đặt cạnh số liệu bán hàng | M07, M12, E5 | Mô tả trong mẫu; "hiệu quả" theo tiêu chí chủ đặt; không xếp hạng, không nhân quả |
 | Phễu nội dung (biết đến → tìm hiểu → mua) | Suy luận | M11, M12 | Gắn nhãn giả thuyết |
 

@@ -17,11 +17,11 @@ Cập nhật: 2026-10-12 · Gốc: `origin/main` 0b514408 · Nguồn quy tắc: 
 | Market | 35 | 5 | 24 | 3 | 3 |
 | Insight | 54 | 16 | 32 | 3 | 3 |
 
-Tài liệu mâu thuẫn nhau: 40 chỗ, gồm 3 mức cao, 19 mức vừa, 18 mức thấp. Ba chỗ mức cao đều nằm ở bảng "section nào dùng nguồn nào" trong danh mục nguồn: S03, S16 và S08 vẫn được ghi là nguồn chính, dù chưa dùng được, không đạt khi thử, hoặc đã bị chủ tạm dừng.
+Tài liệu mâu thuẫn nhau: 40 chỗ, gồm 3 mức cao, 19 mức vừa, 18 mức thấp. Ngày 12/10/2026 đã sửa 29 chỗ (cả 3 mức cao: S03, S16 và S08 nay được đánh dấu chưa dùng được trong bảng "section nào dùng nguồn nào"); 6 chỗ cần chủ quyết; 5 chỗ để sau.
 
 ## Cách cập nhật
 
 - Khi một PR thêm hoặc bỏ một bước kiểm quy tắc, sửa dòng tương ứng trong `market.md` hoặc `insight.md` ngay trong PR đó.
 - Khi file Ultimate đổi quy tắc (có dòng CHANGELOG `business-rule:`), kiểm lại các dòng có mã quy tắc đó.
-- Các mục trong `doc-consistency.md` chỉ là báo cáo, chưa sửa tài liệu. Sửa tài liệu là một việc riêng.
+- Các mục trong `doc-consistency.md` có cột "Trạng thái": đã sửa, cần chủ quyết, hoặc để sau. Chỗ cần chủ quyết chỉ sửa sau khi chủ quyết.
 - "Kiểm bằng ontology" chỉ tính các shape trong `ontology/shapes/`. Các shape này hiện vẫn ở trạng thái đề xuất, chạy trên dữ liệu giả và chưa nối vào app.
