@@ -15,10 +15,12 @@ Cập nhật: 2026-10-12 · Gốc: `origin/main` 0b514408 · Nguồn quy tắc: 
 
 | Báo cáo | Số quy tắc | Đã kiểm tự động | Kiểm một phần | Chỉ có trên giấy | Không áp dụng / tạm khoá |
 |---|---|---|---|---|---|
-| Market | 35 | 5 | 24 | 3 | 3 |
-| Insight | 54 | 16 | 32 | 3 | 3 |
+| Market | 35 | 4 | 25 | 3 | 3 |
+| Insight | 54 | 15 | 33 | 3 | 3 |
 
-Tài liệu mâu thuẫn nhau: 40 chỗ, gồm 3 mức cao, 19 mức vừa, 18 mức thấp. Ngày 12/10/2026 đã sửa 35 chỗ (cả 3 mức cao: S03, S16 và S08 nay được đánh dấu chưa dùng được trong bảng "section nào dùng nguồn nào"; 6 chỗ sửa theo quyết định của chủ cùng ngày, gồm bộ nhãn trạng thái nguồn nay ở `../source-status.md`); 0 chỗ cần chủ quyết; 5 chỗ để sau.
+Lần rà lại ngày 12/10/2026 hạ hai dòng từ "Đã kiểm tự động" xuống "Kiểm một phần": Kết luận chính Market (M01, E3) và câu hỏi làm việc của Insight (I01, E7). Hai việc code còn thiếu được ghi "để sau" ở cuối mục "Lỗ hổng ưu tiên" của `market.md` và `insight.md`.
+
+Tài liệu mâu thuẫn nhau: 40 chỗ, gồm 3 mức cao, 19 mức vừa, 18 mức thấp. Ngày 12/10/2026 đã sửa 35 chỗ (cả 3 mức cao: S03, S16 và S08 nay không còn ở cột nguồn chính hay nguồn phụ của bảng "section nào dùng nguồn nào", chỉ được nhắc ở cột ghi chú; 6 chỗ sửa theo quyết định của chủ cùng ngày, gồm bộ nhãn trạng thái nguồn nay ở `../source-status.md`); 0 chỗ cần chủ quyết; 5 chỗ để sau.
 
 ## Cách cập nhật
 
