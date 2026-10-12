@@ -72,13 +72,15 @@ function safeWarningMatches(matches) {
     const base = {
       via: String(match.via ?? 'unknown'),
       tag: String(match.tag ?? 'unknown').toLowerCase(),
+      elementKind: String(match.tag ?? 'unknown').toLowerCase(),
       role: match.role == null ? null : String(match.role),
       classSample: diagnosticSample(match.classSample),
       reason: String(match.reason ?? 'unspecified'),
     };
+    const phrase = match.phrase == null ? null : redactDiagnosticText(match.phrase);
     return diagnosticMatchIsBenign(match)
-      ? { ...base, text: null }
-      : { ...base, text: redactDiagnosticText(match.text) };
+      ? { ...base, phrase: null, text: null }
+      : { ...base, phrase, text: phrase };
   });
 }
 
@@ -269,11 +271,30 @@ function observeMetricPage(includeResults = true) {
         .some(words => words.every(word => metricWordsInPage(text).has(word)));
     return matches(normalised) || matches(stripped);
   };
+  const restrictionPhraseInPage = value => {
+    const normalised = normaliseMetricTextInPage(value);
+    const stripped = stripMetricDiacriticsInPage(normalised);
+    const patterns = [
+      /access\s+denied|denied\s+access|unauthorized|forbidden|blocked|limit\s+(?:reached|exceeded)|(?:reached|exceeded)\s+limit|session\s+expired|suspended/i,
+      /quyền\s+truy\s+cập\s+bị\s+từ\s+chối|không\s+có\s+quyền|tài\s+khoản\s+bị\s+(?:tạm\s+)?khóa|tạm\s+thời\s+không\s+khả\s+dụng|phiên\s+đăng\s+nhập\s+đã\s+hết\s+hạn|hết\s+phiên|giới\s+hạn|hết\s+lượt|vượt\s+quá/i,
+    ];
+    for (const text of [normalised, stripped]) {
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) return match[0];
+      }
+      const words = metricWordsInPage(text);
+      for (const group of [['quyen', 'truy', 'cap', 'bi', 'tu', 'choi'], ['gioi', 'han'], ['het', 'luot'], ['vuot', 'qua'], ['phien', 'dang', 'nhap', 'het', 'han'], ['het', 'phien'], ['tai', 'khoan', 'bi', 'khoa'], ['tai', 'khoan', 'tam', 'khoa'], ['khong', 'co', 'quyen'], ['tam', 'thoi', 'khong', 'kha', 'dung']]) {
+        if (group.every(word => words.has(word))) return group.join(' ');
+      }
+    }
+    return null;
+  };
   const isBareWarningInPage = value => {
     const normalised = stripMetricDiacriticsInPage(value);
     return normalised === 'warning' || normalised === 'canh bao';
   };
-  const warningScopeRoots = [...document.querySelectorAll('#main-content, main, [role="main"], [role="dialog"], .ant-modal, .ant-modal-root')]
+  const warningScopeRoots = [...document.querySelectorAll('[role="alert"],[role="dialog"],[aria-live="assertive"],[aria-live="polite"],.ant-alert,.ant-message,.ant-message-notice,.ant-notification,.ant-notification-notice,.ant-modal,.ant-modal-root,[class*="toast" i],[class*="banner" i]')]
     .filter(visible);
   const isHeaderOrAccount = element => {
     const marker = `${element?.tagName || ''} ${element?.id || ''} ${typeof element?.className === 'string' ? element.className : ''}`;
@@ -304,11 +325,16 @@ function observeMetricPage(includeResults = true) {
     .replace(/\d/g, '#').slice(0, 80);
   const sample = (value, max = 80) => String(value ?? '').replace(/\d/g, '#').slice(0, max);
   const describeWarning = (element, via, reason, causesFailure) => {
+    const text = textOf(element);
     const base = {
       via, tag: String(element?.tagName || 'unknown').toLowerCase(), role: element?.getAttribute?.('role') || null,
       classSample: sample(classOf(element)), reason,
     };
-    return causesFailure ? { ...base, text: redactDiagnosticTextInPage(textOf(element)) } : { ...base, text: null };
+    return causesFailure ? {
+      ...base,
+      phrase: restrictionPhraseInPage(text) || (isBareWarningInPage(text) ? stripMetricDiacriticsInPage(text) : null),
+      text: redactDiagnosticTextInPage(text),
+    } : { ...base, phrase: null, text: null };
   };
   const warningMatchesByElement = new Map();
   const addWarning = (element, via, reason, causesFailure) => {
@@ -379,8 +405,8 @@ async function readObservation(page, { includeResults = true, diagnose = false }
   try {
     return gateMetricPage(observation);
   } catch (error) {
-    if (error instanceof MetricAdapterError && diagnose) {
-      error.details = { warningMatches: safeWarningMatches(observation.warningMatches) };
+    if (error instanceof MetricAdapterError && (diagnose || error.details?.warningMatches)) {
+      error.details = { ...(error.details || {}), warningMatches: safeWarningMatches(observation.warningMatches) };
     }
     throw error;
   }
@@ -902,12 +928,16 @@ function dateCellState(target) {
       element,
       title: element.getAttribute('title') || element.closest('.ant-picker-cell')?.getAttribute('title') || null,
     })).filter(cell => cell.title);
-  const wanted = cells.find(cell => cell.title === target);
+  const wanted = cells.find(cell => cell.title === target && cell.element.matches('.ant-picker-cell-inner') && cell.element.getAttribute('title') === target)
+    || cells.find(cell => cell.title === target);
   if (wanted) return {
     index: cells.indexOf(wanted), direction: null,
     selector: wanted.element.matches('.ant-picker-cell-inner')
       ? `.ant-picker-dropdown .ant-picker-cell-inner[title="${target}"]`
       : `.ant-picker-dropdown .ant-picker-cell[title="${target}"]`,
+    clickIndex: [...document.querySelectorAll(wanted.element.matches('.ant-picker-cell-inner')
+      ? `.ant-picker-dropdown .ant-picker-cell-inner[title="${target}"]`
+      : `.ant-picker-dropdown .ant-picker-cell[title="${target}"]`)].indexOf(wanted.element),
   };
   const dates = cells.map(cell => cell.title).filter(Boolean).sort();
   if (!dates.length) return { index: null, direction: null, visibleCellCount: 0, firstDate: null, lastDate: null };
@@ -924,13 +954,17 @@ async function chooseDateCell(page, target) {
   for (let attempt = 0; attempt < 24; attempt += 1) {
     const state = await page.evaluate(dateCellState, target);
     if (Number.isInteger(state?.index)) {
-      await page.click(state.selector || `.ant-picker-dropdown .ant-picker-cell[title="${target}"]`);
+      await page.click(state.selector || `.ant-picker-dropdown .ant-picker-cell[title="${target}"]`, Number.isInteger(state.clickIndex) ? { nth: state.clickIndex } : undefined);
       return;
     }
     if (state?.direction === 'previous') {
-      await page.click('.ant-picker-dropdown .ant-picker-header-prev-btn');
+      await clickDateNavigation(page, 'previous');
     } else if (state?.direction === 'next') {
-      await page.click('.ant-picker-dropdown .ant-picker-header-next-btn');
+      await clickDateNavigation(page, 'next');
+    } else if (state?.visibleCellCount === 0) {
+      // The live picker can render its two panels one tick after the input
+      // click. Keep the bounded loop alive for that transient empty state.
+      if (typeof page.wait === 'function') await page.wait({ time: 0.25 }).catch(() => {});
     } else {
       throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric date cell is unavailable: ${target}`, {
         target,
@@ -943,14 +977,63 @@ async function chooseDateCell(page, target) {
   throw new MetricAdapterError('METRIC_UI_CHANGED', `Metric date navigation exceeded its safe limit: ${target}`);
 }
 
+async function ensureMultiplePlatformMode(page) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    const current = await page.evaluate(resolvePlatformSelector);
+    if (current?.isMultiple === true) return current;
+    const switchLabel = await page.evaluate(() => [...document.querySelectorAll('#QuerySearchBuilder button.switch-button')]
+      .map(element => `${element.innerText || element.textContent || ''} ${element.getAttribute('aria-label') || ''}`)
+      .find(value => /multiple\s+platform|nhiều\s+(?:nền\s+tảng|sàn)/i.test(value)) || null);
+    if (!switchLabel) break;
+    await page.click('#QuerySearchBuilder button.switch-button');
+    for (let poll = 0; poll < 6; poll += 1) {
+      if (typeof page.wait === 'function') await page.wait({ time: 0.25 }).catch(() => {});
+      const switched = await page.evaluate(resolvePlatformSelector);
+      if (switched?.isMultiple === true) {
+        await gateCurrentMetricPage(page);
+        return switched;
+      }
+    }
+  }
+  const verified = await page.evaluate(resolvePlatformSelector);
+  if (verified?.isMultiple === true) return verified;
+  throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform control did not switch to multiple mode');
+}
+
+async function clickDateNavigation(page, direction) {
+  const selector = direction === 'previous'
+    ? '.ant-picker-dropdown .ant-picker-header-prev-btn'
+    : '.ant-picker-dropdown .ant-picker-header-next-btn';
+  const nth = await page.evaluate(({ target, move }) => {
+    const visible = element => {
+      if (!element) return false;
+      const style = getComputedStyle(element); const rect = element.getBoundingClientRect();
+      return style.display !== 'none' && style.visibility !== 'hidden' && rect.width > 0 && rect.height > 0;
+    };
+    const indices = [...document.querySelectorAll(target)].map((element, index) => ({ element, index })).filter(({ element }) => visible(element));
+    return indices.length ? (move === 'next' ? indices.at(-1).index : indices[0].index) : 0;
+  }, { target: selector, move: direction }).catch(() => 0);
+  await page.click(selector, { nth });
+}
+
 async function applyCustomPeriod(page, period) {
   const pickerSelector = '#QuerySearchBuilder .ant-picker input';
   const pickerCount = await page.evaluate(() => document.querySelectorAll('#QuerySearchBuilder .ant-picker input').length);
   if (!Number.isInteger(pickerCount) || pickerCount < 2) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric custom date controls are not visible');
+  // Metric uses one open range picker with two month panels. Selecting the
+  // start cell arms the same popup for the end cell; clicking the second input
+  // reopens the range at the old end and can leave that end stale.
   await page.click(pickerSelector, { nth: 0 });
   await chooseDateCell(page, period.startDate);
   if (typeof page.wait === 'function') await page.wait({ time: 0.25 }).catch(() => {});
-  await page.click(pickerSelector, { nth: 1 });
+  const endPanel = await page.evaluate(dateCellState, period.endDate);
+  if (!Number.isInteger(endPanel?.index)
+    && (!Number.isInteger(endPanel?.visibleCellCount) || endPanel.visibleCellCount === 0)) {
+    // Some live picker states close after committing the start. Reopen the
+    // range through its end input so the committed start remains intact.
+    await page.click(pickerSelector, { nth: 1 });
+    if (typeof page.wait === 'function') await page.wait({ time: 0.25 }).catch(() => {});
+  }
   await chooseDateCell(page, period.endDate);
   if (typeof page.wait === 'function') await page.wait({ time: 0.25 }).catch(() => {});
 }
@@ -968,20 +1051,7 @@ async function applyMetricSpec(page, spec, initialObservation) {
   }
   let platformSelector = null;
   if (wantedPlatforms.size > 1) {
-    const platformMode = await page.evaluate(() => {
-      const button = [...document.querySelectorAll('#QuerySearchBuilder button.switch-button')]
-        .find(element => /multiple\s+platform|single\s+platform|nhiều\s+(?:nền\s+tảng|sàn)|một\s+(?:nền\s+tảng|sàn)/i.test(`${element.innerText || element.textContent || ''} ${element.getAttribute('aria-label') || ''}`));
-      return button ? `${button.innerText || button.textContent || ''} ${button.getAttribute('aria-label') || ''}`.replace(/\s+/g, ' ').trim() : null;
-    });
-    if (platformMode && /multiple\s+platform|nhiều\s+(?:nền\s+tảng|sàn)/i.test(platformMode)) {
-      await page.click('#QuerySearchBuilder button.switch-button');
-      await gateCurrentMetricPage(page);
-    }
-    platformSelector = await page.evaluate(resolvePlatformSelector);
-    if (platformSelector == null) throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform search input is not visible');
-    if (platformSelector.isMultiple !== true) {
-      throw new MetricAdapterError('METRIC_UI_CHANGED', 'Metric platform control did not switch to multiple mode');
-    }
+    platformSelector = await ensureMultiplePlatformMode(page);
   }
   // Fail closed before any platform typing or option click when the keyword
   // control cannot be located. It is resolved again after the platform step.
@@ -1101,7 +1171,7 @@ async function runDryRun(page, spec) {
   } catch (error) {
     const details = error?.details && typeof error.details === 'object' ? error.details : {};
     const safeDetails = Object.fromEntries(Object.entries(details).filter(([key]) => [
-      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected',
+      'expected', 'displayed', 'target', 'visibleCellCount', 'firstDate', 'lastDate', 'locatedBy', 'chipCount', 'inputFound', 'inputValueMatchesExpected', 'committedMatchesExpected', 'warningMatches',
     ].includes(key)));
     return {
       outcome: typeof error?.code === 'string' ? error.code : 'METRIC_UI_CHANGED',
@@ -1282,11 +1352,30 @@ function observeResultPage() {
         .some(words => words.every(word => metricWordsInPage(text).has(word)));
     return matches(normalised) || matches(stripped);
   };
+  const restrictionPhraseInPage = value => {
+    const normalised = normaliseMetricTextInPage(value);
+    const stripped = stripMetricDiacriticsInPage(normalised);
+    const patterns = [
+      /access\s+denied|denied\s+access|unauthorized|forbidden|blocked|limit\s+(?:reached|exceeded)|(?:reached|exceeded)\s+limit|session\s+expired|suspended/i,
+      /quyền\s+truy\s+cập\s+bị\s+từ\s+chối|không\s+có\s+quyền|tài\s+khoản\s+bị\s+(?:tạm\s+)?khóa|tạm\s+thời\s+không\s+khả\s+dụng|phiên\s+đăng\s+nhập\s+đã\s+hết\s+hạn|hết\s+phiên|giới\s+hạn|hết\s+lượt|vượt\s+quá/i,
+    ];
+    for (const text of [normalised, stripped]) {
+      for (const pattern of patterns) {
+        const match = text.match(pattern);
+        if (match) return match[0];
+      }
+      const words = metricWordsInPage(text);
+      for (const group of [['quyen', 'truy', 'cap', 'bi', 'tu', 'choi'], ['gioi', 'han'], ['het', 'luot'], ['vuot', 'qua'], ['phien', 'dang', 'nhap', 'het', 'han'], ['het', 'phien'], ['tai', 'khoan', 'bi', 'khoa'], ['tai', 'khoan', 'tam', 'khoa'], ['khong', 'co', 'quyen'], ['tam', 'thoi', 'khong', 'kha', 'dung']]) {
+        if (group.every(word => words.has(word))) return group.join(' ');
+      }
+    }
+    return null;
+  };
   const isBareWarningInPage = value => {
     const normalised = stripMetricDiacriticsInPage(value);
     return normalised === 'warning' || normalised === 'canh bao';
   };
-  const warningScopeRoots = [...document.querySelectorAll('#main-content, main, [role="main"], [role="dialog"], .ant-modal, .ant-modal-root')]
+  const warningScopeRoots = [...document.querySelectorAll('[role="alert"],[role="dialog"],[aria-live="assertive"],[aria-live="polite"],.ant-alert,.ant-message,.ant-message-notice,.ant-notification,.ant-notification-notice,.ant-modal,.ant-modal-root,[class*="toast" i],[class*="banner" i]')]
     .filter(visible);
   const isHeaderOrAccount = element => {
     const marker = `${element?.tagName || ''} ${element?.id || ''} ${typeof element?.className === 'string' ? element.className : ''}`;
@@ -1317,11 +1406,16 @@ function observeResultPage() {
     .replace(/\d/g, '#').slice(0, 80);
   const sample = (value, max = 80) => String(value ?? '').replace(/\d/g, '#').slice(0, max);
   const describeWarning = (element, via, reason, causesFailure) => {
+    const text = textOf(element);
     const base = {
       via, tag: String(element?.tagName || 'unknown').toLowerCase(), role: element?.getAttribute?.('role') || null,
       classSample: sample(classOf(element)), reason,
     };
-    return causesFailure ? { ...base, text: redactDiagnosticTextInPage(textOf(element)) } : { ...base, text: null };
+    return causesFailure ? {
+      ...base,
+      phrase: restrictionPhraseInPage(text) || (isBareWarningInPage(text) ? stripMetricDiacriticsInPage(text) : null),
+      text: redactDiagnosticTextInPage(text),
+    } : { ...base, phrase: null, text: null };
   };
   const warningMatchesByElement = new Map();
   const addWarning = (element, via, reason, causesFailure) => {
