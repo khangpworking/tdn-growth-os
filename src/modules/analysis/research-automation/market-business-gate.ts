@@ -151,6 +151,7 @@ const CLAUSE_BREAK = /[.;:!?…\n]|(?<![\p{L}\p{N}_])(?:nhưng|tuy nhiên|tuy v�
 const NEGATION = /(?<![\p{L}\p{N}_])(?:không|chưa|chẳng)(?![\p{L}\p{N}_])/giu;
 const DIRECT_NEGATED_RANKING = /^(?:phải\s*)?(?:bảng\s*)?$/iu;
 const NEGATED_LIST_VERB = /(?:^|,|\b(?:hay|hoặc)\b)\s*(?:so sánh|cộng|tính|chấm điểm)\s*(?:,|\b(?:hay|hoặc)\b)?$/iu;
+const NEGATED_VERB_OBJECT_LIST = /^(?:tính|so sánh|cộng|chấm điểm)\s+[^.;:!?…\d]{1,50}\s(?:hay|hoặc)$/iu;
 const NEGATED_INFERENCE = /^suy\s+ra(?:\s+[^.;:!?…\n]{1,60}\b(?:hay|hoặc))?\s*$/iu;
 const NEGATED_ABSENCE = /^(?:cung cấp|xác lập)(?:\s*$|\s+[^.;:!?…]{0,80}\b(?:hay|hoặc)\s*$)/iu;
 const AFFIRMATIVE_TAIL = /\d|\b(?:là|chiếm|đạt|tăng|giảm|được|trình bày|có)\b/iu;
@@ -176,6 +177,7 @@ function e2Negated(text: string, start: number, end: number, term: string): bool
   const span = before.slice((last.index ?? 0) + last[0].length).trim().replace(/\s+/gu, ' ');
   if (span.length > 60) return false;
   return DIRECT_NEGATED_RANKING.test(span) || NEGATED_LIST_VERB.test(span) ||
+    (NEGATED_VERB_OBJECT_LIST.test(span) && !AFFIRMATIVE_TAIL.test(after)) ||
     (after.trim().length === 0 && NEGATED_INFERENCE.test(span)) ||
     (term.toLowerCase() === 'thị phần' && NEGATED_ABSENCE.test(span) && !AFFIRMATIVE_TAIL.test(after));
 }

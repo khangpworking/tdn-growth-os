@@ -148,6 +148,13 @@ test('round 3: E2 negation stops at a contrast or a bare comma list', () => {
   assert.equal(check(reportHtml('<p>Không so sánh, xếp hạng hay tính thị phần.</p>'), 'E2_NO_REVENUE_ORDER').ok, true);
 });
 
+test('round 10: a negated verb with a closed object list covers ranking (quote-method limit)', () => {
+  assert.equal(check(reportHtml('<p>Không tính chi phí, lợi nhuận hoặc xếp hạng chào bán.</p>'), 'E2_NO_REVENUE_ORDER').ok, true);
+  assert.equal(check(reportHtml('<p>Không tính chi phí hoặc xếp hạng theo doanh thu được trình bày.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p>Không tính chi phí, xếp hạng theo doanh thu.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+  assert.equal(check(reportHtml('<p>Không tính chi phí hoặc xếp hạng 3 sản phẩm.</p>'), 'E2_NO_REVENUE_ORDER').ok, false);
+});
+
 test('round 3: a closed quote span does not hide the claim that follows it', () => {
   assert.equal(check(reportHtml('<p><span data-quote>trích</span> Sản phẩm tốt nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
   assert.equal(check(reportHtml('<span data-quote>source</span><p>Sản phẩm tốt nhất.</p>'), 'U13_SUPERLATIVE').ok, false);
