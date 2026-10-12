@@ -32,11 +32,6 @@ function blocks(html: string): string[] {
     .map(match => visible(match[1] ?? '')).filter(Boolean);
 }
 
-function section(html: string, id: string): string {
-  const escaped = id.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
-  return html.match(new RegExp(`<section\\b[^>]*\\bid=["']${escaped}["'][^>]*>[\\s\\S]*?<\\/section>`, 'iu'))?.[0] ?? '';
-}
-
 function result(rule: string, ok: boolean, kind: Market14Result['kind'], detail: string): Market14Result {
   return { rule, ok, kind, detail };
 }
@@ -78,8 +73,86 @@ function sampleSizeIssues(html: string): string[] {
     !/(?:\bn\s*[=:]\s*\d+|mẫu\s+(?:gồm|có)\s+(?:n\s*[=:]\s*)?\d+|tệp\s+(?:gồm|có)\s+(?:n\s*[=:]\s*)?\d+)/iu.test(block));
 }
 
+function hasSampleStatement(text: string): boolean {
+  return /\b(?:trong mẫu|mẫu|tệp)\b[^.!?]{0,160}\bn\s*=\s*\d+\b/iu.test(text) ||
+    /\bn\s*=\s*\d+\s+(?:sản phẩm|dòng|bản ghi)\b/iu.test(text);
+}
+
 function tableFragments(html: string): string[] {
   return [...html.matchAll(/<table\b[^>]*>[\s\S]*?<\/table>/giu)].map(match => match[0] ?? '');
+}
+
+function tableRows(table: string): string[][] {
+  const body = table.match(/<tbody\b[^>]*>([\s\S]*?)<\/tbody>/iu)?.[1] ?? table.replace(/<thead\b[^>]*>[\s\S]*?<\/thead>/iu, '');
+  return [...body.matchAll(/<tr\b[^>]*>([\s\S]*?)<\/tr>/giu)].map(row =>
+    [...(row[1] ?? '').matchAll(/<(?:td|th)\b[^>]*>([\s\S]*?)<\/(?:td|th)>/giu)].map(cell => visible(cell[1] ?? '')));
+}
+
+function tableHeadings(table: string): string[] {
+  const head = table.match(/<thead\b[^>]*>([\s\S]*?)<\/thead>/iu)?.[1] ?? '';
+  const row = head.match(/<tr\b[^>]*>([\s\S]*?)<\/tr>/iu)?.[1] ?? head;
+  return [...row.matchAll(/<(?:th|td)\b[^>]*>([\s\S]*?)<\/(?:th|td)>/giu)].map(cell => visible(cell[1] ?? ''));
+}
+
+function hasM12ProposalRows(html: string): boolean {
+  const m12 = html.match(/<section\b[^>]*\bid=["'](?:phan-12|M12)["'][^>]*>[\s\S]*?<\/section>/iu)?.[0] ?? '';
+  return tableFragments(m12).some(table => {
+    const headings = tableHeadings(table);
+    const option = headings.findIndex(value => /(?:việc\s*làm|phương\s*án|quick[- ]?win|option)/iu.test(value));
+    const owner = headings.findIndex(value => /(?:người\s*phụ\s*trách|owner)/iu.test(value));
+    const deadline = headings.findIndex(value => /(?:hạn|deadline|thời\s*hạn)/iu.test(value));
+    const rows = tableRows(table);
+    return option >= 0 && owner >= 0 && deadline >= 0 && rows.length === 3 && rows.every(row =>
+      Boolean(row[option]?.trim()) && Boolean(row[owner]?.trim()) && Boolean(row[deadline]?.trim()) &&
+      /đề xuất\s*,\s*chờ\s+chủ\s+duyệt/iu.test(row.join(' ')));
+  });
+}
+
+function noteBlocks(html: string): string[] {
+  const note = /<p\b(?=[^>]*\bclass=["'][^"']*\b(?:ex-note|lim)\b[^"']*["'])[^>]*>\s*<b>\s*Chú thích\s*:\s*<\/b>[\s\S]*?<\/p>/giu;
+  return [...html.matchAll(note)].map(match => match[0] ?? '');
+}
+
+function noteProblems(html: string, text: string): { blocks: string[]; bad: string[] } {
+  const blocksFound = noteBlocks(html);
+  const withoutBlocks = blocksFound.reduce((value, block) => value.replace(block, ' '), html);
+  return {
+    blocks: blocksFound,
+    bad: [
+      ...(text.match(/Ghi chú\s*:/giu) ?? []),
+      ...(visible(withoutBlocks).match(/Chú thích\s*:|Chú thích mang/giu) ?? []),
+    ],
+  };
+}
+
+function chartFragments(html: string): { tag: string; body: string }[] {
+  return [...html.matchAll(/(<div\b(?=[^>]*\bclass=["'][^"']*\bchart\b[^"']*["'])[^>]*>)([\s\S]*?)<\/div>/giu)]
+    .map(match => ({ tag: match[1] ?? '', body: match[2] ?? '' }));
+}
+
+function hasGeometry(svg: string): boolean {
+  return [...svg.matchAll(/<(path|rect|circle|line)\b([^>]*)>/giu)].some(match => {
+    const mark = (match[1] ?? '').toLowerCase(), attrs = match[2] ?? '';
+    if (mark === 'path') return /\bd\s*=\s*["'][^"']*\S[^"']*["']/iu.test(attrs);
+    if (mark === 'circle') return /\b(?:cx|cy|r)\s*=\s*["'][^"']+\S[^"']*["']/iu.test(attrs);
+    if (mark === 'line') return /\b(?:x1|y1|x2|y2)\s*=\s*["'][^"']+\S[^"']*["']/iu.test(attrs);
+    return /\b(?:x|y|width|height)\s*=\s*["'][^"']+\S[^"']*["']/iu.test(attrs);
+  });
+}
+
+function nonEmptyPayload(value: string): boolean {
+  const normalized = value.replace(/&quot;/giu, '"').replace(/&#x27;|&#39;/giu, "'").trim();
+  return normalized !== '' && !/^(?:\[\s*\]|\{\s*\}|null|undefined|"?")$/iu.test(normalized);
+}
+
+function hasChartContent(tag: string, body: string): boolean {
+  const svg = body.match(/<svg\b[\s\S]*?<\/svg>/iu)?.[0] ?? '';
+  if (svg !== '' && hasGeometry(svg)) return true;
+  const source = `${tag} ${body}`;
+  return [...source.matchAll(/\bdata-(?:payload|chart-data|chart-payload|values|dataset)\s*=\s*(["'])([\s\S]*?)\1/giu)]
+    .some(match => nonEmptyPayload(match[2] ?? '')) ||
+    [...body.matchAll(/<script\b[^>]*\btype=["']application\/json["'][^>]*>([\s\S]*?)<\/script>/giu)]
+      .some(match => nonEmptyPayload(match[1] ?? ''));
 }
 
 function platformTableIssues(html: string): string[] {
@@ -113,29 +186,25 @@ export function auditMarket14(html: string, trace?: string): Market14Result[] {
   };
   const glossary = glossaryText(html);
   const missingGlossary = GLOSSARY.filter(([term, explanation]) => !term.test(glossary) || !explanation.test(glossary)).map(([term]) => term.source);
-  const reader = /id=["'](?:phan-\d+|phu-luc)["']/iu.test(html);
   const sectionLabels = [...Array.from({ length: 12 }, (_, index) => `Phần ${index + 1}`), 'Phụ lục'].filter(label => !text.includes(label));
   const visibleCodes = text.match(/\bM(?:0[1-9]|1[0-3])\b/gu) ?? [];
   const appendixLabels = text.match(/Bảng\s+PL\.\d+/giu) ?? [];
-  const noteBad = [
-    ...(text.match(/Ghi chú\s*:/giu) ?? []),
-    ...(text.match(/Chú thích mang[^.]{0,100}/giu) ?? []),
-  ]; const limNotes = [...html.matchAll(/<(?:p|div)\b[^>]*class=["'][^"']*(?:ex-note|lim)[^"']*["'][^>]*>/giu)].length;
+  const notes = noteProblems(html, text);
+  const presentationWithoutReaderNotes = /data-market-platforms=["'][^"']*["']/iu.test(html) && !/data-report-rules=["']market-visible-v1["']/iu.test(html);
   const coverTag = html.match(/<header\b[^>]*class=["'][^"']*\bcover\b[^"']*[^>]*>/iu)?.[0] ?? '';
   const image = /data:image\/(?:jpeg|png|webp);base64,/iu.test(coverTag);
   const externalCover = /(?:url\(['"]?https?:|<img\b[^>]*\bsrc=["']https?:)/iu.test(coverTag);
   const malformedCover = /data:image\/(?:jpeg|png|webp);(?!base64,)/iu.test(coverTag);
   const coverRead = !image || !trace || !/(?:CC0|public-domain|owner-supplied|licensed|giấy phép)/iu.test(trace);
-  const chartIssues = [...html.matchAll(/<div\b[^>]*class=["'][^"']*\bchart\b[^"']*["'][^>]*>/giu)]
-    .map(match => match[0]).filter(tag => !/data-engine=["'](?:flint|svg-fallback)["']/iu.test(tag));
+  const chartIssues = chartFragments(html).flatMap(({ tag, body }) => {
+    if (!/data-engine=["'](?:flint|svg-fallback)["']/iu.test(tag)) return ['chart missing engine marker'];
+    return hasChartContent(tag, body) ? [] : ['chart has an engine marker but no drawn data or payload'];
+  });
   const iconCounts = { shopee: (text.match(/\bShopee\b/gu) ?? []).length, tiktok: (text.match(/\bTikTok\s+Shop\b/gu) ?? []).length };
   const icons = { shopee: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+s\b[^"']*["'][^>]*>/giu) ?? []).length,
     tiktok: (html.match(/<i\b[^>]*class=["'][^"']*\bpi\s+t\b[^"']*["'][^>]*>/giu) ?? []).length };
   const localIconCss = /data:image\/svg\+xml;base64,/iu.test(html);
-  const m12 = section(html, reader ? 'phan-12' : 'M12');
-  const m12Text = visible(m12), m12Tables = tableFragments(m12);
-  const m12Options = m12Tables.some(table => (table.match(/<tr\b/giu) ?? []).length >= 4);
-  const m12Structure = m12Options && /(?:ba|3)\s+phương án|phương án/iu.test(m12Text) && /(?:việc làm nhanh|việc làm ngay)/iu.test(m12Text) && /người phụ trách/iu.test(m12Text) && /hạn/iu.test(m12Text) && /đề xuất[, ]+chờ chủ duyệt/iu.test(m12Text);
+  const m12Structure = hasM12ProposalRows(html);
   const sources = sourceCoverage(html);
   const sampleIssues = sampleSizeIssues(html);
   const tables = platformTableIssues(html);
@@ -147,13 +216,13 @@ export function auditMarket14(html: string, trace?: string): Market14Result[] {
     result('2', sectionLabels.length === 0 && visibleCodes.length === 0 && appendixLabels.length > 0, 'machine', sectionLabels.length || visibleCodes.length || appendixLabels.length === 0 ? `missing labels: ${sectionLabels.join(', ')}${visibleCodes.length ? `; visible codes: ${visibleCodes.join(', ')}` : ''}${appendixLabels.length === 0 ? '; no PL.x table label' : ''}` : 'Phần/Phụ lục labels and PL.x table labels are visible; technical ids are not'),
     result('3', technicalLeaks(html).length === 0, 'machine', snippets(technicalLeaks(html))),
     result('4', gateResult('G08_PROVIDER_NAME').ok && !/\bGoogle\b/iu.test(text), 'machine', /\bGoogle\b/iu.test(text) ? 'visible provider/tool name: Google' : gateResult('G08_PROVIDER_NAME').detail),
-    result('5', noteBad.length === 0 && limNotes >= 0, 'machine', noteBad.length ? snippets(noteBad) : 'notes use their own line'),
+    result('5', (notes.blocks.length > 0 || presentationWithoutReaderNotes) && notes.bad.length === 0, 'machine', notes.blocks.length === 0 && !presentationWithoutReaderNotes ? 'missing standalone Chú thích: note block' : notes.bad.length ? snippets(notes.bad) : 'notes use their own line'),
     result('6', true, 'evidence', evidenceDetail(html, [/doanh thu|tỷ trọng|giá trung bình/iu])),
-    result('7', gateResult('U32_NO_CROSS_PLATFORM_TOTAL').ok && sampleIssues.length === 0 && !/(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu.test(text), 'machine', sampleIssues.length ? snippets(sampleIssues) : gateResult('U32_NO_CROSS_PLATFORM_TOTAL').detail),
+    result('7', gateResult('U32_NO_CROSS_PLATFORM_TOTAL').ok && hasSampleStatement(text) && sampleIssues.length === 0 && !/(?:thị phần|quy mô thị trường)\s+(?:là|đạt|tăng|giảm|chiếm)\s*\d/iu.test(text), 'machine', sampleIssues.length ? snippets(sampleIssues) : hasSampleStatement(text) ? gateResult('U32_NO_CROSS_PLATFORM_TOTAL').detail : 'missing n = sample statement'),
     result('8', true, 'evidence', evidenceDetail(html, [/nhận định|nhóm|doanh thu|giá/iu])),
     result('9', m12Structure, 'machine', m12Structure ? 'M12 has three labelled proposal rows, a quick-win label, owner and deadline fields' : 'M12 is missing the three-option, quick-win, owner, deadline or approval-label structure'),
     result('10', externalCover || malformedCover ? false : !coverRead && image, externalCover || malformedCover ? 'machine' : coverRead ? 'evidence' : 'machine', externalCover || malformedCover ? 'cover must be an embedded stored asset; external or malformed cover markup is not allowed' : coverRead ? 'READ: needs owner/asset and a trace entry with the reuse licence' : 'cover image is embedded and licensed in the trace'),
-    result('11', (!iconCounts.shopee || icons.shopee >= iconCounts.shopee) && (!iconCounts.tiktok || icons.tiktok >= iconCounts.tiktok) && localIconCss && chartIssues.length === 0, 'machine', chartIssues.length ? `charts missing engine marker: ${chartIssues.length}` : `platform icons: ${icons.shopee}/${iconCounts.shopee} Shopee, ${icons.tiktok}/${iconCounts.tiktok} TikTok Shop`),
+    result('11', (!iconCounts.shopee || icons.shopee >= iconCounts.shopee) && (!iconCounts.tiktok || icons.tiktok >= iconCounts.tiktok) && localIconCss && chartIssues.length === 0, 'machine', chartIssues.length ? chartIssues.join('; ') : `platform icons: ${icons.shopee}/${iconCounts.shopee} Shopee, ${icons.tiktok}/${iconCounts.tiktok} TikTok Shop`),
     result('12', allPlatformsMentioned && tables.length === 0, 'machine', tables.length ? `tables without a platform label: ${tables.length}` : allPlatformsMentioned ? 'Shopee and TikTok Shop are labelled in platform exhibits' : 'both platforms are not labelled'),
     result('13', sources.every(source => source.ok), 'machine', sources.filter(source => !source.ok).length ? `missing source labels: ${sources.filter(source => !source.ok).map(source => source.label).join(', ')}` : 'all four neutral source labels are present'),
     result('14', true, 'evidence', evidenceDetail(html, [/đánh giá|review|bình luận|300/iu])),

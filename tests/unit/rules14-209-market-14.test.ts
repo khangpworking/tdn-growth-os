@@ -13,13 +13,13 @@ const sections = [...Array.from({ length: 11 }, (_, i) => `<section id="phan-${i
   `<section id="phan-12"><span>Phần 12</span><p>Ba phương án là đề xuất, chờ chủ duyệt.</p><table><thead><tr><th>Việc làm ngay</th><th>Người phụ trách</th><th>Hạn</th></tr></thead><tbody>${[
     'Việc làm nhanh: rà dữ liệu', 'Kiểm tra phân loại', 'Đối chiếu đánh giá',
   ].map(name => `<tr><td>${name} (đề xuất, chờ chủ duyệt)</td><td>Chủ dự án (đề xuất, chờ chủ duyệt)</td><td>Hạn: chủ chọn</td></tr>`).join('')}</tbody></table></section>`,
-  `<section id="phu-luc"><span>Phụ lục</span>${glossary}<p>Dữ liệu bán hàng, dữ liệu đánh giá sản phẩm trên nền tảng, kết quả tìm kiếm, bình luận đã thu thập.</p><p>Bảng PL.1</p></section>`];
+  `<section id="phu-luc"><span>Phụ lục</span>${glossary}<p>Dữ liệu bán hàng, dữ liệu đánh giá sản phẩm trên nền tảng, kết quả tìm kiếm, bình luận đã thu thập.</p><p>Bảng PL.1</p><p class="ex-note"><b>Chú thích:</b> Các số liệu trong mẫu là số ước tính.</p></section>`];
 
 const valid = `<html><head><style>.pi{background-image:url(data:image/svg+xml;base64,AA==)}</style></head><body><header class="cover"></header>
 ${sections.join('')}
 <p>Trong mẫu n = 4 sản phẩm. <i class="pi s">Shopee</i> và <i class="pi t">TikTok Shop</i>.</p>
 <table><thead><tr><th>Sàn</th><th>Doanh thu</th></tr></thead><tbody><tr><td><i class="pi s">Shopee</i></td><td>10</td></tr><tr><td><i class="pi t">TikTok Shop</i></td><td>20</td></tr></tbody></table>
-<div class="chart flint" data-engine="flint"></div></body></html>`;
+<div class="chart flint" data-engine="flint"><svg viewBox="0 0 10 10"><rect x="1" y="1" width="8" height="8"></rect></svg></div></body></html>`;
 
 const rule = (html: string, number: string, trace?: string) => auditMarket14(html, trace).find(item => item.rule === number)!;
 
@@ -55,4 +55,31 @@ test('rules 6, 8 and 14 remain evidence reads', () => {
     assert.equal(result.kind, 'evidence', `rule ${number}`);
     assert.match(result.detail, /READ/);
   }
+});
+
+test('empty HTML fails every newly hardened machine rule', () => {
+  for (const number of ['5', '7', '9', '11']) assert.equal(rule('', number).ok, false, `rule ${number}`);
+});
+
+test('rule 5 requires a standalone renderer note and rejects an inline note', () => {
+  const note = '<p class="ex-note"><b>Chú thích:</b> Các số liệu trong mẫu là số ước tính.</p>';
+  assert.equal(rule(valid.replace(note, ''), '5').ok, false, 'missing note block');
+  assert.equal(rule(valid.replace(note, '<p>Chú thích: note đặt trong câu. Trong mẫu n = 4 sản phẩm.</p>'), '5').ok, false, 'inline note');
+});
+
+test('rule 7 requires an n = sample statement', () => {
+  assert.equal(rule(valid.replace(/n = 4/gu, ''), '7').ok, false, 'no n = statement');
+  assert.equal(rule(valid.replace(/n = 4/gu, '4'), '7').ok, false, 'malformed sample phrase');
+});
+
+test('rule 9 binds approval labels and required fields to exactly three rows', () => {
+  const rowLabelsOutsideRows = valid.replace(/ \(đề xuất, chờ chủ duyệt\)/gu, '');
+  assert.equal(rule(rowLabelsOutsideRows, '9').ok, false, 'labels only in prose must not count');
+  assert.equal(rule(valid.replace('Chủ dự án (đề xuất, chờ chủ duyệt)', ''), '9').ok, false, 'missing owner');
+  assert.equal(rule(valid.replace('Hạn: chủ chọn', ''), '9').ok, false, 'missing deadline');
+});
+
+test('rule 11 rejects a flint marker with an empty or removed SVG', () => {
+  assert.equal(rule(valid.replace(/<svg[\s\S]*?<\/svg>/iu, ''), '11').ok, false, 'removed SVG');
+  assert.equal(rule(valid.replace(/<svg[\s\S]*?<\/svg>/iu, '<svg></svg>'), '11').ok, false, 'empty SVG');
 });

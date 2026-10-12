@@ -88,10 +88,11 @@ export function renderAutomationMarketFindings(method: Method, citations: Report
   const withSample = (text: string): string => readerPlainText
     ? text.replace(/\btrong mẫu(?=\s*[:;,.!?]|\s*$)/iu, `trong mẫu (n = ${method.input.rows.length})`)
     : text;
+  const sampleStatement = readerPlainText ? ` trong mẫu (n = ${method.input.rows.length})` : ' trong mẫu';
   return '<p>Các phát hiện mô tả mẫu đã lưu, không sắp theo mức quan trọng.</p><ul class="market-findings">' + method.findings.map(finding =>
     `<li><p><b>Nhận định:</b> ${finding.pending ? `<span data-classified="pending">${escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement.replace(/[.]$/, ''), 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement.replace(/[.]$/, '')))} (đề xuất, chờ chủ duyệt).</span>` : escape(withSample(readerPlainText ? readerStoredOrJson(finding.statement, 'Nhận định được giữ trong hồ sơ đối chiếu') : finding.statement))}</p><p><b>Bằng chứng:</b> <a href="#${finding.sectionId}">Bảng ${finding.sectionId === 'M03' ? 'số liệu mẫu xuất ở phần Quy mô và diễn biến' : 'quy cách và đơn vị chuẩn ở phần Giá và kinh tế đơn vị'}</a>${finding.evidence.map(ref => mark(ref, citations, readerPlainText)).join('')}.</p><p><b>Trạng thái:</b> Bản nháp chưa được duyệt; ${finding.pending ? 'phân loại đề xuất, chờ chủ duyệt; ' : ''}${escape(readerPlainText ? readerStoredOrJson(finding.scope, 'Phạm vi được giữ trong hồ sơ đối chiếu') : finding.scope)}</p></li>`).join('') + '</ul>' +
     (method.findings.length < 4 ? '<p>Chưa đủ bằng chứng để có bốn nhận định; phần kết luận còn thiếu, không bổ sung nhận định không có nguồn.</p>' : '') +
-    '<p>Số bán hàng là ước tính trong mẫu. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>';
+    `<p>Số bán hàng là ước tính${sampleStatement}. Không suy số người mua, quy mô ngoài mẫu hoặc nguyên nhân.</p>`;
 }
 
 export function renderAutomationMarketUnitPrices(method: Method, citations: ReportCitations, readerPlainText = false): string {
