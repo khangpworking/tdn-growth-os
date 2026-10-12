@@ -1,6 +1,6 @@
 # Ultimate Method for 30 sections
 
-Phiên bản 1.13 · ngày 11/10/2026 · ngôn ngữ: tiếng Việt
+Phiên bản 1.13 · ngày 11/10/2026 (bổ sung quyết định của chủ ngày 12/10/2026) · ngôn ngữ: tiếng Việt
 
 Đây là **nguồn chuẩn nghiệp vụ** (source of truth) cho phương pháp của 30 section trong bộ Market Report (M01–M13) và Insight Report (I01–I17). File nói **được làm gì và không được làm gì**. Phần TDN đã áp dụng tới đâu (recipe, cấu hình, code) nằm ở [README của thư mục này](README.md).
 
@@ -23,6 +23,7 @@ File hợp nhất:
 15. **v1.11 (08/10/2026):** L10 mở rộng: bình luận dưới video bán hàng cũng là lời khách.
 16. **v1.12 (08/10/2026):** E14 thu dữ liệu tự động, không chờ chủ duyệt, cho mọi nguồn; E8 và E11 sửa theo.
 17. **v1.13 (11/10/2026):** quyết định của chủ ở issue #209: không bao giờ cộng Shopee với TikTok Shop (quy tắc 3, L5); E14 thêm luật hủy và bản sửa đổi; E15 xếp chủ đề bình luận theo số lần nhắc, chưa dùng kiểm chéo bằng model thứ hai (E11, G2, G7 hoãn).
+18. **Bổ sung 12/10/2026 (giữ v1.13):** quyết định của chủ: lời người làm video tự nói trong video review là lời người bán (mục 1, L7, L10); E11 thêm danh sách định dạng video mặc định (mục 6.2).
 
 Mọi thay đổi business rule được ghi trong [CHANGELOG.md](CHANGELOG.md), cùng commit với thay đổi. Danh mục nguồn dữ liệu, hạng tin cậy và nguồn của từng section nằm ở [Input data sources for 30 sections](input-data-sources-30-sections.md). Nguyên tắc chuyên môn (thống kê, phương pháp nghiên cứu) luôn có giải thích dễ hiểu và nguồn ở [Phụ lục](#phụ-lục-giải-thích-nguyên-tắc-chuyên-môn). Mọi ngưỡng số có lý do chọn ở Phụ lục G8.
 
@@ -53,7 +54,7 @@ Phân biệt bắt buộc, không được trộn:
 
 - **Đã mô tả phương pháp** ≠ **đã duyệt vận hành** ≠ **đã có code** ≠ **đã chạy và được review output**. Trạng thái từng section luôn nói rõ nó đang ở tầng nào.
 - Bốn tầng bằng chứng tách biệt: bằng chứng nguồn → tính toán tái lập được → diễn giải AI → quyết định con người. Diễn giải AI chưa review không được nhập vào bằng chứng nguồn.
-- **Ba loại tiếng nói tách biệt (mới ở v1.1):** lời **khách** (review, bình luận, bài viết của người mua), lời **người bán** (video, bài đăng, quảng cáo, trang bán), và **phản ứng thị trường** (doanh thu, lượt xem, chi quảng cáo). Không trình bày lời người bán như lời khách. Bình luận dưới video review và dưới video bán hàng cũng là lời khách (L10).
+- **Ba loại tiếng nói tách biệt (mới ở v1.1):** lời **khách** (review, bình luận, bài viết của người mua), lời **người bán** (video, bài đăng, quảng cáo, trang bán), và **phản ứng thị trường** (doanh thu, lượt xem, chi quảng cáo). Không trình bày lời người bán như lời khách. Bình luận dưới video review và dưới video bán hàng cũng là lời khách (L10). Lời người làm video tự nói trong chính video review thuộc lời **người bán**, ghi nhãn "lời người làm video review", không trộn vào lời khách, dù có nhận ra được video được tài trợ hay không (L7, chủ quyết 12/10/2026).
 
 ---
 
@@ -80,6 +81,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9, trừ chỗ đã gh
 - **L5 · Nhiều nền tảng (quy tắc 2, 3).** Mỗi nền tảng một cột, đặt cạnh nhau. Không cộng số giữa các nền tảng, không ghép người. Chỉ so ở mức **nhóm hoàn cảnh**. Áp cho cả Market: không có ngoại lệ "tổng hai sàn" (11/10/2026, #209).
 - **L6 · Số sao (quy tắc 1; I05).** Số sao là một phân bố riêng, không tự chuyển thành khen/chê. Review không có chữ thì cảm nhận là "chưa biết". Nguồn không có trường số sao thì ghi "nguồn không có số sao", không ghi 0.
 - **L7 · Lời người bán.** Mọi suy luận từ tiêu đề, mô tả, video, quảng cáo của người bán được viết là "người bán nhắm tới…" hoặc "người bán định vị…", không viết thành sự thật về khách.
+  - **Lời người làm video review (chủ quyết 12/10/2026):** lời người làm video tự nói trong video review sản phẩm được xếp vào lời người bán, theo quy tắc này. Báo cáo ghi nhãn "lời người làm video review" cạnh câu trích, để người đọc phân biệt với lời người bán trong video bán hàng. Không trộn vào lời khách, không dùng làm thẻ bằng chứng cho chân dung (E4) hay lời khách tự xác nhận (E5 phép kiểm 4). Áp như nhau dù có nhận ra được video được tài trợ hay không. Bình luận dưới video review vẫn theo L10.
 - **L8 · Không mua hàng (mới ở v1.4).** Báo cáo không đề xuất đặt hàng thử hay mua hàng dưới bất kỳ hình thức nào. Chất lượng sản phẩm chỉ được đánh giá qua nguồn công khai (review, ảnh khách đính kèm, tin an toàn thực phẩm) và dữ liệu chủ cung cấp. Căn cứ: chủ "không bao giờ có khả năng chi tiền thật" (07/10/2026).
 - **L9 · Từ khoá và nghĩa (mới ở v1.8; quy tắc 1, 2).** Mọi bản ghi thu bằng từ khoá (tìm kiếm, bài mạng xã hội, bình luận, quảng cáo) phải qua bước **lọc nghĩa** trước khi đếm hay trích.
   - Mỗi ngành hàng có **danh sách từ khoá** và **danh sách loại trừ** (từ dễ lẫn vì dấu hoặc vì nghĩa), có số phiên bản. AI lập hai danh sách theo E11, từ tên sản phẩm trong dữ liệu bán hàng.
@@ -96,6 +98,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9, trừ chỗ đã gh
   - **Không tính là lời khách:**
     - bình luận của chính người làm video, hoặc của tài khoản thương hiệu, gian hàng: đây là lời người bán (L7);
     - bình luận chỉ gắn thẻ bạn bè hoặc chỉ có biểu tượng cảm xúc: không đủ nghĩa, loại khỏi số đếm và ghi lý do.
+  - L10 chỉ áp cho bình luận. Lời người làm video tự nói trong chính video review là lời người bán, nhãn "lời người làm video review" (L7, chủ quyết 12/10/2026).
   - Ghi loại nguồn "bình luận dưới video review" hoặc "bình luận dưới video bán hàng" cạnh câu trích và số đếm, để người đọc phân biệt hai loại này với nhau và với review sau mua trên sàn.
   - Đếm người viết theo L2 (chỉ trong cùng nền tảng). Cỡ mẫu ghi là "bình luận thu được", không phải "toàn bộ bình luận".
   - **Căn cứ:** chủ quyết ngày 08/10/2026: "Bình luận dưới video review được tính là lời khách hàng"; với video bán hàng: "tính luôn là lời khách đi". Kết quả thử nguồn R3, R4 ở [nhật ký test](input-data-sources-test-log.md) (ST-20261008-18, -19).
@@ -220,6 +223,7 @@ Các điểm dưới đây **không nới** quy tắc 1–9, trừ chỗ đã gh
     | Ưu tiên giữa các hướng, phương án (M11, I14, I15) | Không xếp ưu tiên, chỉ liệt kê (chủ chọn 07/10/2026) |
     | Duyệt cách xếp nhóm (quy tắc 8, L3) | **Từ v1.13 (11/10/2026, #209), giai đoạn 1:** một AI lập bộ mã và gắn mã, đếm và xếp theo E15. Chưa dùng model thứ hai và κ; nhãn "phân loại do AI, đã kiểm chéo" vì vậy chưa dùng được. **Phần dưới đây hoãn, giữ lại để tra lịch sử:** AI lập bộ mã và gắn mã. Một model khác, độc lập, gắn mã lại toàn bộ khi tập có ≤200 bản ghi, hoặc một mẫu ngẫu nhiên 200 bản ghi khi lớn hơn. Độ đồng thuận κ ≥ 0,6: số đếm được dùng ở bản phát hành, nhãn "phân loại do AI, đã kiểm chéo". κ < 0,6: nhãn "độ tin cậy thấp", không đưa số đếm vào Kết luận chính. Bản ghi hai model gắn khác nhau liệt kê ở phụ lục. **Ghi chú:** chủ chưa có chuyên môn để duyệt mốc κ (07/10/2026); mốc 0,6 giữ theo chuẩn thường dùng, xem lại khi có người có chuyên môn. Giải thích: Phụ lục G2, G7 |
     | Đơn vị chuẩn khi tính giá (M08) | Theo bảng đơn vị chuẩn ở M08. Hàng bán theo khối lượng dùng khối lượng tịnh; ghi thêm khối lượng cái khi trang bán có |
+    | Danh sách định dạng video (mục 6.2; I12) | **Chủ duyệt 12/10/2026, chủ đổi được sau.** 5 định dạng và "khác". Mỗi định dạng có nhãn tiếng Việt để hiện trong báo cáo và mã tiếng Anh để lưu dữ liệu: nói thẳng vào máy (`talking_head`), kể chuyện (`storytelling`), hướng dẫn (`educational`), khách chia sẻ (`testimonial`), theo trend (`trend`), khác (`other`). Báo cáo chỉ mô tả mỗi định dạng xuất hiện bao nhiêu lần trong mẫu; không xếp định dạng nào bán tốt hơn, không nói định dạng gây ra doanh số (dòng "Định dạng hiệu quả lặp lại" ở mục 6.2) |
 
 **Ngoại lệ ngày 08/10/2026 (mới ở v1.5)**
 
@@ -579,7 +583,7 @@ Mười câu hỏi dưới đây áp cho từng video. Cột "Nghĩa đúng" là
 | Chủ đề nội dung lặp lại | Xếp nhóm trên nhiều video | I10, I13 | Codebook đã duyệt; tập video cố định; một video chỉ là ứng viên |
 | Câu mở đầu 3–5 giây | Trích nguyên văn kèm mốc giây | I12, M07 | Bằng chứng truy được nguồn |
 | Thông điệp cốt lõi, định vị | "Người bán định vị là…" | I13 | L7 |
-| Định dạng (nói thẳng vào máy, kể chuyện, hướng dẫn, khách chia sẻ, theo trend) | Xếp nhóm | I12 | Danh sách định dạng do chủ duyệt |
+| Định dạng (nói thẳng vào máy, kể chuyện, hướng dẫn, khách chia sẻ, theo trend, khác) | Xếp nhóm | I12 | Danh sách định dạng mặc định theo E11 (chủ duyệt 12/10/2026); chỉ mô tả số lần xuất hiện trong mẫu, không xếp hạng |
 | Lời kêu gọi (bình luận, nhắn tin, gọi, website, tư vấn miễn phí) | Điểm tiếp xúc có xuất hiện | I12 | PRESENCE; không suy hiệu quả |
 | Thông điệp riêng của từng thương hiệu | So giữa thương hiệu | I13, M07 | Tập đối thủ mặc định theo E11 |
 | Định dạng hiệu quả lặp lại | Nội dung đặt cạnh số liệu bán hàng | M07, M12, E5 | Mô tả trong mẫu; "hiệu quả" theo tiêu chí chủ đặt; không xếp hạng, không nhân quả |
@@ -705,6 +709,7 @@ Chi tiết từng thay đổi, căn cứ và commit: [CHANGELOG.md](CHANGELOG.md
 - **v1.11 — 08/10/2026:** L10 mở rộng: bình luận công khai dưới video bán hàng cũng là lời khách, cùng điều kiện loại trừ; ghi loại nguồn "bình luận dưới video bán hàng" cạnh câu trích và số đếm.
 - **v1.12 — 08/10/2026:** E14 thu dữ liệu tự động từ mọi nguồn đã duyệt, không chờ chủ duyệt, kể cả lần thu đầu tiên; nguồn trả tiền chạy trong trần chi đã cấu hình; Metric chưa đặt trần, thẻ Metric hiện số lượt còn lại; E8, E11 và mục 6.3 sửa theo.
 - **v1.13 — 11/10/2026:** ghi quyết định của chủ ở issue #209. Quy tắc 3 và L5: không bao giờ cộng Shopee với TikTok Shop, kể cả khi cùng file xuất, cùng kỳ, cùng đơn vị; bỏ ngoại lệ "tổng hai sàn". E14 thêm phần phạm vi và hủy: đang thu chỉ được Hủy; Hủy xóa dữ liệu thu dở nhưng giữ một dòng chi phí; đổi phạm vi là bản sửa đổi mới; báo cáo đã xong không bị ghi đè. Thêm E15 xếp chủ đề bình luận theo số lần nhắc (giai đoạn 1), nhóm "Khác" và lượt thu thêm. Kiểm chéo bằng model thứ hai và κ (E11, G2, G7) hoãn, không xóa. L4, I10 và G8 sửa theo.
+- **Bổ sung 12/10/2026 (giữ v1.13):** ghi quyết định của chủ ngày 12/10/2026. Mục 1, L7, L10: lời người làm video tự nói trong video review là lời người bán, nhãn "lời người làm video review", không trộn vào lời khách, dù có nhận ra tài trợ hay không; bình luận dưới video vẫn theo L10. E11 và mục 6.2: danh sách định dạng video mặc định gồm 5 định dạng và "khác", có nhãn tiếng Việt và mã tiếng Anh; chỉ mô tả số lần xuất hiện trong mẫu.
 
 ---
 

@@ -1,6 +1,6 @@
 # Input data sources for 30 sections
 
-Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.9 · ngày 08/10/2026 (rà khớp chữ ngày 12/10/2026, không đổi nguồn) · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.13
+Nguồn dữ liệu đầu vào cho 30 section · Phiên bản 1.9 · ngày 08/10/2026 (ngày 12/10/2026: rà khớp chữ, ghi quyết định của chủ về trạng thái S07, S15, S21, S22 và bảng mục 3; không thêm, bớt nguồn) · đi kèm [Ultimate Method](ultimate-method-30-sections.md) v1.13
 
 Đây là **nguồn chuẩn về danh mục nguồn dữ liệu**. File này trả lời ba câu hỏi:
 - có những nguồn nào;
@@ -48,7 +48,9 @@ Mỗi nguồn được chấm theo **hai trục riêng**, không gộp thành m�
 
 ## 2. Danh mục nguồn
 
-Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tính tới 08/10/2026.
+Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tính tới 08/10/2026; S07, S15, S21, S22 cập nhật ngày 12/10/2026.
+
+Ngày 12/10/2026 chủ duyệt S07, S15, S21, S22, ghi "Đã duyệt (chủ 12/10/2026)" ở cột trạng thái. Theo E14 của file Ultimate, hệ thống được tự thu các nguồn này trong trần chi đã cấu hình. Bộ nhãn trạng thái chung cho cả danh mục chưa chốt.
 
 **Quy ước trạng thái:**
 - **Đang dùng:** đã có trong luồng hoặc đã dùng cho báo cáo.
@@ -72,7 +74,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 |---|---|---|---|---|---|---|---|---|---|
 | S05 | Review Shopee, có số sao | Khách | Bộ thu review Shopee (Apify, actor zen-studio) | "review công khai trên Shopee" | B | Thấp | Đang dùng | Theo lượt; trong trần chi đã cấu hình (E14) | L1, L6; mục 6.3 |
 | S06 | Review TikTok Shop | Khách | Chưa có bộ thu | "review công khai trên TikTok Shop" | B | Thấp | Đề xuất | — | Như S05 |
-| S07 | Bình luận dưới video TikTok | Khách | Apify (clockworks, datadoping) | "bình luận công khai dưới video" | B | Thấp | Đã test (R3, R4): dùng được. 10–32% lời khách ứng viên trên mẫu chấm, cao hơn hẳn tìm bài Facebook. Pilot dùng datadoping, dự phòng clockworks. Đưa vào hệ thống bằng gói P9 | ~$0,33 (datadoping) – $1,00 (clockworks) / 1.000 bình luận duy nhất | Ẩn danh người viết; lọc tài khoản bán hàng; **lọc trùng theo mã video + mã bình luận**; vị trí trích dẫn = link video + mã bình luận (không có link trực tiếp tới bình luận); E5 phép kiểm 4 |
+| S07 | Bình luận dưới video TikTok | Khách | Apify (clockworks, datadoping) | "bình luận công khai dưới video" | B | Thấp | Đã duyệt (chủ 12/10/2026); đã test (R3, R4): dùng được. 10–32% lời khách ứng viên trên mẫu chấm, cao hơn hẳn tìm bài Facebook. Pilot dùng datadoping, dự phòng clockworks. Đưa vào hệ thống bằng gói P9 | ~$0,33 (datadoping) – $1,00 (clockworks) / 1.000 bình luận duy nhất | Ẩn danh người viết; lọc tài khoản bán hàng; **lọc trùng theo mã video + mã bình luận**; vị trí trích dẫn = link video + mã bình luận (không có link trực tiếp tới bình luận); E5 phép kiểm 4 |
 | S08 | Bài viết Facebook công khai | Khách | Agent-Reach (OpenCLI); Apify Facebook Posts Search | "bài viết công khai trên Facebook" | B | Thấp | **Tạm ngừng thu** (chủ quyết 08/10/2026). Đã test: Agent-Reach một phần; Apify tìm bài công khai R1 không đạt, R2 một phần. Bài công khai chủ yếu là bài bán hàng, chỉ 0–8% lời khách. Không thu bài trong nhóm (chủ quyết 08/10/2026) | Agent-Reach: không; Apify: ~$0,23–0,26 cho 75–86 bài | Ẩn danh; dùng tài khoản riêng; L5, L7; bài không có ngày không vào số đếm theo kỳ |
 | S09 | Instagram | Khách / người bán | Agent-Reach (không dùng được); Apify chỉ trả link | "bài viết công khai trên Instagram" | B | Thấp | Không dùng được hiện tại | — | — |
 | S10 | X (Twitter) | Khách | Apify Tweet Scraper | "bài viết công khai trên X" | B | Rất thấp ở Việt Nam | Đã test (R7): một phần. 94% bài đúng sản phẩm, nhưng chỉ 24% là lời khách ứng viên; nhiều câu mô tả lặp mẫu. Chỉ dùng làm nguồn phụ, có lọc | ~$0,08 cho 200 bài | Chưa xác minh được người thật, người Việt |
@@ -85,7 +87,7 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 | ID | Nguồn | Tiếng nói | Công cụ | Tên trong báo cáo | Hạng | Đại diện | Trạng thái | Chi phí | Ràng buộc |
 |---|---|---|---|---|---|---|---|---|---|
 | S14 | Nội dung video bán hàng: lời thoại, hình, chữ trên màn hình | Người bán | Công cụ đọc video `/watch` | "nội dung video của người bán" | B | Vừa (theo top video của S02) | Gói P9 (đã có checklist) | Không, nếu chạy trên máy | L7; mục 6.2; E5 phép kiểm 1 |
-| S15 | Thư viện quảng cáo Meta: ngày bắt đầu, trạng thái đang chạy, một số thẻ có ngưỡng chi (ví dụ ">1 triệu đồng") | Người bán + tín hiệu trả tiền | OpenCLI (lệnh browser), đọc theo trang; cùng công cụ với Metric (gói P6) | "thư viện quảng cáo công khai của Meta" | B | Vừa | Đã test (ST-20261008-22): **Đạt** cả 5 tiêu chí khi đọc theo trang (3/3 trang, 39/39 quảng cáo đúng sản phẩm, ngày bắt đầu khớp 10/10). Tìm theo từ khoá chỉ 1/50 và 9/50 quảng cáo đúng sản phẩm: chỉ dùng để tìm trang | Không | Đọc theo trang của thương hiệu trong tập đối thủ (E11); lọc nghĩa L9 khi tìm trang; số ngày tính tới ngày thu, không chứng minh chạy trả tiền liên tục; nền tảng đọc từ biểu tượng còn thiếu; E5 phép kiểm 3; G6 |
+| S15 | Thư viện quảng cáo Meta: ngày bắt đầu, trạng thái đang chạy, một số thẻ có ngưỡng chi (ví dụ ">1 triệu đồng") | Người bán + tín hiệu trả tiền | OpenCLI (lệnh browser), đọc theo trang; cùng công cụ với Metric (gói P6) | "thư viện quảng cáo công khai của Meta" | B | Vừa | Đã duyệt (chủ 12/10/2026); đã test (ST-20261008-22): **Đạt** cả 5 tiêu chí khi đọc theo trang (3/3 trang, 39/39 quảng cáo đúng sản phẩm, ngày bắt đầu khớp 10/10). Tìm theo từ khoá chỉ 1/50 và 9/50 quảng cáo đúng sản phẩm: chỉ dùng để tìm trang | Không | Đọc theo trang của thương hiệu trong tập đối thủ (E11); lọc nghĩa L9 khi tìm trang; số ngày tính tới ngày thu, không chứng minh chạy trả tiền liên tục; nền tảng đọc từ biểu tượng còn thiếu; E5 phép kiểm 3; G6 |
 | S16 | Quảng cáo nổi bật trên TikTok (Creative Center): nội dung, thương hiệu, CTR, lượt thích | Người bán + số nền tảng tự báo | Apify TikTok Ads Scraper | "thư viện quảng cáo nổi bật của TikTok" | B | Vừa | Đã test (R5): không đạt, actor lỗi và không trả quảng cáo nào. Tìm actor hoặc cách khác | ~$3 / 1.000 quảng cáo | CTR, lượt thích ghi "nền tảng tự báo"; E5 |
 | S17 | Thư viện quảng cáo Google: ngày hiện lần đầu, lần cuối, khoảng lượt hiển thị | Người bán + tín hiệu trả tiền | Apify Google Ads Scraper | "thư viện quảng cáo công khai của Google" | B | Vừa | Đã test (R6): một phần. Có ngày hiện đầu/cuối cho 100% quảng cáo. Nhưng 65% quảng cáo có hai bộ ngày lệch nhau, không có lượt hiển thị cho Việt Nam, chỉ 11% có chữ, và cần URL nhà quảng cáo trên trang minh bạch quảng cáo | ~$0,14 cho 100 quảng cáo | E5 phép kiểm 3: **chưa dùng** cho tới khi rõ nghĩa hai bộ ngày. Ưu tiên S15. Quảng cáo của một thương hiệu gồm nhiều ngành hàng, phải lọc đúng sản phẩm |
 | S18 | Trang thương hiệu Facebook: người theo dõi, đánh giá, có đang chạy quảng cáo | Người bán | Apify Facebook Pages Scraper | "trang thương hiệu trên Facebook" | B | Vừa | Đề xuất | ~$12 / 1.000 trang | L7 |
@@ -101,8 +103,8 @@ Cột "Công cụ" chỉ dùng trong tài liệu kỹ thuật. Trạng thái tí
 
 | ID | Nguồn | Tiếng nói | Công cụ | Tên trong báo cáo | Hạng | Đại diện | Trạng thái | Chi phí | Ràng buộc |
 |---|---|---|---|---|---|---|---|---|---|
-| S21 | Cục Thống kê (nso.gov.vn): giá tiêu dùng, bán lẻ, chi tiêu hộ, sản xuất, xuất nhập khẩu, dân số, internet và mạng xã hội | Thị trường (vĩ mô) | File Excel qua API WordPress (gói P10); PDF qua gói P3 | **"Cục Thống kê (nso.gov.vn)"**, bắt buộc ghi | A | Cao | Đã kiểm 08/10; gói P10 | Không | E12; mục 6.4 |
-| S22 | Số liệu Cục Thống kê theo tỉnh (chuyên mục địa phương trên nso.gov.vn) | Thị trường (vĩ mô) | PDF qua gói P3 | "Cục Thống kê (nso.gov.vn)" | A | Cao (theo tỉnh) | Đã kiểm 08/10 | Không | E12 |
+| S21 | Cục Thống kê (nso.gov.vn): giá tiêu dùng, bán lẻ, chi tiêu hộ, sản xuất, xuất nhập khẩu, dân số, internet và mạng xã hội | Thị trường (vĩ mô) | File Excel qua API WordPress (gói P10); PDF qua gói P3 | **"Cục Thống kê (nso.gov.vn)"**, bắt buộc ghi | A | Cao | Đã duyệt (chủ 12/10/2026); đã kiểm 08/10; gói P10 | Không | E12; mục 6.4 |
+| S22 | Số liệu Cục Thống kê theo tỉnh (chuyên mục địa phương trên nso.gov.vn) | Thị trường (vĩ mô) | PDF qua gói P3 | "Cục Thống kê (nso.gov.vn)" | A | Cao (theo tỉnh) | Đã duyệt (chủ 12/10/2026); đã kiểm 08/10 | Không | E12 |
 | S23 | World Bank Data (API mở) | Thị trường (vĩ mô) | API World Bank | "Ngân hàng Thế giới (World Bank Open Data)" | A | Cao | Đã duyệt (E13, 08/10/2026); đã kiểm API, chưa thu cho báo cáo | Không | E13: ghi nguồn; không coi là xác nhận độc lập với S21 |
 | S24 | UN Comtrade (API chính thức) | Thị trường (xuất nhập khẩu) | API UN Comtrade (cần đăng ký miễn phí) | "Cơ sở dữ liệu thương mại của Liên Hợp Quốc" | A | Cao (theo mã hàng) | Đề xuất | Không | M06, M09 |
 | S25 | Báo cáo ngành và báo cáo thường niên doanh nghiệp đã công bố | Bối cảnh | Tải tay; PDF qua gói P3 | "báo cáo đã công bố của …" | B (báo cáo thường niên đã kiểm toán) / C (khảo sát ngành) | Vừa | Đang dùng ở M09 (v1.0) | Không | Khung M09; không gắn nhãn số liệu toàn thị trường |
@@ -132,8 +134,8 @@ Mã nguồn có chữ trong ngoặc, ví dụ "S08 (tạm ngừng thu)", là ngu
 | M06 Nguồn cung | S01, S03 (chưa dùng được) | S04, S21, S22, S24 (đề xuất) | — |
 | M07 Đối thủ | S01, S02 | S04, S14, S15, S16 (test không đạt), S17, S18 (đề xuất) | Tập đối thủ theo E11 |
 | M08 Giá và kinh tế đơn vị | S01, S04 | S02, S21 | E1, E9; giá tiêu dùng (S21) chỉ đặt cạnh |
-| M09 Động lực và rủi ro | S21, S25, S26 (đề xuất) | S01, S19, S20 | Khung M09 |
-| M10 Dự báo và kịch bản | S01 | S21, S23 | Chỉ kịch bản có điều kiện |
+| M09 Động lực và rủi ro | S21, S25, S26 (đề xuất) | S01, S02, S14, S19, S20 | Khung M09; S02, S14 (video) thêm theo quyết định của chủ 12/10/2026 |
+| M10 Dự báo và kịch bản | S01 | S20, S21, S23 | Chỉ kịch bản có điều kiện; mức quan tâm tìm kiếm (S20) ghi riêng, không trộn với doanh số (E10); S20 thêm theo quyết định của chủ 12/10/2026 |
 | M11 Cơ hội | Tổng hợp (M05, M07, I08, I09) | — | Giao 3 tín hiệu |
 | M12 Hành động | Tổng hợp | — | E2 |
 | M13 Phụ lục và truy nguồn | Mọi nguồn đã dùng | — | Liệt kê kèm hạng |
@@ -142,15 +144,15 @@ Mã nguồn có chữ trong ngoặc, ví dụ "S08 (tạm ngừng thu)", là ngu
 | I02 Khách hàng và hoàn cảnh | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu), S11 (đề xuất), S12 | S13 (đề xuất), S21 | E4 từ lời khách; E5 dùng S02, S14, S15, S16 (test không đạt), S17 (chưa dùng cho phép kiểm 3) cho lớp người bán nhắm tới |
 | I03 Phương pháp nghiên cứu | Mọi nguồn đã dùng | — | Ghi riêng từng nguồn |
 | I04 Hành vi | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu) | S12 | — |
-| I05 Cảm nhận và thái độ | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu) | S10, S11 (đề xuất) | L6 (số sao) |
+| I05 Cảm nhận và thái độ | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu) | S10, S11 (đề xuất), S19 | L6 (số sao); S19 là nguồn phụ: kết quả tìm kiếm chỉ dẫn tới trang gốc, trang gốc mới là bằng chứng (chủ quyết 12/10/2026) |
 | I06 Hành trình | S05, S08 (tạm ngừng thu) | S12 | Chỉ ghép trong cùng một bản ghi |
 | I07 Lý do lựa chọn | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu) | S04, S19 | Lời người bán (S04) đặt cạnh, theo L7 |
-| I08 Rào cản | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu) | S12 | — |
+| I08 Rào cản | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu) | S12, S19 | S19 là nguồn phụ: kết quả tìm kiếm chỉ dẫn tới trang gốc, trang gốc mới là bằng chứng (chủ quyết 12/10/2026) |
 | I09 Nhu cầu chưa được đáp ứng | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu) | — | — |
 | I10 Chủ đề và mối quan tâm | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu) | S10, S11 (đề xuất), S20 | L3 |
 | I11 Khác biệt giữa các nhóm | S05 và S06 (đề xuất), theo sàn; S05, S07 cho mua lẻ và mua sỉ khi chính bản ghi nói rõ (ví dụ "mua về bán", "mở quán") | — | Nhóm mặc định theo E11; L5. I11 chưa có trong danh sách section được dùng số Cục Thống kê (E12), nên chưa dùng S21; thêm vào danh sách cần chủ quyết |
-| I12 Điểm tiếp xúc | S14, S15, S16 (test không đạt), S17, S07 | S21 (dùng internet, mạng xã hội) | Chỉ ghi điểm tiếp xúc có xuất hiện |
-| I13 Thương hiệu và đối thủ | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu), S14, S15, S16 (test không đạt), S18 (đề xuất) | S04, S26 (đề xuất) | L7; E5 |
+| I12 Điểm tiếp xúc | S14, S15, S16 (test không đạt), S17, S07 | S21 (dùng internet, mạng xã hội), S19 | Chỉ ghi điểm tiếp xúc có xuất hiện; S19 là nguồn phụ: kết quả tìm kiếm chỉ dẫn tới trang gốc, trang gốc mới là bằng chứng (chủ quyết 12/10/2026) |
+| I13 Thương hiệu và đối thủ | S05, S06 (đề xuất), S07, S08 (tạm ngừng thu), S14, S15, S16 (test không đạt), S18 (đề xuất) | S04, S19, S26 (đề xuất) | L7; E5; S19 là nguồn phụ: kết quả tìm kiếm chỉ dẫn tới trang gốc, trang gốc mới là bằng chứng (chủ quyết 12/10/2026) |
 | I14 Hướng cơ hội | Tổng hợp | — | — |
 | I15 Định hướng chiến lược | Tổng hợp | — | E6 |
 | I16 Thử nghiệm và đo lường | S12 (kết quả có sẵn của shop) | — | Không có kết quả có sẵn thì chỉ là thiết kế |

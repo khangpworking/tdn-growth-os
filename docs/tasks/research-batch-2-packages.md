@@ -1,6 +1,6 @@
 # Research batch 2: work packages and checklists
 
-Updated: 2026-10-08 · Notes synced: 2026-10-12 (#209 UC-1) · Base: `origin/main` `d9bd883` · Plans: #124, #125, #127 · P10: Ultimate Method v1.5, E12
+Updated: 2026-10-08 · Notes synced: 2026-10-12 (#209 UC-1; owner decisions 2026-10-12 in P8, P9-07, P9-08) · Base: `origin/main` `d9bd883` · Plans: #124, #125, #127 · P10: Ultimate Method v1.5, E12
 Process: `docs/runbooks/agent-pipeline.md`. Workers check every item below and report each ID in their handoff.
 
 ## Tóm tắt (cho chủ shop)
@@ -365,8 +365,8 @@ Owner decisions 2026-10-08: Facebook group posts are **not** collected. Facebook
 
 Checklist:
 - [ ] P8-01 Trends blocks (M05, M09, M10, I10): a line chart "mức quan tâm tìm kiếm (0–100)" and a related-queries table.
-- [ ] P8-02 Expanded search blocks (I05, I07, I08, I12, I13).
-- [ ] P8-03 Video blocks (I12, I13, M07, M09, M12): a video table and 1–2 seller-side lessons.
+- [ ] P8-02 Expanded search blocks (I05, I07, I08, I12, I13). S19 is a secondary source in these sections: a search result only points to the original page, and the original page is the evidence.
+- [ ] P8-03 Video blocks (I12, I13, M07, M09): a video table and 1–2 seller-side lessons. M12 has no video block: it is the synthesis section and cites other sections, it does not read sources directly.
 - [ ] P8-04 Social blocks:
   - journey cards (Biết đến / Cân nhắc / Mua / Sau mua), each with 2–3 quotes;
   - personas in I02 with their cards;
@@ -379,6 +379,8 @@ Checklist:
 - [ ] P8-10 Once P10 has merged: official-statistics blocks in M05, M08, M09, I02 and I12 follow Ultimate E12. Each block names the statistics group and says it is wider than the product category, shows the value status (ước tính / sơ bộ / chính thức) and publication date, sits beside the sample numbers without arithmetic between them, and cites "Cục Thống kê (nso.gov.vn)" with file, sheet and row.
 
 **Functional when:** a fixture run with every new source renders both reports with all blocks cited, and both lints pass.
+
+Owner decision 2026-10-12: the P8-01 to P8-03 section lists match the source table (§3) of the source catalogue. S20 was added to M10, S19 to I05, I08, I12 and I13 (secondary source), and S02 and S14 to M09; M12 was removed from P8-03.
 
 ---
 
@@ -429,8 +431,8 @@ Checklist:
   - on-screen text;
   - frame references with hashes.
 
-  It is validated and stored as an S14 source package. It is read as seller voice (L7); a `REVIEW_VIDEO` reading is read as creator voice.
-- [ ] P9-08 **No model calls in this package.** Coding the §6.2 fields (hook, format, CTA, positioning) is a later step under E11 (cross-check deferred, see P7-04).
+  It is validated and stored as an S14 source package. It is read as seller voice (L7). A `REVIEW_VIDEO` reading is also seller voice: the creator's own spoken content is labelled "lời người làm video review" and is never mixed into customer voice, whether or not sponsorship can be detected (owner decision 2026-10-12, Ultimate L7). Comments under the video stay customer voice under L10 (P9-05).
+- [ ] P9-08 **No model calls in this package.** Coding the §6.2 fields (hook, format, CTA, positioning) is a later step under E11 (cross-check deferred, see P7-04). The format field uses the default list in Ultimate E11 (owner approved 2026-10-12): `talking_head`, `storytelling`, `educational`, `testimonial`, `trend`, `other`, each shown in reports with its Vietnamese label; reports only describe how often each format appears in the sample.
 - [ ] P9-09 **Citations** through `CitationRegistry`: "bình luận công khai dưới video TikTok, <link video>, mã bình luận <id>, ngày <date>" and "nội dung video, <link video>, giây <start>–<end>". No provider names in owner-facing text (G-08).
 - [ ] P9-10 **Tests:**
   - the selection rule under options A and C;

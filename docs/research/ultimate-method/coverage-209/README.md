@@ -17,7 +17,7 @@ Cập nhật: 2026-10-12 · Gốc: `origin/main` 0b514408 · Nguồn quy tắc: 
 | Market | 35 | 5 | 24 | 3 | 3 |
 | Insight | 54 | 16 | 32 | 3 | 3 |
 
-Tài liệu mâu thuẫn nhau: 40 chỗ, gồm 3 mức cao, 19 mức vừa, 18 mức thấp. Ngày 12/10/2026 đã sửa 29 chỗ (cả 3 mức cao: S03, S16 và S08 nay được đánh dấu chưa dùng được trong bảng "section nào dùng nguồn nào"); 6 chỗ cần chủ quyết; 5 chỗ để sau.
+Tài liệu mâu thuẫn nhau: 40 chỗ, gồm 3 mức cao, 19 mức vừa, 18 mức thấp. Ngày 12/10/2026 đã sửa 34 chỗ (cả 3 mức cao: S03, S16 và S08 nay được đánh dấu chưa dùng được trong bảng "section nào dùng nguồn nào"; 5 chỗ sửa theo quyết định của chủ cùng ngày); 1 chỗ cần chủ quyết (bộ nhãn trạng thái nguồn); 5 chỗ để sau.
 
 ## Cách cập nhật
 
