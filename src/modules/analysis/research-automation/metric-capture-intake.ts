@@ -81,7 +81,7 @@ export function verifyMetricCaptureArchive(snapshotBytes: Buffer, manifestBytes:
   const snapshotFile = manifest.files.find(file => file.path === 'snapshot.json');
   if (!snapshotFile || snapshotFile.byteSize !== snapshotBytes.byteLength || snapshotFile.sha256 !== hash(snapshotBytes))
     throw new MetricCaptureRejection('CAPTURE_DIGEST_MISMATCH', 'manifest.files[snapshot.json]');
-  if (manifest.captureGate !== undefined && !gateCleared(manifest.captureGate))
+  if (!gateCleared(manifest.captureGate))
     throw new MetricCaptureRejection('CAPTURE_GATE_NOT_CLEARED', 'manifest.captureGate');
   const rows = snapshot.groups.W12_topProducts;
   if ('absent' in rows || rows.rows.length === 0) throw new MetricCaptureRejection('CAPTURE_PRODUCTS_MISSING', 'groups.W12_topProducts');
@@ -110,7 +110,7 @@ function parseJson(bytes: Buffer, locator: string): unknown {
   catch { throw new MetricCaptureRejection('CAPTURE_INVALID_JSON', locator); }
 }
 
-function gateCleared(value: boolean | { readonly [key: string]: unknown }): boolean {
+function gateCleared(value: boolean | { readonly [key: string]: unknown } | undefined): boolean {
   if (value === true) return true;
   if (typeof value !== 'object' || value === null) return false;
   return value.cleared === true || value.status === 'CLEARED';
@@ -138,7 +138,10 @@ export class AutomationMetricCaptureSourceIntake {
   async prepare(input: ResearchAutomationMetricCapturePrepareRequest, snapshotBytes: Buffer, manifestBytes: Buffer,
     bound: { readonly runId: string; readonly start: StartSnapshot; readonly scope: ScopeSnapshot }): Promise<ResearchAutomationMetricCapturePrepareReceipt> {
     const verified = verifyMetricCaptureArchive(snapshotBytes, manifestBytes, bound);
-    const binding = hash(json(bound));
+    // The capture can be uploaded before scope confirmation. Bind it to the
+    // immutable run start, not the temporary empty/proposed scope used by the
+    // upload endpoint. Confirmation authenticates the same package again.
+    const binding = hash(json({ runId: bound.runId, start: bound.start }));
     const descriptor: AutomationMetricSourceCaptureV1 = {
       contractVersion: 'automation-metric-source-capture-v1', runId: bound.runId, workspaceId: bound.start.workspaceId,
       runBindingSha256: binding, keyword: verified.capture.keyword, captureId: verified.capture.captureId,

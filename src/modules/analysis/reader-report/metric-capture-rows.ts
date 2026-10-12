@@ -9,7 +9,8 @@ export type ReaderRow = ReaderReportInput['rows'][number];
 export type MetricCaptureUnattributedRow = {
   readonly i: number;
   readonly platform: 'unknown';
-  readonly listing: string | null;
+  readonly listing: string;
+  readonly listingSynthetic: true;
   readonly title: string;
   readonly shop: string;
   readonly rev: number | null;
@@ -22,7 +23,7 @@ const isText = (value: Value | Text | undefined): value is Text => typeof value 
 const isValue = (value: Value | Text | undefined): value is Value => typeof value === 'object' && value !== null && 'value' in value;
 const textCell = (value: Value | Text | undefined): string => isText(value) ? squash(value.text) : isValue(value) ? squash(value.displayed) : '';
 const numberCell = (value: Value | Text | undefined): number | null => isValue(value) && typeof value.value === 'number' && Number.isFinite(value.value) && value.value >= 0 ? value.value : null;
-const hashId = (platform: ReaderPlatform, title: string, shop: string): string =>
+const hashId = (platform: string, title: string, shop: string): string =>
   `synthetic-${createHash('sha256').update(canonicalJson([platform, title, shop]), 'utf8').digest('hex').slice(0, 40)}`;
 
 type CaptureTableRow = Table['rows'][number];
@@ -50,7 +51,8 @@ export function readerRowsFromMetricCapture(snapshot: AutomationMetricWebSnapsho
     const rev = numberCell(rowCell(sourceRow, 'revenue'));
     const units = numberCell(rowCell(sourceRow, 'units'));
     if (platform === 'unknown') {
-      unattributed.push({ i, platform, listing: null, title: title.slice(0, 1000), shop: shop.slice(0, 300), rev, units });
+      unattributed.push({ i, platform, listing: hashId(platform, title, shop), listingSynthetic: true,
+        title: title.slice(0, 1000), shop: shop.slice(0, 300), rev, units });
       continue;
     }
     if (!platforms.includes(platform)) throw new ReaderMetricRowsError('UNDECLARED_PLATFORM', `groups.W12_topProducts.rows[${i}].platform`);

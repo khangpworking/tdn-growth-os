@@ -137,6 +137,7 @@ function legacyConcentration(scope: Scope, result: MetricScopeOutput, citations:
 }
 
 export function metricMethodSection(snapshot: AutomationMetricMethodSnapshot, sectionId: 'M03' | 'M04', classified: AutomationClassifiedMetricSnapshot | undefined, citations: ReportCitations, neutralCopy = false, readerPlainText = false): string {
+  if (snapshot.capture) return captureMetricMethodSection(snapshot, sectionId, citations);
   if (!readerPlainText) return legacyMetricMethodSection(snapshot, sectionId, classified, citations, neutralCopy);
   const result = classified?.result ?? snapshot.result;
   const observed = result.scopes.find(scope => scope.key === 'all')!;
@@ -179,4 +180,25 @@ export function metricMethodSection(snapshot: AutomationMetricMethodSnapshot, se
   }
   const sensitivity = observed.withoutTopShop;
   return context + limits + readinessText + concentration(observed, result, citations) + (sensitivity ? `<h3>Kiểm tra độ nhạy khi bỏ gian hàng đứng đầu</h3><p>Bỏ ${storedLiteral(shopLabel(sensitivity.removedShopKey), 'Gian hàng được giữ trong bản lưu nguồn')}, còn ${readerCount(sensitivity.listingCount)} bản ghi sản phẩm; doanh thu quan sát ${integer(sensitivity.revenue.value)}${sensitivity.revenue.value === null ? '' : ' VND'}. Đây là phép tính độ nhạy trên cùng mẫu, không phải dự báo hoặc tăng trưởng.</p>` + table('Tập trung trong mẫu còn lại, mẫu số khác với mẫu ban đầu', ['Nhóm', 'Số gian hàng thực dùng', 'Tỷ trọng', 'Doanh thu nhóm (VND)', 'Doanh thu làm mẫu số (VND)', 'Nguồn'], sensitivity.concentration.map(row => `<tr><th scope="row">${readerCount(row.k)} gian hàng đứng đầu</th><td>${readerCount(row.usedShopCount)}</td><td>${row.share ? escape(row.share.percent) + '%' : 'Chưa đủ điều kiện'}</td><td>${row.share ? integer(row.share.numerator) : 'Chưa có số liệu'}</td><td>${row.share ? integer(row.share.denominator) : 'Chưa có số liệu'}</td><td>${calculationMark(result, citations)}</td></tr>`)) : '<p>Chưa đủ điều kiện kiểm tra độ nhạy bỏ gian hàng đứng đầu.</p>') + details;
+}
+
+function captureMetricMethodSection(snapshot: AutomationMetricMethodSnapshot, sectionId: 'M03' | 'M04', citations: ReportCitations): string {
+  const capture = snapshot.capture!;
+  const number = (value: string | null, unit = ''): string => value === null ? 'không có số liệu' : `${BigInt(value).toLocaleString('vi-VN')}${unit ? ` ${unit}` : ''}`;
+  const platformLabel = (platform: string): string => platform === 'shopee' ? 'Shopee' : platform === 'tiktok' ? 'TikTok Shop' : platform;
+  const source = (result: MetricScopeOutput): string => calculationMark(result, citations);
+  const platformRows = capture.platforms.map(({ platform, result }) => {
+    const observed = result.scopes.find(scope => scope.key === 'all')!;
+    const records = result.input.records.map(row => `<tr><td>${escape(platformLabel(platform))}</td><td>${escape(row.title)}</td><td>${number(row.revenue.value, 'VND')}</td><td>${number(row.units.value)}</td><td>${rowMark(row.revenue.source, citations)}<br>${rowMark(row.units.source, citations)}</td></tr>`);
+    return `<h3>${escape(platformLabel(platform))}</h3><p>Doanh thu quan sát: <strong>${number(observed.revenue.value, 'VND')}</strong>; sản lượng: <strong>${number(observed.units.value)}</strong>; ${observed.listingCount} dòng, ${observed.shopCount} gian hàng. ${source(result)}</p>${sectionId === 'M03'
+      ? table(`${platformLabel(platform)} · số liệu từ results-page capture`, ['Nền tảng', 'Tên theo capture', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)
+      : table(`${platformLabel(platform)} · cơ cấu trong mẫu capture`, ['Nền tảng', 'Tên theo capture', 'Doanh thu (VND)', 'Sản lượng', 'Nguồn'], records)}`;
+  }).join('');
+  const unknown = capture.unattributedRows.length
+    ? `<h3>Phụ lục: dòng không gán được sàn</h3><p>Các dòng sau có mã tổng hợp ổn định (synthetic), được giữ riêng và <strong>không cộng vào Shopee hoặc TikTok Shop</strong>.</p>${table('Dòng không gán được sàn', ['Mã synthetic', 'Tên theo capture', 'Gian hàng', 'Doanh thu (VND)', 'Sản lượng'], capture.unattributedRows.map(row => `<tr><td>${escape(row.listingId)}</td><td>${escape(row.title)}</td><td>${escape(row.shop)}</td><td>${number(row.revenue, 'VND')}</td><td>${number(row.units)}</td></tr>`))}`
+    : '<p>Không có dòng không gán được sàn.</p>';
+  const truncation = capture.capture.truncation;
+  const limitation = `Nguồn là <strong>results-page capture</strong>; danh sách chịu giới hạn <strong>top-N</strong> (cap ${truncation.cap}) và giữ ${truncation.rowsRead} dòng trong ${truncation.pagesRead} trang${truncation.totalShown === null ? '' : ` trên ${truncation.totalShown} dòng hiển thị`}.${truncation.truncated ? ' Phần còn lại không được suy ra.' : ''}`;
+  const context = `<p class="warning">${limitation} Đây là số liệu quan sát theo từng nền tảng từ capture, không phải quy mô toàn thị trường. Trường không có trong capture được hiển thị là <strong>không có số liệu</strong>, không đổi thành 0.</p><dl class="reader-context"><dt>Provenance</dt><dd>results-page capture · capture ID ${escape(capture.capture.captureId)} · kỳ ${escape(capture.capture.measurementPeriod.startDate)} đến ${escape(capture.capture.measurementPeriod.endDate)}</dd><dt>Nền tảng</dt><dd>${capture.capture.platforms.map(platformLabel).map(escape).join(', ')}</dd></dl>`;
+  return context + platformRows + unknown + `<details class="evidence-trace"><summary>Hồ sơ phương pháp capture</summary><p>Không có tệp bảng tính trong nguồn này. Snapshot, manifest, context và descriptor được giữ trong gói phương pháp; các digest được kiểm tra khi dựng và mở báo cáo.</p><ul>${snapshot.limitations.map(limit => `<li>${escape(limit === 'CAPTURE_RESULTS_PAGE_TOP_N_LIMITED' ? 'Danh sách results-page capture bị giới hạn top-N; không suy ra phần còn lại.' : limitationCopy(limit))}</li>`).join('')}</ul></details>`;
 }

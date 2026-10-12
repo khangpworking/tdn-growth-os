@@ -25,7 +25,7 @@ export async function readPreparedMetricCaptureSources(reader: Reader, bound: { 
     const context = parseServerJson(contextFile.bytes, CONTEXT_PATH) as Record<string, unknown>;
     const request = context.request as ResearchAutomationMetricCapturePrepareRequest | undefined;
     if (descriptor.contractVersion !== 'automation-metric-source-capture-v1' || descriptor.runId !== bound.runId || descriptor.workspaceId !== bound.start.workspaceId ||
-        descriptor.runBindingSha256 !== sha({ runId: bound.runId, start: bound.start, scope: bound.scope }) ||
+        descriptor.runBindingSha256 !== sha({ runId: bound.runId, start: bound.start }) ||
         context.contractVersion !== 'automation-metric-capture-context-v1' || context.provenance !== 'results-page capture' ||
         !request || source.manifest.packageKey !== packageKey(bound.runId, request.requestKey) || source.manifest.sourceLabel !== 'results-page capture' ||
         source.manifest.sourceAcquiredAt !== (parseJson(snapshotFile.bytes, SNAPSHOT_PATH) as { capturedAt?: unknown }).capturedAt ||

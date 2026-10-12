@@ -37,7 +37,7 @@ function snapshotFixture(): AutomationMetricWebSnapshotV1 {
   return validateMetricWebSnapshot(snapshot);
 }
 
-function archive(snapshot: AutomationMetricWebSnapshotV1, captureGate?: unknown): { snapshot: Buffer; manifest: Buffer } {
+function archive(snapshot: AutomationMetricWebSnapshotV1, captureGate: unknown = { cleared: true }): { snapshot: Buffer; manifest: Buffer } {
   const snapshotBytes = Buffer.from(JSON.stringify(snapshot, null, 2) + '\n');
   const manifest = {
     contractVersion: 'metric-results-capture-v1', captureId: snapshot.captureId, specDigest: snapshot.specDigest,
@@ -45,7 +45,7 @@ function archive(snapshot: AutomationMetricWebSnapshotV1, captureGate?: unknown)
     productPagination: { cap: 3, totalShown: 5, pageSize: 3, pagesRead: 1, rowsRead: 3, truncated: true },
     views: [], sourceMap: {}, files: [{ path: 'snapshot.json', sha256: hash(snapshotBytes), byteSize: snapshotBytes.length, mediaType: 'application/json', role: 'normalized' }],
     screenshotSkips: [], archive: { rawResponses: 'raw/', normalizedSnapshot: 'snapshot.json', resultsHtml: 'results.html', screenshots: [] }, noReportFileRequested: true,
-    ...(captureGate === undefined ? {} : { captureGate }),
+    captureGate,
   };
   return { snapshot: snapshotBytes, manifest: Buffer.from(JSON.stringify(manifest, null, 2) + '\n') };
 }
@@ -62,12 +62,20 @@ test('capture rows split platforms, preserve unknown attribution, and use stable
   assert.equal(first.rows[0]!.brand, '(không ghi)');
   assert.equal(first.rows[1]!.asp, null);
   assert.equal(first.unattributed[0]!.platform, 'unknown');
+  assert.equal(first.unattributed[0]!.listingSynthetic, true);
+  assert.equal(first.unattributed[0]!.listing, second.unattributed[0]!.listing);
 });
 
 test('capture archive validates pretty JSON bytes and refuses digest, gate, schema, and size failures with typed codes', () => {
   const valid = archive(snapshotFixture());
   const checked = verifyMetricCaptureArchive(valid.snapshot, valid.manifest);
   assert.equal(checked.capture.truncation.rowsRead, 3);
+  const missingGate = JSON.parse(valid.manifest.toString('utf8')) as Record<string, unknown>;
+  delete missingGate.captureGate;
+  assert.throws(() => verifyMetricCaptureArchive(valid.snapshot, Buffer.from(JSON.stringify(missingGate))),
+    (error: unknown) => error instanceof MetricCaptureRejection && error.code === 'CAPTURE_GATE_NOT_CLEARED');
+  const cleared = archive(snapshotFixture(), { cleared: true });
+  assert.equal(verifyMetricCaptureArchive(cleared.snapshot, cleared.manifest).capture.captureId, 'capture-synthetic-209');
   const wrongValue = JSON.parse(valid.snapshot.toString('utf8')); wrongValue.capturedAt = '2026-01-01T00:00:01Z';
   const wrongSnapshot = Buffer.from(JSON.stringify(wrongValue, null, 2) + '\n');
   assert.throws(() => verifyMetricCaptureArchive(wrongSnapshot, valid.manifest), (error: unknown) => error instanceof MetricCaptureRejection && error.code === 'CAPTURE_DIGEST_MISMATCH');
